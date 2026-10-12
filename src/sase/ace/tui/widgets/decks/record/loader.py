@@ -1,8 +1,9 @@
 """Off-thread Record deck loading (epic sase-1jm.4.2, ``shell``).
 
-The worker calls both extras loaders, builds the four-card document,
-and keeps an LRU cache keyed by subject identity plus subject and
-extras equality, like ``_FINAL_CACHE``. There is no I/O in compose,
+The worker refreshes Relations extras, reuses the cached document when
+those extras are unchanged, and otherwise loads Facts and builds the
+four-card document. The LRU cache is keyed by subject identity and the
+captured subject signature. There is no I/O in compose,
 render, keystroke, or pump paths: every read happens here, inside the
 worker.
 """
@@ -31,6 +32,7 @@ class RecordDeckLoadResult:
     signature: str
     document: Any
     default_card: str | None
+    relations_signature: str | None = None
 
 
 _RECORD_CACHE: OrderedDict[tuple[Any, str], RecordDeckLoadResult] = OrderedDict()
@@ -87,29 +89,33 @@ def load_record_deck(
 ) -> RecordDeckLoadResult:
     """Load both extras and build one Record deck (worker body).
 
-    A cache hit skips the extras loaders but still refreshes the
-    ``generation`` so the caller can reject stale paints.
+    Relations extras are refreshed on each worker request so the shared
+    artifact-link snapshot key can invalidate the document cache. An
+    unchanged result still refreshes ``generation`` for stale-paint checks.
     """
     signature = record_cache_key(subject)
+    relations: RelationsExtras | None = None
+    try:
+        relations = load_relations_extras(subject)
+    except Exception:
+        relations = None
+    relations_signature = repr(relations) if relations is not None else None
     cached = cached_record_result(subject.identity, signature)
-    if cached is not None:
+    if cached is not None and cached.relations_signature == relations_signature:
         return RecordDeckLoadResult(
             subject_identity=cached.subject_identity,
             generation=generation,
             signature=cached.signature,
             document=cached.document,
             default_card=cached.default_card,
+            relations_signature=cached.relations_signature,
         )
+
     facts: FactsExtras | None = None
-    relations: RelationsExtras | None = None
     try:
         facts = load_facts_extras(subject)
     except Exception:
         facts = None
-    try:
-        relations = load_relations_extras(subject)
-    except Exception:
-        relations = None
     document = build_record_document(subject, facts, relations)
     try:
         default_card = record_default_card(document.card_ids, None)
@@ -121,6 +127,7 @@ def load_record_deck(
         signature=signature,
         document=document,
         default_card=default_card,
+        relations_signature=relations_signature,
     )
     store_record_result(result)
     return result

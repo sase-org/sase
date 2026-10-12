@@ -315,22 +315,32 @@ def test_loader_signature_cache_skips_rebuild() -> None:
 
     clear_record_cache()
     calls = 0
+    relation_calls = 0
     original = loader_module.load_facts_extras
+    original_relations = loader_module.load_relations_extras
 
     def _counting(subject: RecordSubject):  # type: ignore[no-untyped-def]
         nonlocal calls
         calls += 1
         return original(subject)
 
+    def _counting_relations(subject: RecordSubject):  # type: ignore[no-untyped-def]
+        nonlocal relation_calls
+        relation_calls += 1
+        return original_relations(subject)
+
     loader_module.load_facts_extras = _counting  # type: ignore[method-assign]
+    loader_module.load_relations_extras = _counting_relations  # type: ignore[method-assign]
     try:
         subject = _subject()
         first = load_record_deck(subject, generation=3)
         second = load_record_deck(subject, generation=4)
     finally:
         loader_module.load_facts_extras = original  # type: ignore[method-assign]
+        loader_module.load_relations_extras = original_relations  # type: ignore[method-assign]
         clear_record_cache()
     assert calls == 1
+    assert relation_calls == 2
     assert isinstance(first, RecordDeckLoadResult)
     assert second.generation == 4
     assert second.signature == first.signature
@@ -341,6 +351,54 @@ def test_loader_signature_cache_skips_rebuild() -> None:
         "links",
     )
     assert second.default_card == RECORD_LIFECYCLE_CARD_ID
+
+
+def test_loader_invalidates_cached_document_when_relations_extras_change() -> None:
+    import sase.ace.tui.widgets.decks.record.loader as loader_module
+    from sase.ace.tui.widgets.decks.record.relations import (
+        ArtifactLinkGroup,
+        RelationsExtras,
+    )
+    from sase.ace.tui.widgets.renderable_text import renderable_to_text
+    from rich.console import Group
+
+    clear_record_cache()
+    subject = _subject()
+    source_key: tuple[object, ...] = (("project", 1, 2),)
+    neighbor = "1"
+
+    def _relations(_subject: RecordSubject) -> RelationsExtras:
+        return RelationsExtras(
+            link_groups=(
+                ArtifactLinkGroup(
+                    direction="outgoing",
+                    relation="related",
+                    label="related",
+                    neighbor_refs=(f"file:{neighbor}",),
+                ),
+            ),
+            snapshot_source_key=source_key,
+        )
+
+    original = loader_module.load_relations_extras
+    loader_module.load_relations_extras = _relations  # type: ignore[method-assign]
+    try:
+        first = load_record_deck(subject, generation=1)
+        first_links = first.document.card("links")
+        assert first_links is not None
+        assert "file:1" in (renderable_to_text(Group(*first_links.renderables)) or "")
+
+        source_key = (("project", 2, 3),)
+        neighbor = "2"
+        second = load_record_deck(subject, generation=2)
+        second_links = second.document.card("links")
+        assert second_links is not None
+        assert "file:2" in (renderable_to_text(Group(*second_links.renderables)) or "")
+        assert second.signature == first.signature
+        assert second.relations_signature != first.relations_signature
+    finally:
+        loader_module.load_relations_extras = original  # type: ignore[method-assign]
+        clear_record_cache()
 
 
 def test_record_view_rejects_stale_subject_and_generation() -> None:

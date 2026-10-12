@@ -96,15 +96,12 @@ class RecordDeckView(CardDocumentView):
             signature = record_cache_key(subject)
         except Exception:
             signature = ""
-        if signature and signature == self._painted_signature:
-            return
         try:
             cached = cached_record_result(identity, signature) if signature else None
         except Exception:
             cached = None
-        if cached is not None:
+        if cached is not None and signature != self._painted_signature:
             self._paint_record_result(cached, preferred_card)
-            return
         if (
             self._current_worker is not None
             and self._current_worker.is_running
