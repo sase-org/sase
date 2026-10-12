@@ -9,6 +9,7 @@ row index and re-renders only the cards a keypress or focus move touches.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Any
 
 from textual.containers import Vertical, VerticalScroll
@@ -25,6 +26,59 @@ from .plan_decision_cards import (
 
 #: Fallback card width before the first layout pass measures the real one.
 _FALLBACK_CARD_WIDTH = 44
+
+
+@dataclass(frozen=True)
+class DecisionDensity:
+    """Layout selected for a pinned list at one measured content height."""
+
+    preview_lines: int
+    current_max_height: int | None = None
+    show_more: bool = False
+
+
+def decide_decision_density(
+    list_height: int,
+    expanded_height: int,
+    collapsed_two_line_heights: list[int],
+    collapsed_one_line_heights: list[int],
+) -> DecisionDensity:
+    """Choose collapsed preview density and, if needed, a scrolling card cap.
+
+    The caller measures these heights with the Rich card builders at the
+    current content width.  The function is deliberately independent of
+    Textual so all three branches and very short viewports can be tested.
+    """
+    height = max(0, int(list_height))
+    expanded = max(1, int(expanded_height))
+    two_line_total = expanded + sum(
+        max(1, int(value)) for value in collapsed_two_line_heights
+    )
+    if two_line_total <= height:
+        return DecisionDensity(preview_lines=2)
+
+    one_line_total = expanded + sum(
+        max(1, int(value)) for value in collapsed_one_line_heights
+    )
+    if one_line_total <= height:
+        return DecisionDensity(preview_lines=1)
+
+    other_rows = sum(max(1, int(value)) for value in collapsed_one_line_heights)
+    current_space = height - other_rows
+    if current_space > 1:
+        # Keep one row below the scrolling card for the pinned "more" hint.
+        return DecisionDensity(
+            preview_lines=1,
+            current_max_height=current_space - 1,
+            show_more=True,
+        )
+    # At the physical minimum there is no spare row for the hint.  Keep the
+    # current slot scrollable and never assign a zero/negative CSS height.
+    return DecisionDensity(
+        preview_lines=1,
+        current_max_height=1,
+        show_more=False,
+    )
 
 
 class DecisionCard(Static, can_focus=True):
@@ -167,6 +221,11 @@ class DecisionSlot(VerticalScroll):
             id=f"plan-decision-{self._slot_index}",
             classes="plan-decision-card",
         )
+        yield Static(
+            "",
+            id=f"decision-more-{self._slot_index}",
+            classes="plan-decision-more hidden",
+        )
 
 
 class PlanDecisionRows(Vertical):
@@ -198,6 +257,7 @@ class PlanDecisionRows(Vertical):
         self._focused_index = 0 if self._rows else -1
         self._cards_focused = True
         self._read_only = False
+        self._density_refresh_pending = False
 
     @property
     def focused_index(self) -> int:
@@ -216,6 +276,7 @@ class PlanDecisionRows(Vertical):
         self._read_only = read_only
         if self.is_mounted:
             self._render_cards(range(len(self._rows)))
+            self._queue_density_recompute()
 
     def update_rows(self, sheet_rows: list[dict[str, Any]]) -> None:
         self._rows = list(sheet_rows)
@@ -225,6 +286,7 @@ class PlanDecisionRows(Vertical):
             self._focused_index = 0
         if self.is_mounted:
             self._render_cards(range(len(self._rows)))
+            self._queue_density_recompute()
 
     def rebuild(
         self, sheet_rows: list[dict[str, Any]], definitions: list[dict[str, Any]]
@@ -251,6 +313,7 @@ class PlanDecisionRows(Vertical):
         if new_len > old_len:
             self.mount(*[self._make_slot(index) for index in range(old_len, new_len)])
         self._render_cards(range(len(self._rows)))
+        self._queue_density_recompute()
 
     def set_focused_index(self, index: int) -> None:
         if not self._rows:
@@ -260,8 +323,13 @@ class PlanDecisionRows(Vertical):
         self._focused_index = max(0, min(index, len(self._rows) - 1))
         self._cards_focused = True
         if self.is_mounted:
+            if self._focused_index != old:
+                self.query_one(
+                    f"#decision-slot-{self._focused_index}", DecisionSlot
+                ).scroll_home(animate=False)
             touched = {old, self._focused_index}
             self._render_cards(sorted(i for i in touched if 0 <= i < len(self._rows)))
+            self._queue_density_recompute()
 
     def set_cards_focused(self, focused: bool) -> None:
         """Re-render the current card for card-focus gained/lost."""
@@ -275,6 +343,7 @@ class PlanDecisionRows(Vertical):
         """Re-render only the given cards (one keypress worth of work)."""
         if self.is_mounted:
             self._render_cards([i for i in indexes if 0 <= i < len(self._rows)])
+            self._queue_density_recompute()
 
     def refresh_with_sheet(
         self, sheet_rows: list[dict[str, Any]], indexes: list[int]
@@ -298,15 +367,9 @@ class PlanDecisionRows(Vertical):
 
     def on_mount(self) -> None:
         # First paint uses the fallback width; the post-layout pass re-wraps
-        # every card at its measured content width.
-        try:
-            self._render_cards(range(len(self._rows)))
-        except Exception:
-            pass
-        try:
-            self.call_after_refresh(self._refresh_all_widths)
-        except Exception:
-            pass
+        # every card at its measured content width before pinning is measured.
+        self._render_cards(range(len(self._rows)))
+        self.call_after_refresh(self._refresh_all_widths)
 
     def on_resize(self) -> None:
         self._refresh_all_widths()
@@ -314,37 +377,139 @@ class PlanDecisionRows(Vertical):
     def _refresh_all_widths(self) -> None:
         if not self.is_mounted:
             return
+        changed = False
         for index in range(len(self._rows)):
-            try:
-                card = self.query_one(f"#plan-decision-{index}", DecisionCard)
-            except Exception:
+            card = self.query_one(f"#plan-decision-{index}", DecisionCard)
+            width = card.content_region.width or _FALLBACK_CARD_WIDTH
+            row = self._rows[index]
+            if card._row != row or width != card._card_width or card._built is None:
+                card.render_card(
+                    row,
+                    self._by_id.get(str(row.get("id", ""))),
+                    width,
+                    current=(index == self._focused_index),
+                    focused=self._cards_focused and (index == self._focused_index),
+                    read_only=self._read_only,
+                )
+                changed = True
+        if changed:
+            self._queue_density_recompute()
+
+    def _queue_density_recompute(self) -> None:
+        """Coalesce density work after the next layout/refresh boundary."""
+        if not self.is_mounted or self._density_refresh_pending:
+            return
+        self._density_refresh_pending = True
+
+        def recompute() -> None:
+            self._density_refresh_pending = False
+            if self.is_mounted:
+                self._recompute_density()
+
+        self.call_after_refresh(recompute)
+
+    def _recompute_density(self) -> None:
+        """Measure card builders and pin each decision into the visible list."""
+        if not self._rows:
+            return
+        list_height = int(self.content_region.height)
+        if list_height <= 0:
+            return
+
+        current = self._focused_index
+        current_card = self.query_one(f"#plan-decision-{current}", DecisionCard)
+        current_slot = self.query_one(f"#decision-slot-{current}", DecisionSlot)
+        current_row = self._rows[current]
+        current_definition = self._by_id.get(str(current_row.get("id", "")))
+        current_width = current_card.content_region.width or current_card._card_width
+        if current_slot.show_vertical_scrollbar:
+            # Measure the unpinned card at its full width. Otherwise a narrow
+            # scrollbar from the previous layout can keep a resized card
+            # pinned after it would fit without that scrollbar.
+            current_width += 1
+        current_build = expanded_card(
+            current_row,
+            current_definition,
+            current_width,
+            focused=self._cards_focused,
+            read_only=self._read_only,
+        )
+
+        two_line_heights: list[int] = []
+        one_line_heights: list[int] = []
+        for index, row in enumerate(self._rows):
+            if index == current:
                 continue
-            try:
-                width = card.content_region.width or _FALLBACK_CARD_WIDTH
-            except Exception:
-                width = _FALLBACK_CARD_WIDTH
-            try:
-                row = self._rows[index]
-                if card._row != row or width != card._card_width or card._built is None:
+            card = self.query_one(f"#plan-decision-{index}", DecisionCard)
+            width = card.content_region.width or card._card_width
+            definition = self._by_id.get(str(row.get("id", "")))
+            two_line_heights.append(
+                collapsed_card(
+                    row,
+                    definition,
+                    width,
+                    current=False,
+                    read_only=self._read_only,
+                    preview_lines=2,
+                ).height
+            )
+            one_line_heights.append(
+                collapsed_card(
+                    row,
+                    definition,
+                    width,
+                    current=False,
+                    read_only=self._read_only,
+                    preview_lines=1,
+                ).height
+            )
+
+        density = decide_decision_density(
+            list_height,
+            current_build.height,
+            two_line_heights,
+            one_line_heights,
+        )
+
+        for index, row in enumerate(self._rows):
+            slot = self.query_one(f"#decision-slot-{index}", DecisionSlot)
+            card = self.query_one(f"#plan-decision-{index}", DecisionCard)
+            hint = self.query_one(f"#decision-more-{index}", Static)
+            if index == current:
+                if density.current_max_height is None:
+                    slot.styles.max_height = None
+                    hint.update("")
+                    hint.add_class("hidden")
+                else:
+                    slot.styles.max_height = density.current_max_height + int(
+                        density.show_more
+                    )
+                    if density.show_more:
+                        hint.update("↓ more")
+                        hint.remove_class("hidden")
+                    else:
+                        hint.update("")
+                        hint.add_class("hidden")
+            else:
+                slot.styles.max_height = None
+                hint.update("")
+                hint.add_class("hidden")
+                if card._preview_lines != density.preview_lines:
                     card.render_card(
                         row,
                         self._by_id.get(str(row.get("id", ""))),
-                        width,
-                        current=(index == self._focused_index),
-                        focused=self._cards_focused and (index == self._focused_index),
+                        card.content_region.width or card._card_width,
+                        current=False,
+                        focused=False,
                         read_only=self._read_only,
+                        preview_lines=density.preview_lines,
                     )
-            except Exception:
-                continue
 
     def _render_cards(self, indexes) -> None:  # type: ignore[no-untyped-def]
         for index in indexes:
             card = self.query_one(f"#plan-decision-{index}", DecisionCard)
             row = self._rows[index]
-            try:
-                width = card.content_region.width or _FALLBACK_CARD_WIDTH
-            except Exception:
-                width = _FALLBACK_CARD_WIDTH
+            width = card.content_region.width or _FALLBACK_CARD_WIDTH
             if not card.is_mounted:
                 width = _FALLBACK_CARD_WIDTH
             card.render_card(

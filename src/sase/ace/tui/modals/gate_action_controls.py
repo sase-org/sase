@@ -14,7 +14,7 @@ reads is always what the modal will run.
 
 from __future__ import annotations
 
-from collections.abc import Collection, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass
 
 from rich.text import Text
@@ -95,14 +95,20 @@ class GateActionControls(Vertical):
         data: GateActionsData,
         *,
         taken_keys: Collection[str] = (),
+        compact: bool = False,
+        captions: Mapping[str, str] | None = None,
         id: str | None = None,
         classes: str | None = None,
     ) -> None:
+        if compact:
+            classes = " ".join(part for part in (classes, "-compact") if part)
         super().__init__(id=id, classes=classes)
         self.data = data
         self.keys = resolve_gate_action_keys(data.operations, taken=taken_keys)
         self._draft_operation_id = data.draft_operation_id
         self._draft_path = data.draft_path
+        self._compact = compact
+        self._captions = dict(captions or {})
 
     def compose(self) -> ComposeResult:
         for index, operation in enumerate(self.data.operations):
@@ -110,9 +116,13 @@ class GateActionControls(Vertical):
                 self._action_label(operation),
                 operation_id=operation.id,
                 id=f"gate-action-{index}",
-                classes="gate-action",
+                classes=(
+                    "gate-action gate-action--compact"
+                    if self._compact
+                    else "gate-action"
+                ),
             )
-            if operation.description:
+            if operation.description and not self._compact:
                 yield Static(
                     Text(operation.description, style="dim"),
                     id=f"gate-action-description-{index}",
@@ -180,10 +190,18 @@ class GateActionControls(Vertical):
         )
         return text
 
-    def _action_label(self, operation: GateOperation) -> str:
+    def _action_label(self, operation: GateOperation) -> str | Text:
         key = self.keys.get(operation.id)
         parts = [part for part in (key, operation.icon, operation.label) if part]
-        return " ".join(parts)
+        label = " ".join(parts)
+        if not self._compact:
+            return label
+        compact = Text(label, overflow="fold")
+        caption = self._captions.get(operation.id, operation.description)
+        if caption:
+            compact.append(" · ", style="dim")
+            compact.append(caption, style="dim")
+        return compact
 
 
 __all__ = [

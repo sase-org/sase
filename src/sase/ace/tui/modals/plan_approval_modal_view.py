@@ -18,6 +18,8 @@ from textual.app import ComposeResult
 from textual.containers import Container, Vertical, VerticalScroll
 from textual.widgets import Static
 
+from sase._plan_gate_shared import PLAN_EDIT_OPERATION_ID
+
 from ..keymaps import GateModalKeymaps
 from ..util.frontmatter_syntax import markdown_document_syntax, tinted_document_text
 from .gate_branch_controls import GateBranchControls, GateBranchData
@@ -336,7 +338,10 @@ class PlanApprovalViewMixin:
                 else:
                     rail = VerticalScroll(classes=rail_classes)
                 with rail:
-                    yield from self._compose_gate_actions()  # type: ignore[attr-defined]
+                    yield from self._compose_gate_actions(  # type: ignore[attr-defined]
+                        compact=True,
+                        captions={PLAN_EDIT_OPERATION_ID: "validated on save"},
+                    )
                     yield Static(
                         self._settled_text or "",
                         id="plan-settled-banner",

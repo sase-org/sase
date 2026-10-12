@@ -362,6 +362,62 @@ async def test_syncthing_wide_plan_gate_decisions_png_snapshot(
     )
 
 
+async def test_syncthing_narrow_plan_gate_decisions_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """The pinned syncthing rail at the 90x40 narrow breakpoint."""
+    plan, gate, definitions = decision_gate_bundle(
+        tmp_path,
+        monkeypatch,
+        name="syncthing-decisions-narrow.md",
+        content=SYNCTHING_PLAN,
+    )
+    await _snapshot_plan_gate(
+        ace_png_visual,
+        monkeypatch,
+        plan=plan,
+        default_choice="tale",
+        snapshot_name="plan_gate_tale_decisions_syncthing_90x40",
+        title="ACE narrow tale plan gate with syncthing decisions",
+        size=(90, 40),
+        gate=gate,
+        plan_content=plan.read_text(encoding="utf-8"),
+        decision_definitions=definitions,
+        review_revision=3,
+        request_id="visual-syncthing-decisions-narrow",
+    )
+
+
+async def test_syncthing_extra_wide_plan_gate_decisions_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """The responsive rail at the user's 262x72 terminal size."""
+    plan, gate, definitions = decision_gate_bundle(
+        tmp_path,
+        monkeypatch,
+        name="syncthing-decisions-extra-wide.md",
+        content=SYNCTHING_PLAN,
+    )
+    await _snapshot_plan_gate(
+        ace_png_visual,
+        monkeypatch,
+        plan=plan,
+        default_choice="tale",
+        snapshot_name="plan_gate_tale_decisions_syncthing_262x72",
+        title="ACE extra-wide tale plan gate with syncthing decisions",
+        size=(262, 72),
+        gate=gate,
+        plan_content=plan.read_text(encoding="utf-8"),
+        decision_definitions=definitions,
+        review_revision=3,
+        request_id="visual-syncthing-decisions-extra-wide",
+    )
+
+
 async def test_maxcopy_plan_gate_decisions_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
@@ -387,4 +443,33 @@ async def test_maxcopy_plan_gate_decisions_png_snapshot(
         decision_definitions=definitions,
         review_revision=3,
         request_id="visual-maxcopy-decisions",
+    )
+
+
+async def test_maxcopy_narrow_plan_gate_decisions_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """The five grammar-limit decisions stay pinned at 90x40."""
+    plan, gate, definitions = decision_gate_bundle(
+        tmp_path,
+        monkeypatch,
+        name="maxcopy-decisions-narrow.md",
+        content=MAXCOPY_PLAN,
+        verified_memory=True,
+    )
+    await _snapshot_plan_gate(
+        ace_png_visual,
+        monkeypatch,
+        plan=plan,
+        default_choice="tale",
+        snapshot_name="plan_gate_tale_decisions_maxcopy_90x40",
+        title="ACE narrow tale plan gate with grammar-limit decisions",
+        size=(90, 40),
+        gate=gate,
+        plan_content=plan.read_text(encoding="utf-8"),
+        decision_definitions=definitions,
+        review_revision=3,
+        request_id="visual-maxcopy-decisions-narrow",
     )

@@ -15,7 +15,7 @@ destructive.
 
 from __future__ import annotations
 
-from collections.abc import Callable, Collection, Sequence
+from collections.abc import Callable, Collection, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Protocol
 
@@ -176,16 +176,24 @@ class GateActionsMixin:
         )
         return bindings
 
-    def _compose_gate_actions(self) -> ComposeResult:
+    def _compose_gate_actions(
+        self,
+        *,
+        compact: bool = False,
+        captions: Mapping[str, str] | None = None,
+    ) -> ComposeResult:
         """Yield the Actions section, or nothing when the gate declares none."""
         if not self._gate_actions.operations:
             return
         from textual.widgets import Static
 
-        yield Static("Actions", classes="gate-review-section-title")
+        if not compact:
+            yield Static("Actions", classes="gate-review-section-title")
         controls = GateActionControls(
             self._gate_actions,
             taken_keys=self._gate_action_taken_keys,
+            compact=compact,
+            captions=captions,
             id="gate-actions",
         )
         self._gate_action_controls = controls

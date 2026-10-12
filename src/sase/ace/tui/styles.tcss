@@ -1771,31 +1771,41 @@ SudoRequestModal > #sudo-request-container {
 }
 
 /* Decision-free plan rails keep the 44-cell width the compact Verdict
-   needs; generic gates stay at 42. The decisions rail stays at 50. */
+   needs; generic gates stay at 42. The decisions rail grows with the terminal. */
 PlanApprovalModal .gate-review-body > .gate-review-actions {
     width: 44;
 }
 
 PlanApprovalModal .gate-review-body > .gate-review-actions--decisions {
-    width: 50;
+    width: 40%;
+    min-width: 50;
+    max-width: 84;
 }
 
 /* Decision cards (sase-1ka.1). Focus tokens: #5FD7FF is the focus colour,
    #3A6F80 its muted bar; both are named constants beside the card builders
    in plan_decision_cards.py. Every rule here is scoped to PlanApprovalModal
    so custom and sudo gates keep their look. */
-.plan-decision-rows {
+PlanApprovalModal .plan-decision-rows {
     height: 1fr;
     scrollbar-size-vertical: 1;
     scrollbar-gutter: auto;
     scrollbar-color: $text-muted;
 }
 
-.plan-decision-slot {
+PlanApprovalModal .plan-decision-slot {
     height: auto;
     scrollbar-size-vertical: 1;
     scrollbar-gutter: auto;
     scrollbar-color: $text-muted;
+}
+
+PlanApprovalModal .plan-decision-more {
+    dock: bottom;
+    height: 1;
+    width: 100%;
+    color: $text-muted;
+    text-align: right;
 }
 
 PlanApprovalModal .plan-decision-card {
@@ -2002,7 +2012,8 @@ GateBranchControls.gate-branch-controls--stacked .gate-group-submit {
 #plan-verdict .gate-option-toggle:focus,
 #plan-verdict .gate-group-submit:focus,
 #plan-verdict .gate-singleton:focus {
-    text-style: reverse;
+    text-style: bold;
+    background: #5FD7FF 10%;
 }
 
 #plan-verdict .plan-verdict-toggles,
@@ -2095,6 +2106,29 @@ GateActionControls .gate-draft-banner {
     border: solid $warning;
     padding: 0 1;
     margin-top: 1;
+}
+
+/* The plan modal has one compact, borderless Actions row. Other gate surfaces
+   keep the titled Actions section and its declared-description rows. */
+PlanApprovalModal GateActionControls.-compact {
+    height: auto;
+    margin: 0;
+}
+
+PlanApprovalModal GateActionControls.-compact .gate-action--compact {
+    width: 100%;
+    height: auto;
+    margin: 0;
+    border: none;
+    padding: 0 0;
+    text-align: left;
+    text-wrap: wrap;
+    text-overflow: fold;
+}
+
+PlanApprovalModal GateActionControls.-compact .gate-action--compact:focus {
+    text-style: bold;
+    background: #5FD7FF 10%;
 }
 
 GateActionOutputModal {
@@ -2229,6 +2263,15 @@ CustomGateModal.-gate-review-narrow .gate-review-body > .gate-review-actions {
     dock: bottom;
     width: 100%;
     height: 48%;
+    margin: 1 0 0 0;
+}
+
+PlanApprovalModal.-gate-review-narrow .gate-review-body > .gate-review-actions--decisions {
+    dock: bottom;
+    width: 100%;
+    height: 62%;
+    min-width: 0;
+    max-width: 100%;
     margin: 1 0 0 0;
 }
 

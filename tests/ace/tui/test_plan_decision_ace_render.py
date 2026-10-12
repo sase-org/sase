@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
+from sase.ace.tui.modals.plan_decision_rows import decide_decision_density
 from tests.ace.tui._plan_decision_ace_shared import plan_decision_definitions
 
 __all__ = [
     "test_compact_verdict_stays_inside_rail_with_stylesheet",
     "test_decision_cards_never_clip_with_stylesheet",
+    "test_decision_density_pins_other_rows_and_caps_current_card",
+    "test_decision_rail_widths_and_narrow_dock",
+    "test_plan_actions_use_compact_caption_and_other_gates_keep_descriptions",
     "test_draft_edit_avoids_revalidate_relex",
     "test_first_frame_tint_keeps_syntax",
     "test_generic_gate_rail_stays_42_with_stylesheet",
@@ -89,9 +93,8 @@ async def test_compact_verdict_stays_inside_rail_with_stylesheet(tmp_path) -> No
                         assert content.contains_region(header.region)
                         assert not header.region.overlaps(verdict.region)
                     if width == 120:
-                        # Wide breakpoint: docked-left rail widths are exact.
-                        # Decisions rails stay 50; decision-free plan rails
-                        # keep the 44 cells the compact Verdict needs.
+                        # The min-width keeps decisions at 50 here; empty
+                        # decision rails retain the 44-cell compact Verdict.
                         assert rail.region.width == (50 if with_decisions else 44), (
                             choice,
                             with_decisions,
@@ -101,10 +104,35 @@ async def test_compact_verdict_stays_inside_rail_with_stylesheet(tmp_path) -> No
                     await pilot.pause()
 
 
+def test_decision_density_pins_other_rows_and_caps_current_card() -> None:
+    """The density rule uses two lines, one line, then a capped current slot."""
+    two_lines = decide_decision_density(12, 6, [2, 2], [1, 1])
+    assert two_lines.preview_lines == 2
+    assert two_lines.current_max_height is None
+    assert not two_lines.show_more
+
+    one_line = decide_decision_density(9, 7, [2, 2], [1, 1])
+    assert one_line.preview_lines == 1
+    assert one_line.current_max_height is None
+    assert not one_line.show_more
+
+    pinned = decide_decision_density(7, 10, [2, 2], [1, 1])
+    assert pinned.preview_lines == 1
+    assert pinned.current_max_height == 4
+    assert pinned.show_more
+
+    # At a tiny height there is no row to spare for the hint. The current
+    # slot stays scrollable with a positive CSS cap instead of clipping to 0.
+    tiny = decide_decision_density(2, 10, [2, 2], [1, 1])
+    assert tiny.preview_lines == 1
+    assert tiny.current_max_height == 1
+    assert not tiny.show_more
+
+
 async def test_decision_cards_never_clip_with_stylesheet(tmp_path, monkeypatch) -> None:
     """No-clip pilot invariant: cards stay inside the list, never scroll sideways.
 
-    Syncthing and max-copy fixtures at 120x40 and 200x56, for every focus
+    Syncthing and max-copy fixtures at 90x40, 120x40, and 200x56, for every focus
     index: every card lies horizontally inside the list's content region and
     no list or slot shows a horizontal scrollbar. Verified against the prior
     Button implementation first: its focused row measured 103 cells wide in
@@ -167,7 +195,7 @@ async def test_decision_cards_never_clip_with_stylesheet(tmp_path, monkeypatch) 
     monkeypatch.delenv("SASE_ARTIFACTS_DIR", raising=False)
 
     for name, plan, definitions in cases:
-        for width, height in ((120, 40), (200, 56)):
+        for width, height in ((90, 40), (120, 40), (200, 56)):
             modal = _Modal(
                 str(plan),
                 default_choice="tale",
@@ -217,6 +245,27 @@ async def test_decision_cards_never_clip_with_stylesheet(tmp_path, monkeypatch) 
                             focus,
                             index,
                         )
+                        if width == 90:
+                            visible_rows = min(
+                                slot.region.bottom, content.bottom
+                            ) - max(slot.region.y, content.y)
+                            assert visible_rows >= 1, (
+                                name,
+                                width,
+                                focus,
+                                index,
+                                slot.region,
+                                content,
+                            )
+                            if index == focus and slot.max_scroll_y > 0:
+                                slot.scroll_end(animate=False)
+                                await pilot.pause()
+                                assert slot.scroll_y >= slot.max_scroll_y, (
+                                    name,
+                                    focus,
+                                    slot.scroll_y,
+                                    slot.max_scroll_y,
+                                )
                         for line in card.rendered_lines():
                             from rich.cells import cell_len as _cell_len
 
@@ -227,8 +276,167 @@ async def test_decision_cards_never_clip_with_stylesheet(tmp_path, monkeypatch) 
                                 index,
                                 line,
                             )
+                if name == "maxcopy" and width == 90:
+                    await pilot.resize_terminal(262, 72)
+                    await pilot.pause()
+                    await pilot.pause()
+                    resized_slot = modal.query_one("#decision-slot-0")
+                    assert resized_slot.max_scroll_y == 0
+                    assert modal.query_one("#decision-more-0").has_class("hidden")
                 pilot.app.pop_screen()
                 await pilot.pause()
+
+
+async def test_decision_rail_widths_and_narrow_dock(tmp_path) -> None:
+    """Responsive widths follow 40%/50/84 and narrow decisions dock at 62%."""
+    from pathlib import Path as _Path
+
+    from textual.app import App as _App
+    from textual.containers import Vertical as _V
+
+    from sase.ace.tui.modals.plan_approval_modal import PlanApprovalModal as _Modal
+
+    _ROOT = _Path(__file__).resolve().parents[3]
+
+    class _StyledApp(_App[None]):
+        CSS_PATH = _ROOT / "src/sase/ace/tui/styles.tcss"
+        ENABLE_COMMAND_PALETTE = False
+
+    plan = tmp_path / "responsive_rail.md"
+    plan.write_text("# Plan\n", encoding="utf-8")
+    definitions = plan_decision_definitions(tmp_path)
+    for width, height, expected in (
+        (120, 40, 50),
+        (160, 48, 61),
+        (200, 56, 77),
+        (262, 72, 84),
+    ):
+        modal = _Modal(
+            str(plan),
+            default_choice="tale",
+            plan_content="# Plan\n",
+            decision_definitions=list(definitions),
+            request_id=f"req-responsive-{width}",
+        )
+        async with _StyledApp().run_test(size=(width, height)) as pilot:
+            pilot.app.push_screen(modal)
+            await pilot.pause()
+            await pilot.pause()
+            rail = modal.query_one(
+                ".gate-review-body > .gate-review-actions--decisions", _V
+            )
+            assert abs(rail.region.width - expected) <= 1, (
+                width,
+                expected,
+                rail.region,
+            )
+            pilot.app.pop_screen()
+            await pilot.pause()
+
+    modal = _Modal(
+        str(plan),
+        default_choice="tale",
+        plan_content="# Plan\n",
+        decision_definitions=list(definitions),
+        request_id="req-responsive-narrow",
+    )
+    async with _StyledApp().run_test(size=(90, 40)) as pilot:
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+        await pilot.pause()
+        body = modal.query_one(".gate-review-body")
+        rail = modal.query_one(
+            ".gate-review-body > .gate-review-actions--decisions", _V
+        )
+        assert rail.region.width >= body.content_region.width - 1, (
+            rail.region,
+            body.content_region,
+        )
+        assert (
+            abs(rail.region.height - round(body.content_region.height * 0.62)) <= 2
+        ), (
+            rail.region,
+            body.content_region,
+        )
+        pilot.app.pop_screen()
+        await pilot.pause()
+
+
+async def test_plan_actions_use_compact_caption_and_other_gates_keep_descriptions(
+    tmp_path,
+) -> None:
+    from rich.text import Text as _Text
+    from textual.app import App as _App
+    from textual.widgets import Button as _Button
+
+    from sase.ace.tui.modals.gate_action_controls import GateActionsData as _Actions
+    from sase.ace.tui.modals.plan_approval_modal import PlanApprovalModal as _Modal
+    from sase.notification_gates.model_operations import GateOperation as _Operation
+
+    class _App4(_App[None]):
+        ENABLE_COMMAND_PALETTE = False
+
+    operations = (
+        _Operation.from_mapping(
+            {
+                "id": "edit_plan",
+                "kind": "edit_file",
+                "target": "plan.md",
+                "edit_target": "origin",
+                "label": "Edit plan",
+                "icon": "✏️",
+                "key": "e",
+                "description": "Accepted only when `sase plan validate` passes.",
+            },
+            0,
+        ),
+        _Operation.from_mapping(
+            {
+                "id": "show_diff",
+                "kind": "run_command",
+                "command": {"argv": ["commands/show_diff"]},
+                "label": "Show diff",
+                "key": "x",
+                "description": "Display recent results.",
+            },
+            1,
+        ),
+    )
+    plan = tmp_path / "compact-actions-plan.md"
+    plan.write_text("# Plan\n", encoding="utf-8")
+    modal = _Modal(
+        str(plan),
+        default_choice="tale",
+        plan_content="# Plan\n",
+        actions=_Actions(operations=operations),
+        request_id="req-compact-actions",
+    )
+
+    async with _App4().run_test(size=(120, 40)) as pilot:
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+        actions = modal.query_one("#gate-actions")
+        assert actions.has_class("-compact")
+        assert not any(
+            (
+                widget.render().plain
+                if hasattr(widget.render(), "plain")
+                else str(widget.render())
+            )
+            == "Actions"
+            for widget in modal.query(".gate-review-section-title")
+        )
+        edit_label = modal.query_one("#gate-action-0", _Button).label
+        diff_label = modal.query_one("#gate-action-1", _Button).label
+        edit_text = (
+            edit_label.plain if isinstance(edit_label, _Text) else str(edit_label)
+        )
+        diff_text = (
+            diff_label.plain if isinstance(diff_label, _Text) else str(diff_label)
+        )
+        assert edit_text == "e ✏️ Edit plan · validated on save"
+        assert diff_text == "x Show diff · Display recent results."
+        assert not modal.query("#gate-action-description-0")
 
 
 async def test_one_keypress_computes_sheet_once_and_refreshes_edited_card(
