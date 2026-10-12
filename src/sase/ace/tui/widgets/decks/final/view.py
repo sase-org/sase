@@ -20,7 +20,6 @@ from textual.message import Message
 from textual.worker import Worker, WorkerState
 
 from ....agent_decks_settings import agent_decks_settings_for
-from ....models.agent_archive_view import agent_is_archive_read_only
 from ..document_view import CardDocumentView
 from ..main_document import MainDeckDocument
 from ..model import DeckId, RenderMode
@@ -261,6 +260,8 @@ class FinalDeckView(CardDocumentView):
 
     def _live_subject_active(self) -> bool:
         """Return whether the tick's subject has an active finalization."""
+        from ....models.agent_archive_view import agent_is_archive_read_only
+
         agent = self._live_agent
         if agent is None:
             return False

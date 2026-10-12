@@ -57,7 +57,6 @@ from ._agent_monitor_section import build_monitor_phase
 from ..decks.card_part import card_document, context_card, reply_card, summary_card
 from ._helpers import append_section_heading, format_output
 from ._member_roster import member_jump_map_publisher_for
-from ...models.agent_archive_view import agent_is_archive_read_only
 from ._traceback_section import build_traceback_block
 from ._agent_display_prompt_render import AgentPromptDisplayMixin
 from ._agent_display_empty import AgentDisplayEmptyMixin
@@ -79,6 +78,8 @@ class AgentDisplayRenderMixin(
     attempt_pinned_number: int | None = None
 
     def _update_display_impl(self, agent: Agent) -> None:
+        from ...models.agent_archive_view import agent_is_archive_read_only
+
         # Clan rows are synthetic containers. Their complete detail document
         # is derived from already-loaded members and must never probe agent
         # artifacts or append ordinary prompt/reply sections.

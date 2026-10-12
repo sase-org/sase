@@ -4,6 +4,11 @@ from __future__ import annotations
 
 import pytest
 
+from sase.ace.query.highlighting import (
+    QUERY_TOKEN_STYLES,
+    style_for_query_token,
+    tokenize_query_for_display,
+)
 from sase.ace.query.profile_highlighting import (
     _classify_flat_query_tokens,
     highlight_query,
@@ -219,6 +224,32 @@ def test_highlight_query_boolean_dialect_reuses_existing_tokenizer() -> None:
     rendered = highlight_query("status:closed", _PATCHES_PROFILE)
     assert rendered.plain == "status:closed"
     assert rendered.spans
+
+
+def test_in_scope_tokenizes_as_amber_chip() -> None:
+    assert tokenize_query_for_display("in:archive") == [
+        ("in:", "scope_key"),
+        ("archive", "scope_value"),
+    ]
+    assert tokenize_query_for_display("IN:archive status:FAILED")[:2] == [
+        ("IN:", "scope_key"),
+        ("archive", "scope_value"),
+    ]
+    assert style_for_query_token("in:", "scope_key") == "bold #d7af5f"
+    assert style_for_query_token("archive", "scope_value") == "bold #d7af5f"
+    assert QUERY_TOKEN_STYLES["scope_key"] == "bold #d7af5f"
+
+    rendered = highlight_query("in:archive", _PATCHES_PROFILE)
+    assert rendered.plain == "in:archive"
+    styles = {span.style for span in rendered.spans}
+    assert "bold #d7af5f" in {str(style) for style in styles}
+
+
+def test_flat_in_scope_highlights_as_amber_chip() -> None:
+    assert _classify_flat_query_tokens("in:archive", _BEADS_PROFILE) == [
+        ("in:", "scope_key"),
+        ("archive", "scope_value"),
+    ]
 
 
 def test_highlight_query_flat_dialect_renders_full_text() -> None:

@@ -15,7 +15,6 @@ from typing import Any
 
 from sase.ace.tui.tool_runs.deck import ToolRunsDetailLevel
 
-from ....models.agent_archive_view import agent_is_archive_read_only
 from ._shared import (
     cached_block_details,
     tool_runs_hint_numbers,
@@ -101,6 +100,8 @@ class ToolRunsLiveMixin:
     def _current_agent_is_archive_read_only(self) -> bool:
         """Return whether the painted agent is frozen Archive history."""
         try:
+            from ....models.agent_archive_view import agent_is_archive_read_only
+
             return agent_is_archive_read_only(self._current_agent)
         except Exception:
             return False

@@ -71,6 +71,7 @@ def _classify_flat_query_tokens(
 
     known_keys = {key.casefold() for key in profile.filterable_fields()}
     known_keys.add("limit")
+    known_keys.add("in")
     sigil_map = {item.sigil: item.field for item in profile.sigils}
     shorthand_tokens = {f"{item.trigger}{item.letter}" for item in profile.shorthands}
 
@@ -144,6 +145,16 @@ def _classify_token(
         key_raw = body_raw[:key_end]
         # The unquoted key segment never contains escapes, so decoded and
         # raw text agree here (both equal `key_raw`).
+        if key_raw.casefold() == "in":
+            spans.append((f"{key_raw}:", "scope_key"))
+            spans.extend(
+                (
+                    text,
+                    "scope_value" if kind == "property_value" else kind,
+                )
+                for text, kind in _split_raw_value(body_raw[key_end + 1 :])
+            )
+            return spans
         style = "property_key" if key_raw.casefold() in known_keys else "unknown_key"
         spans.append((f"{key_raw}:", style))
         spans.extend(_split_raw_value(body_raw[key_end + 1 :]))

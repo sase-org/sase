@@ -10,6 +10,37 @@ def _is_bare_word_char(char: str) -> bool:
     return char.isalnum() or char in "_-"
 
 
+def _consume_keyed_value(
+    query: str,
+    i: int,
+    tokens: list[tuple[str, str]],
+    value_type: str,
+) -> int:
+    """Parse a quoted or bare value after a ``key:`` token.
+
+    Mutates *tokens* and returns the index after the value. No value is a
+    no-op so a trailing ``in:`` still highlights the key.
+    """
+    if i < len(query) and query[i] == '"':
+        start = i
+        i += 1
+        while i < len(query) and query[i] != '"':
+            if query[i] == "\\" and i + 1 < len(query):
+                i += 2
+            else:
+                i += 1
+        if i < len(query):
+            i += 1
+        tokens.append((query[start:i], value_type))
+        return i
+    if i < len(query) and (query[i].isalpha() or query[i] == "_" or query[i] == "*"):
+        start = i
+        while i < len(query) and (_is_bare_word_char(query[i]) or query[i] == "*"):
+            i += 1
+        tokens.append((query[start:i], value_type))
+    return i
+
+
 def tokenize_query_for_display(query: str) -> list[tuple[str, str]]:
     """Tokenize a query string for syntax highlighting.
 
@@ -28,6 +59,8 @@ def tokenize_query_for_display(query: str) -> list[tuple[str, str]]:
         - "shorthand" for %d, %m, %s, %r, +project, ^ancestor, ~sibling
         - "property_key" for status:, project:, ancestor:
         - "property_value" for the value after a property key
+        - "scope_key" for in:
+        - "scope_value" for the value after in:
         - "whitespace" for spaces
     """
     tokens: list[tuple[str, str]] = []
@@ -205,6 +238,11 @@ def tokenize_query_for_display(query: str) -> list[tuple[str, str]]:
             # Check if this is a property key (followed by :)
             if i < len(query) and query[i] == ":":
                 word_lower = word.lower()
+                if word_lower == "in":
+                    tokens.append((word + ":", "scope_key"))
+                    i += 1  # Skip the colon
+                    i = _consume_keyed_value(query, i, tokens, "scope_value")
+                    continue
                 if word_lower in (
                     "status",
                     "project",
@@ -217,31 +255,7 @@ def tokenize_query_for_display(query: str) -> list[tuple[str, str]]:
                     # Property key
                     tokens.append((word + ":", "property_key"))
                     i += 1  # Skip the colon
-
-                    # Now parse the property value
-                    if i < len(query) and query[i] == '"':
-                        # Quoted value
-                        start = i
-                        i += 1
-                        while i < len(query) and query[i] != '"':
-                            if query[i] == "\\" and i + 1 < len(query):
-                                i += 2
-                            else:
-                                i += 1
-                        if i < len(query):
-                            i += 1
-                        tokens.append((query[start:i], "property_value"))
-                    elif i < len(query) and (
-                        query[i].isalpha() or query[i] == "_" or query[i] == "*"
-                    ):
-                        # Bare word value; a `*` inside is a glob, part of
-                        # the value rather than a standalone marker.
-                        start = i
-                        while i < len(query) and (
-                            _is_bare_word_char(query[i]) or query[i] == "*"
-                        ):
-                            i += 1
-                        tokens.append((query[start:i], "property_value"))
+                    i = _consume_keyed_value(query, i, tokens, "property_value")
                     continue
 
             # Not a property - it's a regular term
@@ -316,6 +330,8 @@ QUERY_TOKEN_STYLES: dict[str, str] = {
     "shorthand": "bold #AF87D7",
     "property_key": "bold #87D7FF",
     "property_value": "#D7AF5F",
+    "scope_key": "bold #d7af5f",
+    "scope_value": "bold #d7af5f",
     "unknown_key": "bold #FFD700 on #5F0000",
     "any_special": "bold #FFFFFF on #5F00AF",
     "whitespace": "",

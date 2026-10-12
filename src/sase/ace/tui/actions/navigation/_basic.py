@@ -5,13 +5,7 @@ from __future__ import annotations
 from textual.containers import VerticalScroll
 
 from ...tab_order import TabName, adjacent_tab
-from ...models.agent_archive_view import (
-    INTENT_DOWN,
-    INTENT_FIRST,
-    INTENT_LAST,
-    INTENT_UP,
-)
-from ..agents._archive_view import route_archive_key
+from ..agents._archive_column_mixin import route_archive_key_if_active
 from ._types import NavigationMixinBase
 
 
@@ -260,7 +254,7 @@ class BasicNavigationMixin(NavigationMixinBase):
                 return
             self._navigate_patch_panel(1)  # type: ignore[attr-defined]
         elif self.current_tab == "agents":
-            if route_archive_key(self, INTENT_DOWN):
+            if route_archive_key_if_active(self, "down"):
                 return
             self._navigate_agents_panel(1)
         elif self.current_tab == "services":
@@ -279,7 +273,7 @@ class BasicNavigationMixin(NavigationMixinBase):
                 return
             self._navigate_patch_panel(-1)  # type: ignore[attr-defined]
         elif self.current_tab == "agents":
-            if route_archive_key(self, INTENT_UP):
+            if route_archive_key_if_active(self, "up"):
                 return
             self._navigate_agents_panel(-1)
         elif self.current_tab == "services":
@@ -386,7 +380,7 @@ class BasicNavigationMixin(NavigationMixinBase):
             scroll_container = self.query_one("#axe-output-scroll", VerticalScroll)  # type: ignore[attr-defined]
             scroll_container.scroll_home(animate=False)
         elif self.current_tab == "agents":
-            if route_archive_key(self, INTENT_FIRST):
+            if route_archive_key_if_active(self, "first"):
                 return
             scroll_id = self._get_agent_detail_scroll_id()
             scroll_container = self.query_one(scroll_id, VerticalScroll)  # type: ignore[attr-defined]
@@ -412,7 +406,7 @@ class BasicNavigationMixin(NavigationMixinBase):
             scroll_container = self.query_one("#axe-output-scroll", VerticalScroll)  # type: ignore[attr-defined]
             scroll_container.scroll_end(animate=False)
         elif self.current_tab == "agents":
-            if route_archive_key(self, INTENT_LAST):
+            if route_archive_key_if_active(self, "last"):
                 return
             scroll_id = self._get_agent_detail_scroll_id()
             scroll_container = self.query_one(scroll_id, VerticalScroll)  # type: ignore[attr-defined]

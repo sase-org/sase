@@ -508,6 +508,87 @@ def test_archive_history_and_saved_slot_keep_the_archive_profile(
     ]
 
 
+def test_saved_slot_commit_does_not_copy_stale_preview_facade() -> None:
+    from sase.ace.tui.actions.agents._filter_bar_session import (
+        AgentsFilterBarSessionMixin,
+    )
+
+    class Harness(AgentsFilterBarSessionMixin):
+        def __init__(self) -> None:
+            self.current_tab = "agents"
+            self._agent_search_query = "model:opus"
+            self._agents_filter_session_open = False
+            self._agents_live_preview_query = "stale preview"
+            self._agents_live_preview_facade = "preview-facade"
+            self._agents_live_query_facade = "committed-facade"
+            self._agents_archive_view = None
+            self.refresh_calls = 0
+
+        def _agents_history_canonical(self, source: str) -> str:
+            return source
+
+        def _agents_profile_digest_for_source(self, source: str) -> str | None:
+            return None
+
+        def _record_explicit_agents_query_commit(self, source: str) -> None:
+            self._agent_search_query = source
+
+        def _refilter_agents(self, **_kwargs: Any) -> None:
+            return
+
+        def _schedule_agents_async_refresh(self, **_kwargs: Any) -> None:
+            self.refresh_calls += 1
+
+        def query_one(self, *_args: Any, **_kwargs: Any) -> Any:
+            raise LookupError("no mounted widgets in this harness")
+
+    app = Harness()
+    app._commit_agents_filter_query("status:FAILED")
+
+    assert app._agents_live_query_facade == "committed-facade"
+    assert app._agent_search_query == "status:FAILED"
+    assert app.refresh_calls == 1
+
+
+def test_open_session_commit_copies_matching_preview_facade() -> None:
+    from sase.ace.tui.actions.agents._filter_bar_session import (
+        AgentsFilterBarSessionMixin,
+    )
+
+    class Harness(AgentsFilterBarSessionMixin):
+        def __init__(self) -> None:
+            self.current_tab = "agents"
+            self._agent_search_query = "model:opus"
+            self._agents_filter_session_open = True
+            self._agents_live_preview_query = "status:FAILED"
+            self._agents_live_preview_facade = "preview-facade"
+            self._agents_live_query_facade = "committed-facade"
+            self._agents_archive_view = None
+
+        def _agents_history_canonical(self, source: str) -> str:
+            return source
+
+        def _agents_profile_digest_for_source(self, source: str) -> str | None:
+            return None
+
+        def _record_explicit_agents_query_commit(self, source: str) -> None:
+            self._agent_search_query = source
+
+        def _refilter_agents(self, **_kwargs: Any) -> None:
+            return
+
+        def _schedule_agents_async_refresh(self, **_kwargs: Any) -> None:
+            return
+
+        def query_one(self, *_args: Any, **_kwargs: Any) -> Any:
+            raise LookupError("no mounted widgets in this harness")
+
+    app = Harness()
+    app._commit_agents_filter_query("status:FAILED")
+
+    assert app._agents_live_query_facade == "preview-facade"
+
+
 async def test_f_opens_the_filter_bar(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

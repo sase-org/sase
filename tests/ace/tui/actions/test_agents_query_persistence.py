@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 import threading
+from types import SimpleNamespace
 from typing import Any
 
 from sase.ace.tui.actions.agents._query_persistence import AgentQueryPersistenceMixin
@@ -113,6 +114,47 @@ def test_atomic_write_failure_preserves_existing_complete_record(
         list(store._agent_query_state_path().parent.glob(f".{store.FILENAME}.*.tmp"))
         == []
     )
+
+
+def test_early_archive_toggle_reconciles_parked_inbox_query() -> None:
+    from sase.ace.tui.models.agent_archive_view import ParkedInboxState
+
+    app = _PersistenceApp()
+    app._agents_archive_view = SimpleNamespace(
+        active_view="archive",
+        parked_inbox=ParkedInboxState(committed_query=""),
+    )
+    snapshot = store.make_agent_query_snapshot(
+        "status:FAILED",
+        dialect=store.DIALECT_UNIFIED,
+    )
+    result = store.AgentQueryLoadResult(snapshot=snapshot)
+
+    assert app._apply_agents_query_restore_result(result, generation=0)
+
+    assert app._agent_search_query == "status:FAILED"
+    assert app._agents_archive_view.parked_inbox.committed_query == "status:FAILED"
+
+
+def test_restore_does_not_clobber_a_distinct_parked_query() -> None:
+    from sase.ace.tui.models.agent_archive_view import ParkedInboxState
+
+    app = _PersistenceApp()
+    app._agent_search_query = "typed-after-park"
+    app._agents_archive_view = SimpleNamespace(
+        active_view="archive",
+        parked_inbox=ParkedInboxState(committed_query="model:opus"),
+    )
+    snapshot = store.make_agent_query_snapshot(
+        "status:FAILED",
+        dialect=store.DIALECT_UNIFIED,
+    )
+
+    assert app._apply_agents_query_restore_result(
+        store.AgentQueryLoadResult(snapshot=snapshot), generation=0
+    )
+
+    assert app._agents_archive_view.parked_inbox.committed_query == "model:opus"
 
 
 def test_restore_result_sets_baseline_and_suppresses_future_seed() -> None:

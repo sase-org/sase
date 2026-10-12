@@ -12,7 +12,7 @@ if TYPE_CHECKING:
 
 from ...util.debounce import DetailPanelDebouncer
 from ...util.trace import tui_trace
-from ._archive_view import (
+from ._archive_column_mixin import (
     agents_inbox_detail_allowed,
     cancel_inbox_detail_debounce,
     schedule_owned_inbox_detail_update,

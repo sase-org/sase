@@ -38,6 +38,7 @@ from ...models.agent_archive_view import (
     is_archive_row_key,
     startup_agents_archive_view_state,
 )
+from ._archive_column_mixin import AgentArchiveColumnMixin
 
 
 log = logging.getLogger(__name__)
@@ -66,7 +67,7 @@ def init_agents_archive_view_state(owner: Any) -> AgentsArchiveViewState:
     """Initialize lifecycle state. Startup is always Inbox."""
     state = startup_agents_archive_view_state()
     try:
-        from ...grouping_strategy import load_agent_archive_grouping
+        from ....grouping_strategy import load_agent_archive_grouping
 
         state.archive.grouping = load_agent_archive_grouping()
     except Exception:
@@ -184,6 +185,164 @@ def cancel_inbox_detail_debounce(owner: Any) -> bool:
     return True
 
 
+def _cancel_open_filter_session(owner: Any) -> None:
+    """Close a FilterBar session before a view change.
+
+    Matches dismiss: cancel the preview worker and refilter to the committed
+    query so a late preview task cannot install the wrong query.
+    """
+    if not getattr(owner, "_agents_filter_session_open", False):
+        return
+    closer = getattr(owner, "_close_agents_filter_session", None)
+    if callable(closer):
+        try:
+            closer()
+        except Exception:
+            log.debug("could not close FilterBar session on view change", exc_info=True)
+    refilter = getattr(owner, "_refilter_agents", None)
+    if callable(refilter):
+        try:
+            refilter(refresh_content_index=False)
+        except Exception:
+            log.debug(
+                "could not refilter after FilterBar cancel on view change",
+                exc_info=True,
+            )
+
+
+def _panel_deck_choices_from_snapshot(snapshot: Any) -> dict[str, str]:
+    """Extract per-panel deck and card from a full deck snapshot.
+
+    Splits (layout, ratio) are shared between views and are never parked.
+    """
+    choices: dict[str, str] = {}
+    panels = getattr(snapshot, "panels", None)
+    if not panels:
+        return choices
+    for index, panel in enumerate(panels):
+        deck = getattr(panel, "deck", None)
+        if deck is not None:
+            choices[str(index)] = str(getattr(deck, "value", None) or deck)
+        preferred_cards = getattr(panel, "preferred_cards", None) or {}
+        current_card = None
+        if preferred_cards and deck is not None:
+            current_card = preferred_cards.get(deck)
+        if not current_card:
+            current_card = getattr(panel, "preferred_card", None)
+        if current_card:
+            choices[f"{index}:card"] = str(current_card)
+    return choices
+
+
+def _capture_detail_scrolls(owner: Any) -> dict[str, str]:
+    """Capture each deck panel's scroll offset as ``{pane}:scroll`` entries."""
+    scrolls: dict[str, str] = {}
+    try:
+        from ...widgets import AgentDetail
+
+        detail = owner.query_one("#agent-detail-panel", AgentDetail)
+        area = detail.deck_area
+        for pane_id in getattr(area.state, "panels", {}):
+            try:
+                scroller = area.panel(pane_id).active_scroll()
+                scrolls[f"{pane_id}:scroll"] = str(
+                    float(getattr(scroller, "scroll_y", 0.0) or 0.0)
+                )
+            except Exception:
+                continue
+    except Exception:
+        return scrolls
+    return scrolls
+
+
+def _capture_per_panel_parking(owner: Any) -> dict[str, str]:
+    """Capture each panel's deck, card, and scroll. Never captures splits."""
+    snapshot = None
+    try:
+        capture = getattr(owner, "_capture_agents_deck_state", None)
+        snapshot = capture() if callable(capture) else None
+    except Exception:
+        snapshot = None
+    choices = _panel_deck_choices_from_snapshot(snapshot)
+    choices.update(_capture_detail_scrolls(owner))
+    return choices
+
+
+def _restore_per_panel_deck_choices(owner: Any, choices: dict[str, str]) -> None:
+    """Restore each panel's deck, card, and scroll. Never touches splits."""
+    if not choices:
+        return
+    apply_choices = getattr(owner, "_restore_parked_deck_choices", None)
+    if callable(apply_choices):
+        apply_choices(choices)
+        return
+    try:
+        from ...widgets import AgentDetail
+        from ...widgets.decks.model import DeckId
+
+        detail = owner.query_one("#agent-detail-panel", AgentDetail)
+    except Exception:
+        return
+    pane_ids = sorted({int(key) for key in choices if key.isdigit()})
+    for pane_id in pane_ids:
+        deck_name = choices.get(str(pane_id))
+        deck = None
+        if deck_name:
+            try:
+                deck = DeckId(deck_name)
+                detail.show_deck(pane_id, deck)
+            except Exception:
+                log.debug("could not restore parked deck %s", deck_name, exc_info=True)
+        card = choices.get(f"{pane_id}:card")
+        if card:
+            try:
+                target = deck or detail.deck_area.state.panels[pane_id].deck
+                detail.deck_area.set_preferred_cards(pane_id, {target: card})
+            except Exception:
+                log.debug("could not restore parked card %s", card, exc_info=True)
+        scroll_raw = choices.get(f"{pane_id}:scroll")
+        if scroll_raw:
+            try:
+                detail.deck_area.panel(pane_id).active_scroll().scroll_y = float(
+                    scroll_raw
+                )
+            except Exception:
+                log.debug("could not restore parked deck scroll", exc_info=True)
+
+
+def _capture_archive_list_scroll(owner: Any) -> int:
+    """Capture the Archive list's scroll offset."""
+    try:
+        widget = owner.query_one("#archive-list")
+        return int(getattr(widget, "scroll_y", 0) or 0)
+    except Exception:
+        return int(getattr(_view_state(owner).archive, "scroll", 0) or 0)
+
+
+def _restore_archive_list_scroll(owner: Any, scroll: int) -> None:
+    """Restore the Archive list's scroll offset."""
+    if not scroll:
+        return
+    try:
+        owner.query_one("#archive-list").scroll_y = scroll
+    except Exception:
+        pass
+
+
+def _capture_archive_parking(owner: Any) -> None:
+    """Park Archive per-panel deck, card, and scroll before leaving."""
+    archive = _view_state(owner).archive
+    archive.deck_choices = _capture_per_panel_parking(owner)
+    archive.scroll = _capture_archive_list_scroll(owner)
+
+
+def _restore_archive_parking(owner: Any) -> None:
+    """Restore Archive per-panel deck, card, and scroll on re-entry."""
+    archive = _view_state(owner).archive
+    _restore_per_panel_deck_choices(owner, archive.deck_choices)
+    _restore_archive_list_scroll(owner, archive.scroll)
+
+
 def _capture_parked_inbox(owner: Any) -> ParkedInboxState:
     """Snapshot the Inbox state parked while the Archive is active."""
     selector = getattr(owner, "_get_selected_agent", None)
@@ -199,7 +358,13 @@ def _capture_parked_inbox(owner: Any) -> ParkedInboxState:
         pass
     try:
         focused = getattr(owner, "_resolve_focused_panel", lambda: None)()
-        focused_panel = str(getattr(focused, "key", None) or "") or None
+        if focused is not None:
+            key = getattr(focused, "panel_key", None)
+            if key is None:
+                key = getattr(focused, "key", None)
+            # Empty string encodes the reserved default panel (key None);
+            # a missing focus stays None so restore is a no-op.
+            focused_panel = "" if key is None else str(key)
     except Exception:
         pass
     folds: tuple[Any, ...] = ()
@@ -217,6 +382,9 @@ def _capture_parked_inbox(owner: Any) -> ParkedInboxState:
         deck_state = capture() if callable(capture) else None
     except Exception:
         pass
+    deck_choices = _capture_per_panel_parking(owner)
+    if not deck_choices and deck_state is not None:
+        deck_choices = _panel_deck_choices_from_snapshot(deck_state)
     return ParkedInboxState(
         committed_query=str(getattr(owner, "_agent_search_query", "") or ""),
         selected_identity=getattr(agent, "identity", None),
@@ -228,6 +396,7 @@ def _capture_parked_inbox(owner: Any) -> ParkedInboxState:
         focused_panel=focused_panel,
         group_focus=getattr(owner, "_current_group_key", None),
         deck_state=deck_state,
+        deck_choices=deck_choices,
         folds=folds,
     )
 
@@ -257,13 +426,23 @@ def _restore_parked_inbox(owner: Any, parked: ParkedInboxState) -> None:
             restore_folds(parked.folds)
         except Exception:
             log.debug("could not restore parked Inbox folds", exc_info=True)
-    if parked.deck_state is not None:
-        apply_deck = getattr(owner, "_apply_agents_deck_snapshot", None)
-        if callable(apply_deck):
+    if parked.panel_layout is not None and hasattr(owner, "_agent_panels_grouped"):
+        owner._agent_panels_grouped = bool(parked.panel_layout)
+    if parked.focused_panel is not None:
+        panel_group = getattr(owner, "_panel_group", None)
+        keys = list(getattr(panel_group, "panel_keys", ()) or ())
+        target: Any = parked.focused_panel or None
+        if panel_group is not None and target in keys:
             try:
-                apply_deck(parked.deck_state)
+                panel_group.focused_idx = keys.index(target)
+                owner._expanded_panel_focus = True
             except Exception:
-                log.debug("could not restore parked Inbox deck state", exc_info=True)
+                log.debug("could not restore parked Inbox panel focus", exc_info=True)
+    deck_choices = parked.deck_choices or _panel_deck_choices_from_snapshot(
+        parked.deck_state
+    )
+    # Splits are shared: restore only each panel's deck, card, and scroll.
+    _restore_per_panel_deck_choices(owner, deck_choices)
     if parked.panel_focus:
         try:
             owner.query_one(f"#{parked.panel_focus}").focus()
@@ -311,12 +490,14 @@ def open_agents_archive_view(owner: Any) -> ArchiveViewOutcome:
             generation=state.generation,
             committed_query=state.archive.committed_query,
         )
+    _cancel_open_filter_session(owner)
     state.parked_inbox = _capture_parked_inbox(owner)
     state.active_view = AGENTS_VIEW_ARCHIVE
     _invalidate_agents_detail_ownership(owner)
     from ._archive_controller import request_archive_view_load
 
     request_archive_view_load(owner)
+    _restore_archive_parking(owner)
     _sync_archive_chrome(owner)
     return ArchiveViewOutcome(
         status=ARCHIVE_STATUS_OPENED,
@@ -348,8 +529,11 @@ def open_agents_archive_view_with_query(
         )
     state = _view_state(owner)
     if state.active_view != AGENTS_VIEW_ARCHIVE:
+        _cancel_open_filter_session(owner)
         state.parked_inbox = _capture_parked_inbox(owner)
         state.active_view = AGENTS_VIEW_ARCHIVE
+    else:
+        _cancel_open_filter_session(owner)
     state.archive = replace(
         state.archive,
         committed_query=query,
@@ -364,6 +548,7 @@ def open_agents_archive_view_with_query(
     from ._archive_controller import request_archive_view_load
 
     request_archive_view_load(owner)
+    _restore_archive_parking(owner)
     _sync_archive_chrome(owner)
     return ArchiveViewOutcome(
         status=ARCHIVE_STATUS_OPENED,
@@ -383,6 +568,8 @@ def close_agents_archive_view(owner: Any) -> ArchiveViewOutcome:
             view=state.active_view,
             generation=state.generation,
         )
+    _cancel_open_filter_session(owner)
+    _capture_archive_parking(owner)
     parked = state.parked_inbox
     if parked is not None:
         _restore_parked_inbox(owner, parked)
@@ -528,69 +715,6 @@ def _mark_archive_key_painted(owner: Any) -> None:
         after_refresh(perf.mark_painted)
     except Exception:
         log.debug("archive paint sample hook failed", exc_info=True)
-
-
-class AgentArchiveColumnMixin:
-    """Textual message handlers for the Archive column widgets.
-
-    Handlers defer to the column code so the Inbox-only startup path never
-    imports it.
-    """
-
-    def on_archive_list_cursor_moved(self, event: Any) -> None:
-        from ._archive_column_nav import archive_cursor_from_widget
-
-        archive_cursor_from_widget(self, event.key)
-
-    def on_archive_list_item_activated(self, event: Any) -> None:
-        from ._archive_column_nav import archive_activate_key
-
-        archive_activate_key(self, event.key)
-
-    def on_archive_pulse_activated(self, event: Any) -> None:
-        from ._archive_column_nav import archive_activate_pulse
-
-        archive_activate_pulse(self)
-
-    def action_open_agents_archive(self) -> None:
-        """Open Agents Archive, switching to Agents when needed."""
-        from ...models.agent_archive_view import agents_archive_view_enabled
-
-        if not agents_archive_view_enabled():
-            return
-        if getattr(self, "current_tab", None) != "agents":
-            save_position = getattr(self, "_save_current_tab_position", None)
-            if callable(save_position):
-                save_position()
-            switch = getattr(self, "_switch_to_tab", None)
-            if callable(switch):
-                switch("agents")
-        open_agents_archive_view(self)
-
-    def action_back_to_agents_inbox(self) -> None:
-        """Return from Archive to the parked Inbox."""
-        if _agents_view_is_archive(self):
-            if getattr(self, "current_tab", None) != "agents":
-                save_position = getattr(self, "_save_current_tab_position", None)
-                if callable(save_position):
-                    save_position()
-                switch = getattr(self, "_switch_to_tab", None)
-                if callable(switch):
-                    switch("agents")
-            close_agents_archive_view(self)
-
-    def action_toggle_agents_archive(self) -> None:
-        """Open Archive from another tab, or toggle the Agents view in place."""
-        from ...models.agent_archive_view import agents_archive_view_enabled
-
-        if not agents_archive_view_enabled():
-            return
-        if getattr(self, "current_tab", None) != "agents":
-            self.action_open_agents_archive()
-        elif _agents_view_is_archive(self):
-            self.action_back_to_agents_inbox()
-        else:
-            open_agents_archive_view(self)
 
 
 __all__ = [

@@ -195,6 +195,7 @@ class AgentQueryPersistenceMixin:
         if getattr(self, "_controlled_exit_started", False):
             return False
 
+        current = str(getattr(self, "_agent_search_query", "") or "")
         self._agents_query_durable_snapshot = snapshot
         self._agents_query_queued_snapshot = snapshot
         self._apply_agents_query_source_without_persisting(
@@ -202,6 +203,14 @@ class AgentQueryPersistenceMixin:
             seeded=False,
             settle_seed=True,
         )
+        from ._archive_column_mixin import agents_archive_is_active
+
+        if agents_archive_is_active(self):
+            parked = getattr(
+                getattr(self, "_agents_archive_view", None), "parked_inbox", None
+            )
+            if parked is not None and parked.committed_query == current:
+                parked.committed_query = snapshot.record.source
         return True
 
     def _notify_agents_query_restore_warning(self, message: str) -> None:

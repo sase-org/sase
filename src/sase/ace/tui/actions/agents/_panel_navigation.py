@@ -4,10 +4,9 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from ...models.agent_archive_view import INTENT_SWITCH_SECTION
-from ._archive_view import (
+from ._archive_column_mixin import (
     agents_inbox_detail_allowed,
-    route_archive_key,
+    route_archive_key_if_active,
     schedule_owned_inbox_detail_update,
 )
 from ._fold_scope import focused_panel_fold_registry
@@ -330,7 +329,7 @@ class AgentPanelNavigationMixin:
         record_navigation = getattr(self, "_record_jk_navigation", None)
         if callable(record_navigation):
             record_navigation()
-        if route_archive_key(self, INTENT_SWITCH_SECTION):
+        if route_archive_key_if_active(self, "switch_section"):
             return
         self._change_focused_agent_panel(forward=True)
         jk_perf = getattr(self, "_jk_perf", None)
@@ -345,7 +344,7 @@ class AgentPanelNavigationMixin:
         record_navigation = getattr(self, "_record_jk_navigation", None)
         if callable(record_navigation):
             record_navigation()
-        if route_archive_key(self, INTENT_SWITCH_SECTION):
+        if route_archive_key_if_active(self, "switch_section"):
             return
         self._change_focused_agent_panel(forward=False)
         jk_perf = getattr(self, "_jk_perf", None)

@@ -29,6 +29,29 @@ def test_tab_bar_label_order_is_agents_artifacts_services() -> None:
     assert plain.index("Agents") < plain.index("Artifacts") < plain.index("Services")
 
 
+def test_tab_bar_archive_marker_updates_hit_ranges_and_content_cells() -> None:
+    tab_bar = TabBar()
+    tab_bar.update_tab("agents")
+    before_ranges = dict(tab_bar._tab_ranges)
+    before_cells = tab_bar.content_cells
+    inbox_plain = tab_bar._build_content().plain
+
+    tab_bar.set_agents_archive_active(True)
+
+    content = tab_bar._build_content()
+    assert "Agents ◷" in content.plain
+    start, end = tab_bar._tab_ranges["agents"]
+    assert "Agents ◷" in content.plain[start:end]
+    assert tab_bar.content_cells > before_cells
+    assert tab_bar._tab_ranges["artifacts"][0] > before_ranges["artifacts"][0]
+    assert tab_bar._tab_ranges["services"][0] > before_ranges["services"][0]
+
+    tab_bar.set_agents_archive_active(False)
+    assert tab_bar.content_cells == before_cells
+    assert "Agents ◷" not in tab_bar._build_content().plain
+    assert inbox_plain == tab_bar._build_content().plain
+
+
 def test_info_panel_fold_indicator_hidden_when_all_collapsed() -> None:
     """No fold indicator when all sections are collapsed (default)."""
     panel = PatchInfoPanel()

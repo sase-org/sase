@@ -214,14 +214,18 @@ class AgentsFilterBarSessionMixin:
 
             close_agents_archive_view(self)
         self._record_explicit_agents_query_commit(source)  # type: ignore[attr-defined]
-        # Session is still open here, so this refilter uses (and, on a
-        # cache-miss race, self-heals) the *preview* facade below -- copy it
-        # into the committed slot only after that resolves, so a stale
-        # preview facade never sticks as the committed one.
+        # Session-open commits refilter through the preview facade and copy
+        # it into the committed slot only when that preview still matches
+        # the source. Committing a saved slot with the editor closed must
+        # not install a leftover preview facade.
         self._refilter_agents()
-        self._agents_live_query_facade = getattr(  # type: ignore[attr-defined]
-            self, "_agents_live_preview_facade", None
-        )
+        if (
+            getattr(self, "_agents_filter_session_open", False)
+            and getattr(self, "_agents_live_preview_query", "") == source
+        ):
+            self._agents_live_query_facade = getattr(  # type: ignore[attr-defined]
+                self, "_agents_live_preview_facade", None
+            )
         self._schedule_agents_async_refresh(source="filter")
 
     def _record_agents_live_query_transition(
