@@ -134,6 +134,7 @@ def test_project_current_help_documents_resolution_and_json() -> None:
     expected = {
         "add",
         "alias",
+        "create",
         "current",
         "disable",
         "enable",
@@ -144,7 +145,7 @@ def test_project_current_help_documents_resolution_and_json() -> None:
         "suggest",
     }
     assert (
-        "{add,alias,current,disable,enable,list,set-current,set-state,show,suggest}"
+        "{add,alias,create,current,disable,enable,list,set-current,set-state,show,suggest}"
         in project_parser.format_help()
     )
     assert "current" in help_subcommand_rows(project_parser.format_help(), expected)
@@ -155,6 +156,18 @@ def test_project_current_help_documents_resolution_and_json() -> None:
     assert "sase project set-current" in current_help
     assert "no separate set command" not in current_help
     assert "sase project current --json" in current_help
+
+
+def test_project_create_help_documents_human_only_and_options() -> None:
+    create_help = flat_help(parser_for(("sase", "project", "create")).format_help())
+
+    assert "-c, --check" in create_help
+    assert "-d, --description" in create_help
+    assert "-O, --option" in create_help
+    assert "-v, --visibility" in create_help
+    assert "/sase_gate" in create_help
+    assert "SASE_PROJECT_CREATE_BYPASS" in create_help
+    assert "gh:OWNER/NAME" in create_help
 
 
 def test_project_set_current_help_documents_project_and_json() -> None:

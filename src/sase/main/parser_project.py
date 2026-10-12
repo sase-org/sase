@@ -37,6 +37,16 @@ class _ExclusiveProjectSetupFlag(argparse.Action):
         setattr(namespace, self.dest, True)
 
 
+def _parse_create_option(value: str) -> str:
+    """Accept one ``KEY=VALUE`` create option, rejecting empty keys."""
+
+    if "=" not in value or not value.partition("=")[0].strip():
+        raise argparse.ArgumentTypeError(
+            f"create option must be KEY=VALUE, got {value!r}"
+        )
+    return value
+
+
 def _add_force(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "-f",
@@ -61,7 +71,7 @@ def register_project_parser(subparsers: argparse._SubParsersAction) -> None:
     project_sub = project_parser.add_subparsers(
         dest="project_subcommand",
         help="Project subcommands",
-        metavar="{add,alias,current,disable,enable,list,set-current,set-state,show,suggest}",
+        metavar="{add,alias,create,current,disable,enable,list,set-current,set-state,show,suggest}",
     )
 
     add_parser = project_sub.add_parser(
@@ -138,6 +148,111 @@ def register_project_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Request SASE management setup (human-only commit and push)",
     )
     add_parser.add_argument(
+        "-y",
+        "--yes",
+        action="store_true",
+        help="Apply without a confirmation prompt",
+    )
+
+    create_parser = project_sub.add_parser(
+        "create",
+        help="Create a repository and register it as a SASE project",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        description=(
+            "Create a remote or bare repository and register it as an "
+            "enabled SASE project. REF is gh:OWNER/NAME, OWNER/NAME, or "
+            "git:NAME. Provider options are validated before any create "
+            "subprocess. --check is read-only and available to agents; "
+            "apply is human-only unless it runs as an approved "
+            "/sase_gate option or SASE_PROJECT_CREATE_BYPASS holds a "
+            "reason. Interrupted operations resume by repeating the same "
+            "command. Successful setup may hand off to `sase init`."
+        ),
+        epilog=(
+            "examples:\n"
+            "  sase project create gh:sase-org/forge --check\n"
+            "  sase project create sase-org/forge -v private --yes\n"
+            "  sase project create git:tools --name tools --yes"
+        ),
+    )
+    create_parser.add_argument(
+        "ref",
+        metavar="REF",
+        help="Repository to create (gh:OWNER/NAME, OWNER/NAME, or git:NAME)",
+    )
+    create_parser.add_argument(
+        "-a",
+        "--alias",
+        action="append",
+        default=[],
+        metavar="ALIAS",
+        help="Add a project alias (repeatable)",
+    )
+    create_parser.add_argument(
+        "-c",
+        "--check",
+        action="store_true",
+        help="Show the read-only plan without applying it",
+    )
+    create_parser.add_argument(
+        "-d",
+        "--description",
+        metavar="TEXT",
+        help="Repository description (sugar for --option description=TEXT)",
+    )
+    create_parser.add_argument(
+        "-j",
+        "--json",
+        action="store_true",
+        help="Emit a plan document or NDJSON apply events",
+    )
+    create_parser.add_argument(
+        "-m",
+        "--make-current",
+        action="store_true",
+        help="Make the registered project current",
+    )
+    create_parser.add_argument(
+        "-n",
+        "--name",
+        metavar="NAME",
+        help="Set the project display name",
+    )
+    create_parser.add_argument(
+        "-S",
+        "--no-setup",
+        action=_ExclusiveProjectSetupFlag,
+        conflicts_with="setup",
+        default=False,
+        nargs=0,
+        help="Register without the remote management commit and push",
+    )
+    create_parser.add_argument(
+        "-O",
+        "--option",
+        action="append",
+        default=[],
+        metavar="KEY=VALUE",
+        type=_parse_create_option,
+        help="Provider creation option (repeatable; validated strictly)",
+    )
+    add_operation_io_flags(create_parser)
+    create_parser.add_argument(
+        "-s",
+        "--setup",
+        action=_ExclusiveProjectSetupFlag,
+        conflicts_with="no_setup",
+        default=False,
+        nargs=0,
+        help="Request SASE management setup (human-only commit and push)",
+    )
+    create_parser.add_argument(
+        "-v",
+        "--visibility",
+        metavar="VISIBILITY",
+        help="Repository visibility (sugar for --option visibility=VISIBILITY)",
+    )
+    create_parser.add_argument(
         "-y",
         "--yes",
         action="store_true",

@@ -154,6 +154,31 @@ class TestProjectParser:
         assert ns.owner == ["sase-org", "bobs-org"]
         assert ns.refresh is True
 
+    def test_create_options_and_sugar(self) -> None:
+        ns = parse_sase_args(
+            [
+                "project",
+                "create",
+                "gh:sase-org/forge",
+                "-d",
+                "Forge",
+                "-v",
+                "private",
+                "-O",
+                "template=sase-org/template",
+                "-c",
+                "-y",
+            ]
+        )
+
+        assert ns.project_subcommand == "create"
+        assert ns.ref == "gh:sase-org/forge"
+        assert ns.description == "Forge"
+        assert ns.visibility == "private"
+        assert ns.option == ["template=sase-org/template"]
+        assert ns.check is True
+        assert ns.yes is True
+
     def test_legacy_aliases_still_parse(self) -> None:
         set_state = parse_sase_args(["project", "set-state", "demo", "archived"])
         close = parse_sase_args(["project", "close", "demo"])

@@ -364,6 +364,8 @@ def print_plan_document(document: dict[str, Any], *, file: Any = None) -> None:
             table.add_row(Text(glyph, style=style), Text(label))
         console.print(table)
 
+    _print_creation_fields(console, document)
+
     for field, heading, style in (
         ("warnings", "Warnings", "yellow"),
         ("blockers", "Blocked", "red"),
@@ -391,6 +393,44 @@ def print_plan_document(document: dict[str, Any], *, file: Any = None) -> None:
         console.print(
             Text("Would run: " + shlex.join([str(arg) for arg in argv]), style="dim")
         )
+
+
+def _print_creation_fields(console: Any, document: dict[str, Any]) -> None:
+    from rich.table import Table
+    from rich.text import Text
+
+    fields = document.get("creation_fields")
+    if not isinstance(fields, list) or not fields:
+        return
+    table = Table(show_header=True, box=None, pad_edge=False, show_edge=False)
+    table.add_column("option", overflow="fold")
+    table.add_column("default", overflow="fold")
+    table.add_column("value", overflow="fold")
+    table.add_column("availability", overflow="fold")
+    for field in fields:
+        if not isinstance(field, dict):
+            continue
+        name = _clean(str(field.get("name") or ""))
+        if not name:
+            continue
+        default = _clean(str(field.get("default") or "—")) or "—"
+        value = _clean(str(field.get("value") or "—")) or "—"
+        available = field.get("available")
+        reason = _clean(str(field.get("reason") or ""))
+        if available is False:
+            status = f"unavailable ({reason})" if reason else "unavailable"
+            style = "dim"
+        else:
+            status = "available"
+            style = ""
+        table.add_row(
+            Text(name),
+            Text(default, style="dim"),
+            Text(value),
+            Text(status, style=style),
+        )
+    console.print(Text("Provider options", style="bold"))
+    console.print(table)
 
 
 def _step_glyph(operation: str, state: str) -> tuple[str, str]:

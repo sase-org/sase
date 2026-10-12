@@ -14,6 +14,12 @@ _Actor = Literal["human", "agent"]
 _GATE_COMMAND_VALUE = "1"
 _emitted_bypass_reasons: set[str] = set()
 
+HUMAN_ONLY_CREATE_MESSAGE = (
+    "sase project create refuses to apply inside agents and monitors. "
+    "Propose the exact command through /sase_gate, or set "
+    "SASE_PROJECT_CREATE_BYPASS to a non-empty reason."
+)
+
 
 def detect_actor(
     env: Mapping[str, str] | None = None,
@@ -63,4 +69,4 @@ def _emit_bypass_reason(reason: str, stream: TextIO) -> None:
     print(f"SASE_PROJECT_CREATE_BYPASS: {reason}", file=stream)
 
 
-__all__ = ["detect_actor"]
+__all__ = ["HUMAN_ONLY_CREATE_MESSAGE", "detect_actor"]

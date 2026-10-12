@@ -49,6 +49,7 @@ def build_plan_document(
             prepared["target"],
             str(prepared.get("mode") or "add"),
             actor=str(prepared.get("actor") or "human"),
+            options=_creation_options(request),
         )
     )
     planner_facts = _planner_facts(observed)
@@ -83,6 +84,22 @@ def _prepare_request(request: Mapping[str, Any]) -> dict[str, Any]:
             "visibility": str(creation.get("visibility") or ""),
             "summary": [str(item) for item in list(creation.get("summary") or ())],
         }
+    if prepared["mode"] == "create":
+        existing = prepared.get("creation")
+        visibility = (
+            str(existing.get("visibility") or "") if isinstance(existing, dict) else ""
+        )
+        summary = (
+            [str(item) for item in list(existing.get("summary") or ())]
+            if isinstance(existing, dict)
+            else []
+        )
+        if not visibility:
+            visibility = str(_creation_options(request).get("visibility") or "private")
+        prepared["creation"] = {"visibility": visibility, "summary": summary}
+    options = _creation_options(request)
+    if options:
+        prepared["options"] = options
     return prepared
 
 
@@ -210,7 +227,7 @@ def _document(
     record: Mapping[str, Any] | None = (
         raw_record if isinstance(raw_record, Mapping) else None
     )
-    return {
+    document = {
         "schema_version": _PLAN_SCHEMA_VERSION,
         "kind": _PLAN_DOCUMENT_KIND,
         "mode": str(plan.get("mode") or request.get("mode") or "add"),
@@ -246,6 +263,10 @@ def _document(
         "apply_argv": _apply_argv(request),
         "next_argv": _next_argv(steps, key),
     }
+    fields = facts.get("creation_fields")
+    if isinstance(fields, list) and fields:
+        document["creation_fields"] = fields
+    return document
 
 
 def _apply_argv(request: Mapping[str, Any]) -> list[str]:
@@ -266,12 +287,31 @@ def _apply_argv(request: Mapping[str, Any]) -> list[str]:
     elif setup == "off":
         argv.append("--no-setup")
     creation = request.get("creation")
-    if mode == "create" and isinstance(creation, Mapping):
-        visibility = str(creation.get("visibility") or "")
+    options = _creation_options(request)
+    if mode == "create":
+        visibility = ""
+        if isinstance(creation, Mapping):
+            visibility = str(creation.get("visibility") or "")
+        if not visibility:
+            visibility = str(options.get("visibility") or "")
+        description = str(options.get("description") or "")
+        if description:
+            argv.extend(["--description", description])
         if visibility:
             argv.extend(["--visibility", visibility])
+        for key in sorted(options):
+            if key in {"description", "visibility"}:
+                continue
+            argv.extend(["--option", f"{key}={options[key]}"])
     argv.extend(["--yes", "--json"])
     return argv
+
+
+def _creation_options(request: Mapping[str, Any]) -> dict[str, str]:
+    raw = request.get("options")
+    if not isinstance(raw, Mapping):
+        return {}
+    return {str(key): str(value) for key, value in raw.items()}
 
 
 def _next_argv(steps: list[Any], key: str) -> list[str]:

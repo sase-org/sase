@@ -11,7 +11,14 @@ import pytest
 from sase import workspace_provider
 from sase.core.project_lifecycle_wire import ProjectRecordWire
 from sase.project_onboarding.facts import gather_facts
-from sase.workspace_provider._hookspec import ParsedRepoRef, RepoProbe, WorkflowMetadata
+from sase.workspace_provider._hookspec import (
+    ParsedRepoRef,
+    RepoCreationChoice,
+    RepoCreationField,
+    RepoCreationForm,
+    RepoProbe,
+    WorkflowMetadata,
+)
 
 
 def _metadata() -> list[WorkflowMetadata]:
@@ -286,4 +293,54 @@ class TestGatherFacts:
             _target(tmp_path, checkout_dir=str(checkout)), "add", actor="human"
         )
         assert checkout.exists() is False
+        assert (isolated_home / "project_onboarding").exists() is False
+
+    def test_create_mode_evaluates_options_before_any_write(
+        self,
+        tmp_path: Path,
+        isolated_home: Path,
+        gh_provider: list[RepoProbe],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        del gh_provider
+        gh_provider_form = RepoCreationForm(
+            workflow_type="gh",
+            namespace="sase-org",
+            fields=(
+                RepoCreationField(
+                    name="visibility",
+                    label="Visibility",
+                    kind="choice",
+                    default="private",
+                    choices=(
+                        RepoCreationChoice(value="public", label="Public"),
+                        RepoCreationChoice(value="private", label="Private"),
+                    ),
+                ),
+                RepoCreationField(
+                    name="template",
+                    label="Template",
+                    kind="line",
+                    excludes=("license",),
+                ),
+                RepoCreationField(name="license", label="License", kind="search"),
+            ),
+            can_create=True,
+        )
+        monkeypatch.setattr(
+            workspace_provider,
+            "describe_repo_creation",
+            lambda workflow_type, namespace: gh_provider_form,
+        )
+        facts = gather_facts(
+            _target(tmp_path),
+            "create",
+            actor="human",
+            options={"template": "sase-org/template", "license": "MIT"},
+        )
+        assert facts["can_create"] is True
+        assert facts["creation_errors"]
+        assert any(item["code"] == "conflict" for item in facts["creation_errors"])
+        assert facts["creation_fields"]
+        assert (tmp_path / "bob").exists() is False
         assert (isolated_home / "project_onboarding").exists() is False

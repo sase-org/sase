@@ -164,8 +164,10 @@ its stable `name`; `ws_create_repo` receives those values and returns `created`,
 
 Register an existing repository with `sase project add REF`. The command previews the
 provider observation and planned local changes before resolving the repository; its
-optional setup step is the human-only marker commit and push. Repository creation
-remains the separate `sase project create` flow.
+optional setup step is the human-only marker commit and push. Create a new repository
+with `sase project create REF`; `--check` is available to agents, and apply is
+human-only unless it runs as an approved `/sase_gate` option or
+`SASE_PROJECT_CREATE_BYPASS` holds a reason.
 
 ## Registry Functions
 

@@ -453,6 +453,88 @@ class TestBuildPlanDocument:
         assert _step(adopted, "create_remote")["state"] == "done"
         assert "remote_exists" not in _codes(adopted["blockers"])
 
+    def test_create_empty_remote_adopts_without_repo_id(
+        self, isolated_home: Path, gh_provider: list[RepoProbe]
+    ) -> None:
+        del isolated_home, gh_provider
+        request = _request(
+            mode="create",
+            creation={"visibility": "private", "summary": []},
+        )
+        empty = _facts(
+            remote={
+                "status": "found",
+                "visibility": "private",
+                "can_push": True,
+                "sase_managed": False,
+                "repo_id": "R9",
+                "default_branch": "main",
+                "is_empty": True,
+                "web_url": "https://github.com/sase-org/bob",
+            },
+            can_create=True,
+        )
+        record_intent(
+            identity_key="github.com/sase-org/bob",
+            ref="sase-org/bob",
+            display="sase-org/bob",
+            workflow_type="gh",
+            mode="create",
+            intent_fingerprint=build_plan_document(request, facts=empty)[
+                "intent_fingerprint"
+            ],
+        )
+        adopted = build_plan_document(request, facts=empty)
+        assert _step(adopted, "create_remote")["state"] == "done"
+        assert "remote_exists" not in _codes(adopted["blockers"])
+
+    def test_create_invalid_option_blocks(
+        self, isolated_home: Path, gh_provider: list[RepoProbe]
+    ) -> None:
+        del isolated_home, gh_provider
+        document = build_plan_document(
+            _request(
+                mode="create",
+                creation={"visibility": "private", "summary": []},
+            ),
+            facts=_facts(
+                remote={"status": "not_found"},
+                can_create=True,
+                creation_errors=[
+                    {
+                        "field": "license",
+                        "code": "conflict",
+                        "message": "not available with Template",
+                    }
+                ],
+            ),
+        )
+        assert document["status"] == "blocked"
+        assert "invalid_option" in _codes(document["blockers"])
+
+    def test_create_apply_argv_includes_sugar_and_options(
+        self, isolated_home: Path, gh_provider: list[RepoProbe]
+    ) -> None:
+        del isolated_home, gh_provider
+        document = build_plan_document(
+            _request(
+                mode="create",
+                creation={"visibility": "private", "summary": []},
+                options={
+                    "visibility": "private",
+                    "description": "Forge",
+                    "template": "sase-org/template",
+                },
+            ),
+            facts=_facts(remote={"status": "not_found"}, can_create=True),
+        )
+        argv = document["apply_argv"]
+        assert argv[0:4] == ["sase", "project", "create", "sase-org/bob"]
+        assert argv[argv.index("--description") + 1] == "Forge"
+        assert argv[argv.index("--visibility") + 1] == "private"
+        assert "--option" in argv
+        assert "template=sase-org/template" in argv
+
     def test_preview_does_not_write(
         self, tmp_path: Path, isolated_home: Path, gh_provider: list[RepoProbe]
     ) -> None:

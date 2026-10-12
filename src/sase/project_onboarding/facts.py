@@ -31,12 +31,14 @@ def gather_facts(
     mode: str,
     *,
     actor: str,
+    options: Mapping[str, str] | None = None,
 ) -> dict[str, Any]:
     """Gather planner facts without resolving refs, writing, or pruning.
 
     *actor* is accepted so callers share one detected identity; observation
     itself does not change with the actor. Unavailable probes keep their
-    explanatory message instead of inventing found/not-found.
+    explanatory message instead of inventing found/not-found. Create mode
+    evaluates provider options in strict mode before any create subprocess.
     """
 
     del actor
@@ -82,7 +84,7 @@ def gather_facts(
             "state": matching["state"],
         }
     if mode == "create":
-        facts["can_create"] = _can_create(workflow_type, target)
+        _attach_creation_facts(facts, target, options)
     return facts
 
 
@@ -309,17 +311,27 @@ def _matching_record(
     return None
 
 
-def _can_create(workflow_type: str, target: Mapping[str, Any]) -> bool | None:
+def _attach_creation_facts(
+    facts: dict[str, Any],
+    target: Mapping[str, Any],
+    options: Mapping[str, str] | None,
+) -> None:
+    from sase.project_onboarding.creation import evaluate_creation_options
+
     namespace = str(target.get("owner") or "")
-    if not workflow_type or not namespace:
-        return None
-    try:
-        form = workspace_provider.describe_repo_creation(workflow_type, namespace)
-    except Exception:
-        return None
-    if form is None:
-        return None
-    return form.can_create
+    evaluation = evaluate_creation_options(
+        str(target.get("workflow_type") or ""),
+        namespace,
+        options or {},
+    )
+    facts["can_create"] = evaluation.get("can_create")
+    facts["creation_errors"] = list(evaluation.get("errors") or [])
+    fields = evaluation.get("fields")
+    if isinstance(fields, list) and fields:
+        facts["creation_fields"] = fields
+    effective = evaluation.get("effective_options")
+    if isinstance(effective, Mapping) and effective:
+        facts["creation_effective"] = dict(effective)
 
 
 __all__ = ["gather_facts"]

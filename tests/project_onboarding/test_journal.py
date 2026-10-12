@@ -16,6 +16,7 @@ from sase.project_onboarding.journal import (
     lookup_journal,
     ownership_facts,
     record_intent,
+    record_remote,
     set_journal_status,
     update_management,
     update_step,
@@ -186,6 +187,22 @@ class TestJournal:
             (isolated_home / "project_onboarding" / "journals").glob("*.json")
         )
         assert journals == [original]
+
+    def test_record_remote_sets_created_and_repo_id(self, isolated_home: Path) -> None:
+        del isolated_home
+        record_intent(**_intent())
+        stored = record_remote(
+            "github.com/sase-org/bob",
+            repo_id="R1",
+            display="sase-org/bob",
+        )
+        assert stored["remote"]["created"] is True
+        assert stored["remote"]["repo_id"] == "R1"
+        assert stored["remote"]["created_at"]
+        facts = ownership_facts("github.com/sase-org/bob", "abc123")
+        assert facts is not None
+        assert facts["remote_created"] is True
+        assert facts["repo_id"] == "R1"
 
     def test_complete_journals_older_than_30_days_are_pruned(
         self, isolated_home: Path

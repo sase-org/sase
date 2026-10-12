@@ -11,10 +11,14 @@ from typing import Any
 from sase import workspace_provider
 from sase.ops.cli import emit_operation_result, load_request, resolve_request_path
 from sase.ops.errors import OperationIOError
-from sase.ops.names import PROJECT_ADD
+from sase.ops.names import PROJECT_ADD, PROJECT_CREATE
 from sase.project_onboarding.apply import apply_plan
+from sase.project_onboarding.creation import parse_create_ref, parse_option_item
 from sase.project_onboarding.events import emit_event
-from sase.project_onboarding.human_only import detect_actor
+from sase.project_onboarding.human_only import (
+    HUMAN_ONLY_CREATE_MESSAGE,
+    detect_actor,
+)
 from sase.project_onboarding.planning import build_plan_document
 from sase.project_onboarding.refs import UserRefError, parse_user_ref
 from sase.project_onboarding.render import (
@@ -27,26 +31,44 @@ from sase.project_onboarding.render import (
 def handle_add(args: argparse.Namespace) -> int:
     """Preview or execute registration of an existing repository."""
 
+    return _handle_onboard(args, mode="add", operation=PROJECT_ADD)
+
+
+def handle_create(args: argparse.Namespace) -> int:
+    """Preview or execute remote repository creation and registration."""
+
+    return _handle_onboard(args, mode="create", operation=PROJECT_CREATE)
+
+
+def _handle_onboard(args: argparse.Namespace, *, mode: str, operation: str) -> int:
+    """Preview or apply one add/create onboarding plan."""
+
     try:
-        request = _request_from_args(args)
+        request = _request_from_args(args, mode=mode, operation=operation)
         document = build_plan_document(request)
     except OperationIOError as exc:
         message = str(exc)
         _print_error(message)
         if not bool(getattr(args, "check", False)):
-            _store_terminal_result(args, _result("failed", message), success=False)
+            _store_terminal_result(
+                args, _result("failed", message), success=False, operation=operation
+            )
         return 1
     except (UserRefError, ValueError) as exc:
         message = str(exc)
         _print_error(message)
         if not bool(getattr(args, "check", False)):
-            _store_terminal_result(args, _result("failed", message), success=False)
+            _store_terminal_result(
+                args, _result("failed", message), success=False, operation=operation
+            )
         return 2
     except Exception as exc:  # noqa: BLE001 - CLI surfaces provider/planner errors
         message = f"could not plan project onboarding: {exc}"
         _print_error(message)
         if not bool(getattr(args, "check", False)):
-            _store_terminal_result(args, _result("failed", message), success=False)
+            _store_terminal_result(
+                args, _result("failed", message), success=False, operation=operation
+            )
         return 1
 
     blocked = str(document.get("status") or "") == "blocked" or bool(
@@ -77,7 +99,7 @@ def handle_add(args: argparse.Namespace) -> int:
         else:
             print_plan_document(document)
             _print_error(str(event["message"]))
-        _store_terminal_result(args, event, success=False)
+        _store_terminal_result(args, event, success=False, operation=operation)
         return 2 if human_only else 1
 
     if not yes:
@@ -106,7 +128,7 @@ def handle_add(args: argparse.Namespace) -> int:
                 key=_project_key(document),
                 name=_project_name(document),
             )
-            _store_terminal_result(args, event, success=False)
+            _store_terminal_result(args, event, success=False, operation=operation)
             return 1
 
         try:
@@ -128,7 +150,7 @@ def handle_add(args: argparse.Namespace) -> int:
                 emit_event(event)
             else:
                 print_apply_event(event)
-            _store_terminal_result(args, event, success=False)
+            _store_terminal_result(args, event, success=False, operation=operation)
             return 1
 
     plan_already_shown = not yes
@@ -155,7 +177,9 @@ def handle_add(args: argparse.Namespace) -> int:
     ):
         final_event = _offer_init(final_event)
     success = final_event.get("status") == "ok"
-    result_written = _store_terminal_result(args, final_event, success=success)
+    result_written = _store_terminal_result(
+        args, final_event, success=success, operation=operation
+    )
     if not success and final_event.get("status") == "partial" and not json_output:
         print_apply_event(final_event)
     if not result_written:
@@ -165,31 +189,43 @@ def handle_add(args: argparse.Namespace) -> int:
     return 1
 
 
-def _request_from_args(args: argparse.Namespace) -> dict[str, Any]:
+def _request_from_args(
+    args: argparse.Namespace,
+    *,
+    mode: str = "add",
+    operation: str = PROJECT_ADD,
+) -> dict[str, Any]:
     """Build intent from argv and verify a durable sidecar against that intent."""
 
     actor = detect_actor(stderr=sys.stderr)
-    target = _target_for_ref(str(getattr(args, "ref", "")))
+    target = _target_for_ref(str(getattr(args, "ref", "")), mode=mode)
     requested = _requested_for_args(args)
     cli_request: dict[str, Any] = {
-        "mode": "add",
+        "mode": mode,
         "actor": actor,
         "target": target,
         "requested": requested,
     }
+    if mode == "create":
+        options = _options_from_args(args)
+        cli_request["options"] = options
+        cli_request["creation"] = {
+            "visibility": str(options.get("visibility") or "private"),
+            "summary": [],
+        }
     if resolve_request_path(args) is None:
         return cli_request
 
-    durable = load_request(PROJECT_ADD, args, required=True)
+    durable = load_request(operation, args, required=True)
     payload = durable.payload
     if not isinstance(payload, Mapping):
         raise OperationIOError(
-            "invalid", "project.add request payload must be an object"
+            "invalid", f"{operation} request payload must be an object"
         )
     source = payload.get("request", payload)
     if not isinstance(source, Mapping):
         raise OperationIOError(
-            "invalid", "project.add request must contain an intent object"
+            "invalid", f"{operation} request must contain an intent object"
         )
     sidecar_mode = str(source.get("mode") or "add")
     sidecar_target = source.get("target")
@@ -198,27 +234,30 @@ def _request_from_args(args: argparse.Namespace) -> dict[str, Any]:
         sidecar_requested, Mapping
     ):
         raise OperationIOError(
-            "invalid", "project.add request is missing target or requested intent"
+            "invalid", f"{operation} request is missing target or requested intent"
         )
 
+    sidecar_ref = str(sidecar_target.get("ref") or "")
+    sidecar_workflow = str(sidecar_target.get("workflow_type") or "") or None
     try:
-        sidecar_parsed = parse_user_ref(
-            str(sidecar_target.get("ref") or ""),
-            workflow_type=str(sidecar_target.get("workflow_type") or "") or None,
+        sidecar_parsed = (
+            parse_create_ref(sidecar_ref)
+            if mode == "create"
+            else parse_user_ref(sidecar_ref, workflow_type=sidecar_workflow)
         )
-    except UserRefError as exc:
+    except (UserRefError, ValueError) as exc:
         raise OperationIOError(
-            "invalid", f"invalid target in project.add request: {exc}"
+            "invalid", f"invalid target in {operation} request: {exc}"
         ) from exc
     if (
-        sidecar_mode != "add"
+        sidecar_mode != mode
         or sidecar_parsed.identity_key.casefold()
         != str(target["identity_key"]).casefold()
         or sidecar_parsed.ref != target["ref"]
     ):
         raise OperationIOError(
             "mismatch",
-            "project.add request target does not match the repository in argv",
+            f"{operation} request target does not match the repository in argv",
         )
 
     normalized_requested = {
@@ -230,14 +269,26 @@ def _request_from_args(args: argparse.Namespace) -> dict[str, Any]:
     if normalized_requested != requested:
         raise OperationIOError(
             "mismatch",
-            "project.add request options do not match the reviewed options in argv",
+            f"{operation} request options do not match the reviewed options in argv",
         )
+    if mode == "create":
+        sidecar_options = source.get("options")
+        normalized_options = (
+            {str(key): str(value) for key, value in dict(sidecar_options).items()}
+            if isinstance(sidecar_options, Mapping)
+            else {}
+        )
+        if normalized_options != cli_request["options"]:
+            raise OperationIOError(
+                "mismatch",
+                f"{operation} request options do not match the reviewed options in argv",
+            )
 
     return cli_request
 
 
-def _target_for_ref(raw_ref: str) -> dict[str, Any]:
-    parsed = parse_user_ref(raw_ref)
+def _target_for_ref(raw_ref: str, *, mode: str = "add") -> dict[str, Any]:
+    parsed = parse_create_ref(raw_ref) if mode == "create" else parse_user_ref(raw_ref)
     metadata = next(
         (
             item
@@ -280,6 +331,20 @@ def _requested_for_args(args: argparse.Namespace) -> dict[str, Any]:
         "setup": setup,
         "make_current": bool(getattr(args, "make_current", False)),
     }
+
+
+def _options_from_args(args: argparse.Namespace) -> dict[str, str]:
+    options: dict[str, str] = {}
+    for item in list(getattr(args, "option", []) or []):
+        key, value = parse_option_item(str(item))
+        options[key] = value
+    description = str(getattr(args, "description", None) or "")
+    if description:
+        options["description"] = description
+    visibility = str(getattr(args, "visibility", None) or "")
+    if visibility:
+        options["visibility"] = visibility
+    return options
 
 
 def _offer_init(result: dict[str, Any]) -> dict[str, Any]:
@@ -326,11 +391,12 @@ def _store_terminal_result(
     event: dict[str, Any],
     *,
     success: bool,
+    operation: str = PROJECT_ADD,
 ) -> bool:
     message = str(event.get("message") or "")
     try:
         emit_operation_result(
-            operation=PROJECT_ADD,
+            operation=operation,
             success=success,
             message=message,
             error=None if success else message,
@@ -339,7 +405,7 @@ def _store_terminal_result(
         )
         return True
     except Exception as exc:  # result IO failure must remain visible
-        _print_error(f"could not write project.add result: {exc}")
+        _print_error(f"could not write {operation} result: {exc}")
         return False
 
 
@@ -378,6 +444,10 @@ def _has_human_only_blocker(document: Mapping[str, Any]) -> bool:
 
 
 def _blocker_message(document: Mapping[str, Any]) -> str:
+    if str(document.get("mode") or "") == "create" and _has_human_only_blocker(
+        document
+    ):
+        return HUMAN_ONLY_CREATE_MESSAGE
     blockers = document.get("blockers")
     messages = []
     if isinstance(blockers, list):
@@ -397,4 +467,4 @@ def _print_error(message: str) -> None:
     print(message, file=sys.stderr)
 
 
-__all__ = ["handle_add"]
+__all__ = ["handle_add", "handle_create"]

@@ -7,7 +7,11 @@ from typing import Any
 
 import pytest
 
-from sase.project_onboarding.render import print_suggest, render_suggest_json
+from sase.project_onboarding.render import (
+    print_plan_document,
+    print_suggest,
+    render_suggest_json,
+)
 
 
 def _row(display: str, group: str, **overrides: Any) -> dict[str, Any]:
@@ -254,3 +258,42 @@ class TestJsonRendering:
         }
 
         assert json.loads(render_suggest_json(payload)) == payload
+
+
+def test_plan_document_lists_provider_creation_fields(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    print_plan_document(
+        {
+            "status": "ready",
+            "provider": {"display": "GitHub"},
+            "target": {"display": "sase-org/forge", "ref": "sase-org/forge"},
+            "project": {
+                "name": "forge",
+                "key": "gh_sase-org__forge",
+                "state": "enabled",
+            },
+            "steps": [],
+            "warnings": [],
+            "blockers": [],
+            "creation_fields": [
+                {
+                    "name": "visibility",
+                    "default": "private",
+                    "value": "private",
+                    "available": True,
+                },
+                {
+                    "name": "template",
+                    "default": "",
+                    "value": "",
+                    "available": False,
+                    "reason": "requires Template",
+                },
+            ],
+        }
+    )
+    out = capsys.readouterr().out
+    assert "Provider options" in out
+    assert "visibility" in out
+    assert "unavailable" in out

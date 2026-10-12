@@ -241,6 +241,17 @@ branch; an agent's explicit `--setup` is refused. Successful setup can offer
 `sase init -p KEY` for project configuration and sidecars. That initializer keeps its
 own interactive confirmation for creating missing sidecar repositories.
 
+`sase project create` creates a repository and registers the resulting project. REF is
+`gh:OWNER/NAME`, GitHub shorthand `OWNER/NAME`, or `git:NAME`. `-d/--description` and
+`-v/--visibility` are sugar for `-O description=…` and `-O visibility=…`; sugar wins
+when both are given. `--check` is read-only and available to agents. Apply is human-only
+unless it runs as an approved `/sase_gate` option or `SASE_PROJECT_CREATE_BYPASS` holds
+a reason:
+
+```bash
+sase project create REF [-a|--alias ALIAS]... [-c|--check] [-d|--description TEXT] [-j|--json] [-m|--make-current] [-n|--name NAME] [-O|--option KEY=VALUE]... [-S|--no-setup | -s|--setup] [-v|--visibility VISIBILITY] [-y|--yes]
+```
+
 ```bash
 sase project suggest [PROVIDER] [-a|--all] [-j|--json] [-o|--owner OWNER]... [-r|--refresh]
 ```

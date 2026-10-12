@@ -1,10 +1,10 @@
 ---
 name: sase_project
 description: >-
-  Inspect and manage SASE projects with `sase project` (list, add, show, current,
-  set-current, enable, disable, alias, suggest). Use when you need the set of enabled
-  projects, the current project, one project's lifecycle record, or machine-readable
-  project data — e.g. to fan out one agent per enabled project.
+  Inspect and manage SASE projects with `sase project` (list, add, create, show,
+  current, set-current, enable, disable, alias, suggest). Use when you need the set of
+  enabled projects, the current project, one project's lifecycle record, or
+  machine-readable project data — e.g. to fan out one agent per enabled project.
 skill: true
 ---
 
@@ -47,6 +47,17 @@ state and aliases, or select projects for a multi-project workflow.
 - Human setup can mark the repository managed, commit the marker, and push the default
   branch. Afterward, a terminal may offer `sase init -p KEY`; sidecar creation still
   requires its own confirmation.
+
+## Create A Repository
+
+- Preview with `sase project create REF --check`. REF is `gh:OWNER/NAME`, `OWNER/NAME`,
+  or `git:NAME`. The check is read-only and available to agents; it lists every provider
+  option with default, value, and availability.
+- Apply is human-only. Agents must not run `sase project create … --yes`. Propose the
+  exact command through `/sase_gate`, or set `SASE_PROJECT_CREATE_BYPASS` to a non-empty
+  reason. An approved gate option (`SASE_GATE_COMMAND=1`) is allowed.
+- Sugar `-d/--description` and `-v/--visibility` overlay `-O/--option KEY=VALUE`. Repeat
+  the same command to resume an interrupted create.
 
 ## Manage Projects
 

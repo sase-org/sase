@@ -247,6 +247,34 @@ def update_management(
         return record
 
 
+def record_remote(
+    identity_key: str,
+    *,
+    repo_id: str = "",
+    created: bool = True,
+    display: str = "",
+) -> dict[str, Any]:
+    """Record that this intent created (or adopted) the remote repository."""
+
+    now = _utc_now()
+    with _journal_lock(identity_key, display) as path:
+        found = _lookup_entry(identity_key)
+        if found is None:
+            raise ValueError("onboarding intent journal is missing")
+        path, record = found
+        remote = record.get("remote")
+        remote_map = dict(remote) if isinstance(remote, dict) else {}
+        remote_map["created"] = created
+        if repo_id:
+            remote_map["repo_id"] = repo_id
+        if created and not str(remote_map.get("created_at") or ""):
+            remote_map["created_at"] = now
+        record["remote"] = remote_map
+        record["updated_at"] = now
+        _write_record(path, record, now=now)
+        return record
+
+
 def update_step(
     identity_key: str,
     step_id: str,
@@ -493,6 +521,7 @@ __all__ = [
     "lookup_journal",
     "ownership_facts",
     "record_intent",
+    "record_remote",
     "set_journal_status",
     "update_management",
     "update_step",

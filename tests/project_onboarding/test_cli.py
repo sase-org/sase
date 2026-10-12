@@ -81,6 +81,10 @@ def _args(parser_args: list[str]) -> Any:
     return create_parser(only="project").parse_args(["project", "add", *parser_args])
 
 
+def _create_args(parser_args: list[str]) -> Any:
+    return create_parser(only="project").parse_args(["project", "create", *parser_args])
+
+
 def test_parser_registers_sorted_add_options_and_rejects_setup_conflict() -> None:
     args = _args(
         [
@@ -161,7 +165,7 @@ def test_check_blocker_returns_one_without_calling_apply(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     document = _plan(blockers=[{"code": "checkout_conflict", "message": "occupied"}])
-    monkeypatch.setattr(add_cli, "_request_from_args", lambda _args: {})
+    monkeypatch.setattr(add_cli, "_request_from_args", lambda _args, **_kwargs: {})
     monkeypatch.setattr(add_cli, "build_plan_document", lambda _request: document)
     monkeypatch.setattr(
         add_cli, "apply_plan", lambda *_a, **_k: pytest.fail("check must not apply")
@@ -174,7 +178,7 @@ def test_explicit_agent_setup_refusal_uses_exit_two(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     document = _plan(blockers=[{"code": "human_only", "message": "human-only setup"}])
-    monkeypatch.setattr(add_cli, "_request_from_args", lambda _args: {})
+    monkeypatch.setattr(add_cli, "_request_from_args", lambda _args, **_kwargs: {})
     monkeypatch.setattr(add_cli, "build_plan_document", lambda _request: document)
     monkeypatch.setattr(
         add_cli,
@@ -211,7 +215,7 @@ def test_json_apply_stream_and_result_file_share_terminal_event(
         "message": "team/demo is ready",
     }
     result_path = tmp_path / "result.json"
-    monkeypatch.setattr(add_cli, "_request_from_args", lambda _args: request)
+    monkeypatch.setattr(add_cli, "_request_from_args", lambda _args, **_kwargs: request)
     monkeypatch.setattr(add_cli, "build_plan_document", lambda _request: document)
 
     def fake_apply(_request: Any, *, emit: Any, plan: Any) -> dict[str, Any]:
@@ -247,7 +251,7 @@ def test_tty_success_offers_init_and_records_its_terminal_result(
         "next_argv": ["sase", "init", "-p", "gh_team__demo"],
         "message": "team/demo is ready; run sase init",
     }
-    monkeypatch.setattr(add_cli, "_request_from_args", lambda _args: request)
+    monkeypatch.setattr(add_cli, "_request_from_args", lambda _args, **_kwargs: request)
     monkeypatch.setattr(add_cli, "build_plan_document", lambda _request: document)
     monkeypatch.setattr(add_cli, "_interactive_terminal", lambda: True)
     monkeypatch.setattr("builtins.input", lambda _prompt: "")
@@ -279,7 +283,7 @@ def test_tty_success_offers_init_and_records_its_terminal_result(
 def test_non_tty_refuses_without_yes_and_does_not_apply(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(add_cli, "_request_from_args", lambda _args: {})
+    monkeypatch.setattr(add_cli, "_request_from_args", lambda _args, **_kwargs: {})
     monkeypatch.setattr(add_cli, "build_plan_document", lambda _request: _plan())
     monkeypatch.setattr(
         add_cli,
@@ -305,7 +309,7 @@ def test_durable_request_must_match_argv_target(
     monkeypatch.setattr(
         add_cli,
         "_target_for_ref",
-        lambda _ref: {
+        lambda _ref, **_kwargs: {
             "ref": parsed.ref,
             "identity_key": parsed.identity_key,
             "workflow_type": "gh",
@@ -336,3 +340,188 @@ def test_durable_request_must_match_argv_target(
     )
     with pytest.raises(OperationIOError, match="does not match"):
         add_cli._request_from_args(_args(["gh:team/demo"]))
+
+
+def test_parser_registers_sorted_create_options_and_rejects_bad_option() -> None:
+    args = _create_args(
+        [
+            "gh:team/demo",
+            "--description",
+            "Forge",
+            "--visibility",
+            "private",
+            "--option",
+            "template=org/tpl",
+            "--yes",
+        ]
+    )
+    assert args.project_subcommand == "create"
+    assert args.description == "Forge"
+    assert args.visibility == "private"
+    assert args.option == ["template=org/tpl"]
+    with pytest.raises(SystemExit, match="2"):
+        _create_args(["gh:team/demo", "--option", "not-a-pair"])
+    with pytest.raises(SystemExit, match="2"):
+        _create_args(["gh:team/demo", "--setup", "--no-setup"])
+
+
+def test_create_sugar_overlays_dash_o_options(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(add_cli, "detect_actor", lambda **_kwargs: "human")
+    monkeypatch.setattr(
+        add_cli,
+        "_target_for_ref",
+        lambda _ref, **_kwargs: {
+            "ref": "team/demo",
+            "identity_key": "github.com/team/demo",
+            "workflow_type": "gh",
+        },
+    )
+    request = add_cli._request_from_args(
+        _create_args(
+            [
+                "gh:team/demo",
+                "-O",
+                "visibility=public",
+                "-O",
+                "description=from-O",
+                "-v",
+                "private",
+                "-d",
+                "from-d",
+            ]
+        ),
+        mode="create",
+        operation="project.create",
+    )
+    assert request["mode"] == "create"
+    assert request["options"]["visibility"] == "private"
+    assert request["options"]["description"] == "from-d"
+    assert request["creation"]["visibility"] == "private"
+
+
+def test_create_apply_refuses_agent_with_gate_message(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    document = _plan(
+        blockers=[{"code": "human_only", "message": "create is human-only"}]
+    )
+    document["mode"] = "create"
+    monkeypatch.setattr(
+        add_cli, "_request_from_args", lambda _args, **_kwargs: {"mode": "create"}
+    )
+    monkeypatch.setattr(add_cli, "build_plan_document", lambda _request: document)
+    monkeypatch.setattr(
+        add_cli,
+        "apply_plan",
+        lambda *_a, **_k: pytest.fail("create apply must not run for agents"),
+    )
+    assert add_cli.handle_create(_create_args(["gh:team/demo", "--yes"])) == 2
+    err = capsys.readouterr().err
+    assert "/sase_gate" in err
+    assert "SASE_PROJECT_CREATE_BYPASS" in err
+
+
+def test_create_check_is_available_to_agents(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    document = _plan(
+        blockers=[{"code": "human_only", "message": "create is human-only"}]
+    )
+    document["mode"] = "create"
+    document["creation_fields"] = [
+        {
+            "name": "visibility",
+            "default": "private",
+            "value": "private",
+            "available": True,
+        }
+    ]
+    monkeypatch.setattr(
+        add_cli, "_request_from_args", lambda _args, **_kwargs: {"mode": "create"}
+    )
+    monkeypatch.setattr(add_cli, "build_plan_document", lambda _request: document)
+    monkeypatch.setattr(
+        add_cli,
+        "apply_plan",
+        lambda *_a, **_k: pytest.fail("check must not apply"),
+    )
+    assert add_cli.handle_create(_create_args(["gh:team/demo", "--check"])) == 1
+    out = capsys.readouterr().out
+    assert "Plan: blocked" in out
+    assert "visibility" in out
+
+
+def test_create_gate_option_allows_apply(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    document = _plan()
+    document["mode"] = "create"
+    terminal = {
+        "event": "result",
+        "status": "ok",
+        "project": {"key": "gh_team__demo", "name": "demo"},
+        "next_argv": [],
+        "message": "team/demo is ready",
+    }
+    monkeypatch.setenv("SASE_AGENT", "1")
+    monkeypatch.setenv("SASE_GATE_COMMAND", "1")
+    monkeypatch.setattr(
+        add_cli, "_request_from_args", lambda _args, **_kwargs: {"mode": "create"}
+    )
+    monkeypatch.setattr(add_cli, "build_plan_document", lambda _request: document)
+    monkeypatch.setattr(add_cli, "apply_plan", lambda *_a, **_k: terminal)
+    assert add_cli.handle_create(_create_args(["gh:team/demo", "--yes"])) == 0
+
+
+def test_create_bypass_prints_reason(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    import sase.project_onboarding.human_only as human_only
+
+    human_only._emitted_bypass_reasons.clear()
+    monkeypatch.setenv("SASE_AGENT", "1")
+    monkeypatch.setenv("SASE_PROJECT_CREATE_BYPASS", "repair-create")
+    monkeypatch.delenv("SASE_GATE_COMMAND", raising=False)
+    monkeypatch.setattr(
+        add_cli,
+        "_target_for_ref",
+        lambda _ref, **_kwargs: {
+            "ref": "team/demo",
+            "identity_key": "github.com/team/demo",
+            "workflow_type": "gh",
+        },
+    )
+    request = add_cli._request_from_args(
+        _create_args(["gh:team/demo"]),
+        mode="create",
+        operation="project.create",
+    )
+    assert request["actor"] == "human"
+    assert "repair-create" in capsys.readouterr().err
+
+
+def test_bare_git_create_end_to_end(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sase.project_onboarding import _apply_run as apply_mod
+    from sase.workspace_provider.plugins import bare_git_workspace as bare_git
+
+    home = tmp_path / "home"
+    home.mkdir()
+    sase_home = tmp_path / "sase-home"
+    monkeypatch.setenv("SASE_HOME", str(sase_home))
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setattr(Path, "home", classmethod(lambda _cls: home))
+    monkeypatch.setattr(
+        bare_git.os.path,
+        "expanduser",
+        lambda value: (
+            str(home / str(value)[2:]) if str(value).startswith("~/") else value
+        ),
+    )
+    monkeypatch.setattr(add_cli, "detect_actor", lambda **_kwargs: "human")
+    monkeypatch.setattr(apply_mod, "detect_actor", lambda **_kwargs: "human")
+    args = _create_args(["git:tools", "--yes", "--no-setup"])
+    assert add_cli.handle_create(args) == 0
+    assert (sase_home / "repos" / "tools.git" / "HEAD").is_file()
+    assert (home / "projects" / "git" / "tools" / ".git").exists()

@@ -18,12 +18,17 @@ from sase.core.paths import sase_projects_dir
 from sase.history.vcs_macro_mru import vcs_macro_mru_path
 from sase.project_onboarding import _apply_effects as apply_effects
 from sase.project_onboarding import _apply_locks as apply_locks
+from sase.project_onboarding import _apply_run as apply_mod
 from sase.project_onboarding import parse_event_line
 from sase.project_onboarding.apply import apply_plan
 from sase.project_onboarding.journal import lookup_journal
 from sase.project_onboarding.manage import ManagementError
 from sase.workspace_provider._hookspec import (
     ParsedRepoRef,
+    RepoCreateResult,
+    RepoCreationChoice,
+    RepoCreationField,
+    RepoCreationForm,
     RepoProbe,
     ResolvedRef,
     WorkflowMetadata,
@@ -88,6 +93,11 @@ class _FakeGh:
         self.probe_message = ""
         self.can_push: bool | None = True
         self.sase_managed = False
+        self.create_calls: list[tuple[str, str, dict[str, str]]] = []
+        self.create_status = "created"
+        self.create_raise = ""
+        self.create_repo_id = "R1"
+        self.is_empty: bool | None = None
 
     def seed(self) -> None:
         self.origin.mkdir(parents=True, exist_ok=True)
@@ -156,6 +166,46 @@ class _FakeGh:
             web_url=parsed.web_url,
             repo_id="R1",
             message=self.probe_message,
+            is_empty=self.is_empty,
+        )
+
+    def describe(self, workflow_type: str, namespace: str) -> RepoCreationForm:
+        return RepoCreationForm(
+            workflow_type=workflow_type,
+            namespace=namespace,
+            fields=(
+                RepoCreationField(
+                    name="visibility",
+                    label="Visibility",
+                    kind="choice",
+                    default="private",
+                    choices=(
+                        RepoCreationChoice(value="public", label="Public"),
+                        RepoCreationChoice(value="private", label="Private"),
+                    ),
+                ),
+                RepoCreationField(name="description", label="Description", kind="line"),
+            ),
+            can_create=True,
+        )
+
+    def create(
+        self, workflow_type: str, ref: str, options: dict[str, str]
+    ) -> RepoCreateResult:
+        self.create_calls.append((workflow_type, ref, dict(options)))
+        parsed = self.parse(workflow_type, ref)
+        assert parsed is not None
+        if self.create_raise:
+            self.probe_status = "found"
+            raise RuntimeError(self.create_raise)
+        if self.create_status in {"created", "exists"}:
+            self.probe_status = "found"
+        return RepoCreateResult(
+            status=self.create_status,  # type: ignore[arg-type]
+            parsed=parsed,
+            repo_id=self.create_repo_id,
+            visibility="private",
+            message="already exists" if self.create_status == "exists" else "",
         )
 
     def resolve(self, ref: str, workflow_type: str) -> ResolvedRef:
@@ -207,6 +257,8 @@ def fake_gh(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> _FakeGh:
     monkeypatch.setattr(
         workspace_provider, "detect_workflow_type", lambda project_file: "gh"
     )
+    monkeypatch.setattr(workspace_provider, "create_repo", fake.create)
+    monkeypatch.setattr(workspace_provider, "describe_repo_creation", fake.describe)
     return fake
 
 
@@ -228,6 +280,18 @@ def _request(checkout: str, **overrides: Any) -> dict[str, Any]:
         },
         "requested": {"setup": "auto", "make_current": False},
     }
+    payload.update(overrides)
+    return payload
+
+
+def _create_request(checkout: str, **overrides: Any) -> dict[str, Any]:
+    payload = _request(
+        checkout,
+        mode="create",
+        creation={"visibility": "private", "summary": []},
+        options={"visibility": "private"},
+    )
+    payload["requested"] = {"setup": "off", "make_current": False}
     payload.update(overrides)
     return payload
 
@@ -559,3 +623,101 @@ class TestActualPostconditions:
         parsed = [parse_event_line(line) for line in lines]
         assert all(item is not None for item in parsed)
         assert parsed[-1] is not None and parsed[-1]["status"] == "ok"
+
+
+class TestCreateRemote:
+    def test_intent_is_recorded_before_create_hook(
+        self, fake_gh: _FakeGh, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        fake_gh.probe_status = "not_found"
+        monkeypatch.setattr(apply_mod, "detect_actor", lambda **_k: "human")
+        seen: list[bool] = []
+        original = fake_gh.create
+
+        def wrapped(
+            workflow_type: str, ref: str, options: dict[str, str]
+        ) -> RepoCreateResult:
+            journal = lookup_journal(_IDENTITY)
+            seen.append(
+                journal is not None
+                and journal.get("status") == "running"
+                and bool(journal.get("remote"))
+                and journal["remote"].get("created") is False
+            )
+            return original(workflow_type, ref, options)
+
+        monkeypatch.setattr(workspace_provider, "create_repo", wrapped)
+        result, events = _run(_create_request(fake_gh.checkouts[_IDENTITY]))
+        assert seen == [True]
+        assert result["status"] == "ok"
+        assert "create_remote" in _step_ids(events)
+        journal = lookup_journal(_IDENTITY)
+        assert journal is not None
+        assert journal["remote"]["created"] is True
+        assert journal["remote"]["repo_id"] == "R1"
+
+    def test_lost_response_does_not_adopt_without_evidence(
+        self, fake_gh: _FakeGh, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        fake_gh.probe_status = "not_found"
+        fake_gh.is_empty = False
+        monkeypatch.setattr(apply_mod, "detect_actor", lambda **_k: "human")
+
+        def boom(
+            workflow_type: str, ref: str, options: dict[str, str]
+        ) -> RepoCreateResult:
+            del workflow_type, ref, options
+            fake_gh.probe_status = "found"
+            raise RuntimeError("connection lost after create")
+
+        monkeypatch.setattr(workspace_provider, "create_repo", boom)
+        checkout = fake_gh.checkouts[_IDENTITY]
+        first, _ = _run(_create_request(checkout))
+        assert first["status"] == "failed"
+        journal = lookup_journal(_IDENTITY)
+        assert journal is not None
+        assert journal["remote"]["created"] is False
+        assert journal["remote"]["repo_id"] == ""
+
+        second, _ = _run(_create_request(checkout))
+        assert second["status"] == "blocked"
+        assert "add" in second["message"].casefold()
+
+    def test_exists_without_evidence_is_remote_exists(
+        self, fake_gh: _FakeGh, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        fake_gh.probe_status = "not_found"
+        fake_gh.create_status = "exists"
+        fake_gh.is_empty = False
+        monkeypatch.setattr(apply_mod, "detect_actor", lambda **_k: "human")
+        result, _ = _run(_create_request(fake_gh.checkouts[_IDENTITY]))
+        assert result["status"] == "failed"
+        assert "sase project add" in result["message"]
+        journal = lookup_journal(_IDENTITY)
+        assert journal is not None
+        assert journal["remote"]["created"] is False
+
+    def test_exists_with_empty_visibility_evidence_is_adopted(
+        self, fake_gh: _FakeGh, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        fake_gh.probe_status = "not_found"
+        fake_gh.create_status = "exists"
+        fake_gh.is_empty = True
+        monkeypatch.setattr(apply_mod, "detect_actor", lambda **_k: "human")
+        result, events = _run(_create_request(fake_gh.checkouts[_IDENTITY]))
+        assert result["status"] == "ok"
+        assert "create_remote" in _step_ids(events)
+        journal = lookup_journal(_IDENTITY)
+        assert journal is not None
+        assert journal["remote"]["created"] is True
+
+    def test_live_agent_refuses_create_even_when_request_says_human(
+        self, fake_gh: _FakeGh, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        fake_gh.probe_status = "not_found"
+        monkeypatch.setattr(apply_mod, "detect_actor", lambda **_k: "agent")
+        result, _ = _run(_create_request(fake_gh.checkouts[_IDENTITY]))
+        assert result["status"] == "blocked"
+        assert "/sase_gate" in result["message"]
+        assert "SASE_PROJECT_CREATE_BYPASS" in result["message"]
+        assert fake_gh.create_calls == []

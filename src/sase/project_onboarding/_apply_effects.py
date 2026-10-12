@@ -13,7 +13,9 @@ from sase.project_onboarding.discovery import (
     resolve_git_dir,
 )
 from sase.project_onboarding.facts import gather_facts
+from sase.project_onboarding.journal import record_remote
 from sase.project_onboarding.manage import ManagementError, manage_repository
+from sase.project_onboarding.planning import build_plan_document
 from sase.project_onboarding.refs import UserRefError, parse_user_ref
 
 
@@ -45,6 +47,8 @@ class RunContext:
         actual_key: str,
         actual_name: str,
         checkout_done_initially: bool,
+        options: Mapping[str, str] | None = None,
+        request: Mapping[str, Any] | None = None,
     ) -> None:
         self.identity_key = identity_key
         self.display = display
@@ -60,8 +64,80 @@ class RunContext:
         self.actual_name = actual_name
         self.actual_checkout = checkout_dir
         self.checkout_done_initially = checkout_done_initially
+        self.options = dict(options or {})
+        self.request = dict(request or {})
         self.completed: list[str] = []
         self.failed: tuple[str, str, str, str] | None = None
+
+
+def _effect_create_remote(ctx: RunContext) -> None:
+    try:
+        result = workspace_provider.create_repo(
+            ctx.workflow_type, ctx.ref, dict(ctx.options)
+        )
+    except Exception as exc:
+        raise StepFailed(
+            _short_error(exc),
+            hint=(
+                "The remote may already exist; re-run the same command. "
+                "If it was created outside this intent, add it with "
+                f"`sase project add {ctx.ref}`."
+            ),
+        ) from exc
+    if result is None:
+        raise StepFailed(
+            "the workspace provider did not create the repository",
+            hint="Check that the selected provider implements repository creation.",
+        )
+    status = str(result.status or "")
+    if status == "created":
+        _adopt_create_result(ctx, result, created=True)
+        return
+    if status == "exists":
+        if _create_remote_adopted(ctx, result):
+            _adopt_create_result(ctx, result, created=True)
+            return
+        raise StepFailed(
+            str(result.message or f"{ctx.display} already exists"),
+            hint=f"Add the existing repository with `sase project add {ctx.ref}`.",
+        )
+    raise StepFailed(
+        str(result.message or "repository creation failed"),
+        hint="Resolve the provider error, then re-run the same command.",
+    )
+
+
+def _create_remote_adopted(ctx: RunContext, result: Any) -> bool:
+    del result
+    fresh = gather_facts(
+        _effect_target(ctx), ctx.mode, actor=ctx.actor, options=ctx.options
+    )
+    document = build_plan_document(ctx.request, facts=fresh)
+    steps = document.get("steps")
+    if not isinstance(steps, list):
+        return False
+    for step in steps:
+        if isinstance(step, Mapping) and step.get("id") == "create_remote":
+            return str(step.get("state") or "") == "done"
+    return False
+
+
+def _adopt_create_result(ctx: RunContext, result: Any, *, created: bool) -> None:
+    repo_id = str(getattr(result, "repo_id", "") or "")
+    try:
+        record_remote(
+            ctx.identity_key,
+            repo_id=repo_id,
+            created=created,
+            display=ctx.display,
+        )
+    except ValueError as exc:
+        raise StepFailed(str(exc)) from exc
+    parsed = getattr(result, "parsed", None)
+    checkout = str(getattr(parsed, "checkout_dir", "") or "")
+    if checkout:
+        ctx.actual_checkout = checkout
+        ctx.checkout_dir = checkout
 
 
 def _effect_checkout(ctx: RunContext) -> None:
@@ -200,6 +276,7 @@ def _effect_current(ctx: RunContext) -> None:
 
 
 EFFECTS = {
+    "create_remote": _effect_create_remote,
     "checkout": _effect_checkout,
     "reenable": _effect_reenable,
     "identity": _effect_identity,
@@ -222,21 +299,37 @@ def _adopt_resolved(ctx: RunContext, resolved: Any) -> None:
     if name:
         ctx.actual_key = name
         ctx.actual_name = name
-    checkout = str(getattr(resolved, "checkout_target", "") or "") or str(
-        getattr(resolved, "primary_workspace_dir", "") or ""
+    checkout = str(getattr(resolved, "primary_workspace_dir", "") or "") or str(
+        getattr(resolved, "checkout_target", "") or ""
     )
     if checkout:
         ctx.actual_checkout = checkout
 
 
 def _effect_target(ctx: RunContext) -> dict[str, Any]:
-    return {
+    target = {
         "workflow_type": ctx.workflow_type,
         "ref": ctx.ref,
         "identity_key": ctx.identity_key,
         "display": ctx.display,
         "checkout_dir": ctx.actual_checkout,
     }
+    raw_target = ctx.request.get("target")
+    if isinstance(raw_target, Mapping):
+        for key in (
+            "owner",
+            "name",
+            "host",
+            "web_url",
+            "project_key_base",
+            "project_name_base",
+            "provider_display",
+            "storage_policy",
+        ):
+            value = raw_target.get(key)
+            if value:
+                target[key] = value
+    return target
 
 
 def _record_state(facts: Mapping[str, Any]) -> str:

@@ -433,6 +433,7 @@ _VALUE_HINT_TABLE: Final[dict[str, str]] = dict.fromkeys(
         "values",
         "value_json",
         "verb",
+        "visibility",
         "wait",
         "web",
         "when_disabled",
@@ -511,6 +512,7 @@ _VALUE_HINT_TABLE.update(
 #: ``resolve_value_hint`` already consults.
 HINT_PATH_OVERRIDES: Final[dict[tuple[tuple[str, ...], str], str]] = {
     (("macro", "types"), "type_name"): "text",
+    (("project", "suggest"), "owner"): "text",
 }
 
 

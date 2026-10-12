@@ -8,7 +8,7 @@ import time
 from typing import Any
 
 from sase.project_onboarding.facts import gather_facts
-from sase.project_onboarding.human_only import detect_actor
+from sase.project_onboarding.human_only import HUMAN_ONLY_CREATE_MESSAGE, detect_actor
 from sase.project_onboarding.journal import (
     record_intent,
     set_journal_status,
@@ -20,6 +20,7 @@ from sase.project_onboarding._apply_effects import EFFECTS, RunContext, StepFail
 from sase.project_onboarding._apply_locks import ApplyLockTimeout, hold_apply_locks
 
 _ADD_STEP_ORDER = ("checkout", "reenable", "identity", "manage", "current")
+_CREATE_STEP_ORDER = ("create_remote", *_ADD_STEP_ORDER)
 
 
 def run_request(
@@ -110,14 +111,30 @@ def _apply_locked(
     preview: Mapping[str, Any] | None,
 ) -> dict[str, Any]:
     actor = str(request.get("actor") or detect_actor())
+    raw_target = request.get("target")
+    target_map = raw_target if isinstance(raw_target, Mapping) else {}
+    parsed = _parse_target_ref(ref, workflow_type) or {}
     target = {
         "workflow_type": workflow_type,
         "ref": ref,
         "identity_key": identity_key,
         "display": display,
         "checkout_dir": checkout_dir,
+        "owner": str(target_map.get("owner") or parsed.get("owner") or ""),
+        "name": str(target_map.get("name") or parsed.get("name") or ""),
+        "host": str(target_map.get("host") or parsed.get("host") or ""),
+        "web_url": str(target_map.get("web_url") or parsed.get("web_url") or ""),
+        "project_key_base": str(
+            target_map.get("project_key_base") or parsed.get("project_key_base") or ""
+        ),
+        "project_name_base": str(
+            target_map.get("project_name_base") or parsed.get("project_name_base") or ""
+        ),
+        "provider_display": str(target_map.get("provider_display") or ""),
+        "storage_policy": str(target_map.get("storage_policy") or ""),
     }
-    observed = gather_facts(target, mode, actor=actor)
+    options = _creation_options(request)
+    observed = gather_facts(target, mode, actor=actor, options=options)
     document = build_plan_document(request, facts=observed)
     send({"event": "plan", "plan": document})
     plan_target = document.get("target")
@@ -156,17 +173,14 @@ def _apply_locked(
             next_argv=[],
             message=_blocker_message(blocker_list),
         )
-    if mode == "create" and _step_state(document, "create_remote") == "pending":
+    if mode == "create" and detect_actor() == "agent":
         return _finish(
             send,
             status="blocked",
             key=actual_key,
             name=actual_name,
             next_argv=[],
-            message=(
-                "creating a remote repository is owned by "
-                "`sase project create`, not by apply"
-            ),
+            message=HUMAN_ONLY_CREATE_MESSAGE,
         )
     ctx = RunContext(
         identity_key=identity_key,
@@ -182,6 +196,8 @@ def _apply_locked(
         actual_key=actual_key,
         actual_name=actual_name,
         checkout_done_initially=_step_state(document, "checkout") == "done",
+        options=dict(observed.get("creation_effective") or options),
+        request={**dict(request), "target": target, "options": options},
     )
     record_intent(
         identity_key=identity_key,
@@ -193,7 +209,8 @@ def _apply_locked(
         proc_id=proc_id,
         setup_required=setup_enabled,
     )
-    for step_id in _ADD_STEP_ORDER:
+    order = _CREATE_STEP_ORDER if mode == "create" else _ADD_STEP_ORDER
+    for step_id in order:
         step = _find_step(document, step_id)
         if step is None or _step_state(document, step_id) != "pending":
             continue
@@ -353,7 +370,20 @@ def _parse_target_ref(ref: str, workflow_type: str) -> dict[str, str] | None:
         "workflow_type": parsed.workflow_type,
         "ref": parsed.ref,
         "checkout_dir": parsed.checkout_dir,
+        "owner": parsed.owner,
+        "name": parsed.name,
+        "host": parsed.host,
+        "web_url": parsed.web_url,
+        "project_key_base": parsed.project_key_base,
+        "project_name_base": parsed.project_name_base,
     }
+
+
+def _creation_options(request: Mapping[str, Any]) -> dict[str, str]:
+    raw = request.get("options")
+    if not isinstance(raw, Mapping):
+        return {}
+    return {str(key): str(value) for key, value in raw.items()}
 
 
 def _find_step(document: Mapping[str, Any], step_id: str) -> Mapping[str, Any] | None:

@@ -236,6 +236,10 @@ interrupted add. Agents can preview and add with automatic setup disabled; an ex
 `--setup` that writes, commits, and pushes the management marker is human-only.
 Successful setup can offer `sase init -p KEY` to configure the project and its sidecars.
 
+To create a repository and register it, preview with `sase project create REF --check`,
+then apply with `--yes`. Create apply is human-only: agents propose the exact
+`sase project create … --yes` command through `/sase_gate`.
+
 ## Step 6 — Hand Off Existing Work With Artifact References
 
 An agent handoff is more reliable when it names the exact prior artifact instead of
