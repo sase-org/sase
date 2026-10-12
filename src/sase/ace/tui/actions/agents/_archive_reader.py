@@ -336,6 +336,21 @@ def _load_archive_bundle(
     }
 
 
+def load_archive_bundle(
+    owner: Any, light_row: Mapping[str, Any] | None
+) -> dict[str, Any]:
+    """Public seam for Archive bundle hydration. Never writes.
+
+    Split restore modules consume this instead of the private
+    ``_load_archive_bundle`` so no module imports a ``_``-prefixed name
+    across modules. Tests keep patching
+    ``sase.ace.tui.actions.agents._archive_reader._load_archive_bundle``:
+    this wrapper resolves that name at call time, so the patch still takes
+    effect.
+    """
+    return _load_archive_bundle(owner, light_row)
+
+
 async def _hydrate_archive_agent(
     owner: Any,
     *,
@@ -418,5 +433,6 @@ __all__ = [
     "arm_archive_detail_hydration",
     "clear_archive_reader_runtime",
     "hydrated_archive_agent_for",
+    "load_archive_bundle",
     "paint_archive_detail_placeholder",
 ]
