@@ -12,6 +12,8 @@ from sase.notification_gates.branches import GateBranchData
 from sase.plan_approval_choices import PlanApprovalModalChoice
 from tests.ace.tui.visual._ace_plan_decisions_png_fixtures import (
     EPIC_DECISIONS_PLAN,
+    MAXCOPY_PLAN,
+    SYNCTHING_PLAN,
     TALE_CHOICES_PLAN,
     TALE_MEMORY_PLAN,
     decision_gate_bundle,
@@ -302,4 +304,87 @@ async def test_epic_plan_gate_decisions_png_snapshot(
         decision_definitions=definitions,
         review_revision=1,
         request_id="visual-epic-decisions",
+    )
+
+
+async def test_syncthing_plan_gate_decisions_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Tale gate with the four-decision syncthing fixture at 120x40."""
+    plan, gate, definitions = decision_gate_bundle(
+        tmp_path,
+        monkeypatch,
+        name="syncthing-decisions.md",
+        content=SYNCTHING_PLAN,
+    )
+    await _snapshot_plan_gate(
+        ace_png_visual,
+        monkeypatch,
+        plan=plan,
+        default_choice="tale",
+        snapshot_name="plan_gate_tale_decisions_syncthing_120x40",
+        title="ACE tale plan gate with syncthing decisions",
+        gate=gate,
+        plan_content=plan.read_text(encoding="utf-8"),
+        decision_definitions=definitions,
+        review_revision=3,
+        request_id="visual-syncthing-decisions",
+    )
+
+
+async def test_syncthing_wide_plan_gate_decisions_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Tale gate with the four-decision syncthing fixture at 200x56."""
+    plan, gate, definitions = decision_gate_bundle(
+        tmp_path,
+        monkeypatch,
+        name="syncthing-decisions-wide.md",
+        content=SYNCTHING_PLAN,
+    )
+    await _snapshot_plan_gate(
+        ace_png_visual,
+        monkeypatch,
+        plan=plan,
+        default_choice="tale",
+        snapshot_name="plan_gate_tale_decisions_syncthing_200x56",
+        title="ACE wide tale plan gate with syncthing decisions",
+        size=(200, 56),
+        gate=gate,
+        plan_content=plan.read_text(encoding="utf-8"),
+        decision_definitions=definitions,
+        review_revision=3,
+        request_id="visual-syncthing-decisions-wide",
+    )
+
+
+async def test_maxcopy_plan_gate_decisions_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Tale gate with five grammar-limit decisions (verified memory last)."""
+    plan, gate, definitions = decision_gate_bundle(
+        tmp_path,
+        monkeypatch,
+        name="maxcopy-decisions.md",
+        content=MAXCOPY_PLAN,
+        verified_memory=True,
+    )
+    await _snapshot_plan_gate(
+        ace_png_visual,
+        monkeypatch,
+        plan=plan,
+        default_choice="tale",
+        snapshot_name="plan_gate_tale_decisions_maxcopy_120x40",
+        title="ACE tale plan gate with grammar-limit decisions",
+        gate=gate,
+        plan_content=plan.read_text(encoding="utf-8"),
+        decision_definitions=definitions,
+        review_revision=3,
+        request_id="visual-maxcopy-decisions",
     )

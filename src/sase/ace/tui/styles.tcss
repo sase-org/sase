@@ -1780,9 +1780,46 @@ PlanApprovalModal .gate-review-body > .gate-review-actions--decisions {
     width: 50;
 }
 
+/* Decision cards (sase-1ka.1). Focus tokens: #5FD7FF is the focus colour,
+   #3A6F80 its muted bar; both are named constants beside the card builders
+   in plan_decision_cards.py. Every rule here is scoped to PlanApprovalModal
+   so custom and sudo gates keep their look. */
 .plan-decision-rows {
+    height: 1fr;
+    scrollbar-size-vertical: 1;
+    scrollbar-gutter: auto;
+    scrollbar-color: $text-muted;
+}
+
+.plan-decision-slot {
     height: auto;
-    max-height: 16;
+    scrollbar-size-vertical: 1;
+    scrollbar-gutter: auto;
+    scrollbar-color: $text-muted;
+}
+
+PlanApprovalModal .plan-decision-card {
+    height: auto;
+    text-align: left;
+    border-left: blank;
+}
+
+PlanApprovalModal .plan-decision-card.-current {
+    border-left: outer #3A6F80;
+    background: #5FD7FF 6%;
+}
+
+PlanApprovalModal .plan-decision-card.-current:focus {
+    border-left: outer #5FD7FF;
+    background: #5FD7FF 10%;
+}
+
+PlanApprovalModal .plan-decision-card.-readonly {
+    border-left: outer #767676;
+}
+
+PlanApprovalModal .plan-decision-card:focus {
+    text-style: none;
 }
 
 .plan-decision-row {

@@ -287,8 +287,8 @@ class PlanDecisionDraft:
                 self._definitions, dict(self._values), self._review_revision
             )
 
-    def full_summary(self, verdict: str) -> str:
-        sheet = self.sheet()
+    def full_summary(self, verdict: str, sheet: dict[str, Any] | None = None) -> str:
+        sheet = sheet if isinstance(sheet, dict) else self.sheet()
         try:
             from sase.sdd.plan_decisions import summary_binding
 
@@ -296,8 +296,8 @@ class PlanDecisionDraft:
         except Exception:
             return _fallback_full_summary(sheet, verdict)
 
-    def short_summary(self, verdict: str) -> str:
-        sheet = self.sheet()
+    def short_summary(self, verdict: str, sheet: dict[str, Any] | None = None) -> str:
+        sheet = sheet if isinstance(sheet, dict) else self.sheet()
         try:
             from sase.sdd.plan_decisions import summary_binding
 

@@ -343,10 +343,11 @@ def test_pending_chips_for_correction_and_claim_not_found() -> None:
 
 
 def test_tui_correction_and_claim_not_found_copy() -> None:
-    from sase.ace.tui.modals.plan_decision_rows import (
-        _expanded_row_text,
-        _is_unverified_row,
-        _unverified_warning_line,
+    from sase.ace.tui.modals.plan_decision_cards import (
+        expanded_card,
+        is_unverified_row as _is_unverified_row,
+        render_lines,
+        unverified_warning_line as _unverified_warning_line,
     )
 
     correction = {
@@ -362,8 +363,14 @@ def test_tui_correction_and_claim_not_found_copy() -> None:
             "quote": CLAIM,
         },
     }
-    expanded = _expanded_row_text(correction).plain
-    assert f'corrects: "{CLAIM}"' in expanded
+    expanded_lines = render_lines(expanded_card(correction, None, 76).renderable, 76)
+    expanded = "\n".join(expanded_lines)
+    assert "corrects a statement this plan makes false" in expanded
+    # Long quotes fold across lines; compare spaceless on both sides.
+    expanded_flat = "".join(
+        "".join(line.replace("▌", "").split()) for line in expanded_lines
+    )
+    assert "".join(CLAIM.split()) in expanded_flat
     assert "you asked:" not in expanded
     assert not _is_unverified_row(correction)
 

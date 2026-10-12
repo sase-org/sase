@@ -6,9 +6,11 @@ from tests.ace.tui._plan_decision_ace_shared import plan_decision_definitions
 
 __all__ = [
     "test_compact_verdict_stays_inside_rail_with_stylesheet",
+    "test_decision_cards_never_clip_with_stylesheet",
     "test_draft_edit_avoids_revalidate_relex",
     "test_first_frame_tint_keeps_syntax",
     "test_generic_gate_rail_stays_42_with_stylesheet",
+    "test_one_keypress_computes_sheet_once_and_refreshes_edited_card",
     "test_settled_polling_reads_only_open_modal",
 ]
 
@@ -17,6 +19,7 @@ async def test_compact_verdict_stays_inside_rail_with_stylesheet(tmp_path) -> No
     from pathlib import Path as _Path
 
     from textual.app import App as _App
+    from textual.containers import Vertical as _V
     from textual.containers import VerticalScroll as _VS
 
     from sase.ace.tui.modals.plan_approval_modal import PlanApprovalModal as _Modal
@@ -45,7 +48,11 @@ async def test_compact_verdict_stays_inside_rail_with_stylesheet(tmp_path) -> No
                     pilot.app.push_screen(modal)
                     await pilot.pause()
                     await pilot.pause()
-                    rail = modal.query_one(".gate-review-actions", _VS)
+                    # Decision rails are a plain Vertical (pinned cards);
+                    # decision-free rails keep the scrolling container.
+                    rail = modal.query_one(
+                        ".gate-review-actions", _V if with_decisions else _VS
+                    )
                     content = rail.content_region
                     for btn in modal.query("#plan-verdict GateControlButton"):
                         assert content.contains_region(btn.region), (
@@ -92,6 +99,190 @@ async def test_compact_verdict_stays_inside_rail_with_stylesheet(tmp_path) -> No
                         )
                     pilot.app.pop_screen()
                     await pilot.pause()
+
+
+async def test_decision_cards_never_clip_with_stylesheet(tmp_path, monkeypatch) -> None:
+    """No-clip pilot invariant: cards stay inside the list, never scroll sideways.
+
+    Syncthing and max-copy fixtures at 120x40 and 200x56, for every focus
+    index: every card lies horizontally inside the list's content region and
+    no list or slot shows a horizontal scrollbar. Verified against the prior
+    Button implementation first: its focused row measured 103 cells wide in
+    a 44-cell viewport (clipped by 59 cells), so this invariant fails there
+    and passes with cards.
+    """
+    import json
+    from pathlib import Path as _Path
+
+    from textual.app import App as _App
+
+    from sase.ace.tui.modals.plan_approval_modal import PlanApprovalModal as _Modal
+    from sase.ace.tui.modals.plan_decision_rows import (
+        DecisionCard as _Card,
+    )
+    from sase.ace.tui.modals.plan_decision_rows import (
+        PlanDecisionRows as _Rows,
+    )
+    from tests.ace.tui.visual._ace_plan_decisions_png_fixtures import (
+        MAXCOPY_PLAN,
+        MEMORY_QUOTE,
+        SYNCTHING_PLAN,
+    )
+
+    _ROOT = _Path(__file__).resolve().parents[3]
+
+    class _StyledApp(_App[None]):
+        CSS_PATH = _ROOT / "src/sase/ace/tui/styles.tcss"
+        ENABLE_COMMAND_PALETTE = False
+
+    cases = []
+    for name, content, verified in (
+        ("syncthing", SYNCTHING_PLAN, False),
+        ("maxcopy", MAXCOPY_PLAN, True),
+    ):
+        plan = tmp_path / f"noclip_{name}.md"
+        plan.write_text(content, encoding="utf-8")
+        if verified:
+            artifacts = tmp_path / f"noclip_{name}_artifacts"
+            artifacts.mkdir(exist_ok=True)
+            (artifacts / "agent_meta.json").write_text(
+                json.dumps({"prompt_origin": "typed"}), encoding="utf-8"
+            )
+            (artifacts / "submitted_prompt.md").write_text(
+                f"Please do the work {MEMORY_QUOTE} thanks.\n", encoding="utf-8"
+            )
+            monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(artifacts))
+        else:
+            monkeypatch.delenv("SASE_ARTIFACTS_DIR", raising=False)
+        from sase.plan_gate import build_plan_approval_gate_spec
+
+        spec = build_plan_approval_gate_spec(plan, "visual-session")
+        definitions = [
+            dict(item)
+            for item in spec["payload"].get("decisions", [])
+            if isinstance(item, dict)
+        ]
+        assert definitions
+        cases.append((name, plan, definitions))
+    monkeypatch.delenv("SASE_ARTIFACTS_DIR", raising=False)
+
+    for name, plan, definitions in cases:
+        for width, height in ((120, 40), (200, 56)):
+            modal = _Modal(
+                str(plan),
+                default_choice="tale",
+                plan_content=plan.read_text(encoding="utf-8"),
+                decision_definitions=[dict(d) for d in definitions],
+                review_revision=3,
+                request_id=f"req-noclip-{name}-{width}",
+            )
+            async with _StyledApp().run_test(size=(width, height)) as pilot:
+                pilot.app.push_screen(modal)
+                await pilot.pause()
+                await pilot.pause()
+                await pilot.pause()
+                rows = modal.query_one("#plan-decision-rows", _Rows)
+                slot_count = len(definitions)
+                assert rows.focused_index == 0
+                for focus in range(slot_count):
+                    rows.set_focused_index(focus)
+                    await pilot.pause()
+                    await pilot.pause()
+                    listing = modal.query_one("#plan-decision-rows", _Rows)
+                    content = listing.content_region
+                    assert not listing.show_horizontal_scrollbar, (name, width, focus)
+                    for index in range(slot_count):
+                        card = modal.query_one(f"#plan-decision-{index}", _Card)
+                        region = card.region
+                        assert content.x <= region.x, (
+                            name,
+                            width,
+                            focus,
+                            index,
+                            region,
+                            content,
+                        )
+                        assert region.right <= content.right, (
+                            name,
+                            width,
+                            focus,
+                            index,
+                            region,
+                            content,
+                        )
+                        slot = modal.query_one(f"#decision-slot-{index}")
+                        assert not slot.show_horizontal_scrollbar, (
+                            name,
+                            width,
+                            focus,
+                            index,
+                        )
+                        for line in card.rendered_lines():
+                            from rich.cells import cell_len as _cell_len
+
+                            assert _cell_len(line) <= card._card_width, (
+                                name,
+                                width,
+                                focus,
+                                index,
+                                line,
+                            )
+                pilot.app.pop_screen()
+                await pilot.pause()
+
+
+async def test_one_keypress_computes_sheet_once_and_refreshes_edited_card(
+    tmp_path,
+) -> None:
+    """One ``l`` keypress computes the sheet once and re-renders one card."""
+    import unittest.mock as _mock
+
+    from textual.app import App as _App
+
+    from sase.ace.tui.modals.plan_approval_modal import PlanApprovalModal as _Modal
+    from sase.ace.tui.modals.plan_decision_rows import DecisionCard as _Card
+    from sase.ace.tui.modals.plan_decision_sheet import PlanDecisionDraft as _Draft
+
+    class _App4(_App[None]):
+        ENABLE_COMMAND_PALETTE = False
+
+    plan = tmp_path / "sheet_once_plan.md"
+    plan.write_text("# Plan\n", encoding="utf-8")
+    modal = _Modal(
+        str(plan),
+        default_choice="tale",
+        plan_content="# Plan\n",
+        decision_definitions=plan_decision_definitions(tmp_path),
+        review_revision=1,
+        request_id="req-sheet-once-1",
+    )
+    async with _App4().run_test(size=(120, 40)) as pilot:
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+        await pilot.pause()
+        calls = {"sheet": 0}
+        real_sheet = _Draft.sheet
+
+        def _counting_sheet(self):  # type: ignore[no-untyped-def]
+            calls["sheet"] += 1
+            return real_sheet(self)
+
+        rendered: list[str | None] = []
+        real_render = _Card.render_card
+
+        def _spy_render(self, *args, **kwargs):  # type: ignore[no-untyped-def]
+            rendered.append(self.id)
+            return real_render(self, *args, **kwargs)
+
+        with (
+            _mock.patch.object(_Draft, "sheet", _counting_sheet),
+            _mock.patch.object(_Card, "render_card", _spy_render),
+        ):
+            await pilot.press("l")
+            await pilot.pause()
+        assert modal._decision_draft.value_for("grouping") == "mode"  # type: ignore[attr-defined]
+        assert calls["sheet"] == 1, calls
+        assert rendered == ["plan-decision-0"], rendered
 
 
 async def test_generic_gate_rail_stays_42_with_stylesheet(tmp_path) -> None:

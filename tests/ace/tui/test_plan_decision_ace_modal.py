@@ -10,9 +10,59 @@ __all__ = [
     "test_gate_card_decisions_block_pending_and_answered",
     "test_gate_card_pending_toggles_use_checkboxes",
     "test_modal_decisions_focus_step_reset_and_enter",
+    "test_modal_decision_mouse_selects_card_and_option",
     "test_modal_result_carries_displayed_revision_and_decisions",
     "test_toast_second_line_and_plan_document_sheet",
 ]
+
+
+async def test_modal_decision_mouse_selects_card_and_option(tmp_path) -> None:
+    """Clicking a card makes it current; clicking an option selects it."""
+    from pathlib import Path as _Path
+
+    from textual.app import App
+
+    from sase.ace.tui.modals.plan_approval_modal import PlanApprovalModal
+    from sase.ace.tui.modals.plan_decision_rows import PlanDecisionRows
+
+    _ROOT = _Path(__file__).resolve().parents[3]
+
+    class _TestApp(App[None]):
+        CSS_PATH = _ROOT / "src/sase/ace/tui/styles.tcss"
+        ENABLE_COMMAND_PALETTE = False
+
+    plan = tmp_path / "plan.md"
+    plan.write_text("# Plan\n", encoding="utf-8")
+    modal = PlanApprovalModal(
+        str(plan),
+        default_choice="tale",
+        plan_content="# Plan\n",
+        decision_definitions=plan_decision_definitions(tmp_path),
+        review_revision=7,
+        request_id="req-decisions-mouse-1",
+    )
+
+    async with _TestApp().run_test(size=(120, 40)) as pilot:
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+        await pilot.pause()
+        rows = modal.query_one("#plan-decision-rows", PlanDecisionRows)
+        assert rows.focused_index == 0
+        # Click the collapsed second card: it becomes current.
+        await pilot.click("#plan-decision-1")
+        await pilot.pause()
+        assert rows.focused_index == 1
+        # Click back on the first card, then on its "mode" option line.
+        await pilot.click("#plan-decision-0")
+        await pilot.pause()
+        assert rows.focused_index == 0
+        card = modal.query_one("#plan-decision-0")
+        option = next(
+            item for item in (card._built.option_map or []) if item.key == "mode"
+        )
+        await pilot.click("#plan-decision-0", offset=(2, option.first_line))
+        await pilot.pause()
+        assert modal._decision_draft.value_for("grouping") == "mode"
 
 
 async def test_modal_decisions_focus_step_reset_and_enter(tmp_path) -> None:

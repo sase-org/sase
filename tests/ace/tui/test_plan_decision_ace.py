@@ -15,7 +15,9 @@ from tests.ace.tui.test_plan_decision_ace_draft import (
     test_flip_and_reset,
     test_decision_map_keys,
     test_sheet_counts_and_revision,
-    test_collapsed_and_expanded_row_text,
+    test_card_builders_wrap_at_widths,
+    test_collapsed_and_expanded_cards,
+    test_toggle_chip_glyphs_measure_one_cell,
     test_unverified_copy_and_human_override,
     test_new_chip_for_missing_memory_note,
     test_feedback_carry_lines_only_changed,
@@ -33,6 +35,7 @@ from tests.ace.tui.test_plan_decision_ace_document import (
 )
 from tests.ace.tui.test_plan_decision_ace_modal import (
     test_modal_decisions_focus_step_reset_and_enter,
+    test_modal_decision_mouse_selects_card_and_option,
     test_esc_store_freeze_and_settled,
     test_toast_second_line_and_plan_document_sheet,
     test_modal_result_carries_displayed_revision_and_decisions,
@@ -53,19 +56,23 @@ from tests.ace.tui.test_plan_decision_ace_stale import (
 )
 from tests.ace.tui.test_plan_decision_ace_render import (
     test_compact_verdict_stays_inside_rail_with_stylesheet,
+    test_decision_cards_never_clip_with_stylesheet,
     test_first_frame_tint_keeps_syntax,
     test_draft_edit_avoids_revalidate_relex,
+    test_one_keypress_computes_sheet_once_and_refreshes_edited_card,
     test_settled_polling_reads_only_open_modal,
 )
 
 __test__ = False
 
 __all__ = [
+    "test_card_builders_wrap_at_widths",
     "test_classify_callout_chosen_and_dimmed",
     "test_classify_no_branch_callout",
-    "test_collapsed_and_expanded_row_text",
+    "test_collapsed_and_expanded_cards",
     "test_compact_verdict_stays_inside_rail_with_stylesheet",
     "test_compact_verdict_three_lines_with_without_and_epic",
+    "test_decision_cards_never_clip_with_stylesheet",
     "test_custom_gate_decision_handlers_noop",
     "test_decision_map_keys",
     "test_decision_option_inputs_same_map_and_reject_omits",
@@ -81,9 +88,11 @@ __all__ = [
     "test_gate_card_decisions_block_pending_and_answered",
     "test_gate_card_pending_toggles_use_checkboxes",
     "test_inbox_suffix_counts_and_memory",
+    "test_modal_decision_mouse_selects_card_and_option",
     "test_modal_decisions_focus_step_reset_and_enter",
     "test_modal_result_carries_displayed_revision_and_decisions",
     "test_new_chip_for_missing_memory_note",
+    "test_one_keypress_computes_sheet_once_and_refreshes_edited_card",
     "test_plan_section_render_path_no_stat_no_validate",
     "test_plan_short_labels_and_generic_unchanged",
     "test_receipt_has_no_gate_card_and_is_silent",
@@ -95,6 +104,7 @@ __all__ = [
     "test_stale_review_reloads_revision_keeping_values",
     "test_step_wraps_choices_and_sets_toggles",
     "test_tint_dims_unselected_without_dropping_lines",
+    "test_toggle_chip_glyphs_measure_one_cell",
     "test_toast_second_line_and_plan_document_sheet",
     "test_unverified_copy_and_human_override",
 ]

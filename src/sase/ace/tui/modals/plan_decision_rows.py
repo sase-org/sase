@@ -1,227 +1,185 @@
-"""Accordion widget for Plan Decisions.
+"""Decision cards widget for Plan Decisions (sase-1ka.1).
 
-Pure row-text builders are testable without a Textual pilot; the
-``PlanDecisionRows`` widget renders those builders and owns the focused
-row index.
+Each decision is a focusable :class:`DecisionCard` (a ``Static`` rendering
+one pure-Rich card from
+:mod:`sase.ace.tui.modals.plan_decision_cards`) mounted inside its own
+per-decision slot ``VerticalScroll``. ``PlanDecisionRows`` owns the focused
+row index and re-renders only the cards a keypress or focus move touches.
 """
 
 from __future__ import annotations
 
 from typing import Any
 
-from rich.text import Text
-from textual.containers import VerticalScroll
-from textual.widgets import Button, Static
+from textual.containers import Vertical, VerticalScroll
+from textual.events import Click
+from textual.message import Message
+from textual.widgets import Static
 
-from sase.sdd._plan_display_decisions import (
-    DECISION_DEFAULT_MARK,
-    DECISION_MODIFIED_MARK,
-    DECISION_SELECTED_MARK,
-    DECISION_UNSELECTED_MARK,
-    format_decision_value,
-    memory_note_names,
-    provenance_chip,
+from .plan_decision_cards import (
+    BuiltCard,
+    collapsed_card,
+    expanded_card,
+    render_lines,
 )
 
-
-def _memory_type_chips(memory: dict[str, Any]) -> list[str]:
-    resolved = memory.get("resolved")
-    if not isinstance(resolved, list):
-        return []
-    chips: list[str] = []
-    for record in resolved:
-        if not isinstance(record, dict):
-            continue
-        kind = str(record.get("type") or record.get("kind") or "").strip()
-        if kind == "strand":
-            kind = "web"
-        if kind and kind not in chips:
-            chips.append(kind)
-        if record.get("exists") is False and "new" not in chips:
-            chips.append("new")
-    return chips
+#: Fallback card width before the first layout pass measures the real one.
+_FALLBACK_CARD_WIDTH = 44
 
 
-def _is_unverified_row(
-    row: dict[str, Any], definition: dict[str, Any] | None = None
-) -> bool:
-    memory = row.get("memory")
-    if not isinstance(memory, dict):
-        return False
-    if str(memory.get("provenance") or "") in ("quote_not_found", "claim_not_found"):
-        return True
-    if definition is not None:
-        authored = definition.get("default")
-        effective = definition.get("effective_default", authored)
-        if authored is True and effective is False and row.get("value") is False:
-            return True
-    return False
+class DecisionCard(Static, can_focus=True):
+    """One focusable decision card.
 
+    Clicking the card focuses it (the modal syncs the decision index through
+    the normal focus path). Clicking an option line inside the *current*
+    choice card posts :class:`PlanDecisionRows.OptionSelected` instead.
+    """
 
-def _unverified_warning_line(memory: dict[str, Any]) -> str:
-    quote = memory.get("quote")
-    quote_text = str(quote).strip() if isinstance(quote, str) else ""
-    if str(memory.get("provenance") or "") == "claim_not_found":
-        return f'⚠ "{quote_text}" — not in the note · off until you turn it on'
-    return f'⚠ "{quote_text}" — not in your messages · off until you turn it on'
+    def __init__(
+        self,
+        index: int,
+        *,
+        id: str | None = None,
+        classes: str | None = None,
+    ) -> None:
+        super().__init__("", id=id, classes=classes)
+        self._card_index = index
+        self._row: dict[str, Any] = {}
+        self._definition: dict[str, Any] | None = None
+        self._current = False
+        self._card_focused = False
+        self._read_only = False
+        self._preview_lines = 2
+        self._card_width = _FALLBACK_CARD_WIDTH
+        self._built: BuiltCard | None = None
 
+    @property
+    def card_index(self) -> int:
+        return self._card_index
 
-def _collapsed_row_text(
-    row: dict[str, Any], *, definition: dict[str, Any] | None = None
-) -> Text:
-    text = Text()
-    decision_id = str(row.get("id", ""))
-    kind = str(row.get("kind", ""))
-    value = row.get("value")
-    changed = bool(row.get("changed"))
-    if kind == "toggle":
-        glyph = "☑️" if value is True else "⬜"
-        shown = format_decision_value(value)
-    else:
-        glyph = DECISION_SELECTED_MARK
-        shown = str(value)
-    mark = f" {DECISION_MODIFIED_MARK}" if changed else ""
-    text.append(f"{glyph} {decision_id}  {shown}{mark}", style="bold")
-    if changed:
-        # Gold marker is also a span so colour is not the only cue;
-        # detail text names the default separately.
-        try:
-            start = len(f"{glyph} {decision_id}  {shown}")
-            text.stylize("#FFD700", start, start + 2)
-        except Exception:
-            pass
-    text.append("\n")
-    memory = row.get("memory")
-    ask = str(row.get("ask", ""))
-    if isinstance(memory, dict):
-        names = memory_note_names(memory)
-        chips = _memory_type_chips(memory)
-        provenance = provenance_chip(str(memory.get("provenance") or ""))
-        second = f"🧠 {', '.join(names) if names else decision_id}"
-        if chips:
-            second += f" · {', '.join(chips)}"
-        if provenance:
-            second += f" · {provenance}"
-        text.append(second, style="dim")
-        if _is_unverified_row(row, definition):
-            text.append("\n")
-            text.append(_unverified_warning_line(memory), style="yellow")
-        elif ask.strip():
-            truncated = ask.strip()
-            if len(truncated) > 60:
-                truncated = truncated[:57] + "..."
-            text.append(f"  {truncated}", style="dim")
-    else:
-        truncated = ask.strip()
-        if len(truncated) > 80:
-            truncated = truncated[:77] + "..."
-        text.append(truncated, style="dim")
-    return text
-
-
-def _expanded_row_text(
-    row: dict[str, Any], *, definition: dict[str, Any] | None = None
-) -> Text:
-    text = Text()
-    decision_id = str(row.get("id", ""))
-    kind = str(row.get("kind", ""))
-    value = row.get("value")
-    default = row.get("default")
-    changed = bool(row.get("changed"))
-    ask = str(row.get("ask", ""))
-    if kind == "toggle":
-        glyph = "☑️" if value is True else "⬜"
-        shown = format_decision_value(value)
-        mark = f" {DECISION_MODIFIED_MARK}" if changed else ""
-        text.append(f"{glyph} {decision_id}  {shown}{mark}", style="bold")
-        if changed:
-            try:
-                start = len(f"{glyph} {decision_id}  {shown}")
-                text.stylize("#FFD700", start, start + 2)
-            except Exception:
-                pass
-        text.append("\n")
-    else:
-        shown = str(value)
-        mark = f" {DECISION_MODIFIED_MARK}" if changed else ""
-        text.append(
-            f"{DECISION_SELECTED_MARK} {decision_id}  {shown}{mark}", style="bold"
-        )
-        if changed:
-            try:
-                start = len(f"{DECISION_SELECTED_MARK} {decision_id}  {shown}")
-                text.stylize("#FFD700", start, start + 2)
-            except Exception:
-                pass
-        text.append("\n")
-    if ask.strip():
-        text.append(ask.strip())
-        text.append("\n")
-    choices = row.get("choices")
-    if kind == "choice" and isinstance(choices, list):
-        for choice in choices:
-            if not isinstance(choice, dict):
-                continue
-            key = str(choice.get("key", ""))
-            label = str(choice.get("label", ""))
-            selected = str(value) == key
-            mark = DECISION_SELECTED_MARK if selected else DECISION_UNSELECTED_MARK
-            star = f" {DECISION_DEFAULT_MARK}" if str(default) == key else ""
-            text.append(f"  {mark} {key}{star}", style="bold" if selected else "")
-            if label:
-                text.append(f"  {label}", style="dim")
-            text.append("\n")
-    elif kind == "toggle":
-        for option_value, label in ((True, "yes"), (False, "no")):
-            selected = value is option_value
-            mark = (
-                "☑️"
-                if (option_value and selected) or (not option_value and selected)
-                else "⬜"
+    def render_card(
+        self,
+        row: dict[str, Any],
+        definition: dict[str, Any] | None,
+        width: int,
+        *,
+        current: bool,
+        focused: bool,
+        read_only: bool,
+        preview_lines: int = 2,
+    ) -> None:
+        """Rebuild this card's renderable from a sheet row."""
+        self._row = dict(row)
+        self._definition = dict(definition) if isinstance(definition, dict) else None
+        self._current = current
+        self._card_focused = focused
+        self._read_only = read_only
+        self._preview_lines = preview_lines
+        self._card_width = max(int(width), 8)
+        if current:
+            self._built = expanded_card(
+                self._row,
+                self._definition,
+                self._card_width,
+                focused=focused,
+                read_only=read_only,
             )
-            star = f" {DECISION_DEFAULT_MARK}" if default is option_value else ""
-            text.append(f"  {mark} {label}{star}")
-            text.append("\n")
-    why = row.get("why")
-    if isinstance(why, str) and why.strip():
-        text.append(f"  {DECISION_DEFAULT_MARK} {why.strip()}", style="dim")
-        text.append("\n")
-    if default is not None:
-        text.append(f"  default: {format_decision_value(default)}", style="dim")
-        text.append("\n")
-    memory = row.get("memory")
-    if isinstance(memory, dict):
-        names = memory_note_names(memory)
-        chips = _memory_type_chips(memory)
-        provenance = provenance_chip(str(memory.get("provenance") or ""))
-        quote = memory.get("quote")
-        if _is_unverified_row(row, definition):
-            text.append(
-                f"  {_unverified_warning_line(memory)}",
-                style="yellow",
-            )
-            text.append("\n")
         else:
-            text.append("  🧠 ", style="bold")
-            text.append(", ".join(names) if names else decision_id, style="bold")
-            if chips:
-                text.append(f" · {', '.join(chips)}", style="dim")
-            if provenance:
-                text.append(f" · {provenance}", style="dim")
-            text.append("\n")
-            if isinstance(quote, str) and quote.strip():
-                label = (
-                    "corrects"
-                    if str(memory.get("provenance") or "") == "correction"
-                    else "you asked"
-                )
-                text.append(f'  {label}: "{quote.strip()}"', style="dim")
-                text.append("\n")
-    return text
+            self._built = collapsed_card(
+                self._row,
+                self._definition,
+                self._card_width,
+                current=False,
+                read_only=read_only,
+                preview_lines=preview_lines,
+            )
+        self.update(self._built.renderable)
+        self.set_class(current, "-current")
+        self.set_class(read_only, "-readonly")
+
+    def refresh_for_width(self, width: int) -> bool:
+        """Re-render when the measured content width changed."""
+        width = max(int(width), 8)
+        if width == self._card_width and self._built is not None:
+            return False
+        self.render_card(
+            self._row,
+            self._definition,
+            width,
+            current=self._current,
+            focused=self._card_focused,
+            read_only=self._read_only,
+            preview_lines=self._preview_lines,
+        )
+        return True
+
+    def rendered_lines(self) -> list[str]:
+        """Return the current card as plain lines (tests + measuring)."""
+        if self._built is None:
+            return []
+        return render_lines(self._built.renderable, self._card_width)
+
+    def option_at_line(self, line: int) -> str | None:
+        """Map a card-local line number to an option key, if any."""
+        if self._built is None or not self._current or self._read_only:
+            return None
+        if str(self._row.get("kind", "")) != "choice":
+            return None
+        for option in self._built.option_map:
+            if option.first_line <= line <= option.last_line:
+                return option.key
+        return None
+
+    def on_click(self, event: Click) -> None:
+        if self._read_only:
+            return
+        if not self._current:
+            # First click makes the card current through the focus path.
+            self.focus()
+            return
+        if str(self._row.get("kind", "")) != "choice":
+            return
+        try:
+            line = int(event.y) - int(self.content_offset.y)
+        except Exception:
+            return
+        key = self.option_at_line(line)
+        if key is None:
+            return
+        event.stop()
+        self.post_message(
+            PlanDecisionRows.OptionSelected(
+                str(self._row.get("id", "")), key, self._card_index
+            )
+        )
 
 
-class PlanDecisionRows(VerticalScroll):
-    """Accordion of decision rows; the modal owns the draft."""
+class DecisionSlot(VerticalScroll):
+    """One scrollable card slot; composes its own :class:`DecisionCard`."""
+
+    def __init__(self, index: int, **kwargs: Any) -> None:
+        super().__init__(**kwargs)
+        self._slot_index = index
+
+    def compose(self):  # type: ignore[no-untyped-def]
+        yield DecisionCard(
+            self._slot_index,
+            id=f"plan-decision-{self._slot_index}",
+            classes="plan-decision-card",
+        )
+
+
+class PlanDecisionRows(Vertical):
+    """Pinned decision cards; the modal owns the draft."""
+
+    class OptionSelected(Message):
+        """A mouse click picked an option in the current choice card."""
+
+        def __init__(self, decision_id: str, value: str, index: int) -> None:
+            super().__init__()
+            self.decision_id = decision_id
+            self.value = value
+            self.index = index
 
     def __init__(
         self,
@@ -238,6 +196,8 @@ class PlanDecisionRows(VerticalScroll):
             str(d.get("id", "")): d for d in self._definitions if str(d.get("id", ""))
         }
         self._focused_index = 0 if self._rows else -1
+        self._cards_focused = True
+        self._read_only = False
 
     @property
     def focused_index(self) -> int:
@@ -249,6 +209,14 @@ class PlanDecisionRows(VerticalScroll):
             return str(self._rows[self._focused_index].get("id", ""))
         return None
 
+    def set_read_only(self, read_only: bool) -> None:
+        """Mark every card read-only (settled elsewhere) or editable."""
+        if self._read_only == read_only:
+            return
+        self._read_only = read_only
+        if self.is_mounted:
+            self._render_cards(range(len(self._rows)))
+
     def update_rows(self, sheet_rows: list[dict[str, Any]]) -> None:
         self._rows = list(sheet_rows)
         if self._focused_index >= len(self._rows):
@@ -256,13 +224,13 @@ class PlanDecisionRows(VerticalScroll):
         if self._rows and self._focused_index < 0:
             self._focused_index = 0
         if self.is_mounted:
-            self.refresh_rows()
+            self._render_cards(range(len(self._rows)))
 
     def rebuild(
         self, sheet_rows: list[dict[str, Any]], definitions: list[dict[str, Any]]
     ) -> None:
         """Rebuild rows when the id list changed: new definitions + children."""
-        old_len = len(getattr(self, "_rows", []))
+        old_len = len(self._rows)
         self._rows = list(sheet_rows)
         self._definitions = list(definitions or [])
         self._by_id = {
@@ -275,108 +243,125 @@ class PlanDecisionRows(VerticalScroll):
         if not self.is_mounted:
             return
         new_len = len(self._rows)
-        # Remove surplus rows when the new id list is shorter.
-        if new_len < old_len:
-            for index in range(new_len, old_len):
-                for suffix in (
-                    f"#plan-decision-{index}",
-                    f"#plan-decision-detail-{index}",
-                ):
-                    try:
-                        self.query_one(suffix).remove()
-                    except Exception:
-                        pass
-        # Mount missing rows when the new id list is longer.
+        # Remove surplus slots when the new id list is shorter.
+        for index in range(new_len, old_len):
+            for slot in self.query(f"#decision-slot-{index}"):
+                slot.remove()
+        # Mount missing slots when the new id list is longer.
         if new_len > old_len:
-            try:
-                widgets: list[Any] = []
-                for index in range(old_len, new_len):
-                    row = self._rows[index]
-                    widgets.append(
-                        Button(
-                            self._row_label(index, row),
-                            id=f"plan-decision-{index}",
-                            classes="plan-decision-row",
-                        )
-                    )
-                    widgets.append(
-                        Static(
-                            "",
-                            id=f"plan-decision-detail-{index}",
-                            classes="plan-decision-detail",
-                        )
-                    )
-                if widgets:
-                    self.mount(*widgets)
-            except Exception:
-                pass
-        try:
-            self.refresh_rows()
-        except Exception:
-            pass
+            self.mount(*[self._make_slot(index) for index in range(old_len, new_len)])
+        self._render_cards(range(len(self._rows)))
 
     def set_focused_index(self, index: int) -> None:
         if not self._rows:
             self._focused_index = -1
             return
+        old = self._focused_index
         self._focused_index = max(0, min(index, len(self._rows) - 1))
+        self._cards_focused = True
         if self.is_mounted:
-            self.refresh_rows()
+            touched = {old, self._focused_index}
+            self._render_cards(sorted(i for i in touched if 0 <= i < len(self._rows)))
+
+    def set_cards_focused(self, focused: bool) -> None:
+        """Re-render the current card for card-focus gained/lost."""
+        if self._cards_focused == focused:
+            return
+        self._cards_focused = focused
+        if self.is_mounted and 0 <= self._focused_index < len(self._rows):
+            self._render_cards([self._focused_index])
+
+    def refresh_cards(self, indexes: list[int]) -> None:
+        """Re-render only the given cards (one keypress worth of work)."""
+        if self.is_mounted:
+            self._render_cards([i for i in indexes if 0 <= i < len(self._rows)])
+
+    def refresh_with_sheet(
+        self, sheet_rows: list[dict[str, Any]], indexes: list[int]
+    ) -> None:
+        """Swap in fresh sheet rows, then re-render only *indexes*."""
+        self._rows = list(sheet_rows)
+        if self._focused_index >= len(self._rows):
+            self._focused_index = len(self._rows) - 1
+        if self._rows and self._focused_index < 0:
+            self._focused_index = 0
+        self.refresh_cards(indexes)
+
+    def _make_slot(self, index: int) -> DecisionSlot:
+        return DecisionSlot(
+            index, id=f"decision-slot-{index}", classes="plan-decision-slot"
+        )
 
     def compose(self):  # type: ignore[no-untyped-def]
-        for index, row in enumerate(self._rows):
-            yield Button(
-                self._row_label(index, row),
-                id=f"plan-decision-{index}",
-                classes="plan-decision-row",
-            )
-            yield Static(
-                "",
-                id=f"plan-decision-detail-{index}",
-                classes="plan-decision-detail",
-            )
+        for index in range(len(self._rows)):
+            yield self._make_slot(index)
 
     def on_mount(self) -> None:
-        self.refresh_rows()
+        # First paint uses the fallback width; the post-layout pass re-wraps
+        # every card at its measured content width.
+        try:
+            self._render_cards(range(len(self._rows)))
+        except Exception:
+            pass
+        try:
+            self.call_after_refresh(self._refresh_all_widths)
+        except Exception:
+            pass
 
-    def _row_label(self, index: int, row: dict[str, Any]) -> Text:
-        definition = self._by_id.get(str(row.get("id", "")))
-        if index == self._focused_index:
-            return _expanded_row_text(row, definition=definition)
-        return _collapsed_row_text(row, definition=definition)
+    def on_resize(self) -> None:
+        self._refresh_all_widths()
 
-    def refresh_rows(self) -> None:
-        for index, row in enumerate(self._rows):
+    def _refresh_all_widths(self) -> None:
+        if not self.is_mounted:
+            return
+        for index in range(len(self._rows)):
             try:
-                button = self.query_one(f"#plan-decision-{index}", Button)
+                card = self.query_one(f"#plan-decision-{index}", DecisionCard)
             except Exception:
                 continue
-            button.label = self._row_label(index, row)
             try:
-                detail = self.query_one(f"#plan-decision-detail-{index}", Static)
-                if index == self._focused_index:
-                    detail.update("")
-                    detail.add_class("hidden")
-                else:
-                    detail.update("")
-                    detail.add_class("hidden")
+                width = card.content_region.width or _FALLBACK_CARD_WIDTH
             except Exception:
-                pass
+                width = _FALLBACK_CARD_WIDTH
+            try:
+                row = self._rows[index]
+                if card._row != row or width != card._card_width or card._built is None:
+                    card.render_card(
+                        row,
+                        self._by_id.get(str(row.get("id", ""))),
+                        width,
+                        current=(index == self._focused_index),
+                        focused=self._cards_focused and (index == self._focused_index),
+                        read_only=self._read_only,
+                    )
+            except Exception:
+                continue
+
+    def _render_cards(self, indexes) -> None:  # type: ignore[no-untyped-def]
+        for index in indexes:
+            card = self.query_one(f"#plan-decision-{index}", DecisionCard)
+            row = self._rows[index]
+            try:
+                width = card.content_region.width or _FALLBACK_CARD_WIDTH
+            except Exception:
+                width = _FALLBACK_CARD_WIDTH
+            if not card.is_mounted:
+                width = _FALLBACK_CARD_WIDTH
+            card.render_card(
+                row,
+                self._by_id.get(str(row.get("id", ""))),
+                width,
+                current=(index == self._focused_index),
+                focused=self._cards_focused and (index == self._focused_index),
+                read_only=self._read_only,
+            )
 
     def visible_control_ids(self) -> list[str]:
         return [f"plan-decision-{index}" for index in range(len(self._rows))]
 
-    def on_button_pressed(self, event: Button.Pressed) -> None:
-        button_id = event.button.id or ""
-        if not button_id.startswith("plan-decision-"):
-            return
-        try:
-            index = int(button_id.rsplit("-", 1)[1])
-        except ValueError:
-            return
-        self.set_focused_index(index)
-
 
 __all__ = [
+    "DecisionCard",
+    "DecisionSlot",
     "PlanDecisionRows",
 ]

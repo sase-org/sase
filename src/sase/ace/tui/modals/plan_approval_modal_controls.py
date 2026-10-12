@@ -90,18 +90,67 @@ class PlanApprovalControlsMixin:
             pass
 
     def _sync_focused_decision(self, target_id: str) -> None:
+        try:
+            rows = self.query_one("#plan-decision-rows", PlanDecisionRows)  # type: ignore[attr-defined]
+        except Exception:
+            return
         if not target_id.startswith("plan-decision-"):
+            # Focus left the cards (Actions/Verdict): the current card stays
+            # expanded but loses its focus bar and tint.
+            try:
+                rows.set_cards_focused(False)
+            except Exception:
+                pass
             return
         try:
             index = int(target_id.rsplit("-", 1)[1])
         except ValueError:
             return
         try:
-            rows = self.query_one("#plan-decision-rows", PlanDecisionRows)  # type: ignore[attr-defined]
             rows.set_focused_index(index)
         except Exception:
             pass
         self._scroll_to_focused_decision()  # type: ignore[attr-defined]
+
+    def on_descendant_focus(self, event: object) -> None:
+        """Run the keyboard focus path for mouse-selected cards."""
+        control = getattr(event, "control", None)
+        control_id = getattr(control, "id", "") or ""
+        if isinstance(control_id, str) and control_id.startswith("plan-decision-"):
+            self._sync_focused_decision(control_id)
+
+    def on_descendant_blur(self, event: object) -> None:
+        """Drop the focus bar when focus leaves every decision card."""
+        control = getattr(event, "control", None)
+        control_id = getattr(control, "id", "") or ""
+        if not (
+            isinstance(control_id, str) and control_id.startswith("plan-decision-")
+        ):
+            return
+        try:
+            from textual.widget import Widget
+
+            focused = self.screen.focused  # type: ignore[attr-defined]
+            focused_id = focused.id if isinstance(focused, Widget) else ""
+        except Exception:
+            return
+        if isinstance(focused_id, str) and focused_id.startswith("plan-decision-"):
+            return
+        try:
+            rows = self.query_one("#plan-decision-rows", PlanDecisionRows)  # type: ignore[attr-defined]
+            rows.set_cards_focused(False)
+        except Exception:
+            pass
+
+    def on_plan_decision_rows_option_selected(
+        self, event: PlanDecisionRows.OptionSelected
+    ) -> None:
+        """Select the mouse-clicked option in the current choice card."""
+        decision_id = event.decision_id
+        value = event.value
+        self._apply_draft_edit(
+            lambda: self._decision_draft.set_value(decision_id, value)
+        )
 
     def _focused_decision_id(self) -> str | None:
         try:
@@ -122,7 +171,22 @@ class PlanApprovalControlsMixin:
         func()
         if self._request_id is not None:
             esc_drafts[self._request_id] = self._decision_draft.values()
-        self._refresh_verdict_summary()  # type: ignore[attr-defined]
+        # One sheet per keypress, shared by the summary, badge, header, and
+        # rows; only the edited card re-renders.
+        edited_index: int | None = None
+        try:
+            rows = self.query_one("#plan-decision-rows", PlanDecisionRows)  # type: ignore[attr-defined]
+            edited_index = rows.focused_index
+        except Exception:
+            edited_index = None
+        try:
+            sheet = self._decision_draft.sheet()
+        except Exception:
+            sheet = None
+        self._refresh_verdict_summary(  # type: ignore[attr-defined]
+            sheet,
+            card_indexes=None if edited_index is None else [edited_index],
+        )
         self._scroll_to_focused_decision()  # type: ignore[attr-defined]
 
     def on_mount(self) -> None:

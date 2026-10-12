@@ -15,7 +15,7 @@ from typing import Any
 
 from rich.text import Text
 from textual.app import ComposeResult
-from textual.containers import Container, VerticalScroll
+from textual.containers import Container, Vertical, VerticalScroll
 from textual.widgets import Static
 
 from ..keymaps import GateModalKeymaps
@@ -83,12 +83,33 @@ class PlanApprovalViewMixin:
         )
         return f"[bold cyan]{title}[/bold cyan]{badge_segment}"
 
-    def _decisions_header(self) -> str:
+    def _decisions_header(self, sheet: dict[str, Any] | None = None) -> str:
         total = len(self._decision_definitions)
         memos = sum(
             1 for d in self._decision_definitions if d.get("memory") is not None
         )
-        return f"Decisions  {total} · 🧠 {memos}"
+        changed = 0
+        if isinstance(sheet, dict):
+            rows = sheet.get("rows")
+            if isinstance(rows, list):
+                changed = sum(
+                    1 for row in rows if isinstance(row, dict) and row.get("changed")
+                )
+        else:
+            try:
+                changed = int(
+                    self._decision_draft.sheet().get("changed_count", 0)  # type: ignore[attr-defined]
+                )
+            except Exception:
+                changed = 0
+        header = f"Decisions · {total}"
+        if changed:
+            header += f" · {changed} changed"
+        if memos:
+            header += f" · 🧠 {memos}"
+        if self._settled_text:
+            header = f"{self._settled_text} · {header}"
+        return header
 
     def _current_verdict(self) -> str:
         epic = self._default_choice == "epic"
@@ -109,7 +130,7 @@ class PlanApprovalViewMixin:
             run = True
         return verdict_for_selection(commit_plan=commit, run_coder=run, epic=epic)
 
-    def _enter_badge(self) -> Text:
+    def _enter_badge(self, sheet: dict[str, Any] | None = None) -> Text:
         from .gate_primary_footer import primary_action_badge_for_label
 
         epic = self._default_choice == "epic"
@@ -134,18 +155,18 @@ class PlanApprovalViewMixin:
                 label, self._gate_keymaps.submit_primary
             )
         verdict = verdict_for_selection(commit_plan=commit, run_coder=run, epic=epic)
-        short = self._decision_draft.short_summary(verdict)
+        short = self._decision_draft.short_summary(verdict, sheet)
         return primary_action_badge_for_label(
             f"{label} · {short}", self._gate_keymaps.submit_primary
         )
 
-    def _verdict_summary_text(self) -> Text:
+    def _verdict_summary_text(self, sheet: dict[str, Any] | None = None) -> Text:
         verdict = self._current_verdict()
         if not self.has_decisions:  # type: ignore[attr-defined]
             # No decisions: still render the verdict sentence so line 3 exists.
             return Text(f"→ {verdict}", style="dim")
         try:
-            sentence = self._decision_draft.full_summary(verdict)
+            sentence = self._decision_draft.full_summary(verdict, sheet)
         except Exception:
             sentence = f"→ {verdict}"
         return Text(sentence, style="dim")
@@ -203,24 +224,54 @@ class PlanApprovalViewMixin:
                 pass
         return markdown_document_syntax(folded)
 
-    def _refresh_verdict_summary(self) -> None:
+    def _refresh_verdict_summary(
+        self,
+        sheet: dict[str, Any] | None = None,
+        card_indexes: list[int] | None = None,
+    ) -> None:
+        """Refresh summary, footer, header, and cards from one sheet.
+
+        The sheet is computed once per keypress by the caller (or here when
+        no caller has one) and shared by every consumer, so ``h``/``l``/Space
+        never recompute it. ``card_indexes`` selects the cards to re-render;
+        ``None`` re-renders every card.
+        """
         if not self.is_mounted:  # type: ignore[attr-defined]
             return
+        if sheet is None and self.has_decisions:  # type: ignore[attr-defined]
+            try:
+                sheet = self._decision_draft.sheet()
+            except Exception:
+                sheet = None
         try:
             summary = self.query_one("#plan-verdict-summary", Static)  # type: ignore[attr-defined]
-            summary.update(self._verdict_summary_text())
+            summary.update(self._verdict_summary_text(sheet))
         except Exception:
             pass
         try:
             footer = self.query_one("#plan-approval-footer", Static)  # type: ignore[attr-defined]
-            footer.update(self._footer_text())
+            footer.update(self._footer_text(sheet))
         except Exception:
             pass
-        try:
-            rows = self.query_one("#plan-decision-rows", PlanDecisionRows)  # type: ignore[attr-defined]
-            rows.update_rows(self._decision_draft.sheet().get("rows", []))
-        except Exception:
-            pass
+        if self.has_decisions:  # type: ignore[attr-defined]
+            try:
+                header = self.query_one("#plan-decisions-header", Static)  # type: ignore[attr-defined]
+                header.update(self._decisions_header(sheet))
+            except Exception:
+                pass
+            try:
+                rows = self.query_one("#plan-decision-rows", PlanDecisionRows)  # type: ignore[attr-defined]
+                rows.set_read_only(self._settled_text is not None)
+                sheet_rows: list[dict[str, Any]] = []
+                if isinstance(sheet, dict):
+                    raw = sheet.get("rows", [])
+                    sheet_rows = [r for r in raw if isinstance(r, dict)]
+                if card_indexes is None:
+                    rows.update_rows(sheet_rows)
+                else:
+                    rows.refresh_with_sheet(sheet_rows, card_indexes)
+            except Exception:
+                pass
         # Draft values changed: re-tint from the cached spans without
         # re-parsing, re-validating, or restatting.
         try:
@@ -275,7 +326,16 @@ class PlanApprovalViewMixin:
             )
 
             with Container(classes="gate-review-body"):
-                with VerticalScroll(classes=rail_classes):
+                # Decision rails are a plain Vertical: every card stays
+                # pinned on screen inside its own slot and the list fills
+                # down to the docked Verdict. Decision-free rails keep the
+                # scrolling container the compact Verdict needs.
+                rail: Vertical | VerticalScroll
+                if self.has_decisions:  # type: ignore[attr-defined]
+                    rail = Vertical(classes=rail_classes)
+                else:
+                    rail = VerticalScroll(classes=rail_classes)
+                with rail:
                     yield from self._compose_gate_actions()  # type: ignore[attr-defined]
                     yield Static(
                         self._settled_text or "",
@@ -351,10 +411,10 @@ class PlanApprovalViewMixin:
                 classes="gate-review-footer",
             )
 
-    def _footer_text(self) -> Text:
+    def _footer_text(self, sheet: dict[str, Any] | None = None) -> Text:
         """Return footer hints with the declared primary action emphasized."""
         try:
-            badge = self._enter_badge()
+            badge = self._enter_badge(sheet)
         except Exception:
             badge = None
         return plan_approval_footer_text(

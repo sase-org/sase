@@ -6493,11 +6493,18 @@ highlight leading YAML frontmatter as YAML and the remaining body as Markdown.
 Highlighting does not alter validation or the reviewed file contents.
 
 Plan Decisions (see [Plan Decisions](sdd.md#plan-decisions)) add typed choices and
-toggles to plan frontmatter. The modal renders them in a Decisions section above the
-verdict: change a value with `Space`, `h`/`l`, or `r`, and the primary action approves
-exactly the values on display. `decision_<id>` fields are treated as already collected,
-so they do not appear as extra inputs either. Changing decision definitions through the
-gate's plan editor is refused. Override a default outside the modal with
+toggles to plan frontmatter. The modal renders them as cards in a Decisions section
+above the verdict: the current card shows its full question, options, and rationale with
+a `▌` focus bar, while the other cards collapse to a header plus a one-line ask preview.
+The header reads `Decisions · N`, gains `· M changed` when values move off their
+defaults, and names memory decisions with `· 🧠 K`. Each card's answer chip shows its
+value with `★` at the default and gold `●` once changed (`☑`/`☐` for toggles); the
+current card wraps the chip in `‹ … ›` as the "h/l changes this" hint. Change a value
+with `Space`, `h`/`l`, or `r`, move between cards with `j`/`k` or by clicking a card,
+and click an option line in the current choice card to select it; the primary action
+approves exactly the values on display. `decision_<id>` fields are treated as already
+collected, so they do not appear as extra inputs either. Changing decision definitions
+through the gate's plan editor is refused. Override a default outside the modal with
 `sase gate answer` and `--set decision_<id>=...`.
 
 For tale plans, the modal's primary **Approve** decision includes two independently
