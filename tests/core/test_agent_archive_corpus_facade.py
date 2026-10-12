@@ -171,3 +171,36 @@ def test_workflow_child_with_own_run_id_looks_up_owner(tmp_path: Path) -> None:
     assert row is not None
     assert row["archive_key"]["source_run_id"] == "parent-run"
     assert corpus.lookup("250302.step")["archive_key"]["source_run_id"] == "parent-run"
+    assert row["stop_time"] == "2025-03-02T10:00:00Z"
+    assert str(row["bundle_path"]).endswith("parent-run.json")
+
+
+def test_light_rows_carry_bundle_path_stop_time_and_dismissed_at(
+    tmp_path: Path,
+) -> None:
+    insert_archive_rows(
+        tmp_path,
+        (
+            {
+                "run_id": "ended",
+                "name": "250302.ended",
+                "status": "DONE",
+                "stop_time": "2025-03-02T11:00:00Z",
+                "dismissed_at": "2025-03-02T11:30:00Z",
+                "project": "sase",
+            },
+        ),
+    )
+    corpus = compile_agent_archive_corpus(
+        root=tmp_path,
+        index_status={"status": "ok"},
+        timezone="UTC",
+        link_facets={},
+    )
+    window = corpus.rows("", group_by="day", group_key="2025-03-02", offset=0, limit=10)
+    assert window["total"] == 1
+    row = window["rows"][0]
+    assert row["stop_time"] == "2025-03-02T11:00:00Z"
+    assert row["dismissed_at"] == "2025-03-02T11:30:00Z"
+    assert str(row["bundle_path"]).endswith("ended.json")
+    assert row["project"] == "sase"

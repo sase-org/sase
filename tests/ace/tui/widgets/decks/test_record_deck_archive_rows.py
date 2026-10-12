@@ -10,13 +10,19 @@ from sase.ace.tui.models.agent_archive_reader import (
     archive_identity_header_from_light_row,
 )
 from sase.ace.tui.widgets.decks.record.document import build_record_document
-from sase.ace.tui.widgets.decks.record.facts import FactsExtras, lifecycle_card
+from sase.ace.tui.widgets.decks.record.facts import (
+    FactsExtras,
+    lifecycle_card,
+    load_facts_extras,
+    provenance_card,
+)
 from sase.ace.tui.widgets.decks.record.model import (
     record_archive_facts_from_light_row,
     record_subject_from_light_row,
 )
 from sase.ace.tui.widgets.decks.record.relations import RelationsExtras, relations_card
 from sase.ace.tui.widgets.renderable_text import renderable_to_text
+from sase.project_display_names import ProjectDisplaySnapshot
 from tests.ace.tui._agent_archive_column_helpers import light_row
 
 
@@ -50,6 +56,7 @@ def test_light_row_subject_is_archive_kind_with_row_facts() -> None:
     assert subject.source_run_id == "run-1"
     assert subject.project_label == "sase"
     assert subject.identity == ("archive-light", "u", "m", "run-1")
+    assert subject.raw_suffix is None
     hash(subject.identity)
 
 
@@ -98,21 +105,49 @@ def test_unreadable_lifecycle_comes_from_the_light_row() -> None:
         status="RUNNING",
         outcome="interrupted",
         time_basis="started",
+        stop_time="2026-10-10T13:00:00Z",
+        dismissed_at="2026-10-10T14:00:00Z",
+        bundle_path="/tmp/archive/missing.bundle.json",
+        raw_suffix="must-not-copy",
     )
     subject = record_subject_from_light_row(row)
-    life = _card_text(lifecycle_card(subject, FactsExtras()))
+    assert subject.raw_suffix is None
+    assert subject.stop_time == "2026-10-10T13:00:00Z"
+    assert subject.dismissed_at == "2026-10-10T14:00:00Z"
+    assert subject.bundle_path == "/tmp/archive/missing.bundle.json"
+    extras = load_facts_extras(subject)
+    assert extras.dismissed_at == "2026-10-10T14:00:00Z"
+    assert extras.bundle_path == "/tmp/archive/missing.bundle.json"
+    life = _card_text(lifecycle_card(subject, extras))
     assert "missing.bundle" in life
     assert "Archive" in life
     assert "RUNNING" in life
     assert "○ WAS RUNNING" in life
     assert "Time basis: started" in life
-    document = build_record_document(subject, FactsExtras(), RelationsExtras())
+    assert "Ended:" in life
+    assert "Dismissed:" in life
+    assert "end not recorded" not in life
+    prov = _card_text(provenance_card(subject, extras))
+    assert "Bundle: /tmp/archive/missing.bundle.json" in prov
+    document = build_record_document(subject, extras, RelationsExtras())
     assert [card.title for card in document.cards] == [
         "Lifecycle",
         "Provenance",
         "Relations",
         "Links",
     ]
+
+
+def test_light_row_project_label_uses_display_snapshot_name() -> None:
+    row = light_row("job-run", project="gh_bbugyi200__job")
+    snapshot = ProjectDisplaySnapshot({"gh_bbugyi200__job": "job"})
+    subject = record_subject_from_light_row(row, display_snapshot=snapshot)
+    assert subject.project_label == "job"
+    prov = _card_text(provenance_card(subject, FactsExtras()))
+    assert "Project: job" in prov
+    assert "gh_bbugyi200__job" not in prov
+    unlabeled = record_subject_from_light_row(row)
+    assert unlabeled.project_label == "gh_bbugyi200__job"
 
 
 def test_identity_header_labels_time_by_actual_basis() -> None:

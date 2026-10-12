@@ -48,6 +48,8 @@ def load_facts_extras(subject: RecordSubject) -> FactsExtras:
     artifacts_dir = _load_artifacts_dir(subject)
     chat_path = _load_chat_path(artifacts_dir)
     dismissed_at, revived_at, times_revived, index_bundle = _load_index_facts(subject)
+    if dismissed_at is None:
+        dismissed_at = _text(subject.dismissed_at)
     bundle_path = subject.bundle_path or index_bundle
     return FactsExtras(
         reference=reference,

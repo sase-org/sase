@@ -116,6 +116,7 @@ def _paint_identity(detail: Any, header: Any) -> None:
 
 
 def _paint_record_from_light_row(
+    owner: Any,
     detail: Any,
     light_row: Mapping[str, Any] | None,
     members: tuple[Mapping[str, Any], ...] = (),
@@ -131,7 +132,12 @@ def _paint_record_from_light_row(
     try:
         from ...widgets.decks.record.model import record_subject_from_light_row
 
-        subject = record_subject_from_light_row(light_row, members=members)
+        state = getattr(owner, "_agents_archive_controller", None)
+        subject = record_subject_from_light_row(
+            light_row,
+            members=members,
+            display_snapshot=getattr(state, "display_snapshot", None),
+        )
     except Exception:
         return
     try:
@@ -232,7 +238,7 @@ def _paint_container_summary(owner: Any, detail: Any, selection: Any) -> None:
             show_empty = getattr(detail, "show_empty", None)
             if callable(show_empty):
                 show_empty()
-    _paint_record_from_light_row(detail, selection.light_row, members)
+    _paint_record_from_light_row(owner, detail, selection.light_row, members)
 
 
 def arm_archive_detail_hydration(owner: Any) -> None:
@@ -420,7 +426,7 @@ def _apply_hydration_result(
     _paint_identity(detail, header)
     if unreadable or agent is None:
         _show_titled(detail, ARCHIVE_UNREADABLE_TITLE, _UNREADABLE_DETAIL)
-        _paint_record_from_light_row(detail, light_row)
+        _paint_record_from_light_row(owner, detail, light_row)
         return
     update = getattr(detail, "update_display", None)
     if callable(update):

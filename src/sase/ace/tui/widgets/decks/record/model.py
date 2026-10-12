@@ -45,6 +45,7 @@ class RecordSubject:
     status: str | None = None
     start_time: object | None = None
     stop_time: object | None = None
+    dismissed_at: object | None = None
     attempt_number: int | None = None
     historically_viewable: bool = True
     durably_revivable: bool = True
@@ -176,6 +177,7 @@ def record_subject_from_agent(
         status=_text(getattr(agent, "status", None)),
         start_time=getattr(agent, "start_time", None),
         stop_time=getattr(agent, "stop_time", None),
+        dismissed_at=getattr(agent, "dismissed_at", None),
         attempt_number=attempt_number,
         historically_viewable=bool(getattr(agent, "historically_viewable", True)),
         durably_revivable=bool(getattr(agent, "durably_revivable", True)),
@@ -319,17 +321,37 @@ def record_archive_facts_from_light_row(
     )
 
 
+def _project_label_from_light_row(
+    row: Mapping[str, Any],
+    display_snapshot: Any = None,
+) -> str | None:
+    """Return the light-row project as ``PROJECT_NAME``, never a directory key."""
+    explicit = _text(row.get("project_label"))
+    if explicit:
+        return explicit
+    key = _text(row.get("project"))
+    if not key:
+        return None
+    if display_snapshot is None:
+        return key
+    from sase.project_display_names import project_display_name_for
+
+    return project_display_name_for(key, snapshot=display_snapshot)
+
+
 def record_subject_from_light_row(
     light_row: Mapping[str, Any] | None,
     *,
     members: Any = (),
+    display_snapshot: Any = None,
 ) -> RecordSubject:
     """Build a :class:`RecordSubject` from an Archive light row (no I/O).
 
     Kind is ``container`` when the row is a container summary, else
     ``light_row`` for an unreadable (or otherwise unhydrated) entry.
     Facts come from the light row only; ``members`` supplies capped
-    member names for the Relations card.
+    member names for the Relations card. Project labels map through
+    ``display_snapshot`` the same way Archive banners do.
     """
     row: Mapping[str, Any] = light_row or {}
     is_container = bool(row.get("container"))
@@ -348,22 +370,19 @@ def record_subject_from_light_row(
         identity=_light_row_identity(row, kind),
         kind=kind,
         location="archive",
-        agent_name=_text(
-            row.get("agent_name") or row.get("name") or row.get("cl_name")
-        ),
-        raw_suffix=_text(row.get("raw_suffix")),
+        agent_name=_text(row.get("agent_name") or row.get("name")),
         status=_text(row.get("status")),
         start_time=row.get("start_time"),
-        stop_time=row.get("stop_time") or row.get("end_time"),
+        stop_time=row.get("stop_time"),
+        dismissed_at=row.get("dismissed_at"),
         historically_viewable=True,
         durably_revivable=True if restorable is None else restorable,
         restartable=False,
-        project_label=_text(
-            row.get("project_label") or row.get("project_name") or row.get("project")
+        project_label=_project_label_from_light_row(
+            row, display_snapshot=display_snapshot
         ),
         model=_text(row.get("model")),
-        llm_provider=_text(row.get("provider") or row.get("llm_provider")),
-        reasoning_effort=_text(row.get("reasoning_effort")),
+        llm_provider=_text(row.get("provider")),
         source_username=username,
         source_machine=machine,
         source_run_id=run_id,

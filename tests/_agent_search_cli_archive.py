@@ -33,6 +33,7 @@ def test_agent_search_archive_cli_matches_shared_corpus_order(
                 "name": "old",
                 "status": "DONE",
                 "stop_time": "2025-03-02T10:10:00Z",
+                "dismissed_at": "2025-03-02T10:15:00Z",
             },
             {
                 "run_id": "failed",
@@ -118,6 +119,15 @@ def test_agent_search_archive_cli_matches_shared_corpus_order(
             assert [identity(row) for row in actual] == [
                 identity(row) for row in expected
             ]
+            if query == "":
+                by_run = {row["archive_key"]["source_run_id"]: row for row in actual}
+                old = by_run["old"]
+                assert old["stop_time"] == "2025-03-02T10:10:00Z"
+                assert old["dismissed_at"] == "2025-03-02T10:15:00Z"
+                assert str(old["bundle_path"]).endswith("old.json")
+                clan = next(row for row in actual if row.get("container"))
+                assert clan["stop_time"] == "2025-03-02T10:40:00Z"
+                assert str(clan["bundle_path"]).endswith("clan-b.json")
     finally:
         cache_mod._CACHED = None
         cache_mod._GENERATION = 0

@@ -238,6 +238,11 @@ def test_resolve_bundle_path_prefers_explicit_then_root(tmp_path: Path) -> None:
     nested.write_text("{}", encoding="utf-8")
     row2 = light_row("xyz")
     assert resolve_archive_bundle_path(row2, tmp_path) == nested
+    missing = tmp_path / "gone.json"
+    scanned = tmp_path / "scanned.json"
+    scanned.write_text("{}", encoding="utf-8")
+    row3 = light_row("scanned", bundle_path=str(missing))
+    assert resolve_archive_bundle_path(row3, tmp_path) == scanned
 
 
 def test_member_jump_never_revives_while_archive_owns_panel() -> None:
