@@ -305,6 +305,14 @@ class AgentDetailDeckRefreshMixin:
             source.show_empty()
         except Exception:
             pass
+        try:
+            # Push an empty Main document unconditionally: the Main sink
+            # dedups on the prompt-source digest, so without this a titled
+            # card pushed straight into the Main panels (for example the
+            # Archive loading card) survives the return to empty.
+            self._on_main_document("", False, None)  # type: ignore[attr-defined]
+        except Exception:
+            pass
         # The sink produces an empty document because the subject is None.
         try:
             area = self.deck_area  # type: ignore[attr-defined]

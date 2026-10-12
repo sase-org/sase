@@ -590,6 +590,12 @@ class AgentDisplayRenderMixin(
                         else None
                     )
                     if live_reply:
+                        # No final response file survived archiving: the
+                        # retained live reply is a fragment, so the Reply
+                        # card labels it partial. The ``·`` separator keeps
+                        # the section id on ``agent-chat``.
+                        reply_header = Text()
+                        append_section_heading(reply_header, "AGENT CHAT · partial")
                         reply_parts.append(reply_header)
                         reply_parts.append(self._render_markdown(live_reply))
                     elif agent_is_archive_read_only(agent):

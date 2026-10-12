@@ -31,6 +31,7 @@ from ...models.agent_archive_view import (
     ARCHIVE_ROW_AGENT,
     ARCHIVE_ROW_CONTAINER,
     ARCHIVE_ROW_NONE,
+    ARCHIVE_SECTION_LIST,
     container_key_of,
 )
 from ...util.pump_tasks import spawn_pump_free_task
@@ -323,6 +324,11 @@ def _hydration_is_current(owner: Any, key: str, generation: int) -> bool:
         return False
     archive = getattr(state, "archive", None)
     if getattr(archive, "selected_key", None) != key:
+        return False
+    # ``K`` focuses the pulse without moving the cursor: drop the hydration.
+    if getattr(archive, "focused_section", ARCHIVE_SECTION_LIST) != (
+        ARCHIVE_SECTION_LIST
+    ):
         return False
     return True
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -11,7 +12,11 @@ if TYPE_CHECKING:
 from ...models.agent_groups import GroupingMode
 from ...util.debounce import DetailPanelDebouncer
 from ...util.trace import tui_trace
-from ._archive_view import cancel_inbox_detail_debounce
+from ._archive_view import (
+    agents_inbox_detail_allowed,
+    cancel_inbox_detail_debounce,
+    schedule_owned_inbox_detail_update,
+)
 from ._display_diff import (
     PanelRebuildScope,
     affected_panel_keys,
@@ -28,6 +33,8 @@ from ._refresh_trace import (
     record_agents_refresh_trace,
     take_display_outcome,
 )
+
+log = logging.getLogger(__name__)
 
 
 class AgentDisplayIncrementalMixin:
@@ -374,6 +381,9 @@ class AgentDisplayIncrementalMixin:
         if callable(update_agents_header):
             update_agents_header()
         if defer_detail:
+            if not agents_inbox_detail_allowed(self):
+                log.debug("agents incremental detail skipped: archive owns panel")
+                return True
             if self._sync_agents_onboarding(  # type: ignore[attr-defined]
                 agent_detail=agent_detail, footer_widget=footer_widget
             ):
@@ -383,13 +393,9 @@ class AgentDisplayIncrementalMixin:
                 footer_widget,
                 cheap=True,
             ):
-                self._agent_detail_debouncer.schedule(
-                    self._fire_debounced_detail_update  # type: ignore[attr-defined]
-                )
+                schedule_owned_inbox_detail_update(self)
                 return True
-            self._agent_detail_debouncer.schedule(
-                self._fire_debounced_detail_update  # type: ignore[attr-defined]
-            )
+            schedule_owned_inbox_detail_update(self)
             return True
 
         self._apply_agent_detail_update(agent_detail, footer_widget)  # type: ignore[attr-defined]

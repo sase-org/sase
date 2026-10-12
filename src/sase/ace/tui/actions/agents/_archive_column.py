@@ -72,6 +72,11 @@ class _ColumnRuntime:
     requested: tuple[Any, ...] | None = None
     page_anchor: str | None = None
     reveal_container: str | None = None
+    #: The cursor key the detail was last scheduled for. The controller can
+    #: move ``archive.selected_key`` without scheduling (exact-name reveal,
+    #: drift fallback, committed-query change); the next install compares
+    #: against this so a controller-moved selection still repaints.
+    last_detail_key: str | None = None
     #: The cursor was auto-placed on a banner because no run had loaded yet;
     #: the first run to arrive takes it unless the user already moved.
     default_cursor: bool = False
@@ -398,7 +403,7 @@ def _install_model(owner: Any, computed: _Computed, model: ArchiveListModel) -> 
     archive.selected_key = key
     runtime.model = model
     _paint(owner, computed, model)
-    if key != previous_key:
+    if key != previous_key or key != runtime.last_detail_key:
         schedule_detail(owner)
 
 
@@ -582,6 +587,7 @@ def schedule_detail(owner: Any) -> None:
     """Paint identity immediately, then debounce pump-free hydration (150 ms)."""
     from ._archive_reader import arm_archive_detail_hydration
 
+    column_runtime(owner).last_detail_key = column_archive(owner).selected_key
     # Call the local wrapper so tests can intercept the immediate paint
     # without patching the reader module.
     _paint_detail_placeholder(owner)

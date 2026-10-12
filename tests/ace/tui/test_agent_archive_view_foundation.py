@@ -18,7 +18,7 @@ from sase.ace.tui.actions.agents._archive_view import (
     close_agents_archive_view,
     get_agents_tab_selection,
     init_agents_archive_view_state,
-    invalidate_agents_detail_ownership,
+    _invalidate_agents_detail_ownership,
     open_agents_archive_view,
     open_agents_archive_view_with_query,
 )
@@ -380,7 +380,7 @@ def test_invalidate_bumps_generation_for_teardown() -> None:
         app._refresh_agent_focus_detail(render_immediate=False)
         assert app._agents_archive_view.generation == token
 
-        invalidate_agents_detail_ownership(app)
+        _invalidate_agents_detail_ownership(app)
 
         assert app._agents_archive_view.generation == token + 1
         app._fire_debounced_detail_update()

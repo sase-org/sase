@@ -14,7 +14,8 @@ from ...widgets.prompt_panel_messages import (
 )
 from ._archive_view import (
     agents_inbox_detail_allowed,
-    remember_agents_detail_owner,
+    cancel_inbox_detail_debounce,
+    schedule_owned_inbox_detail_update,
     scheduled_agents_detail_is_current,
 )
 from ._display_helpers import TabName
@@ -193,21 +194,24 @@ class AgentDetailRenderMixin:
         ``agents`` and before the detail debouncer exists; skip until then so
         the first theme application cannot schedule a timer or crash.
         """
+        if not agents_inbox_detail_allowed(self):
+            # The Archive owns the detail panel: hidden Inbox focus paths
+            # must neither paint immediately nor disturb the Archive's
+            # pending hydration on the shared debouncer.
+            return
         debouncer = getattr(self, "_agent_detail_debouncer", None)
         if debouncer is None:
             return
         if not render_immediate:
-            remember_agents_detail_owner(self)
-            debouncer.schedule(self._fire_debounced_detail_update)
+            schedule_owned_inbox_detail_update(self)
             return
         update_info = getattr(self, "_update_agents_info_panel", None)
         if callable(update_info):
             update_info()
         if self._apply_agent_detail_immediate():
-            debouncer.cancel()
+            cancel_inbox_detail_debounce(self)
             return
-        remember_agents_detail_owner(self)
-        debouncer.schedule(self._fire_debounced_detail_update)
+        schedule_owned_inbox_detail_update(self)
 
     def _refresh_tribe_summary_only(self) -> bool:
         """Rebuild only an active tribe after mark/unread state changes."""
@@ -228,13 +232,10 @@ class AgentDetailRenderMixin:
             except Exception:
                 is_active = False
             if is_active:
-                debouncer = getattr(self, "_agent_detail_debouncer", None)
-                schedule = getattr(debouncer, "schedule", None)
-                if callable(schedule):
-                    try:
-                        schedule(self._fire_debounced_detail_update)
-                    except Exception:
-                        pass
+                try:
+                    schedule_owned_inbox_detail_update(self)
+                except Exception:
+                    pass
                 return True
         from textual.css.query import NoMatches
 
@@ -264,7 +265,7 @@ class AgentDetailRenderMixin:
             # keys while the wider navigation activity window is still open.
             # Keep this pump callback thin and try again after another quiet
             # interval instead of laying out a document mid-navigation.
-            self._agent_detail_debouncer.schedule(self._fire_debounced_detail_update)
+            schedule_owned_inbox_detail_update(self)
             return
         try:
             tribe_focus = self._focused_tribe_panel_context()
@@ -279,9 +280,7 @@ class AgentDetailRenderMixin:
             except Exception:
                 input_active = False
             if input_active:
-                self._agent_detail_debouncer.schedule(
-                    self._fire_debounced_detail_update
-                )
+                schedule_owned_inbox_detail_update(self)
                 return
         update_info = getattr(self, "_update_agents_info_panel", None)
         if callable(update_info):
@@ -429,7 +428,7 @@ class AgentDetailRenderMixin:
         current_agent = self._get_selected_agent()  # type: ignore[attr-defined]
         if current_agent is None or current_agent.identity != agent_identity:
             return
-        self._agent_detail_debouncer.schedule(self._fire_debounced_detail_update)
+        schedule_owned_inbox_detail_update(self)
 
     def _sync_selected_named_proc_detail_proc(
         self, current_agent: Agent | None
@@ -545,7 +544,7 @@ class AgentDetailRenderMixin:
             if hint_empty or agent_detail.detail_header_summary_complete(current_agent):
                 self._render_agent_detail_with_hints(agent_detail, current_agent)
         else:
-            self._agent_detail_debouncer.schedule(self._fire_debounced_detail_update)
+            schedule_owned_inbox_detail_update(self)
         message.stop()
 
     def on_clan_section_snapshot_loaded(
@@ -562,7 +561,7 @@ class AgentDetailRenderMixin:
             or current_agent.identity != message.agent_identity
         ):
             return
-        self._agent_detail_debouncer.schedule(self._fire_debounced_detail_update)
+        schedule_owned_inbox_detail_update(self)
         message.stop()
 
     def on_tribe_section_snapshot_loaded(
@@ -578,5 +577,5 @@ class AgentDetailRenderMixin:
             or getattr(focus, "container_identity", None) != message.panel_identity
         ):
             return
-        self._agent_detail_debouncer.schedule(self._fire_debounced_detail_update)
+        schedule_owned_inbox_detail_update(self)
         message.stop()

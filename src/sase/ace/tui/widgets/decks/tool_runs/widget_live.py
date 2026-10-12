@@ -15,6 +15,7 @@ from typing import Any
 
 from sase.ace.tui.tool_runs.deck import ToolRunsDetailLevel
 
+from ....models.agent_archive_view import agent_is_archive_read_only
 from ._shared import (
     cached_block_details,
     tool_runs_hint_numbers,
@@ -97,11 +98,19 @@ class ToolRunsLiveMixin:
         self._live_signature = None
         self._painted_store_token = None
 
+    def _current_agent_is_archive_read_only(self) -> bool:
+        """Return whether the painted agent is frozen Archive history."""
+        try:
+            return agent_is_archive_read_only(self._current_agent)
+        except Exception:
+            return False
+
     def _sync_live_timer(self) -> None:
         """Start the 1 Hz tick while a live run is painted, else stop it."""
 
         try:
-            if tool_runs_rows_have_live(self._live_rows):
+            live_rows = tool_runs_rows_have_live(self._live_rows)
+            if live_rows and not self._current_agent_is_archive_read_only():
                 self._start_live_timer()  # type: ignore[attr-defined]
             else:
                 self._stop_live_timer()  # type: ignore[attr-defined]
@@ -154,6 +163,11 @@ class ToolRunsLiveMixin:
         try:
             agent = self._current_agent
             if agent is None or not tool_runs_rows_have_live(self._live_rows):
+                self._stop_live_timer()  # type: ignore[attr-defined]
+                return
+            if self._current_agent_is_archive_read_only():
+                # An archived agent's rows never settle live: stand the tick
+                # down instead of repainting frozen history every second.
                 self._stop_live_timer()  # type: ignore[attr-defined]
                 return
             if not want_live_tick(

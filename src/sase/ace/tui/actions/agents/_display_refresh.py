@@ -15,6 +15,7 @@ from ...util.trace import tui_trace
 from ._archive_view import (
     agents_inbox_detail_allowed,
     cancel_inbox_detail_debounce,
+    schedule_owned_inbox_detail_update,
 )
 from ._paint_log import record_agents_paint_frame
 from ._refresh_trace import (
@@ -169,17 +170,13 @@ class AgentDisplayRefreshMixin:
                 footer_widget,
                 cheap=True,
             ):
-                self._agent_detail_debouncer.schedule(
-                    self._fire_debounced_detail_update  # type: ignore[attr-defined]
-                )
+                schedule_owned_inbox_detail_update(self)
                 log.debug(
                     "agents display refresh tribe summary: elapsed=%.3fs",
                     time.perf_counter() - started,
                 )
                 return
-            self._agent_detail_debouncer.schedule(
-                self._fire_debounced_detail_update  # type: ignore[attr-defined]
-            )
+            schedule_owned_inbox_detail_update(self)
             log.debug(
                 "agents display refresh deferred detail: elapsed=%.3fs",
                 time.perf_counter() - started,
@@ -207,10 +204,8 @@ class AgentDisplayRefreshMixin:
             self._update_agents_info_panel()  # type: ignore[attr-defined]
             if self._apply_agent_detail_immediate():  # type: ignore[attr-defined]
                 cancel_inbox_detail_debounce(self)
-            else:
-                self._agent_detail_debouncer.schedule(
-                    self._fire_debounced_detail_update  # type: ignore[attr-defined]
-                )
+            elif agents_inbox_detail_allowed(self):
+                schedule_owned_inbox_detail_update(self)
 
 
 __all__ = ["AgentDisplayRefreshMixin"]

@@ -79,7 +79,7 @@ def init_agents_archive_view_state(owner: Any) -> AgentsArchiveViewState:
     return state
 
 
-def agents_view_is_archive(owner: Any) -> bool:
+def _agents_view_is_archive(owner: Any) -> bool:
     """Return whether the Agents tab is parked in the Archive view."""
     return _view_state(owner).active_view == AGENTS_VIEW_ARCHIVE
 
@@ -90,7 +90,7 @@ def archive_detail_owns_panel(owner: Any) -> bool:
     With the beta off this is always False, so Inbox rendering stays
     byte-identical to today.
     """
-    return agents_archive_view_enabled() and agents_view_is_archive(owner)
+    return agents_archive_view_enabled() and _agents_view_is_archive(owner)
 
 
 def agents_inbox_detail_allowed(owner: Any) -> bool:
@@ -108,7 +108,7 @@ def _selection_key_for(owner: Any, state: AgentsArchiveViewState) -> str | None:
     return None if identity is None else str(identity)
 
 
-def capture_agents_detail_owner(owner: Any) -> DetailOwnership:
+def _capture_agents_detail_owner(owner: Any) -> DetailOwnership:
     """Capture the render token for the current view and selection."""
     state = _view_state(owner)
     return capture_detail_owner(
@@ -120,9 +120,23 @@ def capture_agents_detail_owner(owner: Any) -> DetailOwnership:
 
 def remember_agents_detail_owner(owner: Any) -> DetailOwnership:
     """Capture and record the token for a scheduled debounced update."""
-    token = capture_agents_detail_owner(owner)
+    token = _capture_agents_detail_owner(owner)
     owner._agents_detail_scheduled_owner = token
     return token
+
+
+def schedule_owned_inbox_detail_update(owner: Any) -> None:
+    """Record a fresh owner token, then schedule the shared detail debouncer.
+
+    Every Inbox schedule of ``_fire_debounced_detail_update`` funnels through
+    here so the fire's currency check sees the token from the latest schedule
+    instead of a stale token left behind by an Archive round trip. Callers
+    must check :func:`agents_inbox_detail_allowed` first: scheduling while
+    the Archive owns the panel would replace its pending hydration callback
+    on the shared debouncer.
+    """
+    remember_agents_detail_owner(owner)
+    owner._agent_detail_debouncer.schedule(owner._fire_debounced_detail_update)
 
 
 def scheduled_agents_detail_is_current(owner: Any) -> bool:
@@ -137,7 +151,7 @@ def scheduled_agents_detail_is_current(owner: Any) -> bool:
     )
 
 
-def invalidate_agents_detail_ownership(owner: Any) -> int:
+def _invalidate_agents_detail_ownership(owner: Any) -> int:
     """Invalidate earlier detail work. Returns the new generation.
 
     Lifecycle teardown primitive: every view switch funnels through here so
@@ -299,7 +313,7 @@ def open_agents_archive_view(owner: Any) -> ArchiveViewOutcome:
         )
     state.parked_inbox = _capture_parked_inbox(owner)
     state.active_view = AGENTS_VIEW_ARCHIVE
-    invalidate_agents_detail_ownership(owner)
+    _invalidate_agents_detail_ownership(owner)
     from ._archive_controller import request_archive_view_load
 
     request_archive_view_load(owner)
@@ -344,7 +358,7 @@ def open_agents_archive_view_with_query(
         reveal_row=None,
         loaded_pages={},
     )
-    invalidate_agents_detail_ownership(owner)
+    _invalidate_agents_detail_ownership(owner)
     from ._archive_controller import request_archive_view_load
 
     request_archive_view_load(owner)
@@ -372,7 +386,7 @@ def close_agents_archive_view(owner: Any) -> ArchiveViewOutcome:
         _restore_parked_inbox(owner, parked)
     state.parked_inbox = None
     state.active_view = AGENTS_VIEW_INBOX
-    invalidate_agents_detail_ownership(owner)
+    _invalidate_agents_detail_ownership(owner)
     _sync_archive_chrome(owner)
     return ArchiveViewOutcome(
         status=ARCHIVE_STATUS_RETURNED,
@@ -470,7 +484,7 @@ def route_archive_key(owner: Any, intent: str) -> bool:
     """
     if getattr(owner, "current_tab", "agents") != "agents":
         return False
-    if not agents_view_is_archive(owner) or not archive_detail_owns_panel(owner):
+    if not _agents_view_is_archive(owner) or not archive_detail_owns_panel(owner):
         return False
     from ._archive_column_nav import dispatch_archive_intent
 
@@ -540,7 +554,7 @@ class AgentArchiveColumnMixin:
 
     def action_back_to_agents_inbox(self) -> None:
         """Return from Archive to the parked Inbox."""
-        if agents_view_is_archive(self):
+        if _agents_view_is_archive(self):
             if getattr(self, "current_tab", None) != "agents":
                 save_position = getattr(self, "_save_current_tab_position", None)
                 if callable(save_position):
@@ -558,7 +572,7 @@ class AgentArchiveColumnMixin:
             return
         if getattr(self, "current_tab", None) != "agents":
             self.action_open_agents_archive()
-        elif agents_view_is_archive(self):
+        elif _agents_view_is_archive(self):
             self.action_back_to_agents_inbox()
         else:
             open_agents_archive_view(self)
@@ -571,15 +585,13 @@ __all__ = [
     "archive_detail_owns_panel",
     "archive_read_only_context",
     "agents_inbox_detail_allowed",
-    "agents_view_is_archive",
     "cancel_inbox_detail_debounce",
-    "capture_agents_detail_owner",
     "close_agents_archive_view",
     "get_agents_tab_selection",
     "init_agents_archive_view_state",
-    "invalidate_agents_detail_ownership",
     "open_agents_archive_view",
     "open_agents_archive_view_with_query",
     "remember_agents_detail_owner",
+    "schedule_owned_inbox_detail_update",
     "scheduled_agents_detail_is_current",
 ]

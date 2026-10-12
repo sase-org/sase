@@ -5,7 +5,11 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from ...models.agent_archive_view import INTENT_SWITCH_SECTION
-from ._archive_view import route_archive_key
+from ._archive_view import (
+    agents_inbox_detail_allowed,
+    route_archive_key,
+    schedule_owned_inbox_detail_update,
+)
 from ._fold_scope import focused_panel_fold_registry
 from ._navigation_order import rendered_panel_slice
 from ._panel_fold_intent import effective_panel_collapses
@@ -312,10 +316,11 @@ class AgentPanelNavigationMixin:
             apply_immediate = getattr(self, "_apply_agent_detail_immediate", None)
             if callable(apply_immediate):
                 apply_immediate()
-            debouncer = getattr(self, "_agent_detail_debouncer", None)
-            fire_detail = getattr(self, "_fire_debounced_detail_update", None)
-            if debouncer is not None and callable(fire_detail):
-                debouncer.schedule(fire_detail)
+            if agents_inbox_detail_allowed(self):
+                try:
+                    schedule_owned_inbox_detail_update(self)
+                except Exception:
+                    pass
 
     def action_focus_next_agent_panel(self) -> None:
         """Move focus to the next tribe-driven side panel (with wrap)."""
