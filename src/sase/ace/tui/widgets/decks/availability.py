@@ -102,6 +102,17 @@ def probe_tools_deck(agent: Agent, *, attempt_number: int | None) -> DeckAvailab
     )
 
 
+def probe_record_deck(agent: Agent, *, attempt_number: int | None) -> DeckAvailability:
+    """Probe RECORD availability without I/O.
+
+    The four-card set (Lifecycle, Provenance, Relations, Links) is
+    fixed, so the deck is always available with no count: the switcher
+    shows a bare ``record`` and the picker row shows no count.
+    """
+    del agent, attempt_number
+    return DeckAvailability(True, None)
+
+
 def probe_final_deck(agent: Agent, *, attempt_number: int | None) -> DeckAvailability:
     """Probe FINAL availability without I/O (plan §3.6).
 

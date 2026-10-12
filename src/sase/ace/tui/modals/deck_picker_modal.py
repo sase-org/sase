@@ -320,7 +320,7 @@ class DeckPickerModal(ModalScreen[DeckPick | None]):
         text.append(f" {row.key} ", style=key_style)
         text.append(" ", style="")
         text.append(f"{row.glyph} ", style=f"bold {row.accent}")
-        text.append(f"{row.name:<5}", style=name_style)
+        text.append(f"{row.name:<6}", style=name_style)
         text.append("  ", style="")
         if row.count_label:
             text.append(f"{row.count_label:<10}", style=count_style)
@@ -362,7 +362,7 @@ class DeckPickerModal(ModalScreen[DeckPick | None]):
         left.append(" ", style="")
         left.append(f"{_BACK_ARROW} ", style=accent_style)
         left.append(f"{row.glyph} ", style=accent_style)
-        left.append(f"{row.name:<5}", style=name_style)
+        left.append(f"{row.name:<6}", style=name_style)
 
         count = row.count_label
         used = cell_len(left.plain)

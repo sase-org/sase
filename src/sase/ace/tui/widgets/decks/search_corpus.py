@@ -64,6 +64,11 @@ def deck_search_corpus(panel: Any) -> str:
             return panel.final_view.get_final_text() or ""
         except Exception:
             return ""
+    if deck is DeckId.RECORD:
+        try:
+            return panel.record_view.get_record_text() or ""
+        except Exception:
+            return ""
     return ""
 
 

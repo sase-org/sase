@@ -79,7 +79,14 @@ class AgentFooterDisplayMixin:
             elif focused.deck is _DeckId.FINAL:
                 try:
                     deck_card_count = len(
-                        agent_detail._final_document.cards  # type: ignore[attr-defined]
+                        focused._final_document.cards  # type: ignore[attr-defined]
+                    )
+                except Exception:
+                    deck_card_count = 0
+            elif focused.deck is _DeckId.RECORD:
+                try:
+                    deck_card_count = len(
+                        focused._record_document.cards  # type: ignore[attr-defined]
                     )
                 except Exception:
                     deck_card_count = 0
@@ -454,6 +461,13 @@ class AgentFooterDisplayMixin:
                         try:
                             deck_card_count = len(
                                 focused._final_document.cards  # type: ignore[attr-defined]
+                            )
+                        except Exception:
+                            deck_card_count = 0
+                    elif focused.deck is _DeckId.RECORD:
+                        try:
+                            deck_card_count = len(
+                                focused._record_document.cards  # type: ignore[attr-defined]
                             )
                         except Exception:
                             deck_card_count = 0

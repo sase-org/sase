@@ -205,7 +205,7 @@ def test_agents_help_lists_deck_picker_row() -> None:
 
     assert navigation["p"] == "Pick a deck; press it again for the last deck"
     assert (
-        navigation["p P/M/F/T/N"]
+        navigation["p P/M/F/T/N/R"]
         == "Show last deck or a deck in the other panel (decks)"
     )
 
@@ -218,7 +218,7 @@ def test_agents_help_deck_other_panel_row_follows_pick_deck_binding() -> None:
             )
         )["Navigation"]
     )
-    assert rebound["f12 M/F/T/N"] == "Show deck in other panel (decks)"
+    assert rebound["f12 M/F/T/N/R"] == "Show deck in other panel (decks)"
 
     unbound = dict(
         dict(

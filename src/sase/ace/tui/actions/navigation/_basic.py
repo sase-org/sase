@@ -91,6 +91,10 @@ class BasicNavigationMixin(NavigationMixinBase):
                 panel.final_view.release_bottom_pin()
             except Exception:
                 pass
+            try:
+                panel.record_view.release_bottom_pin()
+            except Exception:
+                pass
         except Exception:
             pass
         return True
@@ -109,6 +113,8 @@ class BasicNavigationMixin(NavigationMixinBase):
                 panel.main_view.pin_to_bottom()
             elif panel.deck is DeckId.FINAL:
                 panel.final_view.pin_to_bottom()
+            elif panel.deck is DeckId.RECORD:
+                panel.record_view.pin_to_bottom()
             else:
                 panel.active_scroll().scroll_end(animate=False)
         except Exception:

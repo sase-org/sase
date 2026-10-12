@@ -123,6 +123,8 @@ class DeckPanelNavigationMixin:
             return shown
         if self._deck is DeckId.TOOLS:
             return self._cycle_tools_card(direction)
+        if self._deck is DeckId.RECORD:
+            return self._cycle_record_card(direction)
         return None
 
     def _cycle_tools_card(self, direction: int) -> str | None:

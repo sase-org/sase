@@ -41,6 +41,7 @@ def _availability() -> dict[DeckId, DeckAvailability]:
         DeckId.FILES: DeckAvailability(True, 3),
         DeckId.TOOLS: DeckAvailability(False, 0),
         DeckId.FINAL: DeckAvailability(False, 0),
+        DeckId.RECORD: DeckAvailability(True, None),
     }
 
 
@@ -50,6 +51,7 @@ def _accents() -> dict[DeckId, str]:
         DeckId.FILES: "green",
         DeckId.TOOLS: "#87D7FF",
         DeckId.FINAL: "#FF87D7",
+        DeckId.RECORD: "#87AFAF",
     }
 
 
@@ -75,7 +77,10 @@ def _state(
 
 
 def test_resolve_back_deck_fresh_main_uses_cycle_previous() -> None:
-    assert resolve_back_deck(DeckId.MAIN, None) == (DeckId.FINAL, BackOrigin.PREVIOUS)
+    assert resolve_back_deck(DeckId.MAIN, None) == (
+        DeckId.RECORD,
+        BackOrigin.PREVIOUS,
+    )
 
 
 def test_resolve_back_deck_remembers_last() -> None:
@@ -113,10 +118,10 @@ def test_resolve_back_deck_current_outside_cycle_returns_main() -> None:
 
 def test_build_deck_picker_back_uses_helper() -> None:
     fresh = build_deck_picker_back(_state())
-    assert fresh.deck is DeckId.FINAL
+    assert fresh.deck is DeckId.RECORD
     assert fresh.origin is BackOrigin.PREVIOUS
     assert fresh.key == "p"
-    assert fresh.name == "FINAL"
+    assert fresh.name == "RECORD"
     remembered = build_deck_picker_back(_state(DeckId.FILES, previous=DeckId.MAIN))
     assert remembered.deck is DeckId.MAIN
     assert remembered.origin is BackOrigin.LAST
@@ -203,7 +208,7 @@ def test_picker_rows_order_badges_and_other_panel() -> None:
     )
     rows = build_deck_picker_rows(state)
     assert [row.deck for row in rows] == list(DECK_CYCLE)
-    assert [row.key for row in rows] == ["m", "f", "t", "n"]
+    assert [row.key for row in rows] == ["m", "f", "t", "n", "r"]
     current = [row for row in rows if row.is_current]
     assert len(current) == 1 and current[0].deck is DeckId.FILES
     by_deck = {row.deck: row for row in rows}

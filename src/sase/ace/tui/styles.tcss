@@ -4236,6 +4236,10 @@ ArchiveList.-dimmed > .option-list--option-highlighted {
     border: solid #FF87D7;
 }
 
+.deck-panel.-deck-record {
+    border: solid #87AFAF;
+}
+
 .deck-panel.-deck-main.-unfocused {
     border: solid $secondary 35%;
 }
@@ -4252,6 +4256,10 @@ ArchiveList.-dimmed > .option-list--option-highlighted {
     border: solid #FF87D7 35%;
 }
 
+.deck-panel.-deck-record.-unfocused {
+    border: solid #87AFAF 35%;
+}
+
 .deck-panel.-zoomed.-deck-main {
     border: heavy $secondary;
 }
@@ -4266,6 +4274,10 @@ ArchiveList.-dimmed > .option-list--option-highlighted {
 
 .deck-panel.-zoomed.-deck-final {
     border: heavy #FF87D7;
+}
+
+.deck-panel.-zoomed.-deck-record {
+    border: heavy #87AFAF;
 }
 
 .deck-scroll {
@@ -5340,6 +5352,10 @@ DeckPickerModal .deck-picker-row.focused.-deck-tools {
 
 DeckPickerModal .deck-picker-row.focused.-deck-final {
     border-left: thick #FF87D7;
+}
+
+DeckPickerModal .deck-picker-row.focused.-deck-record {
+    border-left: thick #87AFAF;
 }
 
 AgentActionChooserModal {

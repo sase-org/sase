@@ -25,6 +25,11 @@ _MESSAGES: dict[tuple[str, str], str] = {
     ("final", "tribe"): "No finalizers for tribes",
     ("final", "attempt"): "No finalizers for this attempt",
     ("final", "none"): "No agent selected",
+    ("record", "agent"): "No record for this agent",
+    ("record", "node"): "No record for this node",
+    ("record", "tribe"): "No record for tribes",
+    ("record", "attempt"): "No record for this attempt",
+    ("record", "none"): "No agent selected",
 }
 
 

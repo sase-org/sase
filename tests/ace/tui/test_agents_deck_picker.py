@@ -68,7 +68,7 @@ async def test_agents_p_opens_picker_and_f_switches_deck() -> None:
         assert calls, "switching decks schedules the deck-state save"
 
 
-async def test_agents_pp_from_fresh_main_lands_on_final_then_main() -> None:
+async def test_agents_pp_from_fresh_main_lands_on_record_then_main() -> None:
     async with AcePage(initial_tab="agents") as page:
         await _seed_agents(page)
         detail = _detail(page)
@@ -77,7 +77,7 @@ async def test_agents_pp_from_fresh_main_lands_on_final_then_main() -> None:
         await page.expect_modal("DeckPickerModal")
         await page.press("p")
         await page.expect_no_modal()
-        assert detail.deck_area.panel(0).deck is DeckId.FINAL
+        assert detail.deck_area.panel(0).deck is DeckId.RECORD
 
         await page.press("p")
         await page.expect_modal("DeckPickerModal")
@@ -218,7 +218,7 @@ async def test_agents_p_capital_f_opens_files_below_and_keeps_focus() -> None:
             await page.press("p")
             await page.expect_modal("DeckPickerModal")
             assert _plain(page, "#deck-picker-other-hint") == (
-                "   P/M/F/T/N  open in a new bottom panel"
+                "   P/M/F/T/N/R  open in a new bottom panel"
             )
 
             await page.press("F")
@@ -251,7 +251,7 @@ async def test_agents_p_capital_t_in_left_right_split_fills_left_panel() -> None
             "Choose what the right panel shows"
         )
         assert _plain(page, "#deck-picker-other-hint") == (
-            "   P/M/F/T/N  show in the ◧ left panel"
+            "   P/M/F/T/N/R  show in the ◧ left panel"
         )
         assert left_deck is not DeckId.TOOLS
 
@@ -281,7 +281,7 @@ async def test_agents_p_capital_for_other_panels_deck_changes_nothing() -> None:
             await page.press("p")
             await page.expect_modal("DeckPickerModal")
             assert _plain(page, "#deck-picker-other-hint") == (
-                "   P/M/F/T/N  show in the ⬓ bottom panel"
+                "   P/M/F/T/N/R  show in the ⬓ bottom panel"
             )
             await page.press("F")
             await page.expect_no_modal()
@@ -424,7 +424,7 @@ async def test_agents_p_capital_p_opens_resolved_deck_below() -> None:
         assert state.layout is DeckLayout.TOP_BOTTOM
         assert state.panels[0].deck is DeckId.MAIN
         assert state.panels[0].previous_deck is None
-        assert state.panels[1].deck is DeckId.FINAL
+        assert state.panels[1].deck is DeckId.RECORD
         assert state.panels[1].previous_deck is None
         assert state.focused == 0
 
@@ -435,7 +435,7 @@ async def test_agents_p_capital_p_opens_resolved_deck_below() -> None:
         await page.expect_modal("DeckPickerModal")
         await page.press("p")
         await page.expect_no_modal()
-        assert detail.deck_area.panel(1).deck is DeckId.TOOLS
+        assert detail.deck_area.panel(1).deck is DeckId.FINAL
         assert detail.deck_area.panel(0).deck is DeckId.MAIN
 
 
@@ -471,7 +471,7 @@ async def test_agents_palette_show_last_deck_matches_picker() -> None:
 
         page.app.action_show_last_deck()
         await page.pause()
-        assert detail.deck_area.panel(0).deck is DeckId.FINAL
+        assert detail.deck_area.panel(0).deck is DeckId.RECORD
 
         page.app.action_show_last_deck()
         await page.pause()
@@ -488,5 +488,5 @@ async def test_agents_palette_show_last_deck_other_matches_picker() -> None:
         state = detail.deck_area.state
         assert state.layout is DeckLayout.TOP_BOTTOM
         assert state.panels[0].deck is DeckId.MAIN
-        assert state.panels[1].deck is DeckId.FINAL
+        assert state.panels[1].deck is DeckId.RECORD
         assert state.focused == 0

@@ -135,6 +135,14 @@ class DeckPanelChromeMixin:
             return ()
         return tuple(CardTab(card.card_id, card.title) for card in cards)
 
+    def _record_tabs(self) -> tuple[CardTab, ...]:
+        """Return the RECORD tabs (Lifecycle, Provenance, Relations, Links)."""
+        try:
+            cards = self._record_document.cards  # type: ignore[attr-defined]
+        except Exception:
+            return ()
+        return tuple(CardTab(card.card_id, card.title) for card in cards)
+
     def _tools_tabs(self) -> tuple[CardTab, ...]:
         """Return the Tools tabs (``⚒ Runs`` first, then ``LLM Calls``).
 
@@ -210,6 +218,23 @@ class DeckPanelChromeMixin:
                 return None
             try:
                 active = self.active_document_card(DeckId.FINAL)  # type: ignore[attr-defined]
+            except Exception:
+                active = None
+            if active is None:
+                return None
+            try:
+                return ids.index(active)
+            except ValueError:
+                return None
+        if deck is DeckId.RECORD:
+            try:
+                ids = [card.card_id for card in self._record_document.cards]  # type: ignore[attr-defined]
+            except Exception:
+                return None
+            if not ids:
+                return None
+            try:
+                active = self.active_document_card(DeckId.RECORD)  # type: ignore[attr-defined]
             except Exception:
                 active = None
             if active is None:
@@ -459,6 +484,8 @@ class DeckPanelChromeMixin:
             tabs = self._tools_tabs()
         elif deck is DeckId.FINAL:
             tabs = self._final_tabs()
+        elif deck is DeckId.RECORD:
+            tabs = self._record_tabs()
         else:
             raise AssertionError(f"unhandled deck: {deck!r}")
         active_index = self._active_tab_index()

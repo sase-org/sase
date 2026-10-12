@@ -9,6 +9,7 @@ from .decks.availability import (
     DeckAvailability,
     probe_files_deck,
     probe_final_deck,
+    probe_record_deck,
     probe_tools_deck,
 )
 from .decks.main_document import EMPTY_MAIN_DOCUMENT, MainDeckDocument
@@ -145,6 +146,52 @@ class AgentDetailDeckRefreshMixin:
                     )
                 except Exception:
                     pass
+            elif panel.deck is DeckId.RECORD:
+                # Every RECORD panel paints its own view; the shared
+                # subject-signature cache makes duplicates instant.
+                try:
+                    preferred = self._record_preferred_card(panel)
+                except Exception:
+                    preferred = None
+                light_row = None
+                bundle_path = None
+                if getattr(agent, "_archive_read_only", False):
+                    try:
+                        from ..actions.agents._archive_view_selection import (
+                            archive_read_only_context,
+                        )
+
+                        for owner in (
+                            getattr(self, "app", None),
+                            self,
+                        ):
+                            if owner is None:
+                                continue
+                            context = archive_read_only_context(owner)
+                            if context is not None:
+                                light_row = getattr(context, "light_row", None)
+                                break
+                    except Exception:
+                        light_row = None
+                    for attr in ("bundle_path", "_dismissed_bundle_path"):
+                        try:
+                            candidate = getattr(agent, attr, None)
+                        except Exception:
+                            candidate = None
+                        if candidate:
+                            bundle_path = str(candidate)
+                            break
+                try:
+                    panel.record_view.update_display(
+                        agent,
+                        attempt_number=attempt_number,
+                        generation=self._agent_detail_generation,
+                        preferred_card=preferred,
+                        archive_light_row=light_row,
+                        bundle_path=bundle_path,
+                    )
+                except Exception:
+                    pass
             else:
                 log.warning(
                     "Unknown deck %r in _deck_refresh_views; skipping refresh",
@@ -158,6 +205,15 @@ class AgentDetailDeckRefreshMixin:
             area = self.deck_area  # type: ignore[attr-defined]
             index = panel.panel_index
             return area.state.panels[index].preferred_card_for(DeckId.FINAL)
+        except Exception:
+            return None
+
+    def _record_preferred_card(self, panel: Any) -> str | None:
+        """Return the panel's sticky RECORD card from area state, if any."""
+        try:
+            area = self.deck_area  # type: ignore[attr-defined]
+            index = panel.panel_index
+            return area.state.panels[index].preferred_card_for(DeckId.RECORD)
         except Exception:
             return None
 
@@ -245,6 +301,7 @@ class AgentDetailDeckRefreshMixin:
                     DeckId.FILES: DeckAvailability(False, 0),
                     DeckId.TOOLS: DeckAvailability(False, 0),
                     DeckId.FINAL: DeckAvailability(False, 0),
+                    DeckId.RECORD: DeckAvailability(False, 0),
                 }
             else:
                 availability = {
@@ -259,6 +316,9 @@ class AgentDetailDeckRefreshMixin:
                         agent, attempt_number=attempt_number
                     ),
                     DeckId.FINAL: probe_final_deck(
+                        agent, attempt_number=attempt_number
+                    ),
+                    DeckId.RECORD: probe_record_deck(
                         agent, attempt_number=attempt_number
                     ),
                 }
@@ -334,12 +394,17 @@ class AgentDetailDeckRefreshMixin:
                 except Exception:
                     pass
                 try:
+                    panel.record_view.show_empty()
+                except Exception:
+                    pass
+                try:
                     panel.set_availability(
                         {
                             DeckId.MAIN: DeckAvailability(False, 0),
                             DeckId.FILES: DeckAvailability(False, 0),
                             DeckId.TOOLS: DeckAvailability(False, 0),
                             DeckId.FINAL: DeckAvailability(False, 0),
+                            DeckId.RECORD: DeckAvailability(False, 0),
                         }
                     )
                 except Exception:
@@ -382,6 +447,10 @@ class AgentDetailDeckRefreshMixin:
                 except Exception:
                     pass
                 try:
+                    panel.record_view.show_empty()
+                except Exception:
+                    pass
+                try:
                     panel.set_availability(
                         {
                             DeckId.MAIN: DeckAvailability(
@@ -391,6 +460,7 @@ class AgentDetailDeckRefreshMixin:
                             DeckId.FILES: DeckAvailability(False, 0),
                             DeckId.TOOLS: DeckAvailability(False, 0),
                             DeckId.FINAL: DeckAvailability(False, 0),
+                            DeckId.RECORD: DeckAvailability(False, 0),
                         }
                     )
                 except Exception:

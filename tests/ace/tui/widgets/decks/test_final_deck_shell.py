@@ -153,8 +153,9 @@ def test_final_joins_picker_rows() -> None:
         DeckId.FILES,
         DeckId.TOOLS,
         DeckId.FINAL,
+        DeckId.RECORD,
     ]
-    final_row = rows[-1]
+    final_row = rows[-2]
     assert final_row.key == "n"
     assert final_row.has_content is False
 

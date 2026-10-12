@@ -28,9 +28,15 @@ from sase.ace.tui.widgets.decks.view_policy import forced_block_mode, forced_dec
 
 
 def test_card_document_decks_is_main_and_final() -> None:
-    assert CARD_DOCUMENT_DECKS == (DeckId.MAIN, DeckId.FINAL, DeckId.TOOLS)
+    assert CARD_DOCUMENT_DECKS == (
+        DeckId.MAIN,
+        DeckId.FINAL,
+        DeckId.TOOLS,
+        DeckId.RECORD,
+    )
     assert is_card_document_deck(DeckId.MAIN)
     assert is_card_document_deck(DeckId.TOOLS)
+    assert is_card_document_deck(DeckId.RECORD)
     assert not is_card_document_deck(DeckId.FILES)
 
 

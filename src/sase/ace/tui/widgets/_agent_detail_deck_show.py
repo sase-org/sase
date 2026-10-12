@@ -117,6 +117,20 @@ class AgentDetailDeckShowMixin:
                 )
             except Exception:
                 pass
+        elif deck is DeckId.RECORD:
+            try:
+                preferred = self._record_preferred_card(panel)  # type: ignore[attr-defined]
+            except Exception:
+                preferred = None
+            try:
+                panel.record_view.update_display(
+                    agent,
+                    attempt_number=attempt_number,
+                    generation=self._agent_detail_generation,
+                    preferred_card=preferred,
+                )
+            except Exception:
+                pass
         else:
             log.warning("Unknown deck %r in show_deck; falling back to Main", deck)
             self.show_deck(panel_index, DeckId.MAIN)

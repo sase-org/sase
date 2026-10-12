@@ -76,8 +76,10 @@ def choose_new_panel(
     not ``False``. Unknown (``None`` or missing) counts as content, except
     for FINAL, which a fresh split takes only on positive content — an
     empty FINAL ("No finalizers for this agent") is never the triage
-    loop's second panel. When none qualifies, duplicate ``current_deck``
-    on the card after ``current_active_card``.
+    loop's second panel. RECORD is never auto-chosen: it is reachable
+    only explicitly, so the triage loop's second-panel choice is
+    unchanged. When none qualifies, duplicate ``current_deck`` on the
+    card after ``current_active_card``.
     """
     from .spec import active_deck_cycle
 
@@ -98,6 +100,8 @@ def choose_new_panel(
         if content is False:
             continue
         if candidate is DeckId.FINAL and content is not True:
+            continue
+        if candidate is DeckId.RECORD:
             continue
         return DeckPanelState(deck=candidate)
     return new_panel_for_deck(current_deck, current_deck, current_active_card, card_ids)

@@ -2,9 +2,10 @@
 
 A card-document deck renders its cards through a
 :class:`~sase.ace.tui.widgets.decks.document_view.CardDocumentView` with
-spread/paged modes, scroll anchors and card blocks. Main, FINAL, and
-Tools (its ``⚒ Runs`` card) are the card-document decks. Membership is
-explicit (never "not Files") per the shared deck-view rules.
+spread/paged modes, scroll anchors and card blocks. Main, FINAL,
+RECORD, and Tools (its ``⚒ Runs`` card) are the card-document decks.
+Membership is explicit (never "not Files") per the shared deck-view
+rules.
 """
 
 from __future__ import annotations
@@ -19,7 +20,12 @@ if TYPE_CHECKING:
 
 
 #: Card-document decks in cycle order.
-CARD_DOCUMENT_DECKS: tuple[DeckId, ...] = (DeckId.MAIN, DeckId.FINAL, DeckId.TOOLS)
+CARD_DOCUMENT_DECKS: tuple[DeckId, ...] = (
+    DeckId.MAIN,
+    DeckId.FINAL,
+    DeckId.TOOLS,
+    DeckId.RECORD,
+)
 
 
 def is_card_document_deck(deck: DeckId) -> bool:
@@ -30,10 +36,10 @@ def is_card_document_deck(deck: DeckId) -> bool:
 def resolve_document_deck(deck: DeckId) -> DeckId:
     """Return the card-document deck backing ``deck`` (exhaustive).
 
-    Every :class:`DeckId` has an explicit arm: Main, FINAL, and Tools
-    resolve to themselves, while Files (which pages file lists, not
-    card documents) shares Main's host, as the legacy wrappers did.
-    There is no ``else`` fall-through.
+    Every :class:`DeckId` has an explicit arm: Main, FINAL, RECORD,
+    and Tools resolve to themselves, while Files (which pages file
+    lists, not card documents) shares Main's host, as the legacy
+    wrappers did. There is no ``else`` fall-through.
     """
     match deck:
         case DeckId.MAIN:
@@ -42,6 +48,8 @@ def resolve_document_deck(deck: DeckId) -> DeckId:
             return DeckId.FINAL
         case DeckId.TOOLS:
             return DeckId.TOOLS
+        case DeckId.RECORD:
+            return DeckId.RECORD
         case DeckId.FILES:
             return DeckId.MAIN
 
@@ -91,6 +99,8 @@ class DeckPanelCardDocumentsMixin:
                 return self.main_view  # type: ignore[attr-defined]
             case DeckId.FINAL:
                 return self.final_view  # type: ignore[attr-defined]
+            case DeckId.RECORD:
+                return self.record_view  # type: ignore[attr-defined]
             case DeckId.TOOLS:
                 try:
                     active = self.active_tools_card()  # type: ignore[attr-defined]
@@ -113,6 +123,8 @@ class DeckPanelCardDocumentsMixin:
                 return self._main_document  # type: ignore[attr-defined]
             case DeckId.FINAL:
                 return self._final_document  # type: ignore[attr-defined]
+            case DeckId.RECORD:
+                return self._record_document  # type: ignore[attr-defined]
             case DeckId.TOOLS:
                 try:
                     active = self.active_tools_card()  # type: ignore[attr-defined]

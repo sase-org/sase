@@ -145,6 +145,13 @@ class DeckPanelInteractionMixin:
 
         return self.query_one(FinalDeckView)
 
+    @property
+    def record_view(self) -> Any:
+        """Return the RECORD deck view."""
+        from .record.view import RecordDeckView
+
+        return self.query_one(RecordDeckView)
+
     def active_main_card(self) -> str | None:
         """Return the active Main card id without reaching into privates."""
         try:

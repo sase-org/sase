@@ -125,8 +125,14 @@ _COUNTED = {
     DeckId.MAIN: DeckAvailability(True, 1),
     DeckId.FILES: DeckAvailability(True, 3),
     DeckId.TOOLS: DeckAvailability(True, 2),
+    DeckId.RECORD: DeckAvailability(True, None),
 }
-_ACCENTS = {DeckId.MAIN: "red", DeckId.FILES: "green", DeckId.TOOLS: "#87D7FF"}
+_ACCENTS = {
+    DeckId.MAIN: "red",
+    DeckId.FILES: "green",
+    DeckId.TOOLS: "#87D7FF",
+    DeckId.RECORD: "#87AFAF",
+}
 
 
 def _subtitle(width: int, *, status: Text | None = None) -> str:
@@ -140,15 +146,18 @@ def _subtitle(width: int, *, status: Text | None = None) -> str:
 
 
 def test_subtitle_has_no_spread_tag() -> None:
-    assert _subtitle(60) == "main 1 \u00b7 files 3 \u00b7 tools 2 \u00b7 final"
+    assert (
+        _subtitle(60)
+        == "main 1 \u00b7 files 3 \u00b7 tools 2 \u00b7 final \u00b7 record"
+    )
     assert "spread" not in _subtitle(60)
 
 
 def test_subtitle_drops_counts_before_slicing() -> None:
-    assert _subtitle(30) == "main \u00b7 files \u00b7 tools \u00b7 final"
+    assert _subtitle(40) == "main \u00b7 files \u00b7 tools \u00b7 final \u00b7 record"
     # Then bare labels slice when even they do not fit.
+    assert _subtitle(30) == "main \u00b7 files \u00b7 tools \u00b7 final \u00b7"
     assert _subtitle(25) == "main \u00b7 files \u00b7 tools \u00b7 fi"
-    assert _subtitle(21) == "main \u00b7 files \u00b7 tools "
 
 
 def test_subtitle_slices_only_when_even_bare_labels_do_not_fit() -> None:
@@ -158,8 +167,10 @@ def test_subtitle_slices_only_when_even_bare_labels_do_not_fit() -> None:
 def test_subtitle_status_keeps_bare_switcher_before_dropping_it() -> None:
     status = Text("1-50 of 90")
     assert _subtitle(60, status=status).startswith("1-50 of 90  main 1")
-    bare = _subtitle(40, status=status)
-    assert bare == "1-50 of 90  main \u00b7 files \u00b7 tools \u00b7 final"
+    bare = _subtitle(52, status=status)
+    assert (
+        bare == "1-50 of 90  main \u00b7 files \u00b7 tools \u00b7 final \u00b7 record"
+    )
     assert _subtitle(15, status=status) == "1-50 of 90"
 
 
@@ -397,9 +408,9 @@ def test_zoom_subtitle_omits_key_when_unbound() -> None:
 def test_zoom_subtitle_ladder_drops_counts_then_switcher_then_position() -> None:
     zoom = _split_zoom(0)
     full = _zoomed_subtitle(80, zoom)
-    assert full == "◧ 1 of 2 · Z restore  main 1 · files 3 · tools 2 · final"
-    bare = _zoomed_subtitle(52, zoom)
-    assert bare == "◧ 1 of 2 · Z restore  main · files · tools · final"
+    assert full == "◧ 1 of 2 · Z restore  main 1 · files 3 · tools 2 · final · record"
+    bare = _zoomed_subtitle(64, zoom)
+    assert bare == "◧ 1 of 2 · Z restore  main · files · tools · final · record"
     assert "main 1" not in bare
     alone = _zoomed_subtitle(30, zoom)
     assert alone == "◧ 1 of 2 · Z restore"

@@ -17,6 +17,7 @@ class DeckId(StrEnum):
     FILES = "files"
     TOOLS = "tools"
     FINAL = "final"
+    RECORD = "record"
 
 
 class RenderMode(StrEnum):
@@ -31,6 +32,7 @@ DECK_CYCLE: tuple[DeckId, ...] = (
     DeckId.FILES,
     DeckId.TOOLS,
     DeckId.FINAL,
+    DeckId.RECORD,
 )
 
 
@@ -101,8 +103,8 @@ class DeckViewPolicies:
     def for_deck(self, deck: DeckId) -> DeckView:
         """Return the policy for ``deck``.
 
-        Every deck other than Main/Files (Tools, FINAL) is permanently
-        ``AUTO``: no title badge, no ``P``, no persisted key.
+        Every deck other than Main/Files (Tools, FINAL, RECORD) is
+        permanently ``AUTO``: no title badge, no ``P``, no persisted key.
         """
         if deck is DeckId.MAIN:
             return self.main
@@ -113,8 +115,8 @@ class DeckViewPolicies:
     def with_deck(self, deck: DeckId, view: DeckView) -> DeckViewPolicies:
         """Return a copy with ``deck`` set to ``view``.
 
-        Rejects every deck other than Main/Files (Tools, FINAL) and Files
-        ``PAGE_BLOCKS`` with ``ValueError``.
+        Rejects every deck other than Main/Files (Tools, FINAL, RECORD)
+        and Files ``PAGE_BLOCKS`` with ``ValueError``.
         """
         if deck is DeckId.MAIN:
             return dataclasses.replace(self, main=view)

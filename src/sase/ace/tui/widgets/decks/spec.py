@@ -70,6 +70,17 @@ DECK_SPECS: tuple[_DeckSpec, ...] = (
         accent_class="-deck-final",
         picker_class="-deck-final",
     ),
+    _DeckSpec(
+        deck_id=DeckId.RECORD,
+        name="RECORD",
+        glyph="≡",
+        picker_key="r",
+        blurb="Lifecycle, provenance, relations, links",
+        count_noun=("card", "cards"),
+        fallback_accent="#87AFAF",
+        accent_class="-deck-record",
+        picker_class="-deck-record",
+    ),
 )
 
 _SPECS_BY_DECK: dict[DeckId, _DeckSpec] = {s.deck_id: s for s in DECK_SPECS}
@@ -81,7 +92,7 @@ def deck_spec(deck: DeckId) -> _DeckSpec:
 
 
 def active_deck_cycle() -> tuple[DeckId, ...]:
-    """Return the decks in cycle order (Main, Files, Tools, FINAL)."""
+    """Return the decks in cycle order (Main, Files, Tools, FINAL, Record)."""
     return tuple(s.deck_id for s in DECK_SPECS)
 
 

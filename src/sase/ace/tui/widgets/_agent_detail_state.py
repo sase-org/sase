@@ -378,6 +378,8 @@ class AgentDetailStateMixin:
                         text = renderable_to_text(Group(*card.renderables))
                         return (None, text, ".md")
                 return (None, None, "")
+            if panel.deck is _DeckId.RECORD:
+                return (None, panel.record_view.get_record_text(), ".md")
             if panel.deck is _DeckId.FILES:
                 view = panel.file_view
                 return (

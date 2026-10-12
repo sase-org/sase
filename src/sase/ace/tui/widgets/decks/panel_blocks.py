@@ -78,6 +78,8 @@ class DeckPanelBlocksMixin(DeckPanelDocumentBlocksMixin):
         """Step the active card one block; False when a no-op."""
         if self._deck is DeckId.FINAL:
             return bool(self.cycle_document_block(DeckId.FINAL, direction))
+        if self._deck is DeckId.RECORD:
+            return bool(self.cycle_document_block(DeckId.RECORD, direction))
         if self._deck is DeckId.TOOLS:
             return bool(self.cycle_document_block(DeckId.TOOLS, direction))
         return self.cycle_document_block(DeckId.MAIN, direction)
@@ -86,6 +88,8 @@ class DeckPanelBlocksMixin(DeckPanelDocumentBlocksMixin):
         """Select ``block_id`` on the active card; False when a no-op."""
         if self._deck is DeckId.FINAL:
             return bool(self.select_document_block(DeckId.FINAL, block_id))
+        if self._deck is DeckId.RECORD:
+            return bool(self.select_document_block(DeckId.RECORD, block_id))
         if self._deck is DeckId.TOOLS:
             return bool(self.select_document_block(DeckId.TOOLS, block_id))
         return self.select_document_block(DeckId.MAIN, block_id)
@@ -102,6 +106,11 @@ class DeckPanelBlocksMixin(DeckPanelDocumentBlocksMixin):
                 return bool(self.compute_document_block_navigable(DeckId.FINAL))
             except Exception:
                 return False
+        if self._deck is DeckId.RECORD:
+            try:
+                return bool(self.compute_document_block_navigable(DeckId.RECORD))
+            except Exception:
+                return False
         if self._deck is DeckId.TOOLS:
             try:
                 return bool(self.compute_document_block_navigable(DeckId.TOOLS))
@@ -113,6 +122,8 @@ class DeckPanelBlocksMixin(DeckPanelDocumentBlocksMixin):
         """Return the view's active block id for ``card_id``."""
         if self._deck is DeckId.FINAL:
             return self.active_document_block_id(DeckId.FINAL, card_id)
+        if self._deck is DeckId.RECORD:
+            return self.active_document_block_id(DeckId.RECORD, card_id)
         if self._deck is DeckId.TOOLS:
             return self.active_document_block_id(DeckId.TOOLS, card_id)
         return self.active_document_block_id(DeckId.MAIN, card_id)
@@ -121,6 +132,8 @@ class DeckPanelBlocksMixin(DeckPanelDocumentBlocksMixin):
         """Return the view's unseen block ids for ``card_id``."""
         if self._deck is DeckId.FINAL:
             return self.arrived_document_block_ids(DeckId.FINAL, card_id)
+        if self._deck is DeckId.RECORD:
+            return self.arrived_document_block_ids(DeckId.RECORD, card_id)
         if self._deck is DeckId.TOOLS:
             return self.arrived_document_block_ids(DeckId.TOOLS, card_id)
         return self.arrived_document_block_ids(DeckId.MAIN, card_id)
@@ -129,6 +142,8 @@ class DeckPanelBlocksMixin(DeckPanelDocumentBlocksMixin):
         """Return the view's decided block mode for the active card."""
         if self._deck is DeckId.FINAL:
             return self.document_block_mode_for_active_card(DeckId.FINAL)
+        if self._deck is DeckId.RECORD:
+            return self.document_block_mode_for_active_card(DeckId.RECORD)
         if self._deck is DeckId.TOOLS:
             return self.document_block_mode_for_active_card(DeckId.TOOLS)
         return self.document_block_mode_for_active_card(DeckId.MAIN)
@@ -137,6 +152,8 @@ class DeckPanelBlocksMixin(DeckPanelDocumentBlocksMixin):
         """Return whether a stable paged deck should re-decide block mode."""
         if self._deck is DeckId.FINAL:
             return self.needs_document_block_refresh(DeckId.FINAL)
+        if self._deck is DeckId.RECORD:
+            return self.needs_document_block_refresh(DeckId.RECORD)
         if self._deck is DeckId.TOOLS:
             return self.needs_document_block_refresh(DeckId.TOOLS)
         return self.needs_document_block_refresh(DeckId.MAIN)
@@ -145,6 +162,8 @@ class DeckPanelBlocksMixin(DeckPanelDocumentBlocksMixin):
         """Recompute whether card-block navigation is available."""
         if self._deck is DeckId.FINAL:
             return self.compute_document_block_navigable(DeckId.FINAL)
+        if self._deck is DeckId.RECORD:
+            return self.compute_document_block_navigable(DeckId.RECORD)
         if self._deck is DeckId.TOOLS:
             return self.compute_document_block_navigable(DeckId.TOOLS)
         return self.compute_document_block_navigable(DeckId.MAIN)

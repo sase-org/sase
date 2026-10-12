@@ -22,6 +22,7 @@ def test_every_deck_id_has_exactly_one_spec() -> None:
         DeckId.FILES,
         DeckId.TOOLS,
         DeckId.FINAL,
+        DeckId.RECORD,
     )
     for deck in DeckId:
         assert deck_spec(deck).deck_id is deck
@@ -39,7 +40,18 @@ def test_final_deck_spec_identity_and_cycle() -> None:
         DeckId.FILES,
         DeckId.TOOLS,
         DeckId.FINAL,
+        DeckId.RECORD,
     )
+
+
+def test_record_deck_spec_identity_and_cycle() -> None:
+    spec = deck_spec(DeckId.RECORD)
+    assert spec.name == "RECORD"
+    assert spec.glyph == "≡"
+    assert spec.picker_key == "r"
+    assert spec.count_noun == ("card", "cards")
+    assert spec.fallback_accent == "#87AFAF"
+    assert active_deck_cycle()[-1] is DeckId.RECORD
 
 
 def test_picker_keys_unique_and_unreserved() -> None:

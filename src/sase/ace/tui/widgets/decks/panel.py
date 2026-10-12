@@ -1,4 +1,4 @@
-"""Pre-composed deck panel with Main, Files, Tools and FINAL views."""
+"""Pre-composed deck panel with Main, Files, Tools, FINAL, and RECORD views."""
 
 from __future__ import annotations
 
@@ -28,6 +28,7 @@ from .empty_state import deck_empty_state
 from .files_spread import FilesSpreadView
 from .final.view import FinalDeckLoaded, FinalDeckView
 from .main_document import EMPTY_MAIN_DOCUMENT, MainDeckDocument
+from .panel_record import DeckPanelRecordMixin
 from .tool_runs.view import ToolRunsDeckLoaded, ToolRunsDeckView
 from .main_view import MainDeckView
 from .model import DeckId
@@ -37,6 +38,7 @@ from .panel_chrome import DeckPanelChromeMixin
 from .panel_files import DeckPanelFilesMixin
 from .panel_interaction import DeckPanelInteractionMixin
 from .panel_navigation import DeckPanelNavigationMixin
+from .record.view import RecordDeckLoaded, RecordDeckView
 from .panel_spread import DeckPanelSpreadMixin
 from .panel_transitions import DeckPanelTransitionsMixin
 from .panel_view import DeckPanelViewMixin
@@ -64,6 +66,7 @@ class DeckPanel(  # type: ignore[misc]
     DeckPanelFilesMixin,
     DeckPanelTransitionsMixin,
     DeckPanelNavigationMixin,
+    DeckPanelRecordMixin,
     DeckPanelInteractionMixin,
     Vertical,
 ):
@@ -81,6 +84,7 @@ class DeckPanel(  # type: ignore[misc]
         self._main_active_card: str | None = None
         self._final_document: MainDeckDocument = EMPTY_MAIN_DOCUMENT
         self._final_switcher: Any | None = None
+        self._record_document: MainDeckDocument = EMPTY_MAIN_DOCUMENT
         self._tool_runs_document: MainDeckDocument = EMPTY_MAIN_DOCUMENT
         self._tools_switcher: Any | None = None
         self._file_count = 0
@@ -116,7 +120,7 @@ class DeckPanel(  # type: ignore[misc]
         return self._accent_for()
 
     def compose(self) -> ComposeResult:
-        """Compose the pre-composed Main, Files, Tools and FINAL scrolls."""
+        """Compose the pre-composed Main, Files, Tools, FINAL, RECORD scrolls."""
         i = self._panel_index
         yield BlockRail(classes="deck-block-rail")
         with VerticalScroll(
@@ -137,6 +141,10 @@ class DeckPanel(  # type: ignore[misc]
             id=f"agent-deck-panel-{i}-final-scroll", classes="deck-scroll -final"
         ):
             yield FinalDeckView()
+        with VerticalScroll(
+            id=f"agent-deck-panel-{i}-record-scroll", classes="deck-scroll -record"
+        ):
+            yield RecordDeckView()
         yield Static(classes="deck-empty-state")
         with VerticalScroll(
             id=f"agent-deck-panel-{i}-search-scroll",
@@ -360,6 +368,11 @@ class DeckPanel(  # type: ignore[misc]
                 return not bool(self._final_document.cards)
             except Exception:
                 return True
+        if deck is DeckId.RECORD:
+            try:
+                return not bool(self._record_document.cards)
+            except Exception:
+                return True
         raise AssertionError(f"unhandled deck: {deck!r}")
 
     def _update_empty_state(self) -> None:
@@ -440,6 +453,10 @@ class DeckPanel(  # type: ignore[misc]
     @on(FinalDeckLoaded)
     def _on_final_deck_loaded(self, message: FinalDeckLoaded) -> None:
         self.handle_final_deck_loaded(message)
+
+    @on(RecordDeckLoaded)
+    def _on_record_deck_loaded(self, message: RecordDeckLoaded) -> None:
+        self.handle_record_deck_loaded(message)
 
     @on(ToolRunsDeckLoaded)
     def _on_tool_runs_deck_loaded(self, message: ToolRunsDeckLoaded) -> None:
