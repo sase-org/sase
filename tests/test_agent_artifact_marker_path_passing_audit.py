@@ -286,6 +286,16 @@ _REVIEWED_PATH_PASSING_CONTEXTS: dict[str, PathPassingReview] = {
             ),
         )
     ),
+    "src/sase/ace/tui/widgets/decks/record/facts.py:_load_chat_path": (
+        PathPassingReview(
+            exemption=(
+                "Read-only Record Provenance extras lookup: agent_meta.json is "
+                "read only to recover the chat_path shown on the Provenance "
+                "card, off the shared ArtifactFileCache on the worker thread; "
+                "no marker is written."
+            ),
+        )
+    ),
     "src/sase/ace/tui/modals/node_finder_preview_loader.py:_source_paths": (
         PathPassingReview(
             exemption=(
