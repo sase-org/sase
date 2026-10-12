@@ -4633,6 +4633,103 @@ PromptInputBar PromptTextArea.prompt-input .text-area--suggestion {
     color: $text-muted;
 }
 
+/* The New Project wizard keeps the candidate list and live detail in one
+   compact, test-pushable modal until the later phases wire an entry point. */
+NewProjectModal {
+    align: center middle;
+}
+
+#new-project-frame {
+    width: 92%;
+    height: 90%;
+    min-width: 64;
+    min-height: 18;
+    border: thick #2BE7C7;
+    padding: 0 1;
+    background: $surface;
+}
+
+#new-project-title {
+    dock: top;
+    height: 1;
+    color: #FFAF5F;
+    text-style: bold;
+    content-align: center middle;
+}
+
+#new-project-stepper {
+    height: 1;
+    content-align: center middle;
+    margin-bottom: 1;
+}
+
+#new-project-provider-row {
+    height: 3;
+    align: center middle;
+}
+
+#new-project-providers {
+    width: auto;
+    height: 1;
+}
+
+#new-project-health {
+    width: 1fr;
+    max-width: 46;
+    height: 1;
+    content-align: right middle;
+    text-overflow: ellipsis;
+}
+
+#new-project-stages {
+    height: 1fr;
+    min-height: 8;
+}
+
+#new-project-source-stage {
+    height: 1fr;
+}
+
+#new-project-filter {
+    height: 3;
+    margin-bottom: 1;
+    border: round #555555;
+}
+
+#new-project-source-list {
+    height: 1fr;
+    border: round #555555;
+    padding: 0 1;
+}
+
+#new-project-hidden-footer {
+    height: 1;
+    color: #888888;
+    text-overflow: ellipsis;
+}
+
+#new-project-source-detail {
+    height: auto;
+    min-height: 3;
+    max-height: 6;
+    border: round #555555;
+    padding: 0 1;
+}
+
+.new-project-placeholder-title {
+    height: 3;
+    color: #FFAF5F;
+    text-style: bold;
+    content-align: center middle;
+}
+
+#new-project-hints {
+    height: 1;
+    color: #888888;
+    content-align: center middle;
+    text-overflow: ellipsis;
+}
+
 /* Generalized vim cursor accents for any VimTextArea (config-tab editors,
    etc.).  Textual type selectors match base classes, so these also cover
    PromptTextArea, but the prompt-scoped rules above win there by specificity
