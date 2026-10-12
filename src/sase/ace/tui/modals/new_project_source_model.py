@@ -29,6 +29,21 @@ class SourceRow:
         """Whether this row represents a provider-owner failure."""
         return self.group == "owner_error"
 
+    @property
+    def is_loading(self) -> bool:
+        """Whether this row is a transient per-owner fetching placeholder."""
+        return self.group == "owner_fetching"
+
+    @property
+    def selectable(self) -> bool:
+        """Whether choosing this row may advance the wizard.
+
+        The pinned Create row carries no ref but is always actionable.
+        Every other row needs a ref: loading placeholders and owner-error
+        rows must never enter Configure with an empty ref.
+        """
+        return self.group == "create" or bool(self.ref)
+
 
 @dataclass(frozen=True, slots=True)
 class _SourceGroup:
@@ -49,6 +64,7 @@ class SourceView:
     owner_errors: tuple[SourceRow, ...]
     visible_count: int
     parsed_ref: Any | None = None
+    truncated: bool = False
 
     @property
     def rows(self) -> tuple[SourceRow, ...]:
@@ -141,6 +157,38 @@ def build_source_view(
         if rows:
             visible_groups.append(_SourceGroup(group_id, heading, glyph, tuple(rows)))
 
+    projects_by_identity: dict[str, Mapping[str, Any]] = {}
+    for project in inputs.projects:
+        if not isinstance(project, dict):
+            continue
+        identities = project.get("identity_keys", [])
+        if not isinstance(identities, (list, tuple)):
+            continue
+        for identity in identities:
+            projects_by_identity[str(identity).casefold()] = project
+
+    def _with_project(row: SourceRow) -> SourceRow:
+        if row.hidden_reason != "enabled_project":
+            return row
+        project = projects_by_identity.get(
+            str(row.data.get("identity_key") or "").casefold()
+        )
+        if project is None:
+            return row
+        data = dict(row.data)
+        data.setdefault("project_key", str(project.get("key") or ""))
+        data.setdefault("project_name", str(project.get("name") or ""))
+        return SourceRow(
+            row_id=row.row_id,
+            group=row.group,
+            display=row.display,
+            ref=row.ref,
+            description=row.description,
+            hidden_reason=row.hidden_reason,
+            owner=row.owner,
+            data=data,
+        )
+
     hidden_matches: list[SourceRow] = []
     if query:
         for raw in search_rows:
@@ -149,13 +197,13 @@ def build_source_view(
             if identity in already_visible:
                 continue
             if query in " ".join((row.display, row.ref, row.description)).casefold():
-                hidden_matches.append(row)
+                hidden_matches.append(_with_project(row))
     else:
         for raw in search_rows:
             row = _source_row("search_only", raw)
             reason = row.hidden_reason
             if reveal_all or (reveal_forks and reason == "fork"):
-                hidden_matches.append(row)
+                hidden_matches.append(_with_project(row))
     if hidden_matches:
         visible_groups.append(
             _SourceGroup("search_only", "HIDDEN MATCHES", "┄", tuple(hidden_matches))
@@ -242,6 +290,7 @@ def build_source_view(
         owner_errors=tuple(owner_errors),
         visible_count=sum(len(group.rows) for group in visible_groups),
         parsed_ref=parsed_ref,
+        truncated=any(owner.truncated for owner in inputs.owners),
     )
 
 
@@ -260,7 +309,58 @@ def hidden_footer(view: SourceView) -> str:
         for reason, count in view.hidden_counts
     ]
     summary = " · ".join(totals) if totals else "0"
-    return f"┄ {summary} hidden · f forks · . all"
+    footer = f"┄ {summary} hidden · f forks · . all"
+    if view.truncated:
+        footer += " · showing 200 · type to filter or paste owner/repo"
+    return footer
+
+
+def format_cache_age(elapsed_seconds: float) -> str:
+    """Format a cache age for the health chip (``""`` when under a minute)."""
+    if elapsed_seconds < 60:
+        return ""
+    minutes = int(elapsed_seconds // 60)
+    if minutes < 60:
+        return f"{minutes}m"
+    return f"{minutes // 60}h"
+
+
+def health_chip_text(
+    inputs: CandidateInputs | None,
+    *,
+    workflow_type: str = "",
+    pending_owners: frozenset[str] = frozenset(),
+    cache_age: str = "",
+) -> str:
+    """Render the provider health chip as plain text (no styling).
+
+    This is the single owner of the chip copy: the wizard shell displays
+    the returned string verbatim and styles it by its leading glyph.
+    """
+    if inputs is None:
+        return "◌ loading cached candidates…"
+    owners = list(inputs.owners)
+    pending = set(pending_owners)
+    if pending:
+        return f"◌ loading {len(owners) - len(pending)} of {len(owners)} owners"
+    failures = [owner for owner in owners if owner.status == "error"]
+    if failures:
+        if failures and all(owner.error_kind == "tool_missing" for owner in failures):
+            return f"✗ {workflow_type or inputs.workflow_type} not installed"
+        remedy = next(
+            (list(owner.remedy_argv) for owner in failures if owner.remedy_argv),
+            [],
+        )
+        text = f"⚠ {len(failures)} owner issue(s)"
+        if remedy:
+            text += f" · t {' '.join(str(part) for part in remedy)}"
+        return text
+    cached = " · cached" + (f" {cache_age}" if cache_age else "")
+    if inputs.account:
+        return f"✓ {inputs.account} · {len(owners)} owners{cached}"
+    if owners:
+        return f"✓ {len(owners)} owners{cached}"
+    return "○ no owners · paste owner/repo"
 
 
 __all__ = [
@@ -268,5 +368,7 @@ __all__ = [
     "SourceView",
     "build_source_view",
     "create_source_row",
+    "format_cache_age",
+    "health_chip_text",
     "hidden_footer",
 ]

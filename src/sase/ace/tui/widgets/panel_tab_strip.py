@@ -25,6 +25,7 @@ class PanelTab:
     shortcut: str | None = None
     icon: str = ""
     description: str = ""
+    disabled: bool = False
 
 
 _PanelTabTier = Literal["full", "compact", "micro"]
@@ -125,7 +126,10 @@ class PanelTabStrip(Static):
                 }[active_tier]
                 append(separator, "#444444")
             is_active = tab.id == self._active_tab
-            label_style = f"bold {tab.accent_color}" if is_active else "#888888"
+            if tab.disabled:
+                label_style = "#555555"
+            else:
+                label_style = f"bold {tab.accent_color}" if is_active else "#888888"
             start = column
             if self._show_numbers:
                 number_style = tab.accent_color if is_active else "#666666"
@@ -218,10 +222,18 @@ class PanelTabStrip(Static):
                 return tab_id
         return None
 
+    def is_tab_disabled(self, tab_id: str) -> bool:
+        """Whether *tab_id* is marked disabled and refuses activation."""
+        return any(tab.id == tab_id and tab.disabled for tab in self._tabs)
+
     def on_click(self, event: Click) -> None:
         """Post :class:`TabClicked` when the user clicks a tab label."""
         tab_id = self._tab_id_at(event.x)
-        if tab_id is not None and tab_id != self._active_tab:
+        if (
+            tab_id is not None
+            and tab_id != self._active_tab
+            and not self.is_tab_disabled(tab_id)
+        ):
             self.post_message(self.TabClicked(tab_id))
 
     def on_mouse_move(self, event: MouseMove) -> None:

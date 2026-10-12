@@ -105,6 +105,10 @@ class NewProjectModal(
         self._loaded: set[str] = set()
         self._loading: set[str] = set()
         self._pending_by_provider: dict[str, set[str]] = {}
+        self._owner_jobs: set[asyncio.Task[tuple[str, CandidateInputs | None]]] = set()
+        self._inputs_arrived_at: dict[str, float] = {}
+        self._disabled_providers: set[str] = set()
+        self._tabs_disabled_snapshot: frozenset[str] = frozenset()
         self._preferences = preferences or Preferences()
         self._state = NewProjectStateMachine()
         self._owner_semaphore = asyncio.Semaphore(3)

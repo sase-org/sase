@@ -2,16 +2,28 @@
 
 from __future__ import annotations
 
+import asyncio
+from types import SimpleNamespace
+from typing import Any
+
+from textual import events
 from textual.app import App, ComposeResult
-from textual.widgets import Input, Static
+from textual.widgets import Input, OptionList, Static
 
 from sase import workspace_provider
 from sase.ace.testing.wait import wait_for
 from sase.ace.tui.modals.new_project_modal import NewProjectModal
+from sase.ace.tui.modals.new_project_rendering import (
+    render_no_owners_detail,
+    render_source_detail,
+    render_source_row,
+)
 from sase.ace.tui.modals.new_project_source import NewProjectSource
 from sase.ace.tui.modals.new_project_source_model import (
     build_source_view,
     create_source_row,
+    format_cache_age,
+    health_chip_text,
     hidden_footer,
 )
 from sase.project_onboarding import CandidateInputs, OwnerResult, Preferences
@@ -153,9 +165,10 @@ def test_source_groups_hidden_counts_and_hidden_filter() -> None:
     ]
     assert view.groups[0].rows[0].display == "sase-org/forge"
     assert dict(view.hidden_counts)["fork"] == 1
-    assert hidden_footer(view) == (
-        "┄ 1 project · 1 sidecar · 1 fork hidden · f forks · . all"
-    )
+    # sase-core no longer seeds ref-less inventory rows, so the fixture's
+    # sidecar entry is gone rather than hidden (verified against the base
+    # tree with this phase's changes stashed).
+    assert hidden_footer(view) == ("┄ 1 project · 1 fork hidden · f forks · . all")
 
     matching_hidden = build_source_view(inputs, filter_text="hidden")
     assert matching_hidden.groups[-1].group_id == "search_only"
@@ -342,3 +355,502 @@ async def test_n_in_filter_stays_text(
         await pilot.pause()
         assert modal.query_one("#new-project-filter", Input).value == "n"
         assert modal._state.stage == "source"
+
+
+def _tool_missing_inputs() -> CandidateInputs:
+    inputs = _inputs(
+        owners=[
+            OwnerResult(
+                name="sase-org",
+                status="error",
+                error_kind="tool_missing",
+                message="gh not found",
+            )
+        ]
+    )
+    inputs.remote = []
+    inputs.local = []
+    return inputs
+
+
+def test_loading_rows_are_unselectable_placeholders(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    monkeypatch.setattr(workspace_provider, "parse_repo_ref", lambda *args: None)
+    view = build_source_view(_inputs(), pending_owners=frozenset({"sase-org"}))
+    fetching = [row for row in view.rows if row.is_loading]
+    assert fetching, "a pending owner must render a fetching row"
+    assert all(not row.selectable and not row.ref for row in fetching)
+
+
+async def test_loading_row_cannot_be_chosen(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    monkeypatch.setattr(workspace_provider, "parse_repo_ref", lambda *args: None)
+    monkeypatch.setattr(
+        workspace_provider, "describe_repo_creation", lambda _wt, _ns: None
+    )
+    modal = NewProjectModal(
+        provider_metadata=(_provider("gh", "GitHub"),),
+        candidate_inputs={"gh": _inputs()},
+        preferences=Preferences(last_provider="gh"),
+    )
+    app = _ModalApp()
+    async with app.run_test(size=(100, 32)) as pilot:
+        app.push_screen(modal)
+        await pilot.pause()
+        source = modal.query_one(NewProjectSource)
+        source.set_inputs(_inputs(), pending_owners=frozenset({"sase-org"}))
+        await pilot.pause()
+        options = source.query_one(OptionList)
+        fetching = next(row for row in source._rows.values() if row.is_loading)
+        fetching_index = next(
+            index
+            for index in range(options.option_count)
+            if str(options.get_option_at_index(index).id or "") == fetching.row_id
+        )
+        assert options.get_option_at_index(fetching_index).disabled
+        # Even a highlight resting on a loading row must not advance the wizard.
+        monkeypatch.setattr(source, "_highlighted_row", lambda: fetching)
+        source.choose_highlighted()
+        await pilot.pause()
+        assert modal._state.stage == "source"
+        assert modal._state.selected is None
+        source._row_selected(
+            SimpleNamespace(option=SimpleNamespace(id=fetching.row_id))
+        )
+        await pilot.pause()
+        assert modal._state.stage == "source"
+        assert modal._state.selected is None
+
+
+def test_truncation_footer_names_filter_and_paste(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    monkeypatch.setattr(workspace_provider, "parse_repo_ref", lambda *args: None)
+    owners = _inputs().owners
+    truncated = [
+        OwnerResult(
+            name=owner.name,
+            kind_label=owner.kind_label,
+            status=owner.status,
+            truncated=True,
+        )
+        for owner in owners
+    ]
+    view = build_source_view(_inputs(owners=truncated))
+    assert view.truncated
+    assert "showing 200 · type to filter or paste owner/repo" in hidden_footer(view)
+
+
+def test_health_chip_states() -> None:
+    assert health_chip_text(None) == "◌ loading cached candidates…"
+    assert (
+        health_chip_text(_inputs(), pending_owners=frozenset({"sase-org"}))
+        == "◌ loading 0 of 1 owners"
+    )
+    assert (
+        health_chip_text(_tool_missing_inputs(), workflow_type="gh")
+        == "✗ gh not installed"
+    )
+    owner_error = _inputs(
+        owners=[
+            OwnerResult(
+                name="sase-org",
+                status="error",
+                error_kind="auth",
+                message="expired",
+                remedy_argv=["gh", "auth", "login"],
+            )
+        ]
+    )
+    assert health_chip_text(owner_error) == "⚠ 1 owner issue(s) · t gh auth login"
+    assert (
+        health_chip_text(_inputs(), cache_age="2m")
+        == "✓ bbugyi200 · 1 owners · cached 2m"
+    )
+    assert health_chip_text(_inputs()) == "✓ bbugyi200 · 1 owners · cached"
+    assert (
+        health_chip_text(CandidateInputs("gh", "GitHub", ""))
+        == "○ no owners · paste owner/repo"
+    )
+    assert format_cache_age(30) == ""
+    assert format_cache_age(150) == "2m"
+    assert format_cache_age(7200) == "2h"
+
+
+def test_hidden_enabled_project_row_names_show_action(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    monkeypatch.setattr(workspace_provider, "parse_repo_ref", lambda *args: None)
+    view = build_source_view(_inputs(), filter_text="hidden")
+    row = view.groups[-1].rows[0]
+    assert row.hidden_reason == "enabled_project"
+    assert "already the project" in render_source_row(row).plain
+    assert "show it" in render_source_row(row).plain
+
+
+def test_detail_status_wording() -> None:
+    managed = SimpleNamespace(
+        visibility="private",
+        default_branch="main",
+        sase_managed=True,
+        can_push=True,
+        message="",
+    )
+    row = create_source_row("GitHub", "gh")
+    detail = render_source_detail(
+        _inputs_suggested_row(), workflow_type="gh", probe=managed
+    )
+    assert "✓ managed" in detail.plain
+    unset = SimpleNamespace(
+        visibility="private",
+        default_branch="main",
+        sase_managed=False,
+        can_push=True,
+        message="",
+    )
+    assert (
+        "○ will be set up"
+        in render_source_detail(
+            _inputs_suggested_row(), workflow_type="gh", probe=unset
+        ).plain
+    )
+    unknown = SimpleNamespace(
+        visibility="private",
+        default_branch="main",
+        sase_managed=None,
+        can_push=None,
+        message="",
+    )
+    assert (
+        "? unknown"
+        in render_source_detail(
+            _inputs_suggested_row(), workflow_type="gh", probe=unknown
+        ).plain
+    )
+    assert (
+        "◌ checking…"
+        in render_source_detail(
+            _inputs_suggested_row(), workflow_type="gh", checking=True
+        ).plain
+    )
+    collapsed = render_source_detail(
+        _inputs_suggested_row(), workflow_type="gh", probe=unset, collapsed=True
+    )
+    assert "\n" not in collapsed.plain
+    assert "○ will be set up" in collapsed.plain
+    assert row.group == "create"
+
+
+def _inputs_suggested_row():  # type: ignore[no-untyped-def]
+    from sase.ace.tui.modals.new_project_source_model import SourceRow as _Row
+
+    return _Row(
+        row_id="suggested:x",
+        group="suggested",
+        display="sase-org/new",
+        ref="sase-org/new",
+    )
+
+
+def test_no_owners_detail_points_at_config() -> None:
+    detail = render_no_owners_detail("GitHub")
+    assert "No GitHub owners yet" in detail.plain
+    assert "github_orgs" in detail.plain
+
+
+async def test_remedy_falls_back_to_provider_level(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    monkeypatch.setattr(workspace_provider, "parse_repo_ref", lambda *args: None)
+    monkeypatch.setattr(
+        workspace_provider, "describe_repo_creation", lambda _wt, _ns: None
+    )
+    recorded: list[tuple[str, ...]] = []
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.new_project_source.subprocess.run",
+        lambda argv, **kwargs: recorded.append(tuple(argv)),
+    )
+    error_inputs = _inputs(
+        owners=[
+            OwnerResult(
+                name="sase-org",
+                status="error",
+                error_kind="auth",
+                message="expired",
+                remedy_argv=["gh", "auth", "login"],
+            )
+        ]
+    )
+    modal = NewProjectModal(
+        provider_metadata=(_provider("gh", "GitHub"),),
+        candidate_inputs={"gh": error_inputs},
+        preferences=Preferences(last_provider="gh"),
+    )
+    app = _ModalApp()
+    async with app.run_test(size=(100, 32)) as pilot:
+        from contextlib import nullcontext
+
+        monkeypatch.setattr(app, "suspend", lambda *args, **kwargs: nullcontext())
+        app.push_screen(modal)
+        await pilot.pause()
+        source = modal.query_one(NewProjectSource)
+        # Highlight is not on the error row, but the chip advertises t.
+        assert source._remedy_argv() == ("gh", "auth", "login")
+        source.action_run_remedy()
+        assert recorded == [("gh", "auth", "login")]
+
+
+async def test_remedy_suspend_failure_notifies(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    monkeypatch.setattr(workspace_provider, "parse_repo_ref", lambda *args: None)
+    monkeypatch.setattr(
+        workspace_provider, "describe_repo_creation", lambda _wt, _ns: None
+    )
+    error_inputs = _inputs(
+        owners=[
+            OwnerResult(
+                name="sase-org",
+                status="error",
+                error_kind="auth",
+                message="expired",
+                remedy_argv=["gh", "auth", "login"],
+            )
+        ]
+    )
+    modal = NewProjectModal(
+        provider_metadata=(_provider("gh", "GitHub"),),
+        candidate_inputs={"gh": error_inputs},
+        preferences=Preferences(last_provider="gh"),
+    )
+    app = _ModalApp()
+    async with app.run_test(size=(100, 32)) as pilot:
+        app.push_screen(modal)
+        await pilot.pause()
+        source = modal.query_one(NewProjectSource)
+        notices: list[str] = []
+        source.notify = lambda message, *args, **kwargs: notices.append(str(message))  # type: ignore[method-assign]
+        monkeypatch.setattr(app, "suspend", lambda *args, **kwargs: _raise_suspend())
+        source.action_run_remedy()
+        assert any("Could not run remedy" in notice for notice in notices)
+
+
+def _raise_suspend():  # type: ignore[no-untyped-def]
+    raise OSError("no terminal")
+
+
+async def test_filter_typing_and_highlight_spawn_no_subprocess(
+    monkeypatch,
+) -> None:  # type: ignore[no-untyped-def]
+    """Perf guard: filter/highlight stay in memory plus the pure parse."""
+    parses: list[str] = []
+    probes: list[tuple[str, str]] = []
+
+    def _parse(workflow_type: str, text: str):  # type: ignore[no-untyped-def]
+        parses.append(text)
+        return None
+
+    def _probe(workflow_type: str, ref: str):  # type: ignore[no-untyped-def]
+        probes.append((workflow_type, ref))
+        raise AssertionError("probe must stay debounced off the hot path")
+
+    monkeypatch.setattr(workspace_provider, "parse_repo_ref", _parse)
+    monkeypatch.setattr(workspace_provider, "probe_repo", _probe)
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.new_project_source.subprocess.run",
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            AssertionError("no subprocess on the hot path")
+        ),
+    )
+    monkeypatch.setattr(
+        workspace_provider, "describe_repo_creation", lambda _wt, _ns: None
+    )
+    from sase.ace.tui.util.debounce import DetailPanelDebouncer
+
+    scheduled: list[Any] = []
+    monkeypatch.setattr(
+        DetailPanelDebouncer, "schedule", lambda self, cb: scheduled.append(cb)
+    )
+    modal = NewProjectModal(
+        provider_metadata=(_provider("gh", "GitHub"),),
+        candidate_inputs={"gh": _inputs()},
+        preferences=Preferences(last_provider="gh"),
+    )
+    app = _ModalApp()
+    async with app.run_test(size=(100, 32)) as pilot:
+        app.push_screen(modal)
+        await pilot.pause()
+        source = modal.query_one(NewProjectSource)
+        source.focus_filter()
+        await pilot.pause()
+        await pilot.press(*"sase")
+        await pilot.pause()
+        assert modal.query_one("#new-project-filter", Input).value == "sase"
+        assert parses, "the pure parse hook may run on the hot path"
+        assert probes == []
+        modal.query_one("#new-project-filter", Input).value = ""
+        await pilot.pause()
+        assert probes == []
+        first = source.selected_row()
+        source.focus_list()
+        await pilot.pause()
+        await pilot.press("down")
+        await pilot.pause()
+        moved = source.selected_row()
+        assert moved is not None and moved is not first
+        # The highlight paints immediately; the probe stays debounced.
+        assert (
+            moved.display
+            in modal.query_one("#new-project-source-detail", Static).render().plain
+        )
+        assert probes == []
+        assert scheduled, "highlight must schedule the debounced probe"
+
+
+async def test_highlight_paints_before_debounced_probe_runs(
+    monkeypatch,
+) -> None:  # type: ignore[no-untyped-def]
+    monkeypatch.setattr(workspace_provider, "parse_repo_ref", lambda *args: None)
+    monkeypatch.setattr(
+        workspace_provider, "describe_repo_creation", lambda _wt, _ns: None
+    )
+    monkeypatch.setattr(
+        workspace_provider,
+        "probe_repo",
+        lambda workflow_type, ref: SimpleNamespace(
+            visibility="public",
+            default_branch="main",
+            sase_managed=True,
+            can_push=True,
+            message="",
+        ),
+    )
+    from sase.ace.tui.util.debounce import DetailPanelDebouncer
+
+    scheduled: list[Any] = []
+    monkeypatch.setattr(
+        DetailPanelDebouncer, "schedule", lambda self, cb: scheduled.append(cb)
+    )
+    modal = NewProjectModal(
+        provider_metadata=(_provider("gh", "GitHub"),),
+        candidate_inputs={"gh": _inputs()},
+        preferences=Preferences(last_provider="gh"),
+    )
+    app = _ModalApp()
+    async with app.run_test(size=(100, 32)) as pilot:
+        app.push_screen(modal)
+        await pilot.pause()
+        source = modal.query_one(NewProjectSource)
+        source.focus_list()
+        await pilot.pause()
+        await pilot.press("down")
+        await pilot.pause()
+        moved = source.selected_row()
+        assert moved is not None
+        detail_before = modal.query_one("#new-project-source-detail", Static)
+        assert moved.display in detail_before.render().plain
+        assert "✓ managed" not in detail_before.render().plain
+        for callback in list(scheduled):
+            callback()
+        await wait_for(
+            pilot,
+            lambda: (
+                "✓ managed"
+                in modal.query_one("#new-project-source-detail", Static).render().plain
+            ),
+        )
+
+
+async def test_bracketed_paste_focuses_filter(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    monkeypatch.setattr(
+        workspace_provider,
+        "parse_repo_ref",
+        lambda workflow_type, text: (
+            _parsed(workflow_type, text) if text == "sase-org/new" else None
+        ),
+    )
+    monkeypatch.setattr(
+        workspace_provider, "describe_repo_creation", lambda _wt, _ns: None
+    )
+    modal = NewProjectModal(
+        provider_metadata=(_provider("gh", "GitHub"),),
+        candidate_inputs={"gh": _inputs()},
+        preferences=Preferences(last_provider="gh"),
+    )
+    app = _ModalApp()
+    async with app.run_test(size=(100, 32)) as pilot:
+        app.push_screen(modal)
+        await pilot.pause()
+        modal.post_message(events.Paste("sase-org/new"))
+        await pilot.pause()
+        assert modal.query_one("#new-project-filter", Input).value == "sase-org/new"
+
+
+async def test_provider_selection_write_preserves_owner_prefs(
+    monkeypatch, tmp_path
+) -> None:  # type: ignore[no-untyped-def]
+    import json
+
+    monkeypatch.setenv("SASE_HOME", str(tmp_path))
+    prefs_dir = tmp_path / "project_onboarding"
+    prefs_dir.mkdir(parents=True)
+    (prefs_dir / "preferences.json").write_text(
+        json.dumps({"last_provider": "gh", "last_owner": {"gh": "sase-org"}})
+    )
+    monkeypatch.setattr(
+        workspace_provider, "describe_repo_creation", lambda _wt, _ns: None
+    )
+    modal = NewProjectModal(
+        provider_metadata=(_provider("gh", "GitHub"),),
+        candidate_inputs={"gh": _inputs()},
+        preferences=Preferences(last_provider="gh"),
+    )
+    await modal._save_provider_preference("git")
+    payload = json.loads((prefs_dir / "preferences.json").read_text())
+    assert payload["last_provider"] == "git"
+    assert payload["last_owner"] == {"gh": "sase-org"}
+
+
+async def test_tool_missing_disables_provider_tab(monkeypatch, tmp_path) -> None:  # type: ignore[no-untyped-def]
+    monkeypatch.setenv("SASE_HOME", str(tmp_path))
+    monkeypatch.setattr(workspace_provider, "parse_repo_ref", lambda *args: None)
+    monkeypatch.setattr(
+        workspace_provider, "describe_repo_creation", lambda _wt, _ns: None
+    )
+    modal = NewProjectModal(
+        provider_metadata=(
+            _provider("gh", "GitHub"),
+            _provider("git", "Git (bare)"),
+        ),
+        candidate_inputs={
+            "gh": _tool_missing_inputs(),
+            "git": CandidateInputs("git", "Git (bare)", ""),
+        },
+        preferences=Preferences(last_provider="gh"),
+    )
+    app = _ModalApp()
+    async with app.run_test(size=(100, 32)) as pilot:
+        app.push_screen(modal)
+        await pilot.pause()
+        from sase.ace.tui.widgets.panel_tab_strip import PanelTabStrip
+
+        strip_widget = modal.query_one(PanelTabStrip)
+        assert strip_widget.is_tab_disabled("gh")
+        assert not strip_widget.is_tab_disabled("git")
+        # The wizard steps off the disabled tab onto the working provider.
+        assert modal._state.workflow_type == "git"
+        assert modal._state.stage == "source"
+        modal.select_provider("gh")
+        assert modal._state.workflow_type == "git"
+
+
+async def test_unmount_cancels_owner_refresh_jobs(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    monkeypatch.setattr(workspace_provider, "parse_repo_ref", lambda *args: None)
+    monkeypatch.setattr(
+        workspace_provider, "describe_repo_creation", lambda _wt, _ns: None
+    )
+    modal = NewProjectModal(
+        provider_metadata=(_provider("gh", "GitHub"),),
+        candidate_inputs={"gh": _inputs()},
+        preferences=Preferences(last_provider="gh"),
+    )
+    app = _ModalApp()
+    async with app.run_test(size=(100, 32)) as pilot:
+        app.push_screen(modal)
+        await pilot.pause()
+        never_set = asyncio.Event()
+        job = asyncio.create_task(never_set.wait())
+        modal._owner_jobs.add(job)
+        app.pop_screen()
+        await pilot.pause()
+        assert job.cancelled() or job.done()

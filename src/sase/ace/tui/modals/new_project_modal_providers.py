@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Mapping, Sequence
 from dataclasses import replace
+from time import monotonic
 from typing import TYPE_CHECKING, Any
 
 from rich.text import Text
@@ -25,7 +26,11 @@ from ..widgets.panel_tab_strip import PanelTab, PanelTabStrip
 from ._new_project_modal_shared import MODAL_TASKS
 from .new_project_rendering import clean_source_text
 from .new_project_source import NewProjectSource
-from .new_project_source_model import create_source_row
+from .new_project_source_model import (
+    create_source_row,
+    format_cache_age,
+    health_chip_text,
+)
 
 if TYPE_CHECKING:
     from textual.app import App
@@ -47,9 +52,12 @@ class NewProjectModalProvidersMixin(_MixinBase):
         _create_support: dict[str, str]
         _create_support_loading: set[str]
         _current_workflow_type: str
+        _disabled_providers: set[str]
         _inputs: dict[str, CandidateInputs]
+        _inputs_arrived_at: dict[str, float]
         _loaded: set[str]
         _loading: set[str]
+        _owner_jobs: set[asyncio.Task[tuple[str, CandidateInputs | None]]]
         _owner_semaphore: asyncio.Semaphore
         _pending_by_provider: dict[str, set[str]]
         _preferences: Preferences
@@ -57,6 +65,7 @@ class NewProjectModalProvidersMixin(_MixinBase):
         _provider_by_id: dict[str, WorkflowMetadata]
         _providers: tuple[WorkflowMetadata, ...]
         _state: NewProjectStateMachine
+        _tabs_disabled_snapshot: frozenset[str]
 
         def notify(self, message: str, **kwargs: Any) -> None: ...
         def query_one(self, *args: Any, **kwargs: Any) -> Any: ...
@@ -73,18 +82,21 @@ class NewProjectModalProvidersMixin(_MixinBase):
     def _cycle_provider(self, offset: int) -> None:
         if self._state.stage != "source":
             return
-        if not self._providers:
+        enabled = [
+            item
+            for item in self._providers
+            if item.workflow_type not in self._disabled_providers
+        ]
+        if not enabled:
             return
         current = self._state.workflow_type
         try:
             index = next(
-                i
-                for i, item in enumerate(self._providers)
-                if item.workflow_type == current
+                i for i, item in enumerate(enabled) if item.workflow_type == current
             )
         except StopIteration:
             index = 0
-        target = self._providers[(index + offset) % len(self._providers)]
+        target = enabled[(index + offset) % len(enabled)]
         self.select_provider(target.workflow_type)
 
     def action_refresh_provider(self) -> None:
@@ -155,6 +167,7 @@ class NewProjectModalProvidersMixin(_MixinBase):
             return
         source.set_refresh_callback(self.action_refresh_provider)
         self._update_health(selected)
+        self._sync_disabled_tabs()
         if selected in self._provided_inputs:
             return
         if selected not in self._loaded:
@@ -165,6 +178,8 @@ class NewProjectModalProvidersMixin(_MixinBase):
         if self._state.stage != "source":
             return
         if workflow_type not in self._provider_by_id:
+            return
+        if workflow_type in self._disabled_providers:
             return
         self._state.workflow_type = workflow_type
         self.query_one("#new-project-providers", PanelTabStrip).set_active_tab(
@@ -310,36 +325,54 @@ class NewProjectModalProvidersMixin(_MixinBase):
                     return owner_name, None
 
         jobs = [asyncio.create_task(refresh_owner(name)) for name in tuple(pending)]
-        for completed in asyncio.as_completed(jobs):
-            owner_name, updated = await completed
-            pending.discard(owner_name)
-            current = self._inputs.get(workflow_type, inputs)
-            if updated is not None:
-                fresh_owner = next(
-                    (owner for owner in updated.owners if owner.name == owner_name),
-                    None,
-                )
-                if fresh_owner is not None:
-                    owners = [
-                        fresh_owner if owner.name == owner_name else owner
-                        for owner in current.owners
-                    ]
-                    if not any(owner.name == owner_name for owner in current.owners):
-                        owners.append(fresh_owner)
-                    current = replace(
-                        current,
-                        owners=owners,
-                        remote=[entry for owner in owners for entry in owner.entries],
+        for job in jobs:
+            self._owner_jobs.add(job)
+            job.add_done_callback(self._owner_jobs.discard)
+        try:
+            for completed in asyncio.as_completed(jobs):
+                try:
+                    owner_name, updated = await completed
+                except asyncio.CancelledError:
+                    break
+                pending.discard(owner_name)
+                current = self._inputs.get(workflow_type, inputs)
+                if updated is not None:
+                    fresh_owner = next(
+                        (owner for owner in updated.owners if owner.name == owner_name),
+                        None,
                     )
-                    self._inputs[workflow_type] = current
-            self._pending_by_provider[workflow_type] = pending
-            self._show_inputs_if_selected(workflow_type)
-            self._update_health(workflow_type)
-        self._maybe_discover_create_support(workflow_type)
+                    if fresh_owner is not None:
+                        owners = [
+                            fresh_owner if owner.name == owner_name else owner
+                            for owner in current.owners
+                        ]
+                        if not any(
+                            owner.name == owner_name for owner in current.owners
+                        ):
+                            owners.append(fresh_owner)
+                        current = replace(
+                            current,
+                            owners=owners,
+                            remote=[
+                                entry for owner in owners for entry in owner.entries
+                            ],
+                        )
+                        self._inputs[workflow_type] = current
+                self._pending_by_provider[workflow_type] = pending
+                if self.is_mounted:
+                    self._show_inputs_if_selected(workflow_type)
+                    self._update_health(workflow_type)
+        finally:
+            for job in jobs:
+                self._owner_jobs.discard(job)
+        if self.is_mounted:
+            self._maybe_discover_create_support(workflow_type)
+            self._sync_disabled_tabs()
 
     def _show_inputs_if_selected(self, workflow_type: str) -> None:
         if workflow_type != self._state.workflow_type or not self.is_mounted:
             return
+        self._inputs_arrived_at[workflow_type] = monotonic()
         self.query_one(NewProjectSource).set_inputs(
             self._inputs.get(workflow_type),
             pending_owners=frozenset(
@@ -347,30 +380,25 @@ class NewProjectModalProvidersMixin(_MixinBase):
             ),
         )
 
+    def _cache_age(self, workflow_type: str) -> str:
+        """Format the age of the displayed candidate inputs for the chip."""
+        arrived = self._inputs_arrived_at.get(workflow_type)
+        if arrived is None:
+            return ""
+        return format_cache_age(monotonic() - arrived)
+
     def _update_health(self, workflow_type: str) -> None:
         if workflow_type != self._state.workflow_type:
             return
         inputs = self._inputs.get(workflow_type)
-        pending = self._pending_by_provider.get(workflow_type, set())
-        if inputs is None:
-            text = "◌ loading cached candidates…"
-        elif pending:
-            text = f"◌ loading {len(inputs.owners) - len(pending)} of {len(inputs.owners)} owners"
-        else:
-            failures = [owner for owner in inputs.owners if owner.status == "error"]
-            if failures:
-                remedy: list[str] = next(
-                    (owner.remedy_argv for owner in failures if owner.remedy_argv), []
-                )
-                text = f"⚠ {len(failures)} owner issue(s)"
-                if remedy:
-                    text += f" · t {' '.join(remedy)}"
-            elif inputs.account:
-                text = f"✓ {clean_source_text(inputs.account)} · {len(inputs.owners)} owners · cached"
-            elif inputs.owners:
-                text = f"✓ {len(inputs.owners)} owners · cached"
-            else:
-                text = "○ no owners · paste owner/repo"
+        text = health_chip_text(
+            inputs,
+            workflow_type=workflow_type,
+            pending_owners=frozenset(
+                self._pending_by_provider.get(workflow_type, set())
+            ),
+            cache_age=self._cache_age(workflow_type),
+        )
         self.query_one("#new-project-health", Static).update(
             Text(
                 text,
@@ -378,9 +406,52 @@ class NewProjectModalProvidersMixin(_MixinBase):
                 if text.startswith("✓")
                 else "#FFAF5F"
                 if text.startswith("⚠")
+                else "#FF6666"
+                if text.startswith("✗")
                 else "dim",
             )
         )
+
+    def _sync_disabled_tabs(self) -> None:
+        """Disable provider tabs whose tool is missing, and step off them."""
+        disabled = {
+            workflow_type
+            for workflow_type, inputs in self._inputs.items()
+            if inputs.owners
+            and all(
+                owner.status == "error" and owner.error_kind == "tool_missing"
+                for owner in inputs.owners
+            )
+        }
+        self._disabled_providers = disabled
+        if frozenset(disabled) == self._tabs_disabled_snapshot:
+            return
+        self._tabs_disabled_snapshot = frozenset(disabled)
+        strip = self.query_one("#new-project-providers", PanelTabStrip)
+        strip.set_tabs(
+            tuple(
+                PanelTab(
+                    item.workflow_type,
+                    clean_source_text(item.display_name or item.workflow_type),
+                    _PROVIDER_ACCENTS.get(item.workflow_type, "#AF87D7"),
+                    compact_label=clean_source_text(item.workflow_type),
+                    disabled=item.workflow_type in disabled,
+                )
+                for item in self._providers
+            ),
+            active_tab=self._state.workflow_type,
+        )
+        if self._state.workflow_type in disabled:
+            fallback = next(
+                (
+                    item.workflow_type
+                    for item in self._providers
+                    if item.workflow_type not in disabled
+                ),
+                "",
+            )
+            if fallback:
+                self.select_provider(fallback)
 
 
 __all__ = ["NewProjectModalProvidersMixin"]

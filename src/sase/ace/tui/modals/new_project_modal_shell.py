@@ -16,6 +16,7 @@ from sase.ace.tui.util.pump_tasks import cancel_pump_free_tasks, spawn_pump_free
 from sase.project_onboarding import (
     Preferences,
     preferences_path,
+    record_provider_selection,
     save_preferences,
 )
 
@@ -45,6 +46,7 @@ class NewProjectModalShellMixin(_MixinBase):
     if TYPE_CHECKING:
         app: App[Any]
         is_mounted: bool
+        _owner_jobs: set[asyncio.Task[Any]]
         _preferences: Preferences
         _provided_inputs: dict[str, Any]
         _provided_metadata: Any
@@ -100,16 +102,35 @@ class NewProjectModalShellMixin(_MixinBase):
         )
 
     def on_unmount(self) -> None:
+        for job in tuple(self._owner_jobs):
+            job.cancel()
+        self._owner_jobs.clear()
         cancel_pump_free_tasks(self)
 
     def _persist_provider_selection(self, workflow_type: str) -> None:
         self._preferences.last_provider = workflow_type
         spawn_pump_free_task(
             self,
-            self._save_preferences(),
+            self._save_provider_preference(workflow_type),
             name="new-project-save-provider-preference",
             registry_attr=MODAL_TASKS,
         )
+
+    async def _save_provider_preference(self, workflow_type: str) -> None:
+        """Remember the provider without clobbering off-thread owner prefs.
+
+        The in-memory copy still updates immediately; the durable write
+        re-reads the file first (``record_provider_selection``) so a
+        concurrent create/add completion cannot lose ``last_owner`` or
+        ``last_visibility``.
+        """
+        try:
+            await asyncio.to_thread(record_provider_selection, workflow_type)
+        except Exception as error:
+            self.notify(
+                f"Could not save {preferences_path().name}: {error}",
+                severity="warning",
+            )
 
     async def _save_preferences(self) -> None:
         try:

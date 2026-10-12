@@ -9,7 +9,7 @@ from typing import Any
 
 from rich.text import Text
 from textual import events, on
-from textual.app import ComposeResult
+from textual.app import ComposeResult, SuspendNotSupported
 from textual.containers import Vertical
 from textual.message import Message
 from textual.widgets import Input, OptionList, Static
@@ -22,7 +22,11 @@ from sase.project_accents import accent_among_keys, project_accent
 from sase.project_onboarding import CandidateInputs
 
 from .base import FilterInput
-from .new_project_rendering import render_source_detail, render_source_row
+from .new_project_rendering import (
+    render_no_owners_detail,
+    render_source_detail,
+    render_source_row,
+)
 from .new_project_source_model import (
     SourceRow,
     SourceView,
@@ -31,6 +35,8 @@ from .new_project_source_model import (
 )
 
 _ROW_REGISTRY = "_new_project_source_tasks"
+
+_DETAIL_COLLAPSE_HEIGHT = 30
 
 
 class _SourceFilterInput(FilterInput):
@@ -215,19 +221,40 @@ class NewProjectSource(Vertical):
             self._refresh_callback()
 
     def action_run_remedy(self) -> None:
-        row = self._highlighted_row()
-        if row is None or not row.is_error:
-            return
-        argv = tuple(str(part) for part in row.data.get("remedy_argv", ()) if part)
+        argv = self._remedy_argv()
         if not argv:
             return
-        with self.app.suspend():
-            subprocess.run(argv, check=False)
+        try:
+            with self.app.suspend():
+                subprocess.run(argv, check=False)
+        except (OSError, SuspendNotSupported) as exc:
+            self.notify(f"Could not run remedy in terminal: {exc}", severity="error")
+            return
         self.action_refresh()
+
+    def _remedy_argv(self) -> tuple[str, ...]:
+        """Return the highlighted remedy, or the provider-level one.
+
+        The health chip advertises ``t`` globally, so when the highlight is
+        not on an owner-error row, fall back to the first remedy the chip
+        advertises for this provider.
+        """
+        row = self._highlighted_row()
+        if row is not None and row.is_error:
+            argv = tuple(str(part) for part in row.data.get("remedy_argv", ()) if part)
+            if argv:
+                return argv
+        for error in self._view.owner_errors:
+            argv = tuple(
+                str(part) for part in error.data.get("remedy_argv", ()) if part
+            )
+            if argv:
+                return argv
+        return ()
 
     def choose_highlighted(self) -> None:
         row = self._highlighted_row()
-        if row is not None and not row.is_error:
+        if row is not None and row.selectable:
             self.post_message(self.RowChosen(row))
 
     def selected_row(self) -> SourceRow | None:
@@ -249,7 +276,7 @@ class NewProjectSource(Vertical):
     @on(OptionList.OptionSelected, "#new-project-source-list")
     def _row_selected(self, event: OptionList.OptionSelected) -> None:
         row = self._rows.get(str(getattr(event.option, "id", "") or ""))
-        if row is not None and not row.is_error:
+        if row is not None and row.selectable:
             self.post_message(self.RowChosen(row))
 
     def _highlighted_row(self) -> SourceRow | None:
@@ -286,7 +313,13 @@ class NewProjectSource(Vertical):
             )
             for row in group.rows:
                 self._rows[row.row_id] = row
-                option_rows.append(Option(render_source_row(row), id=row.row_id))
+                option_rows.append(
+                    Option(
+                        render_source_row(row),
+                        id=row.row_id,
+                        disabled=row.is_loading,
+                    )
+                )
         if not option_rows:
             message = (
                 "Loading repositories…"
@@ -297,7 +330,8 @@ class NewProjectSource(Vertical):
         options = self.query_one("#new-project-source-list", OptionList)
         options.set_options(option_rows)
         selected_index: int | None = None
-        if previous in self._rows:
+        previous_row = self._rows.get(previous or "")
+        if previous_row is not None and not previous_row.is_loading:
             for index in range(options.option_count):
                 if options.get_option_at_index(index).id == previous:
                     selected_index = index
@@ -305,7 +339,8 @@ class NewProjectSource(Vertical):
         if selected_index is None:
             for index in range(options.option_count):
                 option = options.get_option_at_index(index)
-                if option.id in self._rows:
+                candidate = self._rows.get(str(option.id or ""))
+                if candidate is not None and not candidate.is_loading:
                     selected_index = index
                     break
         options.highlighted = selected_index
@@ -314,11 +349,28 @@ class NewProjectSource(Vertical):
         )
         self._select_detail(self._highlighted_row(), schedule_probe=False)
 
+    def _detail_collapsed(self) -> bool:
+        """Whether the short-terminal summary line replaces the detail card."""
+        try:
+            return int(self.app.size.height) < _DETAIL_COLLAPSE_HEIGHT
+        except Exception:
+            return False
+
     def _select_detail(
         self, row: SourceRow | None, *, schedule_probe: bool = True
     ) -> None:
         self._selected_row_id = row.row_id if row is not None else None
         inputs = self._inputs
+        if (
+            row is None
+            and inputs is not None
+            and not inputs.owners
+            and not self._pending_owners
+        ):
+            self.query_one("#new-project-source-detail", Static).update(
+                render_no_owners_detail(inputs.display)
+            )
+            return
         parsed = None
         probe = None
         probe_error = ""
@@ -370,6 +422,7 @@ class NewProjectSource(Vertical):
                 checking=checking,
                 probe_error=probe_error,
                 project_accent_color=accent_color,
+                collapsed=self._detail_collapsed(),
             )
         )
 

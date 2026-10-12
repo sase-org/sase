@@ -200,8 +200,12 @@ async def _select_suggested_source(page: AcePage, modal: NewProjectModal) -> Non
     )
     source._select_detail(row, schedule_probe=False)
     detail = modal.query_one("#new-project-source-detail", Static).render().plain
-    assert "Remote" in detail
-    assert "push allowed" in detail
+    if "\n" in detail:
+        assert "Remote" in detail
+        assert "push allowed" in detail
+    else:
+        # Short terminals collapse the card to one summary line.
+        assert row.display in detail
     await wait_for_visual_idle(page)
 
 
@@ -365,6 +369,49 @@ async def test_new_project_source_narrow_png_snapshot(
             page,
             "new_project_source_populated_84x28",
             title="New Project wizard — narrow Source stage",
+        )
+
+
+async def test_new_project_source_compact_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """At 80x24 the detail card collapses to one summary line."""
+    patch_startup_loaders(monkeypatch)
+    _patch_deterministic_source(monkeypatch)
+    _patch_create_supported(monkeypatch)
+
+    async with AcePage(query='"visual"', size=(80, 24), patches=patches()) as page:
+        modal = NewProjectModal(
+            provider_metadata=(_provider(),),
+            candidate_inputs={"gh": _populated_inputs()},
+            preferences=Preferences(last_provider="gh"),
+        )
+        await _open_modal(page, modal)
+        await _wait_for_create_row(page, modal)
+        source = modal.query_one(NewProjectSource)
+        row = next(row for row in source._rows.values() if row.group == "suggested")
+        options = source.query_one(OptionList)
+        for index in range(options.option_count):
+            if options.get_option_at_index(index).id == row.row_id:
+                options.highlighted = index
+                break
+        source._probe_cache[("gh", row.ref)] = SimpleNamespace(
+            visibility="public",
+            default_branch="main",
+            sase_managed=False,
+            can_push=True,
+            message="",
+        )
+        source._select_detail(row, schedule_probe=False)
+        detail = modal.query_one("#new-project-source-detail", Static).render().plain
+        assert "\n" not in detail
+        assert "○ will be set up" in detail
+        await wait_for_visual_idle(page)
+        ace_png_visual.assert_page_png(
+            page,
+            "new_project_source_populated_80x24",
+            title="New Project wizard — compact Source stage",
         )
 
 

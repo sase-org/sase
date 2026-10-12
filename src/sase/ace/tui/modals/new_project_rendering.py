@@ -56,6 +56,17 @@ def render_source_row(row: SourceRow) -> Text:
         "owner_fetching": "◌",
         "search_only": "┄",
     }
+    if row.group == "search_only" and row.hidden_reason == "enabled_project":
+        project_name = clean_source_text(
+            row.data.get("project_name") or row.data.get("project_key") or row.display
+        )
+        row_text = Text()
+        row_text.append("●  ", style="#00D7AF")
+        row_text.append(clean_source_text(row.display), style="bold")
+        row_text.append(
+            f"  already the project {project_name} — ⏎ show it", style="dim"
+        )
+        return row_text
     row_text = Text()
     glyph = glyphs.get(row.group, "○")
     glyph_style = "#FFAF5F" if row.group == "paste" else "#888888"
@@ -82,6 +93,32 @@ def render_source_row(row: SourceRow) -> Text:
     return row_text
 
 
+def render_no_owners_detail(provider_display: str) -> Text:
+    """Render the Source detail card when no provider owners are known."""
+    text = Text()
+    provider = clean_source_text(provider_display) or "GitHub"
+    text.append(f"No {provider} owners yet", style="bold #FFAF5F")
+    text.append(
+        "\nPaste owner/repo, or add owners to github_orgs in Config Center.",
+        style="dim",
+    )
+    return text
+
+
+def _probe_status_word(probe: Any | None, *, checking: bool) -> str:
+    """Render the plan's detail status wording for one provider probe."""
+    if checking:
+        return "◌ checking…"
+    if probe is None:
+        return "? unknown"
+    managed = getattr(probe, "sase_managed", None)
+    if managed is True:
+        return "✓ managed"
+    if managed is False:
+        return "○ will be set up"
+    return "? unknown"
+
+
 def render_source_detail(
     row: SourceRow | None,
     *,
@@ -91,8 +128,13 @@ def render_source_detail(
     checking: bool = False,
     probe_error: str = "",
     project_accent_color: str = "",
+    collapsed: bool = False,
 ) -> Text:
-    """Render local identity facts followed by a live provider probe."""
+    """Render local identity facts followed by a live provider probe.
+
+    When *collapsed* is true (short terminals), render one summary line
+    instead of the full card.
+    """
     text = Text()
     if row is None:
         text.append(
@@ -101,6 +143,17 @@ def render_source_detail(
         )
         return text
     title = clean_source_text(row.display)
+    if collapsed and not row.is_error and row.group != "create":
+        visibility = clean_source_text(getattr(probe, "visibility", "") or "")
+        parts = [title]
+        if visibility:
+            parts.append(visibility)
+        if probe is not None or checking:
+            parts.append(_probe_status_word(probe, checking=checking))
+        elif probe_error:
+            parts.append("? unknown")
+        text.append(" · ".join(parts), style="dim")
+        return text
     text.append(title, style="bold #FFAF5F")
     if row.group == "create":
         text.append("\nStart a new remote repository on ", style="dim")
@@ -139,9 +192,7 @@ def render_source_detail(
         visibility = clean_source_text(getattr(probe, "visibility", ""))
         branch = clean_source_text(getattr(probe, "default_branch", ""))
         remote_details = [part for part in (visibility, branch) if part]
-        managed = getattr(probe, "sase_managed", None)
-        if managed is not None:
-            remote_details.append("managed" if managed else "setup needed")
+        remote_details.append(_probe_status_word(probe, checking=False))
         can_push = getattr(probe, "can_push", None)
         if can_push is not None:
             remote_details.append("push allowed" if can_push else "no push")
@@ -152,7 +203,7 @@ def render_source_detail(
         if probe_message:
             text.append("\n" + probe_message, style="dim")
     elif checking:
-        text.append("\n◌ checking provider details…", style="dim")
+        text.append("\n◌ checking…", style="dim")
     elif probe_error:
         text.append("\n? " + clean_source_text(probe_error), style="dim")
     elif not row.ref:
@@ -162,6 +213,7 @@ def render_source_detail(
 
 __all__ = [
     "clean_source_text",
+    "render_no_owners_detail",
     "render_source_detail",
     "render_source_row",
     "render_stepper",
