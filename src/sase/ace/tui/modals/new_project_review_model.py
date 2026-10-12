@@ -95,6 +95,7 @@ class ApplySubmission:
     request_fingerprint: str
     concurrency_keys: tuple[str, ...]
     request: dict[str, Any]
+    project_key: str = ""
 
 
 def _steps(document: Mapping[str, Any]) -> list[Mapping[str, Any]]:
@@ -350,4 +351,5 @@ def apply_submission(document: Mapping[str, Any]) -> ApplySubmission:
             f"checkout:{checkout_dir}",
         ),
         request=request,
+        project_key=str(_mapping(document.get("project")).get("key") or ""),
     )

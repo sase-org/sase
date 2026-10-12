@@ -67,6 +67,52 @@ async def test_config_center_projects_tab_png_snapshot(
         )
 
 
+async def test_config_center_projects_tab_narrow_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The width-fitted hints and list remain readable at 80x24."""
+    _patch_admin_center(monkeypatch)
+
+    async with AcePage(query='"visual"', patches=patches(), size=(80, 24)) as page:
+        await wait_for_startup(page)
+        await page.press(page.artifacts_digit("patches"))
+        await page.expect_state("artifacts_subtab", "patches")
+        _, pane = await _open_projects_modal(page)
+        await page.wait_for(lambda _s: pane._selected_project_name() == "sase")
+
+        ace_png_visual.assert_page_png(
+            page,
+            "config_center_projects_tab_80x24",
+            title="ACE SASE Admin Center — Projects tab (narrow)",
+        )
+
+
+async def test_config_center_projects_empty_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The empty state names the Projects-tab add/create key."""
+    _patch_admin_center(monkeypatch)
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.projects_pane.list_project_records",
+        lambda *_args, **_kwargs: [],
+    )
+
+    async with AcePage(query='"visual"', patches=patches()) as page:
+        await wait_for_startup(page)
+        await page.press(page.artifacts_digit("patches"))
+        await page.expect_state("artifacts_subtab", "patches")
+        _, pane = await _open_projects_modal(page)
+        await page.wait_for(lambda _s: not pane._records)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "config_center_projects_empty_120x40",
+            title="ACE SASE Admin Center — Projects tab (empty)",
+        )
+
+
 async def test_config_center_projects_marked_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,

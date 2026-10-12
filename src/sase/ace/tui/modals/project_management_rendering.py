@@ -298,14 +298,16 @@ def hints_text(
     marked_projects: set[str],
     keymaps: ProjectsPaneKeymaps,
     *,
+    width: int | None = None,
     jump_active: bool = False,
     jump_back: bool = False,
 ) -> str:
-    """Return the one-line Projects sub-tab key hints."""
+    """Return width-fitted Projects hints, keeping the highest-priority actions."""
 
     jump_key = key_display_name(keymaps.jump_to_entry)
     if jump_active:
-        return f"JUMP {jump_key} {'back' if jump_back else 'first'}  <esc> cancel"
+        jump = f"JUMP {jump_key} {'back' if jump_back else 'first'}  <esc> cancel"
+        return _fit_hint_line(jump, width)
     move_keys = "/".join(
         _primary_key_display(key) for key in (keymaps.next_option, keymaps.prev_option)
     )
@@ -313,29 +315,29 @@ def hints_text(
         key_display_name(key)
         for key in (keymaps.cycle_subtab_reverse, keymaps.cycle_subtab)
     )
-    # This line already overflows 120 columns. ``i init  I init all`` is
-    # inserted early; ``n new`` now leads, and the rare ``F force after block``
-    # recovery hint is dropped to make room and remains in key help and docs.
-    base = (
-        f"{key_display_name(keymaps.new_project)} new  "
-        f"{move_keys} move  {jump_key} jump  "
-        f"{key_display_name(keymaps.focus_filter)} filter  "
-        f"{subtab_keys} sub-tab  "
-        f"{key_display_name(keymaps.initialize_project)} init  "
-        f"{key_display_name(keymaps.initialize_all_projects)} init all  "
-        f"{key_display_name(keymaps.default_project_action)} enable  "
-        f"{key_display_name(keymaps.show_project_repos)} repos  "
-        f"{key_display_name(keymaps.show_project_workspaces)} workspaces  "
-        f"{key_display_name(keymaps.toggle_project_mark)} mark  "
-        f"{key_display_name(keymaps.clear_project_marks)} unmark all  "
-        f"{key_display_name(keymaps.edit_project_spec)} edit  "
-        f"{key_display_name(keymaps.edit_project_aliases)} aliases  "
-        f"{key_display_name(keymaps.enable_project)} enable  "
-        f"{key_display_name(keymaps.disable_project)} disable  "
-        f"{key_display_name(keymaps.delete_project)} delete  "
-        f"{key_display_name(keymaps.reload)} reload  "
-        f"{key_display_name(keymaps.set_current_project)} current"
-    )
+    segments = [
+        (f"{key_display_name(keymaps.new_project)} new", 100),
+        (f"{move_keys} move", 90),
+        (f"{jump_key} jump", 85),
+        (f"{key_display_name(keymaps.focus_filter)} filter", 80),
+        (f"{subtab_keys} sub-tab", 75),
+        (f"{key_display_name(keymaps.initialize_project)} init", 65),
+        (f"{key_display_name(keymaps.initialize_all_projects)} init all", 45),
+        (f"{key_display_name(keymaps.default_project_action)} enable", 60),
+        (f"{key_display_name(keymaps.show_project_repos)} repos", 55),
+        (f"{key_display_name(keymaps.show_project_workspaces)} workspaces", 35),
+        (f"{key_display_name(keymaps.toggle_project_mark)} mark", 58),
+        (f"{key_display_name(keymaps.clear_project_marks)} unmark all", 20),
+        (f"{key_display_name(keymaps.edit_project_spec)} edit", 25),
+        (f"{key_display_name(keymaps.edit_project_aliases)} aliases", 15),
+        (f"{key_display_name(keymaps.enable_project)} enable", 40),
+        (f"{key_display_name(keymaps.disable_project)} disable", 30),
+        (f"{key_display_name(keymaps.delete_project)} delete", 10),
+        (f"{key_display_name(keymaps.reload)} reload", 70),
+        (f"{key_display_name(keymaps.set_current_project)} current", 68),
+        ("Tab/Shift+Tab switch tab", 8),
+        ("q close", 5),
+    ]
     mark_count = len(marked_projects)
     if mark_count:
         target_keys = "/".join(
@@ -346,8 +348,41 @@ def hints_text(
                 keymaps.delete_project,
             )
         )
-        base = f"{base}  marked:{mark_count} ({target_keys} target marked set)"
-    return f"{base}  Tab/Shift+Tab switch tab   q close"
+        segments.append((f"marked:{mark_count} ({target_keys} target set)", 12))
+    return _fit_hint_segments(segments, width)
+
+
+def _fit_hint_line(line: str, width: int | None) -> str:
+    if width is None or width <= 0 or len(line) <= width:
+        return line
+    return line[:width].rstrip()
+
+
+def _fit_hint_segments(segments: list[tuple[str, int]], width: int | None) -> str:
+    if width is None or width <= 0:
+        return "  ".join(text for text, _priority in segments)
+    visible = list(segments)
+    dropped = False
+    while visible:
+        items = [text for text, _priority in visible]
+        if dropped:
+            items.append("? help")
+        line = "  ".join(items)
+        if len(line) <= width:
+            return line
+        if len(visible) == 1:
+            break
+        # Keep the lead action and discard the lowest-priority item. For ties,
+        # remove the item nearest the end so the remaining order stays stable.
+        removable = range(1, len(visible))
+        drop_index = min(removable, key=lambda index: (visible[index][1], -index))
+        visible.pop(drop_index)
+        dropped = True
+    lead = segments[0][0] if segments else ""
+    minimum = f"{lead}  ? help" if dropped else lead
+    if len(minimum) <= width:
+        return minimum
+    return minimum[:width].rstrip()
 
 
 def detail_text(

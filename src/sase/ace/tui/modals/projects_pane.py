@@ -11,7 +11,7 @@ from textual.app import ComposeResult
 from textual.binding import BindingsMap
 from textual.containers import Vertical, VerticalScroll
 from textual.worker import Worker, WorkerState
-from textual.widgets import ContentSwitcher, OptionList, Static
+from textual.widgets import Button, ContentSwitcher, Input, OptionList, Static
 
 from sase.ace.tui.keymaps import (
     ProjectsPaneKeymaps,
@@ -102,6 +102,17 @@ def _resolve_current_project_snapshot() -> _CurrentProjectSnapshot:
     except Exception:  # noqa: BLE001 - display reads always degrade.
         return _CurrentProjectSnapshot(project=None, accent="")
     return _CurrentProjectSnapshot(project=project, accent=accent)
+
+
+def _current_project_owner(project: CurrentProject | None) -> str:
+    """Return the GitHub owner encoded in a canonical project key."""
+
+    if project is None or project.workflow_type != "gh":
+        return ""
+    key = project.project_key
+    if not key.startswith("gh_") or "__" not in key:
+        return ""
+    return key.removeprefix("gh_").split("__", 1)[0]
 
 
 class _ProjectsFilterInput(FilterInput):
@@ -199,6 +210,9 @@ class ProjectsPane(
         )
         self._current_project_resolve_worker: Worker[Any] | None = None
         self._current_project_set_worker: Worker[Any] | None = None
+        self._tag_catalog_worker: Worker[Any] | None = None
+        self._pending_new_project_open = False
+        self._pending_show_project_key: str | None = None
         self._detail_debouncer: DetailPanelDebouncer | None = None
         self._project_selection_guard = ProgrammaticSelectionGuard()
         self._load_records()
@@ -217,6 +231,11 @@ class ProjectsPane(
         ):
             with Vertical(id=_SUBTAB_WIDGET_IDS["projects"]):
                 yield Static(self._summary_text(), id="projects-summary")
+                yield Button(
+                    "Show new project",
+                    id="projects-show-new-project",
+                    variant="primary",
+                )
                 yield _ProjectsFilterInput(
                     placeholder="Type to filter projects...",
                     id="projects-filter",
@@ -255,9 +274,13 @@ class ProjectsPane(
 
     def on_mount(self) -> None:
         self._detail_debouncer = DetailPanelDebouncer(self.app)
+        self.query_one("#projects-show-new-project", Button).display = False
         self._refresh_options()
         self._start_inventory_load()
         self._start_current_project_resolve()
+
+    def on_resize(self, _event: events.Resize) -> None:
+        self._refresh_hints()
 
     def on_unmount(self) -> None:
         if self._detail_debouncer is not None:
@@ -266,6 +289,8 @@ class ProjectsPane(
             self._current_project_resolve_worker.cancel()
         if self._current_project_set_worker is not None:
             self._current_project_set_worker.cancel()
+        if self._tag_catalog_worker is not None:
+            self._tag_catalog_worker.cancel()
 
     def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
         if self._active_subtab != "projects" and action in self._PROJECT_ONLY_ACTIONS:
@@ -414,6 +439,7 @@ class ProjectsPane(
             if not self._current_project_loaded:
                 self._current_project_loaded = True
                 self._repaint_for_current_project()
+            self._open_pending_new_project()
             return
         result = event.worker.result
         if isinstance(result, _CurrentProjectSnapshot):
@@ -432,6 +458,13 @@ class ProjectsPane(
         self._current_project_loaded = True
         self._store_current_project_session()
         self._repaint_for_current_project()
+        self._open_pending_new_project()
+
+    def _open_pending_new_project(self) -> None:
+        if not self._pending_new_project_open or not self._current_project_loaded:
+            return
+        self._pending_new_project_open = False
+        self._open_new_project_wizard()
 
     def _repaint_for_current_project(self) -> None:
         """Repaint for a resolve without moving the user's highlighted row.
@@ -639,25 +672,138 @@ class ProjectsPane(
 
     def action_new_project(self) -> None:
         """Open the New Project wizard and integrate its selected result."""
+        needs_context = not self._current_project_loaded or (
+            self._current_project is None and bool(self._current_project_key)
+        )
+        if needs_context:
+            self._pending_new_project_open = True
+            worker_state = getattr(self._current_project_resolve_worker, "state", None)
+            if worker_state not in {WorkerState.PENDING, WorkerState.RUNNING}:
+                self._start_current_project_resolve()
+            return
+        self._open_new_project_wizard()
+
+    def _open_new_project_wizard(self) -> None:
         from .new_project_modal import NewProjectModal, NewProjectSelection
 
         def on_dismissed(result: object | None) -> None:
-            if not isinstance(result, NewProjectSelection):
-                return
-            if result.outcome in {"show", "show-project"}:
-                if self.is_mounted:
-                    self._reload_projects(preferred_project=result.project_key or None)
-                return
-            if result.outcome == "jump-resume" and result.row is not None:
-                proc_id = str(result.row.data.get("proc_id") or "")
-                opener = getattr(self.app, "_open_config_center", None)
-                if callable(opener):
-                    if proc_id:
-                        opener("procs", proc_focus_target=proc_id)
-                    else:
-                        opener("procs")
+            if isinstance(result, NewProjectSelection):
+                self._handle_new_project_selection(result)
 
-        self.app.push_screen(NewProjectModal(), on_dismissed)
+        current = self._current_project
+        workflow_type = current.workflow_type if current is not None else ""
+        self.app.push_screen(
+            NewProjectModal(
+                current_workflow_type=workflow_type,
+                current_project_owner=_current_project_owner(current),
+            ),
+            on_dismissed,
+        )
+
+    def _handle_new_project_selection(self, result: Any) -> None:
+        if result.outcome in {"show", "show-project", "added"}:
+            if self.is_mounted:
+                self._integrate_added_project(str(result.project_key or ""))
+            return
+        if result.outcome == "jump-resume" and result.row is not None:
+            proc_id = str(result.row.data.get("proc_id") or "")
+            opener = getattr(self.app, "_open_config_center", None)
+            if callable(opener):
+                if proc_id:
+                    opener("procs", proc_focus_target=proc_id)
+                else:
+                    opener("procs")
+
+    def _integrate_added_project(self, project_key: str) -> None:
+        """Reload and select an added project, preserving a filter that hides it."""
+        if not self.is_mounted:
+            return
+        self._switch_to_subtab("projects")
+        self._pending_force = None
+        loaded = self._load_records()
+        self._invalidate_current_project_indicator()
+        self._notify_lifecycle_changed()
+        self._warm_project_tag_catalog()
+        self._start_inventory_load()
+        self._start_current_project_resolve()
+        if not loaded:
+            self._refresh_options()
+            return
+
+        visible_keys = {record.project_name for record in self._filtered_records}
+        known_keys = {record.project_name for record in self._records}
+        if (
+            project_key in known_keys
+            and self._text_filter.strip()
+            and project_key not in visible_keys
+        ):
+            self._pending_show_project_key = project_key
+            self._set_status("New project is hidden by the current filter")
+            self._set_show_new_project_action(True)
+            self._refresh_options(preferred_project=self._selected_project_name())
+            return
+
+        self._pending_show_project_key = None
+        self._set_show_new_project_action(False)
+        self._set_status("Project added")
+        self._refresh_options(preferred_project=project_key or None)
+
+    def _warm_project_tag_catalog(self) -> None:
+        worker = self._tag_catalog_worker
+        if worker is not None and worker.state in {
+            WorkerState.PENDING,
+            WorkerState.RUNNING,
+        }:
+            return
+        from sase.project_tags import ensure_project_tag_catalog
+
+        self._tag_catalog_worker = self.run_worker(
+            ensure_project_tag_catalog,
+            thread=True,
+            exclusive=True,
+            exit_on_error=False,
+            group="project-tag-catalog",
+        )
+
+    def _set_show_new_project_action(self, visible: bool) -> None:
+        try:
+            self.query_one("#projects-show-new-project", Button).display = visible
+        except Exception:
+            pass
+
+    def action_show_new_project(self) -> None:
+        project_key = self._pending_show_project_key
+        if not project_key:
+            return
+        self._pending_show_project_key = None
+        self._set_show_new_project_action(False)
+        self._text_filter = ""
+        try:
+            self.query_one("#projects-filter", _ProjectsFilterInput).value = ""
+        except Exception:
+            pass
+        self._apply_filters()
+        self._set_status("Showing new project")
+        self._refresh_options(preferred_project=project_key)
+        self.focus_default()
+
+    @on(Button.Pressed, "#projects-show-new-project")
+    def _on_show_new_project_pressed(self, event: Button.Pressed) -> None:
+        event.stop()
+        self.action_show_new_project()
+
+    def on_input_changed(self, event: Input.Changed) -> None:
+        super().on_input_changed(event)  # type: ignore[misc]
+        if event.input.id != "projects-filter":
+            return
+        key = self._pending_show_project_key
+        if key is not None and any(
+            record.project_name == key for record in self._filtered_records
+        ):
+            self._pending_show_project_key = None
+            self._set_show_new_project_action(False)
+            self._set_status("Showing new project")
+            self._refresh_options(preferred_project=key)
 
     def action_reload_projects(self) -> None:
         self._reload_projects()

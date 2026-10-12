@@ -1195,6 +1195,40 @@ focused. The available actions are:
 Statistics keys may overlap app-level bindings because they are registered on the
 focused pane, not globally.
 
+**`projects`** — Bindings active on the Admin Center Projects sub-tab. `new_project`
+opens the add/create wizard; the other lifecycle actions apply to the selected project
+or marked set:
+
+| Field                        | Default                | Description                       |
+| ---------------------------- | ---------------------- | --------------------------------- |
+| `next_option`                | `j,down,ctrl+n`        | Move down.                        |
+| `prev_option`                | `k,up,ctrl+p`          | Move up.                          |
+| `new_project`                | `n`                    | Open New Project wizard.          |
+| `focus_filter`               | `slash`                | Focus project filter.             |
+| `cycle_subtab`               | `right_square_bracket` | Next sub-tab.                     |
+| `cycle_subtab_reverse`       | `left_square_bracket`  | Previous sub-tab.                 |
+| `toggle_project_mark`        | `m`                    | Mark selected project.            |
+| `clear_project_marks`        | `u`                    | Clear project marks.              |
+| `edit_project_spec`          | `e`                    | Edit ProjectSpec.                 |
+| `edit_project_aliases`       | `A`                    | Edit project aliases.             |
+| `enable_project`             | `a`                    | Enable selected project.          |
+| `disable_project`            | `d`                    | Disable selected project.         |
+| `delete_project`             | `ctrl+d`               | Delete selected project.          |
+| `force_current_state_change` | `F`                    | Force blocked disable.            |
+| `default_project_action`     | `enter`                | Run default project action.       |
+| `reload`                     | `R`                    | Reload project records.           |
+| `show_project_repos`         | `r`                    | Show project repositories.        |
+| `show_project_workspaces`    | `w`                    | Show project workspaces.          |
+| `jump_to_entry`              | `apostrophe`           | Jump to a project row.            |
+| `pick_project`               | `p`                    | Pick inventory project.           |
+| `clear_project_filter`       | `escape`               | Clear inventory project filter.   |
+| `set_current_project`        | `c`                    | Make project current.             |
+| `initialize_project`         | `i`                    | Initialize selected project.      |
+| `initialize_all_projects`    | `I`                    | Initialize every enabled project. |
+
+Projects-pane bindings are scoped to the matching sub-tab. `new_project` is inactive
+while the project filter is focused, so `n` remains available as text input.
+
 **`glossary`** — Deprecated legacy bindings for the retired standalone Glossary panel,
 accepted for one release for config-compatibility and always ignored: no defaults ship
 for this scope and it builds no bindings. `sase doctor` warns when a loaded config layer

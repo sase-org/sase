@@ -140,9 +140,18 @@ class ProjectListControllerMixin(PaneEntryJumpMixin, _MixinBase):
         )
 
     def _hints_text(self) -> str:
+        try:
+            width = self.query_one("#projects-hints", Static).size.width
+        except Exception:
+            width = 0
+        if width <= 0:
+            # Widget sizes are populated by Textual's layout pass. The fallback
+            # keeps the initial compose render useful before that cached size exists.
+            width = 120
         return hints_text(
             self._marked_projects,
             self._keymaps,
+            width=width,
             jump_active=self.jump_mode_active,
             jump_back=bool(self.jump_back_stack),
         )

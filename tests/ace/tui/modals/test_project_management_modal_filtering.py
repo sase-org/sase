@@ -10,6 +10,7 @@ from textual.widgets import ContentSwitcher
 from sase.ace.tui.modals.project_management_rendering import (
     ProjectInventoryCounts,
     column_header_text,
+    hints_text,
 )
 from sase.ace.tui.modals.projects_pane import (
     ProjectsPane,
@@ -122,7 +123,8 @@ def test_projects_subtab_renders_new_columns_and_alias_detail(
     assert "gh" in pane._record_label(record).plain
     assert "Aliases:" in pane._detail_text(record).plain
     assert "bob, docs" in pane._detail_text(record).plain
-    assert "A aliases" in pane._hints_text()
+    assert "A aliases" not in pane._hints_text()
+    assert "A aliases" in hints_text(set(), pane._keymaps, width=200)
 
 
 def test_projects_subtab_filters_by_alias(
@@ -259,14 +261,14 @@ def test_projects_subtab_footer_has_lifecycle_and_subtab_affordances(
     )
     pane = ProjectsPane(projects_root=tmp_path)
 
-    assert "e edit" in pane._hints_text()
-    assert "A aliases" in pane._hints_text()
-    assert "d disable" in pane._hints_text()
-    assert "Ctrl+D delete" in pane._hints_text()
-    assert "[ / ] sub-tab" in pane._hints_text()
-    assert "i init" in pane._hints_text()
-    assert "I init all" in pane._hints_text()
+    hints = pane._hints_text()
+    assert "n new" in hints
+    assert "[ / ] sub-tab" in hints
+    assert "i init" in hints
+    assert "? help" in hints
+    assert len(hints) <= 120
+    assert "A aliases" not in hints
+    assert "Ctrl+D delete" not in hints
     assert "F force after block" not in pane._hints_text()
     assert "Ctrl+X" not in pane._hints_text()
     assert "state" not in pane._hints_text()
-    assert "Tab/Shift+Tab switch tab" in pane._hints_text()

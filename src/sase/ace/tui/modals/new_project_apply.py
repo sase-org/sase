@@ -94,10 +94,11 @@ def _reload_projects_if_mounted(app: Any) -> None:
 def _on_project_add_complete(
     app: Any,
     modal_ref: weakref.ReferenceType[Any],
+    intent: Mapping[str, str],
     completion: TrackedProcCompletion[Any],
 ) -> None:
     """Durable-add completion that outlives the wizard modal."""
-    _on_project_apply_complete(app, modal_ref, {}, completion)
+    _on_project_apply_complete(app, modal_ref, intent, completion)
 
 
 def _on_project_apply_complete(
@@ -107,9 +108,14 @@ def _on_project_apply_complete(
     completion: TrackedProcCompletion[Any],
 ) -> None:
     """Durable add/create completion that outlives the wizard modal."""
-    _reload_projects_if_mounted(app)
-    if completion.success and str(intent.get("mode") or "") == "create":
-        _persist_create_preferences_async(intent)
+    if completion.success:
+        if str(intent.get("mode") or "") == "create":
+            _persist_create_preferences_async(intent)
+        else:
+            _persist_add_preferences_async(intent)
+        _integrate_added_project_if_mounted(app, str(intent.get("project_key") or ""))
+    else:
+        _reload_projects_if_mounted(app)
     modal = modal_ref()
     observe = getattr(modal, "_observe_add_completion", None)
     if modal is not None and getattr(modal, "is_mounted", False) and callable(observe):
@@ -143,6 +149,7 @@ def _intent_from_submission(submission: ApplySubmission) -> dict[str, str]:
         "mode": str(request.get("mode") or "add"),
         "workflow_type": str(target.get("workflow_type") or ""),
         "owner": _owner_from_target(target),
+        "project_key": submission.project_key,
         "visibility": str(
             options.get("visibility") or creation.get("visibility") or ""
         ),
@@ -155,6 +162,30 @@ def _record_successful_add_preferences(workflow_type: str, owner: str) -> None:
         record_provider_selection(workflow_type)
     if workflow_type and owner:
         record_owner_selection(workflow_type, owner)
+
+
+def _persist_add_preferences_async(intent: Mapping[str, str]) -> None:
+    """Write the durable add request's provider and owner preferences off-thread."""
+    thread = threading.Thread(
+        target=_record_successful_add_preferences,
+        args=(
+            str(intent.get("workflow_type") or ""),
+            str(intent.get("owner") or ""),
+        ),
+        name="new-project-record-add-prefs",
+        daemon=True,
+    )
+    thread.start()
+
+
+def _integrate_added_project_if_mounted(app: Any, project_key: str) -> None:
+    """Run the shared post-add sequence when Projects is still mounted."""
+    pane = _find_projects_pane(app)
+    integrate = getattr(pane, "_integrate_added_project", None)
+    if callable(integrate) and project_key:
+        integrate(project_key)
+        return
+    _reload_projects_if_mounted(app)
 
 
 def _record_successful_create_preferences(
@@ -279,6 +310,7 @@ class NewProjectApplyMixin(_MixinBase):
             (submission.request.get("target") or {}).get("identity_key") or ""
         )
         modal_ref = weakref.ref(self)
+        intent = _intent_from_submission(submission)
         return app._submit_durable_proc(  # type: ignore[attr-defined]
             list(submission.argv),
             operation="project.add",
@@ -288,7 +320,7 @@ class NewProjectApplyMixin(_MixinBase):
             cwd=init_cwd(),
             display_name="Add project",
             cl_name=identity_key,
-            on_complete=partial(_on_project_add_complete, app, modal_ref),
+            on_complete=partial(_on_project_add_complete, app, modal_ref, intent),
             on_handle=self._on_add_handle,
             reload_on_complete=False,
             duplicate_message="This project is already being added.",
@@ -568,8 +600,8 @@ class NewProjectApplyMixin(_MixinBase):
             project_label=name or None,
         )
         app = self.app
-        self._dismiss_center_underneath()
         self.dismiss(self._show_outcome("added"))  # type: ignore[attr-defined]
+        self._dismiss_center_underneath()
         starter = getattr(app, "_start_custom_agent_from_selection", None)
         if callable(starter):
             starter(selection)
@@ -609,6 +641,10 @@ class NewProjectApplyMixin(_MixinBase):
             severity=_SET_CURRENT_NOTIFY_SEVERITY.get(outcome.status, "information"),
         )
         if outcome.status == "set":
+            pane = _find_projects_pane(self.app)
+            invalidate = getattr(pane, "_invalidate_current_project_indicator", None)
+            if callable(invalidate):
+                invalidate()
             _reload_projects_if_mounted(self.app)
 
     def _retry_review(self, *, recheck: bool) -> None:

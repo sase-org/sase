@@ -9484,6 +9484,12 @@ ProjectsPane #workspaces-summary {
     margin-bottom: 1;
 }
 
+ProjectsPane #projects-show-new-project {
+    height: 1;
+    width: auto;
+  margin: 0 1 1 1;
+}
+
 ProjectsPane #projects-filter,
 ProjectsPane #repos-filter,
 ProjectsPane #workspaces-filter {

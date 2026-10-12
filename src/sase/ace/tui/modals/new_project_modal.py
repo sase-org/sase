@@ -1,4 +1,4 @@
-"""Test-pushable shell and Source stage for the New Project wizard."""
+"""Wizard shell and stages for the New Project flow."""
 
 from __future__ import annotations
 
@@ -75,12 +75,14 @@ class NewProjectModal(
         self,
         *,
         current_workflow_type: str | None = None,
+        current_project_owner: str = "",
         provider_metadata: Sequence[WorkflowMetadata] | None = None,
         candidate_inputs: Mapping[str, CandidateInputs] | None = None,
         preferences: Preferences | None = None,
     ) -> None:
         super().__init__()
         self._current_workflow_type = current_workflow_type or ""
+        self._current_project_owner = current_project_owner
         self._provided_metadata = (
             tuple(provider_metadata) if provider_metadata is not None else None
         )
@@ -216,6 +218,11 @@ class NewProjectModal(
             workflow_type=workflow_type,
             owners=owners,
             account=inputs.account,
+            current_project_owner=(
+                self._current_project_owner
+                if workflow_type == self._current_workflow_type
+                else ""
+            ),
             unavailable_owners=unavailable,
         )
 
@@ -260,6 +267,8 @@ class NewProjectModal(
             self._on_create_back_requested()
         elif stage == "review":
             self._leave_review()
+        elif stage == "ready":
+            self._dismiss_ready("added")
         else:
             self.dismiss(None)
 

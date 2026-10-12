@@ -3894,12 +3894,29 @@ and warnings. Telemetry-only directories and linked-repo backing records cannot 
 
 `c` requires the highlighted project to be enabled and launchable; pressing it on a
 project that is already current, disabled, or not launchable reports why in the status
-line instead of starting a write. The wizard can also be opened from the command palette
-with **Projects: New project…**. It guides you through choosing a provider and
-repository, reviewing the add plan, and following setup through Ready; new projects can
-be launched from Ready or selected in the Projects list when you return. All
-Projects-tab keys, including `n`, `c`, `i`, and `I`, are configurable under
-[`ace.keymaps.projects`](configuration.md#acekeymaps).
+line instead of starting a write. All Projects-tab keys, including `n`, `c`, `i`, and
+`I`, are configurable under [`ace.keymaps.projects`](configuration.md#acekeymaps).
+
+### Add or create a project
+
+Press `n` on the **Projects** sub-tab, or choose **Projects: New project…** from the
+command palette. The wizard uses the current project's provider and owner as defaults
+when they match the available choices.
+
+| Stage     | What happens                                                                                                                                                                                                           |
+| --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Source    | Pick a suggested, local, or known repository to add. Press `n` for the pinned Create row; `[ ]` switch providers, `/` filters, `f` shows forks, `.` shows all, `R` refreshes, and `t` opens the provider login remedy. |
+| Configure | Set the project name, aliases, SASE setup, and whether to make it current. `Tab` moves through fields, `Space` toggles setup, and `Ctrl+S` opens Review. Create also offers provider-specific repository settings.     |
+| Review    | Check the exact add or create plan, including blockers and requested settings. Press `y` to apply or `b` to return.                                                                                                    |
+| Progress  | The operation runs as a durable proc. `Esc` closes the wizard while the operation continues in Procs.                                                                                                                  |
+| Ready     | `Enter` returns to the project, `+` launches a prompt on its `+tag`, `c` makes it current, and `i` initializes it when setup is incomplete. `Esc` closes while keeping the project selected.                           |
+| Failed    | `r` re-plans and retries, `t` runs the command in a terminal, and `b` returns to the wizard. A created repository is kept when later setup fails.                                                                      |
+
+When a filter hides the added project, the Projects pane keeps the filter and offers
+**Show new project**. Completion reloads the project list and refreshes the
+current-project launch context and `+tag` catalog. Closing during Progress does not
+cancel the durable operation; its completion still refreshes Projects and records the
+provider and owner preferences.
 
 ### Initialize from the Projects tab
 

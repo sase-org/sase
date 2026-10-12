@@ -25,9 +25,15 @@ class BaseAdminActionsMixin(BaseActionsHost):
         from ..modals.config_center_modal import CenterTab
         from ..modals.projects_pane import ProjectsPane
 
+        opened = False
+
         def open_wizard(tab: CenterTab) -> None:
+            nonlocal opened
+            if opened:
+                return
             if tab != "projects":
                 return
+            opened = True
             try:
                 self.screen.query_one(ProjectsPane).action_new_project()  # type: ignore[attr-defined]
             except Exception:

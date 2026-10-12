@@ -5,9 +5,11 @@ from __future__ import annotations
 from sase.ace.tui.modals.project_management_rendering import (
     column_header_text,
     detail_text,
+    hints_text,
     record_label,
     summary_text,
 )
+from sase.ace.tui.keymaps import load_keymap_registry
 from sase.current_project import CurrentProject
 
 from .project_management_modal_test_helpers import make_project_record
@@ -44,6 +46,22 @@ def test_column_header_inserts_cur_between_mark_and_name() -> None:
 
     assert header.startswith("MARK CUR NAME")
     assert header.index("CUR") < header.index("NAME")
+
+
+def test_projects_hints_fit_cached_pane_width_by_priority() -> None:
+    keymaps = load_keymap_registry({}).projects
+    full = hints_text(set(), keymaps, width=1000)
+
+    for width in (80, 120, 200):
+        rendered = hints_text(set(), keymaps, width=width)
+        assert len(rendered) <= width
+        assert rendered.startswith("n new")
+        if rendered != full:
+            assert rendered.endswith("? help")
+
+    narrow = hints_text(set(), keymaps, width=80)
+    assert "j/k move" in narrow
+    assert "? help" in narrow
 
 
 def test_record_label_marks_only_the_current_row_with_accent() -> None:

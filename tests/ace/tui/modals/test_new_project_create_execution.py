@@ -454,6 +454,10 @@ def test_add_complete_does_not_record_visibility(
         "sase.ace.tui.modals.new_project_apply._persist_create_preferences_async",
         _sync_persist,
     )
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.new_project_apply._persist_add_preferences_async",
+        lambda _intent: None,
+    )
     from sase.ace.tui.modals.new_project_apply import _on_project_add_complete
 
     class _Gone:
@@ -462,6 +466,7 @@ def test_add_complete_does_not_record_visibility(
     _on_project_add_complete(
         object(),
         weakref.ref(_Gone()),
+        {"mode": "add", "workflow_type": "gh", "owner": "sase-org"},
         TrackedProcCompletion(
             proc_info=_create_proc(),
             success=True,

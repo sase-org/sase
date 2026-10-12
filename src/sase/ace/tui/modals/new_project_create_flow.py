@@ -109,11 +109,7 @@ class NewProjectCreateFlowMixin(NewProjectCreateChecksMixin):
         records: Sequence[Mapping[str, Any]] | None = None,
         raw_name: str = "",
     ) -> None:
-        """Open create Configure from a test harness.
-
-        Production Source affordances stay deferred; the recovery-entry phase
-        adds the pinned Create row that will call this path.
-        """
+        """Open create Configure with the available namespace defaults."""
         self._state.workflow_type = workflow_type
         self._create_owners = tuple(dict.fromkeys(name for name in owners if name))
         if records is None:

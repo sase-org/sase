@@ -527,6 +527,8 @@ def _modal(
     monkeypatch.setattr(workspace_provider, "probe_repo", _probe_repo)
     monkeypatch.setattr(workspace_provider, "describe_repo_creation", _describe)
     modal = NewProjectModal(
+        current_workflow_type=overrides.get("current_workflow_type"),
+        current_project_owner=str(overrides.get("current_project_owner") or ""),
         provider_metadata=(
             WorkflowMetadata(
                 workflow_type="gh",
@@ -535,10 +537,13 @@ def _modal(
                 pre_allocated_env_prefix="",
             ),
         ),
-        candidate_inputs={"gh": _inputs()},
-        preferences=Preferences(
-            last_owner={"gh": "sase-org"},
-            last_visibility={"sase-org": "public"},
+        candidate_inputs=overrides.get("candidate_inputs", {"gh": _inputs()}),
+        preferences=overrides.get(
+            "preferences",
+            Preferences(
+                last_owner={"gh": "sase-org"},
+                last_visibility={"sase-org": "public"},
+            ),
         ),
     )
     app = _CreateApp()
@@ -553,6 +558,40 @@ async def _enter(pilot: Any, modal: Any, **kwargs: Any) -> None:
         **kwargs,
     )
     await pilot.pause(0.6)
+
+
+async def test_current_project_context_defaults_provider_and_owner(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.ace.tui.modals.new_project_source import NewProjectSource
+    from sase.project_onboarding import OwnerResult, Preferences
+    from tests.ace.tui.modals.test_new_project_source import _inputs
+
+    inputs = _inputs(
+        account="sase-org",
+        owners=[OwnerResult(name="sase-org"), OwnerResult(name="bbugyi200")],
+    )
+    app, modal, _probes, _describes = _modal(
+        monkeypatch,
+        current_workflow_type="gh",
+        current_project_owner="bbugyi200",
+        candidate_inputs={"gh": inputs},
+        preferences=Preferences(last_owner={"gh": "missing"}),
+    )
+
+    async with app.run_test(size=(100, 32)) as pilot:
+        app.push_screen(modal)
+        await pilot.pause()
+        source = modal.query_one(NewProjectSource)
+        await wait_for(pilot, lambda: source.create_row is not None)
+
+        assert modal._state.workflow_type == "gh"
+        assert source.create_row is not None
+        modal._enter_create_from_source(source.create_row)
+        await wait_for(pilot, lambda: modal._state.stage == "create-configure")
+
+        assert modal._state.stage == "create-configure"
+        assert "bbugyi200" in modal._create_drafts
 
 
 async def test_typing_starts_no_sync_probe_and_settles_once(

@@ -41,7 +41,7 @@ async def test_project_management_modal_mark_toggles_advances_and_updates_text(
         assert option_list.get_option_at_index(0).prompt.plain.startswith("[✓]")
         assert "alpha" in option_list.get_option_at_index(0).prompt.plain
         assert "marked:1" in pane._summary_text().plain
-        assert "marked:1" in pane._hints_text()
+        assert "marked:1" not in pane._hints_text()
 
 
 async def test_project_management_modal_clear_marks_restores_row_labels(

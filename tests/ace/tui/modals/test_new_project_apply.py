@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from types import SimpleNamespace
 from typing import Any
 from unittest.mock import MagicMock
 import weakref
@@ -9,6 +10,7 @@ import weakref
 import pytest
 from sase.ace.tui.actions.proc_actions import TrackedProcCompletion
 from sase.ace.tui.modals.new_project_apply import (
+    _intent_from_submission,
     _next_argv_requests_init,
     _on_project_add_complete,
     _reload_projects_if_mounted,
@@ -149,6 +151,7 @@ async def test_y_submits_apply_submission_signature(
         assert kwargs["request_fingerprint"] == expected.request_fingerprint
         assert kwargs["concurrency_keys"] == list(expected.concurrency_keys)
         assert kwargs["reload_on_complete"] is False
+        assert expected.project_key == "gh_sase-org__new"
 
 
 async def test_duplicate_concurrency_key_stays_on_review(
@@ -317,6 +320,102 @@ async def test_ready_enter_dismisses_with_show_key(
         assert result.project_key == "gh_sase-org__new"
 
 
+async def test_ready_escape_dismisses_with_added_key(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app, modal, _ = await _open_review(monkeypatch)
+    dismissed: list[object] = []
+    original = modal.dismiss
+
+    def capture(result: object = None) -> None:
+        dismissed.append(result)
+        original(result)
+
+    modal.dismiss = capture  # type: ignore[method-assign]
+    async with app.run_test(size=(120, 40)) as pilot:
+        app.push_screen(modal)
+        await pilot.pause()
+        _select_suggested(modal)
+        await pilot.pause()
+        await _confirm_review(pilot, modal)
+        modal._on_progress_result(_result("ok"))
+        await pilot.pause()
+        await pilot.press("escape")
+        await pilot.pause()
+
+        assert dismissed
+        result = dismissed[-1]
+        assert isinstance(result, NewProjectSelection)
+        assert result.outcome == "added"
+        assert result.project_key == "gh_sase-org__new"
+
+
+async def test_ready_plus_dismisses_wizard_before_admin_center(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.ace.tui.modals.new_project_modal import NewProjectModal
+
+    from sase.ace.tui.modals import new_project_apply
+
+    monkeypatch.setattr(new_project_apply, "ensure_project_tag_catalog", lambda: None)
+    app = _WizardApp()
+    modal = NewProjectModal(provider_metadata=())
+    events: list[str] = []
+
+    async with app.run_test(size=(120, 40)) as pilot:
+        app.push_screen(modal)
+        await pilot.pause()
+        modal._ready_key = "gh_sase-org__new"
+        modal._ready_name = "new"
+        modal.dismiss = lambda _result=None: events.append("wizard")  # type: ignore[method-assign]
+        modal._dismiss_center_underneath = lambda: events.append("admin-center")  # type: ignore[method-assign]
+        app._start_custom_agent_from_selection = lambda _selection: events.append(
+            "launch"
+        )  # type: ignore[attr-defined]
+
+        await modal._ensure_catalog_and_launch()
+
+    assert events == ["wizard", "admin-center", "launch"]
+
+
+async def test_ready_current_invalidates_project_launch_context(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.ace.tui.modals.new_project_modal import NewProjectModal
+    from sase.current_project import SetCurrentProjectOutcome
+
+    invalidations: list[bool] = []
+    reloads: list[bool] = []
+    pane = SimpleNamespace(
+        _invalidate_current_project_indicator=lambda: invalidations.append(True)
+    )
+    outcome = SetCurrentProjectOutcome(
+        status="set", project=None, message="Set current project"
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.new_project_apply.set_current_project",
+        lambda _key: outcome,
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.new_project_apply._find_projects_pane",
+        lambda _app: pane,
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.new_project_apply._reload_projects_if_mounted",
+        lambda _app: reloads.append(True),
+    )
+    app = _WizardApp()
+    modal = NewProjectModal(provider_metadata=())
+
+    async with app.run_test(size=(120, 40)) as pilot:
+        app.push_screen(modal)
+        await pilot.pause()
+        await modal._set_current_key("gh_sase-org__new")
+
+    assert invalidations == [True]
+    assert reloads == [True]
+
+
 def test_reload_projects_if_mounted_calls_pane_action() -> None:
     pane = MagicMock()
     pane.is_mounted = True
@@ -340,9 +439,57 @@ def test_on_project_add_complete_reloads(monkeypatch: pytest.MonkeyPatch) -> Non
     _on_project_add_complete(
         app,
         weakref.ref(_Gone()),
-        TrackedProcCompletion(proc_info=_proc(), success=True, message="ok", output=""),
+        {},
+        TrackedProcCompletion(
+            proc_info=_proc(), success=False, message="failed", output=""
+        ),
     )
     assert called == [app]
+
+
+def test_durable_add_completion_keeps_request_preferences_after_close(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    preferences: list[object] = []
+    integrations: list[tuple[object, str]] = []
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.new_project_apply._persist_add_preferences_async",
+        lambda intent: preferences.append(dict(intent)),
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.new_project_apply._integrate_added_project_if_mounted",
+        lambda app, key: integrations.append((app, key)),
+    )
+
+    class _Gone:
+        is_mounted = False
+
+    app = object()
+    intent = {
+        "mode": "add",
+        "workflow_type": "gh",
+        "owner": "sase-org",
+        "project_key": "gh_sase-org__new",
+    }
+    _on_project_add_complete(
+        app,
+        weakref.ref(_Gone()),
+        intent,
+        TrackedProcCompletion(proc_info=_proc(), success=True, message="ok", output=""),
+    )
+
+    assert preferences == [intent]
+    assert integrations == [(app, "gh_sase-org__new")]
+
+
+def test_intent_uses_owner_and_project_key_from_apply_submission() -> None:
+    submission = apply_submission(_document("new"))
+
+    intent = _intent_from_submission(submission)
+
+    assert intent["workflow_type"] == "gh"
+    assert intent["owner"] == "sase-org"
+    assert intent["project_key"] == "gh_sase-org__new"
 
 
 def test_mark_sase_initialized_appends_done_row() -> None:
