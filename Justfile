@@ -446,7 +446,6 @@ _lint-symvision *args: _setup
         --epic-symbol 'sase-1jm(archive_corpus_is_warm)' \
         --epic-symbol 'sase-1jm.5(mark_archive_row_restored)' \
         --epic-symbol 'sase-1jx.8(evaluate_repo_creation_form)' \
-        --epic-symbol 'sase-1jx.7.1.4(apply_plan)' \
         --epic-symbol 'sase-1jx.10(parse_event_line)' \
         --epic-symbol 'sase-1jx.7.1(journal_path)' \
         --epic-symbol 'sase-1jx.7.1(journal_lock_path)' \

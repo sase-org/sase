@@ -64,6 +64,11 @@ batched chezmoi deploy. The selector cannot be combined with `--all`,
 `--enable-project-memory`, or an explicit init subcommand. An unknown or non-enabled
 name fails immediately and lists the valid names.
 
+`sase project add REF` registers an existing repository before this initialization step.
+When its setup succeeds in a terminal, add can offer `sase init -p KEY` directly. This
+handoff uses the normal initializer, including its per-sidecar confirmation: accepting
+the add command does not approve creation of a missing remote sidecar.
+
 `--check -j/--json` writes exactly one JSON document to stdout instead of the Rich
 report. The payload carries `schema_version` (currently `1`) and a top-level `status` of
 `current`, `drift`, or `blocked` so callers can distinguish drift from blockers without

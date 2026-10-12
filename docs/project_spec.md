@@ -225,6 +225,22 @@ and `DISABLED PROJECTS`. Enabled projects, sidecars, forks, archived repositorie
 numbered clone copies, and third-party local checkouts stay hidden unless `--all` is
 passed. The command is read-only, so agents may call it freely.
 
+`sase project add` registers an existing repository and leaves new projects enabled by
+default. It accepts the provider prefixes, owner/repository forms, URLs, SSH refs, and
+supported paths recognized by the workspace provider:
+
+```bash
+sase project add REF [-a|--alias ALIAS]... [-c|--check] [-j|--json] [-m|--make-current] [-n|--name NAME] [-S|--no-setup | -s|--setup] [-y|--yes]
+```
+
+Use `--check` first to inspect the plan; it never resolves a ref or writes project or
+journal state. `--yes` applies the reviewed intent, and repeating the same invocation
+resumes an interrupted operation. Automatic setup is disabled for agents. Human setup
+may mark `sase/sase.yml` as SASE-managed, commit that marker, and push the default
+branch; an agent's explicit `--setup` is refused. Successful setup can offer
+`sase init -p KEY` for project configuration and sidecars. That initializer keeps its
+own interactive confirmation for creating missing sidecar repositories.
+
 ```bash
 sase project suggest [PROVIDER] [-a|--all] [-j|--json] [-o|--owner OWNER]... [-r|--refresh]
 ```

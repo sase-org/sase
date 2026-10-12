@@ -31009,6 +31009,212 @@
         "subcommands": [
           {
             "aliases": [],
+            "default_child": null,
+            "description_digest": "17d65e85739d1469",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "add",
+            "options": [
+              {
+                "choices": null,
+                "default": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": null,
+                "dest": "alias",
+                "hidden": false,
+                "kind": null,
+                "metavar": "ALIAS",
+                "repeatable": true,
+                "required": false,
+                "strings": [
+                  "-a",
+                  "--alias"
+                ],
+                "takes_value": true,
+                "value_hint": "text"
+              },
+              {
+                "choices": null,
+                "default": "False",
+                "dest": "check",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-c",
+                  "--check"
+                ],
+                "takes_value": false,
+                "value_hint": "text"
+              },
+              {
+                "choices": null,
+                "default": "False",
+                "dest": "json",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-j",
+                  "--json"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": "False",
+                "dest": "make_current",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-m",
+                  "--make-current"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": null,
+                "dest": "name",
+                "hidden": false,
+                "kind": null,
+                "metavar": "NAME",
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-n",
+                  "--name"
+                ],
+                "takes_value": true,
+                "value_hint": "text"
+              },
+              {
+                "choices": null,
+                "default": "False",
+                "dest": "no_setup",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-S",
+                  "--no-setup"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": null,
+                "dest": "operation_request_path",
+                "hidden": false,
+                "kind": "path",
+                "metavar": "PATH",
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-Q",
+                  "--request-path"
+                ],
+                "takes_value": true,
+                "value_hint": "path"
+              },
+              {
+                "choices": null,
+                "default": null,
+                "dest": "operation_result_path",
+                "hidden": false,
+                "kind": "path",
+                "metavar": "PATH",
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-R",
+                  "--result-path"
+                ],
+                "takes_value": true,
+                "value_hint": "path"
+              },
+              {
+                "choices": null,
+                "default": "False",
+                "dest": "setup",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-s",
+                  "--setup"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": "False",
+                "dest": "yes",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-y",
+                  "--yes"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              }
+            ],
+            "path": [
+              "project",
+              "add"
+            ],
+            "positionals": [
+              {
+                "choices": null,
+                "dest": "ref",
+                "is_remainder": false,
+                "kind": "artifact",
+                "metavar": "REF",
+                "nargs": null,
+                "required": true,
+                "value_hint": null
+              }
+            ],
+            "run_policy": [],
+            "stdin": false,
+            "subcommands": [],
+            "writes": true
+          },
+          {
+            "aliases": [],
             "default_child": "list",
             "description_digest": "c41cdfb109656147",
             "hidden": false,

@@ -229,6 +229,13 @@ from a menu. The [workspace guide](workspace.md) has the full model.
 **What you just did.** Moved from a read-only run to a small editable task after
 confirming where SASE records agent state.
 
+To register an existing repository as a SASE project, preview it with
+`sase project add REF --check`, then apply with `--yes` or confirm interactively on a
+terminal. New projects are enabled by default, and repeating the same command resumes an
+interrupted add. Agents can preview and add with automatic setup disabled; an explicit
+`--setup` that writes, commits, and pushes the management marker is human-only.
+Successful setup can offer `sase init -p KEY` to configure the project and its sidecars.
+
 ## Step 6 — Hand Off Existing Work With Artifact References
 
 An agent handoff is more reliable when it names the exact prior artifact instead of

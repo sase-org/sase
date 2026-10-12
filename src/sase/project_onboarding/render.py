@@ -292,8 +292,177 @@ def print_suggest(payload: dict[str, Any], *, include_hidden: bool) -> None:
         console.print(rendered, soft_wrap=True)
 
 
+def render_plan_json(document: dict[str, Any]) -> str:
+    """Return one stable JSON plan document for ``project add --check``."""
+
+    return json.dumps(document, indent=2, sort_keys=True)
+
+
+def print_plan_document(document: dict[str, Any], *, file: Any = None) -> None:
+    """Render an onboarding plan using literal Rich text for all provider data."""
+
+    import shlex
+
+    from rich.console import Console
+    from rich.table import Table
+    from rich.text import Text
+
+    console = Console(file=file)
+    provider = document.get("provider")
+    provider_map = provider if isinstance(provider, dict) else {}
+    target = document.get("target")
+    target_map = target if isinstance(target, dict) else {}
+    project = document.get("project")
+    project_map = project if isinstance(project, dict) else {}
+    status = _clean(str(document.get("status") or "unknown"))
+
+    title = Text()
+    title.append("Project onboarding · ", style="bold")
+    title.append(_clean(str(provider_map.get("display") or "Repository")), style="cyan")
+    title.append("  ")
+    title.append(_clean(str(target_map.get("display") or target_map.get("ref") or "")))
+    console.print(title)
+
+    summary = Text()
+    summary.append("Project: ", style="bold")
+    summary.append(_clean(str(project_map.get("name") or "")))
+    summary.append("  key: ", style="dim")
+    summary.append(_clean(str(project_map.get("key") or "")))
+    summary.append("  state: ", style="dim")
+    summary.append(_clean(str(project_map.get("state") or "enabled")))
+    if project_map.get("existing") is True:
+        summary.append("  existing", style="dim")
+    console.print(summary)
+
+    remote_parts = [
+        _clean(str(target_map.get("visibility") or "visibility unknown")),
+        f"default branch {_clean(str(target_map.get('default_branch') or 'unknown'))}",
+    ]
+    can_push = target_map.get("can_push")
+    if can_push is not None:
+        remote_parts.append("push available" if can_push else "no push access")
+    managed = target_map.get("sase_managed")
+    if managed is not None:
+        remote_parts.append("SASE-managed" if managed else "not SASE-managed")
+    console.print(Text("Remote: " + " · ".join(remote_parts), style="dim"))
+
+    steps = document.get("steps")
+    step_list = steps if isinstance(steps, list) else []
+    if step_list:
+        table = Table(show_header=False, box=None, pad_edge=False, show_edge=False)
+        table.add_column("action", width=2, no_wrap=True)
+        table.add_column("step", overflow="fold")
+        for step in step_list:
+            if not isinstance(step, dict):
+                continue
+            operation = str(step.get("operation") or "")
+            state = str(step.get("state") or "")
+            glyph, style = _step_glyph(operation, state)
+            label = _clean(str(step.get("label") or step.get("id") or "step"))
+            if step.get("handoff") is True:
+                label += " (hand off)"
+            table.add_row(Text(glyph, style=style), Text(label))
+        console.print(table)
+
+    for field, heading, style in (
+        ("warnings", "Warnings", "yellow"),
+        ("blockers", "Blocked", "red"),
+    ):
+        rows = document.get(field)
+        if not isinstance(rows, list):
+            continue
+        for row in rows:
+            message = _item_message(row)
+            if message:
+                line = Text(f"{heading}: ", style=style)
+                line.append(message)
+                console.print(line)
+
+    status_line = Text("Plan: ", style="bold")
+    status_line.append(
+        status,
+        style={"blocked": "red", "current": "green", "ready": "green"}.get(
+            status, "yellow"
+        ),
+    )
+    console.print(status_line)
+    argv = document.get("apply_argv")
+    if isinstance(argv, list) and argv:
+        console.print(
+            Text("Would run: " + shlex.join([str(arg) for arg in argv]), style="dim")
+        )
+
+
+def _step_glyph(operation: str, state: str) -> tuple[str, str]:
+    if state == "done":
+        return "✓", "green"
+    if state == "skipped":
+        return "·", "dim"
+    if state in {"blocked", "failed"}:
+        return "×", "red"
+    return {
+        "create": ("+", "green"),
+        "update": ("~", "yellow"),
+        "delete": ("−", "red"),
+        "validate": ("●", "cyan"),
+    }.get(operation, ("●", "cyan"))
+
+
+def _item_message(item: Any) -> str:
+    if isinstance(item, str):
+        return _clean(item)
+    if isinstance(item, dict):
+        code = _clean(str(item.get("code") or ""))
+        message = _clean(str(item.get("message") or item.get("detail") or ""))
+        if code and message:
+            return f"{code}: {message}"
+        return message or code
+    return _clean(str(item)) if item is not None else ""
+
+
+def print_apply_event(event: dict[str, Any], *, file: Any = None) -> None:
+    """Render one non-JSON apply event without interpreting markup in its text."""
+
+    from rich.console import Console
+    from rich.text import Text
+
+    console = Console(file=file)
+    kind = str(event.get("event") or "")
+    if kind == "step":
+        status = str(event.get("status") or "")
+        glyph, style = {
+            "running": ("●", "cyan"),
+            "done": ("✓", "green"),
+            "failed": ("×", "red"),
+        }.get(status, ("·", "dim"))
+        line = Text(
+            f"{glyph} {_clean(str(event.get('label') or event.get('id') or 'step'))}",
+            style=style,
+        )
+        elapsed = event.get("elapsed_ms")
+        if isinstance(elapsed, int):
+            line.append(f"  {elapsed} ms", style="dim")
+        message = _clean(str(event.get("message") or ""))
+        if message:
+            line.append(f"  {message}")
+        console.print(line)
+    elif kind == "result":
+        status = str(event.get("status") or "")
+        style = (
+            "green"
+            if status == "ok"
+            else "red"
+            if status in {"failed", "blocked"}
+            else "yellow"
+        )
+        console.print(Text(_clean(str(event.get("message") or status)), style=style))
+
+
 __all__ = [
     "GROUP_SECTIONS",
+    "print_apply_event",
+    "print_plan_document",
     "print_suggest",
+    "render_plan_json",
     "render_suggest_json",
 ]

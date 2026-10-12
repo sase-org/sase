@@ -3,10 +3,38 @@
 from __future__ import annotations
 
 import argparse
+from typing import Any
 
 from sase.core.project_lifecycle_wire import PROJECT_LIFECYCLE_STATES
 
 _STATE_METAVAR = "{" + ",".join(PROJECT_LIFECYCLE_STATES) + "}"
+
+
+class _ExclusiveProjectSetupFlag(argparse.Action):
+    """Store one setup boolean while rejecting the other setup choice."""
+
+    def __init__(
+        self,
+        option_strings: list[str],
+        dest: str,
+        *,
+        conflicts_with: str,
+        **kwargs: Any,
+    ) -> None:
+        self.conflicts_with = conflicts_with
+        super().__init__(option_strings, dest, **kwargs)
+
+    def __call__(
+        self,
+        parser: argparse.ArgumentParser,
+        namespace: argparse.Namespace,
+        values: object,
+        option_string: str | None = None,
+    ) -> None:
+        del values, option_string
+        if bool(getattr(namespace, self.conflicts_with, False)):
+            parser.error("--setup and --no-setup are mutually exclusive")
+        setattr(namespace, self.dest, True)
 
 
 def _add_force(parser: argparse.ArgumentParser) -> None:
@@ -20,6 +48,8 @@ def _add_force(parser: argparse.ArgumentParser) -> None:
 
 def register_project_parser(subparsers: argparse._SubParsersAction) -> None:
     """Register the ``sase project`` subcommand parser."""
+    from sase.ops.cli import add_operation_io_flags
+
     project_parser = subparsers.add_parser(
         "project",
         help="Inspect and mutate project lifecycle state",
@@ -31,7 +61,87 @@ def register_project_parser(subparsers: argparse._SubParsersAction) -> None:
     project_sub = project_parser.add_subparsers(
         dest="project_subcommand",
         help="Project subcommands",
-        metavar="{alias,current,disable,enable,list,set-current,set-state,show,suggest}",
+        metavar="{add,alias,current,disable,enable,list,set-current,set-state,show,suggest}",
+    )
+
+    add_parser = project_sub.add_parser(
+        "add",
+        help="Register an existing repository as a SASE project",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        description=(
+            "Register an existing repository as an enabled SASE project. "
+            "New projects are enabled by default. Use --check to preview "
+            "without writes. Setup can write the "
+            "repository's sase/sase.yml, commit it, and push the default "
+            "branch; agents may preview freely, while explicit setup is "
+            "human-only. Interrupted operations can be resumed by repeating "
+            "the same command. Successful setup may hand off to `sase init`."
+        ),
+        epilog=(
+            "examples:\n"
+            "  sase project add gh:sase-org/sase --check\n"
+            "  sase project add gh:sase-org/sase --yes\n"
+            "  sase project add owner/repo --setup --yes\n"
+            "  sase project add git:my-repo --name tools --alias local-tools"
+        ),
+    )
+    add_parser.add_argument("ref", metavar="REF", help="Existing repository reference")
+    add_parser.add_argument(
+        "-a",
+        "--alias",
+        action="append",
+        default=[],
+        metavar="ALIAS",
+        help="Add a project alias (repeatable)",
+    )
+    add_parser.add_argument(
+        "-c",
+        "--check",
+        action="store_true",
+        help="Show the read-only plan without applying it",
+    )
+    add_parser.add_argument(
+        "-j",
+        "--json",
+        action="store_true",
+        help="Emit a plan document or NDJSON apply events",
+    )
+    add_parser.add_argument(
+        "-m",
+        "--make-current",
+        action="store_true",
+        help="Make the registered project current",
+    )
+    add_parser.add_argument(
+        "-n",
+        "--name",
+        metavar="NAME",
+        help="Set the project display name",
+    )
+    add_parser.add_argument(
+        "-S",
+        "--no-setup",
+        action=_ExclusiveProjectSetupFlag,
+        conflicts_with="setup",
+        default=False,
+        nargs=0,
+        help="Register without the remote management commit and push",
+    )
+    add_operation_io_flags(add_parser)
+    add_parser.add_argument(
+        "-s",
+        "--setup",
+        action=_ExclusiveProjectSetupFlag,
+        conflicts_with="no_setup",
+        default=False,
+        nargs=0,
+        help="Request SASE management setup (human-only commit and push)",
+    )
+    add_parser.add_argument(
+        "-y",
+        "--yes",
+        action="store_true",
+        help="Apply without a confirmation prompt",
     )
 
     alias_parser = project_sub.add_parser(

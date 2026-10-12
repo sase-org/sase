@@ -162,6 +162,11 @@ registers the project, which happens later through the normal reference resolver
 its stable `name`; `ws_create_repo` receives those values and returns `created`,
 `exists`, or `failed` without deciding whether to adopt an existing repository.
 
+Register an existing repository with `sase project add REF`. The command previews the
+provider observation and planned local changes before resolving the repository; its
+optional setup step is the human-only marker commit and push. Repository creation
+remains the separate `sase project create` flow.
+
 ## Registry Functions
 
 The workspace provider package (`sase.workspace_provider`) exports convenience functions

@@ -132,6 +132,7 @@ def test_project_current_help_documents_resolution_and_json() -> None:
     current_help = flat_help(parser_for(("sase", "project", "current")).format_help())
 
     expected = {
+        "add",
         "alias",
         "current",
         "disable",
@@ -143,7 +144,7 @@ def test_project_current_help_documents_resolution_and_json() -> None:
         "suggest",
     }
     assert (
-        "{alias,current,disable,enable,list,set-current,set-state,show,suggest}"
+        "{add,alias,current,disable,enable,list,set-current,set-state,show,suggest}"
         in project_parser.format_help()
     )
     assert "current" in help_subcommand_rows(project_parser.format_help(), expected)

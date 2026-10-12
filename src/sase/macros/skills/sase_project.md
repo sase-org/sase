@@ -34,6 +34,20 @@ state and aliases, or select projects for a multi-project workflow.
   `search_only` rows with `--all`). Prefer it when selecting a repository to add
   programmatically.
 
+## Add An Existing Repository
+
+- Preview registration with `sase project add REF --check`. The check is read-only and
+  reports identity allocation, checkout state, setup, blockers, and the apply argv.
+- Apply with `sase project add REF --yes`, or confirm the plan in a terminal. New
+  projects are enabled by default, and repeating the same command resumes an interrupted
+  operation.
+- Agents may preview and add with automatic setup disabled. Omit `--setup`; if human
+  setup is needed, propose the exact `sase project add REF --setup --yes` command
+  through `/sase_gate`.
+- Human setup can mark the repository managed, commit the marker, and push the default
+  branch. Afterward, a terminal may offer `sase init -p KEY`; sidecar creation still
+  requires its own confirmation.
+
 ## Manage Projects
 
 - `sase project set-current <project>` promotes an enabled, launchable project to the

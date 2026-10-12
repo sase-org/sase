@@ -146,7 +146,15 @@ def _handle_close(args: argparse.Namespace) -> int:
     return _handle_disable(args)
 
 
+def handle_add(args: argparse.Namespace) -> int:
+    """Load the add workflow only when the CLI command is invoked."""
+    from .project_handler_add import handle_add as handle_add_impl
+
+    return handle_add_impl(args)
+
+
 _HANDLERS = {
+    "add": handle_add,
     "activate": _handle_activate,
     "alias": handle_alias,
     "archive": _handle_archive,
@@ -183,7 +191,7 @@ def handle_project_command(args: argparse.Namespace) -> None:
     if handler is None:
         print(
             "Usage: sase project "
-            "{alias,current,disable,enable,list,set-current,set-state,show,suggest}",
+            "{add,alias,current,disable,enable,list,set-current,set-state,show,suggest}",
             file=sys.stderr,
         )
         sys.exit(2)

@@ -35,6 +35,8 @@ GIT_POST_WRITE = "git.post-write"
 
 LAUNCH_APPROVAL = "launch.approval"
 
+PROJECT_ADD = "project.add"
+
 NOTIFY_APPLY_STATE = "notify.apply-state"
 
 PLUGIN_INSTALL = "plugin.install"
@@ -85,6 +87,7 @@ __all__ = [
     "PLUGIN_INSTALL",
     "PLUGIN_UNINSTALL",
     "PLUGIN_UPDATE",
+    "PROJECT_ADD",
     "PROC_KILL",
     "RUN_LAUNCH",
     "SASE_UPDATE",
