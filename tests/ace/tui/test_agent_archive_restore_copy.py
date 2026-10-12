@@ -8,16 +8,20 @@ from typing import Any
 
 from sase.ace.tui.actions.agents._archive_view import init_agents_archive_view_state
 from sase.feature_flags import override_flags
-from tests.ace.tui._agent_archive_restore_helpers import make_agent
+from tests.ace.tui._agent_archive_restore_helpers import make_agent, open_archive
 
 __all__ = [
     "test_copy_artifacts_dir_missing_warns",
     "test_copy_handoff_prefills_prompt",
+    "test_artifacts_copy_reference_ignores_agents_tab",
+    "test_artifacts_copy_reference_on_artifacts_tab",
+    "test_copy_json_archive_copies_bundle",
     "test_copy_json_payload_is_metadata",
     "test_copy_link_format_is_followable",
     "test_copy_palette_new_targets_dispatch",
     "test_footer_offers_restore_without_live_chips",
     "test_help_archive_box_lists_action_rows",
+    "test_help_copy_mode_lists_new_targets",
     "test_y_copies_agent_reference_on_agents_tab",
 ]
 
@@ -52,8 +56,53 @@ def test_y_copies_agent_reference_on_agents_tab(monkeypatch: Any) -> None:
         }
     )
     init_agents_archive_view_state(app)
-    app.action_artifacts_copy_reference()
+    app.action_agents_copy_reference()
     assert copied.get("content") == "@test.1"
+
+
+def test_artifacts_copy_reference_ignores_agents_tab(monkeypatch: Any) -> None:
+    from sase.ace.tui.actions.clipboard._agents import ClipboardAgentsMixin
+    from sase.ace.tui.actions.clipboard._artifacts import ClipboardArtifactsMixin
+
+    copied: list[str] = []
+
+    class App(ClipboardArtifactsMixin, ClipboardAgentsMixin):
+        pass
+
+    app = App()
+    app.__dict__.update(
+        {
+            "current_tab": "agents",
+            "current_artifacts_pane_key": "agents",
+            "notify": lambda *a, **k: None,
+            "_copy_agent_reference": lambda: copied.append("agent"),
+            "_run_artifact_reference_action": lambda **k: copied.append("artifact"),
+            "_copy_patch_reference": lambda: copied.append("patch"),
+        }
+    )
+    app.action_artifacts_copy_reference()
+    assert copied == []
+
+
+def test_artifacts_copy_reference_on_artifacts_tab() -> None:
+    from sase.ace.tui.actions.clipboard._artifacts import ClipboardArtifactsMixin
+
+    ran: list[object] = []
+
+    class App(ClipboardArtifactsMixin):
+        pass
+
+    app = App()
+    app.__dict__.update(
+        {
+            "current_tab": "artifacts",
+            "current_artifacts_subtab": "stitches",
+            "_run_artifact_reference_action": lambda **kwargs: ran.append(kwargs),
+            "_copy_patch_reference": lambda: ran.append("patch"),
+        }
+    )
+    app.action_artifacts_copy_reference()
+    assert ran == [{"handoff": False}]
 
 
 def test_copy_palette_new_targets_dispatch(monkeypatch: Any) -> None:
@@ -109,15 +158,16 @@ def test_copy_palette_new_targets_dispatch(monkeypatch: Any) -> None:
 def test_copy_link_format_is_followable(monkeypatch: Any) -> None:
     import sase.ace.tui.actions.clipboard._agents as agents_clipboard
     from sase.ace.tui.actions.clipboard._agents import ClipboardAgentsMixin
+    from sase.ace.tui.actions.clipboard._artifact_reference_resolution import (
+        reference_for_agent_row,
+    )
+    from sase.ace.tui.actions.clipboard._helpers import format_markdown_link
 
     copied: dict[str, Any] = {}
     monkeypatch.setattr(
         agents_clipboard,
         "schedule_copy_delivery",
         lambda _o, content, **kwargs: copied.update(content=content),
-    )
-    monkeypatch.setattr(
-        agents_clipboard, "reference_for_agent_row", lambda _agent: "test.1"
     )
 
     class App(ClipboardAgentsMixin):
@@ -133,7 +183,10 @@ def test_copy_link_format_is_followable(monkeypatch: Any) -> None:
     )
     init_agents_archive_view_state(app)
     app._copy_agent_link()
-    assert copied.get("content") == "[@test.1](agent:test.1)"
+    reference = reference_for_agent_row(agent)
+    assert reference is not None
+    assert copied.get("content") == format_markdown_link(f"@{reference}", reference)
+    assert "agent:agent:" not in str(copied.get("content"))
 
 
 def test_copy_json_payload_is_metadata(monkeypatch: Any) -> None:
@@ -162,6 +215,42 @@ def test_copy_json_payload_is_metadata(monkeypatch: Any) -> None:
     payload = json.loads(copied["content"])
     assert payload["agent_name"] == "bob-cli-5p.4"
     assert payload["status"] == "DONE"
+
+
+def test_copy_json_archive_copies_bundle(monkeypatch: Any, tmp_path: Any) -> None:
+    import sase.ace.tui.actions.clipboard._agents as agents_clipboard
+    from sase.ace.tui.actions.clipboard._agents import ClipboardAgentsMixin
+
+    copied: dict[str, Any] = {}
+    monkeypatch.setattr(
+        agents_clipboard,
+        "schedule_copy_delivery",
+        lambda _o, content, **kwargs: copied.update(content=content, kwargs=kwargs),
+    )
+    bundle = tmp_path / "run.json"
+    bundle.write_text('{"agent_name": "bob-cli-5p.4"}', encoding="utf-8")
+
+    class App(ClipboardAgentsMixin):
+        pass
+
+    app = App()
+    agent = make_agent()
+    app.__dict__.update(
+        {
+            "notify": lambda *a, **k: None,
+            "_get_selected_agent": lambda: agent,
+        }
+    )
+    init_agents_archive_view_state(app)
+    open_archive(app)
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.agents._archive_column.archive_light_row",
+        lambda _o, _k: {"bundle_path": str(bundle), "agent_name": "bob-cli-5p.4"},
+    )
+    app._copy_agent_json()
+    assert copied["kwargs"]["copied_label"] == "archive bundle JSON"
+    assert callable(copied["content"])
+    assert json.loads(copied["content"]())["agent_name"] == "bob-cli-5p.4"
 
 
 def test_copy_artifacts_dir_missing_warns() -> None:
@@ -240,3 +329,22 @@ def test_help_archive_box_lists_action_rows() -> None:
     assert "Fork archived run" in descriptions
     assert "Copy @agent: reference" in descriptions
     assert "More copy targets" in descriptions
+
+
+def test_help_copy_mode_lists_new_targets() -> None:
+    from sase.ace.tui.keymaps import load_keymap_registry
+    from sase.ace.tui.modals.help_modal.agents_mode_sections import mode_sections
+
+    km = load_keymap_registry({})
+    boxes = dict(mode_sections(km))
+    copy_rows = next(
+        rows for title, rows in boxes.items() if title.startswith("Copy Mode")
+    )
+    descriptions = [description for _key, description in copy_rows]
+    assert "Prefill prompt with @agent" in descriptions
+    assert "Copy Markdown agent link" in descriptions
+    assert "Copy agent JSON" in descriptions
+    assert "Copy artifacts directory" in descriptions
+    assert "Copy @agent: reference" in descriptions
+    assert all(len(key) <= 16 for key, _description in copy_rows)
+    assert all(len(description) <= 32 for _key, description in copy_rows)

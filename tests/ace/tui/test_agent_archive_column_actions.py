@@ -50,6 +50,7 @@ from tests.ace.tui._agent_archive_column_helpers import ColumnHarness, light_row
 from tests.ace.tui.test_agent_archive_column_actions_list import (
     test_banner_pages_load_100_rows_and_enter_or_l_requests_the_next,
     test_cold_open_lists_open_banners_with_core_rows_and_selects_first_run,
+    test_container_enter_does_not_toggle_expansion,
     test_container_enter_toggles_and_workflow_children_stay_out_of_the_list,
     test_containers_expand_collapse_and_report_matching_members_only,
     test_open_routes_and_paints_without_a_flag,
@@ -124,6 +125,7 @@ __all__ = [
     "light_row",
     "test_banner_pages_load_100_rows_and_enter_or_l_requests_the_next",
     "test_cold_open_lists_open_banners_with_core_rows_and_selects_first_run",
+    "test_container_enter_does_not_toggle_expansion",
     "test_container_enter_toggles_and_workflow_children_stay_out_of_the_list",
     "test_containers_expand_collapse_and_report_matching_members_only",
     "test_open_routes_and_paints_without_a_flag",

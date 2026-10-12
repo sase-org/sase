@@ -11,7 +11,7 @@ from sase.project_display_names import humanize_vcs_refs_in_text
 from ._artifact_reference_resolution import reference_for_agent_row
 from ._base import ClipboardBase
 from ._delivery import schedule_copy_delivery
-from ._helpers import cap_copy_content
+from ._helpers import cap_copy_content, format_markdown_link
 
 
 def _agent_copy_target(owner: Any) -> Any | None:
@@ -141,6 +141,17 @@ class ClipboardAgentsMixin(ClipboardBase):
             task_name="sase-copy-agent-prompt",
         )
 
+    def action_agents_copy_reference(self) -> None:
+        """Copy the selected agent's durable ``@agent:`` reference.
+
+        Tab-disjoint duplicate of ``artifacts_copy_reference`` on ``y``:
+        Inbox and Archive both copy the concrete row's paste-ready
+        ``@agent:`` reference.
+        """
+        if getattr(self, "current_tab", None) != "agents":
+            return
+        self._copy_agent_reference()
+
     def _copy_agent_reference(self) -> None:
         """Copy the durable reference for a concrete Agents-tab agent row."""
         from ..agents._archive_actions import resolve_agents_read_agent
@@ -220,7 +231,7 @@ class ClipboardAgentsMixin(ClipboardBase):
         reference = _agent_reference_or_notify(self)
         if reference is None:
             return
-        link = f"[@{reference}](agent:{reference})"
+        link = format_markdown_link(f"@{reference}", reference)
         schedule_copy_delivery(
             self,
             link,
@@ -230,6 +241,26 @@ class ClipboardAgentsMixin(ClipboardBase):
 
     def _copy_agent_json(self) -> None:
         """Copy the selected agent's metadata JSON (%j)."""
+        try:
+            from ..agents._archive_actions import archive_ui_active
+
+            archived = bool(archive_ui_active(self))
+        except Exception:
+            archived = False
+        if archived:
+
+            def _read_bundle() -> str:
+                from ..agents._archive_reader import read_archive_bundle_json
+
+                return read_archive_bundle_json(self)
+
+            schedule_copy_delivery(
+                self,
+                _read_bundle,
+                copied_label="archive bundle JSON",
+                task_name="sase-copy-agent-json",
+            )
+            return
         agent = _agent_copy_target(self)
         if agent is None:
             self.notify("No agent selected", severity="warning")  # type: ignore[attr-defined]

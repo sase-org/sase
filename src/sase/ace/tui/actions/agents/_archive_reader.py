@@ -357,6 +357,31 @@ def load_archive_bundle(
     return _load_archive_bundle(owner, light_row)
 
 
+def read_archive_bundle_json(
+    owner: Any, light_row: Mapping[str, Any] | None = None
+) -> str:
+    """Return the on-disk Archive bundle JSON for ``light_row``.
+
+    Callers must run this off the event loop. Resolves the selected Archive
+    row when ``light_row`` is omitted. Raises ``FileNotFoundError`` when the
+    bundle is missing.
+    """
+    row = light_row
+    if row is None:
+        try:
+            from ._archive_column import archive_light_row
+            from ._archive_view import agents_archive_view_state
+
+            key = agents_archive_view_state(owner).archive.selected_key
+            row = archive_light_row(owner, key)
+        except Exception:
+            row = None
+    path = resolve_archive_bundle_path(row, _archive_root(owner))
+    if path is None:
+        raise FileNotFoundError("Archive bundle is not on disk")
+    return path.read_text(encoding="utf-8")
+
+
 async def _hydrate_archive_agent(
     owner: Any,
     *,
@@ -441,4 +466,5 @@ __all__ = [
     "hydrated_archive_agent_for",
     "load_archive_bundle",
     "paint_archive_detail_placeholder",
+    "read_archive_bundle_json",
 ]

@@ -14,7 +14,7 @@ from textual.containers import Container, VerticalScroll
 from textual.screen import ModalScreen
 from textual.widgets import Static
 
-AgentActionSection = Literal["gate", "patch", "archive"]
+AgentActionSection = Literal["gate", "patch", "archive", "read"]
 
 #: Guidance footer shared by the chooser modal.
 _AGENT_ACTION_FOOTER: Final = "Up/Down or j/k move - Enter select - Esc cancel"
@@ -149,6 +149,11 @@ class AgentActionChooserModal(ModalScreen[str | None]):
                     for index, choice in enumerate(self._choices)
                     if choice.section == "archive"
                 ]
+                read_indexes = [
+                    index
+                    for index, choice in enumerate(self._choices)
+                    if choice.section == "read"
+                ]
                 gate_indexes = [
                     index
                     for index, choice in enumerate(self._choices)
@@ -162,6 +167,16 @@ class AgentActionChooserModal(ModalScreen[str | None]):
                 if archive_indexes:
                     yield Static("ARCHIVE", classes="agent-action-section")
                     for index in archive_indexes:
+                        yield Static(
+                            self._row_renderable(
+                                index, focused=index == self._selected
+                            ),
+                            id=f"agent-action-row-{index}",
+                            classes=self._row_classes(index),
+                        )
+                if read_indexes:
+                    yield Static("READ", classes="agent-action-section")
+                    for index in read_indexes:
                         yield Static(
                             self._row_renderable(
                                 index, focused=index == self._selected

@@ -340,8 +340,11 @@ changing project scope, refreshing data, or collapsing an expanded bead tree. Es
 an invalid hint exits jump mode. These actions use the configured keymap values; the
 keys above are the defaults.
 
-On the Agents tab Archive, `Enter` opens the chooser with its ARCHIVE section first
-(Restore to inbox by default, then Restore and show, Fork, and read-only targets).
+On the Agents tab Archive, `Enter` opens the chooser. ARCHIVE lists Restore first
+(`Restore to inbox`, or `Restore N marked` when marks exist, or
+`Restore clan|session <label> (N members)` on a container). Fork follows when the run
+has a retained chat. READ lists Open chat, Copy `@agent` reference (`y`), and More copy
+targets (`%`). `l`/`h` expand and collapse containers.
 
 When the selected entry has declared relationships, a relation panel appears at the
 bottom of the list column, starting collapsed into a one-line rail that names its own
@@ -3158,9 +3161,14 @@ which case the target wins.
 
 | Key  | Action                                                                                      |
 | ---- | ------------------------------------------------------------------------------------------- |
+| `y`  | Copy the focused agent's durable `@agent:` reference                                        |
 | `%c` | Copy chat file path                                                                         |
 | `%E` | Copy file path                                                                              |
 | `%@` | Copy the focused concrete agent's durable global `@agent:` reference                        |
+| `%!` | Prefill a new prompt with the `@agent:` reference                                           |
+| `%l` | Copy a followable Markdown link (`[@agent:name](agent:name)`)                               |
+| `%j` | Copy agent metadata JSON (Inbox) or the archive bundle JSON (Archive)                       |
+| `%d` | Copy the agent's artifacts directory path                                                   |
 | `%n` | Copy the focused agent's `agent_name` (falls back to `display_name`; toast indicates which) |
 | `%p` | Copy agent prompt                                                                           |
 | `%r` | Copy the selected node's tool run id (when it has tool runs)                                |

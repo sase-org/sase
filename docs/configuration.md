@@ -1409,6 +1409,13 @@ The Agents-tab copy mode (`%`) gains a `tool run id` target on nodes with tool r
 configured as `ace.keymaps.modes.copy_mode.keys.agents.tool_run_id` (default `r`, so
 `%r`).
 
+On the Agents tab, `y` (`agents_copy_reference`) copies the selected agent's durable
+`@agent:` reference in both Inbox and Archive. The same key remains
+`artifacts_copy_reference` on the Artifacts tab. Agents copy-mode (`%`) also offers `%!`
+(handoff prompt), `%l` (Markdown link; the link target is the durable `agent:` reference
+itself), `%j` (Inbox metadata JSON, or the archive bundle JSON in Archive), and `%d`
+(artifacts directory).
+
 **`app`** — App-level keybindings. Each key is an action name mapped to a key string.
 See `src/sase/default_config.yml` for the full list of configurable actions and their
 defaults. Rebinding `open_config_center` also changes the Admin Center's home-page

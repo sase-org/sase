@@ -85,6 +85,8 @@ _CONTEXTUAL_APP_DUPLICATES: frozenset[frozenset[str]] = frozenset(
         frozenset({"beads_open_bug", "files_open_external"}),
         frozenset({"agents_revive", "beads_launch_work"}),
         frozenset({"agents_revive", "reword"}),
+        # Tab-disjoint: Agents vs Artifacts copy-reference share y.
+        frozenset({"agents_copy_reference", "artifacts_copy_reference"}),
         frozenset({"toggle_relation_panel", "toggle_hide_reverted"}),
         # Tab-disjoint by construction: Agents-only jump panel toggle vs the
         # Services `.` and Artifacts `.` owners.

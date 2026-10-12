@@ -357,14 +357,27 @@ async def test_container_enter_toggles_and_workflow_children_stay_out_of_the_lis
     harness = await opened(rows)
     owner = harness.owner
 
-    route_archive_key(owner, INTENT_ACTIVATE)
+    route_archive_key(owner, INTENT_EXPAND)
     await harness.settle()
     assert "u.m@m1" in harness.widget.last_labels()
-    route_archive_key(owner, INTENT_ACTIVATE)
+    route_archive_key(owner, INTENT_COLLAPSE)
     await harness.settle()
     assert "u.m@m1" not in harness.widget.last_labels()
     # No row is ever fabricated for an agent the corpus did not list.
     assert not any("child" in label for label in harness.widget.last_labels())
+
+
+async def test_container_enter_does_not_toggle_expansion() -> None:
+    rows = clan_rows()
+    harness = await opened(rows)
+    owner = harness.owner
+
+    assert selection_key(harness) == "container:clan:swarm:1"
+    assert harness.archive.expanded_containers == ()
+    route_archive_key(owner, INTENT_ACTIVATE)
+    await harness.settle()
+    assert harness.archive.expanded_containers == ()
+    assert "u.m@m1" not in harness.widget.last_labels()
 
 
 async def test_h_on_expanded_container_collapses_in_place() -> None:
@@ -400,6 +413,7 @@ __all__ = [
     "test_banner_pages_load_100_rows_and_enter_or_l_requests_the_next",
     "test_multi_group_banner_pages_across_its_component_days",
     "test_containers_expand_collapse_and_report_matching_members_only",
+    "test_container_enter_does_not_toggle_expansion",
     "test_container_enter_toggles_and_workflow_children_stay_out_of_the_list",
     "test_h_on_expanded_container_collapses_in_place",
 ]

@@ -253,10 +253,27 @@ def mode_sections(km: KeymapRegistry) -> Sections:
                     "Copy @agent reference",
                 ),
                 (
+                    key_sequence_display(cm.prefix, ag_copy["handoff"]),
+                    "Prefill prompt with @agent",
+                ),
+                (
+                    key_sequence_display(cm.prefix, ag_copy["link"]),
+                    "Copy Markdown agent link",
+                ),
+                (
+                    key_sequence_display(cm.prefix, ag_copy["json"]),
+                    "Copy agent JSON",
+                ),
+                (
+                    key_sequence_display(cm.prefix, ag_copy["artifacts_dir"]),
+                    "Copy artifacts directory",
+                ),
+                (
                     f"{d(cm.prefix)}{d(ag_copy['tool_run_id'])}",
                     "Copy tool run id",
                 ),
                 (f"{d(cm.prefix)}{d(ag_copy['snapshot'])}", "Copy sase tui snapshot"),
+                (d(a.agents_copy_reference), "Copy @agent: reference"),
             ],
         ),
         (

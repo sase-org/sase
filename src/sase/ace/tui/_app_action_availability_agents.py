@@ -202,6 +202,10 @@ def check_agents_availability(
 ) -> bool | None:
     """Return agents/decks/prompt availability, or None when undecided."""
     del parameters
+    if action == "agents_copy_reference":
+        return app.current_tab == "agents"
+    if action == "artifacts_copy_reference" and app.current_tab == "agents":
+        return False
     if _archive_owns_agents_panel(app):
         # Keep live actions dispatchable so their entry-point guards can toast.
         # The command palette has its own availability check and hides them.

@@ -72,6 +72,10 @@ def check_artifacts_availability(
 ) -> bool | None:
     """Return Artifacts-pane availability, or None when undecided."""
     del parameters
+    if action == "artifacts_copy_reference":
+        return app.current_tab == ARTIFACTS_TAB
+    if action == "agents_copy_reference":
+        return False
     if action == "show_diff" and app.current_tab != ARTIFACTS_TAB:
         return False
     if action == "open_artifact_files" and app.current_tab != "agents":

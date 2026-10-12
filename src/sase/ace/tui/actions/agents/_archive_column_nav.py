@@ -227,11 +227,7 @@ def _activate(owner: Any) -> None:
         _toggle_banner(owner, str(item.banner_key), open=not item.open)
     elif item.kind == ITEM_TAIL:
         _load_next_page(owner, str(item.banner_key))
-    elif item.kind == ITEM_CONTAINER:
-        container = container_key_of(item.key)
-        if container is not None:
-            _set_container_expanded(owner, container, expanded=not item.expanded)
-    elif item.kind in (ITEM_ROW, ITEM_MEMBER):
+    elif item.kind in (ITEM_CONTAINER, ITEM_ROW, ITEM_MEMBER):
         from ._archive_restore import open_archive_chooser
 
         open_archive_chooser(owner, item.key)

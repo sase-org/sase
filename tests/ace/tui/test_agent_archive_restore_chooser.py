@@ -28,15 +28,21 @@ from tests.ace.tui._agent_archive_restore_helpers import (
 )
 
 __all__ = [
+    "test_chooser_model_container_restore_label",
     "test_chooser_model_defaults_to_restore",
     "test_chooser_model_falls_back_to_open_chat",
     "test_chooser_model_hides_fork_when_unaccepted",
+    "test_chooser_model_hides_fork_without_retained_chat",
     "test_chooser_model_marks_change_default_label",
+    "test_chooser_model_marks_with_unrestorable_cursor",
+    "test_chooser_model_opens_when_unreadable_cursor_has_marks",
+    "test_chooser_model_session_container_restore_label",
     "test_fork_acceptance_rules",
     "test_fork_prefills_prompt",
     "test_open_archive_chat_paths",
     "test_open_chooser_pushes_modal_with_initial",
     "test_open_chooser_unreadable_warns",
+    "test_open_chooser_uses_captured_agent",
 ]
 
 
@@ -57,7 +63,14 @@ def test_chooser_model_defaults_to_restore(monkeypatch: Any) -> None:
         CHOICE_COPY_MORE,
     ]
     assert [choice.hotkey for choice in choices] == ["r", "s", "F", "e", "y", "%"]
-    assert all(choice.section == "archive" for choice in choices)
+    assert [choice.section for choice in choices] == [
+        "archive",
+        "archive",
+        "archive",
+        "read",
+        "read",
+        "read",
+    ]
     assert initial == 0
     assert choices[0].label == "Restore to inbox"
     assert "archived" in title
@@ -75,6 +88,73 @@ def test_chooser_model_falls_back_to_open_chat(monkeypatch: Any) -> None:
     assert CHOICE_RESTORE not in [choice.result for choice in choices]
     assert CHOICE_RESTORE_SHOW not in [choice.result for choice in choices]
     assert choices[initial].result == CHOICE_OPEN_CHAT
+
+
+def test_chooser_model_container_restore_label(monkeypatch: Any) -> None:
+    owner = make_owner()
+    open_archive(owner, selected_key="container:clan:swarm:1")
+    row = make_row("swarm", member_count=3)
+    wire_bundles(monkeypatch, owner, {"container:clan:swarm:1": (row, None, False)})
+    model = archive_chooser_model(owner, "container:clan:swarm:1")
+    assert model is not None
+    choices, initial, title = model
+    results = [choice.result for choice in choices]
+    assert results == [CHOICE_RESTORE, CHOICE_RESTORE_SHOW]
+    assert choices[0].label == "Restore clan swarm (3 members)"
+    assert initial == 0
+    assert "swarm" in title
+
+
+def test_chooser_model_session_container_restore_label(monkeypatch: Any) -> None:
+    owner = make_owner()
+    open_archive(owner, selected_key="container:session:alpha")
+    row = make_row("alpha", member_count=1)
+    wire_bundles(monkeypatch, owner, {"container:session:alpha": (row, None, False)})
+    model = archive_chooser_model(owner, "container:session:alpha")
+    assert model is not None
+    choices, _initial, _title = model
+    assert choices[0].label == "Restore session alpha (1 member)"
+
+
+def test_chooser_model_marks_with_unrestorable_cursor(monkeypatch: Any) -> None:
+    owner = make_owner()
+    open_archive(owner)
+    agent = make_agent(durably_revivable=False)
+    wire_bundles(
+        monkeypatch, owner, {"u.m@r1": (make_row(restorable=False), agent, False)}
+    )
+    owner._agents_archive_view.archive.marks = frozenset({"u.m@a1", "u.m@a2"})
+    model = archive_chooser_model(owner, "u.m@r1")
+    assert model is not None
+    choices, initial, _title = model
+    assert choices[0].label == "Restore 2 marked"
+    assert initial == 0
+    assert CHOICE_OPEN_CHAT in [choice.result for choice in choices]
+
+
+def test_chooser_model_opens_when_unreadable_cursor_has_marks(
+    monkeypatch: Any,
+) -> None:
+    owner = make_owner()
+    open_archive(owner)
+    wire_bundles(monkeypatch, owner, {"u.m@r1": (make_row(), make_agent(), True)})
+    owner._agents_archive_view.archive.marks = frozenset({"u.m@a1"})
+    model = archive_chooser_model(owner, "u.m@r1")
+    assert model is not None
+    choices, initial, _title = model
+    assert choices[0].label == "Restore 1 marked"
+    assert initial == 0
+    assert CHOICE_OPEN_CHAT not in [choice.result for choice in choices]
+
+
+def test_chooser_model_hides_fork_without_retained_chat(monkeypatch: Any) -> None:
+    owner = make_owner()
+    agent = make_agent(response_path=None)
+    wire_bundles(monkeypatch, owner, {"u.m@r1": (make_row(), agent, False)})
+    model = archive_chooser_model(owner, "u.m@r1")
+    assert model is not None
+    choices, _initial, _title = model
+    assert CHOICE_FORK not in [choice.result for choice in choices]
 
 
 def test_chooser_model_hides_fork_when_unaccepted(monkeypatch: Any) -> None:
@@ -145,7 +225,39 @@ def test_fork_acceptance_rules() -> None:
         )
         is False
     )
+    assert archive_fork_accepted(make_agent(response_path=None)) is False
+    retained = make_agent(response_path=None)
+    retained.get_response_content = lambda: "hello"
+    assert archive_fork_accepted(retained) is True
     assert archive_fork_accepted(None) is False
+
+
+def test_open_chooser_uses_captured_agent(monkeypatch: Any) -> None:
+    import sase.ace.tui.actions.agents._archive_restore_entry as entry
+    import sase.ace.tui.modals.agent_action_chooser_modal as modal_module
+
+    owner = make_owner()
+    agent = make_agent()
+    wire_bundles(monkeypatch, owner, {"u.m@r1": (make_row(), agent, False)})
+    seen: dict[str, Any] = {}
+
+    class _FakeModal:
+        def __init__(self, choices: Any, *, title: str, initial_index: int = 0) -> None:
+            seen["count"] = len(tuple(choices))
+
+    monkeypatch.setattr(modal_module, "AgentActionChooserModal", _FakeModal)
+    forked: list[Any] = []
+    monkeypatch.setattr(
+        entry, "fork_archive_agent", lambda _owner, target: forked.append(target)
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.agents._archive_actions.archive_read_target",
+        lambda _owner: None,
+    )
+    assert open_archive_chooser(owner, "u.m@r1") is True
+    _modal, callback = owner.pushed[0]
+    callback(CHOICE_FORK)
+    assert forked == [agent]
 
 
 def test_fork_prefills_prompt(monkeypatch: Any) -> None:

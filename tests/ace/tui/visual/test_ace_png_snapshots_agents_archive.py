@@ -549,3 +549,153 @@ async def test_archive_restored_overlay_png_snapshot(
             "agents_archive_restored_120x40",
             title="ACE Agents Archive restored overlay",
         )
+
+
+def _archive_chooser_choices(*, marked: int = 0) -> tuple[Any, ...]:
+    from sase.ace.tui.actions.agents._archive_restore_types import (
+        CHOICE_COPY_MORE,
+        CHOICE_COPY_REF,
+        CHOICE_FORK,
+        CHOICE_OPEN_CHAT,
+        CHOICE_RESTORE,
+        CHOICE_RESTORE_SHOW,
+    )
+    from sase.ace.tui.modals.agent_action_chooser_modal import AgentActionChoice
+
+    restore_label = f"Restore {marked} marked" if marked else "Restore to inbox"
+    return (
+        AgentActionChoice(
+            result=CHOICE_RESTORE,
+            section="archive",
+            label=restore_label,
+            detail="shows it again · starts no new run",
+            glyph="⌂",
+            glyph_style="",
+            badge=None,
+            badge_style=None,
+            age=None,
+            hotkey="r",
+        ),
+        AgentActionChoice(
+            result=CHOICE_RESTORE_SHOW,
+            section="archive",
+            label="Restore and show in inbox",
+            detail="reveals the agent in the Inbox",
+            glyph="⌂",
+            glyph_style="",
+            badge=None,
+            badge_style=None,
+            age=None,
+            hotkey="s",
+        ),
+        AgentActionChoice(
+            result=CHOICE_FORK,
+            section="archive",
+            label="Fork into a new agent",
+            detail="starts a new run from this one",
+            glyph="⑂",
+            glyph_style="",
+            badge=None,
+            badge_style=None,
+            age=None,
+            hotkey="F",
+        ),
+        AgentActionChoice(
+            result=CHOICE_OPEN_CHAT,
+            section="read",
+            label="Open chat in $EDITOR",
+            detail="read-only",
+            glyph="▤",
+            glyph_style="",
+            badge=None,
+            badge_style=None,
+            age=None,
+            hotkey="e",
+        ),
+        AgentActionChoice(
+            result=CHOICE_COPY_REF,
+            section="read",
+            label="Copy @agent reference",
+            detail=None,
+            glyph="@",
+            glyph_style="",
+            badge=None,
+            badge_style=None,
+            age=None,
+            hotkey="y",
+        ),
+        AgentActionChoice(
+            result=CHOICE_COPY_MORE,
+            section="read",
+            label="More copy targets",
+            detail=None,
+            glyph="%",
+            glyph_style="",
+            badge=None,
+            badge_style=None,
+            age=None,
+            hotkey="%",
+        ),
+    )
+
+
+async def test_archive_chooser_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Archive chooser paints ARCHIVE then READ without marks."""
+    from sase.ace.tui.modals.agent_action_chooser_modal import AgentActionChooserModal
+
+    patch_startup_loaders(monkeypatch, agents=[_inbox_agent()])
+    pin_agents_visual_now(monkeypatch, NOW)
+    async with AcePage(initial_tab="agents", size=(120, 40)) as page:
+        await wait_for_startup(page)
+        await _open_archive(page, _list_history())
+        page.app.push_screen(
+            AgentActionChooserModal(
+                _archive_chooser_choices(),
+                title="Act on bob-cli-5p.4 · archived",
+            )
+        )
+        await page.expect_modal("AgentActionChooserModal")
+        await _wait_for_svg(page, "Act on bob-cli-5p.4")
+        await wait_for_visual_idle(page)
+        assert_page_svg_contains(page, "ARCHIVE")
+        assert_page_svg_contains(page, "READ")
+        assert_page_svg_contains(page, "Restore to inbox")
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_archive_chooser_120x40",
+            title="ACE Agents Archive chooser",
+        )
+
+
+async def test_archive_chooser_marked_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Archive chooser paints Restore N marked when marks exist."""
+    from sase.ace.tui.modals.agent_action_chooser_modal import AgentActionChooserModal
+
+    patch_startup_loaders(monkeypatch, agents=[_inbox_agent()])
+    pin_agents_visual_now(monkeypatch, NOW)
+    async with AcePage(initial_tab="agents", size=(120, 40)) as page:
+        await wait_for_startup(page)
+        await _open_archive(page, _list_history())
+        page.app.push_screen(
+            AgentActionChooserModal(
+                _archive_chooser_choices(marked=2),
+                title="Act on bob-cli-5p.4 · archived",
+            )
+        )
+        await page.expect_modal("AgentActionChooserModal")
+        await _wait_for_svg(page, "Restore 2 marked")
+        await wait_for_visual_idle(page)
+        assert_page_svg_contains(page, "ARCHIVE")
+        assert_page_svg_contains(page, "READ")
+        assert_page_svg_contains(page, "Restore 2 marked")
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_archive_chooser_marked_120x40",
+            title="ACE Agents Archive chooser with marks",
+        )

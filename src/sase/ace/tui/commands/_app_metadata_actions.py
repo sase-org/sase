@@ -129,6 +129,13 @@ ACTION_COMMAND_META: tuple[AppCommandMeta, ...] = (
         ("copy reference", "copy sha", "copy bug ref"),
     ),
     (
+        "agents_copy_reference",
+        "Agents: copy row reference",
+        "Display",
+        AGENTS_ONLY,
+        ("copy agent reference", "copy @agent"),
+    ),
+    (
         "artifacts_link_marked",
         "Artifacts: link marked row to current",
         "Display",

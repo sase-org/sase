@@ -146,9 +146,7 @@ def _build_agent_context(app: Any) -> CopyAsContext | None:
         durable = reference_for_agent_row(agent)
     except Exception:
         durable = None
-    agent_name = getattr(agent, "agent_name", None) or ""
     reference = f"@{durable}" if durable else ""
-    link_target = durable or agent_name
     try:
         from sase.core.agent_artifact_paths import resolve_agent_artifact_path
 
@@ -158,6 +156,18 @@ def _build_agent_context(app: Any) -> CopyAsContext | None:
         )
     except Exception:
         resolved_dir = ""
+    try:
+        from ..agents._archive_actions import archive_ui_active
+
+        archived = bool(archive_ui_active(app))
+    except Exception:
+        archived = False
+    if durable:
+        from ._helpers import format_markdown_link
+
+        link_preview = format_markdown_link(f"@{durable}", durable)
+    else:
+        link_preview = ""
     previews = {
         "chat": shorten(response_path or ""),
         "file_path": shorten(file_path or ""),
@@ -166,8 +176,8 @@ def _build_agent_context(app: Any) -> CopyAsContext | None:
         "tool_run_id": tool_run_preview,
         "reference": reference,
         "handoff": f"{reference} in a new prompt" if reference else "",
-        "link": f"[{reference}](agent:{link_target})" if reference else "",
-        "json": "agent metadata JSON",
+        "link": link_preview,
+        "json": "archive bundle JSON" if archived else "agent metadata JSON",
         "artifacts_dir": shorten(resolved_dir),
         "snapshot": "current pane",
     }

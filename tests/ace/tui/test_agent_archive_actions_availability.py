@@ -39,6 +39,8 @@ def test_availability_untouched_in_inbox() -> None:
 
     owner = make_owner()
     assert check_agents_availability(owner, "kill_agent", ()) is None
+    assert check_agents_availability(owner, "agents_copy_reference", ()) is True
+    assert check_agents_availability(owner, "artifacts_copy_reference", ()) is False
 
 
 def test_help_archive_box_content() -> None:

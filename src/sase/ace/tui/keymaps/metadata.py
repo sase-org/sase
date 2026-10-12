@@ -43,6 +43,7 @@ _BINDING_META: list[tuple[str, str, bool]] = [
     ("refresh", "Refresh", False),
     ("agents_retry", "Retry", False),
     ("artifacts_copy_reference", "Copy Reference", False),
+    ("agents_copy_reference", "Copy Agent Reference", False),
     ("artifacts_link_marked", "Link Marked Artifact", False),
     ("sync", "Sync", False),
     ("edit_query", "Edit Query", False),

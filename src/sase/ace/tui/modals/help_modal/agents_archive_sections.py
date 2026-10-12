@@ -49,7 +49,7 @@ def archive_sections(km: KeymapRegistry) -> Sections:
                 (d(a.act_on_agent), "Restore archived run"),
                 (d(a.edit_spec), "Open archived chat"),
                 (d(a.edit_hooks), "Fork archived run"),
-                (d(a.artifacts_copy_reference), "Copy @agent: reference"),
+                (d(a.agents_copy_reference), "Copy @agent: reference"),
                 (d(a.copy_tab_content), "More copy targets"),
                 ("x X s S w W A", "Live actions stay in Inbox"),
                 ("R n N U [ ]", "Live actions stay in Inbox"),
