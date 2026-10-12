@@ -9,7 +9,10 @@ from textual.widgets import OptionList, Static
 
 from sase import workspace_provider
 from sase.ace.testing import AcePage
+from sase.ace.tui.modals import new_project_modal as new_project_modal_module
+from sase.ace.tui.modals.new_project_configure import NewProjectConfigure
 from sase.ace.tui.modals.new_project_modal import NewProjectModal
+from sase.ace.tui.modals.new_project_review import NewProjectReview
 from sase.ace.tui.modals.new_project_source import NewProjectSource
 from sase.ace.tui.util.debounce import DetailPanelDebouncer
 from sase.project_onboarding import CandidateInputs, OwnerResult, Preferences
@@ -329,4 +332,238 @@ async def test_new_project_source_narrow_png_snapshot(
             page,
             "new_project_source_populated_84x28",
             title="New Project wizard — narrow Source stage",
+        )
+
+
+def _configure_document(*, can_push: bool) -> dict[str, object]:
+    setup_enabled = can_push
+    return {
+        "schema_version": 1,
+        "kind": "project_onboarding_plan",
+        "mode": "add",
+        "status": "ready",
+        "intent_fingerprint": "a" * 64,
+        "provider": {"workflow_type": "gh", "display": "GitHub"},
+        "target": {
+            "ref": "sase-org/new",
+            "display": "sase-org/new",
+            "identity_key": "github.com/sase-org/new",
+            "checkout_dir": "~/projects/github/sase-org/new/",
+            "can_push": can_push,
+            "sase_managed": False,
+            "visibility": "public",
+        },
+        "project": {
+            "key": "gh_sase-org__new",
+            "name": "new",
+            "aliases": [],
+            "accent": "#B9589C",
+            "state": "enabled",
+            "existing": False,
+        },
+        "setup": {
+            "enabled": setup_enabled,
+            "code": "unmanaged_can_push" if can_push else "no_push",
+            "reason": (
+                "Recommended: mark this checkout SASE-managed."
+                if can_push
+                else "No push rights. Use `sase init -M` in a terminal."
+            ),
+        },
+        "steps": [
+            {
+                "id": "checkout",
+                "operation": "create",
+                "label": "Clone and register",
+                "detail": "~/projects/github/sase-org/new/",
+                "state": "pending",
+            },
+            {
+                "id": "manage",
+                "operation": "create",
+                "label": "Mark the repository as SASE-managed",
+                "detail": "Commit and push sase/sase.yml is_sase_managed",
+                "state": "pending",
+            },
+            {
+                "id": "init",
+                "operation": "validate",
+                "label": "Initialize SASE",
+                "detail": "Review sidecar setup on first launch",
+                "state": "pending",
+            },
+        ],
+        "warnings": [],
+        "blockers": [],
+        "apply_argv": [
+            "sase",
+            "project",
+            "add",
+            "sase-org/new",
+            "--name",
+            "new",
+            "--yes",
+            "--json",
+        ],
+        "next_argv": ["sase", "init", "-p", "gh_sase-org__new"],
+    }
+
+
+def _patch_local_add_plan(monkeypatch: pytest.MonkeyPatch, *, can_push: bool) -> None:
+    monkeypatch.setattr(
+        new_project_modal_module,
+        "validate_draft",
+        lambda _target, _draft, _records: _configure_document(can_push=can_push),
+    )
+
+
+async def _open_configure_for_visual(
+    page: AcePage,
+    modal: NewProjectModal,
+) -> None:
+    await _open_modal(page, modal)
+    await _select_suggested_source(page, modal)
+    modal.query_one(NewProjectSource).choose_highlighted()
+    await wait_for_visual_idle(page)
+    assert modal.query_one(NewProjectConfigure).is_mounted
+
+
+async def test_new_project_configure_recommended_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Configure shows the recommended setup and planner-derived project identity."""
+    patch_startup_loaders(monkeypatch)
+    _patch_deterministic_source(monkeypatch)
+    _patch_local_add_plan(monkeypatch, can_push=True)
+    monkeypatch.setattr(
+        NewProjectModal, "_start_provider_load", lambda self, _type: None
+    )
+    async with AcePage(query='"visual"', patches=patches()) as page:
+        modal = NewProjectModal(
+            provider_metadata=(_provider(),),
+            candidate_inputs={"gh": _populated_inputs()},
+            preferences=Preferences(last_provider="gh"),
+        )
+        await _open_configure_for_visual(page, modal)
+        assert (
+            "Identity  UNIQUE"
+            in modal.query_one("#new-project-configure-identity", Static).render().plain
+        )
+        ace_png_visual.assert_page_png(
+            page,
+            "new_project_configure_recommended_120x40",
+            title="New Project wizard — Configure with recommended setup",
+        )
+
+
+async def test_new_project_configure_no_push_amber_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Configure leaves setup off and calls out the human-only no-push follow-up."""
+    patch_startup_loaders(monkeypatch)
+    _patch_deterministic_source(monkeypatch)
+    _patch_local_add_plan(monkeypatch, can_push=False)
+    monkeypatch.setattr(
+        NewProjectModal, "_start_provider_load", lambda self, _type: None
+    )
+    async with AcePage(query='"visual"', patches=patches()) as page:
+        modal = NewProjectModal(
+            provider_metadata=(_provider(),),
+            candidate_inputs={"gh": _populated_inputs()},
+            preferences=Preferences(last_provider="gh"),
+        )
+        await _open_configure_for_visual(page, modal)
+        assert (
+            "sase init -M"
+            in modal.query_one("#new-project-configure-setup-reason", Static)
+            .render()
+            .plain
+        )
+        ace_png_visual.assert_page_png(
+            page,
+            "new_project_configure_no_push_amber_120x40",
+            title="New Project wizard — Configure without push rights",
+        )
+
+
+async def _open_review_for_visual(
+    page: AcePage,
+    modal: NewProjectModal,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    await _open_configure_for_visual(page, modal)
+    review_doc = _configure_document(can_push=True)
+    review_doc["warnings"] = [{"message": "PUBLIC visibility is visible to everyone."}]
+    monkeypatch.setattr(
+        NewProjectReview,
+        "start_check",
+        lambda self, _document: self.show_document(review_doc),
+    )
+    modal._enter_review()
+    await wait_for_visual_idle(page)
+    assert modal.query_one(NewProjectReview).is_mounted
+
+
+async def test_new_project_review_add_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Review shows the exact add argv, operation rows, and public warning."""
+    patch_startup_loaders(monkeypatch)
+    _patch_deterministic_source(monkeypatch)
+    _patch_local_add_plan(monkeypatch, can_push=True)
+    monkeypatch.setattr(
+        NewProjectModal, "_start_provider_load", lambda self, _type: None
+    )
+    async with AcePage(query='"visual"', patches=patches()) as page:
+        modal = NewProjectModal(
+            provider_metadata=(_provider(),),
+            candidate_inputs={"gh": _populated_inputs()},
+            preferences=Preferences(last_provider="gh"),
+        )
+        await _open_review_for_visual(page, modal, monkeypatch)
+        assert (
+            "$ sase project add"
+            in modal.query_one("#new-project-review-argv", Static).render().plain
+        )
+        ace_png_visual.assert_page_png(
+            page,
+            "new_project_review_add_120x40",
+            title="New Project wizard — Review add plan",
+        )
+
+
+async def test_new_project_review_add_narrow_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Review remains usable at 80 by 24 cells."""
+    patch_startup_loaders(monkeypatch)
+    _patch_deterministic_source(monkeypatch)
+    _patch_local_add_plan(monkeypatch, can_push=True)
+    monkeypatch.setattr(
+        NewProjectModal, "_start_provider_load", lambda self, _type: None
+    )
+    async with AcePage(query='"visual"', size=(80, 24), patches=patches()) as page:
+        modal = NewProjectModal(
+            provider_metadata=(_provider(),),
+            candidate_inputs={"gh": _populated_inputs()},
+            preferences=Preferences(last_provider="gh"),
+        )
+        await _open_review_for_visual(page, modal, monkeypatch)
+        review = modal.query_one(NewProjectReview)
+        assert (
+            "PUBLIC visibility"
+            in review.query_one("#new-project-review-warnings", Static).render().plain
+        )
+        assert (
+            "$ sase project add"
+            in review.query_one("#new-project-review-argv", Static).render().plain
+        )
+        ace_png_visual.assert_page_png(
+            page,
+            "new_project_review_add_80x24",
+            title="New Project wizard — narrow Review add plan",
         )

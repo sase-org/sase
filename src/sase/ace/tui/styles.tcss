@@ -4716,6 +4716,127 @@ NewProjectModal {
     padding: 0 1;
 }
 
+#new-project-configure-stage {
+    height: 1fr;
+    padding: 0 1;
+}
+
+.new-project-card {
+    height: auto;
+    border: round #555555;
+    padding: 0 1;
+    margin-bottom: 1;
+}
+
+#new-project-configure-project-card {
+    height: auto;
+}
+
+.new-project-card-heading {
+    height: 1;
+    color: #87D7FF;
+    text-style: bold;
+}
+
+.new-project-configure-field {
+    height: 3;
+    align: left middle;
+}
+
+.new-project-field-label {
+    width: 12;
+    color: #888888;
+    content-align: left middle;
+}
+
+#new-project-configure-name,
+#new-project-configure-aliases {
+    width: 1fr;
+    height: 3;
+    border: round #555555;
+}
+
+#new-project-configure-checkout,
+#new-project-configure-identity,
+#new-project-configure-enabled,
+#new-project-configure-setup-reason,
+#new-project-configure-setup-note {
+    height: auto;
+    min-height: 1;
+    padding-left: 1;
+}
+
+#new-project-configure-setup-card {
+    height: auto;
+}
+
+#new-project-configure-setup-toggle-row {
+    height: 3;
+}
+
+#new-project-configure-current {
+    margin-top: 1;
+}
+
+#new-project-configure-actions,
+#new-project-review-actions {
+    height: 3;
+    align: center middle;
+}
+
+#new-project-configure-status {
+    width: 1fr;
+    content-align: center middle;
+    text-overflow: ellipsis;
+}
+
+#new-project-review-stage {
+    height: 1fr;
+    padding: 0 1;
+}
+
+#new-project-review-scroll {
+    height: 1fr;
+    border: round #555555;
+    padding: 0 1;
+}
+
+#new-project-review-stage.compact #new-project-review-scroll {
+    padding: 0;
+}
+
+#new-project-review-stage.compact.review-ready #new-project-review-card-heading,
+#new-project-review-stage.compact.review-ready #new-project-review-state {
+    display: none;
+}
+
+#new-project-review-stage.compact #new-project-review-rows,
+#new-project-review-stage.compact #new-project-review-warnings,
+#new-project-review-stage.compact #new-project-review-blockers,
+#new-project-review-stage.compact #new-project-review-argv {
+    margin-bottom: 0;
+}
+
+#new-project-review-stage.compact.review-ready #new-project-review-warnings,
+#new-project-review-stage.compact.review-ready #new-project-review-blockers {
+    display: none;
+}
+
+#new-project-review-stage.compact.review-ready.has-warnings #new-project-review-warnings,
+#new-project-review-stage.compact.review-ready.has-blockers #new-project-review-blockers {
+    display: block;
+}
+
+#new-project-review-state,
+#new-project-review-rows,
+#new-project-review-warnings,
+#new-project-review-blockers,
+#new-project-review-argv {
+    height: auto;
+    min-height: 1;
+    margin-bottom: 1;
+}
+
 .new-project-placeholder-title {
     height: 3;
     color: #FFAF5F;

@@ -28,6 +28,15 @@ from sase.workspace_provider import WorkflowMetadata
 
 from ..widgets.panel_tab_strip import PanelTab, PanelTabStrip
 from .new_project_rendering import clean_source_text, render_stepper
+from .new_project_configure import NewProjectConfigure
+from .new_project_configure_model import (
+    ConfigureDraft,
+    IdentityCheck,
+    check_identity,
+    validate_draft,
+)
+from .new_project_review import NewProjectReview
+from .new_project_review_model import ApplySubmission
 from .new_project_source import NewProjectSource
 from .new_project_source_model import SourceRow
 from .new_project_state import NewProjectStateMachine, SourceOutcome
@@ -46,6 +55,7 @@ class NewProjectModal(ModalScreen["NewProjectSelection | None"]):
 
     BINDINGS = [
         ("escape", "cancel", "Close"),
+        ("ctrl+s", "confirm_configure", "Confirm"),
         ("[", "previous_provider", "Previous provider"),
         (
             "]",
@@ -78,6 +88,12 @@ class NewProjectModal(ModalScreen["NewProjectSelection | None"]):
         self._preferences = preferences or Preferences()
         self._state = NewProjectStateMachine()
         self._owner_semaphore = asyncio.Semaphore(3)
+        self._preview_generation = 0
+        self._active_target: dict[str, object] = {}
+        self._active_records: list[dict[str, object]] = []
+        self._local_plan: dict[str, object] = {}
+        self._local_plan_draft: ConfigureDraft | None = None
+        self._apply_submission: ApplySubmission | None = None
 
     def compose(self) -> ComposeResult:
         with Container(id="new-project-frame"):
@@ -92,22 +108,8 @@ class NewProjectModal(ModalScreen["NewProjectSelection | None"]):
                 initial="new-project-source-stage", id="new-project-stages"
             ):
                 yield NewProjectSource(id="new-project-source-stage")
-                yield Vertical(
-                    Static("Configure", classes="new-project-placeholder-title"),
-                    Static(
-                        "Choose a source to configure this project.",
-                        id="new-project-configure-placeholder",
-                    ),
-                    id="new-project-configure-stage",
-                )
-                yield Vertical(
-                    Static("Review", classes="new-project-placeholder-title"),
-                    Static(
-                        "The exact onboarding plan will appear here.",
-                        id="new-project-review-placeholder",
-                    ),
-                    id="new-project-review-stage",
-                )
+                yield NewProjectConfigure(id="new-project-configure-stage")
+                yield NewProjectReview(id="new-project-review-stage")
                 yield Vertical(
                     Static("Progress", classes="new-project-placeholder-title"),
                     Static(
@@ -163,6 +165,7 @@ class NewProjectModal(ModalScreen["NewProjectSelection | None"]):
     @on(NewProjectSource.RowChosen)
     def _source_chosen(self, event: NewProjectSource.RowChosen) -> None:
         row = event.row
+        previous = self._state.selected
         outcome = self._state.select_source(row)
         if outcome == "show-project":
             self.dismiss(
@@ -174,7 +177,13 @@ class NewProjectModal(ModalScreen["NewProjectSelection | None"]):
                 NewProjectSelection("jump-resume", self._state.workflow_type, row)
             )
             return
+        if outcome == "configure":
+            self._prepare_configure(
+                row, preserve=previous is not None and previous.row_id == row.row_id
+            )
         self._show_stage(self._state.stage)
+        if outcome == "configure":
+            self.query_one(NewProjectConfigure).focus_name()
 
     @on(events.Paste)
     def _paste_anywhere(self, event: events.Paste) -> None:
@@ -183,8 +192,25 @@ class NewProjectModal(ModalScreen["NewProjectSelection | None"]):
         self.query_one(NewProjectSource).paste_filter(event.text)
 
     def action_cancel(self) -> None:
-        """Close the wizard without making changes."""
-        self.dismiss(None)
+        """Blur, navigate back, or close according to the active stage."""
+        stage = self._state.stage
+        if stage == "configure":
+            if self.query_one(NewProjectConfigure).blur_input():
+                return
+            self._state.back_to_source()
+            self._show_stage("source")
+        elif stage == "review":
+            self._state.back_to_configure()
+            self._show_stage("configure")
+        else:
+            self.dismiss(None)
+
+    def action_confirm_configure(self) -> None:
+        """Advance only when the focused control is the valid Review button."""
+        configure = self.query_one(NewProjectConfigure)
+        button = configure.query_one("#new-project-configure-review")
+        if self.screen.focused is button:
+            self._enter_review()
 
     def action_previous_provider(self) -> None:
         """Select the previous provider tab."""
@@ -443,6 +469,185 @@ class NewProjectModal(ModalScreen["NewProjectSelection | None"]):
             self._save_preferences(),
             name="new-project-save-provider-preference",
             registry_attr=_TASKS,
+        )
+
+    def _prepare_configure(self, row: SourceRow, *, preserve: bool) -> None:
+        """Seed Configure from a Source row without discarding its draft."""
+        metadata = self._provider_by_id.get(self._state.workflow_type)
+        parsed = row.data.get("parsed")
+        if parsed is None:
+            try:
+                parsed = workspace_provider.parse_repo_ref(
+                    self._state.workflow_type, row.ref
+                )
+            except Exception:
+                parsed = None
+        parsed_value = parsed if parsed is not None else None
+        project_name = str(
+            getattr(parsed_value, "project_name_base", "")
+            or row.data.get("project_name_base")
+            or row.data.get("name")
+            or row.ref.rsplit("/", 1)[-1]
+        )
+        target: dict[str, object] = {
+            "workflow_type": self._state.workflow_type,
+            "provider_display": str(
+                getattr(metadata, "display_name", "") or self._state.workflow_type
+            ),
+            "storage_policy": str(getattr(metadata, "sdd_storage_policy", "") or ""),
+            "ref": row.ref,
+            "identity_key": str(
+                getattr(parsed_value, "identity_key", "")
+                or row.data.get("identity_key")
+                or row.ref
+            ),
+            "display": str(getattr(parsed_value, "display", "") or row.display),
+            "host": str(
+                getattr(parsed_value, "host", "") or row.data.get("host") or ""
+            ),
+            "owner": str(
+                getattr(parsed_value, "owner", "") or row.data.get("owner") or ""
+            ),
+            "name": str(
+                getattr(parsed_value, "name", "")
+                or row.data.get("name")
+                or project_name
+            ),
+            "web_url": str(
+                getattr(parsed_value, "web_url", "") or row.data.get("web_url") or ""
+            ),
+            "checkout_dir": str(
+                row.data.get("local_path")
+                or row.data.get("path")
+                or getattr(parsed_value, "checkout_dir", "")
+                or ""
+            ),
+            "project_key_base": str(
+                getattr(parsed_value, "project_key_base", "")
+                or row.data.get("project_key_base")
+                or ""
+            ),
+            "project_name_base": project_name,
+        }
+        if preserve and self._state.draft is not None:
+            draft = self._state.draft
+        else:
+            draft = ConfigureDraft(name=project_name)
+            self._state.set_draft(draft)
+        inputs = self._inputs.get(self._state.workflow_type)
+        self._active_target = target
+        self._active_records = [
+            dict(record) for record in (inputs.projects if inputs else [])
+        ]
+        self._local_plan = {}
+        self._local_plan_draft = None
+        self.query_one(NewProjectConfigure).set_source(
+            row,
+            draft,
+            {},
+            IdentityCheck("invalid", "Building the local plan…"),
+        )
+        self._schedule_local_preview()
+
+    @on(NewProjectConfigure.DraftChanged)
+    def _draft_changed(self, event: NewProjectConfigure.DraftChanged) -> None:
+        self._state.set_draft(event.draft)
+        self._local_plan = {}
+        self._local_plan_draft = None
+        self.query_one(NewProjectConfigure).mark_preview_pending()
+
+    @on(NewProjectConfigure.PreviewRequested)
+    def _preview_requested(self, _event: NewProjectConfigure.PreviewRequested) -> None:
+        if self.query_one(NewProjectConfigure)._preview_due:
+            self._schedule_local_preview()
+
+    def _schedule_local_preview(self) -> None:
+        """Build the local plan on a pump-free worker, newest draft wins."""
+        if self._state.selected is None or self._state.draft is None:
+            return
+        self._preview_generation += 1
+        generation = self._preview_generation
+        row_id = self._state.selected.row_id
+        target = dict(self._active_target)
+        records = [dict(record) for record in self._active_records]
+        draft = self._state.draft
+        spawn_pump_free_task(
+            self,
+            self._build_local_preview(generation, row_id, target, records, draft),
+            name=f"new-project-preview:{generation}",
+            registry_attr=_TASKS,
+        )
+
+    async def _build_local_preview(
+        self,
+        generation: int,
+        row_id: str,
+        target: dict[str, object],
+        records: list[dict[str, object]],
+        draft: ConfigureDraft,
+    ) -> None:
+        try:
+            document = await asyncio.to_thread(validate_draft, target, draft, records)
+            identity = check_identity(document)
+        except Exception as error:
+            document = {}
+            identity = IdentityCheck("invalid", str(error) or type(error).__name__)
+        # Re-read the selected row after the await; provider tabs or Source
+        # navigation may have changed while the pure planner ran.
+        selected = self.query_one(NewProjectSource).selected_row()
+        if (
+            not self.is_mounted
+            or generation != self._preview_generation
+            or self._state.stage != "configure"
+            or selected is None
+            or selected.row_id != row_id
+            or self._state.selected is None
+            or self._state.selected.row_id != row_id
+        ):
+            return
+        self._local_plan = document
+        self._local_plan_draft = draft
+        self.query_one(NewProjectConfigure).apply_preview(document, identity)
+
+    @on(NewProjectConfigure.ReviewRequested)
+    def _configure_review_requested(
+        self, _event: NewProjectConfigure.ReviewRequested
+    ) -> None:
+        self._enter_review()
+
+    def _enter_review(self) -> None:
+        if (
+            not self._local_plan
+            or self._state.draft != self._local_plan_draft
+            or check_identity(self._local_plan).status != "unique"
+        ):
+            return
+        self._state.to_review()
+        self._show_stage("review")
+        review = self.query_one(NewProjectReview)
+        review.start_check(self._local_plan)
+        review.query_one("#new-project-review-back").focus()
+
+    @on(NewProjectConfigure.BackRequested)
+    def _configure_back_requested(
+        self, _event: NewProjectConfigure.BackRequested
+    ) -> None:
+        self._state.back_to_source()
+        self._show_stage("source")
+
+    @on(NewProjectReview.BackRequested)
+    def _review_back_requested(self, _event: NewProjectReview.BackRequested) -> None:
+        self._state.back_to_configure()
+        self._show_stage("configure")
+        self.query_one(NewProjectConfigure).focus_name()
+
+    @on(NewProjectReview.ApplyRequested)
+    def _review_apply_requested(self, event: NewProjectReview.ApplyRequested) -> None:
+        self._apply_submission = event.submission
+        self._state.to_progress()
+        self._show_stage("progress")
+        self.query_one("#new-project-progress-placeholder", Static).update(
+            "Submission captured for the Apply phase."
         )
 
     async def _save_preferences(self) -> None:

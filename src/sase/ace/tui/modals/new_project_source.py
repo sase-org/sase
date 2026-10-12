@@ -190,6 +190,10 @@ class NewProjectSource(Vertical):
         if row is not None and not row.is_error:
             self.post_message(self.RowChosen(row))
 
+    def selected_row(self) -> SourceRow | None:
+        """Return the currently highlighted source row for async revalidation."""
+        return self._highlighted_row()
+
     @on(Input.Changed, "#new-project-filter")
     def _filter_changed(self, event: Input.Changed) -> None:
         self._filter_text = event.value
