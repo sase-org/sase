@@ -571,11 +571,14 @@ creation there still requires its own confirmation.
 
 `sase project create REF [-a|--alias ALIAS]... [-c|--check] [-d|--description TEXT] [-j|--json] [-m|--make-current] [-n|--name NAME] [-O|--option KEY=VALUE]... [-S|--no-setup | -s|--setup] [-Q|--request-path PATH] [-R|--result-path PATH] [-v|--visibility VISIBILITY] [-y|--yes]`
 creates a repository (`gh:OWNER/NAME`, `OWNER/NAME`, or `git:NAME`) and registers it.
-Provider options are validated strictly before any create subprocess. `--check` lists
-every provider option with its default, value, and availability, and is available to
-agents. Apply refuses inside agents and monitors (exit 2) unless it runs as an approved
-`/sase_gate` option or `SASE_PROJECT_CREATE_BYPASS` holds a reason. Repeating the same
-command resumes an interrupted create.
+The apply argv uses a create-parseable ref (`git:NAME` for bare git). `--visibility` is
+GitHub sugar and is only defaulted or emitted when the provider's creation form has a
+visibility field; bare-git has none. Provider options are validated strictly before any
+create subprocess. `--check` lists every provider option with its default, value, and
+availability, and is available to agents. Apply refuses inside agents and monitors
+(exit 2) unless it runs as an approved `/sase_gate` option or
+`SASE_PROJECT_CREATE_BYPASS` holds a reason. Repeating the same command resumes an
+interrupted create.
 
 `sase project alias list [PROJECT] [-j|--json]`, `add PROJECT ALIAS`,
 `remove PROJECT ALIAS`, and `clear PROJECT` manage ProjectSpec aliases. sase's TUI

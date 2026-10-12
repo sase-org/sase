@@ -238,6 +238,6 @@ def test_describe_repo_creation_exposes_advanced_path_fields(
     form = bare_git.BareGitWorkspacePlugin().ws_describe_repo_creation("git", "")
 
     assert form is not None
-    assert [field.name for field in form.fields] == ["bare_dir", "checkout_dir"]
+    assert [field.name for field in form.fields] == ["bare_dir"]
     assert all(field.group == "advanced" for field in form.fields)
     assert all(field.kind == "line" for field in form.fields)

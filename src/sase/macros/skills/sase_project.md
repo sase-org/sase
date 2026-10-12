@@ -54,8 +54,9 @@ state and aliases, or select projects for a multi-project workflow.
   or `git:NAME`. The check is read-only and available to agents; it lists every provider
   option with default, value, and availability.
 - Apply is human-only. Agents must not run `sase project create … --yes`. Propose the
-  exact command through `/sase_gate`, or set `SASE_PROJECT_CREATE_BYPASS` to a non-empty
-  reason. An approved gate option (`SASE_GATE_COMMAND=1`) is allowed.
+  exact `sase project create … --yes` command through `/sase_gate`. An approved gate
+  option (`SASE_GATE_COMMAND=1`) is allowed. `SASE_PROJECT_CREATE_BYPASS` is for humans,
+  or when a user explicitly instructs it.
 - Sugar `-d/--description` and `-v/--visibility` overlay `-O/--option KEY=VALUE`. Repeat
   the same command to resume an interrupted create.
 

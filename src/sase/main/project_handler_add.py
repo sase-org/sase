@@ -13,7 +13,11 @@ from sase.ops.cli import emit_operation_result, load_request, resolve_request_pa
 from sase.ops.errors import OperationIOError
 from sase.ops.names import PROJECT_ADD, PROJECT_CREATE
 from sase.project_onboarding.apply import apply_plan
-from sase.project_onboarding.creation import parse_create_ref, parse_option_item
+from sase.project_onboarding.creation import (
+    creation_form_has_field,
+    parse_create_ref,
+    parse_option_item,
+)
 from sase.project_onboarding.events import emit_event
 from sase.project_onboarding.human_only import (
     HUMAN_ONLY_CREATE_MESSAGE,
@@ -209,8 +213,15 @@ def _request_from_args(
     if mode == "create":
         options = _options_from_args(args)
         cli_request["options"] = options
+        visibility = str(options.get("visibility") or "")
+        if not visibility and creation_form_has_field(
+            str(target.get("workflow_type") or ""),
+            str(target.get("owner") or ""),
+            "visibility",
+        ):
+            visibility = "private"
         cli_request["creation"] = {
-            "visibility": str(options.get("visibility") or "private"),
+            "visibility": visibility,
             "summary": [],
         }
     if resolve_request_path(args) is None:

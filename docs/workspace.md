@@ -174,24 +174,44 @@ human-only unless it runs as an approved `/sase_gate` option or
 The workspace provider package (`sase.workspace_provider`) exports convenience functions
 that call through the plugin manager. These are the primary API for consumers:
 
-| Function                           | Description                                |
-| ---------------------------------- | ------------------------------------------ |
-| `detect_workflow_type()`           | Detect workflow type for a project file    |
-| `get_change_label()`               | Get the change label for a project         |
-| `resolve_ref()`                    | Resolve a workspace reference              |
-| `submit_changespec()`              | Submit a Patch                             |
-| `get_workspace_directory()`        | Get the directory for a workspace number   |
-| `prepare_mail()`                   | Prepare a change for review                |
-| `format_commit_description()`      | Format a commit description                |
-| `get_all_workflow_metadata()`      | Get metadata from all registered plugins   |
-| `get_workflow_names()`             | Get all registered workflow type names     |
-| `get_display_name()`               | Get display name for a workflow type       |
-| `get_display_name_by_vcs()`        | Get display name by VCS provider name      |
-| `get_display_name_by_vcs_family()` | Get display name by VCS family             |
-| `get_sdd_storage_policy_by_vcs()`  | Get an SDD storage policy declared by VCS  |
-| `get_workspace_name()`             | Get workspace/project name for a directory |
-| `get_ref_patterns()`               | Get all registered ref patterns            |
-| `get_pre_allocated_env_prefix()`   | Get env-var prefix for a workflow type     |
+| Function                              | Description                                     |
+| ------------------------------------- | ----------------------------------------------- |
+| `clone_external_repo()`               | Clone a repository by provider scheme           |
+| `create_repo()`                       | Create a remote or bare repository              |
+| `create_sdd_remote()`                 | Create the SDD sidecar remote                   |
+| `describe_repo_creation()`            | Describe provider-specific creation fields      |
+| `detect_workflow_type()`              | Detect workflow type for a project file         |
+| `extract_change_identifier()`         | Extract a change identifier from a message      |
+| `format_commit_description()`         | Format a commit description                     |
+| `generate_reviewer_comments_script()` | Generate a reviewer-comments script             |
+| `generate_submitted_check_script()`   | Generate a submitted-check script               |
+| `get_all_workflow_metadata()`         | Get metadata from all registered plugins        |
+| `get_change_label()`                  | Get the change label for a project              |
+| `get_display_name()`                  | Get display name for a workflow type            |
+| `get_display_name_by_vcs()`           | Get display name by VCS provider name           |
+| `get_display_name_by_vcs_family()`    | Get display name by VCS family                  |
+| `get_embedded_vcs_tag_pattern()`      | Get the embedded VCS tag pattern                |
+| `get_external_repo_schemes()`         | Get clone schemes registered by providers       |
+| `get_pre_allocated_env_prefix()`      | Get env-var prefix for a workflow type          |
+| `get_ref_patterns()`                  | Get all registered ref patterns                 |
+| `get_sdd_storage_policy_by_vcs()`     | Get an SDD storage policy declared by VCS       |
+| `get_vcs_tag_pattern()`               | Get the VCS tag pattern for a workflow type     |
+| `get_workflow_names()`                | Get all registered workflow type names          |
+| `get_workspace_directory()`           | Get the directory for a workspace number        |
+| `get_workspace_name()`                | Get workspace/project name for a directory      |
+| `list_local_repo_candidates()`        | List local repositories and checkouts           |
+| `list_ref_namespaces()`               | List owner/namespace candidates                 |
+| `list_repo_candidates()`              | List remote repository candidates               |
+| `materialize_sdd_store()`             | Materialize an SDD sidecar store                |
+| `parse_repo_ref()`                    | Parse a user repository reference               |
+| `peek_ref()`                          | Read-only workspace reference lookup            |
+| `preflight_sdd_sidecar()`             | Preflight an SDD sidecar remote                 |
+| `prepare_mail()`                      | Prepare a change for review                     |
+| `probe_repo()`                        | Observe repository availability and metadata    |
+| `reset_workflow_metadata_caches()`    | Drop cached workflow metadata                   |
+| `resolve_ref()`                       | Resolve a workspace reference                   |
+| `submit_patch()`                      | Submit a Patch                                  |
+| `supports_reviewer_comments()`        | Whether the provider supports reviewer comments |
 
 ## Bare-Git Reference Auto-Initialization
 

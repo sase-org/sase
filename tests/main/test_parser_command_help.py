@@ -170,6 +170,17 @@ def test_project_create_help_documents_human_only_and_options() -> None:
     assert "gh:OWNER/NAME" in create_help
 
 
+def test_project_suggest_help_documents_owner_refresh_and_json() -> None:
+    suggest_help = flat_help(parser_for(("sase", "project", "suggest")).format_help())
+
+    assert "-a, --all" in suggest_help
+    assert "-j, --json" in suggest_help
+    assert "-o, --owner" in suggest_help
+    assert "-r, --refresh" in suggest_help
+    assert "cache-first" in suggest_help
+    assert "sase project add REF" in suggest_help
+
+
 def test_project_set_current_help_documents_project_and_json() -> None:
     set_help = flat_help(parser_for(("sase", "project", "set-current")).format_help())
 

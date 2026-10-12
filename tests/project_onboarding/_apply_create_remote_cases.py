@@ -102,11 +102,13 @@ class TestCreateRemote:
             "sase.project_onboarding._apply_run.detect_actor", lambda **_k: "human"
         )
         result, _ = run(_create_request(fake_gh.checkouts[IDENTITY]))
-        assert result["status"] == "failed"
-        assert "sase project add" in result["message"]
+        assert result["status"] == "blocked"
+        codes = [str(item.get("code") or "") for item in result.get("blockers") or []]
+        assert "remote_exists" in codes
         journal = lookup_journal(IDENTITY)
         assert journal is not None
         assert journal["remote"]["created"] is False
+        assert journal["status"] == "complete"
 
     def test_exists_with_empty_visibility_evidence_is_adopted(
         self, fake_gh: FakeGh, monkeypatch: pytest.MonkeyPatch

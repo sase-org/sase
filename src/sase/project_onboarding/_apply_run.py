@@ -16,7 +16,12 @@ from sase.project_onboarding.journal import (
 )
 from sase.project_onboarding.planning import build_plan_document
 from sase.project_onboarding.refs import UserRefError, parse_user_ref
-from sase.project_onboarding._apply_effects import EFFECTS, RunContext, StepFailed
+from sase.project_onboarding._apply_effects import (
+    EFFECTS,
+    RunContext,
+    StepBlocked,
+    StepFailed,
+)
 from sase.project_onboarding._apply_locks import ApplyLockTimeout, hold_apply_locks
 
 _ADD_STEP_ORDER = ("checkout", "reenable", "identity", "manage", "current")
@@ -242,6 +247,26 @@ def _run_step(
     )
     try:
         EFFECTS[step_id](ctx)
+    except StepBlocked as exc:
+        elapsed_ms = int((time.monotonic() - started) * 1000)
+        message = _blocker_message(exc.blockers) if exc.blockers else exc.message
+        event: dict[str, Any] = {
+            "event": "step",
+            "id": step_id,
+            "status": "blocked",
+            "label": label,
+            "elapsed_ms": elapsed_ms,
+            "message": message,
+        }
+        if exc.hint:
+            event["hint"] = exc.hint
+        send(event)
+        ctx.blocked = {
+            "message": message,
+            "hint": exc.hint,
+            "blockers": exc.blockers,
+        }
+        return False
     except StepFailed as exc:
         elapsed_ms = int((time.monotonic() - started) * 1000)
         update_step(
@@ -251,7 +276,7 @@ def _run_step(
             message=exc.message,
             display=ctx.display,
         )
-        event: dict[str, Any] = {
+        event = {
             "event": "step",
             "id": step_id,
             "status": "failed",
@@ -285,6 +310,23 @@ def _finish_run(
     send: Callable[..., None],
 ) -> dict[str, Any]:
     next_argv = _next_argv(document, ctx.actual_key)
+    if ctx.blocked is not None:
+        set_journal_status(
+            ctx.identity_key,
+            "complete",
+            display=ctx.display,
+            project_key=ctx.actual_key,
+            message=str(ctx.blocked.get("message") or ""),
+        )
+        return _finish(
+            send,
+            status="blocked",
+            key=ctx.actual_key,
+            name=ctx.actual_name,
+            next_argv=[],
+            message=str(ctx.blocked.get("message") or "project onboarding is blocked"),
+            blockers=list(ctx.blocked.get("blockers") or []),
+        )
     if ctx.failed is None:
         set_journal_status(
             ctx.identity_key,
@@ -333,6 +375,7 @@ def _finish(
     name: str,
     next_argv: list[str],
     message: str,
+    blockers: list[Any] | None = None,
 ) -> dict[str, Any]:
     result = {
         "event": "result",
@@ -341,6 +384,8 @@ def _finish(
         "next_argv": list(next_argv),
         "message": message,
     }
+    if blockers:
+        result["blockers"] = blockers
     send(result)
     return result
 

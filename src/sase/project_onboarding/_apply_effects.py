@@ -28,6 +28,22 @@ class StepFailed(RuntimeError):
         self.hint = hint
 
 
+class StepBlocked(RuntimeError):
+    """An ordered step observed a planner blocker instead of a failure."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        hint: str = "",
+        blockers: list[Any] | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.message = message
+        self.hint = hint
+        self.blockers = list(blockers or [])
+
+
 class RunContext:
     """Mutable execution state shared by the ordered step effects."""
 
@@ -68,6 +84,7 @@ class RunContext:
         self.request = dict(request or {})
         self.completed: list[str] = []
         self.failed: tuple[str, str, str, str] | None = None
+        self.blocked: dict[str, Any] | None = None
 
 
 def _effect_create_remote(ctx: RunContext) -> None:
@@ -94,9 +111,27 @@ def _effect_create_remote(ctx: RunContext) -> None:
         _adopt_create_result(ctx, result, created=True)
         return
     if status == "exists":
-        if _create_remote_adopted(ctx, result):
+        document = _replan(ctx)
+        if _create_remote_done(document):
             _adopt_create_result(ctx, result, created=True)
             return
+        blockers = [
+            blocker
+            for blocker in list(document.get("blockers") or [])
+            if isinstance(blocker, Mapping)
+        ]
+        if blockers:
+            messages = [
+                str(blocker.get("message") or blocker.get("code") or "")
+                for blocker in blockers
+            ]
+            hint = str(blockers[0].get("hint") or "")
+            raise StepBlocked(
+                "; ".join(item for item in messages if item)
+                or "project onboarding is blocked",
+                hint=hint,
+                blockers=blockers,
+            )
         raise StepFailed(
             str(result.message or f"{ctx.display} already exists"),
             hint=f"Add the existing repository with `sase project add {ctx.ref}`.",
@@ -107,12 +142,14 @@ def _effect_create_remote(ctx: RunContext) -> None:
     )
 
 
-def _create_remote_adopted(ctx: RunContext, result: Any) -> bool:
-    del result
+def _replan(ctx: RunContext) -> dict[str, Any]:
     fresh = gather_facts(
         _effect_target(ctx), ctx.mode, actor=ctx.actor, options=ctx.options
     )
-    document = build_plan_document(ctx.request, facts=fresh)
+    return build_plan_document(ctx.request, facts=fresh)
+
+
+def _create_remote_done(document: Mapping[str, Any]) -> bool:
     steps = document.get("steps")
     if not isinstance(steps, list):
         return False
@@ -124,20 +161,31 @@ def _create_remote_adopted(ctx: RunContext, result: Any) -> bool:
 
 def _adopt_create_result(ctx: RunContext, result: Any, *, created: bool) -> None:
     repo_id = str(getattr(result, "repo_id", "") or "")
+    parsed = getattr(result, "parsed", None)
+    adopted_ref = str(getattr(parsed, "ref", "") or "")
+    adopted_identity = str(getattr(parsed, "identity_key", "") or "")
+    checkout = str(getattr(parsed, "checkout_dir", "") or "")
     try:
         record_remote(
             ctx.identity_key,
             repo_id=repo_id,
             created=created,
             display=ctx.display,
+            ref=adopted_ref,
+            adopted_identity_key=adopted_identity,
         )
     except ValueError as exc:
         raise StepFailed(str(exc)) from exc
-    parsed = getattr(result, "parsed", None)
-    checkout = str(getattr(parsed, "checkout_dir", "") or "")
     if checkout:
         ctx.actual_checkout = checkout
         ctx.checkout_dir = checkout
+    if adopted_ref:
+        ctx.ref = adopted_ref
+    if adopted_identity:
+        ctx.identity_key = adopted_identity
+    if adopted_ref or checkout or adopted_identity:
+        target = _effect_target(ctx)
+        ctx.request = {**ctx.request, "target": target}
 
 
 def _effect_checkout(ctx: RunContext) -> None:
@@ -380,4 +428,4 @@ def _short_error(exc: BaseException) -> str:
     return text or type(exc).__name__
 
 
-__all__ = ["EFFECTS", "RunContext", "StepFailed"]
+__all__ = ["EFFECTS", "RunContext", "StepBlocked", "StepFailed"]

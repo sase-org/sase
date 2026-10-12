@@ -16,8 +16,17 @@ from sase.project_onboarding.journal import (
     record_intent,
     update_management,
 )
+from sase.main.parser import create_parser
+from sase.main import project_handler_add as add_cli
 from sase.project_onboarding.planning import build_plan_document
-from sase.workspace_provider._hookspec import ParsedRepoRef, RepoProbe, WorkflowMetadata
+from sase.workspace_provider._hookspec import (
+    ParsedRepoRef,
+    RepoCreationChoice,
+    RepoCreationField,
+    RepoCreationForm,
+    RepoProbe,
+    WorkflowMetadata,
+)
 
 
 def _metadata() -> list[WorkflowMetadata]:
@@ -150,6 +159,29 @@ def gh_provider(monkeypatch: pytest.MonkeyPatch) -> list[RepoProbe]:
     )
     monkeypatch.setattr(
         workspace_provider, "get_display_name", lambda workflow_type: "GitHub"
+    )
+    monkeypatch.setattr(
+        workspace_provider,
+        "describe_repo_creation",
+        lambda workflow_type, namespace: RepoCreationForm(
+            workflow_type=workflow_type,
+            namespace=namespace,
+            fields=(
+                RepoCreationField(
+                    name="visibility",
+                    label="Visibility",
+                    kind="choice",
+                    default="private",
+                    choices=(
+                        RepoCreationChoice(value="public", label="Public"),
+                        RepoCreationChoice(value="private", label="Private"),
+                    ),
+                ),
+                RepoCreationField(name="description", label="Description", kind="line"),
+                RepoCreationField(name="template", label="Template", kind="line"),
+            ),
+            can_create=True,
+        ),
     )
     return probes
 
@@ -536,6 +568,63 @@ class TestBuildPlanDocument:
         assert "template=sase-org/template" in argv
         assert document["target"]["visibility"] == "private"
         assert document["creation"]["visibility"] == "private"
+
+    def test_create_apply_argv_round_trips_github(
+        self,
+        isolated_home: Path,
+        gh_provider: list[RepoProbe],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        del isolated_home, gh_provider
+        monkeypatch.setattr(add_cli, "detect_actor", lambda **_kwargs: "human")
+        monkeypatch.setattr(
+            workspace_provider,
+            "describe_repo_creation",
+            lambda workflow_type, namespace: RepoCreationForm(
+                workflow_type=workflow_type,
+                namespace=namespace,
+                fields=(
+                    RepoCreationField(
+                        name="visibility",
+                        label="Visibility",
+                        kind="choice",
+                        default="private",
+                        choices=(
+                            RepoCreationChoice(value="public", label="Public"),
+                            RepoCreationChoice(value="private", label="Private"),
+                        ),
+                    ),
+                    RepoCreationField(
+                        name="description", label="Description", kind="line"
+                    ),
+                    RepoCreationField(name="template", label="Template", kind="line"),
+                ),
+                can_create=True,
+            ),
+        )
+        document = build_plan_document(
+            _request(
+                mode="create",
+                creation={"visibility": "private", "summary": []},
+                options={
+                    "visibility": "private",
+                    "description": "Forge",
+                    "template": "sase-org/template",
+                },
+            ),
+            facts=_facts(remote={"status": "not_found"}, can_create=True),
+        )
+        argv = document["apply_argv"]
+        args = create_parser(only="project").parse_args(argv[1:])
+        request = add_cli._request_from_args(
+            args, mode="create", operation="project.create"
+        )
+        rebuilt = build_plan_document(
+            request, facts=_facts(remote={"status": "not_found"}, can_create=True)
+        )
+        assert request["target"]["ref"] == "sase-org/bob"
+        assert rebuilt["apply_argv"][0:4] == argv[0:4]
+        assert "invalid_option" not in _codes(rebuilt["blockers"])
 
     def test_preview_does_not_write(
         self, tmp_path: Path, isolated_home: Path, gh_provider: list[RepoProbe]

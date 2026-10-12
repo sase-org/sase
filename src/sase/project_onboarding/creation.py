@@ -181,12 +181,54 @@ def _fields_with_defaults(
     return enriched
 
 
+def creation_form_has_field(workflow_type: str, namespace: str, name: str) -> bool:
+    """Return whether the provider creation form exposes *name*."""
+
+    if not workflow_type or not name:
+        return False
+    try:
+        form = workspace_provider.describe_repo_creation(workflow_type, namespace)
+    except Exception:
+        return False
+    if form is None:
+        return False
+    return any(field.name == name for field in form.fields)
+
+
+def create_apply_ref(workflow_type: str, ref: str) -> str:
+    """Return a create-mode ref that :func:`parse_create_ref` accepts.
+
+    Bare-git plans store the canonical ``NAME``; create argv needs ``git:NAME``.
+    GitHub shorthand ``OWNER/NAME`` already round-trips.
+    """
+
+    raw = ref.strip()
+    if not raw:
+        return raw
+    try:
+        parse_create_ref(raw)
+        return raw
+    except UserRefError:
+        pass
+    prefix = workflow_type.strip()
+    if not prefix:
+        return raw
+    prefixed = f"{prefix}:{raw}"
+    try:
+        parse_create_ref(prefixed)
+        return prefixed
+    except UserRefError:
+        return raw
+
+
 def _looks_like_path(value: str) -> bool:
     stripped = value.strip()
     return stripped.startswith(("/", "~", ".", "\\"))
 
 
 __all__ = [
+    "create_apply_ref",
+    "creation_form_has_field",
     "evaluate_creation_options",
     "parse_create_ref",
     "parse_option_item",

@@ -6,6 +6,8 @@ import pytest
 
 from sase import workspace_provider
 from sase.project_onboarding.creation import (
+    create_apply_ref,
+    creation_form_has_field,
     evaluate_creation_options,
     parse_create_ref,
     parse_option_item,
@@ -191,6 +193,14 @@ class TestParseCreateRef:
         with pytest.raises(UserRefError, match="create"):
             parse_create_ref(raw)
 
+    def test_create_apply_ref_prefixes_bare_git_name(
+        self, create_providers: dict[tuple[str, str], ParsedRepoRef]
+    ) -> None:
+        del create_providers
+        assert create_apply_ref("git", "tools") == "git:tools"
+        assert create_apply_ref("gh", "sase-org/forge") == "sase-org/forge"
+        assert create_apply_ref("gh", "gh:sase-org/forge") == "gh:sase-org/forge"
+
 
 class TestParseOptionItem:
     def test_splits_key_value(self) -> None:
@@ -279,6 +289,8 @@ class TestEvaluateGithubConstraints:
         names = [field["name"] for field in result["fields"]]
         assert "visibility" in names
         assert "template" in names
+        assert creation_form_has_field("gh", "sase-org", "visibility") is True
+        assert creation_form_has_field("gh", "sase-org", "clone") is False
 
     def test_missing_form_is_unknown_option(
         self, monkeypatch: pytest.MonkeyPatch

@@ -341,8 +341,9 @@ def _resolve_namespaces(
     The provider's ``account`` is included as a namespace (``kind_label``
     ``"you"``) when it is not already listed, so personal repositories are
     discovered even with an empty ``github_orgs``. An explicit *only* filter
-    restricts to the named owners; a requested owner that matches nothing
-    known is still attempted.
+    restricts to the named owners on providers that expose namespaces or an
+    account; a requested owner that matches nothing known is still attempted.
+    Providers with neither namespaces nor an account ignore the filter.
     """
 
     try:
@@ -363,6 +364,8 @@ def _resolve_namespaces(
     if account and account.casefold() not in seen:
         seen[account.casefold()] = (account, "you", "")
     if only is not None:
+        if not seen and not account:
+            return account, []
         wanted = [name for name in only if name]
         resolved: list[tuple[str, str, str]] = []
         for name in wanted:

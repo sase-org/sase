@@ -421,6 +421,44 @@ class TestDiscoveryCacheBehavior:
         assert fetched == ["sase-org"]
         assert [owner.name for owner in inputs.owners] == ["sase-org"]
 
+    def test_owner_filter_skips_providers_without_namespaces(
+        self, isolated_home: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        del isolated_home
+        monkeypatch.setattr(
+            workspace_provider,
+            "get_all_workflow_metadata",
+            lambda: _metadata("git"),
+        )
+        monkeypatch.setattr(
+            workspace_provider, "get_display_name", lambda workflow_type: "Git"
+        )
+        monkeypatch.setattr(
+            workspace_provider,
+            "list_ref_namespaces",
+            lambda workflow_type: SimpleNamespace(entries=[], account=""),
+        )
+        monkeypatch.setattr(
+            workspace_provider,
+            "list_local_repo_candidates",
+            lambda workflow_type: None,
+        )
+        monkeypatch.setattr(discovery, "list_project_records", lambda *a, **k: [])
+        monkeypatch.setattr(
+            discovery, "collect_repo_inventory", lambda **k: SimpleNamespace(records=[])
+        )
+
+        def boom(*args: Any, **kwargs: Any) -> VcsRepoFetchResult:
+            raise AssertionError("owner filter must not fetch for git")
+
+        monkeypatch.setattr(discovery, "fetch_repo_candidates", boom)
+
+        inputs = discovery.load_candidate_inputs("git", namespaces=["sase-org"])
+
+        assert inputs.owners == []
+        payload = discovery.suggest(providers=["git"], owners=["sase-org"])
+        assert payload["providers"][0]["owners"] == []
+
     def test_account_included_as_namespace_when_absent(
         self, isolated_home: Path, gh_provider: None, monkeypatch: pytest.MonkeyPatch
     ) -> None:

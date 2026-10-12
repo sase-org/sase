@@ -5,6 +5,7 @@ from __future__ import annotations
 import io
 import json
 from pathlib import Path
+import re
 from types import SimpleNamespace
 from typing import Any
 
@@ -16,6 +17,7 @@ from sase.main import project_handler_add as add_cli
 from sase.ops.errors import OperationIOError
 from sase.ops.models import DurableOperationRequest
 from sase.workspace_provider._hookspec import ParsedRepoRef, RepoProbe, WorkflowMetadata
+from tests.main.parser_help_helpers import parser_for
 
 
 def _parsed(tmp_path: Path, ref: str = "team/demo") -> ParsedRepoRef:
@@ -85,6 +87,27 @@ def _create_args(parser_args: list[str]) -> Any:
     return create_parser(only="project").parse_args(["project", "create", *parser_args])
 
 
+def _long_option_order(help_text: str) -> list[str]:
+    names: list[str] = []
+    in_options = False
+    for line in help_text.splitlines():
+        stripped = line.strip()
+        if stripped.lower().startswith("options:"):
+            in_options = True
+            continue
+        if not in_options:
+            continue
+        # Option definition lines start with two spaces then a dash. Help
+        # text may mention other flags (for example "sugar for --option").
+        if not line.startswith("  -"):
+            continue
+        for match in re.finditer(r"--([a-z0-9-]+)", line):
+            name = match.group(1)
+            if name != "help" and name not in names:
+                names.append(name)
+    return names
+
+
 def test_parser_registers_sorted_add_options_and_rejects_setup_conflict() -> None:
     args = _args(
         [
@@ -106,6 +129,8 @@ def test_parser_registers_sorted_add_options_and_rejects_setup_conflict() -> Non
     assert args.alias == ["one", "two"]
     assert args.setup is True
     assert args.operation_request_path == "/tmp/request.json"
+    options = _long_option_order(parser_for(("sase", "project", "add")).format_help())
+    assert options == sorted(options)
     with pytest.raises(SystemExit, match="2"):
         _args(["gh:team/demo", "--setup", "--no-setup"])
 
@@ -359,6 +384,10 @@ def test_parser_registers_sorted_create_options_and_rejects_bad_option() -> None
     assert args.description == "Forge"
     assert args.visibility == "private"
     assert args.option == ["template=org/tpl"]
+    options = _long_option_order(
+        parser_for(("sase", "project", "create")).format_help()
+    )
+    assert options == sorted(options)
     with pytest.raises(SystemExit, match="2"):
         _create_args(["gh:team/demo", "--option", "not-a-pair"])
     with pytest.raises(SystemExit, match="2"):
@@ -538,12 +567,28 @@ def test_create_gate_option_allows_apply(
     }
     monkeypatch.setenv("SASE_AGENT", "1")
     monkeypatch.setenv("SASE_GATE_COMMAND", "1")
+    monkeypatch.delenv("SASE_PROJECT_CREATE_BYPASS", raising=False)
     monkeypatch.setattr(
-        add_cli, "_request_from_args", lambda _args, **_kwargs: {"mode": "create"}
+        add_cli,
+        "_target_for_ref",
+        lambda _ref, **_kwargs: {
+            "ref": "team/demo",
+            "identity_key": "github.com/team/demo",
+            "workflow_type": "gh",
+            "owner": "team",
+        },
     )
-    monkeypatch.setattr(add_cli, "build_plan_document", lambda _request: document)
+    monkeypatch.setattr(add_cli, "resolve_request_path", lambda _args: None)
+    seen: dict[str, Any] = {}
+
+    def capture_plan(request: dict[str, Any]) -> dict[str, Any]:
+        seen.update(request)
+        return document
+
+    monkeypatch.setattr(add_cli, "build_plan_document", capture_plan)
     monkeypatch.setattr(add_cli, "apply_plan", lambda *_a, **_k: terminal)
     assert add_cli.handle_create(_create_args(["gh:team/demo", "--yes"])) == 0
+    assert seen["actor"] == "human"
 
 
 def test_create_bypass_prints_reason(
@@ -573,9 +618,9 @@ def test_create_bypass_prints_reason(
     assert "repair-create" in capsys.readouterr().err
 
 
-def test_bare_git_create_end_to_end(
+def _bare_git_create_home(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+) -> tuple[Path, Path]:
     from sase.project_onboarding import _apply_run as apply_mod
     from sase.workspace_provider.plugins import bare_git_workspace as bare_git
 
@@ -594,7 +639,47 @@ def test_bare_git_create_end_to_end(
     )
     monkeypatch.setattr(add_cli, "detect_actor", lambda **_kwargs: "human")
     monkeypatch.setattr(apply_mod, "detect_actor", lambda **_kwargs: "human")
-    args = _create_args(["git:tools", "--yes", "--no-setup"])
-    assert add_cli.handle_create(args) == 0
+    return home, sase_home
+
+
+def test_bare_git_create_end_to_end(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    home, sase_home = _bare_git_create_home(tmp_path, monkeypatch)
+    assert (
+        add_cli.handle_create(
+            _create_args(["git:tools", "--check", "--json", "--no-setup"])
+        )
+        == 0
+    )
+    document = json.loads(capsys.readouterr().out)
+    argv = document["apply_argv"]
+    assert argv[0:4] == ["sase", "project", "create", "git:tools"]
+    assert "--visibility" not in argv
+    assert "--no-setup" in argv
+    emitted = create_parser(only="project").parse_args(argv[1:])
+    assert add_cli.handle_create(emitted) == 0
     assert (sase_home / "repos" / "tools.git" / "HEAD").is_file()
+    assert (home / "projects" / "git" / "tools" / ".git").exists()
+
+
+def test_bare_git_create_honors_custom_bare_dir(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    home, sase_home = _bare_git_create_home(tmp_path, monkeypatch)
+    custom_bare = tmp_path / "custom" / "tools.git"
+    args = _create_args(
+        [
+            "git:tools",
+            "--yes",
+            "--no-setup",
+            "--option",
+            f"bare_dir={custom_bare}",
+        ]
+    )
+    assert add_cli.handle_create(args) == 0
+    assert (custom_bare / "HEAD").is_file()
+    assert not (sase_home / "repos" / "tools.git").exists()
     assert (home / "projects" / "git" / "tools" / ".git").exists()

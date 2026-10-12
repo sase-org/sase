@@ -73,6 +73,9 @@ class TestHandleSuggest:
             return {"schema_version": 1, "providers": []}
 
         monkeypatch.setattr(project_handler_onboarding, "suggest", fake_suggest)
+        monkeypatch.setattr(
+            project_handler_onboarding, "_known_providers", lambda: ["gh"]
+        )
 
         assert (
             handle_suggest(
@@ -124,6 +127,9 @@ class TestHandleSuggest:
     ) -> None:
         del suggest_payload
         monkeypatch.setenv("SASE_HOME", str(tmp_path / "sase-home"))
+        monkeypatch.setattr(
+            project_handler_onboarding, "_known_providers", lambda: ["gh"]
+        )
 
         assert handle_suggest(_args(provider="gh", json=True)) == 0
         capsys.readouterr()

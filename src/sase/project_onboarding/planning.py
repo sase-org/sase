@@ -10,6 +10,10 @@ from sase.core.paths import sase_projects_dir
 from sase.core.project_lifecycle_facade import list_project_records
 from sase.core.project_onboarding_facade import plan_project_onboarding
 from sase.project_accents import accent_among_keys, project_accent
+from sase.project_onboarding.creation import (
+    create_apply_ref,
+    creation_form_has_field,
+)
 from sase.project_onboarding.facts import gather_facts
 from sase.project_onboarding.human_only import detect_actor
 from sase.project_onboarding.journal import ownership_facts
@@ -72,10 +76,11 @@ def build_plan_document(
 
 
 def _prepare_request(request: Mapping[str, Any]) -> dict[str, Any]:
+    target = _canonical_target(request.get("target") or {})
     prepared = {
         "mode": str(request.get("mode") or "add"),
         "actor": str(request.get("actor") or detect_actor()),
-        "target": _canonical_target(request.get("target") or {}),
+        "target": target,
         "requested": _requested(request.get("requested") or {}),
     }
     creation = request.get("creation")
@@ -95,7 +100,9 @@ def _prepare_request(request: Mapping[str, Any]) -> dict[str, Any]:
             else []
         )
         if not visibility:
-            visibility = str(_creation_options(request).get("visibility") or "private")
+            visibility = str(_creation_options(request).get("visibility") or "")
+        if not visibility and _creation_form_has_visibility(target):
+            visibility = "private"
         prepared["creation"] = {"visibility": visibility, "summary": summary}
     options = _creation_options(request)
     if options:
@@ -282,7 +289,10 @@ def _document(
 def _apply_argv(request: Mapping[str, Any]) -> list[str]:
     mode = str(request.get("mode") or "add")
     target = request.get("target") or {}
-    argv = ["sase", "project", mode, str(target.get("ref") or "")]
+    ref = str(target.get("ref") or "")
+    if mode == "create":
+        ref = create_apply_ref(str(target.get("workflow_type") or ""), ref)
+    argv = ["sase", "project", mode, ref]
     requested = request.get("requested") or {}
     for alias in list(requested.get("aliases") or []):
         argv.extend(["--alias", str(alias)])
@@ -307,7 +317,7 @@ def _apply_argv(request: Mapping[str, Any]) -> list[str]:
         description = str(options.get("description") or "")
         if description:
             argv.extend(["--description", description])
-        if visibility:
+        if visibility and _creation_form_has_visibility(target):
             argv.extend(["--visibility", visibility])
         for key in sorted(options):
             if key in {"description", "visibility"}:
@@ -322,6 +332,14 @@ def _creation_options(request: Mapping[str, Any]) -> dict[str, str]:
     if not isinstance(raw, Mapping):
         return {}
     return {str(key): str(value) for key, value in raw.items()}
+
+
+def _creation_form_has_visibility(target: Mapping[str, Any]) -> bool:
+    return creation_form_has_field(
+        str(target.get("workflow_type") or ""),
+        str(target.get("owner") or ""),
+        "visibility",
+    )
 
 
 def _next_argv(steps: list[Any], key: str) -> list[str]:

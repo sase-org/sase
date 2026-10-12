@@ -330,7 +330,6 @@ class BareGitWorkspacePlugin:
         if workflow_type != "git":
             return None
         default_bare = str(sase_subdir("repos") / "<name>.git")
-        default_checkout = str(Path.home() / "projects" / "git" / "<name>") + "/"
         return RepoCreationForm(
             workflow_type="git",
             namespace=namespace,
@@ -342,14 +341,6 @@ class BareGitWorkspacePlugin:
                     group="advanced",
                     placeholder=default_bare,
                     description="Defaults to the SASE bare-repository directory.",
-                ),
-                RepoCreationField(
-                    name="checkout_dir",
-                    label="Checkout path",
-                    kind="line",
-                    group="advanced",
-                    placeholder=default_checkout,
-                    description="Used when the created repository is later added.",
                 ),
             ),
             can_create=True,
