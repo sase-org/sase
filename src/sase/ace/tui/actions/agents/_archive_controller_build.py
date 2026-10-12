@@ -77,7 +77,11 @@ def _build_archive_result(
     snapshot: ArchiveRequestSnapshot,
 ) -> dict[str, Any]:
     tokens = _probe_tokens(owner)
-    if snapshot.kind == ARCHIVE_REQUEST_IDLE and _idle_tokens_match(snapshot, tokens):
+    if (
+        snapshot.kind == ARCHIVE_REQUEST_IDLE
+        and not snapshot.pending_exact_name
+        and _idle_tokens_match(snapshot, tokens)
+    ):
         return {"kind": "unchanged", "tokens": tokens}
 
     reuse_handle = (

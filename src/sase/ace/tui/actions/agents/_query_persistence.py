@@ -203,7 +203,7 @@ class AgentQueryPersistenceMixin:
             seeded=False,
             settle_seed=True,
         )
-        from ._archive_column_mixin import agents_archive_is_active
+        from ._display_helpers import agents_archive_is_active
 
         if agents_archive_is_active(self):
             parked = getattr(

@@ -94,6 +94,10 @@ class AgentMarkedKillMixin(AgentMarkNavigationMixin):
         bundle write from the old cleanup still cannot resurrect a name the
         replacement agents are about to reuse.
         """
+        from ._archive_actions import guard_archive_live_action
+
+        if guard_archive_live_action(self, "kill_and_edit"):
+            return
         if not self._marked_agents:
             self.notify("No agents marked", severity="warning")  # type: ignore[attr-defined]
             return

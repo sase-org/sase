@@ -37,7 +37,9 @@ from sase.ace.tui.models.agent_archive_controller import (
     ARCHIVE_CORPUS_UNREADABLE,
     ARCHIVE_INDEX_UNAVAILABLE_MESSAGE,
     ARCHIVE_CORPUS_WARM,
+    ARCHIVE_REQUEST_IDLE,
     ArchivePageWindow,
+    ArchiveRequestSnapshot,
     ArchiveRevalidationTokens,
     preserve_archive_selected_key,
 )
@@ -747,3 +749,65 @@ async def test_worker_publishes_display_snapshot_for_project_banners() -> None:
         await spawn.drain()
 
     assert archive_corpus_snapshot(owner).display_snapshot is snapshot
+
+
+def test_idle_with_pending_exact_name_does_not_short_circuit_unchanged() -> None:
+    from sase.ace.tui.actions.agents._archive_controller_build import (
+        build_archive_result,
+    )
+
+    owner = _owner()
+    _instrument(owner)
+    snapshot = ArchiveRequestSnapshot(
+        generation=1,
+        kind=ARCHIVE_REQUEST_IDLE,
+        query="in:archive",
+        grouping="day",
+        windows=(),
+        expanded_containers=(),
+        selected_key=None,
+        view="archive",
+        previous_identities=(),
+        link_facets={},
+        tokens=_tokens(),
+        corpus=_FakeCorpus(),
+        profile=SimpleNamespace(digest="profile-1"),
+        pending_exact_name="bob-cli-5p.4",
+    )
+
+    result = build_archive_result(owner, snapshot)
+
+    assert result["kind"] != "unchanged"
+    assert result.get("lookup_row", {}).get("name") == "bob-cli-5p.4"
+
+
+@pytest.mark.asyncio
+async def test_coalesced_idle_does_not_publish_false_missing_for_queued_open() -> None:
+    owner = _owner()
+    arrivals: list[Any] = []
+    owner._archive_arrival_callback = arrivals.append
+    spawn, _calls, _facets = _instrument(owner)
+
+    with override_flags(agents_archive_view=True):
+        note_inbox_applied_for_archive(owner, load_state=_complete_load())
+        await spawn.drain()
+        schedule_archive_idle_tick(owner)
+        assert len(spawn.coros) == 1
+        schedule_archive_idle_tick(owner)
+        assert owner._agents_archive_controller.idle_coalesced is True
+        owner._nav_gate.record()
+        owner._nav_gate._window_s = 60.0
+        open_agents_archive_view_with_query(
+            owner, query="in:archive name:bob-cli-5p.4", agent_name="bob-cli-5p.4"
+        )
+        assert owner._agents_archive_controller.explicit_open_queued is True
+        await spawn.release_one()
+        assert all(item.status != ARCHIVE_ARRIVAL_MISSING for item in arrivals)
+        owner._nav_gate = NavigationGate()
+        await spawn.drain()
+
+    archive = owner._agents_archive_view.archive
+    assert archive.arrival_outcome is not None
+    assert archive.arrival_outcome.status == ARCHIVE_ARRIVAL_FOUND
+    assert archive.arrival_outcome.requested_name == "bob-cli-5p.4"
+    assert not any(item.status == ARCHIVE_ARRIVAL_MISSING for item in arrivals)

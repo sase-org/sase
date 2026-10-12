@@ -291,7 +291,9 @@ class FileViewingMixin(HintMixinBase):
             extra["outcome"] = "refocused"
             return
 
-        agent = self._get_selected_agent()  # type: ignore[attr-defined]
+        from ..agents._archive_actions import resolve_agents_read_agent
+
+        agent = resolve_agents_read_agent(self)
         if agent is None:
             extra["outcome"] = "no_agent"
             return

@@ -51,6 +51,11 @@ class AgentRevertMixin:
         if self.current_tab != "agents":
             return
 
+        from ._archive_actions import guard_archive_live_action
+
+        if guard_archive_live_action(self, "revert_agent"):
+            return
+
         if getattr(self, "_marked_agents", None):
             self._start_revert_marked_agents()
             return

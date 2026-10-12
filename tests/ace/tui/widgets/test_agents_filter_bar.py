@@ -6,7 +6,10 @@ from textual.app import App, ComposeResult
 from textual.color import Color
 
 from sase.ace.query_profile import compiled_profile_for_builtin_pane
-from sase.ace.tui.widgets.agents_filter_bar import AgentsFilterBar
+from sase.ace.tui.widgets.agents_filter_bar import (
+    AgentsFilterBar,
+    _AgentsFilterBarInput,
+)
 from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
 
 _PROFILE = compiled_profile_for_builtin_pane("agents-live")
@@ -160,3 +163,21 @@ async def test_key_completions_derive_from_the_agents_live_profile() -> None:
         # Removed legacy spellings (age/type) never appear in completions.
         assert "age" not in keys
         assert "type" not in keys
+
+
+def test_agents_filter_bar_uses_scope_overlay_input() -> None:
+    assert AgentsFilterBar.INPUT_CLASS is _AgentsFilterBarInput
+
+
+async def test_in_scope_overlay_paints_amber_on_agents_editor() -> None:
+    app = _AgentsFilterBarApp()
+    async with app.run_test() as pilot:
+        bar = app.query_one(AgentsFilterBar)
+        bar.open("in:archive")
+        await pilot.pause()
+        editor = bar.query_one(f"#{bar.INPUT_ID}", _AgentsFilterBarInput)
+        editor._build_highlight_map()
+        highlights = editor._highlights[0]
+        kinds = [kind for _start, _end, kind in highlights]
+        assert "scope_key" in kinds
+        assert "scope_value" in kinds

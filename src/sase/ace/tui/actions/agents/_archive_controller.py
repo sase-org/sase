@@ -464,7 +464,8 @@ def _apply_archive_result(
         state.display_snapshot = display_snapshot
     kind = result.get("kind")
     if kind == "unchanged":
-        _publish_arrival(owner, snapshot, result)
+        # Unchanged idle results never ran a lookup; publishing from them
+        # would report a false missing arrival for a queued exact-name open.
         _maybe_coalesce_idle(owner, snapshot)
         return
     if kind in {"unreadable", "error"}:
@@ -512,9 +513,16 @@ def _apply_archive_result(
 
 def _maybe_coalesce_idle(owner: Any, snapshot: ArchiveRequestSnapshot) -> None:
     state = _controller(owner)
-    if snapshot.kind != ARCHIVE_REQUEST_IDLE or not state.idle_coalesced:
+    if snapshot.kind != ARCHIVE_REQUEST_IDLE:
         return
     if snapshot.generation != state.generation:
+        return
+    if state.explicit_open_queued:
+        state.idle_coalesced = False
+        state.explicit_open_queued = False
+        _schedule_request(owner, kind=ARCHIVE_REQUEST_VIEW)
+        return
+    if not state.idle_coalesced:
         return
     state.idle_coalesced = False
     _schedule_request(owner, kind=ARCHIVE_REQUEST_IDLE)

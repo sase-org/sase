@@ -18,8 +18,8 @@ from sase.ace.tui.actions.agents._archive_controller import (
     archive_corpus_snapshot,
     refresh_archive_inbox_pulse,
 )
+from sase.ace.tui.actions.agents._core import _AgentArchiveColumnMixin
 from sase.ace.tui.actions.agents._archive_view import (
-    AgentArchiveColumnMixin,
     archive_read_only_context,
     close_agents_archive_view,
     get_agents_tab_selection,
@@ -97,7 +97,7 @@ __all__ = [
     "archive_light_row",
     "archive_corpus_snapshot",
     "refresh_archive_inbox_pulse",
-    "AgentArchiveColumnMixin",
+    "_AgentArchiveColumnMixin",
     "archive_read_only_context",
     "close_agents_archive_view",
     "get_agents_tab_selection",

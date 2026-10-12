@@ -518,3 +518,207 @@ def test_unread_attention_accounting_untouched() -> None:
         assert clear_archive_marks(owner) == 1
         assert guard_archive_live_action(owner, "toggle_agent_unread") is True
     assert owner._unread_completed_agent_ids == before_unread
+
+
+def test_toggle_archive_hidden_from_palette_when_beta_off() -> None:
+    from sase.ace.tui.commands import CommandContext, build_command_catalog
+    from sase.ace.tui.commands.availability import is_command_available
+    from sase.ace.tui.keymaps import load_keymap_registry
+
+    catalog = {
+        spec.id: spec for spec in build_command_catalog(load_keymap_registry({}))
+    }
+    context = CommandContext(tab="agents")
+    with override_flags():
+        assert not is_command_available(
+            catalog["leader.toggle_agents_archive"], context
+        )
+        assert not is_command_available(catalog["agents.open_archive"], context)
+    with override_flags(agents_archive_view=True):
+        assert is_command_available(catalog["leader.toggle_agents_archive"], context)
+
+
+def test_command_palette_hides_every_live_only_action_in_archive() -> None:
+    from sase.ace.tui.commands import CommandContext, build_command_catalog
+    from sase.ace.tui.commands.availability import is_command_available
+    from sase.ace.tui.keymaps import load_keymap_registry
+
+    catalog = {
+        spec.id: spec for spec in build_command_catalog(load_keymap_registry({}))
+    }
+    live_agent = SimpleNamespace(status="RUNNING")
+    context = CommandContext(tab="agents", agent=live_agent, agents_archive_active=True)
+    hidden: list[str] = []
+    with override_flags(agents_archive_view=True):
+        for spec in catalog.values():
+            action_id = spec.id
+            for prefix in ("app.", "leader."):
+                if action_id.startswith(prefix):
+                    action_id = action_id.removeprefix(prefix)
+                    break
+            if action_id in ARCHIVE_LIVE_ONLY_ACTIONS:
+                assert not is_command_available(spec, context), spec.id
+                hidden.append(spec.id)
+        for required in (
+            "app.kill_agent",
+            "leader.kill_and_edit",
+            "leader.revert_agent",
+            "leader.agent_from_cl",
+        ):
+            assert required in hidden
+        view_files = catalog.get("app.view_files")
+        if view_files is not None and "agents" in view_files.tabs:
+            assert is_command_available(view_files, context)
+
+
+def test_guard_toast_names_configured_toggle_key() -> None:
+    from sase.ace.tui.keymaps import load_keymap_registry
+
+    owner = _owner()
+    owner._keymap_registry = load_keymap_registry(
+        {
+            "keymaps": {
+                "modes": {"leader_mode": {"keys": {"toggle_agents_archive": "x"}}}
+            }
+        }
+    )
+    _open_archive(owner)
+    with override_flags(agents_archive_view=True):
+        assert guard_archive_live_action(owner, "kill_agent") is True
+    message = owner.notices[0][0]
+    assert ",x" in message
+    assert ",a" not in message
+
+
+def test_kill_and_edit_revert_and_quick_launch_are_guarded() -> None:
+    from sase.ace.tui.actions.agent_workflow._entry_quick_launch import (
+        EntryQuickLaunchMixin,
+    )
+    from sase.ace.tui.actions.agent_workflow._entry_relaunch import EntryRelaunchMixin
+    from sase.ace.tui.actions.agents._marking_kill import AgentMarkedKillMixin
+    from sase.ace.tui.actions.agents._revert import AgentRevertMixin
+
+    inbox = SimpleNamespace(cl_name="parked-inbox")
+    owner = _owner(inbox_agent=inbox)
+    _open_archive(owner)
+    with override_flags(agents_archive_view=True):
+        cases = (
+            (AgentRevertMixin, "_start_revert_selected_agent"),
+            (EntryQuickLaunchMixin, "_start_agent_from_agent_quick"),
+            (EntryRelaunchMixin, "_kill_and_edit_agent"),
+            (AgentMarkedKillMixin, "_bulk_kill_marked_agents_and_edit"),
+        )
+        for mixin, method in cases:
+            app = mixin()
+            app.__dict__.update(owner.__dict__)
+            notices: list[tuple[str, Any]] = []
+
+            def notify(
+                message: str,
+                *,
+                severity: str = "information",
+                _notices: list[tuple[str, Any]] = notices,
+            ) -> None:
+                _notices.append((message, severity))
+
+            app.notify = notify
+            app._marked_agents = {("cl", "parked-inbox", None)}
+            getattr(app, method)()
+            assert notices, method
+            assert "archived" in notices[-1][0] or ",a" in notices[-1][0]
+
+
+def test_view_files_on_banner_does_not_use_parked_inbox() -> None:
+    from sase.ace.tui.actions.hints._files import FileViewingMixin
+
+    inbox = SimpleNamespace(cl_name="parked-inbox")
+    owner = _owner(inbox_agent=inbox)
+    _open_archive(owner, selected_key="banner:day:2026-10-10")
+    extra: dict[str, object] = {}
+    app = FileViewingMixin()
+    app.__dict__.update(owner.__dict__)
+    app._refocus_existing_hint_bar = lambda: False  # type: ignore[attr-defined]
+    with override_flags(agents_archive_view=True):
+        assert resolve_agents_read_agent(app) is None
+        app._view_agent_files_impl(extra)  # type: ignore[attr-defined]
+    assert extra["outcome"] == "no_agent"
+
+
+def test_hydrated_archive_run_is_the_read_target() -> None:
+    from sase.ace.tui.models.agent_archive_reader import (
+        ArchiveReaderRuntime,
+        mark_agent_archive_read_only,
+    )
+    from tests.ace.agent_artifact_startup_fixtures import make_agent
+
+    archived = mark_agent_archive_read_only(make_agent(cl_name="archived-run"))
+    inbox = SimpleNamespace(cl_name="parked-inbox", identity=("parked",))
+    owner = _owner(inbox_agent=inbox)
+    _open_archive(owner, selected_key="u.m@r1")
+    owner._archive_reader_runtime = ArchiveReaderRuntime(
+        archive_key="u.m@r1",
+        hydrated_agent=archived,
+    )
+    with override_flags(agents_archive_view=True):
+        assert resolve_agents_read_agent(owner) is archived
+        assert owner._get_selected_agent() is inbox
+
+
+def test_metadata_pager_and_patch_jump_use_hydrated_archive_agent(
+    monkeypatch: Any,
+) -> None:
+    from sase.ace.tui.actions.agents._metadata_pager import AgentMetadataPagerMixin
+    from sase.ace.tui.actions.agents._patch_navigation import AgentPatchNavigationMixin
+    from sase.ace.tui.models.agent_archive_reader import (
+        ArchiveReaderRuntime,
+        mark_agent_archive_read_only,
+    )
+    from tests.ace.agent_artifact_startup_fixtures import make_agent
+
+    archived = mark_agent_archive_read_only(
+        make_agent(cl_name="archived-cl", raw_suffix="20250101120000")
+    )
+    owner = _owner(inbox_agent=SimpleNamespace(cl_name="parked-inbox"))
+    _open_archive(owner, selected_key="u.m@r1")
+    owner._archive_reader_runtime = ArchiveReaderRuntime(
+        archive_key="u.m@r1",
+        hydrated_agent=archived,
+    )
+    jumped: list[tuple[str, str]] = []
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.agents._notification_actions.navigate_to_patch_tab",
+        lambda _app, name, project: jumped.append((name, project)),
+    )
+    with override_flags(agents_archive_view=True):
+        pager = AgentMetadataPagerMixin()
+        pager.__dict__.update(owner.__dict__)
+        pager.current_tab = "agents"
+        pager.run_worker = lambda coro, **_kwargs: setattr(pager, "_worker", coro)
+        pager.action_view_agent_metadata()
+        assert getattr(pager, "_worker", None) is not None
+
+        jumper = AgentPatchNavigationMixin()
+        jumper.__dict__.update(owner.__dict__)
+        jumper.current_tab = "agents"
+        jumper._resolve_agent_cl_name = lambda agent: agent.cl_name  # type: ignore[attr-defined]
+        jumper.notify = owner.notify
+        jumper.action_jump_to_agent_patch()
+    assert jumped == [("archived-cl", archived.project_file)]
+
+
+def test_act_on_agent_routes_to_archive_activate(monkeypatch: Any) -> None:
+    from sase.ace.tui.actions.agents._agent_enter_action import AgentEnterActionMixin
+
+    routed: list[str] = []
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.agents._agent_enter_action.route_archive_key_if_active",
+        lambda _owner, intent: routed.append(intent) or True,
+    )
+    owner = _owner(inbox_agent=SimpleNamespace(cl_name="parked-inbox"))
+    _open_archive(owner, selected_key="u.m@r1")
+    app = AgentEnterActionMixin()
+    app.__dict__.update(owner.__dict__)
+    app.current_tab = "agents"
+    with override_flags(agents_archive_view=True):
+        app.action_act_on_agent()
+    assert routed == ["activate"]

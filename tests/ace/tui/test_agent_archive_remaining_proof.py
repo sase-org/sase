@@ -18,6 +18,7 @@ never mounts and every guard passes through to the Inbox.
 
 from __future__ import annotations
 
+from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
@@ -270,6 +271,7 @@ async def test_mounted_marks_render_and_footer_syncs(
             await page.pause()
             assert archive_marked_run_keys(app) == frozenset()
             assert "[✓]" not in _prompt(archive_list, "u.m@t00")
+            assert "unmark" not in page_svg_text(page)
 
 
 async def test_mounted_deck_splits_survive_archive_round_trip(
@@ -296,13 +298,23 @@ async def test_mounted_deck_splits_survive_archive_round_trip(
 
             open_agents_archive_view(app)
             await _wait_for_rows(page)
+            # Change splits while Archive owns the panel. Restore must keep
+            # this live grid, not reapply the parked Inbox snapshot.
+            await page.press("backslash")
+            await page.pause()
+            inside_detail = app.query_one("#agent-detail-panel", AgentDetail)
+            inside = (
+                inside_detail.deck_area.state.layout,
+                repr(inside_detail.deck_area.state.grid),
+            )
+            assert inside != before
             close_agents_archive_view(app)
             await page.pause()
 
             after_state = app.query_one(
                 "#agent-detail-panel", AgentDetail
             ).deck_area.state
-            assert (after_state.layout, repr(after_state.grid)) == before
+            assert (after_state.layout, repr(after_state.grid)) == inside
 
 
 async def test_mounted_beta_off_guards_leave_inbox_intact(
@@ -327,3 +339,43 @@ async def test_mounted_beta_off_guards_leave_inbox_intact(
             await page.pause()
             assert app.current_idx == 1
             assert app._agents_archive_view.active_view == AGENTS_VIEW_INBOX
+
+            await page.press("comma")
+            await page.press("a")
+            await page.pause()
+            assert app._agents_archive_view.active_view == AGENTS_VIEW_INBOX
+
+
+async def test_quitting_from_archive_persists_inbox_query_and_grouping(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.ace.grouping_strategy import (
+        load_agent_archive_grouping,
+        save_agent_archive_grouping,
+    )
+    from sase.ace.tui.models import agent_query_persistence as store
+    from tests._conftest_environment import redirect_sase_home
+
+    home = redirect_sase_home(monkeypatch, tmp_path / ".sase")
+    save_agent_archive_grouping("project")
+    patch_startup_loaders(monkeypatch, agents=[_inbox_agent()])
+    with override_flags(agents_archive_view=True):
+        async with AcePage(initial_tab="agents", size=(160, 40)) as page:
+            await wait_for_startup(page)
+            app = page.app
+            _wire_corpus(app, ModelCorpus(_history()))
+            note_inbox_applied_for_archive(app, load_state=complete_load())
+            app._record_explicit_agents_query_commit("status:FAILED")
+            open_agents_archive_view(app)
+            await _wait_for_rows(page)
+            await app._flush_agents_query_state()
+
+    loaded = store.load_agent_query_snapshot(active_dialect=store.DIALECT_UNIFIED)
+    assert loaded.snapshot is not None
+    assert loaded.snapshot.record.source == "status:FAILED"
+    assert load_agent_archive_grouping() == "project"
+    assert (home / "ace_agents_last_query.json").exists()
+    assert (home / "agent_archive_grouping.txt").read_text(
+        encoding="utf-8"
+    ).strip() == ("project")

@@ -6,8 +6,8 @@ from types import SimpleNamespace
 from typing import Any
 
 from sase.ace.tui.actions.agents._archive_controller import refresh_archive_inbox_pulse
+from sase.ace.tui.actions.agents._core import _AgentArchiveColumnMixin
 from sase.ace.tui.actions.agents._archive_view import (
-    AgentArchiveColumnMixin,
     archive_read_only_context,
     close_agents_archive_view,
     get_agents_tab_selection,
@@ -40,19 +40,19 @@ from tests.ace.tui._agent_archive_column_actions_helpers import (
 # The Textual handlers are the widget-facing entry points; they only use ``self``
 # as the app, so a duck-typed owner can stand in for the mixin instance.
 def _widget_cursor_moved(owner: Any, key: str) -> None:
-    AgentArchiveColumnMixin.on_archive_list_cursor_moved(
+    _AgentArchiveColumnMixin.on_archive_list_cursor_moved(
         owner, SimpleNamespace(key=key)
     )
 
 
 def _widget_item_activated(owner: Any, key: str) -> None:
-    AgentArchiveColumnMixin.on_archive_list_item_activated(
+    _AgentArchiveColumnMixin.on_archive_list_item_activated(
         owner, SimpleNamespace(key=key)
     )
 
 
 def _widget_pulse_activated(owner: Any) -> None:
-    AgentArchiveColumnMixin.on_archive_pulse_activated(owner, SimpleNamespace())
+    _AgentArchiveColumnMixin.on_archive_pulse_activated(owner, SimpleNamespace())
 
 
 # --- pulse and sections -----------------------------------------------------

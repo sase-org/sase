@@ -60,6 +60,10 @@ class EntryQuickLaunchMixin:
         Uses the currently selected agent on the agents tab to derive
         the VCS prefix, similar to how leader-Space works on the Patches tab.
         """
+        from ..agents._archive_actions import guard_archive_live_action
+
+        if guard_archive_live_action(self, "agent_from_cl"):
+            return
         agent = self._get_selected_agent()  # type: ignore[attr-defined]
         if agent is None:
             self.notify("No agents available", severity="warning")  # type: ignore[attr-defined]

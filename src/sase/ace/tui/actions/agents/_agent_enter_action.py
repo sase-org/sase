@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING, Any
 
 from sase.gate_turn.naming import short_gate_turn_id
 
-from ._archive_column_mixin import route_archive_key_if_active
+from ._display_helpers import route_archive_key_if_active
 from ._agent_enter_targets import (
     NO_TARGET_EMPTY_MESSAGE,
     AgentEnterResolution,

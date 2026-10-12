@@ -19,11 +19,14 @@ from sase.ace.query_profile import (
     QueryShorthandSpec,
     QuerySigilSpec,
     compile_query_profile,
+    compiled_profile_for_builtin_pane,
 )
 from sase.ace.query_profile.profiles import beads_query_schema, patches_query_schema
 
 _BEADS_PROFILE = compile_query_profile(beads_query_schema())
 _PATCHES_PROFILE = compile_query_profile(patches_query_schema())
+_AGENTS_PROFILE = compiled_profile_for_builtin_pane("agents-live")
+assert _AGENTS_PROFILE is not None
 
 _SIGIL_SHORTHAND_PROFILE = compile_query_profile(
     ArtifactQuerySchema(
@@ -228,10 +231,16 @@ def test_highlight_query_boolean_dialect_reuses_existing_tokenizer() -> None:
 
 def test_in_scope_tokenizes_as_amber_chip() -> None:
     assert tokenize_query_for_display("in:archive") == [
+        ("in:", "unknown_key"),
+        ("archive", "property_value"),
+    ]
+    assert tokenize_query_for_display("in:archive", host_scope=True) == [
         ("in:", "scope_key"),
         ("archive", "scope_value"),
     ]
-    assert tokenize_query_for_display("IN:archive status:FAILED")[:2] == [
+    assert tokenize_query_for_display("IN:archive status:FAILED", host_scope=True)[
+        :2
+    ] == [
         ("IN:", "scope_key"),
         ("archive", "scope_value"),
     ]
@@ -239,16 +248,20 @@ def test_in_scope_tokenizes_as_amber_chip() -> None:
     assert style_for_query_token("archive", "scope_value") == "bold #d7af5f"
     assert QUERY_TOKEN_STYLES["scope_key"] == "bold #d7af5f"
 
-    rendered = highlight_query("in:archive", _PATCHES_PROFILE)
+    rendered = highlight_query("in:archive", _AGENTS_PROFILE)
     assert rendered.plain == "in:archive"
-    styles = {span.style for span in rendered.spans}
-    assert "bold #d7af5f" in {str(style) for style in styles}
+    styles = {str(span.style) for span in rendered.spans}
+    assert "bold #d7af5f" in styles
+
+    patches = highlight_query("in:archive", _PATCHES_PROFILE)
+    patch_styles = {str(span.style) for span in patches.spans}
+    assert "bold #d7af5f" not in patch_styles
 
 
 def test_flat_in_scope_highlights_as_amber_chip() -> None:
     assert _classify_flat_query_tokens("in:archive", _BEADS_PROFILE) == [
-        ("in:", "scope_key"),
-        ("archive", "scope_value"),
+        ("in:", "unknown_key"),
+        ("archive", "property_value"),
     ]
 
 

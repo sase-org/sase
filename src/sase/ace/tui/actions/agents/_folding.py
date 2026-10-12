@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from ._archive_column_mixin import route_archive_key_if_active
+from ._display_helpers import route_archive_key_if_active
 from ._folding_agents import AgentTreeFoldingMixin
 from ._folding_axe import AxeFoldingMixin
 

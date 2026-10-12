@@ -34,7 +34,7 @@ from sase.ace.tui.widgets.file_completion import CompletionCandidate
 from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
 
 
-class _FilterBarInput(SingleLineVimTextArea):
+class FilterBarInput(SingleLineVimTextArea):
     """Single-line editor that keeps completion keys inside its owning bar."""
 
     async def _on_key(self, event: Key) -> None:
@@ -98,6 +98,7 @@ class FilterBar(FilterBarCompletionMixin, Static):
     ROW_ID: ClassVar[str] = "filter-row"
     SIGIL_ID: ClassVar[str] = "filter-sigil"
     INPUT_ID: ClassVar[str] = "filter-input"
+    INPUT_CLASS: ClassVar[type[FilterBarInput]] = FilterBarInput
     STATUS_ID: ClassVar[str] = "filter-status"
     COMPLETION_ID: ClassVar[str] = "filter-completion"
     CANDIDATE_ID_PREFIX: ClassVar[str] = "filter-candidate"
@@ -225,7 +226,7 @@ class FilterBar(FilterBarCompletionMixin, Static):
         """Compose the command line and its screen-overlay completion menu."""
         with Horizontal(id=self.ROW_ID, classes="filter-bar-row"):
             yield Static("/", id=self.SIGIL_ID, classes="filter-bar-sigil")
-            editor = _FilterBarInput(
+            editor = self.INPUT_CLASS(
                 id=self.INPUT_ID,
                 classes="filter-bar-input",
                 read_only=self.PERSISTENT,
@@ -294,7 +295,7 @@ class FilterBar(FilterBarCompletionMixin, Static):
             self.SHOW_WHEN_ACTIVE and bool(self._last_query_text.strip())
         )
 
-    def _apply_resting_state(self, editor: _FilterBarInput) -> None:
+    def _apply_resting_state(self, editor: FilterBarInput) -> None:
         """Sync the editor/closed-display split to the current resting state."""
         visible = self._resting_visible()
         editor.read_only = visible
@@ -404,11 +405,11 @@ class FilterBar(FilterBarCompletionMixin, Static):
             return
         self.post_message(self.Submitted(event.value))
 
-    def _editor(self) -> _FilterBarInput | None:
+    def _editor(self) -> FilterBarInput | None:
         if not self.is_mounted:
             return None
         try:
-            return self.query_one(f"#{self.INPUT_ID}", _FilterBarInput)
+            return self.query_one(f"#{self.INPUT_ID}", self.INPUT_CLASS)
         except NoMatches:
             return None
 
@@ -509,6 +510,7 @@ class FilterBar(FilterBarCompletionMixin, Static):
 
 __all__ = [
     "FilterBar",
+    "FilterBarInput",
     "FilterCompletionMetadata",
     "filter_candidate",
     "filter_candidate_metadata",

@@ -41,11 +41,14 @@ def _consume_keyed_value(
     return i
 
 
-def tokenize_query_for_display(query: str) -> list[tuple[str, str]]:
+def tokenize_query_for_display(
+    query: str, *, host_scope: bool = False
+) -> list[tuple[str, str]]:
     """Tokenize a query string for syntax highlighting.
 
     Args:
         query: The query string to tokenize.
+        host_scope: When true, ``in:`` is the host-owned Agents scope token.
 
     Returns:
         List of (token, token_type) tuples where token_type is one of:
@@ -59,8 +62,9 @@ def tokenize_query_for_display(query: str) -> list[tuple[str, str]]:
         - "shorthand" for %d, %m, %s, %r, +project, ^ancestor, ~sibling
         - "property_key" for status:, project:, ancestor:
         - "property_value" for the value after a property key
-        - "scope_key" for in:
-        - "scope_value" for the value after in:
+        - "scope_key" for in: when *host_scope* is true
+        - "scope_value" for the value after in: when *host_scope* is true
+        - "unknown_key" for in: on non-agents profiles
         - "whitespace" for spaces
     """
     tokens: list[tuple[str, str]] = []
@@ -239,9 +243,14 @@ def tokenize_query_for_display(query: str) -> list[tuple[str, str]]:
             if i < len(query) and query[i] == ":":
                 word_lower = word.lower()
                 if word_lower == "in":
-                    tokens.append((word + ":", "scope_key"))
+                    if host_scope:
+                        tokens.append((word + ":", "scope_key"))
+                        i += 1  # Skip the colon
+                        i = _consume_keyed_value(query, i, tokens, "scope_value")
+                        continue
+                    tokens.append((word + ":", "unknown_key"))
                     i += 1  # Skip the colon
-                    i = _consume_keyed_value(query, i, tokens, "scope_value")
+                    i = _consume_keyed_value(query, i, tokens, "property_value")
                     continue
                 if word_lower in (
                     "status",

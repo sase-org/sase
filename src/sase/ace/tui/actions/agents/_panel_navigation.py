@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from ._archive_column_mixin import (
+from ._display_helpers import (
     agents_inbox_detail_allowed,
     route_archive_key_if_active,
     schedule_owned_inbox_detail_update,

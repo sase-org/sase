@@ -6,7 +6,6 @@ from typing import TYPE_CHECKING, Any, Literal
 
 from ._agent_enter_action import AgentEnterActionMixin
 from ._approve import AgentApproveMixin
-from ._archive_column_mixin import AgentArchiveColumnMixin
 from ._patch_navigation import AgentPatchNavigationMixin
 from ._display import AgentDisplayMixin
 from ._filter_actions import AgentFilterActionsMixin
@@ -67,8 +66,91 @@ from ._loading import DISMISSABLE_STATUSES
 TabName = Literal["artifacts", "agents", "services"]
 
 
+class _AgentArchiveColumnMixin:
+    """Textual message handlers for the Archive column widgets.
+
+    Handlers defer to the column code so the Inbox-only startup path never
+    imports it. Cheap Inbox probes live in ``_display_helpers``.
+    """
+
+    def on_archive_list_cursor_moved(self, event: Any) -> None:
+        from ._archive_column_nav import archive_cursor_from_widget
+
+        archive_cursor_from_widget(self, event.key)
+
+    def on_archive_list_item_activated(self, event: Any) -> None:
+        from ._archive_column_nav import archive_activate_key
+
+        archive_activate_key(self, event.key)
+
+    def on_archive_pulse_activated(self, event: Any) -> None:
+        from ._archive_column_nav import archive_activate_pulse
+
+        archive_activate_pulse(self)
+
+    def action_open_agents_archive(self) -> None:
+        """Open Agents Archive, switching to Agents when needed."""
+        from ...models.agent_archive_view import agents_archive_view_enabled
+        from ._archive_view import open_agents_archive_view
+        from ._display_helpers import agents_archive_is_active
+
+        if not agents_archive_view_enabled():
+            return
+        opening = not agents_archive_is_active(self)
+        capture = getattr(self, "_current_link_trail_origin", None)
+        origin = capture() if opening and callable(capture) else None
+        if getattr(self, "current_tab", None) != "agents":
+            save_position = getattr(self, "_save_current_tab_position", None)
+            if callable(save_position):
+                save_position()
+            switch = getattr(self, "_switch_to_tab", None)
+            if callable(switch):
+                switch("agents")
+        open_agents_archive_view(self)
+        if opening:
+            record = getattr(self, "_record_link_trail", None)
+            if origin is not None and callable(record):
+                record(origin)
+            notify = getattr(self, "notify", None)
+            if callable(notify):
+                notify(
+                    "Opened the Archive — dismissed runs open read-only · ctrl+o back",
+                    severity="information",
+                )
+
+    def action_back_to_agents_inbox(self) -> None:
+        """Return from Archive to the parked Inbox."""
+        from ._archive_view import close_agents_archive_view
+        from ._display_helpers import agents_archive_is_active
+
+        if agents_archive_is_active(self):
+            if getattr(self, "current_tab", None) != "agents":
+                save_position = getattr(self, "_save_current_tab_position", None)
+                if callable(save_position):
+                    save_position()
+                switch = getattr(self, "_switch_to_tab", None)
+                if callable(switch):
+                    switch("agents")
+            close_agents_archive_view(self)
+
+    def action_toggle_agents_archive(self) -> None:
+        """Open Archive from another tab, or toggle the Agents view in place."""
+        from ...models.agent_archive_view import agents_archive_view_enabled
+        from ._archive_view import close_agents_archive_view, open_agents_archive_view
+        from ._display_helpers import agents_archive_is_active
+
+        if not agents_archive_view_enabled():
+            return
+        if getattr(self, "current_tab", None) != "agents":
+            self.action_open_agents_archive()
+        elif agents_archive_is_active(self):
+            close_agents_archive_view(self)
+        else:
+            open_agents_archive_view(self)
+
+
 class AgentsMixinCore(
-    AgentArchiveColumnMixin,
+    _AgentArchiveColumnMixin,
     AgentMetadataPagerMixin,
     AgentMetadataSearchMixin,
     AgentApproveMixin,

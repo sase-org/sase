@@ -12,13 +12,13 @@ from ...widgets.prompt_panel_messages import (
     ClanSectionSnapshotLoaded,
     TribeSectionSnapshotLoaded,
 )
-from ._archive_column_mixin import (
+from ._display_helpers import (
+    TabName,
     agents_inbox_detail_allowed,
     cancel_inbox_detail_debounce,
     schedule_owned_inbox_detail_update,
     scheduled_agents_detail_is_current,
 )
-from ._display_helpers import TabName
 
 if TYPE_CHECKING:
     from sase.memory.legacy_glossary_read_report import GlossaryReadReportSpec

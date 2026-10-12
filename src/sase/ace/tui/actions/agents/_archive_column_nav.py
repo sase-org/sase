@@ -68,6 +68,9 @@ def _set_cursor(owner: Any, key: str | None, *, from_widget: bool = False) -> No
         widget.set_section(ARCHIVE_SECTION_LIST)
     if changed:
         schedule_detail(owner)
+        from ._archive_column import refresh_archive_footer
+
+        refresh_archive_footer(owner)
 
 
 def _selected_item(owner: Any) -> Any:
@@ -203,7 +206,7 @@ def _collapse(owner: Any) -> None:
             None,
         )
         if container_item is not None:
-            archive.selected_key = container_item.key
+            _set_cursor(owner, container_item.key)
             _set_container_expanded(owner, item.member_of, expanded=False)
     else:
         parent = parent_banner_key(model, archive.selected_key)

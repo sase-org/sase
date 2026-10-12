@@ -132,3 +132,64 @@ def first_agent_list_widget(app: object) -> Any | None:
     except (NoMatches, KeyError, Exception):
         return None
     return None if panel_widget_is_retiring(widget) else widget
+
+
+def agents_archive_is_active(owner: Any) -> bool:
+    """Return whether the Agents tab is showing Archive, without imports."""
+    return (
+        getattr(getattr(owner, "_agents_archive_view", None), "active_view", None)
+        == "archive"
+    )
+
+
+def agents_inbox_detail_allowed(owner: Any) -> bool:
+    """Return whether Inbox-originated detail rendering may paint.
+
+    The Inbox path is a single attribute read. The Archive path loads the
+    view module only when Archive is actually showing, so it can honor the
+    beta flag.
+    """
+    if not agents_archive_is_active(owner):
+        return True
+    from ._archive_view import agents_inbox_detail_allowed as impl
+
+    return impl(owner)
+
+
+def cancel_inbox_detail_debounce(owner: Any) -> bool:
+    """Cancel the pending Inbox detail debounce, never an Archive hydration."""
+    if agents_archive_is_active(owner):
+        from ._archive_view import cancel_inbox_detail_debounce as impl
+
+        return impl(owner)
+    debouncer = getattr(owner, "_agent_detail_debouncer", None)
+    cancel = getattr(debouncer, "cancel", None)
+    if not callable(cancel):
+        return False
+    cancel()
+    return True
+
+
+def schedule_owned_inbox_detail_update(owner: Any) -> None:
+    """Record a fresh owner token, then schedule the shared detail debouncer."""
+    from ._archive_view import schedule_owned_inbox_detail_update as impl
+
+    impl(owner)
+
+
+def scheduled_agents_detail_is_current(owner: Any) -> bool:
+    """Return whether the pending debounced update still owns the panel."""
+    from ._archive_view import scheduled_agents_detail_is_current as impl
+
+    return impl(owner)
+
+
+def route_archive_key_if_active(owner: Any, intent: str) -> bool:
+    """Route an Archive list key. False on Inbox without importing Archive."""
+    if getattr(owner, "current_tab", "agents") != "agents":
+        return False
+    if not agents_archive_is_active(owner):
+        return False
+    from ._archive_view import route_archive_key
+
+    return route_archive_key(owner, intent)

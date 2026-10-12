@@ -5,7 +5,7 @@ from __future__ import annotations
 from textual.containers import VerticalScroll
 
 from ...tab_order import TabName, adjacent_tab
-from ..agents._archive_column_mixin import route_archive_key_if_active
+from ..agents._display_helpers import route_archive_key_if_active
 from ._types import NavigationMixinBase
 
 

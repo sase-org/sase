@@ -391,6 +391,24 @@ async def test_container_enter_toggles_and_workflow_children_stay_out_of_the_lis
         assert not any("child" in label for label in harness.widget.last_labels())
 
 
+async def test_h_on_expanded_container_collapses_in_place() -> None:
+    with override_flags(agents_archive_view=True):
+        harness = await opened(clan_rows())
+        owner = harness.owner
+        route_archive_key(owner, INTENT_EXPAND)
+        await harness.settle()
+        assert selection_key(harness) == "container:clan:swarm:1"
+        assert harness.archive.expanded_containers == ("clan:swarm:1",)
+        assert "u.m@m1" in harness.widget.last_labels()
+
+        route_archive_key(owner, INTENT_COLLAPSE)
+        await harness.settle()
+        assert selection_key(harness) == "container:clan:swarm:1"
+        assert harness.archive.expanded_containers == ()
+        assert "u.m@m1" not in harness.widget.last_labels()
+        assert archive_container_members(owner, "clan:swarm:1") == ()
+
+
 __all__ = [
     "test_cold_open_lists_open_banners_with_core_rows_and_selects_first_run",
     "test_scope_token_is_stripped_before_every_corpus_call",
@@ -408,4 +426,5 @@ __all__ = [
     "test_multi_group_banner_pages_across_its_component_days",
     "test_containers_expand_collapse_and_report_matching_members_only",
     "test_container_enter_toggles_and_workflow_children_stay_out_of_the_list",
+    "test_h_on_expanded_container_collapses_in_place",
 ]

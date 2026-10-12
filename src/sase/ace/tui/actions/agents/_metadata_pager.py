@@ -163,10 +163,18 @@ class AgentMetadataPagerMixin:
     ) -> bool:
         if self.current_tab != "agents":  # type: ignore[attr-defined]
             return False
-        selected = _find_agent_by_identity(
-            self, agent_identity, archive_key=archive_key
-        )
-        return selected is not None and tuple(selected.identity) == agent_identity
+        if archive_key is not None:
+            selected = _find_agent_by_identity(
+                self, agent_identity, archive_key=archive_key
+            )
+            return selected is not None and tuple(selected.identity) == agent_identity
+        from ._archive_actions import archive_ui_active
+
+        if archive_ui_active(self):
+            return False
+        selector = getattr(self, "_get_selected_agent", None)
+        current = selector() if callable(selector) else None
+        return current is not None and tuple(current.identity) == agent_identity
 
 
 __all__ = ["AgentMetadataPagerMixin"]

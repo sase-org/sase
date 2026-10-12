@@ -449,6 +449,12 @@ def update_archive_pulse(owner: Any) -> None:
 def on_archive_snapshot_applied(owner: Any) -> None:
     """Controller hook: a current-generation result landed."""
     refresh_column(owner)
+    try:
+        from ._archive_view import flush_pending_archive_list_scroll
+
+        flush_pending_archive_list_scroll(owner)
+    except Exception:
+        log.debug("archive list scroll restore failed", exc_info=True)
     if archive_detail_owns_panel(owner):
         try:
             from ...widgets import AgentInfoPanel

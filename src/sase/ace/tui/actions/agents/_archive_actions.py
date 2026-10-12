@@ -59,6 +59,9 @@ ARCHIVE_LIVE_ONLY_ACTIONS = frozenset(
         "pick_agents_tab",
         "start_tmux_mode",
         "toggle_agent_unread",
+        "kill_and_edit",
+        "revert_agent",
+        "agent_from_cl",
     }
 )
 
@@ -97,6 +100,9 @@ _ARCHIVE_GUARD_KEY_LABELS = {
     "edit_spec": "e",
     "open_tmux": "T",
     "start_tmux_mode": "t",
+    "kill_and_edit": ",x",
+    "revert_agent": ",r",
+    "agent_from_cl": ",<space>",
 }
 
 _TAB_GUARD_ACTIONS = frozenset(
@@ -117,16 +123,41 @@ def archive_ui_active(owner: Any) -> bool:
         return False
 
 
-def _archive_guard_message(action: str, *, target_name: str | None = None) -> str:
+def _archive_toggle_chord(owner: Any | None = None) -> str:
+    """Return the configured Archive toggle chord, falling back to ``,a``."""
+    try:
+        from ...keymaps.display import leader_key_display
+
+        registry = (
+            getattr(owner, "_keymap_registry", None) if owner is not None else None
+        )
+        if registry is None:
+            from ...keymaps import load_keymap_registry
+
+            registry = load_keymap_registry({})
+        return leader_key_display(registry, "toggle_agents_archive")
+    except Exception:
+        return ",a"
+
+
+def _archive_guard_message(
+    action: str,
+    *,
+    target_name: str | None = None,
+    owner: Any | None = None,
+) -> str:
     """Return the explanatory toast for a live-only action in the Archive."""
     key = _ARCHIVE_GUARD_KEY_LABELS.get(action, action)
+    chord = _archive_toggle_chord(owner)
     if action in _TAB_GUARD_ACTIONS:
-        return "Agent tabs live in the Inbox · ,a"
+        return f"Agent tabs live in the Inbox · {chord}"
     if action in _TRIBE_GUARD_ACTIONS:
-        return "Tribes live in the Inbox · ,a"
+        return f"Tribes live in the Inbox · {chord}"
     if target_name:
-        return f"{key} acts on inbox agents — {target_name} is archived · ,a for inbox"
-    return f"{key} acts on inbox agents — archived rows are read-only · ,a for inbox"
+        return f"{key} acts on inbox agents — {target_name} is archived · {chord} for inbox"
+    return (
+        f"{key} acts on inbox agents — archived rows are read-only · {chord} for inbox"
+    )
 
 
 def _archive_selection_name(owner: Any) -> str | None:
@@ -172,7 +203,9 @@ def guard_archive_live_action(owner: Any, action: str) -> bool:
         if callable(notify):
             notify(
                 _archive_guard_message(
-                    action, target_name=_archive_selection_name(owner)
+                    action,
+                    target_name=_archive_selection_name(owner),
+                    owner=owner,
                 )
             )
     except Exception:

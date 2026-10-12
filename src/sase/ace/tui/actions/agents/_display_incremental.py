@@ -12,11 +12,6 @@ if TYPE_CHECKING:
 from ...models.agent_groups import GroupingMode
 from ...util.debounce import DetailPanelDebouncer
 from ...util.trace import tui_trace
-from ._archive_column_mixin import (
-    agents_inbox_detail_allowed,
-    cancel_inbox_detail_debounce,
-    schedule_owned_inbox_detail_update,
-)
 from ._display_diff import (
     PanelRebuildScope,
     affected_panel_keys,
@@ -25,7 +20,14 @@ from ._display_diff import (
     panel_rebuild_scope,
     rendered_panel_key_by_identity,
 )
-from ._display_helpers import TabName, panel_widget_id_for_key, panel_widget_is_retiring
+from ._display_helpers import (
+    TabName,
+    agents_inbox_detail_allowed,
+    cancel_inbox_detail_debounce,
+    panel_widget_id_for_key,
+    panel_widget_is_retiring,
+    schedule_owned_inbox_detail_update,
+)
 from ._loading import DISMISSABLE_STATUSES
 from ._paint_log import record_agents_paint_frame
 from ._refresh_trace import (

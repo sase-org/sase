@@ -21,6 +21,13 @@ from .highlighting import style_for_query_token, tokenize_query_for_display
 
 __all__ = ["highlight_query"]
 
+_HOST_SCOPE_PANE_IDS = frozenset({"agents-live", "agents-archive"})
+
+
+def _profile_has_host_scope(profile: CompiledQueryProfile) -> bool:
+    """Return whether *profile* owns the host ``in:`` scope token."""
+    return str(getattr(profile, "pane_id", "") or "") in _HOST_SCOPE_PANE_IDS
+
 
 def highlight_query(text: str, profile: CompiledQueryProfile) -> Text:
     """Render *text* as syntax-highlighted Rich ``Text`` for *profile*.
@@ -30,7 +37,9 @@ def highlight_query(text: str, profile: CompiledQueryProfile) -> Text:
     """
     try:
         tokens = (
-            tokenize_query_for_display(text)
+            tokenize_query_for_display(
+                text, host_scope=_profile_has_host_scope(profile)
+            )
             if profile.boolean
             else _classify_flat_query_tokens(text, profile)
         )
@@ -71,7 +80,6 @@ def _classify_flat_query_tokens(
 
     known_keys = {key.casefold() for key in profile.filterable_fields()}
     known_keys.add("limit")
-    known_keys.add("in")
     sigil_map = {item.sigil: item.field for item in profile.sigils}
     shorthand_tokens = {f"{item.trigger}{item.letter}" for item in profile.shorthands}
 
@@ -145,7 +153,7 @@ def _classify_token(
         key_raw = body_raw[:key_end]
         # The unquoted key segment never contains escapes, so decoded and
         # raw text agree here (both equal `key_raw`).
-        if key_raw.casefold() == "in":
+        if key_raw.casefold() == "in" and _profile_has_host_scope(profile):
             spans.append((f"{key_raw}:", "scope_key"))
             spans.extend(
                 (

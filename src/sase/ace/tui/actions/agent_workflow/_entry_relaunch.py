@@ -262,6 +262,13 @@ class EntryRelaunchMixin:
                 skipping row selection. ``None`` keeps the ``,x`` default of
                 acting on the currently focused row.
         """
+        if target is None:
+            from ..agents._archive_actions import guard_archive_live_action
+
+            if guard_archive_live_action(self, "kill_and_edit"):
+                if on_initiated is not None:
+                    on_initiated(False)
+                return
         agent = target if target is not None else self._get_selected_agent()  # type: ignore[attr-defined]
         if agent is None:
             self.notify("No agent selected", severity="warning")  # type: ignore[attr-defined]

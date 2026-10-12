@@ -55,7 +55,7 @@ def test_inbox_jk_probe_does_not_load_archive_view() -> None:
                 from types import SimpleNamespace
 
                 importlib.import_module("sase.ace.tui.app")
-                from sase.ace.tui.actions.agents._archive_column_mixin import (
+                from sase.ace.tui.actions.agents._display_helpers import (
                     route_archive_key_if_active,
                 )
 
@@ -80,3 +80,12 @@ def test_inbox_jk_probe_does_not_load_archive_view() -> None:
 
     assert result.returncode == 0, result.stderr
     assert json.loads(result.stdout) == []
+
+
+def test_archive_column_mixin_module_is_gone() -> None:
+    import importlib.util
+
+    assert (
+        importlib.util.find_spec("sase.ace.tui.actions.agents._archive_column_mixin")
+        is None
+    )

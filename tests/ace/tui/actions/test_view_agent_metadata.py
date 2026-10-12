@@ -187,3 +187,28 @@ async def test_refresh_provider_returns_none_when_the_row_is_gone(
     refresh_fn = screen._refresh_document_fn
     assert refresh_fn is not None
     assert refresh_fn() is None
+
+
+@patch(
+    "sase.ace.tui.actions.agents._metadata_pager_document.build_detail_header_summary",
+    return_value=DetailHeaderSummary(),
+)
+async def test_v_then_j_does_not_open_pager_for_left_row(_mock: object) -> None:
+    left = make_agent(cl_name="left", raw_suffix="20250101120000")
+    right = make_agent(cl_name="right", raw_suffix="20250101120100")
+    app = _FakeApp(left)
+    app._agents = [left, right]
+
+    from sase.ace.tui.actions.agents import _metadata_pager as pager_mod
+
+    original = pager_mod._build_document
+
+    def _swap_selection(agent: object, captured_link_context: object) -> PagerDocument:
+        app._agent = right
+        return original(agent, captured_link_context)  # type: ignore[arg-type]
+
+    with patch.object(pager_mod, "_build_document", side_effect=_swap_selection):
+        await _run_action(app)
+
+    assert app.pushed_screens == []
+    assert app._agent is right
