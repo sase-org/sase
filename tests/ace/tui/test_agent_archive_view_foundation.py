@@ -18,9 +18,11 @@ from sase.ace.tui.actions.agents._archive_view import (
     close_agents_archive_view,
     get_agents_tab_selection,
     init_agents_archive_view_state,
-    _invalidate_agents_detail_ownership,
     open_agents_archive_view,
     open_agents_archive_view_with_query,
+)
+from sase.ace.tui.actions.agents._archive_view_lifecycle import (
+    _invalidate_agents_detail_ownership,
 )
 from sase.ace.tui.actions.agents._display import AgentDisplayMixin
 from sase.ace.tui.models.agent import Agent, AgentType

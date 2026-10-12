@@ -435,10 +435,6 @@ _lint-patch-stitch-terminology: _setup
 # symbol allow-listed again, re-add a row re-keyed onto a still-open bead.
 # sase-1jw.2 wires the machine-local plan project readers into approval; the
 # original symbol allowlist rows are now consumed and have been removed.
-# sase-1jm.4.1.3 (Lifecycle and Provenance cards) is the planned consumer of
-# archive_read_only_context: the Record deck reads that Archive selection
-# context. sase-1jm.3.1 closed with the symbol still test-only, so the row is
-# re-keyed here. Drop it once that phase calls the symbol from non-test code.
 # sase-1jx.10.1.2 parks run_project_init for sase-1jx.10.1.4 (Apply, progress,
 # Ready, and Failed): that phase calls the shared init hand-off after a
 # successful durable add. Drop the row once apply-ready lands its caller.
@@ -449,7 +445,6 @@ _lint-symvision *args: _setup
     SASE_SYMVISION_BEAD_STATUS_ONLY=1 BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase \
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
-        --epic-symbol 'sase-1jm.4.1.3(archive_read_only_context)' \
         --epic-symbol 'sase-1jm(archive_corpus_is_warm)' \
         --epic-symbol 'sase-1jx.8(evaluate_repo_creation_form)' \
         --epic-symbol 'sase-1jx.11(NewProjectModal)' \
