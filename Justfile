@@ -451,11 +451,17 @@ _lint-symvision *args: _setup
         --epic-symbol 'sase-1jm.3.1(archive_read_only_context)' \
         --epic-symbol 'sase-1jm(archive_corpus_is_warm)' \
         --epic-symbol 'sase-1jm.5(mark_archive_row_restored)' \
-        --epic-symbol 'sase-1jx.7(plan_project_onboarding)' \
         --epic-symbol 'sase-1jx.8(evaluate_repo_creation_form)' \
-        --epic-symbol 'sase-1jx.7(parse_user_ref)' \
-        --epic-symbol 'sase-1jx.7(UserRefError)' \
-        --epic-symbol 'sase-1jx.12(journals_dir)' \
+        --epic-symbol 'sase-1jx.7.1.4(build_plan_document)' \
+        --epic-symbol 'sase-1jx.7.1.3(emit_event)' \
+        --epic-symbol 'sase-1jx.10(parse_event_line)' \
+        --epic-symbol 'sase-1jx.7.1.3(journal_path)' \
+        --epic-symbol 'sase-1jx.7.1.3(journal_lock_path)' \
+        --epic-symbol 'sase-1jx.7.1.3(journal_lock)' \
+        --epic-symbol 'sase-1jx.7.1.3(lookup_journal)' \
+        --epic-symbol 'sase-1jx.7.1.3(record_intent)' \
+        --epic-symbol 'sase-1jx.7.1.3(update_step)' \
+        --epic-symbol 'sase-1jx.7.1.3(set_journal_status)' \
         --epic-symbol 'sase-1jx.11(NewProjectModal)' \
         --epic-symbol 'sase-1jx.11(NewProjectSelection)' \
         --epic-symbol 'sase-1jx.12(record_owner_selection)' \

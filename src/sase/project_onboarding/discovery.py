@@ -9,7 +9,6 @@ is read from disk; only a live owner refresh touches the network.
 from __future__ import annotations
 
 import configparser
-import json
 import re
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
@@ -19,7 +18,7 @@ from typing import Any
 
 from sase import workspace_provider
 from sase.config import load_merged_config
-from sase.core.paths import sase_home, sase_projects_dir
+from sase.core.paths import sase_projects_dir
 from sase.core.project_lifecycle_facade import list_project_records
 from sase.core.project_lifecycle_wire import (
     ProjectRecordWire,
@@ -39,16 +38,17 @@ from sase.sdd._store_types import (
     BEADS_SIDECAR_ROLE,
     PLANS_SIDECAR_ROLE,
 )
+from sase.project_onboarding.journal import journals_dir as owned_journals_dir
+from sase.project_onboarding.journal import list_incomplete
 from sase.workspace_provider._hookspec import VcsRepoEntry
 
 SUGGEST_SCHEMA_VERSION = 1
 """Version of the ``sase project suggest`` JSON document."""
 
-_JOURNALS_DIRNAME = "journals"
 _MAX_DISCOVERY_WORKERS = 3
 _GH_KEY_RE = re.compile(r"^gh_(?P<owner>.+)__(?P<repo>.+)$")
 _REPO_SUFFIX_RE = re.compile(r"-\d+$")
-_LIVE_JOURNAL_STATUSES = frozenset({"running", "failed"})
+_GITDIR_PREFIX = "gitdir:"
 
 
 @dataclass
@@ -140,7 +140,7 @@ def _identity_for_ref(workflow_type: str, ref: str) -> str:
     return parsed.identity_key if parsed is not None else ""
 
 
-def _identity_for_origin(url: str) -> str:
+def identity_for_origin(url: str) -> str:
     """Parse an origin URL through every provider, first match wins."""
 
     if not url:
@@ -159,30 +159,89 @@ def _identity_for_origin(url: str) -> str:
     return ""
 
 
-def _read_git_origin_url(checkout: str) -> str:
+def resolve_git_dir(checkout: str | Path) -> Path | None:
+    """Return the git directory for a checkout, including worktree gitfiles."""
+
+    root = Path(checkout)
+    git_path = root / ".git"
+    try:
+        if git_path.is_dir():
+            return git_path
+        if git_path.is_file():
+            resolved = _git_dir_from_gitfile(root, git_path)
+            if resolved is not None:
+                return resolved
+        if (root / "HEAD").is_file() and (root / "config").is_file():
+            return root
+    except OSError:
+        return None
+    return None
+
+
+def read_git_origin_url(checkout: str) -> str:
     """Read the ``origin`` URL from a checkout's git config without git."""
 
     if not checkout:
         return ""
-    for candidate in (
-        Path(checkout) / ".git" / "config",
-        Path(checkout) / "config",
-    ):
-        try:
-            text = candidate.read_text(encoding="utf-8")
-        except OSError:
+    for candidate in _git_config_paths(Path(checkout)):
+        url = _origin_url_from_config(candidate)
+        if url:
+            return url
+    return ""
+
+
+def _git_dir_from_gitfile(checkout: Path, gitfile: Path) -> Path | None:
+    try:
+        text = gitfile.read_text(encoding="utf-8")
+    except OSError:
+        return None
+    for line in text.splitlines():
+        stripped = line.strip()
+        if not stripped.lower().startswith(_GITDIR_PREFIX):
             continue
-        parser = configparser.ConfigParser()
-        try:
-            parser.read_string(text)
-        except configparser.Error:
+        raw = stripped.split(":", 1)[1].strip()
+        if not raw:
             continue
-        for section in parser.sections():
-            if section.strip().casefold() == 'remote "origin"':
-                try:
-                    return (parser.get(section, "url") or "").strip()
-                except (configparser.NoOptionError, configparser.NoSectionError):
-                    continue
+        git_dir = Path(raw)
+        if not git_dir.is_absolute():
+            git_dir = checkout / git_dir
+        return git_dir
+    return None
+
+
+def _git_config_paths(checkout: Path) -> list[Path]:
+    git_dir = resolve_git_dir(checkout)
+    if git_dir is None:
+        return [checkout / ".git" / "config", checkout / "config"]
+    paths = [git_dir / "config"]
+    try:
+        commondir = (git_dir / "commondir").read_text(encoding="utf-8").strip()
+    except OSError:
+        commondir = ""
+    if commondir:
+        common = Path(commondir)
+        if not common.is_absolute():
+            common = git_dir / common
+        paths.append(common / "config")
+    return paths
+
+
+def _origin_url_from_config(path: Path) -> str:
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError:
+        return ""
+    parser = configparser.ConfigParser()
+    try:
+        parser.read_string(text)
+    except configparser.Error:
+        return ""
+    for section in parser.sections():
+        if section.strip().casefold() == 'remote "origin"':
+            try:
+                return (parser.get(section, "url") or "").strip()
+            except (configparser.NoOptionError, configparser.NoSectionError):
+                continue
     return ""
 
 
@@ -198,12 +257,12 @@ def _fallback_identity_for_key(project_key: str) -> str:
     return f"github.com/{match.group('owner')}/{repo}".casefold()
 
 
-def _record_identity_keys(record: ProjectRecordWire) -> list[str]:
+def record_identity_keys(record: ProjectRecordWire) -> list[str]:
     """Return provider identities for one project record's checkout."""
 
     seen: list[str] = []
-    origin = _read_git_origin_url(record.workspace_dir or "")
-    identity = _identity_for_origin(origin)
+    origin = read_git_origin_url(record.workspace_dir or "")
+    identity = identity_for_origin(origin)
     if identity:
         seen.append(identity)
     fallback = _fallback_identity_for_key(record.project_name)
@@ -269,40 +328,7 @@ def _sidecar_roles() -> list[str]:
 def journals_dir() -> Path:
     """Return the ownership-journal directory under ``$SASE_HOME``."""
 
-    return sase_home() / "project_onboarding" / _JOURNALS_DIRNAME
-
-
-def _list_incomplete_journals() -> list[dict[str, Any]]:
-    """Return live (running/failed) onboarding journals, tolerating damage."""
-
-    try:
-        paths = sorted(journals_dir().glob("*.json"), key=lambda p: p.name)
-    except OSError:
-        return []
-    journals: list[dict[str, Any]] = []
-    for path in paths:
-        try:
-            raw = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, ValueError):
-            continue
-        if not isinstance(raw, dict):
-            continue
-        status = str(raw.get("status") or "")
-        identity_key = str(raw.get("identity_key") or "")
-        if status not in _LIVE_JOURNAL_STATUSES or not identity_key:
-            continue
-        ref = str(raw.get("ref") or "")
-        journals.append(
-            {
-                "identity_key": identity_key,
-                "ref": ref,
-                "display": str(raw.get("display") or ref),
-                "status": status,
-                "stopped_at": str(raw.get("stopped_at") or ""),
-                "updated_at": str(raw.get("updated_at") or ""),
-            }
-        )
-    return journals
+    return owned_journals_dir()
 
 
 def _resolve_namespaces(
@@ -462,7 +488,7 @@ def _project_entries() -> list[dict[str, Any]]:
                 "name": effective_project_name(record),
                 "aliases": list(record.aliases),
                 "state": record.state,
-                "identity_keys": _record_identity_keys(record),
+                "identity_keys": record_identity_keys(record),
             }
         )
     return entries
@@ -479,7 +505,7 @@ def _inventory_entries() -> list[dict[str, Any]]:
     for record in inventory.records:
         if record.kind not in ("sidecar", "linked", "external"):
             continue
-        identity = _identity_for_origin(_read_git_origin_url(record.path))
+        identity = identity_for_origin(read_git_origin_url(record.path))
         if not identity:
             continue
         entries.append(
@@ -543,7 +569,7 @@ def load_candidate_inputs(
         local=_local_entries(workflow_type),
         projects=projects,
         inventory=_inventory_entries(),
-        journals=_list_incomplete_journals(),
+        journals=list_incomplete(),
         owned_namespaces=_owned_namespaces(account, projects),
         sidecar_roles=_sidecar_roles(),
     )
@@ -620,7 +646,11 @@ __all__ = [
     "CandidateInputs",
     "OwnerResult",
     "SUGGEST_SCHEMA_VERSION",
+    "identity_for_origin",
     "journals_dir",
     "load_candidate_inputs",
+    "read_git_origin_url",
+    "record_identity_keys",
+    "resolve_git_dir",
     "suggest",
 ]

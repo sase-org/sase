@@ -311,7 +311,7 @@ class TestSuggestClassification:
             "gh_sase-org__sase", state="enabled", workspace_dir=None
         )
 
-        assert discovery._record_identity_keys(record) == ["github.com/sase-org/sase"]
+        assert discovery.record_identity_keys(record) == ["github.com/sase-org/sase"]
 
 
 class TestDiscoveryCacheBehavior:

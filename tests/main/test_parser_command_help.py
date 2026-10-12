@@ -140,9 +140,10 @@ def test_project_current_help_documents_resolution_and_json() -> None:
         "set-current",
         "set-state",
         "show",
+        "suggest",
     }
     assert (
-        "{alias,current,disable,enable,list,set-current,set-state,show}"
+        "{alias,current,disable,enable,list,set-current,set-state,show,suggest}"
         in project_parser.format_help()
     )
     assert "current" in help_subcommand_rows(project_parser.format_help(), expected)
