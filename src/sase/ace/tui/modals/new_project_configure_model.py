@@ -208,7 +208,7 @@ def check_identity(document: Mapping[str, Any]) -> IdentityCheck:
     return IdentityCheck(status="unique", reason="")
 
 
-def validate_draft(
+def _validate_draft(
     target: Mapping[str, Any],
     draft: ConfigureDraft,
     records: Sequence[Mapping[str, Any]],
@@ -236,7 +236,7 @@ def plan_configure_display(
 ) -> dict[str, Any]:
     """Build the Configure display plan from observed *facts*.
 
-    Records-only :func:`validate_draft` stays the identity-only helper.
+    Records-only :func:`_validate_draft` stays the identity-only helper.
     Display planning threads Source-cache and inventory snapshots through
     the existing ``build_plan_document(..., facts=...)`` contract.
     """
@@ -260,5 +260,5 @@ __all__ = [
     "build_setup_card",
     "check_identity",
     "plan_configure_display",
-    "validate_draft",
+    "_validate_draft",
 ]

@@ -3,7 +3,7 @@
 Every builder here is Textual-free: inputs are a Decision Sheet row, its
 frozen definition, a content width, and display flags; outputs are Rich
 renderables (``Group`` of pre-wrapped ``Text`` lines) plus a mouse
-option-line map. The :class:`DecisionCard` widget in
+option-line map. The :class:`_DecisionCard` widget in
 :mod:`sase.ace.tui.modals.plan_decision_rows` owns layout and focus; these
 functions own every pixel of card text so unit tests can assert wrapping,
 chips, and glyphs without a pilot.
@@ -49,7 +49,7 @@ TWO_COLUMN_MIN_INNER_WIDTH = 60
 
 
 @dataclass(frozen=True)
-class OptionLineMap:
+class _OptionLineMap:
     """Maps one rendered option to its line span for mouse selection."""
 
     key: str
@@ -62,11 +62,11 @@ class BuiltCard:
     """One rendered card: lines plus the mouse option map."""
 
     renderable: Group
-    option_map: tuple[OptionLineMap, ...] = ()
+    option_map: tuple[_OptionLineMap, ...] = ()
     height: int = 0
 
 
-def is_unverified_row(
+def _is_unverified_row(
     row: dict[str, Any], definition: dict[str, Any] | None = None
 ) -> bool:
     """Return True when a memory row still needs a human to turn it on."""
@@ -83,7 +83,7 @@ def is_unverified_row(
     return False
 
 
-def memory_type_chips(memory: dict[str, Any]) -> list[str]:
+def _memory_type_chips(memory: dict[str, Any]) -> list[str]:
     """Return the note-kind chips (core/reference/web/new) for a memory row."""
     resolved = memory.get("resolved")
     if not isinstance(resolved, list):
@@ -102,14 +102,14 @@ def memory_type_chips(memory: dict[str, Any]) -> list[str]:
     return chips
 
 
-def unverified_preview(memory: dict[str, Any]) -> str:
+def _unverified_preview(memory: dict[str, Any]) -> str:
     """Return the one-line yellow preview for an unverified memory row."""
     if str(memory.get("provenance") or "") == "claim_not_found":
         return f"{WARNING_GLYPH} claim not found \u00b7 off"
     return f"{WARNING_GLYPH} quote not found \u00b7 off"
 
 
-def unverified_warning_line(memory: dict[str, Any]) -> str:
+def _unverified_warning_line(memory: dict[str, Any]) -> str:
     """Return the full warning sentence for an unverified memory row."""
     quote = memory.get("quote")
     quote_text = str(quote).strip() if isinstance(quote, str) else ""
@@ -134,7 +134,7 @@ def _answer_chip_parts(row: dict[str, Any]) -> tuple[str, str, bool]:
     return f"{value}", mark, changed
 
 
-def answer_chip_text(row: dict[str, Any]) -> tuple[str, bool]:
+def _answer_chip_text(row: dict[str, Any]) -> tuple[str, bool]:
     """Return the answer chip text and whether the value changed.
 
     At the default the chip reads ``value ★``; changed it reads ``value ●``.
@@ -144,7 +144,7 @@ def answer_chip_text(row: dict[str, Any]) -> tuple[str, bool]:
     return f"{value_text} {mark}", changed
 
 
-def default_line_text(
+def _default_line_text(
     row: dict[str, Any], definition: dict[str, Any] | None = None
 ) -> tuple[str, bool]:
     """Return the memory-toggle default line and whether it warns.
@@ -276,7 +276,7 @@ def _build(
     definition: dict[str, Any] | None,
     width: int,
     lines: list[Text],
-    option_map: list[OptionLineMap],
+    option_map: list[_OptionLineMap],
     *,
     current: bool,
     focused: bool,
@@ -316,9 +316,9 @@ def collapsed_card(
     ]
     if preview_lines >= 2:
         memory = row.get("memory")
-        if isinstance(memory, dict) and is_unverified_row(row, definition):
+        if isinstance(memory, dict) and _is_unverified_row(row, definition):
             preview = Text(
-                unverified_preview(memory),
+                _unverified_preview(memory),
                 style="yellow",
                 overflow="ellipsis",
                 no_wrap=True,
@@ -333,7 +333,7 @@ def collapsed_card(
                 lines.append(preview)
             elif isinstance(memory, dict):
                 names = memory_note_names(memory)
-                chips = memory_type_chips(memory)
+                chips = _memory_type_chips(memory)
                 provenance = provenance_chip(str(memory.get("provenance") or ""))
                 second = (
                     f"{MEMORY_GLYPH} {', '.join(names) if names else row.get('id', '')}"
@@ -482,7 +482,7 @@ def expanded_card(
     ask = str(row.get("ask", "")).strip()
     if ask:
         lines.extend(_wrap_lines(console, ask, content_width))
-    option_map: list[OptionLineMap] = []
+    option_map: list[_OptionLineMap] = []
     if kind == "choice":
         two_column = content_width >= TWO_COLUMN_MIN_INNER_WIDTH
         if ask:
@@ -493,7 +493,7 @@ def expanded_card(
         base = len(lines)
         lines.extend(opt_lines)
         for key, first, last in spans:
-            option_map.append(OptionLineMap(key, base + first, base + last))
+            option_map.append(_OptionLineMap(key, base + first, base + last))
         why = row.get("why")
         if isinstance(why, str) and why.strip():
             lines.append(Text("", no_wrap=True))
@@ -531,7 +531,7 @@ def expanded_card(
                 lines.extend(why_wrapped)
     elif isinstance(memory, dict):
         names = memory_note_names(memory)
-        chips = memory_type_chips(memory)
+        chips = _memory_type_chips(memory)
         selector_text = ", ".join(names) if names else str(row.get("id", ""))
         edits_wrapped = _wrap_lines(
             console, selector_text, max(content_width - 11, 1), style="dim"
@@ -552,7 +552,7 @@ def expanded_card(
             )
             for part in chip_wrapped:
                 lines.append(Text(" " * 11, no_wrap=True) + part)
-        default_text, warns = default_line_text(row, definition)
+        default_text, warns = _default_line_text(row, definition)
         if default_text:
             default_wrapped = _wrap_lines(
                 console,
@@ -588,7 +588,7 @@ def expanded_card(
         definition,
         width,
         lines,
-        [OptionLineMap(o.key, o.first_line, o.last_line) for o in option_map],
+        [_OptionLineMap(o.key, o.first_line, o.last_line) for o in option_map],
         current=current,
         focused=focused,
         read_only=read_only,
@@ -611,14 +611,14 @@ __all__ = [
     "READONLY_BAR_STYLE",
     "TWO_COLUMN_MIN_INNER_WIDTH",
     "BuiltCard",
-    "OptionLineMap",
-    "answer_chip_text",
+    "_OptionLineMap",
+    "_answer_chip_text",
     "collapsed_card",
-    "default_line_text",
+    "_default_line_text",
     "expanded_card",
-    "is_unverified_row",
-    "memory_type_chips",
+    "_is_unverified_row",
+    "_memory_type_chips",
     "render_lines",
-    "unverified_preview",
-    "unverified_warning_line",
+    "_unverified_preview",
+    "_unverified_warning_line",
 ]

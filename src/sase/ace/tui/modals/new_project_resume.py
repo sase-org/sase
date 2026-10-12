@@ -37,7 +37,7 @@ _UNRECOVERABLE_CREATE_ERROR = (
 
 
 @dataclass(frozen=True, slots=True)
-class ResumeContext:
+class _ResumeContext:
     """Durable journal plus optional proc request/command evidence."""
 
     journal: dict[str, Any] | None
@@ -46,7 +46,7 @@ class ResumeContext:
 
 
 @dataclass(frozen=True, slots=True)
-class CreateRecovery:
+class _CreateRecovery:
     """Recovered create intent: namespace, name, options, and project choices."""
 
     owner: str = ""
@@ -74,7 +74,7 @@ class ResumePlan:
     notice: str
     error: str
     mode: str = "add"
-    create: CreateRecovery | None = None
+    create: _CreateRecovery | None = None
     add_alternative: str = ""
 
 
@@ -92,14 +92,14 @@ def _request_for_operation(proc_id: str, operation: str) -> dict[str, Any] | Non
     return None
 
 
-def load_resume_context(identity_key: str) -> ResumeContext:
+def load_resume_context(identity_key: str) -> _ResumeContext:
     """Read the journal and, when present, the proc request sidecar."""
     journal = lookup_journal(identity_key)
     request: dict[str, Any] | None = None
     command: tuple[str, ...] = ()
     proc_id = str((journal or {}).get("proc_id") or "")
     if not proc_id:
-        return ResumeContext(journal=journal, request=None, command=())
+        return _ResumeContext(journal=journal, request=None, command=())
     proc = get_proc(proc_id)
     if proc is not None:
         raw_command = proc.command or proc.argv
@@ -110,14 +110,14 @@ def load_resume_context(identity_key: str) -> ResumeContext:
     request = _request_for_operation(proc_id, primary)
     if request is None:
         request = _request_for_operation(proc_id, secondary)
-    return ResumeContext(journal=journal, request=request, command=command)
+    return _ResumeContext(journal=journal, request=request, command=command)
 
 
 def recover_resume_intent(
     *,
     row: SourceRow,
     workflow_type: str,
-    context: ResumeContext,
+    context: _ResumeContext,
     seed_target: Mapping[str, Any],
 ) -> ResumePlan:
     """Validate recovered intent or fall back to a fresh checked add plan."""
@@ -173,7 +173,7 @@ def _recover_create_plan(
     *,
     row: SourceRow,
     workflow_type: str,
-    context: ResumeContext,
+    context: _ResumeContext,
     identity_key: str,
     ref: str,
     target: dict[str, Any],
@@ -270,7 +270,7 @@ def _create_mismatch_error(
     return ""
 
 
-def _create_from_request(request: Mapping[str, Any] | None) -> CreateRecovery | None:
+def _create_from_request(request: Mapping[str, Any] | None) -> _CreateRecovery | None:
     """Recover create intent from the typed durable request."""
     if request is None:
         return None
@@ -300,7 +300,7 @@ def _create_from_request(request: Mapping[str, Any] | None) -> CreateRecovery | 
     aliases = tuple(
         str(item) for item in list(requested_map.get("aliases") or []) if item
     )
-    return CreateRecovery(
+    return _CreateRecovery(
         owner=str(target_map.get("owner") or ""),
         raw_name=ref,
         ref=ref,
@@ -317,7 +317,7 @@ def _create_from_request(request: Mapping[str, Any] | None) -> CreateRecovery | 
     )
 
 
-def _create_from_command(command: tuple[str, ...]) -> CreateRecovery | None:
+def _create_from_command(command: tuple[str, ...]) -> _CreateRecovery | None:
     """Reconstruct create intent from recorded argv without executing it.
 
     Transport and result flags are stripped structurally; option values that
@@ -345,7 +345,7 @@ def _create_from_command(command: tuple[str, ...]) -> CreateRecovery | None:
     if setup not in {"auto", "on", "off"}:
         setup = "auto"
     owner, separator, _name = ref.partition("/")
-    return CreateRecovery(
+    return _CreateRecovery(
         owner=owner if separator else "",
         raw_name=ref,
         ref=ref,
@@ -386,7 +386,7 @@ def _mismatch_error(
 
 
 def _draft_from_context(
-    context: ResumeContext,
+    context: _ResumeContext,
     *,
     fallback_name: str,
 ) -> tuple[ConfigureDraft, str]:
@@ -426,8 +426,6 @@ def _requested_from_request(request: Mapping[str, Any] | None) -> dict[str, Any]
 
 
 __all__ = [
-    "CreateRecovery",
-    "ResumeContext",
     "ResumePlan",
     "load_resume_context",
     "recover_resume_intent",

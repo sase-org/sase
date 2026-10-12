@@ -10,7 +10,7 @@ import pytest
 from sase import workspace_provider
 from sase.ace.tui.modals.new_project_configure_model import ConfigureDraft
 from sase.ace.tui.modals.new_project_resume import (
-    ResumeContext,
+    _ResumeContext,
     recover_resume_intent,
 )
 from sase.ace.tui.modals.new_project_review import NewProjectReview
@@ -50,7 +50,7 @@ def _seed() -> dict[str, Any]:
 
 
 def test_recovers_requested_intent_from_operation_request() -> None:
-    context = ResumeContext(
+    context = _ResumeContext(
         journal={
             "mode": "add",
             "identity_key": "github.com/sase-org/forge",
@@ -81,7 +81,7 @@ def test_recovers_requested_intent_from_operation_request() -> None:
 
 
 def test_legacy_journal_without_intent_gets_review_notice() -> None:
-    context = ResumeContext(
+    context = _ResumeContext(
         journal={
             "mode": "add",
             "identity_key": "github.com/sase-org/forge",
@@ -99,7 +99,7 @@ def test_legacy_journal_without_intent_gets_review_notice() -> None:
 
 
 def test_command_argv_recovers_when_request_is_missing() -> None:
-    context = ResumeContext(
+    context = _ResumeContext(
         journal={"mode": "add", "identity_key": "github.com/sase-org/forge"},
         request=None,
         command=(
@@ -126,7 +126,7 @@ def test_command_argv_recovers_when_request_is_missing() -> None:
 
 
 def test_mismatched_provider_is_recoverable_error() -> None:
-    context = ResumeContext(
+    context = _ResumeContext(
         journal={
             "mode": "add",
             "identity_key": "github.com/sase-org/forge",
@@ -177,7 +177,7 @@ def _create_request(**overrides: Any) -> dict[str, Any]:
 
 
 def test_create_mode_journal_recovers_typed_request() -> None:
-    context = ResumeContext(
+    context = _ResumeContext(
         journal=_create_journal(),
         request=_create_request(),
         command=(),
@@ -199,7 +199,7 @@ def test_create_mode_journal_recovers_typed_request() -> None:
 
 
 def test_create_mode_journal_falls_back_to_recorded_argv() -> None:
-    context = ResumeContext(
+    context = _ResumeContext(
         journal=_create_journal(),
         request=None,
         command=(
@@ -232,7 +232,7 @@ def test_create_mode_journal_falls_back_to_recorded_argv() -> None:
 
 
 def test_create_mode_journal_without_evidence_is_explicit_blocker() -> None:
-    context = ResumeContext(
+    context = _ResumeContext(
         journal=_create_journal(),
         request=None,
         command=(),
@@ -248,7 +248,7 @@ def test_create_mode_journal_without_evidence_is_explicit_blocker() -> None:
 
 
 def test_create_resume_rejects_mismatched_provider() -> None:
-    context = ResumeContext(
+    context = _ResumeContext(
         journal=_create_journal(workflow_type="git"),
         request=_create_request(),
         command=(),
@@ -266,7 +266,7 @@ def test_create_resume_rejects_stale_identity() -> None:
     target = dict(request["target"])
     target["identity_key"] = "github.com/sase-org/other"
     request["target"] = target
-    context = ResumeContext(
+    context = _ResumeContext(
         journal=_create_journal(),
         request=request,
         command=(),
@@ -278,7 +278,7 @@ def test_create_resume_rejects_stale_identity() -> None:
 
 
 def test_add_request_is_ignored_for_create_journal() -> None:
-    context = ResumeContext(
+    context = _ResumeContext(
         journal=_create_journal(),
         request={"mode": "add", "requested": {"name": "forge"}},
         command=(),
@@ -295,7 +295,7 @@ async def test_failed_resume_hydrates_review_and_back(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     app, modal = _make_add_flow(monkeypatch)
-    context = ResumeContext(
+    context = _ResumeContext(
         journal={
             "mode": "add",
             "identity_key": "github.com/sase-org/new",
@@ -356,7 +356,7 @@ async def test_stale_resume_does_not_overwrite(
     app, modal = _make_add_flow(monkeypatch)
     monkeypatch.setattr(
         "sase.ace.tui.modals.new_project_configure_flow.load_resume_context",
-        lambda _key: ResumeContext(journal=None, request=None, command=()),
+        lambda _key: _ResumeContext(journal=None, request=None, command=()),
     )
     async with app.run_test(size=(120, 40)) as pilot:
         app.push_screen(modal)
@@ -482,7 +482,7 @@ async def test_create_resume_hydrates_review_and_restores_configure(
     monkeypatch.setattr(
         workspace_provider, "probe_repo", lambda _wt, _ref: _not_found_probe()
     )
-    context = ResumeContext(
+    context = _ResumeContext(
         journal=_create_journal(),
         request=_create_request(),
         command=(),

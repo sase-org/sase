@@ -99,7 +99,7 @@ async def test_one_keypress_computes_sheet_once_and_refreshes_edited_card(
     from textual.app import App as _App
 
     from sase.ace.tui.modals.plan_approval_modal import PlanApprovalModal as _Modal
-    from sase.ace.tui.modals.plan_decision_rows import DecisionCard as _Card
+    from sase.ace.tui.modals.plan_decision_rows import _DecisionCard as _Card
     from sase.ace.tui.modals.plan_decision_sheet import PlanDecisionDraft as _Draft
 
     class _App4(_App[None]):

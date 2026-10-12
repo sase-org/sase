@@ -8,7 +8,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 
-def archive_name_query(name: str) -> str:
+def _archive_name_query(name: str) -> str:
     """Return a safely quoted exact-name predicate in the Archive scope."""
     return f"in:archive name:{json.dumps(name, ensure_ascii=False)}"
 
@@ -72,7 +72,7 @@ def open_archive_for_agent(
     owner._archive_arrival_callback = None
     outcome = open_agents_archive_view_with_query(
         owner,
-        query=archive_name_query(name),
+        query=_archive_name_query(name),
         agent_name=name,
     )
     generation = outcome.generation
@@ -153,7 +153,7 @@ def open_archive_for_archived_row(
 
 
 __all__ = [
-    "archive_name_query",
+    "_archive_name_query",
     "open_archive_for_agent",
     "open_archive_for_archived_row",
 ]

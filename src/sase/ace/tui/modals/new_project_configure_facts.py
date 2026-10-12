@@ -67,7 +67,7 @@ def matching_project_record(
     return None
 
 
-def checkout_facts_from_source(
+def _checkout_facts_from_source(
     *, group: str, checkout_dir: str
 ) -> dict[str, Any] | None:
     """Describe a local clone already classified by Source inventory.
@@ -115,7 +115,9 @@ def assemble_configure_facts(
             "aliases": list(matching.get("aliases") or []),
             "state": str(matching.get("state") or "enabled"),
         }
-    checkout = checkout_facts_from_source(group=source_group, checkout_dir=checkout_dir)
+    checkout = _checkout_facts_from_source(
+        group=source_group, checkout_dir=checkout_dir
+    )
     if checkout is not None:
         facts["checkout"] = checkout
     return facts
@@ -123,7 +125,7 @@ def assemble_configure_facts(
 
 __all__ = [
     "assemble_configure_facts",
-    "checkout_facts_from_source",
+    "_checkout_facts_from_source",
     "matching_project_record",
     "remote_facts_from_probe",
 ]

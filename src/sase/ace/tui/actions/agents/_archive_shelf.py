@@ -196,7 +196,7 @@ def _sync_widget(owner: Any) -> None:
         pass
 
 
-def sync_archive_shelf(owner: Any) -> None:
+def _sync_archive_shelf(owner: Any) -> None:
     """Repaint the shelf after a count, refresh, or Inbox-result change."""
     _sync_widget(owner)
 
@@ -310,5 +310,5 @@ __all__ = [
     "archive_shelf_snapshot",
     "request_archive_shelf_refresh",
     "route_archive_shelf_focus",
-    "sync_archive_shelf",
+    "_sync_archive_shelf",
 ]

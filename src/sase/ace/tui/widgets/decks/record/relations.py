@@ -18,7 +18,7 @@ from .model import RecordSubject
 
 
 @dataclass(frozen=True)
-class ArtifactLinkGroup:
+class _ArtifactLinkGroup:
     """Links to neighbors with the same direction and relation."""
 
     direction: Literal["outgoing", "incoming", "related"]
@@ -32,7 +32,7 @@ class RelationsExtras:
     """Off-thread Relations/Links inputs."""
 
     resolved_refs: tuple[tuple[str, str], ...] = ()
-    link_groups: tuple[ArtifactLinkGroup, ...] = ()
+    link_groups: tuple[_ArtifactLinkGroup, ...] = ()
     snapshot_source_key: tuple[object, ...] | None = None
     snapshot_error: str | None = None
 
@@ -129,7 +129,7 @@ def _resolve_related_names(subject: RecordSubject) -> dict[str, str]:
     return resolved_refs
 
 
-def _link_groups(chips: tuple[LinkChip, ...]) -> tuple[ArtifactLinkGroup, ...]:
+def _link_groups(chips: tuple[LinkChip, ...]) -> tuple[_ArtifactLinkGroup, ...]:
     grouped: dict[tuple[str, str, str], list[str]] = defaultdict(list)
     for chip in chips:
         direction: Literal["outgoing", "incoming", "related"]
@@ -142,7 +142,7 @@ def _link_groups(chips: tuple[LinkChip, ...]) -> tuple[ArtifactLinkGroup, ...]:
         grouped[(direction, chip.relation, chip.label)].append(chip.neighbor_ref)
 
     groups = [
-        ArtifactLinkGroup(
+        _ArtifactLinkGroup(
             direction=direction,  # type: ignore[arg-type]
             relation=relation,
             label=label,
@@ -177,7 +177,7 @@ def load_relations_extras(subject: RecordSubject) -> RelationsExtras:
 
     source_key: tuple[object, ...] | None = None
     snapshot_error: str | None = None
-    groups: tuple[ArtifactLinkGroup, ...] = ()
+    groups: tuple[_ArtifactLinkGroup, ...] = ()
     try:
         snapshot = load_artifact_links_snapshot(None)
         source_key = tuple(snapshot.source_key)
@@ -316,7 +316,7 @@ def links_card(subject: RecordSubject, extras: RelationsExtras) -> CardPart:
 
 
 __all__ = [
-    "ArtifactLinkGroup",
+    "_ArtifactLinkGroup",
     "RelationsExtras",
     "links_card",
     "load_relations_extras",

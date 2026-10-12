@@ -9,30 +9,32 @@ from unittest.mock import patch
 import pytest
 
 from sase.ace import _agents_pane_query_migration as migration
-from sase.ace._agents_pane_query_migration import convert_agents_pane_query
+from sase.ace._agents_pane_query_migration import _convert_agents_pane_query
 from sase.ace.query_record import QueryRecord
 from sase.feature_flags import override_flags
 
 
 def test_convert_prepends_scope_and_rewrites_terms() -> None:
     assert (
-        convert_agents_pane_query("linked:true tribe:core limit:100")
+        _convert_agents_pane_query("linked:true tribe:core limit:100")
         == "in:archive linked:true clan_tribe:core"
     )
-    assert convert_agents_pane_query("state:dismissed AND revivable:true") is None
-    assert convert_agents_pane_query("") == "in:archive"
-    assert convert_agents_pane_query("  ") == "in:archive"
+    assert _convert_agents_pane_query("state:dismissed AND revivable:true") is None
+    assert _convert_agents_pane_query("") == "in:archive"
+    assert _convert_agents_pane_query("  ") == "in:archive"
 
 
 def test_convert_drops_dismissed_markers_and_keeps_quotes() -> None:
     assert (
-        convert_agents_pane_query('dismissed:true name:"my agent"')
+        _convert_agents_pane_query('dismissed:true name:"my agent"')
         == 'in:archive name:"my agent"'
     )
-    assert convert_agents_pane_query("LIMIT:10 status:done") == "in:archive status:done"
-    assert convert_agents_pane_query("-tribe:core") == "in:archive -clan_tribe:core"
-    assert convert_agents_pane_query("a OR b") is None
-    assert convert_agents_pane_query("(a b)") is None
+    assert (
+        _convert_agents_pane_query("LIMIT:10 status:done") == "in:archive status:done"
+    )
+    assert _convert_agents_pane_query("-tribe:core") == "in:archive -clan_tribe:core"
+    assert _convert_agents_pane_query("a OR b") is None
+    assert _convert_agents_pane_query("(a b)") is None
 
 
 @pytest.fixture

@@ -116,7 +116,7 @@ class CreateDraft:
     project_name_edited: bool = False
 
 
-def default_create_owner(
+def _default_create_owner(
     owners: Sequence[str],
     *,
     account: str = "",
@@ -146,7 +146,7 @@ def default_create_owner(
     return available[0] if available else ""
 
 
-def supported_create_visibilities(form: RepoCreationForm | None) -> tuple[str, ...]:
+def _supported_create_visibilities(form: RepoCreationForm | None) -> tuple[str, ...]:
     """Return the wizard-level visibilities the provider form offers.
 
     A provider ``visibility`` choice field declares the supported values.
@@ -161,7 +161,7 @@ def supported_create_visibilities(form: RepoCreationForm | None) -> tuple[str, .
     return ("private", "public")
 
 
-def default_create_visibility(
+def _default_create_visibility(
     *,
     owner: str,
     supported: Sequence[str],
@@ -252,7 +252,7 @@ def classify_create_probe(probe: Any | None) -> CreateAvailabilityInfo:
     return CreateAvailabilityInfo(status="unavailable", reason=detail)
 
 
-def create_identity_verdict(document: Mapping[str, Any]) -> tuple[bool, str]:
+def _create_identity_verdict(document: Mapping[str, Any]) -> tuple[bool, str]:
     """Map plan identity blockers to a Review verdict.
 
     ``(True, "")`` means the draft name and aliases are unique; otherwise the
@@ -274,7 +274,7 @@ def create_identity_verdict(document: Mapping[str, Any]) -> tuple[bool, str]:
     return True, ""
 
 
-def probe_result_current(
+def _probe_result_current(
     *,
     generation: int,
     expected_generation: int,
@@ -388,7 +388,7 @@ def assemble_create_facts(
     return facts
 
 
-def lenient_effective_options(
+def _lenient_effective_options(
     form: RepoCreationForm | None, values: Mapping[str, str]
 ) -> dict[str, str]:
     """Evaluate provider values leniently and return canonical options.
@@ -413,7 +413,7 @@ def lenient_effective_options(
     return {str(key): str(value) for key, value in effective.items()}
 
 
-def build_create_plan_request(
+def _build_create_plan_request(
     *,
     identity: CreateIdentity,
     workflow_type: str,
@@ -476,7 +476,7 @@ def plan_create_display(
     facts: Mapping[str, Any],
 ) -> dict[str, Any]:
     """Build the create Configure display plan from explicitly observed facts."""
-    request = build_create_plan_request(
+    request = _build_create_plan_request(
         identity=identity,
         workflow_type=workflow_type,
         provider_display=provider_display,
@@ -489,7 +489,7 @@ def plan_create_display(
     return build_plan_document(request, facts=dict(facts))
 
 
-def add_instead_seed(
+def _add_instead_seed(
     *,
     identity: CreateIdentity,
     workflow_type: str,
@@ -518,7 +518,7 @@ def add_instead_seed(
     }
 
 
-def create_review_request(
+def _create_review_request(
     *,
     identity: CreateIdentity,
     workflow_type: str,
@@ -535,7 +535,7 @@ def create_review_request(
     provider ``options``, and creation visibility/summary travel together
     through Back, Review, durable operation storage, and retry.
     """
-    return build_create_plan_request(
+    return _build_create_plan_request(
         identity=identity,
         workflow_type=workflow_type,
         provider_display=provider_display,
@@ -1314,7 +1314,7 @@ class NewProjectCreateFlowMixin(_MixinBase):
         last_owner = ""
         if preferences is not None:
             last_owner = preferences.last_owner.get(workflow_type, "")
-        owner = default_create_owner(
+        owner = _default_create_owner(
             self._create_owners,
             account=account,
             last_owner=last_owner,
@@ -1345,8 +1345,8 @@ class NewProjectCreateFlowMixin(_MixinBase):
         last_visibility: Mapping[str, str] = (
             preferences.last_visibility if preferences is not None else {}
         )
-        supported = supported_create_visibilities(None)
-        visibility = default_create_visibility(
+        supported = _supported_create_visibilities(None)
+        visibility = _default_create_visibility(
             owner=owner, supported=supported, last_visibility=last_visibility
         )
         identity = normalize_create_name(self._state.workflow_type, owner, raw_name)
@@ -1359,7 +1359,7 @@ class NewProjectCreateFlowMixin(_MixinBase):
         )
 
     def _supported_visibilities(self) -> tuple[str, ...]:
-        return supported_create_visibilities(self._create_form)
+        return _supported_create_visibilities(self._create_form)
 
     def _paint_create_configure(self) -> None:
         """Repaint the create stage from flow-owned state."""
@@ -1391,7 +1391,7 @@ class NewProjectCreateFlowMixin(_MixinBase):
     def _create_identity_valid(self) -> bool:
         if not self._create_identity.valid or not self._create_plan_current():
             return False
-        verdict, _ = create_identity_verdict(self._create_plan)
+        verdict, _ = _create_identity_verdict(self._create_plan)
         return verdict
 
     def _create_identity_reason(self) -> str:
@@ -1401,7 +1401,7 @@ class NewProjectCreateFlowMixin(_MixinBase):
             return "Building the local plan…"
         if not self._create_plan_current():
             return "Updating the local plan…"
-        _, reason = create_identity_verdict(self._create_plan)
+        _, reason = _create_identity_verdict(self._create_plan)
         return reason
 
     def _create_confirmable(self, draft: CreateDraft) -> bool:
@@ -1413,7 +1413,7 @@ class NewProjectCreateFlowMixin(_MixinBase):
             return False
         if not self._create_plan_current():
             return False
-        verdict, _ = create_identity_verdict(self._create_plan)
+        verdict, _ = _create_identity_verdict(self._create_plan)
         return verdict
 
     def _on_create_draft_changed(self, draft: CreateDraft) -> None:
@@ -1459,14 +1459,14 @@ class NewProjectCreateFlowMixin(_MixinBase):
         self._create_resume_pending_restore = False
         workflow_type = self._state.workflow_type
         metadata = getattr(self, "_provider_by_id", {}).get(workflow_type)
-        self._create_review_request = create_review_request(
+        self._create_review_request = _create_review_request(
             identity=self._create_identity,
             workflow_type=workflow_type,
             provider_display=str(getattr(metadata, "display_name", "") or ""),
             storage_policy=str(getattr(metadata, "sdd_storage_policy", "") or ""),
             project=draft.project,
             visibility=draft.visibility,
-            effective_options=lenient_effective_options(
+            effective_options=_lenient_effective_options(
                 self._create_form, draft.provider_values
             ),
         )
@@ -1542,7 +1542,7 @@ class NewProjectCreateFlowMixin(_MixinBase):
             pass
         workflow_type = self._state.workflow_type
         metadata = getattr(self, "_provider_by_id", {}).get(workflow_type)
-        seed = add_instead_seed(
+        seed = _add_instead_seed(
             identity=identity,
             workflow_type=workflow_type,
             provider_display=str(getattr(metadata, "display_name", "") or ""),
@@ -1630,11 +1630,11 @@ class NewProjectCreateFlowMixin(_MixinBase):
             self._create_form_status = "ready"
             self._create_form_message = form.message
             self._create_form_remedy = tuple(form.remedy_argv)
-            supported = supported_create_visibilities(form)
+            supported = _supported_create_visibilities(form)
             if current.visibility not in supported:
                 updated = replace(
                     current,
-                    visibility=default_create_visibility(
+                    visibility=_default_create_visibility(
                         owner=owner,
                         supported=supported,
                         last_visibility=self._preferences.last_visibility,
@@ -1728,7 +1728,7 @@ class NewProjectCreateFlowMixin(_MixinBase):
                 "config_dirty": False,
                 "on_default_branch": None,
             }
-        effective = lenient_effective_options(self._create_form, draft.provider_values)
+        effective = _lenient_effective_options(self._create_form, draft.provider_values)
         try:
             facts = assemble_create_facts(
                 records=self._create_records,
@@ -1756,7 +1756,7 @@ class NewProjectCreateFlowMixin(_MixinBase):
             self._create_probe_cache[(workflow_type, identity.canonical_ref)] = probe
         if not self.is_mounted:
             return
-        if not probe_result_current(
+        if not _probe_result_current(
             generation=generation,
             expected_generation=self._create_generation,
             mode=self._state.wizard_mode,
@@ -1789,7 +1789,7 @@ class NewProjectCreateFlowMixin(_MixinBase):
                 confirmable=False,
             )
             return
-        verdict, reason = create_identity_verdict(document)
+        verdict, reason = _create_identity_verdict(document)
         widget.apply_check(
             availability=availability,
             document=document,
@@ -1809,18 +1809,9 @@ __all__ = [
     "CreateIdentity",
     "NewProjectCreateConfigure",
     "NewProjectCreateFlowMixin",
-    "add_instead_seed",
     "assemble_create_facts",
-    "build_create_plan_request",
     "classify_create_probe",
-    "create_identity_verdict",
-    "create_review_request",
-    "default_create_owner",
-    "default_create_visibility",
-    "lenient_effective_options",
     "normalize_create_name",
     "observe_create_checkout",
     "plan_create_display",
-    "probe_result_current",
-    "supported_create_visibilities",
 ]

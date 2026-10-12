@@ -9,7 +9,7 @@ from rich.console import Group
 from sase.ace.tui.relations.link_index import LinkChip
 from sase.ace.tui.widgets.decks.record.model import RecordSubject
 from sase.ace.tui.widgets.decks.record.relations import (
-    ArtifactLinkGroup,
+    _ArtifactLinkGroup,
     RelationsExtras,
     links_card,
     load_relations_extras,
@@ -235,7 +235,7 @@ def test_empty_links_and_snapshot_errors_degrade_visibly(monkeypatch) -> None:
 def test_links_card_shows_each_relation_group_and_overflow() -> None:
     extras = RelationsExtras(
         link_groups=(
-            ArtifactLinkGroup(
+            _ArtifactLinkGroup(
                 direction="outgoing",
                 relation="implements",
                 label="implements",

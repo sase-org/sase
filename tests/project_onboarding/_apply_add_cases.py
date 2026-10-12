@@ -11,7 +11,7 @@ import pytest
 
 from sase.history.vcs_macro_mru import vcs_macro_mru_path
 from sase.project_onboarding._apply_effects import manage_repository
-from sase.project_onboarding._apply_locks import apply_identity_lock_path
+from sase.project_onboarding._apply_locks import _apply_identity_lock_path
 from sase.project_onboarding.journal import lookup_journal
 from sase.project_onboarding.manage import ManagementError
 from ._apply_test_support import (
@@ -132,7 +132,7 @@ class TestBlockedRevalidation:
         assert kinds(events) == [("plan", ""), ("result", "blocked")]
 
     def test_lock_contention_reports_blocked(self, fake_gh: FakeGh) -> None:
-        lock_path = apply_identity_lock_path(IDENTITY)
+        lock_path = _apply_identity_lock_path(IDENTITY)
         lock_path.parent.mkdir(parents=True, exist_ok=True)
         handle = open(lock_path, "a", encoding="utf-8")
         fcntl.flock(handle.fileno(), fcntl.LOCK_EX)

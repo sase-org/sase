@@ -1,6 +1,6 @@
 """Decision cards widget for Plan Decisions (sase-1ka.1).
 
-Each decision is a focusable :class:`DecisionCard` (a ``Static`` rendering
+Each decision is a focusable :class:`_DecisionCard` (a ``Static`` rendering
 one pure-Rich card from
 :mod:`sase.ace.tui.modals.plan_decision_cards`) mounted inside its own
 per-decision slot ``VerticalScroll``. ``PlanDecisionRows`` owns the focused
@@ -34,7 +34,7 @@ MORE_HINT = "↓ more · z: sheet"
 
 
 @dataclass(frozen=True)
-class DecisionDensity:
+class _DecisionDensity:
     """Layout selected for a pinned list at one measured content height."""
 
     preview_lines: int
@@ -42,12 +42,12 @@ class DecisionDensity:
     show_more: bool = False
 
 
-def decide_decision_density(
+def _decide_decision_density(
     list_height: int,
     expanded_height: int,
     collapsed_two_line_heights: list[int],
     collapsed_one_line_heights: list[int],
-) -> DecisionDensity:
+) -> _DecisionDensity:
     """Choose collapsed preview density and, if needed, a scrolling card cap.
 
     The caller measures these heights with the Rich card builders at the
@@ -60,33 +60,33 @@ def decide_decision_density(
         max(1, int(value)) for value in collapsed_two_line_heights
     )
     if two_line_total <= height:
-        return DecisionDensity(preview_lines=2)
+        return _DecisionDensity(preview_lines=2)
 
     one_line_total = expanded + sum(
         max(1, int(value)) for value in collapsed_one_line_heights
     )
     if one_line_total <= height:
-        return DecisionDensity(preview_lines=1)
+        return _DecisionDensity(preview_lines=1)
 
     other_rows = sum(max(1, int(value)) for value in collapsed_one_line_heights)
     current_space = height - other_rows
     if current_space > 1:
         # Keep one row below the scrolling card for the pinned "more" hint.
-        return DecisionDensity(
+        return _DecisionDensity(
             preview_lines=1,
             current_max_height=current_space - 1,
             show_more=True,
         )
     # At the physical minimum there is no spare row for the hint.  Keep the
     # current slot scrollable and never assign a zero/negative CSS height.
-    return DecisionDensity(
+    return _DecisionDensity(
         preview_lines=1,
         current_max_height=1,
         show_more=False,
     )
 
 
-class DecisionCard(Static, can_focus=True):
+class _DecisionCard(Static, can_focus=True):
     """One focusable decision card.
 
     Clicking the card focuses it (the modal syncs the decision index through
@@ -218,15 +218,15 @@ class DecisionCard(Static, can_focus=True):
         )
 
 
-class DecisionSlot(VerticalScroll):
-    """One scrollable card slot; composes its own :class:`DecisionCard`."""
+class _DecisionSlot(VerticalScroll):
+    """One scrollable card slot; composes its own :class:`_DecisionCard`."""
 
     def __init__(self, index: int, **kwargs: Any) -> None:
         super().__init__(**kwargs)
         self._slot_index = index
 
     def compose(self):  # type: ignore[no-untyped-def]
-        yield DecisionCard(
+        yield _DecisionCard(
             self._slot_index,
             id=f"plan-decision-{self._slot_index}",
             classes="plan-decision-card",
@@ -350,7 +350,7 @@ class PlanDecisionRows(VerticalScroll, can_focus=False):
         if self.is_mounted:
             if self._focused_index != old:
                 self.query_one(
-                    f"#decision-slot-{self._focused_index}", DecisionSlot
+                    f"#decision-slot-{self._focused_index}", _DecisionSlot
                 ).scroll_home(animate=False)
             touched = {old, self._focused_index}
             self._render_cards(sorted(i for i in touched if 0 <= i < len(self._rows)))
@@ -383,8 +383,8 @@ class PlanDecisionRows(VerticalScroll, can_focus=False):
             self._focused_index = 0
         self.refresh_cards(indexes)
 
-    def _make_slot(self, index: int) -> DecisionSlot:
-        return DecisionSlot(
+    def _make_slot(self, index: int) -> _DecisionSlot:
+        return _DecisionSlot(
             index, id=f"decision-slot-{index}", classes="plan-decision-slot"
         )
 
@@ -401,7 +401,7 @@ class PlanDecisionRows(VerticalScroll, can_focus=False):
     def on_resize(self) -> None:
         self._refresh_all_widths()
 
-    def _card_width(self, card: DecisionCard) -> int:
+    def _card_width(self, card: _DecisionCard) -> int:
         width = card.content_region.width or card._card_width or _FALLBACK_CARD_WIDTH
         if not card.is_mounted:
             width = _FALLBACK_CARD_WIDTH
@@ -414,7 +414,9 @@ class PlanDecisionRows(VerticalScroll, can_focus=False):
         if not self._sheet_mode or not (0 <= self._focused_index < len(self._rows)):
             return
         try:
-            card = self.query_one(f"#plan-decision-{self._focused_index}", DecisionCard)
+            card = self.query_one(
+                f"#plan-decision-{self._focused_index}", _DecisionCard
+            )
             self.scroll_to_widget(card, animate=False)
         except NoMatches:
             pass
@@ -424,7 +426,7 @@ class PlanDecisionRows(VerticalScroll, can_focus=False):
             return
         changed = False
         for index in range(len(self._rows)):
-            card = self.query_one(f"#plan-decision-{index}", DecisionCard)
+            card = self.query_one(f"#plan-decision-{index}", _DecisionCard)
             width = self._card_width(card)
             row = self._rows[index]
             if (
@@ -465,7 +467,7 @@ class PlanDecisionRows(VerticalScroll, can_focus=False):
             return
         if self._sheet_mode:
             for index in range(len(self._rows)):
-                slot = self.query_one(f"#decision-slot-{index}", DecisionSlot)
+                slot = self.query_one(f"#decision-slot-{index}", _DecisionSlot)
                 hint = self.query_one(f"#decision-more-{index}", Static)
                 slot.styles.max_height = None
                 hint.update("")
@@ -478,8 +480,8 @@ class PlanDecisionRows(VerticalScroll, can_focus=False):
             return
 
         current = self._focused_index
-        current_card = self.query_one(f"#plan-decision-{current}", DecisionCard)
-        current_slot = self.query_one(f"#decision-slot-{current}", DecisionSlot)
+        current_card = self.query_one(f"#plan-decision-{current}", _DecisionCard)
+        current_slot = self.query_one(f"#decision-slot-{current}", _DecisionSlot)
         current_row = self._rows[current]
         current_definition = self._by_id.get(str(current_row.get("id", "")))
         current_width = current_card.content_region.width or current_card._card_width
@@ -501,7 +503,7 @@ class PlanDecisionRows(VerticalScroll, can_focus=False):
         for index, row in enumerate(self._rows):
             if index == current:
                 continue
-            card = self.query_one(f"#plan-decision-{index}", DecisionCard)
+            card = self.query_one(f"#plan-decision-{index}", _DecisionCard)
             width = card.content_region.width or card._card_width
             definition = self._by_id.get(str(row.get("id", "")))
             two_line_heights.append(
@@ -525,7 +527,7 @@ class PlanDecisionRows(VerticalScroll, can_focus=False):
                 ).height
             )
 
-        density = decide_decision_density(
+        density = _decide_decision_density(
             list_height,
             current_build.height,
             two_line_heights,
@@ -533,8 +535,8 @@ class PlanDecisionRows(VerticalScroll, can_focus=False):
         )
 
         for index, row in enumerate(self._rows):
-            slot = self.query_one(f"#decision-slot-{index}", DecisionSlot)
-            card = self.query_one(f"#plan-decision-{index}", DecisionCard)
+            slot = self.query_one(f"#decision-slot-{index}", _DecisionSlot)
+            card = self.query_one(f"#plan-decision-{index}", _DecisionCard)
             hint = self.query_one(f"#decision-more-{index}", Static)
             if index == current:
                 if density.current_max_height is None:
@@ -568,7 +570,7 @@ class PlanDecisionRows(VerticalScroll, can_focus=False):
 
     def _render_cards(self, indexes) -> None:  # type: ignore[no-untyped-def]
         for index in indexes:
-            card = self.query_one(f"#plan-decision-{index}", DecisionCard)
+            card = self.query_one(f"#plan-decision-{index}", _DecisionCard)
             row = self._rows[index]
             card.render_card(
                 row,
@@ -585,7 +587,7 @@ class PlanDecisionRows(VerticalScroll, can_focus=False):
 
 
 __all__ = [
-    "DecisionCard",
-    "DecisionSlot",
+    "_DecisionCard",
+    "_DecisionSlot",
     "PlanDecisionRows",
 ]

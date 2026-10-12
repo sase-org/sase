@@ -6,6 +6,7 @@ from textual.app import App, ComposeResult
 from textual.widgets import Input, Static
 
 from sase import workspace_provider
+from sase.ace.testing.wait import wait_for
 from sase.ace.tui.modals.new_project_modal import NewProjectModal
 from sase.ace.tui.modals.new_project_source import NewProjectSource
 from sase.ace.tui.modals.new_project_source_model import (
@@ -293,11 +294,7 @@ def _patch_list_basics(monkeypatch) -> None:  # type: ignore[no-untyped-def]
 
 async def _wait_for_create_row(modal: NewProjectModal, pilot) -> None:  # type: ignore[no-untyped-def]
     source = modal.query_one(NewProjectSource)
-    for _ in range(100):
-        if source.create_row is not None:
-            return
-        await pilot.pause()
-    raise AssertionError("pinned Create row never appeared")
+    await wait_for(pilot, lambda: source.create_row is not None)
 
 
 async def test_discovery_pins_create_row_and_n_opens_create(

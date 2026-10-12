@@ -19,7 +19,7 @@ class ApplyLockTimeout(TimeoutError):
     """A cooperating onboarding lock stayed held past the bounded wait."""
 
 
-def apply_identity_lock_path(identity_key: str) -> Path:
+def _apply_identity_lock_path(identity_key: str) -> Path:
     """Return the cooperating apply lock path for *identity_key*.
 
     This is intentionally separate from the journal lock file: apply
@@ -44,7 +44,7 @@ def hold_apply_locks(
 ) -> Iterator[None]:
     """Hold the identity and checkout locks in deterministic order."""
 
-    wanted = {str(apply_identity_lock_path(identity_key))}
+    wanted = {str(_apply_identity_lock_path(identity_key))}
     if checkout_dir.strip():
         wanted.add(str(_checkout_lock_path(checkout_dir)))
     handles: list[Any] = []
@@ -75,4 +75,4 @@ def hold_apply_locks(
                 handle.close()
 
 
-__all__ = ["ApplyLockTimeout", "apply_identity_lock_path", "hold_apply_locks"]
+__all__ = ["ApplyLockTimeout", "_apply_identity_lock_path", "hold_apply_locks"]

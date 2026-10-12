@@ -19,7 +19,7 @@ from sase.ace.tui.modals.new_project_configure_model import (
     build_project_card,
     build_setup_card,
     check_identity,
-    validate_draft,
+    _validate_draft,
 )
 from sase.ace.tui.modals.new_project_progress_model import reduce_lines
 from sase.ace.tui.modals.new_project_rendering import render_stepper
@@ -267,7 +267,7 @@ class TestValidateDraft:
         self, local_planner: None, monkeypatch: pytest.MonkeyPatch, tmp_path: Any
     ) -> None:
         monkeypatch.setenv("SASE_HOME", str(tmp_path / "sase-home"))
-        document = validate_draft(
+        document = _validate_draft(
             _target(),
             ConfigureDraft(name="taken"),
             [{"key": "other", "name": "taken"}],
@@ -280,7 +280,7 @@ class TestValidateDraft:
         self, local_planner: None, monkeypatch: pytest.MonkeyPatch, tmp_path: Any
     ) -> None:
         monkeypatch.setenv("SASE_HOME", str(tmp_path / "sase-home"))
-        document = validate_draft(_target(), ConfigureDraft(name="fresh"), [])
+        document = _validate_draft(_target(), ConfigureDraft(name="fresh"), [])
         assert check_identity(document).status == "unique"
 
 

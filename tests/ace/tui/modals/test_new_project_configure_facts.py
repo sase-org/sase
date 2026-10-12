@@ -10,7 +10,7 @@ import pytest
 from sase import workspace_provider
 from sase.ace.tui.modals.new_project_configure_facts import (
     assemble_configure_facts,
-    checkout_facts_from_source,
+    _checkout_facts_from_source,
     matching_project_record,
     remote_facts_from_probe,
 )
@@ -104,7 +104,7 @@ def test_missing_probe_omits_remote() -> None:
 
 
 def test_local_group_adds_matching_checkout() -> None:
-    checkout = checkout_facts_from_source(group="local", checkout_dir="/tmp/bob")
+    checkout = _checkout_facts_from_source(group="local", checkout_dir="/tmp/bob")
     assert checkout is not None
     assert checkout["state"] == "matching"
 

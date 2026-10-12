@@ -345,9 +345,9 @@ def test_pending_chips_for_correction_and_claim_not_found() -> None:
 def test_tui_correction_and_claim_not_found_copy() -> None:
     from sase.ace.tui.modals.plan_decision_cards import (
         expanded_card,
-        is_unverified_row as _is_unverified_row,
+        _is_unverified_row as _is_unverified_row,
         render_lines,
-        unverified_warning_line as _unverified_warning_line,
+        _unverified_warning_line as _unverified_warning_line,
     )
 
     correction = {

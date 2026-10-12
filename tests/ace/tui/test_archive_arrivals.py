@@ -5,7 +5,7 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 from sase.ace.tui.actions.agents._archive_arrival import (
-    archive_name_query,
+    _archive_name_query,
     open_archive_for_agent,
     open_archive_for_archived_row,
 )
@@ -40,7 +40,7 @@ class _Owner:
 
 
 def test_archive_name_query_quotes_exact_name() -> None:
-    assert archive_name_query('alice "special"') == (
+    assert _archive_name_query('alice "special"') == (
         'in:archive name:"alice \\"special\\""'
     )
 

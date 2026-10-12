@@ -469,7 +469,7 @@ def test_loader_signature_cache_skips_rebuild() -> None:
 def test_loader_invalidates_cached_document_when_relations_extras_change() -> None:
     import sase.ace.tui.widgets.decks.record.loader as loader_module
     from sase.ace.tui.widgets.decks.record.relations import (
-        ArtifactLinkGroup,
+        _ArtifactLinkGroup,
         RelationsExtras,
     )
     from sase.ace.tui.widgets.renderable_text import renderable_to_text
@@ -483,7 +483,7 @@ def test_loader_invalidates_cached_document_when_relations_extras_change() -> No
     def _relations(_subject: RecordSubject) -> RelationsExtras:
         return RelationsExtras(
             link_groups=(
-                ArtifactLinkGroup(
+                _ArtifactLinkGroup(
                     direction="outgoing",
                     relation="related",
                     label="related",

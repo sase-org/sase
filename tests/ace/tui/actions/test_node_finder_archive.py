@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from sase.ace.tui.actions.agents._node_finder_archive import (
     ArchiveNameCandidate,
-    load_archive_name_candidates,
+    _load_archive_name_candidates,
     search_archive_name_candidates,
 )
 from tests.ace.tui._agent_archive_column_helpers import ModelCorpus, light_row
@@ -28,7 +28,7 @@ def test_archive_name_loader_expands_containers_to_member_rows() -> None:
         ]
     )
 
-    candidates = load_archive_name_candidates(corpus)
+    candidates = _load_archive_name_candidates(corpus)
 
     assert {candidate.name for candidate in candidates} == {
         "clan.alpha",

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from sase.ace.tui.modals.plan_decision_rows import decide_decision_density
+from sase.ace.tui.modals.plan_decision_rows import _decide_decision_density
 from tests.ace.tui._plan_decision_ace_shared import plan_decision_definitions
 
 __all__ = [
@@ -13,24 +13,24 @@ __all__ = [
 
 def test_decision_density_pins_other_rows_and_caps_current_card() -> None:
     """The density rule uses two lines, one line, then a capped current slot."""
-    two_lines = decide_decision_density(12, 6, [2, 2], [1, 1])
+    two_lines = _decide_decision_density(12, 6, [2, 2], [1, 1])
     assert two_lines.preview_lines == 2
     assert two_lines.current_max_height is None
     assert not two_lines.show_more
 
-    one_line = decide_decision_density(9, 7, [2, 2], [1, 1])
+    one_line = _decide_decision_density(9, 7, [2, 2], [1, 1])
     assert one_line.preview_lines == 1
     assert one_line.current_max_height is None
     assert not one_line.show_more
 
-    pinned = decide_decision_density(7, 10, [2, 2], [1, 1])
+    pinned = _decide_decision_density(7, 10, [2, 2], [1, 1])
     assert pinned.preview_lines == 1
     assert pinned.current_max_height == 4
     assert pinned.show_more
 
     # At a tiny height there is no row to spare for the hint. The current
     # slot stays scrollable with a positive CSS cap instead of clipping to 0.
-    tiny = decide_decision_density(2, 10, [2, 2], [1, 1])
+    tiny = _decide_decision_density(2, 10, [2, 2], [1, 1])
     assert tiny.preview_lines == 1
     assert tiny.current_max_height == 1
     assert not tiny.show_more
@@ -53,7 +53,7 @@ async def test_decision_cards_never_clip_with_stylesheet(tmp_path, monkeypatch) 
 
     from sase.ace.tui.modals.plan_approval_modal import PlanApprovalModal as _Modal
     from sase.ace.tui.modals.plan_decision_rows import (
-        DecisionCard as _Card,
+        _DecisionCard as _Card,
     )
     from sase.ace.tui.modals.plan_decision_rows import (
         PlanDecisionRows as _Rows,

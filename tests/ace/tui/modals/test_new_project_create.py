@@ -10,6 +10,7 @@ from textual.app import App, ComposeResult
 from textual.widgets import Static
 
 from sase import workspace_provider
+from sase.ace.testing.wait import wait_for
 from sase.ace.tui.modals import new_project_create as create
 from sase.ace.tui.modals.new_project_configure_model import ConfigureDraft
 from sase.workspace_provider._hookspec import (
@@ -112,7 +113,7 @@ def _probe(status: str, **overrides: Any) -> SimpleNamespace:
 def test_owner_defaults_prefer_last_used_then_project_then_account() -> None:
     owners = ["sase-org", "bbugyi200", "sase-org"]
     assert (
-        create.default_create_owner(
+        create._default_create_owner(
             owners,
             account="bbugyi200",
             last_owner="sase-org",
@@ -122,7 +123,7 @@ def test_owner_defaults_prefer_last_used_then_project_then_account() -> None:
         == "sase-org"
     )
     assert (
-        create.default_create_owner(
+        create._default_create_owner(
             owners,
             account="bbugyi200",
             last_owner="gone",
@@ -132,7 +133,7 @@ def test_owner_defaults_prefer_last_used_then_project_then_account() -> None:
         == "bbugyi200"
     )
     assert (
-        create.default_create_owner(
+        create._default_create_owner(
             ["sase-org"],
             account="bbugyi200",
             workflow_type="gh",
@@ -140,7 +141,7 @@ def test_owner_defaults_prefer_last_used_then_project_then_account() -> None:
         == "bbugyi200"
     )
     assert (
-        create.default_create_owner(
+        create._default_create_owner(
             ["sase-org"],
             account="bbugyi200",
             workflow_type="gh",
@@ -149,7 +150,7 @@ def test_owner_defaults_prefer_last_used_then_project_then_account() -> None:
         == "sase-org"
     )
     assert (
-        create.default_create_owner(
+        create._default_create_owner(
             [],
             account="bbugyi200",
             workflow_type="gh",
@@ -160,7 +161,7 @@ def test_owner_defaults_prefer_last_used_then_project_then_account() -> None:
 
 def test_owner_defaults_skip_unavailable_and_support_bare_git() -> None:
     assert (
-        create.default_create_owner(
+        create._default_create_owner(
             ["sase-org", "bbugyi200"],
             account="bbugyi200",
             last_owner="sase-org",
@@ -170,7 +171,7 @@ def test_owner_defaults_skip_unavailable_and_support_bare_git() -> None:
         == ""
     )
     assert (
-        create.default_create_owner(
+        create._default_create_owner(
             [],
             account="bbugyi200",
             workflow_type="git",
@@ -178,7 +179,7 @@ def test_owner_defaults_skip_unavailable_and_support_bare_git() -> None:
         == ""
     )
     assert (
-        create.default_create_owner(
+        create._default_create_owner(
             ["docs"],
             account="bbugyi200",
             last_owner="bbugyi200",
@@ -191,13 +192,13 @@ def test_owner_defaults_skip_unavailable_and_support_bare_git() -> None:
 def test_visibility_defaults_to_private_then_last_supported_choice() -> None:
     supported = ("private", "public")
     assert (
-        create.default_create_visibility(
+        create._default_create_visibility(
             owner="sase-org", supported=supported, last_visibility={}
         )
         == "private"
     )
     assert (
-        create.default_create_visibility(
+        create._default_create_visibility(
             owner="sase-org",
             supported=supported,
             last_visibility={"sase-org": "public"},
@@ -205,7 +206,7 @@ def test_visibility_defaults_to_private_then_last_supported_choice() -> None:
         == "public"
     )
     assert (
-        create.default_create_visibility(
+        create._default_create_visibility(
             owner="sase-org",
             supported=("private",),
             last_visibility={"sase-org": "public"},
@@ -213,7 +214,7 @@ def test_visibility_defaults_to_private_then_last_supported_choice() -> None:
         == "private"
     )
     assert (
-        create.default_create_visibility(
+        create._default_create_visibility(
             owner="sase-org",
             supported=supported,
             last_visibility={"sase-org": "public"},
@@ -241,8 +242,8 @@ def test_supported_visibilities_follow_provider_choice_field() -> None:
         ),
         can_create=True,
     )
-    assert create.supported_create_visibilities(form) == ("private", "internal")
-    assert create.supported_create_visibilities(None) == ("private", "public")
+    assert create._supported_create_visibilities(form) == ("private", "internal")
+    assert create._supported_create_visibilities(None) == ("private", "public")
 
 
 def test_normalize_create_name_preserves_provider_identity(
@@ -317,15 +318,15 @@ def test_probe_result_current_rejects_every_stale_dimension() -> None:
         "identity_key": "github.com/sase-org/new",
         "expected_identity_key": "github.com/sase-org/new",
     }
-    assert create.probe_result_current(**current)
-    assert not create.probe_result_current(
+    assert create._probe_result_current(**current)
+    assert not create._probe_result_current(
         **{**current, "generation": 2},
     )
-    assert not create.probe_result_current(**{**current, "mode": "add"})
-    assert not create.probe_result_current(
+    assert not create._probe_result_current(**{**current, "mode": "add"})
+    assert not create._probe_result_current(
         **{**current, "expected_owner": "other"},
     )
-    assert not create.probe_result_current(
+    assert not create._probe_result_current(
         **{**current, "identity_key": "github.com/sase-org/old"},
     )
 
@@ -387,7 +388,7 @@ def test_observe_checkout_matches_origin_identity(
 
 
 def test_lenient_options_omit_unavailable_controls() -> None:
-    effective = create.lenient_effective_options(
+    effective = create._lenient_effective_options(
         _form(), {"description": "hi", "readme": "true", "template": "sase-org/t"}
     )
     assert effective.get("template") == "sase-org/t"
@@ -398,7 +399,7 @@ def test_build_create_plan_request_preserves_complete_intent(
     fake_provider: None,
 ) -> None:
     identity = create.normalize_create_name("gh", "sase-org", "new")
-    request = create.build_create_plan_request(
+    request = create._build_create_plan_request(
         identity=identity,
         workflow_type="gh",
         provider_display="GitHub",
@@ -428,7 +429,7 @@ def test_build_create_plan_request_reflects_bare_git_paths(
     fake_provider: None,
 ) -> None:
     identity = create.normalize_create_name("git", "", "notes")
-    request = create.build_create_plan_request(
+    request = create._build_create_plan_request(
         identity=identity,
         workflow_type="git",
         project=ConfigureDraft(name="notes"),
@@ -459,19 +460,19 @@ def test_plan_create_display_builds_mode_create_document(
     )
     assert document["mode"] == "create"
     assert document["target"]["ref"] == "sase-org/new"
-    verdict, _ = create.create_identity_verdict(document)
+    verdict, _ = create._create_identity_verdict(document)
     assert verdict
 
 
 def test_create_identity_verdict_reports_taken_and_invalid() -> None:
-    ok, reason = create.create_identity_verdict({"blockers": []})
+    ok, reason = create._create_identity_verdict({"blockers": []})
     assert (ok, reason) == (True, "")
-    taken, taken_reason = create.create_identity_verdict(
+    taken, taken_reason = create._create_identity_verdict(
         {"blockers": [{"code": "name_taken", "message": "Name is taken."}]}
     )
     assert not taken
     assert taken_reason == "Name is taken."
-    invalid, invalid_reason = create.create_identity_verdict(
+    invalid, invalid_reason = create._create_identity_verdict(
         {"blockers": [{"code": "invalid_name", "message": "Bad name."}]}
     )
     assert not invalid
@@ -482,7 +483,7 @@ def test_add_instead_seed_preserves_canonical_target(
     fake_provider: None,
 ) -> None:
     identity = create.normalize_create_name("gh", "sase-org", "new")
-    seed = create.add_instead_seed(
+    seed = create._add_instead_seed(
         identity=identity, workflow_type="gh", provider_display="GitHub"
     )
     assert seed["ref"] == "sase-org/new"
@@ -768,10 +769,7 @@ async def test_late_form_completion_keeps_current_owner_edits(
         await pilot.pause()
         # Source-level create-support discovery describes the account namespace
         # on mount; drain it so the assertions below cover the create flow.
-        for _ in range(100):
-            if "bbugyi200" in describe_calls:
-                break
-            await pilot.pause()
+        await wait_for(pilot, lambda: "bbugyi200" in describe_calls)
         describe_calls.clear()
         modal.enter_create_configure(
             workflow_type="gh",

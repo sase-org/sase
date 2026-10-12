@@ -25,10 +25,10 @@ def archive_name_loader_for_owner(
     profile = getattr(controller, "profile", None)
     if corpus is None or getattr(controller, "status", None) != "warm":
         return None
-    return lambda: load_archive_name_candidates(corpus, profile)
+    return lambda: _load_archive_name_candidates(corpus, profile)
 
 
-def load_archive_name_candidates(
+def _load_archive_name_candidates(
     corpus: Any,
     profile: Any = None,
 ) -> tuple[ArchiveNameCandidate, ...]:
@@ -142,6 +142,6 @@ def _row_name(row: Mapping[str, Any]) -> str:
 __all__ = [
     "ArchiveNameCandidate",
     "archive_name_loader_for_owner",
-    "load_archive_name_candidates",
+    "_load_archive_name_candidates",
     "search_archive_name_candidates",
 ]

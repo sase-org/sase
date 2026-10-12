@@ -124,9 +124,9 @@ async def test_z_toggles_sheet_and_esc_leaves_then_cancels(
         assert rows._sheet_mode
         assert "z=Back to plan" in modal._footer_text().plain
         # Every card is expanded: a non-current ask is fully present.
-        from sase.ace.tui.modals.plan_decision_rows import DecisionCard
+        from sase.ace.tui.modals.plan_decision_rows import _DecisionCard
 
-        other = modal.query_one("#plan-decision-1", DecisionCard)
+        other = modal.query_one("#plan-decision-1", _DecisionCard)
         other_text = "\n".join(other.rendered_lines())
         assert "stow-style" in other_text or "dotfile" in other_text.lower()
         await pilot.press("escape")

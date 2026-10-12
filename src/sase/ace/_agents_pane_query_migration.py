@@ -62,7 +62,7 @@ def _split_terms(source: str) -> list[str]:
     return terms
 
 
-def convert_agents_pane_query(source: str) -> str | None:
+def _convert_agents_pane_query(source: str) -> str | None:
     """Rewrite one pane-era query for the ``agents-live`` Archive scope.
 
     Returns the converted query text, or ``None`` when the entry must stay
@@ -133,7 +133,7 @@ def _migrate_saved_slots() -> None:
     panes_live = load_saved_queries(LIVE_NAMESPACE)
     live_canonicals = {record.canonical for record in panes_live.values()}
     for slot, record in list(load_saved_queries(PANE_NAMESPACE).items()):
-        converted = convert_agents_pane_query(record.source)
+        converted = _convert_agents_pane_query(record.source)
         if converted is None or converted in live_canonicals:
             continue
         free = get_next_available_slot(load_saved_queries(LIVE_NAMESPACE))
@@ -164,7 +164,7 @@ def _migrate_history() -> None:
     live_canonicals = {record.canonical for record in (*live.prev, *live.next)}
     moved_sources: set[str] = set()
     for record in (*old.prev, *old.next):
-        converted = convert_agents_pane_query(record.source)
+        converted = _convert_agents_pane_query(record.source)
         if converted is None or converted in live_canonicals:
             continue
         live.prev.append(
@@ -186,6 +186,6 @@ def _migrate_history() -> None:
 __all__ = [
     "LIVE_NAMESPACE",
     "PANE_NAMESPACE",
-    "convert_agents_pane_query",
+    "_convert_agents_pane_query",
     "ensure_agents_pane_queries_migrated",
 ]

@@ -7,7 +7,7 @@ from rich.cells import cell_len
 from sase.ace.tui.modals.plan_decision_cards import (
     collapsed_card,
     expanded_card,
-    is_unverified_row,
+    _is_unverified_row,
     render_lines,
 )
 from sase.ace.tui.modals.plan_decision_sheet import PlanDecisionDraft
@@ -107,7 +107,7 @@ def test_unverified_copy_and_human_override(tmp_path) -> None:
     draft = PlanDecisionDraft(definitions)
     rows = {row["id"]: row for row in draft.sheet()["rows"]}
     row = rows["tui_note"]
-    assert is_unverified_row(row, definitions[1])
+    assert _is_unverified_row(row, definitions[1])
     expanded = _card_plain(expanded_card(row, definitions[1], 76))
     assert "not in your messages; turn on to allow" in expanded
     # Collapsed cards preview the short yellow warning instead of the ask.

@@ -12,7 +12,7 @@ from sase.ace.testing import AcePage
 from sase.ace.tui.actions.agents._archive_controller import (
     init_agents_archive_controller,
 )
-from sase.ace.tui.actions.agents._archive_shelf import sync_archive_shelf
+from sase.ace.tui.actions.agents._archive_shelf import _sync_archive_shelf
 from sase.ace.tui.models.agent_archive_controller import ArchiveShelfSnapshot
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.widgets.agent_archive_shelf import AgentArchiveShelf
@@ -107,7 +107,7 @@ async def test_agents_archive_shelf_png_snapshot(
                 id(corpus),
             )
             shelf = page.app.query_one("#agent-archive-shelf", AgentArchiveShelf)
-            sync_archive_shelf(page.app)
+            _sync_archive_shelf(page.app)
             await wait_for_visual_idle(page)
 
             assert shelf.display is True
@@ -158,7 +158,7 @@ async def test_agents_archive_query_bridge_png_snapshot(
                 matching=2,
                 rows=tuple(_history()[:2]),
             )
-            sync_archive_shelf(page.app)
+            _sync_archive_shelf(page.app)
             detail = page.app.query_one("#agent-detail-panel")
             assert page.app._show_active_tab_empty_state(detail)
             await wait_for_visual_idle(page)
