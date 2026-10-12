@@ -137,6 +137,14 @@ class NewProjectSource(Vertical):
         """Install the owner responsible for forcing a provider refresh."""
         self._refresh_callback = callback
 
+    def cached_probe(self, workflow_type: str, ref: str) -> Any | None:
+        """Return a previously observed provider probe, if Source already has one."""
+        return self._probe_cache.get((workflow_type, ref))
+
+    def remember_probe(self, workflow_type: str, ref: str, probe: Any) -> None:
+        """Store an off-thread probe so later Configure previews can reuse it."""
+        self._probe_cache[(workflow_type, ref)] = probe
+
     def focus_filter(self) -> None:
         """Focus the filter without changing the current highlight."""
         self.query_one("#new-project-filter", Input).focus()

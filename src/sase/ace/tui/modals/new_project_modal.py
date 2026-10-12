@@ -28,14 +28,10 @@ from sase.workspace_provider import WorkflowMetadata
 
 from ..widgets.panel_tab_strip import PanelTab, PanelTabStrip
 from .new_project_apply import NewProjectApplyMixin, NewProjectInitHost
+from .new_project_configure_flow import NewProjectConfigureFlowMixin
 from .new_project_rendering import clean_source_text, render_stepper
 from .new_project_configure import NewProjectConfigure
-from .new_project_configure_model import (
-    ConfigureDraft,
-    IdentityCheck,
-    check_identity,
-    validate_draft,
-)
+from .new_project_configure_model import ConfigureDraft, check_identity
 from .new_project_failed import NewProjectFailed
 from .new_project_progress import NewProjectProgress
 from .new_project_progress_model import ProgressResult
@@ -50,7 +46,11 @@ _TASKS = "_new_project_modal_tasks"
 _PROVIDER_ACCENTS = {"gh": "#87D7FF", "git": "#00D7AF"}
 
 
-class NewProjectModal(NewProjectApplyMixin, ModalScreen["NewProjectSelection | None"]):
+class NewProjectModal(
+    NewProjectConfigureFlowMixin,
+    NewProjectApplyMixin,
+    ModalScreen["NewProjectSelection | None"],
+):
     """Wizard shell with provider strip and an interactive Source stage.
 
     ``provider_metadata`` and ``candidate_inputs`` allow a parent with a
@@ -94,8 +94,10 @@ class NewProjectModal(NewProjectApplyMixin, ModalScreen["NewProjectSelection | N
         self._state = NewProjectStateMachine()
         self._owner_semaphore = asyncio.Semaphore(3)
         self._preview_generation = 0
+        self._resume_generation = 0
         self._active_target: dict[str, object] = {}
         self._active_records: list[dict[str, object]] = []
+        self._observed_facts: dict[str, object] = {}
         self._local_plan: dict[str, object] = {}
         self._local_plan_draft: ConfigureDraft | None = None
         self._apply_submission: ApplySubmission | None = None
@@ -173,6 +175,9 @@ class NewProjectModal(NewProjectApplyMixin, ModalScreen["NewProjectSelection | N
             self._prepare_configure(
                 row, preserve=previous is not None and previous.row_id == row.row_id
             )
+        elif outcome == "resume":
+            self._start_failed_resume(row)
+            return
         self._show_stage(self._state.stage)
         if outcome == "configure":
             self.query_one(NewProjectConfigure).focus_name()
@@ -192,6 +197,7 @@ class NewProjectModal(NewProjectApplyMixin, ModalScreen["NewProjectSelection | N
             self._state.back_to_source()
             self._show_stage("source")
         elif stage == "review":
+            self.query_one(NewProjectReview).invalidate_check()
             self._state.back_to_configure()
             self._show_stage("configure")
         else:
@@ -213,6 +219,8 @@ class NewProjectModal(NewProjectApplyMixin, ModalScreen["NewProjectSelection | N
         self._cycle_provider(1)
 
     def _cycle_provider(self, offset: int) -> None:
+        if self._state.stage != "source":
+            return
         if not self._providers:
             return
         current = self._state.workflow_type
@@ -299,6 +307,8 @@ class NewProjectModal(NewProjectApplyMixin, ModalScreen["NewProjectSelection | N
 
     def select_provider(self, workflow_type: str) -> None:
         """Switch the selected provider tab, preserving the Source filter."""
+        if self._state.stage != "source":
+            return
         if workflow_type not in self._provider_by_id:
             return
         self._state.workflow_type = workflow_type
@@ -463,84 +473,6 @@ class NewProjectModal(NewProjectApplyMixin, ModalScreen["NewProjectSelection | N
             registry_attr=_TASKS,
         )
 
-    def _prepare_configure(self, row: SourceRow, *, preserve: bool) -> None:
-        """Seed Configure from a Source row without discarding its draft."""
-        metadata = self._provider_by_id.get(self._state.workflow_type)
-        parsed = row.data.get("parsed")
-        if parsed is None:
-            try:
-                parsed = workspace_provider.parse_repo_ref(
-                    self._state.workflow_type, row.ref
-                )
-            except Exception:
-                parsed = None
-        parsed_value = parsed if parsed is not None else None
-        project_name = str(
-            getattr(parsed_value, "project_name_base", "")
-            or row.data.get("project_name_base")
-            or row.data.get("name")
-            or row.ref.rsplit("/", 1)[-1]
-        )
-        target: dict[str, object] = {
-            "workflow_type": self._state.workflow_type,
-            "provider_display": str(
-                getattr(metadata, "display_name", "") or self._state.workflow_type
-            ),
-            "storage_policy": str(getattr(metadata, "sdd_storage_policy", "") or ""),
-            "ref": row.ref,
-            "identity_key": str(
-                getattr(parsed_value, "identity_key", "")
-                or row.data.get("identity_key")
-                or row.ref
-            ),
-            "display": str(getattr(parsed_value, "display", "") or row.display),
-            "host": str(
-                getattr(parsed_value, "host", "") or row.data.get("host") or ""
-            ),
-            "owner": str(
-                getattr(parsed_value, "owner", "") or row.data.get("owner") or ""
-            ),
-            "name": str(
-                getattr(parsed_value, "name", "")
-                or row.data.get("name")
-                or project_name
-            ),
-            "web_url": str(
-                getattr(parsed_value, "web_url", "") or row.data.get("web_url") or ""
-            ),
-            "checkout_dir": str(
-                row.data.get("local_path")
-                or row.data.get("path")
-                or getattr(parsed_value, "checkout_dir", "")
-                or ""
-            ),
-            "project_key_base": str(
-                getattr(parsed_value, "project_key_base", "")
-                or row.data.get("project_key_base")
-                or ""
-            ),
-            "project_name_base": project_name,
-        }
-        if preserve and self._state.draft is not None:
-            draft = self._state.draft
-        else:
-            draft = ConfigureDraft(name=project_name)
-            self._state.set_draft(draft)
-        inputs = self._inputs.get(self._state.workflow_type)
-        self._active_target = target
-        self._active_records = [
-            dict(record) for record in (inputs.projects if inputs else [])
-        ]
-        self._local_plan = {}
-        self._local_plan_draft = None
-        self.query_one(NewProjectConfigure).set_source(
-            row,
-            draft,
-            {},
-            IdentityCheck("invalid", "Building the local plan…"),
-        )
-        self._schedule_local_preview()
-
     @on(NewProjectConfigure.DraftChanged)
     def _draft_changed(self, event: NewProjectConfigure.DraftChanged) -> None:
         self._state.set_draft(event.draft)
@@ -552,54 +484,6 @@ class NewProjectModal(NewProjectApplyMixin, ModalScreen["NewProjectSelection | N
     def _preview_requested(self, _event: NewProjectConfigure.PreviewRequested) -> None:
         if self.query_one(NewProjectConfigure)._preview_due:
             self._schedule_local_preview()
-
-    def _schedule_local_preview(self) -> None:
-        """Build the local plan on a pump-free worker, newest draft wins."""
-        if self._state.selected is None or self._state.draft is None:
-            return
-        self._preview_generation += 1
-        generation = self._preview_generation
-        row_id = self._state.selected.row_id
-        target = dict(self._active_target)
-        records = [dict(record) for record in self._active_records]
-        draft = self._state.draft
-        spawn_pump_free_task(
-            self,
-            self._build_local_preview(generation, row_id, target, records, draft),
-            name=f"new-project-preview:{generation}",
-            registry_attr=_TASKS,
-        )
-
-    async def _build_local_preview(
-        self,
-        generation: int,
-        row_id: str,
-        target: dict[str, object],
-        records: list[dict[str, object]],
-        draft: ConfigureDraft,
-    ) -> None:
-        try:
-            document = await asyncio.to_thread(validate_draft, target, draft, records)
-            identity = check_identity(document)
-        except Exception as error:
-            document = {}
-            identity = IdentityCheck("invalid", str(error) or type(error).__name__)
-        # Re-read the selected row after the await; provider tabs or Source
-        # navigation may have changed while the pure planner ran.
-        selected = self.query_one(NewProjectSource).selected_row()
-        if (
-            not self.is_mounted
-            or generation != self._preview_generation
-            or self._state.stage != "configure"
-            or selected is None
-            or selected.row_id != row_id
-            or self._state.selected is None
-            or self._state.selected.row_id != row_id
-        ):
-            return
-        self._local_plan = document
-        self._local_plan_draft = draft
-        self.query_one(NewProjectConfigure).apply_preview(document, identity)
 
     @on(NewProjectConfigure.ReviewRequested)
     def _configure_review_requested(
@@ -629,6 +513,7 @@ class NewProjectModal(NewProjectApplyMixin, ModalScreen["NewProjectSelection | N
 
     @on(NewProjectReview.BackRequested)
     def _review_back_requested(self, _event: NewProjectReview.BackRequested) -> None:
+        self.query_one(NewProjectReview).invalidate_check()
         self._state.back_to_configure()
         self._show_stage("configure")
         self.query_one(NewProjectConfigure).focus_name()

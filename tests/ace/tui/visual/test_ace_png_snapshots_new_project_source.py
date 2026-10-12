@@ -9,7 +9,6 @@ from textual.widgets import OptionList, Static
 
 from sase import workspace_provider
 from sase.ace.testing import AcePage
-from sase.ace.tui.modals import new_project_modal as new_project_modal_module
 from sase.ace.tui.modals.new_project_configure import NewProjectConfigure
 from sase.ace.tui.modals.new_project_modal import NewProjectModal
 from sase.ace.tui.modals.new_project_review import NewProjectReview
@@ -411,9 +410,8 @@ def _configure_document(*, can_push: bool) -> dict[str, object]:
 
 def _patch_local_add_plan(monkeypatch: pytest.MonkeyPatch, *, can_push: bool) -> None:
     monkeypatch.setattr(
-        new_project_modal_module,
-        "validate_draft",
-        lambda _target, _draft, _records: _configure_document(can_push=can_push),
+        "sase.ace.tui.modals.new_project_configure_flow.plan_configure_display",
+        lambda _target, _draft, _facts: _configure_document(can_push=can_push),
     )
 
 

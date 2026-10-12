@@ -24,9 +24,9 @@ def render_stepper(stage: str) -> Text:
         "source": 0,
         "configure": 1,
         "review": 2,
-        "progress": 2,
-        "ready": 2,
-        "failed": 2,
+        "progress": 3,
+        "ready": 3,
+        "failed": 3,
     }
     active = progress.get(stage, 0)
     text = Text()

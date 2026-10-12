@@ -96,6 +96,14 @@ class ProjectsInitHost(Protocol):
         """Reload project records after apply or the terminal valve."""
         ...
 
+    def report_init_outcome(self, initialized: bool) -> None:
+        """Record a verified init outcome for hosts that wait on it."""
+        ...
+
+    def recheck_after_terminal(self) -> bool:
+        """Whether a successful terminal valve should recheck the same scope."""
+        ...
+
 
 class ProjectsInitFlowController:
     """Run init check, preview, apply, and the terminal valve for one host."""
@@ -117,6 +125,7 @@ class ProjectsInitFlowController:
                 severity="error",
             )
             self._host.set_status(previous)
+            self._host.report_init_outcome(False)
             return
         if project_count is None:
             project_count = len(scope.project_names) if not scope.all_projects else 1
@@ -147,6 +156,7 @@ class ProjectsInitFlowController:
         )
         if submitted is None:
             self._host.set_status(_DUPLICATE_MESSAGE)
+            self._host.report_init_outcome(False)
             return
         self._scopes[submitted.proc_id] = scope
 
@@ -159,16 +169,19 @@ class ProjectsInitFlowController:
             message = completion.error or completion.message
             self._host.set_status(message)
             self._host.notify(message, severity="error")
+            self._host.report_init_outcome(False)
             return
         if payload.status == "current":
             message = current_init_toast(payload)
             self._host.set_status(message)
             self._host.notify(message, severity="information")
+            self._host.report_init_outcome(True)
             return
         if scope is None:
             message = "Initialization plan is missing its scope."
             self._host.set_status(message)
             self._host.notify(message, severity="error")
+            self._host.report_init_outcome(False)
             return
         modal = InitPlanModal(scope, payload)
         self._host.push_screen(
@@ -184,6 +197,7 @@ class ProjectsInitFlowController:
     ) -> None:
         if decision is None:
             self._host.set_status("Initialization cancelled")
+            self._host.report_init_outcome(False)
             return
         if decision.action == "apply":
             self._submit_init_apply(scope, payload)
@@ -205,15 +219,24 @@ class ProjectsInitFlowController:
         )
         try:
             with self._host.suspend():
-                subprocess.run(argv, cwd=cwd, check=False)
+                completed = subprocess.run(argv, cwd=cwd, check=False)
         except (OSError, SuspendNotSupported) as exc:
             message = f"Could not run `sase init` in terminal: {exc}"
             self._host.set_status(message)
             self._host.notify(message, severity="error")
+            self._host.report_init_outcome(False)
             return
+        returncode = int(getattr(completed, "returncode", 0) or 0)
         message = f"Returned from terminal init for {terminal_scope.label}"
         self._host.set_status(message)
         if not self._host.is_mounted:
+            self._host.report_init_outcome(False)
+            return
+        if self._host.recheck_after_terminal():
+            if returncode != 0:
+                self._host.report_init_outcome(False)
+                return
+            self.start_init_check(terminal_scope)
             return
         self._host.reload_projects()
         if self._host.get_status() == "Reloaded":
@@ -226,6 +249,7 @@ class ProjectsInitFlowController:
                 "Could not initialize: proc queue unavailable.",
                 severity="error",
             )
+            self._host.report_init_outcome(False)
             return
         self._host.set_status(f"Initializing {scope.label}…")
         argv = scope.apply_argv()
@@ -257,6 +281,7 @@ class ProjectsInitFlowController:
         )
         if submitted is None:
             self._host.set_status(_DUPLICATE_MESSAGE)
+            self._host.report_init_outcome(False)
             return
         self._scopes[submitted.proc_id] = scope
 
@@ -272,11 +297,14 @@ class ProjectsInitFlowController:
             message = completion.error or completion.message
             severity = "error"
         self._host.notify(message, severity=severity)
+        initialized = payload is not None and payload.kind in {"success", "current"}
         if not self._host.is_mounted:
+            self._host.report_init_outcome(initialized)
             return
         self._host.reload_projects()
         if self._host.get_status() == "Reloaded":
             self._host.set_status(message)
+        self._host.report_init_outcome(initialized)
 
 
 def run_project_init(

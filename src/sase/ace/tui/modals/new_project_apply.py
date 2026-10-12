@@ -84,9 +84,17 @@ def _reload_projects_if_mounted(app: Any) -> None:
         reload()
 
 
-def _on_project_add_complete(app: Any, _completion: TrackedProcCompletion[Any]) -> None:
+def _on_project_add_complete(
+    app: Any,
+    modal_ref: weakref.ReferenceType[Any],
+    completion: TrackedProcCompletion[Any],
+) -> None:
     """Durable-add completion that outlives the wizard modal."""
     _reload_projects_if_mounted(app)
+    modal = modal_ref()
+    observe = getattr(modal, "_observe_add_completion", None)
+    if modal is not None and getattr(modal, "is_mounted", False) and callable(observe):
+        observe(completion)
 
 
 def _owner_from_target(target: dict[str, object]) -> str:
@@ -139,8 +147,6 @@ class NewProjectInitHost:
                 decision is not None and getattr(decision, "action", None) == "apply"
             )
             callback(decision)
-            if decision is None:
-                self._finish(False)
 
         self._app.push_screen(modal, _wrapped)
 
@@ -148,40 +154,24 @@ class NewProjectInitHost:
         notify = getattr(self._app, "notify", None)
         if callable(notify):
             notify(message, **kwargs)
-        severity = str(kwargs.get("severity") or "information")
-        if self._waiting_check:
-            self._waiting_check = False
-            self._finish(severity == "information")
-            return
-        if self._awaiting_apply:
-            self._awaiting_apply = False
-            self._finish(severity == "information")
 
     def get_status(self) -> str:
         return self._status
 
     def set_status(self, message: str) -> None:
         self._status = message
-        if message == "Initialization cancelled":
-            self._finish(False)
-            return
-        if message.startswith("Could not run") or message.startswith(
-            "Could not initialize"
-        ):
-            self._finish(False)
-            return
-        if "already running" in message.casefold():
-            self._finish(False)
 
     def suspend(self) -> Any:
         return self._app.suspend()
 
     def reload_projects(self) -> None:
         _reload_projects_if_mounted(self._app)
-        if self._awaiting_apply:
-            return
-        if not self._finished and not self._waiting_check:
-            self._finish(True)
+
+    def report_init_outcome(self, initialized: bool) -> None:
+        self._finish(initialized)
+
+    def recheck_after_terminal(self) -> bool:
+        return True
 
     def _finish(self, initialized: bool) -> None:
         if self._finished:
@@ -223,6 +213,7 @@ class NewProjectApplyMixin(_MixinBase):
         identity_key = str(
             (submission.request.get("target") or {}).get("identity_key") or ""
         )
+        modal_ref = weakref.ref(self)
         return app._submit_durable_proc(  # type: ignore[attr-defined]
             list(submission.argv),
             operation="project.add",
@@ -232,7 +223,7 @@ class NewProjectApplyMixin(_MixinBase):
             cwd=init_cwd(),
             display_name="Add project",
             cl_name=identity_key,
-            on_complete=partial(_on_project_add_complete, app),
+            on_complete=partial(_on_project_add_complete, app, modal_ref),
             on_handle=self._on_add_handle,
             reload_on_complete=False,
             duplicate_message="This project is already being added.",
@@ -388,14 +379,27 @@ class NewProjectApplyMixin(_MixinBase):
         title = self.query_one("#new-project-title")
         title.styles.color = color
 
+    def _observe_add_completion(self, completion: TrackedProcCompletion[Any]) -> None:
+        """Let Progress settle from proc evidence if NDJSON never arrived."""
+        if not self.is_mounted or self._state.stage != "progress":
+            return
+        matches = self.query(NewProjectProgress)
+        if not matches:
+            return
+        matches.first().observe_completion(completion)
+
     def _update_apply_chrome(self, stage: str) -> None:
         provider_row = self.query_one("#new-project-provider-row")
         provider_row.display = stage in {"source", "configure", "review"}
-        source_hints = (
-            "⏎ choose · [ ] provider · / filter · f forks · . all · "
-            "R refresh · t provider login · esc close"
-        )
         hints = {
+            "source": (
+                "⏎ choose · [ ] provider · / filter · f forks · . all · "
+                "R refresh · t provider login · esc close"
+            ),
+            "configure": (
+                "tab fields · space setup · ctrl+s review · b back · esc close"
+            ),
+            "review": "y apply · b back · esc close",
             "progress": "esc close · setup continues in Procs",
             "ready": (
                 "i initialize · + launch · c current · ⏎ show · esc close"
@@ -404,7 +408,7 @@ class NewProjectApplyMixin(_MixinBase):
             ),
             "failed": "r retry · t terminal · b back · esc close",
         }
-        self.query_one("#new-project-hints").update(hints.get(stage, source_hints))
+        self.query_one("#new-project-hints").update(hints.get(stage, hints["source"]))
 
     def _show_outcome(self, outcome: str) -> Any:
         from .new_project_modal import NewProjectSelection

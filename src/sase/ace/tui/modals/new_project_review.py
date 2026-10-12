@@ -27,6 +27,8 @@ from .new_project_review_model import (
 )
 from .new_project_rendering import clean_source_text
 
+_DUPLICATE_MESSAGE = "This project add plan is already being checked."
+
 
 def _check_argv(document: Mapping[str, Any]) -> list[str]:
     """Build the CLI check argv from the reviewed document's apply argv."""
@@ -110,6 +112,8 @@ class NewProjectReview(Vertical):
         self._document: dict[str, Any] = {}
         self._view: ReviewView | None = None
         self._loading = False
+        self._check_generation = 0
+        self._notice = ""
 
     def compose(self) -> ComposeResult:
         with VerticalScroll(id="new-project-review-scroll"):
@@ -133,11 +137,39 @@ class NewProjectReview(Vertical):
                 "Add project  [y]", id="new-project-review-confirm", disabled=True
             )
 
-    def start_check(self, document: dict[str, Any]) -> None:
+    def on_unmount(self) -> None:
+        self._bump_generation()
+        self._loading = False
+        self._view = None
+
+    def show_loading(self, message: str = "Checking the exact add plan…") -> None:
+        """Clear confirmability and show a loading state for resume or check."""
+        self._bump_generation()
+        self._loading = True
+        self._view = None
+        self._notice = ""
+        self.set_class(False, "review-ready")
+        if self.is_mounted:
+            self._render_loading(message)
+
+    def invalidate_check(self) -> None:
+        """Drop in-flight check identity so a stale completion cannot confirm."""
+        self._bump_generation()
+        self._loading = False
+        self._view = None
+        self.set_class(False, "review-ready")
+        if self.is_mounted:
+            self._disable_confirm()
+
+    def start_check(self, document: dict[str, Any], *, notice: str = "") -> None:
         """Submit the exact check command and render its returned plan."""
         self._document = dict(document)
         self._view = None
+        self._notice = notice
         self._loading = True
+        generation = self._bump_generation()
+        fingerprint = str(document.get("intent_fingerprint") or "")
+        identity_key = str((document.get("target") or {}).get("identity_key") or "")
         self.set_class(False, "review-ready")
         if self.is_mounted:
             self._render_loading()
@@ -147,7 +179,6 @@ class NewProjectReview(Vertical):
             self.set_error("Project check queue is unavailable.")
             return
         argv = _check_argv(document)
-        identity_key = str((document.get("target") or {}).get("identity_key") or "")
         cwd = str(init_cwd())
         timeout = check_timeout(1)
 
@@ -155,30 +186,25 @@ class NewProjectReview(Vertical):
             return _run_check(argv, cwd, timeout, reporter)
 
         def completed(result: TrackedProcCompletion[dict[str, Any]]) -> None:
-            if not self.is_mounted:
-                return
-            self._loading = False
-            payload = result.payload
-            if result.success and isinstance(payload, dict):
-                self._document = payload
-                self._view = build_review(payload)
-                self._render_view()
-            else:
-                self.set_error(result.message or "Project check failed.")
+            self._apply_check_completion(generation, fingerprint, result)
 
-        submit(
+        submitted = submit(
             "project-add-check",
             task,
             on_complete=completed,
             display_name="Check project add plan",
             cl_name=identity_key,
-            dedup_key=f"project-add-check:{identity_key}",
-            duplicate_message="This project add plan is already being checked.",
+            dedup_key=f"project-add-check:{identity_key}:{fingerprint}",
+            duplicate_message=_DUPLICATE_MESSAGE,
         )
+        if submitted is None:
+            self.set_error(_DUPLICATE_MESSAGE)
 
-    def show_document(self, document: dict[str, Any]) -> None:
+    def show_document(self, document: dict[str, Any], *, notice: str = "") -> None:
         """Render a supplied check document (also used by deterministic previews)."""
+        self._bump_generation()
         self._document = dict(document)
+        self._notice = notice
         self._loading = False
         self._view = build_review(self._document)
         if self.is_mounted:
@@ -187,22 +213,52 @@ class NewProjectReview(Vertical):
     def set_error(self, message: str) -> None:
         """Show a check failure and keep confirmation disabled."""
         self._loading = False
+        self._view = None
         self.set_class(False, "review-ready")
         if self.is_mounted:
             self.query_one("#new-project-review-state", Static).update(
                 Text(clean_source_text(message), style="#FF5F5F")
             )
-            self.query_one("#new-project-review-confirm", Button).disabled = True
+            self._disable_confirm()
 
-    def _render_loading(self) -> None:
+    def _bump_generation(self) -> int:
+        self._check_generation += 1
+        return self._check_generation
+
+    def _apply_check_completion(
+        self,
+        generation: int,
+        fingerprint: str,
+        result: TrackedProcCompletion[dict[str, Any]],
+    ) -> None:
+        if not self.is_mounted:
+            return
+        if generation != self._check_generation or not self._loading:
+            return
+        current = str(self._document.get("intent_fingerprint") or "")
+        if fingerprint and current and fingerprint != current:
+            return
+        self._loading = False
+        payload = result.payload
+        if result.success and isinstance(payload, dict):
+            self._document = payload
+            self._view = build_review(payload)
+            self._render_view()
+            return
+        self.set_error(result.message or "Project check failed.")
+
+    def _disable_confirm(self) -> None:
+        self.query_one("#new-project-review-confirm", Button).disabled = True
+
+    def _render_loading(self, message: str = "Checking the exact add plan…") -> None:
         self.query_one("#new-project-review-state", Static).update(
-            Text("Checking the exact add plan…", style="dim")
+            Text(clean_source_text(message), style="dim")
         )
         self.query_one("#new-project-review-rows", Static).update("")
         self.query_one("#new-project-review-warnings", Static).update("")
         self.query_one("#new-project-review-blockers", Static).update("")
         self.query_one("#new-project-review-argv", Static).update("")
-        self.query_one("#new-project-review-confirm", Button).disabled = True
+        self._disable_confirm()
 
     def _render_view(self) -> None:
         view = self._view
@@ -211,9 +267,14 @@ class NewProjectReview(Vertical):
         compact = self.size.width < 90
         self.set_class(compact, "compact")
         self.set_class(True, "review-ready")
-        self.query_one("#new-project-review-state", Static).update(
-            Text("Review the steps before adding this project.", style="dim")
-        )
+        if self._notice:
+            self.query_one("#new-project-review-state", Static).update(
+                Text(clean_source_text(self._notice), style="#FFAF5F")
+            )
+        else:
+            self.query_one("#new-project-review-state", Static).update(
+                Text("Review the steps before adding this project.", style="dim")
+            )
         rows = Text()
         for row in view.rows:
             rows.append(row.glyph + " ", style=row.style)
@@ -260,7 +321,7 @@ class NewProjectReview(Vertical):
         self.post_message(self.BackRequested())
 
     def action_confirm(self) -> None:
-        if self._view is None or not self._view.can_confirm:
+        if self._loading or self._view is None or not self._view.can_confirm:
             return
         self.post_message(self.ApplyRequested(apply_submission(self._document)))
 

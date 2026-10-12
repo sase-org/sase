@@ -270,8 +270,8 @@ async def test_local_preview_ignores_stale_generation(
 ) -> None:
     app, modal = _make_add_flow(monkeypatch)
     monkeypatch.setattr(
-        "sase.ace.tui.modals.new_project_modal.validate_draft",
-        lambda _target, draft, _records: _document(draft.name),
+        "sase.ace.tui.modals.new_project_configure_flow.plan_configure_display",
+        lambda _target, draft, _facts: _document(draft.name),
     )
     async with app.run_test(size=(120, 40)) as pilot:
         app.push_screen(modal)
@@ -286,12 +286,15 @@ async def test_local_preview_ignores_stale_generation(
         modal._state.set_draft(newest)
         configure = modal.query_one(NewProjectConfigure)
         configure.set_source(row, newest)
+        workflow_type = modal._state.workflow_type
+        facts = dict(modal._observed_facts)
 
         await modal._build_local_preview(
             newest_generation - 1,
             row.row_id,
+            workflow_type,
             dict(modal._active_target),
-            list(modal._active_records),
+            facts,
             ConfigureDraft(name="stale"),
         )
         assert modal._local_plan.get("apply_argv") == _document("new")["apply_argv"]
@@ -299,8 +302,9 @@ async def test_local_preview_ignores_stale_generation(
         await modal._build_local_preview(
             newest_generation,
             row.row_id,
+            workflow_type,
             dict(modal._active_target),
-            list(modal._active_records),
+            facts,
             newest,
         )
         assert modal._local_plan.get("apply_argv") == _document("latest")["apply_argv"]

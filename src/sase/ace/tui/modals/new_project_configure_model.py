@@ -229,6 +229,26 @@ def validate_draft(
     return build_plan_document(request, facts=facts)
 
 
+def plan_configure_display(
+    target: Mapping[str, Any],
+    draft: ConfigureDraft,
+    facts: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Build the Configure display plan from observed *facts*.
+
+    Records-only :func:`validate_draft` stays the identity-only helper.
+    Display planning threads Source-cache and inventory snapshots through
+    the existing ``build_plan_document(..., facts=...)`` contract.
+    """
+    request = {
+        "mode": "add",
+        "actor": "human",
+        "target": dict(target),
+        "requested": draft.to_requested(),
+    }
+    return build_plan_document(request, facts=dict(facts))
+
+
 __all__ = [
     "ConfigureDraft",
     "IdentityCheck",
@@ -239,5 +259,6 @@ __all__ = [
     "build_project_card",
     "build_setup_card",
     "check_identity",
+    "plan_configure_display",
     "validate_draft",
 ]

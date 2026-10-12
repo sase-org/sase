@@ -81,6 +81,14 @@ class ProjectsPaneInitActionsMixin(_MixinBase):
         """Reload project records after init (host adapter)."""
         self.action_reload_projects()
 
+    def report_init_outcome(self, initialized: bool) -> None:
+        """Pane init does not wait on a Ready-stage outcome."""
+        del initialized
+
+    def recheck_after_terminal(self) -> bool:
+        """Keep the pane terminal valve as a one-shot reload."""
+        return False
+
     def _init_flow_controller(self) -> ProjectsInitFlowController:
         flow = getattr(self, "_init_flow", None)
         if flow is None:

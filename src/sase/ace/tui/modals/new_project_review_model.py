@@ -20,6 +20,7 @@ __all__ = [
     "ReviewView",
     "apply_submission",
     "build_review",
+    "requested_from_argv",
 ]
 
 
@@ -125,7 +126,7 @@ def build_review(document: Mapping[str, Any]) -> ReviewView:
     )
 
 
-def _requested_from_argv(argv: Sequence[str]) -> dict[str, Any]:
+def requested_from_argv(argv: Sequence[str]) -> dict[str, Any]:
     """Recover the ``requested`` intent encoded in a plan ``apply_argv``."""
     name = ""
     aliases: list[str] = []
@@ -185,6 +186,6 @@ def apply_submission(document: Mapping[str, Any]) -> ApplySubmission:
                 "workflow_type": str(provider_map.get("workflow_type") or ""),
                 "identity_key": identity_key,
             },
-            "requested": _requested_from_argv(argv),
+            "requested": requested_from_argv(argv),
         },
     )

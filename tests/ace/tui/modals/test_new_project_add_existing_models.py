@@ -22,6 +22,7 @@ from sase.ace.tui.modals.new_project_configure_model import (
     validate_draft,
 )
 from sase.ace.tui.modals.new_project_progress_model import reduce_lines
+from sase.ace.tui.modals.new_project_rendering import render_stepper
 from sase.ace.tui.modals.new_project_review_model import (
     apply_submission,
     build_review,
@@ -493,3 +494,19 @@ class TestStageMachine:
         machine.to_configure()
         machine.back_to_source()
         assert machine.stage == "source"
+
+
+class TestStepper:
+    def test_source_configure_review_keep_active_marks(self) -> None:
+        assert "● Source" in render_stepper("source").plain
+        assert "● Configure" in render_stepper("configure").plain
+        assert "● Review" in render_stepper("review").plain
+        assert "✓ Source" in render_stepper("review").plain
+
+    def test_completed_stages_mark_all_three_done(self) -> None:
+        for stage in ("progress", "ready", "failed"):
+            plain = render_stepper(stage).plain
+            assert "✓ Source" in plain
+            assert "✓ Configure" in plain
+            assert "✓ Review" in plain
+            assert "● Review" not in plain

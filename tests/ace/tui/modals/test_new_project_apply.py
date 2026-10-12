@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 from unittest.mock import MagicMock
+import weakref
 
 import pytest
 from sase.ace.tui.actions.proc_actions import TrackedProcCompletion
@@ -328,9 +329,14 @@ def test_on_project_add_complete_reloads(monkeypatch: pytest.MonkeyPatch) -> Non
         "sase.ace.tui.modals.new_project_apply._reload_projects_if_mounted",
         lambda app: called.append(app),
     )
+
+    class _Gone:
+        is_mounted = False
+
     app = object()
     _on_project_add_complete(
         app,
+        weakref.ref(_Gone()),
         TrackedProcCompletion(proc_info=_proc(), success=True, message="ok", output=""),
     )
     assert called == [app]
@@ -341,6 +347,34 @@ def test_mark_sase_initialized_appends_done_row() -> None:
     view.mark_sase_initialized()
     assert view.steps["sase-init"].state == "done"
     assert view.steps["sase-init"].label == "SASE initialized"
+
+
+async def test_configure_and_review_hints_and_completed_stepper(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app, modal, _ = await _open_review(monkeypatch)
+    async with app.run_test(size=(120, 40)) as pilot:
+        app.push_screen(modal)
+        await pilot.pause()
+        _select_suggested(modal)
+        await pilot.pause()
+        hints = modal.query_one("#new-project-hints").render().plain
+        assert "ctrl+s review" in hints
+        assert "[ ] provider" not in hints
+        await _tab_to_review(pilot, modal)
+        await pilot.press("enter")
+        await pilot.pause()
+        hints = modal.query_one("#new-project-hints").render().plain
+        assert "y apply" in hints
+        stepper = modal.query_one("#new-project-stepper").render().plain
+        assert "● Review" in stepper
+        await pilot.press("y")
+        await pilot.pause()
+        stepper = modal.query_one("#new-project-stepper").render().plain
+        assert "✓ Review" in stepper
+        assert "● Review" not in stepper
+        modal._cycle_provider(1)
+        assert modal._state.workflow_type == "gh"
 
 
 def test_format_elapsed_and_raw_log_disclosure() -> None:

@@ -453,9 +453,9 @@ ACTION_PRODUCERS: tuple[ProcProducerSite, ...] = (
         "ui_only",
         "NewProjectReview.start_check",
         "sase project add --check --json",
-        identifiers=("identity_key",),
+        identifiers=("identity_key", "intent_fingerprint"),
         result_kind="project.add.check",
-        concurrency_keys=("project-add-check:{identity_key}",),
+        concurrency_keys=("project-add-check:{identity_key}:{intent_fingerprint}",),
         restart_recovery="not durable; the read-only review check is session-local",
     ),
     site(

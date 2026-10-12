@@ -14,7 +14,9 @@ from textual.containers import Vertical, VerticalScroll
 from textual.message import Message
 from textual.widgets import Static
 
+from sase.ace.tui._proc_observer_models import proc_status_is_active
 from sase.ace.tui._proc_observer_store import DETAIL_LOG_LINES
+from sase.ace.tui.actions.proc_actions import TrackedProcCompletion
 from sase.ace.tui.util.pump_tasks import cancel_pump_free_tasks, spawn_pump_free_task
 from sase.procs import read_proc_log_tail
 
@@ -125,6 +127,8 @@ class NewProjectProgress(Vertical):
         self._preview_elapsed = "3s"
         self._previewing = False
         self._tail_token: str | None = None
+        self._settled = False
+        self._settlement_tail_done = False
 
     def compose(self) -> ComposeResult:
         with VerticalScroll(id="new-project-progress-scroll"):
@@ -153,6 +157,8 @@ class NewProjectProgress(Vertical):
         self._seen_version = None
         self._emitted_result = None
         self._previewing = False
+        self._settled = False
+        self._settlement_tail_done = False
         self._view = ProgressView()
         self._running_started.clear()
         self._subscribe_tail()
@@ -188,9 +194,24 @@ class NewProjectProgress(Vertical):
 
     def mark_initialized(self) -> None:
         """Add the completed init row after a successful hand-off."""
+        self._settled = True
+        self._stop_poll()
+        self._unsubscribe_tail()
         self._view.mark_sase_initialized()
         if self.is_mounted:
             self._paint()
+
+    def observe_completion(self, completion: TrackedProcCompletion[Any]) -> None:
+        """Settle from durable completion when NDJSON never recorded a result."""
+        if self._previewing or self._settled or self._emitted_result is not None:
+            return
+        if self._view.result is not None:
+            self._handle_terminal_result(self._view.result)
+            return
+        if completion.success:
+            return
+        message = completion.error or completion.message or "Project add failed."
+        self._emit_failed_result(message)
 
     def current_view(self) -> ProgressView:
         """Return the live reducer state."""
@@ -247,27 +268,41 @@ class NewProjectProgress(Vertical):
         self._spinner_index = (self._spinner_index + 1) % len(_SPINNER)
         if any(step.state == "running" for step in self._view.checklist()):
             self._paint()
-        version = self._log_version()
+        if self._settled:
+            return
+        row = self._proc_row()
+        settled = row is not None and not proc_status_is_active(str(row.status or ""))
+        version, authoritative = self._version_token(row)
         if version is None:
             if not self._proc_id or self._view.result is not None:
+                if self._view.result is not None:
+                    self._handle_terminal_result(self._view.result)
                 return
             version = ("pending", self._proc_id)
-        elif version == self._seen_version and self._view.result is not None:
-            return
+            authoritative = False
+        if version == self._seen_version:
+            if self._view.result is not None:
+                self._handle_terminal_result(self._view.result)
+                return
+            if authoritative and not settled:
+                return
+            if settled and self._settlement_tail_done:
+                self._fail_without_result(row)
+                return
         if self._tail_in_flight:
             return
         self._seen_version = version
         self._tail_in_flight = True
         task = spawn_pump_free_task(
             self,
-            self._read_tail(),
+            self._read_tail(settled=settled),
             name=f"new-project-progress-tail:{self._proc_id}",
             registry_attr=_TASKS,
         )
         if task is None:
             self._tail_in_flight = False
 
-    def _log_version(self) -> object | None:
+    def _proc_row(self) -> Any | None:
         proc_id = self._proc_id
         if not proc_id:
             return None
@@ -283,22 +318,29 @@ class NewProjectProgress(Vertical):
                 row.proc_id == proc_id
                 or getattr(row, "durable_proc_id", None) == proc_id
             ):
-                log = getattr(row, "log", None)
-                version = getattr(log, "version", None)
                 path = getattr(row, "log_path", "") or ""
                 if path:
                     self._log_path = path
-                return (
-                    int(version) if version is not None else 0,
-                    len(getattr(row, "output", "") or ""),
-                    getattr(row, "status", ""),
-                    getattr(row, "message", ""),
-                    getattr(row, "phase", "") or "",
-                    int(getattr(self.app, "_proc_generation", 0) or 0),
-                )
+                return row
         return None
 
-    async def _read_tail(self) -> None:
+    def _version_token(self, row: Any | None) -> tuple[object | None, bool]:
+        if row is None:
+            return None, False
+        log = getattr(row, "log", None)
+        raw_version = getattr(log, "version", None)
+        version = int(raw_version) if raw_version is not None else 0
+        token = (
+            version,
+            len(getattr(row, "output", "") or ""),
+            getattr(row, "status", ""),
+            getattr(row, "message", ""),
+            getattr(row, "phase", "") or "",
+            int(getattr(self.app, "_proc_generation", 0) or 0),
+        )
+        return token, version > 0
+
+    async def _read_tail(self, *, settled: bool = False) -> None:
         proc_id = self._proc_id
         log_path = self._log_path
         try:
@@ -311,19 +353,57 @@ class NewProjectProgress(Vertical):
         except Exception:
             text = ""
         self._tail_in_flight = False
-        if not self.is_mounted or proc_id != self._proc_id:
+        if not self.is_mounted or proc_id != self._proc_id or self._settled:
             return
         self._apply_text(text)
+        if settled:
+            self._settlement_tail_done = True
+            if self._view.result is None and not self._settled:
+                self._fail_without_result(self._proc_row())
 
     def _apply_text(self, text: str) -> None:
+        if self._settled:
+            return
         view = reduce_lines(text.splitlines())
         self._sync_running_clocks(view)
         self._view = view
         self._paint()
         result = view.result
         if result is not None and result != self._emitted_result:
+            self._handle_terminal_result(result)
+
+    def _handle_terminal_result(self, result: ProgressResult) -> None:
+        if self._settled and self._emitted_result is not None:
+            return
+        self._settled = True
+        self._stop_poll()
+        self._unsubscribe_tail()
+        if result != self._emitted_result:
             self._emitted_result = result
             self.post_message(self.ResultArrived(result))
+
+    def _fail_without_result(self, row: Any | None) -> None:
+        if self._settled or self._view.result is not None:
+            if self._view.result is not None:
+                self._handle_terminal_result(self._view.result)
+            return
+        message = "Project add failed."
+        if row is not None:
+            message = str(
+                getattr(row, "error", None) or getattr(row, "message", "") or message
+            )
+        self._emit_failed_result(message)
+
+    def _emit_failed_result(self, message: str) -> None:
+        result = ProgressResult(
+            status="failed",
+            project_key="",
+            project_name="",
+            next_argv=(),
+            message=message,
+        )
+        self._view.result = result
+        self._handle_terminal_result(result)
 
     def _sync_running_clocks(self, view: ProgressView) -> None:
         now = monotonic()
