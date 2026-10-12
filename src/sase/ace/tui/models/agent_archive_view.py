@@ -111,6 +111,7 @@ class AgentsArchiveViewState:
     generation: int = 0
     archive: ArchiveViewState = field(default_factory=ArchiveViewState)
     parked_inbox: ParkedInboxState | None = None
+    archive_grouping_preference_requested: bool = False
 
 
 @dataclass(frozen=True)

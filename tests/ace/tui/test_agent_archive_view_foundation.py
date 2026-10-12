@@ -205,13 +205,34 @@ def test_startup_selection_stays_inbox_only() -> None:
 def test_startup_is_always_inbox() -> None:
     app = _FakeApp(agents=[_make_agent("agent_0")])
 
-    with override_flags(agents_archive_view=True):
-        state = app._agents_archive_view
-        assert state.active_view == AGENTS_VIEW_INBOX
-        assert state.generation == 0
-        assert state.parked_inbox is None
-        assert state.archive.selected_key is None
-        assert not archive_detail_owns_panel(app)
+    state = app._agents_archive_view
+    assert state.active_view == AGENTS_VIEW_INBOX
+    assert state.generation == 0
+    assert state.parked_inbox is None
+    assert state.archive.selected_key is None
+    assert not archive_detail_owns_panel(app)
+
+
+def test_startup_does_not_read_archive_grouping_preference(
+    monkeypatch: Any,
+) -> None:
+    from sase.ace import grouping_strategy
+
+    calls: list[bool] = []
+
+    def load_grouping() -> str:
+        calls.append(True)
+        return "day"
+
+    monkeypatch.setattr(
+        grouping_strategy,
+        "load_agent_archive_grouping",
+        load_grouping,
+    )
+
+    _FakeApp(agents=[_make_agent("agent_0")])
+
+    assert calls == []
 
 
 def test_open_parks_inbox_and_blocks_detail() -> None:
@@ -219,52 +240,49 @@ def test_open_parks_inbox_and_blocks_detail() -> None:
     app._agent_search_query = "model:opus"
     app.current_idx = 1
 
-    with override_flags(agents_archive_view=True):
-        outcome = open_agents_archive_view(app)
+    outcome = open_agents_archive_view(app)
 
-        assert outcome.status == "opened"
-        assert outcome.view == AGENTS_VIEW_ARCHIVE
-        assert archive_detail_owns_panel(app)
-        parked = app._agents_archive_view.parked_inbox
-        assert parked is not None
-        assert parked.committed_query == "model:opus"
-        assert parked.scroll == 1
+    assert outcome.status == "opened"
+    assert outcome.view == AGENTS_VIEW_ARCHIVE
+    assert archive_detail_owns_panel(app)
+    parked = app._agents_archive_view.parked_inbox
+    assert parked is not None
+    assert parked.committed_query == "model:opus"
+    assert parked.scroll == 1
 
-        app._refresh_agents_display_debounced()
+    app._refresh_agents_display_debounced()
 
-        assert app.detail_widget.immediate_calls == []
-        assert app.detail_widget.full_calls == []
-        assert app.detail_widget.tribe_calls == []
-        assert app.footer_widget.binding_updates == 0
-        # List chrome still refreshes while hidden, feeding the later pulse.
-        assert app.info_updates == 1
+    assert app.detail_widget.immediate_calls == []
+    assert app.detail_widget.full_calls == []
+    assert app.detail_widget.tribe_calls == []
+    assert app.footer_widget.binding_updates == 0
+    # List chrome still refreshes while hidden, feeding the later pulse.
+    assert app.info_updates == 1
 
 
 def test_pending_debounce_dropped_after_switch() -> None:
     app = _FakeApp(agents=[_make_agent("agent_0")])
 
-    with override_flags(agents_archive_view=True):
-        app._refresh_agent_focus_detail(render_immediate=False)
-        assert app._agent_detail_debouncer.is_pending
+    app._refresh_agent_focus_detail(render_immediate=False)
+    assert app._agent_detail_debouncer.is_pending
 
-        open_agents_archive_view(app)
-        app._fire_debounced_detail_update()
+    open_agents_archive_view(app)
+    app._fire_debounced_detail_update()
 
-        assert app.detail_widget.immediate_calls == []
-        assert app.detail_widget.full_calls == []
+    assert app.detail_widget.immediate_calls == []
+    assert app.detail_widget.full_calls == []
 
 
 def test_stale_token_dropped_after_return() -> None:
     app = _FakeApp(agents=[_make_agent("agent_0")])
 
-    with override_flags(agents_archive_view=True):
-        app._refresh_agent_focus_detail(render_immediate=False)
-        open_agents_archive_view(app)
-        close_agents_archive_view(app)
+    app._refresh_agent_focus_detail(render_immediate=False)
+    open_agents_archive_view(app)
+    close_agents_archive_view(app)
 
-        app._fire_debounced_detail_update()
+    app._fire_debounced_detail_update()
 
-        assert app.detail_widget.full_calls == []
+    assert app.detail_widget.full_calls == []
 
 
 def test_return_to_inbox_restores_and_repaints() -> None:
@@ -272,17 +290,16 @@ def test_return_to_inbox_restores_and_repaints() -> None:
     app._agent_search_query = "model:opus"
     app.current_idx = 1
 
-    with override_flags(agents_archive_view=True):
-        open_agents_archive_view(app)
-        outcome = close_agents_archive_view(app)
+    open_agents_archive_view(app)
+    outcome = close_agents_archive_view(app)
 
-        assert outcome.status == "returned"
-        assert outcome.view == AGENTS_VIEW_INBOX
-        assert app._agent_search_query == "model:opus"
-        assert app.current_idx == 1
-        assert not archive_detail_owns_panel(app)
+    assert outcome.status == "returned"
+    assert outcome.view == AGENTS_VIEW_INBOX
+    assert app._agent_search_query == "model:opus"
+    assert app.current_idx == 1
+    assert not archive_detail_owns_panel(app)
 
-        app._refresh_agents_display_debounced()
+    app._refresh_agents_display_debounced()
 
     assert app.detail_widget.immediate_calls == [("agent_1", None)]
 
@@ -290,68 +307,65 @@ def test_return_to_inbox_restores_and_repaints() -> None:
 def test_no_selected_agent_leakage_into_archive() -> None:
     app = _FakeApp(agents=[_make_agent("agent_0")])
 
-    with override_flags(agents_archive_view=True):
-        open_agents_archive_view(app)
+    open_agents_archive_view(app)
 
-        selection = get_agents_tab_selection(app)
-        assert selection.view == AGENTS_VIEW_ARCHIVE
-        assert selection.row_kind == "none"
-        assert selection.agent is None
-        assert selection.archive_key is None
-        assert selection.read_only is True
-        assert archive_read_only_context(app) is None
-        # The parked Inbox agent is still there for live callers only.
-        assert app._get_selected_agent() is not None
-        assert app._agents == [app._agents[0]]
-        assert len(app._agents) == 1
+    selection = get_agents_tab_selection(app)
+    assert selection.view == AGENTS_VIEW_ARCHIVE
+    assert selection.row_kind == "none"
+    assert selection.agent is None
+    assert selection.archive_key is None
+    assert selection.read_only is True
+    assert archive_read_only_context(app) is None
+    # The parked Inbox agent is still there for live callers only.
+    assert app._get_selected_agent() is not None
+    assert app._agents == [app._agents[0]]
+    assert len(app._agents) == 1
 
-        app._agents_archive_view.archive.selected_key = "bob-cli-5p.4"
-        selection = get_agents_tab_selection(app)
-        assert selection.row_kind == "agent"
-        assert selection.agent is None
-        assert selection.archive_key == "bob-cli-5p.4"
-        context = archive_read_only_context(app)
-        assert context is not None
-        assert context.archive_key == "bob-cli-5p.4"
-        assert context.read_only is True
+    app._agents_archive_view.archive.selected_key = "bob-cli-5p.4"
+    selection = get_agents_tab_selection(app)
+    assert selection.row_kind == "agent"
+    assert selection.agent is None
+    assert selection.archive_key == "bob-cli-5p.4"
+    context = archive_read_only_context(app)
+    assert context is not None
+    assert context.archive_key == "bob-cli-5p.4"
+    assert context.read_only is True
 
 
 def test_async_handlers_drop_while_archive_owns_panel() -> None:
     app = _FakeApp(agents=[_make_agent("agent_0")])
     agent = app._agents[0]
 
-    with override_flags(agents_archive_view=True):
-        open_agents_archive_view(app)
+    open_agents_archive_view(app)
 
-        message = _enriched_message(agent)
-        app.on_agent_detail_header_enriched(message)
-        assert not app._agent_detail_debouncer.is_pending
-        assert message.stopped == []
+    message = _enriched_message(agent)
+    app.on_agent_detail_header_enriched(message)
+    assert not app._agent_detail_debouncer.is_pending
+    assert message.stopped == []
 
-        app.on_clan_section_snapshot_loaded(
-            SimpleNamespace(agent_identity=agent.identity, stop=lambda: None)
-        )
-        app.on_tribe_section_snapshot_loaded(
-            SimpleNamespace(panel_identity="tribe:x", stop=lambda: None)
-        )
-        assert not app._agent_detail_debouncer.is_pending
-        assert app.detail_widget.full_calls == []
+    app.on_clan_section_snapshot_loaded(
+        SimpleNamespace(agent_identity=agent.identity, stop=lambda: None)
+    )
+    app.on_tribe_section_snapshot_loaded(
+        SimpleNamespace(panel_identity="tribe:x", stop=lambda: None)
+    )
+    assert not app._agent_detail_debouncer.is_pending
+    assert app.detail_widget.full_calls == []
 
 
 def test_hidden_inbox_refresh_keeps_archive_debounce() -> None:
     app = _FakeApp(agents=[_make_agent("agent_0")])
 
-    with override_flags(agents_archive_view=True):
-        app._refresh_agent_focus_detail(render_immediate=False)
-        assert app._agent_detail_debouncer.is_pending
+    app._refresh_agent_focus_detail(render_immediate=False)
+    assert app._agent_detail_debouncer.is_pending
 
-        open_agents_archive_view(app)
-        app._refresh_agents_display_impl(list_changed=False, defer_detail=False)
+    open_agents_archive_view(app)
+    app._refresh_agents_display_impl(list_changed=False, defer_detail=False)
 
-        assert app._agent_detail_debouncer.is_pending
-        assert app.detail_widget.immediate_calls == []
-        assert app.detail_widget.full_calls == []
-        assert app.footer_widget.binding_updates == 0
+    assert app._agent_detail_debouncer.is_pending
+    assert app.detail_widget.immediate_calls == []
+    assert app.detail_widget.full_calls == []
+    assert app.footer_widget.binding_updates == 0
 
 
 def test_hidden_inbox_refresh_repaints() -> None:
@@ -370,54 +384,51 @@ def test_hidden_inbox_refresh_repaints() -> None:
 def test_invalidate_bumps_generation_for_teardown() -> None:
     app = _FakeApp(agents=[_make_agent("agent_0")])
 
-    with override_flags(agents_archive_view=True):
-        token = app._agents_archive_view.generation
-        app._refresh_agent_focus_detail(render_immediate=False)
-        assert app._agents_archive_view.generation == token
+    token = app._agents_archive_view.generation
+    app._refresh_agent_focus_detail(render_immediate=False)
+    assert app._agents_archive_view.generation == token
 
-        _invalidate_agents_detail_ownership(app)
+    _invalidate_agents_detail_ownership(app)
 
-        assert app._agents_archive_view.generation == token + 1
-        app._fire_debounced_detail_update()
-        assert app.detail_widget.full_calls == []
+    assert app._agents_archive_view.generation == token + 1
+    app._fire_debounced_detail_update()
+    assert app.detail_widget.full_calls == []
 
 
 def test_explicit_arrival_records_query_and_name() -> None:
     app = _FakeApp(agents=[_make_agent("agent_0")])
     app._agent_search_query = "model:opus"
 
-    with override_flags(agents_archive_view=True):
-        outcome = open_agents_archive_view_with_query(
-            app,
-            query='in:archive name:"bob-cli-5p.4"',
-            agent_name="bob-cli-5p.4",
-        )
+    outcome = open_agents_archive_view_with_query(
+        app,
+        query='in:archive name:"bob-cli-5p.4"',
+        agent_name="bob-cli-5p.4",
+    )
 
-        assert outcome.status == "opened"
-        assert outcome.view == AGENTS_VIEW_ARCHIVE
-        assert outcome.committed_query == 'in:archive name:"bob-cli-5p.4"'
-        assert outcome.exact_agent_name == "bob-cli-5p.4"
-        archive = app._agents_archive_view.archive
-        assert archive.committed_query == 'in:archive name:"bob-cli-5p.4"'
-        assert archive.pending_exact_name == "bob-cli-5p.4"
-        assert archive.selected_key is None
-        parked = app._agents_archive_view.parked_inbox
-        assert parked is not None
-        assert parked.committed_query == "model:opus"
+    assert outcome.status == "opened"
+    assert outcome.view == AGENTS_VIEW_ARCHIVE
+    assert outcome.committed_query == 'in:archive name:"bob-cli-5p.4"'
+    assert outcome.exact_agent_name == "bob-cli-5p.4"
+    archive = app._agents_archive_view.archive
+    assert archive.committed_query == 'in:archive name:"bob-cli-5p.4"'
+    assert archive.pending_exact_name == "bob-cli-5p.4"
+    assert archive.selected_key is None
+    parked = app._agents_archive_view.parked_inbox
+    assert parked is not None
+    assert parked.committed_query == "model:opus"
 
 
 def test_open_close_idempotency() -> None:
     app = _FakeApp(agents=[_make_agent("agent_0")])
 
-    with override_flags(agents_archive_view=True):
-        first = open_agents_archive_view(app)
-        second = open_agents_archive_view(app)
-        assert (first.status, second.status) == ("opened", "already_open")
-        assert second.generation == first.generation
+    first = open_agents_archive_view(app)
+    second = open_agents_archive_view(app)
+    assert (first.status, second.status) == ("opened", "already_open")
+    assert second.generation == first.generation
 
-        returned = close_agents_archive_view(app)
-        repeat = close_agents_archive_view(app)
-        assert (returned.status, repeat.status) == ("returned", "already_inbox")
+    returned = close_agents_archive_view(app)
+    repeat = close_agents_archive_view(app)
+    assert (returned.status, repeat.status) == ("returned", "already_inbox")
 
 
 def test_restored_overlay_clears_on_query_change_and_exit() -> None:
@@ -425,12 +436,11 @@ def test_restored_overlay_clears_on_query_change_and_exit() -> None:
 
     app = _FakeApp(agents=[_make_agent("agent_0")])
 
-    with override_flags(agents_archive_view=True):
-        open_agents_archive_view(app)
-        mark_archive_row_restored(app, "u.m@r1")
-        assert app._agents_archive_view.archive.restored_keys == frozenset({"u.m@r1"})
-        open_agents_archive_view_with_query(app, query="in:archive outcome:failed")
-        assert app._agents_archive_view.archive.restored_keys == frozenset()
-        mark_archive_row_restored(app, "u.m@r2")
-        close_agents_archive_view(app)
-        assert app._agents_archive_view.archive.restored_keys == frozenset()
+    open_agents_archive_view(app)
+    mark_archive_row_restored(app, "u.m@r1")
+    assert app._agents_archive_view.archive.restored_keys == frozenset({"u.m@r1"})
+    open_agents_archive_view_with_query(app, query="in:archive outcome:failed")
+    assert app._agents_archive_view.archive.restored_keys == frozenset()
+    mark_archive_row_restored(app, "u.m@r2")
+    close_agents_archive_view(app)
+    assert app._agents_archive_view.archive.restored_keys == frozenset()

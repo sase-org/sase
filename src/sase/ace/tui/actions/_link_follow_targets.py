@@ -339,7 +339,7 @@ class LinkFollowTargetsMixin:
 
         Legacy path for harnesses without the reveal machinery: it only
         ever matches rows the tab is already showing, so a filtered-out
-        row still falls through to Artifacts ▸ Agent.
+        row still falls through to the remaining link-follow targets.
         """
         agents = getattr(self, "_agents", ())
         for idx, agent in enumerate(agents):

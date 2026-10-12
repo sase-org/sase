@@ -262,8 +262,7 @@ def test_archived_agent_link_uses_archive_arrival_when_enabled(monkeypatch) -> N
         ),
     )
 
-    with override_flags(agents_archive_view=True):
-        app._follow_link_number(1)
+    app._follow_link_number(1)
 
     assert arrivals == [("dismissed", "Not in your inbox", True)]
     assert app.current_tab == "artifacts"
@@ -297,8 +296,7 @@ def test_loaded_agent_hidden_by_inbox_filter_commits_exact_name_query(
 
     app._reveal_loaded_agent = filtered
 
-    with override_flags(agents_archive_view=True):
-        app._follow_link_number(1)
+    app._follow_link_number(1)
 
     assert committed == ['name:"builder"']
     assert transitions == [("status:failed", 'name:"builder"')]

@@ -14,12 +14,11 @@ def test_availability_hides_live_actions_in_archive() -> None:
 
     owner = make_owner()
     open_archive(owner)
-    with override_flags(agents_archive_view=True):
-        for action in ("kill_agent", "reword", "agents_retry", "edit_agent_tribe"):
-            assert check_agents_availability(owner, action, ()) is True
-        assert check_agents_availability(owner, "act_on_agent", ()) is None
-        assert check_agents_availability(owner, "next_deck_card", ()) is None
-        assert check_agents_availability(owner, "pick_deck", ()) is None
+    for action in ("kill_agent", "reword", "agents_retry", "edit_agent_tribe"):
+        assert check_agents_availability(owner, action, ()) is True
+    assert check_agents_availability(owner, "act_on_agent", ()) is None
+    assert check_agents_availability(owner, "next_deck_card", ()) is None
+    assert check_agents_availability(owner, "pick_deck", ()) is None
 
 
 def test_command_palette_hides_live_only_actions_in_archive() -> None:
@@ -32,16 +31,14 @@ def test_command_palette_hides_live_only_actions_in_archive() -> None:
     }
     live_agent = SimpleNamespace(status="RUNNING")
     context = CommandContext(tab="agents", agent=live_agent, agents_archive_active=True)
-    with override_flags(agents_archive_view=True):
-        assert not is_command_available(catalog["app.kill_agent"], context)
+    assert not is_command_available(catalog["app.kill_agent"], context)
 
 
 def test_availability_untouched_in_inbox() -> None:
     from sase.ace.tui._app_action_availability_agents import check_agents_availability
 
     owner = make_owner()
-    with override_flags(agents_archive_view=True):
-        assert check_agents_availability(owner, "kill_agent", ()) is None
+    assert check_agents_availability(owner, "kill_agent", ()) is None
 
 
 def test_help_archive_box_content() -> None:
@@ -59,8 +56,7 @@ def test_help_archive_box_content() -> None:
     assert not any(
         "read archived run" == description.lower() for _, description in rows
     )
-    with override_flags(agents_archive_view=True):
-        full = dict(agents_bindings(km))
+    full = dict(agents_bindings(km))
     assert "Archive (read-only)" in full
 
 
@@ -104,23 +100,22 @@ def test_command_palette_hides_every_live_only_action_in_archive() -> None:
     live_agent = SimpleNamespace(status="RUNNING")
     context = CommandContext(tab="agents", agent=live_agent, agents_archive_active=True)
     hidden: list[str] = []
-    with override_flags(agents_archive_view=True):
-        for spec in catalog.values():
-            action_id = spec.id
-            for prefix in ("app.", "leader."):
-                if action_id.startswith(prefix):
-                    action_id = action_id.removeprefix(prefix)
-                    break
-            if action_id in ARCHIVE_LIVE_ONLY_ACTIONS:
-                assert not is_command_available(spec, context), spec.id
-                hidden.append(spec.id)
-        for required in (
-            "app.kill_agent",
-            "leader.kill_and_edit",
-            "leader.revert_agent",
-            "leader.agent_from_cl",
-        ):
-            assert required in hidden
-        view_files = catalog.get("app.view_files")
-        if view_files is not None and "agents" in view_files.tabs:
-            assert is_command_available(view_files, context)
+    for spec in catalog.values():
+        action_id = spec.id
+        for prefix in ("app.", "leader."):
+            if action_id.startswith(prefix):
+                action_id = action_id.removeprefix(prefix)
+                break
+        if action_id in ARCHIVE_LIVE_ONLY_ACTIONS:
+            assert not is_command_available(spec, context), spec.id
+            hidden.append(spec.id)
+    for required in (
+        "app.kill_agent",
+        "leader.kill_and_edit",
+        "leader.revert_agent",
+        "leader.agent_from_cl",
+    ):
+        assert required in hidden
+    view_files = catalog.get("app.view_files")
+    if view_files is not None and "agents" in view_files.tabs:
+        assert is_command_available(view_files, context)

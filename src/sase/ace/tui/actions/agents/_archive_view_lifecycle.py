@@ -28,7 +28,11 @@ from ._archive_view_parking import (
     restore_archive_parking,
     restore_parked_inbox,
 )
-from ._archive_view_state import agents_archive_view_state, archive_detail_owns_panel
+from ._archive_view_state import (
+    agents_archive_view_state,
+    archive_detail_owns_panel,
+    request_archive_grouping_preference_load,
+)
 
 log = logging.getLogger(__name__)
 
@@ -91,6 +95,7 @@ def open_agents_archive_view(owner: Any) -> ArchiveViewOutcome:
     Consumed by the query-parking phase; later phases add list hydration.
     """
     state = agents_archive_view_state(owner)
+    request_archive_grouping_preference_load(owner)
     if state.active_view == AGENTS_VIEW_ARCHIVE:
         from ._archive_controller import request_archive_view_load
 
@@ -132,6 +137,7 @@ def open_agents_archive_view_with_query(
     own their toasts and trail hops.
     """
     state = agents_archive_view_state(owner)
+    request_archive_grouping_preference_load(owner)
     if state.active_view != AGENTS_VIEW_ARCHIVE:
         _cancel_open_filter_session(owner)
         state.parked_inbox = capture_parked_inbox(owner)

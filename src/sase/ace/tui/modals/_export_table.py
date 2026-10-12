@@ -165,7 +165,6 @@ _LAZY_EXPORTS = {
         ".dispatch_target_modal",
         "LOCAL_DISPATCH_TARGET_ID",
     ),
-    "DismissedAgentSelectModal": (".revive_agent_modal", "DismissedAgentSelectModal"),
     "GateActionControls": (".gate_action_controls", "GateActionControls"),
     "GateActionOutputModal": (".gate_action_output_modal", "GateActionOutputModal"),
     "GateActionRunner": (".gate_action_runner", "GateActionRunner"),

@@ -6,7 +6,7 @@ Lifecycle on a hydrated archived agent (slate chrome inside the amber
 Archive), and Record on an unreadable archive entry. Templates are
 ``show_final()`` in ``_ace_agents_final_png_snapshot_shared`` and the
 ``_wire`` / ``light_row`` / ``_write_reply_bundle`` /
-``override_flags(agents_archive_view=True)`` fixtures in
+former feature-flag wrappers in
 ``test_ace_png_snapshots_agents_archive``. Time is pinned with
 ``pin_agents_visual_now``.
 """
@@ -339,25 +339,24 @@ async def test_agents_record_archived_lifecycle_png_snapshot(
         ),
         light_row("d02", day="2026-10-10", hour=12, name="today.other"),
     ]
-    with override_flags(agents_archive_view=True):
-        async with AcePage(initial_tab="agents") as page:
-            await wait_for_startup(page)
-            await _open_archive(page, rows)
+    async with AcePage(initial_tab="agents") as page:
+        await wait_for_startup(page)
+        await _open_archive(page, rows)
 
-            await _wait_for_svg(page, "ARCHIVED")
-            detail = await show_record(page, preferred="lifecycle", expect="Time basis")
-            assert detail.deck_area.panel(0).record_view.active_card_id == "lifecycle"
-            assert_page_svg_contains(page, "Archive")
-            assert_page_svg_contains(page, "@agent:archived-run")
-            assert_page_svg_contains(page, "Outcome")
-            assert_page_svg_contains(page, "Last activity")
-            assert_page_svg_contains(page, "Time basis")
-            await wait_for_visual_idle(page)
-            ace_png_visual.assert_page_png(
-                page,
-                "agents_record_archived_lifecycle_120x40",
-                title="ACE agents RECORD Lifecycle on archived agent",
-            )
+        await _wait_for_svg(page, "ARCHIVED")
+        detail = await show_record(page, preferred="lifecycle", expect="Time basis")
+        assert detail.deck_area.panel(0).record_view.active_card_id == "lifecycle"
+        assert_page_svg_contains(page, "Archive")
+        assert_page_svg_contains(page, "@agent:archived-run")
+        assert_page_svg_contains(page, "Outcome")
+        assert_page_svg_contains(page, "Last activity")
+        assert_page_svg_contains(page, "Time basis")
+        await wait_for_visual_idle(page)
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_record_archived_lifecycle_120x40",
+            title="ACE agents RECORD Lifecycle on archived agent",
+        )
 
 
 async def test_agents_record_unreadable_entry_png_snapshot(
@@ -378,19 +377,18 @@ async def test_agents_record_unreadable_entry_png_snapshot(
             bundle_path="/nonexistent/archive-missing-bundle.json",
         ),
     ]
-    with override_flags(agents_archive_view=True):
-        async with AcePage(initial_tab="agents") as page:
-            await wait_for_startup(page)
-            await _open_archive(page, rows)
+    async with AcePage(initial_tab="agents") as page:
+        await wait_for_startup(page)
+        await _open_archive(page, rows)
 
-            await _wait_for_svg(page, "Record only")
-            detail = await show_record(page, preferred="lifecycle", expect="Lifecycle")
-            assert detail.deck_area.panel(0).record_view.active_card_id == "lifecycle"
-            assert_page_svg_contains(page, "@agent:missing.bundle")
-            assert_page_svg_contains(page, "missing.bundle")
-            await wait_for_visual_idle(page)
-            ace_png_visual.assert_page_png(
-                page,
-                "agents_record_unreadable_entry_120x40",
-                title="ACE agents RECORD on unreadable archive entry",
-            )
+        await _wait_for_svg(page, "Record only")
+        detail = await show_record(page, preferred="lifecycle", expect="Lifecycle")
+        assert detail.deck_area.panel(0).record_view.active_card_id == "lifecycle"
+        assert_page_svg_contains(page, "@agent:missing.bundle")
+        assert_page_svg_contains(page, "missing.bundle")
+        await wait_for_visual_idle(page)
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_record_unreadable_entry_120x40",
+            title="ACE agents RECORD on unreadable archive entry",
+        )

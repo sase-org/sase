@@ -69,69 +69,65 @@ async def test_real_corpus_lists_roots_containers_and_expanded_members(
     tmp_path: Path,
 ) -> None:
     corpus = _real_corpus(tmp_path, _rows())
-    with override_flags(agents_archive_view=True):
-        harness = ColumnHarness([], corpus=corpus)
-        harness.note_inbox_applied()
-        open_agents_archive_view(harness.owner)
-        await harness.settle()
+    harness = ColumnHarness([], corpus=corpus)
+    harness.note_inbox_applied()
+    open_agents_archive_view(harness.owner)
+    await harness.settle()
 
-        snapshot = archive_corpus_snapshot(harness.owner)
-        assert snapshot.summary is not None, "in:archive must reach the corpus stripped"
-        assert snapshot.summary["total"] == 3  # roots: clan, gamma, delta
-        assert snapshot.timezone == "UTC"
-        labels = harness.widget.last_labels()
-        assert labels == [
-            "v Today (2)",
-            "container:clan:swarm:1",
-            "bbugyi200.athena@r3",
-            "v Yesterday (1)",
-            "bbugyi200.athena@r4",
-        ]
+    snapshot = archive_corpus_snapshot(harness.owner)
+    assert snapshot.summary is not None, "in:archive must reach the corpus stripped"
+    assert snapshot.summary["total"] == 3  # roots: clan, gamma, delta
+    assert snapshot.timezone == "UTC"
+    labels = harness.widget.last_labels()
+    assert labels == [
+        "v Today (2)",
+        "container:clan:swarm:1",
+        "bbugyi200.athena@r3",
+        "v Yesterday (1)",
+        "bbugyi200.athena@r4",
+    ]
 
-        harness.archive.selected_key = "container:clan:swarm:1"
-        route_archive_key(harness.owner, "expand")
-        await harness.settle()
-        assert harness.widget.last_labels()[:5] == [
-            "v Today (2)",
-            "container:clan:swarm:1",
-            "bbugyi200.athena@r1",
-            "bbugyi200.athena@r2",
-            "bbugyi200.athena@r3",
-        ]
-        container = harness.widget.last_items[1]
-        assert container.count == 2 and container.expanded
-        # Keys round-trip through the stable identity helper.
-        keys = [
-            archive_row_key(item.row) for item in harness.widget.last_items if item.row
-        ]
-        assert keys == [
-            "container:clan:swarm:1",
-            "bbugyi200.athena@r1",
-            "bbugyi200.athena@r2",
-            "bbugyi200.athena@r3",
-            "bbugyi200.athena@r4",
-        ]
-        assert harness.widget.last_items[-1].row["outcome"] == "interrupted"
-        assert harness.widget.last_items[-1].row["time_basis"] == "started"
+    harness.archive.selected_key = "container:clan:swarm:1"
+    route_archive_key(harness.owner, "expand")
+    await harness.settle()
+    assert harness.widget.last_labels()[:5] == [
+        "v Today (2)",
+        "container:clan:swarm:1",
+        "bbugyi200.athena@r1",
+        "bbugyi200.athena@r2",
+        "bbugyi200.athena@r3",
+    ]
+    container = harness.widget.last_items[1]
+    assert container.count == 2 and container.expanded
+    # Keys round-trip through the stable identity helper.
+    keys = [archive_row_key(item.row) for item in harness.widget.last_items if item.row]
+    assert keys == [
+        "container:clan:swarm:1",
+        "bbugyi200.athena@r1",
+        "bbugyi200.athena@r2",
+        "bbugyi200.athena@r3",
+        "bbugyi200.athena@r4",
+    ]
+    assert harness.widget.last_items[-1].row["outcome"] == "interrupted"
+    assert harness.widget.last_items[-1].row["time_basis"] == "started"
 
 
 async def test_list_order_matches_the_corpus_row_order(tmp_path: Path) -> None:
     corpus = _real_corpus(tmp_path, _rows())
-    with override_flags(agents_archive_view=True):
-        harness = ColumnHarness([], corpus=corpus)
-        harness.note_inbox_applied()
-        open_agents_archive_view(harness.owner)
-        await harness.settle()
+    harness = ColumnHarness([], corpus=corpus)
+    harness.note_inbox_applied()
+    open_agents_archive_view(harness.owner)
+    await harness.settle()
 
-        summary = corpus.summary("", group_by="day")
-        expected: list[str] = []
-        for group in summary["groups"]:
-            window = corpus.rows(
-                "", group_by="day", group_key=group["key"], offset=0, limit=100
-            )
-            expected.extend(archive_row_key(row) or "" for row in window["rows"])
-        listed = [item.key for item in harness.widget.last_items if item.row]
-        assert listed == expected
+    summary = corpus.summary("", group_by="day")
+    expected: list[str] = []
+    for group in summary["groups"]:
+        window = corpus.rows(
+            "", group_by="day", group_key=group["key"], offset=0, limit=100
+        )
+        expected.extend(archive_row_key(row) or "" for row in window["rows"])
+    listed = [item.key for item in harness.widget.last_items if item.row]
+    assert listed == expected
 
 
 async def test_corpus_timezone_decides_the_day_banner(tmp_path: Path) -> None:
@@ -148,19 +144,18 @@ async def test_corpus_timezone_decides_the_day_banner(tmp_path: Path) -> None:
         },
     ]
     corpus = _real_corpus(tmp_path, rows, zone="America/New_York")
-    with override_flags(agents_archive_view=True):
-        harness = ColumnHarness([], corpus=corpus)
-        harness.note_inbox_applied()
-        open_agents_archive_view(harness.owner)
-        await harness.settle()
+    harness = ColumnHarness([], corpus=corpus)
+    harness.note_inbox_applied()
+    open_agents_archive_view(harness.owner)
+    await harness.settle()
 
-        labels = harness.widget.last_labels()
-        assert labels == [
-            "v Today (2)",
-            "bbugyi200.athena@late",
-            "bbugyi200.athena@early",
-        ]
-        assert str(harness.widget.paints[-1]["tz"]) == "America/New_York"
+    labels = harness.widget.last_labels()
+    assert labels == [
+        "v Today (2)",
+        "bbugyi200.athena@late",
+        "bbugyi200.athena@early",
+    ]
+    assert str(harness.widget.paints[-1]["tz"]) == "America/New_York"
 
 
 async def test_real_corpus_pages_and_cursor_move_without_inbox_effects(
@@ -175,47 +170,44 @@ async def test_real_corpus_pages_and_cursor_move_without_inbox_effects(
         for i in range(130)
     ]
     corpus = _real_corpus(tmp_path, rows)
-    with override_flags(agents_archive_view=True):
-        harness = ColumnHarness([], corpus=corpus)
-        harness.note_inbox_applied()
-        open_agents_archive_view(harness.owner)
-        await harness.settle()
+    harness = ColumnHarness([], corpus=corpus)
+    harness.note_inbox_applied()
+    open_agents_archive_view(harness.owner)
+    await harness.settle()
 
-        labels = harness.widget.last_labels()
-        assert sum(1 for label in labels if label.startswith("bbugyi200")) == 100
-        assert labels[-1] == "tail 30"
-        harness.archive.selected_key = "tail:day:2026-10-10"
-        route_archive_key(harness.owner, INTENT_ACTIVATE)
-        await harness.settle()
-        labels = harness.widget.last_labels()
-        assert sum(1 for label in labels if label.startswith("bbugyi200")) == 130
-        route_archive_key(harness.owner, INTENT_DOWN)
-        assert harness.owner._agents == []
+    labels = harness.widget.last_labels()
+    assert sum(1 for label in labels if label.startswith("bbugyi200")) == 100
+    assert labels[-1] == "tail 30"
+    harness.archive.selected_key = "tail:day:2026-10-10"
+    route_archive_key(harness.owner, INTENT_ACTIVATE)
+    await harness.settle()
+    labels = harness.widget.last_labels()
+    assert sum(1 for label in labels if label.startswith("bbugyi200")) == 130
+    route_archive_key(harness.owner, INTENT_DOWN)
+    assert harness.owner._agents == []
 
 
 async def test_scoped_query_filters_through_the_real_corpus(tmp_path: Path) -> None:
     corpus = _real_corpus(tmp_path, _rows())
-    with override_flags(agents_archive_view=True):
-        harness = ColumnHarness([], corpus=corpus)
-        harness.note_inbox_applied()
-        harness.archive.committed_query = "in:archive outcome:failed"
-        open_agents_archive_view(harness.owner)
-        await harness.settle()
+    harness = ColumnHarness([], corpus=corpus)
+    harness.note_inbox_applied()
+    harness.archive.committed_query = "in:archive outcome:failed"
+    open_agents_archive_view(harness.owner)
+    await harness.settle()
 
-        assert harness.widget.last_labels() == [
-            "v Today (1)",
-            "bbugyi200.athena@r3",
-        ]
+    assert harness.widget.last_labels() == [
+        "v Today (1)",
+        "bbugyi200.athena@r3",
+    ]
 
 
 async def test_rejected_scope_paints_an_honest_unavailable_note(tmp_path: Path) -> None:
     corpus = _real_corpus(tmp_path, _rows())
-    with override_flags(agents_archive_view=True):
-        harness = ColumnHarness([], corpus=corpus)
-        harness.note_inbox_applied()
-        harness.archive.committed_query = "in:nowhere"
-        open_agents_archive_view(harness.owner)
-        await harness.settle()
+    harness = ColumnHarness([], corpus=corpus)
+    harness.note_inbox_applied()
+    harness.archive.committed_query = "in:nowhere"
+    open_agents_archive_view(harness.owner)
+    await harness.settle()
 
-        assert harness.widget.last_labels() == ["~ Archive results unavailable"]
-        assert archive_corpus_snapshot(harness.owner).summary is None
+    assert harness.widget.last_labels() == ["~ Archive results unavailable"]
+    assert archive_corpus_snapshot(harness.owner).summary is None

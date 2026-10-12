@@ -289,7 +289,6 @@ async def test_enter_jumps_in_search_mode() -> None:
 async def test_archive_search_appends_results_and_enter_returns_exact_name() -> None:
     modal = NodeFinderModal(
         _snapshot(_node("live-node")),
-        show_archive=True,
         archive_name_loader=lambda: (
             ArchiveNameCandidate("archived-alpha", status="DONE", model="test-model"),
             ArchiveNameCandidate("old-beta", status="FAILED"),

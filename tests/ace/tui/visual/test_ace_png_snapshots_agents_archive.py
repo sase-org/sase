@@ -186,38 +186,37 @@ async def test_archive_list_png_snapshot(
     """Day banners, a container, an interrupted row, pulse, and tab marker."""
     patch_startup_loaders(monkeypatch, agents=[_inbox_agent()])
     pin_agents_visual_now(monkeypatch, NOW)
-    with override_flags(agents_archive_view=True):
-        async with AcePage(initial_tab="agents") as page:
-            await wait_for_startup(page)
-            await _open_archive(page, _list_history())
+    async with AcePage(initial_tab="agents") as page:
+        await wait_for_startup(page)
+        await _open_archive(page, _list_history())
 
-            assert_page_svg_contains(page, "Agents ◷")
-            assert_page_svg_contains(page, "Today")
-            assert_page_svg_contains(page, "Yesterday")
-            assert_page_svg_contains(page, "⌂ Inbox")
-            assert_page_svg_contains(page, "in:archive")
-            assert_page_svg_contains(page, "today.done")
-            assert_page_svg_contains(page, "WAS")
+        assert_page_svg_contains(page, "Agents ◷")
+        assert_page_svg_contains(page, "Today")
+        assert_page_svg_contains(page, "Yesterday")
+        assert_page_svg_contains(page, "⌂ Inbox")
+        assert_page_svg_contains(page, "in:archive")
+        assert_page_svg_contains(page, "today.done")
+        assert_page_svg_contains(page, "WAS")
 
-            # Expand the Yesterday container so member rows join the golden.
-            for _ in range(12):
-                selected = page.app._agents_archive_view.archive.selected_key
-                if selected is not None and selected.startswith("container:"):
-                    break
-                await page.press("j")
-            else:
-                raise AssertionError("never reached the container summary row")
-            await page.press("l")
-            await _wait_for_svg(page, "clan.alpha")
-            await wait_for_visual_idle(page)
-            assert_page_svg_contains(page, "clan.alpha")
-            assert_page_svg_contains(page, "clan.beta")
-            assert "go to PR" not in page_svg_text(page)
-            ace_png_visual.assert_page_png(
-                page,
-                "agents_archive_list_120x40",
-                title="ACE Agents Archive list",
-            )
+        # Expand the Yesterday container so member rows join the golden.
+        for _ in range(12):
+            selected = page.app._agents_archive_view.archive.selected_key
+            if selected is not None and selected.startswith("container:"):
+                break
+            await page.press("j")
+        else:
+            raise AssertionError("never reached the container summary row")
+        await page.press("l")
+        await _wait_for_svg(page, "clan.alpha")
+        await wait_for_visual_idle(page)
+        assert_page_svg_contains(page, "clan.alpha")
+        assert_page_svg_contains(page, "clan.beta")
+        assert "go to PR" not in page_svg_text(page)
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_archive_list_120x40",
+            title="ACE Agents Archive list",
+        )
 
 
 async def test_archive_folded_banners_png_snapshot(
@@ -227,38 +226,37 @@ async def test_archive_folded_banners_png_snapshot(
     """Folded Yesterday banner keeps Today open; the parked marker survives."""
     patch_startup_loaders(monkeypatch, agents=[_inbox_agent()])
     pin_agents_visual_now(monkeypatch, NOW)
-    with override_flags(agents_archive_view=True):
-        async with AcePage(initial_tab="agents") as page:
-            await wait_for_startup(page)
-            await _open_archive(page, _list_history())
+    async with AcePage(initial_tab="agents") as page:
+        await wait_for_startup(page)
+        await _open_archive(page, _list_history())
 
-            # Walk down to the Yesterday banner and fold it.
-            archive_list = page.app.query_one("#archive-list", ArchiveList)
-            for _ in range(10):
-                keys = archive_list.item_keys
-                target = keys.index("banner:day:2026-10-09")
-                if archive_list.highlighted == target:
-                    break
-                await page.press("j")
-            assert archive_list.highlighted == target
-            await page.press("h")
-            await page.pause()
-            # Step back onto a run row: a cursor parked on a banner keeps
-            # the last placeholder painted with the reader idle (recorded
-            # as a follow-up), which must not leak into the golden.
-            await page.press("k")
-            await _settle_archive_detail(page)
-            await wait_for_visual_idle(page)
-            text = page_svg_text(page)
-            assert "▸" in text and "Yesterday" in text
-            assert "clan.alpha" not in text and "clan.beta" not in text
-            assert_page_svg_contains(page, "Today")
-            assert_page_svg_contains(page, "today.done")
-            ace_png_visual.assert_page_png(
-                page,
-                "agents_archive_folded_banners_120x40",
-                title="ACE Agents Archive folded banners",
-            )
+        # Walk down to the Yesterday banner and fold it.
+        archive_list = page.app.query_one("#archive-list", ArchiveList)
+        for _ in range(10):
+            keys = archive_list.item_keys
+            target = keys.index("banner:day:2026-10-09")
+            if archive_list.highlighted == target:
+                break
+            await page.press("j")
+        assert archive_list.highlighted == target
+        await page.press("h")
+        await page.pause()
+        # Step back onto a run row: a cursor parked on a banner keeps
+        # the last placeholder painted with the reader idle (recorded
+        # as a follow-up), which must not leak into the golden.
+        await page.press("k")
+        await _settle_archive_detail(page)
+        await wait_for_visual_idle(page)
+        text = page_svg_text(page)
+        assert "▸" in text and "Yesterday" in text
+        assert "clan.alpha" not in text and "clan.beta" not in text
+        assert_page_svg_contains(page, "Today")
+        assert_page_svg_contains(page, "today.done")
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_archive_folded_banners_120x40",
+            title="ACE Agents Archive folded banners",
+        )
 
 
 async def test_archive_parked_marker_png_snapshot(
@@ -268,21 +266,20 @@ async def test_archive_parked_marker_png_snapshot(
     """The tab marker stays visible while another main tab is active."""
     patch_startup_loaders(monkeypatch, agents=[_inbox_agent()])
     pin_agents_visual_now(monkeypatch, NOW)
-    with override_flags(agents_archive_view=True):
-        async with AcePage(initial_tab="agents") as page:
-            await wait_for_startup(page)
-            await _open_archive(page, _list_history())
+    async with AcePage(initial_tab="agents") as page:
+        await wait_for_startup(page)
+        await _open_archive(page, _list_history())
 
-            await page.press("shift+tab")
-            await page.expect_state("tab", "services")
-            await _settle_archive_detail(page)
-            await wait_for_visual_idle(page)
-            assert_page_svg_contains(page, "Agents ◷")
-            ace_png_visual.assert_page_png(
-                page,
-                "agents_archive_parked_marker_120x40",
-                title="ACE Agents Archive parked marker",
-            )
+        await page.press("shift+tab")
+        await page.expect_state("tab", "services")
+        await _settle_archive_detail(page)
+        await wait_for_visual_idle(page)
+        assert_page_svg_contains(page, "Agents ◷")
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_archive_parked_marker_120x40",
+            title="ACE Agents Archive parked marker",
+        )
 
 
 def _write_reply_bundle(tmp_path: Path) -> str:
@@ -326,24 +323,23 @@ async def test_archived_identity_reply_png_snapshot(
         ),
         light_row("d02", day="2026-10-10", hour=12, name="today.other"),
     ]
-    with override_flags(agents_archive_view=True):
-        async with AcePage(initial_tab="agents") as page:
-            await wait_for_startup(page)
-            await _open_archive(page, rows)
+    async with AcePage(initial_tab="agents") as page:
+        await wait_for_startup(page)
+        await _open_archive(page, rows)
 
-            await _wait_for_svg(page, "ARCHIVED")
-            await _wait_for_svg(page, _ARCHIVE_PROMPT_SENTINEL)
-            assert_page_svg_contains(page, "read-only")
-            # Cycle the Main deck to its Reply card: the golden must show
-            # retained reply content, not just the Context card.
-            await show_reply_card(page)
-            await _wait_for_svg(page, _ARCHIVE_REPLY_SENTINEL)
-            await wait_for_visual_idle(page)
-            ace_png_visual.assert_page_png(
-                page,
-                "agents_archive_identity_reply_120x40",
-                title="ACE Agents Archive identity and reply",
-            )
+        await _wait_for_svg(page, "ARCHIVED")
+        await _wait_for_svg(page, _ARCHIVE_PROMPT_SENTINEL)
+        assert_page_svg_contains(page, "read-only")
+        # Cycle the Main deck to its Reply card: the golden must show
+        # retained reply content, not just the Context card.
+        await show_reply_card(page)
+        await _wait_for_svg(page, _ARCHIVE_REPLY_SENTINEL)
+        await wait_for_visual_idle(page)
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_archive_identity_reply_120x40",
+            title="ACE Agents Archive identity and reply",
+        )
 
 
 async def test_archive_missing_content_png_snapshot(
@@ -363,22 +359,21 @@ async def test_archive_missing_content_png_snapshot(
             bundle_path="/nonexistent/archive-missing-bundle.json",
         ),
     ]
-    with override_flags(agents_archive_view=True):
-        async with AcePage(initial_tab="agents") as page:
-            await wait_for_startup(page)
-            await _open_archive(page, rows)
+    async with AcePage(initial_tab="agents") as page:
+        await wait_for_startup(page)
+        await _open_archive(page, rows)
 
-            await _wait_for_svg(page, "Record only")
-            # The selected unreadable row keeps read/mark chips while every
-            # live Inbox action stays out of the conditional footer.
-            assert_page_svg_contains(page, "read")
-            assert_page_svg_contains(page, "mark")
-            assert "go to PR" not in page_svg_text(page)
-            ace_png_visual.assert_page_png(
-                page,
-                "agents_archive_missing_content_120x40",
-                title="ACE Agents Archive missing content",
-            )
+        await _wait_for_svg(page, "Record only")
+        # The selected unreadable row keeps read/mark chips while every
+        # live Inbox action stays out of the conditional footer.
+        assert_page_svg_contains(page, "read")
+        assert_page_svg_contains(page, "mark")
+        assert "go to PR" not in page_svg_text(page)
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_archive_missing_content_120x40",
+            title="ACE Agents Archive missing content",
+        )
 
 
 async def test_archive_empty_png_snapshot(
@@ -388,33 +383,32 @@ async def test_archive_empty_png_snapshot(
     """A complete empty result says so instead of spinning."""
     patch_startup_loaders(monkeypatch, agents=[_inbox_agent()])
     pin_agents_visual_now(monkeypatch, NOW)
-    with override_flags(agents_archive_view=True):
-        async with AcePage(initial_tab="agents") as page:
-            await wait_for_startup(page)
-            _wire(page.app, ModelCorpus([]))
-            note_inbox_applied_for_archive(page.app, load_state=complete_load())
-            open_agents_archive_view(page.app)
-            await page.wait_for(
-                lambda _state: (
-                    "message:empty"
-                    in (
-                        page.app.query_one("#archive-list", ArchiveList).item_keys
-                        if page.app.query("#archive-list")
-                        else ()
-                    )
-                ),
-                timeout=15.0,
-            )
-            await wait_for_visual_idle(page)
-            assert_page_svg_contains(page, "No archived runs match this query.")
-            # No selection, no marks: the conditional footer is empty, and
-            # no live Inbox action may leak into it.
-            assert "go to PR" not in page_svg_text(page)
-            ace_png_visual.assert_page_png(
-                page,
-                "agents_archive_empty_120x40",
-                title="ACE Agents Archive empty",
-            )
+    async with AcePage(initial_tab="agents") as page:
+        await wait_for_startup(page)
+        _wire(page.app, ModelCorpus([]))
+        note_inbox_applied_for_archive(page.app, load_state=complete_load())
+        open_agents_archive_view(page.app)
+        await page.wait_for(
+            lambda _state: (
+                "message:empty"
+                in (
+                    page.app.query_one("#archive-list", ArchiveList).item_keys
+                    if page.app.query("#archive-list")
+                    else ()
+                )
+            ),
+            timeout=15.0,
+        )
+        await wait_for_visual_idle(page)
+        assert_page_svg_contains(page, "No archived runs match this query.")
+        # No selection, no marks: the conditional footer is empty, and
+        # no live Inbox action may leak into it.
+        assert "go to PR" not in page_svg_text(page)
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_archive_empty_120x40",
+            title="ACE Agents Archive empty",
+        )
 
 
 async def test_archive_missing_index_png_snapshot(
@@ -424,30 +418,29 @@ async def test_archive_missing_index_png_snapshot(
     """A missing index names the rebuild command instead of building one."""
     patch_startup_loaders(monkeypatch, agents=[_inbox_agent()])
     pin_agents_visual_now(monkeypatch, NOW)
-    with override_flags(agents_archive_view=True):
-        async with AcePage(initial_tab="agents") as page:
-            await wait_for_startup(page)
-            _wire(page.app, ModelCorpus([], status="missing"))
-            note_inbox_applied_for_archive(page.app, load_state=complete_load())
-            open_agents_archive_view(page.app)
-            await page.wait_for(
-                lambda _state: (
-                    "message:status"
-                    in (
-                        page.app.query_one("#archive-list", ArchiveList).item_keys
-                        if page.app.query("#archive-list")
-                        else ()
-                    )
-                ),
-                timeout=15.0,
-            )
-            await wait_for_visual_idle(page)
-            assert_page_svg_contains(page, "rebuild-index")
-            ace_png_visual.assert_page_png(
-                page,
-                "agents_archive_missing_index_120x40",
-                title="ACE Agents Archive missing index",
-            )
+    async with AcePage(initial_tab="agents") as page:
+        await wait_for_startup(page)
+        _wire(page.app, ModelCorpus([], status="missing"))
+        note_inbox_applied_for_archive(page.app, load_state=complete_load())
+        open_agents_archive_view(page.app)
+        await page.wait_for(
+            lambda _state: (
+                "message:status"
+                in (
+                    page.app.query_one("#archive-list", ArchiveList).item_keys
+                    if page.app.query("#archive-list")
+                    else ()
+                )
+            ),
+            timeout=15.0,
+        )
+        await wait_for_visual_idle(page)
+        assert_page_svg_contains(page, "rebuild-index")
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_archive_missing_index_120x40",
+            title="ACE Agents Archive missing index",
+        )
 
 
 async def test_archive_rebuilding_png_snapshot(
@@ -457,17 +450,16 @@ async def test_archive_rebuilding_png_snapshot(
     """A rebuilding index reports row-count progress, never a fake empty."""
     patch_startup_loaders(monkeypatch, agents=[_inbox_agent()])
     pin_agents_visual_now(monkeypatch, NOW)
-    with override_flags(agents_archive_view=True):
-        async with AcePage(initial_tab="agents") as page:
-            await wait_for_startup(page)
-            await _open_archive(page, _list_history(), rebuilding=True)
+    async with AcePage(initial_tab="agents") as page:
+        await wait_for_startup(page)
+        await _open_archive(page, _list_history(), rebuilding=True)
 
-            assert_page_svg_contains(page, "rebuilding")
-            ace_png_visual.assert_page_png(
-                page,
-                "agents_archive_rebuilding_120x40",
-                title="ACE Agents Archive rebuilding",
-            )
+        assert_page_svg_contains(page, "rebuilding")
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_archive_rebuilding_120x40",
+            title="ACE Agents Archive rebuilding",
+        )
 
 
 async def test_archive_help_png_snapshot(
@@ -477,31 +469,34 @@ async def test_archive_help_png_snapshot(
     """The Agents help modal documents the read-only Archive surface."""
     patch_startup_loaders(monkeypatch, agents=[_inbox_agent()])
     pin_agents_visual_now(monkeypatch, NOW)
-    with override_flags(agents_archive_view=True):
-        async with AcePage(initial_tab="agents") as page:
-            await wait_for_startup(page)
-            await _open_archive(page, _list_history())
+    async with AcePage(initial_tab="agents") as page:
+        await wait_for_startup(page)
+        await _open_archive(page, _list_history())
 
-            await page.press("?")
-            await page.expect_modal("HelpModal")
+        await page.press("?")
+        await page.expect_modal("HelpModal")
+        await wait_for_visual_idle(page)
+        # The Keymaps view is taller than the modal viewport. Check the
+        # Archive section heading and its final note as they scroll by.
+        for _ in range(60):
+            if "Archive (read-only)" in page_svg_text(page):
+                break
+            await page.press("ctrl+d")
             await wait_for_visual_idle(page)
-            # The Keymaps view is far taller than the modal viewport (the
-            # Archive box sits two-thirds down), so scroll until the whole
-            # box paints, title through last row.
-            for _ in range(60):
-                if "Live actions stay in Inbox" in page_svg_text(page):
-                    break
-                await page.press("ctrl+d")
-                await wait_for_visual_idle(page)
-            await _settle_archive_detail(page)
+        assert_page_svg_contains(page, "Archive (read-only)")
+        for _ in range(60):
+            if "Live actions stay in Inbox" in page_svg_text(page):
+                break
+            await page.press("ctrl+d")
             await wait_for_visual_idle(page)
-            assert_page_svg_contains(page, "Archive (read-only)")
-            assert_page_svg_contains(page, "Live actions stay in Inbox")
-            ace_png_visual.assert_page_png(
-                page,
-                "agents_archive_help_120x40",
-                title="ACE Agents Archive help",
-            )
+        await _settle_archive_detail(page)
+        await wait_for_visual_idle(page)
+        assert_page_svg_contains(page, "Live actions stay in Inbox")
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_archive_help_120x40",
+            title="ACE Agents Archive help",
+        )
 
 
 async def test_archive_marked_row_png_snapshot(
@@ -513,22 +508,21 @@ async def test_archive_marked_row_png_snapshot(
 
     patch_startup_loaders(monkeypatch, agents=[_inbox_agent()])
     pin_agents_visual_now(monkeypatch, NOW)
-    with override_flags(agents_archive_view=True):
-        async with AcePage(initial_tab="agents") as page:
-            await wait_for_startup(page)
-            await _open_archive(page, _list_history())
+    async with AcePage(initial_tab="agents") as page:
+        await wait_for_startup(page)
+        await _open_archive(page, _list_history())
 
-            await page.press("m")
-            assert len(archive_marked_run_keys(page.app)) == 1
-            await _settle_archive_detail(page)
-            await wait_for_visual_idle(page)
-            assert_page_svg_contains(page, "[✓]")
-            assert_page_svg_contains(page, "unmark (1)")
-            ace_png_visual.assert_page_png(
-                page,
-                "agents_archive_marked_120x40",
-                title="ACE Agents Archive marked row",
-            )
+        await page.press("m")
+        assert len(archive_marked_run_keys(page.app)) == 1
+        await _settle_archive_detail(page)
+        await wait_for_visual_idle(page)
+        assert_page_svg_contains(page, "[✓]")
+        assert_page_svg_contains(page, "unmark (1)")
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_archive_marked_120x40",
+            title="ACE Agents Archive marked row",
+        )
 
 
 async def test_archive_restored_overlay_png_snapshot(
@@ -540,19 +534,18 @@ async def test_archive_restored_overlay_png_snapshot(
 
     patch_startup_loaders(monkeypatch, agents=[_inbox_agent()])
     pin_agents_visual_now(monkeypatch, NOW)
-    with override_flags(agents_archive_view=True):
-        async with AcePage(initial_tab="agents") as page:
-            await wait_for_startup(page)
-            await _open_archive(page, _list_history())
+    async with AcePage(initial_tab="agents") as page:
+        await wait_for_startup(page)
+        await _open_archive(page, _list_history())
 
-            selected = page.app._agents_archive_view.archive.selected_key
-            assert selected is not None and "@" in selected
-            mark_archive_row_restored(page.app, selected)
-            await _settle_archive_detail(page)
-            await wait_for_visual_idle(page)
-            assert_page_svg_contains(page, "⌂ restored")
-            ace_png_visual.assert_page_png(
-                page,
-                "agents_archive_restored_120x40",
-                title="ACE Agents Archive restored overlay",
-            )
+        selected = page.app._agents_archive_view.archive.selected_key
+        assert selected is not None and "@" in selected
+        mark_archive_row_restored(page.app, selected)
+        await _settle_archive_detail(page)
+        await wait_for_visual_idle(page)
+        assert_page_svg_contains(page, "⌂ restored")
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_archive_restored_120x40",
+            title="ACE Agents Archive restored overlay",
+        )

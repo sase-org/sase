@@ -174,7 +174,6 @@ async def test_node_finder_archive_png_snapshot(
         )
         modal = NodeFinderModal(
             NodeFinderSnapshot(),
-            show_archive=True,
             archive_name_loader=lambda: candidates,
         )
         page.app.push_screen(modal)
@@ -347,7 +346,8 @@ async def test_node_finder_no_results_png_snapshot(
         for key in ("z", "z", "z", "q"):
             await page.press(key)
         await wait_for_visual_idle(page)
-        assert_page_svg_contains(page, "No nodes match")
+        assert_page_svg_contains(page, "◷ In Archive")
+        assert_page_svg_contains(page, "Archive warming…")
 
         ace_png_visual.assert_page_png(
             page,

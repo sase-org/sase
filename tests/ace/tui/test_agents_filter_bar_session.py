@@ -439,8 +439,7 @@ def test_archive_filter_commit_parks_inbox_without_persisting_archive_query() ->
             raise LookupError("no mounted widgets in this harness")
 
     app = Harness()
-    with override_flags(agents_archive_view=True):
-        app._commit_agents_filter_query("in:archive outcome:failed")
+    app._commit_agents_filter_query("in:archive outcome:failed")
 
     assert app._agents_archive_view.active_view == "archive"
     assert (

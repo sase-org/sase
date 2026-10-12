@@ -22,7 +22,6 @@ async def test_archive_shelf_shows_total_and_today_without_a_query() -> None:
         shelf.set_snapshot(
             ArchiveShelfSnapshot(status="ready", total=12, today=3),
             inbox_empty=False,
-            enabled=True,
         )
 
         assert shelf.render().plain == "◷ Archive · 12 runs · 3 today"
@@ -43,7 +42,6 @@ async def test_archive_shelf_shows_matching_count_and_empty_inbox_state() -> Non
                 matching=2,
             ),
             inbox_empty=True,
-            enabled=True,
         )
 
         assert (

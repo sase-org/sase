@@ -55,12 +55,11 @@ async def test_open_with_query_lookup_selects_row() -> None:
     owner = make_owner()
     spawn, _calls, _facets = instrument(owner)
 
-    with override_flags(agents_archive_view=True):
-        open_agents_archive_view_with_query(
-            owner, query="in:archive name:bob-cli-5p.4", agent_name="bob-cli-5p.4"
-        )
-        note_inbox_applied_for_archive(owner, load_state=complete_load())
-        await spawn.drain()
+    open_agents_archive_view_with_query(
+        owner, query="in:archive name:bob-cli-5p.4", agent_name="bob-cli-5p.4"
+    )
+    note_inbox_applied_for_archive(owner, load_state=complete_load())
+    await spawn.drain()
 
     archive = owner._agents_archive_view.archive
     assert archive.selected_key == "bob-cli-5p.4"
@@ -82,18 +81,17 @@ async def test_queued_explicit_open_drains_on_idle_tick() -> None:
     owner = make_owner()
     spawn, _calls, _facets = instrument(owner)
 
-    with override_flags(agents_archive_view=True):
-        note_inbox_applied_for_archive(owner, load_state=complete_load())
-        await spawn.drain()
-        owner._nav_gate.record()
-        request_archive_view_load(owner)
-        assert owner._agents_archive_controller.explicit_open_queued is True
-        assert spawn.coros == []
-        owner._nav_gate = NavigationGate()
-        schedule_archive_idle_tick(owner)
-        assert owner._agents_archive_controller.explicit_open_queued is False
-        assert len(spawn.coros) == 1
-        await spawn.drain()
+    note_inbox_applied_for_archive(owner, load_state=complete_load())
+    await spawn.drain()
+    owner._nav_gate.record()
+    request_archive_view_load(owner)
+    assert owner._agents_archive_controller.explicit_open_queued is True
+    assert spawn.coros == []
+    owner._nav_gate = NavigationGate()
+    schedule_archive_idle_tick(owner)
+    assert owner._agents_archive_controller.explicit_open_queued is False
+    assert len(spawn.coros) == 1
+    await spawn.drain()
 
     assert spawn.coros == []
 
@@ -104,21 +102,20 @@ async def test_overlapping_idle_rebuilds_coalesce_to_one_in_flight() -> None:
     spawn, _calls, _facets = instrument(owner)
     drifted = archive_tokens(digest="profile-2")
 
-    with override_flags(agents_archive_view=True):
-        note_inbox_applied_for_archive(owner, load_state=complete_load())
-        await spawn.drain()
-        probes: list[int] = []
+    note_inbox_applied_for_archive(owner, load_state=complete_load())
+    await spawn.drain()
+    probes: list[int] = []
 
-        def _probe() -> ArchiveRevalidationTokens:
-            probes.append(1)
-            return drifted
+    def _probe() -> ArchiveRevalidationTokens:
+        probes.append(1)
+        return drifted
 
-        owner._archive_probe_tokens = _probe
-        schedule_archive_idle_tick(owner)
-        schedule_archive_idle_tick(owner)
-        schedule_archive_idle_tick(owner)
-        assert len(spawn.coros) == 1
-        await spawn.drain()
+    owner._archive_probe_tokens = _probe
+    schedule_archive_idle_tick(owner)
+    schedule_archive_idle_tick(owner)
+    schedule_archive_idle_tick(owner)
+    assert len(spawn.coros) == 1
+    await spawn.drain()
 
     assert len(probes) == 2
     assert spawn.coros == []
@@ -131,12 +128,11 @@ async def test_lookup_miss_clears_pending_and_publishes_missing() -> None:
     owner._archive_arrival_callback = arrivals.append
     spawn, _calls, _facets = instrument(owner)
 
-    with override_flags(agents_archive_view=True):
-        open_agents_archive_view_with_query(
-            owner, query="in:archive name:ghost", agent_name="ghost"
-        )
-        note_inbox_applied_for_archive(owner, load_state=complete_load())
-        await spawn.drain()
+    open_agents_archive_view_with_query(
+        owner, query="in:archive name:ghost", agent_name="ghost"
+    )
+    note_inbox_applied_for_archive(owner, load_state=complete_load())
+    await spawn.drain()
 
     archive = owner._agents_archive_view.archive
     assert archive.pending_exact_name is None
@@ -163,12 +159,11 @@ async def test_lookup_owner_of_workflow_child_is_typed() -> None:
     corpus.lookup = _lookup  # type: ignore[method-assign]
     spawn, _calls, _facets = instrument(owner, corpus=corpus)
 
-    with override_flags(agents_archive_view=True):
-        open_agents_archive_view_with_query(
-            owner, query="in:archive name:step", agent_name="step"
-        )
-        note_inbox_applied_for_archive(owner, load_state=complete_load())
-        await spawn.drain()
+    open_agents_archive_view_with_query(
+        owner, query="in:archive name:step", agent_name="step"
+    )
+    note_inbox_applied_for_archive(owner, load_state=complete_load())
+    await spawn.drain()
 
     archive = owner._agents_archive_view.archive
     assert archive.pending_exact_name is None
@@ -184,13 +179,12 @@ async def test_lookup_reads_name_from_request_snapshot_not_live_state() -> None:
     corpus = FakeCorpus()
     spawn, _calls, _facets = instrument(owner, corpus=corpus)
 
-    with override_flags(agents_archive_view=True):
-        open_agents_archive_view_with_query(
-            owner, query="in:archive name:bob-cli-5p.4", agent_name="bob-cli-5p.4"
-        )
-        note_inbox_applied_for_archive(owner, load_state=complete_load())
-        owner._agents_archive_view.archive.pending_exact_name = "mutated-after-schedule"
-        await spawn.drain()
+    open_agents_archive_view_with_query(
+        owner, query="in:archive name:bob-cli-5p.4", agent_name="bob-cli-5p.4"
+    )
+    note_inbox_applied_for_archive(owner, load_state=complete_load())
+    owner._agents_archive_view.archive.pending_exact_name = "mutated-after-schedule"
+    await spawn.drain()
 
     assert corpus.lookup_calls == ["bob-cli-5p.4"]
     archive = owner._agents_archive_view.archive
@@ -232,23 +226,22 @@ async def test_coalesced_idle_does_not_publish_false_missing_for_queued_open() -
     owner._archive_arrival_callback = arrivals.append
     spawn, _calls, _facets = instrument(owner)
 
-    with override_flags(agents_archive_view=True):
-        note_inbox_applied_for_archive(owner, load_state=complete_load())
-        await spawn.drain()
-        schedule_archive_idle_tick(owner)
-        assert len(spawn.coros) == 1
-        schedule_archive_idle_tick(owner)
-        assert owner._agents_archive_controller.idle_coalesced is True
-        owner._nav_gate.record()
-        owner._nav_gate._window_s = 60.0
-        open_agents_archive_view_with_query(
-            owner, query="in:archive name:bob-cli-5p.4", agent_name="bob-cli-5p.4"
-        )
-        assert owner._agents_archive_controller.explicit_open_queued is True
-        await spawn.release_one()
-        assert all(item.status != ARCHIVE_ARRIVAL_MISSING for item in arrivals)
-        owner._nav_gate = NavigationGate()
-        await spawn.drain()
+    note_inbox_applied_for_archive(owner, load_state=complete_load())
+    await spawn.drain()
+    schedule_archive_idle_tick(owner)
+    assert len(spawn.coros) == 1
+    schedule_archive_idle_tick(owner)
+    assert owner._agents_archive_controller.idle_coalesced is True
+    owner._nav_gate.record()
+    owner._nav_gate._window_s = 60.0
+    open_agents_archive_view_with_query(
+        owner, query="in:archive name:bob-cli-5p.4", agent_name="bob-cli-5p.4"
+    )
+    assert owner._agents_archive_controller.explicit_open_queued is True
+    await spawn.release_one()
+    assert all(item.status != ARCHIVE_ARRIVAL_MISSING for item in arrivals)
+    owner._nav_gate = NavigationGate()
+    await spawn.drain()
 
     archive = owner._agents_archive_view.archive
     assert archive.arrival_outcome is not None

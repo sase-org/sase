@@ -158,7 +158,7 @@ class AgentMarkingMixin(AgentMarkedKillMixin):
 
         message = (
             f"Saved and dismissed {count} {plural_agent(count)}"
-            f"{archive_dismissal_toast_suffix(self)}"
+            f"{archive_dismissal_toast_suffix()}"
         )
         notify_after_refresh = getattr(self, "_notify_after_refresh", None)
         if callable(notify_after_refresh):

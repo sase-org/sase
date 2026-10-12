@@ -123,27 +123,26 @@ async def test_mounted_inbox_detail_repaints_after_archive_round_trip(
     patch_startup_loaders(
         monkeypatch, agents=[_inbox_agent("inbox.zero"), _inbox_agent("inbox.one")]
     )
-    with override_flags(agents_archive_view=True):
-        async with AcePage(initial_tab="agents", size=(160, 40)) as page:
-            await wait_for_startup(page)
-            app = page.app
-            _wire_corpus(app, ModelCorpus(_history()))
-            note_inbox_applied_for_archive(app, load_state=complete_load())
+    async with AcePage(initial_tab="agents", size=(160, 40)) as page:
+        await wait_for_startup(page)
+        app = page.app
+        _wire_corpus(app, ModelCorpus(_history()))
+        note_inbox_applied_for_archive(app, load_state=complete_load())
 
-            open_agents_archive_view(app)
-            await _wait_for_rows(page)
-            close_agents_archive_view(app)
-            await page.pause()
-            assert not archive_detail_owns_panel(app)
-            assert app._agents_archive_view.active_view == AGENTS_VIEW_INBOX
+        open_agents_archive_view(app)
+        await _wait_for_rows(page)
+        close_agents_archive_view(app)
+        await page.pause()
+        assert not archive_detail_owns_panel(app)
+        assert app._agents_archive_view.active_view == AGENTS_VIEW_INBOX
 
-            await page.press("j")
-            await page.pause(0.5)
+        await page.press("j")
+        await page.pause(0.5)
 
-            assert app.current_idx == 1
-            scheduled = app._agents_detail_scheduled_owner
-            assert scheduled is not None
-            assert scheduled.view == AGENTS_VIEW_INBOX
+        assert app.current_idx == 1
+        scheduled = app._agents_detail_scheduled_owner
+        assert scheduled is not None
+        assert scheduled.view == AGENTS_VIEW_INBOX
 
 
 async def test_mounted_hidden_inbox_refresh_preserves_archive_hydration(
@@ -151,36 +150,35 @@ async def test_mounted_hidden_inbox_refresh_preserves_archive_hydration(
 ) -> None:
     """A hidden Inbox focus refresh never steals Archive hydration (detail #2)."""
     patch_startup_loaders(monkeypatch, agents=[_inbox_agent()])
-    with override_flags(agents_archive_view=True):
-        async with AcePage(initial_tab="agents", size=(160, 40)) as page:
-            await wait_for_startup(page)
-            app = page.app
-            _wire_corpus(app, ModelCorpus(_history()))
-            note_inbox_applied_for_archive(app, load_state=complete_load())
-            open_agents_archive_view(app)
-            await _wait_for_rows(page)
+    async with AcePage(initial_tab="agents", size=(160, 40)) as page:
+        await wait_for_startup(page)
+        app = page.app
+        _wire_corpus(app, ModelCorpus(_history()))
+        note_inbox_applied_for_archive(app, load_state=complete_load())
+        open_agents_archive_view(app)
+        await _wait_for_rows(page)
 
-            schedules: list[Any] = []
-            debouncer = app._agent_detail_debouncer
-            original_schedule = debouncer.schedule
+        schedules: list[Any] = []
+        debouncer = app._agent_detail_debouncer
+        original_schedule = debouncer.schedule
 
-            def _counting_schedule(callback: Any) -> None:
-                schedules.append(callback)
-                original_schedule(callback)
+        def _counting_schedule(callback: Any) -> None:
+            schedules.append(callback)
+            original_schedule(callback)
 
-            monkeypatch.setattr(debouncer, "schedule", _counting_schedule)
-            arm_archive_detail_hydration(app)
-            armed = len(schedules)
-            assert armed >= 1
+        monkeypatch.setattr(debouncer, "schedule", _counting_schedule)
+        arm_archive_detail_hydration(app)
+        armed = len(schedules)
+        assert armed >= 1
 
-            # The hidden path a theme/fleet/startup caller takes must not
-            # cancel or replace the Archive's pending hydration.
-            app._refresh_agent_focus_detail(render_immediate=True)
-            app._refresh_agent_focus_detail(render_immediate=False)
+        # The hidden path a theme/fleet/startup caller takes must not
+        # cancel or replace the Archive's pending hydration.
+        app._refresh_agent_focus_detail(render_immediate=True)
+        app._refresh_agent_focus_detail(render_immediate=False)
 
-            assert len(schedules) == armed
-            assert debouncer.is_pending
-            assert archive_detail_owns_panel(app)
+        assert len(schedules) == armed
+        assert debouncer.is_pending
+        assert archive_detail_owns_panel(app)
 
 
 async def test_mounted_copy_on_banner_reads_nothing(
@@ -188,39 +186,38 @@ async def test_mounted_copy_on_banner_reads_nothing(
 ) -> None:
     """Copy on an Archive banner notifies instead of copying Inbox (boundary #2)."""
     patch_startup_loaders(monkeypatch, agents=[_inbox_agent()])
-    with override_flags(agents_archive_view=True):
-        async with AcePage(initial_tab="agents", size=(160, 40)) as page:
-            await wait_for_startup(page)
-            app = page.app
-            _wire_corpus(app, ModelCorpus(_history()))
-            note_inbox_applied_for_archive(app, load_state=complete_load())
-            inbox_agent = app._get_selected_agent()
-            open_agents_archive_view(app)
-            await _wait_for_rows(page)
+    async with AcePage(initial_tab="agents", size=(160, 40)) as page:
+        await wait_for_startup(page)
+        app = page.app
+        _wire_corpus(app, ModelCorpus(_history()))
+        note_inbox_applied_for_archive(app, load_state=complete_load())
+        inbox_agent = app._get_selected_agent()
+        open_agents_archive_view(app)
+        await _wait_for_rows(page)
 
-            await page.press("g")
-            await page.pause()
-            selected = app._agents_archive_view.archive.selected_key
-            assert selected is not None and not selected.startswith("u.m@")
+        await page.press("g")
+        await page.pause()
+        selected = app._agents_archive_view.archive.selected_key
+        assert selected is not None and not selected.startswith("u.m@")
 
-            assert archive_read_target(app) is None
-            assert resolve_agents_read_agent(app) is None
+        assert archive_read_target(app) is None
+        assert resolve_agents_read_agent(app) is None
 
-            delivered: list[str] = []
-            notices: list[str] = []
-            monkeypatch.setattr(
-                "sase.ace.tui.actions.clipboard._agents.schedule_copy_delivery",
-                lambda _owner, content, **_kwargs: delivered.append(content),
-            )
-            monkeypatch.setattr(
-                app, "notify", lambda message, *_a, **_k: notices.append(message)
-            )
-            app._copy_agent_name()
-            await page.pause()
+        delivered: list[str] = []
+        notices: list[str] = []
+        monkeypatch.setattr(
+            "sase.ace.tui.actions.clipboard._agents.schedule_copy_delivery",
+            lambda _owner, content, **_kwargs: delivered.append(content),
+        )
+        monkeypatch.setattr(
+            app, "notify", lambda message, *_a, **_k: notices.append(message)
+        )
+        app._copy_agent_name()
+        await page.pause()
 
-            assert delivered == []
-            assert notices == ["No agent selected"]
-            assert app._get_selected_agent() is inbox_agent
+        assert delivered == []
+        assert notices == ["No agent selected"]
+        assert app._get_selected_agent() is inbox_agent
 
 
 async def test_mounted_stuck_loading_card_clears_on_pulse(
@@ -230,21 +227,20 @@ async def test_mounted_stuck_loading_card_clears_on_pulse(
     from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import page_svg_text
 
     patch_startup_loaders(monkeypatch, agents=[_inbox_agent()])
-    with override_flags(agents_archive_view=True):
-        async with AcePage(initial_tab="agents", size=(160, 40)) as page:
-            await wait_for_startup(page)
-            app = page.app
-            _wire_corpus(app, ModelCorpus(_history()))
-            note_inbox_applied_for_archive(app, load_state=complete_load())
-            open_agents_archive_view(app)
-            await _wait_for_rows(page)
-            await page.pause(1.0)
+    async with AcePage(initial_tab="agents", size=(160, 40)) as page:
+        await wait_for_startup(page)
+        app = page.app
+        _wire_corpus(app, ModelCorpus(_history()))
+        note_inbox_applied_for_archive(app, load_state=complete_load())
+        open_agents_archive_view(app)
+        await _wait_for_rows(page)
+        await page.pause(1.0)
 
-            await page.press("J")
-            await page.pause(1.0)
+        await page.press("J")
+        await page.pause(1.0)
 
-            text = page_svg_text(page)
-            assert "Loading archived run" not in text
+        text = page_svg_text(page)
+        assert "Loading archived run" not in text
 
 
 async def test_mounted_marks_render_and_footer_syncs(
@@ -254,27 +250,26 @@ async def test_mounted_marks_render_and_footer_syncs(
     from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import page_svg_text
 
     patch_startup_loaders(monkeypatch, agents=[_inbox_agent()])
-    with override_flags(agents_archive_view=True):
-        async with AcePage(initial_tab="agents", size=(160, 40)) as page:
-            await wait_for_startup(page)
-            app = page.app
-            _wire_corpus(app, ModelCorpus(_history()))
-            note_inbox_applied_for_archive(app, load_state=complete_load())
-            open_agents_archive_view(app)
-            await _wait_for_rows(page)
+    async with AcePage(initial_tab="agents", size=(160, 40)) as page:
+        await wait_for_startup(page)
+        app = page.app
+        _wire_corpus(app, ModelCorpus(_history()))
+        note_inbox_applied_for_archive(app, load_state=complete_load())
+        open_agents_archive_view(app)
+        await _wait_for_rows(page)
 
-            await page.press("m")
-            await page.pause()
-            assert archive_marked_run_keys(app) == frozenset({"u.m@t00"})
-            archive_list = app.query_one("#archive-list", ArchiveList)
-            assert "[✓]" in _prompt(archive_list, "u.m@t00")
-            assert "unmark (1)" in page_svg_text(page)
+        await page.press("m")
+        await page.pause()
+        assert archive_marked_run_keys(app) == frozenset({"u.m@t00"})
+        archive_list = app.query_one("#archive-list", ArchiveList)
+        assert "[✓]" in _prompt(archive_list, "u.m@t00")
+        assert "unmark (1)" in page_svg_text(page)
 
-            await page.press("u")
-            await page.pause()
-            assert archive_marked_run_keys(app) == frozenset()
-            assert "[✓]" not in _prompt(archive_list, "u.m@t00")
-            assert "unmark" not in page_svg_text(page)
+        await page.press("u")
+        await page.pause()
+        assert archive_marked_run_keys(app) == frozenset()
+        assert "[✓]" not in _prompt(archive_list, "u.m@t00")
+        assert "unmark" not in page_svg_text(page)
 
 
 async def test_mounted_deck_splits_survive_archive_round_trip(
@@ -284,40 +279,37 @@ async def test_mounted_deck_splits_survive_archive_round_trip(
     from sase.ace.tui.widgets import AgentDetail
 
     patch_startup_loaders(monkeypatch, agents=[_inbox_agent()])
-    with override_flags(agents_archive_view=True):
-        async with AcePage(initial_tab="agents", size=(160, 40)) as page:
-            await wait_for_startup(page)
-            app = page.app
-            _wire_corpus(app, ModelCorpus(_history()))
-            note_inbox_applied_for_archive(app, load_state=complete_load())
+    async with AcePage(initial_tab="agents", size=(160, 40)) as page:
+        await wait_for_startup(page)
+        app = page.app
+        _wire_corpus(app, ModelCorpus(_history()))
+        note_inbox_applied_for_archive(app, load_state=complete_load())
 
-            await page.press("vertical_line")
-            await page.pause()
-            detail = app.query_one("#agent-detail-panel", AgentDetail)
-            # Splits live in the grid (panes, axis, ratios); per-panel deck
-            # and card choices are parked separately and may round-trip.
-            before = (detail.deck_area.state.layout, repr(detail.deck_area.state.grid))
-            assert before[0].name != "SINGLE"
+        await page.press("vertical_line")
+        await page.pause()
+        detail = app.query_one("#agent-detail-panel", AgentDetail)
+        # Splits live in the grid (panes, axis, ratios); per-panel deck
+        # and card choices are parked separately and may round-trip.
+        before = (detail.deck_area.state.layout, repr(detail.deck_area.state.grid))
+        assert before[0].name != "SINGLE"
 
-            open_agents_archive_view(app)
-            await _wait_for_rows(page)
-            # Change splits while Archive owns the panel. Restore must keep
-            # this live grid, not reapply the parked Inbox snapshot.
-            await page.press("backslash")
-            await page.pause()
-            inside_detail = app.query_one("#agent-detail-panel", AgentDetail)
-            inside = (
-                inside_detail.deck_area.state.layout,
-                repr(inside_detail.deck_area.state.grid),
-            )
-            assert inside != before
-            close_agents_archive_view(app)
-            await page.pause()
+        open_agents_archive_view(app)
+        await _wait_for_rows(page)
+        # Change splits while Archive owns the panel. Restore must keep
+        # this live grid, not reapply the parked Inbox snapshot.
+        await page.press("backslash")
+        await page.pause()
+        inside_detail = app.query_one("#agent-detail-panel", AgentDetail)
+        inside = (
+            inside_detail.deck_area.state.layout,
+            repr(inside_detail.deck_area.state.grid),
+        )
+        assert inside != before
+        close_agents_archive_view(app)
+        await page.pause()
 
-            after_state = app.query_one(
-                "#agent-detail-panel", AgentDetail
-            ).deck_area.state
-            assert (after_state.layout, repr(after_state.grid)) == inside
+        after_state = app.query_one("#agent-detail-panel", AgentDetail).deck_area.state
+        assert (after_state.layout, repr(after_state.grid)) == inside
 
 
 async def test_mounted_guards_pass_through_and_toggle_opens_archive(
@@ -362,16 +354,15 @@ async def test_quitting_from_archive_persists_inbox_query_and_grouping(
     home = redirect_sase_home(monkeypatch, tmp_path / ".sase")
     save_agent_archive_grouping("project")
     patch_startup_loaders(monkeypatch, agents=[_inbox_agent()])
-    with override_flags(agents_archive_view=True):
-        async with AcePage(initial_tab="agents", size=(160, 40)) as page:
-            await wait_for_startup(page)
-            app = page.app
-            _wire_corpus(app, ModelCorpus(_history()))
-            note_inbox_applied_for_archive(app, load_state=complete_load())
-            app._record_explicit_agents_query_commit("status:FAILED")
-            open_agents_archive_view(app)
-            await _wait_for_rows(page)
-            await app._flush_agents_query_state()
+    async with AcePage(initial_tab="agents", size=(160, 40)) as page:
+        await wait_for_startup(page)
+        app = page.app
+        _wire_corpus(app, ModelCorpus(_history()))
+        note_inbox_applied_for_archive(app, load_state=complete_load())
+        app._record_explicit_agents_query_commit("status:FAILED")
+        open_agents_archive_view(app)
+        await _wait_for_rows(page)
+        await app._flush_agents_query_state()
 
     loaded = store.load_agent_query_snapshot(active_dialect=store.DIALECT_UNIFIED)
     assert loaded.snapshot is not None

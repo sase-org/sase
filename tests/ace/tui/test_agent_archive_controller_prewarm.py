@@ -5,7 +5,6 @@ from __future__ import annotations
 import pytest
 
 from sase.ace.tui.actions.agents._archive_controller import (
-    archive_corpus_is_warm,
     archive_corpus_snapshot,
     archive_inbox_pulse,
     note_inbox_applied_for_archive,
@@ -65,9 +64,8 @@ def test_bounded_inbox_load_does_not_open_prewarm_gate() -> None:
     owner = make_owner(agents=[make_agent("live")])
     spawn, compile_calls, _facets = instrument(owner)
 
-    with override_flags(agents_archive_view=True):
-        note_inbox_applied_for_archive(owner, load_state=bounded_load())
-        schedule_archive_idle_tick(owner)
+    note_inbox_applied_for_archive(owner, load_state=bounded_load())
+    schedule_archive_idle_tick(owner)
 
     assert compile_calls == []
     assert spawn.coros == []
@@ -79,19 +77,18 @@ async def test_early_open_paints_loading_and_queues_until_gate() -> None:
     owner = make_owner(agents=[make_agent("live")])
     spawn, compile_calls, _facets = instrument(owner)
 
-    with override_flags(agents_archive_view=True):
-        outcome = open_agents_archive_view(owner)
-        assert outcome.status == "opened"
-        assert archive_corpus_snapshot(owner).status == ARCHIVE_CORPUS_LOADING
-        assert compile_calls == []
-        assert owner._schedule_calls == ["archive_prewarm_gate"]
+    outcome = open_agents_archive_view(owner)
+    assert outcome.status == "opened"
+    assert archive_corpus_snapshot(owner).status == ARCHIVE_CORPUS_LOADING
+    assert compile_calls == []
+    assert owner._schedule_calls == ["archive_prewarm_gate"]
 
-        note_inbox_applied_for_archive(owner, load_state=complete_load())
-        assert compile_calls == []
-        await spawn.drain()
+    note_inbox_applied_for_archive(owner, load_state=complete_load())
+    assert compile_calls == []
+    await spawn.drain()
 
     assert compile_calls
-    assert archive_corpus_is_warm(owner)
+    assert archive_corpus_snapshot(owner).warm
     assert owner._agents[0].cl_name == "live"
 
 
@@ -100,18 +97,17 @@ async def test_complete_idle_prewarms_once_and_idle_tick_skips_compile() -> None
     owner = make_owner(agents=[make_agent("live", "RUNNING")])
     spawn, compile_calls, facet_calls = instrument(owner)
 
-    with override_flags(agents_archive_view=True):
-        note_inbox_applied_for_archive(owner, load_state=complete_load())
-        assert spawn.coros
-        await spawn.drain()
-        assert len(compile_calls) == 1
-        assert facet_calls == ["facets"]
-        pulse = archive_inbox_pulse(owner)
-        assert pulse.total == 1
-        assert pulse.running == 1
+    note_inbox_applied_for_archive(owner, load_state=complete_load())
+    assert spawn.coros
+    await spawn.drain()
+    assert len(compile_calls) == 1
+    assert facet_calls == ["facets"]
+    pulse = archive_inbox_pulse(owner)
+    assert pulse.total == 1
+    assert pulse.running == 1
 
-        schedule_archive_idle_tick(owner)
-        await spawn.drain()
+    schedule_archive_idle_tick(owner)
+    await spawn.drain()
 
     assert len(compile_calls) == 1
     assert facet_calls == ["facets"]
@@ -124,12 +120,11 @@ async def test_prewarm_waits_for_idle_ui() -> None:
     spawn, compile_calls, _facets = instrument(owner)
     owner._nav_gate.record()
 
-    with override_flags(agents_archive_view=True):
-        note_inbox_applied_for_archive(owner, load_state=complete_load())
-        assert spawn.coros == []
-        owner._nav_gate = NavigationGate()
-        schedule_archive_idle_tick(owner)
-        await spawn.drain()
+    note_inbox_applied_for_archive(owner, load_state=complete_load())
+    assert spawn.coros == []
+    owner._nav_gate = NavigationGate()
+    schedule_archive_idle_tick(owner)
+    await spawn.drain()
 
     assert compile_calls
 
@@ -139,11 +134,10 @@ async def test_prompt_typing_defers_idle_requery() -> None:
     owner = make_owner()
     spawn, compile_calls, _facets = instrument(owner)
 
-    with override_flags(agents_archive_view=True):
-        note_inbox_applied_for_archive(owner, load_state=complete_load())
-        await spawn.drain()
-        owner._prompt_input_active = lambda: True
-        schedule_archive_idle_tick(owner)
+    note_inbox_applied_for_archive(owner, load_state=complete_load())
+    await spawn.drain()
+    owner._prompt_input_active = lambda: True
+    schedule_archive_idle_tick(owner)
 
     assert spawn.coros == []
     assert len(compile_calls) == 1
@@ -154,17 +148,16 @@ async def test_inbox_load_scheduled_resets_on_apply_and_failure() -> None:
     owner = make_owner()
     instrument(owner)
 
-    with override_flags(agents_archive_view=True):
-        request_archive_view_load(owner)
-        assert owner._agents_archive_controller.inbox_load_scheduled is True
-        assert owner._schedule_calls == ["archive_prewarm_gate"]
-        note_inbox_applied_for_archive(owner, load_state=bounded_load())
-        assert owner._agents_archive_controller.inbox_load_scheduled is False
-        request_archive_view_load(owner)
-        assert owner._agents_archive_controller.inbox_load_scheduled is True
-        note_inbox_load_finished_for_archive(owner)
-        assert owner._agents_archive_controller.inbox_load_scheduled is False
-        request_archive_view_load(owner)
+    request_archive_view_load(owner)
+    assert owner._agents_archive_controller.inbox_load_scheduled is True
+    assert owner._schedule_calls == ["archive_prewarm_gate"]
+    note_inbox_applied_for_archive(owner, load_state=bounded_load())
+    assert owner._agents_archive_controller.inbox_load_scheduled is False
+    request_archive_view_load(owner)
+    assert owner._agents_archive_controller.inbox_load_scheduled is True
+    note_inbox_load_finished_for_archive(owner)
+    assert owner._agents_archive_controller.inbox_load_scheduled is False
+    request_archive_view_load(owner)
 
     assert owner._schedule_calls == [
         "archive_prewarm_gate",

@@ -70,13 +70,12 @@ def test_empty_state_still_keeps_custom_search_final() -> None:
     assert "0 saved loaded | 0 recent" in modal._hints_text()
 
 
-def test_custom_search_row_becomes_archive_browse_when_flagged() -> None:
+def test_custom_search_row_becomes_archive_browse() -> None:
     modal = SavedAgentGroupRevivalModal(
         SavedAgentGroupPageWire(groups=(), next_cursor=None)
     )
 
-    with override_flags(agents_archive_view=True):
-        row = modal._create_options()[-1]
+    row = modal._create_options()[-1]
 
     assert "Browse the Archive (Enter restores)" in _option_plain(row)
 

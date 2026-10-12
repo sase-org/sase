@@ -10,10 +10,6 @@ from sase.ace.tui.widgets.prompt_panel._agent_display_neighbors import (
     _neighbor_roster_entries,
 )
 from sase.ace.tui.widgets.prompt_panel._member_roster import append_member_roster
-from sase.ace.tui.modals.revive_agent_rendering import (
-    build_metadata_preview,
-    format_agent_label,
-)
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_owner_badge import agent_owner_badge_label
 from sase.ace.tui.widgets._agent_list_rendering import format_agent_option
@@ -122,18 +118,3 @@ def test_neighbor_roster_renders_owner_badge(
         panel_level=FoldLevel.FULLY_EXPANDED,
     )
     assert "[athena]" in rendered.plain
-
-
-def test_revival_label_and_preview_render_owner_badge(
-    local_owner: AgentOwnerIdentity,
-) -> None:
-    agent = _imported_agent(
-        owner=AgentOwnerIdentity("bob", "zeus"),
-        name="bob.zeus.crew--plan",
-    )
-    agent.presented_agent_name = "crew--plan"
-    label = format_agent_label(agent, 0)
-    preview = build_metadata_preview(agent, [])
-    assert "[bob@zeus]" in label.plain
-    assert "Owner" in preview.plain
-    assert "bob@zeus" in preview.plain

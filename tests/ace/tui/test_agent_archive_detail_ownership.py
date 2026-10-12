@@ -86,45 +86,42 @@ class _CountingFakeApp(_FakeApp):
 def test_inbox_debounced_update_repaints_after_archive_round_trip() -> None:
     app = _FakeApp(agents=[_make_agent("agent_0")])
 
-    with override_flags(agents_archive_view=True):
-        open_agents_archive_view(app)
-        arm_archive_detail_hydration(app)
-        close_agents_archive_view(app)
+    open_agents_archive_view(app)
+    arm_archive_detail_hydration(app)
+    close_agents_archive_view(app)
 
-        app._refresh_agents_display_debounced()
-        app._fire_debounced_detail_update()
+    app._refresh_agents_display_debounced()
+    app._fire_debounced_detail_update()
 
-        assert app.detail_widget.full_calls == [("agent_0", None)]
+    assert app.detail_widget.full_calls == [("agent_0", None)]
 
 
 def test_hidden_focus_refresh_preserves_archive_hydration() -> None:
     app = _CountingFakeApp(agents=[_make_agent("agent_0")])
 
-    with override_flags(agents_archive_view=True):
-        open_agents_archive_view(app)
-        arm_archive_detail_hydration(app)
-        assert len(app.schedules) == 1
+    open_agents_archive_view(app)
+    arm_archive_detail_hydration(app)
+    assert len(app.schedules) == 1
 
-        app._refresh_agent_focus_detail(render_immediate=True)
+    app._refresh_agent_focus_detail(render_immediate=True)
 
-        assert len(app.schedules) == 1
-        assert app._agent_detail_debouncer.is_pending
+    assert len(app.schedules) == 1
+    assert app._agent_detail_debouncer.is_pending
 
 
 def test_hidden_focus_defer_never_steals_archive_ownership() -> None:
     app = _CountingFakeApp(agents=[_make_agent("agent_0")])
 
-    with override_flags(agents_archive_view=True):
-        open_agents_archive_view(app)
-        arm_archive_detail_hydration(app)
-        assert len(app.schedules) == 1
+    open_agents_archive_view(app)
+    arm_archive_detail_hydration(app)
+    assert len(app.schedules) == 1
 
-        app._refresh_agent_focus_detail(render_immediate=False)
+    app._refresh_agent_focus_detail(render_immediate=False)
 
-        assert len(app.schedules) == 1
-        token = app._agents_detail_scheduled_owner
-        assert token is not None
-        assert token.view == AGENTS_VIEW_ARCHIVE
+    assert len(app.schedules) == 1
+    token = app._agents_detail_scheduled_owner
+    assert token is not None
+    assert token.view == AGENTS_VIEW_ARCHIVE
 
 
 def test_incremental_defer_skips_inbox_work_while_archive_owns_panel() -> None:
@@ -132,79 +129,76 @@ def test_incremental_defer_skips_inbox_work_while_archive_owns_panel() -> None:
 
     app = _CountingFakeApp(agents=[_make_agent("agent_0")])
 
-    with override_flags(agents_archive_view=True):
-        open_agents_archive_view(app)
-        arm_archive_detail_hydration(app)
-        schedules_before = len(app.schedules)
-        assert schedules_before == 1
+    open_agents_archive_view(app)
+    arm_archive_detail_hydration(app)
+    schedules_before = len(app.schedules)
+    assert schedules_before == 1
 
-        agents = list(app._agents)
-        diff = build_agent_display_diff(agents, agents)
-        index = build_agent_panel_index(
-            agents,
-            dismissable_statuses=DISMISSABLE_STATUSES,
-            merge_tribe_panels=False,
-        )
-        scope = panel_rebuild_scope(
-            diff,
-            agents,
-            agents,
-            previous_index=index,
-            next_index=index,
-            by_status=False,
-        )
-        handled = app._try_refresh_agents_display_incremental_impl(
-            list(agents),
-            diff=diff,
-            scope=scope,
-            defer_detail=True,
-            merge_tribe_panels=False,
-        )
+    agents = list(app._agents)
+    diff = build_agent_display_diff(agents, agents)
+    index = build_agent_panel_index(
+        agents,
+        dismissable_statuses=DISMISSABLE_STATUSES,
+        merge_tribe_panels=False,
+    )
+    scope = panel_rebuild_scope(
+        diff,
+        agents,
+        agents,
+        previous_index=index,
+        next_index=index,
+        by_status=False,
+    )
+    handled = app._try_refresh_agents_display_incremental_impl(
+        list(agents),
+        diff=diff,
+        scope=scope,
+        defer_detail=True,
+        merge_tribe_panels=False,
+    )
 
-        assert handled is True
-        assert len(app.schedules) == schedules_before
-        assert app.onboarding_calls == 0
-        assert app.detail_widget.full_calls == []
+    assert handled is True
+    assert len(app.schedules) == schedules_before
+    assert app.onboarding_calls == 0
+    assert app.detail_widget.full_calls == []
 
 
 async def test_controller_moved_selection_repaints_archive_detail() -> None:
     rows = [light_row("t00"), light_row("t01")]
     harness = ColumnHarness(rows)
-    with override_flags(agents_archive_view=True):
-        harness.note_inbox_applied()
-        open_agents_archive_view(harness.owner)
-        await harness.settle()
-        assert harness.widget.last_items, "the warm corpus must yield list rows"
+    harness.note_inbox_applied()
+    open_agents_archive_view(harness.owner)
+    await harness.settle()
+    assert harness.widget.last_items, "the warm corpus must yield list rows"
 
-        # The initial install scheduled detail for the first key; forget it.
-        harness.owner._agent_detail_debouncer.callbacks.clear()
-        first_key = harness.archive.selected_key
-        other_keys = [item.key for item in harness.widget.last_items if item.row]
-        other = next(key for key in other_keys if key != first_key)
+    # The initial install scheduled detail for the first key; forget it.
+    harness.owner._agent_detail_debouncer.callbacks.clear()
+    first_key = harness.archive.selected_key
+    other_keys = [item.key for item in harness.widget.last_items if item.row]
+    other = next(key for key in other_keys if key != first_key)
 
-        # The controller moves the cursor without scheduling (exact-name
-        # reveal / drift fallback / committed-query change); the column
-        # refresh must notice the detail was last scheduled for another key.
-        harness.archive.selected_key = other
-        refresh_column(harness.owner)
+    # The controller moves the cursor without scheduling (exact-name
+    # reveal / drift fallback / committed-query change); the column
+    # refresh must notice the detail was last scheduled for another key.
+    harness.archive.selected_key = other
+    refresh_column(harness.owner)
 
-        assert harness.archive.selected_key == other
-        assert len(harness.owner._agent_detail_debouncer.callbacks) == 1
-        assert column_runtime(harness.owner).last_detail_key == other
+    assert harness.archive.selected_key == other
+    assert len(harness.owner._agent_detail_debouncer.callbacks) == 1
+    assert column_runtime(harness.owner).last_detail_key == other
 
 
 def test_pulse_focus_drops_pending_archive_hydration() -> None:
     owner: Any = SimpleNamespace()
     init_agents_archive_view_state(owner)
 
-    with override_flags(agents_archive_view=True):
-        owner._agents_archive_view.active_view = AGENTS_VIEW_ARCHIVE
-        owner._agents_archive_view.archive.selected_key = "u.m@t00"
-        owner._agents_archive_view.archive.focused_section = ARCHIVE_SECTION_LIST
-        assert _hydration_is_current(owner, "u.m@t00", 0) is True
+    owner._agents_archive_view.active_view = AGENTS_VIEW_ARCHIVE
+    owner._agents_archive_view.archive.selected_key = "u.m@t00"
+    owner._agents_archive_view.archive.focused_section = ARCHIVE_SECTION_LIST
+    assert _hydration_is_current(owner, "u.m@t00", 0) is True
 
-        owner._agents_archive_view.archive.focused_section = ARCHIVE_SECTION_PULSE
-        assert _hydration_is_current(owner, "u.m@t00", 0) is False
+    owner._agents_archive_view.archive.focused_section = ARCHIVE_SECTION_PULSE
+    assert _hydration_is_current(owner, "u.m@t00", 0) is False
 
 
 class _DeckStub(AgentDetailDeckRefreshMixin):

@@ -127,7 +127,6 @@ from .disabled_provider_launch_modal import (
 from .disabled_provider_launch_modal import (
     DisabledProviderLaunchModal as DisabledProviderLaunchModal,
 )
-from .revive_agent_modal import DismissedAgentSelectModal as DismissedAgentSelectModal
 from .gate_action_controls import GateActionControls as GateActionControls
 from .gate_action_output_modal import GateActionOutputModal as GateActionOutputModal
 from .gate_action_runner import GateActionRunner as GateActionRunner

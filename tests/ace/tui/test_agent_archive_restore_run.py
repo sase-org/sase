@@ -63,33 +63,30 @@ def _revive_stub(
 def test_collect_single_row_key() -> None:
     owner = make_owner()
     open_archive(owner)
-    with override_flags(agents_archive_view=True):
-        keys, skipped = collect_archive_restore_keys(owner)
+    keys, skipped = collect_archive_restore_keys(owner)
     assert keys == ["u.m@r1"]
     assert skipped == []
 
 
 def test_collect_banner_and_pulse_skipped() -> None:
     owner = make_owner()
-    with override_flags(agents_archive_view=True):
-        open_archive(owner, selected_key="banner:day:2026-10-10")
-        keys, skipped = collect_archive_restore_keys(owner)
-        assert keys == []
-        assert len(skipped) == 1
-        assert skipped[0].reason == "not an archived run"
-        open_archive(owner, selected_key="u.m@r1")
-        owner._agents_archive_view.archive.focused_section = ARCHIVE_SECTION_PULSE
-        keys, skipped = collect_archive_restore_keys(owner)
-        assert keys == []
-        assert len(skipped) == 1
+    open_archive(owner, selected_key="banner:day:2026-10-10")
+    keys, skipped = collect_archive_restore_keys(owner)
+    assert keys == []
+    assert len(skipped) == 1
+    assert skipped[0].reason == "not an archived run"
+    open_archive(owner, selected_key="u.m@r1")
+    owner._agents_archive_view.archive.focused_section = ARCHIVE_SECTION_PULSE
+    keys, skipped = collect_archive_restore_keys(owner)
+    assert keys == []
+    assert len(skipped) == 1
 
 
 def test_collect_marked_wins_over_cursor() -> None:
     owner = make_owner()
     open_archive(owner, selected_key="u.m@cursor")
     owner._agents_archive_view.archive.marks = frozenset({"u.m@a1", "u.m@a2"})
-    with override_flags(agents_archive_view=True):
-        keys, _skipped = collect_archive_restore_keys(owner)
+    keys, _skipped = collect_archive_restore_keys(owner)
     assert sorted(keys) == ["u.m@a1", "u.m@a2"]
 
 
@@ -129,8 +126,7 @@ def test_collect_container_expands_loaded_members() -> None:
     runtime = _ColumnRuntime()
     runtime.model = SimpleNamespace(items=items)  # type: ignore[assignment]
     owner._archive_column_runtime = runtime
-    with override_flags(agents_archive_view=True):
-        keys, skipped = collect_archive_restore_keys(owner)
+    keys, skipped = collect_archive_restore_keys(owner)
     assert sorted(keys) == ["u.m@m1", "u.m@m2"]
     assert skipped == []
 
@@ -143,8 +139,7 @@ def test_collect_collapsed_container_skipped_with_hint() -> None:
     runtime = _ColumnRuntime()
     runtime.model = SimpleNamespace(items=[])  # type: ignore[assignment]
     owner._archive_column_runtime = runtime
-    with override_flags(agents_archive_view=True):
-        keys, skipped = collect_archive_restore_keys(owner)
+    keys, skipped = collect_archive_restore_keys(owner)
     assert keys == []
     assert len(skipped) == 1
     assert "expand" in skipped[0].reason
@@ -154,8 +149,7 @@ def test_hydrate_capability_rechecked_before_submit(monkeypatch: Any) -> None:
     owner = make_owner()
     agent = make_agent(durably_revivable=False)
     wire_bundles(monkeypatch, owner, {"u.m@r1": (make_row(), agent, False)})
-    with override_flags(agents_archive_view=True):
-        found, _row_out, reason = hydrate_archive_candidate(owner, "u.m@r1")
+    found, _row_out, reason = hydrate_archive_candidate(owner, "u.m@r1")
     # The agent is reported so the chooser can still offer Open chat,
     # Fork, and Copy; the reason keeps it out of the restore submission.
     assert found is agent
@@ -173,15 +167,14 @@ def test_hydrate_chip_does_not_block_revivable_bundle(monkeypatch: Any) -> None:
             "u.m@bad": (make_row(), make_agent(), True),
         },
     )
-    with override_flags(agents_archive_view=True):
-        # A stale corpus chip never blocks a revivable bundle: the hydrated
-        # agent's capability decides just before submitting.
-        found, _r1, reason = hydrate_archive_candidate(owner, "u.m@chip")
-        assert found is agent
-        assert reason is None
-        found, _r2, reason = hydrate_archive_candidate(owner, "u.m@bad")
-        assert found is None
-        assert reason == "bundle unreadable"
+    # A stale corpus chip never blocks a revivable bundle: the hydrated
+    # agent's capability decides just before submitting.
+    found, _r1, reason = hydrate_archive_candidate(owner, "u.m@chip")
+    assert found is agent
+    assert reason is None
+    found, _r2, reason = hydrate_archive_candidate(owner, "u.m@bad")
+    assert found is None
+    assert reason == "bundle unreadable"
 
 
 def test_run_single_restore_marks_overlay_and_toasts(monkeypatch: Any) -> None:
@@ -190,8 +183,7 @@ def test_run_single_restore_marks_overlay_and_toasts(monkeypatch: Any) -> None:
     agent = make_agent()
     wire_bundles(monkeypatch, owner, {"u.m@r1": (make_row(), agent, False)})
     _revive_stub(owner, revived=(agent,))
-    with override_flags(agents_archive_view=True):
-        summary = run_archive_restore(owner)
+    summary = run_archive_restore(owner)
     assert [name for _key, name in summary.restored] == ["bob-cli-5p.4"]
     assert summary.skipped == ()
     assert summary.failed == ()
@@ -223,8 +215,7 @@ def test_run_bulk_reports_counts_with_reasons(monkeypatch: Any) -> None:
     )
     calls: list[list[Any]] = []
     _revive_stub(owner, revived=(good,), calls=calls)
-    with override_flags(agents_archive_view=True):
-        summary = run_archive_restore(owner)
+    summary = run_archive_restore(owner)
     assert len(calls) == 1 and calls[0] == [good]
     assert [name for _key, name in summary.restored] == ["good.run"]
     assert len(summary.skipped) == 2
@@ -246,8 +237,7 @@ def test_run_failed_rows_reported_without_overlay(monkeypatch: Any) -> None:
         identity=agent.identity, agent_name=agent.agent_name, message="disk is gone"
     )
     _revive_stub(owner, failed=(failure,))
-    with override_flags(agents_archive_view=True):
-        summary = run_archive_restore(owner)
+    summary = run_archive_restore(owner)
     assert summary.restored == ()
     assert summary.failed == (("u.m@r1", "bob-cli-5p.4", "disk is gone"),)
     assert "u.m@r1" not in owner._agents_archive_view.archive.restored_keys
@@ -265,8 +255,7 @@ def test_run_restore_and_show_reveals_in_inbox(monkeypatch: Any) -> None:
     owner._select_revived_agent = lambda _agent: True  # type: ignore[attr-defined]
     refreshed: list[bool] = []
     owner._refresh_agents_display = lambda **_kwargs: refreshed.append(True)  # type: ignore[attr-defined]
-    with override_flags(agents_archive_view=True):
-        summary = run_archive_restore(owner, and_show=True)
+    summary = run_archive_restore(owner, and_show=True)
     assert summary.and_show is True
     assert owner._agents_archive_view.active_view != AGENTS_VIEW_ARCHIVE
     assert refreshed == [True]
@@ -283,8 +272,7 @@ def test_run_restore_and_show_filter_hidden_warns(monkeypatch: Any) -> None:
     _revive_stub(owner, revived=(agent,))
     owner._select_revived_agent = lambda _agent: False  # type: ignore[attr-defined]
     owner._agents_with_children = [agent]  # type: ignore[attr-defined]
-    with override_flags(agents_archive_view=True):
-        run_archive_restore(owner, and_show=True)
+    run_archive_restore(owner, and_show=True)
     assert owner.notices == [
         (
             "bob-cli-5p.4 is back in the inbox · the inbox filter hides it",
@@ -303,8 +291,7 @@ def test_run_restore_and_show_reload_pending_stays_neutral(
     _revive_stub(owner, revived=(agent,))
     owner._select_revived_agent = lambda _agent: False  # type: ignore[attr-defined]
     owner._agents_with_children = []  # type: ignore[attr-defined]
-    with override_flags(agents_archive_view=True):
-        run_archive_restore(owner, and_show=True)
+    run_archive_restore(owner, and_show=True)
     assert owner.notices == [
         ("bob-cli-5p.4 is back in the inbox · no new run started", "information")
     ]

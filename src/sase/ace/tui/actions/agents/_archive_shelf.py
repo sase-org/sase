@@ -189,16 +189,10 @@ def _sync_widget(owner: Any) -> None:
         widget.set_snapshot(
             archive_shelf_snapshot(owner),
             inbox_empty=not bool(getattr(owner, "_agents", ()) or ()),
-            enabled=True,
         )
     except Exception:
         # The controller can prewarm before the laid-out TUI widgets mount.
         pass
-
-
-def _sync_archive_shelf(owner: Any) -> None:
-    """Repaint the shelf after a count, refresh, or Inbox-result change."""
-    _sync_widget(owner)
 
 
 def archive_bridge_detail(owner: Any, query: str) -> str:
@@ -258,7 +252,7 @@ def activate_archive_shelf(owner: Any) -> bool:
     return True
 
 
-def archive_dismissal_toast_suffix(owner: Any) -> str:
+def archive_dismissal_toast_suffix() -> str:
     """Return the Archive pointer appended to dismissal toasts."""
     return " → ◷ Archive · ,a browse"
 
@@ -310,5 +304,4 @@ __all__ = [
     "archive_shelf_snapshot",
     "request_archive_shelf_refresh",
     "route_archive_shelf_focus",
-    "_sync_archive_shelf",
 ]

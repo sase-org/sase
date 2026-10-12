@@ -97,7 +97,6 @@ class NodeFinderModal(
         has_back: bool = False,
         preview_loader: _PreviewLoader | None = None,
         *,
-        show_archive: bool = False,
         archive_name_loader: Callable[[], tuple[ArchiveNameCandidate, ...]]
         | None = None,
     ) -> None:
@@ -117,7 +116,6 @@ class NodeFinderModal(
         self._view_cache: dict[tuple[str, tuple[str, ...] | None], NodeFinderView] = {}
         self._live_view = self._filtered_view("", None)
         self._init_archive_search(
-            show_archive=show_archive,
             archive_name_loader=archive_name_loader,
         )
         self._view = self._compose_archive_view()

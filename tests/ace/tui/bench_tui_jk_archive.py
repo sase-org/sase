@@ -35,7 +35,6 @@ import pytest
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.actions.agents._archive_controller import (
-    archive_corpus_is_warm,
     archive_corpus_snapshot,
     note_inbox_applied_for_archive,
 )
@@ -220,51 +219,50 @@ async def test_bench_archive_warm_open_to_first_rows(
         timezone="UTC",
         link_facets={},
     )
-    with override_flags(agents_archive_view=True):
-        async with AcePage(initial_tab="agents") as page:
-            await wait_for_startup(page)
-            app = page.app
-            _wire_real_corpus(app, corpus, profile)
-            note_inbox_applied_for_archive(app, load_state=complete_load())
+    async with AcePage(initial_tab="agents") as page:
+        await wait_for_startup(page)
+        app = page.app
+        _wire_real_corpus(app, corpus, profile)
+        note_inbox_applied_for_archive(app, load_state=complete_load())
 
-            # Cold open: no warm handle yet. Reported, not budgeted: the
-            # corpus/facet build cost belongs to bench_agent_archive_corpus.
-            _cold_sync_ms, cold_ms = await _open_to_first_rows_ms(app, page)
-            first_keys = _run_row_keys(page)
-            assert len(first_keys) > 100, "the Today banner must page its 11k roots"
-            await _settle_revalidation(page)
-            assert archive_corpus_is_warm(app)
+        # Cold open: no warm handle yet. Reported, not budgeted: the
+        # corpus/facet build cost belongs to bench_agent_archive_corpus.
+        _cold_sync_ms, cold_ms = await _open_to_first_rows_ms(app, page)
+        first_keys = _run_row_keys(page)
+        assert len(first_keys) > 100, "the Today banner must page its 11k roots"
+        await _settle_revalidation(page)
+        assert archive_corpus_snapshot(app).warm
 
-            warm_sync: list[float] = []
-            warm_ms: list[float] = []
-            for _ in range(_WARM_REOPENS):
-                close_agents_archive_view(app)
-                await page.pause()
-                sync_ms, rows_ms = await _open_to_first_rows_ms(app, page)
-                warm_sync.append(sync_ms)
-                warm_ms.append(rows_ms)
+        warm_sync: list[float] = []
+        warm_ms: list[float] = []
+        for _ in range(_WARM_REOPENS):
+            close_agents_archive_view(app)
+            await page.pause()
+            sync_ms, rows_ms = await _open_to_first_rows_ms(app, page)
+            warm_sync.append(sync_ms)
+            warm_ms.append(rows_ms)
 
-            # The budgeted number is first rows from held windows. Paint is
-            # proved untimed by screen text, and the revalidation must
-            # settle with rows still current.
-            await _prove_rows_painted(page, "scale.")
-            await _settle_revalidation(page)
-            assert archive_corpus_is_warm(app)
-            assert len(_run_row_keys(page)) > 100
+        # The budgeted number is first rows from held windows. Paint is
+        # proved untimed by screen text, and the revalidation must
+        # settle with rows still current.
+        await _prove_rows_painted(page, "scale.")
+        await _settle_revalidation(page)
+        assert archive_corpus_snapshot(app).warm
+        assert len(_run_row_keys(page)) > 100
 
-            median_warm = statistics.median(warm_ms)
-            median_sync = statistics.median(warm_sync)
-            print(
-                f"\narchive warm-open ms: cold(first)={cold_ms:.1f} "
-                f"warm median={median_warm:.1f} warm samples="
-                f"{[f'{v:.1f}' for v in warm_ms]} "
-                f"sync-open median={median_sync:.1f} "
-                f"(budget {_WARM_OPEN_BUDGET_MS:g} ms)"
-            )
-            assert median_warm < _WARM_OPEN_BUDGET_MS, (
-                f"warm Archive open median {median_warm:.1f} ms exceeds "
-                f"{_WARM_OPEN_BUDGET_MS:g} ms"
-            )
+        median_warm = statistics.median(warm_ms)
+        median_sync = statistics.median(warm_sync)
+        print(
+            f"\narchive warm-open ms: cold(first)={cold_ms:.1f} "
+            f"warm median={median_warm:.1f} warm samples="
+            f"{[f'{v:.1f}' for v in warm_ms]} "
+            f"sync-open median={median_sync:.1f} "
+            f"(budget {_WARM_OPEN_BUDGET_MS:g} ms)"
+        )
+        assert median_warm < _WARM_OPEN_BUDGET_MS, (
+            f"warm Archive open median {median_warm:.1f} ms exceeds "
+            f"{_WARM_OPEN_BUDGET_MS:g} ms"
+        )
 
 
 async def test_bench_archive_jk_at_scale(
@@ -282,23 +280,22 @@ async def test_bench_archive_jk_at_scale(
         timezone="UTC",
         link_facets={},
     )
-    with override_flags(agents_archive_view=True):
-        async with AcePage(initial_tab="agents", size=(80, 24)) as page:
-            await wait_for_startup(page)
-            app = page.app
-            _wire_real_corpus(app, corpus, profile)
-            note_inbox_applied_for_archive(app, load_state=complete_load())
-            await _open_to_first_rows_ms(app, page)
-            await _settle_revalidation(page)
+    async with AcePage(initial_tab="agents", size=(80, 24)) as page:
+        await wait_for_startup(page)
+        app = page.app
+        _wire_real_corpus(app, corpus, profile)
+        note_inbox_applied_for_archive(app, load_state=complete_load())
+        await _open_to_first_rows_ms(app, page)
+        await _settle_revalidation(page)
 
-            # Settle onto the first run row so j/k walks rows, not banners.
-            await page.press("j")
-            await page.pause(0.01)
+        # Settle onto the first run row so j/k walks rows, not banners.
+        await page.press("j")
+        await page.pause(0.01)
 
-            for key in ("j", "k"):
-                for _ in range(_KEYS_PER_DIRECTION):
-                    await page.press(key)
-                    await page.pause(0.01)
+        for key in ("j", "k"):
+            for _ in range(_KEYS_PER_DIRECTION):
+                await page.press(key)
+                await page.pause(0.01)
 
     samples = [s for s in _read_samples(_perf_jsonl) if s.get("tab") == "agents"]
     summary = _summarize(samples)

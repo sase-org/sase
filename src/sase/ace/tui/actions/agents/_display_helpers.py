@@ -146,8 +146,7 @@ def agents_inbox_detail_allowed(owner: Any) -> bool:
     """Return whether Inbox-originated detail rendering may paint.
 
     The Inbox path is a single attribute read. The Archive path loads the
-    view module only when Archive is actually showing, so it can honor the
-    beta flag.
+    view module only when Archive is actually showing.
     """
     if not agents_archive_is_active(owner):
         return True

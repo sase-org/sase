@@ -9,6 +9,7 @@ module's public names.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Any
 
@@ -46,18 +47,58 @@ def agents_archive_view_state(owner: Any) -> AgentsArchiveViewState:
 def init_agents_archive_view_state(owner: Any) -> AgentsArchiveViewState:
     """Initialize lifecycle state. Startup is always Inbox."""
     state = startup_agents_archive_view_state()
-    try:
-        from ....grouping_strategy import load_agent_archive_grouping
-
-        state.archive.grouping = load_agent_archive_grouping()
-    except Exception:
-        log.debug("could not load Archive grouping preference", exc_info=True)
     owner._agents_archive_view = state
     owner._agents_detail_scheduled_owner = None
     from ._archive_controller import init_agents_archive_controller
 
     init_agents_archive_controller(owner)
     return state
+
+
+def request_archive_grouping_preference_load(owner: Any) -> None:
+    """Load the persisted grouping only after an Archive open, off-thread."""
+    state = _view_state(owner)
+    if state.archive_grouping_preference_requested:
+        return
+    state.archive_grouping_preference_requested = True
+
+    async def _load() -> None:
+        try:
+            from ....grouping_strategy import load_agent_archive_grouping
+
+            grouping = await asyncio.to_thread(load_agent_archive_grouping)
+        except Exception:
+            log.debug("could not load Archive grouping preference", exc_info=True)
+            grouping = None
+
+        def _apply() -> None:
+            if not grouping:
+                return
+            current = _view_state(owner)
+            if current.archive.grouping == grouping:
+                return
+            current.archive.grouping = grouping
+            if current.active_view == AGENTS_VIEW_ARCHIVE:
+                from ._archive_controller import request_archive_view_load
+
+                request_archive_view_load(owner)
+
+        call_next = getattr(owner, "call_next", None)
+        if callable(call_next):
+            call_next(_apply)
+        else:
+            _apply()
+
+    from ...util.pump_tasks import spawn_pump_free_task
+
+    task = spawn_pump_free_task(
+        owner,
+        _load(),
+        name="sase-archive-grouping-preference",
+        registry_attr="_archive_controller_tasks",
+    )
+    if task is None:
+        state.archive_grouping_preference_requested = False
 
 
 def _agents_view_is_archive(owner: Any) -> bool:
@@ -150,6 +191,7 @@ __all__ = [
     "archive_detail_owns_panel",
     "cancel_inbox_detail_debounce",
     "init_agents_archive_view_state",
+    "request_archive_grouping_preference_load",
     "remember_agents_detail_owner",
     "schedule_owned_inbox_detail_update",
     "scheduled_agents_detail_is_current",

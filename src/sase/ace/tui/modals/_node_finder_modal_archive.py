@@ -19,7 +19,6 @@ _TASKS_ATTR = "_node_finder_archive_tasks"
 class NodeFinderArchiveMixin:
     """Append up to five asynchronously searched archived names to the view."""
 
-    _show_archive: bool
     _archive_name_loader: Callable[[], tuple[ArchiveNameCandidate, ...]] | None
     _archive_candidates: tuple[ArchiveNameCandidate, ...]
     _archive_matches: tuple[ArchiveNameCandidate, ...]
@@ -40,10 +39,8 @@ class NodeFinderArchiveMixin:
     def _init_archive_search(
         self,
         *,
-        show_archive: bool,
         archive_name_loader: Callable[[], tuple[ArchiveNameCandidate, ...]] | None,
     ) -> None:
-        self._show_archive = show_archive
         self._archive_name_loader = archive_name_loader
         self._archive_candidates = ()
         self._archive_matches = ()
@@ -53,7 +50,7 @@ class NodeFinderArchiveMixin:
         self._archive_search_generation = 0
 
     def _start_archive_name_load(self) -> None:
-        if not self._show_archive or self._archive_name_loader is None:
+        if self._archive_name_loader is None:
             return
         self._archive_load_generation += 1
         generation = self._archive_load_generation
@@ -101,8 +98,6 @@ class NodeFinderArchiveMixin:
         self._schedule_archive_search(self._live_view.query)  # type: ignore[attr-defined]
 
     def _schedule_archive_search(self, query: str) -> None:
-        if not self._show_archive:
-            return
         self._archive_search_generation += 1
         generation = self._archive_search_generation
         if not self._archive_ready:
@@ -172,8 +167,6 @@ class NodeFinderArchiveMixin:
     def _compose_archive_view(self) -> NodeFinderView:
         """Project Archive rows after the live rows without adding hints."""
         live_view = self._live_view  # type: ignore[attr-defined]
-        if not self._show_archive:
-            return live_view
         rows = list(live_view.rows)
         rows.append(NodeFinderRow(role=NodeFinderRole.ARCHIVE_HEADER))
         archive_start = len(rows)

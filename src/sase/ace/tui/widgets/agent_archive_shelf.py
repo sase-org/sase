@@ -20,21 +20,18 @@ class AgentArchiveShelf(Static):
         super().__init__(Text(""), **kwargs)
         self._snapshot = ArchiveShelfSnapshot()
         self._inbox_empty = False
-        self._enabled = False
 
     def set_snapshot(
         self,
         snapshot: ArchiveShelfSnapshot,
         *,
         inbox_empty: bool,
-        enabled: bool,
     ) -> None:
         was_displayed = self.display
         self._snapshot = snapshot
         self._inbox_empty = inbox_empty
-        self._enabled = enabled
         self.display = bool(
-            enabled and snapshot.status in {"ready", "unanswerable"} and snapshot.total
+            snapshot.status in {"ready", "unanswerable"} and snapshot.total
         )
         self.set_class(self.display, "-visible")
         self.set_class(bool(inbox_empty), "-empty")
@@ -67,14 +64,14 @@ class AgentArchiveShelf(Static):
         self.update(text)
 
     def on_click(self, event: Click) -> None:
-        if not self._enabled or not self.display:
+        if not self.display:
             return
         event.stop()
         self.app._agent_archive_shelf_focused = True  # type: ignore[attr-defined]
         self._open_archive()
 
     def on_key(self, event: Key) -> None:
-        if event.key not in {"enter", "l", "space"} or not self._enabled:
+        if event.key not in {"enter", "l", "space"} or not self.display:
             return
         event.prevent_default()
         event.stop()

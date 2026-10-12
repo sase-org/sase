@@ -106,8 +106,7 @@ def test_toggle_mark_routes_to_archive_marks(monkeypatch: Any) -> None:
         "sase.ace.tui.actions.agents._archive_column.refresh_archive_footer",
         lambda _owner: footer_refreshed.append(True),
     )
-    with override_flags(agents_archive_view=True):
-        app.action_toggle_mark()
+    app.action_toggle_mark()
     assert app._agents_archive_view.archive.marks == frozenset({"u.m@r1"})
     assert app._marked_agents == set()
     assert refreshed == [True]
@@ -116,39 +115,36 @@ def test_toggle_mark_routes_to_archive_marks(monkeypatch: Any) -> None:
 
 def test_mark_banner_tail_pulse_rejected() -> None:
     owner = make_owner()
-    with override_flags(agents_archive_view=True):
-        open_archive(owner, selected_key="banner:day:2026-10-10")
-        assert toggle_archive_mark(owner) is False
-        open_archive(owner, selected_key="tail:day:2026-10-10")
-        assert toggle_archive_mark(owner) is False
-        open_archive(owner, selected_key="u.m@r1")
-        owner._agents_archive_view.archive.focused_section = ARCHIVE_SECTION_PULSE
-        assert archive_markable_key(owner) is None
-        assert toggle_archive_mark(owner) is False
-        assert archive_marked_count(owner) == 0
+    open_archive(owner, selected_key="banner:day:2026-10-10")
+    assert toggle_archive_mark(owner) is False
+    open_archive(owner, selected_key="tail:day:2026-10-10")
+    assert toggle_archive_mark(owner) is False
+    open_archive(owner, selected_key="u.m@r1")
+    owner._agents_archive_view.archive.focused_section = ARCHIVE_SECTION_PULSE
+    assert archive_markable_key(owner) is None
+    assert toggle_archive_mark(owner) is False
+    assert archive_marked_count(owner) == 0
 
 
 def test_archive_marks_independent_from_inbox_marks() -> None:
     owner = make_owner()
     owner._marked_agents = {("cl", "live", None)}
     open_archive(owner, selected_key="u.m@r1")
-    with override_flags(agents_archive_view=True):
-        assert toggle_archive_mark(owner) is True
-        assert toggle_archive_mark(owner) is True
-        assert owner._agents_archive_view.archive.marks == frozenset()
-        assert toggle_archive_mark(owner) is True
-        assert owner._marked_agents == {("cl", "live", None)}
-        assert archive_marked_count(owner) == 1
-        assert clear_archive_marks(owner) == 1
-        assert archive_marked_count(owner) == 0
-        assert owner._marked_agents == {("cl", "live", None)}
+    assert toggle_archive_mark(owner) is True
+    assert toggle_archive_mark(owner) is True
+    assert owner._agents_archive_view.archive.marks == frozenset()
+    assert toggle_archive_mark(owner) is True
+    assert owner._marked_agents == {("cl", "live", None)}
+    assert archive_marked_count(owner) == 1
+    assert clear_archive_marks(owner) == 1
+    assert archive_marked_count(owner) == 0
+    assert owner._marked_agents == {("cl", "live", None)}
 
 
 def test_archive_marks_parked_with_view_state() -> None:
     owner = make_owner()
     open_archive(owner, selected_key="u.m@r1")
-    with override_flags(agents_archive_view=True):
-        assert toggle_archive_mark(owner) is True
+    assert toggle_archive_mark(owner) is True
     with override_flags():
         assert archive_marked_count(owner) == 1
         assert clear_archive_marks(owner) == 1
@@ -157,9 +153,8 @@ def test_archive_marks_parked_with_view_state() -> None:
 
 def test_marked_run_keys_expand_containers() -> None:
     owner = _column_owner_with_members()
-    with override_flags(agents_archive_view=True):
-        assert toggle_archive_mark(owner) is True
-        expanded = archive_marked_run_keys(owner)
+    assert toggle_archive_mark(owner) is True
+    expanded = archive_marked_run_keys(owner)
     assert "container:archive:u.m@clan1" in expanded
     assert "u.m@m1" in expanded
     assert "u.m@m2" in expanded
@@ -168,18 +163,16 @@ def test_marked_run_keys_expand_containers() -> None:
 def test_marked_run_keys_exclude_inbox_identities() -> None:
     owner = _column_owner_with_members()
     owner._marked_agents = {("cl", "live", None)}
-    with override_flags(agents_archive_view=True):
-        assert toggle_archive_mark(owner) is True
-        expanded = archive_marked_run_keys(owner)
+    assert toggle_archive_mark(owner) is True
+    expanded = archive_marked_run_keys(owner)
     assert ("cl", "live", None) not in expanded  # type: ignore[comparison-overlap]
     assert all(isinstance(key, str) for key in expanded)
 
 
 def test_archive_footer_bindings_selection() -> None:
     owner = make_owner()
-    with override_flags(agents_archive_view=True):
-        open_archive(owner, selected_key="u.m@r1")
-        bindings = _bindings_for_owner(owner)
+    open_archive(owner, selected_key="u.m@r1")
+    bindings = _bindings_for_owner(owner)
     assert ("toggle_mark", "mark") in bindings
     assert ("act_on_agent", "restore…") in bindings
     assert not any("kill" in label or "Inbox" in label for _key, label in bindings)
@@ -187,16 +180,14 @@ def test_archive_footer_bindings_selection() -> None:
 
 def test_archive_footer_bindings_empty_without_selection() -> None:
     owner = make_owner()
-    with override_flags(agents_archive_view=True):
-        open_archive(owner, selected_key=None)
-        assert _bindings_for_owner(owner) == []
+    open_archive(owner, selected_key=None)
+    assert _bindings_for_owner(owner) == []
 
 
 def test_archive_footer_bindings_container_and_marks() -> None:
     owner = _column_owner_with_members()
-    with override_flags(agents_archive_view=True):
-        assert toggle_archive_mark(owner) is True
-        bindings = _bindings_for_owner(owner)
+    assert toggle_archive_mark(owner) is True
+    bindings = _bindings_for_owner(owner)
     labels = [label for _key, label in bindings]
     assert "expand" in labels
     assert "unmark (1)" in labels
@@ -225,8 +216,7 @@ def test_unread_attention_accounting_untouched() -> None:
     owner = make_owner()
     before_unread = set(owner._unread_completed_agent_ids)
     open_archive(owner, selected_key="u.m@r1")
-    with override_flags(agents_archive_view=True):
-        assert toggle_archive_mark(owner) is True
-        assert clear_archive_marks(owner) == 1
-        assert guard_archive_live_action(owner, "toggle_agent_unread") is True
+    assert toggle_archive_mark(owner) is True
+    assert clear_archive_marks(owner) == 1
+    assert guard_archive_live_action(owner, "toggle_agent_unread") is True
     assert owner._unread_completed_agent_ids == before_unread

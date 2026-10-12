@@ -119,179 +119,170 @@ async def test_archive_replaces_the_inbox_column_and_keys_navigate_it(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     patch_startup_loaders(monkeypatch, agents=[_inbox_agent()])
-    with override_flags(agents_archive_view=True):
-        async with AcePage(initial_tab="agents", size=(160, 40)) as page:
-            await wait_for_startup(page)
-            app = page.app
-            _wire_corpus(app, ModelCorpus(_history()))
-            note_inbox_applied_for_archive(app, load_state=complete_load())
-            inbox_idx = app.current_idx
-            inbox_agents = list(app._agents)
+    async with AcePage(initial_tab="agents", size=(160, 40)) as page:
+        await wait_for_startup(page)
+        app = page.app
+        _wire_corpus(app, ModelCorpus(_history()))
+        note_inbox_applied_for_archive(app, load_state=complete_load())
+        inbox_idx = app.current_idx
+        inbox_agents = list(app._agents)
 
-            open_agents_archive_view(app)
-            await _wait_for_rows(page)
+        open_agents_archive_view(app)
+        await _wait_for_rows(page)
 
-            content = app.query_one("#agents-content")
-            assert content.has_class("-archive-active")
-            assert app.query_one("#archive-column", ArchiveColumn).display
-            assert not app.query_one("#agent-list-container").display
-            archive_list = app.query_one("#archive-list", ArchiveList)
-            keys = archive_list.item_keys
-            assert _prompt(archive_list, "banner:day:2026-10-10").startswith("▾ Today")
-            assert _prompt(archive_list, "banner:day:2026-10-09").startswith(
-                "▾ Yesterday"
-            )
-            row = _prompt(archive_list, "u.m@t00")
-            assert "today.00" in row and "✓ done" in row
-            assert "⌂ Inbox" in str(app.query_one("#archive-pulse").render())
-            assert keys[0] == "banner:day:2026-10-10"
-            assert archive_list.highlighted == keys.index("u.m@t00")
+        content = app.query_one("#agents-content")
+        assert content.has_class("-archive-active")
+        assert app.query_one("#archive-column", ArchiveColumn).display
+        assert not app.query_one("#agent-list-container").display
+        archive_list = app.query_one("#archive-list", ArchiveList)
+        keys = archive_list.item_keys
+        assert _prompt(archive_list, "banner:day:2026-10-10").startswith("▾ Today")
+        assert _prompt(archive_list, "banner:day:2026-10-09").startswith("▾ Yesterday")
+        row = _prompt(archive_list, "u.m@t00")
+        assert "today.00" in row and "✓ done" in row
+        assert "⌂ Inbox" in str(app.query_one("#archive-pulse").render())
+        assert keys[0] == "banner:day:2026-10-10"
+        assert archive_list.highlighted == keys.index("u.m@t00")
 
-            await page.press("j")
-            assert archive_list.highlighted == keys.index("u.m@t01")
-            assert app._agents_archive_view.archive.selected_key == "u.m@t01"
-            await page.press("k", "k")
-            assert archive_list.highlighted == 0  # banner
-            await page.press("G")
-            assert archive_list.highlighted == len(keys) - 1
-            await page.press("g")
-            assert archive_list.highlighted == 0
+        await page.press("j")
+        assert archive_list.highlighted == keys.index("u.m@t01")
+        assert app._agents_archive_view.archive.selected_key == "u.m@t01"
+        await page.press("k", "k")
+        assert archive_list.highlighted == 0  # banner
+        await page.press("G")
+        assert archive_list.highlighted == len(keys) - 1
+        await page.press("g")
+        assert archive_list.highlighted == 0
 
-            # `h` folds Today, `l` opens it again; Enter on the banner toggles.
-            await page.press("h")
-            await page.pause()
-            assert "banner:day:2026-10-10" in _list_keys(app)
-            assert "u.m@t00" not in _list_keys(app)
-            await page.press("l")
-            await page.wait_for(lambda _s: "u.m@t00" in _list_keys(app))
-            await page.press("enter")
-            await page.pause()
-            assert "u.m@t00" not in _list_keys(app)
-            await page.press("enter")
-            await page.wait_for(lambda _s: "u.m@t00" in _list_keys(app))
+        # `h` folds Today, `l` opens it again; Enter on the banner toggles.
+        await page.press("h")
+        await page.pause()
+        assert "banner:day:2026-10-10" in _list_keys(app)
+        assert "u.m@t00" not in _list_keys(app)
+        await page.press("l")
+        await page.wait_for(lambda _s: "u.m@t00" in _list_keys(app))
+        await page.press("enter")
+        await page.pause()
+        assert "u.m@t00" not in _list_keys(app)
+        await page.press("enter")
+        await page.wait_for(lambda _s: "u.m@t00" in _list_keys(app))
 
-            # The Inbox is parked, never navigated.
-            assert app.current_idx == inbox_idx
-            assert app._agents == inbox_agents
+        # The Inbox is parked, never navigated.
+        assert app.current_idx == inbox_idx
+        assert app._agents == inbox_agents
 
 
 async def test_J_switches_to_the_pulse_and_enter_returns_to_the_inbox(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     patch_startup_loaders(monkeypatch, agents=[_inbox_agent()])
-    with override_flags(agents_archive_view=True):
-        async with AcePage(initial_tab="agents", size=(160, 40)) as page:
-            await wait_for_startup(page)
-            app = page.app
-            _wire_corpus(app, ModelCorpus(_history()))
-            note_inbox_applied_for_archive(app, load_state=complete_load())
-            open_agents_archive_view(app)
-            await _wait_for_rows(page)
+    async with AcePage(initial_tab="agents", size=(160, 40)) as page:
+        await wait_for_startup(page)
+        app = page.app
+        _wire_corpus(app, ModelCorpus(_history()))
+        note_inbox_applied_for_archive(app, load_state=complete_load())
+        open_agents_archive_view(app)
+        await _wait_for_rows(page)
 
-            await page.press("J")
-            pulse = app.query_one("#archive-pulse", ArchivePulse)
-            assert pulse.has_class("-selected")
-            await page.press("enter")
-            await page.pause()
+        await page.press("J")
+        pulse = app.query_one("#archive-pulse", ArchivePulse)
+        assert pulse.has_class("-selected")
+        await page.press("enter")
+        await page.pause()
 
-            assert app._agents_archive_view.active_view == AGENTS_VIEW_INBOX
-            content = app.query_one("#agents-content")
-            assert not content.has_class("-archive-active")
-            assert app.query_one("#agent-list-container").display
-            assert not app.query_one("#archive-column").display
+        assert app._agents_archive_view.active_view == AGENTS_VIEW_INBOX
+        content = app.query_one("#agents-content")
+        assert not content.has_class("-archive-active")
+        assert app.query_one("#agent-list-container").display
+        assert not app.query_one("#archive-column").display
 
-            # Reopening reuses the mounted column and lands back on the list.
-            open_agents_archive_view(app)
-            await _wait_for_rows(page)
-            assert not app.query_one("#archive-pulse", ArchivePulse).has_class(
-                "-selected"
-            )
-            assert len(app.query("#archive-column")) == 1
+        # Reopening reuses the mounted column and lands back on the list.
+        open_agents_archive_view(app)
+        await _wait_for_rows(page)
+        assert not app.query_one("#archive-pulse", ArchivePulse).has_class("-selected")
+        assert len(app.query("#archive-column")) == 1
 
-            close_agents_archive_view(app)
-            await page.pause()
-            assert app.query_one("#agent-list-container").display
+        close_agents_archive_view(app)
+        await page.pause()
+        assert app.query_one("#agent-list-container").display
 
 
 async def test_clicking_the_pulse_returns_to_the_inbox(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     patch_startup_loaders(monkeypatch, agents=[_inbox_agent()])
-    with override_flags(agents_archive_view=True):
-        async with AcePage(initial_tab="agents", size=(160, 40)) as page:
-            await wait_for_startup(page)
-            app = page.app
-            _wire_corpus(app, ModelCorpus(_history()))
-            note_inbox_applied_for_archive(app, load_state=complete_load())
-            open_agents_archive_view(app)
-            await _wait_for_rows(page)
+    async with AcePage(initial_tab="agents", size=(160, 40)) as page:
+        await wait_for_startup(page)
+        app = page.app
+        _wire_corpus(app, ModelCorpus(_history()))
+        note_inbox_applied_for_archive(app, load_state=complete_load())
+        open_agents_archive_view(app)
+        await _wait_for_rows(page)
 
-            await page.click("#archive-pulse")
-            await page.pause()
+        await page.click("#archive-pulse")
+        await page.pause()
 
-            assert app._agents_archive_view.active_view == AGENTS_VIEW_INBOX
+        assert app._agents_archive_view.active_view == AGENTS_VIEW_INBOX
 
 
 async def test_clicking_a_banner_toggles_it_like_enter(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     patch_startup_loaders(monkeypatch, agents=[_inbox_agent()])
-    with override_flags(agents_archive_view=True):
-        async with AcePage(initial_tab="agents", size=(160, 40)) as page:
-            await wait_for_startup(page)
-            app = page.app
-            _wire_corpus(app, ModelCorpus(_history()))
-            note_inbox_applied_for_archive(app, load_state=complete_load())
-            open_agents_archive_view(app)
-            await _wait_for_rows(page)
+    async with AcePage(initial_tab="agents", size=(160, 40)) as page:
+        await wait_for_startup(page)
+        app = page.app
+        _wire_corpus(app, ModelCorpus(_history()))
+        note_inbox_applied_for_archive(app, load_state=complete_load())
+        open_agents_archive_view(app)
+        await _wait_for_rows(page)
 
-            await page.click("#archive-list", offset=(4, 1))  # the Today banner
-            await page.pause()
+        await page.click("#archive-list", offset=(4, 1))  # the Today banner
+        await page.pause()
 
-            assert "u.m@t00" not in _list_keys(app)
-            await page.click("#archive-list", offset=(4, 1))
-            await page.wait_for(lambda _s: "u.m@t00" in _list_keys(app))
+        assert "u.m@t00" not in _list_keys(app)
+        await page.click("#archive-list", offset=(4, 1))
+        await page.wait_for(lambda _s: "u.m@t00" in _list_keys(app))
 
 
 async def test_live_only_archive_keys_reach_their_toast_guards(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     patch_startup_loaders(monkeypatch, agents=[_inbox_agent()])
-    with override_flags(agents_archive_view=True):
-        async with AcePage(initial_tab="agents", size=(160, 40)) as page:
-            await wait_for_startup(page)
-            app = page.app
-            open_agents_archive_view(app)
-            notices: list[str] = []
+    async with AcePage(initial_tab="agents", size=(160, 40)) as page:
+        await wait_for_startup(page)
+        app = page.app
+        open_agents_archive_view(app)
+        notices: list[str] = []
 
-            def capture_notice(message: str, *_args: Any, **_kwargs: Any) -> None:
-                notices.append(message)
+        def capture_notice(message: str, *_args: Any, **_kwargs: Any) -> None:
+            notices.append(message)
 
-            monkeypatch.setattr(app, "notify", capture_notice)
-            app.bind(
-                "ctrl+f12",
-                "pick_agents_tab",
-                description="Pick agent tabs",
-                show=False,
-            )
+        monkeypatch.setattr(app, "notify", capture_notice)
+        app.bind(
+            "ctrl+f12",
+            "pick_agents_tab",
+            description="Pick agent tabs",
+            show=False,
+        )
 
-            for key in (
-                "x",
-                "X",
-                "s",
-                "S",
-                "w",
-                "W",
-                "A",
-                "R",
-                "n",
-                "N",
-                "U",
-                "[",
-                "]",
-                "ctrl+f12",
-            ):
-                before = len(notices)
-                await page.press(key)
-                assert len(notices) == before + 1, key
-                assert ",a" in notices[-1], key
+        for key in (
+            "x",
+            "X",
+            "s",
+            "S",
+            "w",
+            "W",
+            "A",
+            "R",
+            "n",
+            "N",
+            "U",
+            "[",
+            "]",
+            "ctrl+f12",
+        ):
+            before = len(notices)
+            await page.press(key)
+            assert len(notices) == before + 1, key
+            assert ",a" in notices[-1], key

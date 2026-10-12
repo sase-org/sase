@@ -44,8 +44,7 @@ def test_chooser_model_defaults_to_restore(monkeypatch: Any) -> None:
     owner = make_owner()
     agent = make_agent()
     wire_bundles(monkeypatch, owner, {"u.m@r1": (make_row(), agent, False)})
-    with override_flags(agents_archive_view=True):
-        model = archive_chooser_model(owner, "u.m@r1")
+    model = archive_chooser_model(owner, "u.m@r1")
     assert model is not None
     choices, initial, title = model
     results = [choice.result for choice in choices]
@@ -70,8 +69,7 @@ def test_chooser_model_falls_back_to_open_chat(monkeypatch: Any) -> None:
     wire_bundles(
         monkeypatch, owner, {"u.m@r1": (make_row(restorable=False), agent, False)}
     )
-    with override_flags(agents_archive_view=True):
-        model = archive_chooser_model(owner, "u.m@r1")
+    model = archive_chooser_model(owner, "u.m@r1")
     assert model is not None
     choices, initial, _title = model
     assert CHOICE_RESTORE not in [choice.result for choice in choices]
@@ -83,8 +81,7 @@ def test_chooser_model_hides_fork_when_unaccepted(monkeypatch: Any) -> None:
     owner = make_owner()
     clan = make_agent(is_clan_container=True, is_agent_entry=False, agent_name="")
     wire_bundles(monkeypatch, owner, {"u.m@clan": (make_row("clan"), clan, False)})
-    with override_flags(agents_archive_view=True):
-        model = archive_chooser_model(owner, "u.m@clan")
+    model = archive_chooser_model(owner, "u.m@clan")
     assert model is not None
     choices, _initial, _title = model
     assert CHOICE_FORK not in [choice.result for choice in choices]
@@ -96,8 +93,7 @@ def test_chooser_model_marks_change_default_label(monkeypatch: Any) -> None:
     agent = make_agent()
     wire_bundles(monkeypatch, owner, {"u.m@r1": (make_row(), agent, False)})
     owner._agents_archive_view.archive.marks = frozenset({"u.m@a1", "u.m@a2"})
-    with override_flags(agents_archive_view=True):
-        model = archive_chooser_model(owner, "u.m@r1")
+    model = archive_chooser_model(owner, "u.m@r1")
     assert model is not None
     choices, _initial, _title = model
     assert choices[0].label == "Restore 2 marked"
@@ -106,8 +102,7 @@ def test_chooser_model_marks_change_default_label(monkeypatch: Any) -> None:
 def test_open_chooser_unreadable_warns(monkeypatch: Any) -> None:
     owner = make_owner()
     wire_bundles(monkeypatch, owner, {"u.m@r1": (make_row(), make_agent(), True)})
-    with override_flags(agents_archive_view=True):
-        assert open_archive_chooser(owner, "u.m@r1") is False
+    assert open_archive_chooser(owner, "u.m@r1") is False
     assert owner.pushed == []
     assert owner.notices[0][0] == "Archive entry unreadable — Record only"
 
@@ -127,8 +122,7 @@ def test_open_chooser_pushes_modal_with_initial(monkeypatch: Any) -> None:
             seen["initial"] = initial_index
 
     monkeypatch.setattr(modal_module, "AgentActionChooserModal", _FakeModal)
-    with override_flags(agents_archive_view=True):
-        assert open_archive_chooser(owner, "u.m@r1") is True
+    assert open_archive_chooser(owner, "u.m@r1") is True
     assert seen == {"count": 6, "title": "Act on bob-cli-5p.4 · archived", "initial": 0}
     assert len(owner.pushed) == 1
 

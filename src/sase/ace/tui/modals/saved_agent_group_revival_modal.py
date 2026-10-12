@@ -168,7 +168,7 @@ class SavedAgentGroupRevivalModal(
                     f"Delete saved agent group '{title}'?\n\n"
                     "This removes only the saved group record. The dismissed "
                     "agents themselves are not deleted and can still be found "
-                    "with custom revival search.\n\n"
+                    "by browsing the Archive.\n\n"
                     "This action cannot be undone."
                 ),
                 kind=ConfirmKind.DANGER,

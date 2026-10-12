@@ -68,7 +68,6 @@ class NodeJumpNavigationMixin(NavigationMixinBase):
             NodeFinderModal(
                 snapshot,
                 has_back=has_back,
-                show_archive=True,
                 archive_name_loader=archive_loader,
             ),
             _on_dismiss,

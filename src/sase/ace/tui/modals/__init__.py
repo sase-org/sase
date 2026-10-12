@@ -154,7 +154,6 @@ __all__ = [
     "ConfirmRerunModal",
     "ConfirmRevertAgentModal",
     "ConfirmStopMonitorModal",
-    "DismissedAgentSelectModal",
     "HelpModal",
     "StatisticsHelpModal",
     "StatisticsMacroPickerModal",

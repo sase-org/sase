@@ -20,7 +20,6 @@ from sase.ace.testing import AcePage
 from sase.ace.tui.app import AceApp
 from sase.ace.tui.modals.notification_modal_tags import NotificationTagTab
 from sase.ace.tui.modals.prompts_modal import PromptsModal, PromptsTab
-from sase.ace.tui.modals.revive_agent_modal import DismissedAgentSelectModal
 from sase.history.prompt_catalog import PromptHistoryPage
 from tests._agent_revive_helpers import make_agent
 from tests._load_tolerant import LOAD_TOLERANT_TIMEOUT
@@ -352,42 +351,10 @@ async def test_lowered_threshold_soak_keeps_fixed_paths_responsive(
         overlay.dismiss(None)
         await page.expect_no_modal(timeout=LOAD_TOLERANT_TIMEOUT)
 
-        archive_started = Event()
-        archive_release = Event()
         dismissed_agent = make_agent(
             cl_name="verification",
             raw_suffix="20260717090000",
         )
-
-        def slow_archive_page() -> tuple[list[object], list[object], bool]:
-            with watchdog_windows.record(
-                "revive_archive",
-                stack_markers=("_page_loader", "slow_archive_page"),
-            ):
-                archive_started.set()
-                archive_release.wait(timeout=LOAD_TOLERANT_TIMEOUT)
-            return [dismissed_agent], [dismissed_agent], True
-
-        archive_modal = DismissedAgentSelectModal(
-            [],
-            loading_archive=True,
-            page_loader=slow_archive_page,  # type: ignore[arg-type]
-        )
-        page.app.push_screen(archive_modal)
-        try:
-            await _wait_for_thread_event(archive_started)
-            archive_filter = archive_modal.query_one("#dismissed-filter", Input)
-            await _press_within_deadline(page, "v")
-            assert archive_filter.value == "v"
-            await _hold_past_hitch_threshold()
-        finally:
-            archive_release.set()
-        await page.wait_for(
-            lambda _state: not archive_modal._initial_loading,
-            timeout=LOAD_TOLERANT_TIMEOUT,
-        )
-        archive_modal.dismiss(None)
-        await page.expect_no_modal(timeout=LOAD_TOLERANT_TIMEOUT)
 
         cleanup_started = Event()
         cleanup_release = Event()

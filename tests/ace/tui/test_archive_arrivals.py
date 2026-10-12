@@ -71,8 +71,7 @@ def test_node_finder_archived_row_is_revealed_by_stable_key(monkeypatch) -> None
         "agent_name": "worker",
         "last_activity_at": "2026-08-13T12:00:00Z",
     }
-    with override_flags(agents_archive_view=True):
-        assert open_archive_for_archived_row(owner, row, source="Node Finder")
+    assert open_archive_for_archived_row(owner, row, source="Node Finder")
 
     archive = owner._agents_archive_view.archive
     assert captured == {"query": "in:archive"}
@@ -99,16 +98,13 @@ def test_exact_archive_arrival_records_one_return_hop_on_hit(monkeypatch) -> Non
         return SimpleNamespace(generation=app._agents_archive_view.generation)
 
     monkeypatch.setattr(_archive_view, "open_agents_archive_view_with_query", open_view)
-    with override_flags(agents_archive_view=True):
-        assert open_archive_for_agent(owner, "worker", source="From a link")
-        assert captured == {
-            "query": 'in:archive name:"worker"',
-            "agent_name": "worker",
-        }
-        assert owner.current_tab == "agents"
-        owner._archive_arrival_callback(
-            SimpleNamespace(status="found", row_name="worker")
-        )
+    assert open_archive_for_agent(owner, "worker", source="From a link")
+    assert captured == {
+        "query": 'in:archive name:"worker"',
+        "agent_name": "worker",
+    }
+    assert owner.current_tab == "agents"
+    owner._archive_arrival_callback(SimpleNamespace(status="found", row_name="worker"))
 
     assert owner._link_trail == ["origin"]
     assert len(owner.notifications) == 1
@@ -134,16 +130,13 @@ def test_exact_archive_miss_returns_to_origin_without_adding_trail(
 
     monkeypatch.setattr(_archive_view, "open_agents_archive_view_with_query", open_view)
     monkeypatch.setattr(_archive_view, "close_agents_archive_view", close_view)
-    with override_flags(agents_archive_view=True):
-        open_archive_for_agent(
-            owner,
-            "missing",
-            source="From a link",
-            return_on_miss=True,
-        )
-        owner._archive_arrival_callback(
-            SimpleNamespace(status="missing", row_name=None)
-        )
+    open_archive_for_agent(
+        owner,
+        "missing",
+        source="From a link",
+        return_on_miss=True,
+    )
+    owner._archive_arrival_callback(SimpleNamespace(status="missing", row_name=None))
 
     assert owner.current_tab == "artifacts"
     assert owner._agents_archive_view.active_view == "inbox"

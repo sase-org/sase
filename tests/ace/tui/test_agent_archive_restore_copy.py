@@ -52,8 +52,7 @@ def test_y_copies_agent_reference_on_agents_tab(monkeypatch: Any) -> None:
         }
     )
     init_agents_archive_view_state(app)
-    with override_flags(agents_archive_view=True):
-        app.action_artifacts_copy_reference()
+    app.action_artifacts_copy_reference()
     assert copied.get("content") == "@test.1"
 
 
@@ -133,8 +132,7 @@ def test_copy_link_format_is_followable(monkeypatch: Any) -> None:
         }
     )
     init_agents_archive_view_state(app)
-    with override_flags(agents_archive_view=True):
-        app._copy_agent_link()
+    app._copy_agent_link()
     assert copied.get("content") == "[@test.1](agent:test.1)"
 
 
@@ -160,8 +158,7 @@ def test_copy_json_payload_is_metadata(monkeypatch: Any) -> None:
         }
     )
     init_agents_archive_view_state(app)
-    with override_flags(agents_archive_view=True):
-        app._copy_agent_json()
+    app._copy_agent_json()
     payload = json.loads(copied["content"])
     assert payload["agent_name"] == "bob-cli-5p.4"
     assert payload["status"] == "DONE"
@@ -182,8 +179,7 @@ def test_copy_artifacts_dir_missing_warns() -> None:
         }
     )
     init_agents_archive_view_state(app)
-    with override_flags(agents_archive_view=True):
-        app._copy_agent_artifacts_dir()
+    app._copy_agent_artifacts_dir()
     assert notices == ["Selected agent has no artifacts directory"]
 
 
@@ -208,8 +204,7 @@ def test_copy_handoff_prefills_prompt(monkeypatch: Any) -> None:
         }
     )
     init_agents_archive_view_state(app)
-    with override_flags(agents_archive_view=True):
-        app._copy_agent_handoff()
+    app._copy_agent_handoff()
     assert prompted.get("initial_text") == "@test.1 "
 
 

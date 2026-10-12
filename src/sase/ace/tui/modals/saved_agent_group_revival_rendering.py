@@ -206,7 +206,7 @@ def build_load_more_preview(next_cursor: int | None) -> Text:
         preview.append("All saved groups are already loaded.", style="dim")
     else:
         preview.append(
-            "Press Enter to fetch the next page before the custom search row.",
+            "Press Enter to fetch the next page before the Archive browse row.",
             style="dim",
         )
     return preview

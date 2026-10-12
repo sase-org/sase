@@ -195,12 +195,11 @@ class _ParkingApp:
 def test_return_restores_deck_and_card_without_reapplying_splits() -> None:
     app = _ParkingApp()
 
-    with override_flags(agents_archive_view=True):
-        open_agents_archive_view(app)
-        app._detail.deck_area.state.panels[1].deck = DeckId.MAIN
-        app._detail.deck_area.state.panels[1].preferred_cards = {DeckId.MAIN: "chat"}
-        app._detail.shown.clear()
-        close_agents_archive_view(app)
+    open_agents_archive_view(app)
+    app._detail.deck_area.state.panels[1].deck = DeckId.MAIN
+    app._detail.deck_area.state.panels[1].preferred_cards = {DeckId.MAIN: "chat"}
+    app._detail.shown.clear()
+    close_agents_archive_view(app)
 
     assert app.applied_snapshots == []
     assert (1, DeckId.FINAL) in app._detail.shown
@@ -222,23 +221,22 @@ def test_return_restores_deck_and_card_without_reapplying_splits() -> None:
 def test_archive_parks_per_panel_deck_card_and_scroll_across_reentry() -> None:
     app = _ParkingApp()
 
-    with override_flags(agents_archive_view=True):
-        open_agents_archive_view(app)
-        assert app._agents_archive_view.archive.deck_choices == {}
-        app._detail.deck_area.state.panels[2].deck = DeckId.TOOLS
-        app._detail.deck_area.state.panels[2].preferred_cards = {
-            DeckId.TOOLS: "calls",
-            DeckId.MAIN: "prompt",
-        }
-        app._detail.deck_area.panel(1).active_scroll().scroll_y = 12.0
-        close_agents_archive_view(app)
-        parked = app._agents_archive_view.archive.deck_choices
-        assert parked["2"] == "tools"
-        assert parked["2:card:tools"] == "calls"
-        assert parked["2:card:main"] == "prompt"
-        assert parked["1:scroll"] == "12.0"
-        app._detail.shown.clear()
-        open_agents_archive_view(app)
+    open_agents_archive_view(app)
+    assert app._agents_archive_view.archive.deck_choices == {}
+    app._detail.deck_area.state.panels[2].deck = DeckId.TOOLS
+    app._detail.deck_area.state.panels[2].preferred_cards = {
+        DeckId.TOOLS: "calls",
+        DeckId.MAIN: "prompt",
+    }
+    app._detail.deck_area.panel(1).active_scroll().scroll_y = 12.0
+    close_agents_archive_view(app)
+    parked = app._agents_archive_view.archive.deck_choices
+    assert parked["2"] == "tools"
+    assert parked["2:card:tools"] == "calls"
+    assert parked["2:card:main"] == "prompt"
+    assert parked["1:scroll"] == "12.0"
+    app._detail.shown.clear()
+    open_agents_archive_view(app)
 
     assert (2, DeckId.TOOLS) in app._detail.shown
     assert (
@@ -262,11 +260,10 @@ def test_reading_order_snapshot_without_pane_ids_is_ignored() -> None:
 
     app.query_one = _missing_detail  # type: ignore[method-assign]
 
-    with override_flags(agents_archive_view=True):
-        open_agents_archive_view(app)
-        parked = app._agents_archive_view.parked_inbox
-        assert parked is not None
-        assert parked.deck_choices == {}
+    open_agents_archive_view(app)
+    parked = app._agents_archive_view.parked_inbox
+    assert parked is not None
+    assert parked.deck_choices == {}
 
 
 def test_collapsed_ungrouped_panel_restores_collapsed_focus() -> None:
@@ -274,9 +271,8 @@ def test_collapsed_ungrouped_panel_restores_collapsed_focus() -> None:
     app._agent_panels_grouped = False
     app._collapsed_panel_keys = {"alpha"}
 
-    with override_flags(agents_archive_view=True):
-        open_agents_archive_view(app)
-        close_agents_archive_view(app)
+    open_agents_archive_view(app)
+    close_agents_archive_view(app)
 
     assert app._expanded_panel_focus is False
 
@@ -285,17 +281,16 @@ def test_archive_list_scroll_restores_after_rows_exist() -> None:
     app = _ParkingApp()
     app._archive_list.scroll_y = 40
 
-    with override_flags(agents_archive_view=True):
-        open_agents_archive_view(app)
-        close_agents_archive_view(app)
-        app._archive_list.scroll_y = 0
-        app._archive_list.max_scroll_y = 25
-        app._after_refresh.clear()
-        open_agents_archive_view(app)
-        assert app._archive_list.scroll_y == 0
-        flush_pending_archive_list_scroll(app)
-        assert app._after_refresh
-        app._after_refresh[-1]()
+    open_agents_archive_view(app)
+    close_agents_archive_view(app)
+    app._archive_list.scroll_y = 0
+    app._archive_list.max_scroll_y = 25
+    app._after_refresh.clear()
+    open_agents_archive_view(app)
+    assert app._archive_list.scroll_y == 0
+    flush_pending_archive_list_scroll(app)
+    assert app._after_refresh
+    app._after_refresh[-1]()
 
     assert app._archive_list.scroll_y == 25
 
@@ -304,41 +299,39 @@ def test_open_and_pulse_return_close_an_open_filter_session() -> None:
     app = _ParkingApp()
     app._agents_filter_session_open = True
 
-    with override_flags(agents_archive_view=True):
-        open_agents_archive_view(app)
-        assert app.filter_closes == 1
-        assert app._agents_filter_session_open is False
-        assert app.refilters >= 1
+    open_agents_archive_view(app)
+    assert app.filter_closes == 1
+    assert app._agents_filter_session_open is False
+    assert app.refilters >= 1
 
-        app._agents_filter_session_open = True
-        close_agents_archive_view(app)
-        assert app.filter_closes == 2
-        assert app._agents_filter_session_open is False
+    app._agents_filter_session_open = True
+    close_agents_archive_view(app)
+    assert app.filter_closes == 2
+    assert app._agents_filter_session_open is False
 
-        app._agents_filter_session_open = True
-        open_agents_archive_view_with_query(app, query="in:archive outcome:failed")
-        assert app.filter_closes == 3
-        assert app._agents_archive_view.archive.committed_query == (
-            "in:archive outcome:failed"
-        )
+    app._agents_filter_session_open = True
+    open_agents_archive_view_with_query(app, query="in:archive outcome:failed")
+    assert app.filter_closes == 3
+    assert app._agents_archive_view.archive.committed_query == (
+        "in:archive outcome:failed"
+    )
 
 
 def test_default_panel_focus_encodes_as_empty_string() -> None:
     app = _ParkingApp()
 
-    with override_flags(agents_archive_view=True):
-        open_agents_archive_view(app)
-        parked = app._agents_archive_view.parked_inbox
-        assert parked is not None
-        assert parked.focused_panel == "alpha"
-        assert parked.panel_layout is True
+    open_agents_archive_view(app)
+    parked = app._agents_archive_view.parked_inbox
+    assert parked is not None
+    assert parked.focused_panel == "alpha"
+    assert parked.panel_layout is True
 
-        app._resolve_focused_panel = lambda: SimpleNamespace(panel_key=None)
-        close_agents_archive_view(app)
-        open_agents_archive_view(app)
-        parked = app._agents_archive_view.parked_inbox
-        assert parked is not None
-        assert parked.focused_panel == ""
+    app._resolve_focused_panel = lambda: SimpleNamespace(panel_key=None)
+    close_agents_archive_view(app)
+    open_agents_archive_view(app)
+    parked = app._agents_archive_view.parked_inbox
+    assert parked is not None
+    assert parked.focused_panel == ""
 
 
 def test_quitting_from_archive_persists_grouping_only(
@@ -352,17 +345,16 @@ def test_quitting_from_archive_persists_grouping_only(
     save_agent_archive_grouping("project")
     app = _ParkingApp()
 
-    with override_flags(agents_archive_view=True):
-        open_agents_archive_view(app)
-        app._agents_archive_view.archive.selected_key = "alice@run"
-        app._agents_archive_view.archive.deck_choices = {"0": "final"}
-        app._agents_archive_view.archive.committed_query = "in:archive status:failed"
-        init_agents_archive_view_state(app)
-        state = app._agents_archive_view
-        assert state.active_view == AGENTS_VIEW_INBOX
-        assert state.parked_inbox is None
-        assert state.archive.grouping == "project"
-        assert state.archive.selected_key is None
-        assert state.archive.deck_choices == {}
-        assert state.archive.committed_query == ARCHIVE_DEFAULT_QUERY
-        assert load_agent_archive_grouping() == "project"
+    open_agents_archive_view(app)
+    app._agents_archive_view.archive.selected_key = "alice@run"
+    app._agents_archive_view.archive.deck_choices = {"0": "final"}
+    app._agents_archive_view.archive.committed_query = "in:archive status:failed"
+    init_agents_archive_view_state(app)
+    state = app._agents_archive_view
+    assert state.active_view == AGENTS_VIEW_INBOX
+    assert state.parked_inbox is None
+    assert state.archive.grouping == "project"
+    assert state.archive.selected_key is None
+    assert state.archive.deck_choices == {}
+    assert state.archive.committed_query == ARCHIVE_DEFAULT_QUERY
+    assert load_agent_archive_grouping() == "project"

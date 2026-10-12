@@ -3,8 +3,7 @@
 Corpus-controller seam for the Agents Archive epic (child epic
 ``sase-1jm.3.1``). UI callbacks only schedule work or apply still-current
 results. Disk probing, facet loading, compile, and corpus queries run
-off-thread via :func:`spawn_pump_free_task`. With the beta off this module
-probes nothing.
+off-thread via :func:`spawn_pump_free_task`.
 """
 
 from __future__ import annotations
@@ -98,11 +97,6 @@ def archive_corpus_snapshot(owner: Any) -> ArchiveCorpusSnapshot:
 def archive_inbox_pulse(owner: Any) -> ArchiveInboxPulse:
     """Return the last Inbox pulse captured from an applied Inbox roster."""
     return _controller(owner).pulse
-
-
-def archive_corpus_is_warm(owner: Any) -> bool:
-    """Return whether a warm corpus handle is held."""
-    return _controller(owner).corpus is not None
 
 
 def _view_state(owner: Any) -> Any:
@@ -626,7 +620,6 @@ def _publish_arrival(
 
 
 __all__ = [
-    "archive_corpus_is_warm",
     "archive_corpus_snapshot",
     "archive_inbox_pulse",
     "cancel_archive_controller",

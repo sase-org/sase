@@ -151,48 +151,46 @@ def test_beta_on_full_open_read_return_round_trip() -> None:
     owner._inbox_agent = _live_agent()
     owner._get_selected_agent = lambda: owner._inbox_agent
     owner._agent_search_query = "model:opus"
-    with override_flags(agents_archive_view=True):
-        opened = open_agents_archive_view(owner)
-        assert opened.status == ARCHIVE_STATUS_OPENED
-        assert opened.committed_query == "in:archive"
-        assert owner._agents_archive_view.active_view == AGENTS_VIEW_ARCHIVE
-        # The Inbox is parked, never replaced.
-        parked = owner._agents_archive_view.parked_inbox
-        assert parked is not None
-        assert parked.committed_query == "model:opus"
+    opened = open_agents_archive_view(owner)
+    assert opened.status == ARCHIVE_STATUS_OPENED
+    assert opened.committed_query == "in:archive"
+    assert owner._agents_archive_view.active_view == AGENTS_VIEW_ARCHIVE
+    # The Inbox is parked, never replaced.
+    parked = owner._agents_archive_view.parked_inbox
+    assert parked is not None
+    assert parked.committed_query == "model:opus"
 
-        selection = get_agents_tab_selection(owner)
-        assert selection.view == AGENTS_VIEW_ARCHIVE
-        assert selection.read_only is True
-        # No rows are loaded yet, so the empty selection is not an agent —
-        # but it is still Archive-owned and read-only.
-        assert selection.row_kind == ARCHIVE_ROW_NONE
-        assert selection.agent is None
-        assert archive_detail_owns_panel(owner)
+    selection = get_agents_tab_selection(owner)
+    assert selection.view == AGENTS_VIEW_ARCHIVE
+    assert selection.read_only is True
+    # No rows are loaded yet, so the empty selection is not an agent —
+    # but it is still Archive-owned and read-only.
+    assert selection.row_kind == ARCHIVE_ROW_NONE
+    assert selection.agent is None
+    assert archive_detail_owns_panel(owner)
 
-        returned = close_agents_archive_view(owner)
-        assert returned.status == ARCHIVE_STATUS_RETURNED
-        assert owner._agents_archive_view.active_view == AGENTS_VIEW_INBOX
-        assert owner._agent_search_query == "model:opus"
-        assert not archive_detail_owns_panel(owner)
-        back = get_agents_tab_selection(owner)
-        assert back.view == AGENTS_VIEW_INBOX
-        assert back.agent is owner._inbox_agent
+    returned = close_agents_archive_view(owner)
+    assert returned.status == ARCHIVE_STATUS_RETURNED
+    assert owner._agents_archive_view.active_view == AGENTS_VIEW_INBOX
+    assert owner._agent_search_query == "model:opus"
+    assert not archive_detail_owns_panel(owner)
+    back = get_agents_tab_selection(owner)
+    assert back.view == AGENTS_VIEW_INBOX
+    assert back.agent is owner._inbox_agent
 
 
 def test_explicit_arrival_carries_a_scoped_query() -> None:
     owner = _proof_owner()
-    with override_flags(agents_archive_view=True):
-        outcome = open_agents_archive_view_with_query(
-            owner, query="in:archive outcome:failed", agent_name=None
-        )
-        assert outcome.status == ARCHIVE_STATUS_OPENED
-        assert outcome.committed_query == "in:archive outcome:failed"
-        assert owner._agents_archive_view.active_view == AGENTS_VIEW_ARCHIVE
-        assert (
-            owner._agents_archive_view.parked_inbox is not None
-            and owner._agents_archive_view.parked_inbox.committed_query == "model:opus"
-        )
+    outcome = open_agents_archive_view_with_query(
+        owner, query="in:archive outcome:failed", agent_name=None
+    )
+    assert outcome.status == ARCHIVE_STATUS_OPENED
+    assert outcome.committed_query == "in:archive outcome:failed"
+    assert owner._agents_archive_view.active_view == AGENTS_VIEW_ARCHIVE
+    assert (
+        owner._agents_archive_view.parked_inbox is not None
+        and owner._agents_archive_view.parked_inbox.committed_query == "model:opus"
+    )
 
 
 # -- query routing and scope errors ------------------------------------------
@@ -200,23 +198,22 @@ def test_explicit_arrival_carries_a_scoped_query() -> None:
 
 def test_scope_errors_never_change_the_active_view() -> None:
     owner = _proof_owner()
-    with override_flags(agents_archive_view=True):
-        open_agents_archive_view(owner)
-        # An unknown scope token is a validation error, not a view change.
-        with_diff_scope = "in:everywhere"
-        try:
-            extract_scope(with_diff_scope)
-            scope_error: str | None = None
-        except ScopeTokenError as exc:
-            scope_error = str(exc)
-        assert scope_error, "unknown scope must raise a hint, not switch views"
-        assert owner._agents_archive_view.active_view == AGENTS_VIEW_ARCHIVE
+    open_agents_archive_view(owner)
+    # An unknown scope token is a validation error, not a view change.
+    with_diff_scope = "in:everywhere"
+    try:
+        extract_scope(with_diff_scope)
+        scope_error: str | None = None
+    except ScopeTokenError as exc:
+        scope_error = str(exc)
+    assert scope_error, "unknown scope must raise a hint, not switch views"
+    assert owner._agents_archive_view.active_view == AGENTS_VIEW_ARCHIVE
 
-        # Uncommitted editing text never changes the view either: only the
-        # committed query owns the view, and it still holds in:archive.
-        assert owner._agents_archive_view.archive.committed_query == "in:archive"
-        close_agents_archive_view(owner)
-        assert owner._agents_archive_view.active_view == AGENTS_VIEW_INBOX
+    # Uncommitted editing text never changes the view either: only the
+    # committed query owns the view, and it still holds in:archive.
+    assert owner._agents_archive_view.archive.committed_query == "in:archive"
+    close_agents_archive_view(owner)
+    assert owner._agents_archive_view.active_view == AGENTS_VIEW_INBOX
 
 
 def test_inbox_scope_routes_to_the_inbox() -> None:
@@ -233,37 +230,35 @@ def test_inbox_scope_routes_to_the_inbox() -> None:
 async def test_no_corpus_compile_before_the_first_complete_inbox_load() -> None:
     harness = ColumnHarness(_proof_history())
     owner = harness.owner
-    with override_flags(agents_archive_view=True):
-        # An early explicit open paints loading chrome and queues work, but
-        # nothing compiles before the Inbox gate settles.
-        open_agents_archive_view(owner)
-        request_archive_view_load(owner)
-        await harness.settle()
-        assert harness.corpus.summary_calls == 0
+    # An early explicit open paints loading chrome and queues work, but
+    # nothing compiles before the Inbox gate settles.
+    open_agents_archive_view(owner)
+    request_archive_view_load(owner)
+    await harness.settle()
+    assert harness.corpus.summary_calls == 0
 
-        note_inbox_applied_for_archive(owner, load_state=complete_load())
-        await harness.settle()
-        assert harness.corpus.summary_calls >= 1
+    note_inbox_applied_for_archive(owner, load_state=complete_load())
+    await harness.settle()
+    assert harness.corpus.summary_calls >= 1
 
 
 def test_incomplete_inbox_load_keeps_the_gate_shut() -> None:
     harness = ColumnHarness(_proof_history())
     owner = harness.owner
-    with override_flags(agents_archive_view=True):
-        open_agents_archive_view(owner)
-        note_inbox_applied_for_archive(
-            owner,
-            load_state=SimpleNamespace(
-                complete_history=False,
-                artifact_source="full",
-                bounded_prefix=True,
-                complete_visible_inbox=False,
-                truncated=False,
-                query_incomplete=True,
-            ),
-        )
-        assert harness.corpus.summary_calls == 0
-        cancel_archive_controller(owner)
+    open_agents_archive_view(owner)
+    note_inbox_applied_for_archive(
+        owner,
+        load_state=SimpleNamespace(
+            complete_history=False,
+            artifact_source="full",
+            bounded_prefix=True,
+            complete_visible_inbox=False,
+            truncated=False,
+            query_incomplete=True,
+        ),
+    )
+    assert harness.corpus.summary_calls == 0
+    cancel_archive_controller(owner)
 
 
 def test_selection_identity_survives_a_corpus_rebuild() -> None:
@@ -288,34 +283,32 @@ async def test_footer_syncs_on_snapshot_without_cursor_moves() -> None:
     harness = ColumnHarness(_proof_history())
     calls: list[int] = []
     harness.owner._refresh_agent_footer_bindings_only = lambda: calls.append(1)
-    with override_flags(agents_archive_view=True):
-        harness.note_inbox_applied()
-        open_agents_archive_view(harness.owner)
-        await harness.settle()
-        assert calls, (
-            "applying the warm snapshot must sync the Archive footer "
-            "without any cursor move"
-        )
+    harness.note_inbox_applied()
+    open_agents_archive_view(harness.owner)
+    await harness.settle()
+    assert calls, (
+        "applying the warm snapshot must sync the Archive footer "
+        "without any cursor move"
+    )
 
 
 async def test_loaded_selection_reveals_and_stays_stable_across_windows() -> None:
     harness = ColumnHarness(_proof_history())
-    with override_flags(agents_archive_view=True):
-        harness.note_inbox_applied()
-        open_agents_archive_view(harness.owner)
-        await harness.settle()
-        keys = [item.key for item in harness.widget.last_items if item.row]
-        assert keys, "the warm corpus must yield list rows"
-        first = keys[0]
-        harness.archive.selected_key = first
-        snapshot = archive_corpus_snapshot(harness.owner)
-        assert snapshot.summary is not None and snapshot.summary["total"] == 8
-        selection = get_agents_tab_selection(harness.owner)
-        assert selection.view == AGENTS_VIEW_ARCHIVE
-        assert selection.row_kind == ARCHIVE_ROW_AGENT
-        assert selection.archive_key == first
-        assert selection.read_only is True
-        assert selection.provenance == "archive"
+    harness.note_inbox_applied()
+    open_agents_archive_view(harness.owner)
+    await harness.settle()
+    keys = [item.key for item in harness.widget.last_items if item.row]
+    assert keys, "the warm corpus must yield list rows"
+    first = keys[0]
+    harness.archive.selected_key = first
+    snapshot = archive_corpus_snapshot(harness.owner)
+    assert snapshot.summary is not None and snapshot.summary["total"] == 8
+    selection = get_agents_tab_selection(harness.owner)
+    assert selection.view == AGENTS_VIEW_ARCHIVE
+    assert selection.row_kind == ARCHIVE_ROW_AGENT
+    assert selection.archive_key == first
+    assert selection.read_only is True
+    assert selection.provenance == "archive"
 
 
 # -- no-write reading --------------------------------------------------------
@@ -346,23 +339,21 @@ def test_marked_running_agent_cannot_start_live_reply_following() -> None:
 
 async def test_pulse_selection_is_not_an_agent() -> None:
     harness = ColumnHarness(_proof_history())
-    with override_flags(agents_archive_view=True):
-        harness.note_inbox_applied()
-        open_agents_archive_view(harness.owner)
-        await harness.settle()
-        harness.owner._agents_archive_view.archive.focused_section = "pulse"
-        selection = get_agents_tab_selection(harness.owner)
-        assert selection.row_kind == ARCHIVE_ROW_NONE
-        assert selection.agent is None
-        assert archive_read_only_context(harness.owner) is None
+    harness.note_inbox_applied()
+    open_agents_archive_view(harness.owner)
+    await harness.settle()
+    harness.owner._agents_archive_view.archive.focused_section = "pulse"
+    selection = get_agents_tab_selection(harness.owner)
+    assert selection.row_kind == ARCHIVE_ROW_NONE
+    assert selection.agent is None
+    assert archive_read_only_context(harness.owner) is None
 
 
 def test_hydration_cache_miss_resolves_to_no_agent() -> None:
     owner = _proof_owner()
-    with override_flags(agents_archive_view=True):
-        assert hydrated_archive_agent_for(owner, "u.m@missing") is None
-        assert archive_read_target(owner) is None
-        assert resolve_agents_read_agent(owner) is owner._inbox_agent
+    assert hydrated_archive_agent_for(owner, "u.m@missing") is None
+    assert archive_read_target(owner) is None
+    assert resolve_agents_read_agent(owner) is owner._inbox_agent
 
 
 # -- action isolation --------------------------------------------------------
@@ -370,21 +361,20 @@ def test_hydration_cache_miss_resolves_to_no_agent() -> None:
 
 def test_live_guards_block_and_archive_marks_stay_apart() -> None:
     owner = _proof_owner()
-    with override_flags(agents_archive_view=True):
-        open_agents_archive_view(owner)
-        owner._agents_archive_view.archive.selected_key = "u.m@r1"
+    open_agents_archive_view(owner)
+    owner._agents_archive_view.archive.selected_key = "u.m@r1"
 
-        assert guard_archive_live_action(owner, "kill_agent") is True
-        assert len(owner.notices) == 1
-        assert ",a" in owner.notices[0][0]
+    assert guard_archive_live_action(owner, "kill_agent") is True
+    assert len(owner.notices) == 1
+    assert ",a" in owner.notices[0][0]
 
-        assert toggle_archive_mark(owner) is True
-        assert archive_marked_run_keys(owner) == frozenset({"u.m@r1"})
-        # Inbox marks, unread, and attention are parked and untouched.
-        assert owner._marked_agents == {"live:mark:1"}
-        assert owner._unread_completed_agent_ids == {"live:unread:1"}
-        assert owner._pending_attention_count == 2
-        assert owner._get_selected_agent() is owner._inbox_agent
+    assert toggle_archive_mark(owner) is True
+    assert archive_marked_run_keys(owner) == frozenset({"u.m@r1"})
+    # Inbox marks, unread, and attention are parked and untouched.
+    assert owner._marked_agents == {"live:mark:1"}
+    assert owner._unread_completed_agent_ids == {"live:unread:1"}
+    assert owner._pending_attention_count == 2
+    assert owner._get_selected_agent() is owner._inbox_agent
 
 
 # -- query parity: TUI list order matches the CLI order ----------------------
@@ -481,19 +471,18 @@ async def test_tui_list_order_matches_cli_identity_order(
     cli_order = _cli_identities(tmp_path, monkeypatch, capsys)
     assert [run for _, _, run in cli_order] == ["alpha", "beta", "gamma"]
 
-    with override_flags(agents_archive_view=True):
-        harness = ColumnHarness([], corpus=corpus)
-        harness.note_inbox_applied()
-        open_agents_archive_view(harness.owner)
-        await harness.settle()
-        listed = [
-            archive_row_key(item.row) for item in harness.widget.last_items if item.row
-        ]
-        expected = [f"{user}.{machine}@{run}" for user, machine, run in cli_order]
-        assert listed == expected, (
-            "the TUI list must present the same identities in the same order "
-            "as `sase agent search in:archive`"
-        )
+    harness = ColumnHarness([], corpus=corpus)
+    harness.note_inbox_applied()
+    open_agents_archive_view(harness.owner)
+    await harness.settle()
+    listed = [
+        archive_row_key(item.row) for item in harness.widget.last_items if item.row
+    ]
+    expected = [f"{user}.{machine}@{run}" for user, machine, run in cli_order]
+    assert listed == expected, (
+        "the TUI list must present the same identities in the same order "
+        "as `sase agent search in:archive`"
+    )
 
 
 def test_light_row_keys_are_stable_archive_identities() -> None:

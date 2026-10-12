@@ -148,7 +148,7 @@ class NamedProcDismissMixin:
     ) -> None:
         from ._archive_shelf import archive_dismissal_toast_suffix
 
-        message = f"{message}{archive_dismissal_toast_suffix(self)}"
+        message = f"{message}{archive_dismissal_toast_suffix()}"
         notify_after = getattr(self, "_notify_after_refresh", None)
         if callable(notify_after):
             notify_after(message, severity=severity)

@@ -265,7 +265,7 @@ class ArtifactsFilesActionsMixin:
         )
 
     def action_files_open_agent(self) -> None:
-        """Jump to the producing agent, reviving a dismissed match."""
+        """Jump to the producing agent, opening dismissed matches in Archive."""
 
         selection = self._selected_file()
         if selection is None:

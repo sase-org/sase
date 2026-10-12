@@ -41,7 +41,7 @@ class AgentReviveFlowMixin:
             super().action_start_rewind()  # type: ignore[misc]
 
     def _revive_agent(self) -> None:
-        """Show saved groups first, then let users open custom revival search."""
+        """Show saved groups first, then let users browse the Archive."""
         from ....dismissed_agents import (
             delete_dismissed_agent_group,
             list_dismissed_agent_groups,

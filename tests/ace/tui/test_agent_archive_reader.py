@@ -262,8 +262,7 @@ def test_member_jump_never_revives_while_archive_owns_panel() -> None:
     owner = _Owner()
     owner._agents_archive_view = SimpleNamespace(active_view="archive")
     target = SimpleNamespace(role="dismissed", member_identity=dismissed.identity)
-    with override_flags(agents_archive_view=True):
-        owner._activate_member_jump_target(target)
+    owner._activate_member_jump_target(target)
     assert revived == []
     with override_flags():
         owner._activate_member_jump_target(target)
@@ -288,44 +287,41 @@ async def test_hydration_paints_identity_then_agent_and_never_writes(
     before_index = _fingerprint(index)
     before_arts = _tree_fingerprint(artifacts)
     rows = [light_row("t00", status="RUNNING", bundle_path=str(bundle))]
-    with override_flags(agents_archive_view=True):
-        harness, detail = await _opened_with_detail(rows, tmp_path)
-        owner = harness.owner
-        observer = SimpleNamespace(subscribe_calls=[])
-        observer.subscribe_tail = lambda proc_id: observer.subscribe_calls.append(
-            proc_id
-        )
-        owner._proc_observer = observer
-        unread_before = set(owner._unread_completed_agent_ids)
-        agents_before = owner._agents
-        assert ARCHIVE_LOADING_TITLE in (detail.causes[0][0] if detail.causes else "")
-        assert detail.identities
-        assert detail.identities[0].kind_label == ARCHIVE_IDENTITY_KIND
-        owner._agent_detail_debouncer.fire()
-        await harness.settle()
-        selection = get_agents_tab_selection(owner)
-        assert selection.row_kind == ARCHIVE_ROW_AGENT
-        assert selection.agent is not None
-        assert agent_is_archive_read_only(selection.agent)
-        assert selection.agent.status == "RUNNING"
-        assert selection.agent not in list(owner._agents)
-        assert owner._agents is agents_before
-        assert is_live_reply_agent(selection.agent) is False
-        context = archive_read_only_context(owner)
-        assert context is not None
-        assert context.hydrated_agent is selection.agent
-        assert context.light_row is not None
-        assert owner._unread_completed_agent_ids == unread_before
-        content = selection.agent.get_raw_prompt_content()
-        assert content == prompt
-        assert len(content) == 5000
-        retained, _missing = probe_retained_archive_content(selection.agent)
-        assert "context" in retained
-        assert observer.subscribe_calls == []
-        assert _fingerprint(bundle) == before_bundle
-        assert _fingerprint(index) == before_index
-        assert _tree_fingerprint(artifacts) == before_arts
-        assert hydrated_archive_agent_for(owner, "u.m@t00") is selection.agent
+    harness, detail = await _opened_with_detail(rows, tmp_path)
+    owner = harness.owner
+    observer = SimpleNamespace(subscribe_calls=[])
+    observer.subscribe_tail = lambda proc_id: observer.subscribe_calls.append(proc_id)
+    owner._proc_observer = observer
+    unread_before = set(owner._unread_completed_agent_ids)
+    agents_before = owner._agents
+    assert ARCHIVE_LOADING_TITLE in (detail.causes[0][0] if detail.causes else "")
+    assert detail.identities
+    assert detail.identities[0].kind_label == ARCHIVE_IDENTITY_KIND
+    owner._agent_detail_debouncer.fire()
+    await harness.settle()
+    selection = get_agents_tab_selection(owner)
+    assert selection.row_kind == ARCHIVE_ROW_AGENT
+    assert selection.agent is not None
+    assert agent_is_archive_read_only(selection.agent)
+    assert selection.agent.status == "RUNNING"
+    assert selection.agent not in list(owner._agents)
+    assert owner._agents is agents_before
+    assert is_live_reply_agent(selection.agent) is False
+    context = archive_read_only_context(owner)
+    assert context is not None
+    assert context.hydrated_agent is selection.agent
+    assert context.light_row is not None
+    assert owner._unread_completed_agent_ids == unread_before
+    content = selection.agent.get_raw_prompt_content()
+    assert content == prompt
+    assert len(content) == 5000
+    retained, _missing = probe_retained_archive_content(selection.agent)
+    assert "context" in retained
+    assert observer.subscribe_calls == []
+    assert _fingerprint(bundle) == before_bundle
+    assert _fingerprint(index) == before_index
+    assert _tree_fingerprint(artifacts) == before_arts
+    assert hydrated_archive_agent_for(owner, "u.m@t00") is selection.agent
 
 
 async def test_unreadable_bundle_paints_record_placeholder(tmp_path: Path) -> None:
@@ -333,25 +329,24 @@ async def test_unreadable_bundle_paints_record_placeholder(tmp_path: Path) -> No
     bundle.parent.mkdir()
     bundle.write_text("{not json", encoding="utf-8")
     rows = [light_row("t00", bundle_path=str(bundle))]
-    with override_flags(agents_archive_view=True):
-        harness, detail = await _opened_with_detail(rows, tmp_path)
-        harness.owner._agent_detail_debouncer.fire()
-        await harness.settle()
-        runtime = _reader_runtime(harness.owner)
-        assert runtime.unreadable is True
-        assert runtime.hydrated_agent is None
-        titles = [title for title, _ in detail.causes]
-        assert ARCHIVE_UNREADABLE_TITLE in titles
-        assert detail.displays == []
-        assert len(detail.record_subjects) == 1
-        subject = detail.record_subjects[0]
-        assert subject.kind == "light_row"
-        assert subject.location == "archive"
-        assert subject.agent_name == "agent-t00"
-        assert subject.archive is not None
-        assert subject.archive.outcome == "done"
-        context = archive_read_only_context(harness.owner)
-        assert context is not None and context.unreadable is True
+    harness, detail = await _opened_with_detail(rows, tmp_path)
+    harness.owner._agent_detail_debouncer.fire()
+    await harness.settle()
+    runtime = _reader_runtime(harness.owner)
+    assert runtime.unreadable is True
+    assert runtime.hydrated_agent is None
+    titles = [title for title, _ in detail.causes]
+    assert ARCHIVE_UNREADABLE_TITLE in titles
+    assert detail.displays == []
+    assert len(detail.record_subjects) == 1
+    subject = detail.record_subjects[0]
+    assert subject.kind == "light_row"
+    assert subject.location == "archive"
+    assert subject.agent_name == "agent-t00"
+    assert subject.archive is not None
+    assert subject.archive.outcome == "done"
+    context = archive_read_only_context(harness.owner)
+    assert context is not None and context.unreadable is True
 
 
 async def test_stale_hydration_after_rapid_jk_and_view_switch(
@@ -367,25 +362,24 @@ async def test_stale_hydration_after_rapid_jk_and_view_switch(
         light_row("t00", hour=23, bundle_path=str(b1)),
         light_row("t01", hour=22, bundle_path=str(b2)),
     ]
-    with override_flags(agents_archive_view=True):
-        harness, detail = await _opened_with_detail(rows, tmp_path)
-        owner = harness.owner
+    harness, detail = await _opened_with_detail(rows, tmp_path)
+    owner = harness.owner
+    owner._agent_detail_debouncer.fire()
+    route_archive_key(owner, INTENT_DOWN)
+    owner._agent_detail_debouncer.fire()
+    await harness.settle()
+    selection = get_agents_tab_selection(owner)
+    assert selection.archive_key == "u.m@t01"
+    assert selection.agent is not None
+    assert selection.agent.cl_name == "second"
+    route_archive_key(owner, INTENT_UP)
+    close_agents_archive_view(owner)
+    if owner._agent_detail_debouncer.callbacks:
         owner._agent_detail_debouncer.fire()
-        route_archive_key(owner, INTENT_DOWN)
-        owner._agent_detail_debouncer.fire()
-        await harness.settle()
-        selection = get_agents_tab_selection(owner)
-        assert selection.archive_key == "u.m@t01"
-        assert selection.agent is not None
-        assert selection.agent.cl_name == "second"
-        route_archive_key(owner, INTENT_UP)
-        close_agents_archive_view(owner)
-        if owner._agent_detail_debouncer.callbacks:
-            owner._agent_detail_debouncer.fire()
-        await harness.settle()
-        assert get_agents_tab_selection(owner).view == AGENTS_VIEW_INBOX
-        assert hydrated_archive_agent_for(owner, "u.m@t01") is None
-        assert hydrated_archive_agent_for(owner, "u.m@t00") is None
+    await harness.settle()
+    assert get_agents_tab_selection(owner).view == AGENTS_VIEW_INBOX
+    assert hydrated_archive_agent_for(owner, "u.m@t01") is None
+    assert hydrated_archive_agent_for(owner, "u.m@t00") is None
 
 
 async def test_container_summary_uses_light_rows_only(tmp_path: Path) -> None:
@@ -395,34 +389,33 @@ async def test_container_summary_uses_light_rows_only(tmp_path: Path) -> None:
         light_row("m2", hour=21, name="swarm.two", container_key=clan),
         light_row("m3", hour=20, name="swarm.three", container_key=clan),
     ]
-    with override_flags(agents_archive_view=True):
-        harness, detail = await _opened_with_detail(rows, tmp_path)
-        selection = get_agents_tab_selection(harness.owner)
-        assert selection.row_kind == ARCHIVE_ROW_CONTAINER
-        assert selection.agent is None
-        titles = [title for title, _ in detail.causes]
-        assert "Container summary" in titles
-        assert detail.displays == []
-        assert detail.record_subjects
-        subject = detail.record_subjects[-1]
-        assert subject.kind == "container"
-        assert subject.location == "archive"
-        assert subject.archive is not None
-        assert subject.archive.member_count == 3
-        route_archive_key(harness.owner, INTENT_EXPAND)
-        await harness.settle()
-        members = archive_container_members(harness.owner, clan)
-        harness.owner._agent_detail_debouncer.fire()
-        await harness.settle()
-        assert hydrated_archive_agent_for(harness.owner, selection.archive_key) is None
-        assert len(members) == 3
-        body = archive_container_summary_text(selection.light_row, members)
-        assert "swarm.one" in body.plain
-        expanded = detail.record_subjects[-1]
-        assert expanded.kind == "container"
-        assert "swarm.one" in expanded.member_names
-        assert "swarm.two" in expanded.member_names
-        assert "swarm.three" in expanded.member_names
+    harness, detail = await _opened_with_detail(rows, tmp_path)
+    selection = get_agents_tab_selection(harness.owner)
+    assert selection.row_kind == ARCHIVE_ROW_CONTAINER
+    assert selection.agent is None
+    titles = [title for title, _ in detail.causes]
+    assert "Container summary" in titles
+    assert detail.displays == []
+    assert detail.record_subjects
+    subject = detail.record_subjects[-1]
+    assert subject.kind == "container"
+    assert subject.location == "archive"
+    assert subject.archive is not None
+    assert subject.archive.member_count == 3
+    route_archive_key(harness.owner, INTENT_EXPAND)
+    await harness.settle()
+    members = archive_container_members(harness.owner, clan)
+    harness.owner._agent_detail_debouncer.fire()
+    await harness.settle()
+    assert hydrated_archive_agent_for(harness.owner, selection.archive_key) is None
+    assert len(members) == 3
+    body = archive_container_summary_text(selection.light_row, members)
+    assert "swarm.one" in body.plain
+    expanded = detail.record_subjects[-1]
+    assert expanded.kind == "container"
+    assert "swarm.one" in expanded.member_names
+    assert "swarm.two" in expanded.member_names
+    assert "swarm.three" in expanded.member_names
 
 
 async def test_partial_reply_is_retained_for_archived_running(tmp_path: Path) -> None:
@@ -434,17 +427,16 @@ async def test_partial_reply_is_retained_for_archived_running(tmp_path: Path) ->
     bundle = tmp_path / "bundles" / "t00.json"
     _write_bundle(bundle, agent)
     rows = [light_row("t00", status="RUNNING", bundle_path=str(bundle))]
-    with override_flags(agents_archive_view=True):
-        harness, _detail = await _opened_with_detail(rows, tmp_path)
-        harness.owner._agent_detail_debouncer.fire()
-        await harness.settle()
-        hydrated = get_agents_tab_selection(harness.owner).agent
-        assert hydrated is not None
-        assert hydrated.get_live_reply_content() == "partial hello"
-        assert is_live_reply_agent(hydrated) is False
-        retained, missing = probe_retained_archive_content(hydrated)
-        assert "reply" in retained
-        assert ARCHIVE_MISSING_REPLY not in retained
+    harness, _detail = await _opened_with_detail(rows, tmp_path)
+    harness.owner._agent_detail_debouncer.fire()
+    await harness.settle()
+    hydrated = get_agents_tab_selection(harness.owner).agent
+    assert hydrated is not None
+    assert hydrated.get_live_reply_content() == "partial hello"
+    assert is_live_reply_agent(hydrated) is False
+    retained, missing = probe_retained_archive_content(hydrated)
+    assert "reply" in retained
+    assert ARCHIVE_MISSING_REPLY not in retained
 
 
 def test_titled_missing_copy() -> None:

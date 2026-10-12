@@ -94,7 +94,7 @@ class AgentKillProcessMixin:
             return
         from ._archive_shelf import archive_dismissal_toast_suffix
 
-        suffix = archive_dismissal_toast_suffix(self)
+        suffix = archive_dismissal_toast_suffix()
         if kind == "workflow":
             self.notify(f"Killed workflow (PID {agent.pid}){suffix}")  # type: ignore[attr-defined]
             return
