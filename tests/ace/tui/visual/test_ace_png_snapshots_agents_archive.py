@@ -502,3 +502,57 @@ async def test_archive_help_png_snapshot(
                 "agents_archive_help_120x40",
                 title="ACE Agents Archive help",
             )
+
+
+async def test_archive_marked_row_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A marked Archive run draws the Inbox mark style."""
+    from sase.ace.tui.actions.agents._archive_actions import archive_marked_run_keys
+
+    patch_startup_loaders(monkeypatch, agents=[_inbox_agent()])
+    pin_agents_visual_now(monkeypatch, NOW)
+    with override_flags(agents_archive_view=True):
+        async with AcePage(initial_tab="agents") as page:
+            await wait_for_startup(page)
+            await _open_archive(page, _list_history())
+
+            await page.press("m")
+            assert len(archive_marked_run_keys(page.app)) == 1
+            await _settle_archive_detail(page)
+            await wait_for_visual_idle(page)
+            assert_page_svg_contains(page, "[✓]")
+            assert_page_svg_contains(page, "unmark (1)")
+            ace_png_visual.assert_page_png(
+                page,
+                "agents_archive_marked_120x40",
+                title="ACE Agents Archive marked row",
+            )
+
+
+async def test_archive_restored_overlay_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A restored Archive row renders the restore overlay chip."""
+    from sase.ace.tui.actions.agents._archive_view import mark_archive_row_restored
+
+    patch_startup_loaders(monkeypatch, agents=[_inbox_agent()])
+    pin_agents_visual_now(monkeypatch, NOW)
+    with override_flags(agents_archive_view=True):
+        async with AcePage(initial_tab="agents") as page:
+            await wait_for_startup(page)
+            await _open_archive(page, _list_history())
+
+            selected = page.app._agents_archive_view.archive.selected_key
+            assert selected is not None and "@" in selected
+            mark_archive_row_restored(page.app, selected)
+            await _settle_archive_detail(page)
+            await wait_for_visual_idle(page)
+            assert_page_svg_contains(page, "⌂ restored")
+            ace_png_visual.assert_page_png(
+                page,
+                "agents_archive_restored_120x40",
+                title="ACE Agents Archive restored overlay",
+            )
