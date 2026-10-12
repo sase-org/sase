@@ -9,6 +9,7 @@ from typing import Any, Literal
 from unittest.mock import patch
 
 import pytest
+from rich.console import Console
 from textual.app import App
 from textual.widgets import Button
 
@@ -19,6 +20,7 @@ from sase.ace.tui.actions.agents._notification_modals import (
     submit_neutral_plan_response,
 )
 from sase.ace.tui.modals.gate_input_panel import GateInputPanel
+from sase.ace.tui.modals.notification_modal_gate import _plan_decisions_block
 from sase.ace.tui.modals.plan_approval_modal import (
     PlanApprovalModal,
     PlanApprovalResult,
@@ -35,6 +37,54 @@ from tests._plan_gate_fixtures import (  # noqa: F401
     plan_host_archive_stub,
 )
 from tests.plan_validation_helpers import VALID_EPIC_PLAN, VALID_TALE_PLAN
+
+
+@pytest.mark.parametrize(
+    ("status", "value", "expected_chip"),
+    [
+        ("pending", "pane", "pane ★"),
+        ("answered", "mode", "mode ●"),
+    ],
+)
+def test_notification_plan_decisions_use_collapsed_cards(
+    status: str, value: str, expected_chip: str
+) -> None:
+    summary = SimpleNamespace(
+        plan_decision_definitions=(
+            {
+                "id": "grouping",
+                "kind": "choice",
+                "ask": "How should the overlay group bindings?",
+                "choices": [
+                    {"key": "pane", "label": "By pane"},
+                    {"key": "mode", "label": "By mode"},
+                ],
+                "default": "pane",
+            },
+            {
+                "id": "keep_overlay",
+                "kind": "toggle",
+                "ask": "Keep the overlay enabled?",
+                "default": False,
+            },
+        ),
+        plan_decision_values={"grouping": value, "keep_overlay": False},
+        status=status,
+    )
+    block = _plan_decisions_block(summary)
+    assert block is not None
+    console = Console(width=80, color_system=None, record=True)
+    with console.capture() as capture:
+        console.print(block)
+    rendered = capture.get()
+
+    assert "grouping" in rendered
+    assert expected_chip in rendered
+    assert "How should the overlay group bindings?" in rendered
+    assert "☐ no ★" in rendered
+    assert "Keep the overlay enabled?" in rendered
+    assert "◉ grouping" not in rendered
+    assert "☑️" not in rendered
 
 
 @pytest.fixture()

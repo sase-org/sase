@@ -349,8 +349,10 @@ def test_gate_card_pending_toggles_use_checkboxes() -> None:
     console = Console(width=80, record=True)
     console.print(block)
     out = console.export_text()
-    assert "◉ grouping" in out
-    assert "⬜ tui_note" in out
+    assert "grouping" in out
+    assert "pane ★" in out
+    assert "☐ no ★" in out
+    assert "◉ grouping" not in out
     answered_toggle = GateSummary(
         kind="plan",
         display_title="Plan",
@@ -374,5 +376,5 @@ def test_gate_card_pending_toggles_use_checkboxes() -> None:
     console2 = Console(width=80, record=True)
     console2.print(block2)
     out2 = console2.export_text()
-    assert "tui_note: yes" in out2
-    assert "grouping: mode" in out2
+    assert "☑ yes ●" in out2
+    assert "mode ●" in out2

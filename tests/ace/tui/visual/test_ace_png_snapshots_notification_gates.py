@@ -389,7 +389,8 @@ async def test_answered_plan_gate_decisions_card_png_snapshot(
 
         assert_page_svg_contains(page, "Answered")
         assert_page_svg_contains(page, "Decisions")
-        assert_page_svg_contains(page, "grouping: mode")
+        assert_page_svg_contains(page, "grouping")
+        assert_page_svg_contains(page, "mode ●")
         ace_png_visual.assert_page_png(
             page,
             "notification_gate_plan_decisions_answered_120x40",

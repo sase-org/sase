@@ -372,7 +372,7 @@ def _plan_decisions_block(summary: GateSummary) -> RenderableType | None:
     definitions = list(getattr(summary, "plan_decision_definitions", ()) or ())
     if not definitions:
         return None
-    from sase.sdd._plan_display_decisions import format_decision_value
+    from .plan_decision_cards import collapsed_card
 
     values = dict(getattr(summary, "plan_decision_values", {}) or {})
     terminal = summary.status in _TERMINAL_STATUSES
@@ -383,23 +383,43 @@ def _plan_decisions_block(summary: GateSummary) -> RenderableType | None:
         decision_id = str(definition.get("id", ""))
         if not decision_id:
             continue
-        value = values.get(
-            decision_id,
-            definition.get("effective_default", definition.get("default")),
-        )
         effective = definition.get("effective_default", definition.get("default"))
-        changed = value != effective
-        shown = format_decision_value(value)
-        if terminal:
-            mark = " ●" if changed else " ★"
-            grid.add_row(Text(f"{decision_id}: {shown}{mark}"))
-        elif str(definition.get("kind", "")) == "toggle":
-            glyph = "☑️" if value is True else "⬜"
-            mark = " ●" if changed else " ★"
-            grid.add_row(Text(f"{glyph} {decision_id}  {shown}{mark}"))
-        else:
-            mark = " ●" if changed else " ★"
-            grid.add_row(Text(f"◉ {decision_id}  {shown}{mark}"))
+        value = values.get(decision_id, effective)
+        row: dict[str, Any] = {
+            "id": decision_id,
+            "kind": "toggle" if definition.get("kind") == "toggle" else "choice",
+            "ask": str(definition.get("ask", "")),
+            "default": effective,
+            "value": value,
+            "changed": value != effective,
+            "choices": list(definition.get("choices", ()) or ()),
+        }
+        why = definition.get("why")
+        if isinstance(why, str):
+            row["why"] = why
+        memory_definition = definition.get("memory")
+        if memory_definition is not None:
+            memory = memory_definition if isinstance(memory_definition, dict) else {}
+            row["memory"] = {
+                "selectors": [str(item) for item in memory.get("selectors", ())],
+                "resolved": list(definition.get("resolved", ()) or ()),
+                "provenance": str(
+                    definition.get("provenance", "not_asked") or "not_asked"
+                ),
+                "quote": definition.get("requested", definition.get("quote")),
+            }
+            row_memory = row["memory"]
+            for key in ("selectors", "resolved", "provenance", "quote"):
+                if key in memory:
+                    row_memory[key] = memory[key]
+        card = collapsed_card(
+            row,
+            definition,
+            40,
+            read_only=terminal,
+            preview_lines=2,
+        )
+        grid.add_row(card.renderable)
     return grid
 
 
