@@ -23,6 +23,7 @@ from sase.ace.tui.modals.new_project_configure_model import (
 )
 from sase.ace.tui.modals.new_project_progress_model import reduce_lines
 from sase.ace.tui.modals.new_project_rendering import render_stepper
+from sase.ace.tui.modals.new_project_create import CreateDraft
 from sase.ace.tui.modals.new_project_review_model import (
     apply_submission,
     build_review,
@@ -343,6 +344,17 @@ class TestBuildReview:
         document = _document(mode="create")
         view = build_review(document)
         assert view.rows[0].label == "REMOTE"
+        assert view.is_danger is True
+        assert view.heading.startswith("CREATE")
+        assert view.keep_notice
+        assert view.confirm_label.startswith("Create")
+
+    def test_add_mode_stays_neutral(self) -> None:
+        view = build_review(_document())
+        assert view.is_danger is False
+        assert view.heading == "ADD PLAN"
+        assert view.keep_notice == ""
+        assert view.confirm_label.startswith("Add")
 
     def test_operation_glyph_default(self) -> None:
         assert operation_glyph("create") == ("+", "green")
@@ -393,6 +405,46 @@ class TestApplySubmission:
             },
         }
         assert "SASE_PROJECT_CREATE_BYPASS" not in submission.argv
+
+    def test_create_submission_reconstructs_options(self) -> None:
+        document = _document(
+            mode="create",
+            apply_argv=[
+                "sase",
+                "project",
+                "create",
+                "sase-org/bob",
+                "--description",
+                "--yes",
+                "--visibility",
+                "private",
+                "--option",
+                "readme=--json",
+                "--yes",
+                "--json",
+            ],
+        )
+        document["target"] = {
+            **document["target"],
+            "owner": "sase-org",
+            "host": "github.com",
+        }
+        document["creation"] = {
+            "visibility": "private",
+            "summary": ["GitHub repository"],
+        }
+        submission = apply_submission(document)
+        assert submission.operation == "project.create"
+        assert submission.request["mode"] == "create"
+        assert submission.request["options"] == {
+            "description": "--yes",
+            "visibility": "private",
+            "readme": "--json",
+        }
+        assert submission.request["creation"]["visibility"] == "private"
+        assert submission.request["target"]["owner"] == "sase-org"
+        assert "--yes" in submission.argv
+        assert "--json" in submission.argv
 
 
 class TestProgressReducer:
@@ -464,6 +516,7 @@ class TestStageMachine:
         machine.set_draft(draft)
         machine.to_review()
         machine.back_to_configure()
+        assert machine.stage == "configure"
         assert machine.draft == draft
         machine.to_review()
         machine.to_progress()
@@ -494,6 +547,16 @@ class TestStageMachine:
         machine.to_configure()
         machine.back_to_source()
         assert machine.stage == "source"
+
+    def test_create_review_back_returns_to_create_configure(self) -> None:
+        machine = NewProjectStateMachine()
+        draft = CreateDraft(owner="sase-org", raw_name="new")
+        machine.to_create_configure(draft)
+        machine.to_review()
+        machine.back_to_configure()
+        assert machine.stage == "create-configure"
+        assert machine.wizard_mode == "create"
+        assert machine.create_draft == draft
 
 
 class TestStepper:

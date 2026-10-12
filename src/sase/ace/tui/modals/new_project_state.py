@@ -83,8 +83,8 @@ class NewProjectStateMachine:
         self.stage = "review"
 
     def back_to_configure(self) -> None:
-        """Return from Review to Configure with the draft intact."""
-        self.stage = "configure"
+        """Return from Review to the matching Configure stage."""
+        self.stage = "create-configure" if self.wizard_mode == "create" else "configure"
 
     def to_progress(self) -> None:
         """Start applying a confirmed review."""

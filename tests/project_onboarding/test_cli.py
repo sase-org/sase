@@ -399,6 +399,79 @@ def test_create_sugar_overlays_dash_o_options(monkeypatch: pytest.MonkeyPatch) -
     assert request["creation"]["visibility"] == "private"
 
 
+def test_create_option_values_equal_to_transport_flags_are_data(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(add_cli, "detect_actor", lambda **_kwargs: "human")
+    monkeypatch.setattr(
+        add_cli,
+        "_target_for_ref",
+        lambda _ref, **_kwargs: {
+            "ref": "team/demo",
+            "identity_key": "github.com/team/demo",
+            "workflow_type": "gh",
+        },
+    )
+    monkeypatch.setattr(
+        add_cli,
+        "parse_create_ref",
+        lambda text: ParsedRepoRef(
+            workflow_type="gh",
+            ref="team/demo",
+            identity_key="github.com/team/demo",
+            display=text,
+        ),
+    )
+    sidecar = {
+        "mode": "create",
+        "actor": "human",
+        "target": {
+            "ref": "team/demo",
+            "workflow_type": "gh",
+            "identity_key": "github.com/team/demo",
+        },
+        "requested": {
+            "name": "",
+            "aliases": [],
+            "setup": "auto",
+            "make_current": False,
+        },
+        "options": {
+            "description": "--yes",
+            "readme": "--json",
+            "visibility": "private",
+        },
+        "creation": {"visibility": "private", "summary": []},
+    }
+    monkeypatch.setattr(add_cli, "resolve_request_path", lambda _args: Path("/request"))
+    monkeypatch.setattr(
+        add_cli,
+        "load_request",
+        lambda *_a, **_k: DurableOperationRequest(
+            operation="project.create",
+            payload={"request": sidecar},
+        ),
+    )
+    request = add_cli._request_from_args(
+        _create_args(
+            [
+                "gh:team/demo",
+                "--option",
+                "description=--yes",
+                "--option",
+                "readme=--json",
+                "--visibility",
+                "private",
+                "--yes",
+                "--json",
+            ]
+        ),
+        mode="create",
+        operation="project.create",
+    )
+    assert request["options"] == sidecar["options"]
+
+
 def test_create_apply_refuses_agent_with_gate_message(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:

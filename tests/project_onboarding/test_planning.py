@@ -534,6 +534,8 @@ class TestBuildPlanDocument:
         assert argv[argv.index("--visibility") + 1] == "private"
         assert "--option" in argv
         assert "template=sase-org/template" in argv
+        assert document["target"]["visibility"] == "private"
+        assert document["creation"]["visibility"] == "private"
 
     def test_preview_does_not_write(
         self, tmp_path: Path, isolated_home: Path, gh_provider: list[RepoProbe]

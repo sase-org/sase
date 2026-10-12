@@ -1,0 +1,472 @@
+"""Create Review, durable apply, and CLI-equality coverage."""
+
+from __future__ import annotations
+
+from pathlib import Path
+from typing import Any
+import weakref
+
+import pytest
+from textual.widgets import Button, Input, Static
+
+from sase.ace.tui.actions.proc_actions import TrackedProcCompletion
+from sase.ace.tui.modals.new_project_apply import (
+    _intent_from_submission,
+    _on_project_apply_complete,
+    _record_successful_create_preferences,
+    _terminal_apply_argv,
+)
+from sase.ace.tui.modals.new_project_create import NewProjectCreateConfigure
+from sase.ace.tui.modals.new_project_review import (
+    NewProjectReview,
+    _check_argv,
+)
+from sase.ace.tui.modals.new_project_review_model import (
+    apply_submission,
+    options_from_argv,
+    strip_transport_flags,
+)
+from sase.ace.tui.proc_observer import ObservedProc
+from sase.core.time import local_now
+from sase.main import project_handler_add as add_cli
+from sase.ops.models import DurableOperationRequest
+from sase.project_onboarding.preferences import load_preferences
+from sase.workspace_provider._hookspec import ParsedRepoRef
+from tests.ace.tui.modals.test_new_project_configure_review import _WizardApp
+from tests.ace.tui.modals.test_new_project_create import _enter, _modal
+from tests.ace.tui.modals.test_new_project_review_checks import _ReviewApp
+from tests.project_onboarding.test_cli import _create_args
+
+
+def _create_document(**overrides: Any) -> dict[str, Any]:
+    document: dict[str, Any] = {
+        "schema_version": 1,
+        "kind": "project_onboarding_plan",
+        "mode": "create",
+        "status": "ready",
+        "intent_fingerprint": "c" * 64,
+        "provider": {"workflow_type": "gh", "display": "GitHub"},
+        "target": {
+            "ref": "sase-org/new",
+            "display": "sase-org/new",
+            "identity_key": "github.com/sase-org/new",
+            "host": "github.com",
+            "owner": "sase-org",
+            "web_url": "https://github.com/sase-org/new",
+            "visibility": "private",
+            "checkout_dir": "/tmp/new",
+        },
+        "project": {
+            "key": "gh_sase-org__new",
+            "name": "new",
+            "accent": "#B9589C",
+        },
+        "creation": {
+            "visibility": "private",
+            "summary": ["GitHub repository"],
+        },
+        "steps": [
+            {
+                "id": "checkout",
+                "operation": "create",
+                "label": "Clone and register",
+                "detail": "/tmp/new",
+                "state": "pending",
+            }
+        ],
+        "warnings": [],
+        "blockers": [],
+        "apply_argv": [
+            "sase",
+            "project",
+            "create",
+            "sase-org/new",
+            "--description",
+            "--yes",
+            "--visibility",
+            "private",
+            "--option",
+            "readme=--json",
+            "--yes",
+            "--json",
+        ],
+    }
+    document.update(overrides)
+    return document
+
+
+def _create_proc() -> ObservedProc:
+    return ObservedProc(
+        proc_id="create-1",
+        proc_type="project.create",
+        cl_name="",
+        project_file="",
+        status="running",
+        message="running",
+        started_at=local_now(),
+    )
+
+
+def _sync_persist(intent: Any) -> None:
+    _record_successful_create_preferences(
+        str(intent.get("workflow_type") or ""),
+        str(intent.get("owner") or ""),
+        str(intent.get("visibility") or ""),
+    )
+
+
+def test_options_from_argv_keeps_transport_spellings_as_data() -> None:
+    argv = [
+        "sase",
+        "project",
+        "create",
+        "sase-org/new",
+        "--description",
+        "--yes",
+        "--visibility",
+        "private",
+        "--option",
+        "readme=--json",
+        "-O",
+        "template=--check",
+        "--yes",
+        "--json",
+        "--check",
+    ]
+    assert options_from_argv(argv) == {
+        "description": "--yes",
+        "visibility": "private",
+        "readme": "--json",
+        "template": "--check",
+    }
+    stripped = strip_transport_flags(argv)
+    assert stripped == [
+        "sase",
+        "project",
+        "create",
+        "sase-org/new",
+        "--description",
+        "--yes",
+        "--visibility",
+        "private",
+        "--option",
+        "readme=--json",
+        "-O",
+        "template=--check",
+    ]
+    assert _terminal_apply_argv(argv) == [*stripped, "--yes"]
+
+
+def test_create_check_argv_preserves_option_values() -> None:
+    argv = _check_argv(_create_document())
+    assert argv == [
+        "sase",
+        "project",
+        "create",
+        "sase-org/new",
+        "--description",
+        "--yes",
+        "--visibility",
+        "private",
+        "--option",
+        "readme=--json",
+        "--check",
+        "--json",
+    ]
+
+
+def test_create_apply_submission_matches_cli_request_from_args(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    document = _create_document(
+        apply_argv=[
+            "sase",
+            "project",
+            "create",
+            "sase-org/new",
+            "--option",
+            "description=--yes",
+            "--visibility",
+            "private",
+            "--option",
+            "readme=--json",
+            "--yes",
+            "--json",
+        ]
+    )
+    submission = apply_submission(document)
+    monkeypatch.setattr(add_cli, "detect_actor", lambda **_kwargs: "human")
+    monkeypatch.setattr(
+        add_cli,
+        "_target_for_ref",
+        lambda _ref, **_kwargs: {
+            "ref": "sase-org/new",
+            "identity_key": "github.com/sase-org/new",
+            "workflow_type": "gh",
+            "owner": "sase-org",
+        },
+    )
+    monkeypatch.setattr(
+        add_cli,
+        "parse_create_ref",
+        lambda text: ParsedRepoRef(
+            workflow_type="gh",
+            ref=text,
+            identity_key="github.com/sase-org/new",
+            display=text,
+        ),
+    )
+    monkeypatch.setattr(add_cli, "resolve_request_path", lambda _args: Path("/request"))
+    monkeypatch.setattr(
+        add_cli,
+        "load_request",
+        lambda *_a, **_k: DurableOperationRequest(
+            operation="project.create",
+            payload={"request": submission.request},
+        ),
+    )
+    args = _create_args(
+        [
+            "gh:sase-org/new",
+            "--option",
+            "description=--yes",
+            "--visibility",
+            "private",
+            "--option",
+            "readme=--json",
+            "--yes",
+            "--json",
+        ]
+    )
+    request = add_cli._request_from_args(
+        args, mode="create", operation="project.create"
+    )
+    assert request["options"] == submission.request["options"]
+    assert request["options"]["description"] == "--yes"
+    assert request["options"]["readme"] == "--json"
+
+
+async def test_create_review_renders_danger_heading_and_keep_notice() -> None:
+    app = _ReviewApp()
+    async with app.run_test(size=(120, 40)):
+        review = app.query_one(NewProjectReview)
+        review.show_document(_create_document())
+        heading = review.query_one("#new-project-review-card-heading", Static)
+        confirm = review.query_one("#new-project-review-confirm", Button)
+        state = review.query_one("#new-project-review-state", Static).render().plain
+        assert review.has_class("danger")
+        assert "CREATE" in heading.render().plain
+        assert "PRIVATE" in heading.render().plain
+        assert "sase-org/new" in heading.render().plain
+        assert confirm.variant == "error"
+        assert "Create repository" in str(confirm.label)
+        assert "keeps the created repository" in state
+
+
+async def test_create_review_compact_heading_stays_visible() -> None:
+    app = _ReviewApp()
+    async with app.run_test(size=(80, 24)):
+        review = app.query_one(NewProjectReview)
+        public = _create_document()
+        public["target"] = {**public["target"], "visibility": "public"}
+        public["creation"] = {**public["creation"], "visibility": "public"}
+        review.show_document(public)
+        heading = (
+            review.query_one("#new-project-review-card-heading", Static).render().plain
+        )
+        assert review.has_class("compact")
+        assert review.has_class("danger")
+        assert "CREATE" in heading
+        assert "PUBLIC" in heading
+
+
+async def test_create_review_button_enters_review_and_back_restores_configure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _, modal, _, _ = _modal(monkeypatch)
+    app = _WizardApp()
+    monkeypatch.setattr(
+        NewProjectReview,
+        "start_check",
+        lambda self, document: self.show_document(document),
+    )
+    async with app.run_test(size=(120, 40)) as pilot:
+        app.push_screen(modal)
+        await pilot.pause()
+        await _enter(pilot, modal)
+        modal.query_one("#new-project-create-name", Input).value = "new"
+        await pilot.pause(0.6)
+        assert modal._create_availability.status == "available"
+        review_button = modal.query_one("#new-project-create-review", Button)
+        assert not review_button.disabled
+        review_button.press()
+        await pilot.pause()
+        assert modal._state.stage == "review"
+        assert modal._state.wizard_mode == "create"
+        review = modal.query_one(NewProjectReview)
+        assert review.has_class("danger")
+        heading = (
+            review.query_one("#new-project-review-card-heading", Static).render().plain
+        )
+        assert "CREATE" in heading
+        await pilot.press("b")
+        await pilot.pause()
+        assert modal._state.stage == "create-configure"
+        assert modal.query_one(NewProjectCreateConfigure).display
+        assert modal._state.create_draft is not None
+        assert modal._state.create_draft.raw_name == "new"
+
+
+async def test_create_y_submits_project_create(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _, modal, _, _ = _modal(monkeypatch)
+    app = _WizardApp()
+    monkeypatch.setattr(
+        NewProjectReview,
+        "start_check",
+        lambda self, document: self.show_document(document),
+    )
+    async with app.run_test(size=(120, 40)) as pilot:
+        app.push_screen(modal)
+        await pilot.pause()
+        await _enter(pilot, modal)
+        modal.query_one("#new-project-create-name", Input).value = "new"
+        await pilot.pause(0.6)
+        modal.query_one("#new-project-create-review", Button).press()
+        await pilot.pause()
+        await pilot.press("y")
+        await pilot.pause()
+        assert modal._state.stage == "progress"
+        assert app.submit_calls
+        argv, kwargs = app.submit_calls[0]
+        expected = apply_submission(modal._review_document or modal._local_plan)
+        assert kwargs["operation"] == "project.create"
+        assert kwargs["request"]["mode"] == "create"
+        assert kwargs["request"]["options"] == expected.request["options"]
+        assert argv == list(expected.argv)
+
+
+async def test_duplicate_create_stays_on_review(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _, modal, _, _ = _modal(monkeypatch)
+    app = _WizardApp()
+    app.submit_result = None
+    monkeypatch.setattr(
+        NewProjectReview,
+        "start_check",
+        lambda self, document: self.show_document(document),
+    )
+    async with app.run_test(size=(120, 40)) as pilot:
+        app.push_screen(modal)
+        await pilot.pause()
+        await _enter(pilot, modal)
+        modal.query_one("#new-project-create-name", Input).value = "new"
+        await pilot.pause(0.6)
+        modal.query_one("#new-project-create-review", Button).press()
+        await pilot.pause()
+        await pilot.press("y")
+        await pilot.pause()
+        assert modal._state.stage == "review"
+        assert modal._apply_submission is not None
+        assert modal._apply_submission.operation == "project.create"
+
+
+def test_dismissed_create_success_records_visibility(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "sase-home"))
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.new_project_apply._persist_create_preferences_async",
+        _sync_persist,
+    )
+    reloads: list[object] = []
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.new_project_apply._reload_projects_if_mounted",
+        lambda app: reloads.append(app),
+    )
+
+    class _Gone:
+        is_mounted = False
+
+    app = object()
+    document = _create_document()
+    intent = _intent_from_submission(apply_submission(document))
+    _on_project_apply_complete(
+        app,
+        weakref.ref(_Gone()),
+        intent,
+        TrackedProcCompletion(
+            proc_info=_create_proc(),
+            success=True,
+            message="created",
+            output="",
+        ),
+    )
+    assert reloads == [app]
+    prefs = load_preferences()
+    assert prefs.last_visibility == {"sase-org": intent["visibility"]}
+    assert prefs.last_owner == {"gh": "sase-org"}
+    assert prefs.last_provider == "gh"
+
+
+def test_failed_create_does_not_overwrite_visibility(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "sase-home"))
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.new_project_apply._persist_create_preferences_async",
+        _sync_persist,
+    )
+    from sase.project_onboarding.preferences import record_visibility_selection
+
+    record_visibility_selection("sase-org", "private")
+
+    class _Gone:
+        is_mounted = False
+
+    intent = {
+        "mode": "create",
+        "workflow_type": "gh",
+        "owner": "sase-org",
+        "visibility": "public",
+    }
+    _on_project_apply_complete(
+        object(),
+        weakref.ref(_Gone()),
+        intent,
+        TrackedProcCompletion(
+            proc_info=_create_proc(),
+            success=False,
+            message="failed",
+            output="",
+        ),
+    )
+    assert load_preferences().last_visibility == {"sase-org": "private"}
+
+
+def test_add_complete_does_not_record_visibility(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "sase-home"))
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.new_project_apply._persist_create_preferences_async",
+        _sync_persist,
+    )
+    from sase.ace.tui.modals.new_project_apply import _on_project_add_complete
+
+    class _Gone:
+        is_mounted = False
+
+    _on_project_add_complete(
+        object(),
+        weakref.ref(_Gone()),
+        TrackedProcCompletion(
+            proc_info=_create_proc(),
+            success=True,
+            message="added",
+            output="",
+        ),
+    )
+    assert load_preferences().last_visibility == {}

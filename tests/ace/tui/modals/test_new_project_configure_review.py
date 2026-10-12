@@ -330,14 +330,25 @@ def test_review_check_argv_and_return_code_one_plan(
         def log(self, _message: str) -> None:
             pass
 
-    monkeypatch.setattr(
-        "sase.ace.tui.modals.new_project_review.subprocess.run",
-        lambda *_args, **_kwargs: type(
+    captured: dict[str, Any] = {}
+
+    def _fake_run(run_argv: Any, **kwargs: Any) -> Any:
+        captured["argv"] = list(run_argv)
+        captured["kwargs"] = kwargs
+        return type(
             "Result",
             (),
             {"returncode": 1, "stdout": '{"status":"blocked"}', "stderr": ""},
-        )(),
+        )()
+
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.new_project_review.run_noninteractive",
+        _fake_run,
     )
     result = _run_check(argv, "/tmp", 10, Reporter())  # type: ignore[arg-type]
     assert result.success
     assert result.payload == {"status": "blocked"}
+    env = captured["kwargs"]["env"]
+    assert env["GH_PROMPT_DISABLED"] == "1"
+    assert env["GIT_TERMINAL_PROMPT"] == "0"
+    assert captured["kwargs"]["timeout"] == 10

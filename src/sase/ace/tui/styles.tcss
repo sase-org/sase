@@ -4934,6 +4934,15 @@ NewProjectModal {
     padding: 0 1;
 }
 
+#new-project-review-stage.danger #new-project-review-scroll {
+    border: round $error;
+}
+
+#new-project-review-stage.danger #new-project-review-card-heading {
+    color: $error;
+    text-style: bold;
+}
+
 #new-project-review-stage.compact #new-project-review-scroll {
     padding: 0;
 }
@@ -4941,6 +4950,10 @@ NewProjectModal {
 #new-project-review-stage.compact.review-ready #new-project-review-card-heading,
 #new-project-review-stage.compact.review-ready #new-project-review-state {
     display: none;
+}
+
+#new-project-review-stage.danger.compact.review-ready #new-project-review-card-heading {
+    display: block;
 }
 
 #new-project-review-stage.compact #new-project-review-rows,

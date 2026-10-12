@@ -1240,6 +1240,8 @@ class NewProjectCreateFlowMixin(_MixinBase):
         _preferences: Preferences
         _provider_by_id: dict[str, Any]
         _inputs: dict[str, Any]
+        _local_plan: dict[str, Any]
+        _active_target: dict[str, object]
 
         def notify(self, message: str, **kwargs: Any) -> None: ...
         def query_one(self, *args: Any, **kwargs: Any) -> Any: ...
@@ -1447,12 +1449,7 @@ class NewProjectCreateFlowMixin(_MixinBase):
         self._describe_create_form(owner)
 
     def _on_create_review_requested(self) -> None:
-        """Preserve the complete create intent for the Review phase.
-
-        Shared Review stays add-mode until the create-execution phase hooks
-        this intent up; the staged request keeps mode, target, requested
-        values, provider options, and creation visibility/summary intact.
-        """
+        """Hook create Configure into the shared Review pipeline."""
         draft = self._state.create_draft
         if draft is None or not self._create_confirmable(draft):
             return
@@ -1469,7 +1466,21 @@ class NewProjectCreateFlowMixin(_MixinBase):
                 self._create_form, draft.provider_values
             ),
         )
-        self.notify("Create review lands with the create-execution phase.")
+        plan = dict(self._create_plan)
+        if not plan:
+            return
+        self._local_plan = plan
+        self._active_target = dict(self._create_review_request.get("target") or {})
+        self._state.to_review()
+        self._show_stage("review")
+        review = self.query_one("#new-project-review-stage")
+        start_check = getattr(review, "start_check", None)
+        if callable(start_check):
+            start_check(plan)
+        back = review.query_one("#new-project-review-back")
+        focus = getattr(back, "focus", None)
+        if callable(focus):
+            focus()
 
     def create_review_intent(self) -> dict[str, Any] | None:
         """Return the staged complete create intent, if Review was requested."""

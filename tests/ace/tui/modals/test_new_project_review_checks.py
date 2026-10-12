@@ -125,8 +125,36 @@ async def test_dedup_key_includes_intent_fingerprint() -> None:
         document = _document("renamed")
         review.start_check(document)
         _proc_type, kwargs = app.calls[-1]
+        assert _proc_type == "project-add-check"
         assert kwargs["dedup_key"] == (
             "project-add-check:github.com/sase-org/new:" + "a" * 64
+        )
+
+
+async def test_create_check_uses_create_proc_type() -> None:
+    app = _ReviewApp()
+    async with app.run_test(size=(120, 40)):
+        review = app.query_one(NewProjectReview)
+        document = _document()
+        document["mode"] = "create"
+        document["apply_argv"] = [
+            "sase",
+            "project",
+            "create",
+            "sase-org/new",
+            "--visibility",
+            "private",
+            "--yes",
+            "--json",
+        ]
+        review.start_check(document)
+        proc_type, kwargs = app.calls[-1]
+        assert proc_type == "project-create-check"
+        assert kwargs["dedup_key"] == (
+            "project-create-check:github.com/sase-org/new:" + "a" * 64
+        )
+        assert kwargs["duplicate_message"] == (
+            "This project create plan is already being checked."
         )
 
 

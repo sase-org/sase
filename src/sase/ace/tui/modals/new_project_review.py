@@ -16,18 +16,34 @@ from textual.widgets import Button, Static
 
 from sase.ace.tui.actions._durable_ops import sase_argv
 from sase.ace.tui.actions.proc_actions import TrackedProcCompletion, TrackedProcResult
+from sase.ace.tui.modals.confirm_dialog import ConfirmKind
 from sase.ace.tui.modals.projects_pane_init import check_timeout, init_cwd
 from sase.ace.tui.session_proc_reporter import SessionProcReporter
+from sase.noninteractive_subprocess import run_noninteractive
+from sase.workspace_provider.utils import non_interactive_git_env
 
 from .new_project_review_model import (
     ApplySubmission,
     ReviewView,
     apply_submission,
     build_review,
+    strip_transport_flags,
 )
 from .new_project_rendering import clean_source_text
 
-_DUPLICATE_MESSAGE = "This project add plan is already being checked."
+_ADD_DUPLICATE_MESSAGE = "This project add plan is already being checked."
+_CREATE_DUPLICATE_MESSAGE = "This project create plan is already being checked."
+_PUBLIC_STYLE = "#FFAF5F"
+
+
+def _document_mode(document: Mapping[str, Any]) -> str:
+    return str(document.get("mode") or "add")
+
+
+def _duplicate_message(mode: str) -> str:
+    if mode == "create":
+        return _CREATE_DUPLICATE_MESSAGE
+    return _ADD_DUPLICATE_MESSAGE
 
 
 def _check_argv(document: Mapping[str, Any]) -> list[str]:
@@ -36,8 +52,7 @@ def _check_argv(document: Mapping[str, Any]) -> list[str]:
     argv = [str(item) for item in raw] if isinstance(raw, list) else []
     if argv and argv[0] == "sase":
         argv = argv[1:]
-    argv = [item for item in argv if item not in {"--yes", "--json", "--check"}]
-    return sase_argv(*argv, "--check", "--json")
+    return sase_argv(*strip_transport_flags(argv), "--check", "--json")
 
 
 def _run_check(
@@ -45,18 +60,16 @@ def _run_check(
     cwd: str,
     timeout: float,
     reporter: SessionProcReporter,
+    *,
+    mode: str = "add",
 ) -> TrackedProcResult[dict[str, Any]]:
-    """Run and decode ``sase project add … --check --json``."""
-    reporter.log("Checking the project add plan…")
+    """Run and decode ``sase project add|create … --check --json``."""
+    verb = "create" if mode == "create" else "add"
+    reporter.log(f"Checking the project {verb} plan…")
+    env = non_interactive_git_env()
+    env["GH_PROMPT_DISABLED"] = "1"
     try:
-        result = subprocess.run(
-            argv,
-            cwd=cwd,
-            capture_output=True,
-            text=True,
-            check=False,
-            timeout=timeout,
-        )
+        result = run_noninteractive(argv, cwd=cwd, env=env, timeout=timeout)
     except (OSError, subprocess.TimeoutExpired) as error:
         return TrackedProcResult(
             success=False,
@@ -89,7 +102,7 @@ def _run_check(
 
 
 class NewProjectReview(Vertical):
-    """Read-only project add plan with warnings, blockers, and confirmation."""
+    """Read-only project add or create plan with confirmation."""
 
     class ApplyRequested(Message):
         """The user confirmed the exact plan shown in Review."""
@@ -134,7 +147,10 @@ class NewProjectReview(Vertical):
         with Horizontal(id="new-project-review-actions"):
             yield Button("‹ Configure", id="new-project-review-back")
             yield Button(
-                "Add project  [y]", id="new-project-review-confirm", disabled=True
+                "Add project  [y]",
+                id="new-project-review-confirm",
+                disabled=True,
+                variant="primary",
             )
 
     def on_unmount(self) -> None:
@@ -170,7 +186,9 @@ class NewProjectReview(Vertical):
         generation = self._bump_generation()
         fingerprint = str(document.get("intent_fingerprint") or "")
         identity_key = str((document.get("target") or {}).get("identity_key") or "")
+        mode = _document_mode(document)
         self.set_class(False, "review-ready")
+        self.set_class(mode == "create", "danger")
         if self.is_mounted:
             self._render_loading()
         app = self.app
@@ -183,22 +201,33 @@ class NewProjectReview(Vertical):
         timeout = check_timeout(1)
 
         def task(reporter: SessionProcReporter) -> TrackedProcResult[dict[str, Any]]:
-            return _run_check(argv, cwd, timeout, reporter)
+            return _run_check(argv, cwd, timeout, reporter, mode=mode)
 
         def completed(result: TrackedProcCompletion[dict[str, Any]]) -> None:
             self._apply_check_completion(generation, fingerprint, result)
 
-        submitted = submit(
-            "project-add-check",
-            task,
-            on_complete=completed,
-            display_name="Check project add plan",
-            cl_name=identity_key,
-            dedup_key=f"project-add-check:{identity_key}:{fingerprint}",
-            duplicate_message=_DUPLICATE_MESSAGE,
-        )
+        if mode == "create":
+            submitted = submit(
+                "project-create-check",
+                task,
+                on_complete=completed,
+                display_name="Check project create plan",
+                cl_name=identity_key,
+                dedup_key=f"project-create-check:{identity_key}:{fingerprint}",
+                duplicate_message=_duplicate_message(mode),
+            )
+        else:
+            submitted = submit(
+                "project-add-check",
+                task,
+                on_complete=completed,
+                display_name="Check project add plan",
+                cl_name=identity_key,
+                dedup_key=f"project-add-check:{identity_key}:{fingerprint}",
+                duplicate_message=_duplicate_message(mode),
+            )
         if submitted is None:
-            self.set_error(_DUPLICATE_MESSAGE)
+            self.set_error(_duplicate_message(mode))
 
     def show_document(self, document: dict[str, Any], *, notice: str = "") -> None:
         """Render a supplied check document (also used by deterministic previews)."""
@@ -207,6 +236,7 @@ class NewProjectReview(Vertical):
         self._notice = notice
         self._loading = False
         self._view = build_review(self._document)
+        self.set_class(self._view.is_danger, "danger")
         if self.is_mounted:
             self._render_view()
 
@@ -251,6 +281,13 @@ class NewProjectReview(Vertical):
         self.query_one("#new-project-review-confirm", Button).disabled = True
 
     def _render_loading(self, message: str = "Checking the exact add plan…") -> None:
+        mode = _document_mode(self._document)
+        if message == "Checking the exact add plan…" and mode == "create":
+            message = "Checking the exact create plan…"
+        heading = "CREATE PLAN" if mode == "create" else "ADD PLAN"
+        self.query_one("#new-project-review-card-heading", Static).update(
+            Text(heading, style="bold")
+        )
         self.query_one("#new-project-review-state", Static).update(
             Text(clean_source_text(message), style="dim")
         )
@@ -258,7 +295,31 @@ class NewProjectReview(Vertical):
         self.query_one("#new-project-review-warnings", Static).update("")
         self.query_one("#new-project-review-blockers", Static).update("")
         self.query_one("#new-project-review-argv", Static).update("")
-        self._disable_confirm()
+        confirm = self.query_one("#new-project-review-confirm", Button)
+        confirm.disabled = True
+        confirm.label = (
+            "Create repository  [y]" if mode == "create" else "Add project  [y]"
+        )
+        kind = ConfirmKind.DANGER if mode == "create" else ConfirmKind.NEUTRAL
+        confirm.variant = "error" if kind is ConfirmKind.DANGER else "primary"
+        self.set_class(mode == "create", "danger")
+
+    def _heading_text(self, view: ReviewView) -> Text:
+        heading = Text()
+        if view.is_danger:
+            heading.append("! ", style="bold #FF5F5F")
+        if view.is_danger and view.visibility:
+            heading.append("CREATE ", style="bold")
+            vis = view.visibility.upper()
+            heading.append(
+                vis,
+                style=f"bold {view.public_style}" if view.is_public else "bold",
+            )
+            if view.repo_name:
+                heading.append(" " + clean_source_text(view.repo_name), style="bold")
+            return heading
+        heading.append(clean_source_text(view.heading), style="bold")
+        return heading
 
     def _render_view(self) -> None:
         view = self._view
@@ -267,14 +328,21 @@ class NewProjectReview(Vertical):
         compact = self.size.width < 90
         self.set_class(compact, "compact")
         self.set_class(True, "review-ready")
+        self.set_class(view.is_danger, "danger")
+        self.set_class(view.is_danger, "confirm-dialog--danger")
+        self.set_class(not view.is_danger, "confirm-dialog--neutral")
+        self.query_one("#new-project-review-card-heading", Static).update(
+            self._heading_text(view)
+        )
+        state = Text()
         if self._notice:
-            self.query_one("#new-project-review-state", Static).update(
-                Text(clean_source_text(self._notice), style="#FFAF5F")
-            )
+            state.append(clean_source_text(self._notice), style=_PUBLIC_STYLE)
         else:
-            self.query_one("#new-project-review-state", Static).update(
-                Text("Review the steps before adding this project.", style="dim")
-            )
+            state.append(clean_source_text(view.notice), style="dim")
+            if view.keep_notice:
+                state.append("\n")
+                state.append(clean_source_text(view.keep_notice), style="dim")
+        self.query_one("#new-project-review-state", Static).update(state)
         rows = Text()
         for row in view.rows:
             rows.append(row.glyph + " ", style=row.style)
@@ -288,9 +356,11 @@ class NewProjectReview(Vertical):
             "public visibility" in warning.casefold() for warning in view.warnings
         )
         if view.is_public and not public_warning:
-            warnings.append("⚠ PUBLIC visibility\n", style="#FFAF5F")
+            warnings.append("⚠ PUBLIC visibility\n", style=_PUBLIC_STYLE)
         for warning in view.warnings:
-            warnings.append("⚠ " + clean_source_text(warning) + "\n", style="#FFAF5F")
+            warnings.append(
+                "⚠ " + clean_source_text(warning) + "\n", style=_PUBLIC_STYLE
+            )
         self.query_one("#new-project-review-warnings", Static).update(warnings)
         blockers = Text()
         for blocker in view.blockers:
@@ -305,9 +375,11 @@ class NewProjectReview(Vertical):
         self.set_class(bool(view.warnings or view.is_public), "has-warnings")
         argv = Text("$ " + clean_source_text(view.argv_line), style="dim")
         self.query_one("#new-project-review-argv", Static).update(argv)
-        self.query_one(
-            "#new-project-review-confirm", Button
-        ).disabled = not view.can_confirm
+        confirm = self.query_one("#new-project-review-confirm", Button)
+        confirm.disabled = not view.can_confirm
+        confirm.label = view.confirm_label
+        kind = ConfirmKind.DANGER if view.is_danger else ConfirmKind.NEUTRAL
+        confirm.variant = "error" if kind is ConfirmKind.DANGER else "primary"
 
     @on(Button.Pressed, "#new-project-review-back")
     def _back_pressed(self) -> None:

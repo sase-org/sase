@@ -12,6 +12,7 @@ from sase import workspace_provider
 from sase.ace.testing import AcePage
 from sase.ace.tui.modals.new_project_create import NewProjectCreateConfigure
 from sase.ace.tui.modals.new_project_modal import NewProjectModal
+from sase.ace.tui.modals.new_project_review import NewProjectReview
 from sase.project_onboarding import Preferences
 from sase.workspace_provider._hookspec import RepoCreationField, RepoCreationForm
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
@@ -201,4 +202,191 @@ async def test_new_project_create_configure_narrow_png_snapshot(
             page,
             "new_project_create_configure_basics_80x24",
             title="New Project wizard — create Configure narrow",
+        )
+
+
+def _create_review_document(*, visibility: str) -> dict[str, Any]:
+    vis = visibility
+    warnings = (
+        [{"message": "PUBLIC visibility is visible to everyone."}]
+        if vis == "public"
+        else []
+    )
+    return {
+        "schema_version": 1,
+        "kind": "project_onboarding_plan",
+        "mode": "create",
+        "status": "ready",
+        "intent_fingerprint": "c" * 64,
+        "provider": {"workflow_type": "gh", "display": "GitHub"},
+        "target": {
+            "ref": "sase-org/new",
+            "display": "sase-org/new",
+            "identity_key": "github.com/sase-org/new",
+            "host": "github.com",
+            "owner": "sase-org",
+            "web_url": "https://github.com/sase-org/new",
+            "visibility": vis,
+            "checkout_dir": "~/projects/github/sase-org/new/",
+        },
+        "project": {
+            "key": "gh_sase-org__new",
+            "name": "new",
+            "aliases": [],
+            "accent": "#B9589C",
+            "state": "enabled",
+            "existing": False,
+        },
+        "creation": {
+            "visibility": vis,
+            "summary": ["GitHub repository"],
+        },
+        "setup": {
+            "enabled": True,
+            "code": "unmanaged_can_push",
+            "reason": "Recommended: mark this checkout SASE-managed.",
+        },
+        "steps": [
+            {
+                "id": "checkout",
+                "operation": "create",
+                "label": "Clone and register",
+                "detail": "~/projects/github/sase-org/new/",
+                "state": "pending",
+            }
+        ],
+        "warnings": warnings,
+        "blockers": [],
+        "apply_argv": [
+            "sase",
+            "project",
+            "create",
+            "sase-org/new",
+            "--visibility",
+            vis,
+            "--yes",
+            "--json",
+        ],
+    }
+
+
+async def _open_create_review(
+    page: AcePage,
+    modal: NewProjectModal,
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    visibility: str,
+) -> NewProjectReview:
+    await _open_create(page, modal, "new", monkeypatch)
+    document = _create_review_document(visibility=visibility)
+    monkeypatch.setattr(
+        NewProjectReview,
+        "start_check",
+        lambda self, _document: self.show_document(document),
+    )
+    modal._state.to_review()
+    modal._show_stage("review")
+    review = modal.query_one(NewProjectReview)
+    review.show_document(document)
+    await wait_for_visual_idle(page)
+    assert review.has_class("danger")
+    heading = (
+        review.query_one("#new-project-review-card-heading", Static).render().plain
+    )
+    assert "CREATE" in heading
+    assert visibility.upper() in heading
+    return review
+
+
+async def test_new_project_review_create_private_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Create Review uses DANGER styling and keeps the CREATE PRIVATE heading."""
+    patch_startup_loaders(monkeypatch)
+    _patch_deterministic_source(monkeypatch)
+    _patch_create_provider(monkeypatch, probe_status="not_found")
+    monkeypatch.setattr(
+        NewProjectModal, "_start_provider_load", lambda self, _type: None
+    )
+    async with AcePage(query='"visual"', patches=patches()) as page:
+        modal = NewProjectModal(
+            provider_metadata=(_provider(),),
+            candidate_inputs={"gh": _populated_inputs()},
+            preferences=Preferences(last_provider="gh"),
+        )
+        review = await _open_create_review(
+            page, modal, monkeypatch, visibility="private"
+        )
+        assert (
+            "keeps the created repository"
+            in review.query_one("#new-project-review-state", Static).render().plain
+        )
+        ace_png_visual.assert_page_png(
+            page,
+            "new_project_review_create_private_120x40",
+            title="New Project wizard — Review create private",
+        )
+
+
+async def test_new_project_review_create_public_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Create Review highlights PUBLIC visibility on the DANGER heading."""
+    patch_startup_loaders(monkeypatch)
+    _patch_deterministic_source(monkeypatch)
+    _patch_create_provider(monkeypatch, probe_status="not_found")
+    monkeypatch.setattr(
+        NewProjectModal, "_start_provider_load", lambda self, _type: None
+    )
+    async with AcePage(query='"visual"', patches=patches()) as page:
+        modal = NewProjectModal(
+            provider_metadata=(_provider(),),
+            candidate_inputs={"gh": _populated_inputs()},
+            preferences=Preferences(last_provider="gh"),
+        )
+        review = await _open_create_review(
+            page, modal, monkeypatch, visibility="public"
+        )
+        assert (
+            "PUBLIC"
+            in review.query_one("#new-project-review-warnings", Static).render().plain
+        )
+        ace_png_visual.assert_page_png(
+            page,
+            "new_project_review_create_public_120x40",
+            title="New Project wizard — Review create public",
+        )
+
+
+async def test_new_project_review_create_narrow_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Create Review keeps the DANGER heading visible at 80 by 24 cells."""
+    patch_startup_loaders(monkeypatch)
+    _patch_deterministic_source(monkeypatch)
+    _patch_create_provider(monkeypatch, probe_status="not_found")
+    monkeypatch.setattr(
+        NewProjectModal, "_start_provider_load", lambda self, _type: None
+    )
+    async with AcePage(query='"visual"', size=(80, 24), patches=patches()) as page:
+        modal = NewProjectModal(
+            provider_metadata=(_provider(),),
+            candidate_inputs={"gh": _populated_inputs()},
+            preferences=Preferences(last_provider="gh"),
+        )
+        review = await _open_create_review(
+            page, modal, monkeypatch, visibility="private"
+        )
+        assert review.has_class("compact")
+        heading = (
+            review.query_one("#new-project-review-card-heading", Static).render().plain
+        )
+        assert "CREATE" in heading
+        ace_png_visual.assert_page_png(
+            page,
+            "new_project_review_create_private_80x24",
+            title="New Project wizard — narrow Review create private",
         )

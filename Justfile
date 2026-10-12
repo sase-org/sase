@@ -438,6 +438,8 @@ _lint-patch-stitch-terminology: _setup
 # sase-1jx.10.1.4 (Apply, progress, Ready, and Failed) consumes
 # run_project_init, NewProjectSelection, and record_owner_selection through
 # the durable apply flow and shared init hand-off.
+# sase-1jx.12.1.3 (create-execution) consumes record_visibility_selection
+# through the durable create success path, including dismissed-modal completion.
 # Never put a comment
 # line inside the continued command below: just joins the lines, so the comment
 # would swallow every later argument.
@@ -446,7 +448,6 @@ _lint-symvision *args: _setup
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
         --epic-symbol 'sase-1jm(archive_corpus_is_warm)' \
-        --epic-symbol 'sase-1jx.12(record_visibility_selection)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

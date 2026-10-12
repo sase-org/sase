@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import asyncio
 import subprocess
+import threading
 import weakref
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from functools import partial
 from typing import TYPE_CHECKING, Any, Literal
 
@@ -22,6 +23,7 @@ from sase.current_project import SetCurrentProjectOutcome, set_current_project
 from sase.project_onboarding.preferences import (
     record_owner_selection,
     record_provider_selection,
+    record_visibility_selection,
 )
 from sase.project_tags import ensure_project_tag_catalog
 
@@ -30,7 +32,7 @@ from .new_project_progress import NewProjectProgress
 from .new_project_progress_model import ProgressResult
 from .new_project_ready import NewProjectReady
 from .new_project_review import NewProjectReview
-from .new_project_review_model import ApplySubmission
+from .new_project_review_model import ApplySubmission, strip_transport_flags
 from .new_project_state import NewProjectStateMachine
 from .project_selection_types import SelectionItem
 
@@ -50,8 +52,13 @@ _SET_CURRENT_NOTIFY_SEVERITY: dict[str, Literal["information", "warning", "error
 
 
 def _terminal_apply_argv(argv: Sequence[str]) -> list[str]:
-    """Return the Failed-stage terminal argv: ``--json`` removed, ``--yes`` kept."""
-    return [token for token in argv if token != "--json"]
+    """Return the Failed-stage terminal argv: ``--json`` removed, ``--yes`` kept.
+
+    Option values equal to ``--json`` stay; only the transport flag is dropped.
+    """
+    stripped = strip_transport_flags(argv)
+    stripped.append("--yes")
+    return stripped
 
 
 def _next_argv_requests_init(argv: Sequence[str]) -> bool:
@@ -90,14 +97,26 @@ def _on_project_add_complete(
     completion: TrackedProcCompletion[Any],
 ) -> None:
     """Durable-add completion that outlives the wizard modal."""
+    _on_project_apply_complete(app, modal_ref, {}, completion)
+
+
+def _on_project_apply_complete(
+    app: Any,
+    modal_ref: weakref.ReferenceType[Any],
+    intent: Mapping[str, str],
+    completion: TrackedProcCompletion[Any],
+) -> None:
+    """Durable add/create completion that outlives the wizard modal."""
     _reload_projects_if_mounted(app)
+    if completion.success and str(intent.get("mode") or "") == "create":
+        _persist_create_preferences_async(intent)
     modal = modal_ref()
     observe = getattr(modal, "_observe_add_completion", None)
     if modal is not None and getattr(modal, "is_mounted", False) and callable(observe):
         observe(completion)
 
 
-def _owner_from_target(target: dict[str, object]) -> str:
+def _owner_from_target(target: Mapping[str, object]) -> str:
     owner = str(target.get("owner") or "")
     if owner:
         return owner
@@ -108,12 +127,58 @@ def _owner_from_target(target: dict[str, object]) -> str:
     return ""
 
 
+def _request_section(request: Mapping[str, Any], key: str) -> Mapping[str, object]:
+    value = request.get(key)
+    if isinstance(value, dict):
+        return value
+    return {}
+
+
+def _intent_from_submission(submission: ApplySubmission) -> dict[str, str]:
+    request = submission.request
+    target = _request_section(request, "target")
+    options = _request_section(request, "options")
+    creation = _request_section(request, "creation")
+    return {
+        "mode": str(request.get("mode") or "add"),
+        "workflow_type": str(target.get("workflow_type") or ""),
+        "owner": _owner_from_target(target),
+        "visibility": str(
+            options.get("visibility") or creation.get("visibility") or ""
+        ),
+    }
+
+
 def _record_successful_add_preferences(workflow_type: str, owner: str) -> None:
     """Persist last provider and owner after an ``ok`` add result."""
     if workflow_type:
         record_provider_selection(workflow_type)
     if workflow_type and owner:
         record_owner_selection(workflow_type, owner)
+
+
+def _record_successful_create_preferences(
+    workflow_type: str, owner: str, visibility: str
+) -> None:
+    """Persist provider, owner, and per-owner visibility after a successful create."""
+    _record_successful_add_preferences(workflow_type, owner)
+    if owner and visibility:
+        record_visibility_selection(owner, visibility)
+
+
+def _persist_create_preferences_async(intent: Mapping[str, str]) -> None:
+    """Write create preferences off the UI thread; no open widget required."""
+    thread = threading.Thread(
+        target=_record_successful_create_preferences,
+        args=(
+            str(intent.get("workflow_type") or ""),
+            str(intent.get("owner") or ""),
+            str(intent.get("visibility") or ""),
+        ),
+        name="new-project-record-create-prefs",
+        daemon=True,
+    )
+    thread.start()
 
 
 class NewProjectInitHost:
@@ -229,6 +294,32 @@ class NewProjectApplyMixin(_MixinBase):
             duplicate_message="This project is already being added.",
         )
 
+    def _submit_project_create(self, submission: ApplySubmission) -> Any:
+        """Register and submit the durable ``project.create`` proc."""
+        app = self.app
+        if not callable(getattr(app, "_submit_durable_proc", None)):
+            self.notify("Project create queue is unavailable.", severity="error")
+            return None
+        identity_key = str(
+            (submission.request.get("target") or {}).get("identity_key") or ""
+        )
+        modal_ref = weakref.ref(self)
+        intent = _intent_from_submission(submission)
+        return app._submit_durable_proc(  # type: ignore[attr-defined]
+            list(submission.argv),
+            operation="project.create",
+            request=submission.request,
+            request_fingerprint=submission.request_fingerprint,
+            concurrency_keys=list(submission.concurrency_keys),
+            cwd=init_cwd(),
+            display_name="Create repository",
+            cl_name=identity_key,
+            on_complete=partial(_on_project_apply_complete, app, modal_ref, intent),
+            on_handle=self._on_add_handle,
+            reload_on_complete=False,
+            duplicate_message="This repository is already being created.",
+        )
+
     def _on_add_handle(self, old_id: str, new_id: str) -> None:
         if not self.is_mounted:
             return
@@ -236,7 +327,10 @@ class NewProjectApplyMixin(_MixinBase):
 
     def _start_apply(self, submission: ApplySubmission) -> None:
         self._apply_submission = submission
-        presented = self._submit_project_add(submission)
+        if submission.operation == "project.create":
+            presented = self._submit_project_create(submission)
+        else:
+            presented = self._submit_project_add(submission)
         if presented is None:
             return
         self._state.to_progress()
@@ -319,6 +413,17 @@ class NewProjectApplyMixin(_MixinBase):
     async def _record_ok_preferences(self) -> None:
         workflow_type = self._state.workflow_type
         owner = _owner_from_target(self._active_target)
+        submission = self._apply_submission
+        if submission is not None and submission.operation == "project.create":
+            intent = _intent_from_submission(submission)
+            owner = intent["owner"] or owner
+            await asyncio.to_thread(
+                _record_successful_create_preferences,
+                intent["workflow_type"] or workflow_type,
+                owner,
+                intent["visibility"],
+            )
+            return
         await asyncio.to_thread(
             _record_successful_add_preferences, workflow_type, owner
         )
@@ -517,7 +622,12 @@ class NewProjectApplyMixin(_MixinBase):
             with self.app.suspend():
                 subprocess.run(argv, cwd=cwd, check=False)
         except (OSError, SuspendNotSupported) as exc:
-            self.notify(f"Could not run add in terminal: {exc}", severity="error")
+            verb = (
+                "create"
+                if getattr(submission, "operation", "") == "project.create"
+                else "add"
+            )
+            self.notify(f"Could not run {verb} in terminal: {exc}", severity="error")
             return
         self._retry_review(recheck=True)
 

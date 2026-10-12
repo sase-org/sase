@@ -235,9 +235,7 @@ class NewProjectModal(
                 return
             self._on_create_back_requested()
         elif stage == "review":
-            self.query_one(NewProjectReview).invalidate_check()
-            self._state.back_to_configure()
-            self._show_stage("configure")
+            self._leave_review()
         else:
             self.dismiss(None)
 
@@ -589,9 +587,16 @@ class NewProjectModal(
 
     @on(NewProjectReview.BackRequested)
     def _review_back_requested(self, _event: NewProjectReview.BackRequested) -> None:
+        self._leave_review()
+
+    def _leave_review(self) -> None:
+        """Return from Review to add or create Configure with drafts intact."""
         self.query_one(NewProjectReview).invalidate_check()
         self._state.back_to_configure()
-        self._show_stage("configure")
+        self._show_stage(self._state.stage)
+        if self._state.wizard_mode == "create":
+            self.query_one(NewProjectCreateConfigure).focus_name()
+            return
         self.query_one(NewProjectConfigure).focus_name()
 
     async def _save_preferences(self) -> None:

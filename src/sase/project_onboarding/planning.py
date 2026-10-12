@@ -227,6 +227,9 @@ def _document(
     record: Mapping[str, Any] | None = (
         raw_record if isinstance(raw_record, Mapping) else None
     )
+    creation = request.get("creation")
+    creation_map = creation if isinstance(creation, Mapping) else {}
+    requested_visibility = str(creation_map.get("visibility") or "")
     document = {
         "schema_version": _PLAN_SCHEMA_VERSION,
         "kind": _PLAN_DOCUMENT_KIND,
@@ -241,8 +244,10 @@ def _document(
             "ref": str(target.get("ref") or ""),
             "display": str(target.get("display") or target.get("ref") or ""),
             "identity_key": str(target.get("identity_key") or ""),
+            "host": str(target.get("host") or ""),
+            "owner": str(target.get("owner") or ""),
             "web_url": str(remote.get("web_url") or target.get("web_url") or ""),
-            "visibility": str(remote.get("visibility") or ""),
+            "visibility": str(remote.get("visibility") or requested_visibility or ""),
             "default_branch": str(remote.get("default_branch") or ""),
             "checkout_dir": str(target.get("checkout_dir") or ""),
             "can_push": remote.get("can_push"),
@@ -263,6 +268,11 @@ def _document(
         "apply_argv": _apply_argv(request),
         "next_argv": _next_argv(steps, key),
     }
+    if creation_map:
+        document["creation"] = {
+            "visibility": requested_visibility,
+            "summary": [str(item) for item in list(creation_map.get("summary") or ())],
+        }
     fields = facts.get("creation_fields")
     if isinstance(fields, list) and fields:
         document["creation_fields"] = fields
