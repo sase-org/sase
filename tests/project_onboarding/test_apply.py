@@ -16,10 +16,12 @@ import pytest
 from sase import workspace_provider
 from sase.core.paths import sase_projects_dir
 from sase.history.vcs_macro_mru import vcs_macro_mru_path
-from sase.project_onboarding import apply as apply_mod
+from sase.project_onboarding import _apply_effects as apply_effects
+from sase.project_onboarding import _apply_locks as apply_locks
 from sase.project_onboarding import parse_event_line
 from sase.project_onboarding.apply import apply_plan
 from sase.project_onboarding.journal import lookup_journal
+from sase.project_onboarding.manage import ManagementError
 from sase.workspace_provider._hookspec import (
     ParsedRepoRef,
     RepoProbe,
@@ -358,7 +360,7 @@ class TestBlockedRevalidation:
         assert _kinds(events) == [("plan", ""), ("result", "blocked")]
 
     def test_lock_contention_reports_blocked(self, fake_gh: _FakeGh) -> None:
-        lock_path = apply_mod._apply_identity_lock_path(_IDENTITY)
+        lock_path = apply_locks.apply_identity_lock_path(_IDENTITY)
         lock_path.parent.mkdir(parents=True, exist_ok=True)
         handle = open(lock_path, "a", encoding="utf-8")
         fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
@@ -398,10 +400,10 @@ class TestFailureRecovery:
         checkout = fake_gh.checkouts[_IDENTITY]
 
         def _refused(*args: Any, **kwargs: Any) -> Any:
-            raise apply_mod.ManagementError("push rejected: protected branch")
+            raise ManagementError("push rejected: protected branch")
 
-        real_manage = apply_mod.manage_repository
-        monkeypatch.setattr(apply_mod, "manage_repository", _refused)
+        real_manage = apply_effects.manage_repository
+        monkeypatch.setattr(apply_effects, "manage_repository", _refused)
         result, _ = _run(_request(checkout))
 
         assert result["status"] == "partial"
@@ -409,7 +411,7 @@ class TestFailureRecovery:
         assert "re-run the same command" in result["message"]
         assert len(_marker_commits(fake_gh.origin)) == 1
 
-        monkeypatch.setattr(apply_mod, "manage_repository", real_manage)
+        monkeypatch.setattr(apply_effects, "manage_repository", real_manage)
         retried, _ = _run(_request(checkout))
 
         assert retried["status"] == "ok"
