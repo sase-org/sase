@@ -45,6 +45,7 @@ def render_stepper(stage: str) -> Text:
 def render_source_row(row: SourceRow) -> Text:
     """Render a candidate row with the plan's Source glyphs."""
     glyphs = {
+        "create": "✚",
         "resume": "↻",
         "local": "⌂",
         "suggested": "○",
@@ -101,6 +102,11 @@ def render_source_detail(
         return text
     title = clean_source_text(row.display)
     text.append(title, style="bold #FFAF5F")
+    if row.group == "create":
+        text.append("\nStart a new remote repository on ", style="dim")
+        text.append(clean_source_text(workflow_type) or "this provider")
+        text.append("\nDescribe it, then review the exact create plan.", style="dim")
+        return text
     if row.is_error:
         text.append("\nProvider owner unavailable", style="bold #FFAF5F")
         message = clean_source_text(row.data.get("message", ""))

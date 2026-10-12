@@ -97,7 +97,7 @@ def _render_raw_log(lines: Sequence[str], *, expanded: bool) -> Text:
 
 
 class NewProjectProgress(Vertical):
-    """Live checklist fed by the durable ``project.add`` proc log."""
+    """Live checklist fed by the durable ``project.add``/``project.create`` log."""
 
     can_focus = True
     BINDINGS = [
@@ -129,6 +129,7 @@ class NewProjectProgress(Vertical):
         self._tail_token: str | None = None
         self._settled = False
         self._settlement_tail_done = False
+        self._operation = "project.add"
 
     def compose(self) -> ComposeResult:
         with VerticalScroll(id="new-project-progress-scroll"):
@@ -166,6 +167,14 @@ class NewProjectProgress(Vertical):
             self._paint()
             self._start_poll()
             self._poll_log()
+
+    def set_operation(self, operation: str) -> None:
+        """Record whether this run applies ``project.add`` or ``project.create``."""
+        if operation in ("project.add", "project.create"):
+            self._operation = operation
+
+    def _verb(self) -> str:
+        return "create" if self._operation == "project.create" else "add"
 
     def update_proc_id(self, old_id: str, new_id: str, *, log_path: str = "") -> None:
         """Follow the durable handle once the placeholder id is replaced."""
@@ -210,7 +219,9 @@ class NewProjectProgress(Vertical):
             return
         if completion.success:
             return
-        message = completion.error or completion.message or "Project add failed."
+        message = (
+            completion.error or completion.message or f"Project {self._verb()} failed."
+        )
         self._emit_failed_result(message)
 
     def current_view(self) -> ProgressView:
@@ -387,7 +398,7 @@ class NewProjectProgress(Vertical):
             if self._view.result is not None:
                 self._handle_terminal_result(self._view.result)
             return
-        message = "Project add failed."
+        message = f"Project {self._verb()} failed."
         if row is not None:
             message = str(
                 getattr(row, "error", None) or getattr(row, "message", "") or message

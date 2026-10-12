@@ -22,7 +22,7 @@ NewProjectStage = Literal[
     "ready",
     "failed",
 ]
-SourceOutcome = Literal["configure", "show-project", "jump-resume", "resume"]
+SourceOutcome = Literal["configure", "show-project", "jump-resume", "resume", "create"]
 WizardMode = Literal["add", "create"]
 
 
@@ -40,6 +40,8 @@ class NewProjectStateMachine:
     def select_source(self, row: SourceRow) -> SourceOutcome:
         """Choose a source row, preserving its specialized hand-off behavior."""
         self.selected = row
+        if row.group == "create":
+            return "create"
         if row.group == "search_only" and row.hidden_reason == "enabled_project":
             return "show-project"
         if row.group == "resume":

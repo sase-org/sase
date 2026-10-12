@@ -1264,9 +1264,11 @@ class NewProjectCreateFlowMixin(_MixinBase):
     _create_plan: dict[str, Any]
     _create_plan_identity: str
     _create_review_request: dict[str, Any] | None
+    _create_resume_pending_restore: bool
 
     def _init_create_state(self) -> None:
         """Reset create-flow state; called once from the modal constructor."""
+        self._create_resume_pending_restore = False
         self._create_generation = 0
         self._create_form_generation = 0
         self._create_owners = ()
@@ -1331,6 +1333,7 @@ class NewProjectCreateFlowMixin(_MixinBase):
         self._create_plan_identity = ""
         self._create_review_request = None
         self._state.to_create_configure(draft)
+        self._create_resume_pending_restore = False
         self._show_stage("create-configure")
         self._paint_create_configure()
         self.query_one(NewProjectCreateConfigure).focus_name()
@@ -1453,6 +1456,7 @@ class NewProjectCreateFlowMixin(_MixinBase):
         draft = self._state.create_draft
         if draft is None or not self._create_confirmable(draft):
             return
+        self._create_resume_pending_restore = False
         workflow_type = self._state.workflow_type
         metadata = getattr(self, "_provider_by_id", {}).get(workflow_type)
         self._create_review_request = create_review_request(
@@ -1489,6 +1493,28 @@ class NewProjectCreateFlowMixin(_MixinBase):
             if self._create_review_request is not None
             else None
         )
+
+    def _restore_create_configure_from_resume(self) -> None:
+        """Repaint create Configure after Back from a resumed create Review.
+
+        The resume hydration jumps straight to checked Review, so the
+        Configure widget was never painted. Restore the recovered draft,
+        re-describe the owner form, and schedule a live check.
+        """
+        draft = self._state.create_draft
+        if draft is None:
+            return
+        self._create_resume_pending_restore = False
+        if draft.owner and draft.owner not in self._create_owners:
+            self._create_owners = (*self._create_owners, draft.owner)
+        self._create_drafts[draft.owner] = draft
+        self._paint_create_configure()
+        self._describe_create_form(draft.owner)
+        self._schedule_create_check()
+        try:
+            self.query_one(NewProjectCreateConfigure).focus_name()
+        except Exception:
+            pass
 
     def _on_create_back_requested(self) -> None:
         """Return to Source, cancelling pending create work."""

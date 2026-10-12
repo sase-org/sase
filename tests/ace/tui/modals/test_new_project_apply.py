@@ -14,7 +14,10 @@ from sase.ace.tui.modals.new_project_apply import (
     _reload_projects_if_mounted,
     _terminal_apply_argv,
 )
-from sase.ace.tui.modals.new_project_failed import NewProjectFailed
+from sase.ace.tui.modals.new_project_failed import (
+    NewProjectFailed,
+    create_setup_incomplete,
+)
 from sase.ace.tui.modals.new_project_modal import NewProjectModal, NewProjectSelection
 from sase.ace.tui.modals.new_project_progress import (
     NewProjectProgress,
@@ -375,6 +378,59 @@ async def test_configure_and_review_hints_and_completed_stepper(
         assert "● Review" not in stepper
         modal._cycle_provider(1)
         assert modal._state.workflow_type == "gh"
+
+
+def _failed_create_view() -> ProgressView:
+    view = ProgressView()
+    view.feed_event(
+        {
+            "event": "plan",
+            "plan": {
+                "steps": [
+                    {"id": "create_remote", "label": "Create sase-org/forge"},
+                    {"id": "checkout", "label": "Clone and register"},
+                ]
+            },
+        }
+    )
+    view.feed_event({"event": "step", "id": "create_remote", "status": "done"})
+    view.feed_event(
+        {
+            "event": "step",
+            "id": "checkout",
+            "status": "failed",
+            "message": "clone failed",
+            "hint": "retry the same plan",
+        }
+    )
+    return view
+
+
+def test_create_setup_incomplete_detects_created_remote() -> None:
+    assert create_setup_incomplete(_failed_create_view()) is True
+
+
+def test_create_setup_incomplete_ignores_clean_or_add_runs() -> None:
+    add_view = ProgressView()
+    add_view.feed_event(
+        {
+            "event": "plan",
+            "plan": {"steps": [{"id": "checkout", "label": "Clone and register"}]},
+        }
+    )
+    add_view.feed_event(
+        {"event": "step", "id": "checkout", "status": "failed", "message": "nope"}
+    )
+    assert create_setup_incomplete(add_view) is False
+
+    pending_view = ProgressView()
+    pending_view.feed_event(
+        {
+            "event": "plan",
+            "plan": {"steps": [{"id": "create_remote", "label": "Create x"}]},
+        }
+    )
+    assert create_setup_incomplete(pending_view) is False
 
 
 def test_format_elapsed_and_raw_log_disclosure() -> None:

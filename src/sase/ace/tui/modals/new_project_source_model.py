@@ -76,6 +76,24 @@ def _source_row(group: str, data: Mapping[str, Any]) -> SourceRow:
     )
 
 
+def create_source_row(provider_display: str, workflow_type: str) -> SourceRow:
+    """Build the pinned synthetic Create row for one provider.
+
+    The row carries no ref, so detail and probe paths must never treat it as
+    a repository. It stays pinned ahead of every other group and is never
+    filtered out.
+    """
+    label = provider_display.strip() or workflow_type.strip() or "repository"
+    return SourceRow(
+        row_id=f"create:{workflow_type}",
+        group="create",
+        display=f"Create a new {label} repository…",
+        ref="",
+        description="start a new remote repository",
+        data={"workflow_type": workflow_type, "provider_display": label},
+    )
+
+
 def build_source_view(
     inputs: CandidateInputs,
     *,
@@ -83,6 +101,7 @@ def build_source_view(
     reveal_forks: bool = False,
     reveal_all: bool = False,
     pending_owners: frozenset[str] = frozenset(),
+    create_row: SourceRow | None = None,
 ) -> SourceView:
     """Build Source rows from core classification plus local filter state."""
     from sase.core.project_onboarding_facade import classify_project_candidates
@@ -214,6 +233,8 @@ def build_source_view(
         visible_groups.insert(
             0, _SourceGroup("owner_fetching", "UPDATING", "◌", tuple(fetching_rows))
         )
+    if create_row is not None:
+        visible_groups.insert(0, _SourceGroup("create", "CREATE", "✚", (create_row,)))
 
     return SourceView(
         groups=tuple(visible_groups),
@@ -246,5 +267,6 @@ __all__ = [
     "SourceRow",
     "SourceView",
     "build_source_view",
+    "create_source_row",
     "hidden_footer",
 ]

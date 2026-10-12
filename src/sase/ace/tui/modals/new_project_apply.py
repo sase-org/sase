@@ -27,7 +27,7 @@ from sase.project_onboarding.preferences import (
 )
 from sase.project_tags import ensure_project_tag_catalog
 
-from .new_project_failed import NewProjectFailed
+from .new_project_failed import NewProjectFailed, create_setup_incomplete
 from .new_project_progress import NewProjectProgress
 from .new_project_progress_model import ProgressResult
 from .new_project_ready import NewProjectReady
@@ -337,8 +337,10 @@ class NewProjectApplyMixin(_MixinBase):
         self._show_stage("progress")
         proc_id = getattr(presented, "proc_id", "") or ""
         log_path = getattr(presented, "log_path", "") or ""
-        self.query_one(NewProjectProgress).attach_proc(proc_id, log_path=log_path)
-        self.query_one(NewProjectProgress).focus()
+        progress = self.query_one(NewProjectProgress)
+        progress.set_operation(submission.operation)
+        progress.attach_proc(proc_id, log_path=log_path)
+        progress.focus()
 
     def on_new_project_review_apply_requested(
         self, event: NewProjectReview.ApplyRequested
@@ -473,8 +475,16 @@ class NewProjectApplyMixin(_MixinBase):
         self._show_stage("failed")
         view = self.query_one(NewProjectProgress).current_view()
         message = self._progress_result.message if self._progress_result else ""
+        submission = self._apply_submission
+        created_but_incomplete = (
+            submission is not None
+            and submission.operation == "project.create"
+            and create_setup_incomplete(view)
+        )
         failed = self.query_one(NewProjectFailed)
-        failed.show_failure(view, message=message)
+        failed.show_failure(
+            view, message=message, created_but_incomplete=created_but_incomplete
+        )
         failed.focus()
 
     def _apply_ready_accent(self, accent: str) -> None:
@@ -503,7 +513,7 @@ class NewProjectApplyMixin(_MixinBase):
         }
         hints = {
             "source": (
-                "⏎ choose · [ ] provider · / filter · f forks · . all · "
+                "⏎ choose · n new · [ ] provider · / filter · f forks · . all · "
                 "R refresh · t provider login · esc close"
             ),
             "configure": (

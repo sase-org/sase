@@ -20,6 +20,7 @@ from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patches,
     patch_startup_loaders,
     wait_for_startup,
+    wait_for_state,
     wait_for_visual_idle,
 )
 from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
@@ -171,6 +172,17 @@ async def _open_modal(page: AcePage, modal: NewProjectModal) -> None:
     assert modal.query_one("#new-project-health", Static).region.width > 0
 
 
+async def _wait_for_create_row(page: AcePage, modal: NewProjectModal) -> None:
+    """Wait until create-support discovery pins the Source Create row."""
+    source = modal.query_one(NewProjectSource)
+
+    def _pinned() -> bool:
+        return source.create_row is not None
+
+    await wait_for_state(page, _pinned, description="Create row pinned")
+    await wait_for_visual_idle(page)
+
+
 async def _select_suggested_source(page: AcePage, modal: NewProjectModal) -> None:
     source = modal.query_one(NewProjectSource)
     row = next(row for row in source._rows.values() if row.group == "suggested")
@@ -206,6 +218,20 @@ def _patch_deterministic_source(
     monkeypatch.setattr(DetailPanelDebouncer, "schedule", lambda self, callback: None)
 
 
+def _patch_create_supported(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Pin the Source Create row: provider form discovery finds a form."""
+    monkeypatch.setattr(
+        workspace_provider, "describe_repo_creation", lambda _wt, _ns: object()
+    )
+
+
+def _patch_create_unsupported(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Leave the add-only Source list: provider form discovery finds nothing."""
+    monkeypatch.setattr(
+        workspace_provider, "describe_repo_creation", lambda _wt, _ns: None
+    )
+
+
 async def test_new_project_source_loading_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
@@ -213,6 +239,7 @@ async def test_new_project_source_loading_png_snapshot(
     """The Source stage clearly signals cache loading while preserving its shell."""
     patch_startup_loaders(monkeypatch)
     _patch_deterministic_source(monkeypatch)
+    _patch_create_unsupported(monkeypatch)
     monkeypatch.setattr(
         NewProjectModal, "_start_provider_load", lambda self, _type: None
     )
@@ -241,6 +268,7 @@ async def test_new_project_source_populated_png_snapshot(
     """The Source stage shows candidate groups, hidden counts, and a live detail card."""
     patch_startup_loaders(monkeypatch)
     _patch_deterministic_source(monkeypatch)
+    _patch_create_supported(monkeypatch)
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         modal = NewProjectModal(
@@ -249,6 +277,7 @@ async def test_new_project_source_populated_png_snapshot(
             preferences=Preferences(last_provider="gh"),
         )
         await _open_modal(page, modal)
+        await _wait_for_create_row(page, modal)
         await _select_suggested_source(page, modal)
         assert (
             "bbugyi200" in modal.query_one("#new-project-health", Static).render().plain
@@ -267,6 +296,7 @@ async def test_new_project_source_owner_error_png_snapshot(
     """An owner failure remains visible with its recovery action."""
     patch_startup_loaders(monkeypatch)
     _patch_deterministic_source(monkeypatch)
+    _patch_create_unsupported(monkeypatch)
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         modal = NewProjectModal(
@@ -293,6 +323,7 @@ async def test_new_project_source_empty_png_snapshot(
     """The empty state explains that a repository can be pasted without owners."""
     patch_startup_loaders(monkeypatch)
     _patch_deterministic_source(monkeypatch)
+    _patch_create_supported(monkeypatch)
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         modal = NewProjectModal(
@@ -301,6 +332,7 @@ async def test_new_project_source_empty_png_snapshot(
             preferences=Preferences(last_provider="gh"),
         )
         await _open_modal(page, modal)
+        await _wait_for_create_row(page, modal)
         assert (
             "no owners" in modal.query_one("#new-project-health", Static).render().plain
         )
@@ -318,6 +350,7 @@ async def test_new_project_source_narrow_png_snapshot(
     """The modal remains legible at a narrow terminal size."""
     patch_startup_loaders(monkeypatch)
     _patch_deterministic_source(monkeypatch)
+    _patch_create_supported(monkeypatch)
 
     async with AcePage(query='"visual"', size=(84, 28), patches=patches()) as page:
         modal = NewProjectModal(
@@ -326,6 +359,7 @@ async def test_new_project_source_narrow_png_snapshot(
             preferences=Preferences(last_provider="gh"),
         )
         await _open_modal(page, modal)
+        await _wait_for_create_row(page, modal)
         await _select_suggested_source(page, modal)
         ace_png_visual.assert_page_png(
             page,

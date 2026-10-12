@@ -7,8 +7,10 @@ from textual.widgets import Input, Static
 
 from sase import workspace_provider
 from sase.ace.tui.modals.new_project_modal import NewProjectModal
+from sase.ace.tui.modals.new_project_source import NewProjectSource
 from sase.ace.tui.modals.new_project_source_model import (
     build_source_view,
+    create_source_row,
     hidden_footer,
 )
 from sase.project_onboarding import CandidateInputs, OwnerResult, Preferences
@@ -250,3 +252,96 @@ async def test_tab_selection_persists_last_provider_off_thread(
         (tmp_path / "project_onboarding" / "preferences.json").read_text()
     )
     assert payload["last_provider"] == "git"
+
+
+def test_create_row_pins_first_across_filter_and_states(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    monkeypatch.setattr(workspace_provider, "parse_repo_ref", lambda *args: None)
+    row = create_source_row("GitHub", "gh")
+    assert row.group == "create"
+    assert row.ref == ""
+    assert "GitHub" in row.display
+
+    view = build_source_view(_inputs(), create_row=row)
+    assert view.groups[0].group_id == "create"
+    assert view.rows[0] == row
+
+    filtered = build_source_view(_inputs(), filter_text="zzz-no-match", create_row=row)
+    assert filtered.rows[0] == row
+
+    empty = build_source_view(
+        CandidateInputs(workflow_type="gh", display="GitHub", account=""),
+        create_row=row,
+    )
+    assert empty.rows == (row,)
+
+    without = build_source_view(_inputs())
+    assert all(group.group_id != "create" for group in without.groups)
+
+
+def _patch_list_basics(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    monkeypatch.setattr(
+        workspace_provider,
+        "parse_repo_ref",
+        lambda workflow_type, text: (
+            _parsed(workflow_type, text) if text == "sase-org/new" else None
+        ),
+    )
+    monkeypatch.setattr(
+        workspace_provider, "describe_repo_creation", lambda _wt, _ns: object()
+    )
+
+
+async def _wait_for_create_row(modal: NewProjectModal, pilot) -> None:  # type: ignore[no-untyped-def]
+    source = modal.query_one(NewProjectSource)
+    for _ in range(100):
+        if source.create_row is not None:
+            return
+        await pilot.pause()
+    raise AssertionError("pinned Create row never appeared")
+
+
+async def test_discovery_pins_create_row_and_n_opens_create(
+    monkeypatch,
+) -> None:  # type: ignore[no-untyped-def]
+    _patch_list_basics(monkeypatch)
+    modal = NewProjectModal(
+        provider_metadata=(_provider("gh", "GitHub"),),
+        candidate_inputs={"gh": _inputs()},
+        preferences=Preferences(last_provider="gh"),
+    )
+    app = _ModalApp()
+    async with app.run_test(size=(100, 32)) as pilot:
+        app.push_screen(modal)
+        await pilot.pause()
+        await _wait_for_create_row(modal, pilot)
+        source = modal.query_one(NewProjectSource)
+        assert source.create_row is not None
+        assert "Create a new GitHub repository" in source.create_row.display
+        source.focus_list()
+        await pilot.pause()
+        await pilot.press("n")
+        await pilot.pause()
+        assert modal._state.stage == "create-configure"
+        assert modal._state.wizard_mode == "create"
+
+
+async def test_n_in_filter_stays_text(
+    monkeypatch,
+) -> None:  # type: ignore[no-untyped-def]
+    _patch_list_basics(monkeypatch)
+    modal = NewProjectModal(
+        provider_metadata=(_provider("gh", "GitHub"),),
+        candidate_inputs={"gh": _inputs()},
+        preferences=Preferences(last_provider="gh"),
+    )
+    app = _ModalApp()
+    async with app.run_test(size=(100, 32)) as pilot:
+        app.push_screen(modal)
+        await pilot.pause()
+        await _wait_for_create_row(modal, pilot)
+        modal.query_one("#new-project-filter", Input).focus()
+        await pilot.pause()
+        await pilot.press("n")
+        await pilot.pause()
+        assert modal.query_one("#new-project-filter", Input).value == "n"
+        assert modal._state.stage == "source"

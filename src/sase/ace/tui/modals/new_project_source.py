@@ -81,6 +81,7 @@ class NewProjectSource(Vertical):
         ("up", "prev_row", "Previous"),
         ("ctrl+p", "prev_row", "Previous"),
         ("/", "focus_filter", "Filter"),
+        ("n", "create_new", "New repository"),
         ("f", "toggle_forks", "Forks"),
         (".", "toggle_all", "All"),
         ("R", "refresh", "Refresh"),
@@ -103,6 +104,7 @@ class NewProjectSource(Vertical):
         self._probing: set[tuple[str, str]] = set()
         self._detail_debouncer: DetailPanelDebouncer | None = None
         self._refresh_callback: Callable[[], None] | None = None
+        self._create_row: SourceRow | None = None
 
     def compose(self) -> ComposeResult:
         yield _SourceFilterInput(
@@ -136,6 +138,23 @@ class NewProjectSource(Vertical):
     def set_refresh_callback(self, callback: Callable[[], None]) -> None:
         """Install the owner responsible for forcing a provider refresh."""
         self._refresh_callback = callback
+
+    def set_create_row(self, row: SourceRow | None) -> None:
+        """Pin or clear the synthetic Create row above every Source group."""
+        if (row is None) == (self._create_row is None) and (
+            row is None
+            or self._create_row is not None
+            and row.row_id == self._create_row.row_id
+            and row.display == self._create_row.display
+        ):
+            return
+        self._create_row = row
+        self._rebuild()
+
+    @property
+    def create_row(self) -> SourceRow | None:
+        """Return the pinned Create row when provider support is confirmed."""
+        return self._create_row
 
     def cached_probe(self, workflow_type: str, ref: str) -> Any | None:
         """Return a previously observed provider probe, if Source already has one."""
@@ -177,6 +196,19 @@ class NewProjectSource(Vertical):
         if self._reveal_all:
             self._reveal_forks = True
         self._rebuild()
+
+    def action_create_new(self) -> None:
+        """Choose the pinned Create row when the candidate list is focused."""
+        try:
+            focused = self.screen.focused
+        except Exception:
+            return
+        if focused is not self.query_one("#new-project-source-list", OptionList):
+            return
+        row = self._create_row
+        if row is None:
+            return
+        self.post_message(self.RowChosen(row))
 
     def action_refresh(self) -> None:
         if self._refresh_callback is not None:
@@ -244,6 +276,7 @@ class NewProjectSource(Vertical):
                 reveal_forks=self._reveal_forks,
                 reveal_all=self._reveal_all,
                 pending_owners=self._pending_owners,
+                create_row=self._create_row,
             )
         self._rows = {}
         option_rows: list[Option] = []
@@ -341,6 +374,8 @@ class NewProjectSource(Vertical):
         )
 
     def _start_probe(self, ref: str, probe_key: tuple[str, str]) -> None:
+        if not ref:
+            return
         if probe_key in self._probe_cache or probe_key in self._probing:
             return
         self._probing.add(probe_key)

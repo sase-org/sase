@@ -16,7 +16,21 @@ from .new_project_configure_model import (
     check_identity,
     plan_configure_display,
 )
-from .new_project_resume import load_resume_context, recover_resume_intent
+from .new_project_create import (
+    CreateAvailabilityInfo,
+    CreateDraft,
+    CreateIdentity,
+    assemble_create_facts,
+    classify_create_probe,
+    normalize_create_name,
+    observe_create_checkout,
+    plan_create_display,
+)
+from .new_project_resume import (
+    ResumePlan,
+    load_resume_context,
+    recover_resume_intent,
+)
 from .new_project_review import NewProjectReview
 from .new_project_source import NewProjectSource
 from .new_project_source_model import SourceRow
@@ -47,6 +61,13 @@ class NewProjectConfigureFlowMixin(_MixinBase):
         _observed_facts: dict[str, object]
         _local_plan: dict[str, object]
         _local_plan_draft: ConfigureDraft | None
+        _create_drafts: dict[str, CreateDraft]
+        _create_owners: tuple[str, ...]
+        _create_identity: CreateIdentity
+        _create_availability: CreateAvailabilityInfo
+        _create_plan: dict[str, Any]
+        _create_plan_identity: str
+        _create_resume_pending_restore: bool
 
         def notify(self, message: str, **kwargs: Any) -> None: ...
         def query_one(self, *args: Any, **kwargs: Any) -> Any: ...
@@ -246,6 +267,7 @@ class NewProjectConfigureFlowMixin(_MixinBase):
 
     def _start_failed_resume(self, row: SourceRow) -> None:
         """Hydrate Review from a failed journal row without mutating yet."""
+        self._state.wizard_mode = "add"
         self._seed_configure_from_row(row, preserve=False)
         self._resume_generation += 1
         generation = self._resume_generation
@@ -282,6 +304,11 @@ class NewProjectConfigureFlowMixin(_MixinBase):
             context=context,
             seed_target=self._active_target,
         )
+        if plan.mode == "create":
+            await self._hydrate_create_resume(
+                generation, row_id, workflow_type, row, plan
+            )
+            return
         self._state.set_draft(plan.draft)
         self._active_target = plan.target
         review = self.query_one(NewProjectReview)
@@ -307,6 +334,103 @@ class NewProjectConfigureFlowMixin(_MixinBase):
         self.query_one(NewProjectConfigure).set_source(
             row, plan.draft, document, identity
         )
+        review.start_check(document, notice=plan.notice)
+
+    async def _hydrate_create_resume(
+        self,
+        generation: int,
+        row_id: str,
+        workflow_type: str,
+        row: SourceRow,
+        plan: ResumePlan,
+    ) -> None:
+        """Hydrate a failed create journal into a checked create Review."""
+        recovered = plan.create
+        review = self.query_one(NewProjectReview)
+        if plan.error or recovered is None:
+            selected = self.query_one(NewProjectSource).selected_row()
+            if self._resume_still_current(generation, row_id, workflow_type, selected):
+                review.set_error(plan.error)
+            return
+        metadata = self._provider_by_id.get(workflow_type)
+        provider_display = str(getattr(metadata, "display_name", "") or "")
+        storage_policy = str(getattr(metadata, "sdd_storage_policy", "") or "")
+        records = [dict(record) for record in self._active_records]
+        draft = CreateDraft(
+            owner=recovered.owner,
+            raw_name=recovered.raw_name or recovered.ref,
+            visibility=recovered.visibility,
+            provider_values=dict(recovered.options),
+            project=ConfigureDraft(
+                name=plan.draft.name,
+                aliases=plan.draft.aliases,
+                setup_override=plan.draft.setup_override,
+                make_current=plan.draft.make_current,
+            ),
+            project_name_edited=bool(recovered.project_name),
+        )
+        identity = normalize_create_name(workflow_type, draft.owner, draft.raw_name)
+        if identity.valid:
+            try:
+                probe = await asyncio.to_thread(
+                    workspace_provider.probe_repo,
+                    workflow_type,
+                    identity.canonical_ref,
+                )
+            except Exception:
+                probe = None
+        else:
+            probe = None
+        selected = self.query_one(NewProjectSource).selected_row()
+        if not self._resume_still_current(generation, row_id, workflow_type, selected):
+            return
+        try:
+            checkout = await asyncio.to_thread(
+                observe_create_checkout,
+                identity.checkout_dir,
+                identity_key=identity.identity_key,
+                workflow_type=workflow_type,
+            )
+        except Exception:
+            checkout = {"state": "absent"}
+        try:
+            facts = assemble_create_facts(
+                records=records,
+                probe=probe,
+                identity_key=identity.identity_key,
+                checkout=checkout if isinstance(checkout, dict) else None,
+            )
+            document = await asyncio.to_thread(
+                plan_create_display,
+                identity=identity,
+                workflow_type=workflow_type,
+                provider_display=provider_display,
+                storage_policy=storage_policy,
+                project=draft.project,
+                visibility=draft.visibility,
+                effective_options=dict(recovered.options),
+                facts=facts,
+            )
+        except Exception as error:
+            selected = self.query_one(NewProjectSource).selected_row()
+            if self._resume_still_current(generation, row_id, workflow_type, selected):
+                review.set_error(str(error) or type(error).__name__)
+            return
+        selected = self.query_one(NewProjectSource).selected_row()
+        if not self._resume_still_current(generation, row_id, workflow_type, selected):
+            return
+        self._state.wizard_mode = "create"
+        self._state.set_create_draft(draft)
+        self._create_drafts[draft.owner] = draft
+        if draft.owner and draft.owner not in self._create_owners:
+            self._create_owners = (*self._create_owners, draft.owner)
+        self._create_identity = identity
+        self._create_availability = classify_create_probe(probe)
+        self._create_plan = document
+        self._create_plan_identity = identity.identity_key if document else ""
+        self._create_resume_pending_restore = True
+        self._active_target = dict(document.get("target") or {})
+        self._local_plan = document
         review.start_check(document, notice=plan.notice)
 
     def _resume_still_current(

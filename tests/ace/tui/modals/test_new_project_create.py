@@ -766,6 +766,13 @@ async def test_late_form_completion_keeps_current_owner_edits(
     async with app.run_test(size=(120, 40)) as pilot:
         app.push_screen(modal)
         await pilot.pause()
+        # Source-level create-support discovery describes the account namespace
+        # on mount; drain it so the assertions below cover the create flow.
+        for _ in range(100):
+            if "bbugyi200" in describe_calls:
+                break
+            await pilot.pause()
+        describe_calls.clear()
         modal.enter_create_configure(
             workflow_type="gh",
             owners=["sase-org", "bbugyi200"],

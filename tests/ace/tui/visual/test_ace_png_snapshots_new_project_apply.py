@@ -134,6 +134,94 @@ async def test_new_project_failed_kept_repo_png_snapshot(
         )
 
 
+def _failed_create_view():
+    return reduce_lines(
+        [
+            '{"event":"plan","plan":{"steps":['
+            '{"id":"create_remote","label":"Create sase-org/forge","state":"pending"},'
+            '{"id":"checkout","label":"Clone and register","state":"pending"}]}}',
+            '{"event":"step","id":"create_remote","status":"done"}',
+            '{"event":"step","id":"checkout","status":"failed",'
+            '"message":"Could not clone the new repository",'
+            '"hint":"Retry resumes setup without creating again."}',
+            '{"event":"result","status":"failed",'
+            '"project":{"key":"gh_sase-org__forge","name":"forge"},'
+            '"message":"Could not clone the new repository"}',
+        ]
+    )
+
+
+async def _open_failed_create(
+    page: AcePage,
+    modal: NewProjectModal,
+) -> NewProjectFailed:
+    await _open_apply_shell(page, modal)
+    modal._state.finish_failed()
+    modal._show_stage("failed")
+    failed = modal.query_one(NewProjectFailed)
+    failed.show_failure(
+        _failed_create_view(),
+        message="Could not clone the new repository",
+        created_but_incomplete=True,
+    )
+    await wait_for_visual_idle(page)
+    assert (
+        "Repository created; setup incomplete"
+        in failed.query_one("#new-project-failed-message", Static).render().plain
+    )
+    return failed
+
+
+async def test_new_project_failed_created_incomplete_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Failed names the created repository and keeps successful steps."""
+    patch_startup_loaders(monkeypatch)
+    _patch_deterministic_source(monkeypatch)
+    _patch_local_add_plan(monkeypatch, can_push=True)
+    monkeypatch.setattr(
+        NewProjectModal, "_start_provider_load", lambda self, _type: None
+    )
+    async with AcePage(query='"visual"', patches=patches()) as page:
+        modal = NewProjectModal(
+            provider_metadata=(_provider(),),
+            candidate_inputs={"gh": _populated_inputs()},
+            preferences=Preferences(last_provider="gh"),
+        )
+        await _open_failed_create(page, modal)
+        ace_png_visual.assert_page_png(
+            page,
+            "new_project_failed_created_incomplete_120x40",
+            title="New Project wizard — Failed with created repository",
+        )
+
+
+async def test_new_project_failed_created_incomplete_narrow_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The created-but-incomplete notice stays legible at 80 by 24 cells."""
+    patch_startup_loaders(monkeypatch)
+    _patch_deterministic_source(monkeypatch)
+    _patch_local_add_plan(monkeypatch, can_push=True)
+    monkeypatch.setattr(
+        NewProjectModal, "_start_provider_load", lambda self, _type: None
+    )
+    async with AcePage(query='"visual"', size=(80, 24), patches=patches()) as page:
+        modal = NewProjectModal(
+            provider_metadata=(_provider(),),
+            candidate_inputs={"gh": _populated_inputs()},
+            preferences=Preferences(last_provider="gh"),
+        )
+        await _open_failed_create(page, modal)
+        ace_png_visual.assert_page_png(
+            page,
+            "new_project_failed_created_incomplete_80x24",
+            title="New Project wizard — narrow Failed with created repository",
+        )
+
+
 async def test_new_project_ready_accent_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,

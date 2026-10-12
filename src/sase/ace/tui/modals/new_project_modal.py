@@ -40,7 +40,7 @@ from .new_project_ready import NewProjectReady
 from .new_project_review import NewProjectReview
 from .new_project_review_model import ApplySubmission
 from .new_project_source import NewProjectSource
-from .new_project_source_model import SourceRow
+from .new_project_source_model import SourceRow, create_source_row
 from .new_project_state import NewProjectStateMachine
 
 _TASKS = "_new_project_modal_tasks"
@@ -102,6 +102,8 @@ class NewProjectModal(
         self._observed_facts: dict[str, object] = {}
         self._local_plan: dict[str, object] = {}
         self._local_plan_draft: ConfigureDraft | None = None
+        self._create_support: dict[str, str] = {}
+        self._create_support_loading: set[str] = set()
         self._apply_submission: ApplySubmission | None = None
         self._review_document: dict[str, object] = {}
         self._progress_result: ProgressResult | None = None
@@ -132,7 +134,7 @@ class NewProjectModal(
                 yield NewProjectReady(id="new-project-ready-stage")
                 yield NewProjectFailed(id="new-project-failed-stage")
             yield Static(
-                "⏎ choose · [ ] provider · / filter · f forks · . all · R refresh · t provider login · esc close",
+                "⏎ choose · n new · [ ] provider · / filter · f forks · . all · R refresh · t provider login · esc close",
                 id="new-project-hints",
             )
 
@@ -178,22 +180,44 @@ class NewProjectModal(
                 NewProjectSelection("jump-resume", self._state.workflow_type, row)
             )
             return
-        if outcome in {"configure", "resume"}:
+        if outcome == "create":
+            self._enter_create_from_source(row)
+            return
+        if outcome == "resume":
+            self._start_failed_resume(row)
+            return
+        if outcome == "configure":
             self._state.to_configure()
             self._prepare_configure(
                 row,
-                preserve=(
-                    outcome == "configure"
-                    and previous is not None
-                    and previous.row_id == row.row_id
-                ),
+                preserve=(previous is not None and previous.row_id == row.row_id),
             )
-        elif outcome == "resume":
-            self._start_failed_resume(row)
-            return
         self._show_stage(self._state.stage)
-        if outcome in {"configure", "resume"}:
+        if outcome == "configure":
             self.query_one(NewProjectConfigure).focus_name()
+
+    def _enter_create_from_source(self, row: SourceRow) -> None:
+        """Open create Configure from the pinned Source Create row."""
+        workflow_type = self._state.workflow_type
+        inputs = self._inputs.get(workflow_type)
+        if inputs is None:
+            return
+        owners = [owner.name for owner in inputs.owners if owner.name]
+        unavailable = {
+            owner.name
+            for owner in inputs.owners
+            if owner.name and owner.status == "error"
+        }
+        if not owners and workflow_type != "git":
+            self.notify("No owners available for this provider.", severity="warning")
+            return
+        _ = row
+        self.enter_create_configure(
+            workflow_type=workflow_type,
+            owners=owners,
+            account=inputs.account,
+            unavailable_owners=unavailable,
+        )
 
     def _project_key_for_row(self, row: SourceRow) -> str:
         """Resolve a hidden existing-project row to its canonical project key."""
@@ -280,6 +304,7 @@ class NewProjectModal(
             if workflow_type in self._loading:
                 return
             self._loading.add(workflow_type)
+            self._maybe_discover_create_support(workflow_type, force=True)
             spawn_pump_free_task(
                 self,
                 self._refresh_all_owners(workflow_type, force=True),
@@ -331,6 +356,8 @@ class NewProjectModal(
         source = self.query_one(NewProjectSource)
         source.set_workflow_type(selected or "")
         source.set_inputs(self._inputs.get(selected or ""))
+        if selected is not None:
+            self._maybe_discover_create_support(selected)
         if selected is None:
             self.query_one("#new-project-health", Static).update(
                 "No workspace providers are available."
@@ -355,6 +382,7 @@ class NewProjectModal(
         )
         source = self.query_one(NewProjectSource)
         source.set_workflow_type(workflow_type)
+        source.set_create_row(None)
         source.set_inputs(
             self._inputs.get(workflow_type),
             pending_owners=frozenset(
@@ -363,6 +391,7 @@ class NewProjectModal(
         )
         self._update_health(workflow_type)
         self._start_provider_load(workflow_type)
+        self._maybe_discover_create_support(workflow_type)
         self._persist_provider_selection(workflow_type)
 
     def _start_provider_load(self, workflow_type: str) -> None:
@@ -374,6 +403,66 @@ class NewProjectModal(
             self._load_provider(workflow_type),
             name=f"new-project-load:{workflow_type}",
             registry_attr=_TASKS,
+        )
+
+    def _maybe_discover_create_support(
+        self, workflow_type: str, *, force: bool = False
+    ) -> None:
+        """Describe the provider creation form off-thread, once per provider.
+
+        A non-None form pins the first Source Create row; None (or a
+        failure) leaves the ordinary add-only Source list.
+        """
+        if not workflow_type:
+            return
+        if workflow_type in self._create_support_loading:
+            return
+        if not force and workflow_type in self._create_support:
+            self._apply_create_support(workflow_type)
+            return
+        if force:
+            self._create_support.pop(workflow_type, None)
+        self._create_support_loading.add(workflow_type)
+        spawn_pump_free_task(
+            self,
+            self._observe_create_support(workflow_type),
+            name=f"new-project-create-support:{workflow_type}",
+            registry_attr=_TASKS,
+        )
+
+    async def _observe_create_support(self, workflow_type: str) -> None:
+        inputs = self._inputs.get(workflow_type)
+        namespace = ""
+        if inputs is not None:
+            namespace = inputs.account or next(
+                (owner.name for owner in inputs.owners if owner.name), ""
+            )
+        try:
+            form = await asyncio.to_thread(
+                workspace_provider.describe_repo_creation, workflow_type, namespace
+            )
+        except Exception:
+            form = None
+        if not self.is_mounted:
+            self._create_support_loading.discard(workflow_type)
+            return
+        self._create_support_loading.discard(workflow_type)
+        self._create_support[workflow_type] = (
+            "supported" if form is not None else "unsupported"
+        )
+        self._apply_create_support(workflow_type)
+
+    def _apply_create_support(self, workflow_type: str) -> None:
+        """Pin or clear the Source Create row from cached discovery."""
+        if not self.is_mounted or workflow_type != self._state.workflow_type:
+            return
+        if self._create_support.get(workflow_type) != "supported":
+            self.query_one(NewProjectSource).set_create_row(None)
+            return
+        metadata = self._provider_by_id.get(workflow_type)
+        display = str(getattr(metadata, "display_name", "") or workflow_type)
+        self.query_one(NewProjectSource).set_create_row(
+            create_source_row(display, workflow_type)
         )
 
     async def _load_provider(self, workflow_type: str) -> None:
@@ -456,6 +545,7 @@ class NewProjectModal(
             self._pending_by_provider[workflow_type] = pending
             self._show_inputs_if_selected(workflow_type)
             self._update_health(workflow_type)
+        self._maybe_discover_create_support(workflow_type)
 
     def _show_inputs_if_selected(self, workflow_type: str) -> None:
         if workflow_type != self._state.workflow_type or not self.is_mounted:
@@ -595,6 +685,9 @@ class NewProjectModal(
         self._state.back_to_configure()
         self._show_stage(self._state.stage)
         if self._state.wizard_mode == "create":
+            if self._create_resume_pending_restore:
+                self._restore_create_configure_from_resume()
+                return
             self.query_one(NewProjectCreateConfigure).focus_name()
             return
         self.query_one(NewProjectConfigure).focus_name()

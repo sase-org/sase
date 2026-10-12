@@ -15,6 +15,22 @@ from .new_project_progress_model import ProgressView
 from .new_project_rendering import clean_source_text
 
 
+_CREATED_INCOMPLETE_NOTICE = "Repository created; setup incomplete"
+
+
+def create_setup_incomplete(view: ProgressView) -> bool:
+    """Return whether checklist evidence shows a created but unfinished repo.
+
+    A done ``create_remote`` step with any later failed step means the
+    remote exists and retry must resume setup, never issue a second create.
+    """
+    steps = view.checklist()
+    remote_done = any(
+        step.step_id == "create_remote" and step.state == "done" for step in steps
+    )
+    return remote_done and any(step.state == "failed" for step in steps)
+
+
 class NewProjectFailed(Vertical):
     """Failure stage with retry, terminal, and back-to-review actions."""
 
@@ -38,6 +54,7 @@ class NewProjectFailed(Vertical):
         super().__init__(**kwargs)
         self._view = ProgressView()
         self._message = ""
+        self._created_incomplete = False
 
     def compose(self) -> ComposeResult:
         with VerticalScroll(id="new-project-failed-scroll"):
@@ -49,10 +66,17 @@ class NewProjectFailed(Vertical):
             yield Static("", id="new-project-failed-message", markup=False)
             yield Static("", id="new-project-failed-checklist", markup=False)
 
-    def show_failure(self, view: ProgressView, *, message: str = "") -> None:
+    def show_failure(
+        self,
+        view: ProgressView,
+        *,
+        message: str = "",
+        created_but_incomplete: bool = False,
+    ) -> None:
         """Paint the kept checklist and the terminal result message."""
         self._view = view
         self._message = message
+        self._created_incomplete = created_but_incomplete
         if self.is_mounted:
             self._paint()
 
@@ -69,6 +93,10 @@ class NewProjectFailed(Vertical):
         result = self._view.result
         message = clean_source_text(self._message or (result.message if result else ""))
         block = Text()
+        if self._created_incomplete:
+            block.append(_CREATED_INCOMPLETE_NOTICE, style="#FFAF5F")
+            if message:
+                block.append("\n")
         if message:
             block.append(message, style="#FF5F5F")
         failed = next(
@@ -85,4 +113,4 @@ class NewProjectFailed(Vertical):
         )
 
 
-__all__ = ["NewProjectFailed"]
+__all__ = ["NewProjectFailed", "create_setup_incomplete"]
