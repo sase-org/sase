@@ -10,10 +10,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-import sqlite3
 
 from sase.ace.dismissed_bundle_index import DismissedBundleSummary
-from sase.core.agent_scan_facade import default_agent_artifact_index_path
+from sase.core.agent_scan_facade import (
+    default_agent_artifact_index_path,
+    load_agent_artifact_index_projection as load_index_projection,
+)
 from sase.core.agent_scan_wire import SUPPORTED_AGENT_ARTIFACT_INDEX_SCHEMA_VERSIONS
 from sase.core.agent_artifact_index_lock import try_agent_artifact_index_operation_lock
 from sase.core.dismissed_agents_facade import load_dismissed_bundle_summaries
@@ -104,40 +106,26 @@ def load_artifact_index_projection(
 
 
 def _load_artifact_index_projection_locked(path: Path) -> _ArtifactIndexProjection:
-    columns_sql = ", ".join(_ARTIFACT_INDEX_COLUMNS)
     try:
-        connection = sqlite3.connect(f"file:{path}?mode=ro", uri=True, timeout=0.25)
-        try:
-            connection.execute("PRAGMA busy_timeout=250")
-            schema_row = connection.execute(
-                "SELECT value FROM meta WHERE key = 'schema_version'"
-            ).fetchone()
-            if schema_row is None:
-                return _ArtifactIndexProjection(
-                    diagnostic="agent artifact index has no schema version"
-                )
-            schema_version = int(schema_row[0])
-            if schema_version not in SUPPORTED_AGENT_ARTIFACT_INDEX_SCHEMA_VERSIONS:
-                supported = ", ".join(
-                    str(version)
-                    for version in sorted(
-                        SUPPORTED_AGENT_ARTIFACT_INDEX_SCHEMA_VERSIONS
-                    )
-                )
-                return _ArtifactIndexProjection(
-                    diagnostic=(
-                        f"agent artifact index schema {schema_version} is unsupported "
-                        f"(supported: {supported})"
-                    )
-                )
-            rows = connection.execute(
-                f"SELECT {columns_sql} FROM agent_artifacts"
-            ).fetchall()
-        finally:
-            connection.close()
-    except (OSError, sqlite3.DatabaseError, TypeError, ValueError) as exc:
+        projection = load_index_projection(
+            path, _ARTIFACT_INDEX_COLUMNS, busy_timeout_ms=250
+        )
+        schema_version = int(projection["schema_version"])
+        rows = projection["rows"]
+    except (OSError, RuntimeError, TypeError, ValueError) as exc:
         return _ArtifactIndexProjection(
             diagnostic=f"agent artifact index could not be read ({type(exc).__name__})"
+        )
+    if schema_version not in SUPPORTED_AGENT_ARTIFACT_INDEX_SCHEMA_VERSIONS:
+        supported = ", ".join(
+            str(version)
+            for version in sorted(SUPPORTED_AGENT_ARTIFACT_INDEX_SCHEMA_VERSIONS)
+        )
+        return _ArtifactIndexProjection(
+            diagnostic=(
+                f"agent artifact index schema {schema_version} is unsupported "
+                f"(supported: {supported})"
+            )
         )
 
     records: dict[str, ArtifactIndexRecord] = {}

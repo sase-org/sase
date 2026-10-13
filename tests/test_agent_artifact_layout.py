@@ -3,8 +3,6 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import sqlite3
-from contextlib import closing
 from pathlib import Path
 from unittest.mock import patch
 
@@ -19,6 +17,7 @@ from sase.core.agent_artifact_paths import (
     parse_agent_artifact_path,
     resolve_agent_artifact_path,
 )
+from sase.core.agent_scan_facade import list_agent_artifact_aliases
 
 
 def _layout_args(
@@ -250,11 +249,7 @@ def test_artifact_layout_cli_migrates_verifies_and_rolls_back(
         "artifacts_dir"
     ] == str(new_dir)
 
-    with closing(sqlite3.connect(index_path)) as conn:
-        alias_rows = conn.execute(
-            "SELECT alias_path, artifact_dir FROM agent_artifact_aliases"
-        ).fetchall()
-    assert alias_rows == [(str(old_dir), str(new_dir))]
+    assert list_agent_artifact_aliases(index_path) == {str(old_dir): str(new_dir)}
 
     handle_agents_artifacts_layout(
         _layout_args(
@@ -296,11 +291,7 @@ def test_artifact_layout_cli_migrates_verifies_and_rolls_back(
         "artifacts_dir"
     ] == str(old_dir)
 
-    with closing(sqlite3.connect(index_path)) as conn:
-        alias_count = conn.execute(
-            "SELECT COUNT(*) FROM agent_artifact_aliases"
-        ).fetchone()[0]
-    assert alias_count == 0
+    assert list_agent_artifact_aliases(index_path) == {}
 
 
 def test_artifact_layout_migrate_persists_manifest_and_records_entry_failure(

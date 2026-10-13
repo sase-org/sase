@@ -17,7 +17,10 @@ from sase.core.agent_identity_facade import (
     globalize_owned_agent_name,
 )
 from sase.core.agent_scan_wire import SUPPORTED_AGENT_ARTIFACT_INDEX_SCHEMA_VERSIONS
-from sase.core.agent_scan_facade import default_agent_artifact_index_path
+from sase.core.agent_scan_facade import (
+    default_agent_artifact_index_path,
+    load_agent_artifact_index_projection,
+)
 from sase.core.agent_artifact_index_lock import agent_artifact_index_operation_lock
 from sase.core.paths import sase_projects_dir
 
@@ -94,33 +97,25 @@ def _indexed_records(index_path: Path) -> list[dict[str, object]] | None:
         return None
     with agent_artifact_index_operation_lock():
         try:
-            connection = sqlite3.connect(
-                f"file:{index_path}?mode=ro",
-                uri=True,
-                timeout=0.25,
+            projection = load_agent_artifact_index_projection(
+                index_path,
+                (
+                    "artifact_dir",
+                    "project_name",
+                    "workflow_dir_name",
+                    "timestamp",
+                    "record_json",
+                ),
+                busy_timeout_ms=250,
             )
-            connection.execute("PRAGMA busy_timeout=250")
-            schema_row = connection.execute(
-                "SELECT value FROM meta WHERE key = 'schema_version'"
-            ).fetchone()
             if (
-                schema_row is None
-                or int(schema_row[0])
+                int(projection["schema_version"])
                 not in SUPPORTED_AGENT_ARTIFACT_INDEX_SCHEMA_VERSIONS
             ):
                 return None
-            rows = connection.execute(
-                """
-                SELECT artifact_dir, project_name, workflow_dir_name, timestamp,
-                       record_json
-                FROM agent_artifacts
-                """
-            ).fetchall()
-        except (OSError, sqlite3.DatabaseError, TypeError, ValueError):
+            rows = projection["rows"]
+        except (OSError, RuntimeError, TypeError, ValueError):
             return None
-        finally:
-            if "connection" in locals():
-                connection.close()
 
     records: list[dict[str, object]] = []
     try:

@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 import logging
-import sqlite3
-from contextlib import closing
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -16,13 +14,12 @@ from sase.core.agent_artifact_index_lifecycle_common import (
 from sase.core.agent_artifact_index_lock import agent_artifact_index_operation_lock
 from sase.core.agent_scan_facade import (
     default_agent_artifact_index_path,
+    read_agent_artifact_index_schema_version,
     rebuild_agent_artifact_index,
 )
 from sase.core.agent_scan_wire import AGENT_ARTIFACT_INDEX_SCHEMA_VERSION
 
 log = logging.getLogger(__name__)
-
-_INDEX_SCHEMA_META_KEY = "schema_version"
 
 
 @dataclass(frozen=True)
@@ -37,7 +34,7 @@ class _ArtifactIndexSchemaRefreshReport:
 
 @dataclass(frozen=True)
 class _ArtifactIndexSchemaStatus:
-    """Cheap stored-schema check that never opens the Rust index."""
+    """Cheap stored-schema check that never migrates the Rust index."""
 
     checked: bool
     stale: bool = False
@@ -66,9 +63,8 @@ def refresh_agent_artifact_index_if_schema_stale(
 ) -> _ArtifactIndexSchemaRefreshReport:
     """Rebuild the index once when stored schema metadata is older.
 
-    The Rust index open path mutates ``meta.schema_version`` as part of normal
-    DDL migration, so this reads the value directly with sqlite3 before any
-    Rust query/status call can mask an old ``record_json`` projection.
+    The Rust index's no-migrate reader checks the stored version before any
+    normal Rust query/status call can mask an old ``record_json`` projection.
     """
     with agent_artifact_index_operation_lock():
         index = (
@@ -127,25 +123,7 @@ def _read_agent_artifact_index_schema_status(
 def _read_stored_index_schema_version(index: Path) -> int | None:
     """Read stored schema metadata without invoking Rust index migration."""
     try:
-        with closing(
-            sqlite3.connect(f"{index.resolve().as_uri()}?mode=ro", uri=True)
-        ) as conn:
-            row = conn.execute(
-                "SELECT value FROM meta WHERE key = ?",
-                (_INDEX_SCHEMA_META_KEY,),
-            ).fetchone()
-    except sqlite3.OperationalError as error:
-        message = str(error).lower()
-        if "no such table" in message:
-            return 0
+        return read_agent_artifact_index_schema_version(index)
+    except (OSError, RuntimeError, TypeError, ValueError):
         log.debug("agent artifact index schema-version read failed", exc_info=True)
         return None
-    except sqlite3.Error:
-        log.debug("agent artifact index schema-version read failed", exc_info=True)
-        return None
-    if row is None:
-        return 0
-    try:
-        return int(row[0])
-    except (TypeError, ValueError):
-        return 0

@@ -155,6 +155,53 @@ def default_agent_artifact_index_path(sase_home: Path | str | None = None) -> Pa
     return root / "agent_artifact_index.sqlite"
 
 
+def read_agent_artifact_index_schema_version(index_path: Path | str) -> int | None:
+    """Read the stored schema version without opening a Python SQLite handle."""
+    with agent_artifact_index_operation_lock():
+        read_version = require_rust_binding("read_agent_artifact_index_schema_version")
+        version = read_version(str(index_path))
+    return int(version) if version is not None else None
+
+
+def load_agent_artifact_index_projection(
+    index_path: Path | str,
+    columns: Sequence[str],
+    *,
+    busy_timeout_ms: int = 250,
+) -> dict[str, Any]:
+    """Load selected artifact index columns through the Rust read-only store."""
+    with agent_artifact_index_operation_lock():
+        load_projection = require_rust_binding("load_agent_artifact_index_projection")
+        payload = load_projection(str(index_path), list(columns), busy_timeout_ms)
+    return payload
+
+
+def upsert_agent_artifact_alias(
+    index_path: Path | str, alias_path: str, artifact_dir: str
+) -> None:
+    """Write an artifact layout alias through the Rust index store."""
+    with agent_artifact_index_operation_lock():
+        upsert_alias = require_rust_binding("upsert_agent_artifact_alias")
+        upsert_alias(str(index_path), alias_path, artifact_dir)
+
+
+def delete_agent_artifact_alias(
+    index_path: Path | str, alias_path: str, artifact_dir: str
+) -> None:
+    """Delete an artifact layout alias through the Rust index store."""
+    with agent_artifact_index_operation_lock():
+        delete_alias = require_rust_binding("delete_agent_artifact_alias")
+        delete_alias(str(index_path), alias_path, artifact_dir)
+
+
+def list_agent_artifact_aliases(index_path: Path | str) -> dict[str, str]:
+    """Read artifact layout aliases through the Rust index store."""
+    with agent_artifact_index_operation_lock():
+        list_aliases = require_rust_binding("list_agent_artifact_aliases")
+        rows = list_aliases(str(index_path))
+    return {str(row["alias_path"]): str(row["artifact_dir"]) for row in rows}
+
+
 def rebuild_agent_artifact_index(
     index_path: Path | str,
     projects_root: Path | str,

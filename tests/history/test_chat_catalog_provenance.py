@@ -381,23 +381,18 @@ def test_corrupt_catalog_cache_is_rebuilt(
 def test_agent_link_index_accepts_every_supported_schema(
     tmp_path: Path,
     schema_version: int,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     path = tmp_path / f"agent-index-{schema_version}.sqlite"
-    with sqlite3.connect(path) as conn:
-        conn.execute("CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
-        conn.execute(
-            "INSERT INTO meta(key, value) VALUES ('schema_version', ?)",
-            (str(schema_version),),
-        )
-        conn.execute(
-            "CREATE TABLE agent_artifacts ("
-            "artifact_dir TEXT, project_name TEXT, workflow_dir_name TEXT, "
-            "timestamp TEXT, record_json TEXT)"
-        )
-        conn.execute(
-            "INSERT INTO agent_artifacts VALUES (?, ?, ?, ?, ?)",
-            ("/artifacts/one", "proj", "ace-run", "20261010100000", "{}"),
-        )
+    path.touch()
+    monkeypatch.setattr(
+        artifacts,
+        "load_agent_artifact_index_projection",
+        lambda *_args, **_kwargs: {
+            "schema_version": schema_version,
+            "rows": [["/artifacts/one", "proj", "ace-run", "20261010100000", "{}"]],
+        },
+    )
 
     records = artifacts._indexed_records(path)
 

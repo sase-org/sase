@@ -5,9 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import sqlite3
 from collections.abc import Iterable
-from contextlib import closing
 from pathlib import Path
 from typing import Any
 
@@ -22,21 +20,15 @@ from sase.core.agent_artifact_paths import (
 from sase.core.agent_scan_facade import (
     agent_artifact_index_status,
     default_agent_artifact_index_path,
+    delete_agent_artifact_alias,
+    list_agent_artifact_aliases,
     rebuild_agent_artifact_index,
+    upsert_agent_artifact_alias,
 )
 from sase.core.paths import sase_projects_dir
 
 _MANIFEST_SCHEMA_VERSION = 1
 _ACE_RUN = "ace-run"
-_LAYOUT_ALIAS_DDL = """
-CREATE TABLE IF NOT EXISTS agent_artifact_aliases (
-    alias_path TEXT PRIMARY KEY,
-    artifact_dir TEXT NOT NULL,
-    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-CREATE INDEX IF NOT EXISTS idx_agent_artifact_aliases_artifact_dir
-    ON agent_artifact_aliases(artifact_dir);
-"""
 
 
 def handle_agents_artifacts_layout(args: argparse.Namespace) -> None:
@@ -189,25 +181,13 @@ def _rewrite_marker_paths(artifact_dir: Path, old_value: str, new_value: str) ->
 
 def _write_alias(index_path: Path, old_path: str, new_path: str) -> None:
     index_path.parent.mkdir(parents=True, exist_ok=True)
-    with closing(sqlite3.connect(index_path)) as conn:
-        with conn:
-            conn.executescript(_LAYOUT_ALIAS_DDL)
-            conn.execute(
-                "INSERT OR REPLACE INTO agent_artifact_aliases(alias_path, artifact_dir) VALUES (?, ?)",
-                (old_path, new_path),
-            )
+    upsert_agent_artifact_alias(index_path, old_path, new_path)
 
 
 def _delete_alias(index_path: Path, old_path: str, new_path: str) -> None:
     if not index_path.exists():
         return
-    with closing(sqlite3.connect(index_path)) as conn:
-        with conn:
-            conn.executescript(_LAYOUT_ALIAS_DDL)
-            conn.execute(
-                "DELETE FROM agent_artifact_aliases WHERE alias_path = ? OR artifact_dir = ?",
-                (old_path, new_path),
-            )
+    delete_agent_artifact_alias(index_path, old_path, new_path)
 
 
 def _load_manifest(path: Path) -> dict[str, Any]:
@@ -404,11 +384,7 @@ def _handle_verify(args: argparse.Namespace) -> None:
 def _read_aliases(index_path: Path) -> dict[str, str]:
     if not index_path.exists():
         return {}
-    with closing(sqlite3.connect(index_path)) as conn:
-        conn.executescript(_LAYOUT_ALIAS_DDL)
-        return dict(
-            conn.execute("SELECT alias_path, artifact_dir FROM agent_artifact_aliases")
-        )
+    return list_agent_artifact_aliases(index_path)
 
 
 def _finish_payload(args: argparse.Namespace, payload: dict[str, Any]) -> None:

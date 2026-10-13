@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import sqlite3
 from pathlib import Path
 from typing import Any
 
@@ -24,6 +23,7 @@ from sase.agents.catalog._derive import (
     is_retrying,
 )
 from sase.agents.catalog._agent_session import agent_session_and_role
+from sase.agents.catalog import _sources
 from sase.agents.catalog._sources import (
     ArtifactIndexRecord,
     load_artifact_index_projection,
@@ -516,6 +516,7 @@ class TestDeriveHelpers:
 def test_artifact_projection_accepts_every_supported_index_schema(
     tmp_path: Path,
     schema_version: int,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     path = tmp_path / f"index-{schema_version}.sqlite"
     columns = (
@@ -539,30 +540,17 @@ def test_artifact_projection_accepts_every_supported_index_schema(
         "retried_as_timestamp",
         "retry_chain_root_timestamp",
     )
-    types = {
-        "artifact_dir": "TEXT",
-        "hidden": "INTEGER",
-        "finished_at": "REAL",
-        "retry_attempt": "INTEGER",
-    }
-    with sqlite3.connect(path) as conn:
-        conn.execute("CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
-        conn.execute(
-            "INSERT INTO meta(key, value) VALUES ('schema_version', ?)",
-            (str(schema_version),),
-        )
-        conn.execute(
-            "CREATE TABLE agent_artifacts ("
-            + ", ".join(f"{column} {types.get(column, 'TEXT')}" for column in columns)
-            + ")"
-        )
-        values = dict.fromkeys(columns)
-        values.update(artifact_dir="/artifacts/one", hidden=0, retry_attempt=0)
-        conn.execute(
-            f"INSERT INTO agent_artifacts ({', '.join(columns)}) "
-            f"VALUES ({', '.join('?' for _ in columns)})",
-            tuple(values[column] for column in columns),
-        )
+    path.touch()
+    values: dict[str, Any] = dict.fromkeys(columns)
+    values.update(artifact_dir="/artifacts/one", hidden=0, retry_attempt=0)
+    monkeypatch.setattr(
+        _sources,
+        "load_index_projection",
+        lambda *_args, **_kwargs: {
+            "schema_version": schema_version,
+            "rows": [[values[column] for column in columns]],
+        },
+    )
 
     projection = load_artifact_index_projection(path)
 
@@ -570,11 +558,16 @@ def test_artifact_projection_accepts_every_supported_index_schema(
     assert projection["/artifacts/one"].artifact_dir == "/artifacts/one"
 
 
-def test_artifact_projection_reports_unsupported_schema(tmp_path: Path) -> None:
+def test_artifact_projection_reports_unsupported_schema(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     path = tmp_path / "index.sqlite"
-    with sqlite3.connect(path) as conn:
-        conn.execute("CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
-        conn.execute("INSERT INTO meta(key, value) VALUES ('schema_version', '999')")
+    path.touch()
+    monkeypatch.setattr(
+        _sources,
+        "load_index_projection",
+        lambda *_args, **_kwargs: {"schema_version": 999, "rows": []},
+    )
 
     projection = load_artifact_index_projection(path)
 
