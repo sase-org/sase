@@ -154,13 +154,8 @@ def request_archive_shelf_refresh(owner: Any) -> None:
     state.shelf_requested_key = key
     state.shelf_generation += 1
     generation = state.shelf_generation
-    previous = state.shelf
-    state.shelf = ArchiveShelfSnapshot(
-        status="loading",
-        query=query,
-        total=previous.total,
-        today=previous.today,
-    )
+    # The last snapshot stays painted until the new count lands, so the
+    # shelf never blanks or reflows during a recount.
     _sync_widget(owner)
 
     async def _run() -> None:
@@ -217,7 +212,7 @@ def archive_bridge_detail(owner: Any, query: str) -> str:
     query = _scope_stripped_query(query)
     if _scope_stripped_query(shelf.query) != query:
         return "◷ Checking the Archive for this filter…"
-    if shelf.status in {"cold", "loading"}:
+    if shelf.status == "cold":
         return "◷ Checking the Archive for this filter…"
     if shelf.status == "unavailable":
         return "The Archive index is unavailable · ,a opens the Archive"
@@ -268,27 +263,42 @@ def clear_archive_shelf_focus(owner: Any) -> None:
         pass
 
 
+def _archive_can_answer(owner: Any, query: str) -> bool:
+    """Return whether the Archive can answer ``query``, without I/O.
+
+    The shelf's snapshot decides once its count for ``query`` has landed.
+    During a recount it still shows the previous filter's count, so the
+    profile parse the corpus count would run decides instead.
+    """
+    shelf = archive_shelf_snapshot(owner)
+    if _scope_stripped_query(shelf.query) == query and shelf.status != "cold":
+        return shelf.status == "ready"
+    state = _controller(owner)
+    profile = state.profile if state is not None else None
+    if profile is None:
+        return False
+    from ....query.profile_reference import parse_query_for_profile
+
+    try:
+        parse_query_for_profile(query, profile)
+    except Exception:
+        return False
+    return True
+
+
 def activate_archive_shelf(owner: Any) -> bool:
     """Open the parked Archive, carrying an answerable Inbox filter."""
+    from ._archive_view import (
+        open_agents_archive_view,
+        open_agents_archive_view_with_query,
+    )
+
     clear_archive_shelf_focus(owner)
-    shelf = archive_shelf_snapshot(owner)
-    query = str(getattr(owner, "_agent_search_query", "") or "")
-    carried_query = _scope_stripped_query(query)
-    if (
-        carried_query
-        and _scope_stripped_query(shelf.query) == carried_query
-        and (shelf.status == "ready")
-    ):
-        from ._archive_view import open_agents_archive_view_with_query
-
-        open_agents_archive_view_with_query(
-            owner,
-            query=f"in:archive {carried_query}",
-        )
-        return True
-    from ._archive_view import open_agents_archive_view
-
-    open_agents_archive_view(owner)
+    query = _scope_stripped_query(str(getattr(owner, "_agent_search_query", "") or ""))
+    if query and _archive_can_answer(owner, query):
+        open_agents_archive_view_with_query(owner, query=f"in:archive {query}")
+    else:
+        open_agents_archive_view(owner)
     return True
 
 

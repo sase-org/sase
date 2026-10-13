@@ -13,13 +13,17 @@ from ..util.pump_tasks import spawn_pump_free_task
 if TYPE_CHECKING:
     from ..actions.agents._node_finder_archive import ArchiveNameCandidate
 
+    _ArchiveNameLoader = Callable[[], tuple[ArchiveNameCandidate, ...]]
+
 _TASKS_ATTR = "_node_finder_archive_tasks"
 
 
 class NodeFinderArchiveMixin:
     """Append up to five asynchronously searched archived names to the view."""
 
-    _archive_name_loader: Callable[[], tuple[ArchiveNameCandidate, ...]] | None
+    _archive_name_loader: _ArchiveNameLoader | None
+    _archive_name_loader_provider: Callable[[], _ArchiveNameLoader | None] | None
+    _archive_warm_retries: int
     _archive_candidates: tuple[ArchiveNameCandidate, ...]
     _archive_matches: tuple[ArchiveNameCandidate, ...]
     _archive_ready: bool
@@ -39,15 +43,36 @@ class NodeFinderArchiveMixin:
     def _init_archive_search(
         self,
         *,
-        archive_name_loader: Callable[[], tuple[ArchiveNameCandidate, ...]] | None,
+        archive_name_loader: _ArchiveNameLoader | None,
+        archive_name_loader_provider: Callable[[], _ArchiveNameLoader | None]
+        | None = None,
     ) -> None:
         self._archive_name_loader = archive_name_loader
+        self._archive_name_loader_provider = archive_name_loader_provider
         self._archive_candidates = ()
         self._archive_matches = ()
         self._archive_ready = False
         self._archive_message = "Archive warming…"
         self._archive_load_generation = 0
         self._archive_search_generation = 0
+        self._archive_warm_retries = 0
+
+    def _retry_archive_loader(self) -> bool:
+        """Re-resolve a cold Archive's loader; start the name load once warm.
+
+        Returns whether a loader is available now. Cheap and synchronous: the
+        provider only captures the held corpus, never compiles or warms it,
+        and the existing off-thread name load does the heavy work.
+        """
+        if self._archive_name_loader is not None:
+            return True
+        provider = self._archive_name_loader_provider
+        loader = provider() if provider is not None else None
+        if loader is None:
+            return False
+        self._archive_name_loader = loader
+        self._start_archive_name_load()
+        return True
 
     def _start_archive_name_load(self) -> None:
         if self._archive_name_loader is None:

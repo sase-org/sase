@@ -23,6 +23,7 @@ __all__ = [
     "test_help_archive_box_lists_action_rows",
     "test_help_copy_mode_lists_new_targets",
     "test_y_copies_agent_reference_on_agents_tab",
+    "test_y_copies_archived_run_reference_when_archive_active",
 ]
 
 
@@ -241,15 +242,23 @@ def test_copy_json_archive_copies_bundle(monkeypatch: Any, tmp_path: Any) -> Non
             "_get_selected_agent": lambda: agent,
         }
     )
+    other = tmp_path / "other.json"
+    other.write_text('{"agent_name": "other.run"}', encoding="utf-8")
+    rows = {
+        "u.m@r1": {"bundle_path": str(bundle), "agent_name": "bob-cli-5p.4"},
+        "u.m@r2": {"bundle_path": str(other), "agent_name": "other.run"},
+    }
     init_agents_archive_view_state(app)
     open_archive(app)
     monkeypatch.setattr(
         "sase.ace.tui.actions.agents._archive_column.archive_light_row",
-        lambda _o, _k: {"bundle_path": str(bundle), "agent_name": "bob-cli-5p.4"},
+        lambda _o, key: rows.get(key),
     )
     app._copy_agent_json()
     assert copied["kwargs"]["copied_label"] == "archive bundle JSON"
     assert callable(copied["content"])
+    # The cursor moves before the worker runs: the keypress row still wins.
+    app._agents_archive_view.archive.selected_key = "u.m@r2"
     assert json.loads(copied["content"]())["agent_name"] == "bob-cli-5p.4"
 
 
@@ -348,3 +357,49 @@ def test_help_copy_mode_lists_new_targets() -> None:
     assert "Copy @agent: reference" in descriptions
     assert all(len(key) <= 16 for key, _description in copy_rows)
     assert all(len(description) <= 32 for _key, description in copy_rows)
+
+
+def test_y_copies_archived_run_reference_when_archive_active(
+    monkeypatch: Any,
+) -> None:
+    import sase.ace.tui.actions.clipboard._agents as agents_clipboard
+    from sase.ace.tui.actions.clipboard._agents import ClipboardAgentsMixin
+    from sase.ace.tui.actions.clipboard._artifacts import ClipboardArtifactsMixin
+
+    copied: dict[str, Any] = {}
+    monkeypatch.setattr(
+        agents_clipboard,
+        "schedule_copy_delivery",
+        lambda _o, content, **kwargs: copied.update(content=content, kwargs=kwargs),
+    )
+    monkeypatch.setattr(
+        agents_clipboard, "reference_for_agent_row", lambda agent: agent.agent_name
+    )
+
+    class App(ClipboardArtifactsMixin, ClipboardAgentsMixin):
+        pass
+
+    app = App()
+    archived = make_agent(name="archived.1")
+    app.__dict__.update(
+        {
+            "current_tab": "agents",
+            "current_artifacts_pane_key": "agents",
+            "notify": lambda *a, **k: None,
+            "_get_selected_agent": lambda: make_agent(name="inbox.1"),
+        }
+    )
+    init_agents_archive_view_state(app)
+    open_archive(app, selected_key="u.m@archived")
+    import sase.ace.tui.actions.agents._archive_reader as reader_mod
+
+    monkeypatch.setattr(
+        reader_mod, "hydrated_archive_agent_for", lambda _o, _k: archived
+    )
+    import sase.ace.tui.actions.agents._archive_column as column_mod
+
+    monkeypatch.setattr(
+        column_mod, "archive_light_row", lambda _o, _k: {"agent_name": "archived.1"}
+    )
+    app.action_agents_copy_reference()
+    assert copied.get("content") == "@archived.1"

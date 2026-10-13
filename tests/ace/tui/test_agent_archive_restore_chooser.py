@@ -19,6 +19,7 @@ from sase.ace.tui.actions.agents._archive_restore import (
     open_archive_chooser,
 )
 from sase.feature_flags import override_flags
+from tests.ace.tui._agent_archive_column_helpers import ModelCorpus, light_row
 from tests.ace.tui._agent_archive_restore_helpers import (
     make_agent,
     make_owner,
@@ -44,6 +45,17 @@ __all__ = [
     "test_open_chooser_unreadable_warns",
     "test_open_chooser_uses_captured_agent",
 ]
+
+
+def _wire_container_corpus(owner: Any, container_key: str, members: int) -> None:
+    """Back a collapsed container with a warm corpus holding its members."""
+    rows = [
+        light_row(f"m{index}", hour=20 - index, container_key=container_key)
+        for index in range(members)
+    ]
+    owner._agents_archive_controller = SimpleNamespace(
+        corpus=ModelCorpus(rows), profile=None
+    )
 
 
 def test_chooser_model_defaults_to_restore(monkeypatch: Any) -> None:
@@ -95,6 +107,7 @@ def test_chooser_model_container_restore_label(monkeypatch: Any) -> None:
     open_archive(owner, selected_key="container:clan:swarm:1")
     row = make_row("swarm", member_count=3)
     wire_bundles(monkeypatch, owner, {"container:clan:swarm:1": (row, None, False)})
+    _wire_container_corpus(owner, "clan:swarm:1", 3)
     model = archive_chooser_model(owner, "container:clan:swarm:1")
     assert model is not None
     choices, initial, title = model
@@ -110,6 +123,7 @@ def test_chooser_model_session_container_restore_label(monkeypatch: Any) -> None
     open_archive(owner, selected_key="container:session:alpha")
     row = make_row("alpha", member_count=1)
     wire_bundles(monkeypatch, owner, {"container:session:alpha": (row, None, False)})
+    _wire_container_corpus(owner, "session:alpha", 1)
     model = archive_chooser_model(owner, "container:session:alpha")
     assert model is not None
     choices, _initial, _title = model

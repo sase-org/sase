@@ -200,7 +200,7 @@ def test_dismissed_marker() -> None:
     )
     assert "⊘" in text
     narrowed = "\n".join(_render_lines(JumpLegendRenderable(jump_map, mode="1"), 80))
-    assert "archive" in narrowed
+    assert "⊘ 1 gone ▶ archive" in narrowed
 
 
 def test_narrowed_filtering_and_empty_line() -> None:

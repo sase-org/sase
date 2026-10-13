@@ -51,6 +51,9 @@ if TYPE_CHECKING:
 
 _FLASH_S = 1.2
 _PREVIEW_DELAY_S = 0.15
+# A cold Archive re-resolves its name loader on this bounded timer.
+_ARCHIVE_WARM_RETRY_S = 0.5
+_ARCHIVE_WARM_RETRY_LIMIT = 30
 _PreviewLoader = Callable[["Agent"], NodeFinderPreviewPayload]
 
 
@@ -99,6 +102,10 @@ class NodeFinderModal(
         *,
         archive_name_loader: Callable[[], tuple[ArchiveNameCandidate, ...]]
         | None = None,
+        archive_name_loader_provider: Callable[
+            [], Callable[[], tuple[ArchiveNameCandidate, ...]] | None
+        ]
+        | None = None,
     ) -> None:
         super().__init__()
         self._snapshot = snapshot
@@ -117,6 +124,7 @@ class NodeFinderModal(
         self._live_view = self._filtered_view("", None)
         self._init_archive_search(
             archive_name_loader=archive_name_loader,
+            archive_name_loader_provider=archive_name_loader_provider,
         )
         self._view = self._compose_archive_view()
         self._last_options_key: tuple[object, ...] | None = None
@@ -130,6 +138,7 @@ class NodeFinderModal(
         self._pending = ""
         self._flash = ""
         self._flash_timer: Timer | None = None
+        self._archive_warm_timer: Timer | None = None
         self._refilter_generation = 0
         self._pending_refilter_query: str | None = None
         self._layout_class = ""
@@ -172,6 +181,24 @@ class NodeFinderModal(
                 yield Static(id="node-finder-legend")
                 yield Static(id="node-finder-flash")
 
+    def _schedule_archive_warm_retry(self) -> None:
+        """Re-resolve a cold Archive's loader on a short, bounded timer."""
+        if (
+            self._archive_name_loader is not None
+            or self._archive_name_loader_provider is None
+            or self._archive_warm_retries >= _ARCHIVE_WARM_RETRY_LIMIT
+        ):
+            return
+        self._archive_warm_retries += 1
+        self._archive_warm_timer = self.set_timer(
+            _ARCHIVE_WARM_RETRY_S, self._on_archive_warm_tick
+        )
+
+    def _on_archive_warm_tick(self) -> None:
+        self._archive_warm_timer = None
+        if self.is_mounted and not self._retry_archive_loader():
+            self._schedule_archive_warm_retry()
+
     def on_mount(self) -> None:
         with tui_trace("node_finder.open"):
             self._debouncer = DetailPanelDebouncer(self.app, delay_s=_PREVIEW_DELAY_S)
@@ -190,6 +217,7 @@ class NodeFinderModal(
             self.query_one("#node-finder-list", OptionList).focus()
             self._paint_preview()
             self._start_archive_name_load()
+            self._schedule_archive_warm_retry()
 
     def on_unmount(self) -> None:
         if self._debouncer is not None:
@@ -198,6 +226,9 @@ class NodeFinderModal(
         if self._flash_timer is not None:
             self._flash_timer.stop()
             self._flash_timer = None
+        if self._archive_warm_timer is not None:
+            self._archive_warm_timer.stop()
+            self._archive_warm_timer = None
         # Invalidate any coalesced refilter still queued behind this screen.
         self._refilter_generation += 1
         self._pending_refilter_query = None
@@ -239,6 +270,7 @@ class NodeFinderModal(
         self._pending = ""
         self._flash = ""
         self._archive_name_loader = None
+        self._archive_name_loader_provider = None
         self._archive_candidates = ()
         self._archive_matches = ()
 

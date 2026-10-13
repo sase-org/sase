@@ -67,25 +67,6 @@ async def test_archive_shelf_uses_matches_as_the_single_count_verb() -> None:
 
 
 @pytest.mark.asyncio
-async def test_archive_shelf_keeps_its_row_while_a_recount_is_pending() -> None:
-    app = _ShelfApp()
-    async with app.run_test():
-        shelf = app.query_one(AgentArchiveShelf)
-        shelf.set_snapshot(
-            ArchiveShelfSnapshot(status="ready", total=12, today=3),
-            inbox_empty=False,
-        )
-        shelf.set_snapshot(
-            ArchiveShelfSnapshot(status="loading", query="status:FAILED", total=12),
-            inbox_empty=False,
-        )
-
-        assert shelf.display is True
-        assert shelf.has_class("-visible")
-        assert shelf.render().plain == "◷ Archive · updating…"
-
-
-@pytest.mark.asyncio
 async def test_archive_shelf_blur_clears_its_temporary_focus() -> None:
     app = _ShelfApp()
     async with app.run_test():

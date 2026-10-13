@@ -10,15 +10,23 @@ from __future__ import annotations
 
 import asyncio
 import inspect
+from collections.abc import Callable
+from functools import partial
 from typing import Any
 
 from ...models.agent_archive_view import AGENTS_VIEW_ARCHIVE
 from ._archive_restore_keys import (
-    collect_archive_restore_keys,
+    capture_archive_restore_plan,
+    collect_archive_restore_targets,
     hydrate_archive_candidate,
+    resolve_archive_restore_targets,
 )
 from ._archive_restore_support import archive_light_name, notify_owner
-from ._archive_restore_types import ArchiveRestoreSkip, ArchiveRestoreSummary
+from ._archive_restore_types import (
+    ArchiveRestoreSkip,
+    ArchiveRestoreSummary,
+    ArchiveRestoreTargets,
+)
 
 __all__ = [
     "run_archive_restore",
@@ -122,75 +130,89 @@ def _bump_archive_pulse(owner: Any) -> None:
         pass
 
 
-def _hydrate_targets(
-    owner: Any, targets: list[str], skips: list[ArchiveRestoreSkip]
-) -> tuple[list[tuple[str, str, Any]], list[ArchiveRestoreSkip]]:
-    """Re-check one restore key per row on the calling thread."""
-    out_skips = list(skips)
-    submittable: list[tuple[str, str, Any]] = []
-    for key in targets:
-        agent, light_row, reason = hydrate_archive_candidate(owner, key)
-        name = archive_light_name(light_row)
-        if agent is None or reason is not None:
-            out_skips.append(
-                ArchiveRestoreSkip(key=key, name=name, reason=reason or "skipped")
-            )
-        else:
-            submittable.append((key, name, agent))
-    return submittable, out_skips
+def _hydrated_entry(
+    key: str,
+    hydrated: tuple[Any | None, Any | None, str | None],
+    submittable: list[tuple[str, str, Any]],
+    skips: list[ArchiveRestoreSkip],
+) -> None:
+    """File one re-checked restore key as submittable or skipped."""
+    agent, light_row, reason = hydrated
+    name = archive_light_name(light_row)
+    if agent is None or reason is not None:
+        skips.append(ArchiveRestoreSkip(key=key, name=name, reason=reason or "skipped"))
+    else:
+        submittable.append((key, name, agent))
+
+
+async def _off_loop[T](owner: Any, work: Callable[[], T]) -> T:
+    runner = getattr(owner, "_archive_run_off_thread", None)
+    if callable(runner):
+        return await runner(work)  # type: ignore[no-any-return]
+    return await asyncio.to_thread(work)
 
 
 def run_archive_restore(
-    owner: Any, *, keys: list[str] | None = None, and_show: bool = False
+    owner: Any,
+    *,
+    targets: ArchiveRestoreTargets | None = None,
+    keys: list[str] | None = None,
+    and_show: bool = False,
 ) -> ArchiveRestoreSummary:
     """Restore Archive runs to the Inbox and keep their rows in place.
 
-    Returns a summary for toasts and tests. The cursor never moves: every
-    restored row stays in the list behind the ``⌂ restored`` overlay until
-    the query changes or the Archive is left, and the pulse counts the agent
-    through the revive path's own inbox refresh.
+    Restores exactly ``targets`` (the chooser's resolved list), else the
+    explicit ``keys``, else the current marks or cursor. Returns a summary
+    for toasts and tests. The cursor never moves: every restored row stays in
+    the list behind the ``⌂ restored`` overlay until the query changes or the
+    Archive is left, and the pulse counts the agent through the revive
+    path's own inbox refresh.
     """
-    targets, skipped = (
-        (list(keys), []) if keys is not None else collect_archive_restore_keys(owner)
-    )
-    submittable, skips = _hydrate_targets(owner, targets, list(skipped))
+    if targets is None:
+        targets = (
+            ArchiveRestoreTargets(keys=tuple(keys))
+            if keys is not None
+            else collect_archive_restore_targets(owner)
+        )
+    skips = list(targets.skipped)
+    submittable: list[tuple[str, str, Any]] = []
+    for key in targets.keys:
+        hydrated = hydrate_archive_candidate(owner, key, targets.rows.get(key))
+        _hydrated_entry(key, hydrated, submittable, skips)
     return _submit_and_finish(owner, submittable, skips, and_show)
 
 
 async def run_archive_restore_async(
-    owner: Any, *, keys: list[str] | None = None, and_show: bool = False
+    owner: Any,
+    *,
+    targets: ArchiveRestoreTargets | None = None,
+    keys: list[str] | None = None,
+    and_show: bool = False,
 ) -> ArchiveRestoreSummary:
     """Submit-time re-check off the event loop, then restore as usual.
 
-    The bundle reads in :func:`hydrate_archive_candidate` are sync file
-    I/O, so each row re-check runs in a thread worker. The selection is
-    re-captured after the await: when the Archive view is gone, the submit
-    aborts quietly instead of toasting into a view the user already left.
+    Container resolution may query the corpus and the bundle reads in
+    :func:`hydrate_archive_candidate` are sync file I/O, so both run in a
+    thread worker. The selection is re-captured after the await: when the
+    Archive view is gone, the submit aborts quietly instead of toasting into
+    a view the user already left.
     """
     from ._archive_view_state import agents_archive_view_state
 
-    targets, skipped = (
-        (list(keys), []) if keys is not None else collect_archive_restore_keys(owner)
-    )
-    out_skips = list(skipped)
+    if targets is None and keys is not None:
+        targets = ArchiveRestoreTargets(keys=tuple(keys))
+    if targets is None:
+        plan = capture_archive_restore_plan(owner)
+        targets = await _off_loop(owner, lambda: resolve_archive_restore_targets(plan))
+    resolved = targets
+    out_skips = list(resolved.skipped)
     submittable: list[tuple[str, str, Any]] = []
-    for key in targets:
-        runner = getattr(owner, "_archive_run_off_thread", None)
-        if callable(runner):
-            agent, light_row, reason = await runner(
-                lambda _key=key: hydrate_archive_candidate(owner, _key)
-            )
-        else:
-            agent, light_row, reason = await asyncio.to_thread(
-                hydrate_archive_candidate, owner, key
-            )
-        name = archive_light_name(light_row)
-        if agent is None or reason is not None:
-            out_skips.append(
-                ArchiveRestoreSkip(key=key, name=name, reason=reason or "skipped")
-            )
-        else:
-            submittable.append((key, name, agent))
+    for key in resolved.keys:
+        hydrated = await _off_loop(
+            owner,
+            partial(hydrate_archive_candidate, owner, key, resolved.rows.get(key)),
+        )
+        _hydrated_entry(key, hydrated, submittable, out_skips)
     try:
         state = agents_archive_view_state(owner)
         still_archive = getattr(state, "active_view", None) == AGENTS_VIEW_ARCHIVE

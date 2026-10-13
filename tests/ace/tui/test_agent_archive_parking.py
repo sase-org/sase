@@ -383,6 +383,7 @@ async def test_quitting_from_archive_persists_grouping_only(
 
     open_agents_archive_view(app)
     await _settle_archive_tasks()
+    assert app._agents_archive_view.archive.grouping == "project"
     app._agents_archive_view.archive.selected_key = "alice@run"
     app._agents_archive_view.archive.deck_choices = {"0": "final"}
     app._agents_archive_view.archive.committed_query = "in:archive status:failed"
@@ -390,6 +391,8 @@ async def test_quitting_from_archive_persists_grouping_only(
     state = app._agents_archive_view
     assert state.active_view == AGENTS_VIEW_INBOX
     assert state.parked_inbox is None
+    # Re-init is the startup default: the grouping load is lazy, so the
+    # persisted choice applies on the next Archive open, not here.
     assert state.archive.grouping == ARCHIVE_DEFAULT_GROUPING
     assert state.archive.selected_key is None
     assert state.archive.deck_choices == {}

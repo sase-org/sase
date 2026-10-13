@@ -182,7 +182,7 @@ def _remote_content_available(agent: Any) -> bool:
 
 
 def _archive_owns_agents_panel(app: Any) -> bool:
-    """Return whether the Archive owns the Agents tab (beta on, parked)."""
+    """Return whether the Archive owns the Agents tab."""
     if getattr(app, "current_tab", None) != "agents":
         return False
     try:

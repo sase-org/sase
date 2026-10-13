@@ -31,7 +31,7 @@ class AgentArchiveShelf(Static):
         self._snapshot = snapshot
         self._inbox_empty = inbox_empty
         self.display = bool(
-            snapshot.status in {"ready", "unanswerable", "loading"} and snapshot.total
+            snapshot.status in {"ready", "unanswerable"} and snapshot.total
         )
         self.set_class(self.display, "-visible")
         self.set_class(bool(inbox_empty), "-empty")
@@ -43,12 +43,6 @@ class AgentArchiveShelf(Static):
 
     def _paint(self) -> None:
         snapshot = self._snapshot
-        if snapshot.status == "loading" and snapshot.total > 0:
-            text = Text(no_wrap=True, overflow="ellipsis")
-            text.append("◷ Archive", style="bold #d7af5f")
-            text.append(" · updating…", style="dim")
-            self.update(text)
-            return
         if snapshot.status not in {"ready", "unanswerable"} or snapshot.total <= 0:
             self.update(Text(""))
             return

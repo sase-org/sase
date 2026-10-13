@@ -83,6 +83,9 @@ class NodeJumpNavigationMixin(NavigationMixinBase):
                 snapshot,
                 has_back=has_back,
                 archive_name_loader=archive_loader,
+                archive_name_loader_provider=lambda: archive_name_loader_for_owner(
+                    self
+                ),
             ),
             _on_dismiss,
         )

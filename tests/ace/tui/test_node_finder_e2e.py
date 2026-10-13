@@ -13,6 +13,7 @@ from sase.ace.tui.actions.agents._archive_controller import (
 )
 from sase.ace.tui.models._agent_tree import agent_fold_key
 from sase.ace.tui.models.agent import Agent, AgentType
+from tests.ace.tui._agent_archive_column_helpers import ModelCorpus, light_row
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patches,
     patch_startup_loaders,
@@ -162,4 +163,13 @@ async def test_cold_archive_keeps_node_finder_open_when_no_live_rows(
         await page.press('"')
         await page.expect_modal("NodeFinderModal")
 
-        assert page.app.screen._archive_message == "Archive warming…"
+        modal = page.app.screen
+        assert modal._archive_message == "Archive warming…"
+        # The Archive warms while the finder is open: the bounded retry
+        # resolves the loader and the In Archive section fills.
+        state = page.app._agents_archive_controller
+        state.corpus = ModelCorpus([light_row("warmed1", name="warmed-alpha")])
+        state.status = "warm"
+        await page.wait_for(lambda _screen: bool(modal._archive_matches), timeout=10.0)
+        assert modal._archive_ready is True
+        assert [match.name for match in modal._archive_matches] == ["warmed-alpha"]

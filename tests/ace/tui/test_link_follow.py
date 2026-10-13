@@ -240,7 +240,7 @@ def test_loaded_agent_link_prefers_agents_tab_over_artifacts_pane() -> None:
     assert len(app._link_trail) == 1
 
 
-def test_archived_agent_link_uses_archive_arrival_when_enabled(monkeypatch) -> None:  # noqa: ANN001
+def test_archived_agent_link_uses_archive_arrival(monkeypatch) -> None:  # noqa: ANN001
     from sase.ace.tui.actions.agents import _archive_arrival
 
     origin = ArtifactEntryTarget("files", ("origin.txt",))

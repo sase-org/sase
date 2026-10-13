@@ -387,6 +387,27 @@ async def test_mounted_comma_a_from_artifacts_tab_opens_agents_archive(
             assert app._agents_archive_view.active_view == AGENTS_VIEW_ARCHIVE
 
 
+async def test_mounted_comma_a_from_beads_tab_opens_agents_archive(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`,a` on the Beads tab opens Agents ▸ Archive."""
+    patch_startup_loaders(monkeypatch, agents=[_inbox_agent()])
+    with override_flags():
+        async with AcePage(initial_tab="artifacts", size=(160, 40)) as page:
+            await wait_for_startup(page)
+            app = page.app
+            app.current_artifacts_subtab = "beads"
+            await page.pause()
+            assert app.current_tab == "artifacts"
+            assert app.current_artifacts_subtab == "beads"
+
+            await page.press("comma")
+            await page.press("a")
+            await page.pause()
+            assert app.current_tab == "agents"
+            assert app._agents_archive_view.active_view == AGENTS_VIEW_ARCHIVE
+
+
 async def test_quitting_from_archive_persists_inbox_query_and_grouping(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

@@ -15,7 +15,12 @@ from ...models.agent_archive_view import (
     is_archive_container_key,
 )
 from ...util.pump_tasks import spawn_pump_free_task
-from ._archive_restore_keys import hydrate_archive_candidate
+from ._archive_restore_keys import (
+    capture_archive_restore_plan,
+    collect_archive_restore_targets,
+    hydrate_archive_candidate,
+    resolve_archive_restore_targets,
+)
 from ._archive_restore_run import run_archive_restore, run_archive_restore_async
 from ._archive_restore_support import archive_light_name, notify_owner
 from ._archive_restore_types import (
@@ -25,7 +30,12 @@ from ._archive_restore_types import (
     CHOICE_OPEN_CHAT,
     CHOICE_RESTORE,
     CHOICE_RESTORE_SHOW,
+    ArchiveRestoreTargets,
 )
+
+_ChooserPrepared = tuple[
+    tuple[Any | None, Any | None, str | None], ArchiveRestoreTargets
+]
 
 _CHOOSER_TASK_NAME = "archive-chooser-hydrate"
 _CHOOSER_TASK_REGISTRY = "_archive_chooser_tasks"
@@ -143,36 +153,12 @@ def open_archive_chat(owner: Any, agent: Any) -> bool:
     return True
 
 
-def _marked_restore_targets(owner: Any) -> list[str]:
-    """Return marked restore keys after dropping container rows."""
-    try:
-        from ._archive_actions import archive_marked_run_keys
-
-        marked = [key for key in archive_marked_run_keys(owner) if key]
-    except Exception:
-        marked = []
-    return [key for key in marked if not is_archive_container_key(key)]
-
-
-def _container_restore_label(owner: Any, key: str, light_row: Any) -> str:
+def _container_restore_label(key: str, light_row: Any, count: int) -> str:
     """Return the Restore label for one clan or session container."""
     container_key = container_key_of(key) or ""
     kind = "session" if container_key.startswith("session:") else "clan"
-    name = archive_light_name(light_row)
-    count = 0
-    try:
-        count = int((light_row or {}).get("member_count") or 0)
-    except Exception:
-        count = 0
-    if count <= 0 and container_key:
-        try:
-            from ._archive_column import archive_container_members
-
-            count = len(archive_container_members(owner, container_key))
-        except Exception:
-            count = 0
     noun = "member" if count == 1 else "members"
-    return f"Restore {kind} {name} ({count} {noun})"
+    return f"Restore {kind} {archive_light_name(light_row)} ({count} {noun})"
 
 
 def _hydrate_chooser_candidate(
@@ -195,13 +181,16 @@ def archive_chooser_model(
     key: str,
     *,
     hydrated: tuple[Any | None, Any | None, str | None] | None = None,
+    targets: ArchiveRestoreTargets | None = None,
 ) -> tuple[tuple[Any, ...], int, str] | None:
     """Build the ⏎ chooser model for one Archive run key.
 
     Returns ``(choices, initial_index, title)`` or None when the key names
     no readable run and no marks exist. With Archive marks the default
     restores the marked set; when the row can't be restored the default
-    falls to Open chat.
+    falls to Open chat. ``targets`` is the chooser's resolved restore list:
+    its size is every Restore label's count, so the label always matches
+    what the submit restores. Loop-free callers may omit it.
     """
     from ...modals.agent_action_chooser_modal import AgentActionChoice
 
@@ -210,22 +199,24 @@ def archive_chooser_model(
         agent, light_row, reason = hydrated
     else:
         agent, light_row, reason = _hydrate_chooser_candidate(owner, key)
-    marked_targets = _marked_restore_targets(owner)
-    marked_n = len(marked_targets)
-    if agent is None and not is_container and marked_n == 0:
+    if targets is None:
+        targets = collect_archive_restore_targets(owner)
+    restore_n = len(targets.keys)
+    if agent is None and not is_container and not targets.marked:
         return None
     name = archive_light_name(light_row)
     fork_ok = (not is_container) and agent is not None and archive_fork_accepted(agent)
-    offer_restore = (
-        marked_n > 0 or is_container or (reason is None and agent is not None)
-    )
+    if targets.marked or is_container:
+        offer_restore = restore_n > 0
+    else:
+        offer_restore = reason is None and agent is not None
     choices: list[Any] = []
     if offer_restore:
-        if marked_n > 0:
-            restore_label = f"Restore {marked_n} marked"
+        if targets.marked:
+            restore_label = f"Restore {restore_n} marked"
             restore_detail = "shows them again · starts no new run"
         elif is_container:
-            restore_label = _container_restore_label(owner, key, light_row)
+            restore_label = _container_restore_label(key, light_row, restore_n)
             restore_detail = "shows them again · starts no new run"
         else:
             restore_label = "Restore to inbox"
@@ -265,7 +256,7 @@ def archive_chooser_model(
                 section="archive",
                 label="Fork into a new agent",
                 detail="starts a new run from this one",
-                glyph="⑂",
+                glyph="⎇",
                 glyph_style="",
                 badge=None,
                 badge_style=None,
@@ -337,8 +328,19 @@ def _archive_generation(owner: Any) -> int:
         return 0
 
 
-def _chooser_selection_is_current(owner: Any, key: str, generation: int) -> bool:
-    """Return whether the Archive selection still matches ``key``."""
+def _archive_marks(owner: Any) -> frozenset[str]:
+    try:
+        from ._archive_view import agents_archive_view_state
+
+        return frozenset(agents_archive_view_state(owner).archive.marks)
+    except Exception:
+        return frozenset()
+
+
+def _chooser_selection_is_current(
+    owner: Any, key: str, generation: int, marks: frozenset[str] | None = None
+) -> bool:
+    """Return whether the Archive selection (and marks) still match."""
     try:
         from ._archive_view import agents_archive_view_state
 
@@ -352,6 +354,8 @@ def _chooser_selection_is_current(owner: Any, key: str, generation: int) -> bool
     except Exception:
         return True
     if current is not None and current != key:
+        return False
+    if marks is not None and _archive_marks(owner) != marks:
         return False
     return True
 
@@ -387,21 +391,24 @@ def _copy_captured_agent_reference(owner: Any, agent: Any) -> None:
         notify_owner(owner, "Copy failed", severity="error")
 
 
-def _submit_archive_restore(owner: Any, *, and_show: bool = False) -> None:
+def _submit_archive_restore(
+    owner: Any, targets: ArchiveRestoreTargets, *, and_show: bool = False
+) -> None:
     """Submit the Archive restore from the chooser without blocking the loop.
 
-    The submit-time capability re-check reads bundles off-thread, so the
-    chooser spawns the async submit when a loop is running and restores
-    synchronously otherwise (tests and loop-free callers).
+    Restores exactly the chooser's resolved ``targets``. The submit-time
+    capability re-check reads bundles off-thread, so the chooser spawns the
+    async submit when a loop is running and restores synchronously otherwise
+    (tests and loop-free callers).
     """
     try:
         asyncio.get_running_loop()
     except RuntimeError:
-        run_archive_restore(owner, and_show=and_show)
+        run_archive_restore(owner, targets=targets, and_show=and_show)
         return
 
     async def _submit() -> None:
-        await run_archive_restore_async(owner, and_show=and_show)
+        await run_archive_restore_async(owner, targets=targets, and_show=and_show)
 
     spawner = getattr(owner, "_archive_spawn", None)
     if callable(spawner):
@@ -424,15 +431,17 @@ def _present_archive_chooser(
     owner: Any,
     key: str,
     hydrated: tuple[Any | None, Any | None, str | None],
+    targets: ArchiveRestoreTargets,
 ) -> bool:
-    """Push the Archive chooser for a already-hydrated candidate."""
-    model = archive_chooser_model(owner, key, hydrated=hydrated)
+    """Push the Archive chooser for an already-hydrated candidate."""
+    model = archive_chooser_model(owner, key, hydrated=hydrated, targets=targets)
     if model is None:
-        notify_owner(
-            owner,
-            "Archive entry unreadable — Record only",
-            severity="warning",
-        )
+        if targets.skipped and (targets.marked or is_archive_container_key(key)):
+            skip = targets.skipped[0]
+            message = f"Nothing to restore · {skip.name}: {skip.reason}"
+        else:
+            message = "Archive entry unreadable — Record only"
+        notify_owner(owner, message, severity="warning")
         return False
     choices, initial, title = model
     captured_agent = hydrated[0]
@@ -441,9 +450,9 @@ def _present_archive_chooser(
         if result_key is None:
             return
         if result_key == CHOICE_RESTORE:
-            _submit_archive_restore(owner)
+            _submit_archive_restore(owner, targets)
         elif result_key == CHOICE_RESTORE_SHOW:
-            _submit_archive_restore(owner, and_show=True)
+            _submit_archive_restore(owner, targets, and_show=True)
         elif result_key == CHOICE_FORK:
             if captured_agent is None:
                 notify_owner(
@@ -488,34 +497,38 @@ def _present_archive_chooser(
 
 
 def open_archive_chooser(owner: Any, key: str) -> bool:
-    """Push the ARCHIVE chooser for one Archive run key. False when refused."""
+    """Push the ARCHIVE chooser for one Archive run key. False when refused.
+
+    The restore targets are captured here on the loop and resolved, with
+    the cursor's bundle hydration, in one thread worker. The one resolved
+    list then feeds both the chooser's Restore label and its submit.
+    """
     generation = _archive_generation(owner)
+    marks = _archive_marks(owner)
+    plan = capture_archive_restore_plan(owner)
 
-    def _hydrate() -> tuple[Any | None, Any | None, str | None]:
-        return _hydrate_chooser_candidate(owner, key)
+    def _prepare() -> _ChooserPrepared:
+        hydrated = _hydrate_chooser_candidate(owner, key)
+        return hydrated, resolve_archive_restore_targets(plan)
 
-    def _present(hydrated: tuple[Any | None, Any | None, str | None]) -> bool:
-        if not _chooser_selection_is_current(owner, key, generation):
+    def _present(prepared: _ChooserPrepared) -> bool:
+        if not _chooser_selection_is_current(owner, key, generation, marks):
             return False
-        return _present_archive_chooser(owner, key, hydrated)
-
-    if is_archive_container_key(key):
-        return _present(_hydrate())
+        hydrated, targets = prepared
+        return _present_archive_chooser(owner, key, hydrated, targets)
 
     try:
         asyncio.get_running_loop()
     except RuntimeError:
-        return _present(_hydrate())
+        return _present(_prepare())
 
     async def _hydrate_and_present() -> None:
         runner = getattr(owner, "_archive_run_off_thread", None)
         if callable(runner):
-            hydrated = await runner(_hydrate)
+            prepared = await runner(_prepare)
         else:
-            hydrated = await asyncio.to_thread(_hydrate)
-        if not _chooser_selection_is_current(owner, key, generation):
-            return
-        _present(hydrated)
+            prepared = await asyncio.to_thread(_prepare)
+        _present(prepared)
 
     spawner = getattr(owner, "_archive_spawn", None)
     if callable(spawner):

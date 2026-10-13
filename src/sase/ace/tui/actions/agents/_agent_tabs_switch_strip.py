@@ -398,8 +398,7 @@ class AgentTabsSwitchStripMixin:
             # Keep real matches on another tab and an unavailable machine
             # feed in their ordinary empty state. The Archive bridge is only
             # useful when this query returns no live rows anywhere.
-            if empty_state is None:
-                return None
+            assert empty_state is not None
             if empty_state.kind == "feed_unavailable" or query_result:
                 return empty_state
 

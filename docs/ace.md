@@ -326,10 +326,11 @@ full rendering rules.
 
 ### Navigation in Agent, Stitches, Beads, Provider Documents, and Files
 
-The non-Patches panes share fast navigation over their selectable left-panel entries.
-Stitches and Files skip day headings; Agent, Beads, and provider document panes skip
-group, section, and empty-state rows as applicable. Movement clamps at the first or last
-entry and silently does nothing when a list is empty.
+The Agent pane is retired by default (`artifacts_agent_pane_retired`) and shows only
+with the opt-out. The non-Patches panes share fast navigation over their selectable
+left-panel entries. Stitches and Files skip day headings; Agent, Beads, and provider
+document panes skip group, section, and empty-state rows as applicable. Movement clamps
+at the first or last entry and silently does nothing when a list is empty.
 
 | Key                       | Action                                                                                 |
 | ------------------------- | -------------------------------------------------------------------------------------- |
@@ -510,15 +511,15 @@ exists:
 The query schema currently advertises those three field names, but the Agent query index
 does not populate their values. Consequently, both `historically_viewable:true` and
 `historically_viewable:false` (and the equivalent queries for the other two fields)
-return no rows. Inspect the revive modal for these per-row capabilities; use
-`revivable:true` when the goal is to find rows sase's TUI can restore.
+return no rows. Inspect the Archive Record Lifecycle card for these per-row
+capabilities; use `revivable:true` when the goal is to find rows sase's TUI can restore.
 
 `revivable:true` now means all of "dismissed", "backed by a readable top-level bundle",
 and `durably_revivable`, so the saved query the `w` action seeds
 (`state:dismissed AND revivable:true`) no longer lists rows whose archive cannot
-actually be restored. The revive modal shows the three capabilities as **Viewable**,
-**Revivable**, and **Restart** lines, plus a **Missing** line naming any unmet
-requirement, and reviving a row that lacks one is refused up front with
+actually be restored. The Archive Record Lifecycle card shows **Viewable**,
+**Restorable**, and **Restartable** lines, plus a **Missing** line naming any unmet
+requirement, and Archive restore of a row that lacks one is refused up front with
 `This archive record is not revivable: missing …` instead of failing at the last step.
 
 Stitches accepts singular `project:` plus `repo:`, `author:`, `origin:`, `type:`,
@@ -761,9 +762,10 @@ The Jump panel shows the archived agent's relations, and the `linked:`, `relatio
 `Enter` opens the action chooser. Its ARCHIVE section lists Restore first:
 `Restore to inbox`, `Restore N marked` when Archive marks exist, or
 `Restore clan|session <name> (N members)` on a container. Marks take precedence over the
-highlighted row. A container restores its loaded members; expand it with `l` first if no
-members are loaded. Restore shows the existing agent in the Inbox again and starts no
-new run.
+highlighted row. A container, collapsed or expanded and highlighted or marked, restores
+every member that matches the current query, and the label's count is exactly the set
+Restore acts on. Restore shows the existing agent in the Inbox again and starts no new
+run.
 
 Choose Restore with `r` **inside the chooser** to stay in the Archive. Successfully
 restored rows dim and gain a `⌂ restored` suffix until the query changes or you leave
@@ -918,9 +920,10 @@ viewer. `y`, `/`, and `o` warn instead of acting on image previews.
 ### File Pane
 
 Files browses the artifact-file index that backs [`sase artifact list`](cli.md). The
-pane is one of the five fixed Artifacts views: Agent, Stitch, Patch, Bead, and File.
-Configured document-provider panes appear between Bead and File in the runtime tab
-strip. Rows are grouped by logical file identity, so repeated captures of
+pane is one of the four fixed Artifacts views: Stitch, Patch, Bead, and File. The Agent
+pane is retired by default (`artifacts_agent_pane_retired`) and shows only with the
+opt-out. Configured document-provider panes appear between Bead and File in the runtime
+tab strip. Rows are grouped by logical file identity, so repeated captures of
 `@file:~/bob/gtd.md` or repeated `sase artifact create` rows for the same logical
 artifact appear as one selectable row with versions.
 
@@ -2834,12 +2837,12 @@ An agent that was materialized on this machine by the retired agents-sync import
 carries an **owner badge** — ` [<label>]` after its identity name — recording where it
 came from. A foreign machine belonging to you renders as just the machine name; another
 user's run renders as `username@machine`. The badge appears wherever an imported
-identity is named: agent rows, the revive modal, and neighbor pickers. Imported
-sequential sessions are also folded under one synthetic session-container row so members
-imported without their root still group as one session instead of scattering across the
-panel. Both are presentation over leftover local state; nothing imports new rows any
-more, and `sase agent names purge-local-state` removes the state that produces them (see
-[Agent Hood Synchronization](agents_sidecar.md#legacy-v1-limitations)).
+identity is named: agent rows, the Archive Record Lifecycle card, and neighbor pickers.
+Imported sequential sessions are also folded under one synthetic session-container row
+so members imported without their root still group as one session instead of scattering
+across the panel. Both are presentation over leftover local state; nothing imports new
+rows any more, and `sase agent names purge-local-state` removes the state that produces
+them (see [Agent Hood Synchronization](agents_sidecar.md#legacy-v1-limitations)).
 
 Workflow child rows for `python` and `bash` steps render a leading `❯` glyph plus the
 step name, styled with the matching step-type accent — bash amber, python green —
@@ -5185,13 +5188,13 @@ or the five best fuzzy name matches once you type. While that list is loading th
 section reads `Archive warming…` or `Searching Archive…`; an empty search result reads
 `No archived name matches.`, and a loading or search error reads `Archive unavailable.`
 The finder searches an already-warm Archive snapshot; if none is available when it
-opens, the section stays at `Archive warming…` until you reopen the finder after the
-Archive warms. Select a result with the arrow keys or `Ctrl+N` / `Ctrl+P`. Its preview
-reads `ARCHIVED RUN`, `Dismissed on this machine · read-only`, and
-`⏎ opens the run in the Archive`. `Enter` switches to the Archive and selects the run
-without restoring it. This replaces the Archive query with `in:archive`; it does not add
-a name filter. The toast reads `Node Finder · opening archived run · read-only`. Archive
-results carry no jump hints.
+opens, the section fills in once the Archive warms while the finder stays open (it
+rechecks on each keystroke and for about 15 seconds after opening). Select a result with
+the arrow keys or `Ctrl+N` / `Ctrl+P`. Its preview reads `ARCHIVED RUN`,
+`Dismissed on this machine · read-only`, and `⏎ opens the run in the Archive`. `Enter`
+switches to the Archive and selects the run without restoring it. This replaces the
+Archive query with `in:archive`; it does not add a name filter. The toast reads
+`Node Finder · opening archived run · read-only`. Archive results carry no jump hints.
 
 The preview sits beside the list. On a terminal at least 140 columns wide the list also
 keeps a status column. From 100 columns up to that width the two panes split evenly and
@@ -5707,7 +5710,7 @@ groups that can be stored.
 Dismiss operations are O(1) per agent: each agent is saved to its own JSON file rather
 than a monolithic store. Parent workflow rows use `<raw_suffix>.json`; workflow children
 use `<raw_suffix>__c<step_index>.json`. sase's TUI keeps a SQLite summary index in the
-dismissed-bundle directory so the revive modal and internal lookups can list dismissed
+dismissed-bundle directory so Archive restore and internal lookups can list dismissed
 agents without opening every bundle. Use `sase agent archive verify` to check that
 maintenance index, or `sase agent archive rebuild-index` to rebuild it from bundle
 files. The index stores metadata such as status, name, project, model, provider,

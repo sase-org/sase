@@ -248,11 +248,21 @@ class ClipboardAgentsMixin(ClipboardBase):
         except Exception:
             archived = False
         if archived:
+            # Capture the run at keypress: the worker never re-reads the
+            # selection, which may have moved by the time it runs.
+            from ...models.agent_archive_view import ARCHIVE_ROW_AGENT
+            from ..agents._archive_view import get_agents_tab_selection
+
+            selection = get_agents_tab_selection(self)
+            light_row = selection.light_row
+            if selection.row_kind != ARCHIVE_ROW_AGENT or light_row is None:
+                self.notify("No archived run selected", severity="warning")  # type: ignore[attr-defined]
+                return
 
             def _read_bundle() -> str:
                 from ..agents._archive_reader import read_archive_bundle_json
 
-                return read_archive_bundle_json(self)
+                return read_archive_bundle_json(self, light_row)
 
             schedule_copy_delivery(
                 self,

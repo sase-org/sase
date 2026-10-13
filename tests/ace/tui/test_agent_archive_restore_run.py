@@ -6,7 +6,7 @@ from types import SimpleNamespace
 from typing import Any
 
 from sase.ace.tui.actions.agents._archive_restore import (
-    collect_archive_restore_keys,
+    collect_archive_restore_targets,
     hydrate_archive_candidate,
     run_archive_restore,
 )
@@ -60,10 +60,15 @@ def _revive_stub(
     owner._do_revive_agents = _revive  # type: ignore[attr-defined]
 
 
+def _collect(owner: Any) -> tuple[list[str], list[Any]]:
+    targets = collect_archive_restore_targets(owner)
+    return list(targets.keys), list(targets.skipped)
+
+
 def test_collect_single_row_key() -> None:
     owner = make_owner()
     open_archive(owner)
-    keys, skipped = collect_archive_restore_keys(owner)
+    keys, skipped = _collect(owner)
     assert keys == ["u.m@r1"]
     assert skipped == []
 
@@ -71,13 +76,13 @@ def test_collect_single_row_key() -> None:
 def test_collect_banner_and_pulse_skipped() -> None:
     owner = make_owner()
     open_archive(owner, selected_key="banner:day:2026-10-10")
-    keys, skipped = collect_archive_restore_keys(owner)
+    keys, skipped = _collect(owner)
     assert keys == []
     assert len(skipped) == 1
     assert skipped[0].reason == "not an archived run"
     open_archive(owner, selected_key="u.m@r1")
     owner._agents_archive_view.archive.focused_section = ARCHIVE_SECTION_PULSE
-    keys, skipped = collect_archive_restore_keys(owner)
+    keys, skipped = _collect(owner)
     assert keys == []
     assert len(skipped) == 1
 
@@ -86,7 +91,7 @@ def test_collect_marked_wins_over_cursor() -> None:
     owner = make_owner()
     open_archive(owner, selected_key="u.m@cursor")
     owner._agents_archive_view.archive.marks = frozenset({"u.m@a1", "u.m@a2"})
-    keys, _skipped = collect_archive_restore_keys(owner)
+    keys, _skipped = _collect(owner)
     assert sorted(keys) == ["u.m@a1", "u.m@a2"]
 
 
@@ -126,7 +131,7 @@ def test_collect_container_expands_loaded_members() -> None:
     runtime = _ColumnRuntime()
     runtime.model = SimpleNamespace(items=items)  # type: ignore[assignment]
     owner._archive_column_runtime = runtime
-    keys, skipped = collect_archive_restore_keys(owner)
+    keys, skipped = _collect(owner)
     assert sorted(keys) == ["u.m@m1", "u.m@m2"]
     assert skipped == []
 
@@ -139,10 +144,10 @@ def test_collect_collapsed_container_skipped_with_hint() -> None:
     runtime = _ColumnRuntime()
     runtime.model = SimpleNamespace(items=[])  # type: ignore[assignment]
     owner._archive_column_runtime = runtime
-    keys, skipped = collect_archive_restore_keys(owner)
+    keys, skipped = _collect(owner)
     assert keys == []
     assert len(skipped) == 1
-    assert "expand" in skipped[0].reason
+    assert "matching members" in skipped[0].reason
 
 
 def test_hydrate_capability_rechecked_before_submit(monkeypatch: Any) -> None:

@@ -345,10 +345,8 @@ def normalize_artifacts_subtab(value: str) -> ArtifactsSubTab:
     configured = {descriptor.id for descriptor in resolve_artifacts_subtabs()}
     if canonical in configured:
         return canonical
-    if canonical == "agents" and artifacts_agent_pane_retired():
-        # The retired Agent pane follows the Chats precedent: stale
-        # references land on Stitch instead of a missing descriptor.
-        return DEFAULT_ARTIFACTS_SUBTAB
+    # The retired Agent pane follows the Chats precedent: stale references
+    # land on Stitch instead of a missing descriptor.
     return DEFAULT_ARTIFACTS_SUBTAB
 
 

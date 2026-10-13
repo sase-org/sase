@@ -8,6 +8,7 @@ from typing import Any
 import pytest
 
 from sase.ace.testing import AcePage
+from sase.ace.tui.widgets.agents_archive import ArchiveList
 from tests.ace.tui.visual._ace_agents_archive_png_snapshot_shared import (
     NOW,
     inbox_agent,
@@ -122,6 +123,9 @@ async def test_archive_restored_row_with_toast_png_snapshot(
             lambda _state: bool(list(page.app.screen.query(Toast))), timeout=15.0
         )
         await wait_for_svg(page, "is back in the inbox")
+        # Move the cursor off the restored row so its dimming and ⌂ restored
+        # chip stay visible in the golden.
+        await page.press("j")
         await settle_archive_detail(page)
         await wait_for_visual_idle(page)
         await stabilize_toast_frame(page)
@@ -134,92 +138,36 @@ async def test_archive_restored_row_with_toast_png_snapshot(
         )
 
 
-def _archive_chooser_choices(*, marked: int = 0) -> tuple[Any, ...]:
-    from sase.ace.tui.actions.agents._archive_restore_types import (
-        CHOICE_COPY_MORE,
-        CHOICE_COPY_REF,
-        CHOICE_FORK,
-        CHOICE_OPEN_CHAT,
-        CHOICE_RESTORE,
-        CHOICE_RESTORE_SHOW,
+def _wire_forkable_bundle(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Hydrate every Archive row to one forkable agent with a retained chat."""
+    forkable = SimpleNamespace(
+        is_clan_container=False,
+        is_agent_entry=True,
+        agent_name="today.done",
+        response_path="/tmp/chat.md",
+        get_response_content=lambda: "hi",
     )
-    from sase.ace.tui.modals.agent_action_chooser_modal import AgentActionChoice
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.agents._archive_reader._load_archive_bundle",
+        lambda _o, _row: {"unreadable": False, "agent": forkable},
+    )
 
-    restore_label = f"Restore {marked} marked" if marked else "Restore to inbox"
-    return (
-        AgentActionChoice(
-            result=CHOICE_RESTORE,
-            section="archive",
-            label=restore_label,
-            detail="shows it again · starts no new run",
-            glyph="⌂",
-            glyph_style="",
-            badge=None,
-            badge_style=None,
-            age=None,
-            hotkey="r",
-        ),
-        AgentActionChoice(
-            result=CHOICE_RESTORE_SHOW,
-            section="archive",
-            label="Restore and show in inbox",
-            detail="reveals the agent in the Inbox",
-            glyph="⌂",
-            glyph_style="",
-            badge=None,
-            badge_style=None,
-            age=None,
-            hotkey="s",
-        ),
-        AgentActionChoice(
-            result=CHOICE_FORK,
-            section="archive",
-            label="Fork into a new agent",
-            detail="starts a new run from this one",
-            glyph="⑂",
-            glyph_style="",
-            badge=None,
-            badge_style=None,
-            age=None,
-            hotkey="F",
-        ),
-        AgentActionChoice(
-            result=CHOICE_OPEN_CHAT,
-            section="read",
-            label="Open chat in $EDITOR",
-            detail="read-only",
-            glyph="▤",
-            glyph_style="",
-            badge=None,
-            badge_style=None,
-            age=None,
-            hotkey="e",
-        ),
-        AgentActionChoice(
-            result=CHOICE_COPY_REF,
-            section="read",
-            label="Copy @agent reference",
-            detail=None,
-            glyph="@",
-            glyph_style="",
-            badge=None,
-            badge_style=None,
-            age=None,
-            hotkey="y",
-        ),
-        AgentActionChoice(
-            result=CHOICE_COPY_MORE,
-            section="read",
-            label="More copy targets",
-            detail=None,
-            glyph="%",
-            glyph_style="",
-            badge=None,
-            badge_style=None,
-            age=None,
-            hotkey="%",
-        ),
+
+def _real_chooser_model_for_visual(
+    app: Any, *, marks: frozenset[str] | None = None
+) -> tuple[tuple[Any, ...], int, str]:
+    """Build chooser choices from the real production model for goldens."""
+    from sase.ace.tui.actions.agents._archive_restore_entry import (
+        archive_chooser_model,
     )
+
+    if marks is not None:
+        app._agents_archive_view.archive.marks = marks
+    key = app._agents_archive_view.archive.selected_key
+    assert key is not None
+    model = archive_chooser_model(app, key)
+    assert model is not None, "real chooser model must offer Restore in goldens"
+    return model
 
 
 async def test_archive_chooser_png_snapshot(
@@ -234,18 +182,19 @@ async def test_archive_chooser_png_snapshot(
     async with AcePage(initial_tab="agents", size=(120, 40)) as page:
         await wait_for_startup(page)
         await open_archive(page, list_history())
+        app = page.app
+        _wire_forkable_bundle(monkeypatch)
+        choices, initial, title = _real_chooser_model_for_visual(app)
         page.app.push_screen(
-            AgentActionChooserModal(
-                _archive_chooser_choices(),
-                title="Act on bob-cli-5p.4 · archived",
-            )
+            AgentActionChooserModal(choices, title=title, initial_index=initial)
         )
         await page.expect_modal("AgentActionChooserModal")
-        await wait_for_svg(page, "Act on bob-cli-5p.4")
+        await wait_for_svg(page, "Act on")
         await wait_for_visual_idle(page)
         assert_page_svg_contains(page, "ARCHIVE")
         assert_page_svg_contains(page, "READ")
         assert_page_svg_contains(page, "Restore to inbox")
+        assert_page_svg_contains(page, "shows it again")
         ace_png_visual.assert_page_png(
             page,
             "agents_archive_chooser_120x40",
@@ -265,11 +214,21 @@ async def test_archive_chooser_marked_png_snapshot(
     async with AcePage(initial_tab="agents", size=(120, 40)) as page:
         await wait_for_startup(page)
         await open_archive(page, list_history())
+        app = page.app
+        _wire_forkable_bundle(monkeypatch)
+        # Mark two runs so the real model offers Restore 2 marked with the
+        # production "shows them again" copy.
+        keys = [
+            key
+            for key in app.query_one("#archive-list", ArchiveList).item_keys
+            if "@" in key and not key.startswith("container:")
+        ][:2]
+        assert len(keys) == 2
+        choices, initial, title = _real_chooser_model_for_visual(
+            app, marks=frozenset(keys)
+        )
         page.app.push_screen(
-            AgentActionChooserModal(
-                _archive_chooser_choices(marked=2),
-                title="Act on bob-cli-5p.4 · archived",
-            )
+            AgentActionChooserModal(choices, title=title, initial_index=initial)
         )
         await page.expect_modal("AgentActionChooserModal")
         await wait_for_svg(page, "Restore 2 marked")
@@ -277,6 +236,7 @@ async def test_archive_chooser_marked_png_snapshot(
         assert_page_svg_contains(page, "ARCHIVE")
         assert_page_svg_contains(page, "READ")
         assert_page_svg_contains(page, "Restore 2 marked")
+        assert_page_svg_contains(page, "shows them again")
         ace_png_visual.assert_page_png(
             page,
             "agents_archive_chooser_marked_120x40",

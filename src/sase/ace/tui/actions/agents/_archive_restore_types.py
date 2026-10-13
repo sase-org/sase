@@ -7,7 +7,9 @@ module's public names.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from collections.abc import Mapping
+from dataclasses import dataclass, field
+from typing import Any
 
 CHOICE_RESTORE = "archive-restore"
 CHOICE_RESTORE_SHOW = "archive-restore-show"
@@ -36,6 +38,22 @@ class ArchiveRestoreSummary:
     and_show: bool = False
 
 
+@dataclass(frozen=True, slots=True)
+class ArchiveRestoreTargets:
+    """The run keys one restore acts on, resolved once per chooser open.
+
+    ``keys`` drives both the chooser's label count and the executed restore,
+    so the two always agree. ``rows`` carries the light rows of container
+    members, which a collapsed container never loads into the column.
+    ``skipped`` holds containers that resolved to no matching members.
+    """
+
+    keys: tuple[str, ...] = ()
+    rows: Mapping[str, Mapping[str, Any]] = field(default_factory=dict)
+    skipped: tuple[ArchiveRestoreSkip, ...] = ()
+    marked: bool = False
+
+
 __all__ = [
     "CHOICE_COPY_MORE",
     "CHOICE_COPY_REF",
@@ -45,4 +63,5 @@ __all__ = [
     "CHOICE_RESTORE_SHOW",
     "ArchiveRestoreSkip",
     "ArchiveRestoreSummary",
+    "ArchiveRestoreTargets",
 ]

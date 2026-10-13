@@ -20,7 +20,7 @@ from ._archive_restore_entry import (
     open_archive_chooser,
 )
 from ._archive_restore_keys import (
-    collect_archive_restore_keys,
+    collect_archive_restore_targets,
     hydrate_archive_candidate,
 )
 from ._archive_restore_run import run_archive_restore, run_archive_restore_async
@@ -33,6 +33,7 @@ from ._archive_restore_types import (
     CHOICE_RESTORE_SHOW,
     ArchiveRestoreSkip,
     ArchiveRestoreSummary,
+    ArchiveRestoreTargets,
 )
 
 __all__ = [
@@ -44,9 +45,10 @@ __all__ = [
     "CHOICE_RESTORE_SHOW",
     "ArchiveRestoreSkip",
     "ArchiveRestoreSummary",
+    "ArchiveRestoreTargets",
     "archive_chooser_model",
     "archive_fork_accepted",
-    "collect_archive_restore_keys",
+    "collect_archive_restore_targets",
     "fork_archive_agent",
     "hydrate_archive_candidate",
     "open_archive_chat",

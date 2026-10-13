@@ -201,7 +201,8 @@ the context query each artifact kind lands in.
 
 Every pane dialect may name one **identity field** — the filterable field an identity
 fallback rewrites through to name a single row. The fixed panes use `name` (Patches and
-Agents), `id` (Beads and Files), `path` (Plans), and `sha` (Stitches).
+the retired Agents pane), `id` (Beads and Files), `path` (Plans), and `sha` (Stitches).
+The Agents pane is retired by default.
 
 A provider does not declare its identity field. Every provider-derived dialect uses
 `path`, and the host injects a filterable, exact-match, negatable, searchable `path`
@@ -223,10 +224,11 @@ A pane opts into family-context reveals by implementing two navigator hooks:
   smallest multiple of the page size that fits the family.
 - `entry_target_project(target) -> str | None` answers which project owns the target:
   `parts[0]` for panes whose identity leads with the project (Beads, Plans/providers,
-  Patches), the row's `project` from the unfiltered snapshot for Agents and Files, and
-  the repo's owning project (or `None` when unknown) for Stitches. An All-projects scope
-  is never narrowed; a specific scope that excludes the target switches to the target's
-  project, widening to All projects only when the project is unknown.
+  Patches), the row's `project` from the unfiltered snapshot for the retired Agents pane
+  and Files, and the repo's owning project (or `None` when unknown) for Stitches. An
+  All-projects scope is never narrowed; a specific scope that excludes the target
+  switches to the target's project, widening to All projects only when the project is
+  unknown.
 
 ## Boundary
 

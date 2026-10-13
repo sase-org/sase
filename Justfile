@@ -440,10 +440,9 @@ _lint-patch-stitch-terminology: _setup
 # the durable apply flow and shared init hand-off.
 # sase-1jx.12.1.3 (create-execution) consumes record_visibility_selection
 # through the durable create success path, including dismissed-modal completion.
-# sase-1jm.9.4 (arrivals-finish) exports reveal_filtered_loaded_agent for the
-# link-follow filtered reveal; sase-1jm.9.5 (archive-restore-run) consumes it
-# for the restore-and-show filtered-target rule, so its row drops once 9.5
-# lands the real import.
+# sase-1jm.9.4 (arrivals-finish) exported reveal_filtered_loaded_agent for the
+# link-follow filtered reveal; sase-1jm.9.5 (archive-restore-run) consumed it
+# for the restore-and-show filtered-target rule, so its row was dropped.
 # sase-1jx.13.6.4 (source-stage) consumed fit_hint_segments for the Source
 # stage's width-aware hints through source_hint_line, so its row is dropped.
 # Never put a comment

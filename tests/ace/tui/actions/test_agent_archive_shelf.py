@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from types import SimpleNamespace
+from typing import Any
 
 import pytest
 from textual.app import App, ComposeResult
 
+from sase.ace.testing.wait import wait_for
 from sase.ace.tui._app_watchers import AppWatchersMixin
 from sase.ace.tui.actions.agents import _archive_view
 from sase.ace.tui.actions.agents._archive_controller import (
@@ -86,7 +89,7 @@ def test_bridge_matches_scope_stripped_query_and_shows_time_outcome_and_name() -
     ("snapshot", "expected"),
     [
         (
-            ArchiveShelfSnapshot(status="loading", query="status:FAILED"),
+            ArchiveShelfSnapshot(status="cold", query="status:FAILED"),
             "Checking the Archive",
         ),
         (
@@ -133,6 +136,96 @@ def test_enter_carries_scope_stripped_inbox_filter_into_archive(
 
     assert activate_archive_shelf(owner) is True
     assert carried == ["in:archive outcome:failed"]
+
+
+@pytest.mark.parametrize(
+    ("committed", "carried_query"),
+    [
+        # Mid-recount the shelf still holds the unfiltered count; the profile
+        # parse alone decides, with no corpus call.
+        ("in:inbox outcome:failed", "in:archive outcome:failed"),
+        # unread: is Inbox-only, so ⏎ opens the plain Archive instead.
+        ("unread:yes", None),
+    ],
+)
+def test_enter_during_a_recount_carries_only_an_answerable_filter(
+    monkeypatch: pytest.MonkeyPatch, committed: str, carried_query: str | None
+) -> None:
+    from sase.core.agent_archive_facade import agents_archive_profile
+
+    owner = SimpleNamespace(
+        _agent_search_query=committed,
+        query_one=lambda _selector: SimpleNamespace(remove_class=lambda _name: None),
+    )
+    state = init_agents_archive_controller(owner)
+    corpus = ModelCorpus([])
+    state.corpus = corpus
+    state.profile = agents_archive_profile()
+    state.shelf = ArchiveShelfSnapshot(status="ready", total=4, today=1, matching=4)
+    opened: list[str | None] = []
+    monkeypatch.setattr(
+        _archive_view,
+        "open_agents_archive_view_with_query",
+        lambda _owner, *, query: opened.append(query),
+    )
+    monkeypatch.setattr(
+        _archive_view, "open_agents_archive_view", lambda _owner: opened.append(None)
+    )
+
+    assert activate_archive_shelf(owner) is True
+    assert opened == [carried_query]
+    assert corpus.queries == []
+
+
+def test_enter_opens_the_plain_archive_for_an_unanswerable_landed_count(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    owner = SimpleNamespace(
+        _agent_search_query="status:FAILED",
+        query_one=lambda _selector: SimpleNamespace(remove_class=lambda _name: None),
+    )
+    state = init_agents_archive_controller(owner)
+    state.shelf = ArchiveShelfSnapshot(
+        status="unanswerable", query="status:FAILED", total=4
+    )
+    opened: list[str | None] = []
+    monkeypatch.setattr(
+        _archive_view,
+        "open_agents_archive_view_with_query",
+        lambda _owner, *, query: opened.append(query),
+    )
+    monkeypatch.setattr(
+        _archive_view, "open_agents_archive_view", lambda _owner: opened.append(None)
+    )
+
+    assert activate_archive_shelf(owner) is True
+    assert opened == [None]
+
+
+@pytest.mark.asyncio
+async def test_shelf_keeps_its_last_line_until_the_recount_lands() -> None:
+    app = _ShelfApp()
+    async with app.run_test() as pilot:
+        state = init_agents_archive_controller(app)
+        corpus = ModelCorpus([light_row("failed", outcome="failed", status="FAILED")])
+        state.corpus = corpus
+        state.status = "warm"
+        state.shelf = ArchiveShelfSnapshot(status="ready", total=12, today=3)
+        app._agents = [object()]  # type: ignore[attr-defined]
+        app._agent_search_query = "status:FAILED"  # type: ignore[attr-defined]
+        shelf = app.query_one(AgentArchiveShelf)
+
+        request_archive_shelf_refresh(app)
+
+        # The recount is still in flight: the last line stays, unchanged.
+        assert shelf.display is True
+        assert shelf.render().plain == "◷ Archive · 12 runs · 3 today"
+        await wait_for(
+            pilot,
+            lambda: (
+                shelf.render().plain == "◷ Archive · 1 matches this filter · ⏎ search"
+            ),
+        )
 
 
 def test_shelf_jk_focus_routes_to_and_from_the_bottom_panel() -> None:
@@ -216,3 +309,62 @@ async def test_same_shelf_key_still_updates_inbox_empty_lit_state() -> None:
 
         assert shelf.has_class("-empty")
         assert corpus.summary_calls == 0
+
+
+class _CountingCorpus(ModelCorpus):
+    """Model corpus that records every ``count`` query the shelf runs."""
+
+    def __init__(self, rows: list[dict[str, Any]]) -> None:
+        super().__init__(rows)
+        self.counted: list[str] = []
+
+    def count(self, query: str, profile: Any = None) -> int:
+        self.counted.append(query)
+        return super().count(query, profile)
+
+
+async def test_typing_in_the_filter_bar_never_counts_until_commit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.ace.testing import AcePage
+    from sase.ace.tui.models.agent import Agent, AgentType
+    from tests.ace.tui.visual._ace_png_snapshot_startup import (
+        patch_startup_loaders,
+        wait_for_startup,
+    )
+
+    agents = [
+        Agent(
+            agent_type=AgentType.RUNNING,
+            cl_name=name,
+            agent_name=name.replace("-", "."),
+            project_file="/tmp/project/project.sase",
+            status=status,
+            start_time=datetime(2026, 9, 10, 12, 0, 0),
+        )
+        for name, status in (("running-one", "RUNNING"), ("failed-one", "FAILED"))
+    ]
+    patch_startup_loaders(monkeypatch, agents=agents)
+    async with AcePage(initial_tab="agents") as page:
+        await wait_for_startup(page)
+        state = init_agents_archive_controller(page.app)
+        corpus = _CountingCorpus([light_row("old", outcome="failed", status="FAILED")])
+        state.corpus = corpus
+        state.status = "warm"
+        state.shelf = ArchiveShelfSnapshot(status="ready", total=1, today=1)
+        state.shelf_requested_key = ("", state.tokens, id(corpus))
+
+        await page.press("f")
+        await page.pause()
+        for char in "status:FAILED":
+            await page.press(char)
+            await page.pause()
+        assert page.app._agents_live_preview_query == "status:FAILED"
+        assert corpus.counted == []
+
+        await page.press("enter")
+        await page.wait_for(
+            lambda _state: "status:FAILED" in corpus.counted, timeout=10.0
+        )
+        # One recount on commit: the total, then the committed filter.
+        assert corpus.counted == ["", "status:FAILED"]
