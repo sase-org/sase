@@ -7,7 +7,6 @@ re-exports these tests so its import path keeps working.
 from __future__ import annotations
 
 import json
-import sqlite3
 from pathlib import Path
 from unittest.mock import patch
 
@@ -23,11 +22,13 @@ from sase.ace.dismissed_agents import (
     verify_dismissed_bundle_index,
 )
 from sase.ace.dismissed_bundle_index import (
+    index_signature,
     query_summary_identities,
     rebuild_index,
 )
 from sase.ace.tui.models.agent import AgentType
 from tests._dismissed_agents_helpers import make_agent
+from tests._dismissed_bundle_index_fixtures import _create_legacy_index
 
 __all__ = [
     "test_dismissed_bundle_identities_snapshot_reuses_unchanged_signature",
@@ -35,7 +36,7 @@ __all__ = [
     "test_dismissed_bundle_identity_snapshot_real_index_is_read_only",
     "test_dismissed_bundle_verify_detects_changed_file_signature",
     "test_dismissed_bundle_verify_reports_stale_and_missing_rows",
-    "test_dismissed_bundle_verify_skips_json_parse_of_indexed_bundles",
+    "test_dismissed_bundle_verify_does_not_mutate_the_index",
     "test_dismissed_bundle_verify_treats_unindexed_corrupt_file_as_corrupt",
     "test_load_dismissed_bundle_identities_matches_summary_projection",
 ]
@@ -69,10 +70,10 @@ def test_dismissed_bundle_verify_reports_stale_and_missing_rows(
     assert result["missing_rows"] == 1
 
 
-def test_dismissed_bundle_verify_skips_json_parse_of_indexed_bundles(
+def test_dismissed_bundle_verify_does_not_mutate_the_index(
     tmp_path: Path,
 ) -> None:
-    """Verify is signature-based: indexed bundles are never JSON-parsed."""
+    """Rust verification leaves the summary-index signature unchanged."""
     bundles_dir = tmp_path / "bundles"
     with (
         patch("sase.ace.dismissed_agents._DISMISSED_BUNDLES_DIR", bundles_dir),
@@ -81,14 +82,13 @@ def test_dismissed_bundle_verify_skips_json_parse_of_indexed_bundles(
         save_dismissed_bundle(make_agent(cl_name="cl", raw_suffix="20250615100000"))
         assert rebuild_dismissed_bundle_index() == (1, 0)
 
-        def fail_read(path: Path) -> dict[str, object]:
-            raise AssertionError(f"verify parsed an indexed bundle: {path}")
-
-        with patch("sase.ace.dismissed_bundle_index._api.read_bundle", fail_read):
-            result = verify_dismissed_bundle_index()
+        before = index_signature(bundles_dir)
+        result = verify_dismissed_bundle_index()
+        after = index_signature(bundles_dir)
 
     assert result["ok"] is True
     assert result["indexed_rows"] == 1
+    assert after == before
 
 
 def test_dismissed_bundle_verify_detects_changed_file_signature(
@@ -271,26 +271,10 @@ def test_dismissed_bundle_identity_query_missing_and_schema_less_are_read_only(
 
     bundles_dir.mkdir()
     db_path = bundles_dir / INDEX_FILENAME
-    with sqlite3.connect(db_path) as conn:
-        conn.execute(
-            "CREATE TABLE dismissed_bundle_index_meta "
-            "(key TEXT PRIMARY KEY, value TEXT NOT NULL)"
-        )
-        conn.execute(
-            "INSERT INTO dismissed_bundle_index_meta VALUES ('schema_version', '1')"
-        )
-        conn.execute("CREATE TABLE legacy_data (value TEXT)")
-        conn.execute("INSERT INTO legacy_data VALUES ('keep')")
+    _create_legacy_index(db_path, version=1, obsolete=False)
     mtime_before = db_path.stat().st_mtime_ns
+    bytes_before = db_path.read_bytes()
 
     assert query_summary_identities(bundles_dir) is None
-
-    with sqlite3.connect(db_path) as conn:
-        assert conn.execute("SELECT value FROM legacy_data").fetchone() == ("keep",)
-        assert (
-            conn.execute(
-                "SELECT name FROM sqlite_master WHERE name = 'dismissed_bundle_summaries'"
-            ).fetchone()
-            is None
-        )
     assert db_path.stat().st_mtime_ns == mtime_before
+    assert db_path.read_bytes() == bytes_before

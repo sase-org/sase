@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import json
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from threading import Barrier
 
 import pytest
 
@@ -18,6 +21,7 @@ from sase.core.agent_archive_facade import (
     agents_archive_profile,
     compile_agent_archive_corpus,
 )
+from sase.ace.dismissed_bundle_index import upsert_bundle_summary, verify_index
 from tests._agent_archive_index_fixtures import insert_archive_rows
 
 
@@ -204,3 +208,60 @@ def test_light_rows_carry_bundle_path_stop_time_and_dismissed_at(
     assert row["dismissed_at"] == "2025-03-02T11:30:00Z"
     assert str(row["bundle_path"]).endswith("ended.json")
     assert row["project"] == "sase"
+
+
+def test_parallel_dismissed_index_upserts_and_corpus_compiles(
+    tmp_path: Path,
+) -> None:
+    """Rust serializes archive writers and corpus readers within one process."""
+
+    root = tmp_path / "dismissed-bundles"
+    root.mkdir()
+    bundles: list[tuple[Path, dict[str, str]]] = []
+    for index in range(6):
+        suffix = f"202610131200{index:02d}"
+        path = root / f"{suffix}.json"
+        bundle = {
+            "raw_suffix": suffix,
+            "source_username": "tester",
+            "source_machine": "local",
+            "source_run_id": f"run-{index}",
+            "agent_type": "run",
+            "cl_name": f"cl-{index}",
+            "agent_name": f"agent-{index}",
+            "status": "DONE",
+            "start_time": f"2026-10-13T12:00:{index:02d}Z",
+            "stop_time": f"2026-10-13T12:01:{index:02d}Z",
+        }
+        path.write_text(json.dumps(bundle), encoding="utf-8")
+        bundles.append((path, bundle))
+
+    first_path, first_bundle = bundles[0]
+    assert upsert_bundle_summary(root, first_path, first_bundle)
+    ready = Barrier(2)
+
+    def upsert_remaining() -> None:
+        ready.wait()
+        for path, bundle in bundles[1:]:
+            assert upsert_bundle_summary(root, path, bundle)
+
+    def compile_corpora() -> None:
+        ready.wait()
+        for _ in range(8):
+            corpus = compile_agent_archive_corpus(
+                root=root,
+                index_status={"status": "ok"},
+                timezone="UTC",
+                link_facets={},
+            )
+            assert corpus.count("") >= 0
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        upserts = executor.submit(upsert_remaining)
+        compiles = executor.submit(compile_corpora)
+        upserts.result()
+        compiles.result()
+
+    report = verify_index(root)
+    assert report.ok is True
+    assert report.indexed_rows == len(bundles)

@@ -7,7 +7,6 @@ re-exports these tests so its import path keeps working.
 from __future__ import annotations
 
 import json
-import sqlite3
 from pathlib import Path
 from unittest.mock import patch
 
@@ -26,12 +25,13 @@ from sase.ace.dismissed_bundle_index import (
 )
 from sase.ace.tui.models.agent import AgentType
 from tests._dismissed_agents_helpers import make_agent
+from tests._dismissed_bundle_index_fixtures import _create_legacy_index
 
 __all__ = [
     "test_dismissed_bundle_index_rebuild_and_query",
     "test_dismissed_bundle_index_schema_mismatch_recreates_table",
     "test_ensure_dismissed_archive_ready_builds_index",
-    "test_rebuild_indexes_newest_shards_first_and_reports_progress",
+    "test_rebuild_indexes_sharded_bundles_and_clears_progress",
     "test_rebuild_quarantines_and_recreates_corrupt_index",
     "test_v2_index_is_refilled_by_archive_ready_check",
 ]
@@ -124,26 +124,14 @@ def test_rebuild_quarantines_and_recreates_corrupt_index(tmp_path: Path) -> None
 def test_dismissed_bundle_index_schema_mismatch_recreates_table(
     tmp_path: Path,
 ) -> None:
-    """Opening a non-legacy schema drops and rebuilds the summary table."""
+    """Opening an obsolete schema rebuilds the summary index."""
     bundles_dir = tmp_path / "bundles"
     shard = bundles_dir / "202506"
     shard.mkdir(parents=True)
     agent = make_agent(cl_name="indexed_cl", raw_suffix="20250615100000")
     (shard / "20250615100000.json").write_text(json.dumps(agent.to_bundle_dict()))
     index_path = bundles_dir / "index.sqlite"
-    with sqlite3.connect(index_path) as conn:
-        conn.execute(
-            "CREATE TABLE dismissed_bundle_index_meta "
-            "(key TEXT PRIMARY KEY, value TEXT NOT NULL)"
-        )
-        conn.execute(
-            "INSERT INTO dismissed_bundle_index_meta(key, value) "
-            "VALUES ('schema_version', '2')"
-        )
-        conn.execute(
-            "CREATE TABLE dismissed_bundle_summaries "
-            "(bundle_path TEXT PRIMARY KEY, obsolete_col INTEGER)"
-        )
+    _create_legacy_index(index_path, version=2, obsolete=True)
 
     with (
         patch("sase.ace.dismissed_agents._DISMISSED_BUNDLES_DIR", bundles_dir),
@@ -153,37 +141,15 @@ def test_dismissed_bundle_index_schema_mismatch_recreates_table(
         summaries = load_dismissed_bundle_summaries(cl_name="indexed_cl")
 
     assert [summary.raw_suffix for summary in summaries] == ["20250615100000"]
-    with sqlite3.connect(index_path) as conn:
-        columns = {
-            row[1]
-            for row in conn.execute("PRAGMA table_info(dismissed_bundle_summaries)")
-        }
-    assert "obsolete_col" not in columns
-    assert {
-        "bundle_path",
-        "raw_suffix",
-        "cl_name",
-        "agent_session",
-        "agent_session_role",
-        "agent_clan",
-        "agent_clan_generation",
-        "agent_tab",
-        "tribe",
-        "clan_tribe",
-        "mtime_ns",
-        "size_bytes",
-    } <= columns
-    with sqlite3.connect(index_path) as conn:
-        version = conn.execute(
-            "SELECT value FROM dismissed_bundle_index_meta WHERE key = 'schema_version'"
-        ).fetchone()[0]
-    assert int(version) == SCHEMA_VERSION == 3
+    signature = index_signature(bundles_dir)
+    assert signature is not None
+    assert signature[0] == SCHEMA_VERSION == 3
 
 
-def test_rebuild_indexes_newest_shards_first_and_reports_progress(
+def test_rebuild_indexes_sharded_bundles_and_clears_progress(
     tmp_path: Path,
 ) -> None:
-    """Rebuild scans recent bundles first and exposes cheap progress updates."""
+    """Rebuild indexes sharded bundles and clears the progress marker."""
     bundles_dir = tmp_path / "bundles"
     bundle_paths = (
         bundles_dir / "202607" / "20260715100000.json",
@@ -204,33 +170,11 @@ def test_rebuild_indexes_newest_shards_first_and_reports_progress(
             encoding="utf-8",
         )
 
-    import sase.ace.dismissed_bundle_index._api as api
-    import sase.ace.dismissed_bundle_index._schema as schema
-
-    read_bundle = schema.read_bundle
-    real_set_progress = api._set_rebuild_progress
-    read_order: list[Path] = []
-    progress_rows: list[int] = []
-
-    def tracked_read(path: Path) -> dict[str, object]:
-        read_order.append(path)
-        return read_bundle(path)
-
-    def tracked_progress(key: str, indexed_rows: int) -> None:
-        real_set_progress(key, indexed_rows)
-        progress = dismissed_bundle_index_progress(bundles_dir)
-        assert progress.rebuilding is True
-        progress_rows.append(progress.indexed_rows)
-
-    with (
-        patch.object(schema, "read_bundle", tracked_read),
-        patch.object(api, "_set_rebuild_progress", tracked_progress),
-    ):
-        result = rebuild_index(bundles_dir)
-
+    result = rebuild_index(bundles_dir)
     assert result.indexed_rows == 3
-    assert read_order == [bundle_paths[2], bundle_paths[1], bundle_paths[0]]
-    assert progress_rows == [0, 1, 2, 3]
+    signature = index_signature(bundles_dir)
+    assert signature is not None
+    assert signature[3] == 3
     assert dismissed_bundle_index_progress(bundles_dir).rebuilding is False
 
 
@@ -247,20 +191,7 @@ def test_v2_index_is_refilled_by_archive_ready_check(tmp_path: Path) -> None:
     }
     (shard / "20250615100000.json").write_text(json.dumps(bundle))
     index_path = bundles_dir / "index.sqlite"
-    with sqlite3.connect(index_path) as conn:
-        conn.execute(
-            "CREATE TABLE dismissed_bundle_index_meta "
-            "(key TEXT PRIMARY KEY, value TEXT NOT NULL)"
-        )
-        conn.execute(
-            "INSERT INTO dismissed_bundle_index_meta(key, value) VALUES "
-            "('schema_version', '2')"
-        )
-        conn.execute(
-            "CREATE TABLE dismissed_bundle_summaries "
-            "(bundle_path TEXT PRIMARY KEY, mtime_ns INTEGER, size_bytes INTEGER)"
-        )
-        conn.commit()
+    _create_legacy_index(index_path, version=2, obsolete=False)
 
     with (
         patch("sase.ace.dismissed_agents._DISMISSED_BUNDLES_DIR", bundles_dir),

@@ -1,60 +1,51 @@
-"""Public operations for the dismissed bundle summary index."""
+"""Public operations for the Rust-backed dismissed bundle summary index."""
 
 from __future__ import annotations
 
 import json
-import logging
-import sqlite3
-import threading
-from datetime import UTC, datetime
-from collections.abc import Iterator
-from contextlib import contextmanager
+from collections.abc import Mapping
+from dataclasses import fields
 from pathlib import Path
 from typing import Any
 
-from ._bundle_io import (
-    file_signature,
-    index_path_for_root,
-    iter_bundle_paths,
-    read_bundle,
-)
+from sase.core.rust import require_rust_binding
+
+from ._bundle_io import index_path_for_root
 from ._models import (
+    SCHEMA_VERSION,
     DismissedBundleIndexProgress,
     DismissedBundleIndexRebuildResult,
     DismissedBundleIndexVerifyResult,
     DismissedBundleSummary,
-    SCHEMA_VERSION,
 )
-from ._schema import (
-    connection,
-    rebuild_rows_from_bundles,
-    set_visibility_for_suffixes as _set_visibility_for_suffixes,
-    upsert_summary,
-    write_connection,
-)
-from ._summary import summary_from_bundle, summary_from_row
 
-_REBUILD_LOCKS_GUARD = threading.Lock()
-_REBUILD_LOCKS: dict[str, threading.Lock] = {}
-_REBUILD_PROGRESS_GUARD = threading.Lock()
-_REBUILD_PROGRESS: dict[str, int] = {}
-log = logging.getLogger(__name__)
+_BACKEND_ERRORS = (
+    OSError,
+    RuntimeError,
+    TypeError,
+    ValueError,
+    IndexError,
+    KeyError,
+)
 
 
 def dismissed_bundle_index_progress(root: Path) -> DismissedBundleIndexProgress:
     """Return rebuild state without opening the database or bundle files."""
 
-    key = _root_key(root)
-    with _REBUILD_PROGRESS_GUARD:
-        indexed_rows = _REBUILD_PROGRESS.get(key)
-    return DismissedBundleIndexProgress(
-        rebuilding=indexed_rows is not None,
-        indexed_rows=indexed_rows or 0,
-    )
+    try:
+        payload = _mapping(
+            require_rust_binding("dismissed_bundle_index_progress")(str(root))
+        )
+        return DismissedBundleIndexProgress(
+            rebuilding=bool(payload.get("rebuilding", False)),
+            indexed_rows=int(payload.get("indexed_rows", 0)),
+        )
+    except _BACKEND_ERRORS:
+        return DismissedBundleIndexProgress(rebuilding=False, indexed_rows=0)
 
 
 def archive_index_exists(root: Path) -> bool:
-    """Return whether a dismissed bundle SQLite index exists for *root*."""
+    """Return whether a dismissed bundle index file exists for *root*."""
 
     return index_path_for_root(root).is_file()
 
@@ -62,47 +53,36 @@ def archive_index_exists(root: Path) -> bool:
 def index_signature(root: Path) -> tuple[int, int, int, int] | None:
     """Return a cheap signature for the dismissed bundle summary index."""
 
-    db_path = index_path_for_root(root)
-    if not db_path.is_file():
-        return None
-
     try:
-        stat = db_path.stat()
-        with connection(root, create=False) as conn:
-            version_row = conn.execute(
-                "SELECT value FROM dismissed_bundle_index_meta "
-                "WHERE key = 'schema_version'"
-            ).fetchone()
-            count = conn.execute(
-                "SELECT COUNT(*) FROM dismissed_bundle_summaries"
-            ).fetchone()[0]
-    except (OSError, sqlite3.Error, TypeError, ValueError, IndexError):
+        value = require_rust_binding("dismissed_bundle_index_signature")(str(root))
+        if value is None:
+            return None
+        payload = _mapping(value)
+        return (
+            int(payload["schema_version"]),
+            int(payload["mtime_ns"]),
+            int(payload["size_bytes"]),
+            int(payload["row_count"]),
+        )
+    except _BACKEND_ERRORS:
         return None
-
-    try:
-        version = int(version_row["value"]) if version_row is not None else 0
-    except (TypeError, ValueError):
-        version = 0
-    return (version, stat.st_mtime_ns, stat.st_size, int(count))
-
-
-@contextmanager
-def archive_index_connection(root: Path) -> Iterator[sqlite3.Connection]:
-    """Open a schema-checked dismissed bundle index connection."""
-
-    with connection(root) as conn:
-        yield conn
 
 
 def upsert_bundle_summary(root: Path, path: Path, bundle: dict[str, Any]) -> bool:
     """Insert or update one bundle summary row."""
 
     try:
-        summary = summary_from_bundle(root, path, bundle)
-        with write_connection(root) as conn:
-            upsert_summary(conn, summary, file_signature(path))
-        return True
-    except (OSError, sqlite3.Error, ValueError, TypeError):
+        bundle_json = json.dumps(
+            bundle,
+            ensure_ascii=False,
+            allow_nan=False,
+            separators=(",", ":"),
+        )
+        result = require_rust_binding("upsert_dismissed_bundle_summary")(
+            str(root), str(path), bundle_json
+        )
+        return bool(result)
+    except _BACKEND_ERRORS:
         return False
 
 
@@ -112,13 +92,11 @@ def delete_bundle_summaries_for_suffixes(root: Path, suffixes: set[str]) -> bool
     if not suffixes:
         return True
     try:
-        with write_connection(root) as conn:
-            conn.executemany(
-                "DELETE FROM dismissed_bundle_summaries WHERE raw_suffix = ?",
-                [(suffix,) for suffix in suffixes],
-            )
-        return True
-    except sqlite3.Error:
+        result = require_rust_binding("delete_dismissed_bundle_summaries_for_suffixes")(
+            str(root), sorted(suffixes)
+        )
+        return bool(result)
+    except _BACKEND_ERRORS:
         return False
 
 
@@ -135,58 +113,23 @@ def query_summaries(
 ) -> list[DismissedBundleSummary] | None:
     """Query summaries, returning ``None`` when no usable index exists."""
 
-    db_path = index_path_for_root(root)
-    if not db_path.is_file():
-        return None
-
-    clauses: list[str] = []
-    params: list[Any] = []
-    if suffixes is not None:
-        if not suffixes:
-            return []
-        placeholders = ",".join("?" for _ in suffixes)
-        clauses.append(f"s.raw_suffix IN ({placeholders})")
-        params.extend(sorted(suffixes))
-    if cl_name is not None:
-        clauses.append("(s.cl_name = ? OR s.meta_patch = ?)")
-        params.extend([cl_name, cl_name])
-    if project_name is not None:
-        clauses.append("s.project_file LIKE ?")
-        params.append(f"%/{project_name}/%")
-    if top_level_only:
-        clauses.append("s.is_workflow_child = 0")
-    if visibility is not None:
-        clauses.append("COALESCE(v.visibility, s.archive_visibility) = ?")
-        params.append(visibility)
-
-    sql = (
-        "SELECT s.*, "
-        "COALESCE(v.visibility, s.archive_visibility) AS effective_archive_visibility, "
-        "COALESCE(v.revived_at, s.revived_at) AS effective_revived_at, "
-        "COALESCE(v.times_revived, s.times_revived) AS effective_times_revived "
-        "FROM dismissed_bundle_summaries s "
-        "LEFT JOIN archive_visibility_projection v "
-        "ON v.source_username = s.source_username "
-        "AND v.source_machine = s.source_machine "
-        "AND v.source_run_id = s.source_run_id"
-    )
-    if clauses:
-        sql += " WHERE " + " AND ".join(clauses)
-    sql += " ORDER BY COALESCE(s.start_time, s.raw_suffix) DESC, s.filename ASC"
-    if limit is not None:
-        sql += " LIMIT ?"
-        params.append(max(0, limit))
-    if offset is not None:
-        if limit is None:
-            sql += " LIMIT -1"
-        sql += " OFFSET ?"
-        params.append(max(0, offset))
-
+    request = {
+        "suffixes": sorted(suffixes) if suffixes is not None else None,
+        "cl_name": cl_name,
+        "project_name": project_name,
+        "top_level_only": top_level_only,
+        "visibility": visibility,
+        "limit": limit,
+        "offset": offset,
+    }
     try:
-        with connection(root, create=False) as conn:
-            rows = conn.execute(sql, params).fetchall()
-        return [summary_from_row(row) for row in rows]
-    except sqlite3.Error:
+        rows = require_rust_binding("query_dismissed_bundle_summaries")(
+            str(root), request
+        )
+        if rows is None:
+            return None
+        return [_summary_from_wire(_mapping(row)) for row in rows]
+    except _BACKEND_ERRORS:
         return None
 
 
@@ -196,10 +139,15 @@ def query_bundle_paths_by_suffixes(
 ) -> list[Path] | None:
     """Return indexed parent and child bundle paths for *suffixes*."""
 
-    summaries = query_summaries(root, suffixes=suffixes)
-    if summaries is None:
+    try:
+        paths = require_rust_binding("query_dismissed_bundle_paths_by_suffixes")(
+            str(root), sorted(suffixes)
+        )
+        if paths is None:
+            return None
+        return [Path(path) for path in paths]
+    except _BACKEND_ERRORS:
         return None
-    return [Path(summary.bundle_path) for summary in summaries]
 
 
 def set_archive_visibility_for_suffixes(
@@ -214,222 +162,108 @@ def set_archive_visibility_for_suffixes(
     """Set local visibility for all indexed rows matching *suffixes*."""
 
     try:
-        with write_connection(root) as conn:
-            return _set_visibility_for_suffixes(
-                conn,
-                suffixes,
-                visibility,
-                revived_at=revived_at,
-                dismissed_at=dismissed_at,
-                pinned_at=pinned_at,
-            )
-    except sqlite3.Error:
+        changed = require_rust_binding("set_dismissed_bundle_visibility_for_suffixes")(
+            str(root),
+            sorted(suffixes),
+            visibility,
+            revived_at,
+            dismissed_at,
+            pinned_at,
+        )
+        return int(changed)
+    except _BACKEND_ERRORS:
         return 0
 
 
 def rebuild_index(root: Path) -> DismissedBundleIndexRebuildResult:
     """Rebuild the entire dismissed bundle index from bundle JSON files."""
 
-    key = _root_key(root)
-    with _REBUILD_LOCKS_GUARD:
-        rebuild_lock = _REBUILD_LOCKS.setdefault(key, threading.Lock())
-    with rebuild_lock:
-        _set_rebuild_progress(key, 0)
-        try:
-            root.mkdir(parents=True, exist_ok=True)
-            paths = iter_bundle_paths(root)
-            try:
-                with write_connection(root) as conn:
-                    indexed = _rebuild_rows(conn, root, paths, key)
-            except sqlite3.DatabaseError as error:
-                if not _is_corrupt_database_error(error):
-                    raise
-                quarantine = _quarantine_corrupt_index(root)
-                if quarantine is None:
-                    raise
-                log.warning(
-                    "quarantined corrupt dismissed bundle index at %s", quarantine
-                )
-                with write_connection(root) as conn:
-                    indexed = _rebuild_rows(conn, root, paths, key)
-            skipped = max(0, len(paths) - indexed)
-        finally:
-            _clear_rebuild_progress(key)
+    payload = _mapping(
+        require_rust_binding("rebuild_dismissed_bundle_index")(str(root))
+    )
     return DismissedBundleIndexRebuildResult(
-        indexed_rows=indexed,
-        skipped_corrupt=skipped,
+        indexed_rows=int(payload["indexed_rows"]),
+        skipped_corrupt=int(payload["skipped_corrupt"]),
     )
-
-
-def _rebuild_rows(
-    conn: sqlite3.Connection, root: Path, paths: list[Path], key: str
-) -> int:
-    conn.execute("DELETE FROM dismissed_bundle_summaries")
-    conn.execute("DELETE FROM dismissed_bundle_search_fts")
-    return rebuild_rows_from_bundles(
-        conn,
-        root,
-        paths=paths,
-        on_progress=lambda rows: _set_rebuild_progress(key, rows),
-    )
-
-
-def _is_corrupt_database_error(error: sqlite3.DatabaseError) -> bool:
-    return getattr(error, "sqlite_errorcode", None) in {
-        getattr(sqlite3, "SQLITE_NOTADB", 26),
-        getattr(sqlite3, "SQLITE_CORRUPT", 11),
-    }
-
-
-def _quarantine_corrupt_index(root: Path) -> Path | None:
-    db_path = index_path_for_root(root)
-    try:
-        failed_stat = db_path.stat()
-    except OSError:
-        return None
-    timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
-    target = db_path.with_name(f"{db_path.name}.corrupt-{timestamp}")
-    try:
-        current_stat = db_path.stat()
-        if (current_stat.st_dev, current_stat.st_ino) != (
-            failed_stat.st_dev,
-            failed_stat.st_ino,
-        ):
-            return None
-        db_path.rename(target)
-        for suffix in ("-wal", "-shm"):
-            sibling = Path(f"{db_path}{suffix}")
-            if sibling.exists():
-                sibling.rename(Path(f"{target}{suffix}"))
-    except OSError:
-        log.warning(
-            "could not quarantine corrupt dismissed bundle index %s",
-            db_path,
-            exc_info=True,
-        )
-        return None
-    return target
-
-
-def _root_key(root: Path) -> str:
-    try:
-        return str(root.expanduser().resolve())
-    except (OSError, RuntimeError, ValueError):
-        return str(root.expanduser().absolute())
-
-
-def _set_rebuild_progress(key: str, indexed_rows: int) -> None:
-    with _REBUILD_PROGRESS_GUARD:
-        _REBUILD_PROGRESS[key] = indexed_rows
-
-
-def _clear_rebuild_progress(key: str) -> None:
-    with _REBUILD_PROGRESS_GUARD:
-        _REBUILD_PROGRESS.pop(key, None)
 
 
 def query_summary_identities(root: Path) -> set[tuple[str, str, str | None]] | None:
-    """Return distinct ``(agent_type, cl_name, raw_suffix)`` identity rows.
+    """Return hidden ``(agent_type, cl_name, raw_suffix)`` identities.
 
-    Dedicated projection query for callers that only need identities (the
-    artifact-index dismissed projection), so they never materialize every
-    summary object. Applies the same normalization as the summary path:
-    blank ``cl_name`` becomes ``'unknown'`` and blank ``raw_suffix``
-    becomes ``None``. Returns ``None`` when no usable index exists.
+    Returns ``None`` when no usable index exists.
     """
 
-    db_path = index_path_for_root(root)
-    if not db_path.is_file():
+    signature = index_signature(root)
+    if signature is None or signature[0] != SCHEMA_VERSION:
         return None
+    if signature[3] == 0:
+        return set()
 
-    sql = (
-        "SELECT DISTINCT agent_type, "
-        "CASE WHEN s.cl_name = '' THEN 'unknown' ELSE s.cl_name END, "
-        "NULLIF(s.raw_suffix, '') "
-        "FROM dismissed_bundle_summaries s "
-        "LEFT JOIN archive_visibility_projection v "
-        "ON v.source_username = s.source_username "
-        "AND v.source_machine = s.source_machine "
-        "AND v.source_run_id = s.source_run_id "
-        "WHERE COALESCE(v.visibility, s.archive_visibility) = 'hidden'"
-    )
     try:
-        with connection(root, create=False) as conn:
-            rows = conn.execute(sql).fetchall()
-    except sqlite3.Error:
+        rows = require_rust_binding("query_dismissed_bundle_summary_identities")(
+            str(root)
+        )
+        if rows is None:
+            return None
+        return {
+            (
+                str(row["agent_type"]),
+                str(row["cl_name"]),
+                None if row.get("raw_suffix") is None else str(row["raw_suffix"]),
+            )
+            for row in (_mapping(value) for value in rows)
+        }
+    except _BACKEND_ERRORS:
         return None
-    return {
-        (str(row[0]), str(row[1]), None if row[2] is None else str(row[2]))
-        for row in rows
-    }
 
 
 def verify_index(root: Path) -> DismissedBundleIndexVerifyResult:
-    """Compare the index to source bundle files without mutating rows.
+    """Compare the index to source bundle files without mutating rows."""
 
-    Verification is signature-based: indexed rows are checked against
-    ``stat()`` signatures and the on-disk path set, so the cost is one
-    stat per bundle instead of a JSON parse per bundle. Only files absent
-    from the index are parsed — without that, a corrupt unindexed file
-    would read as permanently "missing" and trigger a full rebuild on
-    every verify. JSON validity of indexed rows is rebuild's job.
-    """
+    try:
+        payload = _mapping(
+            require_rust_binding("verify_agent_archive_index")(str(root))
+        )
+        return DismissedBundleIndexVerifyResult(
+            ok=bool(payload["ok"]),
+            indexed_rows=int(payload["indexed_rows"]),
+            valid_bundles=int(payload["valid_bundles"]),
+            corrupt_bundles=int(payload["corrupt_bundles"]),
+            stale_rows=int(payload["stale_rows"]),
+            missing_rows=int(payload["missing_rows"]),
+        )
+    except _BACKEND_ERRORS:
+        return DismissedBundleIndexVerifyResult(
+            ok=False,
+            indexed_rows=0,
+            valid_bundles=0,
+            corrupt_bundles=0,
+            stale_rows=1,
+            missing_rows=0,
+        )
 
-    indexed: dict[str, tuple[int, int]] = {}
-    stale_rows = 0
-    if index_path_for_root(root).is_file():
-        try:
-            with connection(root, create=False) as conn:
-                version_row = conn.execute(
-                    "SELECT value FROM dismissed_bundle_index_meta "
-                    "WHERE key = 'schema_version'"
-                ).fetchone()
-                try:
-                    version = int(version_row["value"]) if version_row else 0
-                except (TypeError, ValueError):
-                    version = 0
-                if version != SCHEMA_VERSION:
-                    stale_rows = 1
-                rows = conn.execute(
-                    "SELECT bundle_path, mtime_ns, size_bytes "
-                    "FROM dismissed_bundle_summaries"
-                ).fetchall()
-            for row in rows:
-                indexed[str(row["bundle_path"])] = (
-                    int(row["mtime_ns"]),
-                    int(row["size_bytes"]),
-                )
-        except sqlite3.Error:
-            stale_rows = 1
-    else:
-        stale_rows = 1
 
-    for bundle_path, signature in indexed.items():
-        try:
-            if file_signature(Path(bundle_path)) != signature:
-                stale_rows += 1
-        except OSError:
-            stale_rows += 1
+def _summary_from_wire(row: Mapping[str, Any]) -> DismissedBundleSummary:
+    values: dict[str, Any] = {}
+    for field in fields(DismissedBundleSummary):
+        wire_name = "meta_patch" if field.name == "meta_changespec" else field.name
+        value = row[wire_name]
+        if field.name == "missing_requirements":
+            value = tuple(value)
+        elif field.name in {"times_revived", "retry_attempt"}:
+            value = int(value)
+        elif field.name in {
+            "historically_viewable",
+            "durably_revivable",
+            "restartable",
+            "is_workflow_child",
+        }:
+            value = bool(value)
+        values[field.name] = value
+    return DismissedBundleSummary(**values)
 
-    disk_paths = {str(path): path for path in iter_bundle_paths(root)}
-    missing = 0
-    corrupt = 0
-    for path_str, path in disk_paths.items():
-        if path_str in indexed:
-            continue
-        try:
-            read_bundle(path)
-        except (OSError, json.JSONDecodeError, ValueError):
-            corrupt += 1
-            continue
-        missing += 1
 
-    ok = stale_rows == 0 and missing == 0
-    return DismissedBundleIndexVerifyResult(
-        ok=ok,
-        indexed_rows=len(indexed),
-        valid_bundles=len(disk_paths) - corrupt,
-        corrupt_bundles=corrupt,
-        stale_rows=stale_rows,
-        missing_rows=missing,
-    )
+def _mapping(value: object) -> Mapping[str, Any]:
+    if not isinstance(value, Mapping):
+        raise TypeError("Rust archive binding returned a non-object wire value")
+    return value

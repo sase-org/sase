@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from ._api import (
-    archive_index_connection,
     archive_index_exists,
     delete_bundle_summaries_for_suffixes,
     dismissed_bundle_index_progress,
@@ -43,7 +42,6 @@ __all__ = [
     "_DismissedBundleSummary",
     "_read_bundle",
     "read_bundle",
-    "archive_index_connection",
     "archive_index_exists",
     "delete_bundle_summaries_for_suffixes",
     "dismissed_bundle_index_progress",

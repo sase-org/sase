@@ -7,7 +7,6 @@ from datetime import UTC, datetime
 import hashlib
 import json
 import os
-import sqlite3
 import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -54,7 +53,7 @@ def save_dismissed_bundle(ctx: Any, agent: Agent) -> bool:
         from .dismissed_bundle_index import upsert_bundle_summary
 
         upsert_bundle_summary(bundles_dir, saved_path, bundle)
-    except (OSError, ValueError):
+    except (OSError, RuntimeError, ValueError):
         pass
     return True
 
@@ -125,7 +124,7 @@ def load_dismissed_bundle_summaries(
             )
             or []
         )
-    except (OSError, ValueError, sqlite3.Error):
+    except (OSError, RuntimeError, ValueError):
         return []
 
 
@@ -140,7 +139,7 @@ def load_dismissed_bundle_identities(ctx: Any) -> set[tuple[str, str, str | None
             return identities
         ctx.rebuild_dismissed_bundle_index()
         return query_summary_identities(bundles_dir) or set()
-    except (OSError, ValueError, sqlite3.Error):
+    except (OSError, RuntimeError, ValueError):
         return set()
 
 
@@ -202,7 +201,7 @@ def bundle_paths_for_suffixes(ctx: Any, suffixes: set[str]) -> list[Path]:
         indexed_paths = query_bundle_paths_by_suffixes(
             ctx.dismissed_bundles_dir(), suffixes
         )
-    except (OSError, ValueError, sqlite3.Error):
+    except (OSError, RuntimeError, ValueError):
         indexed_paths = None
     if indexed_paths is not None:
         return [path for path in indexed_paths if path.is_file()]

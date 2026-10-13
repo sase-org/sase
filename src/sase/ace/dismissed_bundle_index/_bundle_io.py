@@ -32,7 +32,7 @@ def iter_bundle_paths(root: Path) -> list[Path]:
             results.append(path)
     return sorted(
         results,
-        key=lambda path: (path_shard(root, path), path.name),
+        key=lambda path: (_path_shard(root, path), path.name),
         reverse=True,
     )
 
@@ -49,7 +49,7 @@ def file_signature(path: Path) -> tuple[int, int]:
     return stat.st_mtime_ns, stat.st_size
 
 
-def path_shard(root: Path, path: Path) -> str:
+def _path_shard(root: Path, path: Path) -> str:
     try:
         parent = path.parent.relative_to(root)
     except ValueError:
@@ -62,25 +62,11 @@ def path_shard(root: Path, path: Path) -> str:
     return ""
 
 
-def display_filename(root: Path, path: Path) -> str:
-    try:
-        path.relative_to(root)
-    except ValueError:
-        return path.name
-    return path.name
-
-
 def required_str(bundle: dict[str, Any], key: str) -> str:
     value = bundle.get(key)
     if not isinstance(value, str) or not value:
         raise ValueError(f"bundle missing {key}")
     return value
-
-
-def string_or_default(value: object, default: str) -> str:
-    if isinstance(value, str) and value:
-        return value
-    return default
 
 
 def optional_str(value: object) -> str | None:

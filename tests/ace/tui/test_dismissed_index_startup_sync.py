@@ -38,8 +38,9 @@ def test_init_app_state_performs_no_sync_and_no_bundle_reads(
         "sync_dismissed_agent_artifact_index_report",
         _fail,
     )
-    monkeypatch.setattr("sase.ace.dismissed_bundle_index._api.read_bundle", _fail)
-    monkeypatch.setattr("sase.ace.dismissed_bundle_index._schema.read_bundle", _fail)
+    monkeypatch.setattr(
+        "sase.ace.dismissed_bundle_index._api.require_rust_binding", _fail
+    )
 
     app = AceApp()
 
