@@ -317,6 +317,36 @@ def test_open_and_pulse_return_close_an_open_filter_session() -> None:
     )
 
 
+def test_clearing_name_inside_archive_keeps_selected_identity() -> None:
+    app = _ParkingApp()
+    open_agents_archive_view_with_query(app, query='in:archive name:"worker"')
+    app._agents_archive_view.archive.selected_key = "worker"
+    app._agents_archive_view.archive.reveal_row = {"name": "worker"}
+
+    open_agents_archive_view_with_query(app, query="in:archive")
+
+    archive = app._agents_archive_view.archive
+    assert archive.committed_query == "in:archive"
+    assert archive.selected_key == "worker"
+    assert archive.reveal_row == {"name": "worker"}
+
+
+def test_new_exact_arrival_takes_over_archive_selection() -> None:
+    app = _ParkingApp()
+    open_agents_archive_view_with_query(app, query='in:archive name:"worker"')
+    app._agents_archive_view.archive.selected_key = "worker"
+    app._agents_archive_view.archive.reveal_row = {"name": "worker"}
+
+    open_agents_archive_view_with_query(
+        app, query='in:archive name:"other"', agent_name="other"
+    )
+
+    archive = app._agents_archive_view.archive
+    assert archive.selected_key is None
+    assert archive.reveal_row is None
+    assert archive.pending_exact_name == "other"
+
+
 def test_default_panel_focus_encodes_as_empty_string() -> None:
     app = _ParkingApp()
 

@@ -242,10 +242,15 @@ keeps the current `limit:`, raising it only when the session would not fit:
 The `*` above is the [wildcard filter](query_language.md#wildcards): `id:sase-16n.*`
 matches every phase of epic `sase-16n` but not the epic itself.
 
-An `agent:` link lands on the Agents tab when the agent is loaded there, opening any
-collapsed fold, group banner, or tribe panel around it. The Agents-tab main filter is
-never rewritten: an agent it hides lands in Artifacts ▸ Agent instead. A `job:` link
-lands on the Services tab and expands the job's routine fold.
+An `agent:` link climbs a four-step ladder, stopping at the first step that holds.
+Loaded on the Agents tab, it reveals in place, switching agent tabs and opening any
+collapsed fold, group banner, or tribe panel around it. Hidden only by the Inbox filter,
+the filter is rewritten to an exact `name:"…"` query, with the old query waiting on `^`.
+Dismissed from the Inbox, it opens read-only in Agents ▸ Archive with
+`in:archive name:"…"`, selecting the row and recording one `Ctrl+O` hop. With no record
+on this machine, a toast says so and nothing changes: the current tab, query, selection,
+and pages stay exactly as they were. A `job:` link lands on the Services tab and expands
+the job's routine fold.
 
 Each rewrite explains itself in one toast naming the new query, what hid the target, any
 scope change, and the real keys that restore (`^`) and walk back (`Ctrl+O`):
@@ -258,9 +263,12 @@ epic sase-16n · ^ restore · Ctrl+O back
 ```
 
 Extra lines appear only when they apply: `scope  <old> → <new>` (project display names,
-or `All projects`), `fetched  outside the loaded rows` after an Acquire, and
-`Agents tab filter hides it — showing Artifacts ▸ Agent`. The `was` line names the terms
-that hid the target (`hidden by your query` in a Boolean-dialect pane, or
+or `All projects`) and `fetched  outside the loaded rows` after an Acquire. The agent
+ladder reports in its own words instead:
+`The inbox filter hid it — showing name:"…" · ^ restores your filter` after a filter
+rewrite, `<source> — dismissed … · ⏎ restore · ctrl+o back` on an Archive arrival, and
+`agent:… has no record on this machine` when nothing changes. The `was` line names the
+terms that hid the target (`hidden by your query` in a Boolean-dialect pane, or
 `hidden by the project scope`), or `past limit:N` when only the limit did. The key names
 follow the live keymap, and the toast stays for about 8 seconds. Selecting,
 fold-expanding, switching scope, or fetching without a rewrite shows no toast.

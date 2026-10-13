@@ -363,6 +363,7 @@ def test_agents_tab_filtered_agent_reveals_in_place_with_toast() -> None:
 
 
 def test_agents_pane_follow_reaches_reveal_outcome() -> None:
+    """With the Agent pane itself shown, an agent ref still resolves there."""
     target = ArtifactEntryTarget("agents", ("builder",))
     pane = _Pane(targets=(target,), selected=None, query="name:other")
     app = _App(
@@ -380,8 +381,92 @@ def test_agents_pane_follow_reaches_reveal_outcome() -> None:
     app._build_reveal_outcome = capture  # type: ignore[method-assign]
     app._link_trail_guard = False
     origin = app._current_link_trail_origin()
-    app._follow_artifacts_target("agent:builder", target, origin)
+    with override_flags(artifacts_agent_pane_retired=False):
+        app._follow_artifacts_target("agent:builder", target, origin)
 
     assert app._link_follow_transaction is None
     assert pane.selected_entry_target() == target
     assert not hasattr(seen["outcome"], "agents_tab_fallback")
+
+
+def test_retired_agent_ref_reveals_loaded_agent_on_agents_tab() -> None:
+    """While the Agent pane is retired, agent refs reveal on the Agents tab."""
+    from sase.ace.tui.actions.link_follow import _link_follow_outcomes
+
+    from ._link_follow_helpers import _Agent
+
+    agent = _Agent(agent_name="builder", identity=("done", "builder", None))
+    target = ArtifactEntryTarget("agents", ("builder",))
+    app = _App(chips=(), panes={}, agents=(agent,))
+    origin = app._current_link_trail_origin()
+    _link_follow_outcomes.clear()
+
+    app._follow_artifacts_target("agent:builder", target, origin)
+
+    assert app.current_tab == "agents"
+    assert app.current_idx == 0
+    assert len(app._link_trail) == 1
+    assert _link_follow_outcomes["select"] == 1
+
+
+def test_retired_agent_ref_falls_through_to_archive_arrival(monkeypatch) -> None:
+    """While the Agent pane is retired, an unloaded agent arrives by lookup."""
+    from sase.ace.tui.actions.agents import _archive_arrival
+
+    target = ArtifactEntryTarget("agents", ("gone",))
+    app = _App(chips=(), panes={}, agents=())
+    origin = app._current_link_trail_origin()
+    arrivals: list[tuple] = []
+    monkeypatch.setattr(
+        _archive_arrival,
+        "open_archive_for_agent",
+        lambda _owner, name, **kwargs: arrivals.append(
+            (name, kwargs.get("source"), kwargs.get("return_on_miss"))
+        ),
+    )
+
+    app._follow_artifacts_target("agent:gone", target, origin)
+
+    assert arrivals == [("gone", "Not in your inbox", True)]
+    assert app._link_trail == []
+
+
+def test_filtered_reveal_confirms_loaded_before_rewriting_query() -> None:
+    """An unknown agent never rewrites the Inbox query on fallthrough."""
+    from sase.ace.tui.actions._link_follow_targets import (
+        reveal_filtered_loaded_agent,
+    )
+
+    first = make_agent("atlas.1")
+    app = _LoadedAgentHarness([first], first)
+    app._agent_search_query = "status:RUNNING"
+
+    assert reveal_filtered_loaded_agent(app, "ghost.9") is False
+    assert app._agent_search_query == "status:RUNNING"
+    assert app.notifications == []
+
+
+def test_filtered_agent_in_collapsed_fold_expands_on_reveal() -> None:
+    """A filter-hidden agent in a collapsed fold expands and selects."""
+    from sase.ace.tui.actions._link_follow_targets import (
+        reveal_filtered_loaded_agent,
+    )
+
+    complete, container = make_clan(2)
+    members = list(container.runtime_children)
+    target = members[1]
+    app = _LoadedAgentHarness(complete, container)
+
+    clan_key = agent_fold_key(container)
+    assert clan_key is not None
+    app._fold_manager.collapse(clan_key)
+    app._refilter_agents()
+    app._agents = [agent for agent in app._agents if agent.identity != target.identity]
+
+    assert reveal_filtered_loaded_agent(app, target) is True
+
+    assert app._fold_manager.get(clan_key) is not FoldLevel.COLLAPSED
+    assert app._agents[app.current_idx].identity == target.identity
+    assert app.notifications == [
+        'The inbox filter hid it — showing name:"member-1" · ^ restores your filter'
+    ]

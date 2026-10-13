@@ -99,6 +99,43 @@ def archive_inbox_pulse(owner: Any) -> ArchiveInboxPulse:
     return _controller(owner).pulse
 
 
+def lookup_archive_light_row(owner: Any, name: str) -> Mapping[str, Any] | None:
+    """Blocking exact-name lookup against the Archive corpus.
+
+    Call off-thread only: link arrivals probe here before opening the
+    Archive, so a miss toasts without touching the parked query, selection,
+    or pages. Reads the warm handle when its tokens still match and compiles
+    otherwise; publishes nothing, so concurrent view loads keep their own
+    generations.
+    """
+    from ...models.agent_archive_view import (
+        ARCHIVE_DEFAULT_GROUPING,
+        ARCHIVE_DEFAULT_QUERY,
+    )
+
+    state = _controller(owner)
+    archive = getattr(_view_state(owner), "archive", None)
+    snapshot = ArchiveRequestSnapshot(
+        generation=state.generation,
+        kind=ARCHIVE_REQUEST_QUERY,
+        query=ARCHIVE_DEFAULT_QUERY,
+        grouping=str(getattr(archive, "grouping", None) or ARCHIVE_DEFAULT_GROUPING),
+        windows=(),
+        expanded_containers=tuple(getattr(archive, "expanded_containers", ()) or ()),
+        selected_key=None,
+        view=_active_view(owner),
+        previous_identities=state.identities,
+        link_facets=state.link_facets,
+        tokens=state.tokens,
+        corpus=state.corpus,
+        profile=state.profile,
+        pending_exact_name=name,
+    )
+    result = build_archive_result(owner, snapshot)
+    row = result.get("lookup_row")
+    return dict(row) if isinstance(row, Mapping) else None
+
+
 def _view_state(owner: Any) -> Any:
     return getattr(owner, "_agents_archive_view", None)
 
@@ -624,6 +661,7 @@ __all__ = [
     "archive_inbox_pulse",
     "cancel_archive_controller",
     "init_agents_archive_controller",
+    "lookup_archive_light_row",
     "note_inbox_applied_for_archive",
     "note_inbox_load_finished_for_archive",
     "refresh_archive_inbox_pulse",

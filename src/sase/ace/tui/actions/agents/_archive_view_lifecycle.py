@@ -10,6 +10,7 @@ module's public names.
 from __future__ import annotations
 
 import logging
+from collections.abc import Mapping
 from dataclasses import replace
 from typing import Any
 
@@ -138,6 +139,11 @@ def open_agents_archive_view_with_query(
     """
     state = agents_archive_view_state(owner)
     request_archive_grouping_preference_load(owner)
+    # A commit inside the already-open Archive (clearing ``name:``, for
+    # example) keeps the selected identity: the column's reveal walk shows it
+    # in its banner while it still matches and drops it when it does not. A
+    # new exact-name arrival still takes over the selection.
+    keep_selection = state.active_view == AGENTS_VIEW_ARCHIVE and agent_name is None
     if state.active_view != AGENTS_VIEW_ARCHIVE:
         _cancel_open_filter_session(owner)
         state.parked_inbox = capture_parked_inbox(owner)
@@ -147,10 +153,12 @@ def open_agents_archive_view_with_query(
     state.archive = replace(
         state.archive,
         committed_query=query,
-        selected_key=None,
+        selected_key=state.archive.selected_key if keep_selection else None,
         pending_exact_name=agent_name,
         arrival_outcome=None,
-        reveal_row=None,
+        reveal_row=dict(state.archive.reveal_row)
+        if keep_selection and isinstance(state.archive.reveal_row, Mapping)
+        else None,
         loaded_pages={},
         restored_keys=frozenset(),
     )

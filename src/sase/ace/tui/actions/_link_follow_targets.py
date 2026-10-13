@@ -24,6 +24,80 @@ from .axe_display._loader_items import selected_axe_item_key
 log = logging.getLogger(__name__)
 
 
+def _confirmed_loaded_agent(owner: Any, match: Any) -> tuple[Any | None, str]:
+    """Return the loaded-set agent for *match* (object or name).
+
+    The ``(agent, name)`` pair confirms the target is still loaded before any
+    caller rewrites the Inbox query; ``(None, name)`` means the follow must
+    fall through without touching the query.
+    """
+    complete = list(
+        getattr(owner, "_agents_with_children", None)
+        or getattr(owner, "_agents", None)
+        or ()
+    )
+    if isinstance(match, str):
+        resolved = next(
+            (agent for agent in complete if agent_matches_ref(agent, match)),
+            None,
+        )
+        return resolved, match
+    name = str(getattr(match, "agent_name", "") or "")
+    if not name:
+        return None, ""
+    identity = getattr(match, "identity", None)
+    if identity is not None:
+        for agent in complete:
+            if getattr(agent, "identity", None) == identity:
+                return agent, name
+    resolved = next(
+        (agent for agent in complete if agent_matches_ref(agent, name)),
+        None,
+    )
+    return resolved, name
+
+
+def reveal_filtered_loaded_agent(owner: Any, match: Any) -> bool:
+    """Reveal a filter-hidden loaded agent through an exact-name query.
+
+    Shared by ``$`` link-follow and Archive restore-and-show: *match* is a
+    loaded agent or its name. The target is confirmed in the loaded agent set
+    before the Inbox query is touched, so a fallthrough never leaves a
+    rewritten query behind. After the refilter the full tab/fold reveal runs
+    first, with the visible select as fallback, and the toast names the ``^``
+    restore key.
+    """
+    import json
+
+    resolved, name = _confirmed_loaded_agent(owner, match)
+    if resolved is None or not name:
+        return False
+    old_query = str(getattr(owner, "_agent_search_query", "") or "")
+    query = f"name:{json.dumps(name, ensure_ascii=False)}"
+    record_transition = getattr(owner, "_record_agents_live_query_transition", None)
+    if callable(record_transition):
+        record_transition(old_query, query)
+    commit = getattr(owner, "_record_explicit_agents_query_commit", None)
+    if callable(commit):
+        commit(query)
+    refilter = getattr(owner, "_refilter_agents", None)
+    if callable(refilter):
+        refilter()
+    reveal = getattr(owner, "_reveal_loaded_agent", None)
+    selected = reveal(resolved) if callable(reveal) else False
+    if not selected:
+        select = getattr(owner, "_select_visible_loaded_agent", None)
+        selected = select(name) if callable(select) else False
+    if selected:
+        notify = getattr(owner, "notify", None)
+        if callable(notify):
+            notify(
+                f"The inbox filter hid it — showing {query} · ^ restores your filter",
+                severity="information",
+            )
+    return bool(selected)
+
+
 class LinkFollowTargetsMixin:
     """Resolve destinations and select loaded target rows."""
 
@@ -50,7 +124,19 @@ class LinkFollowTargetsMixin:
         so a synchronous ``SELECTED``/``MISSING``/``FAILED`` report through
         the shared completion seam can finalize safely, and a ``PENDING``
         report leaves the transaction open for a later async one.
+
+        An ``agent:`` ref never enters the Artifacts transaction while the
+        Agent pane stays retired: it reveals on the Agents tab (Inbox) or
+        arrives in the Archive by lookup. With the pane itself shown
+        (flag off) the pane path below still resolves it there.
         """
+        parsed = parse_link_ref(ref)
+        if parsed is not None and parsed[0] == "agent":
+            from .._artifact_tab_model import artifacts_agent_pane_retired
+
+            if artifacts_agent_pane_retired():
+                self._follow_agent_ref_to_agents_tab(parsed[1], origin)
+                return
         target = self._resolve_link_follow_target(ref, chip_target)
         if self._is_unconfigured_artifacts_target(target.pane_id):
             navigator = getattr(self, "_artifacts_entry_navigator", None)
@@ -76,6 +162,31 @@ class LinkFollowTargetsMixin:
         state = self._request_artifacts_target(target, generation=generation)
         handle = self._handle_link_follow_outcome  # type: ignore[attr-defined]
         handle(generation, state)
+
+    def _follow_agent_ref_to_agents_tab(
+        self,
+        payload: str,
+        origin: LinkTrailHop,
+    ) -> None:
+        """Route an ``agent:`` ref to the Agents tab, never the retired pane.
+
+        A loaded agent reveals in place and records one trail hop; a
+        dismissed one arrives in the Archive through the lookup-first
+        arrival, which toasts on a miss and changes nothing.
+        """
+        if self._follow_loaded_agent(payload):
+            record_link_follow_outcome("select")
+            self._record_link_trail(origin)  # type: ignore[attr-defined]
+            return
+        from .agents._archive_arrival import open_archive_for_agent
+
+        open_archive_for_agent(
+            self,
+            payload,
+            source="Not in your inbox",
+            origin=origin,
+            return_on_miss=True,
+        )
 
     def _switch_artifacts_scope_for_target(
         self,
@@ -254,31 +365,7 @@ class LinkFollowTargetsMixin:
 
     def _reveal_filtered_loaded_agent(self, match: Any) -> bool:
         """Replace the Inbox query with an exact name query and reveal *match*."""
-        import json
-
-        name = str(getattr(match, "agent_name", "") or "")
-        if not name:
-            return False
-        old_query = str(getattr(self, "_agent_search_query", "") or "")
-        query = f"name:{json.dumps(name, ensure_ascii=False)}"
-        record_transition = getattr(self, "_record_agents_live_query_transition", None)
-        if callable(record_transition):
-            record_transition(old_query, query)
-        commit = getattr(self, "_record_explicit_agents_query_commit", None)
-        if callable(commit):
-            commit(query)
-        refilter = getattr(self, "_refilter_agents", None)
-        if callable(refilter):
-            refilter()
-        selected = self._select_visible_loaded_agent(name)
-        if selected:
-            notify = getattr(self, "notify", None)
-            if callable(notify):
-                notify(
-                    f"The inbox filter hid it — showing {query} · ^ restores your filter",
-                    severity="information",
-                )
-        return selected
+        return reveal_filtered_loaded_agent(self, match)
 
     def _reveal_loaded_agent(self, match: Any) -> bool:
         """Reveal *match* on the Agents tab; ``False`` falls through."""
@@ -468,4 +555,4 @@ class LinkFollowTargetsMixin:
         )
 
 
-__all__ = ["LinkFollowTargetsMixin"]
+__all__ = ["LinkFollowTargetsMixin", "reveal_filtered_loaded_agent"]

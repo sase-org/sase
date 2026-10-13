@@ -2,10 +2,16 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 from collections.abc import Mapping
 from datetime import UTC, datetime
 from typing import Any
+
+from ...util.pump_tasks import spawn_pump_free_task
+
+_ARRIVAL_TASK_NAME = "sase-archive-arrival"
+_ARRIVAL_TASK_REGISTRY = "_archive_arrival_tasks"
 
 
 def _archive_name_query(name: str) -> str:
@@ -54,20 +60,101 @@ def open_archive_for_agent(
     origin: Any = None,
     return_on_miss: bool = False,
 ) -> bool:
-    """Open one archived agent read-only and announce the resolved arrival.
+    """Probe the Archive off-thread, then open it only on a hit.
+
+    The exact lookup runs first through the Archive controller's pump-free
+    worker. On a hit the Archive opens with ``in:archive name:"<name>"`` and
+    selects the row, recording one Ctrl+O hop. On a miss it toasts
+    ``agent:… has no record on this machine`` and changes nothing: no tab
+    switch, no parked query replacement, no selection reset. A newer arrival
+    supersedes an in-flight one, which then lands silently.
+    """
+    if origin is None:
+        capture = getattr(owner, "_current_link_trail_origin", None)
+        origin = capture() if callable(capture) else None
+    sequence = int(getattr(owner, "_archive_arrival_seq", 0) or 0) + 1
+    owner._archive_arrival_seq = sequence
+    owner._archive_arrival_callback = None
+    coro = _lookup_first_open(
+        owner,
+        name,
+        source=source,
+        origin=origin,
+        return_on_miss=return_on_miss,
+        sequence=sequence,
+    )
+    spawner = getattr(owner, "_archive_spawn", None)
+    if callable(spawner):
+        spawner(
+            owner,
+            coro,
+            name=_ARRIVAL_TASK_NAME,
+            registry_attr=_ARRIVAL_TASK_REGISTRY,
+        )
+    else:
+        spawn_pump_free_task(
+            owner,
+            coro,
+            name=_ARRIVAL_TASK_NAME,
+            registry_attr=_ARRIVAL_TASK_REGISTRY,
+        )
+    return True
+
+
+async def _lookup_first_open(
+    owner: Any,
+    name: str,
+    *,
+    source: str,
+    origin: Any,
+    return_on_miss: bool,
+    sequence: int,
+) -> None:
+    """Run the exact lookup, then open the Archive only when it hits."""
+    from ._archive_controller import lookup_archive_light_row
+
+    runner = getattr(owner, "_archive_run_off_thread", None)
+    if callable(runner):
+        row = await runner(lambda: lookup_archive_light_row(owner, name))
+    else:
+        row = await asyncio.to_thread(lookup_archive_light_row, owner, name)
+    if getattr(owner, "_archive_arrival_seq", sequence) != sequence:
+        return
+    if row is None:
+        notify = getattr(owner, "notify", None)
+        if callable(notify):
+            notify(f"agent:{name} has no record on this machine", severity="warning")
+        return
+    _open_archive_after_lookup(
+        owner,
+        name,
+        source=source,
+        origin=origin,
+        return_on_miss=return_on_miss,
+    )
+
+
+def _open_archive_after_lookup(
+    owner: Any,
+    name: str,
+    *,
+    source: str,
+    origin: Any,
+    return_on_miss: bool,
+) -> None:
+    """Open the Archive for a confirmed hit and announce the arrival.
 
     Exact lookup and row hydration run through the Archive controller's
     pump-free worker. The caller may supply a link-trail origin; it is added
-    only after the controller confirms the row (or its workflow owner).
+    only after the controller confirms the row (or its workflow owner). A
+    post-lookup race that resolves to missing keeps the previous
+    ``return_on_miss`` contract.
     """
     from ._archive_view import (
         close_agents_archive_view,
         open_agents_archive_view_with_query,
     )
 
-    if origin is None:
-        capture = getattr(owner, "_current_link_trail_origin", None)
-        origin = capture() if callable(capture) else None
     old_tab = _switch_to_agents(owner)
     owner._archive_arrival_callback = None
     outcome = open_agents_archive_view_with_query(
@@ -120,7 +207,6 @@ def open_archive_for_agent(
             )
 
     owner._archive_arrival_callback = arrived
-    return True
 
 
 def open_archive_for_archived_row(

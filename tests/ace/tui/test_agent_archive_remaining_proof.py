@@ -340,6 +340,53 @@ async def test_mounted_guards_pass_through_and_toggle_opens_archive(
             assert app._agents_archive_view.active_view == AGENTS_VIEW_ARCHIVE
 
 
+async def test_mounted_arrival_then_clear_name_keeps_selection(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Link arrival selects the row; clearing name: keeps the selection."""
+    from sase.ace.tui.actions.agents._archive_arrival import open_archive_for_agent
+
+    patch_startup_loaders(monkeypatch, agents=[_inbox_agent()])
+    async with AcePage(initial_tab="agents", size=(160, 40)) as page:
+        await wait_for_startup(page)
+        app = page.app
+        _wire_corpus(app, ModelCorpus(_history()))
+        note_inbox_applied_for_archive(app, load_state=complete_load())
+
+        open_archive_for_agent(app, "today.00", source="From a link")
+        await page.wait_for(
+            lambda _state: app._agents_archive_view.archive.selected_key == "u.m@t00",
+            timeout=15.0,
+        )
+        arrival_key = app._agents_archive_view.archive.selected_key
+
+        app._commit_agents_filter_query("in:archive")
+        await page.pause()
+
+        archive = app._agents_archive_view.archive
+        assert archive.committed_query == "in:archive"
+        assert archive.selected_key == arrival_key
+        assert arrival_key in page.app.query_one("#archive-list", ArchiveList).item_keys
+
+
+async def test_mounted_comma_a_from_artifacts_tab_opens_agents_archive(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`,a` on the Artifacts tab opens Agents ▸ Archive."""
+    patch_startup_loaders(monkeypatch, agents=[_inbox_agent()])
+    with override_flags():
+        async with AcePage(initial_tab="artifacts", size=(160, 40)) as page:
+            await wait_for_startup(page)
+            app = page.app
+            assert app.current_tab == "artifacts"
+
+            await page.press("comma")
+            await page.press("a")
+            await page.pause()
+            assert app.current_tab == "agents"
+            assert app._agents_archive_view.active_view == AGENTS_VIEW_ARCHIVE
+
+
 async def test_quitting_from_archive_persists_inbox_query_and_grouping(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

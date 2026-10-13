@@ -440,6 +440,10 @@ _lint-patch-stitch-terminology: _setup
 # the durable apply flow and shared init hand-off.
 # sase-1jx.12.1.3 (create-execution) consumes record_visibility_selection
 # through the durable create success path, including dismissed-modal completion.
+# sase-1jm.9.4 (arrivals-finish) exports reveal_filtered_loaded_agent for the
+# link-follow filtered reveal; sase-1jm.9.5 (archive-restore-run) consumes it
+# for the restore-and-show filtered-target rule, so its row drops once 9.5
+# lands the real import.
 # Never put a comment
 # line inside the continued command below: just joins the lines, so the comment
 # would swallow every later argument.
@@ -447,6 +451,7 @@ _lint-symvision *args: _setup
     SASE_SYMVISION_BEAD_STATUS_ONLY=1 BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase \
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
+        --epic-symbol 'sase-1jm.9.5(reveal_filtered_loaded_agent)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)
