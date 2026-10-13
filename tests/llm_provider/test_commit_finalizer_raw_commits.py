@@ -20,6 +20,7 @@ from sase.finalizers.commit_types import BuiltinCommitFinalizerError
 from sase.finalizers.commit_validation import raise_if_unpublished_local_commits
 from sase.finalizers.ledger import RETRYABLE_DIAGNOSTIC_CODES
 from sase.llm_provider import commit_finalizer_git as finalizer_git
+from sase.llm_provider import commit_finalizer_raw_commits as raw_commits
 from sase.llm_provider.commit_finalizer_baseline import (
     FINALIZER_BASELINE_FILENAME,
     capture_opened_repo_dirty_baseline,
@@ -65,6 +66,18 @@ def _commit(repo: Path, filename: str, content: str, message: str) -> str:
 
 def _head(repo: Path) -> str:
     return _run_git(repo, "rev-parse", "HEAD")
+
+
+def _repo_state(repo: Path) -> tuple[str, str, str, str, str]:
+    """Capture HEAD, index, status, and both worktree/index diffs."""
+
+    return (
+        _head(repo),
+        _run_git(repo, "write-tree"),
+        _run_git(repo, "status", "--porcelain=v1", "--untracked-files=all"),
+        _run_git(repo, "diff", "--binary", "HEAD"),
+        _run_git(repo, "diff", "--cached", "--binary"),
+    )
 
 
 def _write_baseline(
@@ -507,26 +520,21 @@ def test_absorb_skips_operation_in_progress(
         _run_git(repo, "merge", "--abort")
 
 
-def test_absorb_skips_chain_overlapping_protected_dirt(
+@pytest.mark.parametrize("protected_kind", ["tracked", "untracked"])
+def test_absorb_skips_raw_commit_of_baseline_dirty_path(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    protected_kind: str,
 ) -> None:
-    """A raw chain touching baseline-protected dirt is left for the backstop.
-
-    ``tracked.txt`` is dirty at baseline time (``C1`` over committed ``C0``).
-    The agent raw-commits it forward to ``C2``, then restores the protected
-    ``C1`` content without committing. The file is protected-dirty again and
-    still differs from the baseline HEAD, so absorption must decline; once the
-    agent commits the restore, the overlap is gone and absorption proceeds.
-    """
+    """Committing baseline dirt clean does not remove its protection boundary."""
 
     monkeypatch.setenv("SASE_AGENT_TIMESTAMP", "run-1")
     repo = _init_repo(tmp_path / "linked")
-    tracked = repo / "tracked.txt"
-    tracked.write_text("C0\n", encoding="utf-8")
-    _run_git(repo, "add", "-A")
-    _run_git(repo, "commit", "-q", "-m", "track C0")
-    tracked.write_text("C1\n", encoding="utf-8")
+    protected_path = "base.txt" if protected_kind == "tracked" else "loose.txt"
+    if protected_kind == "tracked":
+        (repo / protected_path).write_text("baseline edit\n", encoding="utf-8")
+    else:
+        (repo / protected_path).write_text("baseline untracked\n", encoding="utf-8")
     artifacts_dir = tmp_path / "artifacts"
     _write_baseline(
         artifacts_dir,
@@ -542,24 +550,274 @@ def test_absorb_skips_chain_overlapping_protected_dirt(
             ),
         ],
     )
-    _run_git(repo, "add", "-A")
-    _run_git(repo, "commit", "-q", "-m", "raw C1")
-    tracked.write_text("C2\n", encoding="utf-8")
-    _run_git(repo, "commit", "-qam", "raw C2")
-    tracked.write_text("C1\n", encoding="utf-8")
+    sha = _commit(repo, "own.txt", "own work\n", "raw commit includes baseline dirt")
+    tip_state = _repo_state(repo)
+    assert tip_state[2] == ""
 
     findings = unrecorded_local_commits(artifacts_dir)
     assert len(findings) == 1
-    assert len(findings[0].commits) == 2
-    tip = _head(repo)
     assert absorb_raw_local_commits(str(tmp_path), artifacts_dir) == ()
-    assert _head(repo) == tip
+    assert _repo_state(repo) == tip_state
 
-    # Committing the restore removes the overlap, so absorption proceeds.
-    _run_git(repo, "commit", "-qam", "restore C1")
+    with pytest.raises(BuiltinCommitFinalizerError) as exc_info:
+        raise_if_unpublished_local_commits(
+            artifacts_dir,
+            instance_id="commit",
+            invoke_result=InvokeResult(content="done"),
+        )
+    assert sha in exc_info.value.result.diagnostics[0].message
+
+
+def test_absorb_rejects_protected_path_restored_to_baseline_head(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Per-commit history catches a protected path hidden by a net revert."""
+
+    monkeypatch.setenv("SASE_AGENT_TIMESTAMP", "run-1")
+    repo = _init_repo(tmp_path / "linked")
+    protected = repo / "base.txt"
+    protected.write_text("dirty at baseline\n", encoding="utf-8")
+    artifacts_dir = tmp_path / "artifacts"
+    _write_baseline(
+        artifacts_dir,
+        [
+            _baseline_record(
+                repo_id="sibling:core",
+                repo=repo,
+                kind="sibling",
+                name="core",
+                scope="run_start",
+                head=_head(repo),
+                fingerprints=dict(finalizer_git.dirty_path_fingerprints(str(repo))),
+            ),
+        ],
+    )
+    first = _commit(repo, "base.txt", "first raw version\n", "raw protected edit")
+    restore = _commit(repo, "base.txt", "base\n", "restore baseline HEAD content")
+    tip_state = _repo_state(repo)
+    assert _run_git(repo, "diff", "HEAD~2", "HEAD", "--", "base.txt") == ""
+
+    assert [
+        commit.sha for commit in unrecorded_local_commits(artifacts_dir)[0].commits
+    ] == [first, restore]
+    assert absorb_raw_local_commits(str(tmp_path), artifacts_dir) == ()
+    assert _repo_state(repo) == tip_state
+
+
+@pytest.mark.parametrize("protected_side", ["source", "destination"])
+def test_absorb_rejects_rename_of_a_protected_path(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    protected_side: str,
+) -> None:
+    monkeypatch.setenv("SASE_AGENT_TIMESTAMP", "run-1")
+    repo = _init_repo(tmp_path / "linked")
+    target = repo / "target.txt"
+    target.write_text("original target\n", encoding="utf-8")
+    _run_git(repo, "add", "-A")
+    _run_git(repo, "commit", "-q", "-m", "add target")
+    protected = repo / ("base.txt" if protected_side == "source" else "target.txt")
+    protected.write_text("dirty at baseline\n", encoding="utf-8")
+    artifacts_dir = tmp_path / "artifacts"
+    _write_baseline(
+        artifacts_dir,
+        [
+            _baseline_record(
+                repo_id="sibling:core",
+                repo=repo,
+                kind="sibling",
+                name="core",
+                scope="run_start",
+                head=_head(repo),
+                fingerprints=dict(finalizer_git.dirty_path_fingerprints(str(repo))),
+            ),
+        ],
+    )
+    _run_git(repo, "mv", "-f", "base.txt", "target.txt")
+    _run_git(repo, "commit", "-q", "-m", "rename protected path")
+    tip_state = _repo_state(repo)
+
+    assert absorb_raw_local_commits(str(tmp_path), artifacts_dir) == ()
+    assert _repo_state(repo) == tip_state
+
+
+@pytest.mark.parametrize(
+    "interleaving", ["foreign_after", "host_after", "foreign_between"]
+)
+def test_absorb_rejects_filtered_commit_inside_raw_suffix(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    interleaving: str,
+) -> None:
+    monkeypatch.setenv("SASE_AGENT_TIMESTAMP", "run-1")
+    monkeypatch.setenv("SASE_AGENT_NAME", "current-agent")
+    repo = _init_repo(tmp_path / "linked")
+    baseline = _head(repo)
+    artifacts_dir = tmp_path / "artifacts"
+    _write_baseline(
+        artifacts_dir,
+        [
+            _baseline_record(
+                repo_id="sibling:core",
+                repo=repo,
+                kind="sibling",
+                name="core",
+                scope="run_start",
+                head=baseline,
+            ),
+        ],
+    )
+    raw_shas = [_commit(repo, "raw-one.txt", "one\n", "first raw commit")]
+    if interleaving == "foreign_between":
+        interleaved_sha = _commit(
+            repo,
+            "foreign.txt",
+            "foreign\n",
+            "concurrent work\n\nSASE_AGENT=other-agent",
+        )
+        raw_shas.append(_commit(repo, "raw-two.txt", "two\n", "second raw commit"))
+        expected_history = [raw_shas[0], interleaved_sha, raw_shas[1]]
+    else:
+        interleaved_sha = _commit(
+            repo,
+            "interleaved.txt",
+            "interleaved\n",
+            (
+                "concurrent work\n\nSASE_AGENT=other-agent"
+                if interleaving == "foreign_after"
+                else "host stitch work"
+            ),
+        )
+        if interleaving == "host_after":
+            _record_host_stitch(artifacts_dir, repo, interleaved_sha, pushed=False)
+        expected_history = [raw_shas[0], interleaved_sha]
+    tip_state = _repo_state(repo)
+
+    findings = unrecorded_local_commits(artifacts_dir)
+    assert len(findings) == 1
+    assert [commit.sha for commit in findings[0].commits] == raw_shas
+    assert _run_git(
+        repo, "rev-list", "--reverse", f"{baseline}..HEAD"
+    ).splitlines() == (expected_history)
+    assert absorb_raw_local_commits(str(tmp_path), artifacts_dir) == ()
+    assert _repo_state(repo) == tip_state
+
+    with pytest.raises(BuiltinCommitFinalizerError) as exc_info:
+        raise_if_unpublished_local_commits(
+            artifacts_dir,
+            instance_id="commit",
+            invoke_result=InvokeResult(content="done"),
+        )
+    diagnostic = exc_info.value.result.diagnostics[0]
+    assert diagnostic.code == "unpublished_local_commits"
+    assert all(sha in diagnostic.message for sha in raw_shas)
+
+
+@pytest.mark.parametrize("preceding", ["foreign", "host", "remote"])
+def test_absorb_preserves_commit_before_complete_raw_suffix(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    preceding: str,
+) -> None:
+    monkeypatch.setenv("SASE_AGENT_TIMESTAMP", "run-1")
+    monkeypatch.setenv("SASE_AGENT_NAME", "current-agent")
+    repo = _init_repo(tmp_path / "linked")
+    baseline = _head(repo)
+    artifacts_dir = tmp_path / "artifacts"
+    _write_baseline(
+        artifacts_dir,
+        [
+            _baseline_record(
+                repo_id="sibling:core",
+                repo=repo,
+                kind="sibling",
+                name="core",
+                scope="run_start",
+                head=baseline,
+            ),
+        ],
+    )
+    if preceding == "remote":
+        remote = tmp_path / "remote.git"
+        subprocess.run(["git", "init", "--bare", "-q", str(remote)], check=True)
+        _run_git(repo, "remote", "add", "origin", str(remote))
+        _run_git(repo, "push", "-q", "-u", "origin", "HEAD")
+        prior = _commit(repo, "prior.txt", "remote work\n", "remote-reachable prior")
+        _run_git(repo, "push", "-q", "origin", "HEAD")
+    elif preceding == "foreign":
+        prior = _commit(
+            repo,
+            "prior.txt",
+            "foreign work\n",
+            "prior concurrent work\n\nSASE_AGENT=other-agent",
+        )
+    else:
+        prior = _commit(repo, "prior.txt", "host work\n", "prior host stitch")
+        _record_host_stitch(artifacts_dir, repo, prior, pushed=False)
+    raw_sha = _commit(repo, "own.txt", "own work\n", "raw suffix")
+    tip = _head(repo)
+
     absorbed = absorb_raw_local_commits(str(tmp_path), artifacts_dir)
+
     assert len(absorbed) == 1
-    assert len(absorbed[0].commits) == 3
+    assert absorbed[0].reset_target == prior
+    assert absorbed[0].recovery_ref == "refs/sase/recovery/raw-commits/run-1"
+    assert _run_git(repo, "rev-parse", absorbed[0].recovery_ref) == tip
+    assert _head(repo) == prior
+    assert _run_git(repo, "diff", "--cached", "--name-only").splitlines() == ["own.txt"]
+    assert raw_sha in [commit.sha for commit in absorbed[0].commits]
+    assert absorb_raw_local_commits(str(tmp_path), artifacts_dir) == ()
+
+
+def test_absorb_revalidates_head_before_pinning_and_resetting(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_AGENT_TIMESTAMP", "run-1")
+    repo = _init_repo(tmp_path / "linked")
+    artifacts_dir = tmp_path / "artifacts"
+    _write_baseline(
+        artifacts_dir,
+        [
+            _baseline_record(
+                repo_id="sibling:core",
+                repo=repo,
+                kind="sibling",
+                name="core",
+                scope="run_start",
+                head=_head(repo),
+            ),
+        ],
+    )
+    raw_sha = _commit(repo, "raw.txt", "raw\n", "raw commit")
+    original_proof = raw_commits._prove_owned_suffix
+    raced_head: list[str] = []
+    raced_state: list[tuple[str, str, str, str, str]] = []
+
+    def prove_then_advance(finding: object) -> object:
+        proof = original_proof(finding)  # type: ignore[arg-type]
+        raced_head.append(_commit(repo, "racer.txt", "racer\n", "concurrent commit"))
+        raced_state.append(_repo_state(repo))
+        return proof
+
+    monkeypatch.setattr(raw_commits, "_prove_owned_suffix", prove_then_advance)
+
+    assert absorb_raw_local_commits(str(tmp_path), artifacts_dir) == ()
+
+    assert len(raced_head) == 1
+    assert _repo_state(repo) == raced_state[0]
+    assert _head(repo) == raced_head[0]
+    assert not _run_git(
+        repo, "for-each-ref", "--format=%(refname)", "refs/sase/recovery/raw-commits"
+    )
+    with pytest.raises(BuiltinCommitFinalizerError) as exc_info:
+        raise_if_unpublished_local_commits(
+            artifacts_dir,
+            instance_id="commit",
+            invoke_result=InvokeResult(content="done"),
+        )
+    assert raw_sha in exc_info.value.result.diagnostics[0].message
 
 
 def test_absorb_without_run_id_leaves_repos_untouched(

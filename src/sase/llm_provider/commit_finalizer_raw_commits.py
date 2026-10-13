@@ -39,10 +39,6 @@ import subprocess
 
 from .commit_finalizer_baseline import load_finalizer_baseline_records
 from .commit_finalizer_git_paths import normalize_path
-from .commit_finalizer_git_status import (
-    git_changed_files,
-    split_pre_existing_changed_files,
-)
 
 _logger = logging.getLogger(__name__)
 
@@ -62,6 +58,15 @@ class _RawCommit:
 
     sha: str
     subject: str
+
+
+@dataclass(frozen=True)
+class _AbsorptionProof:
+    """Git evidence proving one complete, owned suffix can be reset."""
+
+    observed_head: str
+    reset_target: str
+    touched_paths: frozenset[str]
 
 
 @dataclass(frozen=True)
@@ -333,15 +338,32 @@ def _absorb_one_repo(
     finding: RawCommitRepo,
     run_id: str,
 ) -> AbsorbedRawCommits | None:
-    if not _is_eligible(root, finding):
+    if _head_branch(finding.path) is None:
         return None
-    recovery_ref = _pin_recovery_ref(finding.path, run_id)
+    if _operation_in_progress(finding.path):
+        return None
+    proof = _prove_owned_suffix(finding)
+    if proof is None:
+        return None
+    protected = _protected_paths(root, finding.path)
+    if protected is None or proof.touched_paths & protected:
+        return None
+
+    # The proof describes one observed tip. Re-read it immediately before the
+    # recovery pin and again before resetting so a concurrent commit cannot
+    # expand the range whose ownership was just proved.
+    if _head_commit_id(finding.path) != proof.observed_head:
+        return None
+    recovery_ref = _pin_recovery_ref(finding.path, run_id, proof.observed_head)
     if recovery_ref is None:
         return None
-    reset_target = _reset_target(finding)
-    if reset_target is None:
+    if _head_commit_id(finding.path) != proof.observed_head:
+        _logger.warning(
+            "Raw-commit tip changed after recovery pin in %s; leaving it untouched",
+            finding.path,
+        )
         return None
-    reset = _run_git_mutating(finding.path, ["reset", "--soft", reset_target])
+    reset = _run_git_mutating(finding.path, ["reset", "--soft", proof.reset_target])
     if reset is None or reset.returncode != 0:
         _logger.warning("Soft reset failed for raw commits in %s", finding.path)
         return None
@@ -351,24 +373,71 @@ def _absorb_one_repo(
         path=finding.path,
         commits=finding.commits,
         recovery_ref=recovery_ref,
-        reset_target=reset_target,
+        reset_target=proof.reset_target,
     )
 
 
-def _is_eligible(root: Path, finding: RawCommitRepo) -> bool:
-    if _head_branch(finding.path) is None:
-        return False
-    if _operation_in_progress(finding.path):
-        return False
-    if not _is_linear(finding.path, finding.baseline_head):
-        return False
-    raw_paths = _raw_commit_paths(finding.path, finding.baseline_head)
-    if raw_paths is None:
-        return False
-    protected = _protected_paths(root, finding.path)
-    if any(path in protected for path in raw_paths):
-        return False
-    return True
+def _prove_owned_suffix(finding: RawCommitRepo) -> _AbsorptionProof | None:
+    """Prove findings are the complete linear suffix from their parent to HEAD."""
+
+    observed_head = _head_commit_id(finding.path)
+    if observed_head is None or not finding.commits:
+        return None
+    commit_shas = tuple(commit.sha for commit in finding.commits)
+    if commit_shas[-1] != observed_head:
+        return None
+    reset_target = _commit_parent(finding.path, commit_shas[0])
+    if reset_target is None:
+        return None
+    try:
+        result = subprocess.run(
+            [
+                "git",
+                "-C",
+                finding.path,
+                "rev-list",
+                "--reverse",
+                "--parents",
+                f"{reset_target}..{observed_head}",
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=_GIT_TIMEOUT_SECONDS,
+        )
+    except Exception:
+        return None
+    if result.returncode != 0:
+        return None
+
+    commit_parents: list[tuple[str, str]] = []
+    previous = reset_target
+    for line in result.stdout.splitlines():
+        fields = line.split()
+        if len(fields) != 2:
+            # Root commits and merges cannot be safely represented by a single
+            # parent reset range.
+            return None
+        sha, parent = fields
+        if parent != previous:
+            return None
+        commit_parents.append((sha, parent))
+        previous = sha
+
+    proved_shas = tuple(sha for sha, _parent in commit_parents)
+    if proved_shas != commit_shas or previous != observed_head:
+        # Any filtered foreign or host-recorded commit, merge side, missing
+        # finding, or later commit makes this reset range unowned.
+        return None
+
+    touched_paths = _commit_paths(finding.path, commit_parents)
+    if touched_paths is None:
+        return None
+    return _AbsorptionProof(
+        observed_head=observed_head,
+        reset_target=reset_target,
+        touched_paths=touched_paths,
+    )
 
 
 def _head_branch(repo_path: str) -> str | None:
@@ -421,92 +490,10 @@ def _operation_in_progress(repo_path: str) -> bool:
     return False
 
 
-def _is_linear(repo_path: str, baseline_head: str) -> bool:
+def _head_commit_id(repo_path: str) -> str | None:
     try:
         result = subprocess.run(
-            [
-                "git",
-                "-C",
-                repo_path,
-                "rev-list",
-                "--merges",
-                "--count",
-                f"{baseline_head}..HEAD",
-            ],
-            capture_output=True,
-            text=True,
-            check=False,
-            timeout=_GIT_TIMEOUT_SECONDS,
-        )
-    except Exception:
-        return False
-    if result.returncode != 0:
-        return False
-    return result.stdout.strip() == "0"
-
-
-def _raw_commit_paths(repo_path: str, baseline_head: str) -> frozenset[str] | None:
-    try:
-        result = subprocess.run(
-            ["git", "-C", repo_path, "diff", "--name-only", baseline_head, "HEAD"],
-            capture_output=True,
-            text=True,
-            check=False,
-            timeout=_GIT_TIMEOUT_SECONDS,
-        )
-    except Exception:
-        return None
-    if result.returncode != 0:
-        return None
-    return frozenset(
-        line.strip() for line in result.stdout.splitlines() if line.strip()
-    )
-
-
-def _protected_paths(root: Path, repo_path: str) -> frozenset[str]:
-    """Return the baseline-protected paths that are still dirty in *repo_path*."""
-
-    try:
-        records = load_finalizer_baseline_records(root)
-    except Exception:
-        return frozenset()
-    if records is None:
-        return frozenset()
-    normalized = normalize_path(repo_path)
-    fingerprints: dict[str, tuple[str, str | None]] | None = None
-    for record in records:
-        if record.path == normalized:
-            fingerprints = dict(record.fingerprints)
-            break
-    _still, pre_existing = split_pre_existing_changed_files(
-        repo_path, git_changed_files(repo_path), fingerprints
-    )
-    return frozenset(pre_existing)
-
-
-def _pin_recovery_ref(repo_path: str, run_id: str) -> str | None:
-    safe_run_id = re.sub(r"[^A-Za-z0-9._-]+", "-", run_id).strip(".-")
-    if not safe_run_id:
-        return None
-    ref = f"{_RAW_COMMIT_RECOVERY_REF_PREFIX}{safe_run_id}"
-    pinned = _run_git_mutating(repo_path, ["update-ref", ref, "HEAD"])
-    if pinned is None or pinned.returncode != 0:
-        _logger.warning("Could not pin raw-commit recovery ref in %s", repo_path)
-        return None
-    return ref
-
-
-def _reset_target(finding: RawCommitRepo) -> str | None:
-    try:
-        result = subprocess.run(
-            [
-                "git",
-                "-C",
-                finding.path,
-                "rev-parse",
-                "--verify",
-                f"{finding.commits[0].sha}^",
-            ],
+            ["git", "-C", repo_path, "rev-parse", "--verify", "HEAD"],
             capture_output=True,
             text=True,
             check=False,
@@ -517,6 +504,86 @@ def _reset_target(finding: RawCommitRepo) -> str | None:
     if result.returncode != 0:
         return None
     return result.stdout.strip() or None
+
+
+def _commit_parent(repo_path: str, sha: str) -> str | None:
+    try:
+        result = subprocess.run(
+            ["git", "-C", repo_path, "rev-parse", "--verify", f"{sha}^"],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=_GIT_TIMEOUT_SECONDS,
+        )
+    except Exception:
+        return None
+    if result.returncode != 0:
+        return None
+    return result.stdout.strip() or None
+
+
+def _commit_paths(
+    repo_path: str,
+    commit_parents: tuple[tuple[str, str], ...] | list[tuple[str, str]],
+) -> frozenset[str] | None:
+    """Collect paths touched by each commit, retaining both rename sides."""
+
+    paths: set[str] = set()
+    for sha, parent in commit_parents:
+        try:
+            result = subprocess.run(
+                [
+                    "git",
+                    "-C",
+                    repo_path,
+                    "diff-tree",
+                    "--no-commit-id",
+                    "--no-renames",
+                    "--name-only",
+                    "-r",
+                    "-z",
+                    parent,
+                    sha,
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=_GIT_TIMEOUT_SECONDS,
+            )
+        except Exception:
+            return None
+        if result.returncode != 0:
+            return None
+        paths.update(path for path in result.stdout.split("\0") if path)
+    return frozenset(paths)
+
+
+def _protected_paths(root: Path, repo_path: str) -> frozenset[str] | None:
+    """Return every path recorded dirty at baseline, regardless of live dirt."""
+
+    try:
+        records = load_finalizer_baseline_records(root)
+    except Exception:
+        return None
+    if records is None:
+        return None
+    normalized = normalize_path(repo_path)
+    for record in records:
+        if record.path == normalized:
+            return frozenset(record.fingerprints)
+    return None
+
+
+def _pin_recovery_ref(repo_path: str, run_id: str, head: str) -> str | None:
+    safe_run_id = re.sub(r"[^A-Za-z0-9._-]+", "-", run_id).strip(".-")
+    if not safe_run_id:
+        return None
+    ref = f"{_RAW_COMMIT_RECOVERY_REF_PREFIX}{safe_run_id}"
+    pinned = _run_git_mutating(repo_path, ["update-ref", ref, head])
+    if pinned is None or pinned.returncode != 0:
+        _logger.warning("Could not pin raw-commit recovery ref in %s", repo_path)
+        return None
+    return ref
 
 
 __all__ = [
