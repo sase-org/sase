@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections import OrderedDict
 import os
 import signal
 from pathlib import Path
@@ -24,6 +25,8 @@ _UNSETTLED_STATES = ("created", "running")
 _RECONCILE_LIMIT = 1000
 _REAP_TERM_GRACE_SECONDS = 2.0
 _REAP_POLL_SECONDS = 0.05
+_EVENT_INGEST_STATS_MAX = 512
+_EVENT_INGEST_STATS: OrderedDict[tuple[str, str], tuple[int, int]] = OrderedDict()
 
 
 def current_boot_id() -> str:
@@ -189,6 +192,33 @@ def _events_path(run: dict[str, Any]) -> Path | None:
     return Path(str(raw))
 
 
+def _events_file_sig(path: Path) -> tuple[int, int] | None:
+    try:
+        st = path.stat()
+    except OSError:
+        return None
+    return (st.st_size, st.st_mtime_ns)
+
+
+def _ingest_events_if_changed(path: Path, run_id: str) -> list[str]:
+    """Ingest *path* unless this process already ingested its current bytes."""
+
+    key = (run_id, str(path))
+    sig = _events_file_sig(path)
+    if sig is not None:
+        cached = _EVENT_INGEST_STATS.get(key)
+        if cached == sig:
+            _EVENT_INGEST_STATS.move_to_end(key)
+            return []
+    diagnostics = ingest_event_file(path, run_id)
+    if sig is not None:
+        _EVENT_INGEST_STATS[key] = sig
+        _EVENT_INGEST_STATS.move_to_end(key)
+        while len(_EVENT_INGEST_STATS) > _EVENT_INGEST_STATS_MAX:
+            _EVENT_INGEST_STATS.popitem(last=False)
+    return diagnostics
+
+
 def reconcile_unsettled_tool_runs(*, reap_orphans: bool = False) -> dict[str, Any]:
     """Collect bounded liveness facts and persist lost transitions.
 
@@ -221,7 +251,7 @@ def reconcile_unsettled_tool_runs(*, reap_orphans: bool = False) -> dict[str, An
             events_path = _events_path(run)
             run_id = str(run.get("run_id") or "")
             if events_path is not None and run_id:
-                diagnostics.extend(ingest_event_file(events_path, run_id))
+                diagnostics.extend(_ingest_events_if_changed(events_path, run_id))
             facts.append(_liveness_fact(run, observe_owner_fact(run)))
             if run_id and run.get("owner_kind"):
                 owned_run_ids.add(run_id)

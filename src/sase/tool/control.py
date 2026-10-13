@@ -30,6 +30,7 @@ from sase.tool.control_stop import (
 )
 from sase.tool.control_wait import (
     ToolWaitCliRequest as ToolWaitCliRequest,
+    WaitPollState as WaitPollState,
     handle_wait as handle_wait,
     wait_for_settlement as wait_for_settlement,
 )
@@ -40,6 +41,7 @@ __all__ = [
     "UnknownRunError",
     "ToolStopCliRequest",
     "ToolWaitCliRequest",
+    "WaitPollState",
     "handle_stop",
     "handle_wait",
     "monitor_output_path",

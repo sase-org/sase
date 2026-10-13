@@ -20,6 +20,7 @@ from collections.abc import Callable
 from sase.tool._query_shared import write_bytes
 from sase.tool.control import (
     UnknownRunError,
+    WaitPollState,
     output_paths_for_run,
     wait_for_settlement,
 )
@@ -108,6 +109,7 @@ def follow_run(
     from sase.tool._control_shared import is_settled
 
     last: dict[str, Any] | None = None
+    poll_state = WaitPollState()
     while True:
         if stop_event is not None and stop_event.is_set():
             return FollowOutcome(kind="stopped", envelope=last)
@@ -124,7 +126,12 @@ def follow_run(
             else _FOLLOW_SLICE_SECONDS
         )
         try:
-            envelope = wait_for_settlement(run_id, timeout_s=slice_s, on_poll=_on_poll)
+            envelope = wait_for_settlement(
+                run_id,
+                timeout_s=slice_s,
+                on_poll=_on_poll,
+                poll_state=poll_state,
+            )
         except UnknownRunError:
             raise
         except KeyboardInterrupt:

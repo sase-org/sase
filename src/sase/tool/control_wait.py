@@ -23,6 +23,7 @@ from sase.tool.liveness import reconcile_unsettled_tool_runs
 
 _POLL_START_SECONDS = 0.05
 _POLL_MAX_SECONDS = 0.5
+_RECONCILE_INTERVAL_SECONDS = 2.0
 
 
 @dataclass(frozen=True)
@@ -33,32 +34,44 @@ class ToolWaitCliRequest:
     timeout_raw: str | None = None
 
 
+@dataclass
+class WaitPollState:
+    """Backoff and reconcile cadence carried across ``follow_run`` slices."""
+
+    delay: float = _POLL_START_SECONDS
+    last_reconcile_mono: float | None = None
+
+
 def wait_for_settlement(
     run_id: str,
     *,
     timeout_s: float | None = None,
     on_poll: Callable[[dict[str, Any]], None] | None = None,
+    poll_state: WaitPollState | None = None,
 ) -> dict[str, Any] | None:
     """Poll the ledger until *run_id* settles.
 
-    Runs a read-only reconcile on every poll (no reaping) so a dead owner
-    settles while someone watches. Returns the final ``tool_run_show``
-    envelope, or ``None`` when *timeout_s* passes first. Raises
-    :class:`UnknownRunError` for an unknown id. Never affects the run.
+    Runs a read-only reconcile on the first poll and then at most once
+    every two seconds (no reaping) so a dead owner still settles while
+    someone watches. ``tool_run_show`` keeps polling at the backoff
+    cadence. Pass the same *poll_state* across ``follow_run`` slices so
+    the delay does not restart every 0.5 s. Returns the final
+    ``tool_run_show`` envelope, or ``None`` when *timeout_s* passes first.
+    Raises :class:`UnknownRunError` for an unknown id. Never affects the
+    run.
     """
 
     deadline = None if timeout_s is None else time.monotonic() + timeout_s
-    delay = _POLL_START_SECONDS
+    state = poll_state if poll_state is not None else WaitPollState()
     last: dict[str, Any] | None = None
     while True:
-        reconcile_unsettled_tool_runs()
+        _reconcile_if_due(state)
         try:
             envelope = tool_run_show(run_id)
         except Exception:  # noqa: BLE001 - a transient read retries.
             if deadline is not None and time.monotonic() >= deadline:
                 return last
-            time.sleep(delay)
-            delay = min(delay * 1.5, _POLL_MAX_SECONDS)
+            _poll_sleep(state, deadline)
             continue
         run = envelope.get("run")
         if not isinstance(run, dict):
@@ -73,8 +86,28 @@ def wait_for_settlement(
             return envelope
         if deadline is not None and time.monotonic() >= deadline:
             return None
+        _poll_sleep(state, deadline)
+
+
+def _reconcile_if_due(state: WaitPollState) -> None:
+    now = time.monotonic()
+    last = state.last_reconcile_mono
+    if last is not None and now - last < _RECONCILE_INTERVAL_SECONDS:
+        return
+    reconcile_unsettled_tool_runs()
+    state.last_reconcile_mono = now
+
+
+def _poll_sleep(state: WaitPollState, deadline: float | None) -> None:
+    delay = state.delay
+    if deadline is not None:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            return
+        time.sleep(min(delay, remaining))
+    else:
         time.sleep(delay)
-        delay = min(delay * 1.5, _POLL_MAX_SECONDS)
+    state.delay = min(state.delay * 1.5, _POLL_MAX_SECONDS)
 
 
 def handle_wait(request: ToolWaitCliRequest) -> int:
@@ -315,6 +348,7 @@ def _tail_of_file(path: Path, lines: int) -> str:
 
 __all__ = [
     "ToolWaitCliRequest",
+    "WaitPollState",
     "handle_wait",
     "wait_for_settlement",
 ]
