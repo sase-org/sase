@@ -57,7 +57,7 @@ from tests.ace.tui.modals._new_project_create_helpers import (
     make_modal,
 )
 from tests.ace.tui.modals.test_new_project_review_checks import _ReviewApp
-from tests.project_onboarding.test_cli import _create_args
+from tests.project_onboarding._cli_test_support import make_create_args
 
 
 def _create_document(**overrides: Any) -> dict[str, Any]:
@@ -247,7 +247,7 @@ def test_create_apply_submission_matches_cli_request_from_args(
             payload={"request": submission.request},
         ),
     )
-    args = _create_args(
+    args = make_create_args(
         [
             "gh:sase-org/new",
             "--option",
