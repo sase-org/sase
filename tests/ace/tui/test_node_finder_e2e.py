@@ -8,6 +8,9 @@ from typing import Any
 
 from sase.ace.testing import AcePage
 from sase.ace.tui._app_action_availability import check_app_action
+from sase.ace.tui.actions.agents._archive_controller import (
+    init_agents_archive_controller,
+)
 from sase.ace.tui.models._agent_tree import agent_fold_key
 from sase.ace.tui.models.agent import Agent, AgentType
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
@@ -141,3 +144,22 @@ async def test_quotation_mark_opens_modal_and_hint_jumps_to_hidden_member(
         assert app._custom_mode_active is None
         await page.press("escape")
         await page.expect_no_modal()
+
+
+async def test_cold_archive_keeps_node_finder_open_when_no_live_rows(
+    monkeypatch: Any,
+) -> None:
+    patch_startup_loaders(monkeypatch, agents=[])
+
+    async with AcePage(
+        query='"demo"',
+        patches=patches(),
+        initial_tab="agents",
+    ) as page:
+        await wait_for_startup(page)
+        init_agents_archive_controller(page.app)
+
+        await page.press('"')
+        await page.expect_modal("NodeFinderModal")
+
+        assert page.app.screen._archive_message == "Archive warming…"

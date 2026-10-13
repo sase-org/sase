@@ -223,6 +223,15 @@ def test_owner_empty_state_names_query_hides() -> None:
     assert state is not None and state.kind == "query_hides"
 
 
+def test_switching_agent_tabs_clears_archive_shelf_focus() -> None:
+    owner = two_tab_owner()
+    owner._agent_archive_shelf_focused = True
+
+    assert owner._switch_agents_tab(BLOG, reason="test") is True
+
+    assert owner._agent_archive_shelf_focused is False
+
+
 # --- detail cause rendering ----------------------------------------------------
 
 
@@ -262,7 +271,8 @@ def test_show_empty_cause_query_hides() -> None:
     assert len(detail.tab_empty) == 1
     title, text = detail.tab_empty[0]
     assert "sase" in title
-    assert "Archive" in text
+    assert "matches elsewhere" in text
+    assert "Archive" not in text
 
 
 def test_show_empty_cause_feed_unavailable(
@@ -318,6 +328,7 @@ def test_show_empty_cause_feed_unavailable(
         owner._agent_tab_index = build_agent_tab_index(remaining, view)
         owner._reconcile_active_agent_tab()
         owner._rescope_agents_to_active_tab()
+        owner._agent_search_query = "status:FAILED"
         assert owner._agents == []
         assert owner._show_active_tab_empty_state(detail) is True
     finally:
@@ -326,6 +337,7 @@ def test_show_empty_cause_feed_unavailable(
     title, text = detail.tab_empty[0]
     assert "apollo" in title
     assert "Machines" in text
+    assert "Archive" not in text
 
 
 def test_show_empty_cause_falls_back_without_cause() -> None:

@@ -12,7 +12,7 @@ from ...models.agent_archive_controller import (
     ArchiveShelfSnapshot,
     AgentsArchiveControllerState,
 )
-from ...models.agent_archive_list import archive_timezone
+from ...models.agent_archive_list import archive_timezone, parse_archive_timestamp
 from ...util.pump_tasks import spawn_pump_free_task
 
 log = logging.getLogger(__name__)
@@ -66,10 +66,8 @@ def _compute_shelf_snapshot(
     query: str,
 ) -> ArchiveShelfSnapshot:
     """Run counts and the bounded bridge query against a held corpus."""
-    from ....query.scope_token import extract_scope
-
     try:
-        query, _scope = extract_scope(query)
+        query = _scope_stripped_query(query)
         total = int(corpus.count("", profile=profile) or 0)
     except Exception:
         log.debug("archive shelf total count failed", exc_info=True)
@@ -122,6 +120,12 @@ def _compute_shelf_snapshot(
     )
 
 
+def _scope_stripped_query(query: str) -> str:
+    from ....query.scope_token import extract_scope
+
+    return extract_scope(query)[0].strip()
+
+
 def request_archive_shelf_refresh(owner: Any) -> None:
     """Refresh committed-filter counts from the warm corpus off-thread."""
     state = _controller(owner)
@@ -131,6 +135,8 @@ def request_archive_shelf_refresh(owner: Any) -> None:
     corpus = state.corpus
     profile = state.profile
     if corpus is None:
+        state.shelf_generation += 1
+        state.shelf_requested_key = None
         state.shelf = ArchiveShelfSnapshot(
             status=("unavailable" if state.status == "unreadable" else "cold"),
             query=query,
@@ -140,11 +146,21 @@ def request_archive_shelf_refresh(owner: Any) -> None:
 
     key = (query, state.tokens, id(corpus))
     if key == state.shelf_requested_key:
+        # The Archive count may be unchanged while the Inbox roster has
+        # crossed from empty to non-empty (or back). Keep the amber state in
+        # sync on every Inbox apply, even when no corpus recount is needed.
+        _sync_widget(owner)
         return
     state.shelf_requested_key = key
     state.shelf_generation += 1
     generation = state.shelf_generation
-    state.shelf = ArchiveShelfSnapshot(status="loading", query=query)
+    previous = state.shelf
+    state.shelf = ArchiveShelfSnapshot(
+        status="loading",
+        query=query,
+        total=previous.total,
+        today=previous.today,
+    )
     _sync_widget(owner)
 
     async def _run() -> None:
@@ -198,7 +214,8 @@ def _sync_widget(owner: Any) -> None:
 def archive_bridge_detail(owner: Any, query: str) -> str:
     """Describe the Archive side of an empty committed Inbox query."""
     shelf = archive_shelf_snapshot(owner)
-    if shelf.query != query:
+    query = _scope_stripped_query(query)
+    if _scope_stripped_query(shelf.query) != query:
         return "◷ Checking the Archive for this filter…"
     if shelf.status in {"cold", "loading"}:
         return "◷ Checking the Archive for this filter…"
@@ -210,13 +227,26 @@ def archive_bridge_detail(owner: Any, query: str) -> str:
         return "No Archive runs match this filter · ^ previous filter"
     if shelf.status != "ready":
         return "◷ Checking the Archive for this filter…"
-    lines = [f"◷ Archive · {shelf.matching or 0} match this filter"]
+    count = int(shelf.matching or 0)
+    verb = "matches" if count == 1 else "match"
+    lines = [f"◷ Archive · {count:,} {verb} this filter"]
+    state = _controller(owner)
+    timezone = archive_timezone(
+        str(getattr(state.corpus, "timezone", "") or "") if state else ""
+    )
     for row in shelf.rows:
         name = _row_name(row)
         if not name:
             continue
         outcome = str(row.get("outcome") or row.get("status") or "").replace("_", " ")
-        lines.append(f"  {name}" + (f" · {outcome}" if outcome else ""))
+        moment = parse_archive_timestamp(
+            row.get("last_activity_at") or row.get("start_time"), timezone
+        )
+        parts = [moment.strftime("%H:%M")] if moment is not None else []
+        if outcome:
+            parts.append(outcome)
+        parts.append(name)
+        lines.append("  " + " · ".join(parts))
     lines.append("⏎ search the Archive for this filter · ^ previous filter")
     return "\n".join(lines)
 
@@ -229,21 +259,31 @@ def _row_name(row: Mapping[str, Any]) -> str:
     return ""
 
 
-def activate_archive_shelf(owner: Any) -> bool:
-    """Open the parked Archive, carrying an answerable Inbox filter."""
+def clear_archive_shelf_focus(owner: Any) -> None:
+    """Clear the shelf pseudo-panel focus after it loses focus or its tab."""
     owner._agent_archive_shelf_focused = False
     try:
         owner.query_one("#agent-archive-shelf").remove_class("-focused")
     except Exception:
         pass
+
+
+def activate_archive_shelf(owner: Any) -> bool:
+    """Open the parked Archive, carrying an answerable Inbox filter."""
+    clear_archive_shelf_focus(owner)
     shelf = archive_shelf_snapshot(owner)
     query = str(getattr(owner, "_agent_search_query", "") or "")
-    if query.strip() and shelf.query == query and shelf.status == "ready":
+    carried_query = _scope_stripped_query(query)
+    if (
+        carried_query
+        and _scope_stripped_query(shelf.query) == carried_query
+        and (shelf.status == "ready")
+    ):
         from ._archive_view import open_agents_archive_view_with_query
 
         open_agents_archive_view_with_query(
             owner,
-            query=f"in:archive {query}",
+            query=f"in:archive {carried_query}",
         )
         return True
     from ._archive_view import open_agents_archive_view
@@ -302,6 +342,7 @@ __all__ = [
     "archive_bridge_detail",
     "archive_dismissal_toast_suffix",
     "archive_shelf_snapshot",
+    "clear_archive_shelf_focus",
     "request_archive_shelf_refresh",
     "route_archive_shelf_focus",
 ]

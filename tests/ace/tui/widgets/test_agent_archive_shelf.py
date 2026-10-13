@@ -44,7 +44,56 @@ async def test_archive_shelf_shows_matching_count_and_empty_inbox_state() -> Non
             inbox_empty=True,
         )
 
-        assert (
-            shelf.render().plain == "◷ Archive · 2 matches this filter · ⏎ / ,a search"
-        )
+        assert shelf.render().plain == "◷ Archive · 2 match this filter · ⏎ search"
         assert shelf.has_class("-empty")
+
+
+@pytest.mark.asyncio
+async def test_archive_shelf_uses_matches_as_the_single_count_verb() -> None:
+    app = _ShelfApp()
+    async with app.run_test():
+        shelf = app.query_one(AgentArchiveShelf)
+        shelf.set_snapshot(
+            ArchiveShelfSnapshot(
+                status="ready",
+                query="status:FAILED",
+                total=12,
+                matching=1,
+            ),
+            inbox_empty=True,
+        )
+
+        assert shelf.render().plain == ("◷ Archive · 1 matches this filter · ⏎ search")
+
+
+@pytest.mark.asyncio
+async def test_archive_shelf_keeps_its_row_while_a_recount_is_pending() -> None:
+    app = _ShelfApp()
+    async with app.run_test():
+        shelf = app.query_one(AgentArchiveShelf)
+        shelf.set_snapshot(
+            ArchiveShelfSnapshot(status="ready", total=12, today=3),
+            inbox_empty=False,
+        )
+        shelf.set_snapshot(
+            ArchiveShelfSnapshot(status="loading", query="status:FAILED", total=12),
+            inbox_empty=False,
+        )
+
+        assert shelf.display is True
+        assert shelf.has_class("-visible")
+        assert shelf.render().plain == "◷ Archive · updating…"
+
+
+@pytest.mark.asyncio
+async def test_archive_shelf_blur_clears_its_temporary_focus() -> None:
+    app = _ShelfApp()
+    async with app.run_test():
+        shelf = app.query_one(AgentArchiveShelf)
+        shelf.add_class("-focused")
+        app._agent_archive_shelf_focused = True  # type: ignore[attr-defined]
+
+        shelf.on_blur(object())  # type: ignore[arg-type]
+
+        assert app._agent_archive_shelf_focused is False  # type: ignore[attr-defined]
+        assert not shelf.has_class("-focused")

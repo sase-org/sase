@@ -253,6 +253,9 @@ def set_panel_layout(owner: Any, level: AgentPanelLayout, *, reason: str = "") -
         owner._agent_panel_layout_last_tab = None
         owner._agent_panel_layout = level
         if target is not None and target != active:
+            from ._archive_shelf import clear_archive_shelf_focus
+
+            clear_archive_shelf_focus(owner)
             owner._active_agent_tab = target
             try:
                 owner._agent_tab_arrivals.discard(target)  # type: ignore[attr-defined]

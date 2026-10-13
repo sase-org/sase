@@ -359,7 +359,6 @@ class AgentTabsSwitchStripMixin:
     def _active_tab_empty_state(self) -> AgentTabEmptyState | None:
         """Return the visible empty cause for the active tab, if empty."""
         from ...widgets.agent_tab_strip import (
-            AgentTabEmptyState,
             agent_tab_empty_state,
         )
 
@@ -396,17 +395,19 @@ class AgentTabsSwitchStripMixin:
             tab_label=active_tab_label_for_owner(self),
         )
         if query.strip():
+            # Keep real matches on another tab and an unavailable machine
+            # feed in their ordinary empty state. The Archive bridge is only
+            # useful when this query returns no live rows anywhere.
+            if empty_state is None:
+                return None
+            if empty_state.kind == "feed_unavailable" or query_result:
+                return empty_state
+
             from dataclasses import replace
 
             from ._archive_shelf import archive_bridge_detail
 
             title = f"No visible agents on {active_tab_label_for_owner(self)}"
-            if empty_state is None:
-                return AgentTabEmptyState(
-                    kind="query_hides",
-                    title=title,
-                    detail=archive_bridge_detail(self, query),
-                )
             return replace(
                 empty_state,
                 kind="query_hides",

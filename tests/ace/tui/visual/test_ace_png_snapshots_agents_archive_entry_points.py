@@ -116,12 +116,50 @@ async def test_agents_archive_shelf_png_snapshot(
             f"list={page.app.query_one('#agent-list-panel').size!r}, "
             f"render={shelf.render().plain!r}"
         )
-        assert_page_svg_contains(page, "2 matches this filter")
+        assert_page_svg_contains(page, "2 match this filter")
 
         ace_png_visual.assert_page_png(
             page,
             "agents_archive_shelf_empty_inbox_160x40",
             title="ACE Agents Archive shelf with empty Inbox",
+        )
+
+
+async def test_agents_archive_plain_shelf_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The unfiltered Inbox shelf gives a stable plain Archive entry point."""
+    pin_agents_visual_now(monkeypatch, _NOW)
+    patch_startup_loaders(monkeypatch, agents=[_live_agent()])
+
+    async with AcePage(query='"visual"', patches=patches(), size=(160, 40)) as page:
+        await wait_for_startup(page)
+        await page.press("shift+tab")
+        await page.expect_state("tab", "agents")
+        await wait_for_visual_idle(page)
+        state = init_agents_archive_controller(page.app)
+        corpus = ModelCorpus(_history())
+        state.corpus = corpus
+        state.status = "warm"
+        state.profile = SimpleNamespace(digest="profile-1")
+        state.shelf = ArchiveShelfSnapshot(status="ready", total=3, today=2)
+        state.shelf_requested_key = (
+            "",
+            state.tokens,
+            id(corpus),
+        )
+        _sync_widget(page.app)
+        await wait_for_visual_idle(page)
+
+        shelf = page.app.query_one("#agent-archive-shelf", AgentArchiveShelf)
+        assert shelf.display is True
+        assert shelf.render().plain == "◷ Archive · 3 runs · 2 today"
+        assert_page_svg_contains(page, "3 runs · 2 today")
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_archive_shelf_plain_160x40",
+            title="ACE Agents plain Archive shelf",
         )
 
 
@@ -169,7 +207,7 @@ async def test_agents_archive_query_bridge_png_snapshot(
 
         text = page_svg_text(page)
         assert "Archive" in text
-        assert "matches this filter" in text or "match this filter" in text
+        assert "match this filter" in text or "matches this filter" in text
         assert "archive.today-a" in text
         assert_page_svg_contains(page, "previous filter")
 

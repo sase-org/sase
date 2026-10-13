@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+from textual.events import Click
+
 from .artifact_tabs import ArtifactsSubTab, FilesSubTab
 from .artifacts_description import ArtifactsDescriptionMode
 from .artifacts_split import ArtifactsSplitMode
@@ -29,6 +31,16 @@ class AppWatchersMixin:
         cancel = getattr(panel, "cancel_live_reply_follow", None)
         if callable(cancel):
             cancel()
+
+    def on_click(self: Any, event: Click) -> None:
+        """A click outside the shelf ends its temporary J/K focus state."""
+        if getattr(getattr(event, "widget", None), "id", None) == (
+            "agent-archive-shelf"
+        ):
+            return
+        from .actions.agents._archive_shelf import clear_archive_shelf_focus
+
+        clear_archive_shelf_focus(self)
 
     def watch_current_idx(self: Any, old_idx: int, new_idx: int) -> None:
         """React to current_idx changes."""
@@ -64,6 +76,9 @@ class AppWatchersMixin:
 
         if old_tab == "agents":
             self._cancel_selected_live_reply_follow()
+            from .actions.agents._archive_shelf import clear_archive_shelf_focus
+
+            clear_archive_shelf_focus(self)
 
         clear_link_trail = getattr(self, "_clear_link_trail_if_unguarded", None)
         if callable(clear_link_trail):

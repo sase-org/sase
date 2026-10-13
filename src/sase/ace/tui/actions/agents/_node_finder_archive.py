@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+from collections import OrderedDict
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
+from threading import Lock
 from typing import Any
 
 
@@ -16,6 +18,14 @@ class ArchiveNameCandidate:
     row: Mapping[str, Any] = field(default_factory=dict)
 
 
+_ARCHIVE_NAME_CACHE_LIMIT = 8
+_ARCHIVE_NAME_CACHE_LOCK = Lock()
+_ARCHIVE_NAME_CACHE: OrderedDict[
+    int,
+    tuple[Any, Any, tuple[ArchiveNameCandidate, ...]],
+] = OrderedDict()
+
+
 def archive_name_loader_for_owner(
     owner: Any,
 ) -> Callable[[], tuple[ArchiveNameCandidate, ...]] | None:
@@ -25,7 +35,30 @@ def archive_name_loader_for_owner(
     profile = getattr(controller, "profile", None)
     if corpus is None or getattr(controller, "status", None) != "warm":
         return None
-    return lambda: _load_archive_name_candidates(corpus, profile)
+    return lambda: _cached_archive_name_candidates(corpus, profile)
+
+
+def _cached_archive_name_candidates(
+    corpus: Any,
+    profile: Any = None,
+) -> tuple[ArchiveNameCandidate, ...]:
+    """Reuse the light-name scan for the lifetime of a published corpus."""
+    key = id(corpus)
+    with _ARCHIVE_NAME_CACHE_LOCK:
+        cached = _ARCHIVE_NAME_CACHE.get(key)
+        if cached is not None and cached[0] is corpus and cached[1] is profile:
+            _ARCHIVE_NAME_CACHE.move_to_end(key)
+            return cached[2]
+
+    candidates = _load_archive_name_candidates(corpus, profile)
+    with _ARCHIVE_NAME_CACHE_LOCK:
+        # Corpus handles are immutable published generations. Retain a small
+        # bounded LRU so a rebuild cannot leave old corpora alive forever.
+        _ARCHIVE_NAME_CACHE[key] = (corpus, profile, candidates)
+        _ARCHIVE_NAME_CACHE.move_to_end(key)
+        while len(_ARCHIVE_NAME_CACHE) > _ARCHIVE_NAME_CACHE_LIMIT:
+            _ARCHIVE_NAME_CACHE.popitem(last=False)
+    return candidates
 
 
 def _load_archive_name_candidates(

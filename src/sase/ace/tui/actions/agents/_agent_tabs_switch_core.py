@@ -45,6 +45,9 @@ class AgentTabsSwitchCoreMixin:
             log.exception("Panel layout drill-in check failed")
         if key == self._active_agent_tab:  # type: ignore[attr-defined]
             return False
+        from ._archive_shelf import clear_archive_shelf_focus
+
+        clear_archive_shelf_focus(self)
         perf_begin = getattr(self, "_jk_perf_begin", None)
         if callable(perf_begin):
             try:
@@ -92,6 +95,9 @@ class AgentTabsSwitchCoreMixin:
         *key* is the tab the ladder was entered from.
         """
         del reason
+        from ._archive_shelf import clear_archive_shelf_focus
+
+        clear_archive_shelf_focus(self)
         from ._panel_layout import (
             ensure_panel_layout_state,
             remembered_layout_for_tab,

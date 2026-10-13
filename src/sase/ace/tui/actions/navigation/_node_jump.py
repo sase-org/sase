@@ -26,7 +26,21 @@ class NodeJumpNavigationMixin(NavigationMixinBase):
         from ..agents._node_finder_archive import archive_name_loader_for_owner
 
         archive_loader = archive_name_loader_for_owner(self)
-        if not any(row.jumpable for row in snapshot.rows) and archive_loader is None:
+        controller = getattr(self, "_agents_archive_controller", None)
+        from ...models.agent_archive_controller import (
+            ARCHIVE_CORPUS_COLD,
+            ARCHIVE_CORPUS_LOADING,
+        )
+
+        archive_cold = getattr(controller, "status", None) in {
+            ARCHIVE_CORPUS_COLD,
+            ARCHIVE_CORPUS_LOADING,
+        }
+        if (
+            not any(row.jumpable for row in snapshot.rows)
+            and archive_loader is None
+            and not archive_cold
+        ):
             self.notify("No nodes to jump to")  # type: ignore[attr-defined]
             return
         from ...modals import NodeFinderModal, NodeFinderResult

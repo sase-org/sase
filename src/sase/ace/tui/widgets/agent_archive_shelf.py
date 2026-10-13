@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from rich.text import Text
-from textual.events import Click, Key
+from textual.events import Blur, Click, Key
 from textual.widgets import Static
 
 from ..models.agent_archive_controller import ArchiveShelfSnapshot
@@ -31,7 +31,7 @@ class AgentArchiveShelf(Static):
         self._snapshot = snapshot
         self._inbox_empty = inbox_empty
         self.display = bool(
-            snapshot.status in {"ready", "unanswerable"} and snapshot.total
+            snapshot.status in {"ready", "unanswerable", "loading"} and snapshot.total
         )
         self.set_class(self.display, "-visible")
         self.set_class(bool(inbox_empty), "-empty")
@@ -43,6 +43,12 @@ class AgentArchiveShelf(Static):
 
     def _paint(self) -> None:
         snapshot = self._snapshot
+        if snapshot.status == "loading" and snapshot.total > 0:
+            text = Text(no_wrap=True, overflow="ellipsis")
+            text.append("◷ Archive", style="bold #d7af5f")
+            text.append(" · updating…", style="dim")
+            self.update(text)
+            return
         if snapshot.status not in {"ready", "unanswerable"} or snapshot.total <= 0:
             self.update(Text(""))
             return
@@ -54,9 +60,9 @@ class AgentArchiveShelf(Static):
                 text.append(" · ⏎ browse", style="bold #d7af5f")
             else:
                 count = int(snapshot.matching or 0)
-                noun = "match" if count == 1 else "matches"
-                text.append(f" · {count:,} {noun} this filter", style="dim")
-                text.append(" · ⏎ / ,a search", style="bold #d7af5f")
+                verb = "matches" if count == 1 else "match"
+                text.append(f" · {count:,} {verb} this filter", style="dim")
+                text.append(" · ⏎ search", style="bold #d7af5f")
         else:
             text.append(
                 f" · {snapshot.total:,} runs · {snapshot.today:,} today", style="dim"
@@ -68,7 +74,15 @@ class AgentArchiveShelf(Static):
             return
         event.stop()
         self.app._agent_archive_shelf_focused = True  # type: ignore[attr-defined]
+        self.add_class("-focused")
         self._open_archive()
+
+    def on_blur(self, event: Blur) -> None:
+        del event
+        from ..actions.agents._archive_shelf import clear_archive_shelf_focus
+
+        self.remove_class("-focused")
+        clear_archive_shelf_focus(self.app)
 
     def on_key(self, event: Key) -> None:
         if event.key not in {"enter", "l", "space"} or not self.display:

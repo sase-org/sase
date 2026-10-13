@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 from sase.ace.tui.actions.agents._node_finder_archive import (
     ArchiveNameCandidate,
     _load_archive_name_candidates,
+    archive_name_loader_for_owner,
     search_archive_name_candidates,
 )
 from tests.ace.tui._agent_archive_column_helpers import ModelCorpus, light_row
@@ -52,3 +55,24 @@ def test_archive_name_search_keeps_best_five_fuzzy_matches() -> None:
     assert [candidate.name for candidate in matches] == [
         f"build.task-{index}" for index in range(5)
     ]
+
+
+def test_archive_name_candidates_are_cached_for_the_corpus_generation() -> None:
+    corpus = ModelCorpus([light_row("solo", name="solo.gamma")])
+    owner = SimpleNamespace(
+        _agents_archive_controller=SimpleNamespace(
+            corpus=corpus,
+            profile=None,
+            status="warm",
+        )
+    )
+
+    first_loader = archive_name_loader_for_owner(owner)
+    second_loader = archive_name_loader_for_owner(owner)
+    assert first_loader is not None and second_loader is not None
+    first = first_loader()
+    second = second_loader()
+
+    assert second == first
+    assert corpus.summary_calls == 1
+    assert len(corpus.rows_calls) == 1
