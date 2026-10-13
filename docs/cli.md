@@ -554,11 +554,12 @@ removes state under `~/.sase/projects/`, not workspace checkouts.
 `sase project suggest [PROVIDER] [-a|--all] [-j|--json] [-o|--owner OWNER]... [-r|--refresh]`
 ranks the repositories worth adding as projects, grouped as `RESUME`, `ON THIS MACHINE`,
 `SUGGESTED`, `LINKED TO YOUR PROJECTS`, and `DISABLED PROJECTS`. Discovery is
-cache-first per owner and read-only: nothing is cloned, created, or registered, so
-agents may call it freely. `-o` restricts discovery to the named owners, `-r` bypasses
-the cached repository lists, and `-a` includes the hidden rows (sidecars, forks,
-archived repositories, enabled projects, numbered clone copies, and third-party local
-checkouts) that are otherwise only counted in the footer.
+cache-first per owner: it creates no repositories or project registrations, so agents
+may call it freely. It may refresh local discovery caches, and specifying a provider
+records that provider as the wizard preference. `-o` restricts discovery to the named
+owners, `-r` bypasses the cached repository lists, and `-a` includes the hidden rows
+(sidecars, forks, archived repositories, enabled projects, numbered clone copies, and
+third-party local checkouts) that are otherwise only counted in the footer.
 
 `sase project add REF [-a|--alias ALIAS]... [-c|--check] [-j|--json] [-m|--make-current] [-n|--name NAME] [-S|--no-setup | -s|--setup] [-Q|--request-path PATH] [-R|--result-path PATH] [-y|--yes]`
 registers an existing repository. `--check` is read-only and emits one plan document
@@ -578,9 +579,16 @@ create subprocess. `--check` lists every provider option with its default, value
 availability, and is available to agents. Apply refuses inside agents and monitors
 (exit 2) unless it runs as an approved `/sase_gate` option or
 `SASE_PROJECT_CREATE_BYPASS` holds a reason. Repeating the same command resumes an
-interrupted create. `-Q`/`--request-path` and `-R`/`--result-path` on `add` and `create`
-select the private proc request and result sidecars, defaulting to
-`$SASE_PROC_REQUEST_PATH` and `$SASE_PROC_RESULT_PATH`.
+interrupted create.
+
+`-Q`/`--request-path` and `-R`/`--result-path` on `add` and `create` are integration
+options for a durable proc: `-Q` reads an existing operation-request JSON file and
+checks that its target and options match the command; `-R` writes the outcome of an
+apply attempt as typed JSON, including blocked or failed attempts. `--check` writes no
+result file. These companion files are unrelated to project sidecar repositories. When
+the flags are omitted, SASE uses `$SASE_PROC_REQUEST_PATH` and `$SASE_PROC_RESULT_PATH`
+if set; otherwise no request file is read or result file written. Ordinary interactive
+commands do not need either flag.
 
 `sase project alias list [PROJECT] [-j|--json]`, `add PROJECT ALIAS`,
 `remove PROJECT ALIAS`, and `clear PROJECT` manage ProjectSpec aliases. sase's TUI

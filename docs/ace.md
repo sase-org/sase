@@ -738,9 +738,10 @@ when one is stored, without trying to resolve an epic plan.
 
 Artifacts → Agent is retired: agent history lives in the Agents tab's **Archive** view.
 Press `,a` to toggle between the Inbox and the Archive; the tab label reads `Agents ◷`
-while the Archive is parked. The Archive lists this machine's dismissed runs by day and
-opens any of them read-only in the real decks (Main, Files, Tools, FINAL, Record) —
-reading never restores, never marks anything read, and never writes.
+while the Archive is active. The Inbox holds undismissed agents, including completed
+runs; dismissing an agent moves it to this machine's Archive. Selecting an archived run
+shows its retained content in the decks (Main, Files, Tools, FINAL, Record) without
+restoring it, marking it read, or starting another run.
 
 The Archive's committed query always contains `in:archive`, shown as a chip, so `^`
 history, saved slots, and [`sase agent search`](configuration.md#sase-agent) all agree
@@ -759,23 +760,33 @@ The Jump panel shows the archived agent's relations, and the `linked:`, `relatio
 
 `Enter` opens the action chooser. Its ARCHIVE section lists Restore first:
 `Restore to inbox`, `Restore N marked` when Archive marks exist, or
-`Restore clan|session <name> (N members)` on a container. Restore shows the run in the
-Inbox again and starts no new run. The default (`r`) leaves you in the Archive: the row
-dims and gains a `⌂ restored` suffix, and one toast reports the outcome
-(`<name> is back in the inbox · no new run started` when a single run returns cleanly; a
-mixed set reports restored, skipped, and failed counts). The parked Inbox keeps its
-selection, tab, folds, and jump anchors. `Restore and show in inbox` (`s`, chooser only)
-leaves the Archive and reveals that agent. When the parked Inbox filter hides it, the
-filter becomes an exact `name:"…"` query and the old query waits on `^`.
+`Restore clan|session <name> (N members)` on a container. Marks take precedence over the
+highlighted row. A container restores its loaded members; expand it with `l` first if no
+members are loaded. Restore shows the existing agent in the Inbox again and starts no
+new run.
 
-Fork (`F`, in the chooser and on the list) is offered for one archived agent that still
-has a name and a retained chat, and it starts a new run from that chat. Clan and session
-containers do not offer fork. The READ section is Open chat in `$EDITOR` (`e`,
-read-only), Copy `@agent` reference (`y`), and More copy targets (`%`). Those three also
-work from the list without opening the chooser. When the row cannot be restored, the
-chooser opens on Open chat. An unreadable bundle still paints the Record deck; the
-detail title reads `Archive entry unreadable — Record only`, and the light-row facts
-remain on that deck.
+Choose Restore with `r` **inside the chooser** to stay in the Archive. Successfully
+restored rows dim and gain a `⌂ restored` suffix until the query changes or you leave
+the Archive. A toast reports the outcome; mixed sets report restored, skipped, and
+failed counts. The saved Inbox view keeps its selection, agent tab, folds, and jump
+anchors. `Restore and show in inbox` (`s`, chooser only) switches to the Inbox when
+exactly one agent is successfully restored; a larger restored set stays in the Archive
+with a count summary. If the Inbox query hides the single restored agent, SASE replaces
+it with an exact `name:"…"` query and saves the old query in history (`^`).
+
+Fork (`F`, in the chooser and on the list) is offered for one named archived agent with
+a recorded chat path or retained reply. It opens a prompt prefilled with that agent's
+fork reference; submit the prompt to start a new run. Clan and session containers do not
+offer fork. For an individual readable entry, the READ section offers Open chat in
+`$EDITOR` (`e`), Copy `@agent` reference (`y`), and More copy targets (`%`). These also
+work from the list. Opening chat does not restore the agent, but the editor opens the
+file in its normal mode; SASE does not enforce read-only editing.
+
+For a readable entry that cannot be restored, the chooser initially selects Open chat.
+If its bundle cannot be read, the detail title reads
+`Archive entry unreadable — Record only`, and the Record deck still shows the available
+index facts. That entry cannot open the chooser unless other runs are marked for
+restore.
 
 Live Inbox actions stay in the Inbox. `x`, `X`, `s`, `S`, `w`, `W`, `A`, `R`, `n`, and
 `U` toast that the key acts on inbox agents and name `,a` to get back. Agent-tab `[` /
@@ -793,8 +804,8 @@ that blocked save action; it is not the chooser's restore-and-show key.
 | `m` / `u` | Mark / clear Archive rows (separate from Inbox marks)              |
 | `y`       | Copy the `@agent:` reference                                       |
 | `%`       | Open the **Copy as…** palette                                      |
-| `e`       | Open the chat in `$EDITOR` (read-only)                             |
-| `F`       | Fork the archived run when it still has a retained chat            |
+| `e`       | Open the retained chat file in `$EDITOR`                           |
+| `F`       | Open a fork prompt for a named run with chat metadata or content   |
 
 ### Document Provider Panes
 
@@ -3942,24 +3953,57 @@ configurable under [`ace.keymaps.projects`](configuration.md#acekeymaps).
 
 ### Add or create a project
 
-Press `n` on the **Projects** sub-tab, or choose **Projects: New project…** from the
-command palette. The wizard uses the current project's provider and owner as defaults
-when they match the available choices.
+Press `n` from the list on the **Projects** sub-tab, or choose **Projects: New
+project…** from the command palette. **Add** registers an existing repository;
+**Create** makes a repository before registering it. The wizard prefers your last-used
+provider, then the current project's provider, then the first available provider. Create
+similarly prefers the last-used owner, then the current project's owner, the signed-in
+account, and the first available owner.
 
-| Stage     | What happens                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Source    | Pick a repository from the same groups as `sase project suggest`: RESUME, ON THIS MACHINE, SUGGESTED, LINKED TO YOUR PROJECTS, and DISABLED PROJECTS. A pinned Create row stays at the top. `j` / `k` move, `n` opens Create, `[` / `]` switch providers, `/` filters, `f` reveals forks, `.` reveals every hidden row, `R` refreshes, and `t` runs the provider login remedy. A filter can surface a hidden match, and a pasted ref becomes an Add row. With no known owners the detail card says how to paste a ref or, for GitHub, add owners under `github_orgs`. Below 30 terminal rows that card collapses to one line. |
-| Configure | Set the project name, aliases, SASE setup, and whether to make it current. `Tab` moves through fields, `Space` toggles setup, `b` returns to Source, and `Ctrl+S` opens Review. Create also offers provider-specific repository settings and checks them live before Review.                                                                                                                                                                                                                                                                                                                                                  |
-| Review    | Check the exact add or create plan, including blockers and requested settings. Press `y` to apply or `b` to return. `Esc` on Review returns to the previous stage.                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| Progress  | The operation runs as a durable proc. `Space` toggles the raw log. `Esc` closes the wizard while the operation continues in Procs.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| Ready     | `Enter` returns to the project, `+` or `=` launches a prompt on its `+tag`, `c` makes it current, and `i` initializes it when setup is incomplete. `Esc` closes while keeping the project selected.                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| Failed    | `r` re-plans and retries, `t` runs the command in a terminal, and `b` returns to Review with the last plan. A created repository is kept when later setup fails.                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+1. **Source.** Select a repository and press `Enter` to add it, or press `n` from the
+   list to choose the pinned Create row. `j` / `k` move, `[` / `]` switch providers, `/`
+   focuses the filter, `f` toggles hidden forks, `.` toggles all hidden rows, and `R`
+   refreshes discovery. When a provider remedy is offered, `t` runs it in a terminal and
+   refreshes afterward. In the filter, use arrow keys to move and `Enter` to choose;
+   `Esc` returns focus to the list.
+2. **Configure.** Set the project name, aliases, SASE setup, and whether to make it
+   current. `Tab` moves through controls; `Space` toggles the focused checkbox. Create
+   also offers provider-specific repository settings and checks validity and name
+   availability before enabling Review. Activate the **Review** button to continue. For
+   Add, `Ctrl+S` works only when that button is focused. The Back button or `b` outside
+   a text field returns to Source; `Esc` first leaves a focused input, then returns to
+   Source.
+3. **Review.** Inspect the exact command, settings, warnings, and blockers. Press `y` to
+   apply when the plan allows it. `b` or `Esc` returns to Configure with the draft
+   intact.
+4. **Progress.** The operation runs as a durable background process (a proc). `Space`
+   toggles its raw log. `Esc` closes the wizard while the operation continues in Procs.
+   If onboarding offers `sase init`, its separate initialization preview requires
+   confirmation before applying.
+5. **Ready.** `Enter` shows the project in Projects. `+` or `=` opens a prompt on its
+   `+tag`; submit that prompt to launch an agent. `c` makes it current when it is
+   launchable. If initialization was cancelled or failed, `i` offers initialization
+   again. `Esc` closes and returns the result to Projects.
+6. **Failed.** `r` returns to Review and checks the plan again; press `y` there to retry
+   applying. `b` returns to Review with the last plan. `t` runs the apply command in a
+   terminal, then checks the plan again. If repository creation succeeded before later
+   setup failed, the repository is kept and retry resumes setup.
+
+Source uses the discovery groups from `sase project suggest`: RESUME, ON THIS MACHINE,
+SUGGESTED, LINKED TO YOUR PROJECTS, and DISABLED PROJECTS. Choosing a running RESUME
+entry opens its existing proc in Procs; an interrupted entry opens a resume plan in
+Review. A filter can reveal hidden matches, including enabled projects: choosing one
+shows that project instead of adding it again. Pasting a supported repository ref offers
+an Add row when that repository is not already among the candidates. With no known
+owners, the detail card explains how to paste a ref or, for GitHub, configure
+`github_orgs`. On terminals shorter than 30 rows, Source details collapse to one line.
 
 When a filter hides the added project, the Projects pane keeps the filter and offers
-**Show new project** (`s`). Completion reloads the project list and refreshes the
-current-project launch context and `+tag` catalog. Closing during Progress does not
-cancel the durable operation; its completion still refreshes Projects and records the
-provider and owner preferences.
+**Show new project** (`s`), which clears the filter and selects the project. Completion
+reloads the project list and refreshes the current-project launch context and `+tag`
+catalog. Closing during Progress does not cancel the durable operation; successful
+completion still refreshes Projects if that pane is mounted and records the provider and
+owner preferences.
 
 ### Initialize from the Projects tab
 
@@ -5107,7 +5151,8 @@ Press `"` (quotation mark) on the Agents tab to open the Node Finder modal. It l
 every reachable sase node as a tree — clans, agent nodes, session turns (including
 monitors and gates), workflow roots, workflow `agent` steps, and stand-alone named procs
 — including rows hidden by collapsed folds, collapsed grouping banners, collapsed or
-isolated tribe panels, and the Agents query. Every jumpable row carries a jump hint.
+isolated tribe panels, and the Agents query. Jumpable live node rows carry jump hints;
+Archive results below them use selection and `Enter`.
 
 | Key                          | HINTS mode (default)                              | SEARCH mode (query focused)   |
 | ---------------------------- | ------------------------------------------------- | ----------------------------- |
@@ -5136,13 +5181,16 @@ jump roster members, and `"` in the finder jumps back.
 A `◷ In Archive` section follows the live rows. It lists up to five dismissed runs from
 this machine: the first five names in the Archive's day order when the query is empty,
 or the five best fuzzy name matches once you type. While that list is loading the
-section reads `Archive warming…` or `Searching Archive…`; with nothing to show it reads
-`No archived name matches.` or `Archive unavailable.` The preview for one of those rows
+section reads `Archive warming…` or `Searching Archive…`; an empty search result reads
+`No archived name matches.`, and a loading or search error reads `Archive unavailable.`
+The finder searches an already-warm Archive snapshot; if none is available when it
+opens, the section stays at `Archive warming…` until you reopen the finder after the
+Archive warms. Select a result with the arrow keys or `Ctrl+N` / `Ctrl+P`. Its preview
 reads `ARCHIVED RUN`, `Dismissed on this machine · read-only`, and
-`⏎ opens the run in the Archive`. `Enter` opens that run read-only. When the finder
-already has the row, the Archive query stays `in:archive`, the row is selected directly,
-and the toast reads `Node Finder · opening archived run · read-only`. Archive rows carry
-no jump hints.
+`⏎ opens the run in the Archive`. `Enter` switches to the Archive and selects the run
+without restoring it. This replaces the Archive query with `in:archive`; it does not add
+a name filter. The toast reads `Node Finder · opening archived run · read-only`. Archive
+results carry no jump hints.
 
 The preview sits beside the list. On a terminal at least 140 columns wide the list also
 keeps a status column. From 100 columns up to that width the two panes split evenly and
@@ -5757,19 +5805,21 @@ history); `Ctrl+J` / `Ctrl+K` move to the next / previous card in the focused pa
 - **FINAL deck.** The `⊛ FINAL` deck shows how the selected node's turns landed: an
   `Overview` card plus one card per finalizer instance (see
   [Finalizers on the Agents tab](#finalizers-on-the-agents-tab)).
-- **RECORD deck.** The `≡ RECORD` deck is the one home for the selected agent's facts,
-  in a fixed order. `Lifecycle` names the `@agent:` reference, location (Inbox or
-  Archive), status, start and end, dismissal, last activity, and whether the run is
-  viewable, restorable, and restartable. `Provenance` names the project, workspace,
-  model, agent tab, tribe or clan, owner, chat path, artifacts directory, and, for an
-  archived run, the bundle path. `Relations` lists session, clan, parent, workflow, and
-  retry neighbors as paste-ready references, or `No relations`. `Links` groups artifact
-  links as Outgoing, Incoming, and Related, up to three neighbors per group, or
-  `No artifact links`. The deck renders for inbox agents, clan containers, thin agents,
-  hydrated archived agents, unreadable archive entries, and archive container rows.
-  `Ctrl+J` / `Ctrl+K` cycle its cards, and it is reachable only explicitly (`p r`, the
-  palette's `agents.show_deck.record`, or `Ctrl+N` / `Ctrl+P`, where it sits last in the
-  cycle): new split panels never auto-choose it.
+- **RECORD deck.** The `≡ RECORD` deck shows the selected agent's recorded facts in four
+  cards, always in this order. `Lifecycle` shows its reference or name, location (Inbox
+  or Archive), status, recorded times, and Viewable, Restorable, and Restartable
+  capabilities. `Provenance` shows the project, workspace, model, agent tab, tribe,
+  owner, chat path, artifacts directory, and bundle path when available. `Relations`
+  shows session, clan, parent, workflow, retry, and container members as agent
+  references, falling back to stored identifiers when names cannot be resolved, or
+  `No relations`. `Links` groups artifact links by direction (Outgoing, Incoming,
+  Related) **and relation**, showing up to three neighbors for each group plus a
+  remaining count, or `No artifact links`. Missing data is omitted or shown as
+  unavailable. The deck works for Inbox agents, clan containers, agents with limited
+  metadata, readable archived agents, unreadable archive entries, and Archive
+  containers. `Ctrl+J` / `Ctrl+K` cycle its cards, and it is reachable only explicitly
+  (`p r`, the palette's `agents.show_deck.record`, or `Ctrl+N` / `Ctrl+P`, where it sits
+  last in the cycle): new split panels never auto-choose it.
 
 A multi-card deck renders **spread** — every card on one scrollable page separated by
 titled rules — when its cards fit within `ace.agent_decks.spread_max_screens` panel

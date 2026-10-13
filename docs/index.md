@@ -63,7 +63,7 @@ title: Structured Agentic Software Engineering
   <h3>I want a TUI for agent work</h3>
 
   <p>
-    Use sase's TUI to navigate Patches, live agents, the Agents Archive of dismissed runs, notifications, and automation
+    Use sase's TUI to navigate Patches, live and archived agents, notifications, and automation
     state from one terminal interface.
   </p>
 

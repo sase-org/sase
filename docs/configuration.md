@@ -1295,11 +1295,11 @@ overlap app-level bindings. Snippets still uses bare `1`–`9` for numbered chip
 keeps `.` (`full_stop`) as the default body-filter toggle.
 
 **`projects`** — One keymap for the Admin Center [Projects tab](ace.md#projects-tab).
-The Projects sub-tab uses every field. Repos and Workspaces use `next_option`,
-`prev_option`, `focus_filter`, `jump_to_entry`, `pick_project`, `clear_project_filter`,
-`reload`, `help`, and the sub-tab cycle; the other actions, including `new_project`, are
-inactive there. `[` / `]` still cycle sub-tabs from a focused filter. A value may list
-more than one key, separated by commas:
+The Projects sub-tab uses every field except `pick_project` and `clear_project_filter`.
+Repos and Workspaces use `next_option`, `prev_option`, `focus_filter`, `jump_to_entry`,
+`pick_project`, `clear_project_filter`, `reload`, `help`, and the sub-tab cycle; the
+other actions, including `new_project`, are inactive there. `[` / `]` still cycle
+sub-tabs from a focused filter. A value may list more than one key, separated by commas:
 
 | Field                        | Default                | Description                                                        |
 | ---------------------------- | ---------------------- | ------------------------------------------------------------------ |

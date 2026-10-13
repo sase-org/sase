@@ -256,9 +256,13 @@ sase project create REF [-a|--alias ALIAS]... [-c|--check] [-d|--description TEX
 sase project suggest [PROVIDER] [-a|--all] [-j|--json] [-o|--owner OWNER]... [-r|--refresh]
 ```
 
-`-Q`/`--request-path` and `-R`/`--result-path` on `add` and `create` name the private
-operation request and result sidecars. When omitted, those paths come from
-`$SASE_PROC_REQUEST_PATH` and `$SASE_PROC_RESULT_PATH`.
+`-Q`/`--request-path` and `-R`/`--result-path` are integration options for durable
+processes, not project sidecar repositories. `-Q` reads an existing operation-request
+JSON file whose target and options must match the command; `-R` writes the outcome of an
+apply attempt as typed JSON, including blocked or failed attempts. `--check` writes no
+result file. If omitted, the paths come from `$SASE_PROC_REQUEST_PATH` and
+`$SASE_PROC_RESULT_PATH` when set. With neither flags nor environment variables, no
+request or result file is used. Ordinary interactive commands do not need these flags.
 
 ### Current Project
 

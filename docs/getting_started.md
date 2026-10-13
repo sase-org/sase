@@ -241,8 +241,8 @@ then apply with `--yes`. Create apply is human-only: agents propose the exact
 `sase project create … --yes` command through `/sase_gate`.
 
 The same add and create flows are in sase's TUI. Open the Admin Center with `#`, switch
-to Projects (`5`), and press `n`. See
-[Add or create a project](ace.md#add-or-create-a-project).
+to the Projects tab (`5`), select its **Projects** sub-tab, and press `n` from the list.
+See [Add or create a project](ace.md#add-or-create-a-project).
 
 ## Step 6 — Hand Off Existing Work With Artifact References
 
