@@ -33,7 +33,10 @@ from sase.ops.models import DurableOperationRequest
 from sase.project_onboarding.preferences import load_preferences
 from sase.workspace_provider._hookspec import ParsedRepoRef
 from tests.ace.tui.modals.test_new_project_configure_review import _WizardApp
-from tests.ace.tui.modals.test_new_project_create import _enter, _modal
+from tests.ace.tui.modals._new_project_create_helpers import (
+    enter_create_stage,
+    make_modal,
+)
 from tests.ace.tui.modals.test_new_project_review_checks import _ReviewApp
 from tests.project_onboarding.test_cli import _create_args
 
@@ -283,7 +286,7 @@ async def test_create_review_compact_heading_stays_visible() -> None:
 async def test_create_review_button_enters_review_and_back_restores_configure(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    _, modal, _, _ = _modal(monkeypatch)
+    _, modal, _, _ = make_modal(monkeypatch)
     app = _WizardApp()
     monkeypatch.setattr(
         NewProjectReview,
@@ -293,7 +296,7 @@ async def test_create_review_button_enters_review_and_back_restores_configure(
     async with app.run_test(size=(120, 40)) as pilot:
         app.push_screen(modal)
         await pilot.pause()
-        await _enter(pilot, modal)
+        await enter_create_stage(pilot, modal)
         modal.query_one("#new-project-create-name", Input).value = "new"
         await pilot.pause(0.6)
         assert modal._create_availability.status == "available"
@@ -320,7 +323,7 @@ async def test_create_review_button_enters_review_and_back_restores_configure(
 async def test_create_y_submits_project_create(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    _, modal, _, _ = _modal(monkeypatch)
+    _, modal, _, _ = make_modal(monkeypatch)
     app = _WizardApp()
     monkeypatch.setattr(
         NewProjectReview,
@@ -330,7 +333,7 @@ async def test_create_y_submits_project_create(
     async with app.run_test(size=(120, 40)) as pilot:
         app.push_screen(modal)
         await pilot.pause()
-        await _enter(pilot, modal)
+        await enter_create_stage(pilot, modal)
         modal.query_one("#new-project-create-name", Input).value = "new"
         await pilot.pause(0.6)
         modal.query_one("#new-project-create-review", Button).press()
@@ -350,7 +353,7 @@ async def test_create_y_submits_project_create(
 async def test_duplicate_create_stays_on_review(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    _, modal, _, _ = _modal(monkeypatch)
+    _, modal, _, _ = make_modal(monkeypatch)
     app = _WizardApp()
     app.submit_result = None
     monkeypatch.setattr(
@@ -361,7 +364,7 @@ async def test_duplicate_create_stays_on_review(
     async with app.run_test(size=(120, 40)) as pilot:
         app.push_screen(modal)
         await pilot.pause()
-        await _enter(pilot, modal)
+        await enter_create_stage(pilot, modal)
         modal.query_one("#new-project-create-name", Input).value = "new"
         await pilot.pause(0.6)
         modal.query_one("#new-project-create-review", Button).press()
