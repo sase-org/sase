@@ -12,6 +12,7 @@ from textual.widgets import OptionList, Static
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.widgets.artifacts import CommitsPane
+from sase.feature_flags import override_flags
 from sase.ace.tui.widgets.artifacts import files_pane as files_pane_module
 from sase.ace.tui.widgets.artifacts import agents_pane as agents_pane_module
 from sase.ace.tui.widgets.artifacts.agents_data import AgentsSnapshot
@@ -31,6 +32,13 @@ from tests.ace.tui._artifacts_files_helpers import (
     artifact_file,
     snapshot as _files_snapshot,
 )
+
+
+@pytest.fixture
+def _agents_pane_alive():
+    """Pin agents-pane coverage to the flag-off strip behind retirement."""
+    with override_flags(artifacts_agent_pane_retired=False):
+        yield
 
 
 def _commits_result(count: int = 50) -> VcsLogResult:
@@ -382,6 +390,7 @@ async def test_configured_navigation_actions_route_to_non_pr_list(
 
 async def test_agents_implements_next_prev_navigation(
     monkeypatch: pytest.MonkeyPatch,
+    _agents_pane_alive: None,
 ) -> None:
     rows = tuple(
         make_agent_catalog_row(

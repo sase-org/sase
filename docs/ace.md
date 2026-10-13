@@ -118,11 +118,11 @@ sase's TUI has three tabs, cycled with `Tab` and `Shift+Tab`:
 While a prompt input bar is open, `Tab`/`Shift+Tab` belong to the prompt (snippet
 expansion, tabstops, list indent) and never switch tabs.
 
-| Tab           | Description                                                                                                                                                                                                                 |
-| ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Agents**    | View running and completed agents, their files and prompts                                                                                                                                                                  |
-| **Artifacts** | Browse the durable Agent catalog, Stitches, Patches, Beads, configured document providers, and Files. See the [Artifacts pane contract](artifacts_pane_contract.md) and [visual grammar](artifacts_pane_visual_grammar.md). |
-| **Services**  | Monitor the service host, configured service procs, scheduler work, and background commands                                                                                                                                 |
+| Tab           | Description                                                                                                                                                                                                                                                                                                                                                         |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Agents**    | View running and completed agents, their files and prompts                                                                                                                                                                                                                                                                                                          |
+| **Artifacts** | Browse Stitches, Patches, Beads, configured document providers, and Files. Agent history lives in the Agents tab Archive (`,a`); the Artifacts ▸ Agent sub-tab is retired (restore it with `sase flag disable artifacts_agent_pane_retired`). See the [Artifacts pane contract](artifacts_pane_contract.md) and [visual grammar](artifacts_pane_visual_grammar.md). |
+| **Services**  | Monitor the service host, configured service procs, scheduler work, and background commands                                                                                                                                                                                                                                                                         |
 
 Agents is the first tab and the startup default. Each tab has contextual help: press `?`
 to open the Help modal on its **Keymaps** view, then `]` to switch to the tab's
@@ -2868,8 +2868,8 @@ Calls text: type to jump to matches, `Ctrl+R` reverses the search direction, `En
 keeps the matches (`Esc` or `Ctrl+C` cancels), `n` / `N` move between them, `y` / `Y`
 yank the current match or selection / its whole line, and `Esc` or `q` closes a
 committed search. The filter bar uses the same **structured Boolean Agent dialect** as
-Artifacts -> Agent and [`sase agent search`](configuration.md#sase-agent), evaluated
-against the live `agents-live` profile. Bare words match an agent's `cl_name`,
+the Archive view (`in:archive`) and [`sase agent search`](configuration.md#sase-agent),
+evaluated against the live `agents-live` profile. Bare words match an agent's `cl_name`,
 `display_name`, `agent_name`, and `status`, plus its **macro, live reply/response, chat
 transcript, and prior attempt replies** through the `text` corpus. When
 `ace.current_project.seed_agents_query` is on, sase's TUI seeds this query with the
@@ -3508,7 +3508,6 @@ and `,/` starts forward inline deck search. Help is the app-level `?` on every t
 | Beads              | `/` (or local `f`) |
 | Provider documents | `/` (or local `f`) |
 | Files              | `/` (or local `f`) |
-| Artifacts → Agent  | `/`                |
 | Agents tab query   | `/` or `f`         |
 
 The Services tab has no query editor. Its `?` help modal and the command palette both
@@ -3521,8 +3520,8 @@ To save a query, prefix with `#`:
 - `# "myproject"` -- save to next available slot
 - `#3` (no query) -- delete slot 3
 
-On Patches, Artifacts → Agent, and the top-level Agents tab, these commands run inside
-the inline filter and leave both the active query and editor session in place.
+On Patches and the top-level Agents tab, these commands run inside the inline filter and
+leave both the active query and editor session in place.
 
 On first open, when `ace.current_project.seed_filters` is on and the Patches query
 carries no `project:` / `+name` term of any polarity or depth, sase's TUI appends a

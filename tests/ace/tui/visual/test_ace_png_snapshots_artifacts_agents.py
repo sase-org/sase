@@ -19,6 +19,7 @@ from sase.ace.tui.widgets.artifacts.agents_pane import ArtifactsAgentsPane
 from sase.ace.tui.widgets.artifacts.agents_query import AgentFilterBar
 from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
 from sase.agents.catalog import AgentCatalogRow
+from sase.feature_flags import override_flags
 from tests._agent_catalog_helpers import make_agent_catalog_row
 from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     assert_page_svg_contains,
@@ -33,6 +34,13 @@ from tests.ace.tui.visual._ace_png_snapshot_helpers import (
 from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
 
 pytestmark = pytest.mark.visual
+
+
+@pytest.fixture(autouse=True)
+def _agents_pane_flag_off():
+    """Pin this module to the flag-off strip: it covers the retired pane."""
+    with override_flags(artifacts_agent_pane_retired=False):
+        yield
 
 
 def _row(name: str, **overrides: Any) -> AgentCatalogRow:

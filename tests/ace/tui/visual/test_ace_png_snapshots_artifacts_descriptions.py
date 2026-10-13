@@ -179,17 +179,22 @@ def _install_notes_provider(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> 
     )
 
     def _fast_artifacts_subtabs() -> tuple[Any, ...]:
+        from sase.ace.tui._artifact_tab_model import artifacts_agent_pane_retired
+
         notes_descriptor = provider_descriptors((record,))[0]
-        return assign_artifacts_digit_shortcuts(
-            (
-                fixed_descriptor("agents"),
+        fixed: list[Any] = []
+        if not artifacts_agent_pane_retired():
+            fixed.append(fixed_descriptor("agents"))
+        fixed.extend(
+            [
                 fixed_descriptor("stitches"),
                 fixed_descriptor("patches"),
                 fixed_descriptor("beads"),
                 notes_descriptor,
                 fixed_descriptor("files"),
-            )
+            ]
         )
+        return assign_artifacts_digit_shortcuts(tuple(fixed))
 
     monkeypatch.setattr(ace_startup, "_fast_artifacts_subtabs", _fast_artifacts_subtabs)
 

@@ -26,9 +26,10 @@ def register_agent_search_parser(agents_sub: argparse._SubParsersAction) -> None
         help="Search the agent catalog or archive",
         description=(
             "Search the historical agent catalog using the same boolean query "
-            "dialect as the Artifacts -> Agent pane. Without an in: token, "
-            "search keeps the catalog behavior. Use in:inbox for non-dismissed "
-            "catalog rows or in:archive for the shared dismissed archive corpus."
+            "dialect as the Agents tab Archive (in:archive). Without an in: "
+            "token, search keeps the catalog behavior. Use in:inbox for "
+            "non-dismissed catalog rows or in:archive for the shared dismissed "
+            "archive corpus."
         ),
         epilog=(
             "examples:\n"

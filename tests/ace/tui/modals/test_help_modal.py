@@ -7,9 +7,11 @@ from rich.text import Text
 from sase.ace.query_history import QueryHistoryStacks
 from sase.ace.query_record import QueryRecord
 from sase.ace.testing import AcePage
+from sase.ace.tui import artifact_tabs
 from sase.ace.tui.keymaps import load_keymap_registry
 from sase.ace.tui.modals.help_modal import HelpModal
 from sase.ace.tui.modals.help_modal.query_sections import add_saved_queries_section
+from sase.feature_flags import override_flags
 
 
 def test_help_modal_refresh_for_tab_rebuilds_sections() -> None:
@@ -101,6 +103,25 @@ async def test_help_digits_do_not_load_saved_queries(monkeypatch) -> None:
         assert calls == []
         assert page.app.canonical_query_string == '"feature" limit:100'
         assert page.state["modal"] == "HelpModal"
+
+
+def test_help_modal_agent_pane_section_follows_retired_flag() -> None:
+    registry = load_keymap_registry({})
+    columns: dict[bool, str] = {}
+    artifact_tabs.reset_artifacts_subtabs_cache()
+    try:
+        for retired in (True, False):
+            artifact_tabs.reset_artifacts_subtabs_cache()
+            with override_flags(artifacts_agent_pane_retired=retired):
+                modal = HelpModal(current_tab="patches", registry=registry)
+                columns[retired] = (
+                    modal._build_left_column().plain + modal._build_right_column().plain
+                )
+    finally:
+        artifact_tabs.reset_artifacts_subtabs_cache()
+
+    assert "Agent Pane" not in columns[True]
+    assert "Agent Pane" in columns[False]
 
 
 def test_saved_query_help_badges_keep_fixed_box_width() -> None:

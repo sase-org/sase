@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+from sase.ace.tui import artifact_tabs
 from sase.ace.tui.keymaps import load_keymap_registry
 from sase.ace.tui.modals.help_modal import HelpModal
 from sase.ace.tui.widgets import AgentOnboarding, AxeOnboarding, PatchOnboarding
+from sase.feature_flags import override_flags
 
 
 def test_help_modal_builds_patch_guide() -> None:
@@ -52,6 +54,25 @@ def test_help_modal_builds_axe_guide() -> None:
     guide = modal._build_guide_view()
 
     assert isinstance(guide, AxeOnboarding)
+
+
+def test_patch_guide_tabs_card_follows_retired_strip() -> None:
+    registry = load_keymap_registry({})
+    cards: dict[bool, str] = {}
+    artifact_tabs.reset_artifacts_subtabs_cache()
+    try:
+        for retired in (True, False):
+            artifact_tabs.reset_artifacts_subtabs_cache()
+            with override_flags(artifacts_agent_pane_retired=retired):
+                cards[retired] = PatchOnboarding._build_tabs_card(registry).plain
+    finally:
+        artifact_tabs.reset_artifacts_subtabs_cache()
+
+    assert "Agent" not in cards[True]
+    assert "1  Stitch" in cards[True]
+    assert "Agent" in cards[False]
+    assert "1  Agent" in cards[False]
+    assert "2  Stitch" in cards[False]
 
 
 def test_help_modal_refresh_for_tab_rebuilds_guide_state() -> None:

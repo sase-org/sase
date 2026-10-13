@@ -58,6 +58,10 @@ def _handle_show(args: argparse.Namespace) -> int:
         from sase.ace.tui._artifact_tab_model import artifacts_agent_pane_retired
 
         if artifacts_agent_pane_retired():
+            if bool(getattr(args, "json", False)):
+                json.dump(_retired_agents_payload(), sys.stdout, indent=2)
+                sys.stdout.write("\n")
+                return 0
             console = Console()
             console.print(
                 "[bold]Agent history moved to the Agents tab[/] "
@@ -85,6 +89,21 @@ def _handle_show(args: argparse.Namespace) -> int:
         return 0
     _print_text(contract, payload)
     return 0
+
+
+def _retired_agents_payload() -> dict[str, object]:
+    """Explain the retired Agent pane move in ``pane show -j`` JSON shape."""
+    return {
+        "schema_version": PANE_SHOW_SCHEMA_VERSION,
+        "pane": "agents",
+        "retired": True,
+        "moved_to": "agents_tab_archive",
+        "summary": "Agent history moved to the Agents tab (Artifacts ▸ Agent is retired).",
+        "hint": (
+            "Press ,a on the Agents tab to open the Archive: dismissed runs "
+            "open read-only in the real decks, and Enter restores one to the Inbox."
+        ),
+    }
 
 
 def _payload(contract: ArtifactsPaneContract) -> dict[str, object]:

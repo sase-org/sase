@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from rich.text import Text
 
+from sase.ace.tui import artifact_tabs
 from sase.ace.tui.keymaps import load_keymap_registry
 from sase.ace.tui.widgets.patch_onboarding import PatchOnboarding
 
@@ -13,7 +14,11 @@ def _section_plain(sections: dict[str, Text], selector: str) -> str:
 
 
 def test_patch_onboarding_content_includes_docs_lifecycle_and_storage() -> None:
-    sections = PatchOnboarding.render_content(load_keymap_registry({}))
+    artifact_tabs.reset_artifacts_subtabs_cache()
+    try:
+        sections = PatchOnboarding.render_content(load_keymap_registry({}))
+    finally:
+        artifact_tabs.reset_artifacts_subtabs_cache()
     rendered = "\n".join(text.plain for text in sections.values())
 
     assert "Everything your agents produce, in one place" in rendered
@@ -21,7 +26,9 @@ def test_patch_onboarding_content_includes_docs_lifecycle_and_storage() -> None:
         "Browse commits, patches, beads, agents, document providers, and files"
         in rendered
     )
-    assert "Browse durable agent runs and open their artifacts." in rendered
+    # The retired Agent pane drops out of the live strip by default.
+    assert "Browse durable agent runs and open their artifacts." not in rendered
+    assert "Trace committed work across projects." in rendered
     assert "Browse logical artifact files and their versions." in rendered
     assert "https://sase.sh/patch/" in rendered
     assert "https://sase.sh/vcs/" in rendered
@@ -46,15 +53,20 @@ def test_patch_onboarding_uses_active_keymap_registry() -> None:
         }
     )
 
-    sections = PatchOnboarding.render_content(registry)
+    artifact_tabs.reset_artifacts_subtabs_cache()
+    try:
+        sections = PatchOnboarding.render_content(registry)
+    finally:
+        artifact_tabs.reset_artifacts_subtabs_cache()
     tabs_text = _section_plain(sections, "#patch-onboarding-tabs")
     how_text = _section_plain(sections, "#patch-onboarding-how")
     learn_text = _section_plain(sections, "#patch-onboarding-learn")
 
+    # The retired strip reads Stitch first with no Agent row.
+    assert "Agent" not in tabs_text
     positions = {
         label: tabs_text.index(label)
         for label in (
-            "Agent",
             "Stitch",
             "Patch",
             "Bead",
@@ -62,11 +74,7 @@ def test_patch_onboarding_uses_active_keymap_registry() -> None:
         )
     }
     assert (
-        positions["Agent"]
-        < positions["Stitch"]
-        < positions["Patch"]
-        < positions["Bead"]
-        < positions["File"]
+        positions["Stitch"] < positions["Patch"] < positions["Bead"] < positions["File"]
     )
     for key in ("f3", "f4", "f5"):
         assert key in tabs_text

@@ -69,6 +69,8 @@ def test_flag_off_restores_agents_pane_first_on_digit_1() -> None:
     assert agents.digit_shortcut == "1"
     assert files.digit_shortcut == str(len(descriptors))
     assert not agents.is_degraded
+    with override_flags(artifacts_agent_pane_retired=False):
+        assert normalize_artifacts_subtab("agents") == "agents"
 
 
 def test_fast_startup_fixed_pane_order_matches_production(
@@ -85,11 +87,13 @@ def test_fast_startup_fixed_pane_order_matches_production(
         empty_provider_records,
     )
     try:
-        # Fast startup always mounts the flag-off shape, so compare against
-        # the flag-off production order.
-        with override_flags(artifacts_agent_pane_retired=False):
-            production_fixed_ids = _fixed_ids(artifact_tabs.resolve_artifacts_subtabs())
+        # Fast startup follows the production strip in both flag states.
+        for retired in (False, True):
+            artifact_tabs.reset_artifacts_subtabs_cache()
+            with override_flags(artifacts_agent_pane_retired=retired):
+                production_fixed_ids = _fixed_ids(
+                    artifact_tabs.resolve_artifacts_subtabs()
+                )
+                assert _fixed_ids(_fast_artifacts_subtabs()) == production_fixed_ids
     finally:
         artifact_tabs.reset_artifacts_subtabs_cache()
-
-    assert _fixed_ids(_fast_artifacts_subtabs()) == production_fixed_ids

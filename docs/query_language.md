@@ -147,13 +147,13 @@ Query panes use one of two dialects, and globs compose with each dialect's own s
 - **Flat dialects** (Beads, Plans, Files, Stitches, and document-provider panes) accept
   `-` negation (`-id:sase-x7.*`) and comma lists (`id:sase-16n,sase-16n.*`), and bare
   values may start with `*` or contain `/` (`path:202609/*tags`).
-- **Boolean dialects** (the Patch query language on this page, the Agents tab filter,
-  and Artifacts ▸ Agent / `sase agent search`) use `NOT` (or `!`) and `OR` instead of
-  `-` and commas. Their bare values must start with a letter, digit, or `_` and contain
-  only letters, digits, `_`, `-`, `.`, and `*`, so quote anything else, as in
-  `name:"*_fix"` or `model:"*opus*"`. The Agents tab filter's `tab:` field is exact
-  (`main` for rows with no stored tab) and is specified in the ace.md Agent Search
-  table. `tab:` is an Agents field, not a Patch property.
+- **Boolean dialects** (the Patch query language on this page, the Agents tab filter
+  with its `in:inbox` / `in:archive` scopes, and `sase agent search`) use `NOT` (or `!`)
+  and `OR` instead of `-` and commas. Their bare values must start with a letter, digit,
+  or `_` and contain only letters, digits, `_`, `-`, `.`, and `*`, so quote anything
+  else, as in `name:"*_fix"` or `model:"*opus*"`. The Agents tab filter's `tab:` field
+  is exact (`main` for rows with no stored tab) and is specified in the ace.md Agent
+  Search table. `tab:` is an Agents field, not a Patch property.
 
 In the Patch query language documented on this page, all six property filters are
 exact-match fields, so a `*` in any of them is an anchored whole-value glob: `status:`

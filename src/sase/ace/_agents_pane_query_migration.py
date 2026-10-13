@@ -5,12 +5,16 @@ pane's ``agents``-namespace saved slots and history entries move to the
 Agents tab's ``agents-live`` namespace with ``in:archive`` prepended, so
 pane-era ``#N`` slots keep working from either Agents view. The rewrite
 drops pane-only terms (``limit:``, ``state:dismissed``, ``dismissed:true``)
-and renames ``tribe:`` to ``clan_tribe:``.
+and renames ``tribe:`` to ``clan_tribe:``, then validates the result
+against the agents-archive profile: only the canonical text validation
+returns is stored, and anything validation rejects stays behind.
 
 The migration runs once per machine (a marker file under :func:`sase_home`),
 is idempotent, and never overwrites an existing ``agents-live`` slot.
-Entries that cannot be converted safely (boolean structure, or a full
-``agents-live`` slot map) stay in the old ``agents`` namespace.
+Entries that cannot be converted safely (boolean structure, a negated
+dismissed marker whose drop would reverse its meaning, a term the archive
+profile rejects, or a full ``agents-live`` slot map) stay in the old
+``agents`` namespace.
 """
 
 from __future__ import annotations
@@ -65,10 +69,15 @@ def _split_terms(source: str) -> list[str]:
 def _convert_agents_pane_query(source: str) -> str | None:
     """Rewrite one pane-era query for the ``agents-live`` Archive scope.
 
-    Returns the converted query text, or ``None`` when the entry must stay
-    in the old namespace (boolean operators or grouping the term rewrite
-    cannot preserve).
+    Returns the canonical agents-archive text, or ``None`` when the entry
+    must stay in the old namespace (boolean operators or grouping the term
+    rewrite cannot preserve, a negated dismissed marker whose drop would
+    reverse its meaning, or a term the archive profile rejects).
     """
+    from sase.ace.query.profile_reference_support import ProfileQueryError
+    from sase.ace.query.scope_token import ScopeTokenError
+    from sase.ace.tui.models.agent_live_query_engine import canonical_agents_tab_query
+
     terms = _split_terms(source.strip())
     kept: list[str] = []
     for term in terms:
@@ -78,20 +87,28 @@ def _convert_agents_pane_query(source: str) -> str | None:
         negated = lowered.startswith("-")
         field, sep, _ = (lowered[1:] if negated else lowered).partition(":")
         if not sep:
-            kept.append(term)
+            kept.append(f"NOT {term[1:]}" if negated else term)
             continue
-        if field in _DROPPED_FIELDS or lowered.lstrip("-") in _DROPPED_TERMS:
+        unnegated = lowered[1:] if negated else lowered
+        if field in _DROPPED_FIELDS or unnegated in _DROPPED_TERMS:
+            if negated:
+                # Dropping a negation reverses its meaning.
+                return None
             continue
         renamed = _RENAMED_FIELDS.get(field)
         if renamed is not None:
-            prefix = "-" if negated else ""
             _, _, rest = term.partition(":")
-            kept.append(f"{prefix}{renamed}:{rest}")
-            continue
-        kept.append(term)
-    if kept:
-        return "in:archive " + " ".join(kept)
-    return "in:archive"
+            rewritten = f"{renamed}:{rest}"
+            kept.append(f"NOT {rewritten}" if negated else rewritten)
+        elif negated:
+            kept.append(f"NOT {term[1:]}")
+        else:
+            kept.append(term)
+    raw = "in:archive " + " ".join(kept) if kept else "in:archive"
+    try:
+        return canonical_agents_tab_query(raw)
+    except (ProfileQueryError, ScopeTokenError):
+        return None
 
 
 def ensure_agents_pane_queries_migrated() -> bool:

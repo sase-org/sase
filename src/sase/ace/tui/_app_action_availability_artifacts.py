@@ -135,13 +135,21 @@ def check_artifacts_availability(
         return True
     if action in {"cycle_files_subtab", "cycle_files_subtab_reverse"}:
         return False
+    if action == "show_artifacts_agents":
+        # The retired pane opens Agents ▸ Archive, so a user keymap or
+        # palette entry must work from every tab while retired.
+        from ._artifact_tab_model import artifacts_agent_pane_retired
+
+        if artifacts_agent_pane_retired():
+            return True
+        if app.current_tab != ARTIFACTS_TAB:
+            return False
     if action in {
         "show_artifacts_patches",
         "show_artifacts_prs",
         "show_artifacts_stitches",
         "show_artifacts_bugs",
         "show_artifacts_beads",
-        "show_artifacts_agents",
         "show_artifacts_files",
         "show_artifacts_digit",
     }:

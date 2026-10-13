@@ -43,6 +43,7 @@ from sase.ace.tui.widgets.artifacts import (
 from sase.ace.tui.widgets.artifacts import ARTIFACTS_ACCENTS
 import sase.ace.tui.widgets.artifacts.commits as commits_module
 from sase.ace.tui.widgets.panel_tab_strip import PanelTabStrip
+from sase.feature_flags import override_flags
 from sase.vcs_log.models import VcsLogResult
 
 
@@ -53,6 +54,13 @@ def _stub_commits_collector(monkeypatch: pytest.MonkeyPatch) -> None:
         "run_vcs_log",
         lambda **_kwargs: VcsLogResult((), (), ()),
     )
+
+
+@pytest.fixture
+def _agents_pane_alive():
+    """Pin agents-pane coverage to the flag-off strip behind retirement."""
+    with override_flags(artifacts_agent_pane_retired=False):
+        yield
 
 
 def _strip_plain(view: ArtifactsView, active_tab: str) -> str:
@@ -75,7 +83,9 @@ def _digit_for(view: ArtifactsView, subtab: str) -> str:
     return descriptor.digit_shortcut
 
 
-async def test_subtab_keys_wrap_and_gate_hidden_pr_actions() -> None:
+async def test_subtab_keys_wrap_and_gate_hidden_pr_actions(
+    _agents_pane_alive: None,
+) -> None:
     async with AcePage(initial_tab="patches") as page:
         view = page.query_one_widget("#artifacts-view", ArtifactsView)
         patches_pane = page.query_one_widget(
@@ -171,7 +181,9 @@ async def test_subtab_keys_wrap_and_gate_hidden_pr_actions() -> None:
         assert files.refresh_request_count == 2
 
 
-async def test_space_dispatches_repeat_agent_from_every_subtab() -> None:
+async def test_space_dispatches_repeat_agent_from_every_subtab(
+    _agents_pane_alive: None,
+) -> None:
     async with AcePage(initial_tab="patches") as page:
         view = page.query_one_widget("#artifacts-view", ArtifactsView)
         calls: list[str] = []
@@ -191,7 +203,9 @@ async def test_space_dispatches_repeat_agent_from_every_subtab() -> None:
             assert calls == list(expected[:index])
 
 
-async def test_number_keys_jump_artifacts_without_entering_from_other_tabs() -> None:
+async def test_number_keys_jump_artifacts_without_entering_from_other_tabs(
+    _agents_pane_alive: None,
+) -> None:
     async with AcePage(initial_tab="patches") as page:
         view = page.query_one_widget("#artifacts-view", ArtifactsView)
         switcher = page.query_one_widget("#artifacts-content-switcher", ContentSwitcher)
@@ -266,6 +280,7 @@ async def test_click_message_and_reactivation_keep_lazy_pane_state() -> None:
 
 async def test_first_artifacts_entry_activates_default_without_hidden_collection(
     monkeypatch: pytest.MonkeyPatch,
+    _agents_pane_alive: None,
 ) -> None:
     calls: list[str] = []
     monkeypatch.setattr(

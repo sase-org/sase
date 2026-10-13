@@ -59,9 +59,9 @@ class StartupLoadsMaintenanceMixin:
 
         if has_shown_artifacts_agent_pane_notice():
             return
-        mark_artifacts_agent_pane_notice_shown()
         if not artifacts_agent_pane_retired():
             return
+        mark_artifacts_agent_pane_notice_shown()
         self.notify(
             "Agent history moved to the Agents tab · ,a opens the Archive",
             title="Artifacts Agent pane retired",

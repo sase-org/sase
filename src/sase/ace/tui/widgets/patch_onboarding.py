@@ -11,8 +11,8 @@ from textual.widgets import Static
 
 from ..artifact_tabs import (
     ARTIFACTS_ACCENTS,
-    ARTIFACTS_SUBTAB_ORDER,
     ArtifactsSubTab,
+    resolve_artifacts_subtabs,
 )
 from ...display_helpers import get_status_color
 from ..keymaps import (
@@ -175,12 +175,19 @@ class PatchOnboarding(VerticalScroll):
         app = registry.app
         text = Text()
         append_section_heading(text, "Know what each view shows", accent=_ACCENT)
-        for subtab in ARTIFACTS_SUBTAB_ORDER:
-            cls._append_artifact_row(text, subtab)
+        # Follow the live strip (not the static order) so the retired Agent
+        # pane drops out and Stitch takes digit 1.
+        descriptors = [
+            descriptor
+            for descriptor in resolve_artifacts_subtabs()
+            if descriptor.id in _ARTIFACT_LABELS
+        ]
+        for descriptor in descriptors:
+            cls._append_artifact_row(text, descriptor.id)
         text.append("Jump directly:")
-        for index, subtab in enumerate(ARTIFACTS_SUBTAB_ORDER, start=1):
-            append_keycap(text, str(index))
-            text.append(cls._artifact_label(subtab))
+        for descriptor in descriptors:
+            append_keycap(text, descriptor.digit_shortcut or "?")
+            text.append(cls._artifact_label(descriptor.id))
         text.append("\n")
         append_keycap(
             text,
