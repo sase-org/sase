@@ -54,9 +54,26 @@ def resolve_cwd(explicit_cwd: str | None, agent: str, *, exact: bool) -> Path:
     if explicit_cwd:
         return Path(explicit_cwd).expanduser().resolve(strict=False)
     workspace = _agent_workspace_dir(agent, exact=exact)
-    if workspace is not None:
-        return workspace
-    return Path.cwd()
+    if workspace is None:
+        return Path.cwd()
+    if _caller_inside_opened_repos(workspace):
+        return Path.cwd()
+    return workspace
+
+
+def _caller_inside_opened_repos(workspace: Path) -> bool:
+    """Return True when the caller's cwd is inside the workspace's opened repos.
+
+    A caller sitting in ``<workspace>/sase/repos/`` -- a linked, external or
+    sidecar clone opened with ``sase repo open`` -- wants the monitor to run
+    there, not at the workspace root.
+    """
+    repos_root = (workspace / "sase" / "repos").resolve(strict=False)
+    try:
+        caller = Path.cwd().resolve(strict=False)
+    except OSError:
+        return False
+    return caller == repos_root or repos_root in caller.parents
 
 
 def _agent_workspace_dir(agent: str, *, exact: bool) -> Path | None:

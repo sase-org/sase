@@ -146,12 +146,13 @@ and records the wait output where the follow-up can inspect it.
   controls work unconditionally.
 
 `--cwd` may name any directory inside a managed checkout, including a repository opened
-with `sase repo open`. The command runs in that directory, but the monitor records and
-claims the checkout that contains it, and an ordinary follow-up starts at that
-checkout's root. When the directory is inside the caller's own workspace, the caller's
-claim moves to the monitor; inside a different managed workspace, the monitor takes a
-fresh claim and the caller keeps its own. A directory outside every managed checkout
-uses workspace `0`.
+with `sase repo open`. When `--cwd` is omitted, the default is the current directory
+when it is inside a repo opened with `sase repo open`, else the agent's workspace, else
+`$PWD`. The command runs in that directory, but the monitor records and claims the
+checkout that contains it, and an ordinary follow-up starts at that checkout's root.
+When the directory is inside the caller's own workspace, the caller's claim moves to the
+monitor; inside a different managed workspace, the monitor takes a fresh claim and the
+caller keeps its own. A directory outside every managed checkout uses workspace `0`.
 
 Before it creates the monitor member or binds a completion intent, `sase monitor start`
 checks the target workspace's claims. If another live process holds that workspace, the

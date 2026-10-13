@@ -268,7 +268,11 @@ def register_monitor_parser(subparsers: argparse._SubParsersAction) -> None:
         "--cwd",
         default=None,
         metavar="DIR",
-        help="Working directory (default: the agent's workspace, else $PWD)",
+        help=(
+            "Working directory (default: the current directory when it is "
+            "inside a repo opened with `sase repo open`, else the agent's "
+            "workspace, else $PWD)"
+        ),
     )
     start_parser.add_argument(
         "-i",

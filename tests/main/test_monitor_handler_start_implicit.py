@@ -287,3 +287,149 @@ def test_start_implicit_prefers_agent_artifact_project_key_over_cwd_alias(
     assert monitor["project_name"] == project_key
     assert monitor["lane"] == "sase-zl.13.10"
     assert monitor["cwd"] == str(caller_ws)
+
+
+def _start_verify_monitor() -> list[str]:
+    return [
+        "monitor",
+        "start",
+        "-c",
+        "true",
+        "-r",
+        "verify cwd default",
+        "-t",
+        "30s",
+        "--json",
+        "-s",
+        "TESTING",
+        "-S",
+        "TESTED",
+    ]
+
+
+def _make_caller(project: str, workspace: Path, lane: str = "sase-m6.6.1.5") -> str:
+    write_project_file(
+        project,
+        running_claims=[WorkspaceClaim(12, "ace-run", lane, pid=os.getpid())],
+    )
+    return make_starter_agent(
+        project,
+        "20260812120000",
+        lane,
+        model="caller-model",
+        workspace_dir=str(workspace),
+        workspace_num=12,
+        pid=os.getpid(),
+        cl_name=lane,
+    )
+
+
+def test_start_inside_linked_clone_uses_caller_cwd(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """No ``-C/--cwd``: a caller inside ``sase/repos/linked`` stays there."""
+    caller_ws = tmp_path / "ws12"
+    linked = caller_ws / "sase" / "repos" / "linked" / "acme"
+    linked.mkdir(parents=True)
+    caller_dir = _make_caller("proj", caller_ws)
+    patch_project_records(monkeypatch, [caller_dir])
+    pin_project(monkeypatch)
+    monkeypatch.setenv("SASE_AGENT_NAME", "sase-m6.6.1.5")
+    monkeypatch.chdir(linked)
+
+    exit_code = dispatch(_start_verify_monitor())
+
+    assert exit_code == 0
+    monitor = json.loads(capsys.readouterr().out)["monitor"]
+    assert monitor["cwd"] == str(linked)
+
+
+def test_start_inside_nested_external_clone_uses_caller_cwd(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """No ``-C/--cwd``: a caller in nested ``sase/repos/external`` stays there."""
+    caller_ws = tmp_path / "ws12"
+    external = caller_ws / "sase" / "repos" / "external" / "gh" / "acme" / "tool"
+    external.mkdir(parents=True)
+    caller_dir = _make_caller("proj", caller_ws)
+    patch_project_records(monkeypatch, [caller_dir])
+    pin_project(monkeypatch)
+    monkeypatch.setenv("SASE_AGENT_NAME", "sase-m6.6.1.5")
+    monkeypatch.chdir(external)
+
+    exit_code = dispatch(_start_verify_monitor())
+
+    assert exit_code == 0
+    monitor = json.loads(capsys.readouterr().out)["monitor"]
+    assert monitor["cwd"] == str(external)
+
+
+def test_start_at_workspace_root_uses_workspace(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """No ``-C/--cwd``: a caller at the workspace root keeps today's default."""
+    caller_ws = tmp_path / "ws12"
+    caller_ws.mkdir()
+    caller_dir = _make_caller("proj", caller_ws)
+    patch_project_records(monkeypatch, [caller_dir])
+    pin_project(monkeypatch)
+    monkeypatch.setenv("SASE_AGENT_NAME", "sase-m6.6.1.5")
+    monkeypatch.chdir(caller_ws)
+
+    exit_code = dispatch(_start_verify_monitor())
+
+    assert exit_code == 0
+    monitor = json.loads(capsys.readouterr().out)["monitor"]
+    assert monitor["cwd"] == str(caller_ws)
+
+
+def test_start_in_main_checkout_subdir_uses_workspace(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """No ``-C/--cwd``: a caller in a main-checkout subdir keeps today's default."""
+    caller_ws = tmp_path / "ws12"
+    subdir = caller_ws / "src"
+    subdir.mkdir(parents=True)
+    caller_dir = _make_caller("proj", caller_ws)
+    patch_project_records(monkeypatch, [caller_dir])
+    pin_project(monkeypatch)
+    monkeypatch.setenv("SASE_AGENT_NAME", "sase-m6.6.1.5")
+    monkeypatch.chdir(subdir)
+
+    exit_code = dispatch(_start_verify_monitor())
+
+    assert exit_code == 0
+    monitor = json.loads(capsys.readouterr().out)["monitor"]
+    assert monitor["cwd"] == str(caller_ws)
+
+
+def test_start_explicit_cwd_wins_inside_linked_clone(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """An explicit ``-C/--cwd`` always wins, even inside an opened repo."""
+    caller_ws = tmp_path / "ws12"
+    linked = caller_ws / "sase" / "repos" / "linked" / "acme"
+    linked.mkdir(parents=True)
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    caller_dir = _make_caller("proj", caller_ws)
+    patch_project_records(monkeypatch, [caller_dir])
+    pin_project(monkeypatch)
+    monkeypatch.setenv("SASE_AGENT_NAME", "sase-m6.6.1.5")
+    monkeypatch.chdir(linked)
+
+    exit_code = dispatch([*_start_verify_monitor(), "-C", str(elsewhere)])
+
+    assert exit_code == 0
+    monitor = json.loads(capsys.readouterr().out)["monitor"]
+    assert monitor["cwd"] == str(elsewhere)

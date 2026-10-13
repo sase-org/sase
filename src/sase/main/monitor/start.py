@@ -269,6 +269,7 @@ def handle_monitor_start(args: argparse.Namespace) -> int:
         short_id = short_monitor_id(record.monitor_id)
         print(f"Started monitor {short_id} ({record.monitor_id})")
         print(f"  member: {record.member_agent_name}")
+        print(f"  cwd: {cwd}")
         if record.tool_run_id:
             joined_mark = " (joined)" if record.tool_run_joined else ""
             print(f"  tool run: {record.tool_run_id}{joined_mark}")
