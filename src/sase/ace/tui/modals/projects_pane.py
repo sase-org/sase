@@ -216,6 +216,7 @@ class ProjectsPane(
         self._pending_new_project_open = False
         self._pending_show_project_key: str | None = None
         self._last_integrated_project_key: str | None = None
+        self._last_integrated_operation_id: str | None = None
         self._detail_debouncer: DetailPanelDebouncer | None = None
         self._project_selection_guard = ProgrammaticSelectionGuard()
         self._load_records()
@@ -711,6 +712,7 @@ class ProjectsPane(
                 self._integrate_added_project(
                     str(result.project_key or ""),
                     outcome=str(result.outcome),
+                    operation_id=str(getattr(result, "operation_id", "") or ""),
                 )
             return
         if result.outcome == "jump-resume" and result.row is not None:
@@ -723,15 +725,31 @@ class ProjectsPane(
                     opener("procs")
 
     def _integrate_added_project(
-        self, project_key: str, *, outcome: str = "added"
+        self,
+        project_key: str,
+        *,
+        outcome: str = "added",
+        operation_id: str = "",
     ) -> None:
-        """Reload and select an added project, preserving a filter that hides it."""
+        """Reload and select an added project, preserving a filter that hides it.
+
+        Duplicate delivery of one wizard/apply operation (the durable proc
+        completion plus its matching Ready dismissal) integrates once. A later
+        independent ``show``, ``show-project``, or ``added`` outcome for the
+        same key reloads and selects again.
+        """
         if not self.is_mounted:
             return
-        if project_key and project_key == self._last_integrated_project_key:
+        if (
+            operation_id
+            and project_key
+            and project_key == self._last_integrated_project_key
+            and operation_id == self._last_integrated_operation_id
+        ):
             return
         if project_key:
             self._last_integrated_project_key = project_key
+            self._last_integrated_operation_id = operation_id
         self._switch_to_subtab("projects")
         self._pending_force = None
         loaded = self._load_records()

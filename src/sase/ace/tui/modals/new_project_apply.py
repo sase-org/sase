@@ -125,7 +125,11 @@ def _on_project_apply_complete(
             _persist_create_preferences_async(intent)
         else:
             _persist_add_preferences_async(intent)
-        _integrate_added_project_if_mounted(app, str(intent.get("project_key") or ""))
+        _integrate_added_project_if_mounted(
+            app,
+            str(intent.get("project_key") or ""),
+            operation_id=_completion_operation_id(completion),
+        )
     else:
         _reload_projects_if_mounted(app)
     modal = modal_ref()
@@ -190,12 +194,20 @@ def _persist_add_preferences_async(intent: Mapping[str, str]) -> None:
     thread.start()
 
 
-def _integrate_added_project_if_mounted(app: Any, project_key: str) -> None:
+def _completion_operation_id(completion: TrackedProcCompletion[Any]) -> str:
+    """Return the durable proc id that identifies one add/create operation."""
+    proc_info = getattr(completion, "proc_info", None)
+    return str(getattr(proc_info, "proc_id", "") or "")
+
+
+def _integrate_added_project_if_mounted(
+    app: Any, project_key: str, *, operation_id: str = ""
+) -> None:
     """Run the shared post-add sequence when Projects is still mounted."""
     pane = _find_projects_pane(app)
     integrate = getattr(pane, "_integrate_added_project", None)
     if callable(integrate) and project_key:
-        integrate(project_key)
+        integrate(project_key, operation_id=operation_id)
         return
     _reload_projects_if_mounted(app)
 
@@ -298,6 +310,7 @@ class NewProjectApplyMixin(_MixinBase):
         is_mounted: bool
         _state: NewProjectStateMachine
         _apply_submission: ApplySubmission | None
+        _apply_proc_id: str
         _progress_result: ProgressResult | None
         _init_host: NewProjectInitHost | None
         _local_plan: dict[str, object]
@@ -365,6 +378,7 @@ class NewProjectApplyMixin(_MixinBase):
         )
 
     def _on_add_handle(self, old_id: str, new_id: str) -> None:
+        self._apply_proc_id = new_id or old_id or getattr(self, "_apply_proc_id", "")
         if not self.is_mounted:
             return
         self.query_one(NewProjectProgress).update_proc_id(old_id, new_id)
@@ -380,6 +394,7 @@ class NewProjectApplyMixin(_MixinBase):
         self._state.to_progress()
         self._show_stage("progress")
         proc_id = getattr(presented, "proc_id", "") or ""
+        self._apply_proc_id = proc_id
         log_path = getattr(presented, "log_path", "") or ""
         progress = self.query_one(NewProjectProgress)
         progress.set_operation(submission.operation)
@@ -592,6 +607,7 @@ class NewProjectApplyMixin(_MixinBase):
             outcome,
             self._state.workflow_type,
             project_key=getattr(self, "_ready_key", ""),
+            operation_id=str(getattr(self, "_apply_proc_id", "") or ""),
         )
 
     def _dismiss_ready(self, outcome: str | None) -> None:

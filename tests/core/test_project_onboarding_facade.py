@@ -91,6 +91,28 @@ def test_evaluate_template_excludes_in_lenient_and_strict() -> None:
         for error in strict["errors"]
     )
 
+    strict_default_true = evaluate_repo_creation_form(
+        form,
+        {"template": "sase-org/template", "add_readme": "true"},
+        "strict",
+    )
+    assert strict_default_true["valid"] is False
+    assert any(
+        error["field"] == "add_readme" and error["code"] == "conflict"
+        for error in strict_default_true["errors"]
+    )
+    assert "add_readme" not in strict_default_true["effective_options"]
+
+    strict_explicit_false = evaluate_repo_creation_form(
+        form,
+        {"template": "sase-org/template", "add_readme": "false"},
+        "strict",
+    )
+    assert strict_explicit_false["valid"] is True
+    assert "add_readme" not in strict_explicit_false["effective_options"]
+    false_fields = {field["name"]: field for field in strict_explicit_false["fields"]}
+    assert false_fields["add_readme"]["available"] is False
+
 
 def test_plan_fresh_add_is_ready_with_stable_fingerprint() -> None:
     request = {

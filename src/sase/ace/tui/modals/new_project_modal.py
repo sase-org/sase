@@ -125,6 +125,7 @@ class NewProjectModal(
         self._create_support: dict[str, str] = {}
         self._create_support_loading: set[str] = set()
         self._apply_submission: ApplySubmission | None = None
+        self._apply_proc_id = ""
         self._review_document: dict[str, object] = {}
         self._progress_result: ProgressResult | None = None
         self._ready_key = ""

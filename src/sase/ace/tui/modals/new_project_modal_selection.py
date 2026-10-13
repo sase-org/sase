@@ -14,11 +14,13 @@ class NewProjectSelection:
         workflow_type: str = "",
         row: SourceRow | None = None,
         project_key: str = "",
+        operation_id: str = "",
     ) -> None:
         self.outcome = outcome
         self.workflow_type = workflow_type
         self.row = row
         self.project_key = project_key
+        self.operation_id = operation_id
 
 
 __all__ = ["NewProjectSelection"]

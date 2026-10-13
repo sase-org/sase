@@ -492,7 +492,7 @@ def test_durable_add_completion_keeps_request_preferences_after_close(
     )
     monkeypatch.setattr(
         "sase.ace.tui.modals.new_project_apply._integrate_added_project_if_mounted",
-        lambda app, key: integrations.append((app, key)),
+        lambda app, key, **_kwargs: integrations.append((app, key)),
     )
 
     class _Gone:

@@ -795,21 +795,34 @@ async def test_new_project_selection_outcomes_and_idempotency(
         assert pane._selected_project_name() == "alpha"
         assert loads == [1]
 
-        pane._handle_new_project_selection(
-            NewProjectSelection("show", project_key="alpha")
-        )
-        pane._handle_new_project_selection(
-            NewProjectSelection("added", project_key="alpha")
-        )
-        assert pane._status_message == "Showing alpha"
-        assert loads == [1]
+        pane.action_next_option()
+        assert pane._selected_project_name() == "beta"
 
         pane._handle_new_project_selection(
-            NewProjectSelection("added", project_key="beta")
+            NewProjectSelection("show-project", project_key="alpha")
+        )
+        assert pane._status_message == "Showing alpha"
+        assert pane._selected_project_name() == "alpha"
+        assert loads == [1, 1]
+
+        pane._handle_new_project_selection(
+            NewProjectSelection("added", project_key="alpha", operation_id="add-1")
+        )
+        assert pane._status_message == "Project added"
+        assert loads == [1, 1, 1]
+        pane._handle_new_project_selection(
+            NewProjectSelection("show", project_key="alpha", operation_id="add-1")
+        )
+        assert pane._status_message == "Project added"
+        assert pane._selected_project_name() == "alpha"
+        assert loads == [1, 1, 1]
+
+        pane._handle_new_project_selection(
+            NewProjectSelection("added", project_key="beta", operation_id="add-2")
         )
         assert pane._status_message == "Project added"
         assert pane._selected_project_name() == "beta"
-        assert loads == [1, 1]
+        assert loads == [1, 1, 1, 1]
 
 
 async def test_apply_complete_finds_pane_on_screen_stack(
@@ -879,9 +892,48 @@ async def test_apply_complete_finds_pane_on_screen_stack(
             completion,
         )
         pane._handle_new_project_selection(
-            NewProjectSelection("show", project_key="new-project")
+            NewProjectSelection("show", project_key="new-project", operation_id="add-1")
         )
         assert pane._status_message == "Project added"
+        assert pane._selected_project_name() == "new-project"
+
+
+async def test_independent_filtered_outcome_after_completion_offers_show_new(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_panes(monkeypatch)
+    records = [
+        make_project_record("alpha", state="enabled"),
+        make_project_record("new-project", state="enabled"),
+    ]
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.projects_pane.list_project_records",
+        lambda *_args, **_kwargs: records,
+    )
+
+    async with AcePage() as page:
+        modal = ConfigCenterModal(initial_tab="projects")
+        page.app.push_screen(modal)
+        await page.expect_modal("ConfigCenterModal")
+        await page.wait_for(lambda _s: bool(modal.query("#projects")))
+        pane = modal.query_one("#projects", ProjectsPane)
+
+        pane._integrate_added_project("new-project", operation_id="add-1")
+        assert pane._selected_project_name() == "new-project"
+        assert pane._status_message == "Project added"
+
+        filter_input = pane.query_one("#projects-filter")
+        filter_input.value = "alpha"
+        await page.pause()
+        assert pane._text_filter == "alpha"
+
+        pane._integrate_added_project(
+            "new-project", outcome="added", operation_id="add-2"
+        )
+        show_button = pane.query_one("#projects-show-new-project", Button)
+        assert show_button.display
+        assert "hidden by the current filter" in pane._status_message
+        assert pane.check_action("show_new_project", ()) is not False
 
 
 async def test_ready_current_invalidates_stacked_projects_pane(
