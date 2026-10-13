@@ -143,6 +143,8 @@ class VcsRepoFetchResult:
     host: str = ""
     truncated: bool = False
     remedy_argv: tuple[str, ...] = ()
+    fetched_at: float = 0.0
+    """Epoch seconds the served entries were fetched; 0 when unknown."""
 
 
 @dataclass(frozen=True)
@@ -359,6 +361,7 @@ def fetch_repo_candidates(
             host=fetched.host or host,
             truncated=truncated,
             remedy_argv=fetched.remedy_argv,
+            fetched_at=now,
         )
 
     if stale_payload is not None:
@@ -375,6 +378,7 @@ def fetch_repo_candidates(
                 or len(stale_payload.entries) > settings.max_repos
             ),
             remedy_argv=stale_payload.remedy_argv,
+            fetched_at=stale_payload.fetched_at,
         )
 
     return VcsRepoFetchResult(
@@ -486,6 +490,7 @@ def _result_from_cache(
         host=payload.host,
         truncated=payload.truncated or len(payload.entries) > max_repos,
         remedy_argv=payload.remedy_argv,
+        fetched_at=payload.fetched_at,
     )
 
 

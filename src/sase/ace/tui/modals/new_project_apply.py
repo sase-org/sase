@@ -34,6 +34,8 @@ from .new_project_ready import NewProjectReady
 from .new_project_review import NewProjectReview
 from .new_project_review_model import ApplySubmission, strip_transport_flags
 from .new_project_state import NewProjectStateMachine
+from .new_project_source import NewProjectSource
+from .new_project_source_model import source_hint_line
 from .project_selection_types import SelectionItem
 
 if TYPE_CHECKING:
@@ -553,11 +555,19 @@ class NewProjectApplyMixin(_MixinBase):
             "create-configure",
             "review",
         }
+        try:
+            hints_width = self.query_one("#new-project-hints").region.width
+        except Exception:
+            hints_width = 0
+        try:
+            app_width = self.app.size.width
+        except Exception:
+            app_width = 0
+        width: int | None = hints_width or app_width or None
+        matches = self.query(NewProjectSource)
+        remedy = matches.first().remedy_advertised if matches else False
         hints = {
-            "source": (
-                "⏎ choose · n new · [ ] provider · / filter · f forks · . all · "
-                "R refresh · t provider login · esc close"
-            ),
+            "source": source_hint_line(width, remedy=remedy),
             "configure": (
                 "tab fields · space setup · ctrl+s review · b back · esc close"
             ),

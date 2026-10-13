@@ -21,8 +21,8 @@ from sase.ace.tui.modals.new_project_rendering import (
 from sase.ace.tui.modals.new_project_source import NewProjectSource
 from sase.ace.tui.modals.new_project_source_model import (
     build_source_view,
+    cache_age_for,
     create_source_row,
-    format_cache_age,
     health_chip_text,
     hidden_footer,
 )
@@ -468,9 +468,16 @@ def test_health_chip_states() -> None:
         health_chip_text(CandidateInputs("gh", "GitHub", ""))
         == "○ no owners · paste owner/repo"
     )
-    assert format_cache_age(30) == ""
-    assert format_cache_age(150) == "2m"
-    assert format_cache_age(7200) == "2h"
+    now = 1_000_000.0
+    young = _inputs()
+    young.fetched_at = now - 30
+    assert cache_age_for(young, now=now) == ""
+    old = _inputs()
+    old.fetched_at = now - 150
+    assert cache_age_for(old, now=now) == "2m"
+    older = _inputs()
+    older.fetched_at = now - 7200
+    assert cache_age_for(older, now=now) == "2h"
 
 
 def test_hidden_enabled_project_row_names_show_action(monkeypatch) -> None:  # type: ignore[no-untyped-def]
@@ -547,9 +554,105 @@ def _inputs_suggested_row():  # type: ignore[no-untyped-def]
 
 
 def test_no_owners_detail_points_at_config() -> None:
-    detail = render_no_owners_detail("GitHub")
+    detail = render_no_owners_detail("GitHub", "gh")
     assert "No GitHub owners yet" in detail.plain
     assert "github_orgs" in detail.plain
+    bare = render_no_owners_detail("Git (bare)", "git")
+    assert "No Git (bare) owners yet" in bare.plain
+    assert "github_orgs" not in bare.plain
+    collapsed = render_no_owners_detail("GitHub", "gh", collapsed=True)
+    assert "\n" not in collapsed.plain
+    assert "No GitHub owners yet" in collapsed.plain
+
+
+def test_collapsed_detail_covers_every_card_kind() -> None:
+    from sase.ace.tui.modals.new_project_source_model import SourceRow as _Row
+
+    create = create_source_row("GitHub", "gh")
+    assert (
+        "\n"
+        not in render_source_detail(create, workflow_type="gh", collapsed=True).plain
+    )
+    assert (
+        "Create a new GitHub repository"
+        in render_source_detail(create, workflow_type="gh", collapsed=True).plain
+    )
+    error = _Row(
+        row_id="owner-error:sase-org",
+        group="owner_error",
+        display="sase-org: expired",
+        owner="sase-org",
+    )
+    collapsed_error = render_source_detail(
+        error, workflow_type="gh", collapsed=True
+    ).plain
+    assert "\n" not in collapsed_error
+    assert "sase-org: expired" in collapsed_error
+
+
+def test_ref_less_disabled_rows_promise_no_action() -> None:
+    from sase.ace.tui.modals.new_project_source_model import SourceRow as _Row
+
+    actionable = _Row(
+        row_id="disabled:x",
+        group="disabled",
+        display="sase-org/old",
+        ref="sase-org/old",
+        data={"project_key": "old-project"},
+    )
+    assert actionable.selectable
+    assert "⏎ re-enables" in render_source_row(actionable).plain
+    stranded = _Row(
+        row_id="disabled:y",
+        group="disabled",
+        display="sase-org/gone",
+        ref="",
+        data={"project_key": "gone-project"},
+    )
+    assert not stranded.selectable
+    stranded_text = render_source_row(stranded).plain
+    assert "⏎" not in stranded_text
+    assert "sase project enable gone-project" in stranded_text
+    detail = render_source_detail(stranded, workflow_type="gh").plain
+    assert "sase project enable gone-project" in detail
+
+
+def test_health_chip_sanitizes_account_and_drops_cached_when_live() -> None:
+    dirty = _inputs(account="bbugyi\x00\x1f200")
+    assert health_chip_text(dirty) == "✓ bbugyi200 · 1 owners · cached"
+    assert health_chip_text(dirty, live=True) == "✓ bbugyi200 · 1 owners"
+    assert (
+        health_chip_text(_inputs(), cache_age="2m", live=True)
+        == "✓ bbugyi200 · 1 owners"
+    )
+
+
+def test_cache_age_comes_from_inputs_timestamp() -> None:
+    import time
+
+    from sase.ace.tui.modals.new_project_source_model import cache_age_for
+
+    assert cache_age_for(None) == ""
+    assert cache_age_for(_inputs()) == ""
+    aged = _inputs()
+    aged.fetched_at = time.time() - 150
+    assert cache_age_for(aged) == "2m"
+
+
+def test_source_hint_line_keeps_choose_and_remedy() -> None:
+    from sase.ace.tui.modals.new_project_source_model import source_hint_line
+
+    full = source_hint_line(120, remedy=True)
+    assert "⏎ choose" in full
+    assert "t provider login" in full
+    assert "? help" not in full
+    narrow = source_hint_line(40, remedy=True)
+    assert narrow.startswith("⏎ choose")
+    assert "t provider login" in narrow
+    assert "? help" in narrow
+    plain = source_hint_line(40, remedy=False)
+    assert "t provider login" not in plain
+    assert plain.startswith("⏎ choose")
 
 
 async def test_remedy_falls_back_to_provider_level(monkeypatch) -> None:  # type: ignore[no-untyped-def]
@@ -586,6 +689,20 @@ async def test_remedy_falls_back_to_provider_level(monkeypatch) -> None:  # type
         app.push_screen(modal)
         await pilot.pause()
         source = modal.query_one(NewProjectSource)
+        # Move the highlight off the owner-error row so the provider-level
+        # fallback (not the row path) supplies the remedy.
+        options = source.query_one(OptionList)
+        fallback_index = None
+        for index in range(options.option_count):
+            row = source._rows.get(str(options.get_option_at_index(index).id or ""))
+            if row is not None and not row.is_error:
+                fallback_index = index
+                break
+        assert fallback_index is not None
+        options.highlighted = fallback_index
+        await pilot.pause()
+        highlighted = source.selected_row()
+        assert highlighted is not None and not highlighted.is_error
         # Highlight is not on the error row, but the chip advertises t.
         assert source._remedy_argv() == ("gh", "auth", "login")
         source.action_run_remedy()
@@ -629,12 +746,54 @@ def _raise_suspend():  # type: ignore[no-untyped-def]
     raise OSError("no terminal")
 
 
+async def test_remedy_suspend_unsupported_notifies(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    from textual.app import SuspendNotSupported
+
+    monkeypatch.setattr(workspace_provider, "parse_repo_ref", lambda *args: None)
+    monkeypatch.setattr(
+        workspace_provider, "describe_repo_creation", lambda _wt, _ns: None
+    )
+    error_inputs = _inputs(
+        owners=[
+            OwnerResult(
+                name="sase-org",
+                status="error",
+                error_kind="auth",
+                message="expired",
+                remedy_argv=["gh", "auth", "login"],
+            )
+        ]
+    )
+    modal = NewProjectModal(
+        provider_metadata=(_provider("gh", "GitHub"),),
+        candidate_inputs={"gh": error_inputs},
+        preferences=Preferences(last_provider="gh"),
+    )
+    app = _ModalApp()
+    async with app.run_test(size=(100, 32)) as pilot:
+        app.push_screen(modal)
+        await pilot.pause()
+        source = modal.query_one(NewProjectSource)
+        notices: list[str] = []
+        source.notify = lambda message, *args, **kwargs: notices.append(str(message))  # type: ignore[method-assign]
+
+        def _raise_unsupported(*args, **kwargs):  # type: ignore[no-untyped-def]
+            raise SuspendNotSupported("suspend is not supported")
+
+        monkeypatch.setattr(app, "suspend", _raise_unsupported)
+        source.action_run_remedy()
+        assert any("Could not run remedy" in notice for notice in notices)
+
+
 async def test_filter_typing_and_highlight_spawn_no_subprocess(
     monkeypatch,
 ) -> None:  # type: ignore[no-untyped-def]
     """Perf guard: filter/highlight stay in memory plus the pure parse."""
+    import subprocess as _subprocess
+
     parses: list[str] = []
     probes: list[tuple[str, str]] = []
+    hook_calls: list[str] = []
 
     def _parse(workflow_type: str, text: str):  # type: ignore[no-untyped-def]
         parses.append(text)
@@ -644,10 +803,34 @@ async def test_filter_typing_and_highlight_spawn_no_subprocess(
         probes.append((workflow_type, ref))
         raise AssertionError("probe must stay debounced off the hot path")
 
+    def _forbidden_hook(name: str):  # type: ignore[no-untyped-def]
+        def _hook(*args, **kwargs):  # type: ignore[no-untyped-def]
+            hook_calls.append(name)
+            raise AssertionError(f"{name} must stay off the hot path")
+
+        return _hook
+
     monkeypatch.setattr(workspace_provider, "parse_repo_ref", _parse)
     monkeypatch.setattr(workspace_provider, "probe_repo", _probe)
     monkeypatch.setattr(
+        workspace_provider,
+        "list_repo_candidates",
+        _forbidden_hook("list_repo_candidates"),
+    )
+    monkeypatch.setattr(
+        workspace_provider,
+        "list_local_repo_candidates",
+        _forbidden_hook("list_local_repo_candidates"),
+    )
+    monkeypatch.setattr(
         "sase.ace.tui.modals.new_project_source.subprocess.run",
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            AssertionError("no subprocess on the hot path")
+        ),
+    )
+    monkeypatch.setattr(
+        _subprocess,
+        "Popen",
         lambda *args, **kwargs: (_ for _ in ()).throw(
             AssertionError("no subprocess on the hot path")
         ),
@@ -670,6 +853,14 @@ async def test_filter_typing_and_highlight_spawn_no_subprocess(
     async with app.run_test(size=(100, 32)) as pilot:
         app.push_screen(modal)
         await pilot.pause()
+        # Mount may legitimately describe the creation form; after settle,
+        # typing and highlight must not invoke any provider hook but parse.
+        monkeypatch.setattr(
+            workspace_provider,
+            "describe_repo_creation",
+            _forbidden_hook("describe_repo_creation"),
+        )
+        hook_calls.clear()
         source = modal.query_one(NewProjectSource)
         source.focus_filter()
         await pilot.pause()
@@ -678,9 +869,11 @@ async def test_filter_typing_and_highlight_spawn_no_subprocess(
         assert modal.query_one("#new-project-filter", Input).value == "sase"
         assert parses, "the pure parse hook may run on the hot path"
         assert probes == []
+        assert hook_calls == []
         modal.query_one("#new-project-filter", Input).value = ""
         await pilot.pause()
         assert probes == []
+        assert hook_calls == []
         first = source.selected_row()
         source.focus_list()
         await pilot.pause()
@@ -694,6 +887,7 @@ async def test_filter_typing_and_highlight_spawn_no_subprocess(
             in modal.query_one("#new-project-source-detail", Static).render().plain
         )
         assert probes == []
+        assert hook_calls == []
         assert scheduled, "highlight must schedule the debounced probe"
 
 
@@ -771,9 +965,16 @@ async def test_bracketed_paste_focuses_filter(monkeypatch) -> None:  # type: ign
     async with app.run_test(size=(100, 32)) as pilot:
         app.push_screen(modal)
         await pilot.pause()
+        source = modal.query_one(NewProjectSource)
+        source.focus_list()
+        await pilot.pause()
+        assert app.screen.focused is modal.query_one(
+            "#new-project-source-list", OptionList
+        )
         modal.post_message(events.Paste("sase-org/new"))
         await pilot.pause()
         assert modal.query_one("#new-project-filter", Input).value == "sase-org/new"
+        assert app.screen.focused is modal.query_one("#new-project-filter", Input)
 
 
 async def test_provider_selection_write_preserves_owner_prefs(
@@ -835,6 +1036,113 @@ async def test_tool_missing_disables_provider_tab(monkeypatch, tmp_path) -> None
 
 
 async def test_unmount_cancels_owner_refresh_jobs(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    import threading
+
+    import sase.ace.tui.modals.new_project_modal_providers as _providers
+
+    monkeypatch.setattr(workspace_provider, "parse_repo_ref", lambda *args: None)
+    monkeypatch.setattr(
+        workspace_provider, "describe_repo_creation", lambda _wt, _ns: None
+    )
+    release = threading.Event()
+
+    def _slow_load(workflow_type, **kwargs):  # type: ignore[no-untyped-def]
+        if kwargs.get("cache_only"):
+            return _inputs()
+        assert release.wait(timeout=15), "live owner refresh must be released"
+        return _inputs()
+
+    monkeypatch.setattr(_providers, "load_candidate_inputs", _slow_load)
+    modal = NewProjectModal(
+        provider_metadata=(_provider("gh", "GitHub"),),
+        candidate_inputs={"gh": _inputs()},
+        preferences=Preferences(last_provider="gh"),
+    )
+    wizard_queries: list[str] = []
+    _real_query_one = modal.query_one
+
+    def _recording_query_one(*args, **kwargs):  # type: ignore[no-untyped-def]
+        wizard_queries.append(str(args[0]) if args else "")
+        return _real_query_one(*args, **kwargs)
+
+    monkeypatch.setattr(modal, "query_one", _recording_query_one)
+    app = _ModalApp()
+    async with app.run_test(size=(100, 32)) as pilot:
+        app.push_screen(modal)
+        await pilot.pause()
+        modal._loaded.discard("gh")
+        modal._start_provider_load("gh")
+        await wait_for(pilot, lambda: len(modal._owner_jobs) > 0)
+        parents = {
+            task
+            for task in asyncio.all_tasks()
+            if str(task.get_name()).startswith("new-project-load:gh")
+        }
+        assert parents, "the real provider load must be in flight"
+        children = set(modal._owner_jobs)
+        assert children, "real owner refresh jobs must be in flight"
+        wizard_queries.clear()
+        app.pop_screen()
+        # Let teardown land while the owner threads are still blocked: the
+        # parent must end cancelled (propagation, not a swallowed break).
+        await wait_for(pilot, lambda: all(task.done() for task in parents | children))
+        for task in parents:
+            assert task.cancelled(), "cancelled refresh must propagate, not swallow"
+        for task in children:
+            assert task.cancelled(), "teardown must cancel owner jobs"
+        release.set()
+        await pilot.pause()
+        assert modal._loading == set()
+        assert modal._refresh_queued == set()
+        assert modal._teardown_started
+        touched = [
+            selector
+            for selector in wizard_queries
+            if selector.startswith("#new-project-") or "NewProjectSource" in selector
+        ]
+        assert touched == [], f"teardown touched the DOM: {touched}"
+
+
+async def test_disabled_tab_fallback_does_not_persist_provider(
+    monkeypatch, tmp_path
+) -> None:  # type: ignore[no-untyped-def]
+    import json
+
+    monkeypatch.setenv("SASE_HOME", str(tmp_path))
+    prefs_dir = tmp_path / "project_onboarding"
+    prefs_dir.mkdir(parents=True)
+    (prefs_dir / "preferences.json").write_text(
+        json.dumps({"last_provider": "gh", "last_owner": {"gh": "sase-org"}})
+    )
+    monkeypatch.setattr(workspace_provider, "parse_repo_ref", lambda *args: None)
+    monkeypatch.setattr(
+        workspace_provider, "describe_repo_creation", lambda _wt, _ns: None
+    )
+    modal = NewProjectModal(
+        provider_metadata=(
+            _provider("gh", "GitHub"),
+            _provider("git", "Git (bare)"),
+        ),
+        candidate_inputs={
+            "gh": _tool_missing_inputs(),
+            "git": CandidateInputs("git", "Git (bare)", ""),
+        },
+        preferences=Preferences(last_provider="gh"),
+    )
+    app = _ModalApp()
+    async with app.run_test(size=(100, 32)) as pilot:
+        app.push_screen(modal)
+        await pilot.pause()
+        # Automatic fallback steps off the broken provider...
+        assert modal._state.workflow_type == "git"
+        # ...without persisting it over the user's saved provider.
+        await pilot.pause(0.2)
+        assert modal._preferences.last_provider == "gh"
+        payload = json.loads((prefs_dir / "preferences.json").read_text())
+        assert payload["last_provider"] == "gh"
+
+
+async def test_post_remedy_refresh_queues_behind_load(monkeypatch) -> None:  # type: ignore[no-untyped-def]
     monkeypatch.setattr(workspace_provider, "parse_repo_ref", lambda *args: None)
     monkeypatch.setattr(
         workspace_provider, "describe_repo_creation", lambda _wt, _ns: None
@@ -848,9 +1156,43 @@ async def test_unmount_cancels_owner_refresh_jobs(monkeypatch) -> None:  # type:
     async with app.run_test(size=(100, 32)) as pilot:
         app.push_screen(modal)
         await pilot.pause()
-        never_set = asyncio.Event()
-        job = asyncio.create_task(never_set.wait())
-        modal._owner_jobs.add(job)
-        app.pop_screen()
+        assert modal._state.workflow_type == "gh"
+        modal._loading.add("gh")
+        modal.action_refresh_provider()
+        assert modal._refresh_queued == {"gh"}
+        refreshes: list[str] = []
+
+        async def _fake_refresh(workflow_type: str, *, force: bool) -> None:
+            refreshes.append(workflow_type)
+            modal._loading.discard(workflow_type)
+
+        monkeypatch.setattr(modal, "_refresh_all_owners", _fake_refresh)
+        modal._finish_provider_load("gh")
         await pilot.pause()
-        assert job.cancelled() or job.done()
+        assert refreshes == ["gh"]
+        assert modal._refresh_queued == set()
+
+
+async def test_no_owners_card_shows_with_create_row(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    monkeypatch.setattr(workspace_provider, "parse_repo_ref", lambda *args: None)
+    monkeypatch.setattr(
+        workspace_provider, "describe_repo_creation", lambda _wt, _ns: None
+    )
+    modal = NewProjectModal(
+        provider_metadata=(_provider("gh", "GitHub"),),
+        candidate_inputs={
+            "gh": CandidateInputs(workflow_type="gh", display="GitHub", account="")
+        },
+        preferences=Preferences(last_provider="gh"),
+    )
+    app = _ModalApp()
+    async with app.run_test(size=(100, 32)) as pilot:
+        app.push_screen(modal)
+        await pilot.pause()
+        source = modal.query_one(NewProjectSource)
+        source.set_create_row(create_source_row("GitHub", "gh"))
+        await pilot.pause()
+        assert source.create_row is not None
+        detail = modal.query_one("#new-project-source-detail", Static).render().plain
+        assert "No GitHub owners yet" in detail
+        assert "github_orgs" in detail

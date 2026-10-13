@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+import time
 from dataclasses import dataclass, field
 from typing import Any
 from collections.abc import Mapping
@@ -9,6 +11,15 @@ from collections.abc import Mapping
 from sase.project_onboarding import CandidateInputs
 from sase.project_onboarding.render import GROUP_SECTIONS
 from sase import workspace_provider
+
+from .project_management_rendering import fit_hint_segments
+
+_CONTROL_RE = re.compile(r"[\x00-\x1f\x7f]")
+
+
+def clean_source_text(value: object) -> str:
+    """Remove control characters from provider-controlled text."""
+    return _CONTROL_RE.sub("", str(value or ""))
 
 
 @dataclass(frozen=True, slots=True)
@@ -315,7 +326,7 @@ def hidden_footer(view: SourceView) -> str:
     return footer
 
 
-def format_cache_age(elapsed_seconds: float) -> str:
+def _format_cache_age(elapsed_seconds: float) -> str:
     """Format a cache age for the health chip (``""`` when under a minute)."""
     if elapsed_seconds < 60:
         return ""
@@ -331,11 +342,14 @@ def health_chip_text(
     workflow_type: str = "",
     pending_owners: frozenset[str] = frozenset(),
     cache_age: str = "",
+    live: bool = False,
 ) -> str:
     """Render the provider health chip as plain text (no styling).
 
     This is the single owner of the chip copy: the wizard shell displays
     the returned string verbatim and styles it by its leading glyph.
+    Provider-controlled text is sanitized; *live* drops the ``cached``
+    suffix once owners revalidate against the provider.
     """
     if inputs is None:
         return "◌ loading cached candidates…"
@@ -355,20 +369,52 @@ def health_chip_text(
         if remedy:
             text += f" · t {' '.join(str(part) for part in remedy)}"
         return text
-    cached = " · cached" + (f" {cache_age}" if cache_age else "")
-    if inputs.account:
-        return f"✓ {inputs.account} · {len(owners)} owners{cached}"
+    cached = "" if live else " · cached" + (f" {cache_age}" if cache_age else "")
+    account = clean_source_text(inputs.account)
+    if account:
+        return f"✓ {account} · {len(owners)} owners{cached}"
     if owners:
         return f"✓ {len(owners)} owners{cached}"
     return "○ no owners · paste owner/repo"
+
+
+def cache_age_for(inputs: CandidateInputs | None, *, now: float | None = None) -> str:
+    """Format the real age of cached *inputs* from their fetch timestamp."""
+    if inputs is None or inputs.fetched_at <= 0:
+        return ""
+    base = time.time() if now is None else now
+    return _format_cache_age(max(0.0, base - inputs.fetched_at))
+
+
+def source_hint_line(width: int | None, *, remedy: bool) -> str:
+    """Return the width-aware Source hint line, keeping ⏎ choose first.
+
+    An advertised ``t`` remedy survives truncation; anything dropped is
+    replaced by the trailing ``? help`` marker from the shared helper.
+    """
+    segments = [
+        ("⏎ choose", 100),
+        ("n new", 90),
+        ("[ ] provider", 80),
+        ("/ filter", 70),
+        ("f forks", 60),
+        (". all", 50),
+        ("R refresh", 65),
+    ]
+    if remedy:
+        segments.append(("t provider login", 95))
+    segments.append(("esc close", 40))
+    return fit_hint_segments(segments, width)
 
 
 __all__ = [
     "SourceRow",
     "SourceView",
     "build_source_view",
+    "cache_age_for",
+    "clean_source_text",
     "create_source_row",
-    "format_cache_age",
     "health_chip_text",
     "hidden_footer",
+    "source_hint_line",
 ]

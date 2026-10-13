@@ -76,10 +76,6 @@ _LAZY_EXPORTS = {
         "sase.project_onboarding.render",
         "render_suggest_json",
     ),
-    "save_preferences": (
-        "sase.project_onboarding.preferences",
-        "save_preferences",
-    ),
     "suggest": ("sase.project_onboarding.discovery", "suggest"),
 }
 
@@ -121,6 +117,5 @@ __all__ = [
     "record_provider_selection",
     "record_visibility_selection",
     "render_suggest_json",
-    "save_preferences",
     "suggest",
 ]

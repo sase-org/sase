@@ -22,6 +22,7 @@ import asyncio
 from collections.abc import Mapping, Sequence
 
 from textual import events, on
+from textual.css.query import NoMatches
 from textual.screen import ModalScreen
 
 from sase.project_onboarding import (
@@ -106,7 +107,9 @@ class NewProjectModal(
         self._loading: set[str] = set()
         self._pending_by_provider: dict[str, set[str]] = {}
         self._owner_jobs: set[asyncio.Task[tuple[str, CandidateInputs | None]]] = set()
-        self._inputs_arrived_at: dict[str, float] = {}
+        self._refresh_queued: set[str] = set()
+        self._revalidated_live: set[str] = set()
+        self._teardown_started = False
         self._disabled_providers: set[str] = set()
         self._tabs_disabled_snapshot: frozenset[str] = frozenset()
         self._preferences = preferences or Preferences()
@@ -134,6 +137,19 @@ class NewProjectModal(
     @on(PanelTabStrip.TabClicked)
     def _provider_clicked(self, event: PanelTabStrip.TabClicked) -> None:
         self.select_provider(event.tab_id)
+
+    def on_resize(self, event: events.Resize) -> None:
+        """Re-fit width-aware Source chrome after a terminal resize."""
+        if self._teardown_started or self._state.stage != "source":
+            return
+        try:
+            self._update_apply_chrome("source")
+        except NoMatches:
+            return
+        matches = self.query(NewProjectSource)
+        if matches:
+            source = matches.first()
+            source._select_detail(source.selected_row(), schedule_probe=False)
 
     @on(NewProjectSource.RowChosen)
     def _source_chosen(self, event: NewProjectSource.RowChosen) -> None:

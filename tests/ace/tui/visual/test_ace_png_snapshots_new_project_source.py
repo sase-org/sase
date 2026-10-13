@@ -340,35 +340,13 @@ async def test_new_project_source_empty_png_snapshot(
         assert (
             "no owners" in modal.query_one("#new-project-health", Static).render().plain
         )
+        detail = modal.query_one("#new-project-source-detail", Static).render().plain
+        assert "No GitHub owners yet" in detail
+        assert "github_orgs" in detail
         ace_png_visual.assert_page_png(
             page,
             "new_project_source_empty_no_owners_120x40",
             title="New Project wizard — no owners",
-        )
-
-
-async def test_new_project_source_narrow_png_snapshot(
-    ace_png_visual: AcePngSnapshotFixture,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """The modal remains legible at a narrow terminal size."""
-    patch_startup_loaders(monkeypatch)
-    _patch_deterministic_source(monkeypatch)
-    _patch_create_supported(monkeypatch)
-
-    async with AcePage(query='"visual"', size=(84, 28), patches=patches()) as page:
-        modal = NewProjectModal(
-            provider_metadata=(_provider(),),
-            candidate_inputs={"gh": _populated_inputs()},
-            preferences=Preferences(last_provider="gh"),
-        )
-        await _open_modal(page, modal)
-        await _wait_for_create_row(page, modal)
-        await _select_suggested_source(page, modal)
-        ace_png_visual.assert_page_png(
-            page,
-            "new_project_source_populated_84x28",
-            title="New Project wizard — narrow Source stage",
         )
 
 
@@ -412,6 +390,42 @@ async def test_new_project_source_compact_png_snapshot(
             page,
             "new_project_source_populated_80x24",
             title="New Project wizard — compact Source stage",
+        )
+
+
+async def test_new_project_source_create_compact_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """At 80x24 the highlighted Create card also collapses to one line."""
+    patch_startup_loaders(monkeypatch)
+    _patch_deterministic_source(monkeypatch)
+    _patch_create_supported(monkeypatch)
+
+    async with AcePage(query='"visual"', size=(80, 24), patches=patches()) as page:
+        modal = NewProjectModal(
+            provider_metadata=(_provider(),),
+            candidate_inputs={"gh": _populated_inputs()},
+            preferences=Preferences(last_provider="gh"),
+        )
+        await _open_modal(page, modal)
+        await _wait_for_create_row(page, modal)
+        source = modal.query_one(NewProjectSource)
+        row = next(row for row in source._rows.values() if row.group == "create")
+        options = source.query_one(OptionList)
+        for index in range(options.option_count):
+            if options.get_option_at_index(index).id == row.row_id:
+                options.highlighted = index
+                break
+        source._select_detail(row, schedule_probe=False)
+        detail = modal.query_one("#new-project-source-detail", Static).render().plain
+        assert "\n" not in detail
+        assert "Create a new GitHub repository" in detail
+        await wait_for_visual_idle(page)
+        ace_png_visual.assert_page_png(
+            page,
+            "new_project_source_create_80x24",
+            title="New Project wizard — compact Source Create row",
         )
 
 

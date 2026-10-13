@@ -13,7 +13,6 @@ from sase.project_onboarding.preferences import (
     record_owner_selection,
     record_provider_selection,
     record_visibility_selection,
-    save_preferences,
 )
 
 
@@ -56,7 +55,9 @@ class TestPreferences:
             last_visibility={"sase-org": "private"},
         )
 
-        save_preferences(prefs)
+        record_provider_selection("gh")
+        record_owner_selection("gh", "sase-org")
+        record_visibility_selection("sase-org", "private")
 
         assert load_preferences() == prefs
 
@@ -76,8 +77,34 @@ class TestPreferences:
     def test_save_is_atomic(self, isolated_home: Path) -> None:
         del isolated_home
 
-        save_preferences(Preferences(last_provider="git"))
+        record_provider_selection("git")
 
         leftovers = list(preferences_path().parent.glob("*.tmp"))
         assert leftovers == []
         assert load_preferences().last_provider == "git"
+
+    def test_concurrent_records_lose_no_updates(self, isolated_home: Path) -> None:
+        """Concurrent UI/apply preference writes must all survive."""
+
+        import threading
+
+        del isolated_home
+
+        def _record_owner(index: int) -> None:
+            record_owner_selection(f"provider-{index}", f"owner-{index}")
+
+        threads = [
+            threading.Thread(target=_record_owner, args=(index,)) for index in range(16)
+        ]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join(timeout=30)
+        assert all(not thread.is_alive() for thread in threads)
+
+        prefs = load_preferences()
+        assert prefs.last_owner == {
+            f"provider-{index}": f"owner-{index}" for index in range(16)
+        }
+        leftovers = list(preferences_path().parent.glob("*.tmp"))
+        assert leftovers == []

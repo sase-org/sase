@@ -130,6 +130,17 @@ class NewProjectSource(Vertical):
             self._detail_debouncer.cancel()
         cancel_pump_free_tasks(self)
 
+    def on_resize(self, event: events.Resize) -> None:
+        """Re-evaluate the collapsed detail card for the new terminal size."""
+        if not self.is_mounted:
+            return
+        self._select_detail(self._highlighted_row(), schedule_probe=False)
+
+    @property
+    def remedy_advertised(self) -> bool:
+        """Whether the health chip currently advertises a ``t`` remedy."""
+        return any(error.data.get("remedy_argv") for error in self._view.owner_errors)
+
     def set_inputs(
         self,
         inputs: CandidateInputs | None,
@@ -361,14 +372,13 @@ class NewProjectSource(Vertical):
     ) -> None:
         self._selected_row_id = row.row_id if row is not None else None
         inputs = self._inputs
-        if (
-            row is None
-            and inputs is not None
-            and not inputs.owners
-            and not self._pending_owners
-        ):
+        if inputs is not None and not inputs.owners and not self._pending_owners:
             self.query_one("#new-project-source-detail", Static).update(
-                render_no_owners_detail(inputs.display)
+                render_no_owners_detail(
+                    inputs.display,
+                    self.workflow_type,
+                    collapsed=self._detail_collapsed(),
+                )
             )
             return
         parsed = None

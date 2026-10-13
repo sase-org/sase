@@ -5,7 +5,6 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Mapping, Sequence
 from dataclasses import replace
-from time import monotonic
 from typing import TYPE_CHECKING, Any
 
 from rich.text import Text
@@ -27,8 +26,8 @@ from ._new_project_modal_shared import MODAL_TASKS
 from .new_project_rendering import clean_source_text
 from .new_project_source import NewProjectSource
 from .new_project_source_model import (
+    cache_age_for,
     create_source_row,
-    format_cache_age,
     health_chip_text,
 )
 
@@ -54,7 +53,6 @@ class NewProjectModalProvidersMixin(_MixinBase):
         _current_workflow_type: str
         _disabled_providers: set[str]
         _inputs: dict[str, CandidateInputs]
-        _inputs_arrived_at: dict[str, float]
         _loaded: set[str]
         _loading: set[str]
         _owner_jobs: set[asyncio.Task[tuple[str, CandidateInputs | None]]]
@@ -64,8 +62,11 @@ class NewProjectModalProvidersMixin(_MixinBase):
         _provided_inputs: dict[str, CandidateInputs]
         _provider_by_id: dict[str, WorkflowMetadata]
         _providers: tuple[WorkflowMetadata, ...]
+        _refresh_queued: set[str]
+        _revalidated_live: set[str]
         _state: NewProjectStateMachine
         _tabs_disabled_snapshot: frozenset[str]
+        _teardown_started: bool
 
         def notify(self, message: str, **kwargs: Any) -> None: ...
         def query_one(self, *args: Any, **kwargs: Any) -> Any: ...
@@ -100,11 +101,45 @@ class NewProjectModalProvidersMixin(_MixinBase):
         self.select_provider(target.workflow_type)
 
     def action_refresh_provider(self) -> None:
-        """Revalidate every owner for the selected provider, bypassing cache."""
+        """Revalidate every owner for the selected provider, bypassing cache.
+
+        When a load is already in progress, queue one refresh to run after
+        it instead of dropping the request.
+        """
         workflow_type = self._state.workflow_type
-        if workflow_type:
-            if workflow_type in self._loading:
-                return
+        if not workflow_type or self._teardown_started:
+            return
+        if workflow_type in self._loading:
+            self._refresh_queued.add(workflow_type)
+            return
+        self._loading.add(workflow_type)
+        self._maybe_discover_create_support(workflow_type, force=True)
+        spawn_pump_free_task(
+            self,
+            self._refresh_all_owners(workflow_type, force=True),
+            name=f"new-project-refresh:{workflow_type}",
+            registry_attr=MODAL_TASKS,
+        )
+
+    def _wizard_dom_live(self) -> bool:
+        """Whether the wizard's Source DOM is still present and queryable.
+
+        Teardown prunes child widgets before the modal's ``on_unmount``
+        sets the flag, so post-await DOM touches must check presence —
+        neither the flag nor ``is_mounted`` covers that window.
+        """
+        if self._teardown_started:
+            return False
+        return bool(self.query(NewProjectSource) and self.query("#new-project-health"))
+
+    def _finish_provider_load(self, workflow_type: str) -> None:
+        """Settle ``_loading`` after a load, running one queued refresh."""
+        self._loading.discard(workflow_type)
+        if not self._wizard_dom_live():
+            self._refresh_queued.discard(workflow_type)
+            return
+        if workflow_type in self._refresh_queued:
+            self._refresh_queued.discard(workflow_type)
             self._loading.add(workflow_type)
             self._maybe_discover_create_support(workflow_type, force=True)
             spawn_pump_free_task(
@@ -113,6 +148,16 @@ class NewProjectModalProvidersMixin(_MixinBase):
                 name=f"new-project-refresh:{workflow_type}",
                 registry_attr=MODAL_TASKS,
             )
+            return
+        self._update_health(workflow_type)
+
+    def _mark_revalidated(self, workflow_type: str) -> None:
+        """Drop the ``cached`` chip suffix once owners revalidate live."""
+        current = self._inputs.get(workflow_type)
+        if current is not None and all(
+            owner.status != "error" for owner in current.owners
+        ):
+            self._revalidated_live.add(workflow_type)
 
     async def _bootstrap(self) -> None:
         metadata, preferences = await asyncio.gather(
@@ -173,8 +218,12 @@ class NewProjectModalProvidersMixin(_MixinBase):
         if selected not in self._loaded:
             self._start_provider_load(selected)
 
-    def select_provider(self, workflow_type: str) -> None:
-        """Switch the selected provider tab, preserving the Source filter."""
+    def select_provider(self, workflow_type: str, *, persist: bool = True) -> None:
+        """Switch the selected provider tab, preserving the Source filter.
+
+        Only user-initiated selections persist ``last_provider``; automatic
+        fallback off a disabled tab must not overwrite the saved provider.
+        """
         if self._state.stage != "source":
             return
         if workflow_type not in self._provider_by_id:
@@ -197,9 +246,12 @@ class NewProjectModalProvidersMixin(_MixinBase):
         self._update_health(workflow_type)
         self._start_provider_load(workflow_type)
         self._maybe_discover_create_support(workflow_type)
-        self._persist_provider_selection(workflow_type)
+        if persist:
+            self._persist_provider_selection(workflow_type)
 
     def _start_provider_load(self, workflow_type: str) -> None:
+        if self._teardown_started:
+            return
         if workflow_type in self._loaded or workflow_type in self._loading:
             return
         self._loading.add(workflow_type)
@@ -218,7 +270,7 @@ class NewProjectModalProvidersMixin(_MixinBase):
         A non-None form pins the first Source Create row; None (or a
         failure) leaves the ordinary add-only Source list.
         """
-        if not workflow_type:
+        if not workflow_type or self._teardown_started:
             return
         if workflow_type in self._create_support_loading:
             return
@@ -248,7 +300,7 @@ class NewProjectModalProvidersMixin(_MixinBase):
             )
         except Exception:
             form = None
-        if not self.is_mounted:
+        if not self.is_mounted or self._teardown_started:
             self._create_support_loading.discard(workflow_type)
             return
         self._create_support_loading.discard(workflow_type)
@@ -259,10 +311,13 @@ class NewProjectModalProvidersMixin(_MixinBase):
 
     def _apply_create_support(self, workflow_type: str) -> None:
         """Pin or clear the Source Create row from cached discovery."""
-        if not self.is_mounted or workflow_type != self._state.workflow_type:
+        if workflow_type != self._state.workflow_type:
             return
+        if not self._wizard_dom_live():
+            return
+        source = self.query_one(NewProjectSource)
         if self._create_support.get(workflow_type) != "supported":
-            self.query_one(NewProjectSource).set_create_row(None)
+            source.set_create_row(None)
             return
         metadata = self._provider_by_id.get(workflow_type)
         display = str(getattr(metadata, "display_name", "") or workflow_type)
@@ -272,35 +327,47 @@ class NewProjectModalProvidersMixin(_MixinBase):
 
     async def _load_provider(self, workflow_type: str) -> None:
         try:
-            inputs = await asyncio.to_thread(
-                load_candidate_inputs, workflow_type, cache_only=True
-            )
-        except Exception as error:
-            inputs = CandidateInputs(workflow_type, workflow_type, "")
-            inputs.owners = [
-                OwnerResult(name="provider", status="error", message=str(error))
-            ]
-        self._inputs[workflow_type] = inputs
-        self._loaded.add(workflow_type)
-        pending = {owner.name for owner in inputs.owners}
-        self._pending_by_provider[workflow_type] = pending
-        self._show_inputs_if_selected(workflow_type)
-        await self._refresh_owner_set(workflow_type, inputs, pending, force=False)
-        self._loading.discard(workflow_type)
-        self._update_health(workflow_type)
+            try:
+                inputs = await asyncio.to_thread(
+                    load_candidate_inputs, workflow_type, cache_only=True
+                )
+            except asyncio.CancelledError:
+                raise
+            except Exception as error:
+                inputs = CandidateInputs(workflow_type, workflow_type, "")
+                inputs.owners = [
+                    OwnerResult(name="provider", status="error", message=str(error))
+                ]
+            if self._teardown_started:
+                return
+            self._inputs[workflow_type] = inputs
+            self._loaded.add(workflow_type)
+            pending = {owner.name for owner in inputs.owners}
+            self._pending_by_provider[workflow_type] = pending
+            self._show_inputs_if_selected(workflow_type)
+            await self._refresh_owner_set(workflow_type, inputs, pending, force=False)
+            self._mark_revalidated(workflow_type)
+        finally:
+            self._finish_provider_load(workflow_type)
 
     async def _refresh_all_owners(self, workflow_type: str, *, force: bool) -> None:
         inputs = self._inputs.get(workflow_type)
         if inputs is None:
             self._loading.discard(workflow_type)
+            if self._teardown_started or not self.is_mounted:
+                return
             self._start_provider_load(workflow_type)
             return
-        pending = {owner.name for owner in inputs.owners}
-        self._pending_by_provider[workflow_type] = pending
-        self._show_inputs_if_selected(workflow_type)
-        await self._refresh_owner_set(workflow_type, inputs, pending, force=force)
-        self._loading.discard(workflow_type)
-        self._update_health(workflow_type)
+        try:
+            if self._teardown_started:
+                return
+            pending = {owner.name for owner in inputs.owners}
+            self._pending_by_provider[workflow_type] = pending
+            self._show_inputs_if_selected(workflow_type)
+            await self._refresh_owner_set(workflow_type, inputs, pending, force=force)
+            self._mark_revalidated(workflow_type)
+        finally:
+            self._finish_provider_load(workflow_type)
 
     async def _refresh_owner_set(
         self,
@@ -333,7 +400,11 @@ class NewProjectModalProvidersMixin(_MixinBase):
                 try:
                     owner_name, updated = await completed
                 except asyncio.CancelledError:
-                    break
+                    # Teardown cancels the parent task and every child job:
+                    # stop merging and let the parent end cancelled.
+                    raise
+                if self._teardown_started:
+                    return
                 pending.discard(owner_name)
                 current = self._inputs.get(workflow_type, inputs)
                 if updated is not None:
@@ -359,20 +430,23 @@ class NewProjectModalProvidersMixin(_MixinBase):
                         )
                         self._inputs[workflow_type] = current
                 self._pending_by_provider[workflow_type] = pending
-                if self.is_mounted:
+                if self.is_mounted and not self._teardown_started:
                     self._show_inputs_if_selected(workflow_type)
                     self._update_health(workflow_type)
         finally:
             for job in jobs:
+                if not job.done():
+                    job.cancel()
                 self._owner_jobs.discard(job)
-        if self.is_mounted:
+        if self.is_mounted and not self._teardown_started:
             self._maybe_discover_create_support(workflow_type)
             self._sync_disabled_tabs()
 
     def _show_inputs_if_selected(self, workflow_type: str) -> None:
-        if workflow_type != self._state.workflow_type or not self.is_mounted:
+        if workflow_type != self._state.workflow_type:
             return
-        self._inputs_arrived_at[workflow_type] = monotonic()
+        if not self._wizard_dom_live():
+            return
         self.query_one(NewProjectSource).set_inputs(
             self._inputs.get(workflow_type),
             pending_owners=frozenset(
@@ -380,15 +454,10 @@ class NewProjectModalProvidersMixin(_MixinBase):
             ),
         )
 
-    def _cache_age(self, workflow_type: str) -> str:
-        """Format the age of the displayed candidate inputs for the chip."""
-        arrived = self._inputs_arrived_at.get(workflow_type)
-        if arrived is None:
-            return ""
-        return format_cache_age(monotonic() - arrived)
-
     def _update_health(self, workflow_type: str) -> None:
         if workflow_type != self._state.workflow_type:
+            return
+        if not self._wizard_dom_live():
             return
         inputs = self._inputs.get(workflow_type)
         text = health_chip_text(
@@ -397,7 +466,8 @@ class NewProjectModalProvidersMixin(_MixinBase):
             pending_owners=frozenset(
                 self._pending_by_provider.get(workflow_type, set())
             ),
-            cache_age=self._cache_age(workflow_type),
+            cache_age=cache_age_for(inputs),
+            live=workflow_type in self._revalidated_live,
         )
         self.query_one("#new-project-health", Static).update(
             Text(
@@ -414,6 +484,8 @@ class NewProjectModalProvidersMixin(_MixinBase):
 
     def _sync_disabled_tabs(self) -> None:
         """Disable provider tabs whose tool is missing, and step off them."""
+        if not self._wizard_dom_live():
+            return
         disabled = {
             workflow_type
             for workflow_type, inputs in self._inputs.items()
@@ -451,7 +523,7 @@ class NewProjectModalProvidersMixin(_MixinBase):
                 "",
             )
             if fallback:
-                self.select_provider(fallback)
+                self.select_provider(fallback, persist=False)
 
 
 __all__ = ["NewProjectModalProvidersMixin"]

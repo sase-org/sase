@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import json
+import os
+import tempfile
+import threading
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
@@ -10,6 +13,9 @@ from typing import Any
 from sase.core.paths import sase_home
 
 PREFERENCES_SCHEMA_VERSION = 1
+
+_LOCK = threading.Lock()
+"""Serialize in-process preference read-modify-write cycles."""
 
 
 @dataclass
@@ -57,8 +63,12 @@ def load_preferences() -> Preferences:
     )
 
 
-def save_preferences(prefs: Preferences) -> None:
-    """Persist *prefs* atomically, creating the parent directory as needed."""
+def _save_preferences(prefs: Preferences) -> None:
+    """Persist *prefs* atomically, creating the parent directory as needed.
+
+    The payload lands through a unique temp file so a concurrent writer in
+    this process (or another one) cannot steal or clobber the rename.
+    """
 
     path = preferences_path()
     payload: dict[str, Any] = {
@@ -66,36 +76,49 @@ def save_preferences(prefs: Preferences) -> None:
         **asdict(prefs),
     }
     path.parent.mkdir(parents=True, exist_ok=True)
-    tmp_path = path.with_suffix(f"{path.suffix}.tmp")
-    tmp_path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
-    tmp_path.replace(path)
+    fd, tmp_name = tempfile.mkstemp(
+        dir=str(path.parent), prefix=f"{path.name}.", suffix=".tmp"
+    )
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(json.dumps(payload, indent=2, sort_keys=True))
+        os.replace(tmp_name, path)
+    except BaseException:
+        try:
+            os.unlink(tmp_name)
+        except OSError:
+            pass
+        raise
 
 
 def record_provider_selection(workflow_type: str) -> Preferences:
     """Remember *workflow_type* as the last-used provider and return the prefs."""
 
-    prefs = load_preferences()
-    prefs.last_provider = workflow_type
-    save_preferences(prefs)
-    return prefs
+    with _LOCK:
+        prefs = load_preferences()
+        prefs.last_provider = workflow_type
+        _save_preferences(prefs)
+        return prefs
 
 
 def record_owner_selection(workflow_type: str, owner: str) -> Preferences:
     """Remember *owner* as the last-used namespace for *workflow_type*."""
 
-    prefs = load_preferences()
-    prefs.last_owner[workflow_type] = owner
-    save_preferences(prefs)
-    return prefs
+    with _LOCK:
+        prefs = load_preferences()
+        prefs.last_owner[workflow_type] = owner
+        _save_preferences(prefs)
+        return prefs
 
 
 def record_visibility_selection(owner: str, visibility: str) -> Preferences:
     """Remember *visibility* as the last choice for *owner*."""
 
-    prefs = load_preferences()
-    prefs.last_visibility[owner] = visibility
-    save_preferences(prefs)
-    return prefs
+    with _LOCK:
+        prefs = load_preferences()
+        prefs.last_visibility[owner] = visibility
+        _save_preferences(prefs)
+        return prefs
 
 
 __all__ = [
@@ -106,5 +129,4 @@ __all__ = [
     "record_owner_selection",
     "record_provider_selection",
     "record_visibility_selection",
-    "save_preferences",
 ]

@@ -65,6 +65,8 @@ class OwnerResult:
     truncated: bool = False
     remedy_argv: list[str] = field(default_factory=list)
     entries: list[dict[str, Any]] = field(default_factory=list)
+    fetched_at: float = 0.0
+    """Epoch seconds the owner's entries were fetched; 0 when unknown."""
 
     def namespace_wire(self) -> dict[str, Any]:
         """Return the core ``namespaces`` wire dict for this owner."""
@@ -112,6 +114,8 @@ class CandidateInputs:
     journals: list[dict[str, Any]] = field(default_factory=list)
     owned_namespaces: list[str] = field(default_factory=list)
     sidecar_roles: list[str] = field(default_factory=list)
+    fetched_at: float = 0.0
+    """Oldest known owner fetch time; 0 when no owner carries a timestamp."""
 
     def core_request(self) -> dict[str, Any]:
         """Return the ``classify_project_candidates`` wire request."""
@@ -437,6 +441,7 @@ def _fetch_owner(
             entries=[
                 _remote_entry(workflow_type, name, entry) for entry in result.entries
             ],
+            fetched_at=float(getattr(result, "fetched_at", 0.0) or 0.0),
         )
     except Exception as exc:
         return OwnerResult(
@@ -562,12 +567,14 @@ def load_candidate_inputs(
     remote: list[dict[str, Any]] = []
     for owner in owners:
         remote.extend(owner.entries)
+    stamps = [owner.fetched_at for owner in owners if owner.fetched_at > 0]
     projects = _project_entries()
     return CandidateInputs(
         workflow_type=workflow_type,
         display=display,
         account=account,
         owners=owners,
+        fetched_at=min(stamps) if stamps else 0.0,
         remote=remote,
         local=_local_entries(workflow_type),
         projects=projects,

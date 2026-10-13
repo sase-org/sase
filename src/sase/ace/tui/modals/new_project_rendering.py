@@ -2,19 +2,14 @@
 
 from __future__ import annotations
 
-import re
 from typing import Any
 
 from rich.text import Text
 
-from .new_project_source_model import SourceRow
+from .new_project_source_model import SourceRow, clean_source_text
 
-_CONTROL_RE = re.compile(r"[\x00-\x1f\x7f]")
-
-
-def clean_source_text(value: object) -> str:
-    """Remove control characters from provider-controlled text."""
-    return _CONTROL_RE.sub("", str(value or ""))
+_OWNER_CONFIG_KEY = {"gh": "github_orgs"}
+"""Owner config key per provider, for the no-owners card."""
 
 
 def render_stepper(stage: str) -> Text:
@@ -87,21 +82,41 @@ def render_source_row(row: SourceRow) -> Text:
         )
         details.insert(0, f"{status} · ⏎ resume")
     if row.group == "disabled":
-        details.append("⏎ re-enables")
+        if row.ref:
+            details.append("⏎ re-enables")
+        else:
+            key = clean_source_text(row.data.get("project_key") or "")
+            if key:
+                details.append(f"disabled · sase project enable {key}")
+            else:
+                details.append("disabled")
     if details:
         row_text.append("  " + " · ".join(details), style="dim")
     return row_text
 
 
-def render_no_owners_detail(provider_display: str) -> Text:
-    """Render the Source detail card when no provider owners are known."""
+def render_no_owners_detail(
+    provider_display: str, workflow_type: str = "", *, collapsed: bool = False
+) -> Text:
+    """Render the Source detail card when no provider owners are known.
+
+    The config key is named only for providers that have one
+    (``github_orgs`` for gh). Short terminals get one summary line.
+    """
     text = Text()
     provider = clean_source_text(provider_display) or "GitHub"
+    if collapsed:
+        text.append(f"No {provider} owners yet", style="dim")
+        return text
     text.append(f"No {provider} owners yet", style="bold #FFAF5F")
-    text.append(
-        "\nPaste owner/repo, or add owners to github_orgs in Config Center.",
-        style="dim",
-    )
+    config_key = _OWNER_CONFIG_KEY.get(workflow_type, "")
+    if config_key:
+        text.append(
+            f"\nPaste owner/repo, or add owners to {config_key} in Config Center.",
+            style="dim",
+        )
+    else:
+        text.append("\nPaste owner/repo to add a repository.", style="dim")
     return text
 
 
@@ -143,15 +158,16 @@ def render_source_detail(
         )
         return text
     title = clean_source_text(row.display)
-    if collapsed and not row.is_error and row.group != "create":
-        visibility = clean_source_text(getattr(probe, "visibility", "") or "")
+    if collapsed:
         parts = [title]
-        if visibility:
-            parts.append(visibility)
-        if probe is not None or checking:
-            parts.append(_probe_status_word(probe, checking=checking))
-        elif probe_error:
-            parts.append("? unknown")
+        if not row.is_error and row.group != "create":
+            visibility = clean_source_text(getattr(probe, "visibility", "") or "")
+            if visibility:
+                parts.append(visibility)
+            if probe is not None or checking:
+                parts.append(_probe_status_word(probe, checking=checking))
+            elif probe_error:
+                parts.append("? unknown")
         text.append(" · ".join(parts), style="dim")
         return text
     text.append(title, style="bold #FFAF5F")
@@ -207,7 +223,14 @@ def render_source_detail(
     elif probe_error:
         text.append("\n? " + clean_source_text(probe_error), style="dim")
     elif not row.ref:
-        text.append(f"\n{clean_source_text(workflow_type)}", style="dim")
+        key = clean_source_text(row.data.get("project_key") or "")
+        if row.group == "disabled" and key:
+            text.append("\nDisabled project", style="bold #FFAF5F")
+            text.append(
+                f"\nRun `sase project enable {key}` to re-enable it.", style="dim"
+            )
+        else:
+            text.append(f"\n{clean_source_text(workflow_type)}", style="dim")
     return text
 
 

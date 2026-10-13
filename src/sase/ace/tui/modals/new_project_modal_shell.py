@@ -17,7 +17,6 @@ from sase.project_onboarding import (
     Preferences,
     preferences_path,
     record_provider_selection,
-    save_preferences,
 )
 
 from ..widgets.panel_tab_strip import PanelTabStrip
@@ -80,7 +79,7 @@ class NewProjectModalShellMixin(_MixinBase):
                 yield NewProjectReady(id="new-project-ready-stage")
                 yield NewProjectFailed(id="new-project-failed-stage")
             yield Static(
-                "⏎ choose · n new · [ ] provider · / filter · f forks · . all · R refresh · t provider login · esc close",
+                "⏎ choose  n new  [ ] provider  / filter  f forks  . all  R refresh  esc close",
                 id="new-project-hints",
             )
 
@@ -102,6 +101,7 @@ class NewProjectModalShellMixin(_MixinBase):
         )
 
     def on_unmount(self) -> None:
+        self._teardown_started = True
         for job in tuple(self._owner_jobs):
             job.cancel()
         self._owner_jobs.clear()
@@ -126,15 +126,6 @@ class NewProjectModalShellMixin(_MixinBase):
         """
         try:
             await asyncio.to_thread(record_provider_selection, workflow_type)
-        except Exception as error:
-            self.notify(
-                f"Could not save {preferences_path().name}: {error}",
-                severity="warning",
-            )
-
-    async def _save_preferences(self) -> None:
-        try:
-            await asyncio.to_thread(save_preferences, self._preferences)
         except Exception as error:
             self.notify(
                 f"Could not save {preferences_path().name}: {error}",
