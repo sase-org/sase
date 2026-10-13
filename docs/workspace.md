@@ -663,9 +663,11 @@ launch: preparation publishes each sidecar once, then rescues anything still unp
 to the durable rescue store outside the workspace
 (`~/.sase/projects/<project>/rescue/<YYYYMM>/`, falling back to `~/.sase/rescue/`).
 Linked and external clones are rescued there too, with a bundle of local-only commits
-and a worktree patch; they are never published during eviction. Eviction always
-proceeds. Each rescue pins a `refs/sase/recovery/` ref inside the store's own
-repository, writes a `manifest.json` with copy-pasteable restore commands
+and a worktree patch; they are never published during eviction. Tags whose commit is
+already reachable from a remote-tracking branch, such as fetched release tags, count as
+published and are not rescued. Eviction always proceeds. Each rescue pins a
+`refs/sase/recovery/` ref inside the store's own repository, writes a `manifest.json`
+with copy-pasteable restore commands
 (`git fetch <bundle> 'refs/*:refs/sase/rescued/<stamp>/*'`,
 `git apply --index <patch>`), and sends one inbox notification naming the rescue dir.
 Entries older than 30 days (7 days for quarantined whole-clone copies) are reaped. See

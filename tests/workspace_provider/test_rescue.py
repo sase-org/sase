@@ -345,6 +345,67 @@ def test_rescue_returns_none_when_nothing_to_rescue(
     assert notified == []
 
 
+def test_rescue_ignores_annotated_tags_already_on_remote(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    home, notified = _redirect_state(tmp_path, monkeypatch)
+    workspace, clone, _remote = _seed_remote_clone(tmp_path)
+    _git(clone, "tag", "-a", "v1.0", "-m", "release 1.0")
+    _git(clone, "tag", "-a", "v2.0", "-m", "release 2.0")
+    _git(clone, "tag", "v-light")
+    _git(clone, "push", "origin", "--tags")
+
+    assert (
+        rescue_git_repo(
+            clone,
+            workspace_dir=workspace,
+            workspace_num=7,
+            label="plans",
+            reason="pushed tags",
+            include_worktree=True,
+        )
+        is None
+    )
+    assert _rescue_entries(home) == []
+    assert notified == []
+
+
+def test_rescue_bundles_local_tags_but_not_published_ones(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _redirect_state(tmp_path, monkeypatch)
+    workspace, clone, _remote = _seed_remote_clone(tmp_path)
+    _git(clone, "tag", "-a", "v-pushed", "-m", "pushed release")
+    _git(clone, "push", "origin", "--tags")
+    local_sha = _commit_file(clone, "local.txt", "local\n", "unpushed work")
+    _git(clone, "tag", "-a", "v-local", "-m", "local release")
+
+    record = rescue_git_repo(
+        clone,
+        workspace_dir=workspace,
+        workspace_num=7,
+        label="plans",
+        reason="mixed tags",
+        include_worktree=True,
+    )
+
+    assert record is not None and record.bundle_path is not None
+    heads = subprocess.run(
+        ["git", "bundle", "list-heads", str(record.bundle_path)],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout
+    assert "refs/heads/main" in heads
+    assert "refs/tags/v-local" in heads
+    assert "refs/tags/v-pushed" not in heads
+    fresh = _clone_and_fetch(record.bundle_path, clone, tmp_path / "fresh")
+    peeled = _git(
+        fresh, "rev-parse", "refs/sase/rescued/x/tags/v-local^{commit}"
+    ).stdout.strip()
+    assert peeled == local_sha
+
+
 def test_rescue_bundles_everything_without_remote_tracking_refs(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -353,6 +414,7 @@ def test_rescue_bundles_everything_without_remote_tracking_refs(
     repo = workspace / "sase" / "repos" / "plans"
     _init_repo(repo)
     sha = _commit_file(repo, "solo.txt", "solo\n", "offline work")
+    _git(repo, "tag", "-a", "v-offline", "-m", "offline release")
 
     record = rescue_git_repo(
         repo,
@@ -365,6 +427,13 @@ def test_rescue_bundles_everything_without_remote_tracking_refs(
 
     assert record is not None and record.bundle_path is not None
     assert _bundle_lists_sha(record.bundle_path, sha)
+    heads = subprocess.run(
+        ["git", "bundle", "list-heads", str(record.bundle_path)],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout
+    assert "refs/tags/v-offline" in heads
     fresh = _clone_and_fetch(record.bundle_path, repo, tmp_path / "fresh")
     assert _holds_object(fresh, sha)
 

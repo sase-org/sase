@@ -451,6 +451,35 @@ def _stash_shas(repo_root: Path) -> list[str]:
     return [line.strip() for line in result.stdout.splitlines() if line.strip()]
 
 
+def _remote_tracking_refs(repo_root: Path) -> list[str]:
+    result = _git(repo_root, "for-each-ref", "--format=%(refname)", "refs/remotes")
+    if result.returncode != 0:
+        return []
+    return [line.strip() for line in result.stdout.splitlines() if line.strip()]
+
+
+def _published_tags(repo_root: Path, remote_refs: list[str]) -> set[str]:
+    """Tags whose commit is reachable from a remote-tracking ref.
+
+    `git bundle ... --not --remotes` always writes non-commit tips, so
+    annotated tags become bundle heads even when their commit is pushed.
+    Git keeps no list of which tags a remote has, and rescue must stay
+    offline (no `git ls-remote` during launch), so a never-pushed tag on a
+    pushed commit is not rescued; only the tag name and message are lost,
+    never a commit. With no remote-tracking refs, keep every tag, matching
+    `_write_bundle()`, which then bundles everything.
+    """
+    if not remote_refs:
+        return set()
+    args = ["for-each-ref", "--format=%(refname)"]
+    args.extend(f"--merged={ref}" for ref in remote_refs)
+    args.append("refs/tags")
+    result = _git(repo_root, *args)
+    if result.returncode != 0:
+        return set()
+    return {line.strip() for line in result.stdout.splitlines() if line.strip()}
+
+
 def _bundle_refs(
     repo_root: Path, *, head: subprocess.CompletedProcess[str], stash_shas: list[str]
 ) -> list[str]:
@@ -461,6 +490,9 @@ def _bundle_refs(
             refs.extend(
                 line.strip() for line in result.stdout.splitlines() if line.strip()
             )
+    published = _published_tags(repo_root, _remote_tracking_refs(repo_root))
+    if published:
+        refs = [ref for ref in refs if ref not in published]
     temp_refs: list[str] = []
     branch_result = _git(repo_root, "symbolic-ref", "-q", "HEAD")
     if branch_result.returncode != 0 and head.returncode == 0 and head.stdout.strip():
@@ -486,9 +518,8 @@ def _write_bundle(repo_root: Path, rescue_dir: Path, refs: list[str]) -> Path | 
     bundle_path = rescue_dir / RESCUE_BUNDLE_NAME
     temp_refs = [ref for ref in refs if ref.startswith("refs/sase/rescue-tmp/")]
     try:
-        remotes = _git(repo_root, "for-each-ref", "--format=%(refname)", "refs/remotes")
         args = ["bundle", "create", str(bundle_path), *refs]
-        if remotes.returncode == 0 and remotes.stdout.strip():
+        if _remote_tracking_refs(repo_root):
             args.extend(["--not", "--remotes"])
         result = _git(repo_root, *args)
         if result.returncode != 0:
