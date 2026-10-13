@@ -72,6 +72,7 @@ class KeybindingFooter(
         super().__init__(**kwargs)
         self._registry: KeymapRegistry | None = None
         self._axe_running: bool = False
+        self._axe_status_known: bool = False
         self._axe_starting: bool = False
         self._axe_stopping: bool = False
         self._axe_restarting: bool = False

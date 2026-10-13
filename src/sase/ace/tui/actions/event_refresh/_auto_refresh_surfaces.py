@@ -124,6 +124,13 @@ class EventAutoRefreshSurfacesMixin(
             >= sanity_interval
         )
         current_tokens = await asyncio.to_thread(self._probe_surface_tokens)
+        # Hidden startup work holds axe collects, sanity/broad Agents
+        # loads, and Patch reloads. Cheap stat-only token probes above
+        # still run so the first post-release tick has a baseline.
+        if not getattr(self, "_startup_deferred_loads_released", True):
+            self._accept_startup_hold_surface_tokens(current_tokens)
+            return axe_file_opens
+
         from sase.project_display_names import (
             project_display_snapshot_is_warm,
             refresh_project_display_snapshot,
@@ -219,8 +226,13 @@ class EventAutoRefreshSurfacesMixin(
 
         # Always poll axe status regardless of tab (for STARTING/STOPPING
         # transitions) -- but skip the disk poll on idle ticks when the
-        # watcher is active and nothing about axe has changed.
-        if _should_refresh("_dirty_axe", "axe"):
+        # watcher is active and nothing about axe has changed. Also skip
+        # while the startup axe init has started but not finished, so a
+        # tick cannot set ``_axe_first_load_done`` and skip auto-start.
+        startup_axe_busy = getattr(
+            self, "_startup_axe_surface_started", False
+        ) and not getattr(self, "_axe_first_load_done", False)
+        if (not startup_axe_busy) and _should_refresh("_dirty_axe", "axe"):
             run_axe_refresh = getattr(self, "_run_axe_status_refresh", None)
             axe_full = sanity_due or self.current_tab == "services"
             if callable(run_axe_refresh):

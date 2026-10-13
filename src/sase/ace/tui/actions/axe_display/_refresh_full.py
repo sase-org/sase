@@ -97,9 +97,22 @@ class AxeRefreshFullMixin(AxeRefreshCollectMixin):
                 self._schedule_axe_async_refresh()
 
     async def _run_axe_startup_init(self) -> None:
-        """Load axe status and trigger startup auto-start/restart off the critical path."""
-        with tui_trace("axe.startup"):
-            await self._run_axe_startup_init_body()
+        """Load axe status and trigger startup auto-start/restart off the critical path.
+
+        Owns ``_axe_status_refresh_running`` so an auto-refresh tick cannot
+        collect concurrently and skip auto-start / ``--restart-axe``.
+        """
+        self._axe_status_refresh_running = True
+        try:
+            with tui_trace("axe.startup"):
+                await self._run_axe_startup_init_body()
+        finally:
+            self._axe_status_refresh_running = False
+            if getattr(self, "_axe_status_refresh_pending", False):
+                self._axe_status_refresh_pending = False
+                schedule = getattr(self, "_schedule_axe_async_refresh", None)
+                if callable(schedule):
+                    schedule()
 
     async def _run_axe_startup_init_body(self) -> None:
         """Inner axe startup body; wrapped by :meth:`_run_axe_startup_init`.

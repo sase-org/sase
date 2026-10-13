@@ -9752,6 +9752,13 @@ available. A 300-second `--sanity-refresh-interval` floor still triggers a full
 reconcile to recover from missed events, so a quiet TUI does ~zero work between real
 changes without going stale.
 
+Until the initially visible tab is ready — or a 45-second safety timeout fires —
+auto-refresh ticks keep probing change tokens but do not collect axe, run a sanity or
+broad Agents load, or reload Patches. That hold keeps the first tick from racing the
+startup axe init (auto-start / `--restart-axe`) and from competing with the Agents
+loader. Hidden-surface loads, the app-wide link index, and other CPU-heavy maintenance
+wait for the same release and then run one job at a time.
+
 ### Performance Tracing
 
 For diagnosing TUI latency, set `SASE_TUI_TRACE=1` before launching `sase tui`. Tracing

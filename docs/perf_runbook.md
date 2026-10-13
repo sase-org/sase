@@ -1052,6 +1052,16 @@ without changing that field:
 
 Missing stamps record as `null` (unit tests and non-CLI constructions).
 
+Hidden-surface loads and CPU-heavy maintenance wait until the initially visible tab is
+ready. A 45-second safety timeout still releases that work without marking
+visible-ready, so a stuck Agents load cannot starve axe init forever. Auto-refresh ticks
+armed at first paint keep their stat-only token probes during that hold and skip axe
+collection, sanity/broad Agents loads, and Patch reloads until release. The first
+post-release sanity refresh waits a full `--sanity-refresh-interval` because the startup
+loads themselves are the first full loads. After release, prompt-catalog warm, the
+app-wide link index, the startup update check, usage-refresh fallback, and prompt-bar
+import warm run one at a time.
+
 ### Attributed startup capture (sase-132.1)
 
 One command sequence reproduces a fully attributed capture at a recorded SHA. Store

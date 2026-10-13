@@ -191,6 +191,17 @@ async def _run_fast_agent_startup(app: AceApp) -> None:
     _finish_fast_agent_startup(app)
 
 
+def _publish_fast_axe_footer_status(app: AceApp) -> None:
+    """Mark the footer axe chip known after a stubbed first load."""
+    from sase.ace.tui.widgets import KeybindingFooter
+
+    try:
+        footer = app.query_one("#keybinding-footer", KeybindingFooter)
+    except Exception:
+        return
+    footer.set_axe_running(bool(getattr(app, "axe_running", False)))
+
+
 async def _run_fast_axe_startup(app: AceApp) -> None:
     """Complete the empty AXE startup surface without reading daemon state."""
     from sase.ace.tui.widgets import AxeDashboard, AxeInfoPanel
@@ -204,6 +215,7 @@ async def _run_fast_axe_startup(app: AceApp) -> None:
         app.query_one("#axe-info-panel", AxeInfoPanel).set_loading(False)
     except Exception:
         pass
+    _publish_fast_axe_footer_status(app)
     app._mark_startup_axe_ready()
     app._maybe_end_startup_stopwatch()
 

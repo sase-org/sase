@@ -105,6 +105,11 @@ def init_runtime_state(
     self._startup_deferred_loads_released = False
     self._startup_deferred_release_reason = None
     self._startup_deferred_fallback_timer = None
+    self._startup_maintenance_chain_started = False
+    self._prompt_bar_import_warm_in_flight = False
+    self._prompt_bar_import_warm_done = False
+    self._usage_refresh_fallback_started = False
+    self._usage_refresh_fallback_first_request_done = False
     self._startup_deferred_post_roster_warmups_pending = False
     self._startup_deferred_post_roster_warmups_source = "unknown"
     self._startup_deferred_monitor_reconcile_pending = False

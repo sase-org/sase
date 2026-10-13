@@ -3,11 +3,16 @@
 from __future__ import annotations
 
 import logging
+import time
 from typing import TYPE_CHECKING, Any, cast
 
 log = logging.getLogger(__name__)
 
-_STARTUP_DEFERRED_FALLBACK_SECONDS = 3.0
+#: Safety timeout that releases hidden startup work if Agents is still
+#: loading. 45 s covers today's slow apollo loads with headroom;
+#: visible-ready still releases earlier through
+#: ``_maybe_end_startup_stopwatch``.
+_STARTUP_DEFERRED_FALLBACK_SECONDS = 45.0
 
 if TYPE_CHECKING:
     from textual.timer import Timer
@@ -64,7 +69,7 @@ class StartupLoadsCoreMixin:
                 log.exception("Failed to start prompt-source inotify watcher")
 
     def _arm_startup_deferred_fallback(self: Any) -> None:
-        """Arm the bounded release that prevents hidden startup starvation."""
+        """Arm the 45 s safety release that prevents hidden startup starvation."""
         if getattr(self, "_startup_deferred_fallback_timer", None) is not None:
             return
         try:
@@ -99,6 +104,16 @@ class StartupLoadsCoreMixin:
             return False
         self._startup_deferred_loads_released = True
         self._startup_deferred_release_reason = reason
+        # Startup loads are themselves the first full loads, so the next
+        # sanity refresh must wait a full interval after release. Clear
+        # the init-default dirty flags so the first post-release tick
+        # does not immediately redo those loads; inotify and token
+        # drift still retrigger after this.
+        self._last_full_sanity_refresh = time.monotonic()
+        self._dirty_patches = False
+        self._dirty_agents = False
+        self._dirty_axe = False
+        self._dirty_notifications = False
         self._cancel_startup_deferred_fallback()
         self._schedule_deferred_mount_state_loads()
         self._start_startup_agents_surface()
@@ -220,11 +235,6 @@ class StartupLoadsCoreMixin:
         if getattr(self, "_axe_first_load_done", False):
             return False
         if getattr(self, "_startup_axe_surface_started", False):
-            return False
-        if getattr(self, "_axe_status_refresh_running", False) or getattr(
-            self, "_axe_status_refresh_scheduled", False
-        ):
-            self._startup_axe_surface_started = True
             return False
         try:
             self.run_worker(

@@ -54,6 +54,7 @@ def test_keybinding_footer_status_indicator_running() -> None:
     """Test status indicator labels axe while it is running."""
     footer = KeybindingFooter()
     footer.end_startup_stopwatch()
+    footer._axe_status_known = True
     footer._axe_running = True
 
     text_str = str(footer._get_status_text())
@@ -67,6 +68,12 @@ def test_keybinding_footer_status_indicator_stopped() -> None:
     footer = KeybindingFooter()
     footer.end_startup_stopwatch()
 
+    loading = str(footer._get_status_text())
+    assert "SVC" in loading
+    assert "STOPPED" not in loading
+    assert "…" in loading
+
+    footer._axe_status_known = True
     text_str = str(footer._get_status_text())
 
     assert "SVC" in text_str
@@ -128,6 +135,7 @@ def test_keybinding_footer_status_with_bgcmd_running() -> None:
     """Test status indicator shows running badge when bgcmds running."""
     footer = KeybindingFooter()
     footer.end_startup_stopwatch()
+    footer._axe_status_known = True
     footer._axe_running = True
     footer._bgcmd_running_count = 2
     footer._bgcmd_done_count = 0
@@ -144,6 +152,7 @@ def test_keybinding_footer_status_with_bgcmd_done() -> None:
     """Test status indicator shows done badge when bgcmds done."""
     footer = KeybindingFooter()
     footer.end_startup_stopwatch()
+    footer._axe_status_known = True
     footer._axe_running = True
     footer._bgcmd_running_count = 0
     footer._bgcmd_done_count = 3

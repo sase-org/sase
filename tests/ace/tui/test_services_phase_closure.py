@@ -185,8 +185,9 @@ def test_footer_unhealthy_pill_is_loud() -> None:
 
 def test_footer_pre_snapshot_pill() -> None:
     footer = _footer()
-    assert "STOPPED" in str(footer._get_status_text())
-    footer._axe_running = True
+    assert "STOPPED" not in str(footer._get_status_text())
+    assert "…" in str(footer._get_status_text())
+    footer.set_axe_running(True)
     assert "RUNNING" in str(footer._get_status_text())
 
 

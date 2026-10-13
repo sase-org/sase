@@ -171,6 +171,9 @@ class _FakeApp(EventHandlersMixin):
         self._dirty_notifications = False
         self._artifact_change_defer_pending = False
         self._last_full_sanity_refresh = time.monotonic()
+        self._startup_deferred_loads_released = True
+        self._startup_axe_surface_started = False
+        self._axe_first_load_done = False
         self._probed_surface_tokens = _surface_token_snapshot()
         self._last_completed_surface_tokens = _completed_tokens(
             self._probed_surface_tokens

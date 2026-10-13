@@ -17,6 +17,9 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from sase.ace.tui.actions._startup_loads_core import (
+    _STARTUP_DEFERRED_FALLBACK_SECONDS,
+)
 from sase.ace.tui.actions.axe_display._data import AxeCollectedData
 from sase.ace.tui.actions.patch import PatchMixin
 from sase.ace.tui.actions.lifecycle import LifecycleMixin
@@ -246,26 +249,33 @@ def test_start_post_mount_background_loads_starts_visible_agents_first() -> None
         link_refresh.assert_not_called()
         assert timers == [
             (
-                3.0,
+                _STARTUP_DEFERRED_FALLBACK_SECONDS,
                 app._release_startup_deferred_loads_from_fallback,
                 "startup-deferred-fallback",
                 timers[0][3],
             ),
         ]
+        assert _STARTUP_DEFERRED_FALLBACK_SECONDS == 45.0
         assert app._post_mount_background_loads_started is True
 
         app._agents_first_load_done = True
         app._mark_startup_agents_ready()
         app._maybe_end_startup_stopwatch()
-        link_refresh.assert_called_once_with(source="startup_visible_ready")
+        # CPU-heavy jobs (link index, update check, catalog) wait for the
+        # pump-free chain; this test has no running loop so they stay idle.
+        link_refresh.assert_not_called()
 
     assert scheduled.count(app._run_agent_index_startup_prepare_and_refresh) == 1
     assert scheduled.count(app._run_axe_startup_init) == 1
     assert scheduled.count(app._run_deferred_mount_state_loads) == 1
     assert scheduled.count(app._run_dismissed_named_procs_startup_prune) == 1
-    assert scheduled.count(app._run_startup_update_toast_check) == 1
+    assert scheduled.count(app._run_startup_update_toast_check) == 0
     timers[0][3].stop.assert_called_once()
     assert app._startup_deferred_loads_released is True
+    assert app._dirty_agents is False
+    assert app._dirty_axe is False
+    assert app._dirty_patches is False
+    assert app._dirty_notifications is False
 
 
 def test_startup_fallback_releases_deferred_without_visible_ready() -> None:
@@ -692,3 +702,188 @@ def test_stopwatch_ends_as_soon_as_visible_surface_finishes_first() -> None:
         app._agents_first_load_done = True
         app._maybe_end_startup_stopwatch()
         assert footer.end_calls == 1
+
+
+def test_old_three_second_mark_does_not_release_deferred_loads() -> None:
+    """The 45 s safety timer is the only fallback; 3 s no longer releases."""
+    app = AceApp()
+    app._mark_startup_on_mount()
+    delays: list[float] = []
+
+    def capture_timer(
+        seconds: float,
+        callback: Callable[[], None],
+        **kwargs: object,
+    ) -> MagicMock:
+        del callback, kwargs
+        delays.append(seconds)
+        return MagicMock()
+
+    with (
+        patch.object(app, "run_worker"),
+        patch.object(app, "_start_post_first_paint_services"),
+        patch.object(app, "set_timer", side_effect=capture_timer),
+        patch.object(app, "set_interval", return_value=MagicMock()),
+        patch.object(app, "_start_artifact_watcher"),
+        patch.object(app, "_start_prompt_source_watcher"),
+    ):
+        app._start_post_mount_background_loads()
+
+    assert delays == [45.0]
+    assert app._startup_deferred_loads_released is False
+    assert app._startup_visible_ready_mono is None
+
+
+@pytest.mark.asyncio
+async def test_auto_refresh_before_release_skips_heavy_surfaces() -> None:
+    """A tick before release must not collect axe, load Agents, or reload Patches."""
+    from tests.ace.tui._event_handlers_dirty_flags_helpers import _FakeApp
+
+    app = _FakeApp(watcher_active=True)
+    app._startup_deferred_loads_released = False
+    app._last_full_sanity_refresh = 0.0
+    app._dirty_axe = True
+    app._dirty_agents = True
+    app._dirty_patches = True
+    app.current_tab = "agents"
+
+    await app._run_auto_refresh()
+
+    assert app.refresh_calls == []
+    assert app.token_probe_calls == 1
+    assert getattr(app, "_axe_first_load_done", False) is False
+    assert "axe" in app._last_completed_surface_tokens
+    assert "agents" in app._last_completed_surface_tokens
+    assert "patches" in app._last_completed_surface_tokens
+
+
+@pytest.mark.asyncio
+async def test_unpinned_first_tick_before_release_is_not_a_sanity_refresh() -> None:
+    """The dirty-flags helper pins sanity time; an unpinned first tick still holds."""
+    from tests.ace.tui._event_handlers_dirty_flags_helpers import _FakeApp
+
+    app = _FakeApp(watcher_active=True)
+    app._startup_deferred_loads_released = False
+    app._last_full_sanity_refresh = 0.0
+    app._dirty_axe = True
+    app._dirty_agents = True
+    app._dirty_patches = True
+
+    await app._run_auto_refresh()
+
+    assert "axe" not in app.refresh_calls
+    assert "agents" not in app.refresh_calls
+    assert "patches" not in app.refresh_calls
+    assert app._last_full_sanity_refresh == 0.0
+
+
+@pytest.mark.asyncio
+async def test_startup_maintenance_jobs_run_strictly_in_order(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """CPU-heavy maintenance starts one job after the previous in-flight flag clears."""
+    from sase.ace.tui.actions import _startup_loads_maintenance as maintenance
+
+    monkeypatch.setattr(maintenance, "_STARTUP_MAINTENANCE_POLL_SECONDS", 0.01)
+    app = AceApp()
+    order: list[str] = []
+    catalog_started = asyncio.Event()
+    catalog_done = asyncio.Event()
+    link_started = asyncio.Event()
+
+    def schedule_catalog(*, reason: str, **_kwargs: object) -> None:
+        del reason
+        order.append("catalog")
+        app._prompt_catalog_rebuild_in_flight = True
+        catalog_started.set()
+
+        async def _finish() -> None:
+            await catalog_done.wait()
+            app._prompt_catalog_rebuild_in_flight = False
+            app._prompt_catalog = object()
+
+        asyncio.create_task(_finish())
+
+    def schedule_link(*, source: str) -> None:
+        del source
+        order.append("link")
+        link_started.set()
+        app._link_index_loading = False
+        app._link_index = object()
+
+    def schedule_toast() -> None:
+        order.append("toast")
+        app._automatic_update_check_timer = object()
+
+    def schedule_usage() -> None:
+        order.append("usage")
+        app._usage_refresh_fallback_started = True
+        app._usage_refresh_fallback_first_request_done = True
+
+    def schedule_prompt_bar() -> None:
+        order.append("prompt_bar")
+        app._prompt_bar_import_warm_done = True
+
+    monkeypatch.setattr(app, "_schedule_prompt_catalog_rebuild", schedule_catalog)
+    monkeypatch.setattr(app, "_schedule_link_index_refresh", schedule_link)
+    monkeypatch.setattr(app, "_schedule_startup_update_toast_check", schedule_toast)
+    monkeypatch.setattr(app, "_schedule_usage_refresh_fallback", schedule_usage)
+    monkeypatch.setattr(app, "_schedule_prompt_bar_import_warm", schedule_prompt_bar)
+
+    task = asyncio.create_task(
+        app._run_deferred_startup_maintenance_chain(reason="visible_ready")
+    )
+    await asyncio.wait_for(catalog_started.wait(), timeout=1.0)
+    assert order == ["catalog"]
+    assert not link_started.is_set()
+    catalog_done.set()
+    await asyncio.wait_for(task, timeout=1.0)
+    assert order == ["catalog", "link", "toast", "usage", "prompt_bar"]
+
+
+@pytest.mark.asyncio
+async def test_startup_maintenance_stuck_step_times_out_and_continues(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A stuck in-flight step hits the 20 s cap and the chain continues."""
+    from sase.ace.tui.actions import _startup_loads_maintenance as maintenance
+
+    monkeypatch.setattr(maintenance, "_STARTUP_MAINTENANCE_STEP_CAP_SECONDS", 0.05)
+    monkeypatch.setattr(maintenance, "_STARTUP_MAINTENANCE_POLL_SECONDS", 0.01)
+    app = AceApp()
+    order: list[str] = []
+    app._prompt_catalog_rebuild_in_flight = True
+
+    def schedule_link(*, source: str) -> None:
+        del source
+        order.append("link")
+        app._link_index = object()
+
+    monkeypatch.setattr(
+        app,
+        "_schedule_prompt_catalog_rebuild",
+        lambda **_kwargs: order.append("catalog"),
+    )
+    monkeypatch.setattr(app, "_schedule_link_index_refresh", schedule_link)
+    monkeypatch.setattr(
+        app,
+        "_schedule_startup_update_toast_check",
+        lambda: order.append("toast"),
+    )
+    monkeypatch.setattr(
+        app,
+        "_schedule_usage_refresh_fallback",
+        lambda: order.append("usage"),
+    )
+    monkeypatch.setattr(
+        app,
+        "_schedule_prompt_bar_import_warm",
+        lambda: order.append("prompt_bar"),
+    )
+
+    await asyncio.wait_for(
+        app._run_deferred_startup_maintenance_chain(reason="fallback"),
+        timeout=1.0,
+    )
+    assert "catalog" not in order
+    assert order == ["link", "toast", "usage", "prompt_bar"]

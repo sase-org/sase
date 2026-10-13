@@ -44,6 +44,31 @@ class EventAutoRefreshTokenMixin:
             self._last_completed_surface_tokens = tokens
         tokens[surface] = token
 
+    def _accept_startup_hold_surface_tokens(
+        self,
+        snapshot: SurfaceTokenSnapshot | None,
+    ) -> None:
+        """Seed the post-release baseline from a hold-tick probe.
+
+        Hold ticks must not reload, but they still probe so the first
+        tick after release can detect genuine drift instead of treating
+        every surface as new.
+        """
+        if snapshot is None:
+            return
+        for surface in (
+            "agents",
+            "axe",
+            "notifications",
+            "patches",
+            "procs",
+            "tool_runs",
+        ):
+            try:
+                self._accept_surface_token(surface, snapshot)
+            except KeyError:
+                continue
+
     def _surface_token_drifted(
         self,
         snapshot: SurfaceTokenSnapshot | None,

@@ -110,6 +110,11 @@ class StartupMixin(
     _startup_deferred_loads_released: bool
     _startup_deferred_release_reason: str | None
     _startup_deferred_fallback_timer: Timer | None
+    _startup_maintenance_chain_started: bool
+    _prompt_bar_import_warm_in_flight: bool
+    _prompt_bar_import_warm_done: bool
+    _usage_refresh_fallback_started: bool
+    _usage_refresh_fallback_first_request_done: bool
     _startup_deferred_post_roster_warmups_pending: bool
     _startup_deferred_post_roster_warmups_source: str
     _startup_deferred_monitor_reconcile_pending: bool

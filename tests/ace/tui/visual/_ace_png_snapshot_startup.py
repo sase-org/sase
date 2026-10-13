@@ -177,6 +177,9 @@ def patch_startup_loaders(
             app._apply_axe_status_data(axe_data)
         else:
             app._axe_first_load_done = True
+            from sase.ace.testing._startup import _publish_fast_axe_footer_status
+
+            _publish_fast_axe_footer_status(app)
             app._maybe_end_startup_stopwatch()
 
     async def _fake_axe_status_async(app: AceApp, **_kwargs: Any) -> None:
@@ -184,6 +187,9 @@ def patch_startup_loaders(
             app._apply_axe_status_data(axe_data)
         else:
             app._axe_first_load_done = True
+            from sase.ace.testing._startup import _publish_fast_axe_footer_status
+
+            _publish_fast_axe_footer_status(app)
 
     async def _fake_refresh_selected_axe_item_async(_app: AceApp) -> None:
         return None

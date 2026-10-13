@@ -54,6 +54,7 @@ class KeybindingStatusMixin:
 
     if TYPE_CHECKING:
         _axe_running: bool
+        _axe_status_known: bool
         _axe_starting: bool
         _axe_stopping: bool
         _axe_restarting: bool
@@ -102,6 +103,7 @@ class KeybindingStatusMixin:
             running: Whether axe daemon is currently running.
         """
         self._axe_running = running
+        self._axe_status_known = True
         self._update_status()
 
     def set_axe_starting(self, starting: bool) -> None:
@@ -170,6 +172,7 @@ class KeybindingStatusMixin:
             self._axe_starting,
             self._axe_stopping,
             self._axe_running,
+            getattr(self, "_axe_status_known", False),
             self._bgcmd_running_count,
             self._bgcmd_done_count,
             self._service_health,
@@ -228,6 +231,8 @@ class KeybindingStatusMixin:
             text.append(" STARTING ", style="bold black on rgb(255,255,0)")
         elif self._axe_stopping:
             text.append(" STOPPING ", style="bold black on rgb(255,165,0)")
+        elif not getattr(self, "_axe_status_known", False):
+            text.append(" … ", style="bold white on rgb(68,71,90)")
         elif self._axe_running:
             text.append(" RUNNING ", style="bold black on green")
         else:

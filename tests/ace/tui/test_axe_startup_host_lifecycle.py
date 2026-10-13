@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from types import SimpleNamespace
 
 import pytest
@@ -137,3 +138,54 @@ async def test_restart_exception_clears_transition_and_toasts(
     assert "Service host restart failed" in app.notifies[0][0]
     assert app.timers == []
     assert app.refreshes == 1
+
+
+@pytest.mark.asyncio
+async def test_startup_init_after_release_still_auto_starts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Release must not skip auto-start: init still starts the service host."""
+    calls: list[str] = []
+    monkeypatch.setattr(
+        "sase.service.control.start_service_host",
+        lambda: (calls.append("start"), _ok("started"))[1],
+    )
+    app = _StartupHarness(running=False, restart=False, auto_start=True)
+    app._startup_deferred_loads_released = True
+    app._axe_first_load_done = False
+
+    await app._run_axe_startup_init()
+
+    assert calls == ["start"]
+    assert app.refreshes == 1
+
+
+@pytest.mark.asyncio
+async def test_tick_during_startup_init_does_not_start_second_collect() -> None:
+    """A status refresh that lands while init owns the running flag coalesces."""
+    app = _StartupHarness(running=False, restart=False, auto_start=False)
+    collecting = asyncio.Event()
+    release = asyncio.Event()
+    loads = 0
+
+    async def slow_load(**_kwargs: object) -> None:
+        nonlocal loads
+        loads += 1
+        collecting.set()
+        await release.wait()
+
+    app._load_axe_status_async = slow_load  # type: ignore[method-assign]
+    app._axe_status_refresh_scheduled = False
+    app._axe_status_refresh_running = False
+    app._axe_status_refresh_pending = False
+    app._axe_status_refresh_want_full = False
+    app._axe_status_refresh_want_all_tails = False
+
+    init_task = asyncio.create_task(app._run_axe_startup_init())
+    await asyncio.wait_for(collecting.wait(), timeout=1.0)
+    refreshed = await app._run_axe_status_refresh()
+    assert refreshed is False
+    assert loads == 1
+    release.set()
+    await asyncio.wait_for(init_task, timeout=1.0)
+    assert loads == 1

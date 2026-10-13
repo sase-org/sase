@@ -3,9 +3,17 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from typing import Any, cast
 
+from ..util.pump_tasks import spawn_pump_free_task
+
 log = logging.getLogger(__name__)
+
+#: Cap on waiting for one CPU-heavy maintenance step to finish.
+_STARTUP_MAINTENANCE_STEP_CAP_SECONDS = 20.0
+#: Poll interval while waiting for in-flight work or user activity.
+_STARTUP_MAINTENANCE_POLL_SECONDS = 0.05
 
 #: First-open prompt-bar modules pre-imported during deferred startup
 #: maintenance (phase ``post-open-quiet``). Importing them at idle, after
@@ -112,7 +120,12 @@ class StartupLoadsMaintenanceMixin:
                     refresh_display()
 
     def _schedule_deferred_startup_maintenance(self: Any, *, reason: str) -> None:
-        """Start hidden warmups and maintenance after visible-ready/fallback."""
+        """Start hidden warmups and maintenance after visible-ready/fallback.
+
+        Cheap or I/O-only items start immediately. CPU-heavy jobs run one
+        at a time on a pump-free chain so they cannot starve the Agents
+        loader through the GIL.
+        """
         schedule_named_proc_prune = getattr(
             self, "_schedule_dismissed_named_procs_startup_prune", None
         )
@@ -121,23 +134,11 @@ class StartupLoadsMaintenanceMixin:
                 schedule_named_proc_prune()
             except Exception:
                 log.exception("Failed to schedule startup dismissed-named-proc prune")
-        schedule_prompt_catalog_rebuild = getattr(
-            self, "_schedule_prompt_catalog_rebuild", None
-        )
-        if callable(schedule_prompt_catalog_rebuild):
-            try:
-                schedule_prompt_catalog_rebuild(reason="startup_warm")
-            except Exception:
-                log.exception("Failed to schedule prompt catalog warm")
         just_updated = False
         try:
             just_updated = self._maybe_show_post_update_toast()
         except Exception:
             log.debug("Failed to show post-update toast", exc_info=True)
-        try:
-            self._schedule_startup_update_toast_check()
-        except Exception:
-            log.debug("Failed to schedule startup update toast", exc_info=True)
         try:
             self._schedule_update_attempts_refresh()
         except Exception:
@@ -155,27 +156,158 @@ class StartupLoadsMaintenanceMixin:
                 self._maybe_show_artifacts_agent_pane_toast()
             except Exception:
                 log.debug("Failed to show artifacts agent pane toast", exc_info=True)
-        try:
-            schedule_usage_refresh = getattr(
-                self, "_schedule_usage_refresh_fallback", None
-            )
-            if callable(schedule_usage_refresh):
-                schedule_usage_refresh()
-        except Exception:
-            log.debug("Failed to schedule usage-refresh fallback", exc_info=True)
-        schedule_link_index = getattr(self, "_schedule_link_index_refresh", None)
-        if callable(schedule_link_index):
+        if getattr(self, "_startup_maintenance_chain_started", False):
+            return
+        self._startup_maintenance_chain_started = True
+        task = spawn_pump_free_task(
+            self,
+            self._run_deferred_startup_maintenance_chain(reason=reason),
+            name="sase-startup-maintenance",
+            registry_attr="_pump_free_async_tasks",
+        )
+        if task is None:
+            self._startup_maintenance_chain_started = False
+
+    async def _run_deferred_startup_maintenance_chain(
+        self: Any, *, reason: str
+    ) -> None:
+        """Run CPU-heavy startup maintenance jobs one at a time."""
+        import asyncio
+
+        steps: tuple[tuple[str, Callable[[], Any]], ...] = (
+            ("prompt_catalog", self._run_startup_maintenance_prompt_catalog),
+            ("link_index", lambda: self._run_startup_maintenance_link_index(reason)),
+            ("update_toast", self._run_startup_maintenance_update_toast),
+            ("usage_refresh", self._run_startup_maintenance_usage_refresh),
+            ("prompt_bar_import", self._run_startup_maintenance_prompt_bar_import),
+        )
+        for name, step in steps:
             try:
-                schedule_link_index(source=f"startup_{reason}")
+                await self._yield_startup_maintenance_for_activity()
+                await step()
+            except asyncio.CancelledError:
+                raise
             except Exception:
-                log.debug("Failed to schedule startup link index", exc_info=True)
-        try:
-            self._schedule_prompt_bar_import_warm()
-        except Exception:
-            log.debug("Failed to schedule prompt-bar import warm", exc_info=True)
+                log.debug(
+                    "Startup maintenance step %s failed",
+                    name,
+                    exc_info=True,
+                )
+
+    def _startup_maintenance_activity_busy(self: Any) -> bool:
+        """Return True while navigation or prompt input should yield the chain."""
+        nav = getattr(self, "_nav_gate", None)
+        is_navigating = getattr(nav, "is_navigating", None) if nav is not None else None
+        if callable(is_navigating) and is_navigating():
+            return True
+        prompt_fn = getattr(self, "_prompt_input_active", None)
+        return bool(callable(prompt_fn) and prompt_fn())
+
+    async def _yield_startup_maintenance_for_activity(self: Any) -> None:
+        """Wait while the user is navigating or typing in the prompt."""
+        import asyncio
+
+        while self._startup_maintenance_activity_busy():
+            await asyncio.sleep(_STARTUP_MAINTENANCE_POLL_SECONDS)
+
+    async def _wait_startup_maintenance_while(
+        self: Any, predicate: Callable[[], bool]
+    ) -> None:
+        """Wait until *predicate* is false, or the per-step cap elapses."""
+        import asyncio
+        import time
+
+        deadline = time.monotonic() + _STARTUP_MAINTENANCE_STEP_CAP_SECONDS
+        while predicate() and time.monotonic() < deadline:
+            await self._yield_startup_maintenance_for_activity()
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                break
+            await asyncio.sleep(min(_STARTUP_MAINTENANCE_POLL_SECONDS, remaining))
+
+    async def _run_startup_maintenance_prompt_catalog(self: Any) -> None:
+        """Warm the prompt catalog, or wait if a rebuild is already in flight."""
+        in_flight = bool(getattr(self, "_prompt_catalog_rebuild_in_flight", False))
+        fresh = getattr(self, "_prompt_catalog", None) is not None
+        if not in_flight and not fresh:
+            schedule = getattr(self, "_schedule_prompt_catalog_rebuild", None)
+            if callable(schedule):
+                try:
+                    schedule(reason="startup_warm")
+                except Exception:
+                    log.exception("Failed to schedule prompt catalog warm")
+        await self._wait_startup_maintenance_while(
+            lambda: bool(getattr(self, "_prompt_catalog_rebuild_in_flight", False))
+        )
+
+    async def _run_startup_maintenance_link_index(self: Any, reason: str) -> None:
+        """Refresh the app-wide link index, or wait if a build is in flight."""
+        loading = bool(getattr(self, "_link_index_loading", False))
+        fresh = getattr(self, "_link_index", None) is not None
+        if not loading and not fresh:
+            schedule = getattr(self, "_schedule_link_index_refresh", None)
+            if callable(schedule):
+                try:
+                    schedule(source=f"startup_{reason}")
+                except Exception:
+                    log.debug("Failed to schedule startup link index", exc_info=True)
+        await self._wait_startup_maintenance_while(
+            lambda: bool(getattr(self, "_link_index_loading", False))
+        )
+
+    async def _run_startup_maintenance_update_toast(self: Any) -> None:
+        """Run the startup update-status check, or wait if one is in flight."""
+        in_flight = bool(getattr(self, "_automatic_update_check_in_flight", False))
+        already = getattr(self, "_automatic_update_check_timer", None) is not None
+        if not in_flight and not already:
+            try:
+                self._schedule_startup_update_toast_check()
+            except Exception:
+                log.debug("Failed to schedule startup update toast", exc_info=True)
+        await self._wait_startup_maintenance_while(
+            lambda: bool(getattr(self, "_automatic_update_check_in_flight", False))
+        )
+
+    async def _run_startup_maintenance_usage_refresh(self: Any) -> None:
+        """Start the usage-refresh fallback and wait for its first request."""
+        if not getattr(self, "_usage_refresh_fallback_started", False):
+            schedule = getattr(self, "_schedule_usage_refresh_fallback", None)
+            if callable(schedule):
+                try:
+                    schedule()
+                except Exception:
+                    log.debug(
+                        "Failed to schedule usage-refresh fallback", exc_info=True
+                    )
+        await self._wait_startup_maintenance_while(
+            lambda: (
+                bool(getattr(self, "_usage_refresh_fallback_started", False))
+                and not bool(
+                    getattr(self, "_usage_refresh_fallback_first_request_done", False)
+                )
+            )
+        )
+
+    async def _run_startup_maintenance_prompt_bar_import(self: Any) -> None:
+        """Pre-import first-open prompt-bar modules, or wait if already warming."""
+        in_flight = bool(getattr(self, "_prompt_bar_import_warm_in_flight", False))
+        fresh = bool(getattr(self, "_prompt_bar_import_warm_done", False))
+        if not in_flight and not fresh:
+            try:
+                self._schedule_prompt_bar_import_warm()
+            except Exception:
+                log.debug("Failed to schedule prompt-bar import warm", exc_info=True)
+        await self._wait_startup_maintenance_while(
+            lambda: bool(getattr(self, "_prompt_bar_import_warm_in_flight", False))
+        )
 
     def _schedule_prompt_bar_import_warm(self: Any) -> None:
         """Pre-import first-open prompt-bar modules off the event loop."""
+        if getattr(self, "_prompt_bar_import_warm_done", False) or getattr(
+            self, "_prompt_bar_import_warm_in_flight", False
+        ):
+            return
+        self._prompt_bar_import_warm_in_flight = True
         try:
             self.run_worker(
                 cast(Any, self._run_prompt_bar_import_warm),
@@ -185,17 +317,24 @@ class StartupLoadsMaintenanceMixin:
                 thread=True,
             )
         except Exception:
+            self._prompt_bar_import_warm_in_flight = False
             log.debug("Failed to schedule prompt-bar import warm", exc_info=True)
 
     def _run_prompt_bar_import_warm(self: Any) -> None:
         """Import :data:`PROMPT_BAR_FIRST_MOUNT_MODULES` into ``sys.modules``."""
         import importlib
 
-        for name in PROMPT_BAR_FIRST_MOUNT_MODULES:
-            try:
-                importlib.import_module(name)
-            except Exception:
-                log.debug("Prompt-bar import warm failed for %s", name, exc_info=True)
+        try:
+            for name in PROMPT_BAR_FIRST_MOUNT_MODULES:
+                try:
+                    importlib.import_module(name)
+                except Exception:
+                    log.debug(
+                        "Prompt-bar import warm failed for %s", name, exc_info=True
+                    )
+        finally:
+            self._prompt_bar_import_warm_in_flight = False
+            self._prompt_bar_import_warm_done = True
 
     def _schedule_agents_post_roster_startup_work(
         self: Any,

@@ -193,8 +193,13 @@ def test_end_transitions_to_real_status() -> None:
     footer.end_startup_stopwatch()
     assert footer._startup_stopwatch_active is False
 
+    loading = footer._get_status_text().plain
+    assert not _has_any_frame_glyph(loading)
+    assert "STOPPED" not in loading
+    assert "…" in loading
+
+    footer._axe_status_known = True
     stopped = footer._get_status_text().plain
-    assert not _has_any_frame_glyph(stopped)
     assert "STOPPED" in stopped
 
     footer._axe_running = True

@@ -63,20 +63,38 @@ class UsageRefreshFallbackMixin:
 
     def _schedule_usage_refresh_fallback(self: Any) -> None:
         """Start the due-refresh fallback after first paint."""
-        spawn_pump_free_task(
+        if getattr(self, "_usage_refresh_fallback_started", False):
+            return
+        self._usage_refresh_fallback_started = True
+        task = spawn_pump_free_task(
             self,
             self._run_usage_refresh_fallback_loop(),
             name="sase-usage-refresh-fallback",
             registry_attr=_USAGE_REFRESH_FALLBACK_TASKS,
         )
+        if task is None:
+            self._usage_refresh_fallback_started = False
+            self._usage_refresh_fallback_first_request_done = True
 
     async def _run_usage_refresh_fallback_loop(self: Any) -> None:
         """Submit due work immediately, then every sixty seconds."""
-        while True:
+        try:
             try:
                 await asyncio.to_thread(_maybe_request_due_refresh)
             except asyncio.CancelledError:
                 raise
             except Exception:
                 log.debug("ACE usage-refresh fallback failed", exc_info=True)
-            await asyncio.sleep(_USAGE_REFRESH_FALLBACK_INTERVAL_SECONDS)
+            finally:
+                self._usage_refresh_fallback_first_request_done = True
+            while True:
+                await asyncio.sleep(_USAGE_REFRESH_FALLBACK_INTERVAL_SECONDS)
+                try:
+                    await asyncio.to_thread(_maybe_request_due_refresh)
+                except asyncio.CancelledError:
+                    raise
+                except Exception:
+                    log.debug("ACE usage-refresh fallback failed", exc_info=True)
+        except asyncio.CancelledError:
+            self._usage_refresh_fallback_first_request_done = True
+            raise
