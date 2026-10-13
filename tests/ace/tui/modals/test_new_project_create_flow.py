@@ -13,9 +13,9 @@ async def test_current_project_context_defaults_provider_and_owner(
 ) -> None:
     from sase.ace.tui.modals.new_project_source import NewProjectSource
     from sase.project_onboarding import OwnerResult, Preferences
-    from tests.ace.tui.modals.test_new_project_source import _inputs
+    from tests.ace.tui.modals._new_project_source_helpers import inputs as source_inputs
 
-    inputs = _inputs(
+    inputs = source_inputs(
         account="sase-org",
         owners=[OwnerResult(name="sase-org"), OwnerResult(name="bbugyi200")],
     )

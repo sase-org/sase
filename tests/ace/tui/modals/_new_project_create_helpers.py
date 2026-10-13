@@ -130,7 +130,7 @@ def make_modal(
     from sase.ace.tui.modals.new_project_modal import NewProjectModal
     from sase.project_onboarding import Preferences
     from sase.workspace_provider import WorkflowMetadata
-    from tests.ace.tui.modals.test_new_project_source import _inputs
+    from tests.ace.tui.modals._new_project_source_helpers import inputs
 
     probe_calls: list[str] = []
     describe_calls: list[str] = []
@@ -161,7 +161,7 @@ def make_modal(
                 pre_allocated_env_prefix="",
             ),
         ),
-        candidate_inputs=overrides.get("candidate_inputs", {"gh": _inputs()}),
+        candidate_inputs=overrides.get("candidate_inputs", {"gh": inputs()}),
         preferences=overrides.get(
             "preferences",
             Preferences(

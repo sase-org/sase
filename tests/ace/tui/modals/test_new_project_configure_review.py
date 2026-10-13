@@ -24,15 +24,15 @@ from sase.ace.tui.modals.new_project_review import (
 )
 from sase.ace.tui.modals.new_project_review_model import apply_submission
 from sase.ace.tui.modals.new_project_source import NewProjectSource
-from tests.ace.tui.modals.test_new_project_source import (
-    _ModalApp,
-    _inputs,
-    _parsed,
-    _provider,
+from tests.ace.tui.modals._new_project_source_helpers import (
+    ModalApp,
+    inputs,
+    parsed,
+    provider,
 )
 
 
-class _WizardApp(_ModalApp):
+class _WizardApp(ModalApp):
     CSS_PATH = Path(__file__).parents[4] / "src/sase/ace/tui/styles.tcss"
 
     def __init__(self) -> None:
@@ -144,13 +144,13 @@ def _make_add_flow(monkeypatch: pytest.MonkeyPatch) -> tuple[Any, NewProjectModa
         workspace_provider,
         "parse_repo_ref",
         lambda workflow_type, ref: (
-            _parsed(workflow_type, ref) if ref == "sase-org/new" else None
+            parsed(workflow_type, ref) if ref == "sase-org/new" else None
         ),
     )
     _patch_fast_preview(monkeypatch)
     modal = NewProjectModal(
-        provider_metadata=(_provider("gh", "GitHub"),),
-        candidate_inputs={"gh": _inputs()},
+        provider_metadata=(provider("gh", "GitHub"),),
+        candidate_inputs={"gh": inputs()},
     )
     app = _WizardApp()
     return app, modal
