@@ -28,6 +28,7 @@ from sase.llm_provider.commit_finalizer_git import (
     normalize_path,
     split_pre_existing_changed_files,
 )
+from sase.llm_provider.commit_finalizer_raw_commits import AbsorbedRawCommits
 
 COMMIT_DECLARATION_RULE = (
     "SASE agents work in ephemeral numbered workspace clones, so uncommitted "
@@ -47,6 +48,7 @@ def build_commit_declaration_context(
     root: Path,
     context: FinalizerContextWire,
     host_records: Sequence[HostRepositoryRecord],
+    absorbed_raw_commits: Sequence[AbsorbedRawCommits] = (),
 ) -> dict[str, Any]:
     """Return model-visible guidance for authoring commit declarations."""
 
@@ -75,6 +77,9 @@ def build_commit_declaration_context(
             for obligation in context.obligations
             if obligation.kind == "repository"
         ],
+        "absorbed_raw_commits": [
+            _absorbed_raw_commits_entry(absorbed) for absorbed in absorbed_raw_commits
+        ],
     }
     if context.assigned_bead is not None:
         payload["assigned_bead"] = {
@@ -91,6 +96,24 @@ def build_commit_declaration_context(
             ),
         }
     return payload
+
+
+def _absorbed_raw_commits_entry(absorbed: AbsorbedRawCommits) -> dict[str, Any]:
+    """Render one absorbed raw chain for the context payload."""
+
+    display = (
+        absorbed.name if absorbed.kind == "main" else f"{absorbed.kind}:{absorbed.name}"
+    )
+    return {
+        "repo": display,
+        "path": absorbed.path,
+        "commits": [
+            {"sha": commit.sha, "subject": commit.subject}
+            for commit in absorbed.commits
+        ],
+        "recovery_ref": absorbed.recovery_ref,
+        "reset_target": absorbed.reset_target,
+    }
 
 
 def _repository_evidence(

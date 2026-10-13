@@ -360,6 +360,51 @@ def test_capture_writes_no_baseline_when_dirty_state_collection_fails(
     assert not (artifacts_dir / FINALIZER_BASELINE_FILENAME).exists()
 
 
+def test_capture_records_head_for_run_start_repo(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = tmp_path / "sase_10"
+    _init_git_repo_with_identity(repo)
+    set_agent_env(monkeypatch, repo)
+    _use_git_dirty_details(monkeypatch)
+    artifacts_dir = tmp_path / "artifacts"
+
+    capture_dirty_baseline(str(repo), str(artifacts_dir))
+
+    expected_head = _run_git(repo, "rev-parse", "HEAD").strip()
+    records = load_finalizer_baseline_records(artifacts_dir)
+    assert records is not None
+    assert len(records) == 1
+    assert records[0].head == expected_head
+
+
+def test_legacy_baseline_record_without_head_parses_and_skips_detection(
+    tmp_path: Path,
+) -> None:
+    repo = tmp_path / "sase_10"
+    _init_git_repo_with_identity(repo)
+    artifacts_dir = tmp_path / "artifacts"
+    _write_finalizer_baseline_records(
+        artifacts_dir,
+        [
+            _finalizer_baseline_record(
+                repo_id="main",
+                repo_path=repo,
+                kind="main",
+                name="main",
+                scope="run_start",
+                fingerprints={},
+                captured_at="2026-08-25T11:00:00+00:00",
+            ),
+        ],
+    )
+
+    records = load_finalizer_baseline_records(artifacts_dir)
+    assert records is not None
+    assert records[0].head is None
+
+
 def test_capture_writes_fingerprints_for_dirty_paths(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

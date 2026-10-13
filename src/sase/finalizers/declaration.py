@@ -86,6 +86,10 @@ from sase.finalizers.plan import (
     authenticate_resolved_finalizer_plan,
 )
 from sase.llm_provider.commit_finalizer_config import resolve_finalizer_project_dir
+from sase.llm_provider.commit_finalizer_raw_commits import (
+    AbsorbedRawCommits,
+    absorb_raw_local_commits,
+)
 from sase.llm_provider.commit_finalizer_state import collect_dirty_state
 from sase.llm_provider.commit_finalizer_types import DirtyState
 from sase.telemetry.metrics import FINALIZER_SELECTED
@@ -400,6 +404,10 @@ def _build_live_context(
 ) -> _LiveFinalizerContext:
     plan = plan or load_finalizer_plan(root)
     run_id, agent_id, turn_nonce = _run_identity(root, command)
+    # Absorb eligible raw local commits before dirty-state collection so the
+    # staged changes enter the ordinary obligation and declaration path.
+    # Never absorbs at execution time; there, only the backstop applies.
+    absorbed = absorb_raw_local_commits(resolve_finalizer_project_dir(), root)
     dirty_state = _collect_dirty_state(root)
     requirements, obligations = _build_context_requirements(plan, dirty_state)
     host_records = _host_repository_records(dirty_state)
@@ -423,6 +431,7 @@ def _build_live_context(
             context,
             root=root,
             host_records=host_records,
+            absorbed_raw_commits=absorbed,
         ),
         context=context,
         host_records=host_records,
@@ -476,6 +485,7 @@ def _context_payload(
     *,
     root: Path,
     host_records: tuple[HostRepositoryRecord, ...],
+    absorbed_raw_commits: tuple[AbsorbedRawCommits, ...] = (),
 ) -> dict[str, Any]:
     requirement_by_id = {item.instance_id: item for item in context.requirements}
     selected = []
@@ -502,6 +512,7 @@ def _context_payload(
             root=root,
             context=context,
             host_records=host_records,
+            absorbed_raw_commits=absorbed_raw_commits,
         ),
         "manifest_template": _manifest_template(context),
     }

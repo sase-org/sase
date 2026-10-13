@@ -97,6 +97,24 @@ def format_context_pretty(payload: Mapping[str, Any]) -> str:
                             f"        {label}: "
                             + ", ".join(str(path) for path in values)
                         )
+        absorbed = commit_declaration.get("absorbed_raw_commits")
+        if isinstance(absorbed, list) and absorbed:
+            lines.append("  Absorbed raw commits:")
+            for item in absorbed:
+                if not isinstance(item, Mapping):
+                    continue
+                commits = item.get("commits")
+                summaries = (
+                    ", ".join(
+                        f"{str(entry.get('sha', ''))[:12]} "
+                        f"{str(entry.get('subject', '')).strip()}".rstrip()
+                        for entry in commits
+                        if isinstance(entry, Mapping)
+                    )
+                    if isinstance(commits, list)
+                    else ""
+                )
+                lines.append(f"    - {item.get('repo', '<unknown>')}: {summaries}")
     return "\n".join(lines)
 
 

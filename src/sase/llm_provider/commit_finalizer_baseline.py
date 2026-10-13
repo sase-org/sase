@@ -27,6 +27,7 @@ import json
 import logging
 import os
 from pathlib import Path
+import subprocess
 from typing import Any
 
 from .commit_finalizer_git import dirty_path_fingerprints, normalize_path
@@ -58,6 +59,7 @@ class FinalizerBaselineRecord:
     scope: str
     fingerprints: dict[str, tuple[str, str | None]]
     captured_at: str | None = None
+    head: str | None = None
 
 
 def capture_dirty_baseline(project_dir: str, artifacts_dir: str) -> None:
@@ -234,6 +236,7 @@ def _parse_finalizer_baseline_record(
     scope = item.get("scope")
     raw_fingerprints = item.get("fingerprints")
     captured_at = item.get("captured_at")
+    head = item.get("head")
     if not (
         isinstance(repo_id, str)
         and isinstance(repo_path, str)
@@ -243,6 +246,7 @@ def _parse_finalizer_baseline_record(
         and scope in _BASELINE_SCOPE_PRECEDENCE
         and isinstance(raw_fingerprints, Mapping)
         and (captured_at is None or isinstance(captured_at, str))
+        and (head is None or isinstance(head, str))
     ):
         return None
     fingerprints = _normalize_fingerprints(raw_fingerprints)
@@ -256,6 +260,7 @@ def _parse_finalizer_baseline_record(
         scope=scope,
         fingerprints=fingerprints,
         captured_at=captured_at,
+        head=head,
     )
 
 
@@ -337,11 +342,35 @@ def _baseline_record(
         "name": name,
         "scope": scope,
         "captured_at": datetime.now(UTC).isoformat(),
+        "head": _baseline_head(path),
         "fingerprints": {
             item_path: list(fingerprint)
             for item_path, fingerprint in dirty_path_fingerprints(path).items()
         },
     }
+
+
+def _baseline_head(repo_path: str) -> str | None:
+    """Return *repo_path*'s HEAD sha, or ``None`` when it cannot be read.
+
+    Best-effort only: an unborn HEAD, a corrupt checkout, or a git failure
+    records ``null`` so raw-commit detection is skipped for the repo instead
+    of failing the baseline capture.
+    """
+
+    try:
+        result = subprocess.run(
+            ["git", "-C", repo_path, "rev-parse", "--verify", "HEAD"],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=5,
+        )
+    except Exception:
+        return None
+    if result.returncode != 0:
+        return None
+    return result.stdout.strip() or None
 
 
 def _write_dirty_baseline_records(

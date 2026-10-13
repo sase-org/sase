@@ -53,6 +53,7 @@ from sase.finalizers.commit_types import (
 from sase.finalizers.commit_unpushed_resume import resume_unpushed_already_clean_repos
 from sase.finalizers.commit_validation import (
     protected_baseline_record,
+    raise_if_unpublished_local_commits,
     raise_if_unpublished_machine_state,
     reject_discarded_dirty_work,
     resolve_protected_baseline_paths,
@@ -132,6 +133,11 @@ def execute_commit_finalizer(
         if state.dirty_state.is_clean and is_missing_declaration(exc):
             raise_if_unpublished_machine_state(
                 state,
+                instance_id=instance.instance_id,
+                invoke_result=invoke_result,
+            )
+            raise_if_unpublished_local_commits(
+                artifacts,
                 instance_id=instance.instance_id,
                 invoke_result=invoke_result,
             )
@@ -364,6 +370,11 @@ def execute_commit_finalizer(
             instance_id=instance.instance_id,
             invoke_result=invoke_result,
         )
+        raise_if_unpublished_local_commits(
+            artifacts,
+            instance_id=instance.instance_id,
+            invoke_result=invoke_result,
+        )
         return BuiltinCommitExecution(
             invoke_result=invoke_result,
             result=success_result(
@@ -436,6 +447,13 @@ def execute_commit_finalizer(
 
     raise_if_unpublished_machine_state(
         state,
+        instance_id=instance.instance_id,
+        invoke_result=current_result,
+        attempts=attempts,
+        evidence=evidence,
+    )
+    raise_if_unpublished_local_commits(
+        artifacts,
         instance_id=instance.instance_id,
         invoke_result=current_result,
         attempts=attempts,

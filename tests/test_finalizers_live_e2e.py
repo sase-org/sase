@@ -36,7 +36,7 @@ from sase.llm_provider.commit_finalizer_baseline import (
 )
 from sase.llm_provider.commit_finalizer_git import git_changed_files
 from sase.llm_provider.commit_finalizer_types import DirtyRepo
-from sase.llm_provider.types import InvokeResult
+from sase.llm_provider.types import InvokeResult, LLMInvocationError
 from sase.sdd.store import SDD_STORAGE_SIDECAR_REPOS, SddStore
 from sase.macro.directives import PromptDirectives, extract_prompt_directives
 
@@ -100,6 +100,49 @@ def test_live_clean_completion_has_no_recovery_or_commit(
     assert not (artifacts / FINAL_DECLARATION_RECOVERY_PROMPT_FILENAME).exists()
     assert not (artifacts / "commit_results.json").exists()
     assert run_git(repo, "rev-list", "--count", "HEAD").stdout.strip() == "1"
+
+
+def test_live_ineligible_raw_commit_fails_with_unpublished_local_commits(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A raw commit absorption must decline never ends as a silent success.
+
+    The commit sits on a detached HEAD, so the absorb policy leaves it
+    untouched and the execution-time backstop fails the run with
+    ``unpublished_local_commits`` instead of reporting success (bead
+    sase-1kh.2).
+    """
+
+    isolate_host_config(monkeypatch, tmp_path)
+    repo = init_live_repo(tmp_path / "repo")
+    attach_bare_remote(repo, tmp_path / "remote.git")
+    artifacts = tmp_path / "artifacts"
+    prepare_live_env(monkeypatch, artifacts, repo)
+    monkeypatch.setenv("SASE_LINKED_REPOS_JSON", "[]")
+    monkeypatch.delenv("SASE_SIBLING_REPOS_JSON", raising=False)
+    capture_dirty_baseline(str(repo), str(artifacts))
+    run_git(repo, "checkout", "-q", "--detach", "HEAD")
+    (repo / "stranded.txt").write_text("agent work\n", encoding="utf-8")
+    run_git(repo, "add", "-A")
+    run_git(repo, "commit", "-q", "-m", "stranded agent work")
+    provider = MagicMock()
+    provider.invoke.return_value = InvokeResult(content="done")
+    provider.resolve_model_name.return_value = "model"
+    monkeypatch.setattr(
+        "sase.llm_provider._invoke.get_provider",
+        lambda *_args, **_kwargs: provider,
+    )
+
+    with pytest.raises(LLMInvocationError, match="refusing to report success"):
+        invoke_agent(
+            "do work",
+            agent_type="test",
+            suppress_output=True,
+            artifacts_dir=str(artifacts),
+            skip_preprocessing=True,
+            directives=PromptDirectives(),
+        )
 
 
 def test_live_assigned_bead_keep_is_authored_and_threaded_to_stitch_runner(

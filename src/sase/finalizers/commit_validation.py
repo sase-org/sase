@@ -39,6 +39,10 @@ from sase.llm_provider.commit_finalizer_git import (
     normalize_path,
     split_pre_existing_changed_files,
 )
+from sase.llm_provider.commit_finalizer_raw_commits import (
+    RawCommitRepo,
+    unrecorded_local_commits,
+)
 from sase.llm_provider.commit_finalizer_types import DirtyRepo, DirtyState
 from sase.llm_provider.types import InvokeResult
 
@@ -80,6 +84,62 @@ def raise_if_unpublished_machine_state(
         result=result,
         invoke_result=invoke_result,
     )
+
+
+def raise_if_unpublished_local_commits(
+    artifacts: Path | None,
+    *,
+    instance_id: str,
+    invoke_result: InvokeResult,
+    attempts: Sequence[FinalizerAttemptWire] = (),
+    evidence: Sequence[FinalizerOutcomeEvidenceWire] = (),
+) -> None:
+    """Fail when raw local commits exist only outside the host commit path.
+
+    An agent's raw ``git commit`` leaves a clean tree, so dirty-state
+    discovery never sees it. Any unrecorded local-only commit remaining in a
+    main, sibling, or opened external repo at execution time fails the commit
+    instance with the non-retryable ``unpublished_local_commits`` diagnostic
+    instead of reporting success. The workspace is held and the user is
+    notified through the normal failure path.
+    """
+
+    findings = unrecorded_local_commits(artifacts)
+    if not findings:
+        return
+    message_text = _unpublished_local_commits_message(findings)
+    result = _failed_result(
+        instance_id,
+        "unpublished_local_commits",
+        message_text,
+        attempts=attempts,
+        evidence=evidence,
+    )
+    raise BuiltinCommitFinalizerError(
+        message_text,
+        result=result,
+        invoke_result=invoke_result,
+    )
+
+
+def _unpublished_local_commits_message(
+    findings: Sequence[RawCommitRepo],
+) -> str:
+    """Explain unrecorded local commits and how to restore or publish them."""
+
+    lines = [
+        "commit finalizer found local commits that were created outside the "
+        "host commit path and exist only locally; refusing to report success:",
+    ]
+    for finding in findings:
+        lines.append(f"{finding.kind}:{finding.name} at {finding.path}")
+        for commit in finding.commits:
+            lines.append(f"  {commit.sha} {commit.subject}".rstrip())
+        lines.append(
+            f"  restore: git -C {finding.path} push "
+            f"or git -C {finding.path} reset --soft {finding.baseline_head}"
+        )
+    return "\n".join(lines)
 
 
 def protected_baseline_paths(
