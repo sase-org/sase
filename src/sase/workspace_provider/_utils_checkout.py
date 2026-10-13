@@ -415,15 +415,24 @@ def ensure_git_clone_at(
 
 
 def _rescue_doomed_sidecars(target_checkout_dir: str, workspace_num: int) -> None:
-    """Bundle every sidecar clone under a doomed checkout into the rescue store.
+    """Bundle every doomed clone under the checkout into the rescue store.
 
     Best-effort: an unreadable main checkout must never take unpublished
-    sidecar commits with it. Every rescue call is itself non-raising;
-    directory-listing failures simply mean there is nothing to rescue.
+    sidecar, linked, or external repo commits with it. Every rescue call is
+    itself non-raising; directory-listing failures simply mean there is
+    nothing to rescue.
     """
     from sase.workspace_provider.rescue import rescue_git_repo
+    from sase.axe.runner_workspace_protection import (
+        rescue_repo_clones_before_eviction,
+    )
 
     target = target_checkout_dir.rstrip("/") or target_checkout_dir
+    rescue_repo_clones_before_eviction(
+        target,
+        workspace_num,
+        reason="corrupt workspace checkout replacement: rescuing linked or external repo clone",
+    )
     try:
         repos_root = os.path.join(target, "sase", "repos")
         roles = sorted(os.listdir(repos_root)) if os.path.isdir(repos_root) else []
@@ -447,7 +456,7 @@ def _rescue_doomed_sidecars(target_checkout_dir: str, workspace_num: int) -> Non
 
 
 def _remove_corrupt_checkout(target_checkout_dir: str, workspace_num: int) -> None:
-    """Rescue sidecars, then move a corrupt checkout aside for deletion.
+    """Rescue child repositories, then move a corrupt checkout aside for deletion.
 
     The move is a same-parent rename with background deletion, so replacing
     a corrupt checkout never blocks on a large synchronous ``rmtree``. When
@@ -507,6 +516,15 @@ def recreate_managed_workspace(
     from sase.axe.runner_workspace_prepare import rescue_sidecars_before_eviction
 
     rescue_sidecars_before_eviction(checkout, workspace_num=workspace_num)
+    from sase.axe.runner_workspace_protection import (
+        rescue_repo_clones_before_eviction,
+    )
+
+    rescue_repo_clones_before_eviction(
+        checkout,
+        workspace_num,
+        reason="last-resort workspace re-creation: rescuing linked or external repo clone",
+    )
     from sase._linked_repo_workspaces import move_aside_for_background_delete
 
     try:

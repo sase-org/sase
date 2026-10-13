@@ -109,6 +109,97 @@ def rescue_sidecars_before_eviction(
     )
 
 
+def rescue_repo_clones_before_eviction(
+    workspace_dir: str | Path,
+    workspace_num: int,
+    *,
+    reason: str = "launch-time eviction of linked or external repo clone",
+) -> None:
+    """Best-effort rescue of linked and external clones before eviction.
+
+    These clones are deliberately excluded from sidecar publication. Their
+    local-only commits and worktree changes must be copied to the durable
+    rescue store before the launch or checkout lifecycle removes them.
+    """
+    import logging
+
+    from sase._linked_repo_paths import (
+        EXTERNAL_REPO_CLONES_SUBDIR,
+        LINKED_REPO_CLONES_SUBDIR,
+    )
+    from sase.workspace_provider.rescue import rescue_git_repo
+
+    logger = logging.getLogger(__name__)
+    workspace_root = Path(workspace_dir).expanduser().resolve(strict=False)
+    linked_root = workspace_root.joinpath(*LINKED_REPO_CLONES_SUBDIR)
+    external_root = workspace_root.joinpath(*EXTERNAL_REPO_CLONES_SUBDIR)
+
+    clones: list[tuple[Path, str]] = []
+    if linked_root.is_dir():
+        try:
+            for clone in sorted(linked_root.iterdir(), key=lambda path: path.name):
+                if (
+                    clone.is_dir()
+                    and not clone.is_symlink()
+                    and (clone / ".git").exists()
+                ):
+                    clones.append((clone, f"linked-{clone.name}"))
+        except OSError:
+            logger.warning(
+                "Unable to enumerate linked repo clones under %s",
+                linked_root,
+                exc_info=True,
+            )
+
+    # External clone layouts have varying depth. Stop at the checkout so
+    # nested repositories inside a clone are never treated as separate
+    # eviction targets.
+    pending = [external_root] if external_root.is_dir() else []
+    while pending:
+        parent = pending.pop()
+        try:
+            children = sorted(
+                (
+                    child
+                    for child in parent.iterdir()
+                    if child.is_dir() and not child.is_symlink()
+                ),
+                key=lambda path: path.name,
+                reverse=True,
+            )
+        except OSError:
+            logger.warning(
+                "Unable to enumerate external repo clones under %s",
+                parent,
+                exc_info=True,
+            )
+            continue
+        for child in children:
+            if (child / ".git").exists():
+                relative = child.relative_to(external_root).as_posix()
+                clones.append((child, f"external-{relative}"))
+            else:
+                pending.append(child)
+
+    for clone, label in sorted(clones, key=lambda item: str(item[0])):
+        try:
+            rescue_git_repo(
+                clone,
+                workspace_dir=workspace_root,
+                workspace_num=workspace_num,
+                label=label,
+                reason=reason,
+                include_worktree=True,
+            )
+        except Exception:  # noqa: BLE001 - rescue never blocks eviction.
+            logger.warning(
+                "Workspace rescue failed for linked or external clone %s; "
+                "proceeding with eviction",
+                clone,
+                exc_info=True,
+            )
+
+
 def prepare_launch_workspace_repos(
     workspace_dir: str,
     workspace_num: int,
@@ -131,6 +222,11 @@ def prepare_launch_workspace_repos(
     if workspace_num > 1:
         protect_unpushed_sidecar_commits(
             workspace_dir, evicting=True, workspace_num=workspace_num
+        )
+        rescue_repo_clones_before_eviction(
+            workspace_dir,
+            workspace_num,
+            reason="launch-time eviction of linked or external repo clone",
         )
 
     clear_workspace_repos(workspace_dir, workspace_num)
@@ -162,5 +258,6 @@ __all__ = [
     "agents_sidecar_sync_guard",
     "protect_unpushed_sidecar_commits",
     "prepare_launch_workspace_repos",
+    "rescue_repo_clones_before_eviction",
     "rescue_sidecars_before_eviction",
 ]

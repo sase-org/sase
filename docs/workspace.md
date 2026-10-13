@@ -661,10 +661,11 @@ Preparing a numbered workspace (`#2` and above) for a launch evicts everything u
 carry stale state into the new run. Leftover state from an earlier run never fails a new
 launch: preparation publishes each sidecar once, then rescues anything still unpublished
 to the durable rescue store outside the workspace
-(`~/.sase/projects/<project>/rescue/<YYYYMM>/`, falling back to `~/.sase/rescue/`) and
-always proceeds with eviction. Each rescue pins a `refs/sase/recovery/` ref inside the
-store's own repository, writes a git bundle of the local-only commits plus a binary
-worktree patch and a `manifest.json` with copy-pasteable restore commands
+(`~/.sase/projects/<project>/rescue/<YYYYMM>/`, falling back to `~/.sase/rescue/`).
+Linked and external clones are rescued there too, with a bundle of local-only commits
+and a worktree patch; they are never published during eviction. Eviction always
+proceeds. Each rescue pins a `refs/sase/recovery/` ref inside the store's own
+repository, writes a `manifest.json` with copy-pasteable restore commands
 (`git fetch <bundle> 'refs/*:refs/sase/rescued/<stamp>/*'`,
 `git apply --index <patch>`), and sends one inbox notification naming the rescue dir.
 Entries older than 30 days (7 days for quarantined whole-clone copies) are reaped. See
