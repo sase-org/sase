@@ -81,6 +81,8 @@ class NewProjectCreateChecksMixin(_MixinBase):
         def query_one(self, *args: Any, **kwargs: Any) -> Any: ...
 
     def _supported_visibilities(self) -> tuple[str, ...]:
+        if self._create_form_status != "ready":
+            return ()
         return supported_create_visibilities(self._create_form)
 
     def _paint_create_configure(self) -> None:
@@ -299,6 +301,7 @@ class NewProjectCreateChecksMixin(_MixinBase):
                 probe=probe,
                 identity_key=identity.identity_key,
                 checkout=checkout,
+                creation_form=self._create_form,
             )
             document = await asyncio.to_thread(
                 plan_create_display,

@@ -14,6 +14,8 @@ from dataclasses import dataclass
 from typing import Any
 from urllib.parse import urlparse
 
+from sase.project_onboarding.creation import create_apply_ref
+
 from .init_plan_modal_rendering import operation_glyph
 
 __all__ = [
@@ -204,6 +206,12 @@ def _host_from_target(target: Mapping[str, Any]) -> str:
 def _requested_visibility(
     document: Mapping[str, Any], target: Mapping[str, Any]
 ) -> str:
+    fields = document.get("creation_fields")
+    if isinstance(fields, list) and not any(
+        isinstance(field, Mapping) and str(field.get("name") or "") == "visibility"
+        for field in fields
+    ):
+        return ""
     creation = _mapping(document.get("creation"))
     visibility = str(creation.get("visibility") or "")
     if visibility:
@@ -222,7 +230,7 @@ def build_review(document: Mapping[str, Any]) -> ReviewView:
     host = _host_from_target(target_map)
     rows: list[_ReviewRow] = []
     if is_create:
-        vis_label = visibility.upper() if visibility else "—"
+        vis_label = visibility.upper() if visibility else ""
         web_url = str(target_map.get("web_url") or "")
         detail_parts = [part for part in (host, vis_label, web_url) if part]
         glyph, style = operation_glyph("create")
@@ -273,6 +281,8 @@ def build_review(document: Mapping[str, Any]) -> ReviewView:
     vis_label = visibility.upper() if visibility else "—"
     if is_create:
         heading = f"CREATE {vis_label} {repo_name}".strip()
+        if not visibility:
+            heading = f"CREATE {repo_name}".strip()
         confirm_label = "Create repository  [y]"
         host_label = host or "the remote"
         notice = f"Creates a repository on {host_label}."
@@ -323,6 +333,10 @@ def apply_submission(document: Mapping[str, Any]) -> ApplySubmission:
         "workflow_type": str(provider_map.get("workflow_type") or ""),
         "identity_key": identity_key,
     }
+    if mode == "create":
+        target_request["ref"] = create_apply_ref(
+            target_request["workflow_type"], target_request["ref"]
+        )
     owner = str(target_map.get("owner") or "")
     if owner:
         target_request["owner"] = owner
@@ -334,14 +348,21 @@ def apply_submission(document: Mapping[str, Any]) -> ApplySubmission:
     }
     if mode == "create":
         options = options_from_argv(argv)
-        request["options"] = options
-        visibility = str(
-            options.get("visibility") or creation.get("visibility") or "private"
+        creation_fields = document.get("creation_fields")
+        visibility_supported = not isinstance(creation_fields, list) or any(
+            isinstance(field, Mapping) and str(field.get("name") or "") == "visibility"
+            for field in creation_fields
         )
-        request["creation"] = {
-            "visibility": visibility,
-            "summary": [str(item) for item in list(creation.get("summary") or ())],
+        if not visibility_supported:
+            options.pop("visibility", None)
+        request["options"] = options
+        visibility = str(options.get("visibility") or creation.get("visibility") or "")
+        creation_request: dict[str, Any] = {
+            "summary": [str(item) for item in list(creation.get("summary") or ())]
         }
+        if visibility and visibility_supported:
+            creation_request["visibility"] = visibility
+        request["creation"] = creation_request
     return ApplySubmission(
         argv=argv,
         operation=operation,

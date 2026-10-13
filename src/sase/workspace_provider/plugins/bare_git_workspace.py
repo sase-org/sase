@@ -355,12 +355,6 @@ class BareGitWorkspacePlugin:
             return None
         bare_dir = options.get("bare_dir", "").strip()
         bare_path = _absolute_path(bare_dir or parsed.identity_key.removeprefix("git:"))
-        checkout_dir = options.get("checkout_dir", "").strip()
-        checkout_path = (
-            str(_absolute_path(checkout_dir)) + "/"
-            if checkout_dir
-            else parsed.checkout_dir
-        )
         parsed = ParsedRepoRef(
             workflow_type=parsed.workflow_type,
             ref=str(bare_path) if bare_dir else parsed.ref,
@@ -369,7 +363,7 @@ class BareGitWorkspacePlugin:
             name=parsed.name,
             project_key_base=parsed.project_key_base,
             project_name_base=parsed.project_name_base,
-            checkout_dir=checkout_path,
+            checkout_dir=parsed.checkout_dir,
             normalized_from=parsed.normalized_from,
         )
         if bare_path.exists():

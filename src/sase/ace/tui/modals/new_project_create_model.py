@@ -70,15 +70,18 @@ def supported_create_visibilities(form: RepoCreationForm | None) -> tuple[str, .
     """Return the wizard-level visibilities the provider form offers.
 
     A provider ``visibility`` choice field declares the supported values.
-    Without one, creation offers private and public.
+    A missing form is still loading, so preserve the usual choices until the
+    provider form arrives; a loaded form without that field offers no toggle.
     """
+    if form is None:
+        return ("private", "public")
     if form is not None:
         for field in form.fields:
             if field.name == "visibility" and field.kind == "choice" and field.choices:
                 values = tuple(choice.value for choice in field.choices if choice.value)
                 if values:
                     return values
-    return ("private", "public")
+    return ()
 
 
 def default_create_visibility(
@@ -96,7 +99,7 @@ def default_create_visibility(
     _ = owner
     options = [value for value in supported if value and value not in unavailable]
     if not options:
-        return FIRST_USE_VISIBILITY
+        return ""
     last = last_visibility.get(owner, "")
     if last and last in options:
         return last
@@ -275,6 +278,7 @@ def assemble_create_facts(
     probe: Any | None,
     identity_key: str,
     checkout: Mapping[str, Any] | None,
+    creation_form: RepoCreationForm | None = None,
 ) -> dict[str, Any]:
     """Build create planner facts from observed state only.
 
@@ -305,6 +309,8 @@ def assemble_create_facts(
         }
     if checkout is not None:
         facts["checkout"] = dict(checkout)
+    if creation_form is not None:
+        facts["creation_fields"] = [asdict(field) for field in creation_form.fields]
     return facts
 
 
@@ -367,20 +373,17 @@ def build_create_plan_request(
         "project_name_base": identity.project_name_base,
         "storage_policy": storage_policy,
     }
-    checkout_override = effective.get("checkout_dir", "").strip()
-    if checkout_override:
-        target["checkout_dir"] = checkout_override
-    return {
+    request: dict[str, Any] = {
         "mode": "create",
         "actor": "human",
         "target": target,
         "requested": project.to_requested(),
-        "creation": {
-            "visibility": visibility,
-            "summary": [str(item) for item in summary],
-        },
+        "creation": {"summary": [str(item) for item in summary]},
         "options": effective,
     }
+    if visibility:
+        request["creation"]["visibility"] = visibility
+    return request
 
 
 def plan_create_display(

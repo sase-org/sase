@@ -7,8 +7,15 @@ from typing import Any
 import pytest
 
 from sase import workspace_provider
+from sase.main import project_handler_add as add_cli
+from sase.main.parser import create_parser
 from sase.project_onboarding.journal import lookup_journal
-from sase.workspace_provider._hookspec import RepoCreateResult
+from sase.workspace_provider._hookspec import (
+    RepoCreateResult,
+    RepoCreationChoice,
+    RepoCreationField,
+    RepoCreationForm,
+)
 from ._apply_test_support import (
     FakeGh,
     IDENTITY,
@@ -31,6 +38,60 @@ def _create_request(checkout: str, **overrides: Any) -> dict[str, Any]:
 
 
 class TestCreateRemote:
+    def test_cli_explicit_false_options_reach_provider_create_hook(
+        self, fake_gh: FakeGh, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        fake_gh.probe_status = "not_found"
+        form = RepoCreationForm(
+            workflow_type="gh",
+            namespace="sase-org",
+            fields=(
+                RepoCreationField(
+                    name="visibility",
+                    label="Visibility",
+                    kind="choice",
+                    default="private",
+                    choices=(
+                        RepoCreationChoice(value="private", label="Private"),
+                        RepoCreationChoice(value="public", label="Public"),
+                    ),
+                ),
+                RepoCreationField(
+                    name="issues", label="Issues", kind="bool", default="true"
+                ),
+                RepoCreationField(
+                    name="wiki", label="Wiki", kind="bool", default="true"
+                ),
+            ),
+            can_create=True,
+        )
+        monkeypatch.setattr(
+            workspace_provider, "describe_repo_creation", lambda *_args: form
+        )
+        monkeypatch.setattr(add_cli, "detect_actor", lambda **_kwargs: "human")
+        monkeypatch.setattr(
+            "sase.project_onboarding._apply_run.detect_actor", lambda **_kwargs: "human"
+        )
+        args = create_parser(only="project").parse_args(
+            [
+                "project",
+                "create",
+                "gh:sase-org/bob",
+                "--no-setup",
+                "--option",
+                "issues=false",
+                "--option",
+                "wiki=false",
+                "--yes",
+                "--json",
+            ]
+        )
+
+        assert add_cli.handle_create(args) == 0
+        created_options = fake_gh.create_calls[0][2]
+        assert created_options["issues"] == "false"
+        assert created_options["wiki"] == "false"
+
     def test_intent_is_recorded_before_create_hook(
         self, fake_gh: FakeGh, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -136,5 +197,5 @@ class TestCreateRemote:
         result, _ = run(_create_request(fake_gh.checkouts[IDENTITY]))
         assert result["status"] == "blocked"
         assert "/sase_gate" in result["message"]
-        assert "SASE_PROJECT_CREATE_BYPASS" in result["message"]
+        assert "human approval" in result["message"]
         assert fake_gh.create_calls == []

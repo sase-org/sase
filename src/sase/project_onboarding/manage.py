@@ -31,6 +31,7 @@ def manage_repository(
     remote: Mapping[str, Any],
     *,
     intent_fingerprint: str,
+    journal_identity_key: str = "",
 ) -> dict[str, Any]:
     """Ensure the matching onboarding intent's management marker is pushed.
 
@@ -40,6 +41,7 @@ def manage_repository(
     """
 
     identity_key = str(target.get("identity_key") or "").strip()
+    journal_key = journal_identity_key.strip() or identity_key
     display = str(target.get("display") or target.get("ref") or identity_key)
     workflow_type = str(target.get("workflow_type") or "")
     checkout_raw = str(target.get("checkout_dir") or "").strip()
@@ -51,7 +53,7 @@ def manage_repository(
     if resolve_git_dir(checkout) is None:
         raise ManagementError(f"{checkout} is not a Git checkout")
 
-    journal = lookup_journal(identity_key)
+    journal = lookup_journal(journal_key)
     if (
         journal is None
         or str(journal.get("intent_fingerprint") or "") != intent_fingerprint
@@ -142,7 +144,7 @@ def manage_repository(
             )
         baseline_hash = current_hash
         _write_evidence(
-            identity_key,
+            journal_key,
             intent_fingerprint,
             display,
             stage="prepared",
@@ -160,7 +162,7 @@ def manage_repository(
                 "sase/sase.yml has edits outside this onboarding marker"
             )
         _write_evidence(
-            identity_key,
+            journal_key,
             intent_fingerprint,
             display,
             stage="write_started",
@@ -179,7 +181,7 @@ def manage_repository(
     if not project_management_status(config_path).is_sase_managed:
         raise ManagementError("the local SASE management marker is not valid")
     _write_evidence(
-        identity_key,
+        journal_key,
         intent_fingerprint,
         display,
         stage="marker_written",
@@ -197,7 +199,7 @@ def manage_repository(
                 "confirm that origin is SASE-managed"
             )
         _write_evidence(
-            identity_key,
+            journal_key,
             intent_fingerprint,
             display,
             stage="push_verified",
@@ -210,7 +212,7 @@ def manage_repository(
     if not prior_parent:
         prior_parent = head
         _write_evidence(
-            identity_key,
+            journal_key,
             intent_fingerprint,
             display,
             stage="prepared",
@@ -223,7 +225,7 @@ def manage_repository(
 
     if remote_oid == prior_commit and prior_commit:
         _write_evidence(
-            identity_key,
+            journal_key,
             intent_fingerprint,
             display,
             stage="push_verified",
@@ -265,7 +267,7 @@ def manage_repository(
                 "the staged marker is preserved without committing"
             )
         _write_evidence(
-            identity_key,
+            journal_key,
             intent_fingerprint,
             display,
             stage="commit_started",
@@ -307,7 +309,7 @@ def manage_repository(
                     "Git created a commit that does not contain only the expected marker"
                 )
         _write_evidence(
-            identity_key,
+            journal_key,
             intent_fingerprint,
             display,
             stage="committed",
@@ -315,7 +317,7 @@ def manage_repository(
         )
     else:
         _write_evidence(
-            identity_key,
+            journal_key,
             intent_fingerprint,
             display,
             stage="committed",
@@ -327,7 +329,7 @@ def manage_repository(
     remote_oid = _remote_oid(checkout, branch)
     if remote_oid == commit_id:
         _write_evidence(
-            identity_key,
+            journal_key,
             intent_fingerprint,
             display,
             stage="push_verified",
@@ -343,7 +345,7 @@ def manage_repository(
         )
 
     _write_evidence(
-        identity_key,
+        journal_key,
         intent_fingerprint,
         display,
         stage="push_started",
@@ -364,7 +366,7 @@ def manage_repository(
             "branch may require a pull request or a human to run `sase init -M`."
         )
     _write_evidence(
-        identity_key,
+        journal_key,
         intent_fingerprint,
         display,
         stage="push_verified",

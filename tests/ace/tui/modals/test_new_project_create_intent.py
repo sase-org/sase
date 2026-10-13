@@ -9,6 +9,8 @@ import pytest
 from sase import workspace_provider
 from sase.ace.tui.modals import new_project_create as create
 from sase.ace.tui.modals.new_project_configure_model import ConfigureDraft
+from sase.project_onboarding.planning import build_plan_document
+from sase.workspace_provider._hookspec import RepoCreationField, RepoCreationForm
 from ._new_project_create_helpers import fake_provider_fixture, probe, repo_form
 
 
@@ -76,6 +78,51 @@ def test_lenient_options_omit_unavailable_controls() -> None:
     assert "readme" not in effective
 
 
+def test_explicit_false_provider_values_reach_wizard_apply_argv(
+    monkeypatch: pytest.MonkeyPatch, fake_provider: None
+) -> None:
+    del fake_provider
+    form = RepoCreationForm(
+        workflow_type="gh",
+        namespace="sase-org",
+        fields=(
+            RepoCreationField(
+                name="issues", label="Issues", kind="bool", default="true"
+            ),
+            RepoCreationField(name="wiki", label="Wiki", kind="bool", default="true"),
+        ),
+        can_create=True,
+    )
+    monkeypatch.setattr(
+        workspace_provider, "describe_repo_creation", lambda *_args: form
+    )
+    identity = create.normalize_create_name("gh", "sase-org", "new")
+    effective = create._lenient_effective_options(
+        form, {"issues": "false", "wiki": "false"}
+    )
+    request = create._create_review_request(
+        identity=identity,
+        workflow_type="gh",
+        project=ConfigureDraft(name="new", setup_override="off"),
+        visibility="",
+        effective_options=effective,
+    )
+    facts = create.assemble_create_facts(
+        records=[],
+        probe=probe("not_found"),
+        identity_key=identity.identity_key,
+        checkout={"state": "absent"},
+        creation_form=form,
+    )
+    facts["can_create"] = True
+    document = build_plan_document(request, facts=facts)
+
+    assert effective == {"issues": "false", "wiki": "false"}
+    argv = document["apply_argv"]
+    assert argv[argv.index("--option") + 1] == "issues=false"
+    assert argv[argv.index("--option", argv.index("--option") + 1) + 1] == "wiki=false"
+
+
 def test_build_create_plan_request_preserves_complete_intent(
     fake_provider: None,
 ) -> None:
@@ -104,20 +151,6 @@ def test_build_create_plan_request_preserves_complete_intent(
         "summary": ["Create sase-org/new"],
     }
     assert request["options"] == {"description": "hi"}
-
-
-def test_build_create_plan_request_reflects_bare_git_paths(
-    fake_provider: None,
-) -> None:
-    identity = create.normalize_create_name("git", "", "notes")
-    request = create._build_create_plan_request(
-        identity=identity,
-        workflow_type="git",
-        project=ConfigureDraft(name="notes"),
-        visibility="private",
-        effective_options={"checkout_dir": "/srv/checkouts/notes/"},
-    )
-    assert request["target"]["checkout_dir"] == "/srv/checkouts/notes/"
 
 
 def test_plan_create_display_builds_mode_create_document(

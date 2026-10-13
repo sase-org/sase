@@ -6,7 +6,7 @@ from types import SimpleNamespace
 from typing import Any
 
 import pytest
-from textual.widgets import Input, Static
+from textual.widgets import Button, Input, Static
 
 from sase import workspace_provider
 from sase.ace.testing import AcePage
@@ -14,7 +14,12 @@ from sase.ace.tui.modals.new_project_create import NewProjectCreateConfigure
 from sase.ace.tui.modals.new_project_modal import NewProjectModal
 from sase.ace.tui.modals.new_project_review import NewProjectReview
 from sase.project_onboarding import Preferences
-from sase.workspace_provider._hookspec import RepoCreationField, RepoCreationForm
+from sase.workspace_provider._hookspec import (
+    ParsedRepoRef,
+    RepoCreationField,
+    RepoCreationForm,
+    WorkflowMetadata,
+)
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patches,
     patch_startup_loaders,
@@ -59,7 +64,10 @@ def _create_form() -> RepoCreationForm:
 
 
 def _patch_create_provider(
-    monkeypatch: pytest.MonkeyPatch, *, probe_status: str
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    probe_status: str,
+    form: RepoCreationForm | None = None,
 ) -> None:
     def _probe_repo(workflow_type: str, ref: str) -> Any:
         return SimpleNamespace(
@@ -80,7 +88,7 @@ def _patch_create_provider(
     monkeypatch.setattr(
         workspace_provider,
         "describe_repo_creation",
-        lambda workflow_type, namespace: _create_form(),
+        lambda workflow_type, namespace: form or _create_form(),
     )
 
 
@@ -89,6 +97,9 @@ async def _open_create(
     modal: NewProjectModal,
     raw_name: str,
     monkeypatch: pytest.MonkeyPatch,
+    *,
+    workflow_type: str = "gh",
+    owners: tuple[str, ...] = ("sase-org",),
 ) -> NewProjectCreateConfigure:
     """Open create Configure with the wall-clock debounce neutered.
 
@@ -99,7 +110,7 @@ async def _open_create(
     """
     monkeypatch.setattr(NewProjectCreateConfigure, "request_check", lambda self: None)
     await _open_modal(page, modal)
-    modal.enter_create_configure(workflow_type="gh", owners=["sase-org"], account="")
+    modal.enter_create_configure(workflow_type=workflow_type, owners=owners, account="")
 
     def _form_ready() -> bool:
         return modal._create_form_status == "ready"
@@ -149,6 +160,92 @@ async def test_new_project_create_configure_basics_png_snapshot(
             page,
             "new_project_create_configure_basics_120x40",
             title="New Project wizard — create Configure basics",
+        )
+
+
+async def test_new_project_bare_git_create_and_review_hide_visibility_png_snapshots(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Bare git's create and Review stages contain no visibility affordance."""
+    patch_startup_loaders(monkeypatch)
+    _patch_deterministic_source(monkeypatch)
+    bare_form = RepoCreationForm(
+        workflow_type="git",
+        namespace="",
+        fields=(
+            RepoCreationField(
+                name="bare_dir",
+                label="Bare repository path",
+                kind="line",
+                group="advanced",
+            ),
+        ),
+        can_create=True,
+    )
+    _patch_create_provider(monkeypatch, probe_status="not_found", form=bare_form)
+
+    def parse_git(workflow_type: str, text: str) -> ParsedRepoRef | None:
+        if workflow_type != "git":
+            return None
+        name = text.removeprefix("git:")
+        if name != "tools":
+            return None
+        return ParsedRepoRef(
+            workflow_type="git",
+            ref="tools",
+            identity_key="git:/home/visual/.sase/repos/tools.git",
+            display="tools",
+            name="tools",
+            project_key_base="tools",
+            project_name_base="tools",
+            checkout_dir="~/projects/git/tools/",
+        )
+
+    monkeypatch.setattr(workspace_provider, "parse_repo_ref", parse_git)
+    monkeypatch.setattr(
+        NewProjectModal, "_start_provider_load", lambda self, _type: None
+    )
+    metadata = WorkflowMetadata(
+        workflow_type="git",
+        ref_pattern=r"^$",
+        display_name="Bare git",
+        pre_allocated_env_prefix="SASE_GIT",
+    )
+    async with AcePage(query='"visual"', patches=patches()) as page:
+        modal = NewProjectModal(
+            provider_metadata=(metadata,),
+            candidate_inputs={},
+            preferences=Preferences(last_provider="git"),
+        )
+        widget = await _open_create(
+            page,
+            modal,
+            "tools",
+            monkeypatch,
+            workflow_type="git",
+            owners=(),
+        )
+        assert not widget.query_one("#new-project-create-visibility-row").display
+        ace_png_visual.assert_page_png(
+            page,
+            "new_project_create_bare_git_120x40",
+            title="New Project wizard — bare git create Configure",
+        )
+
+        modal._state.to_review()
+        modal._show_stage("review")
+        review = modal.query_one(NewProjectReview)
+        review.show_document(modal._create_plan)
+        await wait_for_visual_idle(page)
+        heading = review.query_one("#new-project-review-card-heading", Static)
+        confirm = review.query_one("#new-project-review-confirm", Button)
+        assert heading.render().plain.strip() == "! CREATE tools"
+        assert "PRIVATE" not in str(confirm.label)
+        ace_png_visual.assert_page_png(
+            page,
+            "new_project_review_create_bare_git_120x40",
+            title="New Project wizard — bare git Review create",
         )
 
 

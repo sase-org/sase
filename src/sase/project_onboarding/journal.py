@@ -255,6 +255,7 @@ def record_remote(
     display: str = "",
     ref: str = "",
     adopted_identity_key: str = "",
+    adopted_checkout_dir: str = "",
 ) -> dict[str, Any]:
     """Record that this intent created (or adopted) the remote repository."""
 
@@ -271,11 +272,13 @@ def record_remote(
             remote_map["repo_id"] = repo_id
         if created and not str(remote_map.get("created_at") or ""):
             remote_map["created_at"] = now
-        record["remote"] = remote_map
         if ref:
-            record["ref"] = ref
+            remote_map["adopted_ref"] = ref
         if adopted_identity_key:
-            record["identity_key"] = adopted_identity_key
+            remote_map["adopted_identity_key"] = adopted_identity_key
+        if adopted_checkout_dir:
+            remote_map["adopted_checkout_dir"] = adopted_checkout_dir
+        record["remote"] = remote_map
         record["updated_at"] = now
         _write_record(path, record, now=now)
         return record

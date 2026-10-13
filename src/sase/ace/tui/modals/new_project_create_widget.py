@@ -110,7 +110,10 @@ class NewProjectCreateConfigure(NewProjectCreateRenderingMixin, VerticalScroll):
                 )
             yield _Static("", id="new-project-create-normalized", markup=False)
             yield _Static("", id="new-project-create-availability", markup=False)
-            with _Horizontal(classes="new-project-configure-field"):
+            with _Horizontal(
+                id="new-project-create-visibility-row",
+                classes="new-project-configure-field",
+            ):
                 yield _Static("Visibility", classes="new-project-field-label")
                 yield _Button("private", id="new-project-create-visibility")
         with _Vertical(
@@ -219,10 +222,7 @@ class NewProjectCreateConfigure(NewProjectCreateRenderingMixin, VerticalScroll):
         """Repaint the stage from flow-owned state, preserving focus text."""
         self._workflow_type = workflow_type
         self._owners = tuple(owners)
-        self._supported_visibilities = tuple(supported_visibilities) or (
-            "private",
-            "public",
-        )
+        self._supported_visibilities = tuple(supported_visibilities)
         self._draft = draft
         self._identity = identity
         self._availability = availability

@@ -65,8 +65,10 @@ class RunContext:
         checkout_done_initially: bool,
         options: Mapping[str, str] | None = None,
         request: Mapping[str, Any] | None = None,
+        journal_identity_key: str | None = None,
     ) -> None:
         self.identity_key = identity_key
+        self.journal_identity_key = journal_identity_key or identity_key
         self.display = display
         self.workflow_type = workflow_type
         self.ref = ref
@@ -167,12 +169,13 @@ def _adopt_create_result(ctx: RunContext, result: Any, *, created: bool) -> None
     checkout = str(getattr(parsed, "checkout_dir", "") or "")
     try:
         record_remote(
-            ctx.identity_key,
+            ctx.journal_identity_key,
             repo_id=repo_id,
             created=created,
             display=ctx.display,
             ref=adopted_ref,
             adopted_identity_key=adopted_identity,
+            adopted_checkout_dir=checkout,
         )
     except ValueError as exc:
         raise StepFailed(str(exc)) from exc
@@ -301,7 +304,12 @@ def _effect_manage(ctx: RunContext) -> None:
         "checkout_dir": ctx.actual_checkout,
     }
     try:
-        manage_repository(target, remote_map, intent_fingerprint=ctx.fingerprint)
+        manage_repository(
+            target,
+            remote_map,
+            intent_fingerprint=ctx.fingerprint,
+            journal_identity_key=ctx.journal_identity_key,
+        )
     except ManagementError as exc:
         raise StepFailed(
             str(exc),

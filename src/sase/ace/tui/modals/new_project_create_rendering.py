@@ -37,6 +37,7 @@ class NewProjectCreateRenderingMixin:
         _ignore_checkbox_values: dict[str, bool]
         _ignore_input_values: dict[str, str]
         _owners: tuple[str, ...]
+        _supported_visibilities: tuple[str, ...]
 
         def query_one(self, *args: Any, **kwargs: Any) -> Any: ...
 
@@ -63,6 +64,9 @@ class NewProjectCreateRenderingMixin:
         owner_button.disabled = not self._owners
         visibility_button = self.query_one("#new-project-create-visibility", _Button)
         visibility_button.label = self._draft.visibility or "private"
+        self.query_one("#new-project-create-visibility-row").display = bool(
+            self._supported_visibilities
+        )
         self._sync_text_input("#new-project-create-name", self._draft.raw_name, _Input)
         self._sync_text_input(
             "#new-project-create-project-name",

@@ -198,6 +198,58 @@ def test_create_mode_journal_recovers_typed_request() -> None:
     assert plan.draft.make_current is True
 
 
+def test_bare_git_create_resume_keeps_plan_identity_after_adoption() -> None:
+    identity_key = "git:/home/bryan/.sase/repos/tools.git"
+    request = {
+        "mode": "create",
+        "actor": "human",
+        "target": {
+            "ref": "tools",
+            "workflow_type": "git",
+            "identity_key": identity_key,
+        },
+        "requested": {"name": "tools", "aliases": [], "setup": "off"},
+        "options": {"bare_dir": "/tmp/custom/tools.git"},
+        "creation": {"summary": []},
+    }
+    journal = _create_journal(
+        identity_key=identity_key,
+        workflow_type="git",
+        ref="tools",
+        remote={
+            "created": True,
+            "adopted_ref": "/tmp/custom/tools.git",
+            "adopted_identity_key": "git:/tmp/custom/tools.git",
+            "adopted_checkout_dir": "/home/bryan/projects/git/tools/",
+        },
+    )
+    context = _ResumeContext(journal=journal, request=request, command=())
+    row = _row(
+        identity_key=identity_key,
+        ref="tools",
+        display="tools",
+        project_name_base="tools",
+    )
+    seed = {
+        "ref": "tools",
+        "identity_key": identity_key,
+        "project_name_base": "tools",
+        "workflow_type": "git",
+    }
+
+    plan = recover_resume_intent(
+        row=row, workflow_type="git", context=context, seed_target=seed
+    )
+
+    assert plan.error == ""
+    assert plan.mode == "create"
+    assert plan.identity_key == identity_key
+    assert plan.create is not None
+    assert plan.create.identity_key == identity_key
+    assert plan.create.ref == "tools"
+    assert plan.create.options["bare_dir"] == "/tmp/custom/tools.git"
+
+
 def test_create_mode_journal_falls_back_to_recorded_argv() -> None:
     context = _ResumeContext(
         journal=_create_journal(),

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 import pytest
 
 from sase.main.parser import create_parser
@@ -162,9 +164,9 @@ def test_project_create_help_documents_human_only_and_options() -> None:
     create_help = flat_help(parser_for(("sase", "project", "create")).format_help())
 
     assert "-c, --check" in create_help
-    assert "-d, --description" in create_help
-    assert "-O, --option" in create_help
-    assert "-v, --visibility" in create_help
+    _assert_option_pair_documented(create_help, "-d", "--description")
+    _assert_option_pair_documented(create_help, "-O", "--option")
+    _assert_option_pair_documented(create_help, "-v", "--visibility")
     assert "/sase_gate" in create_help
     assert "SASE_PROJECT_CREATE_BYPASS" in create_help
     assert "gh:OWNER/NAME" in create_help
@@ -175,10 +177,16 @@ def test_project_suggest_help_documents_owner_refresh_and_json() -> None:
 
     assert "-a, --all" in suggest_help
     assert "-j, --json" in suggest_help
-    assert "-o, --owner" in suggest_help
+    _assert_option_pair_documented(suggest_help, "-o", "--owner")
     assert "-r, --refresh" in suggest_help
     assert "cache-first" in suggest_help
     assert "sase project add REF" in suggest_help
+
+
+def _assert_option_pair_documented(help_text: str, short: str, long: str) -> None:
+    """Check both spellings without depending on argparse's metavar layout."""
+    assert re.search(rf"(?<!\S){re.escape(short)}(?=,|\s)", help_text)
+    assert long in help_text
 
 
 def test_project_set_current_help_documents_project_and_json() -> None:

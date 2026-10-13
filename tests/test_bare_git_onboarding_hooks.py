@@ -182,23 +182,22 @@ def test_create_repo_initializes_only_an_empty_bare_repository(
     assert (Path(result.repo_id) / "config").is_file()
 
 
-def test_create_repo_carries_custom_paths_into_parsed_reference(
+def test_create_repo_carries_custom_bare_path_into_parsed_reference(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     _use_temporary_paths(monkeypatch, tmp_path)
     bare_path = tmp_path / "custom" / "widget.git"
-    checkout_path = tmp_path / "checkouts" / "widget"
 
     result = bare_git.BareGitWorkspacePlugin().ws_create_repo(
         "git",
         "widget",
-        {"bare_dir": str(bare_path), "checkout_dir": str(checkout_path)},
+        {"bare_dir": str(bare_path)},
     )
 
     assert result is not None and result.status == "created"
     assert result.parsed.ref == str(bare_path)
     assert result.parsed.identity_key == f"git:{bare_path}"
-    assert result.parsed.checkout_dir == f"{checkout_path}/"
+    assert result.parsed.checkout_dir.endswith("/projects/git/widget/")
 
 
 def test_empty_precreated_repo_uses_bare_git_fresh_init_path(

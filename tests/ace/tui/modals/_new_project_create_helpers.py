@@ -67,6 +67,16 @@ def repo_form() -> RepoCreationForm:
         namespace="sase-org",
         fields=(
             RepoCreationField(
+                name="visibility",
+                label="Visibility",
+                kind="choice",
+                default="private",
+                choices=(
+                    RepoCreationChoice(value="private", label="Private"),
+                    RepoCreationChoice(value="public", label="Public"),
+                ),
+            ),
+            RepoCreationField(
                 name="description", label="Description", kind="line", default=""
             ),
             RepoCreationField(

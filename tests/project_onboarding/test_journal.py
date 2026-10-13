@@ -195,10 +195,18 @@ class TestJournal:
             "github.com/sase-org/bob",
             repo_id="R1",
             display="sase-org/bob",
+            ref="/custom/bob.git",
+            adopted_identity_key="git:/custom/bob.git",
+            adopted_checkout_dir="/work/bob/",
         )
         assert stored["remote"]["created"] is True
         assert stored["remote"]["repo_id"] == "R1"
         assert stored["remote"]["created_at"]
+        assert stored["identity_key"] == "github.com/sase-org/bob"
+        assert stored["ref"] == "sase-org/bob"
+        assert stored["remote"]["adopted_ref"] == "/custom/bob.git"
+        assert stored["remote"]["adopted_identity_key"] == "git:/custom/bob.git"
+        assert stored["remote"]["adopted_checkout_dir"] == "/work/bob/"
         facts = ownership_facts("github.com/sase-org/bob", "abc123")
         assert facts is not None
         assert facts["remote_created"] is True

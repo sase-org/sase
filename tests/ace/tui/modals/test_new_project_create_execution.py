@@ -17,21 +17,38 @@ from sase.ace.tui.modals.new_project_apply import (
     _terminal_apply_argv,
 )
 from sase.ace.tui.modals.new_project_create import NewProjectCreateConfigure
+from sase.ace.tui.modals.new_project_configure_model import ConfigureDraft
+from sase.ace.tui.modals.new_project_create_model import (
+    create_review_request,
+    lenient_effective_options,
+    normalize_create_name,
+)
 from sase.ace.tui.modals.new_project_review import (
     NewProjectReview,
     _check_argv,
 )
 from sase.ace.tui.modals.new_project_review_model import (
     apply_submission,
+    build_review,
     options_from_argv,
     strip_transport_flags,
 )
 from sase.ace.tui.proc_observer import ObservedProc
 from sase.core.time import local_now
+from sase import workspace_provider
+from sase.main.parser import create_parser
 from sase.main import project_handler_add as add_cli
-from sase.ops.models import DurableOperationRequest
+from sase.ops.io import write_operation_request
+from sase.ops.models import REQUEST_ENV, DurableOperationRequest
 from sase.project_onboarding.preferences import load_preferences
-from sase.workspace_provider._hookspec import ParsedRepoRef
+from sase.project_onboarding.planning import build_plan_document
+from sase.workspace_provider._hookspec import (
+    ParsedRepoRef,
+    RepoCreationChoice,
+    RepoCreationField,
+    RepoCreationForm,
+    WorkflowMetadata,
+)
 from tests.ace.tui.modals.test_new_project_configure_review import _WizardApp
 from tests.ace.tui.modals._new_project_create_helpers import (
     enter_create_stage,
@@ -249,6 +266,179 @@ def test_create_apply_submission_matches_cli_request_from_args(
     assert request["options"]["readme"] == "--json"
 
 
+@pytest.mark.parametrize("workflow_type", ["git", "gh"])
+def test_create_submission_round_trips_through_request_sidecar(
+    workflow_type: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The wizard's durable intent and emitted CLI argv share one target."""
+    sase_home = tmp_path / "sase-home"
+    monkeypatch.setenv("SASE_HOME", str(sase_home))
+    owner = "sase-org" if workflow_type == "gh" else ""
+    name = "new" if workflow_type == "gh" else "tools"
+    canonical_ref = f"{owner}/{name}" if owner else name
+    git_identity = f"git:{sase_home / 'repos' / f'{name}.git'}"
+    gh_identity = f"github.com/{canonical_ref}"
+
+    def parse(workflow: str, raw: str) -> ParsedRepoRef | None:
+        if workflow != workflow_type:
+            return None
+        value = raw.strip()
+        if workflow == "git":
+            bare_name = value.removeprefix("git:")
+            if not bare_name or "/" in bare_name:
+                return None
+            return ParsedRepoRef(
+                workflow_type="git",
+                ref=bare_name,
+                identity_key=git_identity,
+                display=bare_name,
+                name=bare_name,
+                owner="",
+                project_key_base=bare_name,
+                project_name_base=bare_name,
+                checkout_dir=str(sase_home / "projects" / "git" / bare_name) + "/",
+            )
+        ref = value.removeprefix("gh:")
+        if "/" not in ref:
+            return None
+        namespace, repo = ref.split("/", 1)
+        return ParsedRepoRef(
+            workflow_type="gh",
+            ref=ref,
+            identity_key=gh_identity,
+            display=ref,
+            owner=namespace,
+            name=repo,
+            host="github.com",
+            web_url=f"https://github.com/{ref}",
+            project_key_base=f"gh_{namespace}__{repo}",
+            project_name_base=repo,
+            checkout_dir=str(sase_home / "projects" / "github" / namespace / repo)
+            + "/",
+        )
+
+    metadata = tuple(
+        WorkflowMetadata(
+            workflow_type=workflow,
+            ref_pattern="",
+            display_name="Bare git" if workflow == "git" else "GitHub",
+            pre_allocated_env_prefix="",
+        )
+        for workflow in ("git", "gh")
+    )
+    if workflow_type == "git":
+        form = RepoCreationForm(
+            workflow_type="git",
+            namespace="",
+            fields=(
+                RepoCreationField(name="bare_dir", label="Bare path", kind="line"),
+            ),
+            can_create=True,
+        )
+        visibility = ""
+    else:
+        form = RepoCreationForm(
+            workflow_type="gh",
+            namespace=owner,
+            fields=(
+                RepoCreationField(
+                    name="visibility",
+                    label="Visibility",
+                    kind="choice",
+                    default="private",
+                    choices=(
+                        RepoCreationChoice(value="private", label="Private"),
+                        RepoCreationChoice(value="public", label="Public"),
+                    ),
+                ),
+            ),
+            can_create=True,
+        )
+        visibility = "private"
+    monkeypatch.setattr(
+        workspace_provider, "get_all_workflow_metadata", lambda: metadata
+    )
+    monkeypatch.setattr(workspace_provider, "parse_repo_ref", parse)
+    monkeypatch.setattr(
+        workspace_provider,
+        "get_display_name",
+        lambda workflow: "Bare git" if workflow == "git" else "GitHub",
+    )
+    monkeypatch.setattr(workspace_provider, "describe_repo_creation", lambda *_a: form)
+    monkeypatch.setattr(add_cli, "detect_actor", lambda **_kwargs: "human")
+
+    identity = normalize_create_name(workflow_type, owner, name)
+    options = lenient_effective_options(
+        form, {"visibility": visibility} if visibility else {}
+    )
+    request = create_review_request(
+        identity=identity,
+        workflow_type=workflow_type,
+        provider_display="Bare git" if workflow_type == "git" else "GitHub",
+        project=ConfigureDraft(name=name, setup_override="off"),
+        visibility=visibility,
+        effective_options=options,
+    )
+    fields = [
+        {
+            "name": field.name,
+            "label": field.label,
+            "kind": field.kind,
+            "default": field.default,
+            "choices": [
+                {"value": choice.value, "label": choice.label}
+                for choice in field.choices
+            ],
+        }
+        for field in form.fields
+    ]
+    document = build_plan_document(
+        request,
+        facts={
+            "remote": {
+                "status": "not_found",
+                "visibility": "",
+                "is_empty": None,
+                "is_archived": None,
+                "can_push": None,
+                "sase_managed": False,
+                "repo_id": "",
+                "default_branch": "",
+                "message": "",
+                "web_url": "",
+            },
+            "checkout": {"state": "absent"},
+            "projects": [],
+            "can_create": True,
+            "creation_fields": fields,
+            "creation_effective": options,
+        },
+    )
+    submission = apply_submission(document)
+    if workflow_type == "git":
+        assert "--visibility" not in submission.argv
+        assert "visibility" not in submission.request["creation"]
+        assert "visibility" not in submission.request["options"]
+
+    request_path = tmp_path / f"{workflow_type}-request.json"
+    write_operation_request(
+        request_path,
+        DurableOperationRequest(
+            operation="project.create",
+            payload={"request": submission.request},
+        ),
+    )
+    monkeypatch.setenv(REQUEST_ENV, str(request_path))
+    args = create_parser(only="project").parse_args(list(submission.argv[1:]))
+    parsed_request = add_cli._request_from_args(
+        args, mode="create", operation="project.create"
+    )
+    assert parsed_request["target"]["identity_key"] == identity.identity_key
+    assert parsed_request["target"]["ref"] == identity.canonical_ref
+
+
 async def test_create_review_renders_danger_heading_and_keep_notice() -> None:
     app = _ReviewApp()
     async with app.run_test(size=(120, 40)):
@@ -264,6 +454,27 @@ async def test_create_review_renders_danger_heading_and_keep_notice() -> None:
         assert confirm.variant == "error"
         assert "Create repository" in str(confirm.label)
         assert "keeps the created repository" in state
+
+
+def test_bare_git_create_review_omits_visibility_copy() -> None:
+    document = _create_document(
+        provider={"workflow_type": "git", "display": "Bare git"},
+        target={
+            "ref": "tools",
+            "display": "tools",
+            "identity_key": "git:/tmp/sase/repos/tools.git",
+            "checkout_dir": "/tmp/tools",
+            "visibility": "local",
+        },
+        creation={"visibility": "private", "summary": []},
+        creation_fields=[{"name": "bare_dir", "kind": "line"}],
+        apply_argv=["sase", "project", "create", "git:tools", "--yes", "--json"],
+    )
+
+    view = build_review(document)
+    assert view.visibility == ""
+    assert view.heading == "CREATE tools"
+    assert "PRIVATE" not in view.confirm_label
 
 
 async def test_create_review_compact_heading_stays_visible() -> None:

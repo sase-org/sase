@@ -623,7 +623,21 @@ class TestBuildPlanDocument:
             request, facts=_facts(remote={"status": "not_found"}, can_create=True)
         )
         assert request["target"]["ref"] == "sase-org/bob"
-        assert rebuilt["apply_argv"][0:4] == argv[0:4]
+        assert argv == [
+            "sase",
+            "project",
+            "create",
+            "sase-org/bob",
+            "--description",
+            "Forge",
+            "--visibility",
+            "private",
+            "--option",
+            "template=sase-org/template",
+            "--yes",
+            "--json",
+        ]
+        assert rebuilt["apply_argv"] == argv
         assert "invalid_option" not in _codes(rebuilt["blockers"])
 
     def test_preview_does_not_write(

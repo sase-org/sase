@@ -16,8 +16,7 @@ _emitted_bypass_reasons: set[str] = set()
 
 HUMAN_ONLY_CREATE_MESSAGE = (
     "sase project create refuses to apply inside agents and monitors. "
-    "Propose the exact command through /sase_gate, or set "
-    "SASE_PROJECT_CREATE_BYPASS to a non-empty reason."
+    "Propose the exact command through /sase_gate for human approval."
 )
 
 

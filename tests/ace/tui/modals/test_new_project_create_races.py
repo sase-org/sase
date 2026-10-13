@@ -8,7 +8,10 @@ from textual.widgets import Static
 
 from sase import workspace_provider
 from sase.ace.testing.wait import wait_for
-from sase.workspace_provider._hookspec import RepoCreationForm
+from sase.workspace_provider._hookspec import (
+    RepoCreationField,
+    RepoCreationForm,
+)
 from ._new_project_create_helpers import (
     enter_create_stage,
     make_modal,
@@ -190,9 +193,19 @@ async def test_bare_git_entry_supports_empty_namespace(
 ) -> None:
     from sase.workspace_provider import WorkflowMetadata
 
+    bare_form = RepoCreationForm(
+        workflow_type="git",
+        namespace="",
+        fields=(
+            RepoCreationField(
+                name="bare_dir", label="Bare repository path", kind="line"
+            ),
+        ),
+        can_create=True,
+    )
     monkeypatch.setattr(workspace_provider, "parse_repo_ref", parsed)
     monkeypatch.setattr(
-        workspace_provider, "describe_repo_creation", lambda *args: repo_form()
+        workspace_provider, "describe_repo_creation", lambda *args: bare_form
     )
     monkeypatch.setattr(
         workspace_provider, "probe_repo", lambda workflow_type, ref: probe("not_found")
@@ -220,5 +233,6 @@ async def test_bare_git_entry_supports_empty_namespace(
         await pilot.pause(0.6)
         assert modal._state.create_draft is not None
         assert modal._state.create_draft.owner == ""
-        assert modal._state.create_draft.visibility == "private"
+        assert modal._state.create_draft.visibility == ""
         assert modal._create_form_status == "ready"
+        assert not modal.query_one("#new-project-create-visibility-row").display

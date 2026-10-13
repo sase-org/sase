@@ -10,6 +10,7 @@ from typing import Any
 from sase.project_onboarding.facts import gather_facts
 from sase.project_onboarding.human_only import HUMAN_ONLY_CREATE_MESSAGE, detect_actor
 from sase.project_onboarding.journal import (
+    lookup_journal,
     record_intent,
     set_journal_status,
     update_step,
@@ -187,12 +188,40 @@ def _apply_locked(
             next_argv=[],
             message=HUMAN_ONLY_CREATE_MESSAGE,
         )
+    resume_target = dict(target)
+    resume_ref = canonical_ref
+    resume_identity = identity_key
+    resume_checkout = checkout_dir
+    journal = lookup_journal(identity_key) if mode == "create" else None
+    if (
+        journal is not None
+        and str(journal.get("intent_fingerprint") or "") == fingerprint
+        and str(journal.get("status") or "") in {"running", "failed"}
+    ):
+        remote = journal.get("remote")
+        remote_map = remote if isinstance(remote, Mapping) else {}
+        if remote_map.get("created") is True:
+            resume_ref = str(remote_map.get("adopted_ref") or canonical_ref)
+            resume_identity = str(
+                remote_map.get("adopted_identity_key") or identity_key
+            )
+            resume_checkout = str(
+                remote_map.get("adopted_checkout_dir") or checkout_dir
+            )
+            resume_target.update(
+                {
+                    "ref": resume_ref,
+                    "identity_key": resume_identity,
+                    "checkout_dir": resume_checkout,
+                }
+            )
     ctx = RunContext(
-        identity_key=identity_key,
+        identity_key=resume_identity,
+        journal_identity_key=identity_key,
         display=canonical_display,
         workflow_type=workflow_type,
-        ref=canonical_ref,
-        checkout_dir=checkout_dir,
+        ref=resume_ref,
+        checkout_dir=resume_checkout,
         mode=mode,
         actor=actor,
         fingerprint=fingerprint,
@@ -202,7 +231,7 @@ def _apply_locked(
         actual_name=actual_name,
         checkout_done_initially=_step_state(document, "checkout") == "done",
         options=dict(observed.get("creation_effective") or options),
-        request={**dict(request), "target": target, "options": options},
+        request={**dict(request), "target": resume_target, "options": options},
     )
     record_intent(
         identity_key=identity_key,
@@ -235,7 +264,9 @@ def _run_step(
     label = str(step.get("label") or step_id)
     started_at = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
     started = time.monotonic()
-    update_step(ctx.identity_key, step_id, status="running", display=ctx.display)
+    update_step(
+        ctx.journal_identity_key, step_id, status="running", display=ctx.display
+    )
     send(
         {
             "event": "step",
@@ -270,7 +301,7 @@ def _run_step(
     except StepFailed as exc:
         elapsed_ms = int((time.monotonic() - started) * 1000)
         update_step(
-            ctx.identity_key,
+            ctx.journal_identity_key,
             step_id,
             status="failed",
             message=exc.message,
@@ -290,7 +321,7 @@ def _run_step(
         ctx.failed = (step_id, label, exc.message, exc.hint)
         return False
     elapsed_ms = int((time.monotonic() - started) * 1000)
-    update_step(ctx.identity_key, step_id, status="done", display=ctx.display)
+    update_step(ctx.journal_identity_key, step_id, status="done", display=ctx.display)
     send(
         {
             "event": "step",
@@ -312,7 +343,7 @@ def _finish_run(
     next_argv = _next_argv(document, ctx.actual_key)
     if ctx.blocked is not None:
         set_journal_status(
-            ctx.identity_key,
+            ctx.journal_identity_key,
             "complete",
             display=ctx.display,
             project_key=ctx.actual_key,
@@ -329,7 +360,7 @@ def _finish_run(
         )
     if ctx.failed is None:
         set_journal_status(
-            ctx.identity_key,
+            ctx.journal_identity_key,
             "complete",
             display=ctx.display,
             project_key=ctx.actual_key,
