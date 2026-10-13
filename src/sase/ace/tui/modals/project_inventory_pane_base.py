@@ -122,6 +122,18 @@ class InventoryPaneBase[RecordT, IssueT: InventoryIssue](
             return bool(self._project_filter)
         return super().check_action(action, parameters)
 
+    def action_help(self) -> None:
+        from .projects_help_modal import ProjectsHelpModal
+        from .projects_pane import ProjectsPane
+
+        ancestor = self.parent
+        while ancestor is not None:
+            if isinstance(ancestor, ProjectsPane):
+                ancestor.action_help()
+                return
+            ancestor = ancestor.parent
+        self.app.push_screen(ProjectsHelpModal(keymaps=self._keymaps))
+
     def set_project_records(
         self,
         records: Sequence[ProjectRecordWire],

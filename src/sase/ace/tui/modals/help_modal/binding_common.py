@@ -148,6 +148,8 @@ def admin_center_projects_section(
             (d(p.set_current_project), "Make highlighted project current"),
             (d(p.default_project_action), "Default lifecycle action"),
             (d(p.reload), "Reload records or inventory"),
+            (d(p.help), "Open Projects help"),
+            (d(p.show_new_project), "Show hidden new project"),
         ],
     )
 

@@ -256,6 +256,8 @@ _PROJECTS_BINDING_META: tuple[tuple[str, str, str], ...] = (
     ("set_current_project", "set_current_project", "Set Current"),
     ("initialize_project", "initialize_project", "Initialize"),
     ("initialize_all_projects", "initialize_all_projects", "Initialize All"),
+    ("help", "help", "Help"),
+    ("show_new_project", "show_new_project", "Show New Project"),
 )
 
 # Scoped bindings owned by the Repos/Workspaces Projects-tab inventory panes.
@@ -269,6 +271,7 @@ _PROJECTS_INVENTORY_BINDING_META: tuple[tuple[str, str, str], ...] = (
     ("reload", "reload_inventory", "Reload"),
     ("jump_to_entry", "jump_to_entry", "Jump"),
     ("clear_project_filter", "clear_project_filter", "Clear Project"),
+    ("help", "help", "Help"),
 )
 
 # Scoped bindings owned by the focused Admin Center Tools pane.

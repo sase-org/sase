@@ -227,6 +227,24 @@ def build_projects_bindings(keymaps: ProjectsPaneKeymaps) -> list[Binding]:
     ]
 
 
+def projects_help_bindings(
+    keymaps: ProjectsPaneKeymaps,
+) -> list[tuple[str, str]]:
+    """Return effective Projects keys and descriptions for help surfaces."""
+
+    seen: set[str] = set()
+    rows: list[tuple[str, str]] = []
+    for field, _action, description in (
+        *_PROJECTS_BINDING_META,
+        *_PROJECTS_INVENTORY_BINDING_META,
+    ):
+        if field in seen:
+            continue
+        seen.add(field)
+        rows.append((key_display_name(getattr(keymaps, field)), description))
+    return rows
+
+
 def build_projects_inventory_bindings(keymaps: ProjectsPaneKeymaps) -> list[Binding]:
     """Build instance-local bindings shared by the Repos/Workspaces sub-tabs."""
 

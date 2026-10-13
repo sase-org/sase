@@ -8,8 +8,10 @@ from unittest.mock import MagicMock
 import weakref
 
 import pytest
+from sase import workspace_provider
 from sase.ace.tui.actions.proc_actions import TrackedProcCompletion
 from sase.ace.tui.modals.new_project_apply import (
+    _find_projects_pane,
     _intent_from_submission,
     _next_argv_requests_init,
     _on_project_add_complete,
@@ -263,6 +265,9 @@ async def test_failed_keeps_checklist_and_t_strips_json(
             return None
 
     monkeypatch.setattr(
+        workspace_provider, "describe_repo_creation", lambda *_args, **_kwargs: None
+    )
+    monkeypatch.setattr(
         "sase.ace.tui.modals.new_project_apply.subprocess.run",
         lambda argv, **kwargs: runs.append((argv, kwargs)),
     )
@@ -284,8 +289,13 @@ async def test_failed_keeps_checklist_and_t_strips_json(
         assert "repository was kept" in body
         await pilot.press("t")
         await pilot.pause()
-        assert runs
-        argv, kwargs = runs[0]
+        terminal = [
+            argv
+            for argv, _kwargs in runs
+            if isinstance(argv, (list, tuple)) and "--yes" in argv
+        ]
+        assert terminal
+        argv = list(terminal[0])
         assert "--json" not in argv
         assert "--yes" in argv
         assert modal._state.stage == "review"
@@ -419,10 +429,34 @@ async def test_ready_current_invalidates_project_launch_context(
 def test_reload_projects_if_mounted_calls_pane_action() -> None:
     pane = MagicMock()
     pane.is_mounted = True
-    app = MagicMock()
-    app.query.return_value = [pane]
+    screen = SimpleNamespace(query=lambda *_args, **_kwargs: [pane])
+    app = SimpleNamespace(screen_stack=[screen])
     _reload_projects_if_mounted(app)
     pane.action_reload_projects.assert_called_once()
+
+
+def test_find_projects_pane_walks_screen_stack_not_app_query() -> None:
+    pane = MagicMock()
+    pane.is_mounted = True
+    queried = MagicMock()
+    queried.is_mounted = True
+    app = MagicMock()
+    app.query.return_value = [queried]
+    app.screen_stack = []
+    assert _find_projects_pane(app) is None
+
+    screen = SimpleNamespace(query=lambda *_args, **_kwargs: [pane])
+    app.screen_stack = [object(), screen]
+    assert _find_projects_pane(app) is pane
+
+
+def test_find_projects_pane_skips_non_sequence_stack() -> None:
+    pane = MagicMock()
+    pane.is_mounted = True
+    app = MagicMock()
+    app.screen_stack = MagicMock()
+    app.query.return_value = [pane]
+    assert _find_projects_pane(app) is None
 
 
 def test_on_project_add_complete_reloads(monkeypatch: pytest.MonkeyPatch) -> None:

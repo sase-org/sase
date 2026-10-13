@@ -25,9 +25,8 @@ draft, owner and visibility defaults, pure name normalization, debounced
 off-thread availability and checkout checks, Rust identity previews, and
 the explicit add-instead transition.
 
-The stage is reachable from test harnesses only. No production Source
-affordance selects create Configure yet; the ``recovery-entry`` phase adds
-the pinned Create row. The normal add wizard keeps working unchanged.
+The Source stage's pinned Create row opens this Configure stage in the
+production wizard. Test harnesses can also mount it directly.
 
 Threading rules: pure Rust evaluation runs directly on the pump. Provider
 ``describe_repo_creation`` calls, probes, checkout observations, and

@@ -10,6 +10,7 @@ forwarding (``[`` / ``]`` cycle the project/repo/workspace sub-tabs while ``tab`
 from __future__ import annotations
 
 from datetime import datetime
+import weakref
 
 import pytest
 from textual.widgets import Button, ContentSwitcher, OptionList
@@ -21,9 +22,10 @@ from sase.ace.tui.modals import config_pane as cp
 from sase.ace.tui.modals import plugins_browser_pane as pbp
 from sase.ace.tui.modals.config_center_modal import ConfigCenterModal
 from sase.ace.tui.modals.config_center_session import AdminCenterSessionState
-from sase.ace.tui.modals.new_project_modal import NewProjectModal
+from sase.ace.tui.modals.new_project_modal import NewProjectModal, NewProjectSelection
 from sase.ace.tui.modals.project_management_rendering import hints_text
 from sase.ace.tui.modals.project_inventory_panes import RepoInventoryPane
+from sase.ace.tui.modals.projects_help_modal import ProjectsHelpModal
 from sase.ace.tui.modals.projects_pane import ProjectsPane
 from sase.current_project import CurrentProject
 from sase.ace.tui.modals.projects_pane import ProjectCountsLoadResult
@@ -325,6 +327,11 @@ async def test_projects_filter_yields_tab_to_admin_center(
         # traversal and leaves the Projects sub-tab untouched.
         await page.press("tab")
         await page.wait_for(lambda _s: modal._active_tab == "statistics")
+        assert pane._active_subtab == "projects"
+        assert page.app.current_tab == "artifacts"
+
+        await page.press("shift+tab")
+        await page.wait_for(lambda _s: modal._active_tab == "projects")
         assert pane._active_subtab == "projects"
         assert page.app.current_tab == "artifacts"
 
@@ -655,3 +662,257 @@ async def test_configured_inventory_bindings_dispatch_and_render_hints(
 
         await page.press("f4")
         await page.wait_for(lambda _s: repo_pane.project_filter is None)
+
+
+async def test_projects_filter_applies_once_per_keystroke(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_panes(monkeypatch)
+    apply_calls: list[int] = []
+    refresh_calls: list[int] = []
+    original_apply = ProjectsPane._apply_filters
+    original_refresh = ProjectsPane._refresh_options
+
+    def _apply(self: ProjectsPane) -> None:
+        apply_calls.append(1)
+        original_apply(self)
+
+    def _refresh(self: ProjectsPane, *, preferred_project: str | None = None) -> None:
+        refresh_calls.append(1)
+        original_refresh(self, preferred_project=preferred_project)
+
+    monkeypatch.setattr(ProjectsPane, "_apply_filters", _apply)
+    monkeypatch.setattr(ProjectsPane, "_refresh_options", _refresh)
+
+    async with AcePage() as page:
+        modal = ConfigCenterModal(initial_tab="projects")
+        page.app.push_screen(modal)
+        await page.expect_modal("ConfigCenterModal")
+        await page.wait_for(lambda _s: bool(modal.query("#projects-filter")))
+        await _focus_projects_filter(page)
+        apply_calls.clear()
+        refresh_calls.clear()
+
+        await page.press("a")
+        await page.pause()
+
+        assert apply_calls == [1]
+        assert refresh_calls == [1]
+
+
+async def test_projects_help_opens_from_list_and_inventory(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_panes(monkeypatch)
+    registry = load_keymap_registry({"keymaps": {"projects": {"help": "f5"}}})
+
+    async with AcePage() as page:
+        page.app._keymap_registry = registry
+        modal = ConfigCenterModal(initial_tab="projects")
+        page.app.push_screen(modal)
+        await page.expect_modal("ConfigCenterModal")
+        await page.wait_for(lambda _s: bool(modal.query("#projects")))
+        pane = modal.query_one("#projects", ProjectsPane)
+
+        await page.press("f5")
+        await page.expect_modal("ProjectsHelpModal")
+        assert isinstance(page.app.screen, ProjectsHelpModal)
+        footer = page.app.screen.query_one("#projects-help-footer")
+        assert "f5/q/Esc close" in footer.render().plain
+
+        await page.press("f5")
+        await page.expect_modal("ConfigCenterModal")
+        assert pane.is_mounted
+
+        pane._switch_to_subtab("repos")
+        await page.press("f5")
+        await page.expect_modal("ProjectsHelpModal")
+        await page.press("escape")
+        await page.expect_modal("ConfigCenterModal")
+
+
+async def test_show_new_project_key_clears_filter(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_panes(monkeypatch)
+    records = [
+        make_project_record("alpha", state="enabled"),
+        make_project_record("new-project", state="enabled"),
+    ]
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.projects_pane.list_project_records",
+        lambda *_args, **_kwargs: records,
+    )
+
+    async with AcePage() as page:
+        modal = ConfigCenterModal(initial_tab="projects")
+        page.app.push_screen(modal)
+        await page.expect_modal("ConfigCenterModal")
+        await page.wait_for(lambda _s: bool(modal.query("#projects")))
+        pane = modal.query_one("#projects", ProjectsPane)
+        filter_input = pane.query_one("#projects-filter")
+        filter_input.value = "alpha"
+        await page.pause()
+
+        pane._integrate_added_project("new-project")
+        assert pane.check_action("show_new_project", ()) is not False
+        assert "s show new" in pane._hints_text()
+
+        await page.press("s")
+        await page.pause()
+
+        assert pane._text_filter == ""
+        assert filter_input.value == ""
+        assert pane._selected_project_name() == "new-project"
+        assert pane.check_action("show_new_project", ()) is False
+
+
+async def test_new_project_selection_outcomes_and_idempotency(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_panes(monkeypatch)
+    loads: list[int] = []
+    original_load = ProjectsPane._load_records
+
+    def _load(self: ProjectsPane) -> bool:
+        loads.append(1)
+        return original_load(self)
+
+    monkeypatch.setattr(ProjectsPane, "_load_records", _load)
+
+    async with AcePage() as page:
+        modal = ConfigCenterModal(initial_tab="projects")
+        page.app.push_screen(modal)
+        await page.expect_modal("ConfigCenterModal")
+        await page.wait_for(lambda _s: bool(modal.query("#projects")))
+        pane = modal.query_one("#projects", ProjectsPane)
+        loads.clear()
+
+        pane._handle_new_project_selection(
+            NewProjectSelection("show-project", project_key="alpha")
+        )
+        assert pane._status_message == "Showing alpha"
+        assert pane._selected_project_name() == "alpha"
+        assert loads == [1]
+
+        pane._handle_new_project_selection(
+            NewProjectSelection("show", project_key="alpha")
+        )
+        pane._handle_new_project_selection(
+            NewProjectSelection("added", project_key="alpha")
+        )
+        assert pane._status_message == "Showing alpha"
+        assert loads == [1]
+
+        pane._handle_new_project_selection(
+            NewProjectSelection("added", project_key="beta")
+        )
+        assert pane._status_message == "Project added"
+        assert pane._selected_project_name() == "beta"
+        assert loads == [1, 1]
+
+
+async def test_apply_complete_finds_pane_on_screen_stack(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.ace.tui.actions.proc_actions import TrackedProcCompletion
+    from sase.ace.tui.modals.new_project_apply import (
+        _find_projects_pane,
+        _on_project_apply_complete,
+    )
+    from sase.ace.tui.proc_observer import ObservedProc
+    from sase.core.time import local_now
+
+    _patch_panes(monkeypatch)
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.new_project_apply._persist_add_preferences_async",
+        lambda _intent: None,
+    )
+    records = [
+        make_project_record("alpha", state="enabled"),
+        make_project_record("new-project", state="enabled"),
+    ]
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.projects_pane.list_project_records",
+        lambda *_args, **_kwargs: records,
+    )
+
+    async with AcePage() as page:
+        modal = ConfigCenterModal(initial_tab="projects")
+        page.app.push_screen(modal)
+        await page.expect_modal("ConfigCenterModal")
+        await page.wait_for(lambda _s: bool(modal.query("#projects")))
+        pane = modal.query_one("#projects", ProjectsPane)
+        wizard = NewProjectModal(provider_metadata=())
+        page.app.push_screen(wizard)
+        await page.pause()
+        page.app.pop_screen()
+        await page.pause()
+
+        assert _find_projects_pane(page.app) is pane
+        completion = TrackedProcCompletion(
+            proc_info=ObservedProc(
+                proc_id="add-1",
+                proc_type="project.add",
+                cl_name="",
+                project_file="",
+                status="success",
+                message="ok",
+                started_at=local_now(),
+            ),
+            success=True,
+            message="ok",
+            output="",
+        )
+        _on_project_apply_complete(
+            page.app,
+            weakref.ref(wizard),
+            {"mode": "add", "project_key": "new-project"},
+            completion,
+        )
+        assert pane._selected_project_name() == "new-project"
+        assert pane._status_message == "Project added"
+        _on_project_apply_complete(
+            page.app,
+            weakref.ref(wizard),
+            {"mode": "add", "project_key": "new-project"},
+            completion,
+        )
+        pane._handle_new_project_selection(
+            NewProjectSelection("show", project_key="new-project")
+        )
+        assert pane._status_message == "Project added"
+
+
+async def test_ready_current_invalidates_stacked_projects_pane(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.current_project import SetCurrentProjectOutcome
+
+    _patch_panes(monkeypatch)
+    invalidations: list[ProjectsPane] = []
+    monkeypatch.setattr(
+        ProjectsPane,
+        "_invalidate_current_project_indicator",
+        lambda pane: invalidations.append(pane),
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.new_project_apply.set_current_project",
+        lambda _key: SetCurrentProjectOutcome(
+            status="set", project=None, message="Set current project"
+        ),
+    )
+
+    async with AcePage() as page:
+        modal = ConfigCenterModal(initial_tab="projects")
+        page.app.push_screen(modal)
+        await page.expect_modal("ConfigCenterModal")
+        await page.wait_for(lambda _s: bool(modal.query("#projects")))
+        pane = modal.query_one("#projects", ProjectsPane)
+        wizard = NewProjectModal(provider_metadata=())
+        page.app.push_screen(wizard)
+        await page.pause()
+        await wizard._set_current_key("alpha")
+        await page.pause()
+
+        assert invalidations == [pane]

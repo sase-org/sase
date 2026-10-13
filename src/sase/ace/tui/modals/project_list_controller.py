@@ -154,6 +154,7 @@ class ProjectListControllerMixin(PaneEntryJumpMixin, _MixinBase):
             width=width,
             jump_active=self.jump_mode_active,
             jump_back=bool(self.jump_back_stack),
+            show_new_project=bool(getattr(self, "_pending_show_project_key", None)),
         )
 
     def _jump_target_count(self) -> int:
@@ -328,12 +329,16 @@ class ProjectListControllerMixin(PaneEntryJumpMixin, _MixinBase):
         self._status_message = message
         self._update_summary()
 
+    def _preferred_project_after_filter(self) -> str | None:
+        """Hook for hosts that want a preferred row after a filter keystroke."""
+        return None
+
     def on_input_changed(self, event: Input.Changed) -> None:
         if event.input.id != "projects-filter":
             return
         self._text_filter = event.value
         self._apply_filters()
-        self._refresh_options()
+        self._refresh_options(preferred_project=self._preferred_project_after_filter())
 
     def on_input_submitted(self, _event: Input.Submitted) -> None:
         self.query_one(f"#{self._option_list_id}", OptionList).focus()

@@ -1225,9 +1225,13 @@ or marked set:
 | `set_current_project`        | `c`                    | Make project current.             |
 | `initialize_project`         | `i`                    | Initialize selected project.      |
 | `initialize_all_projects`    | `I`                    | Initialize every enabled project. |
+| `help`                       | `question_mark`        | Open Projects help.               |
+| `show_new_project`           | `s`                    | Show a hidden new project.        |
 
 Projects-pane bindings are scoped to the matching sub-tab. `new_project` is inactive
 while the project filter is focused, so `n` remains available as text input.
+`show_new_project` is inactive unless a newly added project is hidden by the current
+filter, and while the project filter is focused.
 
 **`glossary`** — Deprecated legacy bindings for the retired standalone Glossary panel,
 accepted for one release for config-compatibility and always ignored: no defaults ship
@@ -1359,9 +1363,12 @@ value may list more than one key, separated by commas:
 | `set_current_project`        | `c`                    | Make the highlighted project [current](ace.md#current-project).    |
 | `initialize_project`         | `i`                    | Initialize the highlighted project or marked set.                  |
 | `initialize_all_projects`    | `I`                    | Initialize every enabled project (`sase init --all`).              |
+| `help`                       | `question_mark`        | Open contextual Projects help.                                     |
+| `show_new_project`           | `s`                    | Show a newly added project hidden by the current filter.           |
 
 Like gate, statistics, and memory keys, Projects-tab keys are scoped to the pane and may
-overlap app-level bindings.
+overlap app-level bindings. `show_new_project` is inactive unless a newly added project
+is hidden by the current filter, and while the project filter is focused.
 
 **`machines`** — focused Admin Center Machines-tab keybindings. These bindings are
 scoped to the Machines pane and do not become app-level sase's TUI shortcuts.

@@ -11,7 +11,7 @@ from textual.app import ComposeResult
 from textual.binding import BindingsMap
 from textual.containers import Vertical, VerticalScroll
 from textual.worker import Worker, WorkerState
-from textual.widgets import Button, ContentSwitcher, Input, OptionList, Static
+from textual.widgets import Button, ContentSwitcher, OptionList, Static
 
 from sase.ace.tui.keymaps import (
     ProjectsPaneKeymaps,
@@ -174,6 +174,8 @@ class ProjectsPane(
             "initialize_project",
             "initialize_all_projects",
             "new_project",
+            "help",
+            "show_new_project",
         }
     )
 
@@ -213,6 +215,7 @@ class ProjectsPane(
         self._tag_catalog_worker: Worker[Any] | None = None
         self._pending_new_project_open = False
         self._pending_show_project_key: str | None = None
+        self._last_integrated_project_key: str | None = None
         self._detail_debouncer: DetailPanelDebouncer | None = None
         self._project_selection_guard = ProgrammaticSelectionGuard()
         self._load_records()
@@ -295,7 +298,9 @@ class ProjectsPane(
     def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
         if self._active_subtab != "projects" and action in self._PROJECT_ONLY_ACTIONS:
             return False
-        if action == "new_project" and self._filter_has_focus():
+        if action in {"new_project", "show_new_project"} and self._filter_has_focus():
+            return False
+        if action == "show_new_project" and not self._pending_show_project_key:
             return False
         return super().check_action(action, parameters)
 
@@ -703,7 +708,10 @@ class ProjectsPane(
     def _handle_new_project_selection(self, result: Any) -> None:
         if result.outcome in {"show", "show-project", "added"}:
             if self.is_mounted:
-                self._integrate_added_project(str(result.project_key or ""))
+                self._integrate_added_project(
+                    str(result.project_key or ""),
+                    outcome=str(result.outcome),
+                )
             return
         if result.outcome == "jump-resume" and result.row is not None:
             proc_id = str(result.row.data.get("proc_id") or "")
@@ -714,10 +722,16 @@ class ProjectsPane(
                 else:
                     opener("procs")
 
-    def _integrate_added_project(self, project_key: str) -> None:
+    def _integrate_added_project(
+        self, project_key: str, *, outcome: str = "added"
+    ) -> None:
         """Reload and select an added project, preserving a filter that hides it."""
         if not self.is_mounted:
             return
+        if project_key and project_key == self._last_integrated_project_key:
+            return
+        if project_key:
+            self._last_integrated_project_key = project_key
         self._switch_to_subtab("projects")
         self._pending_force = None
         loaded = self._load_records()
@@ -745,7 +759,15 @@ class ProjectsPane(
 
         self._pending_show_project_key = None
         self._set_show_new_project_action(False)
-        self._set_status("Project added")
+        if outcome == "show-project":
+            display = project_key
+            for record in self._records:
+                if record.project_name == project_key:
+                    display = effective_project_name(record)
+                    break
+            self._set_status(f"Showing {display}")
+        else:
+            self._set_status("Project added")
         self._refresh_options(preferred_project=project_key or None)
 
     def _warm_project_tag_catalog(self) -> None:
@@ -770,6 +792,12 @@ class ProjectsPane(
             self.query_one("#projects-show-new-project", Button).display = visible
         except Exception:
             pass
+        self._refresh_hints()
+
+    def action_help(self) -> None:
+        from .projects_help_modal import ProjectsHelpModal
+
+        self.app.push_screen(ProjectsHelpModal(keymaps=self._keymaps))
 
     def action_show_new_project(self) -> None:
         project_key = self._pending_show_project_key
@@ -792,18 +820,16 @@ class ProjectsPane(
         event.stop()
         self.action_show_new_project()
 
-    def on_input_changed(self, event: Input.Changed) -> None:
-        super().on_input_changed(event)  # type: ignore[misc]
-        if event.input.id != "projects-filter":
-            return
+    def _preferred_project_after_filter(self) -> str | None:
         key = self._pending_show_project_key
-        if key is not None and any(
-            record.project_name == key for record in self._filtered_records
-        ):
+        if key is None:
+            return None
+        if any(record.project_name == key for record in self._filtered_records):
             self._pending_show_project_key = None
             self._set_show_new_project_action(False)
             self._set_status("Showing new project")
-            self._refresh_options(preferred_project=key)
+            return key
+        return None
 
     def action_reload_projects(self) -> None:
         self._reload_projects()

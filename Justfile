@@ -444,6 +444,9 @@ _lint-patch-stitch-terminology: _setup
 # link-follow filtered reveal; sase-1jm.9.5 (archive-restore-run) consumes it
 # for the restore-and-show filtered-target rule, so its row drops once 9.5
 # lands the real import.
+# sase-1jx.13.6.4 (source-stage) consumes fit_hint_segments for the Source
+# stage's width-aware hints; drop that --epic-symbol row once the consumer
+# lands (or re-key it onto a still-open bead).
 # Never put a comment
 # line inside the continued command below: just joins the lines, so the comment
 # would swallow every later argument.
@@ -451,6 +454,7 @@ _lint-symvision *args: _setup
     SASE_SYMVISION_BEAD_STATUS_ONLY=1 BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase \
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
+        --epic-symbol 'sase-1jx.13.6.4(fit_hint_segments)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

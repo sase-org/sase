@@ -230,6 +230,8 @@ def test_default_config_covers_all_projects_keymaps() -> None:
         "set_current_project": "c",
         "initialize_project": "i",
         "initialize_all_projects": "I",
+        "help": "question_mark",
+        "show_new_project": "s",
     }
     assert field_names == set(defaults)
 

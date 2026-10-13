@@ -64,6 +64,14 @@ def test_projects_hints_fit_cached_pane_width_by_priority() -> None:
     assert "? help" in narrow
 
 
+def test_projects_hints_include_show_new_when_offered() -> None:
+    keymaps = load_keymap_registry({}).projects
+    hidden = hints_text(set(), keymaps, width=200)
+    assert "s show new" not in hidden
+    shown = hints_text(set(), keymaps, width=200, show_new_project=True)
+    assert shown.startswith("n new  s show new")
+
+
 def test_record_label_marks_only_the_current_row_with_accent() -> None:
     current = make_project_record("sase")
     other = make_project_record("bob-cli")

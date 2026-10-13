@@ -326,6 +326,8 @@ class ProjectsPaneKeymaps:
     set_current_project: str = "c"
     initialize_project: str = "i"
     initialize_all_projects: str = "I"
+    help: str = "question_mark"
+    show_new_project: str = "s"
 
 
 @dataclass

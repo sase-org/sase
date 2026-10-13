@@ -147,6 +147,8 @@ def test_help_lists_admin_center_projects_init_keys() -> None:
         assert ("n", "Open the New Project wizard") in pairs
         assert ("i", "Initialize marked or highlighted") in pairs
         assert ("I", "Initialize every enabled project") in pairs
+        assert ("?", "Open Projects help") in pairs
+        assert ("s", "Show hidden new project") in pairs
 
 
 def test_help_projects_init_keys_follow_configured_bindings() -> None:

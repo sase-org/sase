@@ -3298,6 +3298,14 @@
                 "initialize_all_projects": {
                   "type": "string",
                   "description": "Initialize every enabled project"
+                },
+                "help": {
+                  "type": "string",
+                  "description": "Open contextual Projects pane help"
+                },
+                "show_new_project": {
+                  "type": "string",
+                  "description": "Show a newly added project hidden by the current filter"
                 }
               }
             },

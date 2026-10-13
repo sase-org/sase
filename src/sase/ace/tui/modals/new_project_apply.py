@@ -68,18 +68,28 @@ def _next_argv_requests_init(argv: Sequence[str]) -> bool:
 
 
 def _find_projects_pane(app: Any) -> Any | None:
-    """Return the mounted Projects pane, if the Admin Center still hosts it."""
-    query = getattr(app, "query", None)
-    if not callable(query):
-        return None
+    """Return the mounted Projects pane from the screen stack, top-down.
+
+    ``App.query`` does not reach widgets inside pushed screens, so a lookup
+    through the live ``screen_stack`` is what production completion uses.
+    """
     try:
         from sase.ace.tui.modals.projects_pane import ProjectsPane
-
-        for pane in query(ProjectsPane):
-            if getattr(pane, "is_mounted", False):
-                return pane
     except Exception:
         return None
+    stack = getattr(app, "screen_stack", None)
+    if not isinstance(stack, (list, tuple)):
+        return None
+    for screen in reversed(stack):
+        query = getattr(screen, "query", None)
+        if not callable(query):
+            continue
+        try:
+            for pane in query(ProjectsPane):
+                if getattr(pane, "is_mounted", False):
+                    return pane
+        except Exception:
+            continue
     return None
 
 

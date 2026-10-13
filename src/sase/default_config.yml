@@ -739,6 +739,8 @@ ace:
       set_current_project: "c"
       initialize_project: "i"
       initialize_all_projects: "I"
+      help: "question_mark"
+      show_new_project: "s"
     # Focused Admin Center Machines-tab bindings. These keys are inactive
     # everywhere else, even when they overlap app-level actions.
     machines:

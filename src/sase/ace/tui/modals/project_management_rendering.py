@@ -301,6 +301,7 @@ def hints_text(
     width: int | None = None,
     jump_active: bool = False,
     jump_back: bool = False,
+    show_new_project: bool = False,
 ) -> str:
     """Return width-fitted Projects hints, keeping the highest-priority actions."""
 
@@ -317,27 +318,38 @@ def hints_text(
     )
     segments = [
         (f"{key_display_name(keymaps.new_project)} new", 100),
-        (f"{move_keys} move", 90),
-        (f"{jump_key} jump", 85),
-        (f"{key_display_name(keymaps.focus_filter)} filter", 80),
-        (f"{subtab_keys} sub-tab", 75),
-        (f"{key_display_name(keymaps.initialize_project)} init", 65),
-        (f"{key_display_name(keymaps.initialize_all_projects)} init all", 45),
-        (f"{key_display_name(keymaps.default_project_action)} enable", 60),
-        (f"{key_display_name(keymaps.show_project_repos)} repos", 55),
-        (f"{key_display_name(keymaps.show_project_workspaces)} workspaces", 35),
-        (f"{key_display_name(keymaps.toggle_project_mark)} mark", 58),
-        (f"{key_display_name(keymaps.clear_project_marks)} unmark all", 20),
-        (f"{key_display_name(keymaps.edit_project_spec)} edit", 25),
-        (f"{key_display_name(keymaps.edit_project_aliases)} aliases", 15),
-        (f"{key_display_name(keymaps.enable_project)} enable", 40),
-        (f"{key_display_name(keymaps.disable_project)} disable", 30),
-        (f"{key_display_name(keymaps.delete_project)} delete", 10),
-        (f"{key_display_name(keymaps.reload)} reload", 70),
-        (f"{key_display_name(keymaps.set_current_project)} current", 68),
-        ("Tab/Shift+Tab switch tab", 8),
-        ("q close", 5),
     ]
+    if show_new_project:
+        segments.append(
+            (
+                f"{key_display_name(keymaps.show_new_project)} show new",
+                98,
+            )
+        )
+    segments.extend(
+        [
+            (f"{move_keys} move", 90),
+            (f"{jump_key} jump", 85),
+            (f"{key_display_name(keymaps.focus_filter)} filter", 80),
+            (f"{subtab_keys} sub-tab", 75),
+            (f"{key_display_name(keymaps.initialize_project)} init", 65),
+            (f"{key_display_name(keymaps.initialize_all_projects)} init all", 45),
+            (f"{key_display_name(keymaps.default_project_action)} enable", 60),
+            (f"{key_display_name(keymaps.show_project_repos)} repos", 55),
+            (f"{key_display_name(keymaps.show_project_workspaces)} workspaces", 35),
+            (f"{key_display_name(keymaps.toggle_project_mark)} mark", 58),
+            (f"{key_display_name(keymaps.clear_project_marks)} unmark all", 20),
+            (f"{key_display_name(keymaps.edit_project_spec)} edit", 25),
+            (f"{key_display_name(keymaps.edit_project_aliases)} aliases", 15),
+            (f"{key_display_name(keymaps.enable_project)} enable", 40),
+            (f"{key_display_name(keymaps.disable_project)} disable", 30),
+            (f"{key_display_name(keymaps.delete_project)} delete", 10),
+            (f"{key_display_name(keymaps.reload)} reload", 70),
+            (f"{key_display_name(keymaps.set_current_project)} current", 68),
+            ("Tab/Shift+Tab switch tab", 8),
+            ("q close", 5),
+        ]
+    )
     mark_count = len(marked_projects)
     if mark_count:
         target_keys = "/".join(
@@ -349,7 +361,7 @@ def hints_text(
             )
         )
         segments.append((f"marked:{mark_count} ({target_keys} target set)", 12))
-    return _fit_hint_segments(segments, width)
+    return fit_hint_segments(segments, width)
 
 
 def _fit_hint_line(line: str, width: int | None) -> str:
@@ -358,7 +370,7 @@ def _fit_hint_line(line: str, width: int | None) -> str:
     return line[:width].rstrip()
 
 
-def _fit_hint_segments(segments: list[tuple[str, int]], width: int | None) -> str:
+def fit_hint_segments(segments: list[tuple[str, int]], width: int | None) -> str:
     if width is None or width <= 0:
         return "  ".join(text for text, _priority in segments)
     visible = list(segments)
@@ -608,6 +620,7 @@ __all__ = [
     "bulk_delete_status",
     "column_header_text",
     "detail_text",
+    "fit_hint_segments",
     "force_state_change_message",
     "hints_text",
     "record_label",

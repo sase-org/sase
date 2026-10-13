@@ -9271,6 +9271,48 @@ StatisticsHelpModal #statistics-help-footer {
     text-align: center;
 }
 
+/* Contextual Projects reference built from the pane's configured keys. */
+ProjectsHelpModal {
+    align: center middle;
+}
+
+ProjectsHelpModal > #projects-help-container {
+    width: 94%;
+    max-width: 150;
+    height: 92%;
+    border: double #FFAF5F;
+    background: $surface;
+    padding: 1 2;
+}
+
+ProjectsHelpModal #projects-help-title {
+    width: 100%;
+    height: auto;
+    margin-bottom: 1;
+    text-align: center;
+}
+
+ProjectsHelpModal #projects-help-scroll {
+    width: 100%;
+    height: 1fr;
+    scrollbar-gutter: stable;
+}
+
+ProjectsHelpModal #projects-help-content {
+    width: 100%;
+    height: auto;
+}
+
+ProjectsHelpModal #projects-help-footer {
+    width: 100%;
+    height: auto;
+    margin-top: 1;
+    padding-top: 1;
+    border-top: solid $secondary;
+    color: $text-muted;
+    text-align: center;
+}
+
 /* Procs tab: live proc monitor */
 ProcsPane #procs-pane-title {
     text-style: bold;
