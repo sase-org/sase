@@ -180,7 +180,7 @@ def query_summaries(
         params.append(max(0, offset))
 
     try:
-        with connection(root) as conn:
+        with connection(root, create=False) as conn:
             rows = conn.execute(sql, params).fetchall()
         return [summary_from_row(row) for row in rows]
     except sqlite3.Error:
@@ -296,7 +296,7 @@ def query_summary_identities(root: Path) -> set[tuple[str, str, str | None]] | N
         "WHERE COALESCE(v.visibility, s.archive_visibility) = 'hidden'"
     )
     try:
-        with connection(root) as conn:
+        with connection(root, create=False) as conn:
             rows = conn.execute(sql).fetchall()
     except sqlite3.Error:
         return None

@@ -402,10 +402,9 @@ def _apply_loaded_agent_disk_projections(
     for agent in all_agents:
         if agent.identity in tribes_by_identity:
             agent.tribe = tribes_by_identity[agent.identity]
-        artifacts_dir = agent.get_artifacts_dir()
-
         if agent.status != "RUNNING" and not agent.runner_is_live:
             continue
+        artifacts_dir = agent.get_artifacts_dir()
         if not artifacts_dir:
             continue
         retry_state = snapshot_cache.retry_state_for(artifacts_dir)

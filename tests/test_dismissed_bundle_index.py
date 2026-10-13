@@ -9,6 +9,7 @@ from unittest.mock import patch
 import pytest
 
 from sase.ace.dismissed_agents import (
+    dismissed_bundle_index_signature,
     dismissed_bundle_identities_snapshot,
     ensure_dismissed_archive_ready,
     load_dismissed_bundle_identities,
@@ -23,6 +24,7 @@ from sase.ace.dismissed_bundle_index import (
     archive_index_exists,
     dismissed_bundle_index_progress,
     rebuild_index,
+    query_summary_identities,
 )
 from sase.ace.tui.models.agent import AgentType
 from tests._dismissed_agents_helpers import make_agent
@@ -600,6 +602,75 @@ def test_dismissed_bundle_identities_snapshot_reuses_unchanged_signature() -> No
         (AgentType.RUNNING, "indexed_cl", "20250615110000"),
     }
     query.assert_called_once()
+
+
+def test_dismissed_bundle_identity_snapshot_real_index_is_read_only(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A real index keeps its signature and hits the identity cache on repeat."""
+    import sase.ace.dismissed_agents as dismissed_agents
+
+    bundles_dir = tmp_path / "bundles"
+    monkeypatch.setattr(dismissed_agents, "_DISMISSED_BUNDLES_DIR", bundles_dir)
+    monkeypatch.setattr(
+        dismissed_agents, "_dismissed_bundle_identities_snapshot_initialized", False
+    )
+    monkeypatch.setattr(
+        dismissed_agents, "_dismissed_bundle_identities_snapshot_signature", None
+    )
+    monkeypatch.setattr(
+        dismissed_agents, "_dismissed_bundle_identities_snapshot_cache", frozenset()
+    )
+    rebuild_index(bundles_dir)
+    signature_before = dismissed_bundle_index_signature()
+
+    with patch(
+        "sase.ace.dismissed_bundle_index.query_summary_identities",
+        wraps=query_summary_identities,
+    ) as query:
+        first = dismissed_bundle_identities_snapshot()
+        second = dismissed_bundle_identities_snapshot()
+
+    assert first is second
+    assert query.call_count == 1
+    assert dismissed_bundle_index_signature() == signature_before
+
+
+def test_dismissed_bundle_identity_query_missing_and_schema_less_are_read_only(
+    tmp_path: Path,
+) -> None:
+    from sase.ace.dismissed_bundle_index import INDEX_FILENAME
+
+    bundles_dir = tmp_path / "bundles"
+    assert query_summary_identities(bundles_dir) is None
+    assert not (bundles_dir / INDEX_FILENAME).exists()
+
+    bundles_dir.mkdir()
+    db_path = bundles_dir / INDEX_FILENAME
+    with sqlite3.connect(db_path) as conn:
+        conn.execute(
+            "CREATE TABLE dismissed_bundle_index_meta "
+            "(key TEXT PRIMARY KEY, value TEXT NOT NULL)"
+        )
+        conn.execute(
+            "INSERT INTO dismissed_bundle_index_meta VALUES ('schema_version', '1')"
+        )
+        conn.execute("CREATE TABLE legacy_data (value TEXT)")
+        conn.execute("INSERT INTO legacy_data VALUES ('keep')")
+    mtime_before = db_path.stat().st_mtime_ns
+
+    assert query_summary_identities(bundles_dir) is None
+
+    with sqlite3.connect(db_path) as conn:
+        assert conn.execute("SELECT value FROM legacy_data").fetchone() == ("keep",)
+        assert (
+            conn.execute(
+                "SELECT name FROM sqlite_master WHERE name = 'dismissed_bundle_summaries'"
+            ).fetchone()
+            is None
+        )
+    assert db_path.stat().st_mtime_ns == mtime_before
 
 
 def test_load_dismissed_bundles_by_suffix_uses_legacy_index(tmp_path: Path) -> None:

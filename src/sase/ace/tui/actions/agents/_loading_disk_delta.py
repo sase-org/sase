@@ -93,17 +93,18 @@ class AgentLoadingDiskDeltaMixin(AgentLoadingStateMixin):
 
         on_agents_tab, selected_identity = self._capture_agents_apply_selection()
 
-        from ...repro.capture import record_agents_tab_loader_result
+        if getattr(self, "_agents_repro_capture", None) is not None:
+            from ...repro.capture import record_agents_tab_loader_result
 
-        record_agents_tab_loader_result(
-            self,
-            load_state=load_result.load_state,
-            agents=all_agents,
-            dismissed_from_loader=dismissed_from_loader,
-            on_agents_tab=on_agents_tab,
-            selected_identity=selected_identity,
-            source="artifact_delta_load",
-        )
+            record_agents_tab_loader_result(
+                self,
+                load_state=load_result.load_state,
+                agents=all_agents,
+                dismissed_from_loader=dismissed_from_loader,
+                on_agents_tab=on_agents_tab,
+                selected_identity=selected_identity,
+                source="artifact_delta_load",
+            )
 
         worker_snapshot = self._make_prepared_apply_snapshot(
             on_agents_tab=on_agents_tab,

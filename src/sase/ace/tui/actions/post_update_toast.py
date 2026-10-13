@@ -7,6 +7,8 @@ from typing import TYPE_CHECKING
 
 from textual.markup import escape
 
+from sase.ace import pending_update_toast_file
+
 from ..modals.config_center_modal import center_tab_accent
 from . import update_toast
 from ._update_provider_toast_lines import provider_result_lines
@@ -37,6 +39,11 @@ class PostUpdateToastMixin:
         rather than on every fresh app mount (which would also fire on brand new
         installs and, worse, during headless tests that never see this receipt).
         """
+        try:
+            if not pending_update_toast_file().is_file():
+                return False
+        except OSError:
+            return False
         try:
             from sase.ace.update_receipt import read_and_clear_pending_update_toast
 

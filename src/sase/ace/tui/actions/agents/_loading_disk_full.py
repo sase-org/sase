@@ -114,17 +114,18 @@ class AgentLoadingDiskFullMixin(AgentLoadingDiskViewportMixin):
             artifact_source=load_result.load_state.artifact_source,
             complete_history=load_result.load_state.complete_history,
         )
-        from ...repro.capture import record_agents_tab_loader_result
+        if getattr(self, "_agents_repro_capture", None) is not None:
+            from ...repro.capture import record_agents_tab_loader_result
 
-        record_agents_tab_loader_result(
-            self,
-            load_state=load_result.load_state,
-            agents=load_result.all_agents,
-            dismissed_from_loader=load_result.dismissed_from_loader,
-            on_agents_tab=on_agents_tab,
-            selected_identity=selected_identity,
-            source="sync_load",
-        )
+            record_agents_tab_loader_result(
+                self,
+                load_state=load_result.load_state,
+                agents=load_result.all_agents,
+                dismissed_from_loader=load_result.dismissed_from_loader,
+                on_agents_tab=on_agents_tab,
+                selected_identity=selected_identity,
+                source="sync_load",
+            )
         previous_active_source = getattr(
             self, "_agents_refresh_active_source", "unknown"
         )
@@ -268,17 +269,18 @@ class AgentLoadingDiskFullMixin(AgentLoadingDiskViewportMixin):
         # (j/k) or switched tabs while disk I/O was in flight.
         on_agents_tab, selected_identity = self._capture_agents_apply_selection()
 
-        from ...repro.capture import record_agents_tab_loader_result
+        if getattr(self, "_agents_repro_capture", None) is not None:
+            from ...repro.capture import record_agents_tab_loader_result
 
-        record_agents_tab_loader_result(
-            self,
-            load_state=load_result.load_state,
-            agents=all_agents,
-            dismissed_from_loader=dismissed_from_loader,
-            on_agents_tab=on_agents_tab,
-            selected_identity=selected_identity,
-            source="async_load",
-        )
+            record_agents_tab_loader_result(
+                self,
+                load_state=load_result.load_state,
+                agents=all_agents,
+                dismissed_from_loader=dismissed_from_loader,
+                on_agents_tab=on_agents_tab,
+                selected_identity=selected_identity,
+                source="async_load",
+            )
 
         worker_snapshot = self._make_prepared_apply_snapshot(
             on_agents_tab=on_agents_tab,

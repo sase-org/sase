@@ -26,14 +26,14 @@ from sase.ace._update_receipt_models import (
     UpdateToastReceipt,
     UpdateVersionTransition,
 )
-from sase.core.paths import sase_home
+from . import pending_update_toast_file
 
 log = logging.getLogger(__name__)
 
 _FRESHNESS_SECONDS = 30 * 60
 
-# Test override for the backing file. ``None`` falls back to the per-user path
-# under ``sase_home()``, matching the small-state helpers in this package.
+# Backward-compatible test override; the import-light path helper recognizes it
+# without importing this module from the TUI's startup path.
 _PENDING_UPDATE_TOAST_FILE: Path | None = None
 
 # Backward-compatible private name used by existing tests and receipt fixtures.
@@ -98,7 +98,7 @@ def read_and_clear_pending_update_toast(
 
 
 def _pending_update_toast_file() -> Path:
-    return _PENDING_UPDATE_TOAST_FILE or sase_home() / "pending_update_toast.json"
+    return pending_update_toast_file()
 
 
 def _safe_unlink(path: Path) -> None:

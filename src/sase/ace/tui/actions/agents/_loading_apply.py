@@ -575,13 +575,14 @@ class AgentLoadingApplyMixin(
                 pass
             self._mark_startup_agents_ready()  # type: ignore[attr-defined]
             self._maybe_end_startup_stopwatch()  # type: ignore[attr-defined]
-        from ...repro.capture import record_agents_tab_app_projection
+        if getattr(self, "_agents_repro_capture", None) is not None:
+            from ...repro.capture import record_agents_tab_app_projection
 
-        record_agents_tab_app_projection(
-            self,
-            load_state=load_state,
-            source="apply",
-        )
+            record_agents_tab_app_projection(
+                self,
+                load_state=load_state,
+                source="apply",
+            )
 
         schedule_post_roster_work = getattr(
             self,

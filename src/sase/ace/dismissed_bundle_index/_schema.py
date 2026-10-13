@@ -24,7 +24,10 @@ def _connect(root: Path, *, create: bool = True) -> sqlite3.Connection:
     conn = sqlite3.connect(index_path_for_root(root), timeout=30)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA busy_timeout = 30000")
-    conn.execute("PRAGMA journal_mode = WAL")
+    # Switching journal mode writes database metadata. Existing read paths must
+    # stay read-only, including when handed a schema-less or old index file.
+    if create:
+        conn.execute("PRAGMA journal_mode = WAL")
     conn.execute("PRAGMA synchronous = NORMAL")
     if create:
         _ensure_schema(conn, root)

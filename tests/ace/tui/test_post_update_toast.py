@@ -135,6 +135,7 @@ def _plain_text_lines(message: str) -> list[str]:
 
 def test_post_update_toast_formats_update_confirmation(
     monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
 ) -> None:
     class _App(PostUpdateToastMixin):
         def __init__(self) -> None:
@@ -144,6 +145,12 @@ def test_post_update_toast_formats_update_confirmation(
         def notify(self, message: str, **kwargs: Any) -> None:
             self.calls.append({"message": message, **kwargs})
 
+    receipt_file = tmp_path / "pending_update_toast.json"
+    receipt_file.touch()
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.post_update_toast.pending_update_toast_file",
+        lambda: receipt_file,
+    )
     monkeypatch.setattr(
         "sase.ace.update_receipt.read_and_clear_pending_update_toast",
         lambda: _receipt(),
