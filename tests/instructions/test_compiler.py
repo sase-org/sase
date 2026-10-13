@@ -274,7 +274,7 @@ def test_manifest_shape_and_common_digest(tmp_path: Path) -> None:
     facts = make_facts()
     compiled = compile_bundle(facts, project_root=project_root, home_root=home_root)
     manifest = build_manifest(compiled, facts, preview_delivery())
-    assert manifest["schema_version"] == 1
+    assert manifest["schema_version"] == 2
     assert manifest["compiler"]["name"] == COMPILER_NAME
     assert manifest["compiler"]["version"] == COMPILER_VERSION
     assert manifest["facts"] == facts.to_dict()
@@ -287,6 +287,14 @@ def test_manifest_shape_and_common_digest(tmp_path: Path) -> None:
         assert section["offset"] == cursor
         cursor += section["length"]
     assert cursor == manifest["bundle"]["bytes"]
+
+    shadow_manifest = build_manifest(
+        compiled,
+        facts,
+        {**preview_delivery(), "status": "shadow"},
+    )
+    assert shadow_manifest["schema_version"] == 2
+    assert shadow_manifest["delivery"]["status"] == "shadow"
 
 
 def test_section_slug_and_tokens() -> None:

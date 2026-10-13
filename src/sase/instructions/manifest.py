@@ -1,6 +1,6 @@
 """Instruction manifest assembly over the Rust wire contract (decision 8).
 
-Builds the normalized v1 manifest dict from a compiled bundle, host facts,
+Builds the normalized v2 manifest dict from a compiled bundle, host facts,
 and delivery identity. Validation, invariants, and ``common_digest`` are
 owned by ``sase-core``; this module only shapes the dict and routes it
 through the adapter.
@@ -11,7 +11,10 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
-from sase.core.instruction_manifest import normalize_instruction_manifest
+from sase.core.instruction_manifest import (
+    INSTRUCTION_MANIFEST_WIRE_SCHEMA_VERSION,
+    normalize_instruction_manifest,
+)
 from sase.instructions.compile import (
     COMPILER_NAME,
     COMPILER_VERSION,
@@ -98,7 +101,7 @@ def build_manifest(
         "cache": compiled.cache,
     }
     manifest: dict[str, Any] = {
-        "schema_version": 1,
+        "schema_version": INSTRUCTION_MANIFEST_WIRE_SCHEMA_VERSION,
         "compiler": {
             "name": COMPILER_NAME,
             "version": COMPILER_VERSION,

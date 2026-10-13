@@ -104,11 +104,11 @@ The shipped Rust-backed operations are grouped by the Python facade that calls t
   classification, cause attribution, the per-scope snapshot, and prose comparison;
   Python owns scope inputs, the thread-safe service, the CLI, the visual vocabulary, and
   all rendering.
-- Instruction manifest v1 (`instruction_manifest_wire_schema_version`,
+- Instruction manifest v2 (`instruction_manifest_wire_schema_version`,
   `normalize_instruction_manifest`), called through `sase.core.instruction_manifest`.
   The Rust core owns the closed vocabulary, the wire types, the validation invariants,
-  and the `common_digest` definition; Python owns bundle composition and manifest
-  assembly.
+  delivery-channel and fallback invariants, and the `common_digest` definition; Python
+  owns bundle composition and manifest assembly. Readers continue to accept v1.
 - Git object-sharing planning for managed workspaces (`plan_git_object_sharing`)
 - AXE configuration composition and entry-edit planning (`axe_config_compose`,
   `axe_config_plan_entry`), including routine/job input aliases, description-shape

@@ -13,7 +13,7 @@ from typing import Any
 from sase.core.rust import require_rust_binding
 
 #: Mirrors Rust ``INSTRUCTION_MANIFEST_WIRE_SCHEMA_VERSION``.
-INSTRUCTION_MANIFEST_WIRE_SCHEMA_VERSION = 1
+INSTRUCTION_MANIFEST_WIRE_SCHEMA_VERSION = 2
 
 #: Closed layer vocabulary (decision 8).
 INSTRUCTION_MANIFEST_LAYERS = (
@@ -67,6 +67,25 @@ INSTRUCTION_MANIFEST_SOURCE_KINDS = (
 INSTRUCTION_MANIFEST_DELIVERY_STATUSES = (
     "preview",
     "shadow",
+    "explicit",
+    "inherits_native",
+    "inherits_root",
+    "none",
+)
+
+#: Closed reasons for retaining native instruction discovery on delivery.
+INSTRUCTION_MANIFEST_FALLBACK_REASONS = (
+    "provider_legacy",
+    "flag_disabled",
+    "render_failed",
+    "invalid_bundle",
+    "oversize",
+    "unsupported_cli",
+    "delivery_failed",
+)
+
+#: Delivery statuses available to a subagent slot (preview/shadow are forbidden).
+INSTRUCTION_MANIFEST_SUBAGENT_STATUSES = (
     "explicit",
     "inherits_native",
     "inherits_root",

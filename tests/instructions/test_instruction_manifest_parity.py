@@ -7,34 +7,37 @@ from pathlib import Path
 
 from sase.core.instruction_manifest import normalize_instruction_manifest
 
-_FIXTURE_PATH = (
-    Path(__file__).resolve().parents[1] / "fixtures" / "instruction_manifest_v1.json"
-)
-_CORE_FIXTURE_RELATIVE = (
-    Path("crates") / "sase_core" / "tests" / "fixtures" / "instruction_manifest_v1.json"
-)
+_FIXTURE_DIR = Path(__file__).resolve().parents[1] / "fixtures"
+_CORE_FIXTURE_DIR = Path("crates") / "sase_core" / "tests" / "fixtures"
+_FIXTURE_VERSIONS = (1, 2)
 
 
-def _core_fixture_candidates() -> list[Path]:
+def _core_fixture_candidates(version: int) -> list[Path]:
     repo_root = Path(__file__).resolve().parents[2]
+    relative = _CORE_FIXTURE_DIR / f"instruction_manifest_v{version}.json"
     return [
-        repo_root / "sase" / "repos" / "linked" / "sase-core" / _CORE_FIXTURE_RELATIVE,
-        repo_root.parent / "sase-core" / _CORE_FIXTURE_RELATIVE,
+        repo_root / "sase" / "repos" / "linked" / "sase-core" / relative,
+        repo_root.parent / "sase-core" / relative,
     ]
 
 
 def test_manifest_fixture_matches_opened_core_checkout() -> None:
     import pytest
 
-    matches = [path for path in _core_fixture_candidates() if path.is_file()]
-    if not matches:
-        pytest.skip("opened sase-core checkout with manifest fixture is unavailable")
+    for version in _FIXTURE_VERSIONS:
+        matches = [path for path in _core_fixture_candidates(version) if path.is_file()]
+        if not matches:
+            pytest.skip(
+                "opened sase-core checkout with manifest fixtures is unavailable"
+            )
 
-    expected = _FIXTURE_PATH.read_bytes()
-    for path in matches:
-        assert path.read_bytes() == expected, path
+        expected = (_FIXTURE_DIR / f"instruction_manifest_v{version}.json").read_bytes()
+        for path in matches:
+            assert path.read_bytes() == expected, path
 
 
 def test_golden_manifest_normalizes_through_adapter() -> None:
-    manifest = json.loads(_FIXTURE_PATH.read_text(encoding="utf-8"))
-    assert normalize_instruction_manifest(manifest) == manifest
+    for version in _FIXTURE_VERSIONS:
+        path = _FIXTURE_DIR / f"instruction_manifest_v{version}.json"
+        manifest = json.loads(path.read_text(encoding="utf-8"))
+        assert normalize_instruction_manifest(manifest) == manifest
