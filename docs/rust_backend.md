@@ -596,6 +596,37 @@ Post-migration targets for bead checks and future regression floors:
 - No drift in the Phase A golden CLI output unless the migration plan records an
   intentional compatibility change.
 
+## SQLite Ownership
+
+One process loads two independent SQLite copies: stdlib `sqlite3` (statically linked
+into CPython, so there is no shared library to unify on) and the bundled copy inside
+`sase_core_rs`. POSIX advisory locks belong to a (process, file) pair and never conflict
+within one process, so when both copies open the same WAL-mode database file, neither
+copy sees the other's locks: the second opener truncates `-shm` under a live mapping
+(SIGBUS on the next page access) or checkpoints and unlinks `-wal`/`-shm`
+mid-transaction (corruption). Linking against a shared system SQLite was rejected for
+wheel portability, and process-wide serialization was rejected as fragile end state, so
+the standing rule is:
+
+**Every SQLite database file is opened by exactly one SQLite library per process.**
+
+| File(s)                                       | Owner     | Opened via                   |
+| --------------------------------------------- | --------- | ---------------------------- |
+| `agent_artifact_index.sqlite`                 | Rust core | `sase_core_rs` bindings only |
+| `dismissed_bundles/index.sqlite`              | Rust core | `sase_core_rs` bindings only |
+| `tools/runs.sqlite`                           | Rust core | `sase_core_rs` bindings only |
+| `telemetry/metrics.sqlite`                    | Rust core | `sase_core_rs` bindings only |
+| `<git-dir>/sase/bead-read-model/<key>.sqlite` | Rust core | `sase_core_rs` bindings only |
+| `beads.db`                                    | Python    | stdlib `sqlite3` only        |
+| `chats_catalog.sqlite`                        | Python    | stdlib `sqlite3` only        |
+| External agy conversation DBs                 | Python    | stdlib `sqlite3` only        |
+
+New Python access to a Rust-owned file must go through a `sase_core_rs` binding, never
+through stdlib `sqlite3`. `tests/test_sqlite_single_owner.py` enforces this statically:
+it fails when a module outside the allowlist calls `sqlite3.connect` (or constructs
+`sqlite3.Connection`), and when an allowlisted module references a Rust-owned filename.
+Importing `sqlite3` only for exception types or annotations stays allowed.
+
 ## Installing the Rust Backend
 
 ### Released `sase` (recommended for users)
