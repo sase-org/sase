@@ -138,10 +138,12 @@ def make_modal(
     form: RepoCreationForm | None = overrides.get("form", repo_form())
 
     def _probe_repo(workflow_type: str, ref: str) -> SimpleNamespace:
-        probe_calls.append(ref)
         if isinstance(probe_status, Exception):
+            probe_calls.append(ref)
             raise probe_status
-        return probe(probe_status)
+        result = probe(probe_status)
+        probe_calls.append(ref)
+        return result
 
     def _describe(workflow_type: str, namespace: str) -> RepoCreationForm | None:
         describe_calls.append(namespace)

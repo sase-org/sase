@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import re
 import shutil
 from collections.abc import Iterable, Mapping
 from pathlib import Path
@@ -72,6 +73,29 @@ def _sensitive_tokens(canary: str) -> dict[str, bytes]:
     }
 
 
+def _contains_sensitive_token(raw: bytes, *, label: str, token: bytes) -> bool:
+    if label == "credential length":
+        return (
+            re.search(rb"(?<![0-9])" + re.escape(token) + rb"(?![0-9])", raw)
+            is not None
+        )
+    return token in raw
+
+
+def _changed_process_environment_entries(
+    parent_environment: Mapping[bytes, bytes], child_environment: bytes
+) -> tuple[bytes, ...]:
+    """Return only process environment entries added or changed by the child."""
+    changed: list[bytes] = []
+    for entry in child_environment.split(b"\0"):
+        if not entry:
+            continue
+        key, separator, value = entry.partition(b"=")
+        if separator and parent_environment.get(key) != value:
+            changed.append(entry)
+    return tuple(changed)
+
+
 def _assert_sensitive_tokens_absent(
     paths: Iterable[Path],
     *,
@@ -81,7 +105,9 @@ def _assert_sensitive_tokens_absent(
     for path in _iter_files(paths):
         raw = path.read_bytes()
         for label, token in tokens.items():
-            assert token not in raw, f"{label} leaked into {path}"
+            assert not _contains_sensitive_token(raw, label=label, token=token), (
+                f"{label} leaked into {path}"
+            )
 
 
 def _assert_sensitive_tokens_absent_bytes(
@@ -92,7 +118,9 @@ def _assert_sensitive_tokens_absent_bytes(
     tokens = _sensitive_tokens(canary)
     for raw in values:
         for label, token in tokens.items():
-            assert token not in raw, f"{label} leaked into process metadata"
+            assert not _contains_sensitive_token(raw, label=label, token=token), (
+                f"{label} leaked into process metadata"
+            )
 
 
 def _iter_files(paths: Iterable[Path]) -> Iterable[Path]:

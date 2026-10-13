@@ -8,6 +8,7 @@ from textual import events
 from textual.widgets import Input, OptionList, Static
 
 from sase import workspace_provider
+from sase.ace.testing.wait import wait_for
 from sase.ace.tui.modals.new_project_modal import NewProjectModal
 from sase.ace.tui.modals.new_project_source import NewProjectSource
 from sase.ace.tui.modals.new_project_source_model import create_source_row
@@ -61,9 +62,17 @@ async def test_filter_and_enter_advance_the_modal_without_an_entry_point(
         app.push_screen(modal)
         await pilot.pause()
         filter_input = modal.query_one("#new-project-filter", Input)
+        source = modal.query_one(NewProjectSource)
         filter_input.focus()
         await pilot.press("s", "a", "s", "e", "-", "o", "r", "g", "/", "n", "e", "w")
-        await pilot.pause()
+        await wait_for(
+            pilot,
+            lambda: (
+                source._filter_text == "sase-org/new"
+                and "sase-org/new"
+                in modal.query_one("#new-project-source-detail", Static).render().plain
+            ),
+        )
         assert modal.query_one("#new-project-filter", Input).value == "sase-org/new"
         assert (
             "sase-org/new"
@@ -71,18 +80,65 @@ async def test_filter_and_enter_advance_the_modal_without_an_entry_point(
         )
 
         await pilot.press("enter")
-        await pilot.pause()
-        assert modal._state.stage == "configure"
-        assert (
-            modal.query_one("#new-project-stepper", Static)
-            .render()
-            .plain.startswith("✓ Source")
+        await wait_for(
+            pilot,
+            lambda: (
+                modal._state.stage == "configure"
+                and modal.query_one("#new-project-stepper", Static)
+                .render()
+                .plain.startswith("✓ Source")
+            ),
         )
+
+
+async def test_filter_discards_pending_probe_for_previous_highlight(
+    monkeypatch,
+) -> None:  # type: ignore[no-untyped-def]
+    from sase.ace.tui.util.debounce import DetailPanelDebouncer
+
+    scheduled: list[object] = []
+    monkeypatch.setattr(
+        DetailPanelDebouncer,
+        "schedule",
+        lambda _self, callback: scheduled.append(callback),
+    )
+    modal = NewProjectModal(
+        provider_metadata=(provider("gh", "GitHub"),),
+        candidate_inputs={"gh": inputs()},
+        preferences=Preferences(last_provider="gh"),
+    )
+    app = ModalApp()
+    async with app.run_test(size=(100, 32)) as pilot:
+        app.push_screen(modal)
+        await pilot.pause()
+        source = modal.query_one(NewProjectSource)
+        assert source._detail_debouncer is not None
+        source._detail_debouncer.cancel()
+        scheduled.clear()
+        previous = source._highlighted_row()
+        assert previous is not None
+        source._select_detail(previous)
+        assert scheduled
+        stale_probe = scheduled[-1]
+        started: list[str] = []
+        monkeypatch.setattr(
+            source,
+            "_start_probe",
+            lambda ref, _key: started.append(ref),
+        )
+
+        modal.query_one("#new-project-filter", Input).value = "no-such-repo"
+        await wait_for(pilot, lambda: source._highlighted_row() is None)
+        stale_probe()  # type: ignore[operator]
+
+        assert started == []
 
 
 async def test_tab_selection_persists_last_provider_off_thread(
     monkeypatch, tmp_path
 ) -> None:  # type: ignore[no-untyped-def]
+    import json
+
     monkeypatch.setenv("SASE_HOME", str(tmp_path))
     metadata = (
         provider("gh", "GitHub"),
@@ -96,17 +152,20 @@ async def test_tab_selection_persists_last_provider_off_thread(
         }
     )
     app = ModalApp()
+    preferences_path = tmp_path / "project_onboarding" / "preferences.json"
     async with app.run_test(size=(100, 32)) as pilot:
         app.push_screen(modal)
         await pilot.pause()
         modal.select_provider("git")
-        await pilot.pause(0.1)
+        await wait_for(
+            pilot,
+            lambda: (
+                preferences_path.is_file()
+                and json.loads(preferences_path.read_text())["last_provider"] == "git"
+            ),
+        )
 
-    import json
-
-    payload = json.loads(
-        (tmp_path / "project_onboarding" / "preferences.json").read_text()
-    )
+    payload = json.loads(preferences_path.read_text())
     assert payload["last_provider"] == "git"
 
 

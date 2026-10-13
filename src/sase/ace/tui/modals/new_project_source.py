@@ -419,7 +419,11 @@ class NewProjectSource(Vertical):
                 def start_probe(
                     ref: str = row.ref,
                     key: tuple[str, str] = probe_key,
+                    row_id: str = row.row_id,
                 ) -> None:
+                    selected = self._highlighted_row()
+                    if selected is None or selected.row_id != row_id:
+                        return
                     self._start_probe(ref, key)
 
                 self._detail_debouncer.schedule(start_probe)

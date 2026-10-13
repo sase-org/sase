@@ -56,7 +56,9 @@ async def test_typing_starts_no_sync_probe_and_settles_once(
             owners=["sase-org"],
             account="",
         )
-        await pilot.pause(0.6)
+        # The default name's probe is stale by the time the name field is ready,
+        # but finish it before isolating calls for the typed name.
+        await wait_for(pilot, lambda: probe_calls == ["sase-org/forge"])
         # Source detail probes are out of scope; isolate create-flow probes.
         probe_calls.clear()
         name = modal.query_one("#new-project-create-name", Input)
@@ -65,7 +67,13 @@ async def test_typing_starts_no_sync_probe_and_settles_once(
         for character in ("n", "e", "w"):
             name.insert_text_at_cursor(character)
         assert probe_calls == []
-        await pilot.pause(0.6)
+        await wait_for(
+            pilot,
+            lambda: (
+                probe_calls == ["sase-org/new"]
+                and modal._create_availability.status == "available"
+            ),
+        )
         assert probe_calls == ["sase-org/new"]
         assert modal._create_availability.status == "available"
 

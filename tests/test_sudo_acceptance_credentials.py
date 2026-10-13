@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
 from collections.abc import Mapping
 from pathlib import Path
@@ -22,9 +23,9 @@ from tests._sudo_acceptance_helpers import (
     _CANARY,
     _assert_sensitive_tokens_absent,
     _assert_sensitive_tokens_absent_bytes,
+    _changed_process_environment_entries,
     _request,
     _runner_ledger,
-    _sensitive_tokens,
 )
 
 
@@ -62,8 +63,7 @@ def test_sudo_local_flow_never_persists_canary_credentials(
     ) -> dict[str, Any]:
         assert credential_tty.read_text(encoding="utf-8") == _CANARY
         manifest_bytes = canonical_json_bytes(dict(manifest))
-        for token in _sensitive_tokens(_CANARY).values():
-            assert token not in manifest_bytes
+        _assert_sensitive_tokens_absent_bytes((manifest_bytes,), canary=_CANARY)
         return _runner_ledger(manifest, manifest_sha256)
 
     monkeypatch.setattr("sase.sudo.cli.run_sudo_runner", fake_runner)
@@ -85,6 +85,22 @@ def test_sudo_local_flow_never_persists_canary_credentials(
         ),
         canary=_CANARY,
     )
+
+
+def test_sensitive_length_checks_use_digit_boundaries_and_ignore_inherited_env() -> (
+    None
+):
+    _assert_sensitive_tokens_absent_bytes((b"embedded-1281199-value",), canary=_CANARY)
+    for raw in (b"length=8119", b'{"credential_length":8119}'):
+        with pytest.raises(AssertionError, match="credential length"):
+            _assert_sensitive_tokens_absent_bytes((raw,), canary=_CANARY)
+
+    inherited = _changed_process_environment_entries(
+        {b"RUNNER_ID": b"opaque-8119-value"},
+        b"RUNNER_ID=opaque-8119-value\0",
+    )
+    assert inherited == ()
+    _assert_sensitive_tokens_absent_bytes(inherited, canary=_CANARY)
 
 
 def test_sudo_runner_invocation_keeps_canary_out_of_process_argv_and_env(
@@ -126,15 +142,22 @@ def test_sudo_runner_invocation_keeps_canary_out_of_process_argv_and_env(
         argv: list[str],
         **kwargs: Any,
     ) -> subprocess.CompletedProcess[str]:
+        parent_environment = dict(os.environb)
         process = real_popen(
             argv,
             stdout=kwargs.get("stdout"),
             stderr=kwargs.get("stderr"),
             text=kwargs.get("text", False),
+            env=kwargs.get("env"),
         )
         try:
             captured["cmdline"] = Path(f"/proc/{process.pid}/cmdline").read_bytes()
-            captured["environ"] = Path(f"/proc/{process.pid}/environ").read_bytes()
+            captured["environ"] = b"\0".join(
+                _changed_process_environment_entries(
+                    parent_environment,
+                    Path(f"/proc/{process.pid}/environ").read_bytes(),
+                )
+            )
             stdout, stderr = process.communicate(timeout=kwargs.get("timeout"))
         except BaseException:
             process.kill()
