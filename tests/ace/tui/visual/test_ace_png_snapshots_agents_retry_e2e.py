@@ -154,6 +154,10 @@ async def test_real_loader_plan_agent_session_retry_countdown_png_snapshot(
         assert (loaded.status, loaded.retry_status) == ("RETRYING", "retrying")
         assert (loaded.retry_count, loaded.max_retries) == (2, 3)
         await wait_for_svg_contains(page, "RETRYING (9s)")
+        # The golden shows the landed ``‹ 2/2 › Reply`` frame; capturing
+        # while the Main deck still shows ``‹ 1/2 › Context`` flips the
+        # golden on loaded runners.
+        await wait_for_svg_contains(page, "2/2")
         await wait_for_visual_idle(page)
         assert_page_svg_contains(page, "RETRYING (9s)")
         assert_page_svg_contains(page, "↻ 2/3")

@@ -20,6 +20,7 @@ from sase.ace.tui.models import agent_tab_descriptors as descriptors_mod
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_groups import GroupingMode
 from sase.ace.tui.models.agent_tab_descriptors import AgentTabStyleInputs
+from sase.ace.tui.widgets import AgentDetail
 from sase.core.agent_tab import AgentTabKey
 from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     assert_page_svg_contains,
@@ -28,6 +29,7 @@ from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patches,
     patch_startup_loaders,
     wait_for_startup,
+    wait_for_state,
     wait_for_svg_contains,
     wait_for_visual_idle,
 )
@@ -94,6 +96,20 @@ async def _open_agents(page: AcePage) -> None:
     await wait_for_visual_idle(page)
 
 
+async def _wait_for_settled_main_deck(page: AcePage) -> None:
+    """Wait until the selected agent's Main deck subtitle settles.
+
+    The deck subtitle count (``main 0`` vs ``main 1``) flips when the async
+    Main deck load lands, so capturing first makes the golden a coin flip
+    (sase-1a3). The subtitle renders ``main<nbsp>1`` as one text element
+    while the tab strip keeps its count in a separate element, so this
+    sentinel only matches the settled deck subtitle. Tests whose settled
+    deck is empty (empty tab, filtered list) or count-less (narrow overflow
+    tier) must not use this wait.
+    """
+    await wait_for_svg_contains(page, "main 1")
+
+
 async def test_agents_tab_strip_hidden_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
@@ -103,6 +119,8 @@ async def test_agents_tab_strip_hidden_png_snapshot(
     async with AcePage(query='"visual"', patches=patches()) as page:
         await _open_agents(page)
         await page.expect_state("agent_count", 2)
+        await _wait_for_settled_main_deck(page)
+        await wait_for_visual_idle(page)
         ace_png_visual.assert_page_png(
             page,
             "agents_tab_strip_hidden_120x40",
@@ -128,6 +146,8 @@ async def test_agents_tab_strip_standard_png_snapshot(
         await _open_agents(page)
         for token in ("sase", "blog", "▐", "▌", "┊"):
             assert_page_svg_contains(page, token)
+        await _wait_for_settled_main_deck(page)
+        await wait_for_visual_idle(page)
         ace_png_visual.assert_page_png(
             page,
             "agents_tab_strip_standard_120x40",
@@ -163,6 +183,8 @@ async def test_agents_tab_strip_attention_png_snapshot(
         await page.pause(0.5)
         for token in ("S1", "F1", "U1"):
             await wait_for_svg_contains(page, token)
+        await _wait_for_settled_main_deck(page)
+        await wait_for_visual_idle(page)
         ace_png_visual.assert_page_png(
             page,
             "agents_tab_strip_attention_120x40",
@@ -303,6 +325,9 @@ async def test_agents_tab_strip_feed_unavailable_png_snapshot(
         await wait_for_visual_idle(page)
         await page.pause(0.5)
         await wait_for_svg_contains(page, "Machines")
+        # No deck wait here: the tab holds no agents, so the settled deck
+        # is empty (``main 0 · files 0 · …``) by construction.
+        await wait_for_visual_idle(page)
         ace_png_visual.assert_page_png(
             page,
             "agents_tab_strip_feed_unavailable_120x40",
@@ -323,6 +348,8 @@ async def test_agents_tab_strip_long_name_png_snapshot(
     async with AcePage(query='"visual"', patches=patches()) as page:
         await _open_agents(page)
         assert_page_svg_contains(page, long_name)
+        await _wait_for_settled_main_deck(page)
+        await wait_for_visual_idle(page)
         ace_png_visual.assert_page_png(
             page,
             "agents_tab_strip_long_name_120x40",
@@ -353,6 +380,8 @@ async def test_agents_tab_strip_machine_mode_png_snapshot(
         await _open_agents(page)
         for token in ("⌂", "athena", "⌨", "apollo", "mac", "sase", "┊"):
             await wait_for_svg_contains(page, token)
+        await _wait_for_settled_main_deck(page)
+        await wait_for_visual_idle(page)
         ace_png_visual.assert_page_png(
             page,
             "agents_tab_strip_machine_mode_120x40",
@@ -386,6 +415,8 @@ async def test_agents_tab_strip_named_vs_machine_alias_png_snapshot(
         await _open_agents(page)
         for token in ("⌂", "athena", "⌨", "apollo"):
             await wait_for_svg_contains(page, token)
+        await _wait_for_settled_main_deck(page)
+        await wait_for_visual_idle(page)
         ace_png_visual.assert_page_png(
             page,
             "agents_tab_strip_named_vs_machine_alias_120x40",
@@ -427,6 +458,18 @@ async def test_agents_tab_strip_stale_host_png_snapshot(
         await wait_for_visual_idle(page)
         await page.pause(0.5)
         await wait_for_svg_contains(page, "apollo")
+        # The remote deck arrives through a worker (unlike the local-agent
+        # decks above), so poll app state instead of re-exporting the frame:
+        # a tight SVG-export loop can starve the very delivery it waits for
+        # on loaded runners. The sink re-syncs availability with the
+        # document, so the ``main 1`` subtitle follows in the same call.
+        detail = page.app.query_one("#agent-detail-panel", AgentDetail)
+        await wait_for_state(
+            page,
+            lambda: "context" in set(detail._main_deck_document.card_ids),
+            description="Main deck document holds the Context card",
+        )
+        await wait_for_visual_idle(page)
         ace_png_visual.assert_page_png(
             page,
             "agents_tab_strip_stale_host_120x40",
@@ -456,6 +499,8 @@ async def test_agents_tab_strip_by_machine_on_machine_tab_png_snapshot(
         assert page.app._grouping_mode is GroupingMode.BY_MACHINE
         await page.pause(0.5)
         await wait_for_svg_contains(page, "Running")
+        await _wait_for_settled_main_deck(page)
+        await wait_for_visual_idle(page)
         ace_png_visual.assert_page_png(
             page,
             "agents_tab_strip_by_machine_on_machine_tab_120x40",
@@ -479,11 +524,19 @@ async def test_agents_tab_strip_by_machine_on_named_tab_png_snapshot(
     async with AcePage(query='"visual"', patches=patches()) as page:
         await _open_agents(page)
         assert page.app._switch_agents_tab(_SASE, reason="visual") is True
+        # No deck wait before regrouping: the tab switch and the grouping
+        # change each rebind the detail deck, and a tight SVG-export wait
+        # here can starve the regrouped load on loaded runners. The stale
+        # pre-switch load is cancelled by the regroup's own render request,
+        # so waiting once afterwards is sufficient.
+        await wait_for_visual_idle(page)
         await page.press("o", "m")
         await wait_for_visual_idle(page)
         assert page.app._grouping_mode is GroupingMode.BY_MACHINE
         await page.pause(0.5)
         await wait_for_svg_contains(page, "local")
+        await _wait_for_settled_main_deck(page)
+        await wait_for_visual_idle(page)
         ace_png_visual.assert_page_png(
             page,
             "agents_tab_strip_by_machine_on_named_tab_120x40",
@@ -509,6 +562,8 @@ async def test_agents_tab_strip_picker_png_snapshot(
         page.app.action_pick_agents_tab()
         await wait_for_visual_idle(page)
         assert_page_svg_contains(page, "go to tab")
+        await _wait_for_settled_main_deck(page)
+        await wait_for_visual_idle(page)
         ace_png_visual.assert_page_png(
             page,
             "agents_tab_strip_picker_120x40",

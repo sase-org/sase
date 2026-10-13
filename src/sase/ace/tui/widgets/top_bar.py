@@ -179,15 +179,30 @@ class TopBar(Horizontal):
     def on_resize(self, _event: Resize) -> None:
         """Refit the cluster density when the bar gains or loses cells."""
         self.fit_top_bar_indicators()
+        # A resize event can arrive with a stale or zero width before
+        # layout settles. Re-read the widget size after the next refresh
+        # so a pre-layout fit never sticks a compact density (dropped
+        # group labels) onto a bar that fits full density once laid out.
+        self.call_after_refresh(self._refit_from_current_size)
+
+    def _refit_from_current_size(self) -> None:
+        """Re-pick the cluster density from the laid-out bar width."""
+        self.fit_top_bar_indicators()
 
     def fit_top_bar_indicators(self) -> None:
         """Pick the cluster density from the cells free beside the tabs."""
         try:
             tab_bar = self.query_one("#tab-bar", TabBar)
             cluster = self.query_one("#top-bar-indicators", TopBarIndicators)
+            width = int(self.region.width)
         except Exception:
             return
-        free = max(0, self.region.width - tab_bar.content_cells - TOP_BAR_MIN_GAP)
+        if width <= 0:
+            # Pre-layout: the region has no width yet. Keep the current
+            # (default full) density instead of sticking compact, which
+            # no later fit would revisit when the size never changes.
+            return
+        free = max(0, width - tab_bar.content_cells - TOP_BAR_MIN_GAP)
         cluster.set_density(
             choose_top_bar_density(free, full_cells=cluster.full_cells),
         )

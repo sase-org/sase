@@ -9,6 +9,7 @@ import pytest
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.widgets.artifacts.plans_pane import ArtifactsPlansPane
+from sase.ace.tui.widgets.top_bar import TopBarIndicators
 from tests.ace.tui._artifacts_plans_helpers import _choices, _snapshot
 from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     assert_page_svg_contains,
@@ -55,6 +56,12 @@ async def test_artifacts_files_nested_strip_png_snapshot(
         await page.expect_state("artifacts_subtab", "ref:plan")
         pane = page.query_one_widget("#artifacts-plans-pane", ArtifactsPlansPane)
         await page.wait_for(lambda _state: pane.snapshot is snapshot)
+        await wait_for_visual_idle(page)
+        # A pre-layout top-bar fit can stick compact density (dropping the
+        # ``inbox:`` group label) on loaded runners; this capture is
+        # 120 columns, which settles full.
+        cluster = page.app.query_one("#top-bar-indicators", TopBarIndicators)
+        await page.wait_for(lambda _state: cluster.density == "full", timeout=15.0)
         await wait_for_visual_idle(page)
 
         for token in ("PLAN", "Ship the plan browser", "Pending proposal body"):

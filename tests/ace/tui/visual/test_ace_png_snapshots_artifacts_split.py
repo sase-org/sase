@@ -10,6 +10,7 @@ from sase.ace.testing import AcePage
 from sase.ace.tui.artifacts_split import ArtifactsSplitMode
 from sase.ace.tui.widgets.artifacts.beads_pane import ArtifactsBeadsPane
 from sase.ace.tui.widgets.artifacts.entry_navigation import ArtifactEntryTarget
+from sase.ace.tui.widgets.top_bar import TopBarIndicators
 from tests.ace.tui._artifacts_beads_helpers import snapshot as _snapshot
 from tests.ace.tui._artifacts_plans_helpers import _choices
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
@@ -22,6 +23,17 @@ from tests.ace.tui.visual._ace_png_snapshot_helpers import (
 from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
 
 pytestmark = pytest.mark.visual
+
+
+async def _wait_for_full_top_bar_density(page: AcePage) -> None:
+    """Wait until the top-bar cluster settles at full density.
+
+    A pre-layout fit can stick compact density (dropping the ``inbox:``
+    group label) on loaded runners. Only 120-column captures render full;
+    narrow captures settle compact by design and must not use this wait.
+    """
+    cluster = page.app.query_one("#top-bar-indicators", TopBarIndicators)
+    await page.wait_for(lambda _state: cluster.density == "full", timeout=15.0)
 
 
 @pytest.mark.parametrize(
@@ -66,6 +78,9 @@ async def test_artifacts_split_mode_png_snapshot(
         page.app.artifacts_split_mode = mode
         await wait_for_svg_contains(page, "Tasks")
         await wait_for_visual_idle(page)
+        if size == (120, 40):
+            await _wait_for_full_top_bar_density(page)
+            await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(
             page,
@@ -118,7 +133,11 @@ async def test_artifacts_split_mode_selected_detail_png_snapshot(
         pane._update_detail()
         page.app.artifacts_split_mode = mode
         await wait_for_svg_contains(page, "Ready for triage")
+        await wait_for_svg_contains(page, "snooze")
         await wait_for_visual_idle(page)
+        if size == (120, 40):
+            await _wait_for_full_top_bar_density(page)
+            await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(
             page,
