@@ -39,6 +39,15 @@ _PRE_MOUNT_SPLIT_FIELDS = (
     "compose_seconds",
 )
 
+_NEW_STARTUP_TELEMETRY_FIELDS = (
+    "deferred_release_reason",
+    "deferred_release_seconds",
+    "load1",
+    "cpu_count",
+    "patch_relation_index_builds_before_ready",
+    "auto_refresh_ticks_before_release",
+)
+
 
 def _clear_startup_clock() -> None:
     startup_clock._process_start_mono = None
@@ -67,6 +76,13 @@ class _TelemetryApp(StartupTelemetryMixin):
         self._agents: list[Any] = []
         self._agents_refresh_active_source = "startup"
         self._agent_load_state: AgentLoadState | None = None
+        self._startup_deferred_release_reason: str | None = None
+        self._startup_deferred_release_mono: float | None = None
+        self._startup_host_load1: float | None = None
+        self._startup_host_cpu_count: int | None = None
+        self._startup_patch_relation_index_builds_before_ready: int | None = None
+        self._startup_auto_refresh_tick_count = 0
+        self._startup_auto_refresh_ticks_before_release: int | None = None
 
 
 async def _drain(app: _TelemetryApp) -> None:
@@ -121,6 +137,15 @@ async def test_record_waits_for_both_surfaces_then_writes_once(
     app = _TelemetryApp(current_tab="agents")
     app._mark_startup_on_mount()
     app._mark_startup_first_paint()
+    assert app._startup_host_load1 is None or app._startup_host_load1 >= 0
+    assert app._startup_host_cpu_count is None or app._startup_host_cpu_count >= 1
+    # Deterministic host/release state for the typed-field asserts below.
+    app._startup_host_load1 = 21.5
+    app._startup_host_cpu_count = 16
+    app._startup_deferred_release_reason = "visible_ready"
+    assert app._startup_on_mount_mono is not None
+    app._startup_deferred_release_mono = app._startup_on_mount_mono + 1.5
+    app._startup_auto_refresh_ticks_before_release = 3
     app._agents = [object(), object(), object()]
     app._agent_load_state = AgentLoadState(
         tier="tier1",
@@ -134,6 +159,8 @@ async def test_record_waits_for_both_surfaces_then_writes_once(
     app._mark_startup_agents_ready()
     await _drain(app)
     assert app._startup_visible_ready_mono is not None
+    assert app._startup_patch_relation_index_builds_before_ready is not None
+    assert app._startup_patch_relation_index_builds_before_ready >= 0
     assert not path.exists()  # axe surface is not ready yet
 
     app._axe_first_load_done = True
@@ -160,6 +187,15 @@ async def test_record_waits_for_both_surfaces_then_writes_once(
         assert field in record
         value = record[field]
         assert value is None or isinstance(value, (int, float))
+    for field in _NEW_STARTUP_TELEMETRY_FIELDS:
+        assert field in record
+    assert record["deferred_release_reason"] == "visible_ready"
+    assert record["deferred_release_seconds"] == pytest.approx(1.5)
+    assert record["load1"] == 21.5
+    assert record["cpu_count"] == 16
+    assert isinstance(record["patch_relation_index_builds_before_ready"], int)
+    assert record["patch_relation_index_builds_before_ready"] >= 0
+    assert record["auto_refresh_ticks_before_release"] == 3
 
     # A repeat "ready" signal (e.g. a redundant call) must not write again.
     app._mark_startup_agents_ready()
@@ -196,3 +232,29 @@ def test_pre_mount_split_fields_are_additive_and_optional() -> None:
         1.8
     )
     _clear_startup_clock()
+
+
+def test_interpreter_cli_import_guard_drops_bogus_values() -> None:
+    """Negative or over-one-hour CLI import values record as None."""
+    _clear_startup_clock()
+    try:
+        startup_clock._process_start_mono = 100.0
+
+        startup_clock._cli_ready_mono = 99.0  # negative import interval
+        assert (
+            startup_clock.pre_mount_split_fields()["interpreter_cli_import_seconds"]
+            is None
+        )
+
+        startup_clock._cli_ready_mono = 100.0 + 7200.0  # over-one-hour skew
+        assert (
+            startup_clock.pre_mount_split_fields()["interpreter_cli_import_seconds"]
+            is None
+        )
+
+        startup_clock._cli_ready_mono = 100.4
+        assert startup_clock.pre_mount_split_fields()[
+            "interpreter_cli_import_seconds"
+        ] == pytest.approx(0.4)
+    finally:
+        _clear_startup_clock()

@@ -442,9 +442,15 @@ class AgentLoadingDiskSupportMixin(AgentLoadingStateMixin):
         source: str,
         load_kind: str,
         stages: dict[str, float],
+        disk_substages: dict[str, float] | None = None,
         **fields: Any,
     ) -> None:
-        """Persist slow-stage timings without putting log I/O on the UI loop."""
+        """Persist slow-stage timings without putting log I/O on the UI loop.
+
+        The slow-stage threshold rules are unchanged: *disk_substages* is
+        only written when the record itself is written, as a
+        ``disk_substages`` object alongside ``stages_seconds``.
+        """
         import asyncio
 
         threshold_seconds = _slow_loader_stage_threshold_seconds()
@@ -468,6 +474,10 @@ class AgentLoadingDiskSupportMixin(AgentLoadingStateMixin):
                 name: round(elapsed, 6) for name, elapsed in stages.items()
             },
         }
+        if disk_substages is not None:
+            record["disk_substages"] = {
+                name: round(elapsed, 6) for name, elapsed in disk_substages.items()
+            }
         record.update(fields)
         spawn_pump_free_task(
             self,

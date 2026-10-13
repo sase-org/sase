@@ -22,6 +22,9 @@ class AgentsProviderSnapshot:
     fallback_reason: str | None = None
     fallback_message: str | None = None
     snapshot_id: str | None = None
+    #: Always-on loader disk substage timings (``index``, ``decode``,
+    #: ``provider``) in seconds, when the provider measured them.
+    substages: dict[str, float] | None = None
 
 
 @dataclass(frozen=True)

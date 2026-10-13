@@ -352,6 +352,7 @@ class AgentLoadingStateMixin:
         source: str,
         load_kind: str,
         stages: dict[str, float],
+        disk_substages: dict[str, float] | None = None,
         **fields: Any,
     ) -> None:
         raise NotImplementedError

@@ -451,6 +451,7 @@ def test_direct_agents_provider_forwards_viewport_query(
             "index_freshness": "cached",
             "search_query": "model:opus",
             "requested_limit": 15,
+            "substages": {},
         }
     ]
     assert snapshot.load_state is load_state

@@ -150,8 +150,17 @@ def _since(start: float | None, end: float | None) -> float | None:
 def pre_mount_split_fields() -> dict[str, Any]:
     """Return the four additive pre-mount fields for the startup JSONL record."""
     _ensure_process_start()
+    interpreter_cli_import_seconds = _since(_process_start_mono, _cli_ready_mono)
+    if interpreter_cli_import_seconds is not None and (
+        interpreter_cli_import_seconds < 0 or interpreter_cli_import_seconds > 3600
+    ):
+        # Without ``SASE_TUI_EXEC_MONO_NS`` the process-start anchor falls
+        # back to the ``/proc`` start time, which can skew wildly (clock or
+        # namespace weirdness). A negative or over-one-hour import is bogus,
+        # so record ``None`` instead of laundering it into telemetry.
+        interpreter_cli_import_seconds = None
     return {
-        "interpreter_cli_import_seconds": _since(_process_start_mono, _cli_ready_mono),
+        "interpreter_cli_import_seconds": interpreter_cli_import_seconds,
         "app_module_import_seconds": _since(_cli_ready_mono, _app_imported_mono),
         "app_construct_seconds": _since(
             _app_construct_start_mono, _app_construct_end_mono

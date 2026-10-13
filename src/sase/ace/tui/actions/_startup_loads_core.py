@@ -22,7 +22,10 @@ class StartupLoadsCoreMixin:
     """Mixin orchestrating post-mount startup loads and deferred release."""
 
     _startup_deferred_release_reason: str | None
+    _startup_deferred_release_mono: float | None
     _startup_deferred_fallback_timer: Timer | None
+    _startup_auto_refresh_tick_count: int
+    _startup_auto_refresh_ticks_before_release: int | None
 
     def _start_post_mount_background_loads(self: Any) -> None:
         """Launch startup loads with the initially visible surface first."""
@@ -104,6 +107,10 @@ class StartupLoadsCoreMixin:
             return False
         self._startup_deferred_loads_released = True
         self._startup_deferred_release_reason = reason
+        self._startup_deferred_release_mono = time.monotonic()
+        self._startup_auto_refresh_ticks_before_release = getattr(
+            self, "_startup_auto_refresh_tick_count", 0
+        )
         # Startup loads are themselves the first full loads, so the next
         # sanity refresh must wait a full interval after release. Clear
         # the init-default dirty flags so the first post-release tick

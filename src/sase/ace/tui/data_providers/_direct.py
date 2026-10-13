@@ -29,6 +29,7 @@ class DirectAgentsDataProvider:
         requested_limit = (
             None if full_history or viewport is None else viewport.requested_limit
         )
+        substages: dict[str, float] = {}
         agents, load_state = load_tiered_agents(
             patch_snapshot=patch_snapshot,
             full_history=full_history,
@@ -36,6 +37,7 @@ class DirectAgentsDataProvider:
             index_freshness=index_freshness,
             search_query=search_query,
             requested_limit=requested_limit,
+            substages=substages,
         )
         shared_snapshot = agent_snapshot(
             agents,
@@ -61,6 +63,7 @@ class DirectAgentsDataProvider:
             load_state=load_state,
             shared_snapshot=shared_snapshot,
             used_daemon=False,
+            substages=dict(substages) or None,
         )
 
 

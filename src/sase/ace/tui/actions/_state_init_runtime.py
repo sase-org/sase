@@ -104,7 +104,13 @@ def init_runtime_state(
     self._startup_axe_surface_started = False
     self._startup_deferred_loads_released = False
     self._startup_deferred_release_reason = None
+    self._startup_deferred_release_mono = None
     self._startup_deferred_fallback_timer = None
+    self._startup_host_load1 = None
+    self._startup_host_cpu_count = None
+    self._startup_patch_relation_index_builds_before_ready = None
+    self._startup_auto_refresh_tick_count = 0
+    self._startup_auto_refresh_ticks_before_release = None
     self._startup_maintenance_chain_started = False
     self._prompt_bar_import_warm_in_flight = False
     self._prompt_bar_import_warm_done = False

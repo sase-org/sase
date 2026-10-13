@@ -25,6 +25,9 @@ class EventAutoRefreshMixin(EventAutoRefreshSurfacesMixin):
         from missed events.
         """
         self._countdown_remaining = self.refresh_interval
+        self._startup_auto_refresh_tick_count = (
+            getattr(self, "_startup_auto_refresh_tick_count", 0) + 1
+        )
         if self._nav_gate.is_navigating():
             if getattr(self, "_auto_refresh_deferred", False):
                 return

@@ -63,6 +63,9 @@ class StartupTelemetryMixin:
     _startup_axe_ready_mono: float | None
     _startup_visible_ready_mono: float | None
     _startup_telemetry_recorded: bool
+    _startup_host_load1: float | None
+    _startup_host_cpu_count: int | None
+    _startup_patch_relation_index_builds_before_ready: int | None
 
     def _mark_startup_on_mount(self: Any) -> None:
         """Anchor the mount checkpoint and snapshot the initially visible tab."""
@@ -70,6 +73,14 @@ class StartupTelemetryMixin:
             return
         self._startup_on_mount_mono = time.monotonic()
         self._startup_initial_tab = self.current_tab
+        try:
+            self._startup_host_load1 = float(os.getloadavg()[0])
+        except (OSError, ValueError, IndexError):
+            self._startup_host_load1 = None
+        try:
+            self._startup_host_cpu_count = os.cpu_count()
+        except NotImplementedError:
+            self._startup_host_cpu_count = None
 
     def _mark_startup_first_paint(self: Any) -> None:
         """Anchor the first-paint checkpoint (``call_after_refresh`` fired)."""
@@ -93,6 +104,14 @@ class StartupTelemetryMixin:
         if not self._startup_visible_surface_ready():
             return False
         self._startup_visible_ready_mono = time.monotonic()
+        try:
+            from .patch._relation_index import patch_relation_index_real_build_count
+
+            self._startup_patch_relation_index_builds_before_ready = (
+                patch_relation_index_real_build_count()
+            )
+        except Exception:
+            self._startup_patch_relation_index_builds_before_ready = None
         return True
 
     def _mark_startup_agents_ready(self: Any) -> None:
@@ -158,6 +177,12 @@ class StartupTelemetryMixin:
         from ..util.gc_telemetry import app_instance_id
         from ..util.startup_clock import pre_mount_split_fields
 
+        ticks_before_release = getattr(
+            self, "_startup_auto_refresh_ticks_before_release", None
+        )
+        if ticks_before_release is None:
+            ticks_before_release = getattr(self, "_startup_auto_refresh_tick_count", 0)
+
         record = {
             "timestamp": datetime.now(UTC).isoformat(),
             "event": "tui_startup",
@@ -176,6 +201,19 @@ class StartupTelemetryMixin:
             "axe_ready_seconds": _since(process_start, axe_ready),
             "visible_ready_seconds": _since(on_mount, visible_ready),
             "all_surfaces_ready_seconds": _since(on_mount, all_ready),
+            "deferred_release_reason": getattr(
+                self, "_startup_deferred_release_reason", None
+            ),
+            "deferred_release_seconds": _since(
+                on_mount,
+                getattr(self, "_startup_deferred_release_mono", None),
+            ),
+            "load1": getattr(self, "_startup_host_load1", None),
+            "cpu_count": getattr(self, "_startup_host_cpu_count", None),
+            "patch_relation_index_builds_before_ready": getattr(
+                self, "_startup_patch_relation_index_builds_before_ready", None
+            ),
+            "auto_refresh_ticks_before_release": ticks_before_release,
         }
         record.update(pre_mount_split_fields())
         return record

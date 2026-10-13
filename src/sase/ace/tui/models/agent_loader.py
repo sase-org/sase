@@ -1,9 +1,11 @@
 """Functions for loading and aggregating agents from all sources."""
 
 from collections.abc import Iterable, Sequence
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Literal
+
+import time
 
 from sase.core.agent_scan_facade import (
     default_agent_artifact_index_path,
@@ -79,6 +81,11 @@ class _AgentLoadResult:
     agents: list[Agent]
     workflow_agent_steps: list[Agent]
     state: AgentLoadState
+    #: Always-on ``perf_counter`` timings for the ``index`` and ``decode``
+    #: loader substages, in seconds. The remaining substages
+    #: (``dismissed_snapshot``, ``provider``, ``projections``) are timed by
+    #: the TUI disk-load wrapper, which merges them for telemetry.
+    substages: dict[str, float] = field(default_factory=dict)
 
 
 def _scan_artifacts_for_loader(
@@ -368,6 +375,7 @@ def _load_agents_with_load_state(
 ) -> _AgentLoadResult:
     """Load agents for the TUI and report whether history is complete."""
 
+    index_start = time.perf_counter()
     with tui_trace(
         "agents.load_from_disk.index",
         index_freshness=index_freshness,
@@ -382,16 +390,20 @@ def _load_agents_with_load_state(
         extra["artifact_source"] = state.artifact_source
         extra["record_count"] = state.record_count
         extra["used_artifact_index"] = state.used_artifact_index
+    index_elapsed = time.perf_counter() - index_start
+    decode_start = time.perf_counter()
     with tui_trace("agents.load_from_disk.decode") as extra:
         agents, workflow_agent_steps = _load_agents_from_all_sources(
             patch_snapshot=patch_snapshot,
             artifact_snapshot=artifact_snapshot,
         )
         extra["decoded_count"] = len(agents) + len(workflow_agent_steps)
+    decode_elapsed = time.perf_counter() - decode_start
     return _AgentLoadResult(
         agents=agents,
         workflow_agent_steps=workflow_agent_steps,
         state=state,
+        substages={"index": index_elapsed, "decode": decode_elapsed},
     )
 
 
@@ -504,8 +516,14 @@ def load_tiered_agents(
     index_freshness: Literal["revalidate", "cached"] = "cached",
     search_query: str | None = None,
     requested_limit: int | None = None,
+    substages: dict[str, float] | None = None,
 ) -> tuple[list[Agent], AgentLoadState]:
-    """Load agents through the TUI tiered artifact path."""
+    """Load agents through the TUI tiered artifact path.
+
+    When *substages* is given, it is updated with the always-on
+    ``perf_counter`` timings for the ``index``, ``decode``, and
+    ``provider`` (identity plus status normalization) loader substages.
+    """
 
     from .agent_live_query_engine import agents_history_query_key
     from .agent_live_query_pushdown import compile_agents_live_query_pushdown
@@ -537,7 +555,12 @@ def load_tiered_agents(
             else None
         ),
     )
+    provider_start = time.perf_counter()
     agents = _normalize_loaded_agents(result.agents, result.workflow_agent_steps)
+    provider_elapsed = time.perf_counter() - provider_start
+    if substages is not None:
+        substages.update(result.substages)
+        substages["provider"] = provider_elapsed
     state = replace(result.state, history_query_key=history_query_key)
     # A pushdown-miss query evaluated only against recent history is
     # query-incomplete. A non-truncated baseline read saw the whole visible

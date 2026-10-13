@@ -6,6 +6,7 @@ startup-window marker on spans emitted before the stopwatch ends.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import time
 from pathlib import Path
@@ -14,6 +15,9 @@ from unittest.mock import patch
 
 import pytest
 
+from sase.ace.tui.actions.agents._loading_disk_support import (
+    AgentLoadingDiskSupportMixin,
+)
 from sase.ace.tui.actions.agents._loading_helpers import (
     load_agents_from_disk_with_state,
 )
@@ -34,6 +38,7 @@ from sase.ace.tui.models.agent_loader import (
 )
 from sase.ace.tui.util import trace
 from sase.core.agent_scan_wire import AgentArtifactScanWire
+from sase.logs import tui_telemetry
 from tests._agent_loader_helpers import _empty_artifact_snapshot
 from tests.ace.tui._axe_collector_helpers import patch_service_status
 
@@ -328,3 +333,134 @@ async def test_axe_startup_on_axe_tab_schedules_background_full_refresh(
     assert collect_kwargs[0]["include_full_snapshots"] is False
     assert app.scheduled_full_refresh == 1
     assert app.applied is payload
+
+
+def test_disk_load_returns_always_on_substage_timings(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The real provider path times every disk substage without tracing."""
+    _enable_trace(tmp_path, monkeypatch)
+    agent = _make_agent()
+    load_state = AgentLoadState(
+        tier="tier1",
+        complete_history=False,
+        artifact_source="artifact_index",
+        used_artifact_index=True,
+        record_count=12,
+    )
+    snapshot = _empty_artifact_snapshot()
+
+    def _slow_index(**kwargs: object) -> tuple[AgentArtifactScanWire, AgentLoadState]:
+        time.sleep(0.02)  # sase-test-wait: fake slow index for substage timing
+        return snapshot, load_state
+
+    def _slow_decode(**kwargs: object) -> tuple[list[Agent], list[Agent]]:
+        time.sleep(0.03)  # sase-test-wait: fake slow decode for substage timing
+        return [agent], []
+
+    with (
+        patch(
+            "sase.ace.dismissed_agents.dismissed_bundle_identities_snapshot",
+            return_value=set(),
+        ),
+        patch("sase.ace.agent_tribes.load_agent_tribes", return_value={}),
+        patch(
+            "sase.ace.tui.models.agent_loader._artifact_snapshot_for_tui_load",
+            side_effect=_slow_index,
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader._load_agents_from_all_sources",
+            side_effect=_slow_decode,
+        ),
+    ):
+        started = time.perf_counter()
+        result = load_agents_from_disk_with_state(
+            set(), source="startup", patch_snapshot=[]
+        )
+        total = time.perf_counter() - started
+
+    substages = result.disk_substages
+    assert substages is not None
+    assert set(substages) == {
+        "dismissed_snapshot",
+        "index",
+        "decode",
+        "provider",
+        "projections",
+    }
+    for value in substages.values():
+        assert isinstance(value, float)
+        assert value >= 0
+    assert sum(substages.values()) <= total + 1e-6
+
+
+class _SubstageTelemetryApp(AgentLoadingDiskSupportMixin):
+    def __init__(self) -> None:
+        self._app_instance_id = "substage-test"
+        self._loader_cleanup_async_tasks: set[asyncio.Task[None]] = set()
+
+
+async def _drain_substage_tasks(app: _SubstageTelemetryApp) -> None:
+    for _ in range(200):
+        tasks = tuple(app._loader_cleanup_async_tasks)
+        if not tasks:
+            return
+        await asyncio.gather(*tasks)
+    raise AssertionError("loader telemetry task did not drain")
+
+
+@pytest.mark.asyncio
+async def test_slow_loader_record_carries_disk_substages(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Slow-loader rows write disk_substages without changing the threshold."""
+    path = tmp_path / "tui_agent_loads.jsonl"
+    monkeypatch.setattr(tui_telemetry, "TUI_AGENT_LOADS_JSONL", str(path))
+    app = _SubstageTelemetryApp()
+    substages = {
+        "dismissed_snapshot": 0.01,
+        "index": 1.5,
+        "decode": 0.4,
+        "provider": 0.2,
+        "projections": 0.05,
+    }
+    app._record_slow_loader_stages(
+        source="startup",
+        load_kind="full",
+        stages={"disk": 2.25, "prep": 0.1},
+        disk_substages=substages,
+        agents=7,
+    )
+    await _drain_substage_tasks(app)
+
+    record = json.loads(path.read_text().strip())
+    assert record["event"] == "tui_agent_load_slow"
+    assert record["slow_stages"] == ["disk"]
+    assert record["disk_substages"] == substages
+    assert sum(record["disk_substages"].values()) <= (
+        record["stages_seconds"]["disk"] + 1e-6
+    )
+
+
+@pytest.mark.asyncio
+async def test_fast_loader_with_substages_writes_nothing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Sub-threshold loads stay silent even when substages were measured."""
+    path = tmp_path / "tui_agent_loads.jsonl"
+    monkeypatch.setattr(tui_telemetry, "TUI_AGENT_LOADS_JSONL", str(path))
+    app = _SubstageTelemetryApp()
+    app._record_slow_loader_stages(
+        source="startup",
+        load_kind="full",
+        stages={"disk": 0.01, "prep": 0.001},
+        disk_substages={
+            "dismissed_snapshot": 0.001,
+            "index": 0.004,
+            "decode": 0.003,
+            "provider": 0.001,
+            "projections": 0.001,
+        },
+    )
+    await _drain_substage_tasks(app)
+    assert not path.exists()

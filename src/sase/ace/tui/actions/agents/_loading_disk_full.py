@@ -378,6 +378,7 @@ class AgentLoadingDiskFullMixin(AgentLoadingDiskViewportMixin):
                 "prep": prep_elapsed,
                 "apply": apply_elapsed,
             },
+            disk_substages=getattr(load_result, "disk_substages", None),
             agents=len(all_agents),
             dismissed=len(dismissed_from_loader),
         )

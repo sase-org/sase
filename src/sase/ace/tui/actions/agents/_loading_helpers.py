@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import time
 from collections.abc import Sequence, Set as AbstractSet
 from dataclasses import dataclass, field, replace
 from pathlib import Path
@@ -81,6 +82,12 @@ class _AgentDiskLoadResult:
         default_factory=frozenset
     )
     provider_snapshot: AgentsProviderSnapshot | None = None
+    #: Always-on ``perf_counter`` timings for the ``disk``-stage loader
+    #: substages (``dismissed_snapshot``, ``index``, ``decode``,
+    #: ``provider``, ``projections``) in seconds. Only the stages that were
+    #: measured are present: test doubles that bypass the real provider
+    #: contribute no ``index``/``decode``/``provider`` entries.
+    disk_substages: dict[str, float] | None = None
 
 
 def roster_identities(
@@ -267,8 +274,10 @@ def load_agents_from_disk_with_state(
         full_history=full_history,
         index_freshness=index_freshness,
     ) as counters:
+        dismissed_start = time.perf_counter()
         with tui_trace("agents.load_from_disk.dismissed_snapshot"):
             dismissed_bundle_identities = dismissed_bundle_identities_snapshot()
+        dismissed_elapsed = time.perf_counter() - dismissed_start
         if data_provider is None:
             from ...data_providers import make_agents_data_provider
 
@@ -282,6 +291,7 @@ def load_agents_from_disk_with_state(
                 search_query=search_query,
                 viewport=viewport,
             )
+        projections_start = time.perf_counter()
         with tui_trace("agents.load_from_disk.projections"):
             result = _apply_loaded_agent_disk_projections(
                 provider_snapshot.agents,
@@ -289,7 +299,19 @@ def load_agents_from_disk_with_state(
                 dismissed_bundle_identities,
                 provider_snapshot.load_state,
             )
-        result = replace(result, provider_snapshot=provider_snapshot)
+        projections_elapsed = time.perf_counter() - projections_start
+        disk_substages: dict[str, float] = {
+            "dismissed_snapshot": dismissed_elapsed,
+        }
+        disk_substages.update(
+            getattr(provider_snapshot, "substages", None) or {},
+        )
+        disk_substages["projections"] = projections_elapsed
+        result = replace(
+            result,
+            provider_snapshot=provider_snapshot,
+            disk_substages=disk_substages,
+        )
         state = result.load_state
         counters["data_cost"] = classify_agents_data_cost(
             full_history=full_history,

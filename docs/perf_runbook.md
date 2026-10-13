@@ -1050,7 +1050,24 @@ without changing that field:
 - `app_construct_seconds` — `AceApp()` construction
 - `compose_seconds` — Textual consumption of `compose()`
 
-Missing stamps record as `null` (unit tests and non-CLI constructions).
+Missing stamps record as `null` (unit tests and non-CLI constructions). A negative or
+over-one-hour `interpreter_cli_import_seconds` is also `null`: without
+`SASE_TUI_EXEC_MONO_NS` the process-start anchor falls back to the `/proc` start time,
+which can skew, so bogus values are dropped instead of recorded.
+
+Startup cliffs are diagnosable from the same row. `deferred_release_reason` is
+`visible_ready`, `fallback`, or `fallback_schedule_failed`, with
+`deferred_release_seconds` measured from `on_mount`; `load1` and `cpu_count` capture
+host load at mount; `patch_relation_index_builds_before_ready` counts real Patch
+relation-index builds up to visible-ready; and `auto_refresh_ticks_before_release`
+counts auto-refresh timer fires while hidden work was held.
+
+Slow Agents-loader rows in `tui_agent_loads.jsonl` (`SASE_TUI_AGENT_LOADS_PATH`) carry a
+`disk_substages` object with always-on `perf_counter` timings for the `disk`-stage
+substages — `dismissed_snapshot`, `index`, `decode`, `provider` (identity plus status
+normalization), and `projections` — in seconds. The substages are measured on every load
+but written only when the slow-stage threshold fires, so the existing threshold rules
+are unchanged. The substage timers sum to no more than the `disk` stage.
 
 Hidden-surface loads and CPU-heavy maintenance wait until the initially visible tab is
 ready. A 45-second safety timeout still releases that work without marking
