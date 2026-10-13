@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -24,6 +25,7 @@ from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_archive_view import (
     AGENTS_VIEW_ARCHIVE,
     AGENTS_VIEW_INBOX,
+    ARCHIVE_DEFAULT_GROUPING,
     ARCHIVE_DEFAULT_QUERY,
 )
 from sase.ace.tui.models.agent_panels import AgentPanelGroup
@@ -364,7 +366,7 @@ def test_default_panel_focus_encodes_as_empty_string() -> None:
     assert parked.focused_panel == ""
 
 
-def test_quitting_from_archive_persists_grouping_only(
+async def test_quitting_from_archive_persists_grouping_only(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     path = tmp_path / "agent_archive_grouping.txt"
@@ -375,7 +377,12 @@ def test_quitting_from_archive_persists_grouping_only(
     save_agent_archive_grouping("project")
     app = _ParkingApp()
 
+    async def _settle_archive_tasks() -> None:
+        while tasks := tuple(app._archive_controller_tasks):
+            await asyncio.gather(*tasks, return_exceptions=True)
+
     open_agents_archive_view(app)
+    await _settle_archive_tasks()
     app._agents_archive_view.archive.selected_key = "alice@run"
     app._agents_archive_view.archive.deck_choices = {"0": "final"}
     app._agents_archive_view.archive.committed_query = "in:archive status:failed"
@@ -383,8 +390,12 @@ def test_quitting_from_archive_persists_grouping_only(
     state = app._agents_archive_view
     assert state.active_view == AGENTS_VIEW_INBOX
     assert state.parked_inbox is None
-    assert state.archive.grouping == "project"
+    assert state.archive.grouping == ARCHIVE_DEFAULT_GROUPING
     assert state.archive.selected_key is None
     assert state.archive.deck_choices == {}
     assert state.archive.committed_query == ARCHIVE_DEFAULT_QUERY
     assert load_agent_archive_grouping() == "project"
+
+    open_agents_archive_view(app)
+    await _settle_archive_tasks()
+    assert app._agents_archive_view.archive.grouping == "project"

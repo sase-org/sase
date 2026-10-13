@@ -323,10 +323,29 @@ def _sleeper_agent_env(
 
 def _settle_run_id(run_id: str, timeout: float = 60.0) -> dict:
     deadline = time.monotonic() + timeout
-    shown = tool_run_show(run_id)["run"]
-    while shown.get("state") in ("created", "running") and time.monotonic() < deadline:
+    last_busy_error: RuntimeError | None = None
+
+    def _show() -> dict | None:
+        nonlocal last_busy_error
+        try:
+            shown = tool_run_show(run_id, busy_timeout_ms=5_000)["run"]
+        except RuntimeError as error:
+            if "tool run store is busy" not in str(error):
+                raise
+            last_busy_error = error
+            return None
+        last_busy_error = None
+        return shown
+
+    shown = _show()
+    while time.monotonic() < deadline and (
+        shown is None or shown.get("state") in ("created", "running")
+    ):
         time.sleep(0.2)  # sase-test-wait: poll interval while the run settles
-        shown = tool_run_show(run_id)["run"]
+        shown = _show()
+    if shown is None:
+        assert last_busy_error is not None
+        raise last_busy_error
     return shown
 
 

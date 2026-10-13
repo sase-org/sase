@@ -97,13 +97,14 @@ class NodeFinderArchiveMixin:
         self._archive_ready = True
         self._schedule_archive_search(self._live_view.query)  # type: ignore[attr-defined]
 
-    def _schedule_archive_search(self, query: str) -> None:
+    def _schedule_archive_search(self, query: str, *, refresh: bool = True) -> None:
         self._archive_search_generation += 1
         generation = self._archive_search_generation
         if not self._archive_ready:
             self._archive_matches = ()
             self._archive_message = "Archive warming…"
-            self._refresh_archive_projection()
+            if refresh:
+                self._refresh_archive_projection()
             return
         candidates = self._archive_candidates
 
@@ -143,7 +144,8 @@ class NodeFinderArchiveMixin:
         )
         self._archive_message = "Searching Archive…"
         self._archive_matches = ()
-        self._refresh_archive_projection()
+        if refresh:
+            self._refresh_archive_projection()
 
     def _finish_archive_search(
         self,

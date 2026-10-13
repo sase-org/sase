@@ -44,6 +44,18 @@ class TestMetaPatchPriority:
         assert "Project: my_project" in text
         assert "Patch:" not in text
 
+    def test_project_agent_shows_different_meta_project_key(self) -> None:
+        agent = _make_agent(
+            cl_name="fake",
+            project_file="/fake/fake.sase",
+            step_output={"meta_project": "other_project"},
+        )
+        header, _ = build_header_text(agent)
+        text = header.plain
+
+        assert "Project: other_project" in text
+        assert "Project: fake" not in text
+
     def test_patch_shown_alone(self) -> None:
         agent = _make_agent(
             step_output={"meta_changespec": "proj_feat_1"},

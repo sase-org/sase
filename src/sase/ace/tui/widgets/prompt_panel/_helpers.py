@@ -323,9 +323,20 @@ def should_render_agent_detail_model(agent: Agent) -> bool:
     return not (agent.is_workflow_child and not agent.is_agent_entry)
 
 
-def project_display_label(agent: Agent, fallback: object) -> str:
-    """Return the display label for an agent's project field."""
-    return agent.project_label or str(fallback)
+def project_display_label(agent: Agent, project_key: object) -> str:
+    """Return the display label for *project_key* in an agent's project field.
+
+    A project agent's own key resolves through ``Agent.project_label`` (so an
+    attached ``project_display_name`` wins); another key, such as a workflow's
+    ``meta_project``, resolves through the display map instead of using the
+    agent's directory key.
+    """
+    key = str(project_key)
+    if agent.is_project_agent and key == agent.cl_name:
+        return agent.project_label or key
+    from sase.project_display_names import project_display_name_for
+
+    return project_display_name_for(key)
 
 
 def _read_metadata_list(path: Path) -> list[dict[str, Any]] | None:

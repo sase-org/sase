@@ -1472,9 +1472,10 @@ contains these roster sections. After the first digit of a two-key jump, the pan
 narrows to the matching candidates; press `Esc` to cancel or any non-digit key to cancel
 and continue with that key's normal action. A successful jump expands only the target's
 ancestor chain, switches tribe panels when needed, and participates in the normal
-`Ctrl+O` jump-back history. A digit on a dismissed neighbor revives that agent instead
-of jumping. If the roster or the neighbor relationship changed since the panel was
-drawn, the jump is cancelled with a warning rather than landing somewhere stale.
+`Ctrl+O` jump-back history. A digit on a dismissed neighbor opens that agent read-only
+in the Archive instead of jumping. If the roster or the neighbor relationship changed
+since the panel was drawn, the jump is cancelled with a warning rather than landing
+somewhere stale.
 
 In-flight targets, whose glyph is `▶` (running) or `◐` (starting), are lit: their number
 chip runs into a softly tinted pill holding the bold name and glyph. This appears in the
@@ -6165,15 +6166,15 @@ the preferred card.
   border subtitle names the configured `toggle_agent_jump_panel` key (`▴ . more` /
   `▾ . less`). Each collapsed cell echoes its roster row: the number chip in the roster
   style, the label, and the status glyph; a dismissed neighbor renders dim with a `⊘`
-  prefix (and a `revive` note when narrowed), since its digit revives the agent instead
-  of jumping. After the first digit of a two-key jump, the panel narrows to the matching
-  candidates (`JUMP · 1▁`, `esc cancel`), or shows `no targets start with <digit>`;
-  completing or cancelling the jump restores the collapsed or expanded view.
-  Collapsed/expanded state is per session and holds across row moves, tribe focus, and
-  layout changes. Toggling never rebuilds the document, and a bottom-pinned body stays
-  pinned. Roster headings are not cards; `za`/`zA` cannot target a roster section or
-  roster row (rosters follow the global panel fold keys `zz`, `zZ`, and the direct level
-  keys); and `,/` deck search does not cover roster rows.
+  prefix (and an `archive` note when narrowed), since its digit opens the agent
+  read-only in the Archive. After the first digit of a two-key jump, the panel narrows
+  to the matching candidates (`JUMP · 1▁`, `esc cancel`), or shows
+  `no targets start with <digit>`; completing or cancelling the jump restores the
+  collapsed or expanded view. Collapsed/expanded state is per session and holds across
+  row moves, tribe focus, and layout changes. Toggling never rebuilds the document, and
+  a bottom-pinned body stays pinned. Roster headings are not cards; `za`/`zA` cannot
+  target a roster section or roster row (rosters follow the global panel fold keys `zz`,
+  `zZ`, and the direct level keys); and `,/` deck search does not cover roster rows.
 - **SASE CONTEXT / BEAD**: Shown for epic phase workers and task workers. For an epic
   phase worker, the lane is limited to its selected phase. Its fields are `Phase Title`,
   `Description`, `Size`, `Epic Plan`, and `Epic Title`, in that order. The phase title

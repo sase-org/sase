@@ -89,7 +89,7 @@ class NodeFinderFilteringMixin:
             return
         with tui_trace("node_finder.filter"):
             self._live_view = self._filtered_view(query, self._live_view)
-            self._schedule_archive_search(query)  # type: ignore[attr-defined]
+            self._schedule_archive_search(query, refresh=False)  # type: ignore[attr-defined]
             self._view = self._compose_archive_view()  # type: ignore[attr-defined]
             self._pending = ""
             self._rebuild_options(  # type: ignore[attr-defined]

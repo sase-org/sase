@@ -536,16 +536,16 @@ async def test_dismissed_modal_releases_snapshot_rows_without_gc() -> None:
     def _live(cls: type) -> int:
         return sum(1 for obj in gc.get_objects() if type(obj) is cls)
 
+    gc.collect()
     base_rows = _live(NodeFinderRow)
+    base_views = _live(NodeFinderView)
     rows = [_node(f"release-{index:03d}") for index in range(64)]
     snapshot = _snapshot(*rows)
     modal = NodeFinderModal(snapshot, preview_loader=_stub_loader)
     del rows
-    # The fixture snapshot/view below are freed by the pop plus the
-    # ``del``; the release installs exactly one empty replacement each,
-    # so these baselines must read back equal afterwards.
+    # The modal holds its live view plus an Archive-composed copy; popping it
+    # releases both and leaves one shared empty replacement view.
     base_snapshots = _live(NodeFinderSnapshot)
-    base_views = _live(NodeFinderView)
     gc.disable()
     try:
         async with _ModalHost(modal).run_test(size=(160, 40)) as pilot:
@@ -557,7 +557,7 @@ async def test_dismissed_modal_releases_snapshot_rows_without_gc() -> None:
         assert modal._view.rows == ()
         assert _live(NodeFinderRow) == base_rows
         assert _live(NodeFinderSnapshot) == base_snapshots
-        assert _live(NodeFinderView) == base_views
+        assert _live(NodeFinderView) == base_views + 1
     finally:
         gc.enable()
 

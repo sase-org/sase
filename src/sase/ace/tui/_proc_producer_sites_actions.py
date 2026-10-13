@@ -460,7 +460,7 @@ ACTION_PRODUCERS: tuple[ProcProducerSite, ...] = (
     ),
     site(
         "projects.add",
-        "src/sase/ace/tui/modals/new_project_apply.py",
+        "src/sase/ace/tui/modals/_new_project_apply_flow.py",
         "_submit_project_add",
         "direct_submit_durable",
         "project.add",
@@ -492,7 +492,7 @@ ACTION_PRODUCERS: tuple[ProcProducerSite, ...] = (
     ),
     site(
         "projects.create",
-        "src/sase/ace/tui/modals/new_project_apply.py",
+        "src/sase/ace/tui/modals/_new_project_apply_flow.py",
         "_submit_project_create",
         "direct_submit_durable",
         "project.create",
