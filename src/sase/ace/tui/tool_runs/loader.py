@@ -94,6 +94,10 @@ class ToolRunGlanceLoaderMixin:
 
     async def _run_tool_runs_refresh(self) -> None:
         """Load the glance off-thread, then patch changed rows by identity."""
+        state = _tool_runs_state(self)
+        if state.running:
+            state.pending = True
+            return
         nav_gate = getattr(self, "_nav_gate", None)
         if nav_gate is not None and callable(getattr(nav_gate, "is_navigating", None)):
             try:
@@ -106,11 +110,20 @@ class ToolRunGlanceLoaderMixin:
                     return
             except Exception:
                 pass
-        state = _tool_runs_state(self)
-        state.scheduled = False
+        # Keep scheduled true while deferred behind an Agents load so later
+        # probes coalesce onto this chain instead of arming another.
         if getattr(self, "_agents_loading", False):
-            self.set_timer(0.05, self._spawn_tool_runs_refresh_task)  # type: ignore[attr-defined]
+            try:
+                timer = self.set_timer(  # type: ignore[attr-defined]
+                    0.05,
+                    self._spawn_tool_runs_refresh_task,  # type: ignore[attr-defined]
+                )
+            except Exception:
+                timer = None
+            if timer is None:
+                state.scheduled = False
             return
+        state.scheduled = False
         # Re-read the tab after the gate: off-tab loads still refresh the
         # in-memory snapshot (rows patch on return), but never touch widgets.
         state.running = True

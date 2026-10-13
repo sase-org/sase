@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable, Coroutine
 from pathlib import Path
+from typing import Any
+
+import pytest
 
 from sase.ace.tui.actions.event_refresh._surface_tokens import (
     SurfaceTokenSnapshot,
@@ -352,3 +356,179 @@ def test_row_status_appends_chip_behind_flag() -> None:
     text = Text("row ")
     append_agent_row_status(text, agent, now=None)
     assert "⚒" in text.plain
+
+
+class _GlanceRefreshHost:
+    """Minimal host for coalesced `_run_tool_runs_refresh` unit tests."""
+
+    def __init__(self) -> None:
+        from sase.ace.tui.tool_runs.loader import ToolRunGlanceLoaderMixin
+        from sase.ace.tui.tool_runs.snapshot import ToolRunsLoadState
+
+        self._agents_loading = False
+        self._tool_runs_load_state = ToolRunsLoadState()
+        self._tool_runs_async_tasks: set[object] = set()
+        self.timers: list[tuple[float, Callable[[], None]]] = []
+        self.timer_error: BaseException | None = None
+        self.timer_returns_none = False
+        self.applied = 0
+        self.indicator_updates = 0
+        mixin = ToolRunGlanceLoaderMixin
+        self._schedule_tool_runs_refresh = mixin._schedule_tool_runs_refresh.__get__(
+            self, type(self)
+        )
+        self._spawn_tool_runs_refresh_task = (
+            mixin._spawn_tool_runs_refresh_task.__get__(self, type(self))
+        )
+        self._run_tool_runs_refresh = mixin._run_tool_runs_refresh.__get__(
+            self, type(self)
+        )
+
+    def set_timer(self, delay: float, callback: Callable[[], None]) -> object | None:
+        if self.timer_error is not None:
+            raise self.timer_error
+        if self.timer_returns_none:
+            return None
+        self.timers.append((delay, callback))
+        return object()
+
+    def _tool_runs_probe_token(self) -> object:
+        return ("token", 1)
+
+    def _apply_tool_runs_snapshot(self, *, source: str = "unknown") -> None:
+        del source
+        self.applied += 1
+
+    def _update_proc_indicator(self) -> None:
+        self.indicator_updates += 1
+
+
+def _install_spawn_trap(
+    monkeypatch: pytest.MonkeyPatch,
+) -> list[Coroutine[Any, Any, None]]:
+    """Capture pump-free coroutines so tests can await them in order."""
+
+    spawned: list[Coroutine[Any, Any, None]] = []
+
+    def _spawn(
+        owner: object,
+        coro: Coroutine[Any, Any, None],
+        *,
+        name: str,
+        registry_attr: str,
+    ) -> object:
+        del owner, name, registry_attr
+        spawned.append(coro)
+        return object()
+
+    monkeypatch.setattr(
+        "sase.ace.tui.tool_runs.loader.spawn_pump_free_task",
+        _spawn,
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.tool_runs.loader.tool_runs_disabled_reason",
+        lambda: None,
+    )
+    return spawned
+
+
+@pytest.mark.asyncio
+async def test_agents_loading_coalesces_to_one_deferred_chain(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    glance_calls = 0
+
+    def _fake_load() -> object:
+        nonlocal glance_calls
+        glance_calls += 1
+        return _build_snapshot([], generation=1)
+
+    monkeypatch.setattr(
+        "sase.ace.tui.tool_runs.loader.load_glance_blocking",
+        _fake_load,
+    )
+    spawned = _install_spawn_trap(monkeypatch)
+    host = _GlanceRefreshHost()
+    host._agents_loading = True
+
+    host._schedule_tool_runs_refresh(source="drift")
+    assert len(spawned) == 1
+    await spawned[0]
+    host._schedule_tool_runs_refresh(source="drift-2")
+    host._schedule_tool_runs_refresh(source="drift-3")
+    host._schedule_tool_runs_refresh(source="drift-4")
+
+    assert len(spawned) == 1
+    assert len(host.timers) == 1
+    assert host.timers[0][0] == 0.05
+    assert host._tool_runs_load_state.scheduled is True
+    assert glance_calls == 0
+
+    host._agents_loading = False
+    delay, callback = host.timers[0]
+    del delay
+    callback()
+    assert len(spawned) == 2
+    await spawned[1]
+    assert glance_calls == 1
+    assert host._tool_runs_load_state.scheduled is False
+    assert host._tool_runs_load_state.running is False
+
+
+@pytest.mark.asyncio
+async def test_deferral_timer_failure_leaves_state_schedulable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    spawned = _install_spawn_trap(monkeypatch)
+    host = _GlanceRefreshHost()
+    host._agents_loading = True
+    host.timer_error = RuntimeError("no timer")
+
+    host._schedule_tool_runs_refresh(source="drift")
+    assert len(spawned) == 1
+    await spawned[0]
+    assert host._tool_runs_load_state.scheduled is False
+
+    host.timer_error = None
+    host._schedule_tool_runs_refresh(source="drift-retry")
+    assert len(spawned) == 2
+    assert host._tool_runs_load_state.scheduled is True
+    spawned[1].close()
+
+
+@pytest.mark.asyncio
+async def test_deferral_timer_none_leaves_state_schedulable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    spawned = _install_spawn_trap(monkeypatch)
+    host = _GlanceRefreshHost()
+    host._agents_loading = True
+    host.timer_returns_none = True
+
+    host._schedule_tool_runs_refresh(source="drift")
+    await spawned[0]
+    assert host._tool_runs_load_state.scheduled is False
+
+
+@pytest.mark.asyncio
+async def test_running_refresh_sets_pending_without_second_load(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    glance_calls = 0
+
+    def _fake_load() -> object:
+        nonlocal glance_calls
+        glance_calls += 1
+        return _build_snapshot([], generation=1)
+
+    monkeypatch.setattr(
+        "sase.ace.tui.tool_runs.loader.load_glance_blocking",
+        _fake_load,
+    )
+    _install_spawn_trap(monkeypatch)
+    host = _GlanceRefreshHost()
+    host._tool_runs_load_state.running = True
+    await host._run_tool_runs_refresh()
+    assert host._tool_runs_load_state.pending is True
+    assert glance_calls == 0
+    assert host.timers == []
