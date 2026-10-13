@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterable, Iterator
+import json
 
 import pytest
 
@@ -15,6 +16,17 @@ from sase.ace.tui.widgets.artifacts.files_data import (
     LogicalFile,
 )
 from sase.core.artifact_entry_target import ArtifactEntryTarget
+from tests.perf.artifact_link_index_bench import (
+    FIXTURE_PATCH_INDEX_PATH,
+    build_patch_index,
+    fixture_patches,
+    fixture_snapshot,
+    identity_from_payload,
+    load_fixture_input,
+    parity_diff,
+    pinned_identity,
+    serialize_relation_index,
+)
 
 
 def test_artifact_links_source_emits_typed_relations_for_current_pane() -> None:
@@ -309,3 +321,28 @@ def _files_snapshot_with_link_rows(
             rows=tuple({**row, "_project": "alpha"} for row in rows),
         ),
     )
+
+
+def test_parity_fixture_pins_every_patch_relation_edge_and_target() -> None:
+    payload = load_fixture_input()
+    expected = json.loads(FIXTURE_PATCH_INDEX_PATH.read_text(encoding="utf-8"))
+    snapshot = fixture_snapshot(payload)
+    patches = fixture_patches(payload)
+    with pinned_identity(identity_from_payload(payload)):
+        actual = serialize_relation_index(build_patch_index(snapshot, patches))
+    diffs = parity_diff(actual, expected)
+    assert diffs == [], "\n".join(diffs[:50])
+    assert actual["edges"], "parity fixture must emit Patch relation edges"
+    for edge in actual["edges"]:
+        assert set(edge) == {
+            "dangling",
+            "derived",
+            "description",
+            "kind",
+            "label",
+            "origin",
+            "relation",
+            "source",
+            "target",
+            "uses",
+        }

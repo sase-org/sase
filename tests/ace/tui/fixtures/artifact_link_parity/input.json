@@ -1,0 +1,306 @@
+{
+  "identity": {
+    "username": "alice",
+    "machine_name": "athena",
+    "sibling_machines": ["athena"]
+  },
+  "source_key": ["artifact-link-parity"],
+  "query_refs": [
+    "bead:sase-1",
+    "agent:foo",
+    "agent:alice.athena.foo",
+    "plan:202608/x.md",
+    "ref:plan:202608/x.md",
+    "job:refresh_docs/refresh_docs",
+    "chop:refresh_docs/refresh_docs",
+    "patch:feat",
+    "missing:ref"
+  ],
+  "patches": [
+    {
+      "name": "feat",
+      "parent": null,
+      "status": "Ready",
+      "file_path": "/tmp/alpha/feat.sase"
+    },
+    {
+      "name": "feat_child",
+      "parent": "feat",
+      "status": "WIP",
+      "file_path": "/tmp/alpha/feat_child.sase"
+    },
+    {
+      "name": "same",
+      "parent": null,
+      "status": "Ready",
+      "file_path": "/tmp/alpha/same.sase"
+    }
+  ],
+  "rows": [
+    {
+      "source_ref": "plan:202608/a.md",
+      "relation": "implements",
+      "target_ref": "bead:sase-1",
+      "description": "lands the design",
+      "origin": "manual",
+      "uses": 1,
+      "created_by": "alice",
+      "created_at": "2026-01-01T00:00:00Z",
+      "_project": "alpha"
+    },
+    {
+      "source_ref": "plan:202608/b.md",
+      "relation": "supersedes",
+      "target_ref": "plan:202607/old.md",
+      "description": "replaces old plan",
+      "origin": "cli",
+      "uses": 2,
+      "created_by": "alice",
+      "created_at": "2026-01-02T00:00:00Z",
+      "_project": "alpha"
+    },
+    {
+      "source_ref": "plan:202608/a.md",
+      "relation": "derives-from",
+      "target_ref": "research:202608/src.md",
+      "description": "uses measurements",
+      "origin": "cli",
+      "uses": 1,
+      "_project": "alpha"
+    },
+    {
+      "source_ref": "bead:sase-1",
+      "relation": "related",
+      "target_ref": "bead:sase-2",
+      "description": "same failure",
+      "origin": "cli",
+      "uses": 1,
+      "_project": "alpha"
+    },
+    {
+      "source_ref": "bead:sase-2",
+      "relation": "related",
+      "target_ref": "bead:sase-1",
+      "description": "reversed duplicate should lose",
+      "origin": "cli",
+      "uses": 1,
+      "_project": "alpha"
+    },
+    {
+      "source_ref": "agent:worker",
+      "relation": "cites",
+      "target_ref": "plan:202608/x.md",
+      "uses": 2,
+      "description": "low uses",
+      "origin": "prompt_ref",
+      "_project": "alpha"
+    },
+    {
+      "source_ref": "agent:worker",
+      "relation": "cites",
+      "target_ref": "plan:202608/x.md",
+      "uses": 5,
+      "description": "high uses wins",
+      "origin": "prompt_ref",
+      "_project": "beta"
+    },
+    {
+      "source_ref": "file:doc",
+      "relation": "related",
+      "target_ref": "file:other",
+      "uses": 3,
+      "description": "first equal uses",
+      "origin": "manual",
+      "_project": "alpha"
+    },
+    {
+      "source_ref": "file:other",
+      "relation": "related",
+      "target_ref": "file:doc",
+      "uses": 3,
+      "description": "reversed equal uses loses",
+      "origin": "manual",
+      "_project": "alpha"
+    },
+    {
+      "source_ref": "file:doc",
+      "relation": "related",
+      "target_ref": "file:other",
+      "uses": 3,
+      "description": "second equal uses other project loses",
+      "origin": "manual",
+      "_project": "gamma"
+    },
+    {
+      "source_ref": "bead:sase-self",
+      "relation": "related",
+      "target_ref": "bead:sase-self",
+      "description": "self related",
+      "origin": "manual",
+      "uses": 1,
+      "_project": "alpha"
+    },
+    {
+      "source_ref": "plan:202608/x.md",
+      "relation": "related",
+      "target_ref": "bead:anchor",
+      "uses": 1,
+      "_project": "alpha"
+    },
+    {
+      "source_ref": "ref:plan:202608/x.md",
+      "relation": "cites",
+      "target_ref": "bead:other",
+      "uses": 1,
+      "_project": "alpha"
+    },
+    {
+      "source_ref": "stitch:sase@0123456789abcdef0123456789abcdef01234567",
+      "relation": "related",
+      "target_ref": "bead:anchor",
+      "uses": 1,
+      "_project": "alpha"
+    },
+    {
+      "source_ref": "agent:foo",
+      "relation": "cites",
+      "target_ref": "plan:202608/a.md",
+      "uses": 1,
+      "_project": "alpha"
+    },
+    {
+      "source_ref": "agent:alice.athena.9w",
+      "relation": "awaits",
+      "target_ref": "bead:sase-1",
+      "description": "wait_for_beads",
+      "origin": "projected",
+      "created_by": "projection:agent-wait-bead",
+      "uses": 1,
+      "_project": "alpha"
+    },
+    {
+      "source_ref": "chop:refresh_docs/refresh_docs",
+      "relation": "launched",
+      "target_ref": "agent:worker",
+      "origin": "projected",
+      "uses": 1,
+      "_project": "alpha"
+    },
+    {
+      "source_ref": "",
+      "relation": "related",
+      "target_ref": "bead:sase-1",
+      "uses": 1,
+      "_project": "alpha"
+    },
+    {
+      "source_ref": "bead:sase-1",
+      "relation": "",
+      "target_ref": "bead:sase-2",
+      "uses": 1,
+      "_project": "alpha"
+    },
+    {
+      "source_ref": "bead:sase-1",
+      "relation": "related",
+      "target_ref": "   ",
+      "uses": 1,
+      "_project": "alpha"
+    },
+    {
+      "source_ref": "not-a-ref",
+      "relation": "related",
+      "target_ref": "bead:sase-1",
+      "uses": 1,
+      "description": "malformed source kept as itself",
+      "_project": "alpha"
+    },
+    {
+      "source_ref": "bead:sase-1",
+      "relation": "cites",
+      "target_ref": "plan:202608/bad-uses.md",
+      "uses": "not-an-int",
+      "_project": "alpha"
+    },
+    {
+      "source_ref": "bead:sase-1",
+      "relation": "cites",
+      "target_ref": "plan:202608/neg.md",
+      "uses": -4,
+      "_project": "alpha"
+    },
+    {
+      "source_ref": "bead:sase-1",
+      "relation": "cites",
+      "target_ref": "plan:202608/null-uses.md",
+      "uses": null,
+      "_project": "alpha"
+    },
+    {
+      "source_ref": "file:hint",
+      "relation": "related",
+      "target_ref": "bead:sase-1",
+      "description": "neighbor target uses this row project",
+      "origin": "manual",
+      "uses": 1,
+      "_project": "beta"
+    },
+    {
+      "source_ref": "patch:feat",
+      "relation": "implements",
+      "target_ref": "bead:sase-1",
+      "description": "patch implements bead",
+      "origin": "manual",
+      "uses": 4,
+      "_project": "alpha"
+    },
+    {
+      "source_ref": "patch:same",
+      "relation": "related",
+      "target_ref": "patch:feat",
+      "description": "alpha same-name patch",
+      "origin": "manual",
+      "uses": 1,
+      "_project": "alpha"
+    },
+    {
+      "source_ref": "patch:same",
+      "relation": "related",
+      "target_ref": "plan:202608/a.md",
+      "description": "beta same-name patch",
+      "origin": "manual",
+      "uses": 1,
+      "_project": "beta"
+    },
+    {
+      "source_ref": "patch:feat",
+      "relation": "related",
+      "target_ref": "patch:ghost",
+      "description": "dangling neighbor",
+      "origin": "manual",
+      "uses": 1,
+      "_project": "alpha"
+    },
+    {
+      "source_ref": "bead:sase-1",
+      "relation": "related",
+      "target_ref": "stitch:no-at-sign",
+      "uses": 1,
+      "_project": "alpha"
+    },
+    {
+      "source_ref": "bead:sase-1",
+      "relation": "related",
+      "target_ref": "bug:xyz",
+      "uses": 1,
+      "_project": "alpha"
+    },
+    {
+      "source_ref": "bead:sase-1",
+      "relation": "related",
+      "target_ref": "chat:room",
+      "uses": 1,
+      "_project": "alpha"
+    }
+  ]
+}

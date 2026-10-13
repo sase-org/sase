@@ -1,0 +1,286 @@
+{
+  "diagnostics": [
+    {
+      "code": "dangling_target",
+      "message": "dangling target for relation 'related'",
+      "relation": "related",
+      "target": {
+        "pane_id": "patches",
+        "parts": [
+          "alpha",
+          "ghost"
+        ]
+      }
+    }
+  ],
+  "edges": [
+    {
+      "dangling": false,
+      "derived": false,
+      "description": "",
+      "kind": "hierarchy",
+      "label": "Children",
+      "origin": "",
+      "relation": "children",
+      "source": {
+        "pane_id": "patches",
+        "parts": [
+          "alpha",
+          "feat"
+        ]
+      },
+      "target": {
+        "pane_id": "patches",
+        "parts": [
+          "alpha",
+          "feat_child"
+        ]
+      },
+      "uses": 0
+    },
+    {
+      "dangling": false,
+      "derived": false,
+      "description": "",
+      "kind": "hierarchy",
+      "label": "Ancestors",
+      "origin": "",
+      "relation": "ancestors",
+      "source": {
+        "pane_id": "patches",
+        "parts": [
+          "alpha",
+          "feat_child"
+        ]
+      },
+      "target": {
+        "pane_id": "patches",
+        "parts": [
+          "alpha",
+          "feat"
+        ]
+      },
+      "uses": 0
+    },
+    {
+      "dangling": false,
+      "derived": false,
+      "description": "patch implements bead",
+      "kind": "link",
+      "label": "implements",
+      "origin": "manual",
+      "relation": "implements",
+      "source": {
+        "pane_id": "patches",
+        "parts": [
+          "alpha",
+          "feat"
+        ]
+      },
+      "target": {
+        "pane_id": "beads",
+        "parts": [
+          "alpha",
+          "task",
+          "sase-1"
+        ]
+      },
+      "uses": 4
+    },
+    {
+      "dangling": false,
+      "derived": false,
+      "description": "alpha same-name patch",
+      "kind": "link",
+      "label": "related",
+      "origin": "manual",
+      "relation": "related",
+      "source": {
+        "pane_id": "patches",
+        "parts": [
+          "alpha",
+          "same"
+        ]
+      },
+      "target": {
+        "pane_id": "patches",
+        "parts": [
+          "alpha",
+          "feat"
+        ]
+      },
+      "uses": 1
+    },
+    {
+      "dangling": false,
+      "derived": false,
+      "description": "beta same-name patch",
+      "kind": "link",
+      "label": "related",
+      "origin": "manual",
+      "relation": "related",
+      "source": {
+        "pane_id": "patches",
+        "parts": [
+          "alpha",
+          "same"
+        ]
+      },
+      "target": {
+        "pane_id": "ref:plan",
+        "parts": [
+          "beta",
+          "archive",
+          "202608/a.md"
+        ]
+      },
+      "uses": 1
+    },
+    {
+      "dangling": true,
+      "derived": false,
+      "description": "dangling neighbor",
+      "kind": "link",
+      "label": "related",
+      "origin": "manual",
+      "relation": "related",
+      "source": {
+        "pane_id": "patches",
+        "parts": [
+          "alpha",
+          "feat"
+        ]
+      },
+      "target": {
+        "pane_id": "patches",
+        "parts": [
+          "alpha",
+          "ghost"
+        ]
+      },
+      "uses": 1
+    },
+    {
+      "dangling": false,
+      "derived": true,
+      "description": "alpha same-name patch",
+      "kind": "link",
+      "label": "related",
+      "origin": "manual",
+      "relation": "related",
+      "source": {
+        "pane_id": "patches",
+        "parts": [
+          "alpha",
+          "feat"
+        ]
+      },
+      "target": {
+        "pane_id": "patches",
+        "parts": [
+          "alpha",
+          "same"
+        ]
+      },
+      "uses": 1
+    },
+    {
+      "dangling": false,
+      "derived": true,
+      "description": "beta same-name patch",
+      "kind": "link",
+      "label": "related",
+      "origin": "manual",
+      "relation": "related",
+      "source": {
+        "pane_id": "ref:plan",
+        "parts": [
+          "beta",
+          "archive",
+          "202608/a.md"
+        ]
+      },
+      "target": {
+        "pane_id": "patches",
+        "parts": [
+          "alpha",
+          "same"
+        ]
+      },
+      "uses": 1
+    },
+    {
+      "dangling": false,
+      "derived": true,
+      "description": "dangling neighbor",
+      "kind": "link",
+      "label": "related",
+      "origin": "manual",
+      "relation": "related",
+      "source": {
+        "pane_id": "patches",
+        "parts": [
+          "alpha",
+          "ghost"
+        ]
+      },
+      "target": {
+        "pane_id": "patches",
+        "parts": [
+          "alpha",
+          "feat"
+        ]
+      },
+      "uses": 1
+    },
+    {
+      "dangling": false,
+      "derived": true,
+      "description": "patch implements bead",
+      "kind": "link",
+      "label": "implemented-by",
+      "origin": "manual",
+      "relation": "implemented-by",
+      "source": {
+        "pane_id": "beads",
+        "parts": [
+          "alpha",
+          "task",
+          "sase-1"
+        ]
+      },
+      "target": {
+        "pane_id": "patches",
+        "parts": [
+          "alpha",
+          "feat"
+        ]
+      },
+      "uses": 4
+    }
+  ],
+  "known_targets": [
+    {
+      "pane_id": "patches",
+      "parts": [
+        "alpha",
+        "feat"
+      ]
+    },
+    {
+      "pane_id": "patches",
+      "parts": [
+        "alpha",
+        "feat_child"
+      ]
+    },
+    {
+      "pane_id": "patches",
+      "parts": [
+        "alpha",
+        "same"
+      ]
+    }
+  ],
+  "pane_id": "patches"
+}

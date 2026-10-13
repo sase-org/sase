@@ -1,0 +1,1880 @@
+{
+  "by_ref": {
+    "agent:9w": [
+      {
+        "accent": "#D787FF",
+        "created_at": "",
+        "created_by": "projection:agent-wait-bead",
+        "directed": true,
+        "icon": "◈",
+        "label": "awaits",
+        "neighbor_ref": "bead:sase-1",
+        "neighbor_target": {
+          "pane_id": "beads",
+          "parts": [
+            "alpha",
+            "task",
+            "sase-1"
+          ]
+        },
+        "origin": "projected",
+        "relation": "awaits",
+        "this_is_source": true,
+        "uses": 1,
+        "why": "wait_for_beads",
+        "writable": false
+      }
+    ],
+    "agent:alice.athena.9w": [
+      {
+        "accent": "#D787FF",
+        "created_at": "",
+        "created_by": "projection:agent-wait-bead",
+        "directed": true,
+        "icon": "◈",
+        "label": "awaits",
+        "neighbor_ref": "bead:sase-1",
+        "neighbor_target": {
+          "pane_id": "beads",
+          "parts": [
+            "alpha",
+            "task",
+            "sase-1"
+          ]
+        },
+        "origin": "projected",
+        "relation": "awaits",
+        "this_is_source": true,
+        "uses": 1,
+        "why": "wait_for_beads",
+        "writable": false
+      }
+    ],
+    "agent:alice.athena.foo": [
+      {
+        "accent": "#AF87FF",
+        "created_at": "",
+        "created_by": "",
+        "directed": true,
+        "icon": "✎",
+        "label": "cites",
+        "neighbor_ref": "plan:202608/a.md",
+        "neighbor_target": {
+          "pane_id": "ref:plan",
+          "parts": [
+            "alpha",
+            "archive",
+            "202608/a.md"
+          ]
+        },
+        "origin": "",
+        "relation": "cites",
+        "this_is_source": true,
+        "uses": 1,
+        "why": "",
+        "writable": true
+      }
+    ],
+    "agent:alice.athena.worker": [
+      {
+        "accent": "#AF87FF",
+        "created_at": "",
+        "created_by": "",
+        "directed": true,
+        "icon": "✎",
+        "label": "cites",
+        "neighbor_ref": "plan:202608/x.md",
+        "neighbor_target": {
+          "pane_id": "ref:plan",
+          "parts": [
+            "beta",
+            "archive",
+            "202608/x.md"
+          ]
+        },
+        "origin": "prompt_ref",
+        "relation": "cites",
+        "this_is_source": true,
+        "uses": 5,
+        "why": "high uses wins",
+        "writable": true
+      },
+      {
+        "accent": "#5FD7D7",
+        "created_at": "",
+        "created_by": "",
+        "directed": true,
+        "icon": "⏲",
+        "label": "launched-by",
+        "neighbor_ref": "job:refresh_docs/refresh_docs",
+        "neighbor_target": null,
+        "origin": "projected",
+        "relation": "launched",
+        "this_is_source": false,
+        "uses": 1,
+        "why": "",
+        "writable": false
+      }
+    ],
+    "agent:athena.9w": [
+      {
+        "accent": "#D787FF",
+        "created_at": "",
+        "created_by": "projection:agent-wait-bead",
+        "directed": true,
+        "icon": "◈",
+        "label": "awaits",
+        "neighbor_ref": "bead:sase-1",
+        "neighbor_target": {
+          "pane_id": "beads",
+          "parts": [
+            "alpha",
+            "task",
+            "sase-1"
+          ]
+        },
+        "origin": "projected",
+        "relation": "awaits",
+        "this_is_source": true,
+        "uses": 1,
+        "why": "wait_for_beads",
+        "writable": false
+      }
+    ],
+    "agent:athena.foo": [
+      {
+        "accent": "#AF87FF",
+        "created_at": "",
+        "created_by": "",
+        "directed": true,
+        "icon": "✎",
+        "label": "cites",
+        "neighbor_ref": "plan:202608/a.md",
+        "neighbor_target": {
+          "pane_id": "ref:plan",
+          "parts": [
+            "alpha",
+            "archive",
+            "202608/a.md"
+          ]
+        },
+        "origin": "",
+        "relation": "cites",
+        "this_is_source": true,
+        "uses": 1,
+        "why": "",
+        "writable": true
+      }
+    ],
+    "agent:athena.worker": [
+      {
+        "accent": "#AF87FF",
+        "created_at": "",
+        "created_by": "",
+        "directed": true,
+        "icon": "✎",
+        "label": "cites",
+        "neighbor_ref": "plan:202608/x.md",
+        "neighbor_target": {
+          "pane_id": "ref:plan",
+          "parts": [
+            "beta",
+            "archive",
+            "202608/x.md"
+          ]
+        },
+        "origin": "prompt_ref",
+        "relation": "cites",
+        "this_is_source": true,
+        "uses": 5,
+        "why": "high uses wins",
+        "writable": true
+      },
+      {
+        "accent": "#5FD7D7",
+        "created_at": "",
+        "created_by": "",
+        "directed": true,
+        "icon": "⏲",
+        "label": "launched-by",
+        "neighbor_ref": "job:refresh_docs/refresh_docs",
+        "neighbor_target": null,
+        "origin": "projected",
+        "relation": "launched",
+        "this_is_source": false,
+        "uses": 1,
+        "why": "",
+        "writable": false
+      }
+    ],
+    "agent:foo": [
+      {
+        "accent": "#AF87FF",
+        "created_at": "",
+        "created_by": "",
+        "directed": true,
+        "icon": "✎",
+        "label": "cites",
+        "neighbor_ref": "plan:202608/a.md",
+        "neighbor_target": {
+          "pane_id": "ref:plan",
+          "parts": [
+            "alpha",
+            "archive",
+            "202608/a.md"
+          ]
+        },
+        "origin": "",
+        "relation": "cites",
+        "this_is_source": true,
+        "uses": 1,
+        "why": "",
+        "writable": true
+      }
+    ],
+    "agent:worker": [
+      {
+        "accent": "#AF87FF",
+        "created_at": "",
+        "created_by": "",
+        "directed": true,
+        "icon": "✎",
+        "label": "cites",
+        "neighbor_ref": "plan:202608/x.md",
+        "neighbor_target": {
+          "pane_id": "ref:plan",
+          "parts": [
+            "beta",
+            "archive",
+            "202608/x.md"
+          ]
+        },
+        "origin": "prompt_ref",
+        "relation": "cites",
+        "this_is_source": true,
+        "uses": 5,
+        "why": "high uses wins",
+        "writable": true
+      },
+      {
+        "accent": "#5FD7D7",
+        "created_at": "",
+        "created_by": "",
+        "directed": true,
+        "icon": "⏲",
+        "label": "launched-by",
+        "neighbor_ref": "job:refresh_docs/refresh_docs",
+        "neighbor_target": null,
+        "origin": "projected",
+        "relation": "launched",
+        "this_is_source": false,
+        "uses": 1,
+        "why": "",
+        "writable": false
+      }
+    ],
+    "bead:anchor": [
+      {
+        "accent": "#AF87FF",
+        "created_at": "",
+        "created_by": "",
+        "directed": false,
+        "icon": "✎",
+        "label": "related",
+        "neighbor_ref": "plan:202608/x.md",
+        "neighbor_target": {
+          "pane_id": "ref:plan",
+          "parts": [
+            "alpha",
+            "archive",
+            "202608/x.md"
+          ]
+        },
+        "origin": "",
+        "relation": "related",
+        "this_is_source": false,
+        "uses": 1,
+        "why": "",
+        "writable": true
+      },
+      {
+        "accent": "#FFD700",
+        "created_at": "",
+        "created_by": "",
+        "directed": false,
+        "icon": "◉",
+        "label": "related",
+        "neighbor_ref": "stitch:sase@0123456789abcdef0123456789abcdef01234567",
+        "neighbor_target": {
+          "pane_id": "stitches",
+          "parts": [
+            "sase",
+            "0123456789abcdef0123456789abcdef01234567"
+          ]
+        },
+        "origin": "",
+        "relation": "related",
+        "this_is_source": false,
+        "uses": 1,
+        "why": "",
+        "writable": true
+      }
+    ],
+    "bead:other": [
+      {
+        "accent": "#FF5F5F",
+        "created_at": "",
+        "created_by": "",
+        "directed": true,
+        "icon": "•",
+        "label": "cited-by",
+        "neighbor_ref": "ref:plan:202608/x.md",
+        "neighbor_target": {
+          "pane_id": "ref:ref",
+          "parts": [
+            "alpha",
+            "archive",
+            "plan:202608/x.md"
+          ]
+        },
+        "origin": "",
+        "relation": "cites",
+        "this_is_source": false,
+        "uses": 1,
+        "why": "",
+        "writable": true
+      }
+    ],
+    "bead:sase-1": [
+      {
+        "accent": "#00D7AF",
+        "created_at": "",
+        "created_by": "",
+        "directed": true,
+        "icon": "⎇",
+        "label": "implemented-by",
+        "neighbor_ref": "patch:feat",
+        "neighbor_target": {
+          "pane_id": "patches",
+          "parts": [
+            "alpha",
+            "feat"
+          ]
+        },
+        "origin": "manual",
+        "relation": "implements",
+        "this_is_source": false,
+        "uses": 4,
+        "why": "patch implements bead",
+        "writable": true
+      },
+      {
+        "accent": "#AF87FF",
+        "created_at": "2026-01-01T00:00:00Z",
+        "created_by": "alice",
+        "directed": true,
+        "icon": "✎",
+        "label": "implemented-by",
+        "neighbor_ref": "plan:202608/a.md",
+        "neighbor_target": {
+          "pane_id": "ref:plan",
+          "parts": [
+            "alpha",
+            "archive",
+            "202608/a.md"
+          ]
+        },
+        "origin": "manual",
+        "relation": "implements",
+        "this_is_source": false,
+        "uses": 1,
+        "why": "lands the design",
+        "writable": true
+      },
+      {
+        "accent": "#D787FF",
+        "created_at": "",
+        "created_by": "",
+        "directed": false,
+        "icon": "◈",
+        "label": "related",
+        "neighbor_ref": "bead:sase-2",
+        "neighbor_target": {
+          "pane_id": "beads",
+          "parts": [
+            "alpha",
+            "task",
+            "sase-2"
+          ]
+        },
+        "origin": "cli",
+        "relation": "related",
+        "this_is_source": true,
+        "uses": 1,
+        "why": "same failure",
+        "writable": true
+      },
+      {
+        "accent": "#FF5F5F",
+        "created_at": "",
+        "created_by": "",
+        "directed": false,
+        "icon": "•",
+        "label": "related",
+        "neighbor_ref": "bug:xyz",
+        "neighbor_target": null,
+        "origin": "",
+        "relation": "related",
+        "this_is_source": true,
+        "uses": 1,
+        "why": "",
+        "writable": true
+      },
+      {
+        "accent": "#FF5F5F",
+        "created_at": "",
+        "created_by": "",
+        "directed": false,
+        "icon": "•",
+        "label": "related",
+        "neighbor_ref": "chat:room",
+        "neighbor_target": null,
+        "origin": "",
+        "relation": "related",
+        "this_is_source": true,
+        "uses": 1,
+        "why": "",
+        "writable": true
+      },
+      {
+        "accent": "#FFAF5F",
+        "created_at": "",
+        "created_by": "",
+        "directed": false,
+        "icon": "▤",
+        "label": "related",
+        "neighbor_ref": "file:hint",
+        "neighbor_target": {
+          "pane_id": "files",
+          "parts": [
+            "hint"
+          ]
+        },
+        "origin": "manual",
+        "relation": "related",
+        "this_is_source": false,
+        "uses": 1,
+        "why": "neighbor target uses this row project",
+        "writable": true
+      },
+      {
+        "accent": "#FF5F5F",
+        "created_at": "",
+        "created_by": "",
+        "directed": false,
+        "icon": "•",
+        "label": "related",
+        "neighbor_ref": "not-a-ref",
+        "neighbor_target": null,
+        "origin": "",
+        "relation": "related",
+        "this_is_source": false,
+        "uses": 1,
+        "why": "malformed source kept as itself",
+        "writable": true
+      },
+      {
+        "accent": "#FF5F5F",
+        "created_at": "",
+        "created_by": "",
+        "directed": false,
+        "icon": "•",
+        "label": "related",
+        "neighbor_ref": "stitch:no-at-sign",
+        "neighbor_target": null,
+        "origin": "",
+        "relation": "related",
+        "this_is_source": true,
+        "uses": 1,
+        "why": "",
+        "writable": true
+      },
+      {
+        "accent": "#0062FF",
+        "created_at": "",
+        "created_by": "projection:agent-wait-bead",
+        "directed": true,
+        "icon": "⬡",
+        "label": "awaited-by",
+        "neighbor_ref": "agent:alice.athena.9w",
+        "neighbor_target": {
+          "pane_id": "agents",
+          "parts": [
+            "alice.athena.9w"
+          ]
+        },
+        "origin": "projected",
+        "relation": "awaits",
+        "this_is_source": false,
+        "uses": 1,
+        "why": "wait_for_beads",
+        "writable": false
+      },
+      {
+        "accent": "#AF87FF",
+        "created_at": "",
+        "created_by": "",
+        "directed": true,
+        "icon": "✎",
+        "label": "cites",
+        "neighbor_ref": "plan:202608/bad-uses.md",
+        "neighbor_target": {
+          "pane_id": "ref:plan",
+          "parts": [
+            "alpha",
+            "archive",
+            "202608/bad-uses.md"
+          ]
+        },
+        "origin": "",
+        "relation": "cites",
+        "this_is_source": true,
+        "uses": 0,
+        "why": "",
+        "writable": true
+      },
+      {
+        "accent": "#AF87FF",
+        "created_at": "",
+        "created_by": "",
+        "directed": true,
+        "icon": "✎",
+        "label": "cites",
+        "neighbor_ref": "plan:202608/neg.md",
+        "neighbor_target": {
+          "pane_id": "ref:plan",
+          "parts": [
+            "alpha",
+            "archive",
+            "202608/neg.md"
+          ]
+        },
+        "origin": "",
+        "relation": "cites",
+        "this_is_source": true,
+        "uses": 0,
+        "why": "",
+        "writable": true
+      },
+      {
+        "accent": "#AF87FF",
+        "created_at": "",
+        "created_by": "",
+        "directed": true,
+        "icon": "✎",
+        "label": "cites",
+        "neighbor_ref": "plan:202608/null-uses.md",
+        "neighbor_target": {
+          "pane_id": "ref:plan",
+          "parts": [
+            "alpha",
+            "archive",
+            "202608/null-uses.md"
+          ]
+        },
+        "origin": "",
+        "relation": "cites",
+        "this_is_source": true,
+        "uses": 0,
+        "why": "",
+        "writable": true
+      }
+    ],
+    "bead:sase-2": [
+      {
+        "accent": "#D787FF",
+        "created_at": "",
+        "created_by": "",
+        "directed": false,
+        "icon": "◈",
+        "label": "related",
+        "neighbor_ref": "bead:sase-1",
+        "neighbor_target": {
+          "pane_id": "beads",
+          "parts": [
+            "alpha",
+            "task",
+            "sase-1"
+          ]
+        },
+        "origin": "cli",
+        "relation": "related",
+        "this_is_source": false,
+        "uses": 1,
+        "why": "same failure",
+        "writable": true
+      }
+    ],
+    "bead:sase-self": [
+      {
+        "accent": "#D787FF",
+        "created_at": "",
+        "created_by": "",
+        "directed": false,
+        "icon": "◈",
+        "label": "related",
+        "neighbor_ref": "bead:sase-self",
+        "neighbor_target": {
+          "pane_id": "beads",
+          "parts": [
+            "alpha",
+            "task",
+            "sase-self"
+          ]
+        },
+        "origin": "manual",
+        "relation": "related",
+        "this_is_source": true,
+        "uses": 1,
+        "why": "self related",
+        "writable": true
+      },
+      {
+        "accent": "#D787FF",
+        "created_at": "",
+        "created_by": "",
+        "directed": false,
+        "icon": "◈",
+        "label": "related",
+        "neighbor_ref": "bead:sase-self",
+        "neighbor_target": {
+          "pane_id": "beads",
+          "parts": [
+            "alpha",
+            "task",
+            "sase-self"
+          ]
+        },
+        "origin": "manual",
+        "relation": "related",
+        "this_is_source": false,
+        "uses": 1,
+        "why": "self related",
+        "writable": true
+      }
+    ],
+    "bug:xyz": [
+      {
+        "accent": "#D787FF",
+        "created_at": "",
+        "created_by": "",
+        "directed": false,
+        "icon": "◈",
+        "label": "related",
+        "neighbor_ref": "bead:sase-1",
+        "neighbor_target": {
+          "pane_id": "beads",
+          "parts": [
+            "alpha",
+            "task",
+            "sase-1"
+          ]
+        },
+        "origin": "",
+        "relation": "related",
+        "this_is_source": false,
+        "uses": 1,
+        "why": "",
+        "writable": true
+      }
+    ],
+    "chat:room": [
+      {
+        "accent": "#D787FF",
+        "created_at": "",
+        "created_by": "",
+        "directed": false,
+        "icon": "◈",
+        "label": "related",
+        "neighbor_ref": "bead:sase-1",
+        "neighbor_target": {
+          "pane_id": "beads",
+          "parts": [
+            "alpha",
+            "task",
+            "sase-1"
+          ]
+        },
+        "origin": "",
+        "relation": "related",
+        "this_is_source": false,
+        "uses": 1,
+        "why": "",
+        "writable": true
+      }
+    ],
+    "chop:refresh_docs/refresh_docs": [
+      {
+        "accent": "#0062FF",
+        "created_at": "",
+        "created_by": "",
+        "directed": true,
+        "icon": "⬡",
+        "label": "launched",
+        "neighbor_ref": "agent:worker",
+        "neighbor_target": {
+          "pane_id": "agents",
+          "parts": [
+            "worker"
+          ]
+        },
+        "origin": "projected",
+        "relation": "launched",
+        "this_is_source": true,
+        "uses": 1,
+        "why": "",
+        "writable": false
+      }
+    ],
+    "file:doc": [
+      {
+        "accent": "#FFAF5F",
+        "created_at": "",
+        "created_by": "",
+        "directed": false,
+        "icon": "▤",
+        "label": "related",
+        "neighbor_ref": "file:other",
+        "neighbor_target": {
+          "pane_id": "files",
+          "parts": [
+            "other"
+          ]
+        },
+        "origin": "manual",
+        "relation": "related",
+        "this_is_source": true,
+        "uses": 3,
+        "why": "first equal uses",
+        "writable": true
+      }
+    ],
+    "file:hint": [
+      {
+        "accent": "#D787FF",
+        "created_at": "",
+        "created_by": "",
+        "directed": false,
+        "icon": "◈",
+        "label": "related",
+        "neighbor_ref": "bead:sase-1",
+        "neighbor_target": {
+          "pane_id": "beads",
+          "parts": [
+            "beta",
+            "task",
+            "sase-1"
+          ]
+        },
+        "origin": "manual",
+        "relation": "related",
+        "this_is_source": true,
+        "uses": 1,
+        "why": "neighbor target uses this row project",
+        "writable": true
+      }
+    ],
+    "file:other": [
+      {
+        "accent": "#FFAF5F",
+        "created_at": "",
+        "created_by": "",
+        "directed": false,
+        "icon": "▤",
+        "label": "related",
+        "neighbor_ref": "file:doc",
+        "neighbor_target": {
+          "pane_id": "files",
+          "parts": [
+            "doc"
+          ]
+        },
+        "origin": "manual",
+        "relation": "related",
+        "this_is_source": false,
+        "uses": 3,
+        "why": "first equal uses",
+        "writable": true
+      }
+    ],
+    "job:refresh_docs/refresh_docs": [
+      {
+        "accent": "#0062FF",
+        "created_at": "",
+        "created_by": "",
+        "directed": true,
+        "icon": "⬡",
+        "label": "launched",
+        "neighbor_ref": "agent:worker",
+        "neighbor_target": {
+          "pane_id": "agents",
+          "parts": [
+            "worker"
+          ]
+        },
+        "origin": "projected",
+        "relation": "launched",
+        "this_is_source": true,
+        "uses": 1,
+        "why": "",
+        "writable": false
+      }
+    ],
+    "not-a-ref": [
+      {
+        "accent": "#D787FF",
+        "created_at": "",
+        "created_by": "",
+        "directed": false,
+        "icon": "◈",
+        "label": "related",
+        "neighbor_ref": "bead:sase-1",
+        "neighbor_target": {
+          "pane_id": "beads",
+          "parts": [
+            "alpha",
+            "task",
+            "sase-1"
+          ]
+        },
+        "origin": "",
+        "relation": "related",
+        "this_is_source": true,
+        "uses": 1,
+        "why": "malformed source kept as itself",
+        "writable": true
+      }
+    ],
+    "patch:feat": [
+      {
+        "accent": "#D787FF",
+        "created_at": "",
+        "created_by": "",
+        "directed": true,
+        "icon": "◈",
+        "label": "implements",
+        "neighbor_ref": "bead:sase-1",
+        "neighbor_target": {
+          "pane_id": "beads",
+          "parts": [
+            "alpha",
+            "task",
+            "sase-1"
+          ]
+        },
+        "origin": "manual",
+        "relation": "implements",
+        "this_is_source": true,
+        "uses": 4,
+        "why": "patch implements bead",
+        "writable": true
+      },
+      {
+        "accent": "#00D7AF",
+        "created_at": "",
+        "created_by": "",
+        "directed": false,
+        "icon": "⎇",
+        "label": "related",
+        "neighbor_ref": "patch:ghost",
+        "neighbor_target": {
+          "pane_id": "patches",
+          "parts": [
+            "alpha",
+            "ghost"
+          ]
+        },
+        "origin": "manual",
+        "relation": "related",
+        "this_is_source": true,
+        "uses": 1,
+        "why": "dangling neighbor",
+        "writable": true
+      },
+      {
+        "accent": "#00D7AF",
+        "created_at": "",
+        "created_by": "",
+        "directed": false,
+        "icon": "⎇",
+        "label": "related",
+        "neighbor_ref": "patch:same",
+        "neighbor_target": {
+          "pane_id": "patches",
+          "parts": [
+            "alpha",
+            "same"
+          ]
+        },
+        "origin": "manual",
+        "relation": "related",
+        "this_is_source": false,
+        "uses": 1,
+        "why": "alpha same-name patch",
+        "writable": true
+      }
+    ],
+    "patch:ghost": [
+      {
+        "accent": "#00D7AF",
+        "created_at": "",
+        "created_by": "",
+        "directed": false,
+        "icon": "⎇",
+        "label": "related",
+        "neighbor_ref": "patch:feat",
+        "neighbor_target": {
+          "pane_id": "patches",
+          "parts": [
+            "alpha",
+            "feat"
+          ]
+        },
+        "origin": "manual",
+        "relation": "related",
+        "this_is_source": false,
+        "uses": 1,
+        "why": "dangling neighbor",
+        "writable": true
+      }
+    ],
+    "patch:same": [
+      {
+        "accent": "#00D7AF",
+        "created_at": "",
+        "created_by": "",
+        "directed": false,
+        "icon": "⎇",
+        "label": "related",
+        "neighbor_ref": "patch:feat",
+        "neighbor_target": {
+          "pane_id": "patches",
+          "parts": [
+            "alpha",
+            "feat"
+          ]
+        },
+        "origin": "manual",
+        "relation": "related",
+        "this_is_source": true,
+        "uses": 1,
+        "why": "alpha same-name patch",
+        "writable": true
+      },
+      {
+        "accent": "#AF87FF",
+        "created_at": "",
+        "created_by": "",
+        "directed": false,
+        "icon": "✎",
+        "label": "related",
+        "neighbor_ref": "plan:202608/a.md",
+        "neighbor_target": {
+          "pane_id": "ref:plan",
+          "parts": [
+            "beta",
+            "archive",
+            "202608/a.md"
+          ]
+        },
+        "origin": "manual",
+        "relation": "related",
+        "this_is_source": true,
+        "uses": 1,
+        "why": "beta same-name patch",
+        "writable": true
+      }
+    ],
+    "plan:202607/old.md": [
+      {
+        "accent": "#AF87FF",
+        "created_at": "2026-01-02T00:00:00Z",
+        "created_by": "alice",
+        "directed": true,
+        "icon": "✎",
+        "label": "superseded-by",
+        "neighbor_ref": "plan:202608/b.md",
+        "neighbor_target": {
+          "pane_id": "ref:plan",
+          "parts": [
+            "alpha",
+            "archive",
+            "202608/b.md"
+          ]
+        },
+        "origin": "cli",
+        "relation": "supersedes",
+        "this_is_source": false,
+        "uses": 2,
+        "why": "replaces old plan",
+        "writable": true
+      }
+    ],
+    "plan:202608/a.md": [
+      {
+        "accent": "#FF5F5F",
+        "created_at": "",
+        "created_by": "",
+        "directed": true,
+        "icon": "•",
+        "label": "derives-from",
+        "neighbor_ref": "research:202608/src.md",
+        "neighbor_target": {
+          "pane_id": "ref:research",
+          "parts": [
+            "alpha",
+            "archive",
+            "202608/src.md"
+          ]
+        },
+        "origin": "cli",
+        "relation": "derives-from",
+        "this_is_source": true,
+        "uses": 1,
+        "why": "uses measurements",
+        "writable": true
+      },
+      {
+        "accent": "#D787FF",
+        "created_at": "2026-01-01T00:00:00Z",
+        "created_by": "alice",
+        "directed": true,
+        "icon": "◈",
+        "label": "implements",
+        "neighbor_ref": "bead:sase-1",
+        "neighbor_target": {
+          "pane_id": "beads",
+          "parts": [
+            "alpha",
+            "task",
+            "sase-1"
+          ]
+        },
+        "origin": "manual",
+        "relation": "implements",
+        "this_is_source": true,
+        "uses": 1,
+        "why": "lands the design",
+        "writable": true
+      },
+      {
+        "accent": "#00D7AF",
+        "created_at": "",
+        "created_by": "",
+        "directed": false,
+        "icon": "⎇",
+        "label": "related",
+        "neighbor_ref": "patch:same",
+        "neighbor_target": {
+          "pane_id": "patches",
+          "parts": [
+            "beta",
+            "same"
+          ]
+        },
+        "origin": "manual",
+        "relation": "related",
+        "this_is_source": false,
+        "uses": 1,
+        "why": "beta same-name patch",
+        "writable": true
+      },
+      {
+        "accent": "#0062FF",
+        "created_at": "",
+        "created_by": "",
+        "directed": true,
+        "icon": "⬡",
+        "label": "cited-by",
+        "neighbor_ref": "agent:foo",
+        "neighbor_target": {
+          "pane_id": "agents",
+          "parts": [
+            "foo"
+          ]
+        },
+        "origin": "",
+        "relation": "cites",
+        "this_is_source": false,
+        "uses": 1,
+        "why": "",
+        "writable": true
+      }
+    ],
+    "plan:202608/b.md": [
+      {
+        "accent": "#AF87FF",
+        "created_at": "2026-01-02T00:00:00Z",
+        "created_by": "alice",
+        "directed": true,
+        "icon": "✎",
+        "label": "supersedes",
+        "neighbor_ref": "plan:202607/old.md",
+        "neighbor_target": {
+          "pane_id": "ref:plan",
+          "parts": [
+            "alpha",
+            "archive",
+            "202607/old.md"
+          ]
+        },
+        "origin": "cli",
+        "relation": "supersedes",
+        "this_is_source": true,
+        "uses": 2,
+        "why": "replaces old plan",
+        "writable": true
+      }
+    ],
+    "plan:202608/bad-uses.md": [
+      {
+        "accent": "#D787FF",
+        "created_at": "",
+        "created_by": "",
+        "directed": true,
+        "icon": "◈",
+        "label": "cited-by",
+        "neighbor_ref": "bead:sase-1",
+        "neighbor_target": {
+          "pane_id": "beads",
+          "parts": [
+            "alpha",
+            "task",
+            "sase-1"
+          ]
+        },
+        "origin": "",
+        "relation": "cites",
+        "this_is_source": false,
+        "uses": 0,
+        "why": "",
+        "writable": true
+      }
+    ],
+    "plan:202608/neg.md": [
+      {
+        "accent": "#D787FF",
+        "created_at": "",
+        "created_by": "",
+        "directed": true,
+        "icon": "◈",
+        "label": "cited-by",
+        "neighbor_ref": "bead:sase-1",
+        "neighbor_target": {
+          "pane_id": "beads",
+          "parts": [
+            "alpha",
+            "task",
+            "sase-1"
+          ]
+        },
+        "origin": "",
+        "relation": "cites",
+        "this_is_source": false,
+        "uses": 0,
+        "why": "",
+        "writable": true
+      }
+    ],
+    "plan:202608/null-uses.md": [
+      {
+        "accent": "#D787FF",
+        "created_at": "",
+        "created_by": "",
+        "directed": true,
+        "icon": "◈",
+        "label": "cited-by",
+        "neighbor_ref": "bead:sase-1",
+        "neighbor_target": {
+          "pane_id": "beads",
+          "parts": [
+            "alpha",
+            "task",
+            "sase-1"
+          ]
+        },
+        "origin": "",
+        "relation": "cites",
+        "this_is_source": false,
+        "uses": 0,
+        "why": "",
+        "writable": true
+      }
+    ],
+    "plan:202608/x.md": [
+      {
+        "accent": "#D787FF",
+        "created_at": "",
+        "created_by": "",
+        "directed": false,
+        "icon": "◈",
+        "label": "related",
+        "neighbor_ref": "bead:anchor",
+        "neighbor_target": {
+          "pane_id": "beads",
+          "parts": [
+            "alpha",
+            "task",
+            "anchor"
+          ]
+        },
+        "origin": "",
+        "relation": "related",
+        "this_is_source": true,
+        "uses": 1,
+        "why": "",
+        "writable": true
+      },
+      {
+        "accent": "#0062FF",
+        "created_at": "",
+        "created_by": "",
+        "directed": true,
+        "icon": "⬡",
+        "label": "cited-by",
+        "neighbor_ref": "agent:worker",
+        "neighbor_target": {
+          "pane_id": "agents",
+          "parts": [
+            "worker"
+          ]
+        },
+        "origin": "prompt_ref",
+        "relation": "cites",
+        "this_is_source": false,
+        "uses": 5,
+        "why": "high uses wins",
+        "writable": true
+      }
+    ],
+    "ref:plan:202607/old.md": [
+      {
+        "accent": "#AF87FF",
+        "created_at": "2026-01-02T00:00:00Z",
+        "created_by": "alice",
+        "directed": true,
+        "icon": "✎",
+        "label": "superseded-by",
+        "neighbor_ref": "plan:202608/b.md",
+        "neighbor_target": {
+          "pane_id": "ref:plan",
+          "parts": [
+            "alpha",
+            "archive",
+            "202608/b.md"
+          ]
+        },
+        "origin": "cli",
+        "relation": "supersedes",
+        "this_is_source": false,
+        "uses": 2,
+        "why": "replaces old plan",
+        "writable": true
+      }
+    ],
+    "ref:plan:202608/a.md": [
+      {
+        "accent": "#FF5F5F",
+        "created_at": "",
+        "created_by": "",
+        "directed": true,
+        "icon": "•",
+        "label": "derives-from",
+        "neighbor_ref": "research:202608/src.md",
+        "neighbor_target": {
+          "pane_id": "ref:research",
+          "parts": [
+            "alpha",
+            "archive",
+            "202608/src.md"
+          ]
+        },
+        "origin": "cli",
+        "relation": "derives-from",
+        "this_is_source": true,
+        "uses": 1,
+        "why": "uses measurements",
+        "writable": true
+      },
+      {
+        "accent": "#D787FF",
+        "created_at": "2026-01-01T00:00:00Z",
+        "created_by": "alice",
+        "directed": true,
+        "icon": "◈",
+        "label": "implements",
+        "neighbor_ref": "bead:sase-1",
+        "neighbor_target": {
+          "pane_id": "beads",
+          "parts": [
+            "alpha",
+            "task",
+            "sase-1"
+          ]
+        },
+        "origin": "manual",
+        "relation": "implements",
+        "this_is_source": true,
+        "uses": 1,
+        "why": "lands the design",
+        "writable": true
+      },
+      {
+        "accent": "#00D7AF",
+        "created_at": "",
+        "created_by": "",
+        "directed": false,
+        "icon": "⎇",
+        "label": "related",
+        "neighbor_ref": "patch:same",
+        "neighbor_target": {
+          "pane_id": "patches",
+          "parts": [
+            "beta",
+            "same"
+          ]
+        },
+        "origin": "manual",
+        "relation": "related",
+        "this_is_source": false,
+        "uses": 1,
+        "why": "beta same-name patch",
+        "writable": true
+      },
+      {
+        "accent": "#0062FF",
+        "created_at": "",
+        "created_by": "",
+        "directed": true,
+        "icon": "⬡",
+        "label": "cited-by",
+        "neighbor_ref": "agent:foo",
+        "neighbor_target": {
+          "pane_id": "agents",
+          "parts": [
+            "foo"
+          ]
+        },
+        "origin": "",
+        "relation": "cites",
+        "this_is_source": false,
+        "uses": 1,
+        "why": "",
+        "writable": true
+      }
+    ],
+    "ref:plan:202608/b.md": [
+      {
+        "accent": "#AF87FF",
+        "created_at": "2026-01-02T00:00:00Z",
+        "created_by": "alice",
+        "directed": true,
+        "icon": "✎",
+        "label": "supersedes",
+        "neighbor_ref": "plan:202607/old.md",
+        "neighbor_target": {
+          "pane_id": "ref:plan",
+          "parts": [
+            "alpha",
+            "archive",
+            "202607/old.md"
+          ]
+        },
+        "origin": "cli",
+        "relation": "supersedes",
+        "this_is_source": true,
+        "uses": 2,
+        "why": "replaces old plan",
+        "writable": true
+      }
+    ],
+    "ref:plan:202608/bad-uses.md": [
+      {
+        "accent": "#D787FF",
+        "created_at": "",
+        "created_by": "",
+        "directed": true,
+        "icon": "◈",
+        "label": "cited-by",
+        "neighbor_ref": "bead:sase-1",
+        "neighbor_target": {
+          "pane_id": "beads",
+          "parts": [
+            "alpha",
+            "task",
+            "sase-1"
+          ]
+        },
+        "origin": "",
+        "relation": "cites",
+        "this_is_source": false,
+        "uses": 0,
+        "why": "",
+        "writable": true
+      }
+    ],
+    "ref:plan:202608/neg.md": [
+      {
+        "accent": "#D787FF",
+        "created_at": "",
+        "created_by": "",
+        "directed": true,
+        "icon": "◈",
+        "label": "cited-by",
+        "neighbor_ref": "bead:sase-1",
+        "neighbor_target": {
+          "pane_id": "beads",
+          "parts": [
+            "alpha",
+            "task",
+            "sase-1"
+          ]
+        },
+        "origin": "",
+        "relation": "cites",
+        "this_is_source": false,
+        "uses": 0,
+        "why": "",
+        "writable": true
+      }
+    ],
+    "ref:plan:202608/null-uses.md": [
+      {
+        "accent": "#D787FF",
+        "created_at": "",
+        "created_by": "",
+        "directed": true,
+        "icon": "◈",
+        "label": "cited-by",
+        "neighbor_ref": "bead:sase-1",
+        "neighbor_target": {
+          "pane_id": "beads",
+          "parts": [
+            "alpha",
+            "task",
+            "sase-1"
+          ]
+        },
+        "origin": "",
+        "relation": "cites",
+        "this_is_source": false,
+        "uses": 0,
+        "why": "",
+        "writable": true
+      }
+    ],
+    "ref:plan:202608/x.md": [
+      {
+        "accent": "#D787FF",
+        "created_at": "",
+        "created_by": "",
+        "directed": true,
+        "icon": "◈",
+        "label": "cites",
+        "neighbor_ref": "bead:other",
+        "neighbor_target": {
+          "pane_id": "beads",
+          "parts": [
+            "alpha",
+            "task",
+            "other"
+          ]
+        },
+        "origin": "",
+        "relation": "cites",
+        "this_is_source": true,
+        "uses": 1,
+        "why": "",
+        "writable": true
+      }
+    ],
+    "research:202608/src.md": [
+      {
+        "accent": "#AF87FF",
+        "created_at": "",
+        "created_by": "",
+        "directed": true,
+        "icon": "✎",
+        "label": "derived-into",
+        "neighbor_ref": "plan:202608/a.md",
+        "neighbor_target": {
+          "pane_id": "ref:plan",
+          "parts": [
+            "alpha",
+            "archive",
+            "202608/a.md"
+          ]
+        },
+        "origin": "cli",
+        "relation": "derives-from",
+        "this_is_source": false,
+        "uses": 1,
+        "why": "uses measurements",
+        "writable": true
+      }
+    ],
+    "stitch:no-at-sign": [
+      {
+        "accent": "#D787FF",
+        "created_at": "",
+        "created_by": "",
+        "directed": false,
+        "icon": "◈",
+        "label": "related",
+        "neighbor_ref": "bead:sase-1",
+        "neighbor_target": {
+          "pane_id": "beads",
+          "parts": [
+            "alpha",
+            "task",
+            "sase-1"
+          ]
+        },
+        "origin": "",
+        "relation": "related",
+        "this_is_source": false,
+        "uses": 1,
+        "why": "",
+        "writable": true
+      }
+    ],
+    "stitch:sase@0123456": [
+      {
+        "accent": "#D787FF",
+        "created_at": "",
+        "created_by": "",
+        "directed": false,
+        "icon": "◈",
+        "label": "related",
+        "neighbor_ref": "bead:anchor",
+        "neighbor_target": {
+          "pane_id": "beads",
+          "parts": [
+            "alpha",
+            "task",
+            "anchor"
+          ]
+        },
+        "origin": "",
+        "relation": "related",
+        "this_is_source": true,
+        "uses": 1,
+        "why": "",
+        "writable": true
+      }
+    ],
+    "stitch:sase@0123456789abcdef0123456789abcdef01234567": [
+      {
+        "accent": "#D787FF",
+        "created_at": "",
+        "created_by": "",
+        "directed": false,
+        "icon": "◈",
+        "label": "related",
+        "neighbor_ref": "bead:anchor",
+        "neighbor_target": {
+          "pane_id": "beads",
+          "parts": [
+            "alpha",
+            "task",
+            "anchor"
+          ]
+        },
+        "origin": "",
+        "relation": "related",
+        "this_is_source": true,
+        "uses": 1,
+        "why": "",
+        "writable": true
+      }
+    ]
+  },
+  "source_key": [
+    "artifact-link-parity"
+  ],
+  "targets_by_ref": {
+    "agent:9w": {
+      "pane_id": "agents",
+      "parts": [
+        "alice.athena.9w"
+      ]
+    },
+    "agent:alice.athena.9w": {
+      "pane_id": "agents",
+      "parts": [
+        "alice.athena.9w"
+      ]
+    },
+    "agent:alice.athena.foo": {
+      "pane_id": "agents",
+      "parts": [
+        "foo"
+      ]
+    },
+    "agent:alice.athena.worker": {
+      "pane_id": "agents",
+      "parts": [
+        "worker"
+      ]
+    },
+    "agent:athena.9w": {
+      "pane_id": "agents",
+      "parts": [
+        "alice.athena.9w"
+      ]
+    },
+    "agent:athena.foo": {
+      "pane_id": "agents",
+      "parts": [
+        "foo"
+      ]
+    },
+    "agent:athena.worker": {
+      "pane_id": "agents",
+      "parts": [
+        "worker"
+      ]
+    },
+    "agent:foo": {
+      "pane_id": "agents",
+      "parts": [
+        "foo"
+      ]
+    },
+    "agent:worker": {
+      "pane_id": "agents",
+      "parts": [
+        "worker"
+      ]
+    },
+    "bead:anchor": {
+      "pane_id": "beads",
+      "parts": [
+        "alpha",
+        "task",
+        "anchor"
+      ]
+    },
+    "bead:other": {
+      "pane_id": "beads",
+      "parts": [
+        "alpha",
+        "task",
+        "other"
+      ]
+    },
+    "bead:sase-1": {
+      "pane_id": "beads",
+      "parts": [
+        "alpha",
+        "task",
+        "sase-1"
+      ]
+    },
+    "bead:sase-2": {
+      "pane_id": "beads",
+      "parts": [
+        "alpha",
+        "task",
+        "sase-2"
+      ]
+    },
+    "bead:sase-self": {
+      "pane_id": "beads",
+      "parts": [
+        "alpha",
+        "task",
+        "sase-self"
+      ]
+    },
+    "bug:xyz": null,
+    "chat:room": null,
+    "chop:refresh_docs/refresh_docs": null,
+    "file:doc": {
+      "pane_id": "files",
+      "parts": [
+        "doc"
+      ]
+    },
+    "file:hint": {
+      "pane_id": "files",
+      "parts": [
+        "hint"
+      ]
+    },
+    "file:other": {
+      "pane_id": "files",
+      "parts": [
+        "other"
+      ]
+    },
+    "job:refresh_docs/refresh_docs": null,
+    "not-a-ref": null,
+    "patch:feat": {
+      "pane_id": "patches",
+      "parts": [
+        "alpha",
+        "feat"
+      ]
+    },
+    "patch:ghost": {
+      "pane_id": "patches",
+      "parts": [
+        "alpha",
+        "ghost"
+      ]
+    },
+    "patch:same": {
+      "pane_id": "patches",
+      "parts": [
+        "alpha",
+        "same"
+      ]
+    },
+    "plan:202607/old.md": {
+      "pane_id": "ref:plan",
+      "parts": [
+        "alpha",
+        "archive",
+        "202607/old.md"
+      ]
+    },
+    "plan:202608/a.md": {
+      "pane_id": "ref:plan",
+      "parts": [
+        "alpha",
+        "archive",
+        "202608/a.md"
+      ]
+    },
+    "plan:202608/b.md": {
+      "pane_id": "ref:plan",
+      "parts": [
+        "alpha",
+        "archive",
+        "202608/b.md"
+      ]
+    },
+    "plan:202608/bad-uses.md": {
+      "pane_id": "ref:plan",
+      "parts": [
+        "alpha",
+        "archive",
+        "202608/bad-uses.md"
+      ]
+    },
+    "plan:202608/neg.md": {
+      "pane_id": "ref:plan",
+      "parts": [
+        "alpha",
+        "archive",
+        "202608/neg.md"
+      ]
+    },
+    "plan:202608/null-uses.md": {
+      "pane_id": "ref:plan",
+      "parts": [
+        "alpha",
+        "archive",
+        "202608/null-uses.md"
+      ]
+    },
+    "plan:202608/x.md": {
+      "pane_id": "ref:plan",
+      "parts": [
+        "beta",
+        "archive",
+        "202608/x.md"
+      ]
+    },
+    "ref:plan:202607/old.md": {
+      "pane_id": "ref:plan",
+      "parts": [
+        "alpha",
+        "archive",
+        "202607/old.md"
+      ]
+    },
+    "ref:plan:202608/a.md": {
+      "pane_id": "ref:plan",
+      "parts": [
+        "alpha",
+        "archive",
+        "202608/a.md"
+      ]
+    },
+    "ref:plan:202608/b.md": {
+      "pane_id": "ref:plan",
+      "parts": [
+        "alpha",
+        "archive",
+        "202608/b.md"
+      ]
+    },
+    "ref:plan:202608/bad-uses.md": {
+      "pane_id": "ref:plan",
+      "parts": [
+        "alpha",
+        "archive",
+        "202608/bad-uses.md"
+      ]
+    },
+    "ref:plan:202608/neg.md": {
+      "pane_id": "ref:plan",
+      "parts": [
+        "alpha",
+        "archive",
+        "202608/neg.md"
+      ]
+    },
+    "ref:plan:202608/null-uses.md": {
+      "pane_id": "ref:plan",
+      "parts": [
+        "alpha",
+        "archive",
+        "202608/null-uses.md"
+      ]
+    },
+    "ref:plan:202608/x.md": {
+      "pane_id": "ref:ref",
+      "parts": [
+        "alpha",
+        "archive",
+        "plan:202608/x.md"
+      ]
+    },
+    "research:202608/src.md": {
+      "pane_id": "ref:research",
+      "parts": [
+        "alpha",
+        "archive",
+        "202608/src.md"
+      ]
+    },
+    "stitch:no-at-sign": null,
+    "stitch:sase@0123456": {
+      "pane_id": "stitches",
+      "parts": [
+        "sase",
+        "0123456789abcdef0123456789abcdef01234567"
+      ]
+    },
+    "stitch:sase@0123456789abcdef0123456789abcdef01234567": {
+      "pane_id": "stitches",
+      "parts": [
+        "sase",
+        "0123456789abcdef0123456789abcdef01234567"
+      ]
+    }
+  }
+}

@@ -144,6 +144,32 @@ agent catalog bench with:
 On 2026-08-25 it passed both variants: real-source median 157.82 ms and no-real-source
 median 149.44 ms over the 12,525-name synthetic registry.
 
+## Artifact-link index parity baseline
+
+Capture current chip, target, and Patch-projection outputs plus CPU/wall timings before
+replacing `_build_link_index` / `artifact_link_edges`. The sanitized oracle lives at
+`tests/ace/tui/fixtures/artifact_link_parity/`. The reusable helper is
+`tests/perf/artifact_link_index_bench.py`.
+
+```bash
+.venv/bin/python -m tests.perf.artifact_link_index_bench write-fixture-goldens
+.venv/bin/python -m tests.perf.artifact_link_index_bench capture \
+    --project gh_sase-org__sase --output-dir /tmp/artifact-link-parity
+.venv/bin/python -m tests.perf.artifact_link_index_bench measure \
+    --aggregate /tmp/artifact-link-parity/aggregate.json \
+    --patches /tmp/artifact-link-parity/patches.json
+.venv/bin/python -m tests.perf.artifact_link_index_bench compare \
+    --expected /tmp/artifact-link-parity/expected_chips.json \
+    --actual /tmp/after/expected_chips.json
+```
+
+Load a saved aggregate with `load_saved_aggregate` after `sase artifact read`; do not
+open the live sidecar copy. `measure_snapshot` records input-load time separately from
+cold `_build_link_index`, eager `by_ref` consumption, selected chip/target queries, full
+Patch projection, and warm `link_index_for_snapshot` reuse. If no nonempty real
+aggregate exists, `build_synthetic_scale_rows()` builds a 45k-row stand-in and must not
+be labeled real-data parity.
+
 Artifact-link aggregates are already loaded on the Agent snapshot path through
 `load_artifact_links_snapshot(project)`, but the pane benchmark does not break that cost
 out. Record it separately when changing relation or artifact-link facets:
