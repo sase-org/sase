@@ -146,6 +146,12 @@ class AppWatchersMixin:
             axe_view.disabled = True
             patches_view.activate_current()
             self._sync_active_artifacts_entry_state()
+            if not getattr(self, "_mounting", False):
+                maybe_rebuild = getattr(
+                    self, "_maybe_schedule_visible_patch_relation_rebuild", None
+                )
+                if callable(maybe_rebuild):
+                    maybe_rebuild()
         elif new_tab == "agents":
             patches_view.add_class("hidden")
             patches_view.disabled = True
@@ -298,6 +304,12 @@ class AppWatchersMixin:
         if self.current_tab != ARTIFACTS_TAB:
             return
         self._sync_active_artifacts_entry_state()
+        if not getattr(self, "_mounting", False):
+            maybe_rebuild = getattr(
+                self, "_maybe_schedule_visible_patch_relation_rebuild", None
+            )
+            if callable(maybe_rebuild):
+                maybe_rebuild()
         refresh_link_rail = getattr(self, "refresh_link_rail", None)
         if callable(refresh_link_rail):
             refresh_link_rail()

@@ -191,6 +191,8 @@ def init_agent_state(self: Any) -> None:
     self._patches_loading = False
     self._patches_refresh_scheduled = False
     self._patches_refresh_pending = False
+    self._patches_refresh_follow_up_timer = None
+    self._last_patches_reload_duration = 0.0
     self._has_always_visible = False
     self._hidden_count = 0
     self._agent_search_query = ""

@@ -461,10 +461,10 @@ class EventAutoRefreshSurfacesMixin(
                 allow_broad_fallback=self.current_tab == "agents",
             )
 
-        if (
-            self.current_tab == "artifacts"
-            and getattr(self, "current_artifacts_subtab", "patches") == "patches"
-            and _should_refresh("_dirty_patches", "patches")
+        from sase.ace.tui.actions.patch._relation_index import patches_pane_is_visible
+
+        if patches_pane_is_visible(self) and _should_refresh(
+            "_dirty_patches", "patches"
         ):
             run_patches_refresh = getattr(
                 self,
@@ -488,9 +488,8 @@ class EventAutoRefreshSurfacesMixin(
                 self._dirty_patches = False
                 self._accept_surface_token("patches", current_tokens)
                 reloaded.append("patches")
-        elif (
-            self.current_tab == "artifacts"
-            and getattr(self, "current_artifacts_subtab", "patches") != "patches"
+        elif getattr(self, "current_tab", None) == "artifacts" and not (
+            patches_pane_is_visible(self)
         ):
             self._request_active_artifacts_refresh()  # type: ignore[attr-defined]
             reloaded.append("artifacts")

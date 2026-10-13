@@ -141,7 +141,18 @@ async def _run_fast_deferred_mount_state_loads(app: AceApp) -> None:
         app._apply_prompt_stash_counts(0, 0)
         # AcePage owns both Patch loader patches, so this retains the real
         # filtering, selection, and widget-application path without a disk scan.
-        app._apply_patches(app._read_patches_from_disk())
+        from sase.ace.tui.actions.patch._relation_index import patches_pane_is_visible
+
+        prepared = app._prepare_patch_load_from_disk(
+            build_relations=patches_pane_is_visible(app)
+        )
+        app._apply_patches(
+            prepared.all_patches,
+            query_index=prepared.query_index,
+            relation_index=prepared.relation_index,
+            pr_unmirrored_counts=prepared.pr_unmirrored_counts,
+            relation_index_deferred=prepared.relation_index_deferred,
+        )
     finally:
         app._mount_deferred_state_load_done = True
         app._maybe_mark_mount_state_loads_done()

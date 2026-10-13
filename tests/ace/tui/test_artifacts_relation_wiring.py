@@ -10,8 +10,8 @@ from sase.ace.tui._artifact_tab_contract import compile_builtin_contract
 from sase.ace.tui.actions.patch._loading import (
     PatchLoadingMixin,
     _PreparedPatchLoad,
-    _build_patch_relation_index,
 )
+from sase.ace.tui.actions.patch._relation_index import resolve_patch_relation_index
 from sase.ace.tui.relations import (
     build_beads_relation_index,
     build_documents_relation_index,
@@ -57,7 +57,7 @@ def _patch(name: str = "root") -> Patch:
 
 def test_patches_worker_carrier_and_pane_expose_index() -> None:
     patches = [_patch()]
-    index = _build_patch_relation_index(patches)
+    index, _deferred = resolve_patch_relation_index(patches, build_relations=True)
     prepared = _PreparedPatchLoad(patches, None, {}, index)
     assert prepared.relation_index is not None
     assert prepared.relation_index.pane_id == "patches"

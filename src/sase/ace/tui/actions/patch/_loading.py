@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sys
+import time
 from collections import OrderedDict
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -21,6 +22,11 @@ from ....patch import Patch
 from ...util.pump_tasks import spawn_pump_free_task
 from ...util.trace import tui_trace
 from sase.core.artifact_relations import RelationIndex
+
+from ._relation_index import patches_pane_is_visible, resolve_patch_relation_index
+
+_PATCH_REFRESH_FOLLOW_UP_CAP_SECONDS = 5.0
+_MISSING = object()
 
 #: Module-level cache for the PR filter-outcome document, keyed on
 #: ``(st_mtime_ns, st_size)`` so an unchanged document is never re-read.
@@ -84,6 +90,7 @@ class _PreparedPatchLoad:
     query_index: ArtifactQueryIndex | None
     pr_unmirrored_counts: dict[str, int]
     relation_index: RelationIndex | None = None
+    relation_index_deferred: bool = False
 
 
 class PatchLoadingMixin:
@@ -104,6 +111,8 @@ class PatchLoadingMixin:
     _patches_loading: bool
     _patches_refresh_scheduled: bool
     _patches_refresh_pending: bool
+    _patches_refresh_follow_up_timer: Any
+    _last_patches_reload_duration: float
     _patches_first_load_done: bool
     _current_patch_group_key: tuple[str, ...] | None
     _patch_query_profile: CompiledQueryProfile | None
@@ -114,6 +123,7 @@ class PatchLoadingMixin:
     _pr_unmirrored_counts_by_display_name: dict[str, int]
     _patch_relation_index: RelationIndex | None
     _patch_relation_index_for_id: int | None
+    _patch_relation_index_deferred: bool
     _patch_limit_truncated: bool
 
     def _compat_loader(
@@ -168,18 +178,24 @@ class PatchLoadingMixin:
             return cached_loader()
         return patch_module.find_all_patches_cached()
 
-    def _prepare_patch_load_from_disk(self) -> _PreparedPatchLoad:
+    def _prepare_patch_load_from_disk(
+        self, *, build_relations: bool
+    ) -> _PreparedPatchLoad:
         """Return Patches and their query index from one worker call."""
         all_patches = self._read_patches_from_disk()
         try:
             query_index = self._compile_patch_query_index(all_patches)
         except (TypeError, ValueError):
             query_index = None
+        relation_index, deferred = resolve_patch_relation_index(
+            all_patches, build_relations=build_relations
+        )
         return _PreparedPatchLoad(
             all_patches=all_patches,
             query_index=query_index,
             pr_unmirrored_counts=_cached_pr_unmirrored_counts(),
-            relation_index=_build_patch_relation_index(all_patches),
+            relation_index=relation_index,
+            relation_index_deferred=deferred,
         )
 
     def _patch_profile(self) -> CompiledQueryProfile:
@@ -241,16 +257,41 @@ class PatchLoadingMixin:
         if replaced:
             self._clear_patch_query_result_cache()
 
-    def _apply_patches(self, all_patches: list[Patch]) -> None:
+    def _apply_patches(
+        self,
+        all_patches: list[Patch],
+        *,
+        query_index: ArtifactQueryIndex | None | object = _MISSING,
+        relation_index: RelationIndex | None | object = _MISSING,
+        pr_unmirrored_counts: dict[str, int] | None = None,
+        relation_index_deferred: bool | None = None,
+    ) -> None:
         """Apply a pre-loaded patch list to app state.
 
         Must run on the main thread: touches widgets via ``_refresh_display``.
         """
-        self._get_patch_query_index(all_patches)
+        if pr_unmirrored_counts is not None:
+            self._pr_unmirrored_counts_by_display_name = pr_unmirrored_counts
+        if query_index is _MISSING:
+            self._get_patch_query_index(all_patches)
+        else:
+            self._apply_prepared_patch_query_index(
+                all_patches,
+                query_index,  # type: ignore[arg-type]
+            )
         self._all_patches = all_patches  # Cache for ancestry lookup
-        self._store_patch_relation_index(
-            all_patches, _build_patch_relation_index(all_patches)
-        )
+        if relation_index is _MISSING:
+            stored, deferred = resolve_patch_relation_index(
+                all_patches, build_relations=patches_pane_is_visible(self)
+            )
+        else:
+            stored = relation_index  # type: ignore[assignment]
+            deferred = (
+                bool(relation_index_deferred)
+                if relation_index_deferred is not None
+                else False
+            )
+        self._store_patch_relation_index(all_patches, stored, deferred=deferred)
         self.patches = self._filter_patches(all_patches)
 
         # Marks are stable-target based and survive reload; a mark whose
@@ -411,13 +452,16 @@ class PatchLoadingMixin:
         if current_name is None:
             current_name = self._snapshot_active_patch_name()
 
-        prepared = self._prepare_patch_load_from_disk()
+        prepared = self._prepare_patch_load_from_disk(
+            build_relations=patches_pane_is_visible(self)
+        )
         self._apply_reloaded_patches(
             prepared.all_patches,
             current_name,
             query_index=prepared.query_index,
             pr_unmirrored_counts=prepared.pr_unmirrored_counts,
             relation_index=prepared.relation_index,
+            relation_index_deferred=prepared.relation_index_deferred,
         )
 
     def _snapshot_active_patch_name(self) -> str | None:
@@ -447,7 +491,11 @@ class PatchLoadingMixin:
 
         caller_supplied_name = current_name is not None
 
-        prepared = await asyncio.to_thread(self._prepare_patch_load_from_disk)
+        build_relations = patches_pane_is_visible(self)
+        prepared = await asyncio.to_thread(
+            self._prepare_patch_load_from_disk,
+            build_relations=build_relations,
+        )
 
         # Re-capture current selection AFTER the await — user may have
         # moved with j/k or switched tabs while disk I/O was in flight.
@@ -461,7 +509,10 @@ class PatchLoadingMixin:
             query_index=prepared.query_index,
             pr_unmirrored_counts=prepared.pr_unmirrored_counts,
             relation_index=prepared.relation_index,
+            relation_index_deferred=prepared.relation_index_deferred,
         )
+        if not build_relations and patches_pane_is_visible(self):
+            self._schedule_patches_async_refresh()
 
     def _apply_reloaded_patches(
         self,
@@ -471,6 +522,7 @@ class PatchLoadingMixin:
         query_index: ArtifactQueryIndex | None = None,
         pr_unmirrored_counts: dict[str, int] | None = None,
         relation_index: RelationIndex | None = None,
+        relation_index_deferred: bool | None = None,
     ) -> None:
         """Apply a freshly-loaded patch list and reposition the cursor."""
         from ...util.selection import restore_selection_by_identity
@@ -503,12 +555,12 @@ class PatchLoadingMixin:
         else:
             self._apply_prepared_patch_query_index(all_patches, query_index)
         self._all_patches = all_patches  # Cache for ancestry lookup
-        stored = (
-            relation_index
-            if relation_index is not None
-            else _build_patch_relation_index(all_patches)
+        stored, deferred = self._resolve_applied_patch_relation_index(
+            all_patches,
+            relation_index=relation_index,
+            relation_index_deferred=relation_index_deferred,
         )
-        self._store_patch_relation_index(all_patches, stored)
+        self._store_patch_relation_index(all_patches, stored, deferred=deferred)
         if use_legacy_filter and legacy_filter_fn is not None:
             new_patches = legacy_filter_fn(all_patches)
         elif use_canonical_filter and canonical_filter_fn is not None:
@@ -591,6 +643,48 @@ class PatchLoadingMixin:
         self._patches_refresh_scheduled = True
         self._spawn_patches_refresh_task()
 
+    def _maybe_schedule_visible_patch_relation_rebuild(self) -> None:
+        """Rebuild Patch relation edges when the Patches pane becomes visible."""
+        if not patches_pane_is_visible(self):
+            return
+        if getattr(self, "_patch_relation_index_deferred", False) or getattr(
+            self, "_dirty_patches", False
+        ):
+            self._schedule_patches_async_refresh()
+
+    def _cancel_patches_refresh_follow_up_timer(self) -> None:
+        timer = getattr(self, "_patches_refresh_follow_up_timer", None)
+        self._patches_refresh_follow_up_timer = None
+        if timer is None:
+            return
+        stop = getattr(timer, "stop", None)
+        if callable(stop):
+            try:
+                stop()
+            except Exception:
+                pass
+
+    def _arm_patches_refresh_follow_up(self, delay: float) -> None:
+        """Debounce the pending follow-up; keep scheduled so requests coalesce."""
+        self._cancel_patches_refresh_follow_up_timer()
+        self._patches_refresh_scheduled = True
+        set_timer = getattr(self, "set_timer", None)
+        if not callable(set_timer):
+            self._patches_refresh_scheduled = False
+            self._schedule_patches_async_refresh()
+            return
+        try:
+            self._patches_refresh_follow_up_timer = set_timer(
+                delay, self._on_patches_refresh_follow_up_timer
+            )
+        except Exception:
+            self._patches_refresh_scheduled = False
+            self._schedule_patches_async_refresh()
+
+    def _on_patches_refresh_follow_up_timer(self) -> None:
+        self._patches_refresh_follow_up_timer = None
+        self._spawn_patches_refresh_task()
+
     def _spawn_patches_refresh_task(self) -> None:
         """Run a Patch reload outside Textual's serial message pump."""
         task = spawn_pump_free_task(
@@ -609,21 +703,51 @@ class PatchLoadingMixin:
             self._patches_refresh_pending = True
             return
         self._patches_loading = True
+        started = time.monotonic()
         try:
             await self._reload_and_reposition_async()
         finally:
+            self._last_patches_reload_duration = time.monotonic() - started
             self._patches_loading = False
             if self._patches_refresh_pending:
                 self._patches_refresh_pending = False
-                self._schedule_patches_async_refresh()
+                delay = min(
+                    getattr(self, "_last_patches_reload_duration", 0.0),
+                    _PATCH_REFRESH_FOLLOW_UP_CAP_SECONDS,
+                )
+                if delay > 0:
+                    self._arm_patches_refresh_follow_up(delay)
+                else:
+                    self._schedule_patches_async_refresh()
+
+    def _resolve_applied_patch_relation_index(
+        self,
+        patches: list[Patch],
+        *,
+        relation_index: RelationIndex | None,
+        relation_index_deferred: bool | None,
+    ) -> tuple[RelationIndex | None, bool]:
+        if relation_index is not None:
+            deferred = (
+                bool(relation_index_deferred)
+                if relation_index_deferred is not None
+                else False
+            )
+            return relation_index, deferred
+        return resolve_patch_relation_index(
+            patches, build_relations=patches_pane_is_visible(self)
+        )
 
     def _store_patch_relation_index(
         self,
         patches: list[Patch],
         index: RelationIndex | None,
+        *,
+        deferred: bool = False,
     ) -> None:
         self._patch_relation_index = index
         self._patch_relation_index_for_id = id(patches)
+        self._patch_relation_index_deferred = deferred
 
     def relation_index(self) -> RelationIndex | None:
         """Return the load-owned Patch relation index for ``_all_patches``."""
@@ -633,27 +757,3 @@ class PatchLoadingMixin:
         if getattr(self, "_patch_relation_index_for_id", None) != id(patches):
             return None
         return getattr(self, "_patch_relation_index", None)
-
-
-def _build_patch_relation_index(
-    patches: list[Patch],
-    *,
-    artifact_links: Any | None = None,
-) -> RelationIndex | None:
-    """Build the Patch relation index on a load path, never a keystroke path."""
-    from sase.ace.tui._artifact_tab_contract import compile_builtin_contract
-    from sase.ace.tui.models.patch_graph_index import build_patch_graph_index
-    from sase.ace.tui.relations import build_patches_relation_index
-    from sase.ace.tui.relations import load_artifact_links_snapshot
-    from sase.ace.tui.relations._support import relation_index_if_enabled
-
-    contract = compile_builtin_contract("patches", label="Patch", icon="", accent="")
-    return relation_index_if_enabled(
-        contract,
-        lambda compiled: build_patches_relation_index(
-            patches,
-            build_patch_graph_index(patches),
-            contract=compiled,
-            artifact_links=artifact_links or load_artifact_links_snapshot(None),
-        ),
-    )

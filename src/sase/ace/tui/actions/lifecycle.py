@@ -60,6 +60,14 @@ class LifecycleMixin:
                 fallback_timer.stop()
             except Exception:
                 pass
+        cancel_patch_follow_up = getattr(
+            self, "_cancel_patches_refresh_follow_up_timer", None
+        )
+        if callable(cancel_patch_follow_up):
+            cancel_patch_follow_up()
+        from .patch._relation_index import clear_patch_relation_index_memo
+
+        clear_patch_relation_index_memo()
         cancel_agent_hint_render = getattr(
             self, "_cancel_agent_hint_render_tasks", None
         )

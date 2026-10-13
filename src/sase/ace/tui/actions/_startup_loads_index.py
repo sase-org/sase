@@ -36,8 +36,24 @@ class StartupLoadsIndexMixin:
             self._apply_prompt_stash_counts(*stash_counts)
 
             if not getattr(self, "_patches_first_load_done", False):
-                all_cs = await asyncio.to_thread(self._read_patches_from_disk)
-                self._apply_patches(all_cs)
+                from .patch._relation_index import patches_pane_is_visible
+
+                build_relations = patches_pane_is_visible(self)
+                prepared = await asyncio.to_thread(
+                    self._prepare_patch_load_from_disk,
+                    build_relations=build_relations,
+                )
+                self._apply_patches(
+                    prepared.all_patches,
+                    query_index=prepared.query_index,
+                    relation_index=prepared.relation_index,
+                    pr_unmirrored_counts=prepared.pr_unmirrored_counts,
+                    relation_index_deferred=prepared.relation_index_deferred,
+                )
+                if not build_relations and patches_pane_is_visible(self):
+                    schedule = getattr(self, "_schedule_patches_async_refresh", None)
+                    if callable(schedule):
+                        schedule()
 
             last_name = await asyncio.to_thread(self._read_last_selection_name)
             self._restore_last_selection(last_name)

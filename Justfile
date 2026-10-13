@@ -445,6 +445,8 @@ _lint-patch-stitch-terminology: _setup
 # for the restore-and-show filtered-target rule, so its row was dropped.
 # sase-1jx.13.6.4 (source-stage) consumed fit_hint_segments for the Source
 # stage's width-aware hints through source_hint_line, so its row is dropped.
+# sase-1kj.7 (startup-telemetry) reads patch_relation_index_real_build_count
+# onto tui_startup rows. Drop the row once that phase consumes it.
 # Never put a comment
 # line inside the continued command below: just joins the lines, so the comment
 # would swallow every later argument.
@@ -452,6 +454,7 @@ _lint-symvision *args: _setup
     SASE_SYMVISION_BEAD_STATUS_ONLY=1 BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase \
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
+        --epic-symbol 'sase-1kj.7(patch_relation_index_real_build_count)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)
