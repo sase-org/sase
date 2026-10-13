@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-import sqlite3
+import subprocess
+import sys
 from pathlib import Path
 
 from sase.ace.tui.models.agent import AgentType
@@ -27,12 +28,26 @@ from .helpers import (
 
 
 def _write_index_schema_version(index: Path, version: int) -> None:
-    with sqlite3.connect(index) as conn:
-        conn.execute("CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
-        conn.execute(
-            "INSERT OR REPLACE INTO meta(key, value) VALUES ('schema_version', ?)",
-            (str(version),),
-        )
+    script = """
+import sqlite3
+import sys
+
+index, version = sys.argv[1], sys.argv[2]
+connection = sqlite3.connect(index)
+connection.execute("CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
+connection.execute(
+    "INSERT OR REPLACE INTO meta(key, value) VALUES ('schema_version', ?)",
+    (version,),
+)
+connection.commit()
+connection.close()
+"""
+    subprocess.run(
+        [sys.executable, "-c", script, str(index), str(version)],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
 
 
 def test_sync_dismissed_agent_artifact_index_serializes_identities(

@@ -4,6 +4,7 @@ import argparse
 import asyncio
 from datetime import datetime
 import logging
+import os
 from pathlib import Path
 import threading
 import time
@@ -22,6 +23,40 @@ class _FakeProfiler:
         assert color is False
         assert show_all is True
         return "profile text"
+
+
+def test_enable_tui_faulthandler_writes_header_and_is_idempotent(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    enable_calls: list[tuple[object, bool]] = []
+
+    def fake_enable(*, file: object, all_threads: bool) -> None:
+        enable_calls.append((file, all_threads))
+
+    monkeypatch.setattr(ace_handler, "sase_home", lambda: tmp_path)
+    monkeypatch.setattr(ace_handler.faulthandler, "enable", fake_enable)
+    monkeypatch.setattr(ace_handler, "_TUI_FAULT_LOG", None)
+
+    try:
+        ace_handler._enable_tui_faulthandler()
+        log_path = tmp_path / "logs" / "tui_faults.log"
+        assert log_path.is_file()
+        header = log_path.read_text(encoding="utf-8")
+        assert header.count("pid=") == 1
+        assert f"pid={os.getpid()}" in header
+        assert "sase=" in header
+        assert len(enable_calls) == 1
+        assert enable_calls[0][1] is True
+        assert enable_calls[0][0] is ace_handler._TUI_FAULT_LOG
+
+        ace_handler._enable_tui_faulthandler()
+
+        assert len(enable_calls) == 1
+        assert log_path.read_text(encoding="utf-8") == header
+    finally:
+        if ace_handler._TUI_FAULT_LOG is not None:
+            ace_handler._TUI_FAULT_LOG.close()
 
 
 def test_run_ace_app_does_not_join_default_executor_worker() -> None:

@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import json
-import sqlite3
 from pathlib import Path
 
 from sase.core.agent_scan_facade import (
+    load_agent_artifact_index_projection,
     query_agent_artifact_index,
     rebuild_agent_artifact_index,
     scan_agent_artifacts,
@@ -54,13 +54,12 @@ def test_artifact_index_summarizes_starting_records(
     artifact_dir = str(
         fixture_root / "myproj" / "artifacts" / "ace-run" / TS_ACE_RUN_RUNNING
     )
-    with sqlite3.connect(index_path) as conn:
-        row = conn.execute(
-            "SELECT status, started_at FROM agent_artifacts WHERE artifact_dir = ?",
-            (artifact_dir,),
-        ).fetchone()
+    projection = load_agent_artifact_index_projection(
+        index_path, ("artifact_dir", "status", "started_at")
+    )
+    row = next(row[1:] for row in projection["rows"] if row[0] == artifact_dir)
 
-    assert row == ("starting", None)
+    assert row == ["starting", None]
 
 
 def test_artifact_index_summarizes_wait_completed_records_as_running(
@@ -85,13 +84,12 @@ def test_artifact_index_summarizes_wait_completed_records_as_running(
     artifact_dir = str(
         fixture_root / "myproj" / "artifacts" / "ace-run" / TS_ACE_RUN_RUNNING
     )
-    with sqlite3.connect(index_path) as conn:
-        row = conn.execute(
-            "SELECT status, started_at FROM agent_artifacts WHERE artifact_dir = ?",
-            (artifact_dir,),
-        ).fetchone()
+    projection = load_agent_artifact_index_projection(
+        index_path, ("artifact_dir", "status", "started_at")
+    )
+    row = next(row[1:] for row in projection["rows"] if row[0] == artifact_dir)
 
-    assert row == ("running", None)
+    assert row == ["running", None]
 
 
 def test_artifact_index_treats_workflow_state_hidden_as_hidden(
@@ -120,13 +118,12 @@ def test_artifact_index_treats_workflow_state_hidden_as_hidden(
         / "workflow-three_phase"
         / TS_WORKFLOW_ROOT
     )
-    with sqlite3.connect(index_path) as conn:
-        row = conn.execute(
-            "SELECT hidden FROM agent_artifacts WHERE artifact_dir = ?",
-            (artifact_dir,),
-        ).fetchone()
+    projection = load_agent_artifact_index_projection(
+        index_path, ("artifact_dir", "hidden")
+    )
+    row = next(row[1:] for row in projection["rows"] if row[0] == artifact_dir)
 
-    assert row == (1,)
+    assert row == [1]
 
 
 def test_bounded_source_clan_context_reconciles_through_index(

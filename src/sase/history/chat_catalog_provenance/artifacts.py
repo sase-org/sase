@@ -21,7 +21,6 @@ from sase.core.agent_scan_facade import (
     default_agent_artifact_index_path,
     load_agent_artifact_index_projection,
 )
-from sase.core.agent_artifact_index_lock import agent_artifact_index_operation_lock
 from sase.core.paths import sase_projects_dir
 
 from .cache import load_cached_json, store_cached_json
@@ -95,27 +94,26 @@ def _artifact_generation_token(index_path: Path) -> str:
 def _indexed_records(index_path: Path) -> list[dict[str, object]] | None:
     if not index_path.is_file():
         return None
-    with agent_artifact_index_operation_lock():
-        try:
-            projection = load_agent_artifact_index_projection(
-                index_path,
-                (
-                    "artifact_dir",
-                    "project_name",
-                    "workflow_dir_name",
-                    "timestamp",
-                    "record_json",
-                ),
-                busy_timeout_ms=250,
-            )
-            if (
-                int(projection["schema_version"])
-                not in SUPPORTED_AGENT_ARTIFACT_INDEX_SCHEMA_VERSIONS
-            ):
-                return None
-            rows = projection["rows"]
-        except (OSError, RuntimeError, TypeError, ValueError):
+    try:
+        projection = load_agent_artifact_index_projection(
+            index_path,
+            (
+                "artifact_dir",
+                "project_name",
+                "workflow_dir_name",
+                "timestamp",
+                "record_json",
+            ),
+            busy_timeout_ms=250,
+        )
+        if (
+            int(projection["schema_version"])
+            not in SUPPORTED_AGENT_ARTIFACT_INDEX_SCHEMA_VERSIONS
+        ):
             return None
+        rows = projection["rows"]
+    except (OSError, RuntimeError, TypeError, ValueError):
+        return None
 
     records: list[dict[str, object]] = []
     try:

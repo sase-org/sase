@@ -74,9 +74,10 @@ The shipped Rust-backed operations are grouped by the Python facade that calls t
 - Agent cleanup planning plus deterministic cleanup mutations: dismissed-identity index
   writes, artifact-marker deletion, workspace-release text mutation, and
   hook/mentor/comment kill marking. These calls prefer Rust but retain cleanup-specific
-  Python compatibility paths for missing or stale bindings. In the current sase's TUI
-  host path, dismissed-bundle JSON persistence and its summary SQLite index are
-  Python-owned.
+  Python compatibility paths for missing or stale bindings. In the current sase TUI host
+  path, dismissed-bundle JSON persistence stays in Python, while the summary SQLite
+  index (`dismissed_bundles/index.sqlite`) is owned by `sase_core::agent_archive::store`
+  and reached only through `sase_core_rs` bindings (see "SQLite Ownership").
 - Agent launch preparation, low-level detached spawn, timestamp allocation, fan-out
   planning, typed Agent/Proc launch-plan validation, admission-journal replay, `%if`
   condition evaluation, `%proc` script/argv/env preparation, and RUNNING-field
@@ -154,11 +155,11 @@ The intentionally Python-owned host surfaces include:
   atomicity to the Rust binding, but Python remains responsible for deciding how an
   active disable affects aliases, completions, explicit requests, and already-running
   provider processes.
-- Agent cleanup process signalling, dismissed-bundle persistence, dismissed-bundle
-  summary indexing, and TUI orchestration stay on the Python host path. The Rust
-  boundary owns reusable cleanup planning, compact dismissed-identity writes, artifact
-  deletion, workspace-release content rewrites, and Patch-entry kill marking exposed
-  through Python helpers in `sase.core.agent_cleanup_*`.
+- Agent cleanup process signalling, dismissed-bundle persistence, and TUI orchestration
+  stay on the Python host path. Rust owns the dismissed-bundle summary index plus
+  reusable cleanup planning, compact dismissed-identity writes, artifact deletion,
+  workspace-release content rewrites, and Patch-entry kill marking exposed through
+  Python helpers in `sase.core.agent_cleanup_*`.
 - Managed-workspace Git subprocesses, project locks, and filesystem mutations stay in
   Python. Rust owns the deterministic Git object-sharing policy: alternate path
   resolution, SASE-owned versus foreign alternate classification, and rewrite plans that

@@ -53,8 +53,9 @@ directly as ``python -m tests.perf.bench_agent_catalog``.
 from __future__ import annotations
 
 import argparse
-import sqlite3
+import json
 import statistics
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -113,22 +114,42 @@ def _write_synthetic_artifact_index(rows: list[dict[str, Any]]) -> None:
     path = default_agent_artifact_index_path()
     path.parent.mkdir(parents=True, exist_ok=True)
     columns = catalog_sources._ARTIFACT_INDEX_COLUMNS
-    connection = sqlite3.connect(path)
-    try:
-        connection.execute("CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT)")
-        connection.execute(
-            "INSERT INTO meta VALUES ('schema_version', ?)",
-            (str(AGENT_ARTIFACT_INDEX_SCHEMA_VERSION),),
-        )
-        connection.execute(f"CREATE TABLE agent_artifacts ({', '.join(columns)})")
-        placeholders = ", ".join("?" for _ in columns)
-        connection.executemany(
-            f"INSERT INTO agent_artifacts VALUES ({placeholders})",
-            [tuple(row.get(c) for c in columns) for row in rows],
-        )
-        connection.commit()
-    finally:
-        connection.close()
+    payload = {
+        "schema_version": AGENT_ARTIFACT_INDEX_SCHEMA_VERSION,
+        "columns": columns,
+        "rows": [[row.get(column) for column in columns] for row in rows],
+    }
+    script = """
+import json
+import sqlite3
+import sys
+
+path = sys.argv[1]
+payload = json.load(sys.stdin)
+columns = payload["columns"]
+connection = sqlite3.connect(path)
+try:
+    connection.execute("CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT)")
+    connection.execute(
+        "INSERT INTO meta VALUES ('schema_version', ?)",
+        (str(payload["schema_version"]),),
+    )
+    connection.execute(f"CREATE TABLE agent_artifacts ({', '.join(columns)})")
+    placeholders = ", ".join("?" for _ in columns)
+    connection.executemany(
+        f"INSERT INTO agent_artifacts VALUES ({placeholders})", payload["rows"]
+    )
+    connection.commit()
+finally:
+    connection.close()
+"""
+    subprocess.run(
+        [sys.executable, "-c", script, str(path)],
+        input=json.dumps(payload),
+        check=True,
+        capture_output=True,
+        text=True,
+    )
 
 
 def _write_real_artifact_dir(project: str, raw_suffix: str) -> str:
