@@ -10,11 +10,13 @@ import pytest
 from textual.widgets import Button, Input, Static
 
 from sase.ace.tui.actions.proc_actions import TrackedProcCompletion
-from sase.ace.tui.modals.new_project_apply import (
+from sase.ace.tui.modals._new_project_apply_flow import (
     _intent_from_submission,
-    _on_project_apply_complete,
-    _record_successful_create_preferences,
     _terminal_apply_argv,
+)
+from sase.ace.tui.modals._new_project_apply_shared import (
+    on_project_apply_complete,
+    record_successful_create_preferences,
 )
 from sase.ace.tui.modals.new_project_create import NewProjectCreateConfigure
 from sase.ace.tui.modals.new_project_configure_model import ConfigureDraft
@@ -128,7 +130,7 @@ def _create_proc() -> ObservedProc:
 
 
 def _sync_persist(intent: Any) -> None:
-    _record_successful_create_preferences(
+    record_successful_create_preferences(
         str(intent.get("workflow_type") or ""),
         str(intent.get("owner") or ""),
         str(intent.get("visibility") or ""),
@@ -592,12 +594,12 @@ def test_dismissed_create_success_records_visibility(
 ) -> None:
     monkeypatch.setenv("SASE_HOME", str(tmp_path / "sase-home"))
     monkeypatch.setattr(
-        "sase.ace.tui.modals.new_project_apply._persist_create_preferences_async",
+        "sase.ace.tui.modals._new_project_apply_shared._persist_create_preferences_async",
         _sync_persist,
     )
     reloads: list[object] = []
     monkeypatch.setattr(
-        "sase.ace.tui.modals.new_project_apply._reload_projects_if_mounted",
+        "sase.ace.tui.modals._new_project_apply_shared.reload_projects_if_mounted",
         lambda app: reloads.append(app),
     )
 
@@ -607,7 +609,7 @@ def test_dismissed_create_success_records_visibility(
     app = object()
     document = _create_document()
     intent = _intent_from_submission(apply_submission(document))
-    _on_project_apply_complete(
+    on_project_apply_complete(
         app,
         weakref.ref(_Gone()),
         intent,
@@ -630,7 +632,7 @@ def test_failed_create_does_not_overwrite_visibility(
 ) -> None:
     monkeypatch.setenv("SASE_HOME", str(tmp_path / "sase-home"))
     monkeypatch.setattr(
-        "sase.ace.tui.modals.new_project_apply._persist_create_preferences_async",
+        "sase.ace.tui.modals._new_project_apply_shared._persist_create_preferences_async",
         _sync_persist,
     )
     from sase.project_onboarding.preferences import record_visibility_selection
@@ -646,7 +648,7 @@ def test_failed_create_does_not_overwrite_visibility(
         "owner": "sase-org",
         "visibility": "public",
     }
-    _on_project_apply_complete(
+    on_project_apply_complete(
         object(),
         weakref.ref(_Gone()),
         intent,
@@ -665,19 +667,19 @@ def test_add_complete_does_not_record_visibility(
 ) -> None:
     monkeypatch.setenv("SASE_HOME", str(tmp_path / "sase-home"))
     monkeypatch.setattr(
-        "sase.ace.tui.modals.new_project_apply._persist_create_preferences_async",
+        "sase.ace.tui.modals._new_project_apply_shared._persist_create_preferences_async",
         _sync_persist,
     )
     monkeypatch.setattr(
-        "sase.ace.tui.modals.new_project_apply._persist_add_preferences_async",
+        "sase.ace.tui.modals._new_project_apply_shared._persist_add_preferences_async",
         lambda _intent: None,
     )
-    from sase.ace.tui.modals.new_project_apply import _on_project_add_complete
+    from sase.ace.tui.modals._new_project_apply_shared import on_project_add_complete
 
     class _Gone:
         is_mounted = False
 
-    _on_project_add_complete(
+    on_project_add_complete(
         object(),
         weakref.ref(_Gone()),
         {"mode": "add", "workflow_type": "gh", "owner": "sase-org"},

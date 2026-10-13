@@ -10,13 +10,15 @@ import weakref
 import pytest
 from sase import workspace_provider
 from sase.ace.tui.actions.proc_actions import TrackedProcCompletion
-from sase.ace.tui.modals.new_project_apply import (
-    _find_projects_pane,
+from sase.ace.tui.modals._new_project_apply_flow import (
     _intent_from_submission,
     _next_argv_requests_init,
-    _on_project_add_complete,
-    _reload_projects_if_mounted,
     _terminal_apply_argv,
+)
+from sase.ace.tui.modals._new_project_apply_shared import (
+    find_projects_pane,
+    on_project_add_complete,
+    reload_projects_if_mounted,
 )
 from sase.ace.tui.modals.new_project_failed import (
     NewProjectFailed,
@@ -176,7 +178,7 @@ async def test_dismiss_during_run_still_reloads(
 ) -> None:
     reloads: list[object] = []
     monkeypatch.setattr(
-        "sase.ace.tui.modals.new_project_apply._reload_projects_if_mounted",
+        "sase.ace.tui.modals._new_project_apply_shared.reload_projects_if_mounted",
         lambda app: reloads.append(app),
     )
     app, modal, _ = await _open_review(monkeypatch)
@@ -228,7 +230,7 @@ async def test_ok_with_init_handoff_then_cancelled_copy(
         return None
 
     monkeypatch.setattr(
-        "sase.ace.tui.modals.new_project_apply.run_project_init",
+        "sase.ace.tui.modals._new_project_apply_flow.run_project_init",
         fake_init,
     )
     app, modal, _ = await _open_review(monkeypatch)
@@ -268,7 +270,7 @@ async def test_failed_keeps_checklist_and_t_strips_json(
         workspace_provider, "describe_repo_creation", lambda *_args, **_kwargs: None
     )
     monkeypatch.setattr(
-        "sase.ace.tui.modals.new_project_apply.subprocess.run",
+        "sase.ace.tui.modals._new_project_apply_flow.subprocess.run",
         lambda argv, **kwargs: runs.append((argv, kwargs)),
     )
     app, modal, _ = await _open_review(monkeypatch)
@@ -365,9 +367,11 @@ async def test_ready_plus_dismisses_wizard_before_admin_center(
 ) -> None:
     from sase.ace.tui.modals.new_project_modal import NewProjectModal
 
-    from sase.ace.tui.modals import new_project_apply
+    from sase.ace.tui.modals import _new_project_apply_ready
 
-    monkeypatch.setattr(new_project_apply, "ensure_project_tag_catalog", lambda: None)
+    monkeypatch.setattr(
+        _new_project_apply_ready, "ensure_project_tag_catalog", lambda: None
+    )
     app = _WizardApp()
     modal = NewProjectModal(provider_metadata=())
     events: list[str] = []
@@ -403,15 +407,15 @@ async def test_ready_current_invalidates_project_launch_context(
         status="set", project=None, message="Set current project"
     )
     monkeypatch.setattr(
-        "sase.ace.tui.modals.new_project_apply.set_current_project",
+        "sase.ace.tui.modals._new_project_apply_ready.set_current_project",
         lambda _key: outcome,
     )
     monkeypatch.setattr(
-        "sase.ace.tui.modals.new_project_apply._find_projects_pane",
+        "sase.ace.tui.modals._new_project_apply_ready.find_projects_pane",
         lambda _app: pane,
     )
     monkeypatch.setattr(
-        "sase.ace.tui.modals.new_project_apply._reload_projects_if_mounted",
+        "sase.ace.tui.modals._new_project_apply_ready.reload_projects_if_mounted",
         lambda _app: reloads.append(True),
     )
     app = _WizardApp()
@@ -431,7 +435,7 @@ def test_reload_projects_if_mounted_calls_pane_action() -> None:
     pane.is_mounted = True
     screen = SimpleNamespace(query=lambda *_args, **_kwargs: [pane])
     app = SimpleNamespace(screen_stack=[screen])
-    _reload_projects_if_mounted(app)
+    reload_projects_if_mounted(app)
     pane.action_reload_projects.assert_called_once()
 
 
@@ -443,11 +447,11 @@ def test_find_projects_pane_walks_screen_stack_not_app_query() -> None:
     app = MagicMock()
     app.query.return_value = [queried]
     app.screen_stack = []
-    assert _find_projects_pane(app) is None
+    assert find_projects_pane(app) is None
 
     screen = SimpleNamespace(query=lambda *_args, **_kwargs: [pane])
     app.screen_stack = [object(), screen]
-    assert _find_projects_pane(app) is pane
+    assert find_projects_pane(app) is pane
 
 
 def test_find_projects_pane_skips_non_sequence_stack() -> None:
@@ -456,13 +460,13 @@ def test_find_projects_pane_skips_non_sequence_stack() -> None:
     app = MagicMock()
     app.screen_stack = MagicMock()
     app.query.return_value = [pane]
-    assert _find_projects_pane(app) is None
+    assert find_projects_pane(app) is None
 
 
 def test_on_project_add_complete_reloads(monkeypatch: pytest.MonkeyPatch) -> None:
     called: list[object] = []
     monkeypatch.setattr(
-        "sase.ace.tui.modals.new_project_apply._reload_projects_if_mounted",
+        "sase.ace.tui.modals._new_project_apply_shared.reload_projects_if_mounted",
         lambda app: called.append(app),
     )
 
@@ -470,7 +474,7 @@ def test_on_project_add_complete_reloads(monkeypatch: pytest.MonkeyPatch) -> Non
         is_mounted = False
 
     app = object()
-    _on_project_add_complete(
+    on_project_add_complete(
         app,
         weakref.ref(_Gone()),
         {},
@@ -487,11 +491,11 @@ def test_durable_add_completion_keeps_request_preferences_after_close(
     preferences: list[object] = []
     integrations: list[tuple[object, str]] = []
     monkeypatch.setattr(
-        "sase.ace.tui.modals.new_project_apply._persist_add_preferences_async",
+        "sase.ace.tui.modals._new_project_apply_shared._persist_add_preferences_async",
         lambda intent: preferences.append(dict(intent)),
     )
     monkeypatch.setattr(
-        "sase.ace.tui.modals.new_project_apply._integrate_added_project_if_mounted",
+        "sase.ace.tui.modals._new_project_apply_shared._integrate_added_project_if_mounted",
         lambda app, key, **_kwargs: integrations.append((app, key)),
     )
 
@@ -505,7 +509,7 @@ def test_durable_add_completion_keeps_request_preferences_after_close(
         "owner": "sase-org",
         "project_key": "gh_sase-org__new",
     }
-    _on_project_add_complete(
+    on_project_add_complete(
         app,
         weakref.ref(_Gone()),
         intent,
