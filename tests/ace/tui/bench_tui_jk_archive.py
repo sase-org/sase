@@ -70,7 +70,10 @@ _TODAY_ROWS = 11_000
 _OLDER_ROWS = 200
 _WARM_OPEN_BUDGET_MS = 100.0
 _ARCHIVE_JK_P95_BUDGET_MS = 16.0
-_KEYS_PER_DIRECTION = 25
+# A p95 over only 25 keys moved when one loaded-host frame lands in its tail.
+# Sixty samples leave enough headroom to report that occasional scheduler
+# outlier in max without letting one or two stalls define the steady-state p95.
+_KEYS_PER_DIRECTION = 60
 _WARM_REOPENS = 7
 
 

@@ -81,6 +81,7 @@ class AgentDetailDisplayMixin:
             attempt_number: When non-None, pin the detail view to the matching
                 prior-attempt record (shows full error + that attempt's reply).
         """
+        self._clear_archive_placeholder()  # type: ignore[attr-defined]
         previous_identity = self.metadata_identity
         self._agent_detail_generation += 1
         self._current_tribe_identity = None
@@ -106,6 +107,7 @@ class AgentDetailDisplayMixin:
         latency, while the file/LLM Calls/diff workers wait for the detail
         debouncer to settle on a final selection.
         """
+        self._clear_archive_placeholder()  # type: ignore[attr-defined]
         previous_identity = self.metadata_identity
         self._agent_detail_generation += 1
         self._current_tribe_identity = None

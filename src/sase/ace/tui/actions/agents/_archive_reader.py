@@ -183,6 +183,12 @@ def paint_archive_detail_placeholder(owner: Any) -> None:
     detail = _detail_widget(owner)
     selection = get_agents_tab_selection(owner)
     runtime = _reader_runtime(owner)
+    loading_card_visible = (
+        runtime.loading
+        and runtime.archive_key is not None
+        and runtime.hydrated_agent is None
+        and not runtime.unreadable
+    )
     runtime.archive_key = selection.archive_key
     runtime.generation = getattr(
         getattr(owner, "_agents_archive_view", None), "generation", 0
@@ -194,9 +200,13 @@ def paint_archive_detail_placeholder(owner: Any) -> None:
         runtime.hydrated_agent = None
         runtime.loading = False
         if detail is not None:
-            show_empty = getattr(detail, "show_empty", None)
-            if callable(show_empty):
-                show_empty()
+            placeholder = getattr(detail, "show_archive_placeholder", None)
+            if callable(placeholder):
+                placeholder(None)
+            else:
+                show_empty = getattr(detail, "show_empty", None)
+                if callable(show_empty):
+                    show_empty()
         return
     if selection.row_kind == ARCHIVE_ROW_CONTAINER:
         runtime.hydrated_agent = None
@@ -211,7 +221,16 @@ def paint_archive_detail_placeholder(owner: Any) -> None:
     header = archive_identity_header_from_light_row(selection.light_row, loading=True)
     if detail is None:
         return
+    placeholder = getattr(detail, "show_archive_placeholder", None)
+    if callable(placeholder):
+        placeholder(header)
+        return
     _paint_identity(detail, header)
+    if loading_card_visible:
+        # While the user moves through rows, keep the existing loading card
+        # and update only its identity header. Clearing every deck before
+        # re-adding the same card costs a full detail-tree rebuild per key.
+        return
     _show_titled(detail, ARCHIVE_LOADING_TITLE)
 
 
@@ -263,6 +282,8 @@ def _fire_archive_detail(owner: Any) -> None:
         return
     if selection.row_kind != ARCHIVE_ROW_AGENT or not selection.archive_key:
         return
+    if _defer_hydration_during_navigation(owner):
+        return
     generation = getattr(getattr(owner, "_agents_archive_view", None), "generation", 0)
     _spawn_reader_task(
         owner,
@@ -273,6 +294,34 @@ def _fire_archive_detail(owner: Any) -> None:
             generation=generation,
         ),
     )
+
+
+def _defer_hydration_during_navigation(owner: Any) -> bool:
+    """Keep bundle hydration off the key-to-paint path during j/k bursts."""
+    gate = getattr(owner, "_nav_gate", None)
+    time_until_idle = getattr(gate, "time_until_idle", None)
+    set_timer = getattr(owner, "set_timer", None)
+    if not callable(time_until_idle) or not callable(set_timer):
+        return False
+    try:
+        remaining = max(0.0, float(time_until_idle()))
+    except Exception:
+        return False
+    if remaining <= 0.0:
+        return False
+
+    owner_token = getattr(owner, "_agents_detail_scheduled_owner", None)
+
+    def retry_when_idle() -> None:
+        if getattr(owner, "_agents_detail_scheduled_owner", None) != owner_token:
+            return
+        _fire_archive_detail(owner)
+
+    try:
+        set_timer(remaining + 0.05, retry_when_idle)
+        return True
+    except Exception:
+        return False
 
 
 def _spawn_reader_task(owner: Any, coro: Any) -> Any:

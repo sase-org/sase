@@ -4259,6 +4259,23 @@ ArchiveList.-dimmed > .option-list--option-highlighted {
     height: 100%;
 }
 
+#agent-detail-layout.-archive-placeholder-active {
+    display: none;
+}
+
+#agent-archive-placeholder {
+    position: absolute;
+    offset: 0 0;
+    width: 100%;
+    height: 100%;
+    padding: 1 2;
+    color: $text-muted;
+}
+
+#agent-archive-placeholder.hidden {
+    display: none;
+}
+
 #agent-header-panel {
     height: auto;
     max-height: 50%;

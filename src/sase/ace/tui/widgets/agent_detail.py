@@ -74,6 +74,9 @@ class AgentDetail(
                 yield AgentPromptPanel(id="agent-prompt-panel", classes="-deck-source")
             yield DeckArea(id="agent-deck-area", classes="-single")
             yield AgentJumpPanel(id="agent-jump-panel", classes="hidden")
+        placeholder = Static(id="agent-archive-placeholder", classes="hidden")
+        placeholder.display = False
+        yield placeholder
 
     def shows_complete_tribe_document(self, identity: object | None) -> bool:
         """Return whether the Main deck holds the complete document for identity."""

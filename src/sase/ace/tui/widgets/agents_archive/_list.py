@@ -61,6 +61,7 @@ class ArchiveList(OptionList, inherit_bindings=False):
         self._tz: tzinfo | None = None
         self._grouping = "day"
         self._rendered_width = 0
+        self._pending_cursor_key: str | None = None
         self._restored_keys: frozenset[str] = frozenset()
         self._marked_keys: frozenset[str] = frozenset()
 
@@ -77,6 +78,10 @@ class ArchiveList(OptionList, inherit_bindings=False):
         """
         width = self.scrollable_content_region.width - _OPTION_PADDING
         return width if width > 0 else _FALLBACK_WIDTH
+
+    def _laid_out_content_width(self) -> int:
+        """Return the row width only after the list has real layout space."""
+        return self.scrollable_content_region.width - _OPTION_PADDING
 
     def _render_options(self) -> list[Option]:
         width = self._content_width()
@@ -114,6 +119,9 @@ class ArchiveList(OptionList, inherit_bindings=False):
         self._grouping = grouping
         self._restored_keys = frozenset(restored_keys)
         self._marked_keys = frozenset(marked_keys)
+        self._pending_cursor_key = cursor_key
+        if self._laid_out_content_width() <= 0:
+            return
         self._install_options(self._render_options())
         self.set_cursor(cursor_key)
 
@@ -139,6 +147,7 @@ class ArchiveList(OptionList, inherit_bindings=False):
 
     def set_cursor(self, key: str | None) -> None:
         """Highlight ``key`` silently, keeping its row visible."""
+        self._pending_cursor_key = key
         index = self._index_by_key.get(key) if key is not None else None
         self._programmatic_update = True
         try:
@@ -157,7 +166,19 @@ class ArchiveList(OptionList, inherit_bindings=False):
         no size to scroll against, and Textual sends no ``Resize`` for the
         children of a container that only toggled ``display``.
         """
-        self.call_after_refresh(self.scroll_to_highlight)
+
+        def reveal() -> None:
+            if (
+                self._items
+                and self._laid_out_content_width() > 0
+                and self._content_width() != self._rendered_width
+            ):
+                self._install_options(self._render_options())
+                self.set_cursor(self._pending_cursor_key)
+            if self.highlighted is not None:
+                self.scroll_to_highlight()
+
+        self.call_after_refresh(reveal)
 
     def watch_highlighted(self, highlighted: int | None) -> None:
         """Swallow ``OptionHighlighted`` echoes of programmatic highlights.
@@ -178,8 +199,13 @@ class ArchiveList(OptionList, inherit_bindings=False):
         width and could not scroll to the cursor; the first real layout fixes
         both (drop MODEL/RUNTIME, re-truncate names, scroll to highlight).
         """
-        if self._items and self._content_width() != self._rendered_width:
+        if (
+            self._items
+            and self._laid_out_content_width() > 0
+            and self._content_width() != self._rendered_width
+        ):
             self._install_options(self._render_options())
+            self.set_cursor(self._pending_cursor_key)
         if self.highlighted is not None:
             self.scroll_to_highlight()
 

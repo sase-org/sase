@@ -2,13 +2,18 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, overload
+
+from textual.widgets import Static
 
 from ..util.trace import tui_trace
 from .file_panel._messages import LinkedDeltasRefreshed
 from .llm_calls_panel import AgentLLMCallsPanel, ToolDetailLevel
 
 if TYPE_CHECKING:
+    from textual.css.query import QueryType
+    from textual.widget import Widget
+
     from ..models.agent import Agent
     from ..models.agent_tribe_summary import (
         AgentTribeSummarySnapshot,
@@ -45,6 +50,23 @@ class AgentDetailStateMixin:
 
     if TYPE_CHECKING:
 
+        @overload
+        def query_one(self, selector: str) -> Widget: ...
+
+        @overload
+        def query_one(self, selector: type[QueryType]) -> QueryType: ...
+
+        @overload
+        def query_one(
+            self, selector: str, expect_type: type[QueryType]
+        ) -> QueryType: ...
+
+        def query_one(
+            self,
+            selector: str | type[QueryType],
+            expect_type: type[QueryType] | None = None,
+        ) -> QueryType | Widget: ...
+
         def _sync_header_visibility(self) -> None: ...
 
         def update_display(
@@ -56,10 +78,50 @@ class AgentDetailStateMixin:
 
     def show_empty(self) -> None:
         """Show empty state for all panels."""
+        self._clear_archive_placeholder()
         previous_identity = self.metadata_identity
         self._deck_show_empty()  # type: ignore[attr-defined]
         self._publish_metadata_identity_change(previous_identity)
         self._sync_header_visibility()
+
+    def show_archive_placeholder(self, header: object | None) -> None:
+        """Hide stale deck content while an archived row hydrates.
+
+        The previous detail may contain Inbox or another archived agent data.
+        Covering the composed layout makes that content inaccessible without
+        synchronously rebuilding every deck on each cursor move.
+        """
+        previous_identity = self.metadata_identity
+        self._agent_detail_generation += 1
+        self._current_agent = None
+        self._current_record_subject = None
+        self._current_tribe_identity = None
+        self._tribe_document_complete = False
+        self._current_attempt_number = None
+        try:
+            layout = self.query_one("#agent-detail-layout")
+            layout.add_class("-archive-placeholder-active")
+            placeholder = self.query_one("#agent-archive-placeholder", Static)
+            placeholder.update(getattr(header, "expanded", "") if header else "")
+            placeholder.remove_class("hidden")
+            placeholder.display = True
+        except Exception:
+            self._clear_archive_placeholder()
+            self.show_tab_empty_state("Loading archived run…")
+            return
+        self._publish_metadata_identity_change(previous_identity)
+
+    def _clear_archive_placeholder(self) -> None:
+        """Show the normal detail layout after placeholder or Archive exit."""
+        try:
+            self.query_one("#agent-detail-layout").remove_class(
+                "-archive-placeholder-active"
+            )
+            placeholder = self.query_one("#agent-archive-placeholder", Static)
+            placeholder.add_class("hidden")
+            placeholder.display = False
+        except Exception:
+            pass
 
     def show_tab_empty_state(self, title: str, detail: str = "") -> None:
         """Show a named empty cause for the active agent tab.

@@ -48,7 +48,7 @@ async def test_two_digit_prefix_narrows_and_restores() -> None:
         assert "target-00" in _jump_text(panel)
 
 
-async def test_neighbors_map_shows_dismissed_revive_cells() -> None:
+async def test_neighbors_map_routes_dismissed_prefix_to_archive() -> None:
     app = _DetailApp()
     async with app.run_test(size=(80, 24)) as pilot:
         detail = app.query_one("#agent-detail-panel", AgentDetail)
@@ -77,7 +77,7 @@ async def test_neighbors_map_shows_dismissed_revive_cells() -> None:
         assert "dismissed" in expanded
         detail.set_jump_panel_prefix("1")
         await pilot.pause()
-        assert "revive" in _jump_text(panel)
+        assert "archive" in _jump_text(panel)
         detail.set_jump_panel_prefix(None)
         await pilot.pause()
         assert "❖ NEIGHBORS" in _jump_text(panel)

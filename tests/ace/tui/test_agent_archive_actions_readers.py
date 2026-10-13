@@ -5,6 +5,9 @@ from __future__ import annotations
 from types import SimpleNamespace
 from typing import Any
 
+import pytest
+from rich.text import Text
+
 from sase.ace.tui.actions.agents._archive_actions import (
     archive_read_target,
     resolve_agents_read_agent,
@@ -12,6 +15,38 @@ from sase.ace.tui.actions.agents._archive_actions import (
 from sase.ace.tui.actions.agents._archive_view import get_agents_tab_selection
 from sase.feature_flags import override_flags
 from tests.ace.tui._agent_archive_actions_helpers import make_owner, open_archive
+
+
+@pytest.mark.asyncio
+async def test_mounted_archive_placeholder_covers_prior_detail(
+    monkeypatch: Any,
+) -> None:
+    from textual.widgets import Static
+
+    from sase.ace.testing import AcePage
+    from sase.ace.tui.widgets.agent_detail import AgentDetail
+    from tests.ace.tui.visual._ace_png_snapshot_helpers import (
+        patch_startup_loaders,
+        wait_for_startup,
+    )
+
+    patch_startup_loaders(monkeypatch, agents=[])
+    async with AcePage(initial_tab="agents") as page:
+        await wait_for_startup(page)
+        detail = page.app.query_one("#agent-detail-panel", AgentDetail)
+        layout = detail.query_one("#agent-detail-layout")
+        placeholder = detail.query_one("#agent-archive-placeholder", Static)
+
+        detail.show_archive_placeholder(SimpleNamespace(expanded=Text("Loading")))
+
+        assert "-archive-placeholder-active" in layout.classes
+        assert "hidden" not in placeholder.classes
+        assert detail._current_agent is None
+
+        detail.show_empty()
+
+        assert "-archive-placeholder-active" not in layout.classes
+        assert "hidden" in placeholder.classes
 
 
 def test_read_target_none_outside_archive() -> None:
@@ -68,6 +103,60 @@ def test_hydrated_archive_run_is_the_read_target() -> None:
     )
     assert resolve_agents_read_agent(owner) is archived
     assert owner._get_selected_agent() is inbox
+
+
+def test_moving_between_loading_archive_rows_keeps_loading_card(
+    monkeypatch: Any,
+) -> None:
+    from sase.ace.tui.actions.agents import _archive_reader as reader
+    from sase.ace.tui.models.agent_archive_reader import ArchiveReaderRuntime
+    from sase.ace.tui.models.agent_archive_view import (
+        ARCHIVE_ROW_AGENT,
+        AgentsTabSelection,
+    )
+
+    owner = make_owner()
+    owner._agents_archive_view.generation = 4
+    owner._archive_reader_runtime = ArchiveReaderRuntime(
+        archive_key="u.m@previous",
+        generation=4,
+        loading=True,
+    )
+    detail = object()
+    selection = AgentsTabSelection(
+        view="archive",
+        row_kind=ARCHIVE_ROW_AGENT,
+        read_only=True,
+        archive_key="u.m@next",
+        light_row={"name": "next"},
+    )
+    painted_headers: list[object] = []
+    loading_cards: list[str] = []
+    monkeypatch.setattr(reader, "archive_detail_owns_panel", lambda _owner: True)
+    monkeypatch.setattr(reader, "get_agents_tab_selection", lambda _owner: selection)
+    monkeypatch.setattr(reader, "_detail_widget", lambda _owner: detail)
+    monkeypatch.setattr(
+        reader,
+        "archive_identity_header_from_light_row",
+        lambda _row, *, loading: ("header", loading),
+    )
+    monkeypatch.setattr(
+        reader,
+        "_paint_identity",
+        lambda _detail, header: painted_headers.append(header),
+    )
+    monkeypatch.setattr(
+        reader,
+        "_show_titled",
+        lambda _detail, title: loading_cards.append(title),
+    )
+
+    reader.paint_archive_detail_placeholder(owner)
+
+    assert painted_headers == [("header", True)]
+    assert loading_cards == []
+    assert owner._archive_reader_runtime.archive_key == "u.m@next"
+    assert owner._archive_reader_runtime.loading is True
 
 
 def test_metadata_pager_and_patch_jump_use_hydrated_archive_agent(

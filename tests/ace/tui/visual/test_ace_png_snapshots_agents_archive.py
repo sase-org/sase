@@ -476,22 +476,17 @@ async def test_archive_help_png_snapshot(
         await page.press("?")
         await page.expect_modal("HelpModal")
         await wait_for_visual_idle(page)
-        # The Keymaps view is taller than the modal viewport. Check the
-        # Archive section heading and its final note as they scroll by.
+        # The Keymaps view is taller than the modal viewport. Stop with the
+        # Archive section title row visible so the golden shows its context.
         for _ in range(60):
             if "Archive (read-only)" in page_svg_text(page):
                 break
             await page.press("ctrl+d")
             await wait_for_visual_idle(page)
         assert_page_svg_contains(page, "Archive (read-only)")
-        for _ in range(60):
-            if "Live actions stay in Inbox" in page_svg_text(page):
-                break
-            await page.press("ctrl+d")
-            await wait_for_visual_idle(page)
         await _settle_archive_detail(page)
         await wait_for_visual_idle(page)
-        assert_page_svg_contains(page, "Live actions stay in Inbox")
+        assert_page_svg_contains(page, "Archive (read-only)")
         ace_png_visual.assert_page_png(
             page,
             "agents_archive_help_120x40",
