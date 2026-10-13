@@ -16,7 +16,7 @@ from ...models.agent_archive_view import (
 )
 from ...util.pump_tasks import spawn_pump_free_task
 from ._archive_restore_keys import hydrate_archive_candidate
-from ._archive_restore_run import run_archive_restore
+from ._archive_restore_run import run_archive_restore, run_archive_restore_async
 from ._archive_restore_support import archive_light_name, notify_owner
 from ._archive_restore_types import (
     CHOICE_COPY_MORE,
@@ -387,6 +387,39 @@ def _copy_captured_agent_reference(owner: Any, agent: Any) -> None:
         notify_owner(owner, "Copy failed", severity="error")
 
 
+def _submit_archive_restore(owner: Any, *, and_show: bool = False) -> None:
+    """Submit the Archive restore from the chooser without blocking the loop.
+
+    The submit-time capability re-check reads bundles off-thread, so the
+    chooser spawns the async submit when a loop is running and restores
+    synchronously otherwise (tests and loop-free callers).
+    """
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        run_archive_restore(owner, and_show=and_show)
+        return
+
+    async def _submit() -> None:
+        await run_archive_restore_async(owner, and_show=and_show)
+
+    spawner = getattr(owner, "_archive_spawn", None)
+    if callable(spawner):
+        spawner(
+            owner,
+            _submit(),
+            name="archive-restore-submit",
+            registry_attr=_CHOOSER_TASK_REGISTRY,
+        )
+    else:
+        spawn_pump_free_task(
+            owner,
+            _submit(),
+            name="archive-restore-submit",
+            registry_attr=_CHOOSER_TASK_REGISTRY,
+        )
+
+
 def _present_archive_chooser(
     owner: Any,
     key: str,
@@ -408,9 +441,9 @@ def _present_archive_chooser(
         if result_key is None:
             return
         if result_key == CHOICE_RESTORE:
-            run_archive_restore(owner)
+            _submit_archive_restore(owner)
         elif result_key == CHOICE_RESTORE_SHOW:
-            run_archive_restore(owner, and_show=True)
+            _submit_archive_restore(owner, and_show=True)
         elif result_key == CHOICE_FORK:
             if captured_agent is None:
                 notify_owner(

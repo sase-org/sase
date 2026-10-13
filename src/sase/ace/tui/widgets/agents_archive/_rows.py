@@ -170,7 +170,8 @@ def _format_run(item: ArchiveListItem, ctx: ArchiveRenderContext) -> Text:
         + cell_len(glyph)
     )
     parts = _suffix_parts(item)
-    restored = " ⌂ restored" if item.key in ctx.restored_keys else ""
+    is_restored = item.key in ctx.restored_keys
+    restored = " ⌂ restored" if is_restored else ""
     restored_width = cell_len(restored)
     for dropped in ("model", "runtime", "exception"):
         if ctx.width - fixed - _suffix_width(parts) - restored_width >= _MIN_NAME_WIDTH:
@@ -190,7 +191,11 @@ def _format_run(item: ArchiveListItem, ctx: ArchiveRenderContext) -> Text:
     line.append(" " * (max(0, ctx.outcome_width - outcome.cell_len) + _GAP))
     if glyph:
         line.append(glyph, style=ARCHIVE_CHROME_STYLE)
-    line.append(name, style="bold" if item.kind == ITEM_CONTAINER else "")
+    if item.kind == ITEM_CONTAINER:
+        name_style = "bold dim" if is_restored else "bold"
+    else:
+        name_style = "dim" if is_restored else ""
+    line.append(name, style=name_style)
     if restored:
         line.append(restored, style=ARCHIVE_CHROME_STYLE)
     if parts:

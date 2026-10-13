@@ -53,8 +53,14 @@ class AgentReviveExecutionMixin(AgentReviveStateMixin, ArtifactRestorationMixin)
         agent: object,
         *,
         selection_scope: object | None = None,
+        quiet: bool = False,
+        on_revive_loaded: Any | None = None,
     ) -> AgentReviveDelta:
-        """Revive a dismissed agent by removing it from the dismissed set."""
+        """Revive a dismissed agent by removing it from the dismissed set.
+
+        ``quiet`` suppresses this path's own toasts and Inbox auto-reveal
+        for Archive callers; see :meth:`_do_revive_agents`.
+        """
         from ....dismissed_agents import mark_bundles_revived_by_suffixes
         from ...models import Agent
         from ...modals import SelectionItem
@@ -82,7 +88,8 @@ class AgentReviveExecutionMixin(AgentReviveStateMixin, ArtifactRestorationMixin)
             )
         if not _durably_revivable(agent):
             message = _revive_block_message(agent)
-            self.notify(message, severity="warning")  # type: ignore[attr-defined]
+            if not quiet:
+                self.notify(message, severity="warning")  # type: ignore[attr-defined]
             return AgentReviveDelta(
                 failed=(
                     revive_failure_for_agent(
@@ -211,9 +218,10 @@ class AgentReviveExecutionMixin(AgentReviveStateMixin, ArtifactRestorationMixin)
                 error=exc,
                 selection_scope=scope,
             )
-            self.notify(  # type: ignore[attr-defined]
-                f"Failed to revive {agent.display_name}: {exc}", severity="error"
-            )
+            if not quiet:
+                self.notify(  # type: ignore[attr-defined]
+                    f"Failed to revive {agent.display_name}: {exc}", severity="error"
+                )
             return AgentReviveDelta(
                 failed=(
                     revive_failure_for_agent(
@@ -238,7 +246,8 @@ class AgentReviveExecutionMixin(AgentReviveStateMixin, ArtifactRestorationMixin)
             selection_scope=scope,
         )
 
-        self.notify(f"Revived agent for {agent.display_name}")  # type: ignore[attr-defined]
+        if not quiet:
+            self.notify(f"Revived agent for {agent.display_name}")  # type: ignore[attr-defined]
 
         delta = AgentReviveDelta(
             revived=tuple(revived_records),
@@ -276,11 +285,25 @@ class AgentReviveExecutionMixin(AgentReviveStateMixin, ArtifactRestorationMixin)
                     selection_scope=revived_scope,
                 )
 
+        def _on_quiet_revive_loaded() -> None:
+            try:
+                from ._archive_controller import refresh_archive_inbox_pulse
+
+                refresh_archive_inbox_pulse(self)
+            except Exception:
+                pass
+            hook = on_revive_loaded
+            if callable(hook):
+                try:
+                    hook()
+                except Exception:
+                    pass
+
         schedule_revive_artifact_delta_refresh(
             self,
             revived_artifact_dirs,
             reason="revive_agent_archive_refresh",
-            on_complete=_on_revive_loaded,
+            on_complete=_on_quiet_revive_loaded if quiet else _on_revive_loaded,
         )
         return delta
 
@@ -291,11 +314,21 @@ class AgentReviveExecutionMixin(AgentReviveStateMixin, ArtifactRestorationMixin)
         selection_scope: object | None = None,
         group_id: str | None = None,
         group_title: str | None = None,
+        quiet: bool = False,
+        on_revive_loaded: Any | None = None,
     ) -> AgentReviveDelta | bool:
         """Revive multiple dismissed agents in a single batch.
 
         Batches disk operations for efficiency: one dismissed-index removal
         and one _load_agents() call instead of N each.
+
+        Archive restore callers pass ``quiet=True`` so the batch emits no
+        toast of its own: the Archive reports one summary toast with skip
+        and failure reasons. In quiet mode the batch also skips its Inbox
+        auto-reveal (which would move the parked Inbox selection, agent
+        tab, folds, and jump anchors while the Archive is active) and
+        instead repaints the Inbox pulse, then runs ``on_revive_loaded``
+        when provided (restore-and-show's reveal).
         """
         from ....dismissed_agents import mark_bundles_revived_by_suffixes
         from ...models import Agent as AgentModel
@@ -455,9 +488,10 @@ class AgentReviveExecutionMixin(AgentReviveStateMixin, ArtifactRestorationMixin)
             succeeded_suffixes.update(suffixes_map.get(agent.identity, set()))
 
         if not succeeded:
-            self.notify(  # type: ignore[attr-defined]
-                f"Failed to revive {batch_size} agents", severity="error"
-            )
+            if not quiet:
+                self.notify(  # type: ignore[attr-defined]
+                    f"Failed to revive {batch_size} agents", severity="error"
+                )
             return AgentReviveDelta(
                 failed=tuple(failed_records),
                 dismiss_revive_epoch_before=epoch_before,
@@ -529,9 +563,11 @@ class AgentReviveExecutionMixin(AgentReviveStateMixin, ArtifactRestorationMixin)
                         message=str(exc),
                     )
                 )
-            self.notify(  # type: ignore[attr-defined]
-                f"Failed to revive {len(succeeded)} agents: {exc}", severity="error"
-            )
+            if not quiet:
+                self.notify(  # type: ignore[attr-defined]
+                    f"Failed to revive {len(succeeded)} agents: {exc}",
+                    severity="error",
+                )
             return AgentReviveDelta(
                 failed=tuple(failed_records),
                 dismiss_revive_epoch_before=epoch_before,
@@ -562,7 +598,8 @@ class AgentReviveExecutionMixin(AgentReviveStateMixin, ArtifactRestorationMixin)
 
         # Phase 4: Single notification and async refresh
         count = len(succeeded)
-        self.notify(f"Revived {count} agent{'s' if count != 1 else ''}")  # type: ignore[attr-defined]
+        if not quiet:
+            self.notify(f"Revived {count} agent{'s' if count != 1 else ''}")  # type: ignore[attr-defined]
 
         delta = AgentReviveDelta(
             revived=tuple(revived_records),
@@ -600,10 +637,28 @@ class AgentReviveExecutionMixin(AgentReviveStateMixin, ArtifactRestorationMixin)
                     )
                     break
 
+        def _on_quiet_revive_loaded() -> None:
+            # The revive landed: bump the Inbox pulse at once without
+            # waiting for the next full reload, then hand restore-and-show
+            # its reveal. The parked Inbox selection, agent tab, folds,
+            # and jump anchors are never touched here.
+            try:
+                from ._archive_controller import refresh_archive_inbox_pulse
+
+                refresh_archive_inbox_pulse(self)
+            except Exception:
+                pass
+            hook = on_revive_loaded
+            if callable(hook):
+                try:
+                    hook()
+                except Exception:
+                    pass
+
         schedule_revive_artifact_delta_refresh(
             self,
             revived_artifact_dirs,
             reason="revive_agents_archive_refresh",
-            on_complete=_on_revive_loaded,
+            on_complete=_on_quiet_revive_loaded if quiet else _on_revive_loaded,
         )
         return delta

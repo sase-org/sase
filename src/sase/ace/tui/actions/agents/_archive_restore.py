@@ -23,7 +23,7 @@ from ._archive_restore_keys import (
     collect_archive_restore_keys,
     hydrate_archive_candidate,
 )
-from ._archive_restore_run import run_archive_restore
+from ._archive_restore_run import run_archive_restore, run_archive_restore_async
 from ._archive_restore_types import (
     CHOICE_COPY_MORE,
     CHOICE_COPY_REF,
@@ -52,4 +52,5 @@ __all__ = [
     "open_archive_chat",
     "open_archive_chooser",
     "run_archive_restore",
+    "run_archive_restore_async",
 ]

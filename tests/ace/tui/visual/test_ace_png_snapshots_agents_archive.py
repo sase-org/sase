@@ -551,6 +551,58 @@ async def test_archive_restored_overlay_png_snapshot(
         )
 
 
+async def test_archive_restored_row_with_toast_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A real Archive restore paints the dimmed row with its single toast."""
+    from textual.widgets._toast import Toast
+
+    from sase.ace.tui.actions.agents._archive_restore import run_archive_restore
+    from tests.ace.tui.visual._ace_png_snapshot_helpers import stabilize_toast_frame
+
+    patch_startup_loaders(monkeypatch, agents=[_inbox_agent()])
+    pin_agents_visual_now(monkeypatch, NOW)
+    async with AcePage(
+        initial_tab="agents", size=(120, 40), notifications=True
+    ) as page:
+        await wait_for_startup(page)
+        await _open_archive(page, _list_history())
+
+        selected = page.app._agents_archive_view.archive.selected_key
+        assert selected is not None and "@" in selected
+        agent = SimpleNamespace(
+            identity=("agent", "today.done", None),
+            agent_name="today.done",
+            display_name="today.done",
+        )
+        monkeypatch.setattr(
+            "sase.ace.tui.actions.agents._archive_reader._load_archive_bundle",
+            lambda _owner, _row: {"unreadable": False, "agent": agent},
+        )
+        monkeypatch.setattr(
+            page.app,
+            "_do_revive_agents",
+            lambda agents: SimpleNamespace(failed=[]),
+        )
+        summary = run_archive_restore(page.app)
+        assert [name for _key, name in summary.restored] == ["today.done"]
+        await page.wait_for(
+            lambda _state: bool(list(page.app.screen.query(Toast))), timeout=15.0
+        )
+        await _wait_for_svg(page, "is back in the inbox")
+        await _settle_archive_detail(page)
+        await wait_for_visual_idle(page)
+        await stabilize_toast_frame(page)
+        assert_page_svg_contains(page, "⌂ restored")
+        assert_page_svg_contains(page, "is back in the inbox")
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_archive_restored_toast_120x40",
+            title="ACE Agents Archive restored row with toast",
+        )
+
+
 def _archive_chooser_choices(*, marked: int = 0) -> tuple[Any, ...]:
     from sase.ace.tui.actions.agents._archive_restore_types import (
         CHOICE_COPY_MORE,
