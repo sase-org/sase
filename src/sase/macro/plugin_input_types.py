@@ -44,6 +44,7 @@ def _clear_plugin_input_type_registry_cache() -> None:
 
 def _discovery_snapshot(
     files: list[dict[str, str]] | None,
+    known: list[str] | None = None,
 ) -> tuple[tuple[Any, ...], list[dict[str, str]]]:
     from sase.main.plugin_discovery import (
         discover_macro_plugin_distributions,
@@ -53,10 +54,11 @@ def _discovery_snapshot(
     if files is None:
         files = discover_macro_plugin_input_type_files()
     # Known distributions independently of manifests, for cache identity.
-    try:
-        known = discover_macro_plugin_distributions()
-    except Exception:
-        known = []
+    if known is None:
+        try:
+            known = discover_macro_plugin_distributions()
+        except Exception:
+            known = []
     disabled = (
         os.environ.get("SASE_DISABLE_PLUGINS"),
         os.environ.get("SASE_DISABLE_PLUGIN_MACROS"),
@@ -100,20 +102,22 @@ def get_plugin_input_type_registry(
     """
     from sase.macro.load_issues import record_load_issue
 
-    key, files = _discovery_snapshot(files)
+    # Compute the known-distribution list once per call and reuse it for
+    # both the cache key and the binding payload.
+    from sase.main.plugin_discovery import (
+        discover_macro_plugin_distributions,
+    )
+
+    try:
+        known = discover_macro_plugin_distributions()
+    except Exception:
+        known = []
+    key, files = _discovery_snapshot(files, known=known)
     store = _cache_store()
     cached = store.get(key)
     if cached is None:
         binding = require_rust_binding("load_macro_input_type_registry")
         # Pass known distributions so manifest-less plugins stay known.
-        from sase.main.plugin_discovery import (
-            discover_macro_plugin_distributions,
-        )
-
-        try:
-            known = discover_macro_plugin_distributions()
-        except Exception:
-            known = []
         payload = binding({"files": files, "known_distributions": known})
         registry = payload.get("registry", {})
         diagnostics = tuple(payload.get("diagnostics", []))

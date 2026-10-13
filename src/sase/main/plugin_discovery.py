@@ -8,7 +8,9 @@ import importlib.metadata
 import importlib.resources
 import logging
 import os
+import sys
 from collections.abc import Mapping
+from dataclasses import dataclass
 from pathlib import Path
 from types import ModuleType
 
@@ -99,14 +101,79 @@ def macro_plugins_disabled(
     return bool(env.get(MACRO_PLUGIN_DISABLE_ENV))
 
 
-def _discover_macro_plugin_entry_points() -> list[importlib.metadata.EntryPoint]:
-    """Return deduplicated macro plugin entry points, canonical group first.
+#: Process-local key for installed macro plugins: sys.path, dir mtimes, controls.
+_InstallSignature = tuple[
+    tuple[str, ...], tuple[int | None, ...], tuple[str | None, ...]
+]
 
-    The canonical ``sase_macros`` group always loads; the retired plugin
-    group is always accepted as an alias. Deduplication keys on the
-    entry-point value (distribution resource identity), so a dual
-    registration loads once with the canonical spelling winning.
+
+def _install_signature() -> _InstallSignature:
+    """Return a cheap process-local key for installed macro plugins.
+
+    The key is ``tuple(sys.path)`` plus ``st_mtime_ns`` for each existing
+    ``sys.path`` directory, mirroring the mtime-keyed path cache
+    ``importlib.metadata`` already uses, plus the raw values of the plugin
+    disable controls. Installing or uninstalling a distribution changes a
+    directory mtime and invalidates the memo.
+
+    Known edge (docstring note only): a dist-info edited in place without a
+    directory-level change keeps the old entry points until restart. This
+    matches how a running TUI already keeps its imported code.
     """
+    paths = tuple(sys.path)
+    mtimes: list[int | None] = []
+    for entry in paths:
+        candidate = entry or os.getcwd()
+        try:
+            if os.path.isdir(candidate):
+                mtimes.append(os.stat(candidate).st_mtime_ns)
+            else:
+                mtimes.append(None)
+        except OSError:
+            mtimes.append(None)
+    disabled = (
+        os.environ.get("SASE_DISABLE_PLUGINS"),
+        os.environ.get(MACRO_PLUGIN_DISABLE_ENV),
+        os.environ.get(LEGACY_MACRO_PLUGIN_DISABLE_ENV),
+    )
+    return (paths, tuple(mtimes), disabled)
+
+
+@dataclass
+class _DiscoveryMemo:
+    """Single-entry memo for macro-plugin discovery under one signature."""
+
+    key: _InstallSignature
+    entry_points: list[importlib.metadata.EntryPoint] | None = None
+    input_type_files: list[dict[str, str]] | None = None
+    distributions: list[str] | None = None
+
+
+_MEMO: _DiscoveryMemo | None = None
+
+
+def _clear_macro_plugin_discovery_memo() -> None:
+    """Drop the process-local macro-plugin discovery memo.
+
+    Cache-clear hook for tests that patch ``importlib.metadata.entry_points``,
+    the discovery functions, or ``sys.path``. Test imports of this private
+    helper are allowed.
+    """
+    global _MEMO
+    _MEMO = None
+
+
+def _memo_entry() -> _DiscoveryMemo:
+    """Return the memo entry for the current install signature."""
+    global _MEMO
+    key = _install_signature()
+    if _MEMO is None or _MEMO.key != key:
+        _MEMO = _DiscoveryMemo(key=key)
+    return _MEMO
+
+
+def _scan_macro_plugin_entry_points() -> list[importlib.metadata.EntryPoint]:
+    """Run the unmemoized macro plugin entry-point scan."""
     groups = [CANONICAL_PLUGIN_GROUP, RETIRED_PLUGIN_GROUP]
     entry_points: list[importlib.metadata.EntryPoint] = []
     seen: set[str] = set()
@@ -120,6 +187,28 @@ def _discover_macro_plugin_entry_points() -> list[importlib.metadata.EntryPoint]
             seen.add(ep.value)
             entry_points.append(ep)
     return entry_points
+
+
+def _discover_macro_plugin_entry_points() -> list[importlib.metadata.EntryPoint]:
+    """Return deduplicated macro plugin entry points, canonical group first.
+
+    The canonical ``sase_macros`` group always loads; the retired plugin
+    group is always accepted as an alias. Deduplication keys on the
+    entry-point value (distribution resource identity), so a dual
+    registration loads once with the canonical spelling winning.
+
+    Results are memoized per process under :func:`_install_signature`. The
+    disable controls are consulted on every call before the memo lookup so
+    their retired-alias collision error is preserved. Callers get fresh list
+    copies so nobody can mutate the cached value.
+    """
+    # Consulted for its collision error only; the key already carries the
+    # raw control values.
+    macro_plugins_disabled()
+    entry = _memo_entry()
+    if entry.entry_points is None:
+        entry.entry_points = _scan_macro_plugin_entry_points()
+    return list(entry.entry_points)
 
 
 def discover_macro_plugin_modules() -> list[ModuleType]:
@@ -155,9 +244,22 @@ def discover_macro_plugin_input_type_files() -> list[dict[str, str]]:
     Returns:
         List of ``{"distribution", "module", "path"}`` dicts, sorted for
         determinism.
+
+    Results are memoized per process under :func:`_install_signature`;
+    callers get fresh list copies. A disabled call drops the memo, so
+    re-enabling always rescans.
     """
     if macro_plugins_disabled():
+        _clear_macro_plugin_discovery_memo()
         return []
+    entry = _memo_entry()
+    if entry.input_type_files is None:
+        entry.input_type_files = _scan_macro_plugin_input_type_files()
+    return [dict(record) for record in entry.input_type_files]
+
+
+def _scan_macro_plugin_input_type_files() -> list[dict[str, str]]:
+    """Run the unmemoized ``input_types.yml`` manifest scan."""
     records: list[dict[str, str]] = []
     for ep in _discover_macro_plugin_entry_points():
         try:
@@ -213,9 +315,22 @@ def discover_macro_plugin_distributions() -> list[str]:
     Uses the same enumeration as
     :func:`discover_macro_plugin_input_type_files` but keeps inventory
     independently of whether a manifest exists.
+
+    Results are memoized per process under :func:`_install_signature`;
+    callers get a fresh list copy. A disabled call drops the memo, so
+    re-enabling always rescans.
     """
     if macro_plugins_disabled():
+        _clear_macro_plugin_discovery_memo()
         return []
+    entry = _memo_entry()
+    if entry.distributions is None:
+        entry.distributions = _scan_macro_plugin_distributions()
+    return list(entry.distributions)
+
+
+def _scan_macro_plugin_distributions() -> list[str]:
+    """Run the unmemoized macro-plugin distribution inventory."""
     names: set[str] = set()
     for ep in _discover_macro_plugin_entry_points():
         dist = getattr(ep, "dist", None)

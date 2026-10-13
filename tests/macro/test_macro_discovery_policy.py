@@ -10,6 +10,7 @@ command/resource-path propagation.
 from __future__ import annotations
 
 import importlib.metadata
+import os
 import sys
 from pathlib import Path
 from types import ModuleType
@@ -306,6 +307,80 @@ class TestLspDiscoveryPolicy:
         from sase.integrations.macro_lsp import SASE_MACRO_PACKAGE_DIR_ENV
 
         assert env[SASE_MACRO_PACKAGE_DIR_ENV] == str(package_dir)
+
+
+class TestDiscoveryMemoInvalidation:
+    def _counting_entry_points(self, monkeypatch: pytest.MonkeyPatch) -> list[int]:
+        real_entry_points = importlib.metadata.entry_points
+        calls = [0]
+
+        def counting_entry_points(*args: object, **kwargs: object) -> object:
+            calls[0] += 1
+            return real_entry_points(*args, **kwargs)
+
+        monkeypatch.setattr(importlib.metadata, "entry_points", counting_entry_points)
+        return calls
+
+    def test_memo_hit_skips_rescan(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from sase.main import plugin_discovery as discovery
+
+        calls = self._counting_entry_points(monkeypatch)
+        first = discovery.discover_macro_plugin_distributions()
+        assert calls[0] > 0
+        assert discovery.discover_macro_plugin_distributions() == first
+        assert discovery.discover_macro_plugin_input_type_files() == (
+            discovery.discover_macro_plugin_input_type_files()
+        )
+        # The repeat calls above served every slot from the memo.
+        rescans = calls[0]
+        discovery.discover_macro_plugin_distributions()
+        discovery.discover_macro_plugin_input_type_files()
+        assert calls[0] == rescans
+
+    def test_disable_env_and_syspath_mtime_invalidate_memo(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from sase.main import plugin_discovery as discovery
+
+        calls = self._counting_entry_points(monkeypatch)
+        discovery.discover_macro_plugin_distributions()
+        baseline = calls[0]
+        assert baseline > 0
+        discovery.discover_macro_plugin_distributions()
+        assert calls[0] == baseline
+
+        monkeypatch.setenv("SASE_DISABLE_PLUGIN_MACROS", "1")
+        assert discovery.discover_macro_plugin_distributions() == []
+        assert calls[0] == baseline
+        monkeypatch.delenv("SASE_DISABLE_PLUGIN_MACROS")
+        discovery.discover_macro_plugin_distributions()
+        assert calls[0] > baseline
+
+        monkeypatch.syspath_prepend(str(tmp_path))
+        before_touch = calls[0]
+        discovery.discover_macro_plugin_distributions()
+        after_prepend = calls[0]
+        assert after_prepend > before_touch
+        discovery.discover_macro_plugin_distributions()
+        assert calls[0] == after_prepend
+        touched = tmp_path.stat().st_mtime_ns + 2_000_000_000
+        os.utime(tmp_path, ns=(touched, touched))
+        discovery.discover_macro_plugin_distributions()
+        assert calls[0] > after_prepend
+
+    def test_mutating_returned_lists_leaves_memo_intact(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from sase.main import plugin_discovery as discovery
+
+        _patch_entry_points(
+            monkeypatch,
+            [("only", "fake_plugin_mod", "sase_macros")],
+        )
+        first = discovery._discover_macro_plugin_entry_points()
+        assert len(first) == 1
+        first.clear()
+        assert len(discovery._discover_macro_plugin_entry_points()) == 1
 
 
 class TestRustCatalogPolicy:

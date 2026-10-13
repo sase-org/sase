@@ -120,6 +120,41 @@ def test_named_type_rejects_authored_choices_override():
         )
 
 
+def test_repeated_registry_calls_skip_entry_point_rescans(monkeypatch):
+
+    real_entry_points = importlib.metadata.entry_points
+    calls = [0]
+
+    def counting_entry_points(*args, **kwargs):
+        calls[0] += 1
+        return real_entry_points(*args, **kwargs)
+
+    monkeypatch.setattr(importlib.metadata, "entry_points", counting_entry_points)
+    first = get_plugin_input_type_registry()
+    assert calls[0] > 0
+    rescans = calls[0]
+    second = get_plugin_input_type_registry()
+    assert calls[0] == rescans
+    assert second == first
+    third = get_plugin_input_type_registry()
+    assert calls[0] == rescans
+    assert third == first
+
+
+def test_catalog_snippets_identical_with_and_without_memo():
+    from sase.ace.tui.prompt_catalog import build_prompt_catalog_snapshot
+    from sase.main.plugin_discovery import _clear_macro_plugin_discovery_memo
+
+    _clear_macro_plugin_discovery_memo()
+    _clear_plugin_input_type_registry_cache()
+    cold = build_prompt_catalog_snapshot(generation=0, projects=())
+    assert cold is not None
+    warm = build_prompt_catalog_snapshot(generation=0, projects=())
+    assert warm is not None
+    assert dict(warm.snippets) == dict(cold.snippets)
+    assert dict(warm.explicit_snippets) == dict(cold.explicit_snippets)
+
+
 def test_discovery_uses_entry_points_and_distributions(monkeypatch):
     from sase.main import plugin_discovery as discovery
 
