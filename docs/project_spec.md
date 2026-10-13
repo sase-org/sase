@@ -230,7 +230,7 @@ default. It accepts the provider prefixes, owner/repository forms, URLs, SSH ref
 supported paths recognized by the workspace provider:
 
 ```bash
-sase project add REF [-a|--alias ALIAS]... [-c|--check] [-j|--json] [-m|--make-current] [-n|--name NAME] [-S|--no-setup | -s|--setup] [-y|--yes]
+sase project add REF [-a|--alias ALIAS]... [-c|--check] [-j|--json] [-m|--make-current] [-n|--name NAME] [-S|--no-setup | -s|--setup] [-Q|--request-path PATH] [-R|--result-path PATH] [-y|--yes]
 ```
 
 Use `--check` first to inspect the plan; it never resolves a ref or writes project or
@@ -249,12 +249,16 @@ unless it runs as an approved `/sase_gate` option or `SASE_PROJECT_CREATE_BYPASS
 a reason:
 
 ```bash
-sase project create REF [-a|--alias ALIAS]... [-c|--check] [-d|--description TEXT] [-j|--json] [-m|--make-current] [-n|--name NAME] [-O|--option KEY=VALUE]... [-S|--no-setup | -s|--setup] [-v|--visibility VISIBILITY] [-y|--yes]
+sase project create REF [-a|--alias ALIAS]... [-c|--check] [-d|--description TEXT] [-j|--json] [-m|--make-current] [-n|--name NAME] [-O|--option KEY=VALUE]... [-S|--no-setup | -s|--setup] [-Q|--request-path PATH] [-R|--result-path PATH] [-v|--visibility VISIBILITY] [-y|--yes]
 ```
 
 ```bash
 sase project suggest [PROVIDER] [-a|--all] [-j|--json] [-o|--owner OWNER]... [-r|--refresh]
 ```
+
+`-Q`/`--request-path` and `-R`/`--result-path` on `add` and `create` name the private
+operation request and result sidecars. When omitted, those paths come from
+`$SASE_PROC_REQUEST_PATH` and `$SASE_PROC_RESULT_PATH`.
 
 ### Current Project
 

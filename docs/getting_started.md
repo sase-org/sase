@@ -240,6 +240,10 @@ To create a repository and register it, preview with `sase project create REF --
 then apply with `--yes`. Create apply is human-only: agents propose the exact
 `sase project create … --yes` command through `/sase_gate`.
 
+The same add and create flows are in sase's TUI. Open the Admin Center with `#`, switch
+to Projects (`5`), and press `n`. See
+[Add or create a project](ace.md#add-or-create-a-project).
+
 ## Step 6 — Hand Off Existing Work With Artifact References
 
 An agent handoff is more reliable when it names the exact prior artifact instead of

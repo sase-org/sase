@@ -557,8 +557,8 @@ ranks the repositories worth adding as projects, grouped as `RESUME`, `ON THIS M
 cache-first per owner and read-only: nothing is cloned, created, or registered, so
 agents may call it freely. `-o` restricts discovery to the named owners, `-r` bypasses
 the cached repository lists, and `-a` includes the hidden rows (sidecars, forks,
-archived repositories, and existing projects) that are otherwise only counted in the
-footer.
+archived repositories, enabled projects, numbered clone copies, and third-party local
+checkouts) that are otherwise only counted in the footer.
 
 `sase project add REF [-a|--alias ALIAS]... [-c|--check] [-j|--json] [-m|--make-current] [-n|--name NAME] [-S|--no-setup | -s|--setup] [-Q|--request-path PATH] [-R|--result-path PATH] [-y|--yes]`
 registers an existing repository. `--check` is read-only and emits one plan document
@@ -578,7 +578,9 @@ create subprocess. `--check` lists every provider option with its default, value
 availability, and is available to agents. Apply refuses inside agents and monitors
 (exit 2) unless it runs as an approved `/sase_gate` option or
 `SASE_PROJECT_CREATE_BYPASS` holds a reason. Repeating the same command resumes an
-interrupted create.
+interrupted create. `-Q`/`--request-path` and `-R`/`--result-path` on `add` and `create`
+select the private proc request and result sidecars, defaulting to
+`$SASE_PROC_REQUEST_PATH` and `$SASE_PROC_RESULT_PATH`.
 
 `sase project alias list [PROJECT] [-j|--json]`, `add PROJECT ALIAS`,
 `remove PROJECT ALIAS`, and `clear PROJECT` manage ProjectSpec aliases. sase's TUI
