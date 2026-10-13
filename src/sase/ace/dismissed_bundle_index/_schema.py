@@ -16,6 +16,7 @@ from ._bundle_io import (
 )
 from ._models import SCHEMA_VERSION, DismissedBundleSummary
 from ._summary import summary_from_bundle
+from ._lock import bounded_dismissed_index_operation_lock
 
 
 def _connect(root: Path, *, create: bool = True) -> sqlite3.Connection:
@@ -38,23 +39,25 @@ def _connect(root: Path, *, create: bool = True) -> sqlite3.Connection:
 def connection(root: Path, *, create: bool = True) -> Iterator[sqlite3.Connection]:
     """Open an index connection, commit/rollback work, and always close it."""
 
-    with closing(_connect(root, create=create)) as conn:
-        with conn:
-            yield conn
+    with bounded_dismissed_index_operation_lock():
+        with closing(_connect(root, create=create)) as conn:
+            with conn:
+                yield conn
 
 
 @contextmanager
 def write_connection(root: Path) -> Iterator[sqlite3.Connection]:
     """Open an index connection and run the caller inside BEGIN IMMEDIATE."""
 
-    with closing(_connect(root)) as conn:
-        try:
-            conn.execute("BEGIN IMMEDIATE")
-            yield conn
-            conn.commit()
-        except Exception:
-            conn.rollback()
-            raise
+    with bounded_dismissed_index_operation_lock():
+        with closing(_connect(root)) as conn:
+            try:
+                conn.execute("BEGIN IMMEDIATE")
+                yield conn
+                conn.commit()
+            except Exception:
+                conn.rollback()
+                raise
 
 
 def _ensure_schema(conn: sqlite3.Connection, root: Path) -> None:

@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 from sase.core.agent_scan_facade import default_agent_artifact_index_path
+from sase.core.agent_artifact_index_lock import agent_artifact_index_operation_lock
 from sase.core.paths import sase_home
 from sase.core.rust import require_rust_binding
 from sase.stats.ranges import bucket_seconds_for
@@ -60,21 +61,22 @@ def query_run_stats(
         else bucket_seconds_for(start_ts, end_ts)
     )
     binding = require_rust_binding("agent_stats_query_runs")
-    payload: dict[str, Any] = binding(
-        str(resolved_index),
-        {
-            "start_ts": int(start_ts),
-            "end_ts": int(end_ts),
-            "runtime_group_by": _normalize_runtime_group_by(runtime_group_by),
-            "bucket_seconds": int(resolved_bucket_seconds),
-            "top_n": int(top_n),
-            "project": project,
-            "work_top_n": int(work_top_n),
-            "macro_top_n": int(macro_top_n),
-            "macro_breakdown_top_n": int(macro_breakdown_top_n),
-            "macro_focus": macro_focus,
-        },
-    )
+    with agent_artifact_index_operation_lock():
+        payload: dict[str, Any] = binding(
+            str(resolved_index),
+            {
+                "start_ts": int(start_ts),
+                "end_ts": int(end_ts),
+                "runtime_group_by": _normalize_runtime_group_by(runtime_group_by),
+                "bucket_seconds": int(resolved_bucket_seconds),
+                "top_n": int(top_n),
+                "project": project,
+                "work_top_n": int(work_top_n),
+                "macro_top_n": int(macro_top_n),
+                "macro_breakdown_top_n": int(macro_breakdown_top_n),
+                "macro_focus": macro_focus,
+            },
+        )
     return payload
 
 
@@ -97,16 +99,17 @@ def query_activity_stats(
         else default_agent_artifact_index_path(resolved_home)
     )
     binding = require_rust_binding("agent_stats_query_activity")
-    payload: dict[str, Any] = binding(
-        str(resolved_index),
-        str(resolved_home),
-        {
-            "start_ts": int(start_ts),
-            "end_ts": int(end_ts),
-            "top_n": int(top_n),
-            "project": project,
-        },
-    )
+    with agent_artifact_index_operation_lock():
+        payload: dict[str, Any] = binding(
+            str(resolved_index),
+            str(resolved_home),
+            {
+                "start_ts": int(start_ts),
+                "end_ts": int(end_ts),
+                "top_n": int(top_n),
+                "project": project,
+            },
+        )
     return payload
 
 

@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import json
+import logging
 import sqlite3
 import threading
+from datetime import UTC, datetime
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
@@ -36,6 +38,7 @@ _REBUILD_LOCKS_GUARD = threading.Lock()
 _REBUILD_LOCKS: dict[str, threading.Lock] = {}
 _REBUILD_PROGRESS_GUARD = threading.Lock()
 _REBUILD_PROGRESS: dict[str, int] = {}
+log = logging.getLogger(__name__)
 
 
 def dismissed_bundle_index_progress(root: Path) -> DismissedBundleIndexProgress:
@@ -235,15 +238,20 @@ def rebuild_index(root: Path) -> DismissedBundleIndexRebuildResult:
         try:
             root.mkdir(parents=True, exist_ok=True)
             paths = iter_bundle_paths(root)
-            with write_connection(root) as conn:
-                conn.execute("DELETE FROM dismissed_bundle_summaries")
-                conn.execute("DELETE FROM dismissed_bundle_search_fts")
-                indexed = rebuild_rows_from_bundles(
-                    conn,
-                    root,
-                    paths=paths,
-                    on_progress=lambda rows: _set_rebuild_progress(key, rows),
+            try:
+                with write_connection(root) as conn:
+                    indexed = _rebuild_rows(conn, root, paths, key)
+            except sqlite3.DatabaseError as error:
+                if not _is_corrupt_database_error(error):
+                    raise
+                quarantine = _quarantine_corrupt_index(root)
+                if quarantine is None:
+                    raise
+                log.warning(
+                    "quarantined corrupt dismissed bundle index at %s", quarantine
                 )
+                with write_connection(root) as conn:
+                    indexed = _rebuild_rows(conn, root, paths, key)
             skipped = max(0, len(paths) - indexed)
         finally:
             _clear_rebuild_progress(key)
@@ -251,6 +259,56 @@ def rebuild_index(root: Path) -> DismissedBundleIndexRebuildResult:
         indexed_rows=indexed,
         skipped_corrupt=skipped,
     )
+
+
+def _rebuild_rows(
+    conn: sqlite3.Connection, root: Path, paths: list[Path], key: str
+) -> int:
+    conn.execute("DELETE FROM dismissed_bundle_summaries")
+    conn.execute("DELETE FROM dismissed_bundle_search_fts")
+    return rebuild_rows_from_bundles(
+        conn,
+        root,
+        paths=paths,
+        on_progress=lambda rows: _set_rebuild_progress(key, rows),
+    )
+
+
+def _is_corrupt_database_error(error: sqlite3.DatabaseError) -> bool:
+    return getattr(error, "sqlite_errorcode", None) in {
+        getattr(sqlite3, "SQLITE_NOTADB", 26),
+        getattr(sqlite3, "SQLITE_CORRUPT", 11),
+    }
+
+
+def _quarantine_corrupt_index(root: Path) -> Path | None:
+    db_path = index_path_for_root(root)
+    try:
+        failed_stat = db_path.stat()
+    except OSError:
+        return None
+    timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+    target = db_path.with_name(f"{db_path.name}.corrupt-{timestamp}")
+    try:
+        current_stat = db_path.stat()
+        if (current_stat.st_dev, current_stat.st_ino) != (
+            failed_stat.st_dev,
+            failed_stat.st_ino,
+        ):
+            return None
+        db_path.rename(target)
+        for suffix in ("-wal", "-shm"):
+            sibling = Path(f"{db_path}{suffix}")
+            if sibling.exists():
+                sibling.rename(Path(f"{target}{suffix}"))
+    except OSError:
+        log.warning(
+            "could not quarantine corrupt dismissed bundle index %s",
+            db_path,
+            exc_info=True,
+        )
+        return None
+    return target
 
 
 def _root_key(root: Path) -> str:

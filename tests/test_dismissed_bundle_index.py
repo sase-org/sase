@@ -24,6 +24,7 @@ from sase.ace.dismissed_bundle_index import (
     archive_index_exists,
     dismissed_bundle_index_progress,
     rebuild_index,
+    index_signature,
     query_summary_identities,
 )
 from sase.ace.tui.models.agent import AgentType
@@ -99,6 +100,19 @@ def test_dismissed_bundle_index_rebuild_and_query(tmp_path: Path) -> None:
         }
         assert any(summary.is_workflow_child for summary in summaries)
         assert load_dismissed_bundle_summaries(project_name="bundles") == []
+
+
+def test_rebuild_quarantines_and_recreates_corrupt_index(tmp_path: Path) -> None:
+    bundles_dir = tmp_path / "bundles"
+    bundles_dir.mkdir()
+    index_path = bundles_dir / "index.sqlite"
+    index_path.write_bytes(b"not a sqlite database")
+
+    result = rebuild_index(bundles_dir)
+
+    assert result.indexed_rows == 0
+    assert index_signature(bundles_dir) is not None
+    assert list(bundles_dir.glob("index.sqlite.corrupt-*"))
 
 
 def test_dismissed_bundle_index_query_summaries_supports_offset(

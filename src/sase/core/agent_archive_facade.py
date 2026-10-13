@@ -327,14 +327,17 @@ def compile_agent_archive_corpus(
     compiles to an empty corpus.
     """
     binding = require_rust_binding("compile_agent_archive_corpus")
-    handle = binding(
-        {
-            "root": str(root),
-            "index_status": dict(index_status),
-            "timezone": timezone or _default_archive_timezone_name(),
-            "link_facets": _link_facets_wire(link_facets),
-        }
-    )
+    from sase.ace.dismissed_bundle_index._lock import dismissed_index_operation_lock
+
+    with dismissed_index_operation_lock():
+        handle = binding(
+            {
+                "root": str(root),
+                "index_status": dict(index_status),
+                "timezone": timezone or _default_archive_timezone_name(),
+                "link_facets": _link_facets_wire(link_facets),
+            }
+        )
     status_details = handle.status()
     status_name = (
         status_details.get("status") if isinstance(status_details, Mapping) else None

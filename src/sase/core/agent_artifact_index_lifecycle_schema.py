@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import sqlite3
+from contextlib import closing
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -126,7 +127,9 @@ def _read_agent_artifact_index_schema_status(
 def _read_stored_index_schema_version(index: Path) -> int | None:
     """Read stored schema metadata without invoking Rust index migration."""
     try:
-        with sqlite3.connect(f"{index.resolve().as_uri()}?mode=ro", uri=True) as conn:
+        with closing(
+            sqlite3.connect(f"{index.resolve().as_uri()}?mode=ro", uri=True)
+        ) as conn:
             row = conn.execute(
                 "SELECT value FROM meta WHERE key = ?",
                 (_INDEX_SCHEMA_META_KEY,),

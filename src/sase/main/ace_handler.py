@@ -2,6 +2,7 @@
 
 import argparse
 import asyncio
+import faulthandler
 import logging
 import os
 import sys
@@ -13,6 +14,7 @@ from typing import TYPE_CHECKING, Any, Literal, NoReturn, cast
 from sase.ace.query import QueryParseError
 from sase.core.clipboard import copy_to_system_clipboard
 from sase.core.paths import get_sase_managed_tmpdir, shorten_path
+from sase.core.paths import sase_home
 from sase.core.time import local_now
 
 if TYPE_CHECKING:
@@ -25,6 +27,28 @@ _RESTART_FILTER_FLAGS = frozenset(
 )
 _TUI_COMMAND = "tui"
 _LEGACY_ACE_COMMAND = "ace"
+_TUI_FAULT_LOG: Any | None = None
+
+
+def _enable_tui_faulthandler() -> None:
+    """Keep fatal-signal Python stacks in a durable per-user TUI log."""
+    global _TUI_FAULT_LOG
+    if _TUI_FAULT_LOG is not None:
+        return
+    try:
+        log_path = sase_home() / "logs" / "tui_faults.log"
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        fault_log = log_path.open("a", encoding="utf-8", buffering=1)
+        from sase import __version__
+
+        fault_log.write(
+            f"\n[{time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())}] "
+            f"pid={os.getpid()} sase={__version__}\n"
+        )
+        faulthandler.enable(file=fault_log, all_threads=True)
+        _TUI_FAULT_LOG = fault_log
+    except (OSError, RuntimeError, ValueError):
+        log.exception("could not enable TUI faulthandler logging")
 
 
 def _profile_output_path(profile_arg: str) -> str:
@@ -200,6 +224,7 @@ def handle_ace_command(args: argparse.Namespace) -> None:
     # ``log.exception(...)`` calls) to a durable, findable ~/.sase/logs/tui.log
     # so "see the log" failure toasts always have something to point at.
     install_tui_file_logging()
+    _enable_tui_faulthandler()
 
     # Wire --vcs-provider to env var for downstream resolution
     vcs_provider = getattr(args, "vcs_provider", None)

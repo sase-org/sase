@@ -15,6 +15,7 @@ import sqlite3
 from sase.ace.dismissed_bundle_index import DismissedBundleSummary
 from sase.core.agent_scan_facade import default_agent_artifact_index_path
 from sase.core.agent_scan_wire import SUPPORTED_AGENT_ARTIFACT_INDEX_SCHEMA_VERSIONS
+from sase.core.agent_artifact_index_lock import try_agent_artifact_index_operation_lock
 from sase.core.dismissed_agents_facade import load_dismissed_bundle_summaries
 
 # Only the columns the catalog's kind/attribute derivation actually needs.
@@ -96,6 +97,13 @@ def load_artifact_index_projection(
     )
     if not path.is_file():
         return _ArtifactIndexProjection(diagnostic="agent artifact index is missing")
+    with try_agent_artifact_index_operation_lock(2.0) as acquired:
+        if not acquired:
+            return _ArtifactIndexProjection(diagnostic="agent artifact index is busy")
+        return _load_artifact_index_projection_locked(path)
+
+
+def _load_artifact_index_projection_locked(path: Path) -> _ArtifactIndexProjection:
     columns_sql = ", ".join(_ARTIFACT_INDEX_COLUMNS)
     try:
         connection = sqlite3.connect(f"file:{path}?mode=ro", uri=True, timeout=0.25)
