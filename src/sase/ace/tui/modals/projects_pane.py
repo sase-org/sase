@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
-from textual import events, on
+from textual import events
 from textual.app import ComposeResult
 from textual.binding import BindingsMap
 from textual.containers import Vertical, VerticalScroll
@@ -25,7 +24,7 @@ from sase.ace.tui.util.selection import ProgrammaticSelectionGuard
 from sase.core.paths import sase_projects_dir
 from sase.current_project import CurrentProject, resolve_current_project
 from sase.core.project_lifecycle_facade import list_project_records
-from sase.core.project_lifecycle_wire import ProjectRecordWire, effective_project_name
+from sase.core.project_lifecycle_wire import ProjectRecordWire
 from sase.macro.loader import get_known_project_workspaces
 from sase.main.project_handler import (
     ProjectLifecycleBlockedError,
@@ -35,15 +34,16 @@ from sase.main.project_handler import (
 )
 
 from ..actions.navigation.jump_hints import normalize_jump_key
-from .base import FilterInput, OptionListNavigationMixin
-from .config_center_session import ProjectsSessionState, ProjectsSubTab
-from .pane_entry_jump import PaneEntryJumpMixin
-from .inventory_project_picker import (
-    InventoryProjectChoice,
-    InventoryProjectPicker,
-    InventoryProjectPickerResult,
+from ._projects_pane_shared import (
+    SUBTAB_WIDGET_IDS,
+    SUBTABS,
+    CurrentProjectSnapshot,
+    ProjectsFilterInput,
 )
+from .base import OptionListNavigationMixin
+from .config_center_session import ProjectsSessionState, ProjectsSubTab
 from .project_management_actions import ProjectManagementActionsMixin
+from .projects_pane_current import ProjectsPaneCurrentMixin
 from .projects_pane_init_actions import ProjectsPaneInitActionsMixin
 from .project_inventory_counts import (
     ProjectCountsLoadResult,
@@ -54,39 +54,19 @@ from .project_management_rendering import (
     ProjectInventoryCounts,
     column_header_text,
 )
-from .project_inventory_pane_base import InventoryProjectFilterRequested
 from .project_inventory_panes import (
     RepoInventoryPane,
     WorkspaceInventoryPane,
 )
-from ..widgets.panel_tab_strip import PanelTab, PanelTabStrip
+from .projects_pane_new import ProjectsPaneNewMixin
+from .projects_pane_subtabs import ProjectsPaneSubtabsMixin
+from ..widgets.panel_tab_strip import PanelTabStrip
 
-_SUBTAB_ORDER: tuple[ProjectsSubTab, ...] = (
-    "projects",
-    "repos",
-    "workspaces",
-)
-_SUBTAB_WIDGET_IDS: dict[ProjectsSubTab, str] = {
-    "projects": "projects-subtab-projects",
-    "repos": "projects-subtab-repos",
-    "workspaces": "projects-subtab-workspaces",
-}
-_SUBTABS: tuple[PanelTab, ...] = tuple(
-    PanelTab(tab, tab.title(), "#FFAF5F") for tab in _SUBTAB_ORDER
-)
 _PendingForce = tuple[tuple[str, ...], str]
 _CURRENT_PROJECT_RESOLVE_GROUP = "current-project-resolve"
 
 
-@dataclass(frozen=True, slots=True)
-class _CurrentProjectSnapshot:
-    """Resolved current project plus the accent computed off-thread."""
-
-    project: CurrentProject | None
-    accent: str
-
-
-def _resolve_current_project_snapshot() -> _CurrentProjectSnapshot:
+def _resolve_current_project_snapshot() -> CurrentProjectSnapshot:
     """Resolve the current project and its accent off the UI thread."""
 
     try:
@@ -100,47 +80,14 @@ def _resolve_current_project_snapshot() -> _CurrentProjectSnapshot:
                 among = tuple(get_known_project_workspaces())
             accent = project_accent(project.project_key, among=among)
     except Exception:  # noqa: BLE001 - display reads always degrade.
-        return _CurrentProjectSnapshot(project=None, accent="")
-    return _CurrentProjectSnapshot(project=project, accent=accent)
-
-
-def _current_project_owner(project: CurrentProject | None) -> str:
-    """Return the GitHub owner encoded in a canonical project key."""
-
-    if project is None or project.workflow_type != "gh":
-        return ""
-    key = project.project_key
-    if not key.startswith("gh_") or "__" not in key:
-        return ""
-    return key.removeprefix("gh_").split("__", 1)[0]
-
-
-class _ProjectsFilterInput(FilterInput):
-    """Filter input that forwards printable sub-tab cycle keys."""
-
-    def on_key(self, event: events.Key) -> None:
-        pane = self._pane()
-        if pane is None:
-            return
-        if event.key in split_key_alternatives(pane._keymaps.cycle_subtab_reverse):
-            event.stop()
-            event.prevent_default()
-            pane.action_cycle_subtab_reverse()
-        elif event.key in split_key_alternatives(pane._keymaps.cycle_subtab):
-            event.stop()
-            event.prevent_default()
-            pane.action_cycle_subtab()
-
-    def _pane(self) -> ProjectsPane | None:
-        node: object | None = self.parent
-        while node is not None:
-            if isinstance(node, ProjectsPane):
-                return node
-            node = getattr(node, "parent", None)
-        return None
+        return CurrentProjectSnapshot(project=None, accent="")
+    return CurrentProjectSnapshot(project=project, accent=accent)
 
 
 class ProjectsPane(
+    ProjectsPaneNewMixin,
+    ProjectsPaneSubtabsMixin,
+    ProjectsPaneCurrentMixin,
     ProjectsPaneInitActionsMixin,
     ProjectManagementActionsMixin,
     ProjectListControllerMixin,
@@ -224,23 +171,23 @@ class ProjectsPane(
 
     def compose(self) -> ComposeResult:
         yield PanelTabStrip(
-            _SUBTABS,
+            SUBTABS,
             self._active_subtab,
             uppercase_active=True,
             id="projects-subtabs",
         )
         with ContentSwitcher(
-            initial=_SUBTAB_WIDGET_IDS[self._active_subtab],
+            initial=SUBTAB_WIDGET_IDS[self._active_subtab],
             id="projects-subtab-switcher",
         ):
-            with Vertical(id=_SUBTAB_WIDGET_IDS["projects"]):
+            with Vertical(id=SUBTAB_WIDGET_IDS["projects"]):
                 yield Static(self._summary_text(), id="projects-summary")
                 yield Button(
                     "Show new project",
                     id="projects-show-new-project",
                     variant="primary",
                 )
-                yield _ProjectsFilterInput(
+                yield ProjectsFilterInput(
                     placeholder="Type to filter projects...",
                     id="projects-filter",
                 )
@@ -264,7 +211,7 @@ class ProjectsPane(
                 project_filter=self._session_state.repos_project_filter,
                 on_project_filter_changed=self._set_repos_project_filter,
                 keymaps=self._keymaps,
-                id=_SUBTAB_WIDGET_IDS["repos"],
+                id=SUBTAB_WIDGET_IDS["repos"],
             )
             yield WorkspaceInventoryPane(
                 projects_root=self._projects_root,
@@ -273,7 +220,7 @@ class ProjectsPane(
                 project_filter=self._session_state.workspaces_project_filter,
                 on_project_filter_changed=self._set_workspaces_project_filter,
                 keymaps=self._keymaps,
-                id=_SUBTAB_WIDGET_IDS["workspaces"],
+                id=SUBTAB_WIDGET_IDS["workspaces"],
             )
 
     def on_mount(self) -> None:
@@ -323,7 +270,7 @@ class ProjectsPane(
 
     def _filter_has_focus(self) -> bool:
         try:
-            return self.query_one("#projects-filter", _ProjectsFilterInput).has_focus
+            return self.query_one("#projects-filter", ProjectsFilterInput).has_focus
         except Exception:
             return False
 
@@ -433,85 +380,6 @@ class ProjectsPane(
             group=_CURRENT_PROJECT_RESOLVE_GROUP,
         )
 
-    def _store_current_project_session(self) -> None:
-        self._session_state.current_project_key = self._current_project_key
-        self._session_state.current_project_name = self._current_project_name
-        self._session_state.current_project_accent = self._current_project_accent
-
-    def _apply_current_project_display(self, event: Worker.StateChanged) -> None:
-        if event.state == WorkerState.CANCELLED:
-            return
-        if event.state != WorkerState.SUCCESS:
-            if not self._current_project_loaded:
-                self._current_project_loaded = True
-                self._repaint_for_current_project()
-            self._open_pending_new_project()
-            return
-        result = event.worker.result
-        if isinstance(result, _CurrentProjectSnapshot):
-            project = result.project
-            self._current_project = project
-            self._current_project_key = None if project is None else project.project_key
-            self._current_project_name = (
-                None if project is None else project.display_name
-            )
-            self._current_project_accent = result.accent
-        else:
-            self._current_project = None
-            self._current_project_key = None
-            self._current_project_name = None
-            self._current_project_accent = ""
-        self._current_project_loaded = True
-        self._store_current_project_session()
-        self._repaint_for_current_project()
-        self._open_pending_new_project()
-
-    def _open_pending_new_project(self) -> None:
-        if not self._pending_new_project_open or not self._current_project_loaded:
-            return
-        self._pending_new_project_open = False
-        self._open_new_project_wizard()
-
-    def _repaint_for_current_project(self) -> None:
-        """Repaint for a resolve without moving the user's highlighted row.
-
-        The resolve lands whenever its thread finishes, which can be before
-        the pane has handled the ``OptionHighlighted`` message for a row the
-        user just moved to. A bare ``_refresh_options()`` would fall back to
-        the stale session bookmark and yank the highlight back, so pin the
-        live highlight the way the inventory worker's completion does.
-        """
-
-        self._refresh_options(preferred_project=self._selected_project_name())
-
-    def _apply_current_project_seed(self, event: Worker.StateChanged) -> None:
-        if event.state not in (WorkerState.SUCCESS, WorkerState.ERROR):
-            return
-        if self._session_state.project_filter_seeded:
-            return
-        self._session_state.project_filter_seeded = True
-        result = event.worker.result if event.state == WorkerState.SUCCESS else None
-        project = (
-            result.project if isinstance(result, _CurrentProjectSnapshot) else None
-        )
-        if not isinstance(project, CurrentProject):
-            return
-        project_key = project.project_key
-        if project_key not in {record.project_name for record in self._records}:
-            return
-        try:
-            repos_pane = self.query_one(RepoInventoryPane)
-            if repos_pane.project_filter is None:
-                repos_pane.set_project_filter(project_key)
-        except Exception:
-            pass
-        try:
-            workspaces_pane = self.query_one(WorkspaceInventoryPane)
-            if workspaces_pane.project_filter is None:
-                workspaces_pane.set_project_filter(project_key)
-        except Exception:
-            pass
-
     def on_worker_state_changed(self, event: Worker.StateChanged) -> None:
         if event.worker is self._current_project_set_worker:
             self._apply_set_current_project_outcome(event)
@@ -563,315 +431,6 @@ class ProjectsPane(
             aliases,
             projects_root=self._projects_root,
         )
-
-    @on(PanelTabStrip.TabClicked)
-    def _on_subtab_clicked(self, event: PanelTabStrip.TabClicked) -> None:
-        event.stop()
-        if event.tab_id in _SUBTAB_ORDER:
-            self._switch_to_subtab(cast(ProjectsSubTab, event.tab_id))
-
-    @on(InventoryProjectFilterRequested)
-    def _on_inventory_project_filter_requested(
-        self,
-        event: InventoryProjectFilterRequested,
-    ) -> None:
-        event.stop()
-        self._open_project_picker(event.pane)
-
-    def _open_project_picker(
-        self,
-        pane: RepoInventoryPane | WorkspaceInventoryPane,
-    ) -> None:
-        choices: list[InventoryProjectChoice] = []
-        for record in self._records:
-            counts = self._counts_for(record)
-            display = effective_project_name(record)
-            if display != record.project_name:
-                display = f"{display} ({record.project_name})"
-            choices.append(
-                InventoryProjectChoice(
-                    project_key=record.project_name,
-                    display_name=display,
-                    state=record.state,
-                    repo_count=counts.repo_count,
-                    workspace_count=counts.workspace_count,
-                )
-            )
-
-        def on_picked(result: InventoryProjectPickerResult | None) -> None:
-            if result is not None:
-                pane.set_project_filter(result.project_key)
-                pane.focus_default()
-
-        self.app.push_screen(
-            InventoryProjectPicker(
-                choices,
-                current_project=pane.project_filter,
-            ),
-            on_picked,
-        )
-
-    def _exit_subtab_jump_modes(self) -> None:
-        """Drop any painted hints so a sub-tab switch cannot strand them."""
-
-        panes: list[PaneEntryJumpMixin] = [self]
-        try:
-            panes.append(self.query_one(RepoInventoryPane))
-            panes.append(self.query_one(WorkspaceInventoryPane))
-        except Exception:
-            pass
-        for pane in panes:
-            if pane.jump_mode_active:
-                pane.exit_jump_mode()
-
-    def _switch_to_subtab(self, subtab: ProjectsSubTab) -> None:
-        self._exit_subtab_jump_modes()
-        self._active_subtab = subtab
-        self._session_state.active_subtab = subtab
-        try:
-            self.query_one(
-                "#projects-subtab-switcher", ContentSwitcher
-            ).current = _SUBTAB_WIDGET_IDS[subtab]
-            self.query_one("#projects-subtabs", PanelTabStrip).set_active_tab(subtab)
-        except Exception:
-            return
-        self.focus_default()
-
-    def _set_repos_project_filter(self, project_key: str | None) -> None:
-        self._session_state.repos_project_filter = project_key
-
-    def _set_workspaces_project_filter(self, project_key: str | None) -> None:
-        self._session_state.workspaces_project_filter = project_key
-
-    def _cycle_subtab(self, step: int) -> None:
-        index = _SUBTAB_ORDER.index(self._active_subtab)
-        self._switch_to_subtab(_SUBTAB_ORDER[(index + step) % len(_SUBTAB_ORDER)])
-
-    def action_cycle_subtab(self) -> None:
-        self._cycle_subtab(1)
-
-    def action_cycle_subtab_reverse(self) -> None:
-        self._cycle_subtab(-1)
-
-    def action_focus_filter(self) -> None:
-        self.query_one("#projects-filter", _ProjectsFilterInput).focus()
-
-    def _show_selected_project_inventory(self, subtab: ProjectsSubTab) -> None:
-        record = self._selected_record()
-        if record is None:
-            self._set_status("No project selected")
-            return
-        if subtab == "repos":
-            pane: RepoInventoryPane | WorkspaceInventoryPane = self.query_one(
-                RepoInventoryPane
-            )
-        else:
-            pane = self.query_one(WorkspaceInventoryPane)
-        pane.set_project_filter(record.project_name)
-        self._switch_to_subtab(subtab)
-
-    def action_show_project_repos(self) -> None:
-        self._show_selected_project_inventory("repos")
-
-    def action_show_project_workspaces(self) -> None:
-        self._show_selected_project_inventory("workspaces")
-
-    def action_new_project(self) -> None:
-        """Open the New Project wizard and integrate its selected result."""
-        needs_context = not self._current_project_loaded or (
-            self._current_project is None and bool(self._current_project_key)
-        )
-        if needs_context:
-            self._pending_new_project_open = True
-            worker_state = getattr(self._current_project_resolve_worker, "state", None)
-            if worker_state not in {WorkerState.PENDING, WorkerState.RUNNING}:
-                self._start_current_project_resolve()
-            return
-        self._open_new_project_wizard()
-
-    def _open_new_project_wizard(self) -> None:
-        from .new_project_modal import NewProjectModal, NewProjectSelection
-
-        def on_dismissed(result: object | None) -> None:
-            if isinstance(result, NewProjectSelection):
-                self._handle_new_project_selection(result)
-
-        current = self._current_project
-        workflow_type = current.workflow_type if current is not None else ""
-        self.app.push_screen(
-            NewProjectModal(
-                current_workflow_type=workflow_type,
-                current_project_owner=_current_project_owner(current),
-            ),
-            on_dismissed,
-        )
-
-    def _handle_new_project_selection(self, result: Any) -> None:
-        if result.outcome in {"show", "show-project", "added"}:
-            if self.is_mounted:
-                self._integrate_added_project(
-                    str(result.project_key or ""),
-                    outcome=str(result.outcome),
-                    operation_id=str(getattr(result, "operation_id", "") or ""),
-                )
-            return
-        if result.outcome == "jump-resume" and result.row is not None:
-            proc_id = str(result.row.data.get("proc_id") or "")
-            opener = getattr(self.app, "_open_config_center", None)
-            if callable(opener):
-                if proc_id:
-                    opener("procs", proc_focus_target=proc_id)
-                else:
-                    opener("procs")
-
-    def _integrate_added_project(
-        self,
-        project_key: str,
-        *,
-        outcome: str = "added",
-        operation_id: str = "",
-    ) -> None:
-        """Reload and select an added project, preserving a filter that hides it.
-
-        Duplicate delivery of one wizard/apply operation (the durable proc
-        completion plus its matching Ready dismissal) integrates once. A later
-        independent ``show``, ``show-project``, or ``added`` outcome for the
-        same key reloads and selects again.
-        """
-        if not self.is_mounted:
-            return
-        if (
-            operation_id
-            and project_key
-            and project_key == self._last_integrated_project_key
-            and operation_id == self._last_integrated_operation_id
-        ):
-            return
-        if project_key:
-            self._last_integrated_project_key = project_key
-            self._last_integrated_operation_id = operation_id
-        self._switch_to_subtab("projects")
-        self._pending_force = None
-        loaded = self._load_records()
-        self._invalidate_current_project_indicator()
-        self._notify_lifecycle_changed()
-        self._warm_project_tag_catalog()
-        self._start_inventory_load()
-        self._start_current_project_resolve()
-        if not loaded:
-            self._refresh_options()
-            return
-
-        visible_keys = {record.project_name for record in self._filtered_records}
-        known_keys = {record.project_name for record in self._records}
-        if (
-            project_key in known_keys
-            and self._text_filter.strip()
-            and project_key not in visible_keys
-        ):
-            self._pending_show_project_key = project_key
-            self._set_status("New project is hidden by the current filter")
-            self._set_show_new_project_action(True)
-            self._refresh_options(preferred_project=self._selected_project_name())
-            return
-
-        self._pending_show_project_key = None
-        self._set_show_new_project_action(False)
-        if outcome == "show-project":
-            display = project_key
-            for record in self._records:
-                if record.project_name == project_key:
-                    display = effective_project_name(record)
-                    break
-            self._set_status(f"Showing {display}")
-        else:
-            self._set_status("Project added")
-        self._refresh_options(preferred_project=project_key or None)
-
-    def _warm_project_tag_catalog(self) -> None:
-        worker = self._tag_catalog_worker
-        if worker is not None and worker.state in {
-            WorkerState.PENDING,
-            WorkerState.RUNNING,
-        }:
-            return
-        from sase.project_tags import ensure_project_tag_catalog
-
-        self._tag_catalog_worker = self.run_worker(
-            ensure_project_tag_catalog,
-            thread=True,
-            exclusive=True,
-            exit_on_error=False,
-            group="project-tag-catalog",
-        )
-
-    def _set_show_new_project_action(self, visible: bool) -> None:
-        try:
-            self.query_one("#projects-show-new-project", Button).display = visible
-        except Exception:
-            pass
-        self._refresh_hints()
-
-    def action_help(self) -> None:
-        from .projects_help_modal import ProjectsHelpModal
-
-        self.app.push_screen(ProjectsHelpModal(keymaps=self._keymaps))
-
-    def action_show_new_project(self) -> None:
-        project_key = self._pending_show_project_key
-        if not project_key:
-            return
-        self._pending_show_project_key = None
-        self._set_show_new_project_action(False)
-        self._text_filter = ""
-        try:
-            self.query_one("#projects-filter", _ProjectsFilterInput).value = ""
-        except Exception:
-            pass
-        self._apply_filters()
-        self._set_status("Showing new project")
-        self._refresh_options(preferred_project=project_key)
-        self.focus_default()
-
-    @on(Button.Pressed, "#projects-show-new-project")
-    def _on_show_new_project_pressed(self, event: Button.Pressed) -> None:
-        event.stop()
-        self.action_show_new_project()
-
-    def _preferred_project_after_filter(self) -> str | None:
-        key = self._pending_show_project_key
-        if key is None:
-            return None
-        if any(record.project_name == key for record in self._filtered_records):
-            self._pending_show_project_key = None
-            self._set_show_new_project_action(False)
-            self._set_status("Showing new project")
-            return key
-        return None
-
-    def action_reload_projects(self) -> None:
-        self._reload_projects()
-
-    def _reload_projects(self, *, preferred_project: str | None = None) -> None:
-        if preferred_project and self._text_filter:
-            self._text_filter = ""
-            try:
-                self.query_one("#projects-filter", _ProjectsFilterInput).value = ""
-            except Exception:
-                pass
-            self._apply_filters()
-        selected = preferred_project or self._selected_project_name()
-        if not self._load_records():
-            self._pending_force = None
-            self._refresh_options(preferred_project=selected)
-            self.notify(self._status_message, severity="error")
-            self._start_current_project_resolve()
-            return
-        self._pending_force = None
-        self._set_status("Reloaded")
-        self._refresh_options(preferred_project=selected)
-        self._start_inventory_load()
-        self._start_current_project_resolve()
 
 
 __all__ = [

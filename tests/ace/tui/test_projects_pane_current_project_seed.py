@@ -22,9 +22,9 @@ from sase.ace.tui.modals.project_inventory_panes import (
     RepoInventoryPane,
     WorkspaceInventoryPane,
 )
+from sase.ace.tui.modals._projects_pane_shared import CurrentProjectSnapshot
 from sase.ace.tui.modals.projects_pane import (
     ProjectsPane,
-    _CurrentProjectSnapshot,
     _resolve_current_project_snapshot,
 )
 from sase.ace.tui.project_styles import project_accent
@@ -46,7 +46,7 @@ def _resolve_success(
     event = SimpleNamespace(
         state=WorkerState.SUCCESS,
         worker=SimpleNamespace(
-            result=_CurrentProjectSnapshot(project=project, accent=accent)
+            result=CurrentProjectSnapshot(project=project, accent=accent)
         ),
     )
     return cast(Worker.StateChanged, event)

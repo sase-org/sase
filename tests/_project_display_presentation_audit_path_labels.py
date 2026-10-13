@@ -163,12 +163,6 @@ _PATH_LABEL_EXEMPTIONS = (
         "Tmux workspace choices key on stable canonical identity.",
     ),
     _PathLabelExemption(
-        "src/sase/ace/tui/modals/revive_agent_modal.py",
-        "_agent_filter_label",
-        "Path(agent.project_file).parent.name",
-        "Search corpus intentionally spans canonical and display spellings.",
-    ),
-    _PathLabelExemption(
         "src/sase/ace/tui/models/_agent_associated_plan_paths.py",
         "agent_project_name",
         "Path(agent.project_file).parent.name",
