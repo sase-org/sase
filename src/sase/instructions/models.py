@@ -14,12 +14,12 @@ class SessionObservation:
     provider: str
     run_name: str
     session_id: str
-    contract_count: int
+    contract_count: int | None
     # Tri-state layer presence: True/False, or None when unverifiable.
     home: bool | None = None
     project: bool | None = None
     directive: bool | None = None
-    native_full_count: int = 0
+    native_full_count: int | None = 0
     # Provider-specific foreign-load signal (auto-memory, memory flag, ...).
     foreign: str | None = None
     helper_type: str | None = None
@@ -29,6 +29,15 @@ class SessionObservation:
     final_accepted: int = 0
     root_guard_denial: bool = False
     partial: bool = False
+    channels: dict[str, dict[str, int | bool | None]] = field(default_factory=dict)
+    bundle_count: int | None = None
+    delivery: str | None = None
+    home_expected: bool | None = None
+    helper_bundle: bool | None = None
+    root_bundle_in_helper: int | None = None
+    bundle_markers: tuple[tuple[str, str], ...] = field(
+        default_factory=tuple, repr=False
+    )
 
 
 @dataclass(frozen=True)
@@ -47,6 +56,9 @@ class ProviderRow:
     helpers: str = "—"
     root_denials: int = 0
     coverage: str = "0/0"
+    bundle: str = "◌"
+    delivery: str = "◌"
+    channels: dict[str, dict[str, int | bool | None]] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -74,6 +86,9 @@ class VerifyReport:
                 "helpers": row.helpers,
                 "root_denials": row.root_denials,
                 "coverage": row.coverage,
+                "bundle": row.bundle,
+                "delivery": row.delivery,
+                "channels": row.channels,
             }
             for row in self.provider_rows
         ]
@@ -90,6 +105,7 @@ class VerifyReport:
                     "run": obs.run_name,
                     "session": obs.session_id,
                     "contract_count": obs.contract_count,
+                    "channels": obs.channels,
                     "home": obs.home,
                     "project": obs.project,
                     "directive": obs.directive,
@@ -102,6 +118,11 @@ class VerifyReport:
                     "final_accepted": obs.final_accepted,
                     "root_guard_denial": obs.root_guard_denial,
                     "partial": obs.partial,
+                    "bundle_count": obs.bundle_count,
+                    "delivery": obs.delivery,
+                    "home_expected": obs.home_expected,
+                    "helper_bundle": obs.helper_bundle,
+                    "root_bundle_in_helper": obs.root_bundle_in_helper,
                 }
                 for obs in self.observations
             ]

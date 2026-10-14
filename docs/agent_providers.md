@@ -52,39 +52,47 @@ even when rows show bugs). A bad `--since` or `--until` value exits 2. See
 [Instruction Bundles](instruction_bundles.md) for the memory-built bundles behind these
 columns.
 
-| Column             | Meaning                                                                                          |
-| ------------------ | ------------------------------------------------------------------------------------------------ |
-| `manifest`         | Observed sessions with a shadow manifest for the same provider (`k/N`; agy counts runs).         |
-| `contract`         | Loaded sources carrying the `SASE Final Declaration` heading (`N×`, with the spread when mixed). |
-| `home`             | The current `~/AGENTS.md` first H1 was loaded.                                                   |
-| `project`          | The run workspace-root `AGENTS.md` first H1 was loaded.                                          |
-| `directive`        | The provider's single-turn directive marker was present.                                         |
-| `native-SASE-full` | Natively loaded files that carry the contract.                                                   |
-| `foreign`          | Claude auto-memory, or Grok's memory flag as `k/N`.                                              |
-| `helpers`          | Helper sessions by type, template presence, `sase final` attempts, and accepted declarations.    |
+| Column        | Meaning                                                                                            |
+| ------------- | -------------------------------------------------------------------------------------------------- |
+| `manifest`    | Observed sessions with a shadow manifest for the same provider (`k/N`; agy counts runs).           |
+| `bundle`      | Count of markers for the matched manifest invocation (`—` for legacy, `◌` when unobservable).      |
+| `delivery`    | `explicit`, `legacy:<reason>`, or `shadow` for the matched manifest.                               |
+| `contract`    | Occurrences of `SASE Final Declaration` across native and explicit sources.                        |
+| `home`        | Whether the home layer was loaded through either channel.                                          |
+| `project`     | Whether the project layer was loaded through either channel.                                       |
+| `directive`   | Whether the provider's single-turn directive appeared in either channel.                           |
+| `native-full` | Contract occurrences in native sources only.                                                       |
+| `foreign`     | Claude's exact auto-memory fingerprint, Codex foreign global AGENTS.md, or Grok memory state.      |
+| `helpers`     | Helper type, template, final attempts, accepted declarations, helper marker, and root-marker leak. |
 
-A session counts as covered when its run holds a manifest for the same execution
-provider rendered no later than the session start (5 s of skew allowed).
+A session first matches a manifest by its bundle marker's invocation id, then by the
+adapter-recorded session id, then by provider and render time (5 s of skew allowed).
 `sase instructions verify -c` prints the per-provider-purpose coverage table: manifests,
 sessions, covered, up to 10 uncovered `(agent, session)` pairs, shadow-failure
 (`.error.json`) counts, and warm/cold `render_ms` p50/p95. With `-a NAME`, each observed
 root session also gets its intended-vs-observed section table: every included manifest
 section with the count of loaded sources whose text contains it, split into `native` and
-`explicit` channels (frame and heading-only sections are skipped; `◌` marks partial or
-unverifiable sessions such as agy).
+`explicit` channels (frame and heading-only sections are skipped). Counts use non-
+overlapping occurrences. Partial transcripts retain counts found in the prefix; a row is
+`◌` only when no occurrence appears in a partial read.
 
 Symbols: `✓` present, `✗` absent, `◌` unverifiable (agy reports every instruction column
 as `◌`, with directive presence only when the conversation record exposes the prompt).
 
-Channels are counted separately as native versus explicit: natively loaded files are
-Claude `instructions` attachments, the Codex `# AGENTS.md instructions` block, Muse
-`rules_file` records, and Grok `agents_md_files`; explicit channels are the Claude
-`prompt_snapshot` append text, the Codex developer message, the Grok `<human_rules>`
-block in `system_prompt.txt`, and prompt prefixes. `sase doctor -D -C instructions` runs
-the same scoreboard as a deep-only group (`instructions.delivery` WARNs on rows that
-break contract 1×, project ✓, directive ✓, or native-full ≤ 1; `instructions.helpers`
-WARNs on any accepted helper declaration; `instructions.coverage` WARNs on observed
-sessions without a shadow manifest or any shadow failure).
+JSON includes a `channels` breakdown for each delivery column with native and explicit
+values. Native sources are Claude `instructions` attachments, the Codex
+`# AGENTS.md instructions` block, Muse `rules_file` records, and Grok `agents_md_files`.
+Explicit sources are Claude `prompt_snapshot.systemPrompt`, Codex developer messages,
+the Grok `<human_rules>` block, and Muse prompt prefixes. Muse `rules_file` content
+stays native even when it is also represented in run-context records.
+
+`sase doctor -D -C instructions` runs the deep checks. `instructions.delivery` applies
+the explicit contract (bundle 1×, contract 1×, project ✓, directive ✓, native-full 0,
+and home ✓ when present in the manifest) while retaining legacy expectations for
+non-explicit sessions. `instructions.conformance` WARNs on missing or duplicate root and
+helper markers and on non-declared delivery fallbacks. `instructions.helpers` WARNs on
+accepted helper declarations, and `instructions.coverage` WARNs on sessions without a
+shadow manifest or any shadow failure.
 
 ## Root and helper agents
 

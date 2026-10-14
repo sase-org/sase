@@ -49,6 +49,38 @@ def test_claude_baseline_root_row() -> None:
     assert fields["foreign"] == "auto-memory"
 
 
+def test_claude_auto_memory_requires_the_spike_fingerprint() -> None:
+    """A generic Memory heading or memory-file path is not auto-memory."""
+    records = _read_jsonl(FIXTURES / "claude" / "root.jsonl")
+    for record in records:
+        attachment = record.get("attachment")
+        if isinstance(attachment, dict) and attachment.get("type") == "prompt_snapshot":
+            attachment["systemPrompt"] = ["# Memory\n\nUser-authored memory note."]
+    fields = claude_parser.observe_claude_session(
+        records, home_h1=HOME_H1, project_h1=PROJECT_H1
+    )
+    assert fields["foreign"] is None
+
+
+def test_claude_explicit_channel_occurrences_are_counted() -> None:
+    """Contract headings in the system-prompt channel add to native counts."""
+    records = _read_jsonl(FIXTURES / "claude" / "root.jsonl")
+    for record in records:
+        attachment = record.get("attachment")
+        if isinstance(attachment, dict) and attachment.get("type") == "prompt_snapshot":
+            attachment["systemPrompt"] = [
+                "SASE single-turn print mode",
+                "#### SASE Final Declaration\nFirst.\n#### SASE Final Declaration\nSecond.",
+            ]
+    fields = claude_parser.observe_claude_session(
+        records, home_h1=HOME_H1, project_h1=PROJECT_H1
+    )
+    assert fields["contract_count"] == 4
+    assert fields["native_contract_count"] == 2
+    assert fields["contract_explicit"] == 2
+    assert fields["foreign"] is None
+
+
 def test_claude_baseline_helpers() -> None:
     """A general-purpose helper attempts and accepts; Explore loads nothing."""
     gp_records = _read_jsonl(FIXTURES / "claude" / "helper_gp.jsonl")
@@ -105,6 +137,33 @@ def test_codex_baseline_row() -> None:
     assert fields["project"] is True
     assert fields["directive"] is True
     assert fields["native_full_count"] == 2
+
+
+def test_codex_explicit_developer_channel_adds_occurrences() -> None:
+    """Developer instructions contribute separately from native AGENTS blocks."""
+    records = _read_jsonl(FIXTURES / "codex" / "rollout.jsonl")
+    records.append(
+        {
+            "payload": {
+                "type": "message",
+                "role": "developer",
+                "content": [
+                    {
+                        "text": (
+                            "#### SASE Final Declaration\nOne.\n"
+                            "#### SASE Final Declaration\nTwo."
+                        )
+                    }
+                ],
+            }
+        }
+    )
+    fields = codex_parser.observe_codex_session(
+        records, home_h1=HOME_H1, project_h1=PROJECT_H1
+    )
+    assert fields["contract_count"] == 4
+    assert fields["native_full_count"] == 2
+    assert fields["contract_explicit"] == 2
 
 
 def test_codex_legacy_two_block_shape() -> None:
@@ -177,6 +236,36 @@ def test_muse_baseline_row() -> None:
     assert fields["native_full_count"] == 1
 
 
+def test_muse_rules_file_is_not_attributed_to_prompt_prefix() -> None:
+    """A native rules record stays native when Muse also logs run context."""
+    records = _read_jsonl(FIXTURES / "muse" / "session.jsonl")
+    native, explicit = muse_parser.instruction_sources(records)
+    assert len(native) == 1
+    assert explicit == []
+    assert fp.count_contract_occurrences(native) == 1
+    assert fp.count_contract_occurrences(explicit) == 0
+
+
+def test_muse_prompt_prefix_adds_explicit_occurrences() -> None:
+    """Muse delivered prefixes count as explicit while rules stay native."""
+    records = _read_jsonl(FIXTURES / "muse" / "session.jsonl")
+    records.append(
+        {
+            "prompt": (
+                "#### SASE Final Declaration\nOne.\n"
+                "#### SASE Final Declaration\nTwo.\n\n"
+                "--- User Prompt ---\nPlease continue."
+            )
+        }
+    )
+    fields = muse_parser.observe_muse_session(
+        records, home_h1=HOME_H1, project_h1=PROJECT_H1
+    )
+    assert fields["contract_count"] == 3
+    assert fields["native_full_count"] == 1
+    assert fields["contract_explicit"] == 2
+
+
 def test_grok_baseline_row() -> None:
     """Grok roots get nothing: no contract, home, project, or directive."""
     context = json.loads(
@@ -209,6 +298,25 @@ def test_grok_after_state_row() -> None:
     assert fields["directive"] is True
     assert fields["project"] is True
     assert fields["native_full_count"] == 0
+
+
+def test_grok_home_is_detected_from_native_and_explicit_sources() -> None:
+    """Grok home is scored from loaded content rather than hard-coded false."""
+    context = {
+        "agents_md_files": [{"content": f"# {HOME_H1}\n\nHome memory."}],
+        "memory_v2_enabled": False,
+    }
+    system_prompt = f"<human_rules>\n# {PROJECT_H1}\n\nProject memory.\n</human_rules>"
+    fields = grok_parser.observe_grok_session(
+        context,
+        system_prompt,
+        home_h1=HOME_H1,
+        project_h1=PROJECT_H1,
+    )
+    assert fields["home"] is True
+    assert fields["project"] is True
+    assert fields["home_native"] is True
+    assert fields["project_explicit"] is True
 
 
 def test_baseline_table_aggregation() -> None:

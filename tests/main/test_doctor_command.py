@@ -251,6 +251,10 @@ def test_doctor_registry_includes_phase4_catalog_checks(tmp_path) -> None:
         "config.macro_directives",
     } <= ids
     assert {
+        "instructions.delivery",
+        "instructions.helpers",
+        "instructions.coverage",
+        "instructions.conformance",
         "config.skills.applied",
         "resources.chezmoi",
         "resources.ulimits",

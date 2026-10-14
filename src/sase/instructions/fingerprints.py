@@ -42,6 +42,17 @@ ROOT_ONLY_SKILLS: tuple[str, ...] = (
     "sase_sudo",
 )
 
+# Marker syntax is shared with ``llm_provider.instruction_delivery``. Keep
+# the matcher permissive about the UUID payload so archived manifests remain
+# readable if the invocation id representation ever changes.
+BUNDLE_MARKER_RE = re.compile(
+    r"<!--\s*sase-instructions\s+bundle=([0-9a-f]{12})\s+"
+    r"invocation=([^\s>]+)\s*-->"
+)
+CLAUDE_AUTO_MEMORY_HEADING = "# Memory"
+CLAUDE_AUTO_MEMORY_LEAD_IN = "You have a persistent file-based memory at"
+_CONTRACT_HEADING_RE = re.compile(r"(?m)^#{1,6}[ \t]+SASE Final Declaration[ \t]*$")
+
 
 def flatten_ws(text: str) -> str:
     """Collapse all whitespace runs to single spaces."""
@@ -56,6 +67,60 @@ def contains_contract(text: str) -> bool:
 def count_contract_sources(texts: list[str]) -> int:
     """Count loaded sources whose text carries the contract heading."""
     return sum(1 for text in texts if contains_contract(text))
+
+
+def count_occurrences(needle: str, text: str) -> int:
+    """Count non-overlapping occurrences after whitespace normalization."""
+    flattened_needle = flatten_ws(needle).strip()
+    if not flattened_needle:
+        return 0
+    return flatten_ws(text).count(flattened_needle)
+
+
+def count_contract_occurrences(texts: list[str]) -> int:
+    """Count every visible contract-heading occurrence in loaded sources."""
+    return sum(len(_CONTRACT_HEADING_RE.findall(text)) for text in texts)
+
+
+def contains_heading(text: str, expected_h1: str | None) -> bool:
+    """Return whether *text* contains an H1 with the expected title."""
+    if not text or expected_h1 is None:
+        return False
+    return any(line.strip() == f"# {expected_h1}" for line in text.splitlines())
+
+
+def bundle_markers(texts: list[str]) -> tuple[tuple[str, str], ...]:
+    """Return bundle marker ``(sha12, invocation_id)`` pairs in source order."""
+    return tuple(
+        (match.group(1), match.group(2))
+        for text in texts
+        for match in BUNDLE_MARKER_RE.finditer(text)
+    )
+
+
+def count_bundle_markers(
+    markers: tuple[tuple[str, str], ...],
+    invocation_id: str,
+    *,
+    bundle_sha256: str | None = None,
+) -> int:
+    """Count markers for an invocation, optionally requiring its bundle sha."""
+    expected_sha = bundle_sha256[:12] if bundle_sha256 else None
+    return sum(
+        1
+        for sha, invocation in markers
+        if invocation == invocation_id and (expected_sha is None or sha == expected_sha)
+    )
+
+
+def has_claude_auto_memory(snapshot: str) -> bool:
+    """Match the exact Claude auto-memory fingerprint recorded by the E3 spike."""
+    lines = snapshot.splitlines()
+    return any(
+        line.strip() == CLAUDE_AUTO_MEMORY_HEADING
+        and CLAUDE_AUTO_MEMORY_LEAD_IN in "\n".join(lines[index + 1 : index + 5])
+        for index, line in enumerate(lines)
+    )
 
 
 def first_h1(text: str) -> str | None:
@@ -83,6 +148,7 @@ def matches_h1(text: str, expected_h1: str | None) -> bool | None:
 __all__ = [
     "ACCEPTED_DECLARATION_OUTPUT",
     "AGY_DIRECTIVE_MARKER",
+    "BUNDLE_MARKER_RE",
     "CLAUDE_DIRECTIVE_MARKER",
     "CODEX_DIRECTIVE_MARKER",
     "CONTRACT_HEADING",
@@ -90,10 +156,18 @@ __all__ = [
     "GROK_DIRECTIVE_OPENING",
     "GUARD_DENY_REASON_PREFIX",
     "HELPER_TEMPLATE_FIRST_LINE",
+    "CLAUDE_AUTO_MEMORY_HEADING",
+    "CLAUDE_AUTO_MEMORY_LEAD_IN",
     "MUSE_DIRECTIVE_MARKER",
     "ROOT_ONLY_SKILLS",
     "contains_contract",
+    "contains_heading",
+    "bundle_markers",
+    "count_bundle_markers",
+    "count_contract_occurrences",
     "count_contract_sources",
+    "count_occurrences",
+    "has_claude_auto_memory",
     "first_h1",
     "flatten_ws",
     "matches_h1",

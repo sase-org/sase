@@ -272,7 +272,7 @@ def _run_instructions_render(args: argparse.Namespace) -> int:
         parity_failed = not report.ok
 
     if bool(getattr(args, "sections", False)):
-        _render_sections_table(compiled)
+        render_sections_table(compiled)
     elif bool(getattr(args, "json", False)):
         print(json.dumps(manifest, indent=2, sort_keys=True))
     else:
@@ -280,7 +280,7 @@ def _run_instructions_render(args: argparse.Namespace) -> int:
     return 1 if parity_failed else 0
 
 
-def _render_sections_table(compiled: Any) -> None:
+def render_sections_table(compiled: Any) -> None:
     """Print the Rich section table for *compiled* to stdout."""
     from rich.console import Console
     from rich.table import Table

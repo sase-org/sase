@@ -156,8 +156,7 @@ def _muse_texts(
     records, _ = runs.read_jsonl_capped(
         log_path, max_bytes=runs.ROOT_TRANSCRIPT_BYTE_CAP
     )
-    native = muse_parser.rules_texts(records)
-    explicit = muse_parser.prompt_texts(records)
+    native, explicit = muse_parser.instruction_sources(records)
     return native, explicit
 
 
@@ -167,7 +166,7 @@ class SectionDiffRow:
 
     id: str
     layer: str
-    observed: int
+    observed: int | None
     native: int
     explicit: int
 
@@ -229,15 +228,18 @@ def section_diff_for_session(
         flat_body = fp.flatten_ws(_strip_heading(body)).strip()
         if not flat_body:
             continue
-        native_hits = sum(1 for text in flat_native if flat_body in text)
-        explicit_hits = sum(1 for text in flat_explicit if flat_body in text)
+        native_hits = sum(fp.count_occurrences(flat_body, text) for text in flat_native)
+        explicit_hits = sum(
+            fp.count_occurrences(flat_body, text) for text in flat_explicit
+        )
+        total_hits = native_hits + explicit_hits
         rows.append(
             SectionDiffRow(
                 id=section_id,
                 layer=layer,
-                observed=0 if partial else native_hits + explicit_hits,
-                native=0 if partial else native_hits,
-                explicit=0 if partial else explicit_hits,
+                observed=None if partial and total_hits == 0 else total_hits,
+                native=native_hits,
+                explicit=explicit_hits,
             )
         )
     return SectionDiff(

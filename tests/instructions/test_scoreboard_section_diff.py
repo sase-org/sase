@@ -135,6 +135,36 @@ def test_diff_contract_sections_observed_twice(
     assert contract_rows[0].explicit == 0
 
 
+def test_diff_counts_repeated_section_body_in_one_source(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """One source containing a section twice contributes two occurrences."""
+    artifacts, manifest, bundle = write_shadow_run(tmp_path, provider="claude")
+    record = make_record(manifest, artifacts)
+    contract = _contract_body(bundle, manifest)
+    contract_body = contract.split("\n", 1)[1].strip()
+    claude_dir = tmp_path / "claude"
+    _write_claude_diff_session(
+        claude_dir, "root-repeat", [contract + "\n" + contract_body]
+    )
+    monkeypatch.setattr(run_mod, "claude_project_dir", lambda _cwd: claude_dir)
+    run = make_run("claude", "agent-repeat", artifacts)
+    session = coverage_mod.RootSession(
+        provider="claude",
+        run_name="agent-repeat",
+        artifact_dir=str(artifacts),
+        workspace_dir=WORKSPACE,
+        session_id="root-repeat",
+        session_start=COVERED_START,
+    )
+    diff = coverage_mod.section_diff_for_session(
+        session, run, [record], bundle_text=bundle
+    )
+    row = next(row for row in diff.rows if row.id == "pkg.root.final_declaration")
+    assert row.native == 2
+    assert row.observed == 2
+
+
 def test_diff_muse_home_sections_zero(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -228,7 +258,7 @@ def test_diff_grok_home_sections_zero(
 def test_diff_partial_and_missing_manifest_are_unavailable(
     tmp_path: Path,
 ) -> None:
-    """Partial observations zero the counts; missing manifests stay empty."""
+    """Partial observations keep prefix evidence; missing manifests stay empty."""
     artifacts, manifest, bundle = write_shadow_run(tmp_path)
     record = make_record(manifest, artifacts)
     run = make_run("codex", "agent-p", artifacts)
@@ -245,7 +275,7 @@ def test_diff_partial_and_missing_manifest_are_unavailable(
     )
     assert partial.unavailable is True
     assert partial.rows
-    assert all(row.observed == 0 for row in partial.rows)
+    assert all(row.observed is None for row in partial.rows)
     missing = coverage_mod.section_diff_for_session(
         coverage_mod.RootSession(
             provider="codex",

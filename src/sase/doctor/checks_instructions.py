@@ -35,6 +35,13 @@ def instructions_check_specs(context: DoctorContext) -> tuple[CheckSpec, ...]:
             runner=lambda: _check_instructions_coverage(context),
             deep=True,
         ),
+        CheckSpec(
+            id="instructions.conformance",
+            group="instructions",
+            title="Explicit instruction bundles conform to their manifests",
+            runner=lambda: _check_instructions_conformance(context),
+            deep=True,
+        ),
     )
 
 
@@ -63,25 +70,66 @@ def _check_instructions_delivery(context: DoctorContext) -> DiagnosticCheck:
     observations = collect_observations(scored)
     report = build_report(scored, observations, filters={})
     offenders: list[str] = []
-    for row in report.provider_rows:
-        if row.provider == "agy":
+    explicit_providers = {
+        item.provider
+        for item in report.observations
+        if item.helper_type is None and item.delivery == "explicit"
+    }
+    for item in report.observations:
+        if item.helper_type is not None or item.delivery != "explicit":
             continue
         reasons: list[str] = []
+        if item.bundle_count != 1:
+            reasons.append(
+                f"bundle {item.bundle_count if item.bundle_count is not None else '◌'}"
+            )
+        if item.contract_count != 1:
+            reasons.append(
+                f"contract {item.contract_count if item.contract_count is not None else '◌'}"
+            )
+        if item.home_expected and item.home is not True:
+            reasons.append(f"home {item.home if item.home is not None else '◌'}")
+        if item.project is not True:
+            reasons.append(
+                f"project {item.project if item.project is not None else '◌'}"
+            )
+        if item.directive is not True:
+            reasons.append(
+                f"directive {item.directive if item.directive is not None else '◌'}"
+            )
+        if item.native_full_count != 0:
+            reasons.append(
+                "native-full "
+                + (
+                    str(item.native_full_count)
+                    if item.native_full_count is not None
+                    else "◌"
+                )
+            )
+        if reasons:
+            offenders.append(
+                f"{item.provider} {item.run_name}/{item.session_id} "
+                f"({', '.join(reasons)})"
+            )
+    for row in report.provider_rows:
+        if row.provider == "agy" or row.provider in explicit_providers:
+            continue
+        row_reasons: list[str] = []
         if row.contract not in ("1×", "1× [1]"):
-            reasons.append(f"contract {row.contract}")
+            row_reasons.append(f"contract {row.contract}")
         if row.project != "✓":
-            reasons.append(f"project {row.project}")
+            row_reasons.append(f"project {row.project}")
         if row.directive != "✓":
-            reasons.append(f"directive {row.directive}")
+            row_reasons.append(f"directive {row.directive}")
         try:
             native_first = row.native_full.split("×")[0].strip()
             native_num = int(native_first) if native_first not in ("0", "◌") else 0
         except ValueError:
             native_num = 0
         if native_num > 1:
-            reasons.append(f"native-full {row.native_full}")
-        if reasons:
-            offenders.append(f"{row.provider} ({', '.join(reasons)})")
+            row_reasons.append(f"native-full {row.native_full}")
+        if row_reasons:
+            offenders.append(f"{row.provider} ({', '.join(row_reasons)})")
     if offenders:
         return DiagnosticCheck(
             id="instructions.delivery",
@@ -97,6 +145,169 @@ def _check_instructions_delivery(context: DoctorContext) -> DiagnosticCheck:
         title="Instruction delivery matches the contract",
         summary=f"{len(scored)} runs verified against the contract",
     )
+
+
+def _check_instructions_conformance(context: DoctorContext) -> DiagnosticCheck:
+    """Warn when explicit bundle markers or delivery fallbacks drift."""
+    from sase.instructions import run_index as run_mod
+    from sase.instructions.coverage_records import (
+        matching_manifests,
+        run_manifest_records,
+    )
+    from sase.instructions.coverage_sessions import root_sessions
+    from sase.instructions.fingerprints import count_bundle_markers
+    from sase.instructions.manifests import read_run_manifests
+
+    title = "Explicit instruction bundles conform to their manifests"
+    now = datetime.now(tz=UTC)
+    candidates = run_mod.enumerate_runs(
+        limit_per_provider=200,
+        since=now - timedelta(hours=24),
+        until=None,
+        project=context.project,
+        agent=None,
+        providers=(),
+    )
+    candidates.sort(key=lambda run: run.started_at, reverse=True)
+    selected: list[Any] = []
+    per_provider: dict[str, int] = {}
+    for run in candidates:
+        records = run_manifest_records(run.artifact_dir)
+        has_explicit = any(
+            not record.is_helper
+            and (
+                record.delivery_status == "explicit"
+                or record.fallback_reason in _NON_DECLARED_DELIVERY_FALLBACKS
+            )
+            for record in records
+        )
+        if not has_explicit:
+            continue
+        count = per_provider.get(run.provider, 0)
+        if count >= 10:
+            continue
+        per_provider[run.provider] = count + 1
+        selected.append(run)
+    if not selected:
+        return DiagnosticCheck(
+            id="instructions.conformance",
+            group="instructions",
+            status="SKIP",
+            title=title,
+            summary="no explicit instruction manifests in the last 24 hours",
+        )
+
+    sessions = root_sessions(selected)
+    from sase.instructions.verify import collect_observations
+
+    observations = {
+        (item.run_name, item.session_id): item
+        for item in collect_observations(selected)
+    }
+    problems: list[str] = []
+    for run in selected:
+        records = run_manifest_records(run.artifact_dir)
+        run_sessions = [
+            item for item in sessions if item.artifact_dir == run.artifact_dir
+        ]
+        roots = [record for record in records if not record.is_helper]
+        for record in roots:
+            if record.delivery_status != "explicit":
+                continue
+            matches = [
+                session
+                for session in run_sessions
+                if matching_manifests(session, [record])
+            ]
+            if not matches:
+                problems.append(
+                    f"{run.name} seq {record.seq}: no matching root session"
+                )
+                continue
+            for session in matches:
+                count = (
+                    count_bundle_markers(session.bundle_markers, record.invocation_id)
+                    if record.invocation_id
+                    else 0
+                )
+                if count != 1:
+                    problems.append(
+                        f"{run.name}/{session.session_id}: root marker {count}× "
+                        f"for invocation {record.invocation_id or 'unknown'}"
+                    )
+                delivery = record.manifest.get("delivery")
+                subagent = (
+                    delivery.get("subagent") if isinstance(delivery, dict) else None
+                )
+                if (
+                    not isinstance(subagent, dict)
+                    or subagent.get("status") != "explicit"
+                ):
+                    continue
+                helpers = [
+                    item
+                    for item in observations.values()
+                    if item.provider == "claude"
+                    and item.run_name == run.name
+                    and item.helper_type is not None
+                    and item.session_id.startswith(f"{session.session_id}/")
+                ]
+                for helper in helpers:
+                    if helper.helper_bundle is not True:
+                        problems.append(
+                            f"{run.name}/{helper.session_id}: helper marker missing"
+                        )
+                    if helper.root_bundle_in_helper:
+                        problems.append(
+                            f"{run.name}/{helper.session_id}: root marker leaked into helper"
+                        )
+
+        for entry in read_run_manifests(run.artifact_dir):
+            delivery = entry.manifest.get("delivery") if entry.manifest else None
+            fallback_reasons: list[str] = []
+            if isinstance(delivery, dict):
+                fallback = delivery.get("fallback")
+                if isinstance(fallback, dict) and isinstance(
+                    fallback.get("reason"), str
+                ):
+                    fallback_reasons.append(fallback["reason"])
+                subagent = delivery.get("subagent")
+                if isinstance(subagent, dict):
+                    fallback = subagent.get("fallback")
+                    if isinstance(fallback, dict) and isinstance(
+                        fallback.get("reason"), str
+                    ):
+                        fallback_reasons.append(fallback["reason"])
+            if entry.error is not None:
+                for key in ("reason", "delivery_fallback"):
+                    value = entry.error.get(key)
+                    if isinstance(value, str):
+                        fallback_reasons.append(value)
+            for reason in sorted(
+                set(fallback_reasons) & _NON_DECLARED_DELIVERY_FALLBACKS
+            ):
+                problems.append(f"{run.name} seq {entry.seq}: fallback {reason}")
+
+    if problems:
+        return DiagnosticCheck(
+            id="instructions.conformance",
+            group="instructions",
+            status="WARN",
+            title=title,
+            summary="; ".join(problems[:20]),
+        )
+    return DiagnosticCheck(
+        id="instructions.conformance",
+        group="instructions",
+        status="OK",
+        title=title,
+        summary=f"{sum(per_provider.values())} runs conform to explicit delivery",
+    )
+
+
+_NON_DECLARED_DELIVERY_FALLBACKS = frozenset(
+    {"render_failed", "invalid_bundle", "oversize", "delivery_failed"}
+)
 
 
 def _check_instructions_helpers(context: DoctorContext) -> DiagnosticCheck:

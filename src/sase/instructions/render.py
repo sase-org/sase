@@ -10,11 +10,13 @@ from sase.instructions.models import VerifyReport
 _COLUMNS = (
     "provider",
     "manifest",
+    "bundle",
+    "delivery",
     "contract",
     "home",
     "project",
     "directive",
-    "native-SASE-full",
+    "native-full",
     "foreign",
     "helpers",
 )
@@ -102,11 +104,13 @@ def render_table(report: VerifyReport, *, console: Any | None = None) -> None:
     table = Table(
         "provider",
         "manifest",
+        "bundle",
+        "delivery",
         "contract",
         "home",
         "project",
         "directive",
-        "native-SASE-full",
+        "native-full",
         "foreign",
         "helpers",
         title=None,
@@ -115,6 +119,8 @@ def render_table(report: VerifyReport, *, console: Any | None = None) -> None:
         table.add_row(
             row.provider,
             row.coverage,
+            row.bundle,
+            row.delivery,
             row.contract,
             row.home,
             row.project,
@@ -193,9 +199,9 @@ def render_section_diffs(diffs: list[Any], *, console: Any | None = None) -> Non
             table.add_row(
                 row.id,
                 row.layer,
-                marker,
-                "◌" if diff.unavailable else str(row.native),
-                "◌" if diff.unavailable else str(row.explicit),
+                marker if row.observed is None else str(row.observed),
+                str(row.native),
+                str(row.explicit),
             )
         target.print(table)
 
@@ -225,7 +231,16 @@ def render_helper_rows(report: VerifyReport, *, console: Any | None = None) -> N
     from rich.console import Console
     from rich.table import Table
 
-    table = Table("provider", "session", "type", "template", "attempts", "accepted")
+    table = Table(
+        "provider",
+        "session",
+        "type",
+        "template",
+        "helper bundle",
+        "root markers",
+        "attempts",
+        "accepted",
+    )
     for obs in report.observations:
         if not obs.helper_type:
             continue
@@ -234,6 +249,10 @@ def render_helper_rows(report: VerifyReport, *, console: Any | None = None) -> N
             obs.session_id,
             str(obs.helper_type),
             "✓" if obs.has_helper_template else "✗",
+            "—" if obs.helper_bundle is None else ("✓" if obs.helper_bundle else "✗"),
+            "—"
+            if obs.root_bundle_in_helper is None
+            else str(obs.root_bundle_in_helper),
             str(obs.final_attempts),
             str(obs.final_accepted),
         )

@@ -7,6 +7,8 @@ from typing import Any
 
 from sase.instructions import fingerprints as fp
 
+USER_PROMPT_SEPARATOR = "--- User Prompt ---"
+
 
 def _inner_records(envelopes: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Unwrap Muse's retained-frame children into inner record dicts."""
@@ -90,13 +92,6 @@ def rules_texts(envelopes: list[dict[str, Any]]) -> list[str]:
         text = payload.get("text")
         if isinstance(text, str):
             texts.append(text)
-    # Fallback: raw lines that already carry the rules-file scope marker.
-    for envelope in envelopes:
-        if not isinstance(envelope, dict):
-            continue
-        blob = json.dumps(envelope)
-        if '<rules-file scope="project"' in blob:
-            texts.append(blob)
     # Deduplicate while keeping order.
     seen: set[str] = set()
     unique: list[str] = []
@@ -132,6 +127,29 @@ def prompt_texts(envelopes: list[dict[str, Any]]) -> list[str]:
     return texts
 
 
+def prompt_prefixes(envelopes: list[dict[str, Any]]) -> list[str]:
+    """Return only delivered text before Muse's user-prompt separator.
+
+    ``prompt_texts`` also sees native ``rules_file`` text because Muse stores
+    it in run-context records. Keeping those records out of this channel is
+    what prevents a native section from being attributed twice.
+    """
+    prefixes: list[str] = []
+    for text in prompt_texts(envelopes):
+        before, separator, _after = text.partition(USER_PROMPT_SEPARATOR)
+        if not separator or not before.strip():
+            continue
+        prefixes.append(before)
+    return prefixes
+
+
+def instruction_sources(
+    envelopes: list[dict[str, Any]],
+) -> tuple[list[str], list[str]]:
+    """Return native ``rules_file`` texts and explicit prompt prefixes."""
+    return rules_texts(envelopes), prompt_prefixes(envelopes)
+
+
 def observe_muse_session(
     envelopes: list[dict[str, Any]],
     *,
@@ -139,10 +157,11 @@ def observe_muse_session(
     project_h1: str | None,
 ) -> dict[str, Any]:
     """Reduce Muse session records to scoreboard observation fields."""
-    natives = rules_texts(envelopes)
-    contract_count = fp.count_contract_sources(natives)
-    prompts = prompt_texts(envelopes)
-    prompt_blob = "\n".join(prompts + natives)
+    natives, explicit = instruction_sources(envelopes)
+    contract_native = fp.count_contract_occurrences(natives)
+    contract_explicit = fp.count_contract_occurrences(explicit)
+    contract_count = contract_native + contract_explicit
+    all_prompt_text = "\n".join(prompt_texts(envelopes))
     home_hit = any(
         home_h1 is not None and fp.matches_h1(text, home_h1) is True for text in natives
     )
@@ -150,12 +169,27 @@ def observe_muse_session(
         project_h1 is not None and fp.matches_h1(text, project_h1) is True
         for text in natives
     )
+    home_explicit = any(fp.contains_heading(text, home_h1) for text in explicit)
+    project_explicit = any(fp.contains_heading(text, project_h1) for text in explicit)
     return {
         "contract_count": contract_count,
-        "home": True if home_hit else False,
-        "project": True if project_hit else (False if natives else None),
-        "directive": fp.MUSE_DIRECTIVE_MARKER in prompt_blob,
-        "native_full_count": contract_count,
+        "contract_native": contract_native,
+        "contract_explicit": contract_explicit,
+        "home": True
+        if home_hit or home_explicit
+        else (False if natives or explicit else None),
+        "project": True
+        if project_hit or project_explicit
+        else (False if natives or explicit else None),
+        "home_native": True if home_hit else (False if natives else None),
+        "home_explicit": True if home_explicit else (False if explicit else None),
+        "project_native": True if project_hit else (False if natives else None),
+        "project_explicit": True if project_explicit else (False if explicit else None),
+        "directive": fp.MUSE_DIRECTIVE_MARKER in all_prompt_text,
+        "directive_native": any(fp.MUSE_DIRECTIVE_MARKER in text for text in natives),
+        "directive_explicit": fp.MUSE_DIRECTIVE_MARKER in all_prompt_text,
+        "native_full_count": contract_native,
+        "native_contract_count": contract_native,
         "foreign": None,
         "has_helper_template": False,
         "final_attempts": 0,
@@ -167,6 +201,8 @@ def observe_muse_session(
 __all__ = [
     "_context_block_texts",
     "observe_muse_session",
+    "instruction_sources",
+    "prompt_prefixes",
     "prompt_texts",
     "rules_texts",
 ]

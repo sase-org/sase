@@ -108,16 +108,20 @@ class RootSession:
     session_id: str
     session_start: datetime | None
     partial: bool = False
+    bundle_markers: tuple[tuple[str, str], ...] = ()
 
 
 def root_sessions(scored_runs: list[runs.ScoredRun]) -> list[RootSession]:
     """List observable root sessions with starts for *scored_runs*."""
+    from sase.instructions.coverage_sources import session_sources
+    from sase.instructions import fingerprints as fp
     from sase.llm_provider._muse_session_usage import find_muse_session_log
 
     found: list[RootSession] = []
     for run in scored_runs:
         if run.provider == "claude":
             for path in runs.find_claude_sessions(run):
+                _native, explicit, partial = session_sources("claude", run, path.stem)
                 found.append(
                     RootSession(
                         provider="claude",
@@ -126,10 +130,13 @@ def root_sessions(scored_runs: list[runs.ScoredRun]) -> list[RootSession]:
                         workspace_dir=run.workspace_dir,
                         session_id=path.stem,
                         session_start=claude_session_start(path),
+                        partial=partial,
+                        bundle_markers=fp.bundle_markers(explicit),
                     )
                 )
         elif run.provider == "codex":
             for path in runs.find_codex_sessions(run):
+                _native, explicit, partial = session_sources("codex", run, path.stem)
                 found.append(
                     RootSession(
                         provider="codex",
@@ -138,10 +145,15 @@ def root_sessions(scored_runs: list[runs.ScoredRun]) -> list[RootSession]:
                         workspace_dir=run.workspace_dir,
                         session_id=path.stem,
                         session_start=codex_session_start(path),
+                        partial=partial,
+                        bundle_markers=fp.bundle_markers(explicit),
                     )
                 )
         elif run.provider == "grok":
             for directory in runs.find_grok_sessions(run):
+                _native, explicit, partial = session_sources(
+                    "grok", run, directory.name
+                )
                 found.append(
                     RootSession(
                         provider="grok",
@@ -150,6 +162,8 @@ def root_sessions(scored_runs: list[runs.ScoredRun]) -> list[RootSession]:
                         workspace_dir=run.workspace_dir,
                         session_id=directory.name,
                         session_start=grok_session_start(directory),
+                        partial=partial,
+                        bundle_markers=fp.bundle_markers(explicit),
                     )
                 )
         elif run.provider == "muse":
@@ -157,6 +171,7 @@ def root_sessions(scored_runs: list[runs.ScoredRun]) -> list[RootSession]:
             if session_id is None:
                 continue
             log_path = find_muse_session_log(session_id)
+            _native, explicit, partial = session_sources("muse", run, session_id)
             found.append(
                 RootSession(
                     provider="muse",
@@ -167,6 +182,8 @@ def root_sessions(scored_runs: list[runs.ScoredRun]) -> list[RootSession]:
                     session_start=(
                         muse_session_start(log_path) if log_path is not None else None
                     ),
+                    partial=partial,
+                    bundle_markers=fp.bundle_markers(explicit),
                 )
             )
     return found

@@ -320,14 +320,14 @@ def run_instructions_show(args: Any) -> int:
             return 2
         print(json.dumps(payload, indent=2, sort_keys=True))
     elif want_sections:
-        from sase.main.instructions_handler import _render_sections_table
+        from sase.main.instructions_handler import render_sections_table
 
         sections = []
         if isinstance(payload, dict):
             raw_sections = payload.get("sections")
             if isinstance(raw_sections, list):
                 sections = raw_sections
-        _render_sections_table(_SectionView(sections))
+        render_sections_table(_SectionView(sections))
     else:
         if integrity.data is None:
             print(

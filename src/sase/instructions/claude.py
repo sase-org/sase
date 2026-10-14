@@ -55,6 +55,15 @@ def system_prompt_text(records: list[dict[str, object]]) -> str:
     return "\n".join(parts)
 
 
+def instruction_sources(
+    records: list[dict[str, object]],
+) -> tuple[list[str], list[str]]:
+    """Return natively loaded file texts and the explicit system prompt."""
+    native = [entry["content"] for entry in instruction_files(records)]
+    snapshot = system_prompt_text(records)
+    return native, [snapshot] if snapshot else []
+
+
 def _tool_uses(records: list[dict[str, object]]) -> list[dict[str, object]]:
     uses: list[dict[str, object]] = []
     for record in records:
@@ -209,9 +218,11 @@ def observe_claude_session(
     project_h1: str | None,
 ) -> dict[str, Any]:
     """Reduce Claude transcript records to scoreboard observation fields."""
-    files = instruction_files(records)
-    contents = [entry["content"] for entry in files]
-    contract_count = fp.count_contract_sources(contents)
+    native, explicit = instruction_sources(records)
+    contents = native
+    contract_native = fp.count_contract_occurrences(native)
+    contract_explicit = fp.count_contract_occurrences(explicit)
+    contract_count = contract_native + contract_explicit
     snapshot = system_prompt_text(records)
     home_hits = [
         fp.matches_h1(content, home_h1)
@@ -223,16 +234,31 @@ def observe_claude_session(
         for content in contents
         if project_h1 is not None and fp.matches_h1(content, project_h1) is True
     ]
-    foreign: str | None = None
-    if "Memory" in snapshot or any("memory/" in entry["path"] for entry in files):
-        foreign = "auto-memory"
+    foreign = "auto-memory" if fp.has_claude_auto_memory(snapshot) else None
+    home_explicit = any(fp.contains_heading(text, home_h1) for text in explicit)
+    project_explicit = any(fp.contains_heading(text, project_h1) for text in explicit)
     signals = helper_signals(records)
     return {
         "contract_count": contract_count,
-        "home": True if home_hits else (False if contents else None),
-        "project": True if project_hits else (False if contents else None),
+        "contract_native": contract_native,
+        "contract_explicit": contract_explicit,
+        "home": True
+        if home_hits or home_explicit
+        else (False if contents or explicit else None),
+        "project": True
+        if project_hits or project_explicit
+        else (False if contents or explicit else None),
+        "home_native": True if home_hits else (False if contents else None),
+        "home_explicit": True if home_explicit else (False if explicit else None),
+        "project_native": True if project_hits else (False if contents else None),
+        "project_explicit": True if project_explicit else (False if explicit else None),
         "directive": fp.CLAUDE_DIRECTIVE_MARKER in snapshot,
-        "native_full_count": contract_count,
+        "directive_native": any(fp.CLAUDE_DIRECTIVE_MARKER in text for text in native),
+        "directive_explicit": any(
+            fp.CLAUDE_DIRECTIVE_MARKER in text for text in explicit
+        ),
+        "native_full_count": contract_native,
+        "native_contract_count": contract_native,
         "foreign": foreign,
         "has_helper_template": bool(signals["has_template"]),
         "final_attempts": int(signals["attempts"]),
@@ -245,6 +271,7 @@ __all__ = [
     "has_guard_denial",
     "helper_signals",
     "instruction_files",
+    "instruction_sources",
     "observe_claude_session",
     "system_prompt_text",
 ]

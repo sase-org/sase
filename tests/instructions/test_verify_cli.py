@@ -30,6 +30,14 @@ def _report() -> VerifyReport:
             project=True,
             directive=True,
             native_full_count=2,
+            channels={
+                "contract": {"native": 2, "explicit": 0},
+                "home": {"native": True, "explicit": False},
+                "project": {"native": True, "explicit": False},
+                "directive": {"native": False, "explicit": True},
+            },
+            bundle_count=1,
+            delivery="explicit",
         ),
     )
     rows = (
@@ -44,6 +52,14 @@ def _report() -> VerifyReport:
             native_full="2",
             foreign="—",
             helpers="0 spawns",
+            bundle="1×",
+            delivery="explicit",
+            channels={
+                "contract": {"native": 2, "explicit": 0},
+                "home": {"native": True, "explicit": False},
+                "project": {"native": True, "explicit": False},
+                "directive": {"native": False, "explicit": True},
+            },
         ),
     )
     return VerifyReport(
@@ -116,10 +132,18 @@ def test_json_schema_shape() -> None:
     assert payload["generated_at"] == "2026-10-01T00:00:00+00:00"
     assert payload["filters"] == {"limit": 20}
     assert payload["providers"][0]["provider"] == "codex"
+    assert payload["providers"][0]["bundle"] == "1×"
+    assert payload["providers"][0]["delivery"] == "explicit"
+    assert payload["providers"][0]["channels"]["contract"] == {
+        "native": 2,
+        "explicit": 0,
+    }
     assert "observations" not in payload
 
     detailed = _report_to_json_dict(_report(), include_observations=True)
     assert detailed["observations"][0]["contract_count"] == 2
+    assert detailed["observations"][0]["bundle_count"] == 1
+    assert detailed["observations"][0]["channels"]["directive"]["explicit"] is True
 
 
 def test_window_excludes_later_run_sessions_in_same_cwd(
@@ -488,6 +512,7 @@ def test_doctor_registry_includes_instructions_deep_checks(tmp_path: Path) -> No
         "instructions.delivery",
         "instructions.helpers",
         "instructions.coverage",
+        "instructions.conformance",
     } <= deep_ids
 
 
