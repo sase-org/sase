@@ -77,6 +77,22 @@ def _list_keys(app: Any) -> tuple[str, ...]:
     return app.query_one("#archive-list", ArchiveList).item_keys
 
 
+def _archive_expand_timeout(app: Any, *, timeout: float = 5.0) -> str:
+    """Timeout text for the Today-banner expand wait: archive + controller."""
+    view = getattr(app, "_agents_archive_view", None)
+    archive = getattr(view, "archive", None) if view is not None else None
+    controller = getattr(app, "_agents_archive_controller", None)
+    return (
+        f"wait_for() timed out after {timeout}s — archive"
+        f" selected_key={getattr(archive, 'selected_key', None)!r}"
+        f" focused_section={getattr(archive, 'focused_section', None)!r}"
+        f" folded_banners={getattr(archive, 'folded_banners', None)!r}"
+        f" generation={getattr(controller, 'generation', None)!r}"
+        f" refreshing={getattr(controller, 'refreshing', None)!r}"
+        f" status={getattr(controller, 'status', None)!r}"
+    )
+
+
 def _prompt(archive_list: ArchiveList, key: str) -> str:
     prompt = archive_list.get_option(key).prompt
     return str(getattr(prompt, "plain", prompt))
@@ -160,12 +176,18 @@ async def test_archive_replaces_the_inbox_column_and_keys_navigate_it(
         assert "banner:day:2026-10-10" in _list_keys(app)
         assert "u.m@t00" not in _list_keys(app)
         await page.press("l")
-        await page.wait_for(lambda _s: "u.m@t00" in _list_keys(app))
+        await page.wait_for(
+            lambda _s: "u.m@t00" in _list_keys(app),
+            timeout_message=lambda: _archive_expand_timeout(app),
+        )
         await page.press("enter")
         await page.pause()
         assert "u.m@t00" not in _list_keys(app)
         await page.press("enter")
-        await page.wait_for(lambda _s: "u.m@t00" in _list_keys(app))
+        await page.wait_for(
+            lambda _s: "u.m@t00" in _list_keys(app),
+            timeout_message=lambda: _archive_expand_timeout(app),
+        )
 
         # The Inbox is parked, never navigated.
         assert app.current_idx == inbox_idx

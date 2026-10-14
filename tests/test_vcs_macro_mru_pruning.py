@@ -16,7 +16,6 @@ from sase.history.vcs_macro_mru import (
     load_launchable_vcs_macro_mru_pairs,
     record_vcs_macro_usage,
 )
-from sase.workspace_provider import reset_workflow_metadata_caches
 from sase.workspace_provider._hookspec import WorkflowMetadata
 from tests._vcs_macro_mru_helpers import (
     patch_discovered_workflow_type_as_git,
@@ -25,7 +24,7 @@ from tests._vcs_macro_mru_helpers import (
     write_project,
 )
 from tests._workspace_provider_helpers import (
-    _restore_macro_vcs_caches_on_teardown,
+    _patch_workflow_metadata,
     git_metadata,
 )
 from tests.conftest import redirect_sase_home
@@ -48,15 +47,7 @@ def _git_and_gh_metadata() -> tuple[WorkflowMetadata, ...]:
 
 
 def _patch_git_and_gh_metadata(monkeypatch: pytest.MonkeyPatch) -> None:
-    import sase.workspace_provider as workspace_provider
-    import sase.workspace_provider._registry as registry
-
-    monkeypatch.setattr(registry, "get_all_workflow_metadata", _git_and_gh_metadata)
-    monkeypatch.setattr(
-        workspace_provider, "get_all_workflow_metadata", _git_and_gh_metadata
-    )
-    reset_workflow_metadata_caches()
-    _restore_macro_vcs_caches_on_teardown(monkeypatch)
+    _patch_workflow_metadata(monkeypatch, _git_and_gh_metadata)
 
 
 def test_load_launchable_filters_known_stale_projects(

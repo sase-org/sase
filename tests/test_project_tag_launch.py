@@ -28,10 +28,9 @@ from sase.core.project_lifecycle_wire import (
 )
 from sase.project_accents import PROJECT_ACCENTS
 from sase.project_tags import ProjectTagCatalog, ProjectTagError, build_targets
-from sase.workspace_provider import reset_workflow_metadata_caches
 from sase.workspace_provider._hookspec import WorkflowMetadata
 from tests._workspace_provider_helpers import (
-    _restore_macro_vcs_caches_on_teardown,
+    _patch_workflow_metadata,
     git_metadata,
 )
 
@@ -126,15 +125,7 @@ def _git_and_gh_metadata() -> tuple[WorkflowMetadata, ...]:
 
 
 def _patch_git_and_gh_metadata(monkeypatch: pytest.MonkeyPatch) -> None:
-    import sase.workspace_provider as workspace_provider
-    import sase.workspace_provider._registry as registry
-
-    monkeypatch.setattr(registry, "get_all_workflow_metadata", _git_and_gh_metadata)
-    monkeypatch.setattr(
-        workspace_provider, "get_all_workflow_metadata", _git_and_gh_metadata
-    )
-    reset_workflow_metadata_caches()
-    _restore_macro_vcs_caches_on_teardown(monkeypatch)
+    _patch_workflow_metadata(monkeypatch, _git_and_gh_metadata)
 
 
 def _launch_result() -> AgentLaunchResult:

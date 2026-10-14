@@ -51,6 +51,37 @@ def test_default_vcs_tag_pattern_resolves_after_metadata_patch_teardown() -> Non
     assert extract_vcs_workflow_tag("#git:x ") == "#git:x "
 
 
+@pytest.mark.parametrize(
+    "patcher_name",
+    (
+        "patch_git_metadata",
+        "patch_spy_metadata",
+        "patch_no_workspace_metadata",
+    ),
+)
+def test_metadata_helper_restores_real_lazy_export_after_unresolved_package_global(
+    monkeypatch: pytest.MonkeyPatch,
+    patcher_name: str,
+) -> None:
+    """Teardown must restore the real registry function, not cache the fake.
+
+    Deleting the package global first forces lazy ``__getattr__`` on the
+    helper's monkeypatch read. Patching the facade before ``_registry`` is
+    what keeps that read on the real function.
+    """
+    import sase.workspace_provider as workspace_provider
+    import sase.workspace_provider._registry as registry
+    from tests import _workspace_provider_helpers as helpers
+
+    vars(workspace_provider).pop("get_all_workflow_metadata", None)
+    with monkeypatch.context() as nested:
+        getattr(helpers, patcher_name)(nested)
+    assert (
+        vars(workspace_provider)["get_all_workflow_metadata"]
+        is registry.get_all_workflow_metadata
+    )
+
+
 def test_metadata_patch_teardown_does_not_poison_a_later_test(
     pytester: pytest.Pytester,
 ) -> None:

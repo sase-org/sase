@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterator
 import json
 import os
 from pathlib import Path
@@ -23,8 +22,8 @@ from sase.turns.followup import (
     launch_turn_followup,
     vcs_ref_from_meta,
 )
-from sase.workspace_provider import reset_workflow_metadata_caches
 from sase.workspace_provider._hookspec import WorkflowMetadata
+from tests._workspace_provider_helpers import _patch_workflow_metadata
 from tests.gate_turn.test_followup_launch import (
     _SETTLE_TIMEOUT,
     _envelope,
@@ -58,17 +57,8 @@ def _sandbox_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.fixture
-def gh_git_workflows(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
-    import sase.workspace_provider as workspace_provider
-    import sase.workspace_provider._registry as registry
-
-    monkeypatch.setattr(registry, "get_all_workflow_metadata", _gh_git_metadata)
-    monkeypatch.setattr(
-        workspace_provider, "get_all_workflow_metadata", _gh_git_metadata
-    )
-    reset_workflow_metadata_caches()
-    yield
-    reset_workflow_metadata_caches()
+def gh_git_workflows(monkeypatch: pytest.MonkeyPatch) -> None:
+    _patch_workflow_metadata(monkeypatch, _gh_git_metadata)
 
 
 def _workspace_messages() -> TurnFollowupWorkspace:

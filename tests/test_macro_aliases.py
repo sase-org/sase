@@ -14,6 +14,7 @@ from sase.project_aliases import (
 )
 from sase.workspace_provider._hookspec import WorkflowMetadata
 from sase.macro.processor import resolve_macro_aliases
+from tests._workspace_provider_helpers import _patch_workflow_metadata
 
 
 def _mock_config(aliases: dict[str, str]) -> dict:
@@ -93,11 +94,9 @@ def _patch_project_alias_sources(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    import sase.workspace_provider._registry as registry
-
     projects_root = tmp_path / "canonicalize-projects"
     projects_root.mkdir()
-    monkeypatch.setattr(registry, "get_all_workflow_metadata", _metadata)
+    _patch_workflow_metadata(monkeypatch, _metadata)
     monkeypatch.setattr(
         "sase.project_aliases.sase_projects_dir",
         lambda: projects_root,

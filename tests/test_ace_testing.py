@@ -146,6 +146,17 @@ async def test_wait_for() -> None:
         await page.wait_for(lambda state: state["total"] > 0)
 
 
+async def test_wait_for_custom_timeout_message() -> None:
+    """wait_for includes a caller-supplied timeout message."""
+    async with AcePage() as page:
+        with pytest.raises(AssertionError, match="archive-expand-timeout"):
+            await page.wait_for(
+                lambda _state: False,
+                timeout=0.05,
+                timeout_message=lambda: "archive-expand-timeout",
+            )
+
+
 async def test_ace_page_fast_startup_is_structurally_quiet() -> None:
     """Default pages mount real widgets without owning background services."""
     async with AcePage() as page:

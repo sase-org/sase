@@ -21,12 +21,15 @@ from ._cli_test_support import make_create_args
 def _use_real_provider_registry(monkeypatch: pytest.MonkeyPatch) -> None:
     """Rebuild the provider registry from entry points for this test.
 
-    ``get_all_workflow_metadata`` is cached for the process, so metadata left
-    behind by another test in the same xdist worker hides the real ``git``
-    provider and fails ``parse_user_ref`` with ``unknown provider 'git'``.
+    A prior test on the same xdist worker can leave
+    ``sase.workspace_provider.get_all_workflow_metadata`` cached in the
+    package globals as a lazy export of a fake (not the ``functools.cache``
+    on ``_registry.get_all_workflow_metadata``). Drop that binding, reset
+    the plugin manager, and rebuild from entry points so ``git`` is visible.
     """
     from sase.workspace_provider import _registry
 
+    vars(workspace_provider).pop("get_all_workflow_metadata", None)
     monkeypatch.setattr(_registry, "_manager", None)
     reset_workflow_metadata_caches()
     _restore_macro_vcs_caches_on_teardown(monkeypatch)

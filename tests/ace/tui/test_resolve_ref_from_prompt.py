@@ -11,7 +11,10 @@ from unittest.mock import patch
 
 import pytest
 
-from tests._workspace_provider_helpers import git_metadata
+from tests._workspace_provider_helpers import (
+    _patch_workflow_metadata,
+    git_metadata,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -41,9 +44,7 @@ def test_resolve_ref_from_prompt_propagates_provider_mismatch(
     )
     from sase.workspace_provider.utils import ProjectProviderMismatchError
 
-    import sase.workspace_provider._registry as registry
-
-    monkeypatch.setattr(registry, "get_all_workflow_metadata", git_metadata)
+    _patch_workflow_metadata(monkeypatch, git_metadata)
     monkeypatch.setattr(
         "sase.project_aliases.canonicalize_project_aliases_in_prompt",
         lambda prompt: prompt,

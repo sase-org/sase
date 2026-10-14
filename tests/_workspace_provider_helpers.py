@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
@@ -66,38 +67,38 @@ def no_workspace_metadata() -> tuple[WorkflowMetadata, ...]:
     return ()
 
 
-def patch_git_metadata(monkeypatch: pytest.MonkeyPatch) -> None:
+def _patch_workflow_metadata(
+    monkeypatch: pytest.MonkeyPatch,
+    metadata: Callable[[], tuple[WorkflowMetadata, ...]],
+) -> None:
+    """Install *metadata* on the lazy package facade, then on ``_registry``.
+
+    Patch the package attribute first so ``monkeypatch`` records the real
+    function. ``sase.workspace_provider.get_all_workflow_metadata`` is a lazy
+    export: ``getattr`` of the "original" resolves through ``__getattr__``,
+    which caches ``_registry.get_all_workflow_metadata`` in the package
+    globals. Patching ``_registry`` first makes that lookup cache the fake,
+    and teardown then "restores" the fake permanently.
+    """
     import sase.workspace_provider as workspace_provider
     import sase.workspace_provider._registry as registry
 
-    monkeypatch.setattr(registry, "get_all_workflow_metadata", git_metadata)
-    monkeypatch.setattr(workspace_provider, "get_all_workflow_metadata", git_metadata)
+    monkeypatch.setattr(workspace_provider, "get_all_workflow_metadata", metadata)
+    monkeypatch.setattr(registry, "get_all_workflow_metadata", metadata)
     reset_workflow_metadata_caches()
     _restore_macro_vcs_caches_on_teardown(monkeypatch)
+
+
+def patch_git_metadata(monkeypatch: pytest.MonkeyPatch) -> None:
+    _patch_workflow_metadata(monkeypatch, git_metadata)
 
 
 def patch_spy_metadata(monkeypatch: pytest.MonkeyPatch) -> None:
-    import sase.workspace_provider as workspace_provider
-    import sase.workspace_provider._registry as registry
-
-    monkeypatch.setattr(registry, "get_all_workflow_metadata", spy_metadata)
-    monkeypatch.setattr(workspace_provider, "get_all_workflow_metadata", spy_metadata)
-    reset_workflow_metadata_caches()
-    _restore_macro_vcs_caches_on_teardown(monkeypatch)
+    _patch_workflow_metadata(monkeypatch, spy_metadata)
 
 
 def patch_no_workspace_metadata(monkeypatch: pytest.MonkeyPatch) -> None:
-    import sase.workspace_provider as workspace_provider
-    import sase.workspace_provider._registry as registry
-
-    monkeypatch.setattr(registry, "get_all_workflow_metadata", no_workspace_metadata)
-    monkeypatch.setattr(
-        workspace_provider,
-        "get_all_workflow_metadata",
-        no_workspace_metadata,
-    )
-    reset_workflow_metadata_caches()
-    _restore_macro_vcs_caches_on_teardown(monkeypatch)
+    _patch_workflow_metadata(monkeypatch, no_workspace_metadata)
 
 
 def patch_simple_git_resolver(

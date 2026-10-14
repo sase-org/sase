@@ -545,17 +545,21 @@ class AcePage:
         predicate: Callable[[dict[str, Any]], bool],
         *,
         timeout: float = 5.0,
+        timeout_message: Callable[[], str] | None = None,
     ) -> None:
         """Poll state until predicate(state) returns True, or raise."""
         app = self.app
+
+        def default_timeout_message() -> str:
+            return (
+                f"wait_for() timed out after {timeout}s — predicate never returned True"
+            )
 
         await _poll_until(
             lambda: predicate(self.state),
             is_success=bool,
             settle=lambda: settle_helpers.settle_pilot(self._pilot),
             timeout=timeout,
-            timeout_message=lambda: (
-                f"wait_for() timed out after {timeout}s — predicate never returned True"
-            ),
+            timeout_message=timeout_message or default_timeout_message,
             clock=app._loop.time if app._loop is not None else None,
         )
