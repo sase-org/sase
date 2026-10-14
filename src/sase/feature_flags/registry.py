@@ -23,6 +23,8 @@ class FeatureFlag(StrEnum):
 
     artifacts_agent_pane_retired = "artifacts_agent_pane_retired"
     codex_explicit_instructions = "codex_explicit_instructions"
+    grok_explicit_instructions = "grok_explicit_instructions"
+    muse_explicit_instructions = "muse_explicit_instructions"
 
 
 _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
@@ -43,6 +45,18 @@ _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
             "suppress SASE native instruction duplicates."
         ),
         bead="sase-1ks",
+    ),
+    FeatureFlag.grok_explicit_instructions: FeatureFlagDefinition(
+        key=FeatureFlag.grok_explicit_instructions,
+        kind="sunset",
+        description="Deliver Grok instruction bundles through --rules",
+        bead="sase-1kt",
+    ),
+    FeatureFlag.muse_explicit_instructions: FeatureFlagDefinition(
+        key=FeatureFlag.muse_explicit_instructions,
+        kind="sunset",
+        description="Deliver Muse instruction bundles as a prompt prefix",
+        bead="sase-1ku",
     ),
 }
 

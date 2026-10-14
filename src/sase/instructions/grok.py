@@ -12,11 +12,11 @@ HUMAN_RULES_CLOSE = "</human_rules>"
 
 def human_rules_block(system_prompt: str) -> str:
     """Return the ``<human_rules>`` explicit-channel block, or ``""``."""
-    blocks = human_rules_blocks(system_prompt)
+    blocks = _human_rules_blocks(system_prompt)
     return blocks[0] if blocks else ""
 
 
-def human_rules_blocks(system_prompt: str) -> list[str]:
+def _human_rules_blocks(system_prompt: str) -> list[str]:
     """Return every explicit ``<human_rules>`` block in source order."""
     blocks: list[str] = []
     offset = 0
@@ -45,7 +45,7 @@ def instruction_sources(
                 native.append(str(entry["content"]))
             elif isinstance(entry, str):
                 native.append(entry)
-    return native, human_rules_blocks(system_prompt)
+    return native, _human_rules_blocks(system_prompt)
 
 
 def observe_grok_session(
@@ -113,7 +113,6 @@ __all__ = [
     "HUMAN_RULES_CLOSE",
     "HUMAN_RULES_OPEN",
     "human_rules_block",
-    "human_rules_blocks",
     "instruction_sources",
     "observe_grok_session",
 ]

@@ -37,10 +37,11 @@ still launch a hard-disabled CLI. See
 The current bundle rollout records intended instructions for diagnostics and prepares
 explicit delivery for adapters. Each root provider invocation renders its memory-built
 bundle and v2 manifest into `<artifacts>/instructions/` and exports
-`SASE_INSTRUCTIONS_FILE` for that call, then restores it. Built-in providers still
-declare legacy native discovery, so argv, prompts, and the files they already load stay
-the same. The manifest alone does not prove that a provider loaded the bundle's
-contents. See [Delivery](instruction_bundles.md#delivery).
+`SASE_INSTRUCTIONS_FILE` for that call, then restores it. Grok and Muse deliver the root
+bundle through explicit adapter channels by default, with per-provider sunset flags to
+restore their previous behavior. Claude and Codex remain on legacy delivery until their
+adapter phases land. The manifest alone does not prove that a provider loaded the
+bundle's contents. See [Delivery](instruction_bundles.md#delivery).
 
 ## Verifying instruction delivery
 
@@ -274,6 +275,21 @@ known updates" forever.
 SASE always launches agent runs with `MUSE_NO_AUTO_UPDATE=1` so Muse cannot swap its own
 binary mid-run; update it through `sase agent-cli` instead.
 
+### Instruction delivery
+
+With the default-on `muse_explicit_instructions` sunset flag, SASE prefixes Muse's
+prompt with the complete rendered root bundle and invocation marker, then the original
+user prompt. It omits `--trust-workspace`, so Muse does not also load native workspace
+instructions. Each generated `--session-id` is recorded in the manifest. Interrupt and
+stranded-wait continuations reuse the same prefixed prompt, keeping one bundle and one
+`SASE Final Declaration` contract occurrence per cycle. `--no-foreign-personal-context`
+remains enabled.
+
+If explicit delivery is disabled, Muse keeps today's single-turn directive prompt prefix
+and `--trust-workspace`. A failed explicit prefix falls back to that legacy path for the
+invocation. Set `muse_explicit_instructions` off to force legacy delivery during the
+seven-day soak.
+
 ### Subscription usage { #muse-subscription-usage }
 
 Muse collects [subscription usage](#subscription-usage) — its 5-hour session window and
@@ -365,16 +381,18 @@ unaffected, and cost reporting (`total_cost_usd`) does work on the OAuth login p
 
 SASE runs Grok in untrusted workspaces with no `--trust` flag, so Grok loads no native
 instruction files (`agents_md_files` stays empty in the session's
-`prompt_context.json`). SASE generates no `GROK.md` shim. Instead, every Grok invocation
-passes `--rules`: the SASE single-turn directive (opening with
-`SASE single-turn instructions for Grok:`), followed by the project root `AGENTS.md`
-text exactly once in SASE-managed projects (the directive alone elsewhere). `CLAUDE.md`
-is never sent, so the content is delivered once, not twice. The home layer is not
-delivered; that arrives with the E3 bundle.
+`prompt_context.json`). SASE generates no `GROK.md` shim. With the default-on
+`grok_explicit_instructions` sunset flag, `--rules` receives the complete rendered root
+bundle once, including its home and project layers, followed by the invocation marker.
+The adapter records Grok's `--session-id` for each cycle and sets `GROK_MEMORY=0` for
+that process. The subagent slot is `none`.
 
-Rules payloads larger than 120 KiB fail fast with an actionable error instead of a
-silent exec failure (Linux rejects a single argv element above 128 KiB). Shrink the
-project instructions file when that happens.
+The 120 KiB argv limit applies to the delivered bundle. If it cannot be sent, that
+invocation falls back atomically to the legacy `--rules` payload: the SASE single-turn
+directive (opening with `SASE single-turn instructions for Grok:`), followed by the
+project root `AGENTS.md` text in SASE-managed projects (the directive alone elsewhere).
+The legacy path leaves Grok's memory-v2 setting unchanged. Set
+`grok_explicit_instructions` off to use that legacy path for every invocation.
 
 ### Privacy
 

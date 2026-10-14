@@ -447,9 +447,8 @@ _lint-patch-stitch-terminology: _setup
 # stage's width-aware hints through source_hint_line, so its row is dropped.
 # sase-1kj.7 (startup-telemetry) consumed patch_relation_index_real_build_count
 # by reading it onto tui_startup rows, so its row is dropped.
-# sase-1ko.5 (delivery-plan) exported current_instruction_delivery and
-# sase_owned_instruction_paths for adapters; sase-1ko.7 (claude) is the first
-# consumer of both.
+# sase-1ko.5 (delivery-plan) exported current_instruction_delivery for adapters;
+# sase-1ko.7 (claude) is its first consumer.
 # Never put a comment
 # line inside the continued command below: just joins the lines, so the comment
 # would swallow every later argument.

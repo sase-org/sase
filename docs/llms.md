@@ -1226,9 +1226,11 @@ SASE skills are always shadowed by their correctly-rendered Grok copies.
 
 Grok reads `AGENTS.md` natively, so there is no `GROK.md` provider shim — but SASE runs
 Grok in untrusted workspaces, so no native files load and SASE instead delivers the
-single-turn directive plus the project root `AGENTS.md` exactly once through `--rules`
-on every invocation (see [Command Construction](#command-construction)). `CLAUDE.md` is
-never sent through that channel, and the home layer is not delivered until E3.
+complete memory-built root bundle exactly once through `--rules` on explicit-delivery
+runs (see [Command Construction](#command-construction)). The
+`grok_explicit_instructions` sunset flag restores the legacy directive-plus-project
+`AGENTS.md` payload; per-invocation delivery failures also fall back to it. `CLAUDE.md`
+is never sent through that channel.
 
 ### Environment Variables
 

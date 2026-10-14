@@ -6053,6 +6053,18 @@
           "description": "Deliver the Codex root bundle through developer_instructions and suppress SASE native instruction duplicates.",
           "default": true,
           "deprecated": true
+        },
+        "grok_explicit_instructions": {
+          "type": "boolean",
+          "description": "Deliver Grok instruction bundles through --rules",
+          "default": true,
+          "deprecated": true
+        },
+        "muse_explicit_instructions": {
+          "type": "boolean",
+          "description": "Deliver Muse instruction bundles as a prompt prefix",
+          "default": true,
+          "deprecated": true
         }
       }
     }

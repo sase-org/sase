@@ -16,11 +16,16 @@ import uuid
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from sase.feature_flags import FeatureFlag, current_flags
 from sase.output import provider_timer
 
 from ._effort_args import effort_cli_args
 from ._hookspec import hookimpl
-from .instruction_delivery import legacy_instruction_delivery
+from .instruction_delivery import (
+    CHANNEL_MUSE_ROOT,
+    current_instruction_delivery,
+    legacy_instruction_delivery,
+)
 from ._muse_directive import (
     MUSE_ENABLE_SHELL_TOOL_ARG,
     MUSE_SYNC_CEILING_SECONDS,
@@ -254,7 +259,12 @@ class MuseProvider(LLMProvider):
         )
 
     def instruction_delivery(self) -> dict[str, object]:
-        return legacy_instruction_delivery()
+        if not current_flags().enabled(FeatureFlag.muse_explicit_instructions):
+            return legacy_instruction_delivery(reason="flag_disabled")
+        return {
+            "root": {"status": "explicit", "channel": CHANNEL_MUSE_ROOT},
+            "subagent": {"status": "none"},
+        }
 
     @hookimpl
     def llm_instruction_delivery(self) -> dict[str, object]:
@@ -310,9 +320,23 @@ class MuseProvider(LLMProvider):
         model = (
             model_override if model_override else self.resolve_model_name(model_tier)
         )
-        # Wrap once, at the top, so the interrupt path's reconstructed context
-        # and the next phase's guard also carry the directive.
-        prompt = wrap_muse_prompt(prompt)
+        delivery = current_instruction_delivery()
+        explicit_delivery = (
+            delivery
+            if delivery is not None and delivery.root.plan.status == "explicit"
+            else None
+        )
+        if explicit_delivery is not None and explicit_delivery.root.text:
+            prompt = f"{explicit_delivery.root.text}\n\n--- User Prompt ---\n{prompt}"
+        else:
+            if explicit_delivery is not None:
+                explicit_delivery.report_fallback(
+                    "root", "delivery_failed", "no delivered root text"
+                )
+                explicit_delivery = None
+            # Wrap once, at the top, so the interrupt path's reconstructed
+            # context and the next phase's guard also carry the directive.
+            prompt = wrap_muse_prompt(prompt)
 
         if model_tier == "large":
             extra_args_env = os.environ.get(
@@ -335,9 +359,10 @@ class MuseProvider(LLMProvider):
 
         base_args.extend(self.invocation_option_args(options))
 
+        if explicit_delivery is None:
+            base_args.append("--trust-workspace")
         base_args.extend(
             [
-                "--trust-workspace",
                 # Approvals must go: a headless run cannot answer them.
                 "--disable-approval",
                 *muse_safety_args(),
@@ -380,6 +405,8 @@ class MuseProvider(LLMProvider):
             # it is the handle that locates the session log, which is where
             # Muse's token usage actually lives.
             session_id = str(uuid.uuid4())
+            if explicit_delivery is not None and delivery is not None:
+                delivery.record_session(session_id)
             try:
                 command_args = [
                     *base_args,

@@ -59,16 +59,6 @@ def flatten_ws(text: str) -> str:
     return re.sub(r"\s+", " ", text)
 
 
-def contains_contract(text: str) -> bool:
-    """Return whether flattened *text* carries the contract heading."""
-    return CONTRACT_HEADING in flatten_ws(text)
-
-
-def count_contract_sources(texts: list[str]) -> int:
-    """Count loaded sources whose text carries the contract heading."""
-    return sum(1 for text in texts if contains_contract(text))
-
-
 def count_occurrences(needle: str, text: str) -> int:
     """Count non-overlapping occurrences after whitespace normalization."""
     flattened_needle = flatten_ws(needle).strip()
@@ -160,12 +150,10 @@ __all__ = [
     "CLAUDE_AUTO_MEMORY_LEAD_IN",
     "MUSE_DIRECTIVE_MARKER",
     "ROOT_ONLY_SKILLS",
-    "contains_contract",
     "contains_heading",
     "bundle_markers",
     "count_bundle_markers",
     "count_contract_occurrences",
-    "count_contract_sources",
     "count_occurrences",
     "has_claude_auto_memory",
     "first_h1",

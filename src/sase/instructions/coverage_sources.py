@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-
 from sase.instructions import run_index as runs
 
 
@@ -57,15 +55,4 @@ def session_sources(
     return [], [], False
 
 
-def claude_helper_sources(path: Path) -> tuple[list[str], list[str], bool]:
-    """Return a Claude helper's native and explicit sources plus partial flag."""
-    from sase.instructions import claude
-
-    records, partial = runs.read_jsonl_capped(
-        path, max_bytes=runs.HELPER_TRANSCRIPT_BYTE_CAP
-    )
-    native, explicit = claude.instruction_sources(records)
-    return native, explicit, partial
-
-
-__all__ = ["claude_helper_sources", "session_sources"]
+__all__ = ["session_sources"]

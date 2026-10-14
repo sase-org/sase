@@ -7,9 +7,9 @@ can inspect the intended context and compare it with what a provider actually lo
 The current implementation records bundles for diagnostics and prepares explicit
 delivery for adapters. Root provider invocations render a bundle into the run's
 artifacts and export `SASE_INSTRUCTIONS_FILE` for that provider call, then restore the
-previous value. Built-in providers still declare legacy native discovery until their
-sunset flags flip, so argv, prompts, and the instruction files they already load stay
-the same. A successful render therefore does not prove delivery: use
+previous value. Adapter delivery depends on the provider's active delivery plan. Grok
+and Muse use explicit delivery by default; Claude and Codex remain on legacy delivery
+pending their adapter phases. A successful render therefore does not prove delivery: use
 `sase instructions verify` to check observed loads. Render and transport failures never
 fail an invocation; they fall back atomically to legacy delivery. The plan hook,
 manifests, and fallback are described under [Delivery](#delivery).

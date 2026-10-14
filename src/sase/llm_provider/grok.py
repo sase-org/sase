@@ -10,11 +10,16 @@ import uuid
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from sase.feature_flags import FeatureFlag, current_flags
 from sase.output import provider_timer
 
 from ._effort_args import effort_cli_args
 from ._hookspec import hookimpl
-from .instruction_delivery import legacy_instruction_delivery
+from .instruction_delivery import (
+    CHANNEL_GROK_ROOT,
+    current_instruction_delivery,
+    legacy_instruction_delivery,
+)
 from ._subprocess import (
     start_completion_watchdog,
     start_interrupt_monitor,
@@ -319,7 +324,16 @@ class GrokProvider(LLMProvider):
         )
 
     def instruction_delivery(self) -> dict[str, object]:
-        return legacy_instruction_delivery()
+        if not current_flags().enabled(FeatureFlag.grok_explicit_instructions):
+            return legacy_instruction_delivery(reason="flag_disabled")
+        return {
+            "root": {
+                "status": "explicit",
+                "channel": CHANNEL_GROK_ROOT,
+                "max_bytes": _GROK_RULES_ARGV_BYTE_LIMIT,
+            },
+            "subagent": {"status": "none"},
+        }
 
     @hookimpl
     def llm_instruction_delivery(self) -> dict[str, object]:
@@ -402,6 +416,38 @@ class GrokProvider(LLMProvider):
         suppress_output: bool,
     ) -> InvokeResult:
         while True:
+            delivery = current_instruction_delivery()
+            explicit_delivery = (
+                delivery
+                if delivery is not None and delivery.root.plan.status == "explicit"
+                else None
+            )
+            rules_text: str
+            if explicit_delivery is not None:
+                explicit_rules = explicit_delivery.root.text
+                if not explicit_rules:
+                    explicit_delivery.report_fallback(
+                        "root", "delivery_failed", "no delivered root text"
+                    )
+                    explicit_delivery = None
+                else:
+                    rules_size = len(explicit_rules.encode("utf-8"))
+                    if rules_size > _GROK_RULES_ARGV_BYTE_LIMIT:
+                        explicit_delivery.report_fallback(
+                            "root",
+                            "oversize",
+                            f"delivered rules are {rules_size} bytes; limit is "
+                            f"{_GROK_RULES_ARGV_BYTE_LIMIT}",
+                        )
+                        explicit_delivery = None
+                    else:
+                        rules_text = explicit_rules
+            if explicit_delivery is None:
+                rules_text = _grok_rules_text(os.getcwd())
+
+            session_id = str(uuid.uuid4())
+            if explicit_delivery is not None and delivery is not None:
+                delivery.record_session(session_id)
             command_args = [
                 _resolve_grok_executable(),
                 "--prompt-file",
@@ -415,7 +461,7 @@ class GrokProvider(LLMProvider):
                 "--cwd",
                 os.getcwd(),
                 "--session-id",
-                str(uuid.uuid4()),
+                session_id,
                 "--no-plan",
                 "--no-ask-user",
                 "--no-auto-update",
@@ -423,7 +469,13 @@ class GrokProvider(LLMProvider):
                 *effort_args,
             ]
 
-            command_args.extend(["--rules", _grok_rules_text(os.getcwd())])
+            command_args.extend(["--rules", rules_text])
+
+            run_kwargs = (
+                {"env_overrides": {"GROK_MEMORY": "0"}}
+                if explicit_delivery is not None
+                else {}
+            )
 
             if extra_args_env:
                 for arg in extra_args_env.split():
@@ -432,12 +484,12 @@ class GrokProvider(LLMProvider):
             if not suppress_output:
                 with provider_timer("Waiting for Grok"):
                     content, stderr_content, return_code, usage = self._run_subprocess(
-                        command_args, current_prompt, suppress_output
+                        command_args, current_prompt, suppress_output, **run_kwargs
                     )
                     print()
             else:
                 content, stderr_content, return_code, usage = self._run_subprocess(
-                    command_args, current_prompt, suppress_output
+                    command_args, current_prompt, suppress_output, **run_kwargs
                 )
 
             for key in total_usage:
@@ -477,16 +529,30 @@ class GrokProvider(LLMProvider):
         args: list[str],
         prompt: str,
         suppress_output: bool,
+        *,
+        env_overrides: dict[str, str] | None = None,
     ) -> tuple[str, str, int, dict[str, int]]:
         """Run the Grok Build subprocess and parse its Messages JSON stream."""
         try:
-            process = subprocess.Popen(
-                args,
-                stdin=subprocess.PIPE,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-            )
+            if env_overrides is None:
+                process = subprocess.Popen(
+                    args,
+                    stdin=subprocess.PIPE,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                )
+            else:
+                env = os.environ.copy()
+                env.update(env_overrides)
+                process = subprocess.Popen(
+                    args,
+                    stdin=subprocess.PIPE,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                    env=env,
+                )
         except FileNotFoundError as exc:
             raise _grok_executable_not_found_error(args[0]) from exc
 

@@ -73,7 +73,7 @@ def _payload_texts(payload: dict[str, Any]) -> list[str]:
     return texts
 
 
-def rules_texts(envelopes: list[dict[str, Any]]) -> list[str]:
+def _rules_texts(envelopes: list[dict[str, Any]]) -> list[str]:
     """Return native ``source: rules_file`` record texts."""
     texts: list[str] = []
     for envelope in envelopes:
@@ -102,7 +102,7 @@ def rules_texts(envelopes: list[dict[str, Any]]) -> list[str]:
     return unique
 
 
-def prompt_texts(envelopes: list[dict[str, Any]]) -> list[str]:
+def _prompt_texts(envelopes: list[dict[str, Any]]) -> list[str]:
     """Return prompt-prefix texts that may carry the Muse directive."""
     texts: list[str] = []
     for envelope in envelopes:
@@ -127,15 +127,15 @@ def prompt_texts(envelopes: list[dict[str, Any]]) -> list[str]:
     return texts
 
 
-def prompt_prefixes(envelopes: list[dict[str, Any]]) -> list[str]:
+def _prompt_prefixes(envelopes: list[dict[str, Any]]) -> list[str]:
     """Return only delivered text before Muse's user-prompt separator.
 
-    ``prompt_texts`` also sees native ``rules_file`` text because Muse stores
+    ``_prompt_texts`` also sees native ``rules_file`` text because Muse stores
     it in run-context records. Keeping those records out of this channel is
     what prevents a native section from being attributed twice.
     """
     prefixes: list[str] = []
-    for text in prompt_texts(envelopes):
+    for text in _prompt_texts(envelopes):
         before, separator, _after = text.partition(USER_PROMPT_SEPARATOR)
         if not separator or not before.strip():
             continue
@@ -147,7 +147,7 @@ def instruction_sources(
     envelopes: list[dict[str, Any]],
 ) -> tuple[list[str], list[str]]:
     """Return native ``rules_file`` texts and explicit prompt prefixes."""
-    return rules_texts(envelopes), prompt_prefixes(envelopes)
+    return _rules_texts(envelopes), _prompt_prefixes(envelopes)
 
 
 def observe_muse_session(
@@ -161,7 +161,7 @@ def observe_muse_session(
     contract_native = fp.count_contract_occurrences(natives)
     contract_explicit = fp.count_contract_occurrences(explicit)
     contract_count = contract_native + contract_explicit
-    all_prompt_text = "\n".join(prompt_texts(envelopes))
+    all_prompt_text = "\n".join(_prompt_texts(envelopes))
     home_hit = any(
         home_h1 is not None and fp.matches_h1(text, home_h1) is True for text in natives
     )
@@ -202,7 +202,4 @@ __all__ = [
     "_context_block_texts",
     "observe_muse_session",
     "instruction_sources",
-    "prompt_prefixes",
-    "prompt_texts",
-    "rules_texts",
 ]

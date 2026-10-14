@@ -15,6 +15,7 @@ from sase.llm_provider._instruction_boundary import (
     INSTRUCTIONS_DIR_NAME,
     invoke_with_instructions,
 )
+from sase.feature_flags import override_flags
 from sase.llm_provider.instruction_delivery import (
     CHANNEL_CLAUDE_ROOT,
     CHANNEL_CLAUDE_SUBAGENT,
@@ -141,8 +142,8 @@ def _mode(path: Path) -> int:
 
 
 def test_declared_legacy_hookimpls_resolve_to_provider_legacy() -> None:
-    """Built-in providers declare legacy slots until their adapter phases flip."""
-    for name in ("agy", "qwen", "opencode", "claude", "codex", "grok", "muse", "fakey"):
+    """Providers without an explicit phase still declare legacy native discovery."""
+    for name in ("agy", "qwen", "opencode", "claude", "fakey"):
         plan = resolve_delivery_plan(create_provider(name))
         assert plan.root.status == "inherits_native"
         assert plan.root.reason == "provider_legacy"
@@ -151,6 +152,35 @@ def test_declared_legacy_hookimpls_resolve_to_provider_legacy() -> None:
         assert create_provider(name).instruction_delivery() == (
             legacy_instruction_delivery()
         )
+
+
+def test_grok_and_muse_delivery_flags_select_explicit_slots() -> None:
+    with override_flags(grok_explicit_instructions=True):
+        grok = resolve_delivery_plan(create_provider("grok"))
+    assert grok.root.status == "explicit"
+    assert grok.root.channel == "grok.rules"
+    assert grok.root.max_bytes == 120 * 1024
+    assert grok.subagent.status == "none"
+
+    with override_flags(grok_explicit_instructions=False):
+        grok = resolve_delivery_plan(create_provider("grok"))
+    assert grok.root.status == "inherits_native"
+    assert grok.root.reason == "flag_disabled"
+    assert grok.subagent.status == "inherits_native"
+    assert grok.subagent.reason == "flag_disabled"
+
+    with override_flags(muse_explicit_instructions=True):
+        muse = resolve_delivery_plan(create_provider("muse"))
+    assert muse.root.status == "explicit"
+    assert muse.root.channel == "muse.prompt_prefix"
+    assert muse.subagent.status == "none"
+
+    with override_flags(muse_explicit_instructions=False):
+        muse = resolve_delivery_plan(create_provider("muse"))
+    assert muse.root.status == "inherits_native"
+    assert muse.root.reason == "flag_disabled"
+    assert muse.subagent.status == "inherits_native"
+    assert muse.subagent.reason == "flag_disabled"
 
 
 def test_missing_and_raising_hooks_resolve_to_legacy() -> None:
