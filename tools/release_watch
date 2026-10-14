@@ -1,0 +1,8 @@
+#!/usr/bin/env python3
+"""Watch a sase release through CI, Publish, and PyPI."""
+
+from _release_watch import main
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -721,6 +721,15 @@ just ratchet-core-window --check         # exit non-zero if a ratchet is pending
 just ratchet-core-window                 # apply: rewrite pyproject.toml and uv.lock
 ```
 
+For a long-running release watch, use `tools/release_watch` with the release version and
+fixed master SHA. It reports PyPI, the release PR, Full CI, Master Gate, Publish, and
+`sase-core-rs`; it can dispatch the guarded Full CI and Publish workflows, but never
+merges or edits code. Run `--once --dry-run` to validate the reads before starting a
+watch, and pass `--close-bead <id>` when the watch owns a phase bead that must close on
+every outcome. The executable delegates argument handling to `tools/_release_watch.py`,
+GitHub and PyPI reads to `tools/_release_watch_api.py`, and polling and finalization to
+`tools/_release_watch_engine.py`.
+
 Docs-only commands do not need the application package or the Rust extension.
 `just docs-check` and `just docs-pdf-check` install only MkDocs tooling into `.venv`,
 which is why documentation CI can run without checking out `../sase-core`.
