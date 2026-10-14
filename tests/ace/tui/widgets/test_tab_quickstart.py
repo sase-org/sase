@@ -153,9 +153,11 @@ def test_artifacts_quickstart_advertises_every_subtab(
     agents_card = _section_plain(agents, "#agent-quickstart-card")
     artifacts_card = _section_plain(patches, "#patch-quickstart-card")
 
-    assert "Jump: Agent · Stitch · Patch · Bead · File." in artifacts_card
-    assert "Cycle Artifacts: Agent · Stitch · Patch · Bead · File." in artifacts_card
-    assert "File: previous / next version." in artifacts_card
+    assert "Jump: Agent · Commits · Patches · Beads · Files." in artifacts_card
+    assert (
+        "Cycle Artifacts: Agent · Commits · Patches · Beads · Files." in artifacts_card
+    )
+    assert "Files: previous / next version." in artifacts_card
     assert "Cycle Artifacts" not in agents_card
     assert _section_plain(agents, "#agent-quickstart-hero") != _section_plain(
         patches, "#patch-quickstart-hero"
@@ -169,10 +171,15 @@ def test_artifacts_quickstart_advertises_every_subtab(
     )
     provider_patches = TabQuickStart.render_content(registry, tab="patches")
     provider_card = _section_plain(provider_patches, "#patch-quickstart-card")
+    normalized_provider_card = " ".join(provider_card.split())
 
-    assert "Jump: Agent · Stitch · Patch · Bead · Plan · File." in provider_card
     assert (
-        "Cycle Artifacts: Agent · Stitch · Patch · Bead · Plan · File." in provider_card
+        "Jump: Agent · Commits · Patches · Beads · Plans · Files."
+        in normalized_provider_card
+    )
+    assert (
+        "Cycle Artifacts: Agent · Commits · Patches · Beads · Plans · Files."
+        in normalized_provider_card
     )
 
 

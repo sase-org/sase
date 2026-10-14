@@ -239,7 +239,7 @@ async def test_hydration_exception_maps_to_failed() -> None:
     app._follow_link_number(1)
     await _await_hydration(app)
 
-    assert app.notifications == [("Bead failed to load for bead:sase-ug.9.", "error")]
+    assert app.notifications == [("Beads failed to load for bead:sase-ug.9.", "error")]
     assert app.notification_details[0][2] == "Cannot load sase-ug.9"
     assert app._link_trail == []
     assert app._link_follow_transaction is None
@@ -294,9 +294,9 @@ async def test_hydration_unsupported_falls_back_to_inventory_miss() -> None:
 
     assert beads_pane.hydrate_calls == [("bead", "sase-ug.9")]
     assert app.notifications == [
-        ("Bead has no bead:sase-ug.9 in its inventory.", "warning")
+        ("Beads has no bead:sase-ug.9 in its inventory.", "warning")
     ]
-    assert app.notification_details[0][2] == "Not in Bead: sase-ug.9"
+    assert app.notification_details[0][2] == "Not in Beads: sase-ug.9"
 
 
 def test_dangling_ref_never_attempts_hydration() -> None:

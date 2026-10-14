@@ -18,10 +18,10 @@ if TYPE_CHECKING:
 
 def build_artifacts_context(app: Any, subtab: str) -> CopyAsContext | None:
     subtab = _canonical_artifact_subtab(subtab)
-    label = _artifact_context_label(subtab)
+    label, item_noun = _artifact_context_labels(subtab)
     pane = _artifact_pane(app, subtab)
     if pane is None:
-        notify_copy_warning(app, f"No {label} entry to copy")
+        notify_copy_warning(app, f"No {item_noun.lower()} entry to copy")
         return None
 
     visible_targets = _entry_targets(pane)
@@ -30,7 +30,7 @@ def build_artifacts_context(app: Any, subtab: str) -> CopyAsContext | None:
     marked_targets = tuple(target for target in visible_targets if target in marks)
     marked = bool(marks)
     if marked and not marked_targets:
-        notify_copy_warning(app, f"No marked {label} entries are visible")
+        notify_copy_warning(app, f"No marked {item_noun.lower()} entries are visible")
         return None
 
     selected_target = _selected_entry_target(pane)
@@ -46,7 +46,7 @@ def build_artifacts_context(app: Any, subtab: str) -> CopyAsContext | None:
         if selected is not None and not selected_objects:
             selected_objects = (selected,)
         if selected_target is None and not selected_objects:
-            notify_copy_warning(app, f"No {label} entry to copy")
+            notify_copy_warning(app, f"No {item_noun.lower()} entry to copy")
             return None
 
     count = len(marked_targets) if marked else 1
@@ -76,14 +76,14 @@ def build_artifacts_context(app: Any, subtab: str) -> CopyAsContext | None:
         )
         subtitle = " · ".join(part for part in (display_name, identity) if part)
         if not subtitle:
-            subtitle = f"Selected {label[:-1] if label.endswith('s') else label}"
+            subtitle = f"Selected {item_noun}"
 
     return context_from_registry(
         app,
         group=copy_mode_group,
         command_context=ctx,
         subtitle=subtitle,
-        unknown_context=label.title(),
+        unknown_context=label,
         previews=previews,
         marked=marked,
     )
@@ -261,17 +261,10 @@ def _canonical_artifact_subtab(subtab: str) -> str:
     return subtab
 
 
-def _artifact_context_label(subtab: str) -> str:
-    from ...artifact_tabs import artifacts_pane_contract, is_document_artifacts_pane
+def _artifact_context_labels(subtab: str) -> tuple[str, str]:
+    from ...artifact_tabs import artifacts_pane_item_noun, artifacts_pane_label
 
-    contract = artifacts_pane_contract(subtab)
-    if contract is not None:
-        if contract.is_document_provider():
-            return f"{contract.label.lower()}s"
-        return subtab
-    if is_document_artifacts_pane(subtab):
-        return "plans" if subtab == "ref:plan" else "documents"
-    return subtab
+    return artifacts_pane_label(subtab), artifacts_pane_item_noun(subtab)
 
 
 def _is_document_subtab(subtab: str) -> bool:

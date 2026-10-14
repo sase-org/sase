@@ -127,7 +127,7 @@ sase's TUI has three top-level tabs:
   status (WIP → Draft → Ready → Mailed → Submitted), commits, hooks, comments, and
   mentor activity all in one place. The [Patch guide](change_spec.md) goes deeper when
   you're curious. This first read-only run should not have created one. Normal commits
-  appear in the Artifacts **Stitch** pane (`◉`); the `#pr` workflow creates a Patch for
+  appear in the Artifacts **Commits** pane (`◉`); the `#pr` workflow creates a Patch for
   a pull request.
 - **Services** — machine services, scheduled jobs, hooks waiting to complete, mentor
   launches, and error digests. This includes every configured service proc and nests
@@ -196,8 +196,8 @@ pull request with `#pr` creates a **Patch**.
 
 On the Agents tab, the selected run lists its commits under `SASE CONTEXT` / `ARTIFACTS`
 / `Commits`, grouped by repository. That list is not the diff. Open the full message and
-diff from Artifacts: the **Stitch** pane (`◉`, key `2`) is the default view, and `Enter`
-on a row opens that commit.
+diff from Artifacts: the **Commits** pane (`◉`, key `1`) is the default view, and
+`Enter` on a row opens that commit.
 
 Workspace isolation separates concurrent edits, but the normal commit also pushes to the
 project's remote. For `home`, that remote is SASE's local bare repository. A later home

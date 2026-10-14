@@ -62,19 +62,22 @@ def test_patch_onboarding_uses_active_keymap_registry() -> None:
     how_text = _section_plain(sections, "#patch-onboarding-how")
     learn_text = _section_plain(sections, "#patch-onboarding-learn")
 
-    # The retired strip reads Stitch first with no Agent row.
+    # The retired strip reads Commits first with no Agent row.
     assert "Agent" not in tabs_text
     positions = {
         label: tabs_text.index(label)
         for label in (
-            "Stitch",
-            "Patch",
-            "Bead",
-            "File",
+            "Commits",
+            "Patches",
+            "Beads",
+            "Files",
         )
     }
     assert (
-        positions["Stitch"] < positions["Patch"] < positions["Bead"] < positions["File"]
+        positions["Commits"]
+        < positions["Patches"]
+        < positions["Beads"]
+        < positions["Files"]
     )
     for key in ("f3", "f4", "f5"):
         assert key in tabs_text

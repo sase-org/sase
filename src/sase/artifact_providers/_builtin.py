@@ -19,6 +19,7 @@ def builtin_plan_ref_provider_spec() -> dict[str, Any]:
         "ref": {
             "kind": "plan",
             "icon": "✎",
+            "pane": {"label": "Plans"},
             "expansion_format": (
                 "the {repo_relative_path} file in the {sidecar_role} sidecar repo"
             ),

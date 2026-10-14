@@ -89,7 +89,8 @@ class PlansSnapshot:
     errors: dict[str, str]
     archive_truncated: bool = False
     provider_kind: str = "plan"
-    provider_label: str = "Plan"
+    provider_label: str = "Plans"
+    provider_item_noun: str = "Plan"
     provider_presentation_digest: str = ""
     provider_presentation: PanePresentation = field(default_factory=PanePresentation)
     artifact_links: ArtifactLinksSnapshot = field(

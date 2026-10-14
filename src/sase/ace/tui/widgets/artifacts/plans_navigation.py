@@ -287,8 +287,8 @@ class PlansNavigationMixin(_MixinBase):
         if provider_kind == "plan":
             label = f"plan {basename}"
         else:
-            provider_label = getattr(self, "provider_label", None) or "plan"
-            label = f"{provider_label} {basename}"
+            provider_item_noun = getattr(self, "provider_item_noun", None) or "Plan"
+            label = f"{provider_item_noun.lower()} {basename}"
         return RevealContext(
             alternatives=(("path", identity),),
             label=label,

@@ -122,13 +122,13 @@ async def test_copy_as_stitches_marked_light_narrow_png_snapshot(
         )
         await page.press("%")
         await page.expect_modal("CopyAsModal")
-        await wait_for_svg_contains(page, "2 marked stitches")
+        await wait_for_svg_contains(page, "2 marked Commits")
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(
             page,
             "copy_as_stitches_marked_light_80x30",
-            title="ACE Copy as palette — marked stitches, light narrow layout",
+            title="ACE Copy as palette — marked Commits, light narrow layout",
         )
 
 

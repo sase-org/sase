@@ -99,7 +99,9 @@ class ArtifactsAgentsPane(
         )
         with Horizontal(id="agents-panels"):
             list_panel = Vertical(id="agents-list-panel")
-            list_panel.border_title = "Agent"
+            from ...artifact_tabs import ARTIFACTS_LABELS
+
+            list_panel.border_title = ARTIFACTS_LABELS["agents"]
             with list_panel:
                 yield Static("No agents found.", id="agents-empty")
                 yield Static(self._status_text(), id="agents-status")

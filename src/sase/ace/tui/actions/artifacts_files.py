@@ -163,8 +163,10 @@ class ArtifactsFilesActionsMixin:
             )
             entries = pane.entries_for_targets(targets)
             if not entries:
+                from ..artifact_tabs import artifacts_pane_item_noun
+
                 self.notify(  # type: ignore[attr-defined]
-                    "No marked files entries are visible",
+                    f"No marked {artifacts_pane_item_noun('files').lower()} entries are visible",
                     severity="warning",
                 )
                 return

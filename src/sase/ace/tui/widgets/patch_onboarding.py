@@ -10,7 +10,6 @@ from textual.containers import VerticalScroll
 from textual.widgets import Static
 
 from ..artifact_tabs import (
-    ARTIFACTS_ACCENTS,
     ArtifactsSubTab,
     resolve_artifacts_subtabs,
 )
@@ -37,13 +36,6 @@ _ARTIFACT_DESCRIPTIONS: dict[ArtifactsSubTab, str] = {
     "patches": "Inspect Patches and move PRs through review.",
     "beads": "Review task, epic, and phase work items.",
     "files": "Browse logical artifact files and their versions.",
-}
-_ARTIFACT_LABELS: dict[ArtifactsSubTab, str] = {
-    "agents": "Agent",
-    "stitches": "Stitch",
-    "patches": "Patch",
-    "beads": "Bead",
-    "files": "File",
 }
 
 
@@ -153,21 +145,16 @@ class PatchOnboarding(VerticalScroll):
         return text
 
     @staticmethod
-    def _artifact_label(subtab: ArtifactsSubTab) -> str:
-        return _ARTIFACT_LABELS[subtab]
-
-    @classmethod
     def _append_artifact_row(
-        cls,
         text: Text,
-        subtab: ArtifactsSubTab,
+        descriptor: Any,
     ) -> None:
         text.append(
-            f" {cls._artifact_label(subtab)} ",
-            style=f"bold {ARTIFACTS_ACCENTS[subtab]}",
+            f" {descriptor.label} ",
+            style=f"bold {descriptor.accent}",
         )
         text.append("  ")
-        text.append(_ARTIFACT_DESCRIPTIONS[subtab])
+        text.append(_ARTIFACT_DESCRIPTIONS[descriptor.id])
         text.append("\n")
 
     @classmethod
@@ -176,18 +163,18 @@ class PatchOnboarding(VerticalScroll):
         text = Text()
         append_section_heading(text, "Know what each view shows", accent=_ACCENT)
         # Follow the live strip (not the static order) so the retired Agent
-        # pane drops out and Stitch takes digit 1.
+        # pane drops out and Commits takes digit 1.
         descriptors = [
             descriptor
             for descriptor in resolve_artifacts_subtabs()
-            if descriptor.id in _ARTIFACT_LABELS
+            if descriptor.id in _ARTIFACT_DESCRIPTIONS
         ]
         for descriptor in descriptors:
-            cls._append_artifact_row(text, descriptor.id)
+            cls._append_artifact_row(text, descriptor)
         text.append("Jump directly:")
         for descriptor in descriptors:
             append_keycap(text, descriptor.digit_shortcut or "?")
-            text.append(cls._artifact_label(descriptor.id))
+            text.append(descriptor.label)
         text.append("\n")
         append_keycap(
             text,

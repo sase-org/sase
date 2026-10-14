@@ -69,10 +69,10 @@ def test_patch_guide_tabs_card_follows_retired_strip() -> None:
         artifact_tabs.reset_artifacts_subtabs_cache()
 
     assert "Agent" not in cards[True]
-    assert "1  Stitch" in cards[True]
+    assert "1  Commits" in cards[True]
     assert "Agent" in cards[False]
     assert "1  Agent" in cards[False]
-    assert "2  Stitch" in cards[False]
+    assert "2  Commits" in cards[False]
 
 
 def test_help_modal_refresh_for_tab_rebuilds_guide_state() -> None:

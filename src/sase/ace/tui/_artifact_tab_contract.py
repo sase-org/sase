@@ -44,6 +44,7 @@ from ._artifact_tab_contract_provider import (
 from ._artifact_tab_contract_rules import derive_capability_verdicts
 from ._artifact_tab_descriptions import resolve_pane_description
 from ._artifact_tab_model import (
+    ARTIFACTS_ITEM_NOUNS,
     ArtifactsPaneContract,
     ArtifactsTabDescriptor,
     CapabilityVerdict,
@@ -54,6 +55,7 @@ from ._artifact_tab_model import (
     PaneRelationDecl,
     PanePresentation,
     PaneStatusCounter,
+    provider_item_noun,
 )
 from ._artifact_tab_presentation import compile_provider_pane_presentation
 
@@ -104,12 +106,14 @@ def compile_builtin_contract(
     pane_description = resolve_pane_description(
         adapter.pane_id,
         label=label,
+        item_noun=ARTIFACTS_ITEM_NOUNS[adapter.pane_id],
         provider_summary="",
         provider_body="",
     )
     return _assemble_contract(
         pane_id=adapter.pane_id,
         label=label,
+        item_noun=ARTIFACTS_ITEM_NOUNS[adapter.pane_id],
         description=pane_description.summary,
         description_body=pane_description.body,
         description_source=pane_description.summary_source,
@@ -154,6 +158,7 @@ def compile_provider_contract(
     pane_result = compile_provider_pane_presentation(
         spec,
         default_label=label,
+        item_noun=provider_item_noun(kind),
     )
     if pane_result.error is not None:
         is_degraded = True
@@ -236,8 +241,8 @@ def compile_provider_contract(
         copy_targets = PLAN_ADAPTER.copy_targets
         copy_keymap_group = PLAN_ADAPTER.copy_keymap_group
         empty_state = PaneEmptyState(
-            title=f"No {label.lower()}s",
-            body=(f"No {label.lower()}s match the current project scope and filters."),
+            title=f"No {label.lower()}",
+            body=(f"No {label.lower()} match the current project scope and filters."),
         )
         target_prefix = "plan"
         adapter = "plan"
@@ -246,8 +251,11 @@ def compile_provider_contract(
         copy_targets = GENERIC_DOCUMENT_COPY_TARGETS
         copy_keymap_group = GENERIC_DOCUMENT_COPY_KEYMAP_GROUP
         empty_state = PaneEmptyState(
-            title=f"No {label.lower()}s",
-            body=(f"No {label.lower()}s match the current project scope and filters."),
+            title=f"No {label.lower()}",
+            body=(
+                f"No {provider_item_noun(kind).lower()} documents match "
+                "the current project scope and filters."
+            ),
         )
         target_prefix = kind
         adapter = None
@@ -263,12 +271,14 @@ def compile_provider_contract(
     pane_description = resolve_pane_description(
         f"ref:{kind}",
         label=label,
+        item_noun=provider_item_noun(kind),
         provider_summary=pane_result.presentation.description,
         provider_body=pane_result.presentation.description_body,
     )
     contract = _assemble_contract(
         pane_id=f"ref:{kind}",
         label=label,
+        item_noun=provider_item_noun(kind),
         description=pane_description.summary,
         description_body=pane_description.body,
         description_source=pane_description.summary_source,
@@ -321,6 +331,7 @@ def attach_contract(
     return replace(
         descriptor,
         label=contract.label,
+        item_noun=contract.item_noun,
         description=contract.description,
         description_body=contract.description_body,
         icon=contract.icon,
@@ -336,6 +347,7 @@ def _presentation_digest(contract: ArtifactsPaneContract) -> str:
     payload = {
         "id": contract.id,
         "label": contract.label,
+        "item_noun": contract.item_noun,
         "description": contract.description,
         "description_body": contract.description_body,
         "description_source": contract.description_source,
@@ -376,6 +388,7 @@ def _presentation_digest_for(
     *,
     pane_id: str,
     label: str,
+    item_noun: str,
     description: str,
     description_body: str,
     description_source: str,
@@ -405,6 +418,7 @@ def _presentation_digest_for(
     payload = {
         "id": pane_id,
         "label": label,
+        "item_noun": item_noun,
         "description": description,
         "description_body": description_body,
         "description_source": description_source,
@@ -439,6 +453,7 @@ def _assemble_contract(
     *,
     pane_id: str,
     label: str,
+    item_noun: str,
     description: str,
     description_body: str,
     description_source: str,
@@ -468,6 +483,7 @@ def _assemble_contract(
     digest = _presentation_digest_for(
         pane_id=pane_id,
         label=label,
+        item_noun=item_noun,
         description=description,
         description_body=description_body,
         description_source=description_source,
@@ -495,6 +511,7 @@ def _assemble_contract(
     return ArtifactsPaneContract(
         id=pane_id,
         label=label,
+        item_noun=item_noun,
         description=description,
         description_body=description_body,
         description_source=description_source,

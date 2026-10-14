@@ -118,11 +118,11 @@ sase's TUI has three tabs, cycled with `Tab` and `Shift+Tab`:
 While a prompt input bar is open, `Tab`/`Shift+Tab` belong to the prompt (snippet
 expansion, tabstops, list indent) and never switch tabs.
 
-| Tab           | Description                                                                                                                                                                                                                                                                                                                                                         |
-| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Agents**    | View running and completed agents, their files and prompts                                                                                                                                                                                                                                                                                                          |
-| **Artifacts** | Browse Stitches, Patches, Beads, configured document providers, and Files. Agent history lives in the Agents tab Archive (`,a`); the Artifacts ▸ Agent sub-tab is retired (restore it with `sase flag disable artifacts_agent_pane_retired`). See the [Artifacts pane contract](artifacts_pane_contract.md) and [visual grammar](artifacts_pane_visual_grammar.md). |
-| **Services**  | Monitor the service host, configured service procs, scheduler work, and background commands                                                                                                                                                                                                                                                                         |
+| Tab           | Description                                                                                                                                                                                                                                                                                                                                                        |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Agents**    | View running and completed agents, their files and prompts                                                                                                                                                                                                                                                                                                         |
+| **Artifacts** | Browse Commits, Patches, Beads, configured document providers, and Files. Agent history lives in the Agents tab Archive (`,a`); the Artifacts ▸ Agent sub-tab is retired (restore it with `sase flag disable artifacts_agent_pane_retired`). See the [Artifacts pane contract](artifacts_pane_contract.md) and [visual grammar](artifacts_pane_visual_grammar.md). |
+| **Services**  | Monitor the service host, configured service procs, scheduler work, and background commands                                                                                                                                                                                                                                                                        |
 
 Agents is the first tab and the startup default. Each tab has contextual help: press `?`
 to open the Help modal on its **Keymaps** view, then `]` to switch to the tab's
@@ -148,13 +148,13 @@ more" links into the published docs. An empty Beads pane points agents to
 TaskTriage.
 
 Within Artifacts, number keys follow the visible left-to-right order of the strip:
-Stitch, Patch, and Bead are always **1**, **2**, **3**; configured document-provider
-tabs such as Plan and Research take the next digits; and File, which always renders
+Commits, Patches, and Beads are always **1**, **2**, **3**; configured document-provider
+tabs such as Plans and Research take the next digits; and Files, which always renders
 last, carries the highest digit — **4** with no provider tabs configured, **6** with
-two. Digits stop at `9`, and File keeps `9` when the runtime strip grows past nine
-panes; middle overflow panes may then have no digit. Use `[` / `]` to cycle through the
-complete runtime strip. As horizontal space tightens, the strip chooses the widest tier
-that fits from a full → compact → micro ladder and re-renders only when the tier
+two. Digits stop at `9`, and the Files pane keeps `9` when the runtime strip grows past
+nine panes; middle overflow panes may then have no digit. Use `[` / `]` to cycle through
+the complete runtime strip. As horizontal space tightens, the strip chooses the widest
+tier that fits from a full → compact → micro ladder and re-renders only when the tier
 changes. Compact removes outer padding; micro also tightens the separators and hides
 inactive labels, leaving their digits and icons visible. If even micro is wider than the
 available space, micro remains selected. Every Artifacts tab has an icon, including
@@ -165,7 +165,7 @@ any Artifacts pane to change the shared project scope — first-open seeds from 
 [current project](#current-project) — or use the command palette to jump directly to a
 top-level view. Patches remains query-scoped: choosing a project there rewrites the
 Patches query's `project:` token. The strip order does not change the entry point:
-opening Artifacts still selects Stitch by default.
+opening Artifacts still selects Commits by default.
 
 ### Contextual Artifact Links
 
@@ -298,13 +298,13 @@ The `{████}` badge at the right of the sub-tab strip shows the current m
 active pane's accent color: one filled cell is narrow, two is even, and three is wide.
 Clicking the badge cycles forward, like `}`.
 
-The Patch pane remains content-sized instead of reserving empty list space. Its mode
+The Patches pane remains content-sized instead of reserving empty list space. Its mode
 sets the maximum list width for the available terminal width, while the existing 43-cell
 readability floor and 80-cell upper bound still apply.
 
 ### Pane Description Brief
 
-Every Artifacts pane — the five built-ins, the Plan pane, and every pane a sidecar ref
+Every Artifacts pane — the five built-ins, the Plans pane, and every pane a sidecar ref
 creates — carries a resolved, never-empty description, shown as a host-owned brief
 directly under the sub-tab strip. Press `D` to cycle it through three modes:
 
@@ -324,11 +324,11 @@ only, a dim italic hint naming both places its description can be configured:
 [Artifacts pane visual grammar](artifacts_pane_visual_grammar.md#pane-brief) for the
 full rendering rules.
 
-### Navigation in Agent, Stitches, Beads, Provider Documents, and Files
+### Navigation in Agent, Commits, Beads, Provider Documents, and Files
 
 The Agent pane is retired by default (`artifacts_agent_pane_retired`) and shows only
 with the opt-out. The non-Patches panes share fast navigation over their selectable
-left-panel entries. Stitches and Files skip day headings; Agent, Beads, and provider
+left-panel entries. Commits and Files skip day headings; Agent, Beads, and provider
 document panes skip group, section, and empty-state rows as applicable. Movement clamps
 at the first or last entry and silently does nothing when a list is empty.
 
@@ -396,7 +396,7 @@ drilling into or out of a Launch Control bucket, or an async provider-snapshot r
 discard the stored origins instead of leaving them pointing at whatever row inherited
 the index.
 
-### Copy Mode in Agent, Stitches, Beads, Provider Documents, and Files
+### Copy Mode in Agent, Commits, Beads, Provider Documents, and Files
 
 Press `%` on any non-Patches Artifacts pane to open the context-aware **Copy as…**
 palette for the visible entry. Rows are grouped by representation, show their configured
@@ -408,7 +408,7 @@ cancellation.
 | Pane            | Keys                                                                                                                                                                             |
 | --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Agent           | `%@` artifact ref · `%!` ref in agent prompt · `%n` name · `%l` Markdown link · `%p` artifacts path · `%c` chat path · `%P` prompt · `%j` metadata JSON                          |
-| Stitches        | `%@` artifact ref · `%l` Markdown link · `%J` metadata JSON · `%!` ref in agent prompt · `%%` full SHA · `%m` message · `%r` `repo@sha` · `%p` plan                              |
+| Commits         | `%@` artifact ref · `%l` Markdown link · `%J` metadata JSON · `%!` ref in agent prompt · `%%` full SHA · `%m` message · `%r` `repo@sha` · `%p` plan                              |
 | Beads           | `%@` artifact ref · `%l` Markdown link · `%J` metadata JSON · `%!` ref in agent prompt · `%%` id · `%t` title · `%b` description and notes · `%d` design · `%u` linked issue ref |
 | Plans           | `%@` artifact ref · `%d` bead design ref · `%l` Markdown link · `%J` metadata JSON · `%!` ref in agent prompt · `%%` bead id · `%p` path · `%t` title · `%b` body                |
 | Other providers | `%@` artifact ref · `%l` Markdown link · `%J` metadata JSON · `%!` ref in agent prompt · `%p` path · `%t` title · `%b` body                                                      |
@@ -432,7 +432,7 @@ including the preview panel. Dismissing the palette returns to the underlying mo
 Snapshot choices dismiss the palette before capture, so the palette itself is not
 included in the copied pane.
 
-### Marks in Agent, Stitches, Beads, Provider Documents, and Files
+### Marks in Agent, Commits, Beads, Provider Documents, and Files
 
 Press `m` to mark or unmark the selected entry and `u` to clear the active pane's marks.
 Each non-Patches pane keeps an independent stable-target mark set, so marks survive
@@ -446,7 +446,7 @@ are capped at 512,000 bytes per item and per assembled payload, with an explicit
 truncation banner and toast. The footer shows the active pane's mark count only while
 that count is nonzero.
 
-### Filtering Agent, Patches, Stitches, Beads, and Plans
+### Filtering Agent, Patches, Commits, Beads, and Plans
 
 Patches keeps its canonical query visible in a persistent, read-only filter row at the
 top of the detail column, so the active query is legible without opening anything. Press
@@ -461,8 +461,8 @@ status shorthands, and — while the row is empty — saved-slot commands. Saved
 commands such as `#3 status:Draft`, `# status:Ready`, and `#3` save, allocate, or delete
 a slot without changing the active query or closing the editor.
 
-Stitches keeps its effective canonical query visible above the timeline. Press `/` or
-the local `f` shortcut to focus that row for live editing; `Enter` commits the query and
+Commits keeps its effective canonical query visible above the timeline. Press `/` or the
+local `f` shortcut to focus that row for live editing; `Enter` commits the query and
 returns focus to the timeline, while `Escape` restores the last committed query and
 result. The row remains visible in either case. Beads, Plans, Files, and every document
 provider pane keep the same persistent idle row, so the committed query stays visible
@@ -638,9 +638,9 @@ compiled profile's digest, so no saved query is invalidated. Stitches' `sidecar`
 is Boolean, so a bare `sidecar` filters to `sidecar:true` instead of searching for the
 literal word in a commit subject; quote it (`"sidecar"`) to search for the word.
 
-### Bead Pane
+### Beads Pane
 
-The top-level Beads view (`4`) is the work-item home for standalone tasks, epic plan
+The top-level Beads view (`3`) is the work-item home for standalone tasks, epic plan
 beads, and their phase beads. Every bead appears once: tasks occupy their own section,
 while epics expand with `l` and collapse with `h` to reveal phases. Rows show stored
 status and ownership metadata, `✦` when a task has a pending TaskTriage decision, and
@@ -812,14 +812,14 @@ that blocked save action; it is not the chooser's restore-and-show key.
 ### Document Provider Panes
 
 Artifacts includes one document pane per configured artifact-reference provider. The
-fixed tabs are Stitch, Patch, Bead, and File; provider-backed document tabs such as Plan
-and Research appear between Bead and File when an enabled project configures the
+fixed tabs are Commits, Patches, Beads, and Files; provider-backed document tabs such as
+Plans and Research appear between Beads and Files when an enabled project configures the
 matching sidecar `ref:` policy. Persisted selections use stable ids such as `ref:plan`
-and `ref:research`, so a missing provider falls back to Stitch instead of crashing
-startup. Each pane renders an icon before its label — the four fixed marks (`◉` Stitch,
-`⎇` Patch, `◈` Bead, `▤` File) are built in, and a provider pane's mark comes from its
-sidecar `ref.icon`. The active tab's icon takes that pane's accent color; inactive icons
-render dim. A missing `ref.icon`, one that fails validation, or one wider than two
+and `ref:research`, so a missing provider falls back to Commits instead of crashing
+startup. Each pane renders an icon before its label — the four fixed marks (`◉` Commits,
+`⎇` Patches, `◈` Beads, `▤` Files) are built in, and a provider pane's mark comes from
+its sidecar `ref.icon`. The active tab's icon takes that pane's accent color; inactive
+icons render dim. A missing `ref.icon`, one that fails validation, or one wider than two
 terminal cells uses the generic `◆` provider icon instead.
 
 Plans is the built-in provider-backed document pane for the plans sidecar. It keeps the
@@ -833,7 +833,7 @@ see [Grouping declarations](artifacts_pane_contract.md#grouping-declarations).
 
 ### Commit Detail and Linked Plans
 
-Press `Enter` on a Stitches entry to open its full message and syntax-highlighted diff.
+Press `Enter` on a Commits entry to open its full message and syntax-highlighted diff.
 The modal uses `j` / `k` for line scrolling, `Ctrl+D` / `Ctrl+U` for half pages, `g` /
 `G` for the ends, `y` to copy the full SHA, and `Esc` or `q` to close. When the current
 result contains multiple commits, `Ctrl+N` / `Ctrl+P` move through them with wraparound.
@@ -917,13 +917,13 @@ re-renders on terminal resize. The footer shows
 `Y path | % copy | Z viewer | esc close`, and `Z` opens the full-fidelity artifact
 viewer. `y`, `/`, and `o` warn instead of acting on image previews.
 
-### File Pane
+### Files Pane
 
 Files browses the artifact-file index that backs [`sase artifact list`](cli.md). The
-pane is one of the four fixed Artifacts views: Stitch, Patch, Bead, and File. The Agent
-pane is retired by default (`artifacts_agent_pane_retired`) and shows only with the
-opt-out. Configured document-provider panes appear between Bead and File in the runtime
-tab strip. Rows are grouped by logical file identity, so repeated captures of
+pane is one of the four fixed Artifacts views: Commits, Patches, Beads, and Files. The
+Agent pane is retired by default (`artifacts_agent_pane_retired`) and shows only with
+the opt-out. Configured document-provider panes appear between Beads and Files in the
+runtime tab strip. Rows are grouped by logical file identity, so repeated captures of
 `@file:~/bob/gtd.md` or repeated `sase artifact create` rows for the same logical
 artifact appear as one selectable row with versions.
 
@@ -983,7 +983,7 @@ configuration names and are remappable under
 `Ctrl+K` are the shared `artifacts_load_more`/`artifacts_unload` actions. Version
 cycling uses the old nested-files sub-tab keys. The pane also shares the navigation and
 jump keys described in
-[Navigation in Agent, Stitches, Beads, Provider Documents, and Files](#navigation-in-agent-stitches-beads-provider-documents-and-files).
+[Navigation in Agent, Commits, Beads, Provider Documents, and Files](#navigation-in-agent-commits-beads-provider-documents-and-files).
 
 `Y` copies the anchored stored path, except that PDF rows deliberately yield the live
 Markdown source they were rendered from when the index recorded one. Relative index
@@ -2120,7 +2120,7 @@ count. These modal-local `l`/`J` accelerators are distinct from the Artifacts Fi
 pane's compatibility-preserving `%L`/`%j` keys. The legacy `y` and `Y` accelerators
 remain available and apply to the same marked set.
 
-`Y` shares one helper with the [Files pane](#file-pane), so both copy the same anchored
+`Y` shares one helper with the [Files pane](#files-pane), so both copy the same anchored
 path: the stored path, except that PDF rows yield the live Markdown source they were
 rendered from when the index recorded one. Relative index paths are anchored to the
 producing workspace — including legacy rows whose workspace is discoverable only through
@@ -3707,7 +3707,7 @@ effective binding and destination.
 Inside every working section, `'` is an Admin Center-wide entry-jump key: it paints
 adaptive hints over that section's selectable rows using the same hint alphabet
 described under
-[Navigation in Agent, Stitches, Beads, Provider Documents, and Files](#navigation-in-agent-stitches-beads-provider-documents-and-files),
+[Navigation in Agent, Commits, Beads, Provider Documents, and Files](#navigation-in-agent-commits-beads-provider-documents-and-files),
 a hint character moves the selection there, `'` again returns to the previous position
 (or the first hint with an empty back stack), and `Esc` cancels. Each working section's
 own keybindings table names its jump targets; two are deliberate exceptions. The

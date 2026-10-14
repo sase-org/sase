@@ -200,7 +200,7 @@ def build_empty_card(
     text = Text()
     if has_active_filter:
         text.append("No matches", style="bold")
-        text.append(f" under the active {contract.label.lower()} filter.")
+        text.append(f" under the active {contract.item_noun.lower()} filter.")
         if clear_filter_hint:
             text.append(f" {clear_filter_hint}", style="dim")
         return text
@@ -210,7 +210,7 @@ def build_empty_card(
             text.append("\n\n")
             text.append(contract.empty_state.body)
         return text
-    text.append(f"No {contract.label.lower()} entries yet.", style="dim")
+    text.append(f"No {contract.item_noun.lower()} entries yet.", style="dim")
     return text
 
 

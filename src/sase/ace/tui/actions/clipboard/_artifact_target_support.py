@@ -27,8 +27,10 @@ class ClipboardArtifactTargetSupportMixin(ClipboardBase):
             return ()
         targets = tuple(target for target in pane.entry_targets() if target in marks)
         if not targets:
+            from ...artifact_tabs import artifacts_pane_item_noun
+
             self.notify(  # type: ignore[attr-defined]
-                f"No marked {self.current_artifacts_pane_key} entries are visible",
+                f"No marked {artifacts_pane_item_noun(self.current_artifacts_pane_key).lower()} entries are visible",
                 severity="warning",
             )
         return targets

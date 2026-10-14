@@ -54,7 +54,7 @@ def artifacts_agent_pane_retired() -> bool:
     """Return whether the ``artifacts_agent_pane_retired`` sunset flag is on.
 
     While on, the Artifacts Agent sub-tab is hidden and ``agents`` resolves
-    to the Stitches pane; agent history lives in the Agents tab Archive.
+    to the Commits pane; agent history lives in the Agents tab Archive.
     """
     from sase.feature_flags.registry import FeatureFlag
     from sase.feature_flags.snapshot import current_flags
@@ -82,6 +82,30 @@ ARTIFACTS_ICONS: dict[str, str] = {
     "agents": "⬡",
     "files": "▤",
 }
+ARTIFACTS_LABELS: dict[str, str] = {
+    "stitches": "Commits",
+    "patches": "Patches",
+    "beads": "Beads",
+    "agents": "Agent",
+    "files": "Files",
+    "ref:plan": "Plans",
+}
+ARTIFACTS_ITEM_NOUNS: dict[str, str] = {
+    "stitches": "Commit",
+    "patches": "Patch",
+    "beads": "Bead",
+    "agents": "Agent",
+    "files": "File",
+    "ref:plan": "Plan",
+}
+
+
+def provider_item_noun(kind: str) -> str:
+    """Return the singular display noun derived from a provider kind."""
+
+    noun = kind.replace("_", " ").replace("-", " ").strip().title()
+    return noun or "Document"
+
 
 CapabilityState = Literal["ON", "OFF"]
 
@@ -364,6 +388,7 @@ class ArtifactsPaneContract:
     description_body: str = ""
     description_source: str = "builtin"
     description_body_source: str = "builtin"
+    item_noun: str = ""
 
     def has(self, capability: PaneCapability) -> bool:
         return capability in self.capabilities
@@ -386,6 +411,7 @@ class ArtifactsPaneContract:
         return {
             "id": self.id,
             "label": self.label,
+            "item_noun": self.item_noun,
             "description": self.description,
             "description_detail": PaneDescription(
                 summary=self.description,
@@ -431,6 +457,7 @@ class ArtifactsTabDescriptor:
     label: str
     accent: str
     pane_id: str
+    item_noun: str = ""
     description: str = ""
     description_body: str = ""
     icon: str = ""

@@ -62,7 +62,7 @@ async def test_artifacts_retired_strip_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The retired strip opens on Stitch at digit 1 with no Agent pane."""
+    """The retired strip opens on Commits at digit 1 with no Agent pane."""
     with override_flags(artifacts_agent_pane_retired=True):
         _use_production_strip(monkeypatch)
 
@@ -71,7 +71,7 @@ async def test_artifacts_retired_strip_png_snapshot(
             await page.press(page.artifacts_digit("stitches"))
             await page.expect_state("artifacts_subtab", "stitches")
             assert page.artifacts_digit("stitches") == "1"
-            await wait_for_svg_contains(page, "Stitch")
+            await wait_for_svg_contains(page, "Commits")
             await wait_for_visual_idle(page)
 
             ace_png_visual.assert_page_png(

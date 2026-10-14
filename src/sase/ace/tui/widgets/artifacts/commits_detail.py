@@ -126,7 +126,7 @@ class CommitsDetailMixin(_MixinBase):
         return self._complete_entry_request(LinkRequestState.MISSING)
 
     def _collection_in_flight(self) -> bool:
-        """Return whether a Stitches collection or query evaluation is outstanding.
+        """Return whether a Commits collection or query evaluation is outstanding.
 
         A collection counts from the tick it is scheduled until its
         results are applied: a scheduled-but-not-yet-running worker and a

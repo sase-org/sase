@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, cast
 
-from sase.ace.tui._artifact_tab_model import PaneCapability
+from sase.ace.tui._artifact_tab_model import ARTIFACTS_LABELS, PaneCapability
 from sase.ace.tui.tab_order import ARTIFACTS_TAB
 from sase.core.artifact_entry_target import ArtifactEntryTarget
 from sase.core.artifact_relation_layout import (
@@ -36,7 +36,7 @@ class TreeNavigationMixin(NavigationMixinBase):
 
             return compile_builtin_contract(
                 "patches",
-                label="Patch",
+                label=ARTIFACTS_LABELS["patches"],
                 icon="",
                 accent="",
             )

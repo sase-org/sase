@@ -1,4 +1,4 @@
-"""Selectable timeline widget for the Artifacts Stitches pane."""
+"""Selectable timeline widget for the Artifacts Commits pane."""
 
 from __future__ import annotations
 
@@ -59,7 +59,7 @@ def commit_group_label(mode_id: str, value: str) -> str:
 
 
 class CommitsTimeline(OptionList):
-    """Day-grouped commit rows controlled by app-level Stitches actions."""
+    """Day-grouped commit rows controlled by app-level Commits actions."""
 
     # Enter is registry-driven at the app level. Keep OptionList's arrow/page
     # bindings for accessibility while preventing its fixed Enter binding from

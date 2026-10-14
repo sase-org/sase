@@ -191,7 +191,7 @@ def init_late_startup_state(
     )
 
     commits_default = resolve_commits_default_query(ace_cfg)
-    # Stitches no longer reads cwd synchronously. The async Artifacts
+    # Commits no longer reads cwd synchronously. The async Artifacts
     # inventory is the single owner of the current-project fallback.
     commits_startup_filter = merge_commits_startup_project(
         commits_default.values,

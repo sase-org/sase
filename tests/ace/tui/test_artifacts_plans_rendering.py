@@ -14,6 +14,7 @@ from sase.ace.tui.widgets.artifacts.plans_detail import (
 from sase.ace.tui.widgets.artifacts.plans_rendering import (
     active_plan_text,
     archive_text,
+    build_empty_plan_detail,
     build_plans_scope,
     build_plans_status,
     proposal_text,
@@ -144,3 +145,37 @@ def test_row_and_scope_renderers_use_the_supplied_accent_not_plans_purple(
     scope_styles = {str(span.style) for span in scope.spans}
     assert any(research_accent in style for style in scope_styles)
     assert not any("#AF87FF" in style for style in scope_styles)
+
+
+def test_provider_empty_detail_uses_collection_label_and_singular_item_noun() -> None:
+    loading = build_empty_plan_detail(
+        None,
+        project_scope="alpha",
+        loading=True,
+        load_error=None,
+        provider_label="Research",
+        provider_item_noun="Research",
+    )
+    unavailable = build_empty_plan_detail(
+        None,
+        project_scope="alpha",
+        loading=False,
+        load_error="sidecar unavailable",
+        provider_label="Research",
+        provider_item_noun="Research",
+    )
+    no_matches = build_empty_plan_detail(
+        None,
+        project_scope="alpha",
+        loading=False,
+        load_error=None,
+        has_active_filter=True,
+        matched_total=0,
+        provider_label="Research",
+        provider_item_noun="Research",
+    )
+
+    assert loading == "# Research\n\nLoading research documents…"
+    assert unavailable.startswith("# Research unavailable\n")
+    assert "No research documents match" in no_matches
+    assert "researchs" not in "\n".join((loading, unavailable, no_matches))

@@ -64,6 +64,7 @@ class PlansOptionsMixin(_MixinBase):
     contract: ArtifactsPaneContract | None
     project_scope: str | None
     provider_label: str
+    provider_item_noun: str
     filters: PlanFilterValues
     _project_display_name: str | None
     _registry: KeymapRegistry
@@ -538,6 +539,7 @@ class PlansOptionsMixin(_MixinBase):
                 else None
             ),
             provider_label=self.provider_label,
+            provider_item_noun=self.provider_item_noun,
         )
 
     def _update_status(self) -> None:

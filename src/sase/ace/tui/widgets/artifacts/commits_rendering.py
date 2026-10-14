@@ -1,4 +1,4 @@
-"""Renderable builders for the Artifacts Stitches pane."""
+"""Renderable builders for the Artifacts Commits pane."""
 
 from __future__ import annotations
 
@@ -30,6 +30,7 @@ from sase.vcs_log.tags import commit_tag_view
 from .commit_filters import CommitLogFilterValues
 from .shell import ArtifactsPaneState, build_footer_hints, build_state_badge
 from .types import ARTIFACTS_ACCENTS
+from ...artifact_tabs import ARTIFACTS_LABELS
 
 
 def build_commits_info(
@@ -62,10 +63,10 @@ def build_commits_info_header(
     has_content: bool = False,
     active_limit: int | None = None,
 ) -> Text:
-    """Build the comparatively static first row of the Stitches information area."""
+    """Build the comparatively static first row of the Commits information area."""
     accent = ARTIFACTS_ACCENTS["stitches"]
     text = Text()
-    text.append(" Stitch ", style=f"bold #1a1a1a on {accent}")
+    text.append(f" {ARTIFACTS_LABELS['stitches']} ", style=f"bold #1a1a1a on {accent}")
     if active_limit is not None:
         text.append("  ", style="dim")
         text.append(f"limit:{active_limit}", style=f"bold {accent}")
@@ -140,7 +141,7 @@ def build_commits_hints(
     *,
     accent: str = ARTIFACTS_ACCENTS["stitches"],
 ) -> Text:
-    """Build the Stitches action hint bar from configured keymaps."""
+    """Build the Commits action hint bar from configured keymaps."""
     actions = registry.app
     view_key = key_display_name(actions.stitches_view_selected)
     if view_key == "Enter":

@@ -305,7 +305,7 @@ async def test_first_artifacts_entry_activates_default_without_hidden_collection
         assert switcher.current == ARTIFACTS_PANE_IDS["stitches"]
         tab_text = strip._build_content().plain
         assert "1 ⬡ Agent" in tab_text
-        assert "2 ◉ STITCH" in tab_text
+        assert "2 ◉ COMMITS" in tab_text
         assert commits.first_activation_count == 0
         assert commits.artifacts_active is False
         assert calls == []

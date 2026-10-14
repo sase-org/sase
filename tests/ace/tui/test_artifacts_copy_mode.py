@@ -29,7 +29,7 @@ def test_copy_mode_rejects_empty_artifacts_without_using_hidden_pr_state() -> No
 
     assert app._copy_mode_active is False
     assert app.copy_footer_updates == 0
-    assert app.notifications == [("No stitches entry to copy", "warning")]
+    assert app.notifications == [("No commit entry to copy", "warning")]
     assert app.artifacts_footer_restores == 0
     assert app.tab_footer_restores == 0
 
@@ -59,7 +59,7 @@ def test_each_artifacts_copy_menu_supports_snapshot_and_names_unknown_keys(
     assert app.artifacts_footer_restores == 1
 
     assert app._handle_copy_key("n") is False
-    label = {"stitches": "Stitch", "ref:plan": "Plan", "files": "File"}[subtab]
+    label = {"stitches": "Commits", "ref:plan": "Plans", "files": "Files"}[subtab]
     assert app.notifications[-1][0].startswith(f"Unknown copy key ({label}:")
     assert app.artifacts_footer_restores == 2
 
@@ -73,7 +73,7 @@ def test_document_percent_n_never_copies_a_patch_name() -> None:
     assert app._handle_copy_key("n") is False
 
     app._copy_cl_name.assert_not_called()
-    assert "Plan:" in app.notifications[-1][0]
+    assert "Plans:" in app.notifications[-1][0]
 
 
 def test_files_percent_unknown_key_never_reaches_patch_dispatch() -> None:
@@ -85,7 +85,7 @@ def test_files_percent_unknown_key_never_reaches_patch_dispatch() -> None:
     assert app._handle_copy_key("n") is False
 
     app._copy_cl_name.assert_not_called()
-    assert "File:" in app.notifications[-1][0]
+    assert "Files:" in app.notifications[-1][0]
 
 
 def _artifact_file(
@@ -237,7 +237,7 @@ def test_files_generic_reference_keys_degrade_safely_on_empty_scaffold(
 
     assert app._handle_copy_key(key) is True
 
-    assert app.notifications[-1] == ("No files entry selected", "warning")
+    assert app.notifications[-1] == ("No file entry selected", "warning")
 
 
 def test_commits_copy_targets_use_the_visible_commit_and_terminal_plan_tag() -> None:

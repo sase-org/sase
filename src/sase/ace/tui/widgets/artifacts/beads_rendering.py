@@ -38,6 +38,7 @@ from .shell import (
     build_state_badge,
 )
 from .types import ARTIFACTS_ACCENTS, EXTERNAL_ACCENT
+from ...artifact_tabs import ARTIFACTS_LABELS
 
 BLOCKED_STATE_GLYPH = "⊜"
 READY_STATE_GLYPH = "►"
@@ -53,7 +54,7 @@ def build_beads_scope(
     accent: str = ARTIFACTS_ACCENTS["beads"],
 ) -> Text:
     return build_shell_scope(
-        label="Bead",
+        label=ARTIFACTS_LABELS["beads"],
         accent=accent,
         scope_label=project_display_name or project_scope or "All projects",
         change_hint=f"{key_display_name(registry.app.pick_artifacts_project)} change",

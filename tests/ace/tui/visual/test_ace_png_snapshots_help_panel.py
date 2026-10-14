@@ -97,8 +97,8 @@ async def test_help_panel_filter_png_snapshot(
         await page.wait_for(lambda _s: modal._filter_query == "bead")
         await wait_for_visual_idle(page)
 
-        # "Bead" renders as its own highlighted span (the matched run), so it
-        # stays contiguous in the exported SVG even though "Bead Pane" as a
+        # "Beads" renders as its own highlighted span (the matched run), so it
+        # stays contiguous in the exported SVG even though "Beads Pane" as a
         # whole does not.
         assert_page_svg_contains(page, "Bead")
         assert_page_svg_contains(page, "Pane")

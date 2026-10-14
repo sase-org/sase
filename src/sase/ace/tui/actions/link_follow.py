@@ -4,7 +4,7 @@ Missing-target follows run one plan-then-commit engine: fold expansion
 (which mutates no query) first, then targeted hydration for rows the pane
 never loaded, then a single verified context rewrite, falling back to an
 identity-field query and finally a blunt ``limit:all`` neutral query
-(never for Stitches). The winning rewrite commits through the pane's
+(never for Commits). The winning rewrite commits through the pane's
 host-query adapter so query history records exactly one ``^`` restore.
 
 Targeted hydration fetches a row the pane never loaded at all (a

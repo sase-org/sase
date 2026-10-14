@@ -171,8 +171,10 @@ class ArtifactsNavigationActionsMixin:
         pane = self._artifacts_entry_navigator()
         target = pane.selected_entry_target() if pane is not None else None
         if pane is None or target is None:
+            from ..artifact_tabs import artifacts_pane_item_noun
+
             self.notify(  # type: ignore[attr-defined]
-                f"No {self.current_artifacts_pane_key.title()} entry to mark",
+                f"No {artifacts_pane_item_noun(self.current_artifacts_pane_key).lower()} entry to mark",
                 severity="warning",
             )
             return

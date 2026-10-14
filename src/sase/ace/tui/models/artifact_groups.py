@@ -1,7 +1,7 @@
 """Shared, pane-agnostic grouping model for Artifacts panes.
 
 Every Artifacts pane that owns a declared ``PaneGroupingModeDecl`` (Files,
-Plans/Documents, Stitches, and — via its own fixed epic/phase shape — Beads)
+Plans/Documents, Commits, and — via its own fixed epic/phase shape — Beads)
 renders the same kind of foldable banner row and walks the same kind of
 navigation/jump index.  This module holds the pane-free pieces: the banner
 record, the nested bucketing pass, and the stable navigation target for a

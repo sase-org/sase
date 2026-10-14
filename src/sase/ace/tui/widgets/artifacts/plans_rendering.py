@@ -33,7 +33,7 @@ def build_plans_scope(
     *,
     project_scope: str | None,
     project_display_name: str | None,
-    provider_label: str = "Plan",
+    provider_label: str = "Plans",
     accent: str = ARTIFACTS_ACCENTS["plans"],
 ) -> Text:
     return build_shell_scope(
@@ -82,7 +82,7 @@ def build_plans_status(
                     matched_counts,
                     "archive",
                     len(snapshot.archive) if archive_total is None else archive_total,
-                    f"{snapshot.provider_label.lower()} docs",
+                    f"{snapshot.provider_item_noun.lower()} docs",
                 ),
                 style=accent,
             )
@@ -151,16 +151,17 @@ def build_empty_plan_detail(
     has_active_filter: bool = False,
     matched_total: int | None = None,
     empty_state: PaneEmptyState | None = None,
-    provider_label: str = "Plan",
+    provider_label: str = "Plans",
+    provider_item_noun: str = "Plan",
 ) -> str:
     if loading and snapshot is None:
-        return f"# {provider_label}s\n\nLoading {provider_label.lower()} documents…"
+        return f"# {provider_label}\n\nLoading {provider_item_noun.lower()} documents…"
     if load_error and snapshot is None:
-        return f"# {provider_label}s unavailable\n\n{load_error}"
+        return f"# {provider_label} unavailable\n\n{load_error}"
     if has_active_filter and matched_total == 0:
         return (
             "# No matches\n\n"
-            f"No {provider_label.lower()} documents match the active filter. Press the filter key "
+            f"No {provider_item_noun.lower()} documents match the active filter. Press the filter key "
             "to edit or clear it."
         )
     if empty_state is not None:

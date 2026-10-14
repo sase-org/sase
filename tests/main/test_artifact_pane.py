@@ -102,7 +102,7 @@ def test_pane_show_text_prints_description(monkeypatch, capsys) -> None:
     out = capsys.readouterr().out
     assert exit_code == 0
     assert "Description" in out
-    assert descriptor.description in out
+    assert " ".join(descriptor.description.split()) in " ".join(out.split())
     assert "summary source: builtin" in out
     assert "body source: builtin" in out
 

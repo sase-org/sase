@@ -162,7 +162,7 @@ BUILTIN_ADAPTERS: dict[str, _BuiltinAdapter] = {
         detail_fields=(),
         detail_scroll_id="stitches-detail-scroll",
         empty_state=PaneEmptyState(
-            title="No stitches",
+            title="No commits",
             body="No commits match the current project scope and filters.",
         ),
     ),

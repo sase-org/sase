@@ -58,14 +58,31 @@ async def test_typing_live_filters_columns_and_status() -> None:
         modal.action_focus_filter()
 
         await page.press("b", "e", "a", "d")
-        await page.wait_for(lambda _s: "Bead Pane" in _combined_columns(modal))
+        await page.wait_for(lambda _s: "Beads Pane" in _combined_columns(modal))
 
         combined = _combined_columns(modal)
-        assert "Bead Pane" in combined
+        assert "Beads Pane" in combined
         assert "Prompt Input" not in combined
         status = _static_plain(modal, "#help-filter-status")
         assert status.strip() != ""
         assert not status.strip().startswith("0 keymaps")
+
+
+async def test_stitch_query_keeps_the_commits_help_section() -> None:
+    async with AcePage(initial_tab="patches") as page:
+        await page.press("question_mark")
+        await page.expect_modal("HelpModal")
+        modal = _modal(page)
+        modal.action_focus_filter()
+
+        await page.press("s", "t", "i", "t", "c", "h")
+        await page.wait_for(
+            lambda _s: "Commits Pane (stitches)" in _combined_columns(modal)
+        )
+
+        combined = _combined_columns(modal)
+        assert "Commits Pane (stitches)" in combined
+        assert "Patches Pane" not in combined
 
 
 async def test_typing_q_while_focused_does_not_close_modal() -> None:
@@ -90,7 +107,7 @@ async def test_enter_applies_filter_and_focuses_results() -> None:
         modal = _modal(page)
         modal.action_focus_filter()
         await page.press("b", "e", "a", "d")
-        await page.wait_for(lambda _s: "Bead Pane" in _combined_columns(modal))
+        await page.wait_for(lambda _s: "Beads Pane" in _combined_columns(modal))
         before = _combined_columns(modal)
 
         await page.press("enter")
@@ -205,7 +222,7 @@ async def test_filter_then_clear_restores_byte_identical_columns() -> None:
 
         modal.action_focus_filter()
         await page.press("b", "e", "a", "d")
-        await page.wait_for(lambda _s: "Bead Pane" in _combined_columns(modal))
+        await page.wait_for(lambda _s: "Beads Pane" in _combined_columns(modal))
 
         await page.press("escape")
         await page.wait_for(lambda _s: modal._filter_query == "")

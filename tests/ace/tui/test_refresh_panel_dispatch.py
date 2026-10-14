@@ -288,7 +288,7 @@ def test_provider_pane_label_does_not_dispatch_on_ref_prefix() -> None:
         pane_key="ref:plan",
     )
 
-    assert app._refresh_tab_label() == "Artifacts › Plan"
+    assert app._refresh_tab_label() == "Artifacts › Plans"
 
 
 def test_cancel_does_not_refresh() -> None:

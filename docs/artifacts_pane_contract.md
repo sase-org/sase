@@ -71,6 +71,10 @@ Rust provider-spec wire stays at v1; this block never crosses that wire. A sidec
 declares description copy, row template, sort, facets, grouping, and empty state as data
 and inherits the host query language, relations, marks, copy, help, and chrome.
 
+`ref.pane.label` names the provider's collection, so it should be a plural or mass noun.
+The host derives the singular item noun by title-casing the provider's ref kind;
+provider specs do not override that noun.
+
 ```yaml
 ref:
   kind: notes

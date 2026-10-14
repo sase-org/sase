@@ -102,6 +102,7 @@ def _research_snapshot(tmp_path: Path, archive: tuple[ProjectArchive, ...]):
         archive=archive,
         provider_kind="research",
         provider_label="Research",
+        provider_item_noun="Research",
         provider_presentation_digest=contract.presentation_digest,
         provider_presentation=contract.presentation,
     )

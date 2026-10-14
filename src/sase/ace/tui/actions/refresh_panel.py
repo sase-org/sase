@@ -211,8 +211,9 @@ class RefreshPanelMixin:
         if named is not None:
             return named
         pane = str(getattr(self, "current_artifacts_pane_key", "patches"))
-        name = pane.rsplit(":", 1)[-1]
-        return f"Artifacts › {name.replace('_', ' ').replace('-', ' ').title()}"
+        from ..artifact_tabs import artifacts_pane_label
+
+        return f"Artifacts › {artifacts_pane_label(pane)}"
 
     def _this_tab_subtitle(self) -> str:
         """Return the This-tab subtitle for the current surface."""

@@ -165,11 +165,13 @@ def build_plan_options(
     rows: dict[str, PlanRow] = {}
     active_marks = marks or set()
     if snapshot is None or snapshot.project != project_scope:
-        provider_label = snapshot.provider_label if snapshot is not None else "Plan"
+        provider_item_noun = (
+            snapshot.provider_item_noun if snapshot is not None else "Plan"
+        )
         label = (
-            f"Loading {provider_label.casefold()} documents…"
+            f"Loading {provider_item_noun.casefold()} documents…"
             if loading
-            else f"{provider_label} documents have not loaded yet."
+            else f"{provider_item_noun} documents have not loaded yet."
         )
         return [Option(single_line_text(label), disabled=True)], rows, ()
 
@@ -329,7 +331,9 @@ def build_plan_options(
             options.append(_empty_option("committed plans", filter_active))
     elif not visible_archive:
         options.append(
-            _empty_option(f"{snapshot.provider_label.lower()} documents", filter_active)
+            _empty_option(
+                f"{snapshot.provider_item_noun.lower()} documents", filter_active
+            )
         )
     return options, rows, known_group_keys
 

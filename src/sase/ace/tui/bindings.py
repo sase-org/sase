@@ -156,7 +156,7 @@ DEFAULT_BINDINGS: list[BindingType] = [
     # Zero-provider fallback; build_app_bindings() rebuilds these from the
     # live, provider-aware descriptors at runtime.
     Binding("1", "show_artifacts_digit(1)", "Show Agents", show=False),
-    Binding("2", "show_artifacts_digit(2)", "Show Stitches", show=False),
+    Binding("2", "show_artifacts_digit(2)", "Show Commits", show=False),
     Binding("3", "show_artifacts_digit(3)", "Show Patches", show=False),
     Binding("4", "show_artifacts_digit(4)", "Show Beads", show=False),
     Binding("5", "show_artifacts_digit(5)", "Show Files", show=False),
@@ -174,8 +174,8 @@ DEFAULT_BINDINGS: list[BindingType] = [
         "Toggle All Projects",
         show=False,
     ),
-    Binding("F", "stitches_fetch", "Fetch Stitches", show=False),
-    Binding("R", "stitches_refresh", "Refresh Stitches", show=False),
+    Binding("F", "stitches_fetch", "Fetch Commits", show=False),
+    Binding("R", "stitches_refresh", "Refresh Commits", show=False),
     # Plans sub-tab actions.
     Binding("j", "plans_next", "Next Plan", show=False),
     Binding("k", "plans_prev", "Previous Plan", show=False),

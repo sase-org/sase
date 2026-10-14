@@ -1,6 +1,6 @@
 # Artifacts pane visual grammar
 
-Every configured Artifacts pane — Stitches, Patch, Beads, Files, every document
+Every configured Artifacts pane — Commits, Patches, Beads, Files, every document
 provider, and a degraded provider that failed to load — renders through one shared,
 contract-driven shell. (The retired Agent pane renders through the same shell when it is
 restored with `sase flag disable artifacts_agent_pane_retired`.) This document is the
@@ -33,7 +33,7 @@ The vertical order is invariant for every pane:
    `shell.build_footer_hints` so every pane uses the same separator (`  ·  `) and accent
    treatment for enabled keys, with disabled keys dimmed.
 
-Bespoke information (Patch fold levels, Stitch repository presence, Bead triage counts,
+Bespoke information (Patch fold levels, Commit repository presence, Bead triage counts,
 File origin counts) belongs in the state/count lane or the pane's own rows — never in a
 second identity header.
 

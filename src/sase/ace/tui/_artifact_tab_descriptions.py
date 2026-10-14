@@ -33,7 +33,7 @@ BUILTIN_PANE_DESCRIPTIONS: dict[str, tuple[str, str]] = {
         ),
     ),
     "stitches": (
-        "Commits landed through SASE, each one a stitch inside the Patch that carries it.",
+        "VCS commits across your projects; ✦ marks the ones SASE landed as stitches inside a Patch.",
         (
             "Rows are VCS commits across your enabled projects, narrowed by the query "
             "bar and the project scope. Selecting one shows its message, diff, and "
@@ -96,6 +96,7 @@ def resolve_pane_description(
     pane_id: str,
     *,
     label: str,
+    item_noun: str | None = None,
     provider_summary: object,
     provider_body: object,
 ) -> PaneDescription:
@@ -107,7 +108,7 @@ def resolve_pane_description(
         configured.summary,
         provider_summary,
         builtin_summary,
-        _fallback_summary(label),
+        _fallback_summary(item_noun or label),
         max_len=MAX_PANE_DESCRIPTION_SUMMARY_CHARS,
         preserve_paragraphs=False,
     )
@@ -222,9 +223,9 @@ def _resolve_field(
     return "", "fallback"
 
 
-def _fallback_summary(label: str) -> str:
+def _fallback_summary(item_noun: str) -> str:
     safe_label = sanitize_description(
-        label,
+        item_noun,
         max_len=80,
     )
     if not safe_label:

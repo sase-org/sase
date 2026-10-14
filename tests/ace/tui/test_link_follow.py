@@ -74,7 +74,7 @@ def test_follow_link_uses_neutral_query_before_missing_warning() -> None:
             "information",
         )
     ]
-    assert app.notification_details[0][2] == "↪ File hidden.txt"
+    assert app.notification_details[0][2] == "↪ Files hidden.txt"
     assert app.notification_details[0][3] == 8.0
     assert len(app._link_trail) == 1
 
@@ -444,9 +444,9 @@ def test_follow_link_miss_reports_honestly_without_container_fallback() -> None:
     pane = app._artifacts_entry_navigator("beads")
     assert pane.revealed is None
     assert app.notifications == [
-        ("Bead has no bead:sase-ug.9 in its inventory.", "warning")
+        ("Beads has no bead:sase-ug.9 in its inventory.", "warning")
     ]
-    assert app.notification_details[0][2] == "Not in Bead: sase-ug.9"
+    assert app.notification_details[0][2] == "Not in Beads: sase-ug.9"
     assert app._link_trail == []
 
 
@@ -531,9 +531,9 @@ def test_pending_follow_resolves_to_authoritative_missing_after_limit_drop() -> 
     beads_pane.resolve(LinkRequestState.MISSING)
 
     assert app.notifications == [
-        ("Bead has no bead:sase-ug.9 in its inventory.", "warning")
+        ("Beads has no bead:sase-ug.9 in its inventory.", "warning")
     ]
-    assert app.notification_details[0][2] == "Not in Bead: sase-ug.9"
+    assert app.notification_details[0][2] == "Not in Beads: sase-ug.9"
     assert app._link_trail == []
     assert app._link_follow_transaction is None
 
@@ -552,7 +552,7 @@ def test_pending_follow_resolves_to_failed_with_distinct_error_copy() -> None:
     app._follow_link_number(1)
     beads_pane.resolve(LinkRequestState.FAILED)
 
-    assert app.notifications == [("Bead failed to load for bead:sase-ug.9.", "error")]
+    assert app.notifications == [("Beads failed to load for bead:sase-ug.9.", "error")]
     assert app.notification_details[0][2] == "Cannot load sase-ug.9"
     assert app._link_trail == []
     assert app._link_follow_transaction is None

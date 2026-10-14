@@ -459,7 +459,7 @@ class CommitsCollectionMixin(_MixinBase):
             )
 
     def host_query_row_for_target(self, target: Any) -> dict[str, Any] | None:
-        """Return the unfiltered Stitches query row backing *target*.
+        """Return the unfiltered Commits query row backing *target*.
 
         Answered from the last unfiltered collection, plus any facts the
         Acquire step stored — never from the filtered displayed result, so
@@ -541,7 +541,7 @@ class CommitsCollectionMixin(_MixinBase):
         )
 
     def host_reveal_verify_terms(self, context: Any) -> str | None:
-        """Return the row-verifiable subset of a Stitches window.
+        """Return the row-verifiable subset of a Commits window.
 
         ``merges:show`` is collection-level (it matches no row) and
         ``project:`` is not a row field, so neither can verify against the

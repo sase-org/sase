@@ -260,6 +260,7 @@ class ArtifactsView(Vertical):
                 contract=descriptor.contract,
                 provider_kind=descriptor.provider_kind,
                 provider_label=descriptor.label,
+                provider_item_noun=descriptor.item_noun,
                 pane_key=descriptor.id,
                 provider_spec=(
                     dict(descriptor.provider_spec)
@@ -274,6 +275,7 @@ class ArtifactsView(Vertical):
                 contract=descriptor.contract,
                 provider_kind=descriptor.provider_kind,
                 provider_label=descriptor.label,
+                provider_item_noun=descriptor.item_noun,
                 pane_key=descriptor.id,
                 provider_spec=(
                     dict(descriptor.provider_spec)

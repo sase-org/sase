@@ -77,7 +77,7 @@ def artifact_sections(km: KeymapRegistry) -> Sections:
             ],
         ),
         (
-            "Patch Pane",
+            "Patches Pane",
             [
                 (
                     f"{d(a.patches_filters)} / {d(a.edit_query)}",
@@ -99,7 +99,7 @@ def artifact_sections(km: KeymapRegistry) -> Sections:
             ],
         ),
         (
-            "Stitch Pane",
+            "Commits Pane (stitches)",
             [
                 (
                     f"{d(a.stitches_next)} / {d(a.stitches_prev)}",
@@ -143,7 +143,7 @@ def artifact_sections(km: KeymapRegistry) -> Sections:
             ],
         ),
         (
-            "Bead Pane",
+            "Beads Pane",
             [
                 (
                     f"{d(a.beads_next)} / {d(a.beads_prev)}",
@@ -209,7 +209,7 @@ def artifact_sections(km: KeymapRegistry) -> Sections:
             else ()
         ),
         (
-            "File Pane",
+            "Files Pane",
             [
                 (f"{d(a.files_next)} / {d(a.files_prev)}", "Next / previous row"),
                 (
@@ -261,10 +261,10 @@ def _document_contract_sections(
             continue
         rows: list[tuple[str, str]] = [
             (f"{d(a.plans_next)} / {d(a.plans_prev)}", "Next / previous row"),
-            (d(a.plans_view_selected), f"Open selected {contract.label.lower()}"),
+            (d(a.plans_view_selected), f"Open selected {contract.item_noun.lower()}"),
             (
                 f"{d(a.edit_query)} / {d(a.plans_filters)}",
-                f"Open inline {contract.label.lower()} filter bar",
+                f"Open inline {contract.item_noun.lower()} filter bar",
             ),
         ]
         if contract.has(PaneCapability.FILTER_SESSION):
@@ -293,14 +293,17 @@ def _document_contract_sections(
             rows.append((d(a.plans_reject), "Reject selected proposal"))
         rows.extend(_relation_rows(km, contract))
         rows.append(
-            (d(a.artifacts_copy_reference), f"Copy {contract.label.lower()} reference")
+            (
+                d(a.artifacts_copy_reference),
+                f"Copy {contract.item_noun.lower()} reference",
+            )
         )
-        rows.append((d(a.refresh), f"Refresh {contract.label.lower()}s"))
+        rows.append((d(a.refresh), f"Refresh {contract.label.lower()}"))
         rows.extend(artifact_list_navigation)
         title = (
             f"{contract.label} Pane"
             if contract.is_plan_adapter()
-            else f"{contract.label} Documents"
+            else f"{contract.item_noun} Documents"
         )
         sections.append((title, rows))
     if not sections:

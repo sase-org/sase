@@ -301,7 +301,12 @@ class AgentsOptionsMixin(_MixinBase):
     def _scope_text(self) -> RenderableType:
         scope = self._project_display_name or self.project_scope or "All projects"
         text = Text()
-        text.append(" Agent ", style=f"bold #1a1a1a on {self._accent()}")
+        from ...artifact_tabs import ARTIFACTS_LABELS
+
+        text.append(
+            f" {ARTIFACTS_LABELS['agents']} ",
+            style=f"bold #1a1a1a on {self._accent()}",
+        )
         text.append("  Project scope  ", style="dim")
         text.append(f" {scope} ", style=f"bold {self._accent()}")
         text.append("  ·  ", style="dim")

@@ -30,11 +30,13 @@ from ._artifact_tab_contract import (
 from ._artifact_tab_model import (
     ARTIFACTS_ACCENTS,
     ARTIFACTS_ICONS,
+    ARTIFACTS_LABELS,
     FIXED_ARTIFACTS_PANE_IDS,
     ArtifactsSubTab,
     ArtifactsTabDescriptor,
     ProjectProviderRecord,
     ProviderDiscoveryIssue,
+    provider_item_noun,
 )
 
 
@@ -66,14 +68,7 @@ _ARTIFACTS_DIGIT_KEYS: tuple[str, ...] = tuple(str(digit) for digit in range(1, 
 def fixed_descriptor(subtab: ArtifactsSubTab) -> ArtifactsTabDescriptor:
     """Return the descriptor for one of the built-in Artifacts panes."""
 
-    labels = {
-        "patches": "Patch",
-        "stitches": "Stitch",
-        "beads": "Bead",
-        "agents": "Agent",
-        "files": "File",
-    }
-    label = labels[subtab]
+    label = ARTIFACTS_LABELS[subtab]
     icon = ARTIFACTS_ICONS[subtab]
     accent = ARTIFACTS_ACCENTS[subtab]
     contract = compile_builtin_contract(
@@ -302,10 +297,7 @@ def _provider_label(kind: str, spec: Mapping[str, Any]) -> str:
     ):
         if isinstance(candidate, str) and candidate.strip():
             return candidate.strip()
-    label = kind.replace("_", " ").replace("-", " ").strip().title()
-    if not label:
-        return "Document"
-    return label
+    return provider_item_noun(kind)
 
 
 def _sanitize_tab_icon(raw: object) -> str:

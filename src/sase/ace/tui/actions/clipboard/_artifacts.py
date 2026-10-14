@@ -33,24 +33,16 @@ def _copy_group_for_artifacts_subtab(subtab: str) -> str:
     return copy_keymap_group_for_artifacts_pane(subtab)
 
 
-_ARTIFACTS_COPY_LABELS = {
-    "stitches": "Stitch",
-    "patches": "Patch",
-    "beads": "Bead",
-}
-
-
 def _copy_label_for_artifacts_subtab(subtab: str) -> str:
-    from ...artifact_tabs import artifacts_pane_contract
+    from ...artifact_tabs import artifacts_pane_label
 
-    contract = artifacts_pane_contract(subtab)
-    if contract is not None:
-        return contract.label
-    if subtab == "files":
-        return "File"
-    if subtab == "ref:plan":
-        return "Plan"
-    return _ARTIFACTS_COPY_LABELS.get(subtab, subtab.title())
+    return artifacts_pane_label(subtab)
+
+
+def _copy_item_noun_for_artifacts_subtab(subtab: str) -> str:
+    from ...artifact_tabs import artifacts_pane_item_noun
+
+    return artifacts_pane_item_noun(subtab)
 
 
 def _document_copy_handlers_enabled(subtab: str) -> bool:
@@ -244,7 +236,11 @@ class ClipboardArtifactsMixin(
                 message = (
                     resolved.failures[0]
                     if resolved.failures
-                    else f"No {selection.subtab} entries have a reference"
+                    else (
+                        "No "
+                        f"{_copy_item_noun_for_artifacts_subtab(selection.subtab).lower()} "
+                        "entries have a reference"
+                    )
                 )
                 self.notify(message, severity="warning")  # type: ignore[attr-defined]
                 return

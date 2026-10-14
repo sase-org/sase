@@ -49,7 +49,7 @@ def link_panel_reveal_flags(app: Any, chips: tuple[LinkChip, ...]) -> frozenset[
 def pane_is_loading(pane: Any) -> bool:
     if getattr(pane, "_loading", False) or getattr(pane, "_loading_full", False):
         return True
-    # Stitches has no plain ``_loading`` flag: its collection worker and
+    # Commits has no plain ``_loading`` flag: its collection worker and
     # asynchronous query-session evaluation are the equivalent in-flight
     # signals, so a follow into either counts as loading here too.
     worker = getattr(pane, "_collection_worker", None)

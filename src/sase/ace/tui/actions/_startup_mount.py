@@ -106,7 +106,7 @@ class StartupMountMixin:
 
         artifacts_view = self.query_one("#artifacts-view", ArtifactsView)
         artifacts_view.set_keymap_registry(self._keymap_registry)
-        # The Stitches pane was composed with its fully merged startup
+        # The Commits pane was composed with its fully merged startup
         # query. Shared scope setup must not overwrite that visible token.
         # A current-project seed arrives later from the async inventory
         # and only fills in when ``commits.filters.project`` is still None.

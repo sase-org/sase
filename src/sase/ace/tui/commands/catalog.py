@@ -46,6 +46,14 @@ if TYPE_CHECKING:
     from sase.ace.tui.keymaps import KeymapRegistry
 
 
+_ARTIFACTS_SUBTAB_ALIASES: dict[str, tuple[str, ...]] = {
+    "stitches": ("stitch", "commits"),
+    "patches": ("patch", "prs"),
+    "beads": ("bead", "bugs", "issues"),
+    "files": ("file",),
+}
+
+
 def _ensure_metadata_covers_app_keymaps() -> None:
     """Fail loudly if metadata drifts from :class:`AppKeymaps`.
 
@@ -365,9 +373,14 @@ def _iter_artifacts_subtab_commands() -> Iterator[CommandSpec]:
             continue
         subtab = descriptor.id
         label = descriptor.label
-        aliases: tuple[str, ...] = ("artifacts", subtab, f"artifact {label}")
-        if subtab == "patches":
-            aliases = (*aliases, "prs")
+        item_noun = descriptor.item_noun
+        aliases: tuple[str, ...] = (
+            "artifacts",
+            subtab,
+            f"artifact {label}",
+            f"artifact {item_noun}",
+        )
+        aliases = (*aliases, *_ARTIFACTS_SUBTAB_ALIASES.get(subtab, ()))
         if descriptor.provider_kind is not None:
             aliases = (*aliases, descriptor.provider_kind)
         yield CommandSpec(

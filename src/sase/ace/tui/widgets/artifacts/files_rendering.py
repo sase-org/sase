@@ -24,6 +24,7 @@ from .shell import (
     build_state_badge,
 )
 from .types import ARTIFACTS_ACCENTS
+from ...artifact_tabs import ARTIFACTS_LABELS
 
 
 FILE_VIEW_MODE_GLYPHS: dict[ArtifactViewMode, str] = {
@@ -66,7 +67,7 @@ def build_files_info(
     filters = filters or FilesFilterValues()
     scope = project_display_name or project_scope or "All projects"
     text = Text()
-    text.append(" File ", style=f"bold #1a1a1a on {accent}")
+    text.append(f" {ARTIFACTS_LABELS['files']} ", style=f"bold #1a1a1a on {accent}")
     text.append("  Project scope  ", style="dim")
     text.append(f" {scope} ", style=f"bold {accent}")
     text.append("  ·  ", style="dim")

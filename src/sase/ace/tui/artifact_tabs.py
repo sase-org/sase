@@ -36,6 +36,8 @@ from ._artifact_tab_contract import (
 from ._artifact_tab_model import (
     ARTIFACTS_ACCENTS,
     ARTIFACTS_ICONS,
+    ARTIFACTS_ITEM_NOUNS,
+    ARTIFACTS_LABELS,
     DEFAULT_ARTIFACTS_RELATIONS_COLLAPSED,
     DEFAULT_ARTIFACTS_SUBTAB,
     EXTERNAL_ACCENT,
@@ -52,6 +54,7 @@ from ._artifact_tab_model import (
     PaneCapability,
     PaneDeclaredFacts,
     artifacts_agent_pane_retired,
+    provider_item_noun,
 )
 
 log = logging.getLogger(__name__)
@@ -209,7 +212,7 @@ def descriptor_for_artifacts_pane_id(pane_id: str) -> ArtifactsTabDescriptor | N
     """Return the descriptor whose id matches *pane_id* exactly.
 
     Unlike :func:`descriptor_for_artifacts_subtab`, this does not normalize
-    an unknown id to Stitches.
+    an unknown id to Commits.
     """
 
     return next(
@@ -225,7 +228,7 @@ def descriptor_for_artifacts_pane_id(pane_id: str) -> ArtifactsTabDescriptor | N
 def is_unconfigured_ref_pane(pane_id: str) -> bool:
     """Return whether *pane_id* names a ``ref:<kind>`` pane with no provider.
 
-    Fixed panes (Stitches, Beads, ...) never count: only a document pane whose
+    Fixed panes (Commits, Beads, ...) never count: only a document pane whose
     exact descriptor is missing does.
     """
 
@@ -239,6 +242,34 @@ def artifacts_pane_contract(pane_id: str) -> ArtifactsPaneContract | None:
 
     descriptor = descriptor_for_artifacts_pane_id(pane_id)
     return None if descriptor is None else descriptor.contract
+
+
+def _canonical_artifacts_pane_id(pane_id: str) -> str:
+    return LEGACY_ARTIFACTS_SUBTABS.get(pane_id, pane_id)
+
+
+def _artifacts_pane_fallback(pane_id: str) -> str:
+    return pane_id.rsplit(":", 1)[-1].replace("_", " ").replace("-", " ").title()
+
+
+def artifacts_pane_label(pane_id: str) -> str:
+    """Return the collection label for a pane id or legacy sub-tab id."""
+
+    canonical = _canonical_artifacts_pane_id(pane_id)
+    descriptor = descriptor_for_artifacts_pane_id(canonical)
+    if descriptor is not None and descriptor.contract is not None:
+        return descriptor.contract.label
+    return ARTIFACTS_LABELS.get(canonical, _artifacts_pane_fallback(canonical))
+
+
+def artifacts_pane_item_noun(pane_id: str) -> str:
+    """Return the singular item noun for a pane id or legacy sub-tab id."""
+
+    canonical = _canonical_artifacts_pane_id(pane_id)
+    descriptor = descriptor_for_artifacts_pane_id(canonical)
+    if descriptor is not None and descriptor.contract is not None:
+        return descriptor.contract.item_noun
+    return ARTIFACTS_ITEM_NOUNS.get(canonical, _artifacts_pane_fallback(canonical))
 
 
 def configured_artifacts_pane_ids() -> tuple[str, ...]:
@@ -346,7 +377,7 @@ def normalize_artifacts_subtab(value: str) -> ArtifactsSubTab:
     if canonical in configured:
         return canonical
     # The retired Agent pane follows the Chats precedent: stale references
-    # land on Stitch instead of a missing descriptor.
+    # land on Commits instead of a missing descriptor.
     return DEFAULT_ARTIFACTS_SUBTAB
 
 
@@ -390,6 +421,8 @@ DEFAULT_FILES_SUBTAB: FilesSubTab = "files"
 __all__ = [
     "ARTIFACTS_ACCENTS",
     "ARTIFACTS_ICONS",
+    "ARTIFACTS_ITEM_NOUNS",
+    "ARTIFACTS_LABELS",
     "ARTIFACTS_PANE_IDS",
     "ARTIFACTS_SUBTAB_ORDER",
     "DEFAULT_ARTIFACTS_RELATIONS_COLLAPSED",
@@ -416,6 +449,9 @@ __all__ = [
     "PaneDeclaredFacts",
     "artifacts_agent_pane_retired",
     "artifacts_pane_contract",
+    "artifacts_pane_item_noun",
+    "artifacts_pane_label",
+    "provider_item_noun",
     "artifacts_pane_key",
     "artifacts_provider_diagnostics",
     "artifacts_subtab_order",

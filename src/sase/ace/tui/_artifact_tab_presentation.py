@@ -79,6 +79,7 @@ def compile_provider_pane_presentation(
     spec: Mapping[str, Any] | None,
     *,
     default_label: str,
+    item_noun: str = "Document",
 ) -> _PanePresentationCompileResult:
     """Validate and normalize a schema-v1 ``ref.pane`` block."""
 
@@ -137,7 +138,9 @@ def compile_provider_pane_presentation(
     )
     if error is not None:
         return _invalid(error)
-    empty_state, error = _compile_empty_state(pane.get("empty_state"), default_label)
+    empty_state, error = _compile_empty_state(
+        pane.get("empty_state"), label or default_label, item_noun
+    )
     if error is not None:
         return _invalid(error)
 
@@ -342,7 +345,8 @@ def _compile_group_by(
 
 def _compile_empty_state(
     raw: object,
-    default_label: str,
+    label: str,
+    item_noun: str,
 ) -> tuple[PaneEmptyState | None, str | None]:
     if raw is None:
         return None, None
@@ -363,9 +367,12 @@ def _compile_empty_state(
         return None, error
     return (
         PaneEmptyState(
-            title=title or f"No {default_label.lower()}s",
+            title=title or f"No {label.lower()}",
             body=body
-            or f"No {default_label.lower()}s match the current project scope and filters.",
+            or (
+                f"No {item_noun.lower()} documents match "
+                "the current project scope and filters."
+            ),
         ),
         None,
     )

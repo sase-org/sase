@@ -22,6 +22,9 @@ class ClipboardArtifactReferencesMixin(ClipboardBase):
         self,
     ) -> ArtifactReferenceSelection | None:
         subtab = self.current_artifacts_pane_key
+        from ...artifact_tabs import artifacts_pane_item_noun
+
+        noun = artifacts_pane_item_noun(str(subtab)).lower()
         if subtab == "stitches":
             resolver_name = "_commits_pane"
         elif subtab == "beads":
@@ -33,12 +36,12 @@ class ClipboardArtifactReferencesMixin(ClipboardBase):
         elif _is_document_pane_key(str(subtab)):
             resolver_name = "_active_documents_pane"
         else:
-            self.notify(f"No {subtab} entry selected", severity="warning")  # type: ignore[attr-defined]
+            self.notify(f"No {noun} entry selected", severity="warning")  # type: ignore[attr-defined]
             return None
         resolver = getattr(self, resolver_name, None)
         pane = resolver() if callable(resolver) else None
         if pane is None:
-            self.notify(f"No {subtab} entry selected", severity="warning")  # type: ignore[attr-defined]
+            self.notify(f"No {noun} entry selected", severity="warning")  # type: ignore[attr-defined]
             return None
 
         marked_targets = self._visible_marked_targets(pane)  # type: ignore[attr-defined]
@@ -50,13 +53,13 @@ class ClipboardArtifactReferencesMixin(ClipboardBase):
             targets = () if target is None else (target,)
         if not targets:
             if not marked:
-                self.notify(f"No {subtab} entry selected", severity="warning")  # type: ignore[attr-defined]
+                self.notify(f"No {noun} entry selected", severity="warning")  # type: ignore[attr-defined]
             return None
 
         items = reference_items_for_targets(subtab, pane, targets)
         if not items:
             self.notify(  # type: ignore[attr-defined]
-                f"No visible {subtab} entries are available",
+                f"No visible {noun} entries are available",
                 severity="warning",
             )
             return None

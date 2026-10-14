@@ -114,7 +114,7 @@ class CommitsFilteringMixin(_MixinBase):
         )
 
     def apply_query_history_record(self, record: Any) -> bool:
-        """Apply a validated query-history record to the Stitches pane."""
+        """Apply a validated query-history record to the Commits pane."""
         try:
             values = parse_commit_filter_query(record.source)
         except CommitFilterQueryError:
@@ -566,12 +566,12 @@ class CommitsFilteringMixin(_MixinBase):
         self._filter_query_error = None
 
     def close_host_filter_session(self) -> None:
-        """Close the inline Stitches filter editor before a host query rewrite."""
+        """Close the inline Commits filter editor before a host query rewrite."""
         if self._filter_session_open:
             self._close_filter_session()
 
     def host_limit_query(self) -> str:
-        """Return the live or committed Stitches query used for ``limit:`` paging."""
+        """Return the live or committed Commits query used for ``limit:`` paging."""
 
         values = (
             self._live_filter_values
@@ -583,7 +583,7 @@ class CommitsFilteringMixin(_MixinBase):
     def apply_host_limit_query(self, query: str, *, grow: bool = False) -> None:
         """Commit a rewritten host-limit query through the collection path.
 
-        Stitches always re-collects from the rewritten filter values rather
+        Commits always re-collects from the rewritten filter values rather
         than extending a bounded snapshot in place, so ``grow`` exists only
         to keep this signature uniform with the other panes' adapter.
         """

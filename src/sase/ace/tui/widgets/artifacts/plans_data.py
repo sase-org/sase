@@ -5,7 +5,11 @@ from __future__ import annotations
 from datetime import datetime
 from pathlib import Path
 
-from sase.ace.tui._artifact_tab_model import PanePresentation, PaneSortField
+from sase.ace.tui._artifact_tab_model import (
+    PanePresentation,
+    PaneSortField,
+    provider_item_noun as _provider_item_noun,
+)
 from sase.ace.tui.relations.artifact_links import load_artifact_links_snapshot
 from sase.bead.model import Issue
 
@@ -60,6 +64,7 @@ def load_plans_snapshot(
     *,
     provider_kind: str = "plan",
     provider_label: str | None = None,
+    provider_item_noun: str | None = None,
     provider_presentation: PanePresentation | None = None,
     provider_presentation_digest: str = "",
     previous: PlansSnapshot | None = None,
@@ -266,7 +271,9 @@ def load_plans_snapshot(
         errors=errors,
         archive_truncated=archive_truncated,
         provider_kind=provider_kind,
-        provider_label=provider_label or _provider_label(provider_kind),
+        provider_label=provider_label
+        or ("Plans" if provider_kind == "plan" else _provider_item_noun(provider_kind)),
+        provider_item_noun=provider_item_noun or _provider_item_noun(provider_kind),
         provider_presentation_digest=provider_presentation_digest,
         provider_presentation=presentation,
         artifact_links=load_artifact_links_snapshot(project),
@@ -319,13 +326,6 @@ def _active_timestamp(entry: ActivePlanDocument) -> str:
         or entry.document.frontmatter.get("created_at", "")
         or entry.owner.bead_created_at
     )
-
-
-def _provider_label(provider_kind: str) -> str:
-    label = provider_kind.replace("_", " ").replace("-", " ").strip().title()
-    if not label:
-        return "Document"
-    return label
 
 
 def _add_project_error(errors: dict[str, str], project: str, message: str) -> None:

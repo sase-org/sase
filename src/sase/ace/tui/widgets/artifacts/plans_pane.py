@@ -85,7 +85,8 @@ class ArtifactsDocumentsPane(
         *,
         contract: ArtifactsPaneContract | None = None,
         provider_kind: str = "plan",
-        provider_label: str = "Plan",
+        provider_label: str = "Plans",
+        provider_item_noun: str = "Plan",
         pane_key: str = "ref:plan",
         provider_spec: dict[str, Any] | None = None,
         **kwargs: Any,
@@ -96,11 +97,13 @@ class ArtifactsDocumentsPane(
         if contract is not None:
             provider_kind = contract.ref_kind or provider_kind
             provider_label = contract.label
+            provider_item_noun = contract.item_noun
             pane_key = contract.id
             if contract.facts.source == "provider":
                 provider_spec = provider_spec
         self.provider_kind = provider_kind
         self.provider_label = provider_label
+        self.provider_item_noun = provider_item_noun
         self.pane_key = pane_key
         self.provider_spec = provider_spec or {}
         profile = (
@@ -253,6 +256,7 @@ class ArtifactsDocumentsPane(
             request.project,
             provider_kind=self.provider_kind,
             provider_label=self.provider_label,
+            provider_item_noun=self.provider_item_noun,
             provider_presentation=(
                 self.contract.presentation if self.contract is not None else None
             ),

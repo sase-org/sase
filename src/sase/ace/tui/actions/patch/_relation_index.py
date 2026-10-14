@@ -13,6 +13,7 @@ from threading import Lock
 from typing import Any
 
 from ....patch import Patch
+from sase.ace.tui._artifact_tab_model import ARTIFACTS_LABELS
 from sase.ace.tui.relations.artifact_links import ArtifactLinksSnapshot
 from sase.core.artifact_entry_target import ArtifactEntryTarget
 from sase.core.artifact_relations import RelationIndex, build_relation_index
@@ -121,7 +122,9 @@ def resolve_patch_relation_index(
 
     links = _load_links(artifact_links)
     source_key = _snapshot_source_key(links)
-    contract = compile_builtin_contract("patches", label="Patch", icon="", accent="")
+    contract = compile_builtin_contract(
+        "patches", label=ARTIFACTS_LABELS["patches"], icon="", accent=""
+    )
     if contract is None or not contract.has(PaneCapability.RELATIONS):
         return None, False
 
