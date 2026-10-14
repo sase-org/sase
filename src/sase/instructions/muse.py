@@ -135,10 +135,14 @@ def _prompt_prefixes(envelopes: list[dict[str, Any]]) -> list[str]:
     what prevents a native section from being attributed twice.
     """
     prefixes: list[str] = []
+    seen: set[str] = set()
     for text in _prompt_texts(envelopes):
         before, separator, _after = text.partition(USER_PROMPT_SEPARATOR)
         if not separator or not before.strip():
             continue
+        if before in seen:
+            continue
+        seen.add(before)
         prefixes.append(before)
     return prefixes
 

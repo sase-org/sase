@@ -266,6 +266,31 @@ def test_muse_prompt_prefix_adds_explicit_occurrences() -> None:
     assert fields["contract_explicit"] == 2
 
 
+def test_muse_duplicate_prompt_records_count_once() -> None:
+    """Identical Muse prompt prefixes count as one delivery."""
+    records = _read_jsonl(FIXTURES / "muse" / "session.jsonl")
+    delivered = (
+        "#### SASE Final Declaration\nOne.\n\n--- User Prompt ---\nPlease continue."
+    )
+    records.append({"prompt": delivered})
+    records.append(
+        {
+            "payload": {
+                "event": {"prompt": delivered},
+                "model_messages": [{"content": [{"text": delivered}]}],
+            }
+        }
+    )
+    native, explicit = muse_parser.instruction_sources(records)
+    assert len(explicit) == 1
+    assert fp.count_contract_occurrences(explicit) == 1
+    fields = muse_parser.observe_muse_session(
+        records, home_h1=HOME_H1, project_h1=PROJECT_H1
+    )
+    assert fields["contract_explicit"] == 1
+    assert fields["native_full_count"] == 1
+
+
 def test_grok_baseline_row() -> None:
     """Grok roots get nothing: no contract, home, project, or directive."""
     context = json.loads(

@@ -58,7 +58,45 @@ def collect_observations(
                     foreign=None,
                 )
             )
+    observations = _drop_foreign_observations(observations, scored_runs)
     return _enrich_delivery_columns(observations, scored_runs)
+
+
+def _drop_foreign_observations(
+    observations: list[SessionObservation], scored_runs: list[runs.ScoredRun]
+) -> list[SessionObservation]:
+    """Drop root sessions (and their Claude helpers) from other invocations."""
+    from sase.instructions.coverage_records import (
+        run_manifest_records,
+        session_is_foreign,
+    )
+    from sase.instructions.coverage_sessions import root_sessions
+
+    if not observations:
+        return observations
+    sessions = root_sessions(scored_runs)
+    by_run_records = {
+        run.artifact_dir: run_manifest_records(run.artifact_dir) for run in scored_runs
+    }
+    foreign = {
+        (session.run_name, session.session_id)
+        for session in sessions
+        if session_is_foreign(session, by_run_records.get(session.artifact_dir, []))
+    }
+    if not foreign:
+        return observations
+    kept: list[SessionObservation] = []
+    for item in observations:
+        if item.helper_type is None:
+            if (item.run_name, item.session_id) in foreign:
+                continue
+        elif any(
+            item.run_name == run_name and item.session_id.startswith(f"{session_id}/")
+            for run_name, session_id in foreign
+        ):
+            continue
+        kept.append(item)
+    return kept
 
 
 def _enrich_delivery_columns(

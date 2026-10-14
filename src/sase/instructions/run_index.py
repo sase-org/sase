@@ -452,6 +452,27 @@ def find_muse_session_id(run: ScoredRun) -> str | None:
     return str(session_id) if isinstance(session_id, str) and session_id else None
 
 
+def find_muse_session_ids(run: ScoredRun) -> list[str]:
+    """Return every Muse session id recorded for *run*, last-id first.
+
+    Unions ``run_metadata.json``'s ``muse_session_id`` with each root Muse
+    manifest's ``delivery.session_ids`` so retry attempts stay visible.
+    """
+    seen: dict[str, None] = {}
+    last = find_muse_session_id(run)
+    if last:
+        seen[last] = None
+    from sase.instructions.coverage_records import run_manifest_records
+
+    for record in run_manifest_records(run.artifact_dir):
+        if record.provider != "muse" or record.is_helper:
+            continue
+        for session_id in record.session_ids:
+            if session_id not in seen:
+                seen[session_id] = None
+    return list(seen)
+
+
 def read_jsonl_capped(
     path: Path, *, max_bytes: int
 ) -> tuple[list[dict[str, Any]], bool]:
@@ -510,6 +531,7 @@ __all__ = [
     "find_codex_sessions",
     "find_grok_sessions",
     "find_muse_session_id",
+    "find_muse_session_ids",
     "home_h1",
     "parse_when",
     "project_h1",

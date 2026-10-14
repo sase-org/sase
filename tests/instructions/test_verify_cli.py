@@ -528,6 +528,44 @@ def test_doctor_delivery_skips_without_runs(
     assert check.status == "SKIP"
 
 
+def test_doctor_delivery_ignores_unverifiable_native_full(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An explicit partial session with ``native_full_count=None`` is not drift."""
+    from sase.doctor import checks_instructions
+    from sase.instructions.run_index import ScoredRun
+
+    run = ScoredRun(
+        provider="claude",
+        name="agent-partial",
+        workspace_dir="/work/synthetic",
+        artifact_dir=str(tmp_path),
+        started_at=datetime(2026, 10, 1, tzinfo=UTC),
+        ended_at=None,
+        project=None,
+    )
+    item = SessionObservation(
+        provider="claude",
+        run_name=run.name,
+        session_id="sess",
+        contract_count=1,
+        project=True,
+        directive=True,
+        native_full_count=None,
+        bundle_count=1,
+        delivery="explicit",
+        home_expected=False,
+        partial=True,
+    )
+    monkeypatch.setattr(run_mod, "enumerate_runs", lambda **_kwargs: [run])
+    monkeypatch.setattr(
+        "sase.instructions.verify.collect_observations", lambda _runs: [item]
+    )
+    context = DoctorContext(cwd=tmp_path, project=None, sase_home=tmp_path / ".sase")
+    check = checks_instructions._check_instructions_delivery(context)
+    assert check.status == "OK"
+
+
 def test_doctor_helpers_warns_on_accepted_declaration(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

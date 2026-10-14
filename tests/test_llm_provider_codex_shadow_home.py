@@ -16,21 +16,55 @@ from sase.llm_provider._codex_home import (
     real_codex_home,
 )
 from sase.llm_provider.codex import CodexProvider
+from sase.llm_provider.instruction_delivery import (
+    CHANNEL_CODEX_ROOT,
+    ActiveInstructionDelivery,
+    ActiveSlot,
+    SlotPlan,
+    bind_instruction_delivery,
+    reset_instruction_delivery,
+)
+
+
+def _explicit_codex_delivery(
+    text: str = "# Root bundle\n",
+    *,
+    status: str = "explicit",
+) -> ActiveInstructionDelivery:
+    return ActiveInstructionDelivery(
+        invocation_id="inv-shadow",
+        provider="codex",
+        root=ActiveSlot(
+            SlotPlan(status, channel=CHANNEL_CODEX_ROOT, max_bytes=32 * 1024),
+            text=text if status == "explicit" else None,
+        ),
+        subagent=ActiveSlot(SlotPlan("inherits_root")),
+    )
 
 
 @contextmanager
 def _shadow_home_for(
-    real_home: Path, *, explicit_instructions: bool | None = None
+    real_home: Path,
+    *,
+    explicit_instructions: bool | None = None,
+    delivery: ActiveInstructionDelivery | None = None,
 ) -> Iterator[Path]:
     flag_context = (
         override_flags(codex_explicit_instructions=explicit_instructions)
         if explicit_instructions is not None
         else nullcontext()
     )
+    token = None
     with patch.dict(os.environ, {"CODEX_HOME": str(real_home)}):
         with flag_context:
-            with codex_subprocess_env() as env:
-                yield Path(env["CODEX_HOME"])
+            if delivery is not None:
+                token = bind_instruction_delivery(delivery)
+            try:
+                with codex_subprocess_env() as env:
+                    yield Path(env["CODEX_HOME"])
+            finally:
+                if token is not None:
+                    reset_instruction_delivery(token)
 
 
 def test_real_codex_home_ignores_sase_managed_shadow_home(
@@ -141,7 +175,11 @@ def test_create_shadow_codex_home_allowlists_state_and_excludes_shared_state(
     (real_home / "unknown.json").write_text("{}\n", encoding="utf-8")
     monkeypatch.setenv("HOME", str(tmp_path))
 
-    with _shadow_home_for(real_home, explicit_instructions=True) as shadow_home:
+    with _shadow_home_for(
+        real_home,
+        explicit_instructions=True,
+        delivery=_explicit_codex_delivery(),
+    ) as shadow_home:
         config = shadow_home / "config.toml"
         assert config.read_text(encoding="utf-8") == "model = 'test'\n"
         assert not config.is_symlink()
@@ -186,7 +224,11 @@ def test_shadow_home_omits_sase_owned_home_instructions_on_explicit_delivery(
     override.write_bytes(home_agents.read_bytes())
     monkeypatch.setenv("HOME", str(tmp_path))
 
-    with _shadow_home_for(real_home, explicit_instructions=True) as shadow_home:
+    with _shadow_home_for(
+        real_home,
+        explicit_instructions=True,
+        delivery=_explicit_codex_delivery(),
+    ) as shadow_home:
         assert not (shadow_home / "AGENTS.md").exists()
         assert not (shadow_home / "AGENTS.override.md").exists()
         assert (real_home / "AGENTS.md").is_symlink()
@@ -212,13 +254,19 @@ def test_shadow_home_keeps_user_instructions_unchanged_after_teardown(
     monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.setenv("CODEX_HOME", str(real_home))
 
-    with override_flags(codex_explicit_instructions=True):
-        with codex_subprocess_env() as env:
-            shadow_home = Path(env["CODEX_HOME"])
-            assert (shadow_home / "AGENTS.md").is_symlink()
-            assert (shadow_home / "AGENTS.override.md").is_symlink()
-            assert (shadow_home / "AGENTS.md").read_bytes() == before_agents
-            assert (shadow_home / "AGENTS.override.md").read_bytes() == before_override
+    token = bind_instruction_delivery(_explicit_codex_delivery())
+    try:
+        with override_flags(codex_explicit_instructions=True):
+            with codex_subprocess_env() as env:
+                shadow_home = Path(env["CODEX_HOME"])
+                assert (shadow_home / "AGENTS.md").is_symlink()
+                assert (shadow_home / "AGENTS.override.md").is_symlink()
+                assert (shadow_home / "AGENTS.md").read_bytes() == before_agents
+                assert (
+                    shadow_home / "AGENTS.override.md"
+                ).read_bytes() == before_override
+    finally:
+        reset_instruction_delivery(token)
 
     assert agents.read_bytes() == before_agents
     assert override.read_bytes() == before_override
@@ -242,6 +290,108 @@ def test_legacy_shadow_home_keeps_memories_and_home_fallback(
         assert (shadow_home / "memories").is_symlink()
         assert (shadow_home / "AGENTS.md").is_symlink()
         assert (shadow_home / "AGENTS.md").resolve() == home_agents.resolve()
+
+
+def test_flag_on_without_active_delivery_keeps_home_fallback_and_memories(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Flag-on with no bound delivery behaves exactly as the flag-off path."""
+    real_home = tmp_path / ".codex"
+    real_home.mkdir()
+    memories = real_home / "memories"
+    memories.mkdir()
+    home_agents = tmp_path / "AGENTS.md"
+    home_agents.write_text("# User home instructions\n", encoding="utf-8")
+    monkeypatch.setenv("HOME", str(tmp_path))
+
+    with _shadow_home_for(real_home, explicit_instructions=True) as shadow_home:
+        assert (shadow_home / "memories").is_symlink()
+        assert (shadow_home / "AGENTS.md").is_symlink()
+        assert (shadow_home / "AGENTS.md").resolve() == home_agents.resolve()
+
+
+def test_flag_on_with_inherits_native_delivery_keeps_legacy_home(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A root that fell back to inherits_native keeps native home discovery."""
+    real_home = tmp_path / ".codex"
+    real_home.mkdir()
+    memories = real_home / "memories"
+    memories.mkdir()
+    home_agents = tmp_path / "AGENTS.md"
+    home_agents.write_text("# User home instructions\n", encoding="utf-8")
+    monkeypatch.setenv("HOME", str(tmp_path))
+    delivery = _explicit_codex_delivery(status="inherits_native")
+
+    with _shadow_home_for(
+        real_home, explicit_instructions=True, delivery=delivery
+    ) as shadow_home:
+        assert (shadow_home / "memories").is_symlink()
+        assert (shadow_home / "AGENTS.md").is_symlink()
+        assert (shadow_home / "AGENTS.md").resolve() == home_agents.resolve()
+
+
+@patch("sase.llm_provider.codex.stream_and_parse_codex_json_output")
+@patch("sase.llm_provider.codex.subprocess.Popen")
+@patch("sase.llm_provider.codex.provider_timer")
+def test_invoke_with_instructions_render_failure_keeps_home_fallback(
+    mock_timer: MagicMock,
+    mock_popen: MagicMock,
+    mock_stream: MagicMock,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A render failure with the flag on still exposes ~/AGENTS.md to Codex."""
+    from sase.llm_provider._instruction_boundary import invoke_with_instructions
+
+    real_home = tmp_path / ".codex"
+    real_home.mkdir()
+    home_agents = tmp_path / "AGENTS.md"
+    home_agents.write_text("# User home instructions\n", encoding="utf-8")
+    artifacts = tmp_path / "artifacts"
+    artifacts.mkdir()
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("CODEX_HOME", str(real_home))
+
+    def _boom(*_args: object, **_kwargs: object) -> object:
+        raise RuntimeError("compile exploded")
+
+    monkeypatch.setattr("sase.instructions.compile.compile_bundle", _boom)
+    monkeypatch.setattr(
+        "sase.llm_provider.instruction_delivery.notify_instruction_fallback",
+        lambda *_args, **_kwargs: None,
+    )
+    mock_popen.return_value = MagicMock()
+    observed_shadow: Path | None = None
+
+    def inspect_shadow(
+        process: MagicMock, suppress_output: bool
+    ) -> tuple[str, str, int]:
+        nonlocal observed_shadow
+        observed_shadow = Path(mock_popen.call_args.kwargs["env"]["CODEX_HOME"])
+        assert (observed_shadow / "AGENTS.md").is_symlink()
+        assert (observed_shadow / "AGENTS.md").resolve() == home_agents.resolve()
+        return "response", "", 0
+
+    mock_stream.side_effect = inspect_shadow
+
+    with override_flags(codex_explicit_instructions=True):
+        invoke_with_instructions(
+            CodexProvider(),
+            "test",
+            purpose="ordinary",
+            artifacts_dir=str(artifacts),
+            provider_name="codex",
+            model_tier="large",
+            suppress_output=True,
+            model_override=None,
+            options=None,
+        )
+
+    assert observed_shadow is not None
+    assert not observed_shadow.exists()
 
 
 @patch("sase.llm_provider.codex.stream_and_parse_codex_json_output")

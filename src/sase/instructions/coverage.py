@@ -25,6 +25,7 @@ from sase.instructions.coverage_records import (
     matching_manifests,
     record_from_entry,
     run_manifest_records,
+    session_is_foreign,
 )
 from sase.instructions.coverage_sessions import (
     RootSession,
@@ -75,4 +76,5 @@ __all__ = [
     "root_sessions",
     "run_manifest_records",
     "section_diff_for_session",
+    "session_is_foreign",
 ]

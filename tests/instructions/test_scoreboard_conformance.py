@@ -8,7 +8,11 @@ import hashlib
 from pathlib import Path
 
 from sase.instructions import coverage_records
-from sase.instructions.coverage_records import ManifestRecord, matching_manifests
+from sase.instructions.coverage_records import (
+    ManifestRecord,
+    matching_manifests,
+    session_is_foreign,
+)
 from sase.instructions.coverage_sessions import RootSession
 from sase.instructions import claude, codex, fingerprints, grok, muse
 from sase.instructions.models import SessionObservation
@@ -302,3 +306,246 @@ def test_conformance_skips_without_explicit_manifests(
         _doctor_context(tmp_path)
     )
     assert check.status == "SKIP"
+
+
+def test_foreign_marker_session_matches_nothing_and_is_not_uncovered(
+    tmp_path: Path,
+) -> None:
+    """A session carrying another invocation's marker never falls through."""
+    from sase.instructions.coverage_summary import cover_sessions
+
+    ours = _record(
+        tmp_path,
+        seq=0,
+        invocation="invocation-ours",
+        rendered_at=datetime(2026, 10, 1, tzinfo=UTC),
+    )
+    session = RootSession(
+        provider="claude",
+        run_name="agent-foreign",
+        artifact_dir=str(tmp_path),
+        workspace_dir="/work/synthetic",
+        session_id="session-foreign",
+        session_start=datetime(2026, 10, 2, tzinfo=UTC),
+        bundle_markers=(("0123456789ab", "invocation-theirs"),),
+    )
+    assert matching_manifests(session, [ours]) == []
+    assert session_is_foreign(session, [ours]) is True
+    assert cover_sessions([session], [ours]) == []
+    ours_session = RootSession(
+        provider="claude",
+        run_name="agent-foreign",
+        artifact_dir=str(tmp_path),
+        workspace_dir="/work/synthetic",
+        session_id="session-ours",
+        session_start=datetime(2026, 10, 2, tzinfo=UTC),
+        bundle_markers=(("0123456789ab", "invocation-ours"),),
+    )
+    from sase.instructions.coverage_summary import provider_session_coverage
+
+    sessions = [ours_session, session]
+    verdicts = cover_sessions(sessions, [ours])
+    assert [item.session_id for item in verdicts] == ["session-ours"]
+    assert provider_session_coverage("claude", sessions, verdicts) == (1, 1)
+
+
+def test_explicit_record_with_session_ids_does_not_time_claim(
+    tmp_path: Path,
+) -> None:
+    """An explicit record with recorded session ids is not time-matched."""
+    record = _record(
+        tmp_path,
+        seq=0,
+        invocation="invocation-listed",
+        rendered_at=datetime(2026, 10, 1, tzinfo=UTC),
+    )
+    record = ManifestRecord(**{**record.__dict__, "session_ids": ("session-listed",)})
+    session = RootSession(
+        provider="claude",
+        run_name="agent-unlisted",
+        artifact_dir=str(tmp_path),
+        workspace_dir="/work/synthetic",
+        session_id="session-unlisted",
+        session_start=datetime(2026, 10, 1, 0, 0, 1, tzinfo=UTC),
+    )
+    assert matching_manifests(session, [record]) == []
+    assert session_is_foreign(session, [record]) is False
+
+
+def test_foreign_session_dropped_from_verify_observations(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """Foreign-marker roots and their Claude helpers leave the observation set."""
+    from sase.instructions import _verify_collection
+    from sase.instructions import coverage_records, coverage_sessions
+
+    now = datetime.now(tz=UTC)
+    run = ScoredRun(
+        provider="claude",
+        name="agent-drop",
+        workspace_dir="/work/synthetic",
+        artifact_dir=str(tmp_path),
+        started_at=now,
+        ended_at=None,
+        project=None,
+    )
+    ours = _record(
+        tmp_path,
+        seq=0,
+        invocation="invocation-ours",
+        rendered_at=now,
+    )
+    foreign_session = RootSession(
+        provider="claude",
+        run_name=run.name,
+        artifact_dir=str(tmp_path),
+        workspace_dir=run.workspace_dir,
+        session_id="foreign-sess",
+        session_start=now,
+        bundle_markers=(("0123456789ab", "invocation-theirs"),),
+    )
+    root_obs = SessionObservation(
+        provider="claude",
+        run_name=run.name,
+        session_id="foreign-sess",
+        contract_count=1,
+    )
+    helper_obs = SessionObservation(
+        provider="claude",
+        run_name=run.name,
+        session_id="foreign-sess/agent-1",
+        contract_count=0,
+        helper_type="general-purpose",
+    )
+    monkeypatch.setattr(
+        _verify_collection,
+        "observe_claude",
+        lambda *_args, **_kwargs: [root_obs, helper_obs],
+    )
+    monkeypatch.setattr(
+        coverage_sessions, "root_sessions", lambda _runs: [foreign_session]
+    )
+    monkeypatch.setattr(coverage_records, "run_manifest_records", lambda _adir: [ours])
+    assert _verify_collection.collect_observations([run]) == []
+
+
+def test_conformance_ok_for_multiple_explicit_attempts(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """Each attempt associates once; sessions do not cross-match by time."""
+    from sase.doctor import checks_instructions
+    from sase.instructions import coverage_records, coverage_sessions, run_index
+
+    now = datetime.now(tz=UTC)
+    run = ScoredRun(
+        provider="claude",
+        name="agent-multi",
+        workspace_dir="/work/synthetic",
+        artifact_dir=str(tmp_path),
+        started_at=now,
+        ended_at=None,
+        project=None,
+    )
+    rec0 = ManifestRecord(
+        **{
+            **_record(tmp_path, seq=0, invocation="inv-0", rendered_at=now).__dict__,
+            "session_ids": ("sess-0",),
+        }
+    )
+    rec1 = ManifestRecord(
+        **{
+            **_record(tmp_path, seq=1, invocation="inv-1", rendered_at=now).__dict__,
+            "session_ids": ("sess-1",),
+        }
+    )
+    sess0 = RootSession(
+        provider="claude",
+        run_name=run.name,
+        artifact_dir=str(tmp_path),
+        workspace_dir=run.workspace_dir,
+        session_id="sess-0",
+        session_start=now,
+        bundle_markers=(("0123456789ab", "inv-0"),),
+    )
+    sess1 = RootSession(
+        provider="claude",
+        run_name=run.name,
+        artifact_dir=str(tmp_path),
+        workspace_dir=run.workspace_dir,
+        session_id="sess-1",
+        session_start=now,
+        bundle_markers=(("0123456789ab", "inv-1"),),
+    )
+    monkeypatch.setattr(run_index, "enumerate_runs", lambda **_kwargs: [run])
+    monkeypatch.setattr(
+        coverage_records, "run_manifest_records", lambda _adir: [rec0, rec1]
+    )
+    monkeypatch.setattr(
+        coverage_sessions, "root_sessions", lambda _runs: [sess0, sess1]
+    )
+    monkeypatch.setattr(
+        "sase.instructions.verify.collect_observations",
+        lambda _runs: [
+            SessionObservation(
+                provider="claude",
+                run_name=run.name,
+                session_id="sess-0",
+                contract_count=1,
+                native_full_count=0,
+                bundle_count=1,
+                delivery="explicit",
+            ),
+            SessionObservation(
+                provider="claude",
+                run_name=run.name,
+                session_id="sess-1",
+                contract_count=1,
+                native_full_count=0,
+                bundle_count=1,
+                delivery="explicit",
+            ),
+        ],
+    )
+    monkeypatch.setattr(
+        "sase.instructions.manifests.read_run_manifests", lambda _adir: []
+    )
+    check = checks_instructions._check_instructions_conformance(
+        _doctor_context(tmp_path)
+    )
+    assert check.status == "OK"
+
+
+def test_conformance_warns_on_error_json_render_failure(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """An ``.error.json`` with ``delivery_fallback`` WARNs as render_failed."""
+    from sase.doctor import checks_instructions
+    from sase.instructions import coverage_sessions, run_index
+    from tests.instructions.fixture_shadow import write_shadow_error
+
+    artifacts = tmp_path / "run"
+    (artifacts / "instructions").mkdir(parents=True)
+    path = write_shadow_error(artifacts, provider="codex", seq=0)
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    payload["delivery_fallback"] = "legacy"
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    now = datetime.now(tz=UTC)
+    run = ScoredRun(
+        provider="codex",
+        name="agent-err",
+        workspace_dir="/work/synthetic",
+        artifact_dir=str(artifacts),
+        started_at=now,
+        ended_at=None,
+        project=None,
+    )
+    monkeypatch.setattr(run_index, "enumerate_runs", lambda **_kwargs: [run])
+    monkeypatch.setattr(coverage_sessions, "root_sessions", lambda _runs: [])
+    monkeypatch.setattr(
+        "sase.instructions.verify.collect_observations", lambda _runs: []
+    )
+    check = checks_instructions._check_instructions_conformance(
+        _doctor_context(tmp_path)
+    )
+    assert check.status == "WARN"
+    assert "fallback render_failed" in check.summary

@@ -13,6 +13,7 @@ from sase.feature_flags.managed import project_is_sase_managed
 from sase.output import provider_timer
 
 from ._codex_home import (
+    active_explicit_codex_delivery,
     codex_subprocess_env,
     is_sase_managed_codex_home,
     real_codex_home,
@@ -273,10 +274,8 @@ class CodexProvider(LLMProvider):
             else None
         )
         explicit_text = (
-            active_root.text
-            if active_root is not None
-            and active_root.plan.status == "explicit"
-            and active_root.text
+            delivery.root.text
+            if delivery is not None and active_explicit_codex_delivery()
             else None
         )
         developer_instructions = explicit_text or single_turn_directive()

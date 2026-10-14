@@ -361,8 +361,35 @@ def observe_muse(
 ) -> list[SessionObservation]:
     from sase.llm_provider._muse_session_usage import find_muse_session_log
 
-    session_id = runs.find_muse_session_id(run)
-    if not session_id:
+    observations: list[SessionObservation] = []
+    for session_id in runs.find_muse_session_ids(run):
+        log_path = find_muse_session_log(session_id)
+        if log_path is None:
+            continue
+        records, partial = runs.read_jsonl_capped(
+            log_path, max_bytes=runs.ROOT_TRANSCRIPT_BYTE_CAP
+        )
+        fields = muse_parser.observe_muse_session(
+            records, home_h1=home, project_h1=project
+        )
+        observations.append(
+            SessionObservation(
+                provider="muse",
+                run_name=run.name,
+                session_id=session_id,
+                contract_count=_observed_count(fields["contract_count"], partial),
+                home=_partial_tri(fields["home"], partial),
+                project=_partial_tri(fields["project"], partial),
+                directive=_partial_tri(fields["directive"], partial),
+                native_full_count=_observed_count(fields["native_full_count"], partial),
+                partial=partial,
+                channels=_channel_map(fields),
+            )
+        )
+    if observations:
+        return observations
+    fallback_id = runs.find_muse_session_id(run)
+    if not fallback_id:
         return [
             SessionObservation(
                 provider="muse",
@@ -375,35 +402,15 @@ def observe_muse(
                 native_full_count=0,
             )
         ]
-    log_path = find_muse_session_log(session_id)
-    if log_path is None:
-        return [
-            SessionObservation(
-                provider="muse",
-                run_name=run.name,
-                session_id=session_id,
-                contract_count=0,
-                home=False,
-                project=None,
-                directive=None,
-                native_full_count=0,
-            )
-        ]
-    records, partial = runs.read_jsonl_capped(
-        log_path, max_bytes=runs.ROOT_TRANSCRIPT_BYTE_CAP
-    )
-    fields = muse_parser.observe_muse_session(records, home_h1=home, project_h1=project)
     return [
         SessionObservation(
             provider="muse",
             run_name=run.name,
-            session_id=session_id,
-            contract_count=_observed_count(fields["contract_count"], partial),
-            home=_partial_tri(fields["home"], partial),
-            project=_partial_tri(fields["project"], partial),
-            directive=_partial_tri(fields["directive"], partial),
-            native_full_count=_observed_count(fields["native_full_count"], partial),
-            partial=partial,
-            channels=_channel_map(fields),
+            session_id=fallback_id,
+            contract_count=0,
+            home=False,
+            project=None,
+            directive=None,
+            native_full_count=0,
         )
     ]

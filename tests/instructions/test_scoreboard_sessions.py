@@ -27,6 +27,7 @@ from tests.instructions._scoreboard_support import (
     make_run,
 )
 from tests.instructions.fixture_shadow import (
+    write_real_shadow_run,
     write_shadow_error,
     write_shadow_run,
 )
@@ -315,3 +316,39 @@ def test_root_session_starts_from_provider_files(
     assert set(by_provider) == {"claude", "codex", "grok", "muse"}
     for item in sessions:
         assert item.session_start == datetime(2026, 10, 6, 12, 1, tzinfo=UTC)
+
+
+def test_muse_retry_attempt_sessions_from_manifest_ids(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Root sessions and observers see every Muse attempt's recorded session."""
+    from sase.instructions._verify_observers import observe_muse
+
+    monkeypatch.setenv("SASE_INSTRUCTIONS_HOME", str(tmp_path / "instructions-home"))
+    artifacts = tmp_path / "muse-retry"
+    session_ids = ["ede7cb5f", "ed9c98c6", "a4f8e1ae"]
+    for seq, session_id in enumerate(session_ids):
+        _, manifest, _ = write_real_shadow_run(
+            tmp_path,
+            provider="muse",
+            seq=seq,
+            artifacts_dir=artifacts,
+        )
+        manifest["delivery"]["session_ids"] = [session_id]
+        (artifacts / "instructions" / f"{seq:02d}-muse.json").write_text(
+            json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        )
+    (artifacts / "run_metadata.json").write_text(
+        json.dumps({"muse_session_id": session_ids[-1]}), encoding="utf-8"
+    )
+    logs = {session_id: tmp_path / f"{session_id}.jsonl" for session_id in session_ids}
+    for session_id, log_path in logs.items():
+        log_path.write_text(json.dumps({"timestamp": SESSION_TS}) + "\n")
+    import sase.llm_provider._muse_session_usage as muse_usage
+
+    monkeypatch.setattr(muse_usage, "find_muse_session_log", lambda sid: logs.get(sid))
+    run = make_run("muse", "research.17.mus", artifacts)
+    found = coverage_mod.root_sessions([run])
+    assert {item.session_id for item in found} == set(session_ids)
+    observed = observe_muse(run, home=None, project=None)
+    assert {item.session_id for item in observed} == set(session_ids)

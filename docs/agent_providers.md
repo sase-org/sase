@@ -93,16 +93,19 @@ columns.
 | `foreign`     | Claude's exact auto-memory fingerprint, Codex foreign global AGENTS.md, or Grok memory state.      |
 | `helpers`     | Helper type, template, final attempts, accepted declarations, helper marker, and root-marker leak. |
 
-A session first matches a manifest by its bundle marker's invocation id, then by the
-adapter-recorded session id, then by provider and render time (5 s of skew allowed).
-`sase instructions verify -c` prints the per-provider-purpose coverage table: manifests,
-sessions, covered, up to 10 uncovered `(agent, session)` pairs, shadow-failure
-(`.error.json`) counts, and warm/cold `render_ms` p50/p95. With `-a NAME`, each observed
-root session also gets its intended-vs-observed section table: every included manifest
-section with the count of loaded sources whose text contains it, split into `native` and
-`explicit` channels (frame and heading-only sections are skipped). Counts use non-
-overlapping occurrences. Partial transcripts retain counts found in the prefix; a row is
-`◌` only when no occurrence appears in a partial read.
+A session first matches a manifest by its bundle marker's invocation id. A session that
+carries another invocation's marker never falls through to session id or time. Otherwise
+it matches by the adapter-recorded session id, then by provider and render time (5 s of
+skew allowed) against records that recorded no session ids. Explicit records with
+recorded session ids are not time-matched. `sase instructions verify -c` prints the
+per-provider-purpose coverage table: manifests, sessions, covered, up to 10 uncovered
+`(agent, session)` pairs, shadow-failure (`.error.json`) counts, and warm/cold
+`render_ms` p50/p95. With `-a NAME`, each observed root session also gets its
+intended-vs-observed section table: every included manifest section with the count of
+loaded sources whose text contains it, split into `native` and `explicit` channels
+(frame and heading-only sections are skipped). Counts use non- overlapping occurrences.
+Partial transcripts retain counts found in the prefix; a row is `◌` only when no
+occurrence appears in a partial read.
 
 Symbols: `✓` present, `✗` absent, `◌` unverifiable (agy reports every instruction column
 as `◌`, with directive presence only when the conversation record exposes the prompt).

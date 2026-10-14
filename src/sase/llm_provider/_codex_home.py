@@ -11,8 +11,10 @@ from pathlib import Path
 
 from sase.env_contracts import SASE_ACTIVE_PROJECT_DIR_ENV
 
-from ._codex_instructions import explicit_instructions_enabled
-from .instruction_delivery import sase_owned_instruction_paths
+from .instruction_delivery import (
+    current_instruction_delivery,
+    sase_owned_instruction_paths,
+)
 
 DISABLE_SHADOW_HOME_ENV = "SASE_CODEX_DISABLE_SHADOW_HOME"
 CODEX_SHADOW_HOME_SYMLINK_ENTRIES = frozenset(
@@ -73,6 +75,22 @@ def real_codex_home() -> Path:
     return Path.home() / ".codex"
 
 
+def active_explicit_codex_delivery() -> bool:
+    """Return whether this invocation has an active explicit Codex root.
+
+    True only when the bound delivery is Codex, the root slot is
+    ``explicit``, and the root text is non-empty — the same condition
+    ``CodexProvider.invoke`` uses for developer-instruction text.
+    """
+    delivery = current_instruction_delivery()
+    return (
+        delivery is not None
+        and delivery.provider == "codex"
+        and delivery.root.plan.status == "explicit"
+        and bool(delivery.root.text)
+    )
+
+
 def _path_exists_or_is_symlink(path: Path) -> bool:
     """Return whether a path exists or is present as a symlink."""
     return path.exists() or path.is_symlink()
@@ -125,7 +143,7 @@ def _create_shadow_codex_home(real_home: Path) -> Path:
     shadow_home = cache_root / f"{os.getpid()}-{uuid.uuid4().hex}"
     shadow_home.mkdir(mode=0o700)
 
-    explicit = explicit_instructions_enabled()
+    explicit = active_explicit_codex_delivery()
     owned_paths = sase_owned_instruction_paths() if explicit else ()
     if real_home.exists():
         for source in real_home.iterdir():
@@ -174,6 +192,7 @@ def codex_subprocess_env() -> Iterator[dict[str, str]]:
 
 
 __all__ = [
+    "active_explicit_codex_delivery",
     "codex_subprocess_env",
     "is_sase_managed_codex_home",
     "real_codex_home",

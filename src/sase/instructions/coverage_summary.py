@@ -5,7 +5,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from sase.instructions import run_index as runs
-from sase.instructions.coverage_records import ManifestRecord, matching_manifests
+from sase.instructions.coverage_records import (
+    ManifestRecord,
+    matching_manifests,
+    session_is_foreign,
+)
 from sase.instructions.coverage_sessions import RootSession
 
 #: Cap on uncovered ``(agent, session)`` pairs per ``-c`` row.
@@ -66,7 +70,10 @@ def cover_sessions(
         by_run.setdefault(record.artifact_dir, []).append(record)
     verdicts: list[SessionCoverage] = []
     for session in sessions:
-        matches = matching_manifests(session, by_run.get(session.artifact_dir, []))
+        run_records = by_run.get(session.artifact_dir, [])
+        if session_is_foreign(session, run_records):
+            continue
+        matches = matching_manifests(session, run_records)
         if matches:
             verdicts.append(
                 SessionCoverage(
@@ -100,20 +107,23 @@ def provider_session_coverage(
     sessions: list[RootSession],
     verdicts: list[SessionCoverage],
 ) -> tuple[int, int]:
-    """Return ``(covered, total)`` root sessions for *provider*."""
+    """Return ``(covered, total)`` root sessions for *provider*.
+
+    Foreign-marker sessions are omitted from *verdicts* and from this
+    total, so they are never counted uncovered.
+    """
     wanted = {
         (item.run_name, item.session_id)
         for item in sessions
         if item.provider == provider
     }
-    total = len(wanted)
-    covered = sum(
-        1
+    scored = [
+        item
         for item in verdicts
-        if item.provider == provider
-        and (item.run_name, item.session_id) in wanted
-        and item.covered
-    )
+        if item.provider == provider and (item.run_name, item.session_id) in wanted
+    ]
+    total = len(scored)
+    covered = sum(1 for item in scored if item.covered)
     return covered, total
 
 
@@ -170,17 +180,16 @@ def purpose_coverage_rows(
             purposes = [""]
         by_session_covered: dict[tuple[str, str], set[str]] = {}
         for session in provider_sessions:
+            run_records = [
+                record
+                for record in provider_records
+                if record.artifact_dir == session.artifact_dir
+            ]
+            if session_is_foreign(session, run_records):
+                continue
             key = (session.run_name, session.session_id)
             covered_purposes = {
-                record.purpose
-                for record in matching_manifests(
-                    session,
-                    [
-                        record
-                        for record in provider_records
-                        if record.artifact_dir == session.artifact_dir
-                    ],
-                )
+                record.purpose for record in matching_manifests(session, run_records)
             }
             by_session_covered[key] = covered_purposes
         for purpose in purposes:

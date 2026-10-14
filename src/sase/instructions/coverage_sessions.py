@@ -167,25 +167,23 @@ def root_sessions(scored_runs: list[runs.ScoredRun]) -> list[RootSession]:
                     )
                 )
         elif run.provider == "muse":
-            session_id = runs.find_muse_session_id(run)
-            if session_id is None:
-                continue
-            log_path = find_muse_session_log(session_id)
-            _native, explicit, partial = session_sources("muse", run, session_id)
-            found.append(
-                RootSession(
-                    provider="muse",
-                    run_name=run.name,
-                    artifact_dir=run.artifact_dir,
-                    workspace_dir=run.workspace_dir,
-                    session_id=session_id,
-                    session_start=(
-                        muse_session_start(log_path) if log_path is not None else None
-                    ),
-                    partial=partial,
-                    bundle_markers=fp.bundle_markers(explicit),
+            for session_id in runs.find_muse_session_ids(run):
+                log_path = find_muse_session_log(session_id)
+                if log_path is None:
+                    continue
+                _native, explicit, partial = session_sources("muse", run, session_id)
+                found.append(
+                    RootSession(
+                        provider="muse",
+                        run_name=run.name,
+                        artifact_dir=run.artifact_dir,
+                        workspace_dir=run.workspace_dir,
+                        session_id=session_id,
+                        session_start=muse_session_start(log_path),
+                        partial=partial,
+                        bundle_markers=fp.bundle_markers(explicit),
+                    )
                 )
-            )
     return found
 
 

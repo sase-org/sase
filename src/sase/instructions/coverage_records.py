@@ -134,10 +134,35 @@ def _rendered_covers(rendered: datetime | None, start: datetime | None) -> bool:
     return rendered <= start + COVERAGE_SKEW
 
 
+def session_is_foreign(session: RootSession, records: list[ManifestRecord]) -> bool:
+    """Return whether *session* carries another invocation's bundle markers.
+
+    True when the session has at least one marker and none of those
+    invocation ids appear among *records*' root manifests.
+    """
+    marker_invocations = {invocation for _sha, invocation in session.bundle_markers}
+    if not marker_invocations:
+        return False
+    root_invocations = {
+        record.invocation_id
+        for record in records
+        if record.invocation_id
+        and not record.is_helper
+        and record.actor != "native_helper"
+    }
+    return marker_invocations.isdisjoint(root_invocations)
+
+
 def matching_manifests(
     session: RootSession, records: list[ManifestRecord]
 ) -> list[ManifestRecord]:
-    """Return same-provider manifests covering *session*, latest first."""
+    """Return same-provider manifests covering *session*, latest first.
+
+    A session that carries any bundle marker matches only records whose
+    ``invocation_id`` is among those markers and never falls through to
+    session id or time. Marker-less sessions match recorded ``session_ids``,
+    then time-match only records that recorded none.
+    """
     provider_candidates = [
         record
         for record in records
@@ -146,24 +171,27 @@ def matching_manifests(
         and record.actor != "native_helper"
     ]
     marker_invocations = {invocation for _sha, invocation in session.bundle_markers}
-    marker_matches = [
-        record
-        for record in provider_candidates
-        if record.invocation_id and record.invocation_id in marker_invocations
-    ]
-    if marker_matches:
-        matches = marker_matches
+    if marker_invocations:
+        matches = [
+            record
+            for record in provider_candidates
+            if record.invocation_id and record.invocation_id in marker_invocations
+        ]
     else:
         session_id_matches = [
             record
             for record in provider_candidates
             if session.session_id in record.session_ids
         ]
-        matches = session_id_matches or [
-            record
-            for record in provider_candidates
-            if _rendered_covers(record.rendered_at, session.session_start)
-        ]
+        if session_id_matches:
+            matches = session_id_matches
+        else:
+            matches = [
+                record
+                for record in provider_candidates
+                if not record.session_ids
+                and _rendered_covers(record.rendered_at, session.session_start)
+            ]
     matches.sort(
         key=lambda record: (
             record.rendered_at or datetime.min.replace(tzinfo=UTC),
@@ -205,4 +233,5 @@ __all__ = [
     "matching_manifests",
     "record_from_entry",
     "run_manifest_records",
+    "session_is_foreign",
 ]

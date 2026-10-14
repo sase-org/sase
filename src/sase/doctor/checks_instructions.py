@@ -97,15 +97,8 @@ def _check_instructions_delivery(context: DoctorContext) -> DiagnosticCheck:
             reasons.append(
                 f"directive {item.directive if item.directive is not None else '◌'}"
             )
-        if item.native_full_count != 0:
-            reasons.append(
-                "native-full "
-                + (
-                    str(item.native_full_count)
-                    if item.native_full_count is not None
-                    else "◌"
-                )
-            )
+        if item.native_full_count is not None and item.native_full_count != 0:
+            reasons.append(f"native-full {item.native_full_count}")
         if reasons:
             offenders.append(
                 f"{item.provider} {item.run_name}/{item.session_id} "
@@ -153,8 +146,9 @@ def _check_instructions_conformance(context: DoctorContext) -> DiagnosticCheck:
     from sase.instructions.coverage_records import (
         matching_manifests,
         run_manifest_records,
+        session_is_foreign,
     )
-    from sase.instructions.coverage_sessions import root_sessions
+    from sase.instructions.coverage_sessions import RootSession, root_sessions
     from sase.instructions.fingerprints import count_bundle_markers
     from sase.instructions.manifests import read_run_manifests
 
@@ -181,7 +175,12 @@ def _check_instructions_conformance(context: DoctorContext) -> DiagnosticCheck:
             )
             for record in records
         )
-        if not has_explicit:
+        has_render_failure = any(
+            entry.error is not None
+            and isinstance(entry.error.get("delivery_fallback"), str)
+            for entry in read_run_manifests(run.artifact_dir)
+        )
+        if not has_explicit and not has_render_failure:
             continue
         count = per_provider.get(run.provider, 0)
         if count >= 10:
@@ -211,20 +210,24 @@ def _check_instructions_conformance(context: DoctorContext) -> DiagnosticCheck:
             item for item in sessions if item.artifact_dir == run.artifact_dir
         ]
         roots = [record for record in records if not record.is_helper]
+        associated: dict[int, list[RootSession]] = {}
+        for session in run_sessions:
+            if session_is_foreign(session, roots):
+                continue
+            matches = matching_manifests(session, roots)
+            if not matches:
+                continue
+            associated.setdefault(id(matches[0]), []).append(session)
         for record in roots:
             if record.delivery_status != "explicit":
                 continue
-            matches = [
-                session
-                for session in run_sessions
-                if matching_manifests(session, [record])
-            ]
-            if not matches:
+            matched_sessions = associated.get(id(record), [])
+            if not matched_sessions:
                 problems.append(
                     f"{run.name} seq {record.seq}: no matching root session"
                 )
                 continue
-            for session in matches:
+            for session in matched_sessions:
                 count = (
                     count_bundle_markers(session.bundle_markers, record.invocation_id)
                     if record.invocation_id
@@ -279,10 +282,11 @@ def _check_instructions_conformance(context: DoctorContext) -> DiagnosticCheck:
                     ):
                         fallback_reasons.append(fallback["reason"])
             if entry.error is not None:
-                for key in ("reason", "delivery_fallback"):
-                    value = entry.error.get(key)
-                    if isinstance(value, str):
-                        fallback_reasons.append(value)
+                if isinstance(entry.error.get("delivery_fallback"), str):
+                    fallback_reasons.append("render_failed")
+                value = entry.error.get("reason")
+                if isinstance(value, str):
+                    fallback_reasons.append(value)
             for reason in sorted(
                 set(fallback_reasons) & _NON_DECLARED_DELIVERY_FALLBACKS
             ):
