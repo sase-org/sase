@@ -85,6 +85,68 @@ def test_awaits_rows_index_with_perspective_labels_and_no_write() -> None:
     assert target_chips[0].writable is False
 
 
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        (True, 1),
+        (2.9, 2),
+        ("1_000", 1000),
+        ("١_٢", 12),
+        (-2.9, 0),
+        ("-3", 0),
+        ("1__000", 0),
+        ([], 0),
+        ({"a": 1}, 0),
+        (None, 0),
+    ],
+)
+def test_tolerant_count_coercion_matches_legacy_aggregate_reader(
+    value: object, expected: int
+) -> None:
+    index = _build_link_index(
+        _snapshot(
+            (
+                {
+                    "source_ref": "bead:source",
+                    "relation": "related",
+                    "target_ref": "bead:target",
+                    "uses": value,
+                },
+            )
+        )
+    )
+    assert index.chips_for("bead:source")[0].uses == expected
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "expected"),
+    [
+        ("description", False, ""),
+        ("description", True, "True"),
+        ("description", {"a": 1}, "{'a': 1}"),
+        ("description", [True, None], "[True, None]"),
+        ("origin", 0, ""),
+    ],
+)
+def test_tolerant_string_fields_match_legacy_aggregate_reader(
+    field: str, value: object, expected: str
+) -> None:
+    index = _build_link_index(
+        _snapshot(
+            (
+                {
+                    "source_ref": "bead:source",
+                    "relation": "related",
+                    "target_ref": "bead:target",
+                    field: value,
+                },
+            )
+        )
+    )
+    chip = index.chips_for("bead:source")[0]
+    assert (chip.why if field == "description" else chip.origin) == expected
+
+
 def test_symmetric_related_labels_both_directions_the_same() -> None:
     index = _build_link_index(
         _snapshot(
@@ -212,6 +274,41 @@ def test_accent_lookup_count_does_not_scale_with_row_count(
 
     assert len(index.chips_for("bead:anchor")) == 300
     assert calls <= 3
+
+
+def test_lazy_chip_style_uses_worker_captured_provider_context(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from types import SimpleNamespace
+
+    from sase.ace.tui import artifact_tabs
+
+    descriptor = SimpleNamespace(accent="#123456", icon="D")
+    monkeypatch.setattr(
+        artifact_tabs,
+        "resolve_artifacts_subtabs",
+        lambda: (SimpleNamespace(id="ref:custom", **vars(descriptor)),),
+    )
+    index = _build_link_index(
+        _snapshot(
+            (
+                {
+                    "source_ref": "bead:anchor",
+                    "relation": "related",
+                    "target_ref": "custom:document",
+                    "uses": 1,
+                },
+            )
+        )
+    )
+
+    def forbidden(_pane_id: str) -> object:
+        raise AssertionError("lazy chip lookup performed descriptor resolution")
+
+    monkeypatch.setattr(artifact_tabs, "descriptor_for_artifacts_pane_id", forbidden)
+    chip = index.chips_for("bead:anchor")[0]
+    assert chip.accent == "#123456"
+    assert chip.icon == "D"
 
 
 def test_chop_neighbor_has_no_target_but_gets_the_virtual_chop_style() -> None:
@@ -449,6 +546,46 @@ def test_lazy_mappings_refuse_graph_enumeration() -> None:
         len(index.targets_by_ref)
 
 
+def test_requested_chip_cache_is_bounded_and_refills_after_eviction(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.ace.tui.relations.link_index import _ChipMapping
+
+    import sase.core.artifact_link_index_facade as index_facade
+
+    calls: list[str] = []
+
+    def query(_handle: object, ref: str) -> list[dict[str, object]]:
+        calls.append(ref)
+        return [
+            {
+                "relation": "related",
+                "label": "related",
+                "directed": False,
+                "this_is_source": True,
+                "neighbor_ref": "bead:neighbor",
+                "neighbor_kind": "bead",
+                "neighbor_target": None,
+                "why": ref,
+                "origin": "manual",
+                "uses": 1,
+                "created_by": "test",
+                "created_at": "2026-10-13T00:00:00Z",
+                "writable": True,
+            }
+        ]
+
+    monkeypatch.setattr(index_facade, "index_chips", query)
+    mapping = _ChipMapping(object(), (("__external__", "#FF5F5F", "•"),))
+    mapping._max = 1
+    mapping["agent:a"]
+    mapping["agent:b"]
+    assert mapping.cached("agent:a") is None
+    assert mapping.cached("agent:b") is not None
+    assert mapping["agent:a"][0].why == "agent:a"
+    assert calls == ["agent:a", "agent:b", "agent:a"]
+
+
 def test_concurrent_requests_for_one_snapshot_compile_once(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -494,10 +631,99 @@ def test_concurrent_requests_for_one_snapshot_compile_once(
     with ThreadPoolExecutor(max_workers=4) as pool:
         indexes = list(pool.map(lambda _: worker(), range(4)))
     assert builds == 1
+    assert all(index is indexes[0] for index in indexes)
     handles = {id(index.by_ref._handle) for index in indexes}  # type: ignore[union-attr]
     assert handles == {id(indexes[0].by_ref._handle)}  # type: ignore[union-attr]
     for index in indexes:
         assert index.chips_for("bead:sase-1")
+
+
+def test_evicted_scope_keeps_pending_generation_fence(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import threading
+    from concurrent.futures import ThreadPoolExecutor
+
+    import sase.ace.tui.relations._native_link_index as native_link_index
+
+    identity = AgentIdentitySnapshot.current()
+    monkeypatch.setattr(
+        AgentIdentitySnapshot, "current", classmethod(lambda _cls: identity)
+    )
+    monkeypatch.setattr(native_link_index, "_assembled_relations", lambda: [])
+    monkeypatch.setattr(native_link_index, "_HANDLE_CACHE_MAX", 1)
+    native_link_index.clear_native_link_index_cache()
+    old = ArtifactLinksSnapshot(source_key=(("p", 1, 1),))
+    newer = ArtifactLinksSnapshot(source_key=(("p", 2, 2),))
+    other = ArtifactLinksSnapshot(source_key=(("q", 1, 1),))
+    old_started = threading.Event()
+    release_old = threading.Event()
+
+    def compile(snapshot: ArtifactLinksSnapshot, *_args: object) -> object:
+        if snapshot is old:
+            old_started.set()
+            assert release_old.wait(timeout=10)
+        return tuple(snapshot.source_key)
+
+    monkeypatch.setattr(native_link_index, "_compile", compile)
+    try:
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            pending_old = pool.submit(native_link_index.native_handle_for_snapshot, old)
+            assert old_started.wait(timeout=10)
+            native_link_index.native_handle_for_snapshot(newer)
+            native_link_index.native_handle_for_snapshot(other)
+            release_old.set()
+            assert pending_old.result(timeout=10) == old.source_key
+        assert list(native_link_index._HANDLE_CACHE) == [("q",)]
+        assert native_link_index._PENDING_BY_SLOT == {}
+    finally:
+        release_old.set()
+        native_link_index.clear_native_link_index_cache()
+
+
+def test_clear_epoch_fences_pending_generation_but_releases_its_caller(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import threading
+    from concurrent.futures import ThreadPoolExecutor
+
+    import sase.ace.tui.relations._native_link_index as native_link_index
+
+    identity = AgentIdentitySnapshot.current()
+    monkeypatch.setattr(
+        AgentIdentitySnapshot, "current", classmethod(lambda _cls: identity)
+    )
+    monkeypatch.setattr(native_link_index, "_assembled_relations", lambda: [])
+    native_link_index.clear_native_link_index_cache()
+    old = ArtifactLinksSnapshot(source_key=(("p", 1, 1),))
+    current = ArtifactLinksSnapshot(source_key=(("p", 2, 2),))
+    old_started = threading.Event()
+    release_old = threading.Event()
+
+    def compile(snapshot: ArtifactLinksSnapshot, *_args: object) -> object:
+        if snapshot is old:
+            old_started.set()
+            assert release_old.wait(timeout=10)
+        return tuple(snapshot.source_key)
+
+    monkeypatch.setattr(native_link_index, "_compile", compile)
+    try:
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            pending_old = pool.submit(native_link_index.native_handle_for_snapshot, old)
+            assert old_started.wait(timeout=10)
+            native_link_index.clear_native_link_index_cache()
+            assert (
+                native_link_index.native_handle_for_snapshot(current)
+                == current.source_key
+            )
+            release_old.set()
+            assert pending_old.result(timeout=10) == old.source_key
+        cached = native_link_index._HANDLE_CACHE[("p",)]
+        assert cached.source_key == current.source_key
+        assert native_link_index._PENDING_BY_SLOT == {}
+    finally:
+        release_old.set()
+        native_link_index.clear_native_link_index_cache()
 
 
 def test_failed_build_unblocks_waiters_and_retry_succeeds(

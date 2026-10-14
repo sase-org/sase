@@ -62,7 +62,10 @@ class LinkSubjectMixin:
             if getattr(self, "_link_index_loading", False):
                 self._cache_link_follow_available(False)
             return ()
-        chips = index.chips_for(subject.ref)
+        chips = index.cached_chips_for(subject.ref)
+        if chips is None:
+            self._schedule_link_chip_query(index, subject.ref)
+            return ()
         self._cache_link_follow_available(bool(chips))
         return chips
 
@@ -84,7 +87,12 @@ class LinkSubjectMixin:
             if getattr(self, "_link_index_loading", False):
                 self._cache_link_follow_available(False)
             return False
-        available = bool(index.chips_for(subject.ref))
+        chips = index.cached_chips_for(subject.ref)
+        if chips is None:
+            self._schedule_link_chip_query(index, subject.ref)
+            self._cache_link_follow_available(False)
+            return False
+        available = bool(chips)
         self._cache_link_follow_available(available)
         return available
 
@@ -127,6 +135,56 @@ class LinkSubjectMixin:
     def _link_follow_available_cache_key(self) -> tuple[object, ...]:
         index = getattr(self, "_link_index", None)
         return (*self._link_subject_cache_key(), id(index))
+
+    def _schedule_link_chip_query(self, index: LinkIndex, ref: str) -> None:
+        """Materialize one selected ref's chips off the Textual message pump."""
+
+        if index.cached_chips_for(ref) is not None:
+            return
+        generation = getattr(self, "_link_index_generation", 0)
+        request_key = (generation, id(index), ref)
+        pending = getattr(self, "_link_chip_requests", None)
+        if pending is None:
+            pending = set()
+            self._link_chip_requests = pending
+        if request_key in pending:
+            return
+        pending.add(request_key)
+
+        async def _query() -> None:
+            failed = False
+            try:
+                await asyncio.to_thread(index.chips_for, ref)
+            except Exception:
+                failed = True
+                log.exception("link chip query failed for %s", ref)
+            finally:
+                pending.discard(request_key)
+            if failed:
+                return
+            if (
+                generation != getattr(self, "_link_index_generation", None)
+                or getattr(self, "_link_index", None) is not index
+            ):
+                return
+            current_ref = _selected_link_ref(self)
+            if current_ref != ref:
+                if current_ref is not None:
+                    self._schedule_link_chip_query(index, current_ref)
+                return
+            self._link_follow_available_cache = None
+            refresh_rail = getattr(self, "refresh_link_rail", None)
+            if callable(refresh_rail):
+                refresh_rail()
+
+        task = spawn_pump_free_task(
+            self,
+            _query(),
+            name="sase-link-chip-query",
+            registry_attr="_link_rail_tasks",
+        )
+        if task is None:
+            pending.discard(request_key)
 
     def refresh_link_rail(self) -> None:
         """Schedule one rail refresh for the current Textual tick."""
@@ -176,13 +234,20 @@ class LinkSubjectMixin:
         self._link_index_loading = True
         self._link_index_pending = False
         self._link_index_generation = getattr(self, "_link_index_generation", 0) + 1
+        getattr(self, "_link_chip_requests", set()).clear()
         self._clear_link_selection_caches()
         generation = self._link_index_generation
+        requested_ref = _selected_link_ref(self)
 
         async def _refresh() -> None:
             try:
                 snapshot = await asyncio.to_thread(load_artifact_links_snapshot, None)
                 index = await asyncio.to_thread(link_index_for_snapshot, snapshot)
+                if requested_ref is not None:
+                    try:
+                        await asyncio.to_thread(index.chips_for, requested_ref)
+                    except Exception:
+                        log.exception("link chip prefetch failed for %s", requested_ref)
             except Exception:
                 log.exception("link rail index refresh failed")
                 if generation == getattr(self, "_link_index_generation", None):
@@ -194,6 +259,9 @@ class LinkSubjectMixin:
             self._link_index_errors = snapshot.errors
             self._link_index_loading = False
             self._clear_link_selection_caches()
+            current_ref = _selected_link_ref(self)
+            if current_ref is not None and current_ref != requested_ref:
+                self._schedule_link_chip_query(index, current_ref)
             refresh_rail = getattr(self, "refresh_link_rail", None)
             if callable(refresh_rail):
                 refresh_rail()
@@ -221,6 +289,14 @@ def _selected_agent_key(app: Any) -> tuple[object, ...]:
     if agent is None:
         return (None, None)
     return (getattr(agent, "agent_name", None), getattr(agent, "identity", None))
+
+
+def _selected_link_ref(app: Any) -> str | None:
+    try:
+        subject = app.link_subject_for_selection()
+    except Exception:
+        return None
+    return None if subject is None else subject.ref
 
 
 def _selected_artifacts_target_key(app: Any) -> object:

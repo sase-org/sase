@@ -63,10 +63,12 @@ class _FullInflight:
     # Strong refs so patch ids cannot be recycled mid-build.
     patches: tuple[Patch, ...] = ()
     seq: int = 0
+    epoch: int = 0
 
 
 _FULL_INFLIGHT: dict[tuple[object, ...], _FullInflight] = {}
 _FULL_SEQ = 0
+_MEMO_EPOCH = 0
 
 
 def patch_relation_index_real_build_count() -> int:
@@ -76,8 +78,9 @@ def patch_relation_index_real_build_count() -> int:
 
 def clear_patch_relation_index_memo() -> None:
     """Drop the process-local memo and real-build counter. Tests only."""
-    global _MEMO, _MEMO_PUBLISH_SEQ, _REAL_BUILD_COUNT
+    global _MEMO, _MEMO_PUBLISH_SEQ, _REAL_BUILD_COUNT, _MEMO_EPOCH
     with _MEMO_LOCK:
+        _MEMO_EPOCH += 1
         _MEMO = None
         _MEMO_PUBLISH_SEQ = 0
         _REAL_BUILD_COUNT = 0
@@ -194,7 +197,11 @@ def resolve_patch_relation_index(
             inflight = _FULL_INFLIGHT.get(key)
             if inflight is None:
                 _FULL_SEQ += 1
-                inflight = _FullInflight(patches=tuple(patches), seq=_FULL_SEQ)
+                inflight = _FullInflight(
+                    patches=tuple(patches),
+                    seq=_FULL_SEQ,
+                    epoch=_MEMO_EPOCH,
+                )
                 _FULL_INFLIGHT[key] = inflight
                 owner = True
             else:
@@ -225,9 +232,12 @@ def resolve_patch_relation_index(
                 inflight.event.set()
             raise
         with _MEMO_LOCK:
-            # A slow older build must not replace a newer published memo.
-            if inflight.seq >= _MEMO_PUBLISH_SEQ:
+            if inflight.epoch == _MEMO_EPOCH:
+                # Count every successful full build in this memo epoch,
+                # including a result superseded by a newer publication.
                 _REAL_BUILD_COUNT += 1
+            # A slow older build must not replace a newer published memo.
+            if inflight.epoch == _MEMO_EPOCH and inflight.seq >= _MEMO_PUBLISH_SEQ:
                 _MEMO = _PatchRelationMemo(
                     source_key=source_key,
                     patches=tuple(patches),

@@ -55,15 +55,17 @@ class _CachedHandle:
 
 
 class _Inflight:
-    __slots__ = ("event", "handle", "error", "snapshot")
+    __slots__ = ("event", "handle", "error", "snapshot", "slot", "epoch")
 
-    def __init__(self, snapshot: Any) -> None:
+    def __init__(self, snapshot: Any, slot: tuple[object, ...], epoch: int) -> None:
         self.event = Event()
         self.handle: Any = None
         self.error: BaseException | None = None
         # Pin the snapshot while building so a synthetic id() key cannot be
         # recycled by an unrelated object mid-build.
         self.snapshot = snapshot
+        self.slot = slot
+        self.epoch = epoch
 
 
 _REGISTRY_LOCK = RLock()
@@ -72,6 +74,9 @@ _SYNTHETIC_CACHE: OrderedDict[tuple[object, ...], _CachedHandle] = OrderedDict()
 _SYNTHETIC_REFS: dict[tuple[object, ...], Any] = {}
 _INFLIGHT: dict[tuple[object, ...], _Inflight] = {}
 _SEQ = 0
+_CACHE_EPOCH = 0
+_PENDING_BY_SLOT: dict[tuple[object, ...], int] = {}
+_PUBLISHED_SEQ: dict[tuple[object, ...], int] = {}
 
 
 def _next_seq() -> int:
@@ -218,10 +223,11 @@ def _handle_for_key(
             return cached.handle
         inflight = _INFLIGHT.get(key)
         if inflight is None:
-            inflight = _Inflight(snapshot)
+            inflight = _Inflight(snapshot, slot, _CACHE_EPOCH)
             _INFLIGHT[key] = inflight
             owner = True
             seq = _next_seq()
+            _PENDING_BY_SLOT[slot] = _PENDING_BY_SLOT.get(slot, 0) + 1
         else:
             owner = False
     if not owner:
@@ -245,17 +251,25 @@ def _handle_for_key(
             if _INFLIGHT.get(key) is inflight:
                 del _INFLIGHT[key]
             inflight.error = exc
+            _finish_pending_slot(slot)
             inflight.event.set()
         raise
     with _REGISTRY_LOCK:
         cache = _SYNTHETIC_CACHE if synthetic else _HANDLE_CACHE
         cached = cache.get(slot)
-        # A slow older build must not replace a newer published generation.
-        if cached is None or seq >= cached.seq:
+        # Keep publication history while any build for this slot is pending,
+        # even when LRU eviction removes the newer cache entry. Clear epochs
+        # fence pre-clear work without retaining permanent per-scope tombstones.
+        latest_published = max(
+            _PUBLISHED_SEQ.get(slot, -1),
+            -1 if cached is None else cached.seq,
+        )
+        if inflight.epoch == _CACHE_EPOCH and seq >= latest_published:
             cache[slot] = _CachedHandle(
                 source_key, identity_fp, relations_fp, handle, seq
             )
             cache.move_to_end(slot)
+            _PUBLISHED_SEQ[slot] = seq
             if synthetic:
                 _SYNTHETIC_REFS[slot] = snapshot
                 while len(cache) > _SYNTHETIC_CACHE_MAX:
@@ -267,6 +281,7 @@ def _handle_for_key(
         if _INFLIGHT.get(key) is inflight:
             del _INFLIGHT[key]
         inflight.handle = handle
+        _finish_pending_slot(slot)
         inflight.event.set()
     return handle
 
@@ -301,15 +316,27 @@ def _compile(
 def clear_native_link_index_cache() -> None:
     """Drop cached handles. Tests only; safe with pending builds.
 
-    In-flight compilations still resolve their waiters; their handles are
-    published normally afterwards. Eviction never invalidates handles
-    already held by callers.
+    In-flight compilations still resolve their waiters, but cannot publish
+    into the new cache epoch. Eviction never invalidates caller-held handles.
     """
 
+    global _CACHE_EPOCH
     with _REGISTRY_LOCK:
+        _CACHE_EPOCH += 1
         _HANDLE_CACHE.clear()
         _SYNTHETIC_CACHE.clear()
         _SYNTHETIC_REFS.clear()
+        _INFLIGHT.clear()
+        _PUBLISHED_SEQ.clear()
+
+
+def _finish_pending_slot(slot: tuple[object, ...]) -> None:
+    count = _PENDING_BY_SLOT.get(slot, 0) - 1
+    if count <= 0:
+        _PENDING_BY_SLOT.pop(slot, None)
+        _PUBLISHED_SEQ.pop(slot, None)
+    else:
+        _PENDING_BY_SLOT[slot] = count
 
 
 __all__ = [

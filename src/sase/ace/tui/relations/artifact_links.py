@@ -23,7 +23,6 @@ from sase.core.agent_identity_facade import (
     current_owner_agent_name_lookup_candidates,
 )
 from sase.core.artifact_relations import RelationEdge
-from sase.core.artifact_link_index_facade import index_project, target_from_wire
 from sase.core.artifact_row_resolution_facade import (
     parse_artifact_link_ref,
     resolve_artifact_row_target,
@@ -138,6 +137,10 @@ def artifact_link_edges(
     if not known:
         return ()
     from ._native_link_index import native_handle_for_snapshot
+    from sase.core.artifact_link_index_facade import (
+        index_project,
+        target_from_wire,
+    )
 
     handle = native_handle_for_snapshot(snapshot)
     response = index_project(

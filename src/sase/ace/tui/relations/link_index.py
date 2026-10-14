@@ -12,28 +12,20 @@ from __future__ import annotations
 
 from collections import OrderedDict
 from collections.abc import Iterator, Mapping
-from dataclasses import dataclass
-from threading import RLock
+from dataclasses import dataclass, field as dataclass_field
+from threading import Event, RLock
+from typing import TYPE_CHECKING
 from typing import Any
 
 from sase.core.agent_identity_facade import AgentIdentitySnapshot
 from sase.core.artifact_entry_target import ArtifactEntryTarget
-from sase.core.artifact_link_index_facade import (
-    build_index as _facade_build_index,
-)
-from sase.core.artifact_link_index_facade import (
-    index_chips,
-    index_target,
-    target_from_wire,
-)
 from sase.sdd._artifact_link_store_support import (
     assembled_artifact_relations,
     canonicalize_artifact_link_ref,
 )
 
-from ._native_link_index import native_handle_for_snapshot
-from .artifact_links import ArtifactLinksSnapshot
-from .link_subject import accent_and_icon_for_ref
+if TYPE_CHECKING:
+    from .artifact_links import ArtifactLinksSnapshot
 
 
 @dataclass(frozen=True, slots=True)
@@ -63,29 +55,63 @@ class _ChipMapping(Mapping[str, tuple[LinkChip, ...]]):
     a bounded per-handle cache; membership never enumerates the graph.
     """
 
-    def __init__(self, handle: Any) -> None:
+    def __init__(
+        self, handle: Any, style_context: tuple[tuple[str, str, str], ...]
+    ) -> None:
         self._handle = handle
         self._lock = RLock()
         self._chips: OrderedDict[str, tuple[LinkChip, ...]] = OrderedDict()
-        self._styles: dict[tuple[str, str | None], tuple[str, str]] = {}
+        self._inflight: dict[str, _ChipRequest] = {}
+        self._style_context = style_context
+        self._styles = {key: (accent, icon) for key, accent, icon in style_context}
         self._max = 128
 
     def __getitem__(self, ref: str) -> tuple[LinkChip, ...]:
         with self._lock:
-            cached = self._chips.get(ref)
-            if cached is not None:
+            if ref in self._chips:
                 self._chips.move_to_end(ref)
-                return cached
-        chips = tuple(
-            _chip_from_wire(wire, self._styles)
-            for wire in index_chips(self._handle, _canonicalize(ref))
-        )
+                return self._chips[ref]
+            request = self._inflight.get(ref)
+            owner = request is None
+            if request is None:
+                request = _ChipRequest()
+                self._inflight[ref] = request
+        if not owner:
+            request.event.wait()
+            if request.error is not None:
+                raise request.error
+            assert request.chips is not None
+            return request.chips
+        try:
+            from sase.core.artifact_link_index_facade import index_chips
+
+            chips = tuple(
+                _chip_from_wire(wire, self._styles)
+                for wire in index_chips(self._handle, _canonicalize(ref))
+            )
+        except BaseException as exc:
+            with self._lock:
+                request.error = exc
+                self._inflight.pop(ref, None)
+                request.event.set()
+            raise
         with self._lock:
             self._chips[ref] = chips
             self._chips.move_to_end(ref)
             while len(self._chips) > self._max:
                 self._chips.popitem(last=False)
+            request.chips = chips
+            self._inflight.pop(ref, None)
+            request.event.set()
         return chips
+
+    def cached(self, ref: str) -> tuple[LinkChip, ...] | None:
+        """Peek at requested chips without querying the native handle."""
+        with self._lock:
+            if ref not in self._chips:
+                return None
+            self._chips.move_to_end(ref)
+            return self._chips[ref]
 
     def __contains__(self, ref: object) -> bool:
         if not isinstance(ref, str):
@@ -95,6 +121,8 @@ class _ChipMapping(Mapping[str, tuple[LinkChip, ...]]):
             if self._chips.get(ref):
                 return True
         try:
+            from sase.core.artifact_link_index_facade import index_target
+
             return bool(
                 index_target(self._handle, _canonicalize(ref)).get("present", False)
             )
@@ -128,6 +156,11 @@ class _TargetsMapping(Mapping[str, ArtifactEntryTarget | None]):
 
     def __getitem__(self, ref: str) -> ArtifactEntryTarget | None:
         try:
+            from sase.core.artifact_link_index_facade import (
+                index_target,
+                target_from_wire,
+            )
+
             payload = index_target(self._handle, _canonicalize(ref))
         except Exception as exc:  # noqa: BLE001 - missing refs KeyError
             raise KeyError(ref) from exc
@@ -139,6 +172,8 @@ class _TargetsMapping(Mapping[str, ArtifactEntryTarget | None]):
         if not isinstance(ref, str):
             return False
         try:
+            from sase.core.artifact_link_index_facade import index_target
+
             return bool(
                 index_target(self._handle, _canonicalize(ref)).get("present", False)
             )
@@ -176,6 +211,14 @@ class LinkIndex:
 
         return self.targets_by_ref.get(ref)
 
+    def cached_chips_for(self, ref: str) -> tuple[LinkChip, ...] | None:
+        """Return requested chips if already materialized, without waiting."""
+        cached = getattr(self.by_ref, "cached", None)
+        if callable(cached):
+            return cached(ref)
+        # Small in-memory indexes used by callers/tests are already cached.
+        return self.by_ref.get(ref, ())
+
 
 def link_index_for_snapshot(snapshot: ArtifactLinksSnapshot) -> LinkIndex:
     """Return the cached :class:`LinkIndex` for *snapshot*.
@@ -189,15 +232,72 @@ def link_index_for_snapshot(snapshot: ArtifactLinksSnapshot) -> LinkIndex:
     handle; synthetic snapshots with placeholder keys stay separate.
     """
 
-    return _index_for_handle(native_handle_for_snapshot(snapshot), snapshot)
+    from ._native_link_index import native_handle_for_snapshot
+
+    handle = native_handle_for_snapshot(snapshot)
+    return _index_for_handle(handle, snapshot, _capture_style_context())
 
 
-def _index_for_handle(handle: Any, snapshot: ArtifactLinksSnapshot) -> LinkIndex:
-    return LinkIndex(
-        by_ref=_ChipMapping(handle),
-        targets_by_ref=_TargetsMapping(handle),
-        source_key=tuple(snapshot.source_key),
+@dataclass
+class _ChipRequest:
+    event: Event = dataclass_field(default_factory=Event)
+    chips: tuple[LinkChip, ...] | None = None
+    error: BaseException | None = None
+
+
+_VIEW_CACHE_LOCK = RLock()
+_VIEW_CACHE: OrderedDict[tuple[object, ...], tuple[Any, LinkIndex]] = OrderedDict()
+_VIEW_CACHE_MAX = 8
+
+
+def _capture_style_context() -> tuple[tuple[str, str, str], ...]:
+    """Resolve provider-backed styles on the worker before lazy chip queries."""
+    from .._artifact_tab_model import (
+        ARTIFACTS_ACCENTS,
+        ARTIFACTS_ICONS,
+        EXTERNAL_ACCENT,
     )
+    from ..artifact_tabs import resolve_artifacts_subtabs
+    from .link_subject import _CHOP_ACCENT, _CHOP_ICON, _DEFAULT_ICON, _PLAN_REF_ICON
+
+    styles: dict[str, tuple[str, str]] = {
+        "chop": (_CHOP_ACCENT, _CHOP_ICON),
+        "job": (_CHOP_ACCENT, _CHOP_ICON),
+        "plan": (ARTIFACTS_ACCENTS["ref:plan"], "✎"),
+    }
+    for pane_id, accent in ARTIFACTS_ACCENTS.items():
+        icon = ARTIFACTS_ICONS.get(pane_id, _DEFAULT_ICON)
+        styles[pane_id] = (accent, icon)
+    for descriptor in resolve_artifacts_subtabs():
+        styles[descriptor.id] = (descriptor.accent, descriptor.icon)
+    # `plan` has a fixed presentation even though its selectable target is
+    # the document-provider pane `ref:plan`.
+    styles["ref:plan"] = (ARTIFACTS_ACCENTS["ref:plan"], _PLAN_REF_ICON)
+    styles["__external__"] = (EXTERNAL_ACCENT, _DEFAULT_ICON)
+    return tuple((key, accent, icon) for key, (accent, icon) in sorted(styles.items()))
+
+
+def _index_for_handle(
+    handle: Any,
+    snapshot: ArtifactLinksSnapshot,
+    style_context: tuple[tuple[str, str, str], ...],
+) -> LinkIndex:
+    key = (id(handle), tuple(snapshot.source_key), style_context)
+    with _VIEW_CACHE_LOCK:
+        cached = _VIEW_CACHE.get(key)
+        if cached is not None and cached[0] is handle:
+            _VIEW_CACHE.move_to_end(key)
+            return cached[1]
+        index = LinkIndex(
+            by_ref=_ChipMapping(handle, style_context),
+            targets_by_ref=_TargetsMapping(handle),
+            source_key=tuple(snapshot.source_key),
+        )
+        _VIEW_CACHE[key] = (handle, index)
+        _VIEW_CACHE.move_to_end(key)
+        while len(_VIEW_CACHE) > _VIEW_CACHE_MAX:
+            _VIEW_CACHE.popitem(last=False)
+        return index
 
 
 def _build_link_index(snapshot: ArtifactLinksSnapshot) -> LinkIndex:
@@ -207,7 +307,9 @@ def _build_link_index(snapshot: ArtifactLinksSnapshot) -> LinkIndex:
     measurement helpers; production callers share the cached handle.
     """
 
-    handle = _facade_build_index(
+    from sase.core.artifact_link_index_facade import build_index
+
+    handle = build_index(
         [dict(row) for row in snapshot.rows],
         identity=AgentIdentitySnapshot.current(),
         relations=[
@@ -219,23 +321,21 @@ def _build_link_index(snapshot: ArtifactLinksSnapshot) -> LinkIndex:
             for item in assembled_artifact_relations()
         ],
     )
-    return _index_for_handle(handle, snapshot)
+    return _index_for_handle(handle, snapshot, _capture_style_context())
 
 
 def _chip_from_wire(
     wire: Mapping[str, Any],
-    style_cache: dict[tuple[str, str | None], tuple[str, str]],
+    styles: Mapping[str, tuple[str, str]],
 ) -> LinkChip:
+    from sase.core.artifact_link_index_facade import target_from_wire
+
     neighbor_target = target_from_wire(wire.get("neighbor_target"))
     neighbor_kind = str(wire.get("neighbor_kind") or "")
     style_key = (
-        neighbor_kind,
-        None if neighbor_target is None else neighbor_target.pane_id,
+        neighbor_target.pane_id if neighbor_target is not None else neighbor_kind
     )
-    accent_icon = style_cache.get(style_key)
-    if accent_icon is None:
-        accent_icon = accent_and_icon_for_ref(neighbor_kind, neighbor_target)
-        style_cache[style_key] = accent_icon
+    accent_icon = styles.get(style_key, styles["__external__"])
     accent, icon = accent_icon
     return LinkChip(
         relation=str(wire.get("relation") or ""),

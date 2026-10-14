@@ -8,6 +8,10 @@ from threading import RLock
 
 _ARTIFACT_INDEX_OPERATION_LOCK = RLock()
 
+# Keep this beside the bounded lock operation so facade imports do not need
+# to load the heavier agent-scan implementation modules just for a default.
+DEFAULT_READ_LOCK_TIMEOUT_SECONDS = 0.05
+
 
 @contextmanager
 def agent_artifact_index_operation_lock() -> Iterator[None]:
@@ -30,6 +34,7 @@ def try_agent_artifact_index_operation_lock(
 
 
 __all__ = [
+    "DEFAULT_READ_LOCK_TIMEOUT_SECONDS",
     "agent_artifact_index_operation_lock",
     "try_agent_artifact_index_operation_lock",
 ]

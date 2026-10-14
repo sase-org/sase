@@ -10,10 +10,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from sase.core.agent_artifact_index_lock import DEFAULT_READ_LOCK_TIMEOUT_SECONDS
 from sase.core.agent_scan_wire import AgentArtifactScanOptionsWire
-
-#: Default timeout for bounded (non-blocking) index reads.
-DEFAULT_READ_LOCK_TIMEOUT_SECONDS = 0.05
 
 
 def _default_clan_records_dir_str() -> str:

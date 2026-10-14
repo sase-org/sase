@@ -524,6 +524,94 @@ def test_failed_full_build_unblocks_waiters_and_retry_succeeds(
     assert patch_relation_index_real_build_count() == 1
 
 
+def test_out_of_order_successful_builds_are_both_counted_but_newer_stays_memoized(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from concurrent.futures import ThreadPoolExecutor
+
+    import sase.ace.tui.actions.patch._relation_index as relation_memo
+
+    patches = _patches()
+    older_links = _links(1)
+    newer_links = _links(2)
+    older_started = threading.Event()
+    newer_started = threading.Event()
+    release_older = threading.Event()
+    release_newer = threading.Event()
+    real_build = relation_memo._build_full_patch_index
+
+    def gated_build(_patches: Any, links: Any, contract: Any) -> Any:
+        if links is older_links:
+            older_started.set()
+            assert release_older.wait(timeout=10)
+        else:
+            newer_started.set()
+            assert release_newer.wait(timeout=10)
+        return real_build(_patches, links, contract)
+
+    monkeypatch.setattr(relation_memo, "_build_full_patch_index", gated_build)
+
+    def resolve(links: ArtifactLinksSnapshot) -> Any:
+        return resolve_patch_relation_index(
+            patches, artifact_links=links, build_relations=True
+        )
+
+    try:
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            older = pool.submit(resolve, older_links)
+            assert older_started.wait(timeout=10)
+            newer = pool.submit(resolve, newer_links)
+            assert newer_started.wait(timeout=10)
+            release_newer.set()
+            newer.result(timeout=10)
+            release_older.set()
+            older.result(timeout=10)
+        assert patch_relation_index_real_build_count() == 2
+        assert relation_memo._MEMO is not None
+        assert relation_memo._MEMO.source_key == tuple(newer_links.source_key)
+    finally:
+        release_older.set()
+        release_newer.set()
+
+
+def test_clear_while_full_build_is_pending_fences_memo_and_counter(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from concurrent.futures import ThreadPoolExecutor
+
+    import sase.ace.tui.actions.patch._relation_index as relation_memo
+
+    patches = _patches()
+    links = _links(1)
+    started = threading.Event()
+    release = threading.Event()
+    real_build = relation_memo._build_full_patch_index
+
+    def gated_build(*args: Any, **kwargs: Any) -> Any:
+        started.set()
+        assert release.wait(timeout=10)
+        return real_build(*args, **kwargs)
+
+    monkeypatch.setattr(relation_memo, "_build_full_patch_index", gated_build)
+    try:
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            pending = pool.submit(
+                resolve_patch_relation_index,
+                patches,
+                artifact_links=links,
+                build_relations=True,
+            )
+            assert started.wait(timeout=10)
+            clear_patch_relation_index_memo()
+            release.set()
+            result = pending.result(timeout=10)
+        assert result[0] is not None
+        assert relation_memo._MEMO is None
+        assert patch_relation_index_real_build_count() == 0
+    finally:
+        release.set()
+
+
 def test_hidden_targets_only_request_never_compiles_native_graph(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

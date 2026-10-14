@@ -31,16 +31,13 @@ this file held the implementation.
 from __future__ import annotations
 
 from collections.abc import Sequence
+from importlib import import_module
 from pathlib import Path
 from typing import Any
 
-from sase.core import agent_scan_index as index_impl
-from sase.core import agent_scan_index_mutations as mutations_impl
-from sase.core import agent_scan_index_queries as queries_impl
-from sase.core import agent_scan_source as source_impl
-from sase.core._agent_scan_shared import DEFAULT_READ_LOCK_TIMEOUT_SECONDS
 from sase.core.agent_alias_history_wire import AgentAliasHistoryQueryWire
 from sase.core.agent_alias_history_wire import AgentAliasHistoryWire
+from sase.core.agent_artifact_index_lock import DEFAULT_READ_LOCK_TIMEOUT_SECONDS
 from sase.core.agent_artifact_index_lock import agent_artifact_index_operation_lock
 from sase.core.agent_artifact_index_lock import try_agent_artifact_index_operation_lock
 from sase.core.agent_cleanup_wire import AgentCleanupIdentityWire
@@ -55,7 +52,6 @@ from sase.core.agent_output_variable_selector_wire import (
     AgentOutputVariableSelectorResultWire,
 )
 from sase.core.agent_output_variable_selector_wire import OutputVariableSelectorWire
-from sase.core.agent_scan_index import SOURCE_RECONCILE_OK_META_KEY
 from sase.core.agent_scan_wire import AgentArtifactIndexDismissalReconcileWire
 from sase.core.agent_scan_wire import AgentArtifactIndexQueryWire
 from sase.core.agent_scan_wire import AgentArtifactIndexStatusWire
@@ -79,12 +75,36 @@ from sase.core.agent_scan_wire import WorkflowStepStateWire
 from sase.core.agent_scan_wire import agent_scan_wire_from_dict
 from sase.core.rust import require_rust_binding
 
+index_impl: Any = None
+mutations_impl: Any = None
+queries_impl: Any = None
+source_impl: Any = None
+
+
+def __getattr__(name: str) -> Any:
+    """Load an implementation constant only when callers request it."""
+    if name == "SOURCE_RECONCILE_OK_META_KEY":
+        from sase.core.agent_scan_index import SOURCE_RECONCILE_OK_META_KEY
+
+        return SOURCE_RECONCILE_OK_META_KEY
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+# Symvision cannot see Python's module-level lazy lookup hook.
+_PACKAGE_GETATTR = __getattr__
+
 
 def _sync_source_patchables() -> None:
+    global source_impl
+    if source_impl is None:
+        source_impl = import_module("sase.core.agent_scan_source")
     source_impl.require_rust_binding = require_rust_binding
 
 
 def _sync_index_patchables() -> None:
+    global index_impl
+    if index_impl is None:
+        index_impl = import_module("sase.core.agent_scan_index")
     index_impl.require_rust_binding = require_rust_binding
     index_impl.agent_artifact_index_operation_lock = agent_artifact_index_operation_lock
     index_impl.try_agent_artifact_index_operation_lock = (
@@ -93,6 +113,9 @@ def _sync_index_patchables() -> None:
 
 
 def _sync_mutations_patchables() -> None:
+    global mutations_impl
+    if mutations_impl is None:
+        mutations_impl = import_module("sase.core.agent_scan_index_mutations")
     mutations_impl.require_rust_binding = require_rust_binding
     mutations_impl.agent_artifact_index_operation_lock = (
         agent_artifact_index_operation_lock
@@ -103,6 +126,9 @@ def _sync_mutations_patchables() -> None:
 
 
 def _sync_queries_patchables() -> None:
+    global queries_impl
+    if queries_impl is None:
+        queries_impl = import_module("sase.core.agent_scan_index_queries")
     queries_impl.require_rust_binding = require_rust_binding
     queries_impl.agent_artifact_index_operation_lock = (
         agent_artifact_index_operation_lock

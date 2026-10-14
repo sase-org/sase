@@ -84,6 +84,7 @@ class LifecycleMixin:
 
         cancel_archive_controller(self)
         cancel_pump_free_tasks(self)
+        getattr(self, "_link_chip_requests", set()).clear()
         self._stop_tui_stall_watchdog()
         stop_watcher = getattr(self, "_stop_artifact_watcher", None)
         if stop_watcher is not None:
