@@ -1,136 +1,123 @@
-"""sase.core facade for the agent/artifact filesystem snapshot scan.
+"""Stable import path for the agent/artifact filesystem snapshot scan.
 
-:func:`scan_agent_artifacts` and :func:`scan_agent_artifact_dirs` call
-``sase_core_rs`` directly through :func:`sase.core.rust.require_rust_binding`
-and rehydrate returned dicts into typed wire records. The Rust extension is
-a hard runtime dependency; a missing or stale wheel surfaces as
-:class:`ImportError` / :class:`AttributeError`.
+The implementations live in sibling modules to keep each file under the
+500-line cap, and are re-exported here:
+
+- :mod:`sase.core.agent_scan_source` — lock-free filesystem scans and the
+  output-variable selector parser.
+- :mod:`sase.core.agent_scan_index` — index identity, layout aliases,
+  metadata, status, and the source-reconcile watermark.
+- :mod:`sase.core.agent_scan_index_mutations` — persistent index row
+  writes (rebuild, upsert, delete, terminalize, prune, reconcile).
+- :mod:`sase.core.agent_scan_index_queries` — persistent index reads
+  (history, selectors, rows, related dirs) and index verification.
+- :mod:`sase.core._agent_scan_shared` — scan-option rendering shared by
+  the sibling modules.
 
 The scanner is read-only: it does not check process liveness (that lives
 in :mod:`sase.ace.hooks.processes` and ``/proc`` guards), does not parse
 RUNNING-field claims (that lives in :mod:`sase.running_field`), and does
-not mutate filesystem state. Soft errors (unreadable directories,
-malformed marker JSON) are absorbed silently by the Rust scanner and
-counted in :class:`AgentArtifactScanStatsWire`.
+not mutate filesystem state. The Rust extension is a hard runtime
+dependency; a missing or stale wheel surfaces as :class:`ImportError` /
+:class:`AttributeError`.
+
+This module keeps every historic monkeypatch seam as a settable
+attribute and copies the live values into the implementation modules
+before each delegated call, so patching
+``sase.core.agent_scan_facade.<name>`` behaves exactly as it did when
+this file held the implementation.
 """
 
 from __future__ import annotations
 
-from dataclasses import replace
-from pathlib import Path
 from collections.abc import Sequence
+from pathlib import Path
 from typing import Any
 
-from sase.core.agent_alias_history_wire import (
-    AgentAliasHistoryQueryWire,
-    AgentAliasHistoryWire,
-    agent_alias_history_from_dict,
-    agent_alias_history_query_to_dict,
-)
-from sase.core.agent_cleanup_wire import (
-    AgentCleanupIdentityWire,
-    agent_cleanup_wire_to_json_dict,
-)
-from sase.core.agent_artifact_index_lock import (
-    agent_artifact_index_operation_lock,
-    try_agent_artifact_index_operation_lock,
-)
+from sase.core import agent_scan_index as index_impl
+from sase.core import agent_scan_index_mutations as mutations_impl
+from sase.core import agent_scan_index_queries as queries_impl
+from sase.core import agent_scan_source as source_impl
+from sase.core._agent_scan_shared import DEFAULT_READ_LOCK_TIMEOUT_SECONDS
+from sase.core.agent_alias_history_wire import AgentAliasHistoryQueryWire
+from sase.core.agent_alias_history_wire import AgentAliasHistoryWire
+from sase.core.agent_artifact_index_lock import agent_artifact_index_operation_lock
+from sase.core.agent_artifact_index_lock import try_agent_artifact_index_operation_lock
+from sase.core.agent_cleanup_wire import AgentCleanupIdentityWire
 from sase.core.agent_output_variable_history_wire import (
     AgentOutputVariableHistoryQueryWire,
-    AgentOutputVariableHistoryWire,
-    agent_output_variable_history_from_dict,
-    agent_output_variable_history_query_to_dict,
 )
+from sase.core.agent_output_variable_history_wire import AgentOutputVariableHistoryWire
 from sase.core.agent_output_variable_selector_wire import (
     AgentOutputVariableSelectorQueryWire,
+)
+from sase.core.agent_output_variable_selector_wire import (
     AgentOutputVariableSelectorResultWire,
-    OutputVariableSelectorWire,
-    agent_output_variable_selector_query_to_dict,
-    agent_output_variable_selector_result_from_dict,
-    output_variable_selector_from_dict,
 )
-from sase.core.agent_scan_wire import (
-    AGENT_ARTIFACT_INDEX_SCHEMA_VERSION,
-    AgentArtifactIndexQueryWire,
-    AgentArtifactIndexDismissalReconcileWire,
-    AgentArtifactIndexStatusWire,
-    AgentArtifactIndexUpdateWire,
-    AgentArtifactIndexVacuumWire,
-    AgentArtifactIndexVerifyWire,
-    AgentArtifactRecordWire,
-    AgentArtifactScanOptionsWire,
-    AgentArtifactScanStatsWire,
-    AgentArtifactScanWire,
-    AgentClanContextWire,
-    AgentMetaWire,
-    DoneMarkerWire,
-    PendingQuestionMarkerWire,
-    PlanPathMarkerWire,
-    PromptStepMarkerWire,
-    RunningMarkerWire,
-    WaitingMarkerWire,
-    WorkflowStateWire,
-    WorkflowStepStateWire,
-    agent_artifact_records_from_dicts,
-    agent_artifact_index_dismissal_reconcile_from_dict,
-    agent_artifact_index_query_to_dict,
-    agent_artifact_index_status_from_dict,
-    agent_artifact_index_update_from_dict,
-    agent_artifact_index_vacuum_from_dict,
-    agent_scan_wire_to_json_dict,
-    agent_scan_wire_from_dict,
-)
-from sase.core.paths import sase_home as _sase_home
+from sase.core.agent_output_variable_selector_wire import OutputVariableSelectorWire
+from sase.core.agent_scan_index import SOURCE_RECONCILE_OK_META_KEY
+from sase.core.agent_scan_wire import AgentArtifactIndexDismissalReconcileWire
+from sase.core.agent_scan_wire import AgentArtifactIndexQueryWire
+from sase.core.agent_scan_wire import AgentArtifactIndexStatusWire
+from sase.core.agent_scan_wire import AgentArtifactIndexUpdateWire
+from sase.core.agent_scan_wire import AgentArtifactIndexVacuumWire
+from sase.core.agent_scan_wire import AgentArtifactIndexVerifyWire
+from sase.core.agent_scan_wire import AgentArtifactRecordWire
+from sase.core.agent_scan_wire import AgentArtifactScanOptionsWire
+from sase.core.agent_scan_wire import AgentArtifactScanStatsWire
+from sase.core.agent_scan_wire import AgentArtifactScanWire
+from sase.core.agent_scan_wire import AgentClanContextWire
+from sase.core.agent_scan_wire import AgentMetaWire
+from sase.core.agent_scan_wire import DoneMarkerWire
+from sase.core.agent_scan_wire import PendingQuestionMarkerWire
+from sase.core.agent_scan_wire import PlanPathMarkerWire
+from sase.core.agent_scan_wire import PromptStepMarkerWire
+from sase.core.agent_scan_wire import RunningMarkerWire
+from sase.core.agent_scan_wire import WaitingMarkerWire
+from sase.core.agent_scan_wire import WorkflowStateWire
+from sase.core.agent_scan_wire import WorkflowStepStateWire
+from sase.core.agent_scan_wire import agent_scan_wire_from_dict
 from sase.core.rust import require_rust_binding
 
-_DEFAULT_READ_LOCK_TIMEOUT_SECONDS = 0.05
+
+def _sync_source_patchables() -> None:
+    source_impl.require_rust_binding = require_rust_binding
 
 
-def _default_clan_records_dir_str() -> str:
-    from sase.core.agent_clan_record import clan_records_dir
+def _sync_index_patchables() -> None:
+    index_impl.require_rust_binding = require_rust_binding
+    index_impl.agent_artifact_index_operation_lock = agent_artifact_index_operation_lock
+    index_impl.try_agent_artifact_index_operation_lock = (
+        try_agent_artifact_index_operation_lock
+    )
 
-    return str(clan_records_dir())
+
+def _sync_mutations_patchables() -> None:
+    mutations_impl.require_rust_binding = require_rust_binding
+    mutations_impl.agent_artifact_index_operation_lock = (
+        agent_artifact_index_operation_lock
+    )
+    mutations_impl.try_agent_artifact_index_operation_lock = (
+        try_agent_artifact_index_operation_lock
+    )
 
 
-def _options_to_dict(options: AgentArtifactScanOptionsWire) -> dict[str, Any]:
-    return {
-        "include_prompt_step_markers": options.include_prompt_step_markers,
-        "include_raw_prompt_snippets": options.include_raw_prompt_snippets,
-        "max_prompt_snippet_bytes": options.max_prompt_snippet_bytes,
-        "only_workflow_dirs": list(options.only_workflow_dirs),
-        "max_records": options.max_records,
-        "newest_first": options.newest_first,
-        "not_before_timestamp": options.not_before_timestamp,
-        "include_done_markers": options.include_done_markers,
-        "include_workflow_state": options.include_workflow_state,
-        "include_waiting": options.include_waiting,
-        "only_projects": list(options.only_projects),
-        "include_project_states": list(options.include_project_states),
-        "capacity_only": options.capacity_only,
-        "clan_records_dir": (
-            options.clan_records_dir
-            if options.clan_records_dir is not None
-            else _default_clan_records_dir_str()
-        ),
-    }
+def _sync_queries_patchables() -> None:
+    queries_impl.require_rust_binding = require_rust_binding
+    queries_impl.agent_artifact_index_operation_lock = (
+        agent_artifact_index_operation_lock
+    )
+    queries_impl.try_agent_artifact_index_operation_lock = (
+        try_agent_artifact_index_operation_lock
+    )
 
 
 def scan_agent_artifacts(
     projects_root: Path | str,
     options: AgentArtifactScanOptionsWire | None = None,
 ) -> AgentArtifactScanWire:
-    """Return a snapshot of all agent artifact directories under *projects_root*.
-
-    ``projects_root`` is required and is normally
-    ``Path.home() / ".sase" / "projects"`` — passing it explicitly keeps the
-    contract testable and lets future shells (server, mobile) supply a
-    different root without Rust reading global config. The Rust binding
-    releases the GIL during the filesystem walk.
-    """
-    opts = options or AgentArtifactScanOptionsWire()
-    rust_scan = require_rust_binding("scan_agent_artifacts")
-    payload: dict[str, Any] = rust_scan(str(projects_root), _options_to_dict(opts))
-    return agent_scan_wire_from_dict(payload)
+    _sync_source_patchables()
+    return source_impl.scan_agent_artifacts(projects_root, options)
 
 
 def scan_agent_artifact_dirs(
@@ -138,29 +125,18 @@ def scan_agent_artifact_dirs(
     artifact_dirs: Sequence[Path | str],
     options: AgentArtifactScanOptionsWire | None = None,
 ) -> AgentArtifactScanWire:
-    """Return a scanner-shaped snapshot for exact artifact directories."""
-    opts = options or AgentArtifactScanOptionsWire()
-    rust_scan = require_rust_binding("scan_agent_artifact_dirs")
-    payload: dict[str, Any] = rust_scan(
-        str(projects_root),
-        [str(Path(path).expanduser()) for path in artifact_dirs],
-        _options_to_dict(opts),
-    )
-    return agent_scan_wire_from_dict(payload)
+    _sync_source_patchables()
+    return source_impl.scan_agent_artifact_dirs(projects_root, artifact_dirs, options)
 
 
 def default_agent_artifact_index_path(sase_home: Path | str | None = None) -> Path:
-    """Return the default persistent artifact index path."""
-    root = Path(sase_home).expanduser() if sase_home is not None else _sase_home()
-    return root / "agent_artifact_index.sqlite"
+    _sync_index_patchables()
+    return index_impl.default_agent_artifact_index_path(sase_home)
 
 
 def read_agent_artifact_index_schema_version(index_path: Path | str) -> int | None:
-    """Read the stored schema version without opening a Python SQLite handle."""
-    with agent_artifact_index_operation_lock():
-        read_version = require_rust_binding("read_agent_artifact_index_schema_version")
-        version = read_version(str(index_path))
-    return int(version) if version is not None else None
+    _sync_index_patchables()
+    return index_impl.read_agent_artifact_index_schema_version(index_path)
 
 
 def load_agent_artifact_index_projection(
@@ -169,37 +145,29 @@ def load_agent_artifact_index_projection(
     *,
     busy_timeout_ms: int = 250,
 ) -> dict[str, Any]:
-    """Load selected artifact index columns through the Rust read-only store."""
-    with agent_artifact_index_operation_lock():
-        load_projection = require_rust_binding("load_agent_artifact_index_projection")
-        payload = load_projection(str(index_path), list(columns), busy_timeout_ms)
-    return payload
+    _sync_index_patchables()
+    return index_impl.load_agent_artifact_index_projection(
+        index_path, columns, busy_timeout_ms=busy_timeout_ms
+    )
 
 
 def upsert_agent_artifact_alias(
     index_path: Path | str, alias_path: str, artifact_dir: str
 ) -> None:
-    """Write an artifact layout alias through the Rust index store."""
-    with agent_artifact_index_operation_lock():
-        upsert_alias = require_rust_binding("upsert_agent_artifact_alias")
-        upsert_alias(str(index_path), alias_path, artifact_dir)
+    _sync_index_patchables()
+    index_impl.upsert_agent_artifact_alias(index_path, alias_path, artifact_dir)
 
 
 def delete_agent_artifact_alias(
     index_path: Path | str, alias_path: str, artifact_dir: str
 ) -> None:
-    """Delete an artifact layout alias through the Rust index store."""
-    with agent_artifact_index_operation_lock():
-        delete_alias = require_rust_binding("delete_agent_artifact_alias")
-        delete_alias(str(index_path), alias_path, artifact_dir)
+    _sync_index_patchables()
+    index_impl.delete_agent_artifact_alias(index_path, alias_path, artifact_dir)
 
 
 def list_agent_artifact_aliases(index_path: Path | str) -> dict[str, str]:
-    """Read artifact layout aliases through the Rust index store."""
-    with agent_artifact_index_operation_lock():
-        list_aliases = require_rust_binding("list_agent_artifact_aliases")
-        rows = list_aliases(str(index_path))
-    return {str(row["alias_path"]): str(row["artifact_dir"]) for row in rows}
+    _sync_index_patchables()
+    return index_impl.list_agent_artifact_aliases(index_path)
 
 
 def rebuild_agent_artifact_index(
@@ -207,14 +175,10 @@ def rebuild_agent_artifact_index(
     projects_root: Path | str,
     options: AgentArtifactScanOptionsWire | None = None,
 ) -> AgentArtifactIndexUpdateWire:
-    """Rebuild the persistent artifact index from source artifact files."""
-    opts = options or AgentArtifactScanOptionsWire()
-    with agent_artifact_index_operation_lock():
-        rust_rebuild = require_rust_binding("rebuild_agent_artifact_index")
-        payload: dict[str, Any] = rust_rebuild(
-            str(index_path), str(projects_root), _options_to_dict(opts)
-        )
-    return agent_artifact_index_update_from_dict(payload)
+    _sync_mutations_patchables()
+    return mutations_impl.rebuild_agent_artifact_index(
+        index_path, projects_root, options
+    )
 
 
 def upsert_agent_artifact_index_row(
@@ -223,28 +187,18 @@ def upsert_agent_artifact_index_row(
     artifact_dir: Path | str,
     options: AgentArtifactScanOptionsWire | None = None,
 ) -> AgentArtifactIndexUpdateWire:
-    """Reparse and upsert one artifact directory into the index."""
-    opts = options or AgentArtifactScanOptionsWire()
-    with agent_artifact_index_operation_lock():
-        rust_upsert = require_rust_binding("upsert_agent_artifact_index_row")
-        payload: dict[str, Any] = rust_upsert(
-            str(index_path),
-            str(projects_root),
-            str(artifact_dir),
-            _options_to_dict(opts),
-        )
-    return agent_artifact_index_update_from_dict(payload)
+    _sync_mutations_patchables()
+    return mutations_impl.upsert_agent_artifact_index_row(
+        index_path, projects_root, artifact_dir, options
+    )
 
 
 def delete_agent_artifact_index_row(
     index_path: Path | str,
     artifact_dir: Path | str,
 ) -> AgentArtifactIndexUpdateWire:
-    """Remove one artifact directory row from the index."""
-    with agent_artifact_index_operation_lock():
-        rust_delete = require_rust_binding("delete_agent_artifact_index_row")
-        payload: dict[str, Any] = rust_delete(str(index_path), str(artifact_dir))
-    return agent_artifact_index_update_from_dict(payload)
+    _sync_mutations_patchables()
+    return mutations_impl.delete_agent_artifact_index_row(index_path, artifact_dir)
 
 
 def delete_agent_artifact_index_row_bounded(
@@ -254,22 +208,13 @@ def delete_agent_artifact_index_row_bounded(
     lock_timeout_seconds: float,
     busy_timeout_seconds: float,
 ) -> AgentArtifactIndexUpdateWire | None:
-    """Delete one row without waiting indefinitely on process/SQLite locks.
-
-    ``None`` means the process-local lock was busy and the caller should retry
-    later. SQLite timeout errors remain exceptions so lifecycle callers can
-    distinguish a skipped mutation from a successful zero-row delete.
-    """
-    with try_agent_artifact_index_operation_lock(lock_timeout_seconds) as acquired:
-        if not acquired:
-            return None
-        rust_delete = require_rust_binding("delete_agent_artifact_index_row_bounded")
-        payload: dict[str, Any] = rust_delete(
-            str(index_path),
-            str(artifact_dir),
-            max(0, round(busy_timeout_seconds * 1000.0)),
-        )
-    return agent_artifact_index_update_from_dict(payload)
+    _sync_mutations_patchables()
+    return mutations_impl.delete_agent_artifact_index_row_bounded(
+        index_path,
+        artifact_dir,
+        lock_timeout_seconds=lock_timeout_seconds,
+        busy_timeout_seconds=busy_timeout_seconds,
+    )
 
 
 def terminalize_stale_active_agent_artifact_index_rows(
@@ -280,20 +225,14 @@ def terminalize_stale_active_agent_artifact_index_rows(
     max_rows: int | None = None,
     options: AgentArtifactScanOptionsWire | None = None,
 ) -> AgentArtifactIndexUpdateWire:
-    """Mark stale, unclaimed no-marker active rows terminal in the index."""
-    opts = options or AgentArtifactScanOptionsWire()
-    with agent_artifact_index_operation_lock():
-        rust_terminalize = require_rust_binding(
-            "terminalize_stale_active_agent_artifact_index_rows"
-        )
-        payload: dict[str, Any] = rust_terminalize(
-            str(index_path),
-            str(projects_root),
-            int(stale_after_seconds),
-            max_rows,
-            _options_to_dict(opts),
-        )
-    return agent_artifact_index_update_from_dict(payload)
+    _sync_mutations_patchables()
+    return mutations_impl.terminalize_stale_active_agent_artifact_index_rows(
+        index_path,
+        projects_root,
+        stale_after_seconds=stale_after_seconds,
+        max_rows=max_rows,
+        options=options,
+    )
 
 
 def prune_hidden_terminal_agent_artifact_index_rows(
@@ -301,13 +240,10 @@ def prune_hidden_terminal_agent_artifact_index_rows(
     *,
     hot_rows: int | None = None,
 ) -> AgentArtifactIndexUpdateWire:
-    """Prune old hidden terminal rows from the hot artifact index view."""
-    with agent_artifact_index_operation_lock():
-        rust_prune = require_rust_binding(
-            "prune_hidden_terminal_agent_artifact_index_rows"
-        )
-        payload: dict[str, Any] = rust_prune(str(index_path), hot_rows)
-    return agent_artifact_index_update_from_dict(payload)
+    _sync_mutations_patchables()
+    return mutations_impl.prune_hidden_terminal_agent_artifact_index_rows(
+        index_path, hot_rows=hot_rows
+    )
 
 
 def replace_agent_artifact_index_dismissed_agents(
@@ -316,25 +252,10 @@ def replace_agent_artifact_index_dismissed_agents(
     *,
     force: bool = False,
 ) -> AgentArtifactIndexUpdateWire:
-    """Replace the artifact index's dismissed identity table.
-
-    The Rust core diffs the incoming identities against the stored table
-    unless *force* is true, which keeps the unconditional full-table rewrite.
-    """
-    with agent_artifact_index_operation_lock():
-        rust_replace = require_rust_binding(
-            "replace_agent_artifact_index_dismissed_agents"
-        )
-        identities = agent_cleanup_wire_to_json_dict(list(dismissed))
-        index = str(index_path)
-        if force:
-            try:
-                payload: dict[str, Any] = rust_replace(index, identities, True)
-            except TypeError:
-                payload = rust_replace(index, identities)
-        else:
-            payload = rust_replace(index, identities)
-    return agent_artifact_index_update_from_dict(payload)
+    _sync_mutations_patchables()
+    return mutations_impl.replace_agent_artifact_index_dismissed_agents(
+        index_path, dismissed, force=force
+    )
 
 
 def reconcile_agent_artifact_index_dismissed_agent_session_members(
@@ -342,24 +263,20 @@ def reconcile_agent_artifact_index_dismissed_agent_session_members(
     *,
     dry_run: bool = False,
 ) -> AgentArtifactIndexDismissalReconcileWire:
-    """Back-fill dismissed identities for dead members of dismissed agent sessions."""
-    with agent_artifact_index_operation_lock():
-        rust_reconcile = require_rust_binding(
-            "reconcile_agent_artifact_index_dismissed_agent_session_members"
+    _sync_mutations_patchables()
+    return (
+        mutations_impl.reconcile_agent_artifact_index_dismissed_agent_session_members(
+            index_path, dry_run=dry_run
         )
-        payload: dict[str, Any] = rust_reconcile(str(index_path), bool(dry_run))
-    return agent_artifact_index_dismissal_reconcile_from_dict(payload)
+    )
 
 
 def read_agent_artifact_index_meta(
     index_path: Path | str,
     key: str,
 ) -> str | None:
-    """Read one metadata value from the persistent artifact index."""
-    with agent_artifact_index_operation_lock():
-        rust_read = require_rust_binding("read_agent_artifact_index_meta")
-        value = rust_read(str(index_path), str(key))
-    return None if value is None else str(value)
+    _sync_index_patchables()
+    return index_impl.read_agent_artifact_index_meta(index_path, key)
 
 
 def write_agent_artifact_index_meta(
@@ -367,123 +284,69 @@ def write_agent_artifact_index_meta(
     key: str,
     value: str,
 ) -> None:
-    """Write one metadata value in the persistent artifact index."""
-    with agent_artifact_index_operation_lock():
-        rust_write = require_rust_binding("write_agent_artifact_index_meta")
-        rust_write(str(index_path), str(key), str(value))
-
-
-SOURCE_RECONCILE_OK_META_KEY = "source_reconcile_ok"
+    _sync_index_patchables()
+    index_impl.write_agent_artifact_index_meta(index_path, key, value)
 
 
 def invalidate_agent_artifact_index_source_reconcile(
     index_path: Path | str | None = None,
 ) -> None:
-    """Forget the last source-directory completeness watermark.
-
-    Event overflow, unobserved writes, and process-restart recovery call
-    this so a later cached full-history read cannot claim complete history
-    on a corpus that has not been rediscovered. Marker revalidation does
-    not discover new directories on its own.
-    """
-    index = (
-        Path(index_path).expanduser()
-        if index_path is not None
-        else default_agent_artifact_index_path()
-    )
-    if not index.is_file():
-        return
-    write_agent_artifact_index_meta(index, SOURCE_RECONCILE_OK_META_KEY, "")
+    _sync_index_patchables()
+    index_impl.invalidate_agent_artifact_index_source_reconcile(index_path)
 
 
 def agent_artifact_index_status(
     index_path: Path | str,
 ) -> AgentArtifactIndexStatusWire:
-    """Return lightweight row-count status for the persistent artifact index."""
-    with agent_artifact_index_operation_lock():
-        rust_status = require_rust_binding("agent_artifact_index_status")
-        payload: dict[str, Any] = rust_status(str(index_path))
-    return agent_artifact_index_status_from_dict(payload)
+    _sync_index_patchables()
+    return index_impl.agent_artifact_index_status(index_path)
 
 
 def agent_artifact_index_status_bounded(
     index_path: Path | str,
     *,
-    lock_timeout_seconds: float = _DEFAULT_READ_LOCK_TIMEOUT_SECONDS,
+    lock_timeout_seconds: float = DEFAULT_READ_LOCK_TIMEOUT_SECONDS,
 ) -> AgentArtifactIndexStatusWire | None:
-    """Return index status, or ``None`` when the process-local lock is busy."""
-    with try_agent_artifact_index_operation_lock(lock_timeout_seconds) as acquired:
-        if not acquired:
-            return None
-        rust_status = require_rust_binding("agent_artifact_index_status")
-        payload: dict[str, Any] = rust_status(str(index_path))
-    return agent_artifact_index_status_from_dict(payload)
+    _sync_index_patchables()
+    return index_impl.agent_artifact_index_status_bounded(
+        index_path, lock_timeout_seconds=lock_timeout_seconds
+    )
 
 
 def vacuum_agent_artifact_index(
     index_path: Path | str,
 ) -> AgentArtifactIndexVacuumWire:
-    """Reclaim freelist pages in the persistent artifact index via VACUUM.
-
-    A tooling-only entry point: nothing in this codebase calls it
-    automatically, so running it is always an explicit, user-initiated
-    action (``sase agent index vacuum --apply``).
-    """
-    with agent_artifact_index_operation_lock():
-        rust_vacuum = require_rust_binding("vacuum_agent_artifact_index")
-        payload: dict[str, Any] = rust_vacuum(str(index_path))
-    return agent_artifact_index_vacuum_from_dict(payload)
+    _sync_index_patchables()
+    return index_impl.vacuum_agent_artifact_index(index_path)
 
 
 def query_agent_output_variable_history(
     index_path: Path | str,
     query: AgentOutputVariableHistoryQueryWire | None = None,
 ) -> AgentOutputVariableHistoryWire:
-    """Return grouped output-variable history from the persistent artifact index."""
-    query_wire = query or AgentOutputVariableHistoryQueryWire()
-    with agent_artifact_index_operation_lock():
-        rust_query = require_rust_binding("query_agent_output_variable_history")
-        payload: dict[str, Any] = rust_query(
-            str(index_path),
-            agent_output_variable_history_query_to_dict(query_wire),
-        )
-    return agent_output_variable_history_from_dict(payload)
+    _sync_queries_patchables()
+    return queries_impl.query_agent_output_variable_history(index_path, query)
 
 
 def query_agent_alias_history(
     index_path: Path | str,
     query: AgentAliasHistoryQueryWire,
 ) -> AgentAliasHistoryWire:
-    """Return bounded per-alias agent history from the persistent artifact index."""
-    with agent_artifact_index_operation_lock():
-        rust_query = require_rust_binding("query_agent_alias_history")
-        payload: dict[str, Any] = rust_query(
-            str(index_path),
-            agent_alias_history_query_to_dict(query),
-        )
-    return agent_alias_history_from_dict(payload)
+    _sync_queries_patchables()
+    return queries_impl.query_agent_alias_history(index_path, query)
 
 
 def parse_output_variable_selector(selector: str) -> OutputVariableSelectorWire:
-    """Parse one ``sase var get`` selector through the Rust domain parser."""
-    rust_parse = require_rust_binding("parse_output_variable_selector")
-    payload: dict[str, Any] = rust_parse(selector)
-    return output_variable_selector_from_dict(payload)
+    _sync_source_patchables()
+    return source_impl.parse_output_variable_selector(selector)
 
 
 def query_agent_output_variable_selectors(
     index_path: Path | str,
     query: AgentOutputVariableSelectorQueryWire | None = None,
 ) -> AgentOutputVariableSelectorResultWire:
-    """Resolve output-variable selectors against the persistent artifact index."""
-    query_wire = query or AgentOutputVariableSelectorQueryWire()
-    with agent_artifact_index_operation_lock():
-        rust_query = require_rust_binding("query_agent_output_variable_selectors")
-        payload: dict[str, Any] = rust_query(
-            str(index_path),
-            agent_output_variable_selector_query_to_dict(query_wire),
-        )
-    return agent_output_variable_selector_result_from_dict(payload)
+    _sync_queries_patchables()
+    return queries_impl.query_agent_output_variable_selectors(index_path, query)
 
 
 def query_agent_artifact_index(
@@ -492,18 +355,10 @@ def query_agent_artifact_index(
     query: AgentArtifactIndexQueryWire | None = None,
     options: AgentArtifactScanOptionsWire | None = None,
 ) -> AgentArtifactScanWire:
-    """Return scanner-shaped records from the persistent artifact index."""
-    opts = options or AgentArtifactScanOptionsWire()
-    query_wire = query or AgentArtifactIndexQueryWire()
-    with agent_artifact_index_operation_lock():
-        rust_query = require_rust_binding("query_agent_artifact_index")
-        payload: dict[str, Any] = rust_query(
-            str(index_path),
-            str(projects_root),
-            agent_artifact_index_query_to_dict(query_wire),
-            _options_to_dict(opts),
-        )
-    return agent_scan_wire_from_dict(payload)
+    _sync_queries_patchables()
+    return queries_impl.query_agent_artifact_index(
+        index_path, projects_root, query, options
+    )
 
 
 def query_agent_artifact_index_bounded(
@@ -512,41 +367,28 @@ def query_agent_artifact_index_bounded(
     query: AgentArtifactIndexQueryWire | None = None,
     options: AgentArtifactScanOptionsWire | None = None,
     *,
-    lock_timeout_seconds: float = _DEFAULT_READ_LOCK_TIMEOUT_SECONDS,
+    lock_timeout_seconds: float = DEFAULT_READ_LOCK_TIMEOUT_SECONDS,
 ) -> AgentArtifactScanWire | None:
-    """Query index rows, or ``None`` when the process-local lock is busy."""
-    opts = options or AgentArtifactScanOptionsWire()
-    query_wire = query or AgentArtifactIndexQueryWire()
-    with try_agent_artifact_index_operation_lock(lock_timeout_seconds) as acquired:
-        if not acquired:
-            return None
-        rust_query = require_rust_binding("query_agent_artifact_index")
-        payload: dict[str, Any] = rust_query(
-            str(index_path),
-            str(projects_root),
-            agent_artifact_index_query_to_dict(query_wire),
-            _options_to_dict(opts),
-        )
-    return agent_scan_wire_from_dict(payload)
+    _sync_queries_patchables()
+    return queries_impl.query_agent_artifact_index_bounded(
+        index_path,
+        projects_root,
+        query,
+        options,
+        lock_timeout_seconds=lock_timeout_seconds,
+    )
 
 
 def load_agent_artifact_records_bounded(
     index_path: Path | str,
     artifact_dirs: Sequence[Path | str],
     *,
-    lock_timeout_seconds: float = _DEFAULT_READ_LOCK_TIMEOUT_SECONDS,
+    lock_timeout_seconds: float = DEFAULT_READ_LOCK_TIMEOUT_SECONDS,
 ) -> list[AgentArtifactRecordWire] | None:
-    """Load exact index records, or ``None`` when the local lock is busy."""
-    index = Path(index_path).expanduser()
-    dirs = [str(Path(path).expanduser()) for path in artifact_dirs]
-    if not dirs:
-        return []
-    with try_agent_artifact_index_operation_lock(lock_timeout_seconds) as acquired:
-        if not acquired:
-            return None
-        rust_load = require_rust_binding("load_agent_artifact_records")
-        payload: list[dict[str, Any]] = rust_load(str(index), dirs)
-    return agent_artifact_records_from_dicts(payload)
+    _sync_queries_patchables()
+    return queries_impl.load_agent_artifact_records_bounded(
+        index_path, artifact_dirs, lock_timeout_seconds=lock_timeout_seconds
+    )
 
 
 def find_gate_turn_by_gate_id(
@@ -554,28 +396,8 @@ def find_gate_turn_by_gate_id(
     project_name: str | None,
     gate_id: str,
 ) -> AgentArtifactRecordWire | None:
-    """Return the newest real gate-turn record for *gate_id*, or ``None``.
-
-    Uses the persistent index's indexed ``gate_turn_id`` column for an
-    O(1) SQL lookup instead of decoding every historical record. A ``None``
-    project searches every project. A clean ``None`` result is authoritative
-    (no matching gate-turn member exists); callers whose index is missing
-    or unusable see an exception instead, so they can distinguish "not
-    found" from "could not look up" and fall back accordingly.
-    """
-    with agent_artifact_index_operation_lock():
-        try:
-            rust_find = require_rust_binding("find_gate_turn_by_gate_id")
-        except (ImportError, AttributeError):
-            # legacy sase-shell spelling: pre-cutover core builds expose
-            # only the old binding name.
-            rust_find = require_rust_binding("find_gate_shell_by_gate_id")
-        payload: dict[str, Any] | None = rust_find(
-            str(index_path), project_name, str(gate_id)
-        )
-    if payload is None:
-        return None
-    return agent_artifact_records_from_dicts([payload])[0]
+    _sync_queries_patchables()
+    return queries_impl.find_gate_turn_by_gate_id(index_path, project_name, gate_id)
 
 
 def query_related_agent_artifact_dirs_bounded(
@@ -583,18 +405,15 @@ def query_related_agent_artifact_dirs_bounded(
     artifact_dir: Path | str,
     seed_timestamps: Sequence[str],
     *,
-    lock_timeout_seconds: float = _DEFAULT_READ_LOCK_TIMEOUT_SECONDS,
+    lock_timeout_seconds: float = DEFAULT_READ_LOCK_TIMEOUT_SECONDS,
 ) -> list[Path] | None:
-    """Return related artifact dirs, or ``None`` when the local lock is busy."""
-    index = Path(index_path).expanduser()
-    artifact = Path(artifact_dir).expanduser()
-    seeds = [str(value) for value in seed_timestamps if value]
-    with try_agent_artifact_index_operation_lock(lock_timeout_seconds) as acquired:
-        if not acquired:
-            return None
-        rust_query = require_rust_binding("query_related_agent_artifact_dirs")
-        payload: list[str] = rust_query(str(index), str(artifact), seeds)
-    return [Path(path) for path in payload]
+    _sync_queries_patchables()
+    return queries_impl.query_related_agent_artifact_dirs_bounded(
+        index_path,
+        artifact_dir,
+        seed_timestamps,
+        lock_timeout_seconds=lock_timeout_seconds,
+    )
 
 
 def verify_agent_artifact_index(
@@ -602,86 +421,9 @@ def verify_agent_artifact_index(
     projects_root: Path | str,
     options: AgentArtifactScanOptionsWire | None = None,
 ) -> AgentArtifactIndexVerifyWire:
-    """Compare the persistent artifact index to source artifact files."""
-    index = Path(index_path).expanduser()
-    root = Path(projects_root).expanduser()
-    opts = options or AgentArtifactScanOptionsWire()
-    source = scan_agent_artifacts(root, opts)
-
-    if not index.is_file():
-        return AgentArtifactIndexVerifyWire(
-            ok=not source.records,
-            schema_version=0,
-            index_path=str(index),
-            projects_root=str(root),
-            indexed_rows=0,
-            source_rows=len(source.records),
-            missing_rows=len(source.records),
-            corrupt_rows=source.stats.json_decode_errors,
-        )
-
-    try:
-        indexed = query_agent_artifact_index(
-            index,
-            root,
-            AgentArtifactIndexQueryWire(
-                include_active=False,
-                include_recent_completed=False,
-                include_full_history=True,
-                active_limit=None,
-                recent_completed_limit=None,
-                include_hidden=True,
-            ),
-            opts,
-        )
-    except (OSError, RuntimeError, ValueError, ImportError, AttributeError):
-        return AgentArtifactIndexVerifyWire(
-            ok=False,
-            schema_version=0,
-            index_path=str(index),
-            projects_root=str(root),
-            source_rows=len(source.records),
-            missing_rows=len(source.records),
-            corrupt_rows=source.stats.json_decode_errors + 1,
-        )
-
-    source_by_dir = {
-        record.artifact_dir: agent_scan_wire_to_json_dict(record)
-        for record in source.records
-    }
-    indexed_by_dir = {
-        record.artifact_dir: agent_scan_wire_to_json_dict(record)
-        for record in indexed.records
-    }
-    source_dirs = set(source_by_dir)
-    indexed_dirs = set(indexed_by_dir)
-    common_dirs = source_dirs & indexed_dirs
-    stale_rows = sum(
-        1
-        for artifact_dir in common_dirs
-        if indexed_by_dir[artifact_dir] != source_by_dir[artifact_dir]
-    )
-    missing_rows = len(source_dirs - indexed_dirs)
-    extra_rows = len(indexed_dirs - source_dirs)
-    corrupt_rows = (
-        indexed.stats.json_decode_errors
-        + indexed.stats.os_errors
-        + source.stats.json_decode_errors
-        + source.stats.os_errors
-    )
-
-    return AgentArtifactIndexVerifyWire(
-        ok=not (stale_rows or missing_rows or extra_rows or corrupt_rows),
-        schema_version=AGENT_ARTIFACT_INDEX_SCHEMA_VERSION,
-        index_path=str(index),
-        projects_root=str(root),
-        indexed_rows=len(indexed.records),
-        source_rows=len(source.records),
-        stale_rows=stale_rows,
-        missing_rows=missing_rows,
-        extra_rows=extra_rows,
-        corrupt_rows=corrupt_rows,
-    )
+    _sync_queries_patchables()
+    _sync_source_patchables()
+    return queries_impl.verify_agent_artifact_index(index_path, projects_root, options)
 
 
 __all__ = [
@@ -708,7 +450,6 @@ __all__ = [
     "default_agent_artifact_index_path",
     "delete_agent_artifact_index_row",
     "delete_agent_artifact_index_row_bounded",
-    "find_gate_turn_by_gate_id",
     "find_gate_turn_by_gate_id",
     "invalidate_agent_artifact_index_source_reconcile",
     "load_agent_artifact_records_bounded",

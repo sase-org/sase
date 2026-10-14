@@ -24,8 +24,8 @@ from sase.core.agent_clan_record import (
     load_clan_record,
     record_clan_attributes,
 )
+from sase.core._agent_scan_shared import options_to_dict
 from sase.core.agent_scan_facade import (
-    _options_to_dict,
     scan_agent_artifact_dirs,
     scan_agent_artifacts,
 )
@@ -253,10 +253,10 @@ def test_scan_options_default_records_dir_and_explicit_wins(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
-    defaulted = _options_to_dict(AgentArtifactScanOptionsWire())
+    defaulted = options_to_dict(AgentArtifactScanOptionsWire())
     assert defaulted["clan_records_dir"] == str(clan_records_dir())
 
-    explicit = _options_to_dict(
+    explicit = options_to_dict(
         AgentArtifactScanOptionsWire(clan_records_dir="/tmp/custom-clans")
     )
     assert explicit["clan_records_dir"] == "/tmp/custom-clans"

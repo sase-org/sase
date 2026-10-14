@@ -79,7 +79,7 @@ _TURN_IDENTIFIER_ALLOWLIST = {
     Path("src/sase/turns/member.py"),
     # Dual-core binding fallbacks (old core exposes only the legacy name).
     Path("src/sase/core/agent_launch_facade.py"),
-    Path("src/sase/core/agent_scan_facade.py"),
+    Path("src/sase/core/agent_scan_index_queries.py"),
     # Unix-shell handling: unrelated meaning (login-shell basenames).
     Path("src/sase/completion/install_targets.py"),
 }
