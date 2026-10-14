@@ -34,6 +34,18 @@ def _patch_list_basics(monkeypatch) -> None:  # type: ignore[no-untyped-def]
     )
 
 
+def _stub_provider_hooks(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    """Keep installed provider plugins out of the modal's off-thread discovery.
+
+    A real plugin can answer ``describe_repo_creation`` with a form, which pins
+    a Create row that takes the highlight from the row under test.
+    """
+    monkeypatch.setattr(
+        workspace_provider, "describe_repo_creation", lambda _wt, _ns: None
+    )
+    monkeypatch.setattr(workspace_provider, "probe_repo", lambda _wt, _ref: None)
+
+
 async def _wait_for_create_row(modal: NewProjectModal, pilot) -> None:  # type: ignore[no-untyped-def]
     from sase.ace.testing.wait import wait_for
 
@@ -44,6 +56,7 @@ async def _wait_for_create_row(modal: NewProjectModal, pilot) -> None:  # type: 
 async def test_filter_and_enter_advance_the_modal_without_an_entry_point(
     monkeypatch,
 ) -> None:  # type: ignore[no-untyped-def]
+    _stub_provider_hooks(monkeypatch)
     monkeypatch.setattr(
         workspace_provider,
         "parse_repo_ref",
@@ -96,6 +109,7 @@ async def test_filter_discards_pending_probe_for_previous_highlight(
 ) -> None:  # type: ignore[no-untyped-def]
     from sase.ace.tui.util.debounce import DetailPanelDebouncer
 
+    _stub_provider_hooks(monkeypatch)
     scheduled: list[object] = []
     monkeypatch.setattr(
         DetailPanelDebouncer,
@@ -139,6 +153,7 @@ async def test_tab_selection_persists_last_provider_off_thread(
 ) -> None:  # type: ignore[no-untyped-def]
     import json
 
+    _stub_provider_hooks(monkeypatch)
     monkeypatch.setenv("SASE_HOME", str(tmp_path))
     metadata = (
         provider("gh", "GitHub"),

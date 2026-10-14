@@ -39,9 +39,13 @@ async def wait_for_state(
         if loop.time() >= deadline:
             last_frame = page.export_svg(title="ACE visual state timeout")
             digest = hashlib.sha256(last_frame.encode()).hexdigest()[:12]
+            # The plain-text frame precedes the SVG because CI logs cut off the
+            # multi-hundred-KB SVG line, which left a timeout with no evidence.
+            last_text = getattr(page, "screen", "")
             raise AssertionError(
                 f"Timed out after {timeout:.2f}s waiting for {description}; "
-                f"last_frame_digest={digest}; last_frame_svg={last_frame!r}"
+                f"last_frame_digest={digest}; last_frame_text={last_text!r}; "
+                f"last_frame_svg={last_frame!r}"
             )
         await asyncio.sleep(min(0.01, max(0.0, deadline - loop.time())))
 

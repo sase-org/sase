@@ -281,7 +281,7 @@ def test_render_failure_notifies_once(
 
     monkeypatch.setattr("sase.instructions.compile.compile_bundle", _boom)
     monkeypatch.setattr(
-        "sase.llm_provider._instruction_boundary.notify_instruction_fallback",
+        "sase.llm_provider.instruction_delivery.notify_instruction_fallback",
         _notify,
     )
     provider = _FakeProvider()

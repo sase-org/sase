@@ -18,6 +18,7 @@ from sase.ace.tui.widgets.launch_context_bar import (
 )
 from sase.ace.tui.widgets.launch_context_source import (
     CurrentProjectSnapshot,
+    LaunchContextSource,
     LaunchContextState,
     LaunchDefaultSnapshot,
 )
@@ -117,6 +118,12 @@ def test_density_renders_compact_when_nothing_fits() -> None:
 
 
 async def _mounted_bar(page: AcePage) -> LaunchContextBar:
+    # The app's own LaunchContextSource resolves the real launch default
+    # off-thread and broadcasts it to every mounted bar. Under load that lands
+    # after a test's explicit apply_launch_context and overwrites it, so the
+    # test must own the bar's state.
+    for source in page.app.query(LaunchContextSource):
+        source._broadcast = lambda: None  # type: ignore[method-assign]
     bar = LaunchContextBar()
     await page.app.mount(bar)
     await page.pause()

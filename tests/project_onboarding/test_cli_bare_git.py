@@ -12,8 +12,28 @@ from sase import workspace_provider
 from sase.main.parser import create_parser
 from sase.main import project_handler_add as add_cli
 from sase.project_onboarding.journal import lookup_journal
+from sase.workspace_provider import reset_workflow_metadata_caches
+from tests._workspace_provider_helpers import _restore_macro_vcs_caches_on_teardown
 
 from ._cli_test_support import make_create_args
+
+
+def _use_real_provider_registry(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Rebuild the provider registry from entry points for this test.
+
+    ``get_all_workflow_metadata`` is cached for the process, so metadata left
+    behind by another test in the same xdist worker hides the real ``git``
+    provider and fails ``parse_user_ref`` with ``unknown provider 'git'``.
+    """
+    from sase.workspace_provider import _registry
+
+    monkeypatch.setattr(_registry, "_manager", None)
+    reset_workflow_metadata_caches()
+    _restore_macro_vcs_caches_on_teardown(monkeypatch)
+    known = [
+        item.workflow_type for item in workspace_provider.get_all_workflow_metadata()
+    ]
+    assert "git" in known, f"bare-git provider missing from registry: {known}"
 
 
 def _bare_git_create_home(
@@ -21,6 +41,7 @@ def _bare_git_create_home(
 ) -> tuple[Path, Path]:
     from sase.workspace_provider.plugins import bare_git_workspace as bare_git
 
+    _use_real_provider_registry(monkeypatch)
     home = tmp_path / "home"
     home.mkdir()
     sase_home = tmp_path / "sase-home"
