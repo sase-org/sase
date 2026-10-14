@@ -8,11 +8,12 @@ Dispositions: `migrate` (replaced by memory-built per-invocation delivery), `pro
 (generated copy of another committed source), `repo-owned` (hand-written, stays),
 `deferred` (decided by a later epic).
 
-## Generated, memory-backed (35)
+## Generated, memory-backed (40)
 
 `migrate`. These render from `sase/memory/` through `sase memory init`, which also
-copies every project-tree `AGENTS.md` to the provider shims beside it. E3 cuts delivery
-over to per-invocation bundles; E4 removes the committed files.
+copies every project-tree `AGENTS.md` to the provider shims beside it. E3 delivers
+per-invocation bundles and suppresses SASE-owned root and home files at runtime; the
+files stay committed until E4 (project) and E5 (home).
 
 | Project           | Paths                                                                     | Files                   | Disposition | Owning epic      |
 | ----------------- | ------------------------------------------------------------------------- | ----------------------- | ----------- | ---------------- |
@@ -20,6 +21,7 @@ over to per-invocation bundles; E4 removes the committed files.
 | home              | `~/AGENTS.md`, `~/CLAUDE.md`, `~/GEMINI.md`, `~/QWEN.md`, `~/OPENCODE.md` | 5                       | `migrate`   | E5 (delivery E3) |
 | bob-cli           | root `AGENTS.md` + 4 shims                                                | 5                       | `migrate`   | E5               |
 | actstat           | root `AGENTS.md` + 4 shims                                                | 5                       | `migrate`   | E5               |
+| job               | root `AGENTS.md` + 4 shims                                                | 5                       | `migrate`   | E5               |
 
 Sase nested scopes (15 more files) are split below: each scope's `AGENTS.md` is
 hand-written, with 4 byte-identical shims projected beside it by `sase memory init`.
@@ -48,9 +50,9 @@ none tracked — only `README.md`. Nothing to migrate there.
 
 ## Config-based discovery surfaces
 
-| Surface                       | Mechanism                                                                                                            | Disposition | Owning epic             |
-| ----------------------------- | -------------------------------------------------------------------------------------------------------------------- | ----------- | ----------------------- |
-| Codex shadow-home `AGENTS.md` | Per-run `CODEX_HOME` symlinks `~/AGENTS.md` in when no global file wins (`_link_home_agents_fallback` in `codex.py`) | `deferred`  | E3 (native suppression) |
+| Surface                       | Mechanism                                                                                                                                | Disposition | Owning epic |
+| ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- | ----------- | ----------- |
+| Codex shadow-home `AGENTS.md` | Per-run allowlist `$CODEX_HOME`: no SASE `AGENTS.md` when `codex_explicit_instructions` is on; sqlite state is never linked (`sase-11s`) | `done` (E3) | E3          |
 
 No other provider config points at `~/AGENTS.md`: Grok receives `--rules` explicitly,
 Claude loads natively, and the `~/AGENTS.md` read in `instructions/run_index.py` is the

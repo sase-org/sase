@@ -319,6 +319,53 @@ def test_grok_home_is_detected_from_native_and_explicit_sources() -> None:
     assert fields["project_explicit"] is True
 
 
+def test_contains_heading_matches_bundle_home_line() -> None:
+    """Explicit bundles carry the home title as ``Home:`` on the frame."""
+    bundle = f"# {PROJECT_H1}\nHome: {HOME_H1}\n\n## Core Memory\n\nHome note body.\n"
+    assert fp.contains_heading(bundle, HOME_H1) is True
+    assert fp.contains_heading(bundle, PROJECT_H1) is True
+    assert fp.contains_heading(f"# {HOME_H1}\n", HOME_H1) is True
+    assert fp.contains_heading(bundle, "Other Title") is False
+
+
+def test_count_contract_occurrences_accepts_numbered_native_headings() -> None:
+    """Generated AGENTS.md numbers the contract heading; the bundle does not."""
+    native = ["#### 1.1.4 SASE Final Declaration\nContract from the generated file.\n"]
+    bundle = ["## SASE Final Declaration\nContract from the compiler section.\n"]
+    assert fp.count_contract_occurrences(native) == 1
+    assert fp.count_contract_occurrences(bundle) == 1
+    assert (
+        fp.count_contract_occurrences(["SASE Final Declaration in a paragraph."]) == 0
+    )
+
+
+def test_claude_identical_prompt_snapshots_count_once() -> None:
+    """Print-mode duplicate snapshots must not double the explicit channel."""
+    snapshot = [
+        "SASE single-turn print mode",
+        f"# {PROJECT_H1}\nHome: {HOME_H1}\n\n## SASE Final Declaration\nOnce.\n"
+        "<!-- sase-instructions bundle=0123456789ab invocation=abc-def -->",
+    ]
+    records = [
+        {
+            "type": "attachment",
+            "attachment": {"type": "prompt_snapshot", "systemPrompt": snapshot},
+        },
+        {
+            "type": "attachment",
+            "attachment": {"type": "prompt_snapshot", "systemPrompt": snapshot},
+        },
+    ]
+    fields = claude_parser.observe_claude_session(
+        records, home_h1=HOME_H1, project_h1=PROJECT_H1
+    )
+    _native, explicit = claude_parser.instruction_sources(records)
+    assert fields["contract_explicit"] == 1
+    assert fields["home_explicit"] is True
+    assert fields["project_explicit"] is True
+    assert fp.count_bundle_markers(fp.bundle_markers(explicit), "abc-def") == 1
+
+
 def test_baseline_table_aggregation() -> None:
     """Parser outputs aggregate to the plan's baseline table."""
     observations = [

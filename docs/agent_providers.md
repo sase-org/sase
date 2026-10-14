@@ -34,14 +34,33 @@ still launch a hard-disabled CLI. See
 
 ## Instruction delivery
 
-The current bundle rollout records intended instructions for diagnostics and prepares
-explicit delivery for adapters. Each root provider invocation renders its memory-built
-bundle and v2 manifest into `<artifacts>/instructions/` and exports
-`SASE_INSTRUCTIONS_FILE` for that call, then restores it. Claude, Codex, Grok, and Muse
-deliver the root bundle through explicit adapter channels by default, with per-provider
-sunset flags to restore their previous behavior. The manifest alone does not prove that
-a provider loaded the bundle's contents. See
+Each root provider invocation renders one memory-built bundle and a v2 manifest into
+`<artifacts>/instructions/` and exports `SASE_INSTRUCTIONS_FILE` for that call, then
+restores it. Claude, Codex, Grok, and Muse deliver that bundle through an explicit
+adapter channel by default. SASE-owned native instruction files are suppressed for the
+call. The architecture is
+[Instructions Are Rendered Per Invocation And Delivered By Adapters](../sase/memory/decisions/instructions-per-invocation.md).
+The manifest alone does not prove that a provider loaded the bundle; use
+[Verifying instruction delivery](#verifying-instruction-delivery). See
 [Delivery](instruction_bundles.md#delivery).
+
+The E1 "Instruction double-load" (Claude and Codex loading the shared contract twice,
+Grok loading nothing, Muse and Grok missing the home layer) is resolved for these four
+providers when their sunset flags are on.
+
+| Provider            | Root channel (flag on)                                             | Subagent                                                                 | Native suppression (flag on)                                                                | Flag                           |
+| ------------------- | ------------------------------------------------------------------ | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------- | ------------------------------ |
+| Claude              | `--append-system-prompt-file` (`claude.append_system_prompt_file`) | `--append-subagent-system-prompt-file`, or `none` if the CLI probe fails | exact-path `claudeMdExcludes` of SASE-owned root and home files; `autoMemoryEnabled: false` | `claude_explicit_instructions` |
+| Codex               | `developer_instructions` (`codex.developer_instructions`, 32 KiB)  | `inherits_root`                                                          | `project_doc_max_bytes=0` in SASE-managed projects; no SASE `AGENTS.md` in the shadow home  | `codex_explicit_instructions`  |
+| Grok                | `--rules` (`grok.rules`, 120 KiB)                                  | `none`                                                                   | none needed (no `--trust`); `GROK_MEMORY=0`                                                 | `grok_explicit_instructions`   |
+| Muse                | prompt prefix (`muse.prompt_prefix`)                               | `none`                                                                   | drop `--trust-workspace`                                                                    | `muse_explicit_instructions`   |
+| agy, Qwen, OpenCode | declared legacy (`provider_legacy`)                                | `inherits_native`                                                        | none                                                                                        | none until E4                  |
+
+### Rollback
+
+`sase flag disable <provider>_explicit_instructions` on each execution host returns that
+provider to E1's after-state. A render or delivery failure already falls back per
+invocation. Codex's allowlist shadow home applies in both flag states.
 
 ## Verifying instruction delivery
 
@@ -204,6 +223,18 @@ SASE doctor hint: run `codex login`.
 Alternatively, Codex honors `OPENAI_API_KEY` — see the canonical docs for details.
 
 Canonical docs: <https://developers.openai.com/codex/cli>
+
+### Instruction delivery
+
+With the default-on `codex_explicit_instructions` sunset flag, SASE passes the complete
+rendered root bundle through `developer_instructions` and, in SASE-managed projects,
+sets `project_doc_max_bytes=0` so the project `AGENTS.md` is not also loaded. The
+per-run shadow `$CODEX_HOME` is rebuilt from an allowlist: `config.toml` is copied,
+`sessions/` stays linked, and sqlite state, `history.jsonl`, `memories/`, and SASE
+`AGENTS.md` are never linked. A user-owned `~/.codex/AGENTS.md` stays linked and shows
+as foreign. Children inherit the root developer instructions (`inherits_root`). Disable
+the flag to restore the legacy directive-only `developer_instructions` and native
+project-doc discovery; the allowlist home still applies.
 
 ## OpenCode
 

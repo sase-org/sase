@@ -69,54 +69,58 @@ costs, and the condition that would reopen it.
     - Holds are one durable record per armer evaluated by each candidate at admission
       (pull), with optional TTL (default 2h, cap 12h), fail-open store reads, and
       release scoped to the armer session or shell end.
-15. **Legacy V1 Agent Transport Is Read-Only History, Not An Import Source**
+15. **Instructions Are Rendered Per Invocation And Delivered By Adapters**
+    (`instructions-per-invocation`) - Each SASE root invocation gets one memory-built
+    instruction bundle through an adapter-owned explicit channel, with SASE-owned native
+    files suppressed.
+16. **Legacy V1 Agent Transport Is Read-Only History, Not An Import Source**
     (`v1-import-retired`) - _[superseded by `agents-sync-publish-only`]_ The legacy v1
     agents-sync import leg is sunset behind v1_import_retired; v1 payloads stay readable
     as v2-adoption matcher evidence but are never materialized as new imported
     artifacts.
-16. **Machine Artifact-Link Writes Stay Off the Primary**
+17. **Machine Artifact-Link Writes Stay Off the Primary**
     (`machine-link-writes-off-primary`) - Machine artifact-link mutations never target
     the sidecar clones nested under a project's primary checkout; the machine write lane
     is the hidden host-owned clone, and the primary converges only through pull-based
     auto-sync.
-17. **Memory Links Are Authored** (`memory-links-are-authored`)
+18. **Memory Links Are Authored** (`memory-links-are-authored`)
     - A memory file declares how its links are detected and rendered, and authors links
       inline as `[[target]]` / `![[target]]`.
-18. **Memory Webs** (`memory-webs`)
+19. **Memory Webs** (`memory-webs`)
     - _[partly superseded by `webs-render-in-their-own-section`,
       `memory-links-are-authored`]_ A keyed memory collection is a flat descriptor note
       plus a sibling strand directory, addressed web:keyword.
-19. **Memory Webs Render In Their Own Section** (`webs-render-in-their-own-section`)
+20. **Memory Webs Render In Their Own Section** (`webs-render-in-their-own-section`)
     - A memory web's placement in generated agent instructions follows from its kind,
       not from a `type:` declaration on its descriptor.
-20. **Native Helpers Return; Only Roots Declare** (`helpers-return-roots-declare`)
+21. **Native Helpers Return; Only Roots Declare** (`helpers-return-roots-declare`)
     - Only the host-launched root agent submits final declarations and runs turn-ending
       operations; native helpers and forks return their results to their parent.
-21. **No Retrieval Mechanism Before Its Corpus** (`corpus-before-mechanism`)
+22. **No Retrieval Mechanism Before Its Corpus** (`corpus-before-mechanism`)
     - SASE does not build memory retrieval or linking machinery ahead of a corpus that
       demonstrably needs it.
-22. **Plugins May Mount Top-Level Commands** (`plugin-commands`)
+23. **Plugins May Mount Top-Level Commands** (`plugin-commands`)
     - Plugins may mount top-level `sase <name>` commands through `sase_commands`;
       listen's standalone-only stance is superseded.
-23. **Projects Are Shown By Name, Never By Directory Key** (`project-labels-never-keys`)
+24. **Projects Are Shown By Name, Never By Directory Key** (`project-labels-never-keys`)
     - Project surfaces show PROJECT_NAME through the display snapshot; the directory key
       and spec filename are identity only, and long-lived processes revalidate at
       refresh boundaries.
-24. **Receipts Prove Before They Skip** (`receipts-prove-before-they-skip`)
+25. **Receipts Prove Before They Skip** (`receipts-prove-before-they-skip`)
     - Verdict receipts are proof for host completion, never execution skip or reuse;
       reuse waits for measured content-equivalent repeat opportunity plus a hermeticity
       proof.
-25. **Size Aliases Descend The Effort Ladder** (`size-alias-effort-ladder`)
+26. **Size Aliases Descend The Effort Ladder** (`size-alias-effort-ladder`)
     - Built-in size aliases run a model at xhigh on its first appearance from @xlarge
       down and one rung lower on each reappearance; every alias should span more than
       one provider.
-26. **The Rust Core Is Required** (`rust-core-required`)
+27. **The Rust Core Is Required** (`rust-core-required`)
     - Shared backend behavior lives in sase-core with no Python fallback and no env-var
       backend switch.
-27. **Triage Annotates; It Never Changes an Exit Code**
+28. **Triage Annotates; It Never Changes an Exit Code**
     (`triage-annotates-does-not-change-exit-codes`) - KNOWN needs an independent
     witness; triage classifies failure evidence without changing command outcomes.
-28. **Verification Is Two-Speed** (`two-speed-verification`)
+29. **Verification Is Two-Speed** (`two-speed-verification`)
     - _[superseded by `check-full-is-explicit`]_ just check is the agent default and
       just check-full gates landing, because host capacity is the constraint, not test
       speed.

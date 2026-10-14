@@ -4,15 +4,16 @@ An instruction bundle collects the project, home, and SASE instructions for one 
 invocation. Its manifest records which sections were included and their digests, so you
 can inspect the intended context and compare it with what a provider actually loaded.
 
-The current implementation records bundles for diagnostics and prepares explicit
-delivery for adapters. Root provider invocations render a bundle into the run's
-artifacts and export `SASE_INSTRUCTIONS_FILE` for that provider call, then restore the
-previous value. Adapter delivery depends on the provider's active delivery plan. Grok
-and Muse use explicit delivery by default; Claude and Codex remain on legacy delivery
-pending their adapter phases. A successful render therefore does not prove delivery: use
-`sase instructions verify` to check observed loads. Render and transport failures never
-fail an invocation; they fall back atomically to legacy delivery. The plan hook,
-manifests, and fallback are described under [Delivery](#delivery).
+Root provider invocations render a bundle into the run's artifacts and export
+`SASE_INSTRUCTIONS_FILE` for that provider call, then restore the previous value.
+Claude, Codex, Grok, and Muse deliver the bundle through an explicit adapter channel by
+default; agy, Qwen, and OpenCode stay on declared legacy delivery until E4. The
+architecture is recorded as
+[Instructions Are Rendered Per Invocation And Delivered By Adapters](../sase/memory/decisions/instructions-per-invocation.md).
+A successful render therefore does not prove delivery: use `sase instructions verify` to
+check observed loads. Render and transport failures never fail an invocation; they fall
+back atomically to legacy delivery. The plan hook, manifests, and fallback are described
+under [Delivery](#delivery).
 
 See also
 [Verifying instruction delivery](agent_providers.md#verifying-instruction-delivery).
@@ -148,9 +149,9 @@ Providers implement `llm_instruction_delivery` (`firstresult`) and return
 `{"status", "channel"?, "max_bytes"?, "reason"?}`. `status` is one of `explicit`,
 `inherits_native`, `inherits_root`, or `none`. The root slot may only be `explicit` or
 `inherits_native`. A missing hook, a hook error, or an invalid return resolves to
-legacy: both slots `inherits_native` with reason `provider_legacy`. Built-in providers
-currently declare that legacy plan; adapter phases flip them behind per-provider sunset
-flags. `flag_disabled` is the same legacy shape when a flag is off.
+legacy: both slots `inherits_native` with reason `provider_legacy`. Claude, Codex, Grok,
+and Muse return explicit slots when their sunset flags are on, and `flag_disabled`
+legacy when off. agy, Qwen, and OpenCode stay `provider_legacy` until E4.
 
 `sase.llm_provider.instruction_delivery.resolve_delivery_plan(provider)` validates the
 hook result and never raises. Objects without `instruction_delivery` also resolve to

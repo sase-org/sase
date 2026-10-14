@@ -51,7 +51,11 @@ BUNDLE_MARKER_RE = re.compile(
 )
 CLAUDE_AUTO_MEMORY_HEADING = "# Memory"
 CLAUDE_AUTO_MEMORY_LEAD_IN = "You have a persistent file-based memory at"
-_CONTRACT_HEADING_RE = re.compile(r"(?m)^#{1,6}[ \t]+SASE Final Declaration[ \t]*$")
+# Generated native files number the contract heading (``#### 1.1.4 SASE
+# Final Declaration``); the bundle compiler emits the unnumbered form.
+_CONTRACT_HEADING_RE = re.compile(
+    r"(?m)^#{1,6}[ \t]+(?:[0-9]+(?:\.[0-9]+)*[ \t]+)?SASE Final Declaration[ \t]*$"
+)
 
 
 def flatten_ws(text: str) -> str:
@@ -73,10 +77,22 @@ def count_contract_occurrences(texts: list[str]) -> int:
 
 
 def contains_heading(text: str, expected_h1: str | None) -> bool:
-    """Return whether *text* contains an H1 with the expected title."""
+    """Return whether *text* contains the expected native H1 or bundle Home line.
+
+    Native instruction files start with ``# {title}``. The compiler writes the
+    home title as ``Home: {title}`` on the bundle frame, so explicit-channel
+    observations must accept that form too.
+    """
     if not text or expected_h1 is None:
         return False
-    return any(line.strip() == f"# {expected_h1}" for line in text.splitlines())
+    expected = expected_h1.strip()
+    if not expected:
+        return False
+    for line in text.splitlines():
+        stripped = line.strip()
+        if stripped == f"# {expected}" or stripped == f"Home: {expected}":
+            return True
+    return False
 
 
 def bundle_markers(texts: list[str]) -> tuple[tuple[str, str], ...]:

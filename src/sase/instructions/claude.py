@@ -42,16 +42,28 @@ def instruction_files(records: list[dict[str, object]]) -> list[dict[str, str]]:
 
 
 def system_prompt_text(records: list[dict[str, object]]) -> str:
-    """Return the joined ``prompt_snapshot`` system prompt text."""
+    """Return the joined ``prompt_snapshot`` system prompt text.
+
+    Claude print-mode writes two identical ``prompt_snapshot`` attachments per
+    turn. Identical snapshots are kept once so marker and contract counts stay
+    occurrence-exact for a single ``--append-system-prompt-file``.
+    """
     parts: list[str] = []
+    seen: set[str] = set()
     for attachment in _attachment_records(records):
         if attachment.get("type") != "prompt_snapshot":
             continue
         prompt = attachment.get("systemPrompt")
         if isinstance(prompt, list):
-            parts.extend(str(part) for part in prompt)
+            text = "\n".join(str(part) for part in prompt)
         elif isinstance(prompt, str):
-            parts.append(prompt)
+            text = prompt
+        else:
+            continue
+        if text in seen:
+            continue
+        seen.add(text)
+        parts.append(text)
     return "\n".join(parts)
 
 
