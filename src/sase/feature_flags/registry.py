@@ -22,6 +22,7 @@ class FeatureFlag(StrEnum):
     """Every SASE feature flag key. Add members through ``sase flag new``."""
 
     artifacts_agent_pane_retired = "artifacts_agent_pane_retired"
+    codex_explicit_instructions = "codex_explicit_instructions"
 
 
 _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
@@ -33,6 +34,15 @@ _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
             "agent history lives in the Agents tab Archive."
         ),
         bead="sase-1kb",
+    ),
+    FeatureFlag.codex_explicit_instructions: FeatureFlagDefinition(
+        key=FeatureFlag.codex_explicit_instructions,
+        kind="sunset",
+        description=(
+            "Deliver the Codex root bundle through developer_instructions and "
+            "suppress SASE native instruction duplicates."
+        ),
+        bead="sase-1ks",
     ),
 }
 

@@ -7,6 +7,9 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from sase.feature_flags import override_flags
+from sase.instructions.fingerprints import CONTRACT_HEADING
+from sase.llm_provider.codex import _codex_subprocess_env
 from sase.llm_provider.codex import (
     CodexProvider,
     _create_shadow_codex_home,
@@ -48,7 +51,8 @@ def test_create_shadow_codex_home_links_home_agents_fallback(
     real_home = tmp_path / ".codex"
     monkeypatch.setenv("HOME", str(tmp_path))
 
-    shadow_home = _create_shadow_codex_home(real_home)
+    with override_flags(codex_explicit_instructions=False):
+        shadow_home = _create_shadow_codex_home(real_home)
 
     shadow_agents = shadow_home / "AGENTS.md"
     assert shadow_agents.is_symlink()
@@ -99,6 +103,139 @@ def test_create_shadow_codex_home_preserves_real_codex_override(
     assert shadow_override.resolve() == real_override
     assert not shadow_agents.exists()
     assert not shadow_agents.is_symlink()
+
+
+def test_create_shadow_codex_home_allowlists_state_and_excludes_shared_state(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Only approved Codex inputs and the live sessions directory are linked."""
+    real_home = tmp_path / ".codex"
+    real_home.mkdir()
+    (real_home / "config.toml").write_text("model = 'test'\n", encoding="utf-8")
+    for name in (
+        "auth.json",
+        "installation_id",
+        "version.json",
+        "hooks.json",
+        "models_cache.json",
+    ):
+        (real_home / name).write_text("{}\n", encoding="utf-8")
+    for name in ("skills", "plugins", "cache", "sessions", "memories", "log", "tmp"):
+        (real_home / name).mkdir()
+    for name in ("state.sqlite", "memories_1.sqlite", "history.jsonl"):
+        (real_home / name).write_text("state\n", encoding="utf-8")
+    (real_home / "thread-writer-locks").mkdir()
+    (real_home / "unknown.json").write_text("{}\n", encoding="utf-8")
+    monkeypatch.setenv("HOME", str(tmp_path))
+
+    with override_flags(codex_explicit_instructions=True):
+        shadow_home = _create_shadow_codex_home(real_home)
+
+    config = shadow_home / "config.toml"
+    assert config.read_text(encoding="utf-8") == "model = 'test'\n"
+    assert not config.is_symlink()
+    for name in (
+        "auth.json",
+        "installation_id",
+        "version.json",
+        "hooks.json",
+        "models_cache.json",
+        "skills",
+        "plugins",
+        "cache",
+        "sessions",
+    ):
+        assert (shadow_home / name).is_symlink(), name
+        assert (shadow_home / name).resolve() == (real_home / name).resolve()
+    assert not (shadow_home / "memories").exists()
+    for name in (
+        "state.sqlite",
+        "memories_1.sqlite",
+        "history.jsonl",
+        "log",
+        "tmp",
+        "thread-writer-locks",
+        "unknown.json",
+    ):
+        assert not (shadow_home / name).exists(), name
+        assert not (shadow_home / name).is_symlink(), name
+
+
+def test_shadow_home_omits_sase_owned_home_instructions_on_explicit_delivery(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """SASE-owned symlink and byte-copy instructions do not enter the shadow."""
+    home_agents = tmp_path / "AGENTS.md"
+    home_agents.write_text(f"{CONTRACT_HEADING}\nSASE home bundle\n", encoding="utf-8")
+    real_home = tmp_path / ".codex"
+    real_home.mkdir()
+    (real_home / "AGENTS.md").symlink_to(home_agents)
+    override = real_home / "AGENTS.override.md"
+    override.write_bytes(home_agents.read_bytes())
+    monkeypatch.setenv("HOME", str(tmp_path))
+
+    with override_flags(codex_explicit_instructions=True):
+        shadow_home = _create_shadow_codex_home(real_home)
+
+    assert not (shadow_home / "AGENTS.md").exists()
+    assert not (shadow_home / "AGENTS.override.md").exists()
+    assert (real_home / "AGENTS.md").is_symlink()
+    assert override.read_bytes() == home_agents.read_bytes()
+
+
+def test_shadow_home_keeps_user_instructions_unchanged_after_teardown(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Explicit delivery links user-owned home instructions without mutating them."""
+    real_home = tmp_path / ".codex"
+    real_home.mkdir()
+    agents = real_home / "AGENTS.md"
+    agents.write_text("# User Codex instructions\n", encoding="utf-8")
+    override_target = tmp_path / "user-override.md"
+    override_target.write_text("# User override\n", encoding="utf-8")
+    override = real_home / "AGENTS.override.md"
+    override.symlink_to(override_target)
+    before_agents = agents.read_bytes()
+    before_override = override.read_bytes()
+    before_target = override.readlink()
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("CODEX_HOME", str(real_home))
+
+    with override_flags(codex_explicit_instructions=True):
+        with _codex_subprocess_env() as env:
+            shadow_home = Path(env["CODEX_HOME"])
+            assert (shadow_home / "AGENTS.md").is_symlink()
+            assert (shadow_home / "AGENTS.override.md").is_symlink()
+            assert (shadow_home / "AGENTS.md").read_bytes() == before_agents
+            assert (shadow_home / "AGENTS.override.md").read_bytes() == before_override
+
+    assert agents.read_bytes() == before_agents
+    assert override.read_bytes() == before_override
+    assert override.readlink() == before_target
+
+
+def test_legacy_shadow_home_keeps_memories_and_home_fallback(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The sunset flag's disabled branch retains legacy discovery safely."""
+    real_home = tmp_path / ".codex"
+    real_home.mkdir()
+    memories = real_home / "memories"
+    memories.mkdir()
+    home_agents = tmp_path / "AGENTS.md"
+    home_agents.write_text("# User home instructions\n", encoding="utf-8")
+    monkeypatch.setenv("HOME", str(tmp_path))
+
+    with override_flags(codex_explicit_instructions=False):
+        shadow_home = _create_shadow_codex_home(real_home)
+
+    assert (shadow_home / "memories").is_symlink()
+    assert (shadow_home / "AGENTS.md").is_symlink()
+    assert (shadow_home / "AGENTS.md").resolve() == home_agents.resolve()
 
 
 @patch("sase.llm_provider.codex.stream_and_parse_codex_json_output")

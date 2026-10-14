@@ -45,11 +45,13 @@ def test_codex_json_parser_extracts_text() -> None:
         text=True,
     )
 
-    text, stderr, rc = stream_and_parse_codex_json_output(process, suppress_output=True)
+    result = stream_and_parse_codex_json_output(process, suppress_output=True)
+    text, stderr, rc = result
 
     assert rc == 0
     assert "Hello world" in text
     assert "Second response" in text
+    assert result.thread_id == "t1"
 
 
 def test_codex_json_parser_handles_malformed_lines() -> None:

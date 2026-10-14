@@ -13,11 +13,18 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from sase.env_contracts import SASE_ACTIVE_PROJECT_DIR_ENV
+from sase.feature_flags import FeatureFlag, current_flags
+from sase.feature_flags.managed import project_is_sase_managed
 from sase.output import provider_timer
 
 from ._effort_args import effort_cli_args
 from ._hookspec import hookimpl
-from .instruction_delivery import legacy_instruction_delivery
+from .instruction_delivery import (
+    CHANNEL_CODEX_ROOT,
+    current_instruction_delivery,
+    legacy_instruction_delivery,
+    sase_owned_instruction_paths,
+)
 from ._subprocess import (
     CODEX_TURN_INTEGRITY_ERROR_PREFIX,
     start_completion_watchdog,
@@ -53,6 +60,27 @@ _DISABLE_SHADOW_HOME_ENV = "SASE_CODEX_DISABLE_SHADOW_HOME"
 _CODEX_PATH_ENV = "SASE_CODEX_PATH"
 _CODEX_MAX_WAIT_CONTINUATIONS_ENV = "SASE_CODEX_MAX_WAIT_CONTINUATIONS"
 _DEFAULT_CODEX_MAX_WAIT_CONTINUATIONS = 2
+_CODEX_SHADOW_HOME_SYMLINK_ENTRIES = frozenset(
+    {
+        "AGENTS.md",
+        "AGENTS.override.md",
+        "auth.json",
+        "cache",
+        "hooks.json",
+        "installation_id",
+        "models_cache.json",
+        "plugins",
+        "sessions",
+        "skills",
+        "version.json",
+    }
+)
+_CODEX_SHADOW_HOME_LEGACY_ENTRIES = frozenset({"memories"})
+
+
+def _codex_explicit_instructions_enabled() -> bool:
+    """Return the current sunset-flag value for Codex instruction delivery."""
+    return current_flags().enabled(FeatureFlag.codex_explicit_instructions)
 
 
 def _codex_single_turn_directive() -> str:
@@ -227,27 +255,62 @@ def _link_home_agents_fallback(shadow_home: Path, real_home: Path) -> None:
     shadow_agents.symlink_to(home_agents)
 
 
+def _is_sase_owned_instruction_file(path: Path, owned_paths: tuple[Path, ...]) -> bool:
+    """Return whether a Codex home instruction file points to or copies SASE text."""
+    resolved_owned_paths = {owned.resolve(strict=False) for owned in owned_paths}
+    if path.is_symlink() and path.resolve(strict=False) in resolved_owned_paths:
+        return True
+    if not path.is_file():
+        return False
+    try:
+        path_bytes = path.read_bytes()
+    except OSError:
+        return False
+    for owned in owned_paths:
+        if not owned.is_file():
+            continue
+        try:
+            if path_bytes == owned.read_bytes():
+                return True
+        except OSError:
+            continue
+    return False
+
+
 def _create_shadow_codex_home(real_home: Path) -> Path:
-    """Create a disposable CODEX_HOME with a copied config and linked state."""
+    """Create an allowlisted disposable CODEX_HOME without shared sqlite state."""
     cache_root = _sase_codex_shadow_home_root()
     cache_root.mkdir(parents=True, exist_ok=True)
 
     shadow_home = cache_root / f"{os.getpid()}-{uuid.uuid4().hex}"
     shadow_home.mkdir(mode=0o700)
 
-    if not real_home.exists():
+    explicit = _codex_explicit_instructions_enabled()
+    owned_paths = sase_owned_instruction_paths() if explicit else ()
+    if real_home.exists():
+        for source in real_home.iterdir():
+            name = source.name
+            if name == "config.toml":
+                if source.exists():
+                    shutil.copy2(source, shadow_home / name)
+                continue
+            if name not in _CODEX_SHADOW_HOME_SYMLINK_ENTRIES and not (
+                name in _CODEX_SHADOW_HOME_LEGACY_ENTRIES and not explicit
+            ):
+                continue
+            if (
+                explicit
+                and name in {"AGENTS.md", "AGENTS.override.md"}
+                and _is_sase_owned_instruction_file(source, owned_paths)
+            ):
+                continue
+            if source.exists() or source.is_symlink():
+                (shadow_home / name).symlink_to(
+                    source, target_is_directory=source.is_dir()
+                )
+
+    if not explicit:
         _link_home_agents_fallback(shadow_home, real_home)
-        return shadow_home
-
-    for source in real_home.iterdir():
-        dest = shadow_home / source.name
-        if source.name == "config.toml":
-            if source.exists():
-                shutil.copy2(source, dest)
-            continue
-        dest.symlink_to(source, target_is_directory=source.is_dir())
-
-    _link_home_agents_fallback(shadow_home, real_home)
     return shadow_home
 
 
@@ -412,7 +475,16 @@ class CodexProvider(LLMProvider):
         )
 
     def instruction_delivery(self) -> dict[str, object]:
-        return legacy_instruction_delivery()
+        if not _codex_explicit_instructions_enabled():
+            return legacy_instruction_delivery(reason="flag_disabled")
+        return {
+            "root": {
+                "status": "explicit",
+                "channel": CHANNEL_CODEX_ROOT,
+                "max_bytes": 32 * 1024,
+            },
+            "subagent": {"status": "inherits_root"},
+        }
 
     @hookimpl
     def llm_instruction_delivery(self) -> dict[str, object]:
@@ -469,6 +541,21 @@ class CodexProvider(LLMProvider):
             model_override if model_override else self.resolve_model_name(model_tier)
         )
 
+        delivery = current_instruction_delivery()
+        active_root = (
+            delivery.root
+            if delivery is not None and delivery.provider == "codex"
+            else None
+        )
+        explicit_text = (
+            active_root.text
+            if active_root is not None
+            and active_root.plan.status == "explicit"
+            and active_root.text
+            else None
+        )
+        developer_instructions = explicit_text or _codex_single_turn_directive()
+
         base_args = [
             resolve_codex_executable(),
             "exec",
@@ -480,9 +567,14 @@ class CodexProvider(LLMProvider):
             "never",
             "--skip-git-repo-check",
             "-c",
-            f"developer_instructions={json.dumps(_codex_single_turn_directive())}",
+            f"developer_instructions={json.dumps(developer_instructions)}",
             "-",
         ]
+
+        if explicit_text and project_is_sase_managed(
+            Path(_resolve_codex_project_dir())
+        ):
+            base_args.extend(["-c", "project_doc_max_bytes=0"])
 
         base_args.extend(self.invocation_option_args(options))
 
@@ -523,6 +615,15 @@ class CodexProvider(LLMProvider):
             response_content = stream_result.content
             stderr_content = stream_result.stderr_content
             return_code = stream_result.return_code
+
+            if (
+                stream_result.thread_id
+                and delivery is not None
+                and delivery.provider == "codex"
+                and active_root is not None
+                and active_root.plan.status == "explicit"
+            ):
+                delivery.record_session(stream_result.thread_id)
 
             # Check for user interrupt before error handling
             if self._pending_interrupt_message is not None:

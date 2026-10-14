@@ -1,5 +1,6 @@
 """Tests for CodexProvider command construction and invocation basics."""
 
+import json
 import os
 import subprocess
 from pathlib import Path
@@ -7,8 +8,19 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from sase.feature_flags import override_flags
 from sase.llm_provider.base import LLMProvider
 from sase.llm_provider.codex import CodexProvider
+from sase.llm_provider._subprocess_codex import CodexStreamResult
+from sase.llm_provider.instruction_delivery import (
+    CHANNEL_CODEX_ROOT,
+    ActiveInstructionDelivery,
+    ActiveSlot,
+    SlotPlan,
+    bind_instruction_delivery,
+    legacy_instruction_delivery,
+    reset_instruction_delivery,
+)
 
 
 def test_codex_provider_is_llm_provider() -> None:
@@ -225,6 +237,128 @@ def test_codex_provider_normal_mode_command_construction(
     assert "yield_time_ms" in developer_instruction
     assert "write_stdin" in developer_instruction
     assert "-" in cmd
+
+
+def test_codex_delivery_plan_obeys_sunset_flag() -> None:
+    """Both provider plans remain reachable through the sunset flag."""
+    provider = CodexProvider()
+    with override_flags(codex_explicit_instructions=True):
+        assert provider.instruction_delivery() == {
+            "root": {
+                "status": "explicit",
+                "channel": CHANNEL_CODEX_ROOT,
+                "max_bytes": 32 * 1024,
+            },
+            "subagent": {"status": "inherits_root"},
+        }
+    with override_flags(codex_explicit_instructions=False):
+        assert provider.instruction_delivery() == legacy_instruction_delivery(
+            reason="flag_disabled"
+        )
+
+
+@pytest.mark.parametrize("managed", [True, False])
+def test_codex_explicit_argv_uses_bundle_and_scopes_project_doc_suppression(
+    managed: bool,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Explicit root delivery replaces the directive and only suppresses managed docs."""
+    bundle = (
+        "# Root bundle\n<!-- sase-instructions bundle=123456789abc invocation=inv-1 -->"
+    )
+    delivery = ActiveInstructionDelivery(
+        invocation_id="inv-1",
+        provider="codex",
+        root=ActiveSlot(
+            SlotPlan("explicit", channel=CHANNEL_CODEX_ROOT, max_bytes=32 * 1024),
+            text=bundle,
+        ),
+        subagent=ActiveSlot(SlotPlan("inherits_root")),
+    )
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("CODEX_HOME", str(tmp_path / ".codex"))
+    monkeypatch.setattr(
+        "sase.llm_provider.codex.project_is_sase_managed", lambda _cwd: managed
+    )
+    token = bind_instruction_delivery(delivery)
+    try:
+        with (
+            override_flags(codex_explicit_instructions=True),
+            patch(
+                "sase.llm_provider.codex.stream_and_parse_codex_json_output",
+                return_value=CodexStreamResult(
+                    "response", "", 0, thread_id="thread-42"
+                ),
+            ),
+            patch("sase.llm_provider.codex.subprocess.Popen") as mock_popen,
+            patch("sase.llm_provider.codex.provider_timer"),
+        ):
+            mock_popen.return_value = MagicMock()
+            CodexProvider().invoke("test", model_tier="large", suppress_output=True)
+    finally:
+        reset_instruction_delivery(token)
+
+    command = mock_popen.call_args.args[0]
+    developer_arg = next(
+        arg for arg in command if arg.startswith("developer_instructions=")
+    )
+    assert json.loads(developer_arg.partition("=")[2]) == bundle
+    assert ("project_doc_max_bytes=0" in command) is managed
+    assert delivery.session_ids == ["thread-42"]
+
+
+def test_codex_explicit_argv_stays_identical_on_interrupt_continuation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Interrupt reconstruction reuses one argv with one explicit bundle."""
+    bundle = (
+        "# Root bundle\n<!-- sase-instructions bundle=123456789abc invocation=inv-1 -->"
+    )
+    delivery = ActiveInstructionDelivery(
+        invocation_id="inv-1",
+        provider="codex",
+        root=ActiveSlot(
+            SlotPlan("explicit", channel=CHANNEL_CODEX_ROOT, max_bytes=32 * 1024),
+            text=bundle,
+        ),
+        subagent=ActiveSlot(SlotPlan("inherits_root")),
+    )
+    provider = CodexProvider()
+    provider._pending_interrupt_message = "Use this new direction."
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("CODEX_HOME", str(tmp_path / ".codex"))
+    monkeypatch.setattr(
+        "sase.llm_provider.codex.project_is_sase_managed", lambda _cwd: True
+    )
+    token = bind_instruction_delivery(delivery)
+    try:
+        with (
+            override_flags(codex_explicit_instructions=True),
+            patch(
+                "sase.llm_provider.codex.stream_and_parse_codex_json_output",
+                side_effect=[
+                    CodexStreamResult("first answer", "", 0),
+                    CodexStreamResult("final answer", "", 0),
+                ],
+            ),
+            patch("sase.llm_provider.codex.subprocess.Popen") as mock_popen,
+            patch("sase.llm_provider.codex.provider_timer"),
+        ):
+            mock_popen.return_value = MagicMock()
+            provider.invoke("test", model_tier="large", suppress_output=True)
+    finally:
+        reset_instruction_delivery(token)
+
+    commands = [call.args[0] for call in mock_popen.call_args_list]
+    assert len(commands) == 2
+    assert commands[0] == commands[1]
+    developer_arg = next(
+        arg for arg in commands[0] if arg.startswith("developer_instructions=")
+    )
+    assert json.loads(developer_arg.partition("=")[2]) == bundle
+    assert commands[0].count("project_doc_max_bytes=0") == 1
 
 
 @patch.dict(

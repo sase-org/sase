@@ -6047,6 +6047,12 @@
           "description": "Artifacts has no Agent sub-tab: Stitch becomes digit 1 and agent history lives in the Agents tab Archive.",
           "default": true,
           "deprecated": true
+        },
+        "codex_explicit_instructions": {
+          "type": "boolean",
+          "description": "Deliver the Codex root bundle through developer_instructions and suppress SASE native instruction duplicates.",
+          "default": true,
+          "deprecated": true
         }
       }
     }

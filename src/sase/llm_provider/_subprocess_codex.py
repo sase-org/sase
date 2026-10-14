@@ -45,6 +45,7 @@ class CodexStreamResult:
     return_code: int
     stranded_commands: tuple[CodexStrandedCommand, ...] = ()
     integrity_error: str | None = None
+    thread_id: str | None = None
 
     def __iter__(self) -> Iterator[str | int]:
         yield self.content
@@ -58,10 +59,14 @@ class _CodexTurnIntegrityState:
     has_nonempty_final_answer: bool = False
     pending_commands: dict[str, str | None] = field(default_factory=dict)
     killed_commands: dict[str, str | None] = field(default_factory=dict)
+    thread_id: str | None = None
 
     def observe(self, event: Mapping[str, Any]) -> None:
         payload = _codex_event_payload(event)
         event_type = _string(payload.get("type"))
+
+        if event_type == "thread.started":
+            self.thread_id = _string(payload.get("thread_id"))
 
         if event_type in {"turn.completed", "turn_completed", "task_complete"}:
             self.saw_task_complete = True
@@ -363,6 +368,7 @@ def stream_and_parse_codex_json_output(
         return_code=return_code,
         stranded_commands=stranded_commands,
         integrity_error=integrity_error,
+        thread_id=turn_integrity.thread_id,
     )
 
 
