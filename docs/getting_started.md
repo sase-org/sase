@@ -475,9 +475,9 @@ The names you'll keep bumping into, in one place:
 
 ## What To Read Next
 
-- [Instruction Bundles](instruction_bundles.md) — see which project and home
-  instructions an agent was given, and compare the recorded bundle with what its
-  provider loaded.
+- [Instruction Bundles](instruction_bundles.md) — inspect the project and home
+  instructions SASE prepared for an agent, then compare that bundle with loads visible
+  in the provider's session records.
 - [SASE: Structured Agentic Software Engineering](blog/posts/structured-agentic-software-engineering.md)
   — the launch post and conceptual front door.
 - [CLI reference](cli.md) — a discovery index of `sase` commands (compact `sase --help`

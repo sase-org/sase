@@ -26,11 +26,14 @@ SASE keeps three related concepts distinct:
 Workspace directories are not repos. Linked-repo and sidecar clones materialized inside
 a numbered workspace are repo checkouts, not additional workspaces.
 
-For everyday use, launch with `+<project>` and let SASE allocate an isolated workspace.
-Open linked or external repositories through `sase repo open`, then work in the path it
-prints. Finish an agent turn with `/sase_final` so the host can commit every changed
-repository. Numbered workspaces are reused: leftover linked and external clones are
-rescued before eviction, not automatically published. See
+For everyday use, put `+<project>` in the agent's launch prompt and let SASE allocate an
+isolated workspace. The agent opens linked or external repositories through
+`sase repo open` and works in the path it prints. Before its normal final response, the
+root agent uses the `/sase_final` skill to submit a declaration; the host then runs the
+configured finalizers, including committing changes under the default configuration.
+Numbered workspaces are reused. Before evicting leftover linked and external clones,
+SASE attempts to rescue local work to a durable recovery directory; it does not publish
+those clones during eviction, and a failed rescue does not stop eviction. See
 [workspace maintenance](#workspace-maintenance) for recovery and retention details, and
 [Monitors](monitors.md) for running a command from an opened repository.
 
@@ -669,11 +672,12 @@ pass.
 Preparing a numbered workspace (`#2` and above) for a launch evicts everything under its
 `sase/repos/` directory — the sidecar and linked-repo clones — which would otherwise
 carry stale state into the new run. Leftover state from an earlier run never fails a new
-launch: preparation publishes each sidecar once, then rescues anything still unpublished
-to the durable rescue store outside the workspace
+launch: preparation attempts to publish each sidecar once, then to rescue unpublished
+work to the durable rescue store outside the workspace
 (`~/.sase/projects/<project>/rescue/<YYYYMM>/`, falling back to `~/.sase/rescue/`).
-Linked and external clones are rescued there too, with a bundle of local-only commits
-and a worktree patch; they are never published during eviction. Tags whose commit is
+Linked and external clones use the same rescue store, with a bundle of local-only
+commits and a worktree patch; they are never published during eviction. Rescue is
+best-effort: if it fails, eviction can still discard local work. Tags whose commit is
 already reachable from a remote-tracking branch, such as fetched release tags, count as
 published and are not rescued. Eviction always proceeds. Each rescue pins a
 `refs/sase/recovery/` ref inside the store's own repository, writes a `manifest.json`

@@ -895,16 +895,18 @@ in the [discovery order](macros.md#discovery-order) (above built-in files and be
 config-based macros).
 
 The retired entry-point and resource-directory spellings listed in the
-[Macros compatibility table](macros.md) remain accepted. When both entry-point groups
-register the same module value, the canonical `sase_macros` registration wins and the
-module is loaded once. SASE searches `macros/` first, falling back to the retired
-directory when the canonical directory is absent.
+[Macros compatibility table](macros.md#retired-macro-spellings) remain accepted. When
+both entry-point groups register the same module value, the canonical `sase_macros`
+registration wins and the module is loaded once. SASE searches `macros/` first, falling
+back to the retired directory when the canonical directory is absent.
 
-Discovery is cached within each running process. Changes to the Python search path, its
-directory modification times (as during package installation or removal), or the
-plugin-disable environment variables invalidate that cache. Editing distribution
-metadata in place may not change those directory times; restart the TUI or other
-long-running consumer after changing entry points during plugin development.
+Macro-plugin entry-point discovery is cached within each running process. Changes to the
+Python search path, its directory modification times (as during package installation or
+removal), or the plugin-disable environment variables invalidate that cache. Editing
+distribution metadata in place may not change those directory times. Cache invalidation
+also does not reload Python modules that are already imported; restart the TUI or other
+long-running consumer after changing entry points or plugin Python code during
+development.
 
 ### Config Plugins
 
@@ -1397,12 +1399,12 @@ files produce file diagnostics without breaking unrelated plugins or macros.
 
 The package must register a `sase_macros` entry point (or its compatibility alias) for
 SASE to discover this manifest. The providing distribution is identified by installed
-package metadata. A registered plugin without a manifest is still recognized as
-installed, so an unknown type is reported as an unknown ID rather than as a missing
-plugin. Changes to an already discovered manifest's modification time or size refresh
-the parsed type registry; adding a new manifest or changing entry points may require
-restarting a running consumer. Use `sase macro types` and
-`sase doctor -C config.macro_input_types` to inspect the result.
+package metadata. When macro plugins are enabled, a registered distribution without a
+manifest is still known to the type registry: a reference to one of its types reports an
+unknown ID rather than a missing plugin. Changes to an already discovered manifest's
+modification time or size refresh the parsed type registry on its next lookup; adding a
+new manifest or changing entry points may require restarting a running consumer. Use
+`sase macro types` and `sase doctor -C config.macro_input_types` to inspect the result.
 
 Macros always use the qualified spelling `<distribution>@<id>`, for example
 `sase-research-artifacts@audio_edition`. Distributions use PEP 503 canonicalization.

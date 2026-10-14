@@ -727,8 +727,8 @@ which is why documentation CI can run without checking out `../sase-core`.
 
 #### Watching a release
 
-From a SASE checkout, `tools/release_watch` tracks a target PyPI version and the master
-commit whose Full CI coverage is required. It uses Python's standard library and an
+From a SASE checkout, `tools/release_watch` tracks a target PyPI version and Full CI
+runs covering a specified master commit. It uses Python's standard library and an
 authenticated `gh` CLI to read PyPI, the release PR, Full CI, Master Gate, Publish, and
 `sase-core-rs` release state. It does not need an installed SASE package for those
 reads.
@@ -746,7 +746,12 @@ or writing a final verdict. It confirms that the signals can be read, not that t
 release is ready. Pass `--version` explicitly: the current CLI default is the fixed
 value `0.18.0`, not the next release discovered from GitHub.
 
-To keep watching, omit `--once`:
+Before starting a continuous watch, inspect the preflight output. Unless the version is
+already on PyPI, an open or merged release-please PR must exist: its branch starts with
+`release-please--` and its title contains the target version. A continuous watch exits
+`RELEASE_PR_GONE` when no such PR is found; it does not wait for PR creation.
+
+To keep watching and allow workflow dispatch, omit both `--once` and `--dry-run`:
 
 ```bash
 tools/release_watch --version VERSION --fixed-sha FULL_SHA \
@@ -754,38 +759,46 @@ tools/release_watch --version VERSION --fixed-sha FULL_SHA \
 ```
 
 The defaults are repository `sase-org/sase`, a 12-hour deadline, five-minute polls, and
-a stop after two red Full CI runs covering the fixed commit. Deterministic lint or
-visual-golden failures stop earlier. The watcher can dispatch Full CI and Publish when
-its conditions and cooldowns permit; it never merges a PR or edits source. Use
-`--dry-run` to suppress workflow dispatch and bead closure while polling. It still reads
-live services, writes its verdict, and can run the temporary installation check.
+a stop after two red Full CI runs covering the fixed commit. Coverage includes runs on
+descendants of that commit; `--fixed-sha` does not pin newly dispatched workflows, which
+run on the current `master`. Failed lint jobs or detected visual-golden drift stop the
+watch after a single red run. The watcher can dispatch Full CI and Publish when its
+conditions and cooldowns permit; it never merges a PR or edits source. Use `--dry-run`
+to suppress workflow dispatch and bead closure while polling. It still reads live
+services, writes its verdict, and can run the temporary installation check.
 
 When the target version appears on PyPI, the watcher installs that exact version into a
 fresh temporary virtualenv, checks `sase --version`, and records the installed
 `sase-core-rs` version. It uses `uv` when available or `venv` and `pip` otherwise,
-retries installation for up to 20 minutes, and removes each temporary environment.
+retries failed attempts within a 20-minute window, and removes each temporary
+environment. An in-progress attempt can outlast that window or the watch deadline.
+`RELEASED` proves that the target package can be installed and reports its version; the
+watcher checks this before the CI and PR failure conditions. It does not verify that the
+installed package was built from `--fixed-sha` or require green CI for this verdict.
 
-| Exit | Verdict              | Meaning                                                                        |
-| ---- | -------------------- | ------------------------------------------------------------------------------ |
-| 0    | `RELEASED`           | Target version installed successfully (except the read-only `--once` shortcut) |
-| 10   | `FULL_CI_RED`        | Fixed-code CI reached the failure threshold or a deterministic failure         |
-| 11   | `PUBLISH_FAILED`     | A post-merge Publish run failed                                                |
-| 12   | `CORE_FLOOR_BLOCKED` | Release remains blocked on the Rust dependency floor after refresh             |
-| 13   | `RELEASE_PR_GONE`    | No open or merged release PR matches the target version                        |
-| 14   | `INSTALL_FAILED`     | Temporary installation proof did not succeed                                   |
-| 15   | `DEADLINE`           | Watch deadline or termination signal arrived before a verdict                  |
-| 16   | `WATCHER_BROKEN`     | Invalid arguments, startup failure, or repeatedly unreadable signals           |
+| Exit | Verdict              | Meaning                                                                               |
+| ---- | -------------------- | ------------------------------------------------------------------------------------- |
+| 0    | `RELEASED`           | Target version installed successfully (except the read-only `--once` shortcut)        |
+| 10   | `FULL_CI_RED`        | Fixed-code CI reached the failure threshold or a deterministic failure                |
+| 11   | `PUBLISH_FAILED`     | A post-merge Publish run failed                                                       |
+| 12   | `CORE_FLOOR_BLOCKED` | Release remains blocked on the Rust dependency floor after refresh                    |
+| 13   | `RELEASE_PR_GONE`    | Target is absent from PyPI and no matching open or merged release-please PR was found |
+| 14   | `INSTALL_FAILED`     | Temporary installation proof did not succeed                                          |
+| 15   | `DEADLINE`           | Watch deadline or termination signal arrived before a verdict                         |
+| 16   | `WATCHER_BROKEN`     | Invalid arguments, startup failure, or repeatedly unreadable signals                  |
 
 The watch prints its evidence and `verdict_file` path on exit. Without `--verdict-file`,
 it writes `release_verdict.md` under the monitor diagnostics directory when available,
 otherwise in a fresh temporary directory. Optional `--close-bead ID` attempts to close
 that bead after **every** final verdict, including failures, and requires the `sase`
-CLI; inspect the recorded closure outcome separately from the exit code. Agents should
-hand a long watch to [a SASE monitor](monitors.md).
+CLI. Success closes it normally; every other verdict requests resolution `canceled` and
+attaches the verdict as a note. `--dry-run` and `--once` suppress closure. Inspect the
+recorded closure outcome separately from the exit code. Agents should hand a long watch
+to [a SASE monitor](monitors.md).
 
-For contributors, `tools/release_watch` delegates argument handling to
-`tools/_release_watch.py`, GitHub and PyPI reads to `tools/_release_watch_api.py`, and
-polling and finalization to `tools/_release_watch_engine.py`.
+For contributors, `tools/release_watch` calls the facade in `tools/_release_watch.py`.
+Argument parsing and GitHub/PyPI reads live in `tools/_release_watch_api.py`; polling
+and finalization live in `tools/_release_watch_engine.py`.
 
 #### Local Rust installation
 

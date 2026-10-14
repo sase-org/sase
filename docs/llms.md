@@ -546,11 +546,11 @@ extracted from `item.completed` events.
 
 ### Codex instruction delivery
 
-With `codex_explicit_instructions` enabled (the default), SASE adds
-`-c developer_instructions=<bundle>` to the command. The value contains the compiled
-root instructions and delivery marker, including the single-turn directive. The
-delivered text has a 32 KiB limit; an oversized bundle falls back to the legacy
-single-turn directive instead of being truncated.
+When bundle preparation succeeds with `codex_explicit_instructions` enabled (the
+default), SASE adds `-c developer_instructions=<bundle>` to the command. The value
+contains the compiled root instructions and delivery marker, including the single-turn
+directive. The delivered text has a 32 KiB limit; an oversized bundle falls back to the
+legacy single-turn directive instead of being truncated.
 
 For a SASE-managed project, explicit delivery also adds `-c project_doc_max_bytes=0`.
 This disables native project-document loading for the invocation, including nested
@@ -559,17 +559,20 @@ native project discovery. Native helpers inherit the root's `developer_instructi
 there is no separate helper bundle or guard, so the instruction to return results to the
 parent remains essential.
 
-Every observed thread id is recorded in the invocation manifest, including fresh threads
-started after interrupts or handoff recovery. Use `sase instructions verify -a AGENT` to
-compare observed loads with that manifest.
+During explicit delivery, SASE collects each thread ID returned by the Codex adapter,
+including fresh threads started after interrupts or handoff recovery, and writes them to
+the invocation manifest when the provider call ends. Legacy and fallback calls do not
+record thread IDs through this path. Use `sase instructions verify -a AGENT` to compare
+observed loads with that manifest; verification can also match sessions by bundle
+markers or timestamps.
 
 Without an active explicit bundle, the command uses the legacy single-turn directive and
-leaves project-document loading enabled. Shadow-home suppression, however, currently
-follows the feature flag rather than the active delivery result: with the flag enabled,
-fallback runs still omit SASE-owned global instruction copies, the `~/AGENTS.md`
-fallback, and native memories. Disabling `codex_explicit_instructions` restores those
-legacy shadow-home paths as well. This distinction matters when diagnosing a render
-failure or an oversized bundle.
+does not override the CLI's project-document loading setting. Shadow-home suppression,
+however, currently follows the feature flag rather than the active delivery result: with
+the flag enabled, fallback runs still omit SASE-owned global instruction copies, the
+`~/AGENTS.md` fallback, and native memories. Disabling `codex_explicit_instructions`
+restores those legacy shadow-home paths as well. This distinction matters when
+diagnosing a render failure or an oversized bundle.
 
 ### Model Mapping
 

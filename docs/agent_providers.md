@@ -35,21 +35,22 @@ still launch a hard-disabled CLI. See
 ## Instruction delivery
 
 SASE records intended instructions and delivers them through the provider's supported
-channel. Each root provider invocation with an artifacts directory renders its
-memory-built bundle and v2 manifest into `<artifacts>/instructions/` and exports
-`SASE_INSTRUCTIONS_FILE` for that call, then restores it. Claude, Codex, Grok, and Muse
-deliver the root bundle through explicit adapter channels by default, suppressing
-SASE-owned native instruction files according to each adapter's capabilities.
-Per-provider sunset flags restore their previous behavior. The architecture is recorded
-as
+channel. For each root provider invocation with an artifacts directory, SASE attempts to
+render a memory-built bundle and v2 manifest into `<artifacts>/instructions/`.
+Successful preparation exports `SASE_INSTRUCTIONS_FILE` for that call, then restores it.
+Claude, Codex, Grok, and Muse deliver the root bundle through explicit adapter channels
+by default, suppressing SASE-owned native instruction files according to each adapter's
+capabilities. Per-provider feature flags select explicit or legacy delivery. The
+architecture is recorded as
 [Instructions Are Rendered Per Invocation And Delivered By Adapters](https://github.com/sase-org/sase/blob/master/sase/memory/decisions/instructions-per-invocation.md).
 The manifest alone does not prove that a provider loaded the bundle; use
 [Verifying instruction delivery](#verifying-instruction-delivery). See
 [Delivery](instruction_bundles.md#delivery).
 
-The E1 "Instruction double-load" (Claude and Codex loading the shared contract twice,
-Grok loading nothing, Muse and Grok missing the home layer) is resolved for these four
-providers when explicit delivery succeeds with their sunset flags on.
+A **root** is the agent SASE launches; a **native helper** is a subagent started through
+that provider's tools. Explicit delivery combines the shared contract, project memory,
+and home memory in one bundle and suppresses native duplicates as shown below. Calls
+without an artifacts directory use the adapter's legacy path.
 
 | Provider            | Root channel (flag on)                                             | Subagent                                                                 | Native suppression (flag on)                                                                | Flag                           |
 | ------------------- | ------------------------------------------------------------------ | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------- | ------------------------------ |
@@ -57,23 +58,25 @@ providers when explicit delivery succeeds with their sunset flags on.
 | Codex               | `developer_instructions` (`codex.developer_instructions`, 32 KiB)  | `inherits_root`                                                          | `project_doc_max_bytes=0` in SASE-managed projects; no SASE `AGENTS.md` in the shadow home  | `codex_explicit_instructions`  |
 | Grok                | `--rules` (`grok.rules`, 120 KiB)                                  | `none`                                                                   | none needed (no `--trust`); `GROK_MEMORY=0`                                                 | `grok_explicit_instructions`   |
 | Muse                | prompt prefix (`muse.prompt_prefix`)                               | `none`                                                                   | drop `--trust-workspace`                                                                    | `muse_explicit_instructions`   |
-| agy, Qwen, OpenCode | declared legacy (`provider_legacy`)                                | `inherits_native`                                                        | none                                                                                        | none until E4                  |
+| agy, Qwen, OpenCode | declared legacy (`provider_legacy`)                                | `inherits_native`                                                        | none                                                                                        | none                           |
 
 ### Rollback
 
-`sase flag disable <provider>_explicit_instructions` on each execution host returns that
-provider to E1's after-state. A render or delivery failure already falls back per
-invocation, subject to the
+`sase flag disable <provider>_explicit_instructions` on each execution host selects that
+provider's legacy instruction path. Substitute `claude`, `codex`, `grok`, or `muse` for
+`<provider>`; `sase flag enable <provider>_explicit_instructions` restores explicit
+delivery. A render or delivery failure already falls back per invocation, subject to the
 [Codex fallback limitation](llms.md#codex-instruction-delivery). Codex's allowlist
 shadow home applies in both flag states.
 
 ## Verifying instruction delivery
 
-`sase instructions verify` shows what each provider's SASE runs and native helpers
-actually loaded, read from the providers' own session records — never from anything SASE
-wrote. The default window is the newest 20 runs per provider from the last 7 days (`-n`,
-maximum 200, and `--since` change that). The command reports; it does not gate (exit 0
-even when rows show bugs). A bad `--since` or `--until` value exits 2. See
+`sase instructions verify` compares SASE's recorded delivery intent with instruction
+text observable in providers' own session records, including native helpers where
+supported. Missing or partial logs can leave delivery unverifiable. The default window
+is the newest 20 runs per provider from the last 7 days (`-n`, maximum 200, and
+`--since` change that). The command reports; it does not gate (exit 0 even when rows
+show bugs). A bad `--since` or `--until` value exits 2. See
 [Instruction Bundles](instruction_bundles.md) for the memory-built bundles behind these
 columns.
 
@@ -114,10 +117,15 @@ stays native even when it is also represented in run-context records.
 `sase doctor -D -C instructions` runs the deep checks. `instructions.delivery` applies
 the explicit contract (bundle 1×, contract 1×, project ✓, directive ✓, native-full 0,
 and home ✓ when present in the manifest) while retaining legacy expectations for
-non-explicit sessions. `instructions.conformance` WARNs on missing or duplicate root and
-helper markers and on non-declared delivery fallbacks. `instructions.helpers` WARNs on
-accepted helper declarations, and `instructions.coverage` WARNs on sessions without a
-recorded manifest or with a bundle-render failure.
+providers with no observed explicit sessions. `instructions.conformance` WARNs on
+missing or duplicate root markers, missing helper markers, root markers leaking into
+Claude helpers, and unexpected delivery fallbacks. `instructions.helpers` WARNs on
+accepted helper declarations or root calls denied by the helper guard.
+
+`instructions.coverage` samples the newest 10 runs per provider in the last 24 hours.
+When that sample contains manifests, it WARNs on bundle-render errors and uncovered
+sessions whose runs began after the earliest sampled manifest. With no manifests it
+reports `SKIP`, so a skipped check is not proof that bundles were delivered.
 
 ## Soak readout
 

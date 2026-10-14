@@ -4,19 +4,22 @@ This page records the instruction-file inventory used to plan the memory-built
 instruction migration. The repository and home counts below are a **historical inventory
 begun on 2026-10-06 and updated during E3 acceptance**, not a live inventory of your
 installation. Run `sase instructions list` to inspect your current files, and
-`sase instructions verify` to inspect what providers actually loaded.
+`sase instructions verify` to compare recorded intent with loads observable in provider
+session records. Unobservable loads are marked `◌`.
 
 ## Current delivery
 
-Claude, Codex, Grok, and Muse now deliver per-invocation bundles by default. Claude also
-delivers a separate helper bundle when supported; Codex helpers inherit the root bundle.
+For root calls with an artifacts directory, Claude, Codex, Grok, and Muse use
+per-invocation bundles by default when preparation succeeds. Claude also delivers a
+separate helper bundle when supported; Codex helpers inherit the root bundle.
 Antigravity, OpenCode, and Qwen still use native discovery. Generated root files and
 provider shims remain in this repository; explicit delivery suppresses native duplicates
 according to each adapter's capabilities rather than deleting those files.
 
 For channels, fallback behavior, and diagnostic commands, start with
 [Instruction Bundles](instruction_bundles.md). The E1–E5 labels and dispositions below
-describe the migration plan, not completed removal work.
+refer to internal migration phases, not a setup sequence for users or proof that files
+have been removed.
 
 Dispositions: `migrate` (replaced by memory-built per-invocation delivery), `projection`
 (generated copy of another committed source), `repo-owned` (hand-written, stays),

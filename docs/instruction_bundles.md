@@ -4,11 +4,17 @@ An instruction bundle collects the project, home, and SASE instructions for one 
 invocation. Its manifest records which sections were included and their digests, so you
 can inspect the intended context and compare it with what a provider actually loaded.
 
+The **root** is the agent SASE launches for a turn. A **native helper** is a subagent
+that root starts through its provider's own tools. Helpers return results to their
+parent; only the root submits SASE's final declaration.
+
 Claude, Codex, Grok, and Muse deliver these bundles explicitly by default. Antigravity
-(agy), Qwen, and OpenCode stay on declared legacy delivery until E4. Root invocations
-with an artifacts directory record the bundle and manifest under `instructions/`, and
-expose `SASE_INSTRUCTIONS_FILE` for the duration of the provider call, then restore its
-previous value. The architecture is recorded as
+(agy), Qwen, and OpenCode use their existing instruction paths, called **legacy
+delivery** here. For root invocations with an artifacts directory, successful bundle
+preparation records the bundle and manifest under `instructions/` and exposes
+`SASE_INSTRUCTIONS_FILE` for the duration of the provider call, then restores its
+previous value. Calls without an artifacts directory skip bundle preparation and use the
+adapter's legacy path. The architecture is recorded as
 [Instructions Are Rendered Per Invocation And Delivered By Adapters](https://github.com/sase-org/sase/blob/master/sase/memory/decisions/instructions-per-invocation.md).
 Rendering a bundle does not prove the provider loaded it: use `sase instructions verify`
 to inspect observed delivery. If bundle preparation or transport fails, SASE attempts
@@ -208,9 +214,13 @@ These switch the root slot to legacy delivery for that invocation:
 
 `render_failed`, `invalid_bundle`, `oversize`, and `delivery_failed` raise one
 notification, deduplicated per host, provider, reason, and day (`+1` on repeats).
-`provider_legacy` and `flag_disabled` are declared states and never notify. Every
-exception from plan resolution through manifest rewrite is caught and the call proceeds
-through legacy delivery. `KeyboardInterrupt` and `SystemExit` propagate.
+`provider_legacy` and `flag_disabled` are declared states and never notify. A plan-hook
+error selects legacy delivery; a bundle-preparation error also attempts to write an
+`.error.json` record. If the final manifest rewrite fails after the provider call, SASE
+logs a warning without retrying the call, so session IDs or fallback details may be
+missing from the recorded manifest. These protections do not catch failures of the
+provider invocation itself, and its legacy path can also fail. `KeyboardInterrupt` and
+`SystemExit` propagate.
 
 Codex currently has a fallback limitation: its shadow-home filtering follows the
 `codex_explicit_instructions` flag, even when an invocation falls back or has no active
