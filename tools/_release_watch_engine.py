@@ -30,6 +30,7 @@ from _release_watch_api import (
     WatchOptions,
     WatcherSignal,
     WorkflowRun,
+    core_version_meets,
     default_verdict_path,
     failed_excerpt,
     iso_utc,
@@ -92,6 +93,8 @@ class ReleaseWatcher:
         try:
             try:
                 self.reader.validate()
+            except WatcherSignal:
+                raise
             except Exception as exc:
                 self.set_verdict(
                     "WATCHER_BROKEN",
@@ -172,6 +175,8 @@ class ReleaseWatcher:
                         self.set_verdict("DEADLINE", self._deadline_detail(snapshot))
                         break
                     action_results = self.dispatch_due(snapshot)
+                    if self._awaiting_core(snapshot):
+                        action_results = ["awaiting_core", *action_results]
                     line = self._render_state(
                         signal_values, ",".join(action_results) or "none"
                     )
@@ -303,13 +308,19 @@ class ReleaseWatcher:
                     "PUBLISH_FAILED",
                     f"post-merge Publish run {run.run_id} failed: {run.failed_jobs}",
                 )
-        if self._floor_blocked(snapshot):
+        if not self._awaiting_core(snapshot) and self._floor_blocked(snapshot):
             return "CORE_FLOOR_BLOCKED", self._floor_blocked_detail(snapshot)
         red_runs = [run for run in snapshot.fixed_runs if run.is_red]
         deterministic = [run for run in red_runs if run.deterministic_failure]
         if deterministic or len(red_runs) >= self.options.max_red_full_ci:
             return "FULL_CI_RED", self._full_ci_red_detail(red_runs)
         return None
+
+    def _awaiting_core(self, snapshot: Snapshot) -> bool:
+        required = self.options.await_core_version
+        if required is None:
+            return False
+        return not core_version_meets(snapshot.core_version, required)
 
     def _floor_blocked(self, snapshot: Snapshot) -> bool:
         pr = snapshot.release_pr
@@ -393,7 +404,7 @@ class ReleaseWatcher:
 
         pr = snapshot.release_pr
         publish_runs = snapshot.publish_runs
-        if pr and pr.floor_failed:
+        if pr and pr.floor_failed and not self._awaiting_core(snapshot):
             publish_after_core = any(
                 run.created_at >= snapshot.core_uploaded_at for run in publish_runs
             )
@@ -621,6 +632,7 @@ class ReleaseWatcher:
             f"- repo: {self.options.repo}",
             f"- version: {self.options.version}",
             f"- fixed SHA: {self.options.fixed_sha}",
+            f"- await-core-version: {self.options.await_core_version or 'none'}",
             f"- verdict: {verdict} (exit {EXIT_CODES[verdict]})",
             f"- detail: {self.final_detail.replace(chr(10), chr(10) + '  ')}",
             f"- actions: {', '.join(self.actions) if self.actions else 'none'}",
@@ -755,6 +767,8 @@ class ReleaseWatcher:
         snapshot = self._snapshot(values)
         self.last_snapshot = snapshot
         actions = self.dispatch_due(snapshot)
+        if self._awaiting_core(snapshot):
+            actions = ["awaiting_core", *actions]
         line = self._render_state(values, ",".join(actions) or "preflight")
         self.last_state_line = line
         self.state_history[-1] = line

@@ -763,9 +763,13 @@ a stop after two red Full CI runs covering the fixed commit. Coverage includes r
 descendants of that commit; `--fixed-sha` does not pin newly dispatched workflows, which
 run on the current `master`. Failed lint jobs or detected visual-golden drift stop the
 watch after a single red run. The watcher can dispatch Full CI and Publish when its
-conditions and cooldowns permit; it never merges a PR or edits source. Use `--dry-run`
-to suppress workflow dispatch and bead closure while polling. It still reads live
-services, writes its verdict, and can run the temporary installation check.
+conditions and cooldowns permit; it never merges a PR, edits source, or dispatches a
+core Release-plz workflow. Pass `-c/--await-core-version X.Y.Z` when a core release has
+already been requested: the watcher keeps polling while published `sase-core-rs` is
+below that stable version, reports `awaiting_core`, and suppresses `CORE_FLOOR_BLOCKED`
+from older floor evidence until the minimum is on PyPI. Use `--dry-run` to suppress
+workflow dispatch and bead closure while polling. It still reads live services, writes
+its verdict, and can run the temporary installation check.
 
 When the target version appears on PyPI, the watcher installs that exact version into a
 fresh temporary virtualenv, checks `sase --version`, and records the installed

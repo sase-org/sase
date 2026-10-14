@@ -24,6 +24,7 @@ from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patch_startup_loaders,
     visual_agents,
     wait_for_startup,
+    wait_for_state,
     wait_for_svg_contains,
     wait_for_visual_idle,
 )
@@ -165,6 +166,14 @@ def _freeze_rail(monkeypatch: pytest.MonkeyPatch) -> None:
 async def _paint_rail(page: AcePage, chips: Sequence[LinkChip]) -> LinkRail:
     rail = page.app.query_one("#link-rail", LinkRail)
     rail.update_links(chips, subject_accent=_SUBJECT_ACCENT)
+    rail.refresh(layout=True)
+    page.app.refresh(layout=True)
+    await page.app.wait_for_refresh()
+    await wait_for_state(
+        page,
+        lambda: int(rail.size.width) > 0,
+        description="link rail laid out with a positive width",
+    )
     await wait_for_svg_contains(page, "LINKS")
     await wait_for_visual_idle(page)
     return rail

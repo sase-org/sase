@@ -39,11 +39,14 @@ BAD_CONCLUSIONS = frozenset(
     {"failure", "cancelled", "timed_out", "action_required", "startup_failure", "stale"}
 )
 GOOD_CONCLUSIONS = frozenset({"success", "skipped", "neutral"})
+TERMINAL_CONCLUSIONS = GOOD_CONCLUSIONS | BAD_CONCLUSIONS
 SIGNALS = ("pypi", "release_pr", "full_ci", "master_gate", "publish", "core_pypi")
 GH_TIMEOUT = 30
 HTTP_TIMEOUT = 20
 PROCESS_TIMEOUT = 300
 LOG_EXCERPT_LIMIT = 1800
+_VISUAL_REPORT_STATUS_RE = re.compile(r"SASE_VISUAL_REPORT_STATUS=([A-Za-z0-9_-]+)")
+_STABLE_CORE_VERSION_RE = re.compile(r"(\d+)\.(\d+)\.(\d+)(.*)")
 
 
 class WatcherError(Exception):
@@ -75,6 +78,7 @@ class WatchOptions:
     once: bool = False
     verdict_file: str | None = None
     close_bead: str | None = None
+    await_core_version: str | None = None
 
 
 @dataclass(frozen=True)
@@ -234,6 +238,30 @@ def _parse_duration(value: str) -> float:
     return float(amount * scale)
 
 
+def _split_core_version(value: str) -> tuple[tuple[int, int, int], bool] | None:
+    match = _STABLE_CORE_VERSION_RE.fullmatch(value.strip())
+    if not match:
+        return None
+    numeric = (int(match.group(1)), int(match.group(2)), int(match.group(3)))
+    rest = match.group(4) or ""
+    stable = rest == "" or rest.startswith("+") or rest.lower().startswith(".post")
+    return numeric, stable
+
+
+def core_version_meets(published: str, required: str) -> bool:
+    parsed_published = _split_core_version(published)
+    parsed_required = _split_core_version(required)
+    if parsed_published is None or parsed_required is None:
+        return False
+    pub_numeric, pub_stable = parsed_published
+    req_numeric, _req_stable = parsed_required
+    if pub_numeric > req_numeric:
+        return True
+    if pub_numeric < req_numeric:
+        return False
+    return pub_stable
+
+
 def parse_args(argv: Sequence[str] | None = None) -> WatchOptions:
     parser = _WatchArgumentParser(
         description=(
@@ -248,6 +276,17 @@ def parse_args(argv: Sequence[str] | None = None) -> WatchOptions:
     )
     parser.add_argument(
         "--version", default="0.18.0", help="PyPI version to confirm (default: 0.18.0)"
+    )
+    parser.add_argument(
+        "-c",
+        "--await-core-version",
+        metavar="VERSION",
+        default=None,
+        help=(
+            "Keep watching while published sase-core-rs is below this stable "
+            "X.Y.Z version; suppress CORE_FLOOR_BLOCKED from older floor "
+            "evidence until it is published"
+        ),
     )
     parser.add_argument(
         "--fixed-sha", required=True, help="Commit whose Full CI coverage is required"
@@ -296,6 +335,10 @@ def parse_args(argv: Sequence[str] | None = None) -> WatchOptions:
         parser.error("--fixed-sha must be a 40- or 64-character Git SHA")
     if ns.max_red_full_ci < 1:
         parser.error("--max-red-full-ci must be at least 1")
+    if ns.await_core_version is not None and not re.fullmatch(
+        r"[0-9]+\.[0-9]+\.[0-9]+", ns.await_core_version
+    ):
+        parser.error("--await-core-version must be a stable X.Y.Z version")
     return WatchOptions(
         repo=ns.repo,
         version=ns.version,
@@ -307,6 +350,7 @@ def parse_args(argv: Sequence[str] | None = None) -> WatchOptions:
         once=ns.once,
         verdict_file=ns.verdict_file,
         close_bead=ns.close_bead,
+        await_core_version=ns.await_core_version,
     )
 
 
@@ -429,17 +473,25 @@ def _optional_str(value: object, where: str) -> str | None:
     return value
 
 
-def _parse_job_list(payload: object, where: str) -> tuple[tuple[str, str | None], ...]:
+def _parse_job_list(
+    payload: object, where: str
+) -> tuple[tuple[str, str | None, int | None], ...]:
     obj = _mapping(payload, where)
     jobs = _list(obj.get("jobs"), f"{where}.jobs")
-    parsed: list[tuple[str, str | None]] = []
+    parsed: list[tuple[str, str | None, int | None]] = []
     for index, raw in enumerate(jobs):
         job = _mapping(raw, f"{where}.jobs[{index}]")
         name = _required_str(job, "name", f"{where}.jobs[{index}]")
         conclusion = _optional_str(
             job.get("conclusion"), f"{where}.jobs[{index}].conclusion"
         )
-        parsed.append((name, conclusion.lower() if conclusion else None))
+        job_id_raw = job.get("databaseId", job.get("id"))
+        job_id: int | None
+        if isinstance(job_id_raw, int) and not isinstance(job_id_raw, bool):
+            job_id = job_id_raw
+        else:
+            job_id = None
+        parsed.append((name, conclusion.lower() if conclusion else None, job_id))
     return tuple(parsed)
 
 
@@ -451,10 +503,21 @@ def parse_run(raw: object, where: str) -> WorkflowRun:
     sha = _required_str(obj, "headSha", where).lower()
     status = _required_str(obj, "status", where).lower()
     conclusion = _optional_str(obj.get("conclusion"), f"{where}.conclusion")
+    if conclusion is not None:
+        conclusion = conclusion.strip() or None
     if status not in IN_FLIGHT | {"completed"}:
         raise ValueError(f"{where}.status is not recognized: {status}")
-    if status == "completed" and conclusion is None:
-        raise ValueError(f"{where}.conclusion is required for a completed run")
+    if status == "completed":
+        if conclusion is None:
+            raise ValueError(f"{where}.conclusion is required for a completed run")
+        normalized = conclusion.lower()
+        if normalized not in TERMINAL_CONCLUSIONS:
+            raise ValueError(
+                f"{where}.conclusion is not a valid terminal conclusion: {conclusion!r}"
+            )
+        conclusion = normalized
+    elif conclusion is not None:
+        conclusion = conclusion.lower()
     created = _parse_datetime(
         obj.get("createdAt", obj.get("created_at")), f"{where}.created_at"
     )
@@ -466,7 +529,7 @@ def parse_run(raw: object, where: str) -> WorkflowRun:
         run_id,
         sha,
         status,
-        conclusion.lower() if conclusion else None,
+        conclusion,
         created,
         updated,
         url,
@@ -598,20 +661,15 @@ def failed_excerpt(text: str) -> str:
     return cleaned or "FAILED output was empty"
 
 
+def _visual_report_status(text: str) -> str | None:
+    matches = _VISUAL_REPORT_STATUS_RE.findall(text)
+    if not matches:
+        return None
+    return matches[-1].lower()
+
+
 def _is_visual_golden_drift(text: str) -> bool:
-    lowered = text.lower()
-    return any(
-        marker in lowered
-        for marker in (
-            "snapshot mismatch",
-            "golden drift",
-            "golden mismatch",
-            "snapshot differs",
-            "snapshot is different",
-            "visual snapshot",
-            "png snapshot differs",
-        )
-    )
+    return _visual_report_status(text) == "drift"
 
 
 def _scan_release_reason(value: object) -> str | None:
@@ -697,14 +755,50 @@ class GithubReader:
             for index, row in enumerate(_list(payload, f"{workflow} runs"))
         ]
 
-    def _jobs(self, run: WorkflowRun) -> tuple[tuple[str, str | None], ...]:
+    def _job_records(
+        self, run: WorkflowRun
+    ) -> tuple[tuple[str, str | None, int | None], ...]:
         return _parse_job_list(
             self.gh.json("run", "view", str(run.run_id), "--json", "jobs"),
             f"run {run.run_id}",
         )
 
+    def _jobs(self, run: WorkflowRun) -> tuple[tuple[str, str | None], ...]:
+        return tuple(
+            (name, conclusion) for name, conclusion, _job_id in self._job_records(run)
+        )
+
     def _failed_log(self, run: WorkflowRun) -> str:
         return self.gh.text("run", "view", str(run.run_id), "--log-failed")
+
+    def _job_log(self, run: WorkflowRun, job_id: int) -> str:
+        return self.gh.text(
+            "run", "view", str(run.run_id), "--job", str(job_id), "--log"
+        )
+
+    def _visual_golden_drift(
+        self,
+        run: WorkflowRun,
+        records: tuple[tuple[str, str | None, int | None], ...],
+        combined_log: str,
+    ) -> bool:
+        visual = [
+            (name, conclusion, job_id)
+            for name, conclusion, job_id in records
+            if "visual-test" in name.lower()
+        ]
+        if not visual:
+            return False
+        _name, conclusion, job_id = visual[0]
+        if conclusion is None or conclusion in GOOD_CONCLUSIONS:
+            return False
+        log_text = combined_log
+        if job_id is not None:
+            try:
+                log_text = self._job_log(run, job_id)
+            except WatcherError:
+                log_text = combined_log
+        return _is_visual_golden_drift(log_text)
 
     def full_ci(self) -> tuple[WorkflowRun, ...]:
         raw_runs = self._run_list("full.yml", branch="master")
@@ -728,7 +822,8 @@ class GithubReader:
                 contains = status in {"ahead", "identical"}
             if not contains:
                 continue
-            jobs = self._jobs(run)
+            records = self._job_records(run)
+            jobs = tuple((name, conclusion) for name, conclusion, _job_id in records)
             excerpt = ""
             drift = False
             if run.is_red:
@@ -737,11 +832,7 @@ class GithubReader:
                 except WatcherError as exc:
                     raw_log = f"FAILED log unavailable: {exc}"
                 excerpt = failed_excerpt(raw_log)
-                drift = any(
-                    "visual-test" in name.lower()
-                    for name, conclusion in jobs
-                    if conclusion and conclusion not in GOOD_CONCLUSIONS
-                ) and _is_visual_golden_drift(raw_log)
+                drift = self._visual_golden_drift(run, records, raw_log)
             fixed.append(
                 WorkflowRun(
                     run.run_id,

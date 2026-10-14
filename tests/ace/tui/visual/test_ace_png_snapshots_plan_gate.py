@@ -22,6 +22,7 @@ from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patches,
     patch_startup_loaders,
     wait_for_startup,
+    wait_for_svg_contains,
     wait_for_visual_idle,
 )
 from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
@@ -74,6 +75,16 @@ async def _snapshot_plan_gate(
         await page.expect_modal("PlanApprovalModal")
         if keys:
             await page.press(*keys)
+        if decision_definitions:
+            first = decision_definitions[0]
+            ask = str(first.get("ask") or "").strip()
+            ident = str(first.get("id") or "").strip()
+            # Compact 90-col cards list ids only; the 120-char ask paints in
+            # the wider decision-card column that the full-run truncation wait
+            # has to pin.
+            sentinel = ask[:24] if size[0] >= 120 and ask else (ident or ask[:24])
+            if sentinel:
+                await wait_for_svg_contains(page, sentinel)
         await wait_for_visual_idle(page)
         ace_png_visual.assert_page_png(page, snapshot_name, title=title)
 

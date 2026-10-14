@@ -212,6 +212,7 @@ jobs:
           with output.open("a", encoding="utf-8") as handle:
               handle.write(f"status={status}\n")
               handle.write(f"manifest={manifest}\n")
+          print(f"SASE_VISUAL_REPORT_STATUS={status}", flush=True)
           PY
       - name: Build visual report
         if: failure() && steps.visual_report.outputs.manifest != ''
@@ -221,6 +222,7 @@ jobs:
           VISUAL_MANIFEST: ${{ steps.visual_report.outputs.manifest }}
           VISUAL_STATUS: ${{ steps.visual_report.outputs.status }}
         run: |
+          printf 'SASE_VISUAL_REPORT_STATUS=%s\n' "$VISUAL_STATUS"
           if [ "$VISUAL_STATUS" != "drift" ]; then
             printf 'Visual screenshot check failed with status=%s (not golden drift). Inspect logs and partial captures; do not accept goldens from this run.\n' "$VISUAL_STATUS"
           fi
@@ -247,6 +249,7 @@ jobs:
           VISUAL_MANIFEST: ${{ steps.visual_report.outputs.manifest }}
           VISUAL_STATUS: ${{ steps.visual_report.outputs.status }}
         run: |
+          printf 'SASE_VISUAL_REPORT_STATUS=%s\n' "$VISUAL_STATUS"
           if [ "$VISUAL_STATUS" != "drift" ]; then
             printf 'Visual screenshot check failed with status=%s (not golden drift). Inspect logs and partial captures; do not accept goldens from this run.\n' "$VISUAL_STATUS" >> "$GITHUB_STEP_SUMMARY"
           fi

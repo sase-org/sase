@@ -468,6 +468,7 @@ def test_visual_suite_runs_only_in_dedicated_job() -> None:
     assert "latest-report.json" in workflow_text
     assert "--manifest" in workflow_text
     assert "do not accept goldens from this run" in workflow_text
+    assert "SASE_VISUAL_REPORT_STATUS=" in workflow_text
 
 
 def test_ace_page_group_isolation_job_runs_dedicated_lane() -> None:

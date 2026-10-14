@@ -26,6 +26,7 @@ from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patches,
     patch_startup_loaders,
+    stabilize_toast_frame,
     wait_for_startup,
     wait_for_svg_contains,
     wait_for_visual_idle,
@@ -58,6 +59,7 @@ async def test_agent_session_gate_turns_png_snapshots(
         # Wait on semantic state, not just idle: the settled turn rows
         # (6 turns) must render before capture.
         await wait_for_svg_contains(page, "6 turns")
+        await wait_for_svg_contains(page, "cleanup")
         await wait_for_visual_idle(page)
 
         container = page.app._agents[page.app.current_idx]
@@ -85,6 +87,10 @@ async def test_agent_session_gate_turns_png_snapshots(
         assert "settling" in combined
         assert "answered" in combined
         assert "failed" in combined
+        # Overlay scrollbar fade outlives visual-idle's one-shot window.
+        # This snapshot covers session turn metadata and gate rows.
+        main_deck_scroll(page).show_vertical_scrollbar = False
+        await wait_for_visual_idle(page)
         ace_png_visual.assert_page_png(
             page,
             "agents_session_panel_turns_gate_120x40",
@@ -114,7 +120,8 @@ async def test_agent_session_gate_turns_narrow_png_snapshot(
         await page.expect_state("agent_count", 1)
         await wait_for_svg_contains(page, "visual-family")
         await wait_for_svg_contains(page, "⋔")
-        await wait_for_visual_idle(page)
+        await wait_for_svg_contains(page, "cleanup")
+        await stabilize_toast_frame(page)
 
         assert_page_svg_contains(page, "visual-family")
         assert_page_svg_contains(page, "⋔")
