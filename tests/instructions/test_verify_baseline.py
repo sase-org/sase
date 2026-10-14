@@ -16,7 +16,7 @@ from sase.instructions import fingerprints as fp
 from sase.instructions import grok as grok_parser
 from sase.instructions import muse as muse_parser
 from sase.instructions.models import SessionObservation
-from sase.instructions.verify import _aggregate_rows
+from sase.instructions.verify import build_report
 
 FIXTURES = Path(__file__).parent / "fixtures"
 HOME_H1 = "Synthetic Home"
@@ -384,7 +384,8 @@ def test_baseline_table_aggregation() -> None:
             native_full_count=0,
         ),
     ]
-    rows = {row.provider: row for row in _aggregate_rows(observations, [])}
+    report = build_report([], observations, filters={})
+    rows = {row.provider: row for row in report.provider_rows}
     assert rows["claude"].contract == "2×"
     assert (rows["claude"].home, rows["claude"].project, rows["claude"].directive) == (
         "✓",
