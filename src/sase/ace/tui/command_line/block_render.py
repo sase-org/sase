@@ -102,7 +102,7 @@ def block_header_right(
 ) -> str:
     """Render the dim right-aligned block header metadata."""
     if status in ("submitting", "running"):
-        running_for = f"{elapsed:.0f}s" if elapsed else "0s"
+        running_for = f"{int(elapsed)}s" if elapsed else "0s"
         proc = f" · proc {proc_id[:6]}" if proc_id else ""
         return f"running {running_for}{proc}"
     if status == "submit_failed":

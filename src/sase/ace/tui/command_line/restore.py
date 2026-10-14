@@ -113,6 +113,11 @@ def block_from_proc(proc: _ProcRow) -> CommandLineBlock | None:
             block.status = "error"
     else:
         block.status = "running"
+        started = _parse_proc_time(proc.started_at)
+        if started is None:
+            started = _parse_proc_time(proc.created_at)
+        if started is not None:
+            block.started_at = started
     return block
 
 

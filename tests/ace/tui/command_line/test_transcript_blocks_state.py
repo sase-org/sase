@@ -29,6 +29,7 @@ from sase.ace.tui.command_line.transcript import _CommandLineBlockWidget
 
 __all__ = [
     "test_block_from_proc_maps_terminal_and_running",
+    "test_block_from_proc_running_uses_proc_start_time",
     "test_clear_transcript_drops_stale_selection",
     "test_command_line_from_proc_prefers_argv",
     "test_ensure_block_for_proc_adds_missing_block",
@@ -211,6 +212,29 @@ def test_block_from_proc_maps_terminal_and_running() -> None:
     assert running is not None and running.status == "running"
 
     assert block_from_proc(_row("p5", command=[], label="")) is None
+
+
+def test_block_from_proc_running_uses_proc_start_time() -> None:
+    """Active restored rows keep the proc start so the live timer continues."""
+    started = block_from_proc(
+        _row("p4", status="running", exit_code=None, started_at="2026-09-24T11:00:00Z")
+    )
+    assert started is not None
+    assert started.started_at == _epoch("2026-09-24T11:00:00Z")
+    assert started.elapsed is None
+
+    fallback = block_from_proc(
+        _row(
+            "p4b",
+            status="running",
+            exit_code=None,
+            started_at=None,
+            created_at="2026-09-24T11:00:00Z",
+        )
+    )
+    assert fallback is not None
+    assert fallback.started_at == _epoch("2026-09-24T11:00:00Z")
+    assert fallback.elapsed is None
 
 
 def test_restore_missing_blocks_skips_known_procs() -> None:

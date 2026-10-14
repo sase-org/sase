@@ -45,6 +45,8 @@ class CommandLineBlock:
     #: and restored proc rows need epoch time, not a monotonic clock).
     started_at: float = field(default_factory=time.time)
     finished_at: float | None = None
+    #: While the block is running, the tail tick refreshes this with live
+    #: seconds since submit. Once the block settles, it holds the final runtime.
     elapsed: float | None = None
     tail_text: str = ""
     expanded: bool = False

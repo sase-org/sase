@@ -34,6 +34,7 @@ __all__ = [
     "test_exit_elapsed_uses_one_clock_for_live_blocks",
     "test_gutter_and_header_metadata",
     "test_prepare_submit_rejects_blank_and_guards_double_enter",
+    "test_running_header_floors_elapsed_seconds",
     "test_sanitize_collapses_cr_and_drops_osc_keeps_sgr",
     "test_screen_submit_uses_thread_worker_not_await",
     "test_submit_failure_path_restores_state",
@@ -133,6 +134,18 @@ def test_gutter_and_header_metadata() -> None:
     assert "exit 0" in header
     assert "proc 470vtq" in header
     assert "running 0s" in block_header_right("running", elapsed=0.2)
+
+
+def test_running_header_floors_elapsed_seconds() -> None:
+    """Running headers count whole seconds like a stopwatch, not rounded."""
+    assert block_header_right("running", elapsed=None) == "running 0s"
+    assert block_header_right("running", elapsed=0.7) == "running 0s"
+    assert block_header_right("running", elapsed=1.6) == "running 1s"
+    assert block_header_right("running", elapsed=42.0) == "running 42s"
+    assert (
+        block_header_right("running", elapsed=42.0, proc_id="bh27g7xx")
+        == "running 42s · proc bh27g7"
+    )
 
 
 def test_context_chip_marks_pins_and_truncates() -> None:

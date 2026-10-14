@@ -3,7 +3,8 @@
 Each block renders its gutter glyph, command, right-aligned metadata, and a
 collapsed body (last 12 lines) fed by :class:`ProcLogCursor`. A pump-free
 task polls only visible running blocks every 200 ms while the panel is
-shown; a running block repaints only its own widget.
+shown; each tick refreshes the running block's elapsed time as well as
+polling its log tail, and a running block repaints only its own widget.
 """
 
 from __future__ import annotations
@@ -247,23 +248,26 @@ class CommandLineTranscript(VerticalScroll):
             return
         for widget in widgets:
             block = widget.block
-            if not block.running or block.proc_id is None:
+            if not block.running:
                 continue
             if not self._tail_target_visible(widget):
                 continue
-            cursor = self._cursors.get(block.block_id)
-            if cursor is None:
-                cursor = ProcLogCursor(proc_id=block.proc_id)
-                self._cursors[block.block_id] = cursor
-            try:
-                read = await asyncio.to_thread(cursor.read_new)
-            except Exception:  # noqa: BLE001 - log reads never break the panel.
-                continue
-            if read.text:
-                block.tail_text += read.text
-                block.tail_loaded = True
-            if read.lost_bytes:
-                block.lost_bytes += read.lost_bytes
+            if block.proc_id is not None:
+                cursor = self._cursors.get(block.block_id)
+                if cursor is None:
+                    cursor = ProcLogCursor(proc_id=block.proc_id)
+                    self._cursors[block.block_id] = cursor
+                try:
+                    read = await asyncio.to_thread(cursor.read_new)
+                except Exception:  # noqa: BLE001 - log reads never break the panel.
+                    continue
+                if read.text:
+                    block.tail_text += read.text
+                    block.tail_loaded = True
+                if read.lost_bytes:
+                    block.lost_bytes += read.lost_bytes
+            if block.running:
+                block.elapsed = block.elapsed_seconds()
             widget._spinner_index += 1
             try:
                 widget.repaint()

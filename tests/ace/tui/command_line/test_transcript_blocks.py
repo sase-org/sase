@@ -29,6 +29,7 @@ from tests.ace.tui.command_line.test_transcript_blocks_keys import (
 )
 from tests.ace.tui.command_line.test_transcript_blocks_state import (
     test_block_from_proc_maps_terminal_and_running,
+    test_block_from_proc_running_uses_proc_start_time,
     test_clear_transcript_drops_stale_selection,
     test_command_line_from_proc_prefers_argv,
     test_ensure_block_for_proc_adds_missing_block,
@@ -60,6 +61,7 @@ __test__ = False
 __all__ = [
     "test_K_warns_when_finished_and_confirms_when_running",
     "test_block_from_proc_maps_terminal_and_running",
+    "test_block_from_proc_running_uses_proc_start_time",
     "test_block_keys_select_move_and_switch_hints",
     "test_clear_transcript_drops_stale_selection",
     "test_command_line_from_proc_prefers_argv",

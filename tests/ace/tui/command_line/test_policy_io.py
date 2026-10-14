@@ -13,7 +13,9 @@ per run, the ``writes``-chip pilot coverage, and the scrolled-out tail test.
 from __future__ import annotations
 
 import json
+import re
 import threading
+import time
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from types import SimpleNamespace
@@ -329,6 +331,137 @@ async def test_hidden_running_blocks_are_not_tailed(
             assert second.tail_text == ""
             assert [proc_id for proc_id, _ in reads] == ["proc-tail-1"]
             assert all(ident != main_ident for _, ident in reads)
+
+
+async def test_poll_once_ticks_running_elapsed(
+    monkeypatch: pytest.MonkeyPatch, history_file: Any
+) -> None:
+    """A visible running block counts elapsed on the existing tail tick."""
+    from unittest.mock import patch as mock_patch
+
+    from sase.ace.testing import AcePage, make_patch
+    from sase.ace.tui import AceApp
+    from sase.ace.tui.command_line.session import command_line_session_for
+    from sase.ace.tui.command_line.transcript import _CommandLineBlockWidget
+    from sase.procs.logs import ProcLogCursor, ProcLogRead
+
+    def _spy_read(self: ProcLogCursor) -> ProcLogRead:
+        return ProcLogRead(text="")
+
+    monkeypatch.setattr(ProcLogCursor, "read_new", _spy_read)
+    with (
+        mock_patch.object(AceApp, "_load_agents"),
+        mock_patch.object(AceApp, "_load_axe_status"),
+    ):
+        async with AcePage(query="test_feature", patches=[make_patch()]) as page:
+            screen = await _open_panel(page, monkeypatch, history_file)
+            screen.transcript.stop_tail_task()
+            session = command_line_session_for(page.app)
+            block = session.add_block("agent archive rebuild-index")
+            block.proc_id = "proc-tick-1"
+            block.status = "running"
+            block.started_at = time.time() - 5.0
+            screen.refresh_transcript()
+            await page.pause()
+            assert block.elapsed is None
+            assert "running 0s" in str(_CommandLineBlockWidget.render_block(block))
+            await screen.transcript._poll_once()
+            assert block.elapsed is not None
+            assert 5.0 <= block.elapsed < 30.0
+            rendered = str(_CommandLineBlockWidget.render_block(block))
+            match = re.search(r"running (\d+)s", rendered)
+            assert match is not None
+            assert int(match.group(1)) >= 5
+
+
+async def test_poll_once_ticks_submitting_without_log_read(
+    monkeypatch: pytest.MonkeyPatch, history_file: Any
+) -> None:
+    """A submitting block ticks elapsed and spinner without reading a log."""
+    from unittest.mock import patch as mock_patch
+
+    from sase.ace.testing import AcePage, make_patch
+    from sase.ace.tui import AceApp
+    from sase.ace.tui.command_line import transcript as transcript_module
+    from sase.ace.tui.command_line.session import command_line_session_for
+    from sase.procs.logs import ProcLogCursor, ProcLogRead
+
+    reads: list[str] = []
+
+    def _spy_read(self: ProcLogCursor) -> ProcLogRead:
+        reads.append(self.proc_id)
+        return ProcLogRead(text="")
+
+    monkeypatch.setattr(ProcLogCursor, "read_new", _spy_read)
+    with (
+        mock_patch.object(AceApp, "_load_agents"),
+        mock_patch.object(AceApp, "_load_axe_status"),
+    ):
+        async with AcePage(query="test_feature", patches=[make_patch()]) as page:
+            screen = await _open_panel(page, monkeypatch, history_file)
+            screen.transcript.stop_tail_task()
+            session = command_line_session_for(page.app)
+            block = session.add_block("bead list")
+            block.proc_id = None
+            block.status = "submitting"
+            block.started_at = time.time() - 3.0
+            screen.refresh_transcript()
+            await page.pause()
+            widgets = list(
+                screen.transcript.query(transcript_module._CommandLineBlockWidget)
+            )
+            assert len(widgets) == 1
+            assert widgets[0]._spinner_index == 0
+            await screen.transcript._poll_once()
+            assert block.elapsed is not None
+            assert block.elapsed >= 3.0
+            assert widgets[0]._spinner_index == 1
+            assert reads == []
+
+
+async def test_poll_once_keeps_settled_elapsed_after_await(
+    monkeypatch: pytest.MonkeyPatch, history_file: Any
+) -> None:
+    """An exit that lands during the log read keeps the settled elapsed."""
+    from unittest.mock import patch as mock_patch
+
+    from sase.ace.testing import AcePage, make_patch
+    from sase.ace.tui import AceApp
+    from sase.ace.tui.command_line.session import (
+        CommandLineBlock,
+        command_line_session_for,
+    )
+    from sase.procs.logs import ProcLogCursor, ProcLogRead
+
+    target: list[CommandLineBlock] = []
+
+    def _spy_read(self: ProcLogCursor) -> ProcLogRead:
+        if self.proc_id == "proc-settle-1" and target:
+            settled = target[0]
+            settled.status = "success"
+            settled.finished_at = time.time()
+            settled.elapsed = 1.25
+        return ProcLogRead(text="")
+
+    monkeypatch.setattr(ProcLogCursor, "read_new", _spy_read)
+    with (
+        mock_patch.object(AceApp, "_load_agents"),
+        mock_patch.object(AceApp, "_load_axe_status"),
+    ):
+        async with AcePage(query="test_feature", patches=[make_patch()]) as page:
+            screen = await _open_panel(page, monkeypatch, history_file)
+            screen.transcript.stop_tail_task()
+            session = command_line_session_for(page.app)
+            block = session.add_block("bead list")
+            block.proc_id = "proc-settle-1"
+            block.status = "running"
+            block.started_at = time.time() - 8.0
+            target.append(block)
+            screen.refresh_transcript()
+            await page.pause()
+            await screen.transcript._poll_once()
+            assert block.elapsed == 1.25
+            assert block.status == "success"
 
 
 # -- phase sase-17x.13.10.5: ui-thread-state -----------------------------------

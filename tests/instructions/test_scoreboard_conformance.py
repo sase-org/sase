@@ -224,7 +224,6 @@ def test_conformance_warns_for_duplicate_root_and_leaked_helper_markers(
     """The deep check names root duplicates, helper gaps, and root leaks."""
     from sase.doctor import checks_instructions
     from sase.instructions import coverage_records, coverage_sessions, run_index
-    from sase.instructions.manifests import _RunManifest
 
     now = datetime.now(tz=UTC)
     run = ScoredRun(
