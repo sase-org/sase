@@ -20,18 +20,24 @@ def handle_instructions_command(args: argparse.Namespace) -> None:
 
         sys.exit(run_amd_list(args))
 
+    if sub == "readout":
+        sys.exit(_run_instructions_readout(args))
+
     if sub == "render":
         sys.exit(_run_instructions_render(args))
-
-    if sub == "verify":
-        sys.exit(_run_instructions_verify(args))
 
     if sub == "show":
         from sase.instructions.show import run_instructions_show
 
         sys.exit(run_instructions_show(args))
 
-    print("Usage: sase instructions {list,render,show,verify}", file=sys.stderr)
+    if sub == "verify":
+        sys.exit(_run_instructions_verify(args))
+
+    print(
+        "Usage: sase instructions {list,readout,render,show,verify}",
+        file=sys.stderr,
+    )
     sys.exit(1)
 
 
@@ -461,8 +467,46 @@ def _run_instructions_verify(args: argparse.Namespace) -> int:
     return 0
 
 
+def _run_instructions_readout(args: argparse.Namespace) -> int:
+    """Run the handoff-aware declaration readout and render it."""
+    from sase.instructions import run_index as run_mod
+    from sase.instructions.readout import build_readout, render_readout_table
+
+    now = datetime.now(tz=UTC)
+    since_raw = getattr(args, "since", "7d") or "7d"
+    until_raw = getattr(args, "until", None)
+    try:
+        since = run_mod.parse_when(str(since_raw), now=now)
+        until = (
+            run_mod.parse_when(str(until_raw), now=now)
+            if until_raw is not None
+            else None
+        )
+    except ValueError as exc:
+        print(f"sase instructions readout: {exc}", file=sys.stderr)
+        return 2
+    providers = tuple(getattr(args, "provider", []) or ())
+    want_json = bool(getattr(args, "json", False))
+    scored = run_mod.enumerate_runs(
+        limit_per_provider=100000,
+        since=since,
+        until=until,
+        project=None,
+        agent=None,
+        providers=providers,
+    )
+    payload = build_readout(scored, since=since, until=until, providers=providers)
+    if want_json:
+        print(json.dumps(payload, indent=2, sort_keys=True))
+        return 0
+    render_readout_table(payload)
+    return 0
+
+
 __all__ = [
     "handle_instructions_command",
+    "render_sections_table",
+    "_run_instructions_readout",
     "_run_instructions_render",
     "_run_instructions_verify",
 ]

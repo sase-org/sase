@@ -19,6 +19,7 @@ def register_instructions_parser(subparsers: argparse._SubParsersAction) -> None
             "examples:\n"
             "  sase instructions\n"
             "  sase instructions list\n"
+            "  sase instructions readout --since 7d\n"
             "  sase instructions render\n"
             "  sase instructions render -p\n"
             "  sase instructions show my-agent\n"
@@ -40,6 +41,54 @@ def register_instructions_parser(subparsers: argparse._SubParsersAction) -> None
             "managed/custom state, memory reference counts, and provider "
             "instruction shim status. This command never writes files."
         ),
+    )
+    readout_parser = instructions_subparsers.add_parser(
+        "readout",
+        help="Show handoff-aware declaration misses per provider and mode",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        description=(
+            "Classify finished root runs as accepted, plan handoff, monitor "
+            "handoff, other handoff, not required, miss, or unknown, per "
+            "provider and delivery mode, and join audited memory reads per "
+            "run. The command reports; it does not gate."
+        ),
+        epilog=(
+            "examples:\n"
+            "  sase instructions readout\n"
+            "  sase instructions readout --since 7d\n"
+            "  sase instructions readout -p claude -j\n"
+            "  sase instructions readout -s 2026-09-10T00:00:00Z "
+            "-u 2026-10-05T00:00:00Z\n"
+        ),
+    )
+    readout_parser.add_argument(
+        "-j",
+        "--json",
+        action="store_true",
+        help="Emit one stable JSON document",
+    )
+    readout_provider_action = readout_parser.add_argument(
+        "-p",
+        "--provider",
+        action="append",
+        default=[],
+        metavar="PROVIDER",
+        help="Filter to one provider; repeatable",
+    )
+    set_completion_kind(readout_provider_action, ValueKind.PROVIDER)
+    readout_parser.add_argument(
+        "-s",
+        "--since",
+        default="7d",
+        metavar="WHEN",
+        help="Window start: duration (30m, 24h, 7d, 2w) or ISO timestamp",
+    )
+    readout_parser.add_argument(
+        "-u",
+        "--until",
+        default=None,
+        metavar="WHEN",
+        help="Window end: duration (30m, 24h, 7d, 2w) or ISO timestamp",
     )
     render_parser = instructions_subparsers.add_parser(
         "render",

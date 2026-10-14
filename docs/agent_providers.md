@@ -94,6 +94,41 @@ helper markers and on non-declared delivery fallbacks. `instructions.helpers` WA
 accepted helper declarations, and `instructions.coverage` WARNs on sessions without a
 shadow manifest or any shadow failure.
 
+## Soak readout
+
+`sase instructions readout` classifies finished, provider-backed root runs in a window
+(`-s/--since` default `7d`, `-u/--until`) per provider and delivery mode. Monitor and
+gate turns are excluded; research runs get their own rows; dismissed runs without
+`done.json` count as `unknown`. The command reports; it does not gate. A bad `--since`
+or `--until` value exits 2.
+
+Delivery mode is `explicit` when the ordinary root manifest has
+`delivery.status: explicit`, `legacy` for `inherits_native` or `shadow`, and `none` for
+pre-E2 runs. The table subtitle prints each provider's first explicit `rendered_at`; the
+soak watch starts there.
+
+Classes, first match wins:
+
+1. accepted submission (`final_submission.json`)
+2. plan handoff (`sase plan propose` / `validate` / `decide`)
+3. monitor handoff with a prepared declaration (`sase final prepare` then
+   `sase monitor start`; a bare `-h`/`--help` prepare does not count)
+4. plain monitor handoff
+5. other recognized handoff (`sase pipe`, `sase questions`, `sase handoff`)
+6. declaration not required (`final_context.json`)
+7. **miss**
+
+Misses are an upper bound and are labelled `≤`. `-j` emits one stable JSON document with
+`schema_version: 1`. Memory columns join `~/.sase/projects/<project>/memory_reads.jsonl`
+rows to runs by artifact identity and time (mean audited reads per run, and the share of
+runs with at least one read).
+
+```bash
+sase instructions readout --since 7d
+sase instructions readout -p claude -j
+sase instructions readout -s 2026-09-10T00:00:00Z -u 2026-10-05T00:00:00Z
+```
+
 ## Root and helper agents
 
 Only the root SASE agent — the provider turn SASE launched — submits the final

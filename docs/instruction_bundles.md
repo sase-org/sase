@@ -25,6 +25,7 @@ Start with these read-only commands from your project checkout:
 sase instructions list                 # Current instruction files and provider shims
 sase instructions render -s            # Intended bundle sections from current sources
 sase instructions show AGENT           # Archived bundle bytes and digest check
+sase instructions readout --since 7d   # Handoff-aware declaration misses and memory reads
 sase instructions verify -c            # Observed loads and manifest coverage
 sase instructions verify -a AGENT      # Compare a recorded run's intent with its loads
 ```

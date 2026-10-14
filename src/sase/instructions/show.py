@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from sase.instructions.manifests import _RunManifest, read_run_manifests
+from sase.instructions.manifests import RunManifest, read_run_manifests
 from sase.instructions.run_index import (
     UnknownAgentError,
     enumerate_runs,
@@ -43,7 +43,7 @@ def _read_bytes(path: Path) -> bytes | None:
         return None
 
 
-def check_bundle_integrity(entry: _RunManifest) -> _Integrity:
+def _check_bundle_integrity(entry: RunManifest) -> _Integrity:
     """Sha256 the run copy, falling back to ``bundle.store_path``."""
     expected = ""
     store_path: str | None = None
@@ -88,7 +88,7 @@ def check_bundle_integrity(entry: _RunManifest) -> _Integrity:
     )
 
 
-def _payload(entry: _RunManifest) -> dict[str, Any] | None:
+def _payload(entry: RunManifest) -> dict[str, Any] | None:
     if isinstance(entry.manifest, dict):
         return entry.manifest
     if isinstance(entry.raw, dict):
@@ -153,13 +153,13 @@ def _purpose(manifest: dict[str, Any] | None) -> str:
     return "—"
 
 
-def _actor(entry: _RunManifest) -> str:
+def _actor(entry: RunManifest) -> str:
     if entry.actor:
         return entry.actor
     return "native_helper" if entry.is_helper else "sase_root"
 
 
-def format_list_row(entry: _RunManifest, integrity: _Integrity) -> str:
+def _format_list_row(entry: RunManifest, integrity: _Integrity) -> str:
     """One compact inventory row for ``show -l``."""
     payload = _payload(entry)
     status, channel, attempt = _delivery_fields(payload)
@@ -172,7 +172,7 @@ def format_list_row(entry: _RunManifest, integrity: _Integrity) -> str:
     )
 
 
-def list_row_dict(entry: _RunManifest, integrity: _Integrity) -> dict[str, Any]:
+def _list_row_dict(entry: RunManifest, integrity: _Integrity) -> dict[str, Any]:
     """JSON object for one ``show -l -j`` row."""
     payload = _payload(entry)
     status, channel, attempt = _delivery_fields(payload)
@@ -195,7 +195,7 @@ def list_row_dict(entry: _RunManifest, integrity: _Integrity) -> dict[str, Any]:
     }
 
 
-def _latest_seq(artifact_dir: str, entries: list[_RunManifest]) -> int | None:
+def _latest_seq(artifact_dir: str, entries: list[RunManifest]) -> int | None:
     meta = read_json_object(Path(artifact_dir) / "agent_meta.json")
     instructions = meta.get("instructions")
     if isinstance(instructions, dict):
@@ -215,15 +215,15 @@ def _latest_seq(artifact_dir: str, entries: list[_RunManifest]) -> int | None:
 
 
 def _pick_entry(
-    entries: list[_RunManifest], *, seq: int, helper: bool
-) -> _RunManifest | None:
+    entries: list[RunManifest], *, seq: int, helper: bool
+) -> RunManifest | None:
     matches = [
         entry for entry in entries if entry.seq == seq and entry.is_helper is helper
     ]
     return matches[0] if matches else None
 
 
-def _summary_line(entry: _RunManifest, integrity: _Integrity, *, agent: str) -> str:
+def _summary_line(entry: RunManifest, integrity: _Integrity, *, agent: str) -> str:
     sha, _common, size, _tokens = _bundle_fields(_payload(entry))
     shown = (integrity.actual_sha or sha or "")[:12]
     role = "helper" if entry.is_helper else "root"
@@ -275,18 +275,18 @@ def run_instructions_show(args: Any) -> int:
         )
         return 2
     if want_list:
-        rows = [(entry, check_bundle_integrity(entry)) for entry in entries]
+        rows = [(entry, _check_bundle_integrity(entry)) for entry in entries]
         if want_json:
             print(
                 json.dumps(
-                    [list_row_dict(entry, integrity) for entry, integrity in rows],
+                    [_list_row_dict(entry, integrity) for entry, integrity in rows],
                     indent=2,
                     sort_keys=True,
                 )
             )
         else:
             for entry, integrity in rows:
-                print(format_list_row(entry, integrity))
+                print(_format_list_row(entry, integrity))
         if any(not integrity.ok for _entry, integrity in rows):
             return 1
         return 0
@@ -308,7 +308,7 @@ def run_instructions_show(args: Any) -> int:
             file=sys.stderr,
         )
         return 2
-    integrity = check_bundle_integrity(chosen)
+    integrity = _check_bundle_integrity(chosen)
     print(_summary_line(chosen, integrity, agent=agent), file=sys.stderr)
     payload = _payload(chosen)
     if want_json:
@@ -353,8 +353,5 @@ class _SectionView:
 
 
 __all__ = [
-    "check_bundle_integrity",
-    "format_list_row",
-    "list_row_dict",
     "run_instructions_show",
 ]

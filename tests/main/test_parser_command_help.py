@@ -298,7 +298,7 @@ def test_memory_help_marks_primary_command_and_init_alias() -> None:
         parser_for(("sase", "instructions", "render")).format_help()
     )
 
-    assert "{list,render,show,verify}" in instructions_help
+    assert "{list,readout,render,show,verify}" in instructions_help
     # Options taking a value render differently across argparse versions
     # ("-a NAME, --agent NAME" pre-3.13 vs "-a, --agent NAME" on 3.13+), so
     # only bare flags are asserted here; -a/-f are covered by

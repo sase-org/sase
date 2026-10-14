@@ -51,7 +51,7 @@ def test_doctor_coverage_warns_on_uncovered_and_errors(
     """The coverage check WARNs naming uncovered sessions and error runs."""
     from sase.doctor import checks_instructions
     from sase.instructions import run_index as run_mod
-    from sase.instructions.manifests import _RunManifest
+    from sase.instructions.manifests import RunManifest
 
     artifacts, manifest, _ = write_shadow_run(tmp_path, rendered_at=RENDERED)
     write_shadow_error(artifacts, provider="codex", seq=1)
@@ -73,7 +73,7 @@ def test_doctor_coverage_warns_on_uncovered_and_errors(
     monkeypatch.setattr(run_mod, "enumerate_runs", lambda **_kwargs: [run])
     monkeypatch.setattr(coverage_mod, "run_manifest_records", lambda _adir: [record])
     monkeypatch.setattr(coverage_mod, "root_sessions", lambda _runs: [session])
-    error_entry = _RunManifest(
+    error_entry = RunManifest(
         seq=1,
         provider="unknown",
         bundle_path=None,

@@ -1,6 +1,6 @@
 """Read back per-run shadow instruction manifests (E2 decision 9).
 
-:func:`read_run_manifests` lists one :class:`_RunManifest` per ``NN``
+:func:`read_run_manifests` lists one :class:`RunManifest` per ``NN``
 root invocation and, when present, a second record for the matching
 ``NN-<provider>.helper.json`` helper bundle. Records are sorted by
 sequence then root-before-helper. Missing and corrupt files are
@@ -20,7 +20,7 @@ _HELPER_MARKER = ".helper."
 
 
 @dataclass(frozen=True)
-class _RunManifest:
+class RunManifest:
     """One per-invocation shadow record, possibly partial."""
 
     seq: int
@@ -62,7 +62,7 @@ def _record_from_group(
     is_helper: bool,
     files: dict[str, Path],
     prefix: str,
-) -> _RunManifest:
+) -> RunManifest:
     from sase.core.instruction_manifest import normalize_instruction_manifest
 
     manifest_file: Path | None = None
@@ -130,7 +130,7 @@ def _record_from_group(
         problems.append(f"no {kind}manifest or error record for sequence {prefix}")
     if not actor:
         actor = "native_helper" if is_helper else ""
-    return _RunManifest(
+    return RunManifest(
         seq=seq,
         provider=provider,
         bundle_path=bundle_path,
@@ -145,7 +145,7 @@ def _record_from_group(
     )
 
 
-def read_run_manifests(artifacts_dir: str | Path) -> list[_RunManifest]:
+def read_run_manifests(artifacts_dir: str | Path) -> list[RunManifest]:
     """Return the shadow records under ``<artifacts>/instructions/`` by seq."""
     instructions_dir = Path(artifacts_dir) / "instructions"
     try:
@@ -161,7 +161,7 @@ def read_run_manifests(artifacts_dir: str | Path) -> list[_RunManifest]:
         groups.setdefault((seq, role), {})[name.partition("-")[2]] = (
             instructions_dir / name
         )
-    records: list[_RunManifest] = []
+    records: list[RunManifest] = []
     for seq, role in sorted(groups, key=lambda item: (item[0], item[1] != "root")):
         files = groups[(seq, role)]
         records.append(
@@ -175,4 +175,4 @@ def read_run_manifests(artifacts_dir: str | Path) -> list[_RunManifest]:
     return records
 
 
-__all__ = ["read_run_manifests"]
+__all__ = ["RunManifest", "read_run_manifests"]
