@@ -22,6 +22,7 @@ from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     pin_decks_paged,
     prompt_header_and_body_text,
     select_main_card,
+    select_navigable_main_card,
 )
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patches,
@@ -122,6 +123,7 @@ async def test_agent_session_gate_turns_narrow_png_snapshot(
         await wait_for_svg_contains(page, "⋔")
         await wait_for_svg_contains(page, "cleanup")
         await stabilize_toast_frame(page)
+        await select_navigable_main_card(page, "reply")
 
         assert_page_svg_contains(page, "visual-family")
         assert_page_svg_contains(page, "⋔")

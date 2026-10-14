@@ -13,10 +13,20 @@ from types import SimpleNamespace
 from typing import Any
 
 from sase.ace.testing import AcePage
+from sase.ace.tui.actions.agents._archive_column import archive_container_members
 from sase.ace.tui.actions.agents._archive_controller import (
     note_inbox_applied_for_archive,
 )
+from sase.ace.tui.actions.agents._archive_view import (
+    archive_detail_owns_panel,
+    get_agents_tab_selection,
+)
 from sase.ace.tui.actions.agents._archive_view import open_agents_archive_view
+from sase.ace.tui.models.agent_archive_view import (
+    ARCHIVE_ROW_AGENT,
+    ARCHIVE_ROW_CONTAINER,
+    container_key_of,
+)
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_archive_controller import ArchiveRevalidationTokens
 from sase.ace.tui.widgets.agents_archive import ArchiveList
@@ -139,11 +149,53 @@ async def open_archive(
 
 
 async def settle_archive_detail(page: AcePage) -> None:
-    """Outlast the 150 ms detail debounce plus the hydration worker.
+    """Wait for the current selection's detail paint and hydration to finish."""
+    owner = page.app
+    if not archive_detail_owns_panel(owner):
+        await wait_for_visual_idle(page)
+        return
 
-    Visual-idle detection does not track the Archive reader's debounced
-    off-thread hydration, so a bare ``wait_for_visual_idle`` can converge
-    while a placeholder-to-content repaint is still queued and the capture
-    then sees a changed frame. One beat covers debounce and disk read.
-    """
-    await asyncio.sleep(1.0)  # sase-test-wait: detail debounce settle
+    selection = get_agents_tab_selection(owner)
+    key = selection.archive_key
+    row_kind = selection.row_kind
+    generation = owner._agents_archive_view.generation
+
+    def settled() -> bool:
+        if not archive_detail_owns_panel(owner):
+            return False
+        current = get_agents_tab_selection(owner)
+        runtime = getattr(owner, "_archive_reader_runtime", None)
+        if (
+            current.archive_key != key
+            or current.row_kind != row_kind
+            or runtime is None
+            or runtime.archive_key != key
+            or runtime.generation != generation
+            or runtime.loading
+        ):
+            return False
+        if row_kind == ARCHIVE_ROW_CONTAINER:
+            container_key = container_key_of(key)
+            if container_key is None:
+                return False
+            members = archive_container_members(owner, container_key)
+            names = tuple(str(member.get("agent_name", "")) for member in members)
+            text = page_svg_text(page)
+            return f"{len(members)} matching member(s)" in text and all(
+                name in text for name in names
+            )
+        if row_kind == ARCHIVE_ROW_AGENT:
+            return runtime.hydrated_agent is not None or runtime.unreadable
+        return True
+
+    await page.wait_for(
+        lambda _state: settled(),
+        timeout=15.0,
+        timeout_message=lambda: (
+            "Archive detail did not settle: "
+            f"selection={get_agents_tab_selection(owner)!r}; "
+            f"runtime={getattr(owner, '_archive_reader_runtime', None)!r}; "
+            f"generation={generation}; visible={page_svg_text(page)!r}"
+        ),
+    )
+    await wait_for_visual_idle(page)

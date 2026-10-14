@@ -205,6 +205,7 @@ async def test_models_panel_builtin_selection_effort_step_png_snapshot(
         await page.press("enter")
         await page.expect_modal("DefaultEffortLevelModal")
         await wait_for_svg_contains(page, "Reasoning Effort")
+        await wait_for_svg_contains(page, "gemini-4-argon-high")
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(

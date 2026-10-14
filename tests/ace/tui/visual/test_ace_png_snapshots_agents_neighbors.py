@@ -18,6 +18,7 @@ from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     assert_page_svg_contains,
     assert_page_svg_styled_text_absent,
     pin_agents_visual_now,
+    select_navigable_main_card,
 )
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patches,
@@ -404,6 +405,7 @@ async def test_agents_session_lane_neighbors_png_snapshot(
         page.app.current_idx = _agent_session_container_index(page)
         await page.press(".")
         await wait_for_svg_contains(page, "also listed under SESSION TURNS")
+        await select_navigable_main_card(page, "reply")
         await wait_for_visual_idle(page)
 
         lane = page.app._agents[page.app.current_idx]

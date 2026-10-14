@@ -30,6 +30,7 @@ from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     pin_agents_visual_now,
     pin_decks_paged,
     prompt_header_and_body_text,
+    select_navigable_main_card,
 )
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     agents,
@@ -323,6 +324,7 @@ async def test_weighted_runner_capacity_png_snapshots(
         await page.expect_state("tab", "agents")
         await page.press("l")
         await wait_for_visual_idle(page)
+        await select_navigable_main_card(page, "reply")
 
         assert_page_svg_contains(page, "weighted-family--code")
         assert_page_svg_contains(page, "weighted-family--gate")

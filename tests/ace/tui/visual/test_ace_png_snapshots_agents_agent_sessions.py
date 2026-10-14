@@ -23,6 +23,7 @@ from tests.ace.tui.visual._ace_agents_png_snapshot_agent_session_fixtures import
 from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     assert_page_svg_contains,
     pin_agents_visual_now,
+    select_navigable_main_card,
 )
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patches,
@@ -216,6 +217,7 @@ async def test_renamed_generic_agent_session_root_png_snapshot(
         await page.press("l")
         await page.expect_state("agent_count", 3)
         await wait_for_visual_idle(page)
+        await select_navigable_main_card(page, "reply")
 
         assert page.app._agents[0].agent_name == "cx--0"
         assert page.app._agents[0].presented_agent_name == "cx"

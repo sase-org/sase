@@ -341,6 +341,19 @@ async def test_commits_empty_png_snapshot(
                 and "No commits match" in timeline.get_option_at_index(0).prompt.plain
             )
         )
+        position = pane.query_one("#stitches-position", Static)
+        legend = pane.query_one("#stitches-legend", Static)
+        await wait_for_state(
+            page,
+            lambda: (
+                "[0/0]" in getattr(position.content, "plain", "")
+                and all(
+                    label in getattr(legend.content, "plain", "")
+                    for label in ("unpushed", "GitHub-only", "synced")
+                )
+            ),
+            description="empty Commits position badge and presence legend",
+        )
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(

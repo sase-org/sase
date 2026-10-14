@@ -10,6 +10,7 @@ from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patches,
     patch_startup_loaders,
     wait_for_startup,
+    wait_for_svg_contains,
     wait_for_visual_idle,
 )
 from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
@@ -50,6 +51,7 @@ async def test_model_picker_usage_hints_png_snapshot(
         page.app.push_screen(ModelPickerModal())
         await page.expect_modal("ModelPickerModal")
         await page.press("o", "p", "u", "s")
+        await wait_for_svg_contains(page, "20 models")
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(

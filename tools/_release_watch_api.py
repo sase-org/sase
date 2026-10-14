@@ -45,8 +45,14 @@ GH_TIMEOUT = 30
 HTTP_TIMEOUT = 20
 PROCESS_TIMEOUT = 300
 LOG_EXCERPT_LIMIT = 1800
-_VISUAL_REPORT_STATUS_RE = re.compile(r"SASE_VISUAL_REPORT_STATUS=([A-Za-z0-9_-]+)")
-_STABLE_CORE_VERSION_RE = re.compile(r"(\d+)\.(\d+)\.(\d+)(.*)")
+_ANSI_CSI_RE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
+_VISUAL_REPORT_STATUS_RE = re.compile(
+    r"^SASE_VISUAL_REPORT_STATUS=([A-Za-z0-9_-]+)$"
+)
+_STABLE_CORE_VERSION_RE = re.compile(
+    r"(\d+)\.(\d+)\.(\d+)(?:\.post\d+)?(?:\+[A-Za-z0-9]+(?:[-_.][A-Za-z0-9]+)*)?",
+    re.IGNORECASE,
+)
 
 
 class WatcherError(Exception):
@@ -243,9 +249,7 @@ def _split_core_version(value: str) -> tuple[tuple[int, int, int], bool] | None:
     if not match:
         return None
     numeric = (int(match.group(1)), int(match.group(2)), int(match.group(3)))
-    rest = match.group(4) or ""
-    stable = rest == "" or rest.startswith("+") or rest.lower().startswith(".post")
-    return numeric, stable
+    return numeric, True
 
 
 def core_version_meets(published: str, required: str) -> bool:
@@ -390,9 +394,14 @@ class GhClient:
         if path is None:
             raise WatcherError(f"{self.executable!r} is not installed or not on PATH")
         argv = [path, *args]
-        env: dict[str, str] | None = None
+        env = {
+            "GH_FORCE_TTY": "0",
+            "NO_COLOR": "1",
+            "CLICOLOR_FORCE": "",
+            "FORCE_COLOR": "",
+        }
         if args and args[0] == "api":
-            env = {"GH_REPO": self.repo}
+            env["GH_REPO"] = self.repo
         elif not (args and args[0] == "auth"):
             argv.extend(["--repo", self.repo])
         try:
@@ -661,15 +670,43 @@ def failed_excerpt(text: str) -> str:
     return cleaned or "FAILED output was empty"
 
 
-def _visual_report_status(text: str) -> str | None:
-    matches = _VISUAL_REPORT_STATUS_RE.findall(text)
-    if not matches:
-        return None
-    return matches[-1].lower()
+def _visual_report_status(
+    text: str,
+    *,
+    job_name: str | None = None,
+    allow_unprefixed: bool = True,
+) -> str | None:
+    """Read a complete executed status line from plain or gh-formatted logs."""
+    cleaned = _ANSI_CSI_RE.sub("", text)
+    prefixed = None
+    if job_name is not None:
+        prefixed = re.compile(
+            rf"^{re.escape(job_name)}\t[^\t\r\n]*\t"
+            r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z "
+            r"SASE_VISUAL_REPORT_STATUS=([A-Za-z0-9_-]+)$"
+        )
+    status = None
+    for line in cleaned.splitlines():
+        match = _VISUAL_REPORT_STATUS_RE.fullmatch(line) if allow_unprefixed else None
+        if match is None and prefixed is not None:
+            match = prefixed.fullmatch(line)
+        if match is not None:
+            status = match.group(1).lower()
+    return status
 
 
-def _is_visual_golden_drift(text: str) -> bool:
-    return _visual_report_status(text) == "drift"
+def _is_visual_golden_drift(
+    text: str,
+    *,
+    job_name: str | None = None,
+    allow_unprefixed: bool = True,
+) -> bool:
+    return (
+        _visual_report_status(
+            text, job_name=job_name, allow_unprefixed=allow_unprefixed
+        )
+        == "drift"
+    )
 
 
 def _scan_release_reason(value: object) -> str | None:
@@ -793,12 +830,18 @@ class GithubReader:
         if conclusion is None or conclusion in GOOD_CONCLUSIONS:
             return False
         log_text = combined_log
+        allow_unprefixed = False
         if job_id is not None:
             try:
                 log_text = self._job_log(run, job_id)
+                allow_unprefixed = True
             except WatcherError:
-                log_text = combined_log
-        return _is_visual_golden_drift(log_text)
+                pass
+        return _is_visual_golden_drift(
+            log_text,
+            job_name=_name,
+            allow_unprefixed=allow_unprefixed,
+        )
 
     def full_ci(self) -> tuple[WorkflowRun, ...]:
         raw_runs = self._run_list("full.yml", branch="master")

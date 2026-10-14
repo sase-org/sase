@@ -58,7 +58,11 @@ async def test_archive_list_png_snapshot(
             raise AssertionError("never reached the container summary row")
         await page.press("l")
         await wait_for_svg(page, "clan.alpha")
-        await wait_for_visual_idle(page)
+        # Expansion loads member rows without changing selection, so revisit
+        # the container to repaint its summary from the loaded members.
+        await page.press("j")
+        await page.press("k")
+        await settle_archive_detail(page)
         assert_page_svg_contains(page, "clan.alpha")
         assert_page_svg_contains(page, "clan.beta")
         assert "go to PR" not in page_svg_text(page)

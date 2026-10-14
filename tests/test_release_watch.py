@@ -52,8 +52,11 @@ from tests.test_release_watch_lifecycle import (
 from tests.test_release_watch_parse import (
     OTHER_SHA,
     test_bad_run_shape_fails_closed_as_parse_error,
+    test_core_version_meets_requires_stable_valid_versions,
     test_fixed_sha_containment_uses_compare_and_records_failed_jobs,
+    test_gh_client_normalizes_machine_readable_environment,
     test_mixed_job_log_without_visual_failure_is_not_drift,
+    test_mixed_job_log_fallback_preserves_visual_job_identity,
     test_parse_args_await_core_version,
     test_parse_args_rejects_malformed_await_core_version,
     test_parse_arguments_rejects_bad_fixed_sha,
@@ -61,6 +64,7 @@ from tests.test_release_watch_parse import (
     test_parse_run_in_flight_empty_conclusion_is_valid,
     test_visual_job_log_true_drift_and_test_failure_only,
     test_visual_report_status_classifies_only_proven_drift,
+    test_visual_report_status_requires_a_complete_executed_line,
 )
 
 __test__ = False
@@ -84,6 +88,7 @@ __all__ = [
     "test_awaiting_core_skips_floor_ratchet_keeps_full_ci",
     "test_awaiting_core_suppresses_floor_blocked",
     "test_bad_run_shape_fails_closed_as_parse_error",
+    "test_core_version_meets_requires_stable_valid_versions",
     "test_close_retries_three_times_and_waits_between_attempts",
     "test_deadline_and_startup_failure_verdicts",
     "test_deadline_while_awaiting_core",
@@ -93,8 +98,10 @@ __all__ = [
     "test_floor_ratchet_dispatch_and_post_upload_deduplication",
     "test_full_ci_in_flight_status_suppresses_dispatch",
     "test_full_ci_red_budget_and_cooldown",
+    "test_gh_client_normalizes_machine_readable_environment",
     "test_install_attempt_uses_fresh_venv_and_records_core_version",
     "test_mixed_job_log_without_visual_failure_is_not_drift",
+    "test_mixed_job_log_fallback_preserves_visual_job_identity",
     "test_once_preflight_prints_one_state_and_close_argv_without_running_it",
     "test_parse_args_await_core_version",
     "test_parse_args_rejects_malformed_await_core_version",
@@ -112,6 +119,7 @@ __all__ = [
     "test_three_consecutive_malformed_reads_write_broken_verdict",
     "test_visual_job_log_true_drift_and_test_failure_only",
     "test_visual_report_status_classifies_only_proven_drift",
+    "test_visual_report_status_requires_a_complete_executed_line",
     "watch",
     "watch_api",
 ]

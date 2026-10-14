@@ -143,6 +143,32 @@ async def select_main_card(
     await wait_for_visual_idle(page)
 
 
+async def select_navigable_main_card(
+    page: AcePage, card_id: str, panel_index: int = 0
+) -> None:
+    """Pin a Main card after its block-navigation predicate is ready."""
+    await select_main_card(page, card_id, panel_index)
+    detail = page.app.query_one("#agent-detail-panel", AgentDetail)
+
+    def ready() -> bool:
+        try:
+            panel = detail.deck_area.focused_panel()
+            return (
+                panel.deck is DeckId.MAIN
+                and panel.active_main_card() == card_id
+                and bool(panel.card_blocks_navigable)
+            )
+        except Exception:
+            return False
+
+    await page.wait_for(lambda _state: ready(), timeout=15.0)
+    await wait_for_visual_idle(page)
+    focused = detail.deck_area.focused_panel()
+    assert focused.deck is DeckId.MAIN
+    assert focused.active_main_card() == card_id
+    assert focused.card_blocks_navigable
+
+
 async def scroll_main_section_to_top(
     page: AcePage, identity: str, panel_index: int = 0
 ) -> None:

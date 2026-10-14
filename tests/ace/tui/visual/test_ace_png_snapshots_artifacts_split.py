@@ -5,11 +5,13 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+from textual.containers import VerticalScroll
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.artifacts_split import ArtifactsSplitMode
 from sase.ace.tui.widgets.artifacts.beads_pane import ArtifactsBeadsPane
 from sase.ace.tui.widgets.artifacts.entry_navigation import ArtifactEntryTarget
+from sase.ace.tui.widgets.artifacts.view import ArtifactsView
 from sase.ace.tui.widgets.top_bar import TopBarIndicators
 from tests.ace.tui._artifacts_beads_helpers import snapshot as _snapshot
 from tests.ace.tui._artifacts_plans_helpers import _choices
@@ -80,6 +82,23 @@ async def test_artifacts_split_mode_png_snapshot(
         await wait_for_visual_idle(page)
         if size == (120, 40):
             await _wait_for_full_top_bar_density(page)
+            await wait_for_visual_idle(page)
+
+        artifacts_view = page.app.query_one("#artifacts-view", ArtifactsView)
+        detail_scroll = pane.query_one("#beads-detail-scroll", VerticalScroll)
+        await page.wait_for(
+            lambda _state: (
+                artifacts_view.split_mode == mode
+                and detail_scroll.region.width > 0
+                and detail_scroll.region.height > 0
+            )
+        )
+        detail_scroll.scroll_to(y=0, animate=False)
+        await page.wait_for(lambda _state: detail_scroll.scroll_y == 0)
+        if snapshot_name == "artifacts_split_selected_wide_120x40":
+            # This layout fixture covers split geometry and selected content;
+            # scrollbar behavior is covered by the other scrolling snapshots.
+            detail_scroll.show_vertical_scrollbar = False
             await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(
