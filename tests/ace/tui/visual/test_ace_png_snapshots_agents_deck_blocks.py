@@ -399,6 +399,11 @@ async def test_agents_deck_blocks_spread_deck_sticky_png_snapshot(
             lambda: panel.main_view.spread_active_card() == "reply",
             description="Spread deck lands on the Reply card",
         )
+        await wait_for_state(
+            page,
+            lambda: _left_scrollbar_in_sync(page, detail),
+            description="left scrollbar tracks its scroller",
+        )
         await wait_for_visual_idle(page)
         # No rail in a spread deck.
         assert not panel._block_rail_widget().has_class("-shown")

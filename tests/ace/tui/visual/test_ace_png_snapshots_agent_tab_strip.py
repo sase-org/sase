@@ -20,8 +20,10 @@ from sase.ace.tui.models import agent_tab_descriptors as descriptors_mod
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_groups import GroupingMode
 from sase.ace.tui.models.agent_tab_descriptors import AgentTabStyleInputs
+from sase.ace.tui.models.fleet_agents import FleetRowsProjection
 from sase.ace.tui.widgets import AgentDetail
 from sase.core.agent_tab import AgentTabKey
+from tests.ace.tui.fleet_fixture import fleet_config, fleet_config_for_hosts
 from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     assert_page_svg_contains,
 )
@@ -94,6 +96,85 @@ async def _open_agents(page: AcePage) -> None:
     await page.press("shift+tab")
     await page.expect_state("tab", "agents")
     await wait_for_visual_idle(page)
+
+
+def _split_local_and_remote(agents: list[Agent]) -> tuple[list[Agent], list[Agent]]:
+    """Partition seeded agents so remotes go through the fleet seam."""
+    local = [
+        agent for agent in agents if not getattr(agent, "fleet_origin_alias", None)
+    ]
+    remote = [agent for agent in agents if getattr(agent, "fleet_origin_alias", None)]
+    return local, remote
+
+
+def _seed_remote_fleet_rows(
+    page: AcePage,
+    remotes: list[Agent],
+    *,
+    hosts: tuple[tuple[str, str], ...] = (),
+) -> None:
+    """Inject remote-origin rows through the fleet projection seam."""
+    page.app._agent_search_query = ""
+    page.app._agent_query_cache = None
+    page.app._agents_live_query_facade = None
+    projection = FleetRowsProjection(
+        fleet_rows=tuple(remotes),
+        focus_rows=tuple(remotes),
+        configured_host_count=len(
+            {
+                agent.fleet_origin_installation_id
+                for agent in remotes
+                if agent.fleet_origin_installation_id
+            }
+        ),
+    )
+    config = fleet_config_for_hosts(*hosts) if hosts else fleet_config()
+    page.app._agents_fleet_refresh_generation += 1
+    generation = page.app._agents_fleet_refresh_generation
+    page.app._apply_fleet_projection(
+        projection,
+        config=config,
+        generation=generation,
+        source="visual_fixture",
+    )
+    page.app._agents_fleet_loading = False
+
+    def _noop_fleet_refresh(**_kwargs: object) -> None:
+        return None
+
+    page.app._schedule_agents_fleet_refresh = _noop_fleet_refresh  # type: ignore[method-assign]
+
+
+async def _wait_for_machine_tabs(page: AcePage, *keys: AgentTabKey) -> None:
+    """Wait until the Agents tab catalog includes the given machine keys."""
+    expected = set(keys)
+    await wait_for_state(
+        page,
+        lambda: expected.issubset(
+            {entry.key for entry in page.app._agent_tab_catalog_view()}
+        ),
+        description=f"tab catalog contains {keys!r}",
+    )
+
+
+async def _open_agents_with_remote_fleet(
+    page: AcePage,
+    remotes: list[Agent],
+    *,
+    hosts: tuple[tuple[str, str], ...] = (),
+) -> None:
+    await _open_agents(page)
+    _seed_remote_fleet_rows(page, remotes, hosts=hosts)
+    machine_keys = tuple(
+        AgentTabKey.machine(origin_id)
+        for origin_id in dict.fromkeys(
+            agent.fleet_origin_installation_id
+            for agent in remotes
+            if agent.fleet_origin_installation_id
+        )
+    )
+    if machine_keys:
+        await _wait_for_machine_tabs(page, *machine_keys)
 
 
 async def _wait_for_settled_main_deck(page: AcePage) -> None:
@@ -361,15 +442,15 @@ async def test_agents_tab_strip_machine_mode_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    patch_startup_loaders(
-        monkeypatch,
-        agents=[
+    local, remote = _split_local_and_remote(
+        [
             _agent("one"),
             _agent("two", tab="sase"),
             _agent("remote", origin_alias="apollo", origin_id="install-apollo"),
             _agent("remote-mac", origin_alias="mac", origin_id="install-mac"),
-        ],
+        ]
     )
+    patch_startup_loaders(monkeypatch, agents=local)
     _install_tab_view(
         monkeypatch,
         machine_mode=True,
@@ -377,7 +458,11 @@ async def test_agents_tab_strip_machine_mode_png_snapshot(
         local_machine_name="athena",
     )
     async with AcePage(query='"visual"', patches=patches()) as page:
-        await _open_agents(page)
+        await _open_agents_with_remote_fleet(
+            page,
+            remote,
+            hosts=(("apollo", "install-apollo"), ("mac", "install-mac")),
+        )
         for token in ("⌂", "athena", "⌨", "apollo", "mac", "sase", "┊"):
             await wait_for_svg_contains(page, token)
         await _wait_for_settled_main_deck(page)
@@ -393,9 +478,8 @@ async def test_agents_tab_strip_named_vs_machine_alias_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    patch_startup_loaders(
-        monkeypatch,
-        agents=[
+    local, remote = _split_local_and_remote(
+        [
             _agent("one"),
             _agent("named", tab="apollo"),
             _agent(
@@ -403,8 +487,9 @@ async def test_agents_tab_strip_named_vs_machine_alias_png_snapshot(
                 origin_alias="apollo",
                 origin_id="install-apollo",
             ),
-        ],
+        ]
     )
+    patch_startup_loaders(monkeypatch, agents=local)
     _install_tab_view(
         monkeypatch,
         machine_mode=True,
@@ -412,7 +497,11 @@ async def test_agents_tab_strip_named_vs_machine_alias_png_snapshot(
         local_machine_name="athena",
     )
     async with AcePage(query='"visual"', patches=patches()) as page:
-        await _open_agents(page)
+        await _open_agents_with_remote_fleet(
+            page,
+            remote,
+            hosts=(("apollo", "install-apollo"),),
+        )
         for token in ("⌂", "athena", "⌨", "apollo"):
             await wait_for_svg_contains(page, token)
         await _wait_for_settled_main_deck(page)
@@ -429,17 +518,17 @@ async def test_agents_tab_strip_stale_host_png_snapshot(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     apollo_key = AgentTabKey.machine("install-apollo")
-    patch_startup_loaders(
-        monkeypatch,
-        agents=[
+    local, remote = _split_local_and_remote(
+        [
             _agent("one"),
             _agent(
                 "remote",
                 origin_alias="apollo",
                 origin_id="install-apollo",
             ),
-        ],
+        ]
     )
+    patch_startup_loaders(monkeypatch, agents=local)
     _install_tab_view(
         monkeypatch,
         machine_mode=True,
@@ -447,7 +536,11 @@ async def test_agents_tab_strip_stale_host_png_snapshot(
         local_machine_name="athena",
     )
     async with AcePage(query='"visual"', patches=patches()) as page:
-        await _open_agents(page)
+        await _open_agents_with_remote_fleet(
+            page,
+            remote,
+            hosts=(("apollo", "install-apollo"),),
+        )
         assert page.app._switch_agents_tab(apollo_key, reason="visual") is True
         page.app._agents_fleet_projection = SimpleNamespace(
             host_feed_issues=(),
@@ -457,7 +550,7 @@ async def test_agents_tab_strip_stale_host_png_snapshot(
         page.app._update_agents_header()
         await wait_for_visual_idle(page)
         await page.pause(0.5)
-        await wait_for_svg_contains(page, "apollo")
+        await wait_for_svg_contains(page, "apollo: stale")
         # The remote deck arrives through a worker (unlike the local-agent
         # decks above), so poll app state instead of re-exporting the frame:
         # a tight SVG-export loop can starve the very delivery it waits for

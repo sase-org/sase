@@ -10,6 +10,7 @@ from textual.widgets._header import HeaderIcon
 from textual.widgets import OptionList, Static
 
 from sase.ace.testing import AcePage
+from sase.ace.tui._artifact_tab_descriptors import fixed_descriptor
 from sase.ace.tui.actions.artifacts import _ArtifactsProjectChoices
 from sase.ace.tui.modals.inventory_project_picker import InventoryProjectChoice
 from sase.ace.tui.widgets.artifacts import CommitsPane
@@ -72,6 +73,15 @@ def _pin_rolling_default_query_time(monkeypatch: pytest.MonkeyPatch) -> None:
         "sase.vcs_log._render_util._now_epoch",
         reference.timestamp,
     )
+
+
+def _stitches_description_sentinel() -> str:
+    """Return a wrapping-stable prefix of the live stitches pane description.
+
+    ``6da4076b8e`` rewrote the builtin summary; waiting on a hard-coded
+    remnant of the old copy can never succeed.
+    """
+    return fixed_descriptor("stitches").description.partition(";")[0].strip()
 
 
 async def _open_commits(
@@ -391,7 +401,7 @@ async def test_commits_persistent_filter_small_terminal_png_snapshot(
         detail_scroll.styles.overflow_y = "hidden"
         detail_scroll.refresh(layout=True)
         page.app.screen.refresh(layout=True)
-        await wait_for_svg_contains(page, "Commits landed through SASE")
+        await wait_for_svg_contains(page, _stitches_description_sentinel())
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(
@@ -474,7 +484,7 @@ async def test_commits_filter_bar_prefilled_png_snapshot(
                 bar.query_one("#commit-filter-status").content.plain == "exact"
             )
         )
-        await wait_for_svg_contains(page, "Commits landed through SASE")
+        await wait_for_svg_contains(page, _stitches_description_sentinel())
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(

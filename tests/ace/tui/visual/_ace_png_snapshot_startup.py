@@ -251,7 +251,22 @@ def patch_startup_loaders(
             override_key=launch_model_setting_override_key(field),
         )
 
-    if not use_real_agent_loader:
+    if use_real_agent_loader:
+        # AcePage's fast-startup installer stubs the Agents first-load
+        # worker whenever both that method and the disk loader are still
+        # the originals. Wrap the worker so the identity check fails and
+        # the production path reads the seeded on-disk roster.
+        original_startup = AceApp._run_agent_index_startup_prepare_and_refresh
+
+        async def _real_agent_index_startup(app: AceApp) -> None:
+            await original_startup(app)
+
+        monkeypatch.setattr(
+            AceApp,
+            "_run_agent_index_startup_prepare_and_refresh",
+            _real_agent_index_startup,
+        )
+    else:
         monkeypatch.setattr(
             _loading, "load_agents_from_disk_with_state", _fake_load_agents
         )

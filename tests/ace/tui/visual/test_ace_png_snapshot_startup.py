@@ -50,3 +50,21 @@ def test_patch_startup_loaders_stops_live_proc_observer(
     observer = ProcObserver(on_snapshot=lambda _snapshot: None)
     observer.start()
     assert not observer.running
+
+
+@pytest.mark.asyncio
+async def test_use_real_agent_loader_keeps_production_agent_startup(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Real-loader opt-in must reach AcePage's fast-startup installer."""
+    from contextlib import AsyncExitStack
+
+    from sase.ace.testing import _startup as ace_startup
+    from sase.ace.tui import AceApp
+
+    patch_startup_loaders(monkeypatch, use_real_agent_loader=True)
+    async with AsyncExitStack() as stack:
+        ace_startup._install_fast_startup_overrides(stack)
+        installed = AceApp._run_agent_index_startup_prepare_and_refresh
+        assert installed is not ace_startup._run_fast_agent_startup
+        assert installed is not ace_startup._ORIGINAL_RUN_AGENT_STARTUP
