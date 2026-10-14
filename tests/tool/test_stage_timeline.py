@@ -27,15 +27,26 @@ RUN_SILENT = ROOT / "tools" / "run_silent"
 SASE = ROOT / ".venv" / "bin" / "sase"
 
 
+_OWNERSHIP_ENV = (
+    "SASE_AGENT",
+    "SASE_AGENT_NAME",
+    "SASE_MONITOR_ID",
+    "SASE_MONITOR_ARTIFACTS_DIR",
+    "SASE_PROC_ID",
+    "SASE_TOOL_RUN_ID",
+    "SASE_TOOL_NAME",
+    "SASE_TOOL_PROJECT_ROOT",
+    "SASE_TOOL_RUN_AGENT",
+    "SASE_TOOL_RUN_EVENTS",
+)
+
+
 def _home(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
     home = tmp_path / "home"
     home.mkdir()
     monkeypatch.setenv("SASE_HOME", str(home))
-    monkeypatch.delenv("SASE_AGENT_NAME", raising=False)
-    monkeypatch.delenv("SASE_MONITOR_ID", raising=False)
-    monkeypatch.delenv("SASE_MONITOR_ARTIFACTS_DIR", raising=False)
-    monkeypatch.delenv("SASE_PROC_ID", raising=False)
-    monkeypatch.delenv("SASE_TOOL_RUN_ID", raising=False)
+    for key in _OWNERSHIP_ENV:
+        monkeypatch.delenv(key, raising=False)
     monkeypatch.chdir(tmp_path)
     monkeypatch.setenv("GIT_CEILING_DIRECTORIES", str(tmp_path))
     clear_config_cache()

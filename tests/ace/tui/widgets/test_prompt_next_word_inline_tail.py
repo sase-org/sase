@@ -8,7 +8,12 @@ from textual.widgets.text_area import Selection
 
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
-from tests.ace.tui.widgets.test_prompt_next_word import NextWordTestApp, _bar_hint
+from tests.ace.tui.widgets.test_prompt_next_word import (
+    NextWordTestApp,
+    _bar_hint,
+    _fire_reveal_beat,
+    _hold_reveal_beat,
+)
 
 from ._completion_helpers import CompletionTestApp
 
@@ -114,6 +119,7 @@ async def test_right_at_eol_takes_whole_ghost() -> None:
 async def test_typing_space_inside_parens_shows_tail_ghost(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    _hold_reveal_beat(monkeypatch)
     app = _auto_app()
     async with app.run_test() as pilot:
         ta = app.query_one(PromptTextArea)
@@ -129,8 +135,9 @@ async def test_typing_space_inside_parens_shows_tail_ghost(
         assert ta.suggestion == "parser"
         assert ta._next_word_chain_is_armed() is True
         # Typing-triggered hints wait out the reveal beat.
+        assert ta._next_word_reveal_timer is not None
         assert "[^T] word" not in _bar_hint(bar)
-        await pilot.pause(0.6)
+        _fire_reveal_beat(ta)
         assert "[^T] word" in _bar_hint(bar)
 
 

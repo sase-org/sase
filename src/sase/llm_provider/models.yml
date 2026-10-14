@@ -24,7 +24,12 @@ schema_version: 1
 providers:
   agy:
     # Exact stable slugs reported by `agy models`; keep CLI ordering.
+    # Gemini 4 Argon is Ultra-gated: keep tier defaults on Gemini Flash so
+    # every agy account can use them. Argon is reachable by name.
     models:
+      - gemini-4-argon-high
+      - gemini-4-argon-medium
+      - gemini-4-argon-low
       - gemini-3.8-flash-high
       - gemini-3.8-flash-medium
       - gemini-3.8-flash-low
@@ -43,6 +48,9 @@ providers:
       - claude-opus-4-6-thinking
       - gpt-oss-120b-medium
     short_aliases:
+      gemini-4-argon-high: argon4h
+      gemini-4-argon-medium: argon4m
+      gemini-4-argon-low: argon4l
       gemini-3.8-flash-high: flash38h
       gemini-3.8-flash-medium: flash38m
       gemini-3.8-flash-low: flash38l
@@ -63,6 +71,28 @@ providers:
     tiers:
       large: gemini-3.7-flash-high
       small: gemini-3.7-flash-low
+    advisories:
+      gemini-4-argon-high:
+        severity: info
+        label: needs Google AI Ultra
+        detail: Antigravity offers Gemini 4 Argon only on Google AI Ultra and
+          eligible Gemini Enterprise subscriptions (not Free, AI Plus, or AI
+          Pro), and `agy` exits with an error when the signed-in account cannot
+          use it. Run `agy models` to check access.
+      gemini-4-argon-medium:
+        severity: info
+        label: needs Google AI Ultra
+        detail: Antigravity offers Gemini 4 Argon only on Google AI Ultra and
+          eligible Gemini Enterprise subscriptions (not Free, AI Plus, or AI
+          Pro), and `agy` exits with an error when the signed-in account cannot
+          use it. Run `agy models` to check access.
+      gemini-4-argon-low:
+        severity: info
+        label: needs Google AI Ultra
+        detail: Antigravity offers Gemini 4 Argon only on Google AI Ultra and
+          eligible Gemini Enterprise subscriptions (not Free, AI Plus, or AI
+          Pro), and `agy` exits with an error when the signed-in account cannot
+          use it. Run `agy models` to check access.
   claude:
     models:
       - opus

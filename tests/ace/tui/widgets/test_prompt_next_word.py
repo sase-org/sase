@@ -101,6 +101,26 @@ def _bar_hint(bar: PromptInputBar) -> str:
     return subtitle.plain if hasattr(subtitle, "plain") else str(subtitle)
 
 
+def _hold_reveal_beat(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep the reveal-beat timer from firing during idle waits.
+
+    ``pilot.press`` and ``pilot.pause()`` wait until idle. Under a loaded
+    xdist lane that wait can exceed ``NEXT_WORD_REVEAL_DELAY_MS``, so a
+    delayed hint appears before the test can assert it is still hidden.
+    """
+    monkeypatch.setattr(
+        "sase.ace.tui.widgets._next_word_ghost_state.NEXT_WORD_REVEAL_DELAY_MS",
+        60_000,
+    )
+
+
+def _fire_reveal_beat(ta: PromptTextArea) -> None:
+    """Show a delayed ghost or peek hint without waiting on wall-clock."""
+    generation = int(getattr(ta, "_next_word_reveal_generation", 0) or 0)
+    offset = ta._absolute_offset(ta.cursor_location)
+    ta._fire_next_word_reveal(generation, ta.text, offset)
+
+
 async def test_ghost_suppressed_inside_jinja_tag() -> None:
     app = NextWordTestApp()
     async with app.run_test():
@@ -401,7 +421,10 @@ def _auto_app() -> NextWordTestApp:
     return NextWordTestApp(settings=PromptCompletionSettings(next_word="auto"))
 
 
-async def test_auto_space_shows_ghost_without_separator() -> None:
+async def test_auto_space_shows_ghost_without_separator(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _hold_reveal_beat(monkeypatch)
     app = _auto_app()
     async with app.run_test() as pilot:
         ta = app.query_one(PromptTextArea)
@@ -417,8 +440,9 @@ async def test_auto_space_shows_ghost_without_separator() -> None:
         assert ta._next_word_chain_is_armed() is True
         # Typing-triggered ghosts show text at once but wait out the
         # reveal beat before naming their hint.
+        assert ta._next_word_reveal_timer is not None
         assert "[^T] word" not in _bar_hint(bar)
-        await pilot.pause(0.6)
+        _fire_reveal_beat(ta)
         assert "[^T] word" in _bar_hint(bar)
 
 

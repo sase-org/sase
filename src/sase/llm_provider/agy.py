@@ -39,6 +39,7 @@ from ._subprocess_agy import (
 )
 from .base import LLMProvider
 from .model_manifest import (
+    provider_model_advisories,
     provider_model_names,
     provider_short_aliases,
     provider_tier_model,
@@ -289,6 +290,10 @@ class AgyProvider(LLMProvider):
     def llm_model_short_aliases(self) -> dict[str, str]:
         # Compact aliases for model picker labels and same-provider fan-out ids.
         return provider_short_aliases("agy")
+
+    @hookimpl
+    def llm_model_advisories(self) -> dict[str, dict[str, str]]:
+        return provider_model_advisories("agy")
 
     @hookimpl
     def llm_usage_capabilities(self) -> dict[str, object]:

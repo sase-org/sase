@@ -12,17 +12,27 @@ import yaml
 from sase.config.core import clear_config_cache
 from sase.core.tool_run import tool_run_list, tool_run_show
 from sase.tool.executor import ToolRunCliRequest, execute_tool_run
+from tests._conftest_environment import TOOL_RUN_RECORDING_ENV_VARS
+
+_OWNERSHIP_ENV = (
+    "SASE_AGENT",
+    "SASE_AGENT_NAME",
+    "SASE_MONITOR_ID",
+    "SASE_MONITOR_ARTIFACTS_DIR",
+    "SASE_PROC_ID",
+    "SASE_TOOL_NAME",
+    "SASE_TOOL_PROJECT_ROOT",
+    "SASE_TOOL_RUN_AGENT",
+    *TOOL_RUN_RECORDING_ENV_VARS,
+)
 
 
 def _home(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
     home = tmp_path / "home"
     home.mkdir()
     monkeypatch.setenv("SASE_HOME", str(home))
-    monkeypatch.delenv("SASE_AGENT_NAME", raising=False)
-    monkeypatch.delenv("SASE_MONITOR_ID", raising=False)
-    monkeypatch.delenv("SASE_MONITOR_ARTIFACTS_DIR", raising=False)
-    monkeypatch.delenv("SASE_PROC_ID", raising=False)
-    monkeypatch.delenv("SASE_TOOL_RUN_ID", raising=False)
+    for key in _OWNERSHIP_ENV:
+        monkeypatch.delenv(key, raising=False)
     monkeypatch.chdir(tmp_path)
     monkeypatch.setenv("GIT_CEILING_DIRECTORIES", str(tmp_path))
     clear_config_cache()
@@ -191,6 +201,14 @@ def test_nested_run_has_parent_and_no_duplicate_logs(
     inner.write_text(
         textwrap.dedent(
             """
+            import os
+            for key in (
+                "SASE_AGENT",
+                "SASE_AGENT_NAME",
+                "SASE_MONITOR_ID",
+                "SASE_PROC_ID",
+            ):
+                os.environ.pop(key, None)
             from sase.tool.executor import ToolRunCliRequest, execute_tool_run
             raise SystemExit(execute_tool_run(ToolRunCliRequest(
                 quiet=False, verbose=False, tail_lines=200,
@@ -204,14 +222,16 @@ def test_nested_run_has_parent_and_no_duplicate_logs(
     assert code == 0
     listed = tool_run_list({"schema_version": 1, "limit": 10})
     runs = listed["runs"]
-    assert len(runs) == 2
-    by_parent = {run.get("parent_run_id"): run for run in runs}
-    child = next(run for run in runs if run.get("parent_run_id"))
-    parent = next(run for run in runs if run.get("parent_run_id") is None)
+    assert len(runs) == 2, runs
+    children = [run for run in runs if run.get("parent_run_id")]
+    roots = [run for run in runs if run.get("parent_run_id") is None]
+    assert len(children) == 1, runs
+    assert len(roots) == 1, runs
+    child = children[0]
+    parent = roots[0]
     assert child["parent_run_id"] == parent["run_id"]
     assert child["logs"].get("stdout_path") in (None, "")
     assert parent["logs"].get("stdout_path")
-    assert by_parent  # silence unused if layout changes
 
 
 def test_quiet_with_enclosing_owner_is_usage_error(

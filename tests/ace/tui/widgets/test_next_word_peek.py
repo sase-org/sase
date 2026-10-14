@@ -16,7 +16,12 @@ from sase.ace.tui.widgets.next_word_placement import (
 from sase.ace.tui.widgets.prompt_completion import PromptCompletionSettings
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
-from tests.ace.tui.widgets.test_prompt_next_word import NextWordTestApp, _bar_hint
+from tests.ace.tui.widgets.test_prompt_next_word import (
+    NextWordTestApp,
+    _bar_hint,
+    _fire_reveal_beat,
+    _hold_reveal_beat,
+)
 
 
 def _auto_app() -> NextWordTestApp:
@@ -157,6 +162,7 @@ def test_peek_falls_back_for_textual_auto_specs() -> None:
 async def test_auto_peek_appears_only_after_reveal_beat(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    _hold_reveal_beat(monkeypatch)
     app = _auto_app()
     async with app.run_test() as pilot:
         ta = app.query_one(PromptTextArea)
@@ -168,8 +174,9 @@ async def test_auto_peek_appears_only_after_reveal_beat(
         await pilot.pause()
         assert ta._next_word_peek_visible() is False
         assert ta._next_word_peek_pending() is True
+        assert ta._next_word_reveal_timer is not None
         assert "[^T] word" not in _bar_hint(bar)
-        await pilot.pause(0.6)
+        _fire_reveal_beat(ta)
         assert ta._next_word_peek_visible() is True
         assert "review" in _bar_hint(bar)
 

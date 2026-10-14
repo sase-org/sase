@@ -12,12 +12,26 @@ from typing import Any
 import pytest
 
 from sase.llm_provider._registry_metadata import provider_metadata
+from sase.llm_provider.agy import AgyProvider
 from sase.llm_provider.model_label import model_value_text
 from sase.llm_provider.model_manifest import provider_tier_model
 from sase.llm_provider.muse import MuseProvider
 from sase.llm_provider.registry import model_advisory_for, model_advisory_map
 
 _CONTRIBUTORS = ("muse-spark-1.3-contributor", "muse-spark-1.2-contributor")
+_ARGON_SLUGS = (
+    "gemini-4-argon-high",
+    "gemini-4-argon-medium",
+    "gemini-4-argon-low",
+)
+_FLASH_SLUGS = (
+    "gemini-3.8-flash-high",
+    "gemini-3.8-flash-medium",
+    "gemini-3.8-flash-low",
+    "gemini-3.7-flash-high",
+    "gemini-3.7-flash-medium",
+    "gemini-3.7-flash-low",
+)
 
 
 class _Plugin:
@@ -131,6 +145,33 @@ def test_tier_mapping_never_routes_to_an_advisory_model() -> None:
     assert advisory_models
     assert not advisory_models & {
         provider_tier_model("muse", tier) for tier in ("large", "small")
+    }
+
+
+# --- Antigravity Argon advisory -------------------------------------------
+
+
+@pytest.mark.parametrize("slug", _ARGON_SLUGS)
+def test_agy_flags_argon_as_ultra_gated(slug: str) -> None:
+    advisories = model_advisory_map()
+
+    assert advisories[slug]["severity"] == "info"
+    assert advisories[slug]["label"] == "needs Google AI Ultra"
+    assert "Google AI Ultra" in advisories[slug]["detail"]
+
+
+@pytest.mark.parametrize("slug", _FLASH_SLUGS)
+def test_agy_flash_models_carry_no_advisory(slug: str) -> None:
+    assert model_advisory_for(slug) is None
+
+
+def test_agy_tier_mapping_never_routes_to_an_advisory_model() -> None:
+    """Agy tiers must work for every account, including non-Ultra plans."""
+    advisory_models = set(AgyProvider().llm_model_advisories())
+
+    assert advisory_models
+    assert not advisory_models & {
+        provider_tier_model("agy", tier) for tier in ("large", "small")
     }
 
 

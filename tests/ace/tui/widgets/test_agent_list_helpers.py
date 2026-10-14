@@ -16,3 +16,8 @@ def test_short_model_name_recognizes_claude_fable() -> None:
 def test_short_model_name_recognizes_claude_haiku_5_5() -> None:
     """Claude Haiku 5.5 IDs should render with the compact haiku label."""
     assert short_model_name("claude-haiku-5-5") == "haiku"
+
+
+def test_short_model_name_recognizes_gemini_argon() -> None:
+    """Gemini 4 Argon IDs should render with the compact argon label."""
+    assert short_model_name("gemini-4-argon-high") == "argon"

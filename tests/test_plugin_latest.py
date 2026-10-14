@@ -567,6 +567,7 @@ def test_enrich_with_latest_cache_only_uses_stale_hits_without_fetch_or_write() 
         read_cache_fn=lambda: dict(stale),
         write_cache_fn=fail_write,  # type: ignore[arg-type]
         clock=lambda: 1_000_000.0,
+        installed_source_fn=lambda _dist: "index",
         version_records_fn=lambda: (),
         cache_only=True,
     )
