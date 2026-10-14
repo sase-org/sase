@@ -13,10 +13,8 @@ import pytest
 from sase.ace.testing.fixtures import make_patch
 from sase.ace.tui.actions._startup_loads_index import StartupLoadsIndexMixin
 from sase.ace.tui.actions.patch import PatchMixin
-from sase.ace.tui.actions.patch._loading import (
-    PatchLoadingMixin,
-    _PreparedPatchLoad,
-)
+from sase.ace.tui.actions.patch._loading import PatchLoadingMixin
+from sase.ace.tui.actions.patch._loading_apply import _PreparedPatchLoad
 from sase.ace.tui.actions.patch._relation_index import (
     clear_patch_relation_index_memo,
     patch_relation_index_real_build_count,
@@ -236,7 +234,7 @@ def test_apply_patches_uses_prepared_index_without_loop_rebuild() -> None:
     builds_before = patch_relation_index_real_build_count()
     app = _ApplyFake(patches)
     with patch(
-        "sase.ace.tui.actions.patch._loading.resolve_patch_relation_index",
+        "sase.ace.tui.actions.patch._loading_apply.resolve_patch_relation_index",
         side_effect=AssertionError("loop rebuilt the relation index"),
     ):
         app._apply_patches(

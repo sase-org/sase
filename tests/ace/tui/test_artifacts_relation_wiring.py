@@ -7,10 +7,8 @@ from types import SimpleNamespace
 
 from sase.ace.patch import Patch
 from sase.ace.tui._artifact_tab_contract import compile_builtin_contract
-from sase.ace.tui.actions.patch._loading import (
-    PatchLoadingMixin,
-    _PreparedPatchLoad,
-)
+from sase.ace.tui.actions.patch._loading import PatchLoadingMixin
+from sase.ace.tui.actions.patch._loading_apply import _PreparedPatchLoad
 from sase.ace.tui.actions.patch._relation_index import resolve_patch_relation_index
 from sase.ace.tui.relations import (
     build_beads_relation_index,

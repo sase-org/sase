@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from sase.ace.tui.actions.patch import _loading as loading_module
+from sase.ace.tui.actions.patch import _loading_apply as loading_module
 from sase.external_mirror import state as state_module
 
 

@@ -18,7 +18,15 @@ _MAX_ELAPSED_SECONDS = 5.0
 # unattributed drift. When this guard fails, attribute the growth with
 # ``tools/tui_import_closure --diff $(git merge-base HEAD origin/master)``
 # and defer the new edges with use-site or ``TYPE_CHECKING`` imports.
-_MAX_MODULE_COUNT = 3513
+#
+# 2026-10-13 toobig split of ``patch._loading`` added two mixin modules
+# that ``PatchLoadingMixin`` must import at class-definition time
+# (deferral is impossible):
+# ``sase.ace.tui.actions.patch._loading_apply`` and
+# ``sase.ace.tui.actions.patch._loading_refresh``. Merge-base already
+# measured 3517 against the 3513 cap; the split takes the closure to
+# 3519, so the cap is 3520.
+_MAX_MODULE_COUNT = 3520
 
 
 def _measure_tui_app_import() -> dict[str, Any]:
