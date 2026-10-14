@@ -84,8 +84,8 @@ def test_eager_consume_counts_match_serialized_index() -> None:
     snapshot = fixture_snapshot(payload)
     with pinned_identity(identity_from_payload(payload)):
         index = _build_link_index(snapshot)
-        counts = consume_eager_index(index)
-        serialized = serialize_link_index(index)
+        counts = consume_eager_index(index, snapshot.rows)
+        serialized = serialize_link_index(index, snapshot.rows)
     assert counts["ref_count"] == len(serialized["by_ref"])
     assert counts["target_count"] == len(serialized["targets_by_ref"])
     assert counts["chip_count"] == sum(

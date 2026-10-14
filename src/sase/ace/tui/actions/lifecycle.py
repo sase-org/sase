@@ -66,8 +66,10 @@ class LifecycleMixin:
         if callable(cancel_patch_follow_up):
             cancel_patch_follow_up()
         from .patch._relation_index import clear_patch_relation_index_memo
+        from ..relations._native_link_index import clear_native_link_index_cache
 
         clear_patch_relation_index_memo()
+        clear_native_link_index_cache()
         cancel_agent_hint_render = getattr(
             self, "_cancel_agent_hint_render_tasks", None
         )

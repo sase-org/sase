@@ -28,33 +28,6 @@ def parse_artifact_link_ref(value: str) -> tuple[str, str] | None:
     return str(payload["kind"]), str(payload["payload"])
 
 
-def artifact_row_index_keys(
-    targets: Sequence[ArtifactEntryTarget],
-) -> tuple[tuple[tuple[str, ...], ...], ...]:
-    binding = require_rust_binding("artifact_row_index_keys")
-    batches = binding([_target_to_wire(target) for target in targets])
-    return tuple(_keys_from_wire(keys) for keys in batches)
-
-
-def artifact_row_ref_lookup_keys(
-    kind: str,
-    payload: str,
-    *,
-    project_hint: str | None = None,
-    agent_name_candidates: Sequence[str] = (),
-) -> tuple[tuple[str, ...], ...]:
-    binding = require_rust_binding("artifact_row_ref_lookup_keys")
-    keys = binding(
-        _query_to_wire(
-            kind,
-            payload,
-            project_hint=project_hint,
-            agent_name_candidates=agent_name_candidates,
-        )
-    )
-    return _keys_from_wire(keys)
-
-
 def resolve_artifact_row_target(
     kind: str,
     payload: str,
@@ -105,13 +78,7 @@ def _target_from_wire(payload: Mapping[str, Any]) -> ArtifactEntryTarget:
     )
 
 
-def _keys_from_wire(keys: Sequence[Sequence[Any]]) -> tuple[tuple[str, ...], ...]:
-    return tuple(tuple(str(part) for part in key) for key in keys)
-
-
 __all__ = [
-    "artifact_row_index_keys",
-    "artifact_row_ref_lookup_keys",
     "parse_artifact_link_ref",
     "resolve_artifact_row_target",
 ]

@@ -26,7 +26,7 @@ def test_parity_fixture_pins_every_link_chip_and_target_field() -> None:
     snapshot = fixture_snapshot(payload)
     expected = json.loads(FIXTURE_CHIPS_PATH.read_text(encoding="utf-8"))
     with pinned_identity(identity_from_payload(payload)):
-        actual = serialize_link_index(_build_link_index(snapshot))
+        actual = serialize_link_index(_build_link_index(snapshot), snapshot.rows)
     diffs = parity_diff(actual, expected)
     assert diffs == [], "\n".join(diffs[:50])
 

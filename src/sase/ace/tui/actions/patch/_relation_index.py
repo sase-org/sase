@@ -8,8 +8,8 @@ resolves Patch identities. Real builds are counted for startup telemetry.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from threading import Lock
+from dataclasses import dataclass, field
+from threading import Event, Lock
 from typing import Any
 
 from ....patch import Patch
@@ -48,7 +48,25 @@ class _PatchRelationMemo:
 
 _MEMO_LOCK = Lock()
 _MEMO: _PatchRelationMemo | None = None
+_MEMO_PUBLISH_SEQ = 0
 _REAL_BUILD_COUNT = 0
+
+
+@dataclass
+class _FullInflight:
+    """One in-progress full Patch relation-index build."""
+
+    event: Event = field(default_factory=Event)
+    index: RelationIndex | None = None
+    deferred: bool = False
+    error: BaseException | None = None
+    # Strong refs so patch ids cannot be recycled mid-build.
+    patches: tuple[Patch, ...] = ()
+    seq: int = 0
+
+
+_FULL_INFLIGHT: dict[tuple[object, ...], _FullInflight] = {}
+_FULL_SEQ = 0
 
 
 def patch_relation_index_real_build_count() -> int:
@@ -58,10 +76,12 @@ def patch_relation_index_real_build_count() -> int:
 
 def clear_patch_relation_index_memo() -> None:
     """Drop the process-local memo and real-build counter. Tests only."""
-    global _MEMO, _REAL_BUILD_COUNT
+    global _MEMO, _MEMO_PUBLISH_SEQ, _REAL_BUILD_COUNT
     with _MEMO_LOCK:
         _MEMO = None
+        _MEMO_PUBLISH_SEQ = 0
         _REAL_BUILD_COUNT = 0
+        _FULL_INFLIGHT.clear()
 
 
 def _identity_matches(cached: tuple[Patch, ...], patches: list[Patch]) -> bool:
@@ -93,6 +113,26 @@ def _patch_target(patch: Patch) -> ArtifactEntryTarget:
     )
 
 
+def _build_full_patch_index(
+    patches: list[Patch], links: ArtifactLinksSnapshot, contract: Any
+) -> RelationIndex | None:
+    """Build the full Patch relation index on a worker, not the UI pump."""
+
+    from sase.ace.tui.models.patch_graph_index import build_patch_graph_index
+    from sase.ace.tui.relations import build_patches_relation_index
+    from sase.ace.tui.relations._support import relation_index_if_enabled
+
+    return relation_index_if_enabled(
+        contract,
+        lambda compiled: build_patches_relation_index(
+            patches,
+            build_patch_graph_index(patches),
+            contract=compiled,
+            artifact_links=links,
+        ),
+    )
+
+
 def _targets_only_index(patches: list[Patch], contract: Any) -> RelationIndex:
     return build_relation_index(
         pane_id=contract.id,
@@ -114,8 +154,10 @@ def resolve_patch_relation_index(
     objects themselves (compared by identity, holding strong references so
     ids cannot be recycled). A cached full index satisfies a targets-only
     request. A cached targets-only index does not satisfy a full request.
+    Concurrent full builds for one signature compile once: late callers
+    wait on the in-flight build instead of rebuilding.
     """
-    global _MEMO, _REAL_BUILD_COUNT
+    global _MEMO, _MEMO_PUBLISH_SEQ, _FULL_SEQ, _REAL_BUILD_COUNT
 
     from sase.ace.tui._artifact_tab_contract import compile_builtin_contract
     from sase.ace.tui._artifact_tab_model import PaneCapability
@@ -139,31 +181,67 @@ def resolve_patch_relation_index(
             return memo.index, memo.deferred
 
     if build_relations:
-        from sase.ace.tui.models.patch_graph_index import build_patch_graph_index
-        from sase.ace.tui.relations import build_patches_relation_index
-        from sase.ace.tui.relations._support import relation_index_if_enabled
-
-        index = relation_index_if_enabled(
-            contract,
-            lambda compiled: build_patches_relation_index(
-                patches,
-                build_patch_graph_index(patches),
-                contract=compiled,
-                artifact_links=links,
-            ),
-        )
-        deferred = False
-        full = True
+        key = (source_key, tuple(id(patch) for patch in patches))
         with _MEMO_LOCK:
-            _REAL_BUILD_COUNT += 1
-            _MEMO = _PatchRelationMemo(
-                source_key=source_key,
-                patches=tuple(patches),
-                index=index,
-                deferred=deferred,
-                full=full,
-            )
-        return index, deferred
+            memo = _MEMO
+            if (
+                memo is not None
+                and memo.source_key == source_key
+                and _identity_matches(memo.patches, patches)
+                and memo.full
+            ):
+                return memo.index, memo.deferred
+            inflight = _FULL_INFLIGHT.get(key)
+            if inflight is None:
+                _FULL_SEQ += 1
+                inflight = _FullInflight(patches=tuple(patches), seq=_FULL_SEQ)
+                _FULL_INFLIGHT[key] = inflight
+                owner = True
+            else:
+                owner = False
+        if not owner:
+            # Wait outside the memo lock; a failed build raises here and a
+            # later call retries.
+            inflight.event.wait()
+            with _MEMO_LOCK:
+                memo = _MEMO
+                if (
+                    memo is not None
+                    and memo.source_key == source_key
+                    and _identity_matches(memo.patches, patches)
+                    and memo.full
+                ):
+                    return memo.index, memo.deferred
+                if inflight.error is not None:
+                    raise inflight.error
+                return inflight.index, inflight.deferred
+        try:
+            index = _build_full_patch_index(patches, links, contract)
+        except BaseException as exc:
+            with _MEMO_LOCK:
+                if _FULL_INFLIGHT.get(key) is inflight:
+                    del _FULL_INFLIGHT[key]
+                inflight.error = exc
+                inflight.event.set()
+            raise
+        with _MEMO_LOCK:
+            # A slow older build must not replace a newer published memo.
+            if inflight.seq >= _MEMO_PUBLISH_SEQ:
+                _REAL_BUILD_COUNT += 1
+                _MEMO = _PatchRelationMemo(
+                    source_key=source_key,
+                    patches=tuple(patches),
+                    index=index,
+                    deferred=False,
+                    full=True,
+                )
+                _MEMO_PUBLISH_SEQ = inflight.seq
+            if _FULL_INFLIGHT.get(key) is inflight:
+                del _FULL_INFLIGHT[key]
+            inflight.index = index
+            inflight.deferred = False
+            inflight.event.set()
+        return index, False
 
     index = _targets_only_index(patches, contract)
     deferred = True

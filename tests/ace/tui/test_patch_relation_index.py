@@ -413,3 +413,131 @@ async def test_adaptive_follow_up_waits_and_coalesces() -> None:
     assert app.spawned == 0
     callback()
     assert app.spawned == 1
+
+
+def test_concurrent_full_builds_compile_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import threading
+    from concurrent.futures import ThreadPoolExecutor
+
+    import sase.ace.tui.actions.patch._relation_index as relation_memo
+
+    patches = _patches()
+    links = _links(1)
+    entered = 0
+    entered_lock = threading.Lock()
+    real_build = relation_memo._build_full_patch_index
+    builds = 0
+
+    def gated_build(*args: Any, **kwargs: Any) -> Any:
+        nonlocal builds
+        with entered_lock:
+            builds += 1
+        while True:
+            with entered_lock:
+                if entered >= 4:
+                    break
+            threading.Event().wait(0.001)
+        return real_build(*args, **kwargs)
+
+    def worker() -> Any:
+        nonlocal entered
+        with entered_lock:
+            entered += 1
+        return relation_memo.resolve_patch_relation_index(
+            patches, artifact_links=links, build_relations=True
+        )
+
+    monkeypatch.setattr(relation_memo, "_build_full_patch_index", gated_build)
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        results = list(pool.map(lambda _: worker(), range(4)))
+    assert builds == 1
+    assert patch_relation_index_real_build_count() == 1
+    first_index = results[0][0]
+    for index, deferred in results:
+        assert deferred is False
+        assert index is first_index
+
+
+def test_failed_full_build_unblocks_waiters_and_retry_succeeds(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import threading
+    from concurrent.futures import ThreadPoolExecutor
+
+    import sase.ace.tui.actions.patch._relation_index as relation_memo
+
+    patches = _patches()
+    links = _links(1)
+    release = threading.Event()
+    build_lock = threading.Lock()
+    real_build = relation_memo._build_full_patch_index
+    builds = 0
+    fail_open = True
+
+    def flaky_build(*args: Any, **kwargs: Any) -> Any:
+        nonlocal builds
+        with build_lock:
+            builds += 1
+        assert release.wait(timeout=60)
+        if fail_open:
+            raise RuntimeError("boom")
+        return real_build(*args, **kwargs)
+
+    def resolve() -> Any:
+        return relation_memo.resolve_patch_relation_index(
+            patches, artifact_links=links, build_relations=True
+        )
+
+    monkeypatch.setattr(relation_memo, "_build_full_patch_index", flaky_build)
+    # The main thread joins as a guaranteed waiter: the owner is already
+    # inside its build (or fails first and the main thread's own build
+    # fails the same way), so every interleaving raises instead of hanging.
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        owner = pool.submit(resolve)
+        while True:
+            with build_lock:
+                if builds >= 1:
+                    break
+            threading.Event().wait(0.001)
+        timer = threading.Timer(2.0, release.set)
+        timer.start()
+        try:
+            with pytest.raises(RuntimeError, match="boom"):
+                resolve()
+            with pytest.raises(RuntimeError, match="boom"):
+                owner.result(timeout=60)
+        finally:
+            timer.join(timeout=60)
+    assert builds >= 1
+    assert patch_relation_index_real_build_count() == 0
+    fail_open = False
+    release.set()
+    before = builds
+    index, deferred = relation_memo.resolve_patch_relation_index(
+        patches, artifact_links=links, build_relations=True
+    )
+    assert builds == before + 1
+    assert deferred is False
+    assert index is not None
+    assert patch_relation_index_real_build_count() == 1
+
+
+def test_hidden_targets_only_request_never_compiles_native_graph(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import sase.ace.tui.relations._native_link_index as native_link_index
+
+    def _forbidden(*args: object, **kwargs: object) -> object:
+        raise AssertionError("hidden request compiled the native graph")
+
+    monkeypatch.setattr(native_link_index, "build_index", _forbidden)
+    patches = _patches()
+    index, deferred = resolve_patch_relation_index(
+        patches, artifact_links=_links(1), build_relations=False
+    )
+    assert deferred is True
+    assert index is not None
+    assert index.edges == ()
+    assert patch_relation_index_real_build_count() == 0

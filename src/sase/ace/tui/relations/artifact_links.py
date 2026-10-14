@@ -23,9 +23,8 @@ from sase.core.agent_identity_facade import (
     current_owner_agent_name_lookup_candidates,
 )
 from sase.core.artifact_relations import RelationEdge
+from sase.core.artifact_link_index_facade import index_project, target_from_wire
 from sase.core.artifact_row_resolution_facade import (
-    artifact_row_index_keys,
-    artifact_row_ref_lookup_keys,
     parse_artifact_link_ref,
     resolve_artifact_row_target,
 )
@@ -45,37 +44,6 @@ class ArtifactLinksSnapshot:
     rows: tuple[Mapping[str, Any], ...] = ()
     source_key: tuple[object, ...] = ()
     errors: tuple[str, ...] = ()
-
-
-@dataclass(frozen=True, slots=True)
-class _KnownTargetIndex:
-    """Index the target fields artifact-link ref resolution matches."""
-
-    targets: frozenset[ArtifactEntryTarget]
-    by_key: Mapping[tuple[str, ...], ArtifactEntryTarget]
-    agent_identity: AgentIdentitySnapshot | None
-
-    @classmethod
-    def build(cls, known_targets: Iterable[ArtifactEntryTarget]) -> _KnownTargetIndex:
-        targets = frozenset(known_targets)
-        ordered = tuple(
-            sorted(targets, key=lambda target: (target.pane_id, target.parts))
-        )
-        by_key: dict[tuple[str, ...], ArtifactEntryTarget] = {}
-        for target, keys in zip(ordered, artifact_row_index_keys(ordered), strict=True):
-            for key in keys:
-                by_key.setdefault(key, target)
-        agent_identity = (
-            AgentIdentitySnapshot.current()
-            if any(target.pane_id == "agents" for target in ordered)
-            else None
-        )
-
-        return cls(
-            targets=targets,
-            by_key=by_key,
-            agent_identity=agent_identity,
-        )
 
 
 _CACHE_LOCK = RLock()
@@ -154,34 +122,46 @@ def artifact_link_edges(
     known_targets: Iterable[ArtifactEntryTarget],
     project_hint: str | None = None,
 ) -> tuple[RelationEdge, ...]:
-    """Return link-graph edges touching the current pane's known targets."""
+    """Return link-graph edges touching the current pane's known targets.
+
+    Candidate selection runs through the shared native inverted index, so
+    unrelated aggregate rows are never walked; Python only decorates the
+    returned edge records with their pane kind/label.
+    """
 
     if snapshot is None:
         return ()
     declarations = {item.name: item for item in contract.relations}
-    known_index = _KnownTargetIndex.build(known_targets)
-    known = known_index.targets
+    if not declarations:
+        return ()
+    known = tuple(known_targets)
+    if not known:
+        return ()
+    from ._native_link_index import native_handle_for_snapshot
+
+    handle = native_handle_for_snapshot(snapshot)
+    response = index_project(
+        handle,
+        known_targets=known,
+        permitted_relations=tuple(declarations),
+        project_hint=project_hint,
+    )
     seen: set[tuple[str, ArtifactEntryTarget, ArtifactEntryTarget]] = set()
     edges: list[RelationEdge] = []
-    for row in snapshot.rows:
-        source_ref = str(row.get("source_ref") or "").strip()
-        target_ref = str(row.get("target_ref") or "").strip()
-        relation = str(row.get("relation") or "").strip()
+    for wire in response["edges"]:
+        relation = str(wire.get("relation") or "")
         decl = declarations.get(relation)
-        if not source_ref or not target_ref or decl is None:
+        if decl is None:
             continue
-        project = str(row.get("_project") or project_hint or "").strip() or None
-        source = _target_for_ref(source_ref, known_index, project_hint=project)
-        target = _target_for_ref(target_ref, known_index, project_hint=project)
+        source = target_from_wire(wire.get("source"))
+        target = target_from_wire(wire.get("target"))
         if source is None or target is None:
             continue
-        if source not in known and target not in known:
-            continue
-        key = _edge_key(row, source, target)
+        key = _edge_key({"relation": relation}, source, target)
         if key in seen:
             continue
         seen.add(key)
-        edges.append(_emit_link_edge(decl, row, source, target))
+        edges.append(_emit_link_edge(decl, wire, source, target))
     return tuple(edges)
 
 
@@ -248,9 +228,9 @@ def target_for_ref_kind(
 ) -> ArtifactEntryTarget | None:
     """Synthesize a target for a ref's kind/payload with no known-target lookup.
 
-    This is the half of :func:`_target_for_ref` that never needs a pane's
-    rendered rows: a pure kind-dispatch, safe to call from an app-level index
-    build with no ``known_targets`` scope at all.
+    This is the half of ref resolution that never needs a pane's rendered
+    rows: a pure kind-dispatch, safe to call from an app-level index build
+    with no ``known_targets`` scope at all.
     """
 
     if kind == "stitch":
@@ -271,27 +251,6 @@ def target_for_ref_kind(
         # has no owning Artifacts pane and never joins the ref-kind catalog.
         return None
     return ArtifactEntryTarget(f"ref:{kind}", (project_hint or "", "archive", payload))
-
-
-def _target_for_ref(
-    value: str,
-    known_targets: _KnownTargetIndex,
-    *,
-    project_hint: str | None,
-) -> ArtifactEntryTarget | None:
-    parsed = parse_link_ref(value)
-    if parsed is None:
-        return None
-    kind, payload = parsed
-    exact = _known_target_for_ref(
-        kind,
-        payload,
-        known_targets,
-        project_hint=project_hint,
-    )
-    if exact is not None:
-        return exact
-    return target_for_ref_kind(kind, payload, project_hint=project_hint)
 
 
 def known_target_for_ref(
@@ -316,18 +275,10 @@ def known_target_for_ref(
 def _known_target_for_ref(
     kind: str,
     payload: str,
-    known_targets: frozenset[ArtifactEntryTarget] | _KnownTargetIndex,
+    known_targets: frozenset[ArtifactEntryTarget],
     *,
     project_hint: str | None = None,
 ) -> ArtifactEntryTarget | None:
-    if isinstance(known_targets, _KnownTargetIndex):
-        agent_identity = known_targets.agent_identity if kind == "agent" else None
-        for key in _lookup_keys_for_ref(kind, payload, project_hint, agent_identity):
-            target = known_targets.by_key.get(key)
-            if target is not None:
-                return target
-        return None
-
     agent_name_candidates = (
         current_owner_agent_name_lookup_candidates(
             payload,
@@ -340,26 +291,6 @@ def _known_target_for_ref(
         kind,
         payload,
         tuple(known_targets),
-        project_hint=project_hint,
-        agent_name_candidates=agent_name_candidates,
-    )
-
-
-@lru_cache(maxsize=8192)
-def _lookup_keys_for_ref(
-    kind: str,
-    payload: str,
-    project_hint: str | None,
-    agent_identity: AgentIdentitySnapshot | None,
-) -> tuple[tuple[str, ...], ...]:
-    agent_name_candidates = (
-        current_owner_agent_name_lookup_candidates(payload, agent_identity)
-        if kind == "agent" and agent_identity is not None
-        else ()
-    )
-    return artifact_row_ref_lookup_keys(
-        kind,
-        payload,
         project_hint=project_hint,
         agent_name_candidates=agent_name_candidates,
     )

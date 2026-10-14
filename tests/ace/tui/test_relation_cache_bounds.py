@@ -1,10 +1,11 @@
 """Regressions for module-level relation caches growing unboundedly.
 
-``artifact_links._CACHE`` and ``link_index._INDEX_CACHE`` are keyed by
-project scope with the aggregate ``(mtime_ns, size)`` signature stored
-alongside the value. A changed stat or signature replaces the scope's entry
-instead of piling up one permanent entry per superseded version
-(sase-1ez.3 snapshot-caches; see also sase-zn.9.3 heap attribution).
+``artifact_links._CACHE`` and the shared native handle cache in
+``_native_link_index._HANDLE_CACHE`` are keyed by project scope with the
+aggregate ``(mtime_ns, size)`` signature stored alongside the value. A
+changed stat or signature replaces the scope's entry instead of piling up
+one permanent entry per superseded version (sase-1ez.3 snapshot-caches;
+see also sase-zn.9.3 heap attribution).
 """
 
 from __future__ import annotations
@@ -14,6 +15,7 @@ from pathlib import Path
 
 import pytest
 
+from sase.ace.tui.relations import _native_link_index as native_link_index_mod
 from sase.ace.tui.relations import artifact_links as artifact_links_mod
 from sase.ace.tui.relations import link_index as link_index_mod
 from sase.ace.tui.relations.artifact_links import ArtifactLinksSnapshot
@@ -23,10 +25,10 @@ from sase.sdd._artifact_link_store_support import ARTIFACT_LINK_ROW_SCHEMA_VERSI
 @pytest.fixture(autouse=True)
 def _clear_relation_caches():
     artifact_links_mod._CACHE.clear()
-    link_index_mod._INDEX_CACHE.clear()
+    native_link_index_mod.clear_native_link_index_cache()
     yield
     artifact_links_mod._CACHE.clear()
-    link_index_mod._INDEX_CACHE.clear()
+    native_link_index_mod.clear_native_link_index_cache()
 
 
 def _patch_single_project(
@@ -116,17 +118,21 @@ def test_link_index_replaces_entry_across_signature_changes() -> None:
         snapshot = ArtifactLinksSnapshot(rows=(), source_key=(("proj", i, 10 + i),))
         link_index_mod.link_index_for_snapshot(snapshot)
 
-    assert len(link_index_mod._INDEX_CACHE) == 1
-    assert list(link_index_mod._INDEX_CACHE) == [("proj",)]
+    assert len(native_link_index_mod._HANDLE_CACHE) == 1
+    assert list(native_link_index_mod._HANDLE_CACHE) == [("proj",)]
 
 
 def test_link_index_cache_stays_bounded_across_many_scopes() -> None:
-    scope_count = link_index_mod._INDEX_CACHE_MAX * 4
+    scope_count = native_link_index_mod._HANDLE_CACHE_MAX * 4
     for i in range(scope_count):
         snapshot = ArtifactLinksSnapshot(rows=(), source_key=((f"proj-{i}", 1, 2),))
         link_index_mod.link_index_for_snapshot(snapshot)
 
-    assert 0 < len(link_index_mod._INDEX_CACHE) <= link_index_mod._INDEX_CACHE_MAX
+    assert (
+        0
+        < len(native_link_index_mod._HANDLE_CACHE)
+        <= native_link_index_mod._HANDLE_CACHE_MAX
+    )
 
 
 def test_link_index_stale_source_key_is_never_served() -> None:
@@ -135,15 +141,15 @@ def test_link_index_stale_source_key_is_never_served() -> None:
     older = ArtifactLinksSnapshot(rows=(), source_key=(("proj", 1, 10),))
     older_index = link_index_mod.link_index_for_snapshot(older)
     # A slower worker publishing an older signature replaces the entry...
-    assert link_index_mod._INDEX_CACHE[("proj",)][0] == older.source_key
+    assert native_link_index_mod._HANDLE_CACHE[("proj",)].source_key == older.source_key
     # ...but a lookup for the newer key never gets the older index back.
     served = link_index_mod.link_index_for_snapshot(newer)
     assert served.source_key == newer.source_key
     assert served is not older_index
-    assert link_index_mod._INDEX_CACHE[("proj",)][0] == newer.source_key
+    assert native_link_index_mod._HANDLE_CACHE[("proj",)].source_key == newer.source_key
 
 
 def test_link_index_empty_snapshot_scope() -> None:
     snapshot = ArtifactLinksSnapshot(rows=(), source_key=())
     link_index_mod.link_index_for_snapshot(snapshot)
-    assert list(link_index_mod._INDEX_CACHE) == [()]
+    assert list(native_link_index_mod._HANDLE_CACHE) == [()]

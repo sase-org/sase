@@ -155,19 +155,101 @@ def diagnostic_payload(item: RelationDiagnostic) -> dict[str, Any]:
     }
 
 
-def serialize_link_index(index: LinkIndex) -> dict[str, Any]:
-    """Stable JSON form of chips and targets, keyed in sorted ref order."""
+def index_enumeration_refs(
+    rows: Sequence[Mapping[str, Any]],
+) -> list[str]:
+    """Every ``by_ref``/``targets_by_ref`` key the eager index would carry.
 
+    Test-enumeration helper only: production lookups never enumerate the
+    graph. Mirrors the native pass-2 alias pattern (canonical entries first,
+    aliases never shadowing a canonical spelling).
+    """
+
+    from sase.ace.tui.relations.artifact_links import parse_link_ref
+    from sase.core.agent_identity_facade import (
+        AgentIdentitySnapshot,
+        current_owner_agent_name_lookup_candidates,
+    )
+    from sase.sdd._artifact_link_store_support import (
+        canonicalize_artifact_link_ref,
+    )
+
+    identity = AgentIdentitySnapshot.current()
+    canonical: list[str] = []
+    seen: set[str] = set()
+    for row in rows:
+        for key in ("source_ref", "target_ref"):
+            raw = str(row.get(key) or "").strip()
+            if not raw:
+                continue
+            try:
+                ref = str(canonicalize_artifact_link_ref(raw))
+            except Exception:  # noqa: BLE001 - malformed refs keep spelling
+                ref = raw
+            if ref not in seen:
+                seen.add(ref)
+                canonical.append(ref)
+    refs = list(canonical)
+    keyed = set(canonical)
+    for ref in canonical:
+        for alias in _bench_aliases_for_ref(ref, identity):
+            if alias not in keyed:
+                keyed.add(alias)
+                refs.append(alias)
+    return sorted(refs)
+
+
+def _bench_aliases_for_ref(ref: str, identity: Any) -> tuple[str, ...]:
+    from sase.ace.tui.relations.artifact_links import parse_link_ref
+    from sase.core.agent_identity_facade import (
+        current_owner_agent_name_lookup_candidates,
+    )
+
+    parsed = parse_link_ref(ref)
+    if parsed is None:
+        return ()
+    kind, payload = parsed
+    if kind == "agent":
+        return tuple(
+            f"agent:{candidate}"
+            for candidate in current_owner_agent_name_lookup_candidates(
+                payload, identity
+            )
+        )
+    if kind == "stitch":
+        repo, at, sha = payload.partition("@")
+        if at and repo and len(sha) > 7:
+            return (f"stitch:{repo}@{sha[:7]}",)
+        return ()
+    if kind == "plan":
+        return (f"ref:plan:{payload}",)
+    if kind == "chop":
+        return (f"job:{payload}",)
+    return ()
+
+
+def serialize_link_index(
+    index: LinkIndex, rows: Sequence[Mapping[str, Any]] | None = None
+) -> dict[str, Any]:
+    """Stable JSON form of chips and targets, keyed in sorted ref order.
+
+    *rows* enumerates the refs to serialize; production indexes are lazy
+    per-ref views, so callers pass the snapshot rows they built from.
+    """
+
+    if rows is None:
+        try:
+            refs = sorted(index.by_ref.keys())  # type: ignore[union-attr]
+        except TypeError:
+            refs = []
+    else:
+        refs = index_enumeration_refs(rows)
     return {
         "by_ref": {
-            ref: [chip_payload(chip) for chip in chips]
-            for ref, chips in sorted(index.by_ref.items())
+            ref: [chip_payload(chip) for chip in index.chips_for(ref)] for ref in refs
         },
         "source_key": _jsonable(index.source_key),
-        "targets_by_ref": {
-            ref: target_payload(target)
-            for ref, target in sorted(index.targets_by_ref.items())
-        },
+        "targets_by_ref": {ref: target_payload(index.target_for(ref)) for ref in refs},
     }
 
 
@@ -372,23 +454,42 @@ def build_patch_index(
 
 
 def clear_link_index_cache() -> None:
-    from sase.ace.tui.relations import link_index as link_index_mod
+    from sase.ace.tui.relations._native_link_index import (
+        clear_native_link_index_cache,
+    )
 
-    with link_index_mod._INDEX_CACHE_LOCK:
-        link_index_mod._INDEX_CACHE.clear()
+    clear_native_link_index_cache()
 
 
-def consume_eager_index(index: LinkIndex) -> dict[str, int]:
-    """Walk every chip and target the way an eager consumer does today."""
+def consume_eager_index(
+    index: LinkIndex, rows: Sequence[Mapping[str, Any]] | None = None
+) -> dict[str, int]:
+    """Query every chip and target the way an eager consumer does today.
 
+    *rows* enumerates the refs to consume; production indexes are lazy
+    per-ref views, so callers pass the snapshot rows they built from.
+    """
+
+    if rows is None:
+        try:
+            refs = list(index.by_ref.keys())  # type: ignore[union-attr]
+        except TypeError:
+            refs = []
+        chip_count = sum(len(index.chips_for(ref)) for ref in refs)
+        return {
+            "chip_count": chip_count,
+            "ref_count": len(refs),
+            "target_count": len(refs),
+        }
+    refs = index_enumeration_refs(rows)
     chip_count = 0
-    for chips in index.by_ref.values():
-        chip_count += len(chips)
-    target_count = len(index.targets_by_ref)
+    for ref in refs:
+        chip_count += len(index.chips_for(ref))
+        index.target_for(ref)
     return {
         "chip_count": chip_count,
-        "ref_count": len(index.by_ref),
-        "target_count": target_count,
+        "ref_count": len(refs),
+        "target_count": len(refs),
     }
 
 
@@ -447,7 +548,7 @@ def measure_snapshot(
     clear_link_index_cache()
     cold = timed_call(lambda: _build_link_index(snapshot))
     index: LinkIndex = cold.result
-    eager = timed_call(lambda: consume_eager_index(index))
+    eager = timed_call(lambda: consume_eager_index(index, snapshot.rows))
     queries = timed_call(lambda: query_index(index, query_refs))
     projection = timed_call(lambda: build_patch_index(snapshot, patches))
     clear_link_index_cache()
@@ -518,7 +619,7 @@ def write_fixture_goldens(*, fixture_dir: Path | None = None) -> dict[str, Path]
     snapshot = fixture_snapshot(payload)
     patches = fixture_patches(payload)
     with pinned_identity(identity):
-        chips = serialize_link_index(_build_link_index(snapshot))
+        chips = serialize_link_index(_build_link_index(snapshot), snapshot.rows)
         relation = serialize_relation_index(build_patch_index(snapshot, patches))
     chips_path = directory / "expected_chips.json"
     patch_path = directory / "expected_patch_index.json"
@@ -557,7 +658,7 @@ def capture_live_aggregate(
             load_timing=_timing_payload(load),
         )
         index = _build_link_index(snapshot)
-        chips = serialize_link_index(index)
+        chips = serialize_link_index(index, snapshot.rows)
         relation = serialize_relation_index(build_patch_index(snapshot, patches))
     aggregate = {
         "captured_from_project": project,

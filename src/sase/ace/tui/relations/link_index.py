@@ -1,35 +1,38 @@
 """An O(1), app-owned index from a link-graph ref to its ordered chips.
 
-Replaces the render-path O(n) scan every relation source pays through
-``_known_target_for_ref``: this index is built once off the cached
-:class:`~.artifact_links.ArtifactLinksSnapshot` (which already carries
-projected rows -- see ``bead:sase-ug.3``), keyed by every alias spelling a
-selected entity's ref might arrive in, so the render path is one
-``dict.get`` (``bead:sase-ug.5``).
+The chip graph is compiled once per aggregate generation into an immutable
+``sase_core`` index (see :mod:`.artifact_links` snapshots and
+:mod:`._native_link_index`); this module adapts one shared native handle
+per generation into lazily materialized :class:`LinkChip` records. Chip
+records are created only for refs callers actually query -- membership and
+ordinary lookups never enumerate the graph.
 """
 
 from __future__ import annotations
 
 from collections import OrderedDict
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterator, Mapping
 from dataclasses import dataclass
 from threading import RLock
 from typing import Any
 
-from sase.core.agent_identity_facade import (
-    AgentIdentitySnapshot,
-    current_owner_agent_name_lookup_candidates,
-)
+from sase.core.agent_identity_facade import AgentIdentitySnapshot
 from sase.core.artifact_entry_target import ArtifactEntryTarget
-from sase.core.rust import require_rust_binding
-from sase.sdd._artifact_link_store_support import (
-    artifact_relation_label_with_fallback,
-    canonicalize_artifact_link_ref,
-    is_projected_row,
+from sase.core.artifact_link_index_facade import (
+    build_index as _facade_build_index,
 )
-from sase.sdd.artifact_link_neighborhood import SEMANTIC_RELATIONS
+from sase.core.artifact_link_index_facade import (
+    index_chips,
+    index_target,
+    target_from_wire,
+)
+from sase.sdd._artifact_link_store_support import (
+    assembled_artifact_relations,
+    canonicalize_artifact_link_ref,
+)
 
-from .artifact_links import ArtifactLinksSnapshot, parse_link_ref, target_for_ref_kind
+from ._native_link_index import native_handle_for_snapshot
+from .artifact_links import ArtifactLinksSnapshot
 from .link_subject import accent_and_icon_for_ref
 
 
@@ -53,6 +56,108 @@ class LinkChip:
     writable: bool
 
 
+class _ChipMapping(Mapping[str, tuple[LinkChip, ...]]):
+    """Lazy per-ref chip view over one shared native handle.
+
+    Values are converted from native chip wires on first query and kept in
+    a bounded per-handle cache; membership never enumerates the graph.
+    """
+
+    def __init__(self, handle: Any) -> None:
+        self._handle = handle
+        self._lock = RLock()
+        self._chips: OrderedDict[str, tuple[LinkChip, ...]] = OrderedDict()
+        self._styles: dict[tuple[str, str | None], tuple[str, str]] = {}
+        self._max = 128
+
+    def __getitem__(self, ref: str) -> tuple[LinkChip, ...]:
+        with self._lock:
+            cached = self._chips.get(ref)
+            if cached is not None:
+                self._chips.move_to_end(ref)
+                return cached
+        chips = tuple(
+            _chip_from_wire(wire, self._styles)
+            for wire in index_chips(self._handle, _canonicalize(ref))
+        )
+        with self._lock:
+            self._chips[ref] = chips
+            self._chips.move_to_end(ref)
+            while len(self._chips) > self._max:
+                self._chips.popitem(last=False)
+        return chips
+
+    def __contains__(self, ref: object) -> bool:
+        if not isinstance(ref, str):
+            return False
+        with self._lock:
+            # A cached empty tuple records an absent ref, not membership.
+            if self._chips.get(ref):
+                return True
+        try:
+            return bool(
+                index_target(self._handle, _canonicalize(ref)).get("present", False)
+            )
+        except Exception:  # noqa: BLE001 - membership degrades to absent
+            return False
+
+    def __iter__(self) -> Iterator[str]:
+        raise TypeError(
+            "LinkIndex.by_ref is a lazy per-ref view; use chips_for(ref) "
+            "instead of enumerating the graph"
+        )
+
+    def __len__(self) -> int:
+        raise TypeError(
+            "LinkIndex.by_ref is a lazy per-ref view; use chips_for(ref) "
+            "instead of enumerating the graph"
+        )
+
+
+class _TargetsMapping(Mapping[str, ArtifactEntryTarget | None]):
+    """Lazy per-ref target view over one shared native handle.
+
+    Entries whose target is ``None`` are still members: an indexed
+    non-selectable ref (bug/chat/chop) is present with no destination,
+    which :func:`LinkIndex.target_for` reports as ``None`` while ``in``
+    stays true.
+    """
+
+    def __init__(self, handle: Any) -> None:
+        self._handle = handle
+
+    def __getitem__(self, ref: str) -> ArtifactEntryTarget | None:
+        try:
+            payload = index_target(self._handle, _canonicalize(ref))
+        except Exception as exc:  # noqa: BLE001 - missing refs KeyError
+            raise KeyError(ref) from exc
+        if not payload.get("present", False):
+            raise KeyError(ref)
+        return target_from_wire(payload.get("target"))
+
+    def __contains__(self, ref: object) -> bool:
+        if not isinstance(ref, str):
+            return False
+        try:
+            return bool(
+                index_target(self._handle, _canonicalize(ref)).get("present", False)
+            )
+        except Exception:  # noqa: BLE001 - membership degrades to absent
+            return False
+
+    def __iter__(self) -> Iterator[str]:
+        raise TypeError(
+            "LinkIndex.targets_by_ref is a lazy per-ref view; use "
+            "target_for(ref) instead of enumerating the graph"
+        )
+
+    def __len__(self) -> int:
+        raise TypeError(
+            "LinkIndex.targets_by_ref is a lazy per-ref view; use "
+            "target_for(ref) instead of enumerating the graph"
+        )
+
+
 @dataclass(frozen=True, slots=True)
 class LinkIndex:
     """App-owned O(1) index from a canonical ref to its ordered chips."""
@@ -72,305 +177,102 @@ class LinkIndex:
         return self.targets_by_ref.get(ref)
 
 
-_INDEX_CACHE_LOCK = RLock()
-# Keyed by project scope derived from the snapshot's source_key; the value
-# carries the full source_key the index was built from. A different
-# source_key for the same scope replaces the old index instead of pinning
-# one permanent entry per superseded signature. Bounds scopes, LRU.
-_INDEX_CACHE: OrderedDict[tuple[object, ...], tuple[tuple[object, ...], LinkIndex]] = (
-    OrderedDict()
-)
-_INDEX_CACHE_MAX = 8
-
-
-def _scope_for_source_key(source_key: tuple[object, ...]) -> tuple[object, ...]:
-    """Derive the cache scope from a snapshot's ``source_key``.
-
-    Artifact-link snapshots carry ``((project_key, mtime_ns, size), ...)``;
-    the scope is the project-key tuple. The empty snapshot's ``()`` key maps
-    to the ``()`` scope. An unexpected shape falls back to the full key so a
-    mismatched entry can never be served.
-    """
-
-    if not source_key:
-        return ()
-    scope: list[object] = []
-    for entry in source_key:
-        if (
-            isinstance(entry, (tuple, list))
-            and len(entry) >= 1
-            and isinstance(entry[0], str)
-        ):
-            scope.append(entry[0])
-        else:
-            return source_key
-    return tuple(scope)
-
-
 def link_index_for_snapshot(snapshot: ArtifactLinksSnapshot) -> LinkIndex:
-    """Return the cached :class:`LinkIndex` for *snapshot*, building it once.
+    """Return the cached :class:`LinkIndex` for *snapshot*.
 
     Gated by the snapshot's own ``source_key`` within its project scope --
     the same mtime+size aggregate signature
     :func:`.artifact_links.load_artifact_links_snapshot` already uses -- so a
     caller on the render path pays the build cost at most once per aggregate
-    change, and a superseded signature replaces its scope's entry.
+    change, and a superseded signature replaces its scope's entry. Two
+    callers for the same snapshot compile once through the shared native
+    handle; synthetic snapshots with placeholder keys stay separate.
     """
 
-    key = snapshot.source_key
-    scope = _scope_for_source_key(key)
-    with _INDEX_CACHE_LOCK:
-        cached = _INDEX_CACHE.get(scope)
-        if cached is not None and cached[0] == key:
-            _INDEX_CACHE.move_to_end(scope)
-            return cached[1]
-    index = _build_link_index(snapshot)
-    with _INDEX_CACHE_LOCK:
-        _INDEX_CACHE[scope] = (key, index)
-        _INDEX_CACHE.move_to_end(scope)
-        while len(_INDEX_CACHE) > _INDEX_CACHE_MAX:
-            _INDEX_CACHE.popitem(last=False)
-    return index
+    return _index_for_handle(native_handle_for_snapshot(snapshot), snapshot)
+
+
+def _index_for_handle(handle: Any, snapshot: ArtifactLinksSnapshot) -> LinkIndex:
+    return LinkIndex(
+        by_ref=_ChipMapping(handle),
+        targets_by_ref=_TargetsMapping(handle),
+        source_key=tuple(snapshot.source_key),
+    )
 
 
 def _build_link_index(snapshot: ArtifactLinksSnapshot) -> LinkIndex:
-    """Build a fresh :class:`LinkIndex` from *snapshot*'s rows."""
+    """Build a fresh :class:`LinkIndex` from *snapshot*'s rows.
 
-    label_fn = require_rust_binding("artifact_relation_label")
-    lookup_fn = require_rust_binding("artifact_relation_lookup")
-    identity = AgentIdentitySnapshot.current()
-    accent_icon_cache: dict[tuple[str, str | None], tuple[str, str]] = {}
+    Uncached companion to :func:`link_index_for_snapshot` for tests and
+    measurement helpers; production callers share the cached handle.
+    """
 
-    best_rows: dict[tuple[str, ...], dict[str, Any]] = {}
-    order: list[tuple[str, ...]] = []
-    for row in snapshot.rows:
-        source_ref = str(row.get("source_ref") or "").strip()
-        target_ref = str(row.get("target_ref") or "").strip()
-        relation = str(row.get("relation") or "").strip()
-        if not source_ref or not target_ref or not relation:
-            continue
-        directed = _directed(lookup_fn, relation)
-        canon_source = _canonicalize(source_ref)
-        canon_target = _canonicalize(target_ref)
-        if directed:
-            identity_key = ("d", canon_source, relation, canon_target)
-        else:
-            left, right = sorted((canon_source, canon_target))
-            identity_key = ("u", relation, left, right)
-        candidate = dict(row, source_ref=canon_source, target_ref=canon_target)
-        existing = best_rows.get(identity_key)
-        if existing is None:
-            order.append(identity_key)
-            best_rows[identity_key] = candidate
-        elif _uses(candidate) > _uses(existing):
-            best_rows[identity_key] = candidate
-
-    grouped: dict[str, list[LinkChip]] = {}
-    targets_by_ref: dict[str, ArtifactEntryTarget | None] = {}
-    for key in order:
-        row = best_rows[key]
-        source_ref = str(row["source_ref"])
-        target_ref = str(row["target_ref"])
-        relation = str(row.get("relation") or "")
-        directed = key[0] == "d"
-        project_hint = row.get("_project")
-        _record_indexed_target(targets_by_ref, source_ref, project_hint=project_hint)
-        _record_indexed_target(targets_by_ref, target_ref, project_hint=project_hint)
-        grouped.setdefault(source_ref, []).append(
-            _build_chip(
-                row,
-                relation=relation,
-                label_fn=label_fn,
-                directed=directed,
-                this_is_source=True,
-                neighbor_ref=target_ref,
-                project_hint=project_hint,
-                accent_icon_cache=accent_icon_cache,
-            )
-        )
-        grouped.setdefault(target_ref, []).append(
-            _build_chip(
-                row,
-                relation=relation,
-                label_fn=label_fn,
-                directed=directed,
-                this_is_source=False,
-                neighbor_ref=source_ref,
-                project_hint=project_hint,
-                accent_icon_cache=accent_icon_cache,
-            )
-        )
-
-    canonical: dict[str, tuple[LinkChip, ...]] = {
-        ref: _ordered(chips) for ref, chips in grouped.items()
-    }
-    index: dict[str, tuple[LinkChip, ...]] = dict(canonical)
-    for ref, chips in canonical.items():
-        for alias in _aliases_for_ref(ref, identity):
-            index.setdefault(alias, chips)
-    for ref, target in tuple(targets_by_ref.items()):
-        for alias in _aliases_for_ref(ref, identity):
-            targets_by_ref.setdefault(alias, target)
-
-    return LinkIndex(
-        by_ref=index,
-        targets_by_ref=targets_by_ref,
-        source_key=snapshot.source_key,
+    handle = _facade_build_index(
+        [dict(row) for row in snapshot.rows],
+        identity=AgentIdentitySnapshot.current(),
+        relations=[
+            {
+                "slug": str(item.get("slug") or ""),
+                "inverse": str(item.get("inverse") or ""),
+                "directed": bool(item.get("directed", True)),
+            }
+            for item in assembled_artifact_relations()
+        ],
     )
+    return _index_for_handle(handle, snapshot)
 
 
-def _record_indexed_target(
-    targets_by_ref: dict[str, ArtifactEntryTarget | None],
-    ref: str,
-    *,
-    project_hint: str | None,
-) -> None:
-    if ref in targets_by_ref:
-        return
-    parsed = parse_link_ref(ref)
-    if parsed is None:
-        targets_by_ref[ref] = None
-        return
-    kind, payload = parsed
-    targets_by_ref[ref] = target_for_ref_kind(kind, payload, project_hint=project_hint)
-
-
-def _build_chip(
-    row: Mapping[str, Any],
-    *,
-    relation: str,
-    label_fn: Any,
-    directed: bool,
-    this_is_source: bool,
-    neighbor_ref: str,
-    project_hint: str | None,
-    accent_icon_cache: dict[tuple[str, str | None], tuple[str, str]],
+def _chip_from_wire(
+    wire: Mapping[str, Any],
+    style_cache: dict[tuple[str, str | None], tuple[str, str]],
 ) -> LinkChip:
-    try:
-        label = str(label_fn(relation, this_is_source))
-    except (ValueError, TypeError, AttributeError):
-        label = artifact_relation_label_with_fallback(relation, this_is_source)
-    parsed = parse_link_ref(neighbor_ref)
-    neighbor_kind = parsed[0] if parsed is not None else ""
-    neighbor_target = (
-        target_for_ref_kind(neighbor_kind, parsed[1], project_hint=project_hint)
-        if parsed is not None
-        else None
-    )
-    accent_icon_key = (
+    neighbor_target = target_from_wire(wire.get("neighbor_target"))
+    neighbor_kind = str(wire.get("neighbor_kind") or "")
+    style_key = (
         neighbor_kind,
         None if neighbor_target is None else neighbor_target.pane_id,
     )
-    accent_icon = accent_icon_cache.get(accent_icon_key)
+    accent_icon = style_cache.get(style_key)
     if accent_icon is None:
         accent_icon = accent_and_icon_for_ref(neighbor_kind, neighbor_target)
-        accent_icon_cache[accent_icon_key] = accent_icon
+        style_cache[style_key] = accent_icon
     accent, icon = accent_icon
-    origin = str(row.get("origin") or "").strip()
     return LinkChip(
-        relation=relation,
-        label=label,
-        directed=directed,
-        this_is_source=this_is_source,
-        neighbor_ref=_public_neighbor_ref(neighbor_ref),
+        relation=str(wire.get("relation") or ""),
+        label=str(wire.get("label") or ""),
+        directed=bool(wire.get("directed", True)),
+        this_is_source=bool(wire.get("this_is_source", True)),
+        neighbor_ref=str(wire.get("neighbor_ref") or ""),
         neighbor_target=neighbor_target,
         accent=accent,
         icon=icon,
-        why=str(row.get("description") or "").strip(),
-        origin=origin,
-        uses=_uses(row),
-        created_by=str(row.get("created_by") or "").strip(),
-        created_at=str(row.get("created_at") or "").strip(),
-        writable=not is_projected_row(row),
+        why=str(wire.get("why") or ""),
+        origin=str(wire.get("origin") or ""),
+        uses=_uses_value(wire.get("uses")),
+        created_by=str(wire.get("created_by") or ""),
+        created_at=str(wire.get("created_at") or ""),
+        writable=bool(wire.get("writable", True)),
     )
 
 
-def _ordered(chips: Sequence[LinkChip]) -> tuple[LinkChip, ...]:
-    """Sort chips the way ``neighborhood_footer`` already does.
-
-    Semantic relations first, then everything else, each bucket ordered by
-    label then neighbor ref -- so the rail, the audited-read footer, and the
-    future ``$0`` panel can never disagree about chip order.
-    """
-
-    return tuple(
-        sorted(
-            chips,
-            key=lambda chip: (
-                chip.relation not in SEMANTIC_RELATIONS,
-                chip.label,
-                chip.neighbor_ref,
-            ),
-        )
-    )
-
-
-def _directed(lookup_fn: Any, relation: str) -> bool:
+def _uses_value(value: Any) -> int:
     try:
-        info = lookup_fn(relation)
-        return bool(info.get("directed", True))
-    except (ValueError, TypeError, AttributeError):
-        return relation != "related"
-
-
-def _canonicalize(ref: str) -> str:
-    try:
-        return str(canonicalize_artifact_link_ref(ref))
-    except Exception:  # noqa: BLE001 - a malformed ref degrades to itself, not a crash
-        return ref
-
-
-def _uses(row: Mapping[str, Any]) -> int:
-    try:
-        uses = int(row.get("uses") or 0)
+        uses = int(value or 0)
     except (TypeError, ValueError):
         return 0
     return max(0, uses)
 
 
-def _aliases_for_ref(ref: str, identity: AgentIdentitySnapshot) -> tuple[str, ...]:
-    """Return extra spellings *ref* should also be reachable under.
-
-    Mirrors ``_agent_ref_candidate_index``'s build-time alias pattern
-    (``sase.agents.catalog._query``): every alias is a *pass-2*, first-wins
-    key, never one that can shadow another edge's canonical spelling.
-    """
-
-    parsed = parse_link_ref(ref)
-    if parsed is None:
-        return ()
-    kind, payload = parsed
-    if kind == "agent":
-        return tuple(
-            f"agent:{candidate}"
-            for candidate in current_owner_agent_name_lookup_candidates(
-                payload, identity
-            )
-        )
-    if kind == "stitch":
-        repo, at, sha = payload.partition("@")
-        if at and repo and len(sha) > 7:
-            return (f"stitch:{repo}@{sha[:7]}",)
-        return ()
-    if kind == "plan":
-        return (f"ref:plan:{payload}",)
-    if kind == "chop":
-        return (f"job:{payload}",)
-    return ()
-
-
-def _public_neighbor_ref(ref: str) -> str:
-    parsed = parse_link_ref(ref)
-    if parsed is None:
+def _canonicalize(ref: str) -> str:
+    try:
+        return str(canonicalize_artifact_link_ref(ref))
+    except Exception:  # noqa: BLE001 - a malformed ref degrades to itself
         return ref
-    kind, payload = parsed
-    if kind == "chop":
-        return f"job:{payload}"
-    return ref
 
 
 __all__ = [
     "LinkChip",
     "LinkIndex",
+    "_build_link_index",
     "link_index_for_snapshot",
 ]

@@ -22,16 +22,23 @@ from tests.sdd._artifact_link_store_helpers import (
 
 
 def _index_rows(
-    index_by_ref: Mapping[str, tuple[LinkChip, ...]],
+    index: object,
+    rows: tuple[Mapping[str, object], ...],
 ) -> list[dict[str, object]]:
+    from tests.perf.artifact_link_index_bench import index_enumeration_refs
+
+    if index is None:
+        return []
+    refs = index_enumeration_refs(rows)  # type: ignore[arg-type]
+    chips_for = index.chips_for
     return [
         {
             "source_ref": ref,
             "relation": chip.relation,
             "target_ref": chip.neighbor_ref,
         }
-        for ref, chips in index_by_ref.items()
-        for chip in chips
+        for ref in refs
+        for chip in chips_for(ref)
         if chip.this_is_source
     ]
 
@@ -53,13 +60,10 @@ def test_link_index_resolves_every_durable_row_the_store_holds(
         _row(source="plan:202608/d.md", relation="related", target="plan:202608/e.md")
     )
 
-    index = _build_link_index(
-        ArtifactLinksSnapshot(
-            rows=tuple(store.load_aggregate()["rows"]), source_key=("test",)
-        )
-    )
+    rows = tuple(store.load_aggregate()["rows"])
+    index = _build_link_index(ArtifactLinksSnapshot(rows=rows, source_key=("test",)))
 
-    assert_index_resolves_durable_rows(store, _index_rows(index.by_ref))
+    assert_index_resolves_durable_rows(store, _index_rows(index, rows))
 
 
 def test_link_index_catches_a_repeat_of_the_dropped_relation_class_defect(
@@ -76,4 +80,4 @@ def test_link_index_catches_a_repeat_of_the_dropped_relation_class_defect(
     )
 
     with pytest.raises(AssertionError, match="missing durable artifact-link rows"):
-        assert_index_resolves_durable_rows(store, _index_rows({}))
+        assert_index_resolves_durable_rows(store, _index_rows(index=None, rows=()))

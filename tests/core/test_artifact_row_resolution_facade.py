@@ -7,8 +7,6 @@ from collections.abc import Sequence
 from sase.ace.tui.relations.artifact_links import target_for_ref_kind
 from sase.core.artifact_entry_target import ArtifactEntryTarget
 from sase.core.artifact_row_resolution_facade import (
-    artifact_row_index_keys,
-    artifact_row_ref_lookup_keys,
     parse_artifact_link_ref,
     resolve_artifact_row_target,
 )
@@ -29,32 +27,6 @@ def test_parse_artifact_link_ref_uses_canonical_kind_aliases() -> None:
         "202609/a.md",
     )
     assert parse_artifact_link_ref("not-a-ref") is None
-
-
-def test_artifact_row_index_keys_are_batched_per_target() -> None:
-    file_target = ArtifactEntryTarget("files", ("doc", "v1"))
-    patch_target = ArtifactEntryTarget("patches", ("alpha", "same"))
-
-    keys = artifact_row_index_keys((file_target, patch_target))
-
-    assert ("files.id", "doc") in keys[0]
-    assert ("patches.project.name", "alpha", "same") in keys[1]
-
-
-def test_artifact_row_ref_lookup_keys_are_ordered_by_specificity() -> None:
-    assert artifact_row_ref_lookup_keys("patch", "same", project_hint="beta") == (
-        ("patches.project.name", "beta", "same"),
-        ("patches.name", "same"),
-    )
-    assert artifact_row_ref_lookup_keys(
-        "agent",
-        "athena.worker",
-        agent_name_candidates=("athena.worker", "worker"),
-    ) == (
-        ("exact", "agents", "athena.worker"),
-        ("agents.name", "athena.worker"),
-        ("agents.name", "worker"),
-    )
 
 
 def test_resolve_artifact_row_target_closes_class_a_identity_gaps() -> None:

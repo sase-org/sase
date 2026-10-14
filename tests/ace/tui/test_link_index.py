@@ -23,7 +23,9 @@ def _snapshot(rows: tuple[Mapping[str, Any], ...]) -> ArtifactLinksSnapshot:
 def test_empty_snapshot_yields_empty_index() -> None:
     index = _build_link_index(_snapshot(()))
     assert index.chips_for("bead:sase-1") == ()
-    assert index.by_ref == {}
+    assert index.target_for("bead:sase-1") is None
+    assert "bead:sase-1" not in index.by_ref
+    assert "bead:sase-1" not in index.targets_by_ref
 
 
 def test_directed_relation_has_perspective_corrected_labels() -> None:
@@ -395,3 +397,227 @@ def test_a_canonical_ref_is_never_shadowed_by_another_edges_alias() -> None:
         )
     )
     assert index.chips_for("ref:plan:202608/x.md")[0].relation == "cites"
+
+
+def test_lazy_mappings_support_membership_without_enumeration() -> None:
+    index = _build_link_index(
+        _snapshot(
+            (
+                {
+                    "source_ref": "bead:sase-1",
+                    "relation": "related",
+                    "target_ref": "bead:sase-2",
+                    "uses": 1,
+                },
+                {
+                    "source_ref": "agent:ghost",
+                    "relation": "cites",
+                    "target_ref": "bug:1",
+                    "uses": 1,
+                },
+            )
+        )
+    )
+    assert "bead:sase-1" in index.by_ref
+    assert "bead:sase-9" not in index.by_ref
+    assert "bug:1" in index.targets_by_ref
+    assert index.target_for("bug:1") is None
+    assert "bead:sase-9" not in index.targets_by_ref
+    assert index.target_for("bead:sase-9") is None
+
+
+def test_lazy_mappings_refuse_graph_enumeration() -> None:
+    index = _build_link_index(
+        _snapshot(
+            (
+                {
+                    "source_ref": "bead:sase-1",
+                    "relation": "related",
+                    "target_ref": "bead:sase-2",
+                    "uses": 1,
+                },
+            )
+        )
+    )
+    with pytest.raises(TypeError):
+        list(index.by_ref)
+    with pytest.raises(TypeError):
+        len(index.by_ref)
+    with pytest.raises(TypeError):
+        list(index.targets_by_ref)
+    with pytest.raises(TypeError):
+        len(index.targets_by_ref)
+
+
+def test_concurrent_requests_for_one_snapshot_compile_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import threading
+    from concurrent.futures import ThreadPoolExecutor
+
+    import sase.ace.tui.relations._native_link_index as native_link_index
+    from sase.ace.tui.relations.link_index import link_index_for_snapshot
+
+    snapshot = _snapshot(
+        (
+            {
+                "source_ref": "bead:sase-1",
+                "relation": "related",
+                "target_ref": "bead:sase-2",
+                "uses": 1,
+            },
+        )
+    )
+    entered = 0
+    entered_lock = threading.Lock()
+    real_build = native_link_index.build_index
+    builds = 0
+
+    def gated_build(*args: object, **kwargs: object) -> object:
+        nonlocal builds
+        with entered_lock:
+            builds += 1
+        while True:
+            with entered_lock:
+                if entered >= 4:
+                    break
+            threading.Event().wait(0.001)
+        return real_build(*args, **kwargs)
+
+    def worker() -> object:
+        nonlocal entered
+        with entered_lock:
+            entered += 1
+        return link_index_for_snapshot(snapshot)
+
+    monkeypatch.setattr(native_link_index, "build_index", gated_build)
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        indexes = list(pool.map(lambda _: worker(), range(4)))
+    assert builds == 1
+    handles = {id(index.by_ref._handle) for index in indexes}  # type: ignore[union-attr]
+    assert handles == {id(indexes[0].by_ref._handle)}  # type: ignore[union-attr]
+    for index in indexes:
+        assert index.chips_for("bead:sase-1")
+
+
+def test_failed_build_unblocks_waiters_and_retry_succeeds(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import threading
+    from concurrent.futures import ThreadPoolExecutor
+
+    import sase.ace.tui.relations._native_link_index as native_link_index
+    from sase.ace.tui.relations.link_index import link_index_for_snapshot
+
+    snapshot = _snapshot(
+        (
+            {
+                "source_ref": "bead:sase-1",
+                "relation": "related",
+                "target_ref": "bead:sase-2",
+                "uses": 1,
+            },
+        )
+    )
+    release = threading.Event()
+    build_lock = threading.Lock()
+    real_build = native_link_index.build_index
+    builds = 0
+    fail_open = True
+
+    def flaky_build(*args: object, **kwargs: object) -> object:
+        nonlocal builds
+        with build_lock:
+            builds += 1
+        assert release.wait(timeout=60)
+        if fail_open:
+            raise RuntimeError("boom")
+        return real_build(*args, **kwargs)
+
+    monkeypatch.setattr(native_link_index, "build_index", flaky_build)
+    # The main thread joins as a guaranteed waiter: the owner is already
+    # inside its build (or fails first and the main thread's own build
+    # fails the same way), so every interleaving raises instead of hanging.
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        owner = pool.submit(link_index_for_snapshot, snapshot)
+        while True:
+            with build_lock:
+                if builds >= 1:
+                    break
+            threading.Event().wait(0.001)
+        timer = threading.Timer(2.0, release.set)
+        timer.start()
+        try:
+            with pytest.raises(RuntimeError, match="boom"):
+                link_index_for_snapshot(snapshot)
+            with pytest.raises(RuntimeError, match="boom"):
+                owner.result(timeout=60)
+        finally:
+            timer.join(timeout=60)
+    assert builds >= 1
+    fail_open = False
+    release.set()
+    before = builds
+    index = link_index_for_snapshot(snapshot)
+    assert builds == before + 1
+    assert index.chips_for("bead:sase-1")
+
+
+def test_distinct_synthetic_snapshots_with_shared_keys_stay_separate() -> None:
+    first = _build_link_index(
+        _snapshot(
+            (
+                {
+                    "source_ref": "bead:sase-1",
+                    "relation": "related",
+                    "target_ref": "bead:sase-2",
+                    "uses": 1,
+                },
+            )
+        )
+    )
+    second = _build_link_index(
+        _snapshot(
+            (
+                {
+                    "source_ref": "bead:sase-9",
+                    "relation": "related",
+                    "target_ref": "bead:sase-8",
+                    "uses": 1,
+                },
+            )
+        )
+    )
+    assert first.chips_for("bead:sase-1")
+    assert first.chips_for("bead:sase-9") == ()
+    assert second.chips_for("bead:sase-9")
+    assert second.chips_for("bead:sase-1") == ()
+
+    from sase.ace.tui.relations.link_index import link_index_for_snapshot
+
+    shared_a = _snapshot(
+        (
+            {
+                "source_ref": "bead:sase-1",
+                "relation": "related",
+                "target_ref": "bead:sase-2",
+                "uses": 1,
+            },
+        )
+    )
+    shared_b = _snapshot(
+        (
+            {
+                "source_ref": "bead:sase-9",
+                "relation": "related",
+                "target_ref": "bead:sase-8",
+                "uses": 1,
+            },
+        )
+    )
+    cached_a = link_index_for_snapshot(shared_a)
+    assert cached_a.chips_for("bead:sase-1")
+    assert cached_a.chips_for("bead:sase-9") == ()
+    cached_b = link_index_for_snapshot(shared_b)
+    assert cached_b.chips_for("bead:sase-9")
+    assert cached_b.chips_for("bead:sase-1") == ()

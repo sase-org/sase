@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Iterator
 import json
 
 import pytest
@@ -116,17 +115,17 @@ def test_artifact_links_source_resolves_known_targets_with_one_index(
         )
     )
     contract = compile_builtin_contract("files", label="F", icon="x", accent="#0")
-    build_count = 0
-    original_build = artifact_links._KnownTargetIndex.build
+    import sase.ace.tui.relations._native_link_index as native_link_index
 
-    def counted_build(known_targets: Iterable[ArtifactEntryTarget]):
+    build_count = 0
+    original_build = native_link_index.build_index
+
+    def counted_build(*args: object, **kwargs: object):
         nonlocal build_count
         build_count += 1
-        return original_build(known_targets)
+        return original_build(*args, **kwargs)
 
-    monkeypatch.setattr(
-        artifact_links._KnownTargetIndex, "build", staticmethod(counted_build)
-    )
+    monkeypatch.setattr(native_link_index, "build_index", counted_build)
 
     edges = artifact_links.artifact_link_edges(
         snapshot,
@@ -139,20 +138,108 @@ def test_artifact_links_source_resolves_known_targets_with_one_index(
     assert build_count == 1
 
 
-class _NonIterableTargets(frozenset[ArtifactEntryTarget]):
-    def __iter__(self) -> Iterator[ArtifactEntryTarget]:
-        raise AssertionError("_known_target_for_ref scanned indexed targets")
+def test_projection_never_calls_per_row_target_resolution(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The pane projection must not resolve targets row by row in Python."""
 
+    def _forbidden(*args: object, **kwargs: object) -> object:
+        raise AssertionError("projection walked rows through per-ref resolution")
 
-def test_known_target_for_ref_uses_index_lookup_without_target_scan() -> None:
-    target = ArtifactEntryTarget("patches", ("alpha", "needle"))
-    index = artifact_links._KnownTargetIndex(
-        targets=_NonIterableTargets(),
-        by_key={("patches.name", "needle"): target},
-        agent_identity=None,
+    monkeypatch.setattr(artifact_links, "resolve_artifact_row_target", _forbidden)
+    snapshot = _files_snapshot_with_link_rows(
+        (
+            {
+                "source_ref": "file:doc",
+                "relation": "implements",
+                "target_ref": "bead:sase-r8",
+                "description": "extends requirement",
+                "origin": "manual",
+                "uses": 3,
+            },
+        )
     )
+    contract = compile_builtin_contract("files", label="F", icon="x", accent="#0")
+    index = build_files_relation_index(snapshot, contract=contract)
+    row = ArtifactEntryTarget("files", ("doc",))
+    assert index.edges_for_relation(row, "implements")
 
-    assert artifact_links._known_target_for_ref("patch", "needle", index) == target
+
+def test_projection_candidate_set_ignores_unrelated_rows() -> None:
+    """Unrelated aggregate rows must not grow the indexed candidate set."""
+
+    import sase.ace.tui.relations._native_link_index as native_link_index
+    from sase.core.artifact_link_index_facade import index_project
+
+    patch_rows = [
+        {
+            "source_ref": "patch:root",
+            "relation": "implements",
+            "target_ref": "bead:sase-1",
+            "description": "",
+            "origin": "manual",
+            "uses": 1,
+            "_project": "alpha",
+        },
+        {
+            "source_ref": "patch:root_child",
+            "relation": "related",
+            "target_ref": "patch:root",
+            "description": "",
+            "origin": "manual",
+            "uses": 1,
+            "_project": "alpha",
+        },
+    ]
+    noise_rows = [
+        {
+            "source_ref": f"bead:sase-noise-{index}",
+            "relation": "related",
+            "target_ref": f"plan:202608/noise-{index}.md",
+            "description": "",
+            "origin": "manual",
+            "uses": 1,
+            "_project": "alpha",
+        }
+        for index in range(200)
+    ]
+    known = (
+        ArtifactEntryTarget("patches", ("alpha", "root")),
+        ArtifactEntryTarget("patches", ("alpha", "root_child")),
+    )
+    snapshot = ArtifactLinksSnapshot(
+        rows=(*patch_rows, *noise_rows), source_key=("test-candidates",)
+    )
+    handle = native_link_index.native_handle_for_snapshot(snapshot)
+    response = index_project(
+        handle,
+        known_targets=known,
+        permitted_relations=("implements", "related"),
+        project_hint="alpha",
+    )
+    assert response["candidate_row_count"] <= len(patch_rows)
+    assert response["candidate_row_count"] < len(snapshot.rows)
+
+
+def test_known_target_for_ref_resolves_without_target_scan(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    target = ArtifactEntryTarget("patches", ("alpha", "needle"))
+    calls = 0
+    original = artifact_links.resolve_artifact_row_target
+
+    def counted(*args: object, **kwargs: object) -> object:
+        nonlocal calls
+        calls += 1
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(artifact_links, "resolve_artifact_row_target", counted)
+
+    assert (
+        artifact_links.known_target_for_ref("patch", "needle", frozenset({target}))
+        == target
+    )
+    assert calls == 1
 
 
 def test_known_target_index_uses_project_hint_then_deterministic_fallback() -> None:
@@ -170,27 +257,25 @@ def test_known_target_index_uses_project_hint_then_deterministic_fallback() -> N
             ArtifactEntryTarget("ref:plan", ("beta", "archive", "design.md")),
         }
     )
-    index = artifact_links._KnownTargetIndex.build(known)
-
     assert artifact_links._known_target_for_ref(
-        "bead", "same-bead", index, project_hint="beta"
+        "bead", "same-bead", known, project_hint="beta"
     ) == ArtifactEntryTarget("beads", ("beta", "phase", "same-bead"))
-    assert artifact_links._known_target_for_ref("bead", "same-bead", index) == (
+    assert artifact_links._known_target_for_ref("bead", "same-bead", known) == (
         ArtifactEntryTarget("beads", ("alpha", "epic", "same-bead"))
     )
     assert artifact_links._known_target_for_ref(
-        "patch", "same", index, project_hint="beta"
+        "patch", "same", known, project_hint="beta"
     ) == ArtifactEntryTarget("patches", ("beta", "same"))
-    assert artifact_links._known_target_for_ref("patch", "same", index) == (
+    assert artifact_links._known_target_for_ref("patch", "same", known) == (
         ArtifactEntryTarget("patches", ("alpha", "same"))
     )
-    assert artifact_links._known_target_for_ref("stitch", "sase@abc", index) == (
+    assert artifact_links._known_target_for_ref("stitch", "sase@abc", known) == (
         ArtifactEntryTarget("stitches", ("sase", "abc1234"))
     )
     assert artifact_links._known_target_for_ref(
-        "plan", "design.md", index, project_hint="beta"
+        "plan", "design.md", known, project_hint="beta"
     ) == ArtifactEntryTarget("ref:plan", ("beta", "archive", "design.md"))
-    assert artifact_links._known_target_for_ref("plan", "design.md", index) == (
+    assert artifact_links._known_target_for_ref("plan", "design.md", known) == (
         ArtifactEntryTarget("ref:plan", ("alpha", "active", "design.md"))
     )
 
@@ -205,36 +290,32 @@ def test_known_target_index_matches_legacy_for_unambiguous_targets() -> None:
             ArtifactEntryTarget("ref:plan", ("alpha", "active", "solo.md")),
         }
     )
-    index = artifact_links._KnownTargetIndex.build(known)
-
     for kind, payload in (
         ("file", "doc"),
         ("patch", "only"),
         ("stitch", "sase@def"),
         ("plan", "solo.md"),
     ):
-        assert artifact_links._known_target_for_ref(kind, payload, index) == (
+        assert artifact_links._known_target_for_ref(kind, payload, known) == (
             _legacy_known_target_for_ref(kind, payload, known)
         )
 
 
 def test_known_target_for_ref_prefers_project_hinted_bead_and_patch() -> None:
-    index = artifact_links._KnownTargetIndex.build(
-        frozenset(
-            {
-                ArtifactEntryTarget("beads", ("alpha", "task", "same")),
-                ArtifactEntryTarget("beads", ("beta", "flag", "same")),
-                ArtifactEntryTarget("patches", ("alpha", "same")),
-                ArtifactEntryTarget("patches", ("beta", "same")),
-            }
-        )
+    known = frozenset(
+        {
+            ArtifactEntryTarget("beads", ("alpha", "task", "same")),
+            ArtifactEntryTarget("beads", ("beta", "flag", "same")),
+            ArtifactEntryTarget("patches", ("alpha", "same")),
+            ArtifactEntryTarget("patches", ("beta", "same")),
+        }
     )
 
     assert artifact_links._known_target_for_ref(
-        "bead", "same", index, project_hint="beta"
+        "bead", "same", known, project_hint="beta"
     ) == ArtifactEntryTarget("beads", ("beta", "flag", "same"))
     assert artifact_links._known_target_for_ref(
-        "patch", "same", index, project_hint="beta"
+        "patch", "same", known, project_hint="beta"
     ) == ArtifactEntryTarget("patches", ("beta", "same"))
 
 
