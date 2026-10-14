@@ -544,6 +544,33 @@ codex exec --model <model> --dangerously-bypass-approvals-and-sandbox --json --c
 The prompt is written to stdin. Output is streamed as NDJSON events, with assistant text
 extracted from `item.completed` events.
 
+### Codex instruction delivery
+
+With `codex_explicit_instructions` enabled (the default), SASE adds
+`-c developer_instructions=<bundle>` to the command. The value contains the compiled
+root instructions and delivery marker, including the single-turn directive. The
+delivered text has a 32 KiB limit; an oversized bundle falls back to the legacy
+single-turn directive instead of being truncated.
+
+For a SASE-managed project, explicit delivery also adds `-c project_doc_max_bytes=0`.
+This disables native project-document loading for the invocation, including nested
+project instructions; it is not a path-by-path exclusion. Unmanaged projects retain
+native project discovery. Native helpers inherit the root's `developer_instructions`;
+there is no separate helper bundle or guard, so the instruction to return results to the
+parent remains essential.
+
+Every observed thread id is recorded in the invocation manifest, including fresh threads
+started after interrupts or handoff recovery. Use `sase instructions verify -a AGENT` to
+compare observed loads with that manifest.
+
+Without an active explicit bundle, the command uses the legacy single-turn directive and
+leaves project-document loading enabled. Shadow-home suppression, however, currently
+follows the feature flag rather than the active delivery result: with the flag enabled,
+fallback runs still omit SASE-owned global instruction copies, the `~/AGENTS.md`
+fallback, and native memories. Disabling `codex_explicit_instructions` restores those
+legacy shadow-home paths as well. This distinction matters when diagnosing a render
+failure or an oversized bundle.
+
 ### Model Mapping
 
 <!-- BEGIN GENERATED: model-tiers-codex -->
@@ -575,12 +602,15 @@ skill, so provider behavior stays consistent across runtimes.
 The generic `SASE_LLM_*_ARGS` variables take precedence over `SASE_CODEX_*_ARGS`.
 
 By default, SASE launches Codex with a per-invocation shadow `CODEX_HOME` under
-`~/.cache/sase/codex_home/`. The shadow home copies `config.toml` and symlinks other
-Codex home entries back to the real Codex home so Codex can read auth, hooks, skills,
-logs, and caches while any config rewrites stay disposable. The shadow directory is
-removed after each Codex subprocess exits. Set `SASE_CODEX_DISABLE_SHADOW_HOME=1` to
-pass through the inherited environment directly for debugging or emergency
-compatibility.
+`~/.cache/sase/codex_home/`. The shadow home copies `config.toml` and symlinks an
+allow-list of entries for authentication, hooks, skills, plugins, sessions, and caches
+back to the real Codex home. SQLite state is not shared. With explicit instructions
+enabled, native `memories` and SASE-owned global instruction files are omitted; foreign
+global `AGENTS.md` / `AGENTS.override.md` files remain available. With the flag
+disabled, `memories` is shared and `~/AGENTS.md` is linked when no Codex-global file
+wins. Config rewrites remain disposable. The shadow directory is removed after each
+Codex subprocess exits. Set `SASE_CODEX_DISABLE_SHADOW_HOME=1` to pass through the
+inherited environment directly for debugging or emergency compatibility.
 
 ### Codex Tool-Call Capture
 

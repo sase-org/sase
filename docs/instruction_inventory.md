@@ -1,8 +1,22 @@
 # Instruction Inventory
 
-Every surface where an agent can load instructions, with its disposition for the
-memory-built instruction migration (E1–E5). Counts verified 2026-10-06 with
-`git ls-files`, `ls ~`, and `sase repo open` (read-only; no other repo was modified).
+This page records the instruction-file inventory used to plan the memory-built
+instruction migration. The repository and home counts below are a **historical inventory
+begun on 2026-10-06 and updated during E3 acceptance**, not a live inventory of your
+installation. Run `sase instructions list` to inspect your current files, and
+`sase instructions verify` to inspect what providers actually loaded.
+
+## Current delivery
+
+Claude, Codex, Grok, and Muse now deliver per-invocation bundles by default. Claude also
+delivers a separate helper bundle when supported; Codex helpers inherit the root bundle.
+Antigravity, OpenCode, and Qwen still use native discovery. Generated root files and
+provider shims remain in this repository; explicit delivery suppresses native duplicates
+according to each adapter's capabilities rather than deleting those files.
+
+For channels, fallback behavior, and diagnostic commands, start with
+[Instruction Bundles](instruction_bundles.md). The E1–E5 labels and dispositions below
+describe the migration plan, not completed removal work.
 
 Dispositions: `migrate` (replaced by memory-built per-invocation delivery), `projection`
 (generated copy of another committed source), `repo-owned` (hand-written, stays),
@@ -32,7 +46,7 @@ hand-written, with 4 byte-identical shims projected beside it by `sase memory in
 | sase `src/sase/ace/` | `AGENTS.md` + 4 shims | 5     | `AGENTS.md` `repo-owned`; shims `projection` | E2 (bundle migration decides) |
 | sase `tools/`        | `AGENTS.md` + 4 shims | 5     | `AGENTS.md` `repo-owned`; shims `projection` | E2 (bundle migration decides) |
 
-## Hand-written (12, plus one README-only repo)
+## Hand-written (historical inventory)
 
 `repo-owned`. These stay; no migration epic rewrites another repo's docs.
 
@@ -50,10 +64,12 @@ none tracked — only `README.md`. Nothing to migrate there.
 
 ## Config-based discovery surfaces
 
-| Surface                       | Mechanism                                                                                                                                | Disposition | Owning epic |
-| ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- | ----------- | ----------- |
-| Codex shadow-home `AGENTS.md` | Per-run allowlist `$CODEX_HOME`: no SASE `AGENTS.md` when `codex_explicit_instructions` is on; sqlite state is never linked (`sase-11s`) | `done` (E3) | E3          |
+| Surface                       | Mechanism                                                                                                                                                                                                                                                                    | Disposition                                 | Owning epic |
+| ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------- | ----------- |
+| Codex shadow-home `AGENTS.md` | Per-run allowlist `$CODEX_HOME`; SQLite state is never linked (`sase-11s`). With `codex_explicit_instructions` disabled, `~/AGENTS.md` is linked when no global file wins (`_codex_home.py`). With the flag enabled, SASE-owned global copies and that fallback are omitted. | `done` (E3); fallback limitation documented | E3          |
 
-No other provider config points at `~/AGENTS.md`: Grok receives `--rules` explicitly,
-Claude loads natively, and the `~/AGENTS.md` read in `instructions/run_index.py` is the
-scoreboard's own expected-H1 lookup, not delivery.
+Claude's explicit path excludes exact SASE-owned root and home files while leaving
+nested guides discoverable. Codex disables native project-document loading across a
+managed project for explicit invocations. Grok uses `--rules`; Muse uses a prompt
+prefix. See [provider behavior](instruction_bundles.md#provider-behavior-at-a-glance)
+and the [Codex fallback limitation](llms.md#codex-instruction-delivery).

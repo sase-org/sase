@@ -894,6 +894,18 @@ files and `macros/*.yml` / `macros/*.yaml` workflow files. Plugin macros are pri
 in the [discovery order](macros.md#discovery-order) (above built-in files and below
 config-based macros).
 
+The retired entry-point and resource-directory spellings listed in the
+[Macros compatibility table](macros.md) remain accepted. When both entry-point groups
+register the same module value, the canonical `sase_macros` registration wins and the
+module is loaded once. SASE searches `macros/` first, falling back to the retired
+directory when the canonical directory is absent.
+
+Discovery is cached within each running process. Changes to the Python search path, its
+directory modification times (as during package installation or removal), or the
+plugin-disable environment variables invalidate that cache. Editing distribution
+metadata in place may not change those directory times; restart the TUI or other
+long-running consumer after changing entry points during plugin development.
+
 ### Config Plugins
 
 Plugin packages can provide default configuration by declaring a `sase_config` entry
@@ -1382,6 +1394,15 @@ accepts exactly `schema_version` and `types`; each type accepts exactly required
 distinct, and different from literal `null`. Matching is exact and case-sensitive. A
 type with any error is wholly skipped while valid siblings remain usable; malformed
 files produce file diagnostics without breaking unrelated plugins or macros.
+
+The package must register a `sase_macros` entry point (or its compatibility alias) for
+SASE to discover this manifest. The providing distribution is identified by installed
+package metadata. A registered plugin without a manifest is still recognized as
+installed, so an unknown type is reported as an unknown ID rather than as a missing
+plugin. Changes to an already discovered manifest's modification time or size refresh
+the parsed type registry; adding a new manifest or changing entry points may require
+restarting a running consumer. Use `sase macro types` and
+`sase doctor -C config.macro_input_types` to inspect the result.
 
 Macros always use the qualified spelling `<distribution>@<id>`, for example
 `sase-research-artifacts@audio_edition`. Distributions use PEP 503 canonicalization.

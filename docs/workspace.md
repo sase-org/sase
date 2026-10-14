@@ -26,6 +26,14 @@ SASE keeps three related concepts distinct:
 Workspace directories are not repos. Linked-repo and sidecar clones materialized inside
 a numbered workspace are repo checkouts, not additional workspaces.
 
+For everyday use, launch with `+<project>` and let SASE allocate an isolated workspace.
+Open linked or external repositories through `sase repo open`, then work in the path it
+prints. Finish an agent turn with `/sase_final` so the host can commit every changed
+repository. Numbered workspaces are reused: leftover linked and external clones are
+rescued before eviction, not automatically published. See
+[workspace maintenance](#workspace-maintenance) for recovery and retention details, and
+[Monitors](monitors.md) for running a command from an opened repository.
+
 ## Plugin Architecture
 
 Workspace providers are implemented as [pluggy](https://pluggy.readthedocs.io/) plugins,
@@ -651,6 +659,8 @@ and `#1` through `#9` are reserved compatibility numbers rather than good choice
 new manual checkouts. For linked-repo work, `-p/--project` is still the project
 selector: pass the configured linked repo name there, then the workspace number as the
 positional argument.
+
+### Workspace maintenance
 
 `cleanup` and `repair` skip workspace `#0` and any workspace number with an active
 claim. `cleanup --include-shares` opts workflow-share checkouts into the same cleanup

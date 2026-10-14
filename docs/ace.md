@@ -3851,6 +3851,9 @@ Press `:` from any tab to open the **Command Line** — a centered panel where y
 - Every command runs as an ordinary durable proc (tagged `command-line`, visible by
   default in Admin Center → Procs), so hiding the panel never interrupts anything.
   Finished command-line procs keep their own retention bucket of 50.
+- Running blocks show a spinner and live elapsed seconds even when the command produces
+  no output. Reopening the panel restores the duration from the proc's start time;
+  finished blocks keep their final duration.
 - Run policies: most commands run as procs, some (editors, pagers, interactive tools)
   run in the real terminal with the TUI suspended, and a few refuse with an alternative.
   Declined confirmation commands render an explicit `R` rerun with `-y`; `R` does

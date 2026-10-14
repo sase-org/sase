@@ -902,7 +902,7 @@ keys.
 | -------------------- | ---- | --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `description_mode`   | str  | `summary` | Initial Artifacts pane description mode: `off`, `summary`, or `full`. The configured cycle key changes it in memory for the current session only.                                                                                        |
 | `panes`              | dict | `{}`      | Per-pane description overrides keyed by pane id (`agents`, `stitches`, `patches`, `beads`, `files`, or provider ids such as `ref:plan`). `description` and `description_body` resolve independently and are both optional for each pane. |
-| `relations_expanded` | bool | `false`   | Whether the [Artifacts relation panel](ace.md#navigation-in-agent-stitches-beads-provider-documents-and-files) starts expanded; `.` (`toggle_relation_panel`) toggles it in memory for the current session only.                         |
+| `relations_expanded` | bool | `false`   | Whether the [Artifacts relation panel](ace.md#navigation-in-agent-commits-beads-provider-documents-and-files) starts expanded; `.` (`toggle_relation_panel`) toggles it in memory for the current session only.                          |
 
 #### `ace.artifacts.stitches`
 

@@ -4,19 +4,37 @@ An instruction bundle collects the project, home, and SASE instructions for one 
 invocation. Its manifest records which sections were included and their digests, so you
 can inspect the intended context and compare it with what a provider actually loaded.
 
-Root provider invocations render a bundle into the run's artifacts and export
-`SASE_INSTRUCTIONS_FILE` for that provider call, then restore the previous value.
-Claude, Codex, Grok, and Muse deliver the bundle through an explicit adapter channel by
-default; agy, Qwen, and OpenCode stay on declared legacy delivery until E4. The
-architecture is recorded as
-[Instructions Are Rendered Per Invocation And Delivered By Adapters](../sase/memory/decisions/instructions-per-invocation.md).
-A successful render therefore does not prove delivery: use `sase instructions verify` to
-check observed loads. Render and transport failures never fail an invocation; they fall
-back atomically to legacy delivery. The plan hook, manifests, and fallback are described
-under [Delivery](#delivery).
+Claude, Codex, Grok, and Muse deliver these bundles explicitly by default. Antigravity
+(agy), Qwen, and OpenCode stay on declared legacy delivery until E4. Root invocations
+with an artifacts directory record the bundle and manifest under `instructions/`, and
+expose `SASE_INSTRUCTIONS_FILE` for the duration of the provider call, then restore its
+previous value. The architecture is recorded as
+[Instructions Are Rendered Per Invocation And Delivered By Adapters](https://github.com/sase-org/sase/blob/master/sase/memory/decisions/instructions-per-invocation.md).
+Rendering a bundle does not prove the provider loaded it: use `sase instructions verify`
+to inspect observed delivery. If bundle preparation or transport fails, SASE attempts
+legacy delivery and records the fallback; see [Delivery](#delivery) and
+[Fallback and notifications](#fallback-and-notifications).
 
 See also
 [Verifying instruction delivery](agent_providers.md#verifying-instruction-delivery).
+
+## Provider behavior at a glance
+
+| Provider                    | Root delivery            | Native helpers                                                                             |
+| --------------------------- | ------------------------ | ------------------------------------------------------------------------------------------ |
+| Claude                      | System-prompt file       | Separate helper bundle when the CLI supports it, with a guard against root-only operations |
+| Codex                       | `developer_instructions` | Inherit the root instructions; no separate helper bundle or mechanical guard               |
+| Grok                        | `--rules`                | No SASE helper delivery channel                                                            |
+| Muse                        | Prompt prefix            | No SASE helper delivery channel                                                            |
+| Antigravity, OpenCode, Qwen | Native discovery         | No explicit SASE helper bundle                                                             |
+
+The four explicit adapters have default-enabled flags named
+`claude_explicit_instructions`, `codex_explicit_instructions`,
+`grok_explicit_instructions`, and `muse_explicit_instructions`. Disabling one restores
+that provider's legacy delivery. This applies to SASE-managed invocations; a separately
+opened interactive provider CLI uses its own discovery behavior. Provider-specific
+details, including which native files remain visible, are in
+[Agent Providers](agent_providers.md) and [LLM Providers](llms.md).
 
 ## Inspecting your instructions
 
@@ -71,10 +89,10 @@ sections as document scaffolding. Every byte of a bundle belongs to exactly one 
 | --------- | -------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
 | `frame`   | `frame.title`, `frame.core`, `frame.reference`, `frame.webs`                                 | Compiler headings and the intro paragraphs            |
 | `package` | `pkg.sase.*`, `pkg.root.final_declaration`, `pkg.helper.contract`, `pkg.provider.<provider>` | Contract template, helper template, adapter directive |
-| `plugin`  | `plugin.<dist>.<slug>`                                                                       | Reserved; no content in E2                            |
+| `plugin`  | `plugin.<dist>.<slug>`                                                                       | Reserved; currently empty                             |
 | `home`    | `home.core.<stem>`, `home.ref.<stem>`, `home.web.<stem>`                                     | Home memory at `Path.home()`                          |
 | `project` | `proj.core.<stem>`, `proj.ref.<stem>`, `proj.web.<stem>`                                     | The project root's memory                             |
-| `launch`  | `launch.<slug>`                                                                              | Reserved; no content in E2                            |
+| `launch`  | `launch.<slug>`                                                                              | Reserved; currently empty                             |
 
 The compiler renders the contract template once — with the project name and the merged
 linked entries (project entries first, home-only entries tagged as home configuration) —
@@ -117,13 +135,14 @@ for `native_helper` is compiled at the boundary when the subagent slot is `expli
 included sections with `provider_specific == false`, in bundle order. Equal
 `common_digest` across providers means "same instructions except the provider section".
 Section budgets record bytes and `tokens_est` (`ceil(len/4)`) per section and per layer;
-there is no truncation and no budget gate in E2.
+the compiler does not truncate or reject a bundle for size. An adapter can separately
+limit the delivered text and fall back when that limit is exceeded.
 
 ## Cache and store
 
 The bundle bytes live once in a content-addressed store:
 `<sase home>/instructions/bundles/<sha[:2]>/<sha>.md` (mode 0444, written atomically,
-never pruned in E2). The render cache (`<sase home>/instructions/cache/<key>.json`)
+currently not pruned). The render cache (`<sase home>/instructions/cache/<key>.json`)
 holds the compiled section table keyed by the sha256 over the compiler version, the sase
 version, a per-process code fingerprint, the content-changing facts, the provider
 directive file, and the sorted content hashes of every input-file class (project and
@@ -150,8 +169,8 @@ Providers implement `llm_instruction_delivery` (`firstresult`) and return
 `inherits_native`, `inherits_root`, or `none`. The root slot may only be `explicit` or
 `inherits_native`. A missing hook, a hook error, or an invalid return resolves to
 legacy: both slots `inherits_native` with reason `provider_legacy`. Claude, Codex, Grok,
-and Muse return explicit slots when their sunset flags are on, and `flag_disabled`
-legacy when off. agy, Qwen, and OpenCode stay `provider_legacy` until E4.
+and Muse return explicit root slots when their sunset flags are on, and `flag_disabled`
+legacy when off. Antigravity (agy), Qwen, and OpenCode stay `provider_legacy` until E4.
 
 `sase.llm_provider.instruction_delivery.resolve_delivery_plan(provider)` validates the
 hook result and never raises. Objects without `instruction_delivery` also resolve to
@@ -175,12 +194,12 @@ When the subagent slot is `explicit`, the boundary also writes `NN-<provider>.he
 and `NN-<provider>.helper.json` with the same `NN` as the root. The helper manifest has
 `facts.actor = native_helper`, `delivery.status = explicit`, and `parent_invocation_id`
 set to the root invocation id. A failed helper render or validation sends helpers back
-to the E1 static helper template. The root bundle is never substituted across actors.
+to the packaged static helper template. A root bundle is never substituted for an
+explicit helper bundle; Codex's declared `inherits_root` slot is a separate capability.
 
 ### Fallback and notifications
 
-These keep the root slot on legacy delivery, with native discovery left intact, for that
-one invocation:
+These switch the root slot to legacy delivery for that invocation:
 
 - render failure (`.error.json` gains `"delivery_fallback": "legacy"`)
 - invalid root bundle (`invalid_bundle`)
@@ -192,6 +211,13 @@ notification, deduplicated per host, provider, reason, and day (`+1` on repeats)
 `provider_legacy` and `flag_disabled` are declared states and never notify. Every
 exception from plan resolution through manifest rewrite is caught and the call proceeds
 through legacy delivery. `KeyboardInterrupt` and `SystemExit` propagate.
+
+Codex currently has a fallback limitation: its shadow-home filtering follows the
+`codex_explicit_instructions` flag, even when an invocation falls back or has no active
+delivery plan. SASE-owned global instruction copies and the `~/AGENTS.md` fallback can
+therefore remain absent from that shadow home. See
+[Codex instruction delivery](llms.md#codex-instruction-delivery) before treating a
+legacy manifest as proof that all native instructions were restored.
 
 ### Manifest v2 fields
 
@@ -210,8 +236,8 @@ with its own code; no instruction bytes cross the wire. See
 
 ### Adapter contract
 
-Without an active explicit delivery, an adapter behaves exactly as it does today (E1's
-after-state). That is the only legacy path.
+Without an active explicit delivery, adapters use their legacy directive and delivery
+path. The Codex shadow-home limitation above still applies.
 
 An adapter whose slot is `explicit` must do three things together:
 

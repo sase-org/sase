@@ -34,19 +34,22 @@ still launch a hard-disabled CLI. See
 
 ## Instruction delivery
 
-Each root provider invocation renders one memory-built bundle and a v2 manifest into
-`<artifacts>/instructions/` and exports `SASE_INSTRUCTIONS_FILE` for that call, then
-restores it. Claude, Codex, Grok, and Muse deliver that bundle through an explicit
-adapter channel by default. SASE-owned native instruction files are suppressed for the
-call. The architecture is
-[Instructions Are Rendered Per Invocation And Delivered By Adapters](../sase/memory/decisions/instructions-per-invocation.md).
+SASE records intended instructions and delivers them through the provider's supported
+channel. Each root provider invocation with an artifacts directory renders its
+memory-built bundle and v2 manifest into `<artifacts>/instructions/` and exports
+`SASE_INSTRUCTIONS_FILE` for that call, then restores it. Claude, Codex, Grok, and Muse
+deliver the root bundle through explicit adapter channels by default, suppressing
+SASE-owned native instruction files according to each adapter's capabilities.
+Per-provider sunset flags restore their previous behavior. The architecture is recorded
+as
+[Instructions Are Rendered Per Invocation And Delivered By Adapters](https://github.com/sase-org/sase/blob/master/sase/memory/decisions/instructions-per-invocation.md).
 The manifest alone does not prove that a provider loaded the bundle; use
 [Verifying instruction delivery](#verifying-instruction-delivery). See
 [Delivery](instruction_bundles.md#delivery).
 
 The E1 "Instruction double-load" (Claude and Codex loading the shared contract twice,
 Grok loading nothing, Muse and Grok missing the home layer) is resolved for these four
-providers when their sunset flags are on.
+providers when explicit delivery succeeds with their sunset flags on.
 
 | Provider            | Root channel (flag on)                                             | Subagent                                                                 | Native suppression (flag on)                                                                | Flag                           |
 | ------------------- | ------------------------------------------------------------------ | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------- | ------------------------------ |
@@ -60,7 +63,9 @@ providers when their sunset flags are on.
 
 `sase flag disable <provider>_explicit_instructions` on each execution host returns that
 provider to E1's after-state. A render or delivery failure already falls back per
-invocation. Codex's allowlist shadow home applies in both flag states.
+invocation, subject to the
+[Codex fallback limitation](llms.md#codex-instruction-delivery). Codex's allowlist
+shadow home applies in both flag states.
 
 ## Verifying instruction delivery
 
@@ -74,7 +79,7 @@ columns.
 
 | Column        | Meaning                                                                                            |
 | ------------- | -------------------------------------------------------------------------------------------------- |
-| `manifest`    | Observed sessions with a shadow manifest for the same provider (`k/N`; agy counts runs).           |
+| `manifest`    | Observed sessions with a recorded manifest for the same provider (`k/N`; agy counts runs).         |
 | `bundle`      | Count of markers for the matched manifest invocation (`—` for legacy, `◌` when unobservable).      |
 | `delivery`    | `explicit`, `legacy:<reason>`, or `shadow` for the matched manifest.                               |
 | `contract`    | Occurrences of `SASE Final Declaration` across native and explicit sources.                        |
@@ -112,7 +117,7 @@ and home ✓ when present in the manifest) while retaining legacy expectations f
 non-explicit sessions. `instructions.conformance` WARNs on missing or duplicate root and
 helper markers and on non-declared delivery fallbacks. `instructions.helpers` WARNs on
 accepted helper declarations, and `instructions.coverage` WARNs on sessions without a
-shadow manifest or any shadow failure.
+recorded manifest or with a bundle-render failure.
 
 ## Soak readout
 
@@ -160,7 +165,7 @@ sentence. Limits by provider capability, not hidden:
 | Provider  | Helper coverage                                                                                                                                                                                                                    |
 | --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Claude    | Helper bundle plus PreToolUse guard (static template on fallback); live probes confirm forked (depth-2) helpers carry `agent_id`, so the guard covers forks. Full surface list: [Instruction Inventory](instruction_inventory.md). |
-| Codex     | Children inherit the process-level `developer_instructions`, so the sentence covers them; 0 spawns observed so far. No guard.                                                                                                      |
+| Codex     | Children inherit the process-level `developer_instructions`. There is no separate helper bundle or mechanical guard; helpers must follow the root-only declaration rule.                                                           |
 | Grok      | Subagents get nothing; sentence only, with the child channel deferred.                                                                                                                                                             |
 | Muse, agy | No helper coverage.                                                                                                                                                                                                                |
 
@@ -226,15 +231,17 @@ Canonical docs: <https://developers.openai.com/codex/cli>
 
 ### Instruction delivery
 
-With the default-on `codex_explicit_instructions` sunset flag, SASE passes the complete
-rendered root bundle through `developer_instructions` and, in SASE-managed projects,
-sets `project_doc_max_bytes=0` so the project `AGENTS.md` is not also loaded. The
-per-run shadow `$CODEX_HOME` is rebuilt from an allowlist: `config.toml` is copied,
-`sessions/` stays linked, and sqlite state, `history.jsonl`, `memories/`, and SASE
-`AGENTS.md` are never linked. A user-owned `~/.codex/AGENTS.md` stays linked and shows
-as foreign. Children inherit the root developer instructions (`inherits_root`). Disable
-the flag to restore the legacy directive-only `developer_instructions` and native
-project-doc discovery; the allowlist home still applies.
+With `codex_explicit_instructions` enabled (the default), SASE sends the root bundle
+through `developer_instructions`. For a managed project it also sets
+`project_doc_max_bytes=0`, disabling native project-document loading for that
+invocation. The per-run shadow `$CODEX_HOME` uses an allowlist: `config.toml` is copied,
+`sessions/` stays linked, and SQLite state and `history.jsonl` are never linked. With
+the flag enabled, it retains foreign global instruction files but omits SASE-owned
+copies and native memories. Helpers inherit the root bundle (`inherits_root`). Disabling
+the flag restores the legacy directive, native project discovery, and legacy
+home-instruction paths; the allowlist still applies. See
+[Codex instruction delivery](llms.md#codex-instruction-delivery) for the size limit,
+fallback limitation, and shadow-home details.
 
 ## OpenCode
 

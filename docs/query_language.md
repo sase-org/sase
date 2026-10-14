@@ -66,7 +66,7 @@ the committed query stays visible without opening an editor -- but each pane has
 query profile and previews against **that pane's** loaded snapshot, not the Patch
 snapshot. `/` still focuses the row (as does the pane-local `f`); the tokens you can
 type are documented per pane in
-[sase's TUI Artifacts](ace.md#filtering-agent-patches-stitches-beads-and-plans). The
+[sase's TUI Artifacts](ace.md#filtering-agent-patches-commits-beads-and-plans). The
 top-level Agents tab hides its filter bar when idle; press `/` or `f` to edit the live
 Agent query there. `,/` searches the selected agent's metadata and does not edit the
 query.
