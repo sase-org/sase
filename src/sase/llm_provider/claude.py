@@ -12,13 +12,18 @@ from typing import TYPE_CHECKING, Any
 from sase.output import provider_timer
 
 from ._claude_helper_channel import (
-    helper_channel_settings_json,
     helper_template_path,
     subagent_prompt_supported,
 )
+from ._claude_instruction_delivery import claude_instruction_files
 from ._effort_args import effort_cli_args
 from ._hookspec import hookimpl
-from .instruction_delivery import legacy_instruction_delivery
+from .instruction_delivery import (
+    CHANNEL_CLAUDE_ROOT,
+    CHANNEL_CLAUDE_SUBAGENT,
+    current_instruction_delivery,
+    legacy_instruction_delivery,
+)
 from ._wait_signals import ends_with_wait_claim
 from ._subprocess import (
     start_completion_watchdog,
@@ -228,7 +233,18 @@ class ClaudeCodeProvider(LLMProvider):
         }
 
     def instruction_delivery(self) -> dict[str, object]:
-        return legacy_instruction_delivery()
+        from sase.feature_flags import FeatureFlag, current_flags
+
+        if not current_flags().enabled(FeatureFlag.claude_explicit_instructions):
+            return legacy_instruction_delivery(reason="flag_disabled")
+        return {
+            "root": {"status": "explicit", "channel": CHANNEL_CLAUDE_ROOT},
+            "subagent": (
+                {"status": "explicit", "channel": CHANNEL_CLAUDE_SUBAGENT}
+                if subagent_prompt_supported()
+                else {"status": "none", "reason": "unsupported_cli"}
+            ),
+        }
 
     @hookimpl
     def llm_instruction_delivery(self) -> dict[str, object]:
@@ -404,17 +420,21 @@ class ClaudeCodeProvider(LLMProvider):
         }
         cycle = 0
 
-        return self._invoke_loop(
-            current_prompt=current_prompt,
-            response_content=response_content,
-            total_usage=total_usage,
-            cycle=cycle,
-            model_alias=model_alias,
-            effort_args=effort_args,
-            extra_args_env=extra_args_env,
-            timer_context=timer_context,
-            suppress_output=suppress_output,
-        )
+        with claude_instruction_files() as (root_path, helper_path, settings_json):
+            return self._invoke_loop(
+                current_prompt=current_prompt,
+                response_content=response_content,
+                total_usage=total_usage,
+                cycle=cycle,
+                model_alias=model_alias,
+                effort_args=effort_args,
+                extra_args_env=extra_args_env,
+                timer_context=timer_context,
+                suppress_output=suppress_output,
+                root_prompt_path=root_path,
+                helper_prompt_path=helper_path,
+                settings_json=settings_json,
+            )
 
     def _invoke_loop(
         self,
@@ -428,15 +448,21 @@ class ClaudeCodeProvider(LLMProvider):
         extra_args_env: str | None,
         timer_context: Any,
         suppress_output: bool,
+        root_prompt_path: Path | None,
+        helper_prompt_path: Path | None,
+        settings_json: str,
     ) -> InvokeResult:
         active_session_uuid: str | None = None
         resume_session = False
         wait_continuations = 0
         max_wait_continuations = _claude_max_wait_continuations()
         helper_channel_warned = False
+        delivery = current_instruction_delivery()
         while True:
             if active_session_uuid is None:
                 active_session_uuid = str(uuid.uuid4())
+                if delivery is not None:
+                    delivery.record_session(active_session_uuid)
             session_mode_arg = "--resume" if resume_session else "--session-id"
             base_args = [
                 "claude",
@@ -447,8 +473,12 @@ class ClaudeCodeProvider(LLMProvider):
                 "--output-format",
                 "stream-json",
                 "--dangerously-skip-permissions",
-                "--append-system-prompt",
-                _SINGLE_TURN_DIRECTIVE,
+                "--append-system-prompt-file"
+                if root_prompt_path is not None
+                else "--append-system-prompt",
+                os.fspath(root_prompt_path)
+                if root_prompt_path is not None
+                else _SINGLE_TURN_DIRECTIVE,
                 "--disallowedTools",
                 "ScheduleWakeup",
                 session_mode_arg,
@@ -461,18 +491,14 @@ class ClaudeCodeProvider(LLMProvider):
                 for arg in extra_args_env.split():
                     base_args.append(arg)
 
-            # Native-helper channel: the packaged helper template travels
-            # through the hidden ``--append-subagent-system-prompt-file``
-            # flag when the CLI supports it, and the stdlib-only PreToolUse
-            # guard always travels as inline ``--settings`` JSON. Nothing is
-            # written under the workspace, so the ``test_claude_hooks``
-            # contract (no ``<workspace>/.claude/`` mutation) still holds.
-            base_args.extend(["--settings", helper_channel_settings_json()])
+            # The helper bundle (or E1 template on fallback) has its own
+            # channel. The guard remains active in every delivery mode.
+            base_args.extend(["--settings", settings_json])
             if subagent_prompt_supported():
                 base_args.extend(
                     [
                         "--append-subagent-system-prompt-file",
-                        os.fspath(helper_template_path()),
+                        os.fspath(helper_prompt_path or helper_template_path()),
                     ]
                 )
             elif not helper_channel_warned:

@@ -238,7 +238,7 @@ The `ClaudeCodeProvider` invokes the `claude` CLI tool.
 ```
 claude -p --verbose --model <alias> --output-format stream-json \
   --dangerously-skip-permissions \
-  --append-system-prompt <single-turn directive> --disallowedTools ScheduleWakeup \
+  --append-system-prompt-file <root bundle> --disallowedTools ScheduleWakeup \
   --session-id <uuid> [--effort <level>] [extra_args...]
 ```
 
@@ -248,8 +248,17 @@ replaces `--session-id <uuid>` with `--resume <uuid>` so the nudge lands in the 
 Claude session.
 
 Every cycle also passes `--settings <inline JSON>` carrying a PreToolUse guard on
-`Bash|Skill`, plus `--append-subagent-system-prompt-file <packaged helper template>`
+`Bash|Skill`, exact-path `claudeMdExcludes` for SASE-owned root and home files, and
+`autoMemoryEnabled: false`, plus `--append-subagent-system-prompt-file <helper bundle>`
 when the installed CLI parses that flag (see "Native helpers" below).
+
+The root and helper files contain their respective compiled bundles and trailing
+invocation markers. They are private temporary files kept across all cycles and removed
+after the call. With `claude_explicit_instructions` disabled or no delivery plan, the
+root flag is `--append-system-prompt <single-turn directive>`, settings contain only the
+helper guard, and the helper uses the packaged static template. A failed root file
+restores that legacy root delivery, including native discovery; a failed helper file
+uses the static template independently.
 
 SASE also sets two Claude Code environment variables on the subprocess unless the caller
 already set them: `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS=1`, and `BASH_MAX_TIMEOUT_MS`
@@ -284,15 +293,16 @@ without a stopgap they can act as roots: helpers have invoked `sase final` and t
 submissions were even accepted for their parent's turn. Two mechanisms keep helpers in
 their lane:
 
-- **Helper template.** The packaged static file
-  `src/sase/llm_provider/templates/claude_helper_instructions.md` (first line
-  `# SASE Helper Instructions`) is passed through the hidden
+- **Helper bundle.** The compiled helper instructions (headed
+  `# SASE Helper Instructions`) are passed through the hidden
   `--append-subagent-system-prompt-file` flag on every invocation cycle, including
   `--resume` cycles. It reaches Explore and general-purpose helpers but not the root,
   and tells helpers their parent owns the turn: never run `sase final …` or the
   root-only skills, never commit, create beads, or launch agents, and return the result
   to the parent. Live probes confirm both helper types carry `agent_id` and see the
-  template marker.
+  helper heading. The packaged static file
+  `src/sase/llm_provider/templates/claude_helper_instructions.md` remains the fallback
+  for a disabled flag, missing delivery plan, or helper render/materialization failure.
 - **PreToolUse guard.** The inline `--settings` JSON installs a stdlib-only hook
   (`src/sase/llm_provider/_claude_helper_guard.py`, run as
   `<sys.executable> -I <guard path>`) on `Bash|Skill`. When the hook input carries a

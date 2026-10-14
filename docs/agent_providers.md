@@ -37,11 +37,11 @@ still launch a hard-disabled CLI. See
 The current bundle rollout records intended instructions for diagnostics and prepares
 explicit delivery for adapters. Each root provider invocation renders its memory-built
 bundle and v2 manifest into `<artifacts>/instructions/` and exports
-`SASE_INSTRUCTIONS_FILE` for that call, then restores it. Grok and Muse deliver the root
-bundle through explicit adapter channels by default, with per-provider sunset flags to
-restore their previous behavior. Claude and Codex remain on legacy delivery until their
-adapter phases land. The manifest alone does not prove that a provider loaded the
-bundle's contents. See [Delivery](instruction_bundles.md#delivery).
+`SASE_INSTRUCTIONS_FILE` for that call, then restores it. Claude, Codex, Grok, and Muse
+deliver the root bundle through explicit adapter channels by default, with per-provider
+sunset flags to restore their previous behavior. The manifest alone does not prove that
+a provider loaded the bundle's contents. See
+[Delivery](instruction_bundles.md#delivery).
 
 ## Verifying instruction delivery
 
@@ -138,12 +138,12 @@ instead (decision `helpers-return-roots-declare`). Mechanical enforcement exists
 where a provider exposes a helper channel. Everything else relies on that contract
 sentence. Limits by provider capability, not hidden:
 
-| Provider  | Helper coverage                                                                                                                                                                                        |
-| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Claude    | Helper template plus PreToolUse guard; live probes confirm forked (depth-2) helpers carry `agent_id`, so the guard covers forks. Full surface list: [Instruction Inventory](instruction_inventory.md). |
-| Codex     | Children inherit the process-level `developer_instructions`, so the sentence covers them; 0 spawns observed so far. No guard.                                                                          |
-| Grok      | Subagents get nothing; sentence only, with the child channel deferred.                                                                                                                                 |
-| Muse, agy | No helper coverage.                                                                                                                                                                                    |
+| Provider  | Helper coverage                                                                                                                                                                                                                    |
+| --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Claude    | Helper bundle plus PreToolUse guard (static template on fallback); live probes confirm forked (depth-2) helpers carry `agent_id`, so the guard covers forks. Full surface list: [Instruction Inventory](instruction_inventory.md). |
+| Codex     | Children inherit the process-level `developer_instructions`, so the sentence covers them; 0 spawns observed so far. No guard.                                                                                                      |
+| Grok      | Subagents get nothing; sentence only, with the child channel deferred.                                                                                                                                                             |
+| Muse, agy | No helper coverage.                                                                                                                                                                                                                |
 
 ## Claude Code
 
@@ -168,10 +168,23 @@ Canonical docs: <https://code.claude.com/docs>
 
 ### Native helpers
 
-Native subagents inherit the root's environment, so SASE delivers a packaged helper
-template (`# SASE Helper Instructions`) plus a PreToolUse guard that denies their
+With `claude_explicit_instructions` enabled (the default), SASE delivers the root bundle
+through `--append-system-prompt-file` and a separate helper bundle through
+`--append-subagent-system-prompt-file`. Per-run settings exclude only exact SASE-owned
+root and home instruction paths and disable Claude auto-memory. Nested repo guides and
+hand-written home files remain discoverable. Resume cycles retain their session
+snapshot; interrupt restarts use the same delivered files with a new recorded session
+id.
+
+Native subagents inherit the root's environment, so the helper bundle
+(`# SASE Helper Instructions`) accompanies a PreToolUse guard that denies their
 root-only operations (`sase final …`, turn-ending commands, root-only skills); forked
-helpers carry `agent_id` and are covered too. Details:
+helpers carry `agent_id` and are covered too. Helper render or file failures use the
+packaged static helper template. An unsupported helper channel omits the helper file and
+keeps the guard. Root file failures restore the legacy directive and native discovery
+for that invocation. Disabling `claude_explicit_instructions`, or invoking without an
+instruction delivery plan, restores the legacy argv, static helper template, native
+discovery, and auto-memory behavior. Details:
 [Claude Code Integration](llms.md#native-helpers).
 
 ## Codex CLI

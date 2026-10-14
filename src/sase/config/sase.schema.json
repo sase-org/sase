@@ -6048,6 +6048,12 @@
           "default": true,
           "deprecated": true
         },
+        "claude_explicit_instructions": {
+          "type": "boolean",
+          "description": "Deliver Claude root and helper instruction bundles through explicit system-prompt files.",
+          "default": true,
+          "deprecated": true
+        },
         "codex_explicit_instructions": {
           "type": "boolean",
           "description": "Deliver the Codex root bundle through developer_instructions and suppress SASE native instruction duplicates.",

@@ -143,7 +143,7 @@ def _mode(path: Path) -> int:
 
 def test_declared_legacy_hookimpls_resolve_to_provider_legacy() -> None:
     """Providers without an explicit phase still declare legacy native discovery."""
-    for name in ("agy", "qwen", "opencode", "claude", "fakey"):
+    for name in ("agy", "qwen", "opencode", "fakey"):
         plan = resolve_delivery_plan(create_provider(name))
         assert plan.root.status == "inherits_native"
         assert plan.root.reason == "provider_legacy"

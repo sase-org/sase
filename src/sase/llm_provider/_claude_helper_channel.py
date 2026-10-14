@@ -1,7 +1,7 @@
 """Claude native-helper channel: template path, guard settings, and probe.
 
-On every Claude invocation cycle SASE passes a packaged static helper
-template through the hidden ``--append-subagent-system-prompt-file`` flag
+On every Claude invocation cycle SASE passes a compiled helper bundle (or
+this packaged static fallback) through ``--append-subagent-system-prompt-file``
 (when the CLI supports it) and an inline ``--settings`` JSON blob carrying a
 stdlib-only PreToolUse guard on ``Bash|Skill``. The template flag is gated
 by a cached no-API capability probe.
