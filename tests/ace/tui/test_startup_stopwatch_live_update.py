@@ -7,7 +7,7 @@ monkeypatch targets stay here so their established paths remain unchanged.
 from __future__ import annotations
 
 import asyncio
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -81,6 +81,7 @@ async def test_auto_refresh_before_release_skips_heavy_surfaces() -> None:
     app._dirty_agents = True
     app._dirty_patches = True
     app.current_tab = "agents"
+    app._last_completed_surface_tokens = {}
 
     await app._run_auto_refresh()
 
@@ -88,7 +89,7 @@ async def test_auto_refresh_before_release_skips_heavy_surfaces() -> None:
     assert app.token_probe_calls == 1
     assert getattr(app, "_axe_first_load_done", False) is False
     assert "axe" in app._last_completed_surface_tokens
-    assert "agents" in app._last_completed_surface_tokens
+    assert "agents" not in app._last_completed_surface_tokens
     assert "patches" in app._last_completed_surface_tokens
 
 
@@ -110,6 +111,103 @@ async def test_unpinned_first_tick_before_release_is_not_a_sanity_refresh() -> N
     assert "agents" not in app.refresh_calls
     assert "patches" not in app.refresh_calls
     assert app._last_full_sanity_refresh == 0.0
+
+
+def test_release_preserves_agents_dirty_set_during_startup_load() -> None:
+    """Watcher events during the startup Agents load survive release."""
+    app = AceApp()
+    app._mark_startup_on_mount()
+    scheduled: list[object] = []
+
+    with (
+        patch.object(
+            app,
+            "run_worker",
+            side_effect=lambda fn, **kwargs: scheduled.append(fn),
+        ),
+        patch.object(app, "set_timer", return_value=MagicMock()),
+        patch.object(app, "set_interval", return_value=MagicMock()),
+        patch.object(app, "_start_post_first_paint_services"),
+        patch.object(app, "_start_artifact_watcher"),
+        patch.object(app, "_start_prompt_source_watcher"),
+        patch.object(app, "_maybe_show_post_update_toast", return_value=False),
+        patch.object(app, "_schedule_link_index_refresh"),
+        patch.object(app, "_schedule_deferred_startup_maintenance"),
+        patch.object(app, "_flush_deferred_agents_post_roster_work"),
+        patch.object(app, "_flush_deferred_monitor_reconcile"),
+    ):
+        app._start_post_mount_background_loads()
+        assert app._dirty_agents is False
+        app._dirty_agents = True
+        app._release_startup_deferred_loads(reason="test")
+
+    assert app._dirty_agents is True
+    assert app._startup_deferred_loads_released is True
+
+
+@pytest.mark.asyncio
+async def test_agents_watcher_during_startup_load_refreshes_after_release() -> None:
+    """A dirty Agents flag that survived the hold still reloads after release."""
+    from tests.ace.tui._event_handlers_dirty_flags_helpers import _FakeApp
+
+    app = _FakeApp(watcher_active=True)
+    app._startup_deferred_loads_released = True
+    app._dirty_agents = True
+    app._dirty_axe = False
+    app._dirty_patches = False
+    app._dirty_notifications = False
+
+    await app._run_auto_refresh()
+
+    assert "agents" in app.refresh_calls
+
+
+@pytest.mark.asyncio
+async def test_agents_token_drift_during_hold_refreshes_after_release() -> None:
+    """Hold ticks must not accept Agents tokens, so post-release drift reloads."""
+    from tests.ace.tui._event_handlers_dirty_flags_helpers import (
+        _FakeApp,
+        _completed_tokens,
+        _surface_token_snapshot,
+    )
+
+    baseline = _surface_token_snapshot(agents=1)
+    drifted = _surface_token_snapshot(agents=2)
+    app = _FakeApp(watcher_active=True)
+    app._last_completed_surface_tokens = _completed_tokens(baseline)
+    app._probed_surface_tokens = drifted
+    app._startup_deferred_loads_released = False
+    app._dirty_agents = False
+    app._dirty_axe = False
+    app._dirty_patches = False
+    app._dirty_notifications = False
+
+    await app._run_auto_refresh()
+
+    assert app.refresh_calls == []
+    assert app._last_completed_surface_tokens["agents"] == baseline.agents
+
+    app._startup_deferred_loads_released = True
+    await app._run_auto_refresh()
+
+    assert "agents" in app.refresh_calls
+
+
+@pytest.mark.asyncio
+async def test_post_release_tick_does_not_reload_agents_when_unchanged() -> None:
+    """No watcher event or token drift means the first post-release tick skips Agents."""
+    from tests.ace.tui._event_handlers_dirty_flags_helpers import _FakeApp
+
+    app = _FakeApp(watcher_active=True)
+    app._startup_deferred_loads_released = True
+    app._dirty_agents = False
+    app._dirty_axe = False
+    app._dirty_patches = False
+    app._dirty_notifications = False
+
+    await app._run_auto_refresh()
+
+    assert "agents" not in app.refresh_calls
 
 
 @pytest.mark.asyncio

@@ -165,7 +165,10 @@ def test_follow_unknown_run_still_raises(monkeypatch: pytest.MonkeyPatch) -> Non
 
 
 def _patch_reconcile_list(
-    monkeypatch: pytest.MonkeyPatch, run: dict[str, Any]
+    monkeypatch: pytest.MonkeyPatch,
+    run: dict[str, Any],
+    *,
+    ingest_diagnostics: list[str] | None = None,
 ) -> list[tuple[str, str]]:
     ingest_calls: list[tuple[str, str]] = []
 
@@ -176,7 +179,7 @@ def _patch_reconcile_list(
 
     def fake_ingest(path: Any, run_id: str) -> list[str]:
         ingest_calls.append((str(path), run_id))
-        return []
+        return list(ingest_diagnostics or [])
 
     monkeypatch.setattr("sase.tool.liveness.tool_run_list", fake_list)
     monkeypatch.setattr("sase.tool.liveness.ingest_event_file", fake_ingest)
@@ -213,5 +216,26 @@ def test_unchanged_events_file_is_not_re_ingested(
     assert ingest_calls == [(str(events), run_id)]
 
     events.write_text("{}\n{}\n", encoding="utf-8")
+    reconcile_unsettled_tool_runs()
+    assert ingest_calls == [(str(events), run_id), (str(events), run_id)]
+
+
+def test_failed_event_ingest_is_retried_on_unchanged_file(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    events = tmp_path / "events.jsonl"
+    events.write_text("{}\n", encoding="utf-8")
+    run_id = "e" * 32
+    run = {
+        "run_id": run_id,
+        "state": "running",
+        "wrapper_pid": 1,
+        "logs": {"events_path": str(events)},
+    }
+    ingest_calls = _patch_reconcile_list(
+        monkeypatch, run, ingest_diagnostics=["store busy"]
+    )
+    monkeypatch.setattr("sase.tool.liveness._EVENT_INGEST_STATS", OrderedDict())
+    reconcile_unsettled_tool_runs()
     reconcile_unsettled_tool_runs()
     assert ingest_calls == [(str(events), run_id), (str(events), run_id)]

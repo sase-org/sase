@@ -6,6 +6,7 @@ from collections import OrderedDict
 import os
 import signal
 from pathlib import Path
+import threading
 import time
 from typing import Any
 
@@ -26,6 +27,7 @@ _RECONCILE_LIMIT = 1000
 _REAP_TERM_GRACE_SECONDS = 2.0
 _REAP_POLL_SECONDS = 0.05
 _EVENT_INGEST_STATS_MAX = 512
+_EVENT_INGEST_STATS_LOCK = threading.Lock()
 _EVENT_INGEST_STATS: OrderedDict[tuple[str, str], tuple[int, int]] = OrderedDict()
 
 
@@ -206,16 +208,18 @@ def _ingest_events_if_changed(path: Path, run_id: str) -> list[str]:
     key = (run_id, str(path))
     sig = _events_file_sig(path)
     if sig is not None:
-        cached = _EVENT_INGEST_STATS.get(key)
-        if cached == sig:
-            _EVENT_INGEST_STATS.move_to_end(key)
-            return []
+        with _EVENT_INGEST_STATS_LOCK:
+            cached = _EVENT_INGEST_STATS.get(key)
+            if cached == sig:
+                _EVENT_INGEST_STATS.move_to_end(key)
+                return []
     diagnostics = ingest_event_file(path, run_id)
-    if sig is not None:
-        _EVENT_INGEST_STATS[key] = sig
-        _EVENT_INGEST_STATS.move_to_end(key)
-        while len(_EVENT_INGEST_STATS) > _EVENT_INGEST_STATS_MAX:
-            _EVENT_INGEST_STATS.popitem(last=False)
+    if sig is not None and not diagnostics:
+        with _EVENT_INGEST_STATS_LOCK:
+            _EVENT_INGEST_STATS[key] = sig
+            _EVENT_INGEST_STATS.move_to_end(key)
+            while len(_EVENT_INGEST_STATS) > _EVENT_INGEST_STATS_MAX:
+                _EVENT_INGEST_STATS.popitem(last=False)
     return diagnostics
 
 

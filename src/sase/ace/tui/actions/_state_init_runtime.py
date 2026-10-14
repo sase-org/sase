@@ -101,6 +101,7 @@ def init_runtime_state(
     self._startup_visible_ready_mono = None
     self._startup_telemetry_recorded = False
     self._startup_agents_surface_started = False
+    self._startup_agents_baseline_tokens = None
     self._startup_axe_surface_started = False
     self._startup_deferred_loads_released = False
     self._startup_deferred_release_reason = None

@@ -57,6 +57,8 @@ class AgentLoadingApplyMixin(
 ):
     """Methods that merge prepared agent data back into app state."""
 
+    _startup_agents_baseline_tokens: object | None
+
     def _apply_loaded_agents_prepared(
         self,
         prep: PreparedApplyData,
@@ -145,6 +147,14 @@ class AgentLoadingApplyMixin(
         first_agents_load = not self._agents_first_load_done
         if first_agents_load:
             self._agents_first_load_done = True
+            snapshot = getattr(self, "_startup_agents_baseline_tokens", None)
+            accept = getattr(self, "_accept_surface_token", None)
+            if snapshot is not None and callable(accept):
+                try:
+                    accept("agents", snapshot)
+                except Exception:
+                    pass
+                self._startup_agents_baseline_tokens = None
             try:
                 from ._display_helpers import first_agent_list_widget
 

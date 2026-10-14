@@ -126,7 +126,9 @@ class EventAutoRefreshSurfacesMixin(
         current_tokens = await asyncio.to_thread(self._probe_surface_tokens)
         # Hidden startup work holds axe collects, sanity/broad Agents
         # loads, and Patch reloads. Cheap stat-only token probes above
-        # still run so the first post-release tick has a baseline.
+        # still run so the first post-release tick has a baseline for
+        # every surface except Agents, whose baseline is the pre-load
+        # probe accepted when the startup Agents load succeeds.
         if not getattr(self, "_startup_deferred_loads_released", True):
             self._accept_startup_hold_surface_tokens(current_tokens)
             return axe_file_opens

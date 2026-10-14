@@ -224,7 +224,8 @@ class AxeDisplayDashboardMixin(AxeDisplayFooterMixin):
 
             from ...modals import get_runner_count
 
-            footer.set_axe_running(self.axe_running)
+            if getattr(self, "_axe_first_load_done", True):
+                footer.set_axe_running(self.axe_running)
             running_count, done_count = self._get_bgcmd_counts()
             footer.set_bgcmd_count(running_count, done_count)
             self._push_service_health(footer)

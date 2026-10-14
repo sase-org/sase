@@ -7,6 +7,7 @@ re-exports these tests so its import path keeps working.
 from __future__ import annotations
 
 import json
+import sqlite3
 from pathlib import Path
 from unittest.mock import patch
 
@@ -22,7 +23,9 @@ from sase.ace.dismissed_agents import (
     verify_dismissed_bundle_index,
 )
 from sase.ace.dismissed_bundle_index import (
+    INDEX_FILENAME,
     index_signature,
+    query_summaries,
     query_summary_identities,
     rebuild_index,
 )
@@ -34,6 +37,7 @@ __all__ = [
     "test_dismissed_bundle_identities_snapshot_reuses_unchanged_signature",
     "test_dismissed_bundle_identity_query_missing_and_schema_less_are_read_only",
     "test_dismissed_bundle_identity_snapshot_real_index_is_read_only",
+    "test_dismissed_bundle_old_schema_queries_return_none_and_keep_tables",
     "test_dismissed_bundle_verify_detects_changed_file_signature",
     "test_dismissed_bundle_verify_reports_stale_and_missing_rows",
     "test_dismissed_bundle_verify_does_not_mutate_the_index",
@@ -231,11 +235,12 @@ def test_dismissed_bundle_identity_snapshot_real_index_is_read_only(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A real index keeps its signature and hits the identity cache on repeat."""
+    """A populated index keeps its signature and hits the identity cache on repeat."""
     import sase.ace.dismissed_agents as dismissed_agents
 
     bundles_dir = tmp_path / "bundles"
     monkeypatch.setattr(dismissed_agents, "_DISMISSED_BUNDLES_DIR", bundles_dir)
+    monkeypatch.setattr(dismissed_agents, "_OLD_BUNDLES_FILE", tmp_path / "old.json")
     monkeypatch.setattr(
         dismissed_agents, "_dismissed_bundle_identities_snapshot_initialized", False
     )
@@ -245,8 +250,12 @@ def test_dismissed_bundle_identity_snapshot_real_index_is_read_only(
     monkeypatch.setattr(
         dismissed_agents, "_dismissed_bundle_identities_snapshot_cache", frozenset()
     )
-    rebuild_index(bundles_dir)
+    agent = make_agent(cl_name="indexed_cl", raw_suffix="20250615100000")
+    save_dismissed_bundle(agent)
+    assert rebuild_dismissed_bundle_index() == (1, 0)
+    index_path = bundles_dir / INDEX_FILENAME
     signature_before = dismissed_bundle_index_signature()
+    mtime_before = index_path.stat().st_mtime_ns
 
     with patch(
         "sase.ace.dismissed_bundle_index.query_summary_identities",
@@ -257,7 +266,47 @@ def test_dismissed_bundle_identity_snapshot_real_index_is_read_only(
 
     assert first is second
     assert query.call_count == 1
+    assert first == {(AgentType.RUNNING, "indexed_cl", "20250615100000")}
     assert dismissed_bundle_index_signature() == signature_before
+    assert index_path.stat().st_mtime_ns == mtime_before
+
+    assert query_summaries(bundles_dir) is not None
+    assert dismissed_bundle_index_signature() == signature_before
+    assert index_path.stat().st_mtime_ns == mtime_before
+
+
+def test_dismissed_bundle_old_schema_queries_return_none_and_keep_tables(
+    tmp_path: Path,
+) -> None:
+    """An old-version index is unusable for reads and keeps every table."""
+    bundles_dir = tmp_path / "bundles"
+    bundles_dir.mkdir()
+    db_path = bundles_dir / INDEX_FILENAME
+    _create_legacy_index(db_path, version=1, obsolete=False)
+    tables_before = _sqlite_user_tables(db_path)
+    mtime_before = db_path.stat().st_mtime_ns
+    bytes_before = db_path.read_bytes()
+
+    assert query_summary_identities(bundles_dir) is None
+    assert query_summaries(bundles_dir) is None
+    assert db_path.stat().st_mtime_ns == mtime_before
+    assert db_path.read_bytes() == bytes_before
+    assert _sqlite_user_tables(db_path) == tables_before
+    assert "legacy_data" in tables_before
+    assert "dismissed_bundle_summaries" in tables_before
+
+
+def _sqlite_user_tables(db_path: Path) -> list[str]:
+    connection = sqlite3.connect(db_path)
+    try:
+        rows = connection.execute(
+            "SELECT name FROM sqlite_master "
+            "WHERE type = 'table' AND name NOT LIKE 'sqlite_%' "
+            "ORDER BY name"
+        ).fetchall()
+    finally:
+        connection.close()
+    return [str(name) for (name,) in rows]
 
 
 def test_dismissed_bundle_identity_query_missing_and_schema_less_are_read_only(

@@ -298,14 +298,26 @@ async def test_ace_page_real_startup_policy_invokes_production_boundaries(
         record("update-check"),
     )
     monkeypatch.setattr(
+        AceApp,
+        "_schedule_link_index_refresh",
+        record("link-index"),
+    )
+    monkeypatch.setattr(
         testing_module._stall_watchdog,
         "start_event_loop_stall_watchdog",
         record("stall-watchdog"),
     )
     clear_fast_stylesheet_cache()
 
-    async with AcePage(startup_policy="real"):
-        pass
+    async with AcePage(startup_policy="real") as page:
+        deadline = asyncio.get_running_loop().time() + 30.0
+        while "update-check" not in calls:
+            if asyncio.get_running_loop().time() >= deadline:
+                raise AssertionError(
+                    "startup maintenance chain never recorded update-check; "
+                    f"got {sorted(calls)}"
+                )
+            await page.pause()
 
     assert fast_stylesheet_cache_stats().misses == 0
     assert fast_stylesheet_cache_stats().hits == 0
@@ -319,6 +331,7 @@ async def test_ace_page_real_startup_policy_invokes_production_boundaries(
         "artifact-watcher",
         "prompt-watcher",
         "prompt-catalog",
+        "link-index",
         "update-check",
         "stall-watchdog",
     }

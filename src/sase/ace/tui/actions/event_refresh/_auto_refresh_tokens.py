@@ -52,12 +52,14 @@ class EventAutoRefreshTokenMixin:
 
         Hold ticks must not reload, but they still probe so the first
         tick after release can detect genuine drift instead of treating
-        every surface as new.
+        every surface as new. Agents is omitted: its baseline is the
+        token probed before the startup Agents load reads disk, accepted
+        when that load succeeds, so a hold-tick accept cannot hide
+        drift that arrived while the load was in flight.
         """
         if snapshot is None:
             return
         for surface in (
-            "agents",
             "axe",
             "notifications",
             "patches",

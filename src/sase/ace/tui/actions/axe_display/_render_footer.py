@@ -22,7 +22,8 @@ class AxeDisplayFooterMixin(AxeDisplayPanelsMixin):
         running_count, done_count = self._get_bgcmd_counts()
         try:
             footer = self.query_one("#keybinding-footer", KeybindingFooter)  # type: ignore[attr-defined]
-            footer.set_axe_running(self.axe_running)
+            if getattr(self, "_axe_first_load_done", True):
+                footer.set_axe_running(self.axe_running)
             footer.set_bgcmd_count(running_count, done_count)
             self._push_service_health(footer)
         except Exception:

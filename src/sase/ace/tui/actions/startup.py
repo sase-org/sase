@@ -106,6 +106,7 @@ class StartupMixin(
     _startup_visible_ready_mono: float | None
     _startup_telemetry_recorded: bool
     _startup_agents_surface_started: bool
+    _startup_agents_baseline_tokens: object | None
     _startup_axe_surface_started: bool
     _startup_deferred_loads_released: bool
     _startup_deferred_release_reason: str | None

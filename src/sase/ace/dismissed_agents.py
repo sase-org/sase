@@ -196,9 +196,6 @@ def dismissed_bundle_identities_snapshot() -> frozenset[
                 (AgentType(agent_type), cl_name, raw_suffix)
                 for agent_type, cl_name, raw_suffix in queried
             }
-            # The Rust query binding may ensure the current schema on open. Save
-            # its resulting signature so subsequent snapshots hit this cache.
-            signature = dismissed_bundle_index_signature()
         _dismissed_bundle_identities_snapshot_cache = frozenset(identities)
         _dismissed_bundle_identities_snapshot_signature = signature
         _dismissed_bundle_identities_snapshot_initialized = True

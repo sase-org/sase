@@ -115,10 +115,10 @@ class StartupLoadsCoreMixin:
         # sanity refresh must wait a full interval after release. Clear
         # the init-default dirty flags so the first post-release tick
         # does not immediately redo those loads; inotify and token
-        # drift still retrigger after this.
+        # drift still retrigger after this. Agents is cleared when its
+        # startup load starts so watcher events during that load survive.
         self._last_full_sanity_refresh = time.monotonic()
         self._dirty_patches = False
-        self._dirty_agents = False
         self._dirty_axe = False
         self._dirty_notifications = False
         self._cancel_startup_deferred_fallback()
@@ -221,6 +221,9 @@ class StartupLoadsCoreMixin:
         try:
             self._agents_refresh_pending_callbacks.append(dismissed_index_callback)
             self._agents_refresh_scheduled_source = "startup"
+            # Clear the init-default dirty flag before the disk read so a
+            # watcher event during this load still retriggers after release.
+            self._dirty_agents = False
             self.run_worker(
                 cast(Any, self._run_agent_index_startup_prepare_and_refresh),
                 thread=False,

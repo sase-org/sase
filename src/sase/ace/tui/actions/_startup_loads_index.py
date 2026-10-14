@@ -83,6 +83,13 @@ class StartupLoadsIndexMixin:
         )
 
         try:
+            probe = getattr(self, "_probe_surface_tokens", None)
+            if callable(probe):
+                self._startup_agents_baseline_tokens = await asyncio.to_thread(probe)
+        except Exception:
+            self._startup_agents_baseline_tokens = None
+
+        try:
             status = await asyncio.to_thread(read_agent_artifact_index_schema_status)
         except Exception:
             log.exception("Startup artifact-index schema check failed")
