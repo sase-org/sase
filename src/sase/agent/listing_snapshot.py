@@ -58,6 +58,8 @@ def listing_snapshot(
     index_freshness: Literal["cached", "revalidate"] = "cached",
     requested_limit: int | None = None,
     candidate_filter: dict[str, object] | None = None,
+    include_hidden: bool = False,
+    include_full_history: bool = False,
 ) -> tuple[AgentArtifactScanWire, AgentListingLoadState]:
     """Return a bounded local listing snapshot, preferring the artifact index."""
     normalized_project = _normalized_project_filter(project)
@@ -93,10 +95,10 @@ def listing_snapshot(
                     query=AgentArtifactIndexQueryWire(
                         include_active=True,
                         include_recent_completed=True,
-                        include_full_history=False,
+                        include_full_history=include_full_history,
                         active_limit=_LISTING_ACTIVE_LIMIT,
                         recent_completed_limit=_LISTING_RECENT_COMPLETED_LIMIT,
-                        include_hidden=False,
+                        include_hidden=include_hidden,
                         freshness=index_freshness,
                         record_shape="list",
                         window_limit=requested_limit,

@@ -19731,6 +19731,132 @@
           {
             "aliases": [],
             "default_child": null,
+            "description_digest": "7be325045bf528d4",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "show",
+            "options": [
+              {
+                "choices": null,
+                "default": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": "False",
+                "dest": "helper",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-H",
+                  "--helper"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": "False",
+                "dest": "json",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-j",
+                  "--json"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": "False",
+                "dest": "list",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-l",
+                  "--list"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": null,
+                "dest": "seq",
+                "hidden": false,
+                "kind": null,
+                "metavar": "NN",
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-n",
+                  "--seq"
+                ],
+                "takes_value": true,
+                "value_hint": "int"
+              },
+              {
+                "choices": null,
+                "default": "False",
+                "dest": "sections",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-s",
+                  "--sections"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              }
+            ],
+            "path": [
+              "instructions",
+              "show"
+            ],
+            "positionals": [
+              {
+                "choices": null,
+                "dest": "agent",
+                "is_remainder": false,
+                "kind": "agent",
+                "metavar": "NAME",
+                "nargs": null,
+                "required": true,
+                "value_hint": null
+              }
+            ],
+            "run_policy": [],
+            "stdin": false,
+            "subcommands": [],
+            "writes": false
+          },
+          {
+            "aliases": [],
+            "default_child": null,
             "description_digest": "558871ae1beb8a41",
             "hidden": false,
             "mutex_groups": [],

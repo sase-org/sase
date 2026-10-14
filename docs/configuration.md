@@ -6396,6 +6396,7 @@ With no subcommand, `sase instructions` defaults to `sase instructions list`.
 | `sase instructions list`   | -                                                                                                                     | Inspect project, home, and chezmoi `AGENTS.md` files and provider shims.                                                                                               |
 | `sase instructions verify` | `-a/--agent`, `-c/--coverage`, `-H/--helpers`, `-j/--json`, `-n/--limit`, `-p/--provider`, `-s/--since`, `-u/--until` | Show observed instruction loads per provider; `-c` adds manifest coverage, `-a` adds the section diff, `-j` emits `schema_version: 1` JSON. Reports only, never gates. |
 | `sase instructions render` | `-a/--agent`, `-f/--fact`, `-j/--json`, `-N/--no-cache`, `-p/--parity`, `-s/--sections`                               | Preview the memory-built bundle without delivering it; `-j` emits the preview manifest, `-s` the section table, `-p` checks legacy parity.                             |
+| `sase instructions show`   | `-H/--helper`, `-j/--json`, `-l/--list`, `-n/--seq`, `-s/--sections`                                                  | Print a named agent's archived bundle and check it against the manifest sha256; `-l` lists root and helper invocations. Unknown names exit 2; mismatch exits 1.        |
 
 ### `sase memory`
 

@@ -26,7 +26,9 @@ class ManifestRecord:
     render_ms: float | None
     cache: str | None
     manifest_path: str
-    manifest: dict[str, Any] = field(compare=False)
+    actor: str = ""
+    is_helper: bool = False
+    manifest: dict[str, Any] = field(compare=False, default_factory=dict)
 
 
 def record_from_entry(entry: Any, artifact_dir: str | Path) -> ManifestRecord | None:
@@ -36,6 +38,7 @@ def record_from_entry(entry: Any, artifact_dir: str | Path) -> ManifestRecord | 
     facts = entry.manifest.get("facts")
     provider = ""
     purpose = ""
+    actor = ""
     if isinstance(facts, dict):
         raw_provider = facts.get("provider")
         if isinstance(raw_provider, str):
@@ -43,6 +46,10 @@ def record_from_entry(entry: Any, artifact_dir: str | Path) -> ManifestRecord | 
         raw_purpose = facts.get("purpose")
         if isinstance(raw_purpose, str):
             purpose = raw_purpose
+        raw_actor = facts.get("actor")
+        if isinstance(raw_actor, str):
+            actor = raw_actor
+    is_helper = bool(getattr(entry, "is_helper", False) or actor == "native_helper")
     delivery = entry.manifest.get("delivery")
     rendered: datetime | None = None
     render_ms: float | None = None
@@ -65,6 +72,8 @@ def record_from_entry(entry: Any, artifact_dir: str | Path) -> ManifestRecord | 
         render_ms=render_ms,
         cache=cache,
         manifest_path=str(manifest_path) if manifest_path else "",
+        actor=actor,
+        is_helper=is_helper,
         manifest=entry.manifest,
     )
 
@@ -96,6 +105,8 @@ def matching_manifests(
         record
         for record in records
         if record.provider == session.provider
+        and not record.is_helper
+        and record.actor != "native_helper"
         and _rendered_covers(record.rendered_at, session.session_start)
     ]
     matches.sort(

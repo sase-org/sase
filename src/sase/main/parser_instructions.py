@@ -21,6 +21,7 @@ def register_instructions_parser(subparsers: argparse._SubParsersAction) -> None
             "  sase instructions list\n"
             "  sase instructions render\n"
             "  sase instructions render -p\n"
+            "  sase instructions show my-agent\n"
             "  sase instructions verify -n 20\n"
             "  sase instructions verify -j -n 50\n"
         ),
@@ -103,6 +104,66 @@ def register_instructions_parser(subparsers: argparse._SubParsersAction) -> None
         ),
     )
     render_parser.add_argument(
+        "-s",
+        "--sections",
+        action="store_true",
+        help="Print the section table instead of the bundle",
+    )
+    show_parser = instructions_subparsers.add_parser(
+        "show",
+        help="Print one agent's recorded instruction bundle and check its digest",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        description=(
+            "Print a named agent's archived instruction bundle and check "
+            "that the stored bytes match the manifest sha256. Dismissed "
+            "agents resolve the same way as `sase agent show`. "
+            "The default output is the bundle Markdown on stdout plus one "
+            "summary line on stderr."
+        ),
+        epilog=(
+            "examples:\n"
+            "  sase instructions show my-agent\n"
+            "  sase instructions show my-agent -l\n"
+            "  sase instructions show my-agent -n 00 -j\n"
+            "  sase instructions show my-agent -H -s\n"
+        ),
+    )
+    show_agent_action = show_parser.add_argument(
+        "agent",
+        metavar="NAME",
+        help="Agent name (dismissed bundles and Agents-tab members work)",
+    )
+    set_completion_kind(show_agent_action, ValueKind.AGENT)
+    show_parser.add_argument(
+        "-H",
+        "--helper",
+        action="store_true",
+        help="Show the helper bundle of the chosen invocation",
+    )
+    show_parser.add_argument(
+        "-j",
+        "--json",
+        action="store_true",
+        help="Print the manifest JSON instead of the bundle",
+    )
+    show_parser.add_argument(
+        "-l",
+        "--list",
+        action="store_true",
+        help="One row per recorded invocation (root and helper)",
+    )
+    show_parser.add_argument(
+        "-n",
+        "--seq",
+        default=None,
+        type=int,
+        metavar="NN",
+        help=(
+            "Choose an invocation sequence; default is "
+            "agent_meta.json['instructions']['latest']"
+        ),
+    )
+    show_parser.add_argument(
         "-s",
         "--sections",
         action="store_true",

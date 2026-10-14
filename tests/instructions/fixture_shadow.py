@@ -323,6 +323,63 @@ def write_real_shadow_run(
     return artifacts_dir, manifest, compiled.text
 
 
+def write_helper_shadow(
+    artifacts_dir: Path,
+    *,
+    provider: str = "claude",
+    seq: int = 0,
+    parent_invocation_id: str,
+    rendered_at: str = "2026-10-06T12:00:00Z",
+    agent_name: str = "coverage-test-agent",
+) -> tuple[dict[str, Any], str]:
+    """Write ``NN-<provider>.helper.json`` / ``.helper.md`` as a v1 helper."""
+    bundle_text = "# SASE Helper Instructions\n\nHelper body.\n"
+    sections = [
+        {
+            "id": "pkg.helper.contract",
+            "layer": "package",
+            "status": "included",
+            "lifecycle": "helper",
+            "required": True,
+            "provider_specific": False,
+            "offset": 0,
+            "length": len(bundle_text.encode("utf-8")),
+            "sha256": hashlib.sha256(bundle_text.encode("utf-8")).hexdigest(),
+            "tokens_est": _tokens_est(bundle_text),
+            "sources": [
+                {
+                    "scope": "package",
+                    "kind": "helper_template",
+                    "path": "templates/claude_helper_instructions.md",
+                    "sha256": hashlib.sha256(bundle_text.encode("utf-8")).hexdigest(),
+                }
+            ],
+        }
+    ]
+    manifest = fixture_manifest(
+        bundle_text,
+        sections,
+        provider=provider,
+        purpose="ordinary",
+        rendered_at=rendered_at,
+        seq=seq,
+        agent_name=agent_name,
+    )
+    manifest["facts"]["actor"] = "native_helper"
+    manifest["delivery"]["status"] = "explicit"
+    manifest["delivery"]["channel"] = "claude.append_subagent_system_prompt_file"
+    manifest["delivery"]["parent_invocation_id"] = parent_invocation_id
+    instructions_dir = artifacts_dir / "instructions"
+    instructions_dir.mkdir(parents=True, exist_ok=True)
+    (instructions_dir / f"{seq:02d}-{provider}.helper.md").write_text(
+        bundle_text, encoding="utf-8"
+    )
+    (instructions_dir / f"{seq:02d}-{provider}.helper.json").write_text(
+        json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
+    return manifest, bundle_text
+
+
 def write_shadow_error(
     artifacts_dir: Path, *, provider: str = "codex", seq: int = 1
 ) -> Path:
@@ -350,6 +407,7 @@ def write_shadow_error(
 __all__ = [
     "fixture_bundle",
     "fixture_manifest",
+    "write_helper_shadow",
     "write_real_shadow_run",
     "write_shadow_error",
     "write_shadow_run",

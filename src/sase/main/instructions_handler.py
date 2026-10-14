@@ -26,7 +26,12 @@ def handle_instructions_command(args: argparse.Namespace) -> None:
     if sub == "verify":
         sys.exit(_run_instructions_verify(args))
 
-    print("Usage: sase instructions {list,render,verify}", file=sys.stderr)
+    if sub == "show":
+        from sase.instructions.show import run_instructions_show
+
+        sys.exit(run_instructions_show(args))
+
+    print("Usage: sase instructions {list,render,show,verify}", file=sys.stderr)
     sys.exit(1)
 
 
@@ -86,9 +91,14 @@ def _agent_base_facts(
     """
     from sase.instructions.facts import default_facts
 
-    found = _latest_agent_run(agent)
+    from sase.instructions.run_index import UnknownAgentError
+
+    try:
+        found = _latest_agent_run(agent)
+    except UnknownAgentError as exc:
+        raise _RenderError(str(exc)) from exc
     if found is None:
-        raise _RenderError(f"unknown agent {agent!r}: no runs found")
+        raise _RenderError(f"agent {agent} has no recorded run artifacts")
     artifact_dir, meta = found
     recorded: dict[str, Any] | None = None
     instructions = meta.get("instructions")
@@ -305,8 +315,9 @@ def _render_sections_table(compiled: Any) -> None:
 
 def _run_instructions_verify(args: argparse.Namespace) -> int:
     """Run the observed-mode scoreboard and render it."""
-    from sase.instructions import run_index as run_mod
     from sase.instructions import coverage as coverage_mod
+    from sase.instructions import run_index as run_mod
+    from sase.instructions.run_index import UnknownAgentError
     from sase.instructions.render import (
         render_coverage,
         render_helper_rows,
@@ -340,14 +351,18 @@ def _run_instructions_verify(args: argparse.Namespace) -> int:
     want_helpers = bool(getattr(args, "helpers", False))
     want_coverage = bool(getattr(args, "coverage", False))
 
-    scored = run_mod.enumerate_runs(
-        limit_per_provider=limit,
-        since=since,
-        until=until,
-        project=None,
-        agent=agent,
-        providers=providers,
-    )
+    try:
+        scored = run_mod.enumerate_runs(
+            limit_per_provider=limit,
+            since=since,
+            until=until,
+            project=None,
+            agent=agent,
+            providers=providers,
+        )
+    except UnknownAgentError as exc:
+        print(f"sase instructions verify: {exc}", file=sys.stderr)
+        return 2
     observations = collect_observations(scored)
     sessions = coverage_mod.root_sessions(scored)
     records: list[coverage_mod.ManifestRecord] = []

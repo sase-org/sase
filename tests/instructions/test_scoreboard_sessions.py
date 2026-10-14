@@ -238,6 +238,9 @@ def test_purpose_rows_name_uncovered_pairs_and_latency(
     assert by_purpose["ordinary"].cold_p50 is None
     assert by_purpose["conflict_repair"].cold_p50 == 40.0
     assert by_purpose["conflict_repair"].warm_p50 is None
+    assert by_purpose["conflict_repair"].sessions == 1
+    assert by_purpose["conflict_repair"].covered == 1
+    assert by_purpose["conflict_repair"].uncovered == ()
 
 
 def test_count_run_errors_reads_error_files(

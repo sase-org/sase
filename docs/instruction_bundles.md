@@ -24,15 +24,24 @@ Start with these read-only commands from your project checkout:
 ```bash
 sase instructions list                 # Current instruction files and provider shims
 sase instructions render -s            # Intended bundle sections from current sources
+sase instructions show AGENT           # Archived bundle bytes and digest check
 sase instructions verify -c            # Observed loads and manifest coverage
 sase instructions verify -a AGENT      # Compare a recorded run's intent with its loads
 ```
 
-Replace `AGENT` with a name from `sase agent list -a`. `render -a AGENT` instead uses
-that agent's facts to compile a fresh preview from today's memory; its digest may differ
-from the historical bundle. `verify` looks at the newest 20 runs per provider from the
-last 7 days unless you pass `-n` (maximum 200) or `--since`. Delivery problems still
-exit 0. A bad `--since` or `--until` value exits 2. Inspect the rows rather than
+Replace `AGENT` with a name from `sase agent list -a` (dismissed agents resolve the same
+way as `sase agent show`). `sase instructions show AGENT` prints that run's recorded
+bundle and checks the stored bytes against the manifest `sha256` (`bytes match`, or
+`MISMATCH` with exit 1). Use `-l` to list every recorded invocation including helper
+bundles, `-n NN` to pick a sequence, `-H` for the helper bundle, `-j` for the manifest
+JSON, and `-s` for the section table. A missing `instructions/` directory or an unknown
+name exits 2.
+
+`render -a AGENT` instead uses that agent's facts to compile a fresh preview from
+today's memory; its digest may differ from the historical bundle. `verify` looks at the
+newest 20 runs per provider from the last 7 days unless you pass `-n` (maximum 200) or
+`--since`, and includes dismissed runs. Delivery problems still exit 0. A bad `--since`
+or `--until` value, or an unknown `-a` name, exits 2. Inspect the rows rather than
 treating exit code 0 as proof that delivery is correct.
 
 ## Bundle and manifest

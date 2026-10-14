@@ -182,6 +182,7 @@ def _build_path_overrides() -> dict[tuple[tuple[str, ...], str], ValueKind]:
         (("agent", "tribe", "set"), "name"): ValueKind.AGENT,
         (("agent", "tribe", "unset"), "name"): ValueKind.AGENT,
         (("agent", "wait"), "names"): ValueKind.AGENT,
+        (("instructions", "show"), "agent"): ValueKind.AGENT,
         (
             ("artifact", "link", "relation", "show"),
             "slug",
@@ -470,6 +471,7 @@ _VALUE_HINT_TABLE.update(
             "port",
             "push_retry_limit",
             "remove",
+            "seq",
             "settle_ms",
             "tail_lines",
             "tool_failures_days",

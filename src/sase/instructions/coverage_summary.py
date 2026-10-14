@@ -30,7 +30,9 @@ def cover_agy_runs(
         if run.provider != "agy":
             continue
         covered = any(
-            record.artifact_dir == run.artifact_dir and record.provider == "agy"
+            record.artifact_dir == run.artifact_dir
+            and record.provider == "agy"
+            and not record.is_helper
             for record in records
         )
         verdicts.append(
@@ -151,11 +153,12 @@ def purpose_coverage_rows(
     error_counts: dict[str, int] | None = None,
 ) -> list[PurposeCoverageRow]:
     """Build per-provider-purpose ``-c`` rows with latency stats."""
+    root_records = [record for record in records if not record.is_helper]
     by_provider_sessions: dict[str, list[RootSession]] = {}
     for session in sessions:
         by_provider_sessions.setdefault(session.provider, []).append(session)
     by_provider_records: dict[str, list[ManifestRecord]] = {}
-    for record in records:
+    for record in root_records:
         by_provider_records.setdefault(record.provider, []).append(record)
     rows: list[PurposeCoverageRow] = []
     providers = sorted(set(by_provider_sessions) | set(by_provider_records))
@@ -189,9 +192,22 @@ def purpose_coverage_rows(
                 for key, covered_purposes in by_session_covered.items()
                 if purpose in covered_purposes
             }
-            uncovered = sorted(
-                key for key in by_session_covered if key not in covered_keys
-            )[:MAX_UNCOVERED_PAIRS]
+            unmatched_keys = {
+                key
+                for key, covered_purposes in by_session_covered.items()
+                if not covered_purposes
+            }
+            # Each purpose's denominator is the sessions whose matched
+            # manifest has that purpose. Unmatched sessions stay on the
+            # ordinary row so they do not inflate declaration_recovery
+            # or conflict_repair uncovered counts.
+            uncovered: list[tuple[str, str]]
+            if purpose in ("ordinary", ""):
+                eligible = covered_keys | unmatched_keys
+                uncovered = sorted(unmatched_keys)[:MAX_UNCOVERED_PAIRS]
+            else:
+                eligible = covered_keys
+                uncovered = []
             warm = sorted(
                 record.render_ms
                 for record in purpose_records
@@ -207,7 +223,7 @@ def purpose_coverage_rows(
                     provider=provider,
                     purpose=purpose or "—",
                     manifests=len(purpose_records),
-                    sessions=len(provider_sessions),
+                    sessions=len(eligible),
                     covered=len(covered_keys),
                     uncovered=tuple(uncovered),
                     errors=(error_counts or {}).get(provider, 0),
@@ -227,7 +243,7 @@ def count_run_errors(scored_runs: list[runs.ScoredRun]) -> dict[str, int]:
     counts: dict[str, int] = {}
     for run in scored_runs:
         for entry in read_run_manifests(run.artifact_dir):
-            if entry.error is not None:
+            if entry.error is not None and not entry.is_helper:
                 counts[run.provider] = counts.get(run.provider, 0) + 1
     return counts
 

@@ -247,6 +247,8 @@ def test_enumerate_runs_queries_each_provider_with_candidate_filter(
                 "project": project,
                 "requested_limit": requested_limit,
                 "candidate_filter": candidate_filter,
+                "include_hidden": _kwargs.get("include_hidden"),
+                "include_full_history": _kwargs.get("include_full_history"),
             }
         )
         return (
@@ -284,26 +286,34 @@ def test_enumerate_runs_queries_each_provider_with_candidate_filter(
     }
     assert calls[0]["requested_limit"] == 10
     assert calls[0]["project"] == "sase"
+    assert calls[0]["include_hidden"] is True
+    assert calls[0]["include_full_history"] is False
 
 
 def test_enumerate_runs_widens_limit_when_filtered(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    """Agent/since/until post-filters raise the per-provider query to 200."""
+    """Since/until post-filters raise the per-provider query to 200."""
     from sase.core.agent_scan_wire import (
         AgentArtifactScanOptionsWire,
         AgentArtifactScanStatsWire,
         AgentArtifactScanWire,
     )
 
-    seen: list[int | None] = []
+    seen: list[tuple[int | None, object, object]] = []
 
     def fake_listing_snapshot(
         *,
         requested_limit: int | None = None,
         **_kwargs: object,
     ) -> tuple[AgentArtifactScanWire, object]:
-        seen.append(requested_limit)
+        seen.append(
+            (
+                requested_limit,
+                _kwargs.get("include_hidden"),
+                _kwargs.get("include_full_history"),
+            )
+        )
         return (
             AgentArtifactScanWire(
                 schema_version=1,
@@ -327,17 +337,7 @@ def test_enumerate_runs_widens_limit_when_filtered(
         agent=None,
         providers=("claude",),
     )
-    assert seen == [200]
-    seen.clear()
-    run_mod.enumerate_runs(
-        limit_per_provider=10,
-        since=None,
-        until=None,
-        project=None,
-        agent="some-agent",
-        providers=("claude",),
-    )
-    assert seen == [200]
+    assert seen == [(200, True, True)]
 
 
 def test_enumerate_runs_finds_rare_provider(
@@ -466,6 +466,17 @@ def test_listing_snapshot_ands_candidate_filter_with_project(
             {"kind": "equals", "field": "provider", "value": "grok"},
         ],
     }
+    assert seen[0].include_hidden is False
+    assert seen[0].include_full_history is False
+    listing_snapshot(
+        project="sase",
+        requested_limit=10,
+        candidate_filter={"kind": "equals", "field": "provider", "value": "grok"},
+        include_hidden=True,
+        include_full_history=True,
+    )
+    assert seen[1].include_hidden is True
+    assert seen[1].include_full_history is True
 
 
 def test_doctor_registry_includes_instructions_deep_checks(tmp_path: Path) -> None:

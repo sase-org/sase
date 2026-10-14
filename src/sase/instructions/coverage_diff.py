@@ -34,6 +34,8 @@ def _bundle_section_text(
                 provider = str(facts["provider"]).lower()
             if provider != record.provider or entry.seq != record.seq:
                 continue
+            if bool(getattr(entry, "is_helper", False)) != bool(record.is_helper):
+                continue
             try:
                 bundle_text = entry.bundle_path.read_text(encoding="utf-8")
             except OSError:

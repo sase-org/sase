@@ -17,6 +17,14 @@ HELPER_TRANSCRIPT_BYTE_CAP = 16 * 1024 * 1024
 _KNOWN_PROVIDERS = ("claude", "codex", "grok", "muse", "agy")
 
 
+class UnknownAgentError(ValueError):
+    """Raised when ``-a NAME`` / ``show NAME`` does not resolve to any agent."""
+
+    def __init__(self, name: str) -> None:
+        super().__init__(f"unknown agent {name}")
+        self.name = name
+
+
 @dataclass(frozen=True)
 class ScoredRun:
     """One SASE run selected for verification."""
@@ -88,6 +96,74 @@ def _read_json(path: Path) -> dict[str, Any]:
     return decoded if isinstance(decoded, dict) else {}
 
 
+def _scored_run_from_artifact_dir(
+    artifact_dir: str,
+    *,
+    name_hint: str | None = None,
+    listing_meta: Any | None = None,
+    listing_timestamp: str | None = None,
+    project: str | None = None,
+) -> ScoredRun | None:
+    """Build a :class:`ScoredRun` from on-disk ``agent_meta.json``."""
+    disk_meta = _read_json(Path(artifact_dir) / "agent_meta.json")
+    record_provider = str(
+        disk_meta.get("exec_llm_provider")
+        or disk_meta.get("llm_provider")
+        or getattr(listing_meta, "llm_provider", "")
+        or ""
+    ).lower()
+    if not record_provider:
+        return None
+    workspace_dir = str(
+        disk_meta.get("workspace_dir")
+        or getattr(listing_meta, "workspace_dir", "")
+        or ""
+    )
+    name = str(
+        disk_meta.get("name")
+        or getattr(listing_meta, "name", "")
+        or name_hint
+        or listing_timestamp
+        or Path(artifact_dir).name
+    )
+    started = _parse_time(disk_meta.get("run_started_at"))
+    if started is None:
+        started = _parse_time(listing_timestamp)
+    if started is None:
+        return None
+    done = _read_json(Path(artifact_dir) / "done.json")
+    ended = _parse_time(done.get("finished_at"))
+    return ScoredRun(
+        provider=record_provider,
+        name=name,
+        workspace_dir=workspace_dir,
+        artifact_dir=artifact_dir,
+        started_at=started,
+        ended_at=ended,
+        project=project,
+    )
+
+
+def _named_agent_runs(
+    agent: str,
+    *,
+    providers: tuple[str, ...],
+) -> list[ScoredRun]:
+    """Resolve *agent* through :func:`find_named_agent` and return its run."""
+    from sase.agent.names import find_named_agent
+
+    found = find_named_agent(agent)
+    if found is None:
+        raise UnknownAgentError(agent)
+    run = _scored_run_from_artifact_dir(found.artifacts_dir, name_hint=found.name)
+    if run is None:
+        return []
+    wanted = {p.lower() for p in providers if p}
+    if wanted and run.provider not in wanted:
+        return []
+    return [run]
+
+
 def enumerate_runs(
     *,
     limit_per_provider: int,
@@ -97,17 +173,26 @@ def enumerate_runs(
     agent: str | None,
     providers: tuple[str, ...],
 ) -> list[ScoredRun]:
-    """Return the newest runs per provider from the bounded artifact index."""
+    """Return the newest runs per provider from the bounded artifact index.
+
+    Hidden (dismissed) runs are included. An explicit ``agent`` name is
+    resolved through :func:`sase.agent.names.find_named_agent` and is
+    never dropped by the ``since``/``until`` window. The default path
+    stays bounded: the artifact index is queried with a window limit,
+    and the filesystem fallback never walks more than the recent
+    completed listing cap.
+    """
     from sase.agent.listing_snapshot import listing_snapshot
+
+    if agent is not None:
+        return _named_agent_runs(agent, providers=providers)
 
     wanted = [p for p in providers if p in _KNOWN_PROVIDERS] or list(_KNOWN_PROVIDERS)
     # One bounded index query per wanted provider so rare providers are not
     # crowded out by the newest overall runs. Widen to the 200 cap when a
-    # post-filter (agent/since/until) will discard rows after the query.
+    # post-filter (since/until) will discard rows after the query.
     per_query_limit = (
-        200
-        if (agent is not None or since is not None or until is not None)
-        else limit_per_provider
+        200 if (since is not None or until is not None) else limit_per_provider
     )
     candidates: list[ScoredRun] = []
     for provider in wanted:
@@ -119,6 +204,8 @@ def enumerate_runs(
                 "field": "provider",
                 "value": provider,
             },
+            include_hidden=True,
+            include_full_history=since is not None,
         )
         for record in snapshot.records:
             meta = record.agent_meta
@@ -126,40 +213,19 @@ def enumerate_runs(
             if record_provider not in wanted:
                 continue
             artifact_dir = str(record.artifact_dir)
-            disk_meta = _read_json(Path(artifact_dir) / "agent_meta.json")
-            workspace_dir = str(
-                disk_meta.get("workspace_dir")
-                or getattr(meta, "workspace_dir", "")
-                or ""
+            scored = _scored_run_from_artifact_dir(
+                artifact_dir,
+                listing_meta=meta,
+                listing_timestamp=record.timestamp,
+                project=str(record.project_name or "") or None,
             )
-            name = str(
-                disk_meta.get("name") or getattr(meta, "name", "") or record.timestamp
-            )
-            bead_id = str(disk_meta.get("bead_id") or "")
-            if agent and agent not in (name, bead_id):
+            if scored is None:
                 continue
-            started = _parse_time(disk_meta.get("run_started_at"))
-            if started is None:
-                started = _parse_time(record.timestamp)
-            if started is None:
+            if since is not None and scored.started_at < since:
                 continue
-            if since is not None and started < since:
+            if until is not None and scored.started_at > until:
                 continue
-            if until is not None and started > until:
-                continue
-            done = _read_json(Path(artifact_dir) / "done.json")
-            ended = _parse_time(done.get("finished_at"))
-            candidates.append(
-                ScoredRun(
-                    provider=record_provider,
-                    name=name,
-                    workspace_dir=workspace_dir,
-                    artifact_dir=artifact_dir,
-                    started_at=started,
-                    ended_at=ended,
-                    project=str(record.project_name or "") or None,
-                )
-            )
+            candidates.append(scored)
     candidates.sort(key=lambda run: run.started_at, reverse=True)
     per_provider: dict[str, int] = {}
     selected: list[ScoredRun] = []
@@ -436,6 +502,7 @@ __all__ = [
     "HELPER_TRANSCRIPT_BYTE_CAP",
     "ROOT_TRANSCRIPT_BYTE_CAP",
     "ScoredRun",
+    "UnknownAgentError",
     "claude_project_dir",
     "enumerate_runs",
     "find_claude_helpers",
