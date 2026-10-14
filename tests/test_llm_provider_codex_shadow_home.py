@@ -2,6 +2,8 @@
 
 import os
 import subprocess
+from collections.abc import Iterator
+from contextlib import contextmanager, nullcontext
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -9,12 +11,26 @@ import pytest
 
 from sase.feature_flags import override_flags
 from sase.instructions.fingerprints import CONTRACT_HEADING
-from sase.llm_provider.codex import _codex_subprocess_env
-from sase.llm_provider.codex import (
-    CodexProvider,
-    _create_shadow_codex_home,
-    _real_codex_home,
+from sase.llm_provider._codex_home import (
+    codex_subprocess_env,
+    real_codex_home,
 )
+from sase.llm_provider.codex import CodexProvider
+
+
+@contextmanager
+def _shadow_home_for(
+    real_home: Path, *, explicit_instructions: bool | None = None
+) -> Iterator[Path]:
+    flag_context = (
+        override_flags(codex_explicit_instructions=explicit_instructions)
+        if explicit_instructions is not None
+        else nullcontext()
+    )
+    with patch.dict(os.environ, {"CODEX_HOME": str(real_home)}):
+        with flag_context:
+            with codex_subprocess_env() as env:
+                yield Path(env["CODEX_HOME"])
 
 
 def test_real_codex_home_ignores_sase_managed_shadow_home(
@@ -26,7 +42,7 @@ def test_real_codex_home_ignores_sase_managed_shadow_home(
     monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.setenv("CODEX_HOME", str(inherited_shadow))
 
-    assert _real_codex_home() == tmp_path / ".codex"
+    assert real_codex_home() == tmp_path / ".codex"
 
 
 def test_real_codex_home_honors_non_sase_custom_home(
@@ -38,7 +54,7 @@ def test_real_codex_home_honors_non_sase_custom_home(
     monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.setenv("CODEX_HOME", str(custom_home))
 
-    assert _real_codex_home() == custom_home
+    assert real_codex_home() == custom_home
 
 
 def test_create_shadow_codex_home_links_home_agents_fallback(
@@ -51,14 +67,12 @@ def test_create_shadow_codex_home_links_home_agents_fallback(
     real_home = tmp_path / ".codex"
     monkeypatch.setenv("HOME", str(tmp_path))
 
-    with override_flags(codex_explicit_instructions=False):
-        shadow_home = _create_shadow_codex_home(real_home)
-
-    shadow_agents = shadow_home / "AGENTS.md"
-    assert shadow_agents.is_symlink()
-    assert shadow_agents.resolve() == home_agents
-    assert shadow_agents.read_text(encoding="utf-8") == "# Home Instructions\n"
-    assert not real_home.exists()
+    with _shadow_home_for(real_home, explicit_instructions=False) as shadow_home:
+        shadow_agents = shadow_home / "AGENTS.md"
+        assert shadow_agents.is_symlink()
+        assert shadow_agents.resolve() == home_agents
+        assert shadow_agents.read_text(encoding="utf-8") == "# Home Instructions\n"
+        assert not real_home.exists()
 
 
 def test_create_shadow_codex_home_preserves_real_codex_agents(
@@ -74,12 +88,11 @@ def test_create_shadow_codex_home_preserves_real_codex_agents(
     home_agents.write_text("# Home Instructions\n", encoding="utf-8")
     monkeypatch.setenv("HOME", str(tmp_path))
 
-    shadow_home = _create_shadow_codex_home(real_home)
-
-    shadow_agents = shadow_home / "AGENTS.md"
-    assert shadow_agents.is_symlink()
-    assert shadow_agents.resolve() == real_agents
-    assert shadow_agents.read_text(encoding="utf-8") == "# Codex Instructions\n"
+    with _shadow_home_for(real_home) as shadow_home:
+        shadow_agents = shadow_home / "AGENTS.md"
+        assert shadow_agents.is_symlink()
+        assert shadow_agents.resolve() == real_agents
+        assert shadow_agents.read_text(encoding="utf-8") == "# Codex Instructions\n"
 
 
 def test_create_shadow_codex_home_preserves_real_codex_override(
@@ -95,14 +108,13 @@ def test_create_shadow_codex_home_preserves_real_codex_override(
     home_agents.write_text("# Home Instructions\n", encoding="utf-8")
     monkeypatch.setenv("HOME", str(tmp_path))
 
-    shadow_home = _create_shadow_codex_home(real_home)
-
-    shadow_override = shadow_home / "AGENTS.override.md"
-    shadow_agents = shadow_home / "AGENTS.md"
-    assert shadow_override.is_symlink()
-    assert shadow_override.resolve() == real_override
-    assert not shadow_agents.exists()
-    assert not shadow_agents.is_symlink()
+    with _shadow_home_for(real_home) as shadow_home:
+        shadow_override = shadow_home / "AGENTS.override.md"
+        shadow_agents = shadow_home / "AGENTS.md"
+        assert shadow_override.is_symlink()
+        assert shadow_override.resolve() == real_override
+        assert not shadow_agents.exists()
+        assert not shadow_agents.is_symlink()
 
 
 def test_create_shadow_codex_home_allowlists_state_and_excludes_shared_state(
@@ -129,37 +141,35 @@ def test_create_shadow_codex_home_allowlists_state_and_excludes_shared_state(
     (real_home / "unknown.json").write_text("{}\n", encoding="utf-8")
     monkeypatch.setenv("HOME", str(tmp_path))
 
-    with override_flags(codex_explicit_instructions=True):
-        shadow_home = _create_shadow_codex_home(real_home)
-
-    config = shadow_home / "config.toml"
-    assert config.read_text(encoding="utf-8") == "model = 'test'\n"
-    assert not config.is_symlink()
-    for name in (
-        "auth.json",
-        "installation_id",
-        "version.json",
-        "hooks.json",
-        "models_cache.json",
-        "skills",
-        "plugins",
-        "cache",
-        "sessions",
-    ):
-        assert (shadow_home / name).is_symlink(), name
-        assert (shadow_home / name).resolve() == (real_home / name).resolve()
-    assert not (shadow_home / "memories").exists()
-    for name in (
-        "state.sqlite",
-        "memories_1.sqlite",
-        "history.jsonl",
-        "log",
-        "tmp",
-        "thread-writer-locks",
-        "unknown.json",
-    ):
-        assert not (shadow_home / name).exists(), name
-        assert not (shadow_home / name).is_symlink(), name
+    with _shadow_home_for(real_home, explicit_instructions=True) as shadow_home:
+        config = shadow_home / "config.toml"
+        assert config.read_text(encoding="utf-8") == "model = 'test'\n"
+        assert not config.is_symlink()
+        for name in (
+            "auth.json",
+            "installation_id",
+            "version.json",
+            "hooks.json",
+            "models_cache.json",
+            "skills",
+            "plugins",
+            "cache",
+            "sessions",
+        ):
+            assert (shadow_home / name).is_symlink(), name
+            assert (shadow_home / name).resolve() == (real_home / name).resolve()
+        assert not (shadow_home / "memories").exists()
+        for name in (
+            "state.sqlite",
+            "memories_1.sqlite",
+            "history.jsonl",
+            "log",
+            "tmp",
+            "thread-writer-locks",
+            "unknown.json",
+        ):
+            assert not (shadow_home / name).exists(), name
+            assert not (shadow_home / name).is_symlink(), name
 
 
 def test_shadow_home_omits_sase_owned_home_instructions_on_explicit_delivery(
@@ -176,13 +186,11 @@ def test_shadow_home_omits_sase_owned_home_instructions_on_explicit_delivery(
     override.write_bytes(home_agents.read_bytes())
     monkeypatch.setenv("HOME", str(tmp_path))
 
-    with override_flags(codex_explicit_instructions=True):
-        shadow_home = _create_shadow_codex_home(real_home)
-
-    assert not (shadow_home / "AGENTS.md").exists()
-    assert not (shadow_home / "AGENTS.override.md").exists()
-    assert (real_home / "AGENTS.md").is_symlink()
-    assert override.read_bytes() == home_agents.read_bytes()
+    with _shadow_home_for(real_home, explicit_instructions=True) as shadow_home:
+        assert not (shadow_home / "AGENTS.md").exists()
+        assert not (shadow_home / "AGENTS.override.md").exists()
+        assert (real_home / "AGENTS.md").is_symlink()
+        assert override.read_bytes() == home_agents.read_bytes()
 
 
 def test_shadow_home_keeps_user_instructions_unchanged_after_teardown(
@@ -205,7 +213,7 @@ def test_shadow_home_keeps_user_instructions_unchanged_after_teardown(
     monkeypatch.setenv("CODEX_HOME", str(real_home))
 
     with override_flags(codex_explicit_instructions=True):
-        with _codex_subprocess_env() as env:
+        with codex_subprocess_env() as env:
             shadow_home = Path(env["CODEX_HOME"])
             assert (shadow_home / "AGENTS.md").is_symlink()
             assert (shadow_home / "AGENTS.override.md").is_symlink()
@@ -230,12 +238,10 @@ def test_legacy_shadow_home_keeps_memories_and_home_fallback(
     home_agents.write_text("# User home instructions\n", encoding="utf-8")
     monkeypatch.setenv("HOME", str(tmp_path))
 
-    with override_flags(codex_explicit_instructions=False):
-        shadow_home = _create_shadow_codex_home(real_home)
-
-    assert (shadow_home / "memories").is_symlink()
-    assert (shadow_home / "AGENTS.md").is_symlink()
-    assert (shadow_home / "AGENTS.md").resolve() == home_agents.resolve()
+    with _shadow_home_for(real_home, explicit_instructions=False) as shadow_home:
+        assert (shadow_home / "memories").is_symlink()
+        assert (shadow_home / "AGENTS.md").is_symlink()
+        assert (shadow_home / "AGENTS.md").resolve() == home_agents.resolve()
 
 
 @patch("sase.llm_provider.codex.stream_and_parse_codex_json_output")

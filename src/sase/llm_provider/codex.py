@@ -6,33 +6,44 @@ import json
 import os
 import shutil
 import subprocess
-import uuid
-from collections.abc import Iterator
-from contextlib import contextmanager
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from sase.env_contracts import SASE_ACTIVE_PROJECT_DIR_ENV
-from sase.feature_flags import FeatureFlag, current_flags
 from sase.feature_flags.managed import project_is_sase_managed
 from sase.output import provider_timer
 
+from ._codex_home import (
+    codex_subprocess_env,
+    is_sase_managed_codex_home,
+    real_codex_home,
+    resolve_codex_project_dir,
+)
+from ._codex_instructions import (
+    CODEX_TURN_INTEGRITY_ERROR_PREFIX,
+    EFFORT_CLI_ARGS,
+    coerce_stream_result,
+    codex_executable_not_found_error,
+    explicit_instructions_enabled,
+    log_interrupt,
+    max_wait_continuations,
+    resolve_codex_executable,
+    single_turn_directive,
+    stranded_handoff_continuation_nudge,
+)
 from ._effort_args import effort_cli_args
 from ._hookspec import hookimpl
 from .instruction_delivery import (
     CHANNEL_CODEX_ROOT,
     current_instruction_delivery,
     legacy_instruction_delivery,
-    sase_owned_instruction_paths,
 )
 from ._subprocess import (
-    CODEX_TURN_INTEGRITY_ERROR_PREFIX,
     start_completion_watchdog,
     start_interrupt_monitor,
     stream_and_parse_codex_json_output,
 )
-from ._subprocess_codex import CodexStreamResult, CodexStrandedCommand
-from ._wait_guard import log_wait_guard as _log_wait_guard
+from ._subprocess_codex import CodexStreamResult
+from ._wait_guard import log_wait_guard
 from .base import LLMProvider
 from .model_manifest import (
     provider_model_names,
@@ -45,292 +56,6 @@ if TYPE_CHECKING:
     from .retry_config import ProviderRetryConfig
     from .usage.types import UsageProbeContext
     from .usage_limit_config import ProviderUsageLimitConfig
-
-# (Model catalog, short aliases, and tier defaults live in the bundled
-# ``models.yml`` manifest; see ``model_manifest.py``.)
-
-# Reasoning-effort levels Codex honors via ``-c model_reasoning_effort=...``.
-# Codex rejects ``none``/``max`` (epic sase-55 provider support matrix). The
-# quoted value mirrors the ``SASE_CODEX_LARGE_ARGS`` escape hatch exactly.
-_EFFORT_CLI_ARGS: dict[str, list[str]] = {
-    level: ["-c", f'model_reasoning_effort="{level}"']
-    for level in ("minimal", "low", "medium", "high", "xhigh")
-}
-_DISABLE_SHADOW_HOME_ENV = "SASE_CODEX_DISABLE_SHADOW_HOME"
-_CODEX_PATH_ENV = "SASE_CODEX_PATH"
-_CODEX_MAX_WAIT_CONTINUATIONS_ENV = "SASE_CODEX_MAX_WAIT_CONTINUATIONS"
-_DEFAULT_CODEX_MAX_WAIT_CONTINUATIONS = 2
-_CODEX_SHADOW_HOME_SYMLINK_ENTRIES = frozenset(
-    {
-        "AGENTS.md",
-        "AGENTS.override.md",
-        "auth.json",
-        "cache",
-        "hooks.json",
-        "installation_id",
-        "models_cache.json",
-        "plugins",
-        "sessions",
-        "skills",
-        "version.json",
-    }
-)
-_CODEX_SHADOW_HOME_LEGACY_ENTRIES = frozenset({"memories"})
-
-
-def _codex_explicit_instructions_enabled() -> bool:
-    """Return the current sunset-flag value for Codex instruction delivery."""
-    return current_flags().enabled(FeatureFlag.codex_explicit_instructions)
-
-
-def _codex_single_turn_directive() -> str:
-    """Return the Codex developer instruction for unified-exec handoffs."""
-    return (
-        "SASE single-turn instructions for Codex: this session is exactly one turn, "
-        "and nothing can wake you after you end it. `exec_command` returns control "
-        "after its `yield_time_ms` even while the command keeps running. An empty or "
-        "partial yielded result means the command is still running, not done. Anything "
-        "still running when your turn ends is killed, so its intended effects never "
-        "happen. Handoff commands such as `sase monitor start`, `sase plan propose`, "
-        "`sase pipe`, and `sase questions` can take up to a minute before they hand off. "
-        "Wait for the handoff command itself to exit: if a yielded exec session remains "
-        "running, repeatedly call `write_stdin` with empty input until it reports an "
-        "exit code. Never end your turn while one is running. The monitored command is "
-        "different: let SASE monitor that command after `sase monitor start` exits."
-    )
-
-
-def _codex_max_wait_continuations() -> int:
-    """Return the bounded stranded-handoff continuation budget."""
-    raw_value = os.environ.get(_CODEX_MAX_WAIT_CONTINUATIONS_ENV)
-    if raw_value is None:
-        return _DEFAULT_CODEX_MAX_WAIT_CONTINUATIONS
-    try:
-        return max(0, int(raw_value))
-    except ValueError:
-        return _DEFAULT_CODEX_MAX_WAIT_CONTINUATIONS
-
-
-def _stranded_handoff_continuation_nudge(
-    commands: tuple[CodexStrandedCommand, ...],
-) -> str:
-    """Tell a fresh Codex invocation how to recover the killed handoff."""
-    command = next((fact.command for fact in commands if fact.command), None)
-    command_label = command or commands[0].command_id
-    return (
-        "Your previous Codex turn ended while this SASE handoff command was still "
-        f"running: `{command_label}`. It was killed when the turn ended, and no monitor "
-        "or handoff took effect. Re-run the identical command so fingerprint replay can "
-        "adopt any partially started monitor. Keep waiting on the same exec session: if "
-        "the tool yields before an exit code, repeatedly call `write_stdin` with empty "
-        "input until the command exits. Do not end the turn while it is running."
-    )
-
-
-def _coerce_codex_stream_result(
-    value: CodexStreamResult | tuple[str, str, int],
-) -> CodexStreamResult:
-    """Preserve test and plugin compatibility with legacy parser triples."""
-    if isinstance(value, CodexStreamResult):
-        return value
-    content, stderr_content, return_code = value
-    return CodexStreamResult(content, stderr_content, return_code)
-
-
-def resolve_codex_executable() -> str:
-    """Return the Codex executable SASE should launch."""
-    explicit_path = os.environ.get(_CODEX_PATH_ENV)
-    if explicit_path:
-        return explicit_path
-
-    path_result = shutil.which("codex")
-    if path_result:
-        return path_result
-
-    nvm_bin = os.environ.get("NVM_BIN")
-    if nvm_bin:
-        nvm_codex = Path(nvm_bin) / "codex"
-        if nvm_codex.exists():
-            return str(nvm_codex)
-
-    return "codex"
-
-
-def _codex_executable_not_found_error(command: str) -> FileNotFoundError:
-    """Build an actionable missing-Codex diagnostic."""
-    return FileNotFoundError(
-        "Unable to launch Codex CLI executable "
-        f"{command!r}. Set SASE_CODEX_PATH to the Codex binary, ensure "
-        "'codex' is discoverable on PATH, or set NVM_BIN so SASE can try "
-        "NVM_BIN/codex."
-    )
-
-
-def _sase_codex_shadow_home_root() -> Path:
-    """Return the root directory for SASE-managed Codex shadow homes."""
-    return (Path.home() / ".cache" / "sase" / "codex_home").resolve(strict=False)
-
-
-def is_sase_managed_codex_home(path: str | os.PathLike[str]) -> bool:
-    """Return whether *path* points inside SASE's Codex shadow-home root."""
-    candidate = Path(path).expanduser().resolve(strict=False)
-    root = _sase_codex_shadow_home_root()
-    return candidate == root or candidate.is_relative_to(root)
-
-
-def _log_interrupt(message: str, cycle: int) -> None:
-    """Append an entry to the interrupt log in the artifacts directory."""
-    import json
-    import time
-
-    artifacts_dir = os.environ.get("SASE_ARTIFACTS_DIR")
-    if not artifacts_dir:
-        return
-    log_path = Path(artifacts_dir) / "interrupt_log.jsonl"
-    try:
-        with open(log_path, "a", encoding="utf-8") as f:
-            json.dump(
-                {"message": message, "timestamp": time.time(), "cycle": cycle},
-                f,
-            )
-            f.write("\n")
-    except OSError:
-        pass
-
-
-_WORKSPACE_ENV_VARS: tuple[str, ...] = ("SASE_GIT_WORKSPACE_DIR",)
-
-
-def _workspace_env_value() -> str | None:
-    """Return the first non-empty SASE workspace env var value, if any."""
-    for name in _WORKSPACE_ENV_VARS:
-        value = os.environ.get(name)
-        if value:
-            return value
-    return None
-
-
-def _resolve_codex_project_dir() -> str:
-    """Resolve the project directory Codex hooks and fallbacks should inspect."""
-    return (
-        os.environ.get("CODEX_PROJECT_DIR")
-        or os.environ.get(SASE_ACTIVE_PROJECT_DIR_ENV)
-        or _workspace_env_value()
-        or os.getcwd()
-    )
-
-
-def real_codex_home() -> Path:
-    """Return the user's real Codex home (never a per-run shadow home)."""
-    return _real_codex_home()
-
-
-def _real_codex_home() -> Path:
-    """Return the user's real Codex home."""
-    codex_home = os.environ.get("CODEX_HOME")
-    if codex_home and not is_sase_managed_codex_home(codex_home):
-        return Path(codex_home).expanduser().resolve(strict=False)
-    return Path.home() / ".codex"
-
-
-def _path_exists_or_is_symlink(path: Path) -> bool:
-    """Return whether a path exists or is present as a symlink."""
-    return path.exists() or path.is_symlink()
-
-
-def _link_home_agents_fallback(shadow_home: Path, real_home: Path) -> None:
-    """Expose SASE's home AGENTS.md to Codex when no Codex-global file wins."""
-    home_agents = Path.home() / "AGENTS.md"
-    shadow_agents = shadow_home / "AGENTS.md"
-
-    if not home_agents.exists():
-        return
-    if _path_exists_or_is_symlink(shadow_agents):
-        return
-    if _path_exists_or_is_symlink(real_home / "AGENTS.override.md"):
-        return
-    if _path_exists_or_is_symlink(shadow_home / "AGENTS.override.md"):
-        return
-
-    shadow_agents.symlink_to(home_agents)
-
-
-def _is_sase_owned_instruction_file(path: Path, owned_paths: tuple[Path, ...]) -> bool:
-    """Return whether a Codex home instruction file points to or copies SASE text."""
-    resolved_owned_paths = {owned.resolve(strict=False) for owned in owned_paths}
-    if path.is_symlink() and path.resolve(strict=False) in resolved_owned_paths:
-        return True
-    if not path.is_file():
-        return False
-    try:
-        path_bytes = path.read_bytes()
-    except OSError:
-        return False
-    for owned in owned_paths:
-        if not owned.is_file():
-            continue
-        try:
-            if path_bytes == owned.read_bytes():
-                return True
-        except OSError:
-            continue
-    return False
-
-
-def _create_shadow_codex_home(real_home: Path) -> Path:
-    """Create an allowlisted disposable CODEX_HOME without shared sqlite state."""
-    cache_root = _sase_codex_shadow_home_root()
-    cache_root.mkdir(parents=True, exist_ok=True)
-
-    shadow_home = cache_root / f"{os.getpid()}-{uuid.uuid4().hex}"
-    shadow_home.mkdir(mode=0o700)
-
-    explicit = _codex_explicit_instructions_enabled()
-    owned_paths = sase_owned_instruction_paths() if explicit else ()
-    if real_home.exists():
-        for source in real_home.iterdir():
-            name = source.name
-            if name == "config.toml":
-                if source.exists():
-                    shutil.copy2(source, shadow_home / name)
-                continue
-            if name not in _CODEX_SHADOW_HOME_SYMLINK_ENTRIES and not (
-                name in _CODEX_SHADOW_HOME_LEGACY_ENTRIES and not explicit
-            ):
-                continue
-            if (
-                explicit
-                and name in {"AGENTS.md", "AGENTS.override.md"}
-                and _is_sase_owned_instruction_file(source, owned_paths)
-            ):
-                continue
-            if source.exists() or source.is_symlink():
-                (shadow_home / name).symlink_to(
-                    source, target_is_directory=source.is_dir()
-                )
-
-    if not explicit:
-        _link_home_agents_fallback(shadow_home, real_home)
-    return shadow_home
-
-
-@contextmanager
-def _codex_subprocess_env() -> Iterator[dict[str, str]]:
-    """Yield an env for Codex, isolating config writes unless disabled."""
-    if os.environ.get(_DISABLE_SHADOW_HOME_ENV) == "1":
-        env = os.environ.copy()
-        env["CODEX_PROJECT_DIR"] = _resolve_codex_project_dir()
-        yield env
-        return
-
-    shadow_home = _create_shadow_codex_home(_real_codex_home())
-    env = os.environ.copy()
-    env["CODEX_HOME"] = str(shadow_home)
-    env["CODEX_PROJECT_DIR"] = _resolve_codex_project_dir()
-    try:
-        yield env
-    finally:
-        shutil.rmtree(shadow_home, ignore_errors=True)
 
 
 class CodexProvider(LLMProvider):
@@ -471,11 +196,11 @@ class CodexProvider(LLMProvider):
     def invocation_option_args(self, options: LLMInvocationOptions | None) -> list[str]:
         """Translate a resolved reasoning effort into ``-c`` config args."""
         return effort_cli_args(
-            options, provider_label="Codex", supported=_EFFORT_CLI_ARGS
+            options, provider_label="Codex", supported=EFFORT_CLI_ARGS
         )
 
     def instruction_delivery(self) -> dict[str, object]:
-        if not _codex_explicit_instructions_enabled():
+        if not explicit_instructions_enabled():
             return legacy_instruction_delivery(reason="flag_disabled")
         return {
             "root": {
@@ -554,7 +279,7 @@ class CodexProvider(LLMProvider):
             and active_root.text
             else None
         )
-        developer_instructions = explicit_text or _codex_single_turn_directive()
+        developer_instructions = explicit_text or single_turn_directive()
 
         base_args = [
             resolve_codex_executable(),
@@ -571,9 +296,7 @@ class CodexProvider(LLMProvider):
             "-",
         ]
 
-        if explicit_text and project_is_sase_managed(
-            Path(_resolve_codex_project_dir())
-        ):
+        if explicit_text and project_is_sase_managed(Path(resolve_codex_project_dir())):
             base_args.extend(["-c", "project_doc_max_bytes=0"])
 
         base_args.extend(self.invocation_option_args(options))
@@ -600,16 +323,16 @@ class CodexProvider(LLMProvider):
         accumulated_response = ""
         cycle = 0
         wait_continuations = 0
-        max_wait_continuations = _codex_max_wait_continuations()
+        max_continuations = max_wait_continuations()
         while True:
             if timer_context:
                 with timer_context:
-                    stream_result = _coerce_codex_stream_result(
+                    stream_result = coerce_stream_result(
                         self._run_subprocess(base_args, current_prompt, suppress_output)
                     )
                     print()
             else:
-                stream_result = _coerce_codex_stream_result(
+                stream_result = coerce_stream_result(
                     self._run_subprocess(base_args, current_prompt, suppress_output)
                 )
             response_content = stream_result.content
@@ -630,7 +353,7 @@ class CodexProvider(LLMProvider):
                 user_msg = self._pending_interrupt_message
                 self._pending_interrupt_message = None
                 cycle += 1
-                _log_interrupt(user_msg, cycle)
+                log_interrupt(user_msg, cycle)
                 accumulated_response = (
                     accumulated_response + "\n\n" + response_content.strip()
                 ).strip()
@@ -661,7 +384,7 @@ class CodexProvider(LLMProvider):
             )
             if stranded_handoff_commands:
                 guard_cycle = wait_continuations + 1
-                _log_wait_guard("stranded_handoff_command", guard_cycle)
+                log_wait_guard("stranded_handoff_command", guard_cycle)
                 command_label = (
                     next(
                         (
@@ -673,7 +396,7 @@ class CodexProvider(LLMProvider):
                     )
                     or stranded_handoff_commands[0].command_id
                 )
-                if wait_continuations >= max_wait_continuations:
+                if wait_continuations >= max_continuations:
                     artifacts_dir = os.environ.get("SASE_ARTIFACTS_DIR")
                     artifact_hint = (
                         f" Artifacts: {artifacts_dir}." if artifacts_dir else ""
@@ -689,7 +412,7 @@ class CodexProvider(LLMProvider):
                     f"{prompt}\n\n"
                     f"--- Work So Far ---\n{accumulated_response}\n\n"
                     "--- Required Continuation ---\n"
-                    f"{_stranded_handoff_continuation_nudge(stranded_handoff_commands)}"
+                    f"{stranded_handoff_continuation_nudge(stranded_handoff_commands)}"
                 )
                 continue
             if stream_result.integrity_error:
@@ -716,7 +439,7 @@ class CodexProvider(LLMProvider):
         Returns:
             Parsed output and any stranded-command facts.
         """
-        with _codex_subprocess_env() as env:
+        with codex_subprocess_env() as env:
             try:
                 process = subprocess.Popen(
                     args,
@@ -727,7 +450,7 @@ class CodexProvider(LLMProvider):
                     env=env,
                 )
             except FileNotFoundError as exc:
-                raise _codex_executable_not_found_error(args[0]) from exc
+                raise codex_executable_not_found_error(args[0]) from exc
 
             # Write prompt to stdin
             if process.stdin:
@@ -745,3 +468,12 @@ class CodexProvider(LLMProvider):
             return stream_and_parse_codex_json_output(
                 process, suppress_output=suppress_output
             )
+
+
+__all__ = [
+    "CodexProvider",
+    "is_sase_managed_codex_home",
+    "real_codex_home",
+    "resolve_codex_executable",
+    "single_turn_directive",
+]

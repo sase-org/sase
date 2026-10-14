@@ -25,7 +25,7 @@ PROVIDER_DISPLAY_NAMES = {
 _DIRECTIVE_SYMBOLS = {
     "agy": ("sase.llm_provider.agy", "_AGY_PRINT_MODE_DIRECTIVE"),
     "claude": ("sase.llm_provider.claude", "_SINGLE_TURN_DIRECTIVE"),
-    "codex": ("sase.llm_provider.codex", "_codex_single_turn_directive"),
+    "codex": ("sase.llm_provider.codex", "single_turn_directive"),
     "grok": ("sase.llm_provider.grok", "_GROK_SINGLE_TURN_DIRECTIVE"),
     "muse": ("sase.llm_provider._muse_directive", "_muse_single_turn_directive"),
 }

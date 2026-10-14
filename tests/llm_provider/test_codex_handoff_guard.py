@@ -14,7 +14,7 @@ from sase.llm_provider._subprocess_codex import (
     _is_sase_handoff_command,
     stream_and_parse_codex_json_output,
 )
-from sase.llm_provider.codex import CodexProvider, _codex_single_turn_directive
+from sase.llm_provider.codex import CodexProvider, single_turn_directive
 from sase.llm_provider.types import LLMInvocationError
 from tests._llm_provider_codex_parser_helpers import (
     _load_fixture_events,
@@ -159,7 +159,7 @@ def test_stranded_non_handoff_with_nonempty_final_is_unaffected() -> None:
 
 
 def test_codex_single_turn_directive_states_unified_exec_ceiling() -> None:
-    directive = _codex_single_turn_directive()
+    directive = single_turn_directive()
 
     assert "yield_time_ms" in directive
     assert "still running" in directive

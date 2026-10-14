@@ -37,7 +37,9 @@ from tests.main.parser_help_helpers import (
 def _render_text(text: Text) -> str:
     """Render Rich text through a forced terminal for ANSI assertions."""
     stream = StringIO()
-    console = Console(file=stream, force_terminal=True, highlight=False)
+    console = Console(
+        file=stream, force_terminal=True, color_system="standard", highlight=False
+    )
     console.print(text, end="", soft_wrap=True)
     return stream.getvalue()
 
@@ -154,8 +156,11 @@ def test_full_help_output_keeps_every_argparse_choice(
     assert "❯ sase listen" in help_text
 
 
-def test_full_help_footer_colored_strips_to_plain(fake_plugin_commands) -> None:
+def test_full_help_footer_colored_strips_to_plain(
+    fake_plugin_commands, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """Colored footer renders ANSI without changing the stripped text."""
+    monkeypatch.delenv("NO_COLOR", raising=False)
     fake_plugin_commands(
         commands={
             "listen": FakeCommandSpec(),

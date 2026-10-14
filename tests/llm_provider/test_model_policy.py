@@ -292,13 +292,16 @@ def test_supported_efforts_match_provider_cli_mechanics() -> None:
     OpenCode adapter support is intentionally broader than per-model CLI
     acceptance, which the validator states instead of over-claiming.
     """
-    from sase.llm_provider import agy, claude, codex, grok, opencode, qwen
+    from sase.llm_provider import agy, claude, grok, opencode, qwen
+    from sase.llm_provider._codex_instructions import (
+        EFFORT_CLI_ARGS as codex_effort_args,
+    )
     from sase.llm_provider import muse_provider
 
     expected = {
         "agy": (),
         "claude": tuple(sorted(claude._EFFORT_CLI_ARGS, key=_rung_index)),
-        "codex": tuple(sorted(codex._EFFORT_CLI_ARGS, key=_rung_index)),
+        "codex": tuple(sorted(codex_effort_args, key=_rung_index)),
         "grok": tuple(sorted(grok._EFFORT_CLI_ARGS, key=_rung_index)),
         "muse": tuple(sorted(muse_provider.MUSE_EFFORT_CLI_ARGS, key=_rung_index)),
         "opencode": tuple(sorted(opencode._EFFORT_CLI_ARGS, key=_rung_index)),

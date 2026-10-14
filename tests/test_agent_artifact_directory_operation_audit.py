@@ -98,7 +98,7 @@ _REVIEWED_DIR_OPERATION_CONTEXTS: dict[str, DirOpReview] = {
             "~/.sase/plans/YYYYMM/ archive, not an agent artifact directory."
         ),
     ),
-    "src/sase/llm_provider/codex.py:_codex_subprocess_env": DirOpReview(
+    "src/sase/llm_provider/_codex_home.py:codex_subprocess_env": DirOpReview(
         exemption="Shadow CODEX_HOME cache, not an agent artifact directory.",
     ),
     "src/sase/_linked_repo_workspaces.py:_remove_path": DirOpReview(
