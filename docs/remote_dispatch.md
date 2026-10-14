@@ -14,6 +14,9 @@ Tailnet membership is not authorization. Enrollment uses a single-use bootstrap 
 issued by the target gateway's credential store, and ordinary fleet calls use the
 credential written into the controller's protected SASE state.
 
+`%dispatch` launch requests do not forward `SASE_INSTRUCTIONS_FILE`. The target renders
+instruction bundles with its own installed code; no instruction bytes cross the wire.
+
 ## Install
 
 Install SASE normally on each machine that will act as a target. The target needs the

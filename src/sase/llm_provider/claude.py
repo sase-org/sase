@@ -18,6 +18,7 @@ from ._claude_helper_channel import (
 )
 from ._effort_args import effort_cli_args
 from ._hookspec import hookimpl
+from .instruction_delivery import legacy_instruction_delivery
 from ._wait_signals import ends_with_wait_claim
 from ._subprocess import (
     start_completion_watchdog,
@@ -225,6 +226,13 @@ class ClaudeCodeProvider(LLMProvider):
             "bypass_args": ["--dangerously-skip-permissions"],
             "model_args": ["--model", "{model}"],
         }
+
+    def instruction_delivery(self) -> dict[str, object]:
+        return legacy_instruction_delivery()
+
+    @hookimpl
+    def llm_instruction_delivery(self) -> dict[str, object]:
+        return self.instruction_delivery()
 
     @hookimpl
     def llm_default_retry_config(self) -> ProviderRetryConfig:

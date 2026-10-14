@@ -49,6 +49,19 @@ class LLMHookSpec:
     @hookspec(firstresult=True)
     def llm_resolve_model_name(self, model_tier: ModelTier) -> str: ...
 
+    @hookspec(firstresult=True)
+    def llm_instruction_delivery(self) -> dict[str, object] | None:
+        """Return this provider's instruction-delivery plan, or omit for legacy.
+
+        The mapping is ``{"root": SLOT, "subagent": SLOT}``. Each SLOT is
+        ``{"status", "channel"?, "max_bytes"?, "reason"?}``. ``status`` is
+        one of ``explicit``, ``inherits_native``, ``inherits_root``, or
+        ``none``. The root slot may only be ``explicit`` or
+        ``inherits_native``. A missing hook, a hook error, or an invalid
+        return resolves to native discovery (legacy) for that invocation.
+        """
+        ...
+
     # --- Identity ---
 
     @hookspec(firstresult=True)

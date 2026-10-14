@@ -34,13 +34,13 @@ still launch a hard-disabled CLI. See
 
 ## Instruction delivery
 
-The current bundle rollout records intended instructions for diagnostics. Each root
-provider invocation renders its memory-built bundle and manifest into
-`<artifacts>/instructions/` and exports `SASE_INSTRUCTIONS_FILE` for that call, then
-restores it. Current providers do not read that variable, so argv, prompts, and the
-files they already load stay the same. The manifest alone does not prove that a provider
-loaded the bundle's contents. This stage is called E2 in the implementation. See
-[Instruction Bundles](instruction_bundles.md#shadow-manifests).
+The current bundle rollout records intended instructions for diagnostics and prepares
+explicit delivery for adapters. Each root provider invocation renders its memory-built
+bundle and v2 manifest into `<artifacts>/instructions/` and exports
+`SASE_INSTRUCTIONS_FILE` for that call, then restores it. Built-in providers still
+declare legacy native discovery, so argv, prompts, and the files they already load stay
+the same. The manifest alone does not prove that a provider loaded the bundle's
+contents. See [Delivery](instruction_bundles.md#delivery).
 
 ## Verifying instruction delivery
 

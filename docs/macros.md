@@ -2539,10 +2539,12 @@ short alias, and may appear only once. `local` is reserved: omit `%dispatch` for
 ordinary local launch.
 
 The source strips only `%dispatch`; the target receives and processes the remaining
-prompt and launch directives. V1 remote launch cannot be combined with `%wait`,
-`%queue`, `%clan`, or an active `%hold`, and it rejects local-only run payloads such as
-resolved launch units, collected inputs, attachments, files, and images. The remaining
-prompt must be non-empty.
+prompt and launch directives. Launch requests do not forward `SASE_INSTRUCTIONS_FILE`.
+The target renders instruction bundles with its own installed code; no instruction bytes
+cross the wire. V1 remote launch cannot be combined with `%wait`, `%queue`, `%clan`, or
+an active `%hold`, and it rejects local-only run payloads such as resolved launch units,
+collected inputs, attachments, files, and images. The remaining prompt must be
+non-empty.
 
 Project context must be reproducible on the target. A trusted launch integration can
 provide a Patch reference or explicit revision in the durable request payload; writing a

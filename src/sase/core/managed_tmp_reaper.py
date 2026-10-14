@@ -108,6 +108,7 @@ _COMMAND_SCRATCH_BUCKETS = (
     "commit-messages",
     "editors",
     "embedded-artifacts",
+    "instruction-delivery",
     "sdd-remote-clone-pool",
     "usage-probes",
     "viewers",

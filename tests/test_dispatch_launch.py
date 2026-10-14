@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Any
 
@@ -241,6 +242,10 @@ def test_dispatch_preview_builds_request_without_federation_submission(
     assert preview.request["key"] == preview.operation_key
     assert preview.request["payload_fingerprint"] == preview.payload_fingerprint
     assert preview.provisional_locator["agent_id"] == preview.intent["name"]
+    blob = json.dumps(preview.request)
+    assert "SASE_INSTRUCTIONS_FILE" not in blob
+    assert "SASE_INSTRUCTIONS_FILE" not in json.dumps(preview.portable_context)
+    assert "SASE_INSTRUCTIONS_FILE" not in json.dumps(preview.intent)
 
 
 def test_dispatch_launch_rejects_local_only_payload(

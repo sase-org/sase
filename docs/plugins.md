@@ -797,6 +797,7 @@ contributes its own values:
 | Detection and display | `llm_cli_status_color`, `llm_autodetect_priority`, `llm_autodetect_cli_name`, `llm_auth_evidence`, `llm_hidden_from_model_pickers` |
 | CLI management        | `llm_install_metadata`, `llm_interactive_cli`, `llm_hidden_from_agent_cli_management`                                              |
 | Failure policy        | `llm_default_retry_config`, `llm_default_usage_limit_config`                                                                       |
+| Instruction delivery  | `llm_instruction_delivery` (see [Delivery](instruction_bundles.md#delivery))                                                       |
 | Subscription usage    | `llm_usage_capabilities`, `llm_usage_probe` (see [Subscription usage extension](llms.md#subscription-usage-extension))             |
 
 `llm_auth_evidence()` lists credential paths and API-key environment variable names
@@ -805,6 +806,10 @@ testing-only provider from the model picker and `%model` completion without chan
 routing, and `llm_hidden_from_agent_cli_management()` opts a provider out of
 `sase agent-cli` and the Admin Center's Agent CLIs list. Omitting any metadata hook
 keeps the default behavior. All hook method names are prefixed with `llm_`.
+`llm_instruction_delivery()` returns the provider's root and subagent slots; omitting
+it, raising, or returning an invalid mapping resolves to native discovery (legacy) for
+that invocation. The adapter contract for an explicit slot is in
+[Delivery](instruction_bundles.md#adapter-contract).
 
 Core Sase ships Claude, Codex, Antigravity (`agy`), Qwen, OpenCode, Meta's Muse Code,
 and xAI's Grok Build providers as built-in entry points. Additional providers belong in

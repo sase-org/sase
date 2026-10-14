@@ -1,6 +1,7 @@
 """Abstract base class for LLM providers."""
 
 from abc import ABC, abstractmethod
+from typing import Any
 
 from .types import InvokeResult, LLMInvocationOptions, ModelTier
 
@@ -69,5 +70,15 @@ class LLMProvider(ABC):
         kills long commands declare it here (and as the
         ``llm_sync_ceiling_seconds`` pluggy hook, which is how the
         registry-dispatched provider object resolves it).
+        """
+        return None
+
+    def instruction_delivery(self) -> dict[str, Any] | None:
+        """Return this provider's instruction-delivery plan, or ``None``.
+
+        ``None`` (the default) resolves to native discovery (legacy). Built-in
+        providers implement the matching ``llm_instruction_delivery`` hook;
+        :class:`~sase.llm_provider._plugin_manager.LLMPluginManager`
+        delegates to that hook.
         """
         return None

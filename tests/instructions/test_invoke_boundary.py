@@ -1,4 +1,4 @@
-"""Architecture and route tests for the shadow instruction boundary (E2).
+"""Architecture and route tests for the instruction delivery boundary.
 
 The architecture test keeps ``invoke_with_instructions`` the only root
 ``provider.invoke`` caller. The route tests drive the boundary with a fake
@@ -195,7 +195,7 @@ def _invoke_kwargs(**overrides: Any) -> dict[str, Any]:
 def test_ordinary_route_writes_bundle_manifest_meta_and_env(
     shadow_env: dict[str, Any],
 ) -> None:
-    """The ordinary route records a shadow manifest and restores the env."""
+    """The ordinary route records a v2 legacy manifest and restores the env."""
     provider = _FakeProvider()
     result = invoke_with_instructions(
         provider,
@@ -210,8 +210,11 @@ def test_ordinary_route_writes_bundle_manifest_meta_and_env(
     assert len(provider.calls) == 1
     instructions = Path(shadow_env["artifacts_dir"]) / INSTRUCTIONS_DIR_NAME
     assert (instructions / "00-fakey.md").is_file()
+    assert (instructions / "00-fakey.md").stat().st_mode & 0o777 == 0o644
+    assert (instructions / "00-fakey.json").stat().st_mode & 0o777 == 0o644
     manifest = _manifest(shadow_env["artifacts_dir"], "00-fakey.json")
-    assert manifest["delivery"]["status"] == "shadow"
+    assert manifest["delivery"]["status"] == "inherits_native"
+    assert manifest["delivery"]["fallback"]["reason"] == "provider_legacy"
     assert manifest["facts"]["purpose"] == "ordinary"
     assert manifest["facts"]["provider"] == "fakey"
     assert manifest["facts"]["actor"] == "sase_root"
@@ -234,6 +237,8 @@ def test_ordinary_route_writes_bundle_manifest_meta_and_env(
     assert summary["latest"]["sha256"] == manifest["bundle"]["sha256"]
     assert summary["latest"]["common_digest"] == manifest["bundle"]["common_digest"]
     assert summary["latest"]["manifest"] == "instructions/00-fakey.json"
+    assert summary["latest"]["delivery_status"] == "inherits_native"
+    assert "helper_manifest" not in summary["latest"]
     # Legacy launch evidence is untouched by the boundary.
     assert "instruction_snapshot" not in _meta(shadow_env["artifacts_dir"])
 
@@ -322,7 +327,7 @@ def test_no_artifacts_dir_invokes_directly(shadow_env: dict[str, Any]) -> None:
 def test_compiler_failure_still_invokes_and_writes_error(
     shadow_env: dict[str, Any], monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A shadow failure writes ``.error.json`` and never blocks the call."""
+    """A render failure writes ``.error.json`` and never blocks the call."""
 
     def _boom(*args: Any, **kwargs: Any) -> object:
         raise RuntimeError("compile exploded")
@@ -343,6 +348,7 @@ def test_compiler_failure_still_invokes_and_writes_error(
     assert error["error"]["type"] == "RuntimeError"
     assert "compile exploded" in error["error"]["message"]
     assert error["purpose"] == "ordinary"
+    assert error["delivery_fallback"] == "legacy"
     assert not (instructions / "00-fakey.json").exists()
     assert list(instructions.glob("*.md")) == []
 
@@ -399,7 +405,7 @@ def test_provider_name_falls_back_to_agent_meta(
 def test_invalid_purpose_rejected(shadow_env: dict[str, Any]) -> None:
     """An unknown purpose is a programming error, raised before invoke."""
     provider = _FakeProvider()
-    with pytest.raises(ValueError, match="invalid shadow purpose"):
+    with pytest.raises(ValueError, match="invalid instruction purpose"):
         invoke_with_instructions(
             provider,
             "hello",
@@ -426,7 +432,7 @@ def test_read_run_manifests_round_trip(shadow_env: dict[str, Any]) -> None:
     records = read_run_manifests(shadow_env["artifacts_dir"])
     assert [(record.seq, record.provider) for record in records] == [(0, "fakey")]
     assert records[0].manifest is not None
-    assert records[0].manifest["delivery"]["status"] == "shadow"
+    assert records[0].manifest["delivery"]["status"] == "inherits_native"
     assert records[0].error is None
     assert records[0].problems == ()
     assert records[0].bundle_path is not None and records[0].bundle_path.is_file()

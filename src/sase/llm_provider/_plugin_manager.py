@@ -1,5 +1,7 @@
 """LLM plugin manager that delegates to pluggy hooks."""
 
+from typing import Any
+
 import pluggy
 
 from .base import LLMProvider
@@ -65,6 +67,17 @@ class LLMPluginManager(LLMProvider):
         except Exception:
             return None
         return _validate_sync_ceiling_seconds(result)
+
+    def instruction_delivery(self) -> dict[str, Any] | None:
+        """Return this provider's instruction-delivery plan, or ``None``.
+
+        A missing hook or a hook exception resolves to ``None`` (legacy).
+        """
+        try:
+            result = self._pm.hook.llm_instruction_delivery()
+        except Exception:
+            return None
+        return result if isinstance(result, dict) else None
 
 
 def _validate_sync_ceiling_seconds(value: object) -> int | None:

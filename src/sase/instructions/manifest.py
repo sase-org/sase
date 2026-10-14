@@ -100,6 +100,12 @@ def build_manifest(
         "render_ms": compiled.render_ms,
         "cache": compiled.cache,
     }
+    fallback = delivery.get("fallback")
+    if fallback is not None:
+        delivery_wire["fallback"] = fallback
+    subagent = delivery.get("subagent")
+    if subagent is not None:
+        delivery_wire["subagent"] = subagent
     manifest: dict[str, Any] = {
         "schema_version": INSTRUCTION_MANIFEST_WIRE_SCHEMA_VERSION,
         "compiler": {

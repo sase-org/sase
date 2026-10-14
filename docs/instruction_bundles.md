@@ -4,15 +4,15 @@ An instruction bundle collects the project, home, and SASE instructions for one 
 invocation. Its manifest records which sections were included and their digests, so you
 can inspect the intended context and compare it with what a provider actually loaded.
 
-The current implementation records bundles for diagnostics. Root provider invocations
-render a bundle into the run's artifacts and export `SASE_INSTRUCTIONS_FILE` for that
-provider call, then restore the previous value. Current providers do not read that
-variable. Their argv, prompts, and the instruction files they already load stay the
-same. A successful render therefore does not prove delivery: use
-`sase instructions verify` to check observed loads. This stage is called **E2** in the
-implementation and migration inventory; later delivery stages have not replaced the
-current path. Shadow-render failures never fail an invocation. The env var and the
-shadow files are described under [Shadow manifests](#shadow-manifests).
+The current implementation records bundles for diagnostics and prepares explicit
+delivery for adapters. Root provider invocations render a bundle into the run's
+artifacts and export `SASE_INSTRUCTIONS_FILE` for that provider call, then restore the
+previous value. Built-in providers still declare legacy native discovery until their
+sunset flags flip, so argv, prompts, and the instruction files they already load stay
+the same. A successful render therefore does not prove delivery: use
+`sase instructions verify` to check observed loads. Render and transport failures never
+fail an invocation; they fall back atomically to legacy delivery. The plan hook,
+manifests, and fallback are described under [Delivery](#delivery).
 
 See also
 [Verifying instruction delivery](agent_providers.md#verifying-instruction-delivery).
@@ -46,7 +46,7 @@ status.
 
 The manifest wire contract — closed vocabulary, validation invariants, and the
 `common_digest` definition — is owned by `sase-core` (`instruction_manifest` module,
-schema version 1). Markdown composition stays in Python (`sase.instructions`), which
+schema version 2). Markdown composition stays in Python (`sase.instructions`), which
 reuses the legacy memory renderer through its structured units API. Only Python needs
 composition today (launch and CLI preview); if a non-Python front end ever needs to
 preview a render, composition moves into Rust rather than growing a second copy.
@@ -100,7 +100,7 @@ The root render (`runtime` + `sase_root`) carries `pkg.root.final_declaration` a
 `pkg.provider.<provider>`; the helper render carries `pkg.helper.contract` instead.
 Interactive and export renders carry neither; export additionally carries no `home.*`
 content. Only the root render contains the `SASE Final Declaration` heading. Rendering
-for `native_helper` is preview-only in E2; the hook renders roots only.
+for `native_helper` is compiled at the boundary when the subagent slot is `explicit`.
 
 `common_digest` is the sha256 of the canonical JSON array `[[id, sha256], …]` over
 included sections with `provider_specific == false`, in bundle order. Equal
@@ -122,23 +122,104 @@ corrupt entry or blob is a miss. The hit path imports none of the heavy composit
 modules, which keeps warm renders within the 250 ms p95 budget; every manifest records
 `render_ms` and `cache` (`hit`, `miss`, or `bypass`).
 
-## Shadow manifests
+## Delivery
 
 Every root provider invocation routes through one boundary,
-`sase.llm_provider._instruction_boundary.invoke_with_instructions`, which shadow-renders
-the bundle the agent _would_ get and records it without delivering anything. With an
-artifacts dir, each invocation writes `<artifacts>/instructions/NN-<provider>.md` (the
-bundle) and `NN-<provider>.json` (the normalized manifest, `indent=2`, sorted keys),
-where `NN` is a two-digit per-run sequence allocated with `O_EXCL`. The
-`agent_meta.json` `instructions` summary counts the manifests and points at the latest
-(`seq`, `provider`, `purpose`, `sha256`, `common_digest`, `manifest`), and
-`SASE_INSTRUCTIONS_FILE` holds the bundle path during the call and is restored
-afterwards. The manifest's `attempt` is `1 + count(attempts/*)`.
+`sase.llm_provider._instruction_boundary.invoke_with_instructions`. With an artifacts
+dir it resolves a delivery plan, renders the root bundle, optionally renders a helper
+bundle, writes v2 manifests, and exposes the active delivery to adapters. With no
+artifacts dir (for example the TUI fix-hook path) it invokes directly: no plan and no
+active delivery.
 
-Failure posture: the shadow render never fails an invocation. Any shadow exception is
-caught, logged once as a warning, recorded best-effort as `NN-<provider>.error.json`
-(exception type, message, `rendered_at`), and the call proceeds. With no artifacts dir,
-`SASE_INSTRUCTIONS_FILE` is never exported and no shadow file is written.
+### Plan hook and slots
+
+Providers implement `llm_instruction_delivery` (`firstresult`) and return
+`{"root": SLOT, "subagent": SLOT}`. Each SLOT is
+`{"status", "channel"?, "max_bytes"?, "reason"?}`. `status` is one of `explicit`,
+`inherits_native`, `inherits_root`, or `none`. The root slot may only be `explicit` or
+`inherits_native`. A missing hook, a hook error, or an invalid return resolves to
+legacy: both slots `inherits_native` with reason `provider_legacy`. Built-in providers
+currently declare that legacy plan; adapter phases flip them behind per-provider sunset
+flags. `flag_disabled` is the same legacy shape when a flag is off.
+
+`sase.llm_provider.instruction_delivery.resolve_delivery_plan(provider)` validates the
+hook result and never raises. Objects without `instruction_delivery` also resolve to
+legacy, so test fakes keep working.
+
+### Marker
+
+The delivered text is the compiler bundle bytes plus one trailing marker line:
+
+```
+<!-- sase-instructions bundle=<sha256[:12]> invocation=<invocation_id> -->
+```
+
+The bundle `.md` and its sha256 stay exactly the compiler's bytes. The marker is
+trailing so every byte before it stays cacheable. Helper delivered text carries the
+helper bundle's sha and the **root** invocation id.
+
+### Helper manifests
+
+When the subagent slot is `explicit`, the boundary also writes `NN-<provider>.helper.md`
+and `NN-<provider>.helper.json` with the same `NN` as the root. The helper manifest has
+`facts.actor = native_helper`, `delivery.status = explicit`, and `parent_invocation_id`
+set to the root invocation id. A failed helper render or validation sends helpers back
+to the E1 static helper template. The root bundle is never substituted across actors.
+
+### Fallback and notifications
+
+These keep the root slot on legacy delivery, with native discovery left intact, for that
+one invocation:
+
+- render failure (`.error.json` gains `"delivery_fallback": "legacy"`)
+- invalid root bundle (`invalid_bundle`)
+- delivered text over the slot's `max_bytes` (`oversize`)
+- adapter materialization failure (`delivery_failed`)
+
+`render_failed`, `invalid_bundle`, `oversize`, and `delivery_failed` raise one
+notification, deduplicated per host, provider, reason, and day (`+1` on repeats).
+`provider_legacy` and `flag_disabled` are declared states and never notify. Every
+exception from plan resolution through manifest rewrite is caught and the call proceeds
+through legacy delivery. `KeyboardInterrupt` and `SystemExit` propagate.
+
+### Manifest v2 fields
+
+Root manifests record `delivery.status` (`explicit`, or `inherits_native` plus
+`fallback`), `channel`, `provider_cli_version` (cached probe, `null` on failure),
+`session_ids` (registered by the adapter, written back after the call), and the
+`subagent` slot. `shadow` is no longer written; readers still accept it for E2-era runs.
+The manifest is written before the call and atomically rewritten afterwards with session
+ids and any adapter-reported fallback. A killed process keeps the pre-call manifest.
+Bundle and manifest files are mode `0644`. The `agent_meta.json` `instructions` summary
+adds `delivery_status` and `helper_manifest`.
+
+`%dispatch` launch requests do not forward `SASE_INSTRUCTIONS_FILE`. The target renders
+with its own code; no instruction bytes cross the wire. See
+[Remote Dispatch](remote_dispatch.md).
+
+### Adapter contract
+
+Without an active explicit delivery, an adapter behaves exactly as it does today (E1's
+after-state). That is the only legacy path.
+
+An adapter whose slot is `explicit` must do three things together:
+
+- deliver the slot's delivered text once through its channel
+- suppress SASE-owned native instruction files
+- drop its legacy directive, because the bundle carries `pkg.provider.<p>`
+
+Adapters read the live delivery through
+`sase.llm_provider.instruction_delivery.current_instruction_delivery()`. They call
+`record_session` for every session id they start, `report_fallback` when materialization
+fails, and `materialize(slot)` for a private 0600 file that is removed after the call.
+Plugin authors: see [LLM Plugins](plugins.md#llm-plugins-pluggy).
+
+Each invocation writes `<artifacts>/instructions/NN-<provider>.md` (the bundle) and
+`NN-<provider>.json` (the normalized v2 manifest, `indent=2`, sorted keys), where `NN`
+is a two-digit per-run sequence allocated with `O_EXCL`. `SASE_INSTRUCTIONS_FILE` holds
+the bundle path during the call and is restored afterwards. The manifest's `attempt` is
+`1 + count(attempts/*)`. With no artifacts dir, `SASE_INSTRUCTIONS_FILE` is never
+exported and no delivery files are written.
 
 ## Previewing bundles
 

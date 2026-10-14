@@ -17,6 +17,7 @@ from sase.output import provider_timer
 
 from ._effort_args import effort_cli_args
 from ._hookspec import hookimpl
+from .instruction_delivery import legacy_instruction_delivery
 from ._subprocess import (
     CODEX_TURN_INTEGRITY_ERROR_PREFIX,
     start_completion_watchdog,
@@ -409,6 +410,13 @@ class CodexProvider(LLMProvider):
         return effort_cli_args(
             options, provider_label="Codex", supported=_EFFORT_CLI_ARGS
         )
+
+    def instruction_delivery(self) -> dict[str, object]:
+        return legacy_instruction_delivery()
+
+    @hookimpl
+    def llm_instruction_delivery(self) -> dict[str, object]:
+        return self.instruction_delivery()
 
     @hookimpl
     def llm_invoke(
