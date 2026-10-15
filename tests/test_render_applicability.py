@@ -1,0 +1,103 @@
+"""Regression checks for the applicability single-source (sase-1le.3).
+
+The documented install command carries the ``install_command = floor``
+decision: ``uv tool install "sase>=0.18"``. The site header release line
+is generated from ``.release-please-manifest.json`` and must stay
+truthful while the manifest version sits below the floor.
+"""
+
+from __future__ import annotations
+
+import importlib.util
+from importlib.machinery import SourceFileLoader
+from pathlib import Path
+from types import ModuleType
+
+import yaml
+
+ROOT = Path(__file__).resolve().parents[1]
+TOOL_PATH = ROOT / "tools" / "render_applicability"
+MKDOCS_CONFIG = ROOT / "mkdocs.yml"
+PDF_CONFIG = ROOT / "mkdocs-pdf.yml"
+MAIN_HTML = ROOT / "docs" / "overrides" / "main.html"
+JUSTFILE = ROOT / "Justfile"
+WORKFLOW = ROOT / ".github" / "workflows" / "install-smoke.yml"
+
+
+def _load_tool(name: str = "render_applicability_test") -> ModuleType:
+    loader = SourceFileLoader(name, str(TOOL_PATH))
+    spec = importlib.util.spec_from_loader(name, loader)
+    assert spec is not None
+    module = importlib.util.module_from_spec(spec)
+    loader.exec_module(module)
+    return module
+
+
+def test_install_command_carries_version_floor() -> None:
+    tool = _load_tool()
+    assert tool.INSTALL_FLOOR == "0.18"
+    assert tool.INSTALL_COMMAND == 'uv tool install "sase>=0.18"'
+
+
+def test_pending_line_never_claims_an_unreleased_version() -> None:
+    tool = _load_tool()
+    text = tool.render_announce("0.17.1")
+    assert "pending" in text
+    assert "Latest release" not in text
+    assert "v0.17.1" not in text
+
+
+def test_released_line_names_the_manifest_version() -> None:
+    tool = _load_tool()
+    text = tool.render_announce("0.18.0")
+    assert "Latest release" in text
+    assert "v0.18.0" in text
+    assert "pending" not in text
+
+
+def test_documented_pages_carry_the_single_sourced_command(
+    tmp_path: Path,
+) -> None:
+    tool = _load_tool()
+    for relative in tool.DOCUMENTED_COMMAND_FILES:
+        body = (ROOT / relative).read_text(encoding="utf-8")
+        assert tool.INSTALL_COMMAND in body, relative
+
+    manifest = tmp_path / "manifest.json"
+    manifest.write_text('{" . ": "0.17.1"}'.replace(" ", ""), encoding="utf-8")
+    partial = tmp_path / "release_announce.html"
+    assert tool.check(manifest_path=manifest, partial_path=partial) != []
+    tool.render(manifest_path=manifest, partial_path=partial)
+    assert tool.check(manifest_path=manifest, partial_path=partial) == []
+
+
+def test_announce_banner_renders_and_hides_from_pdf() -> None:
+    body = MAIN_HTML.read_text(encoding="utf-8")
+    assert "{% block announce %}" in body
+    assert "generated/release_announce.html" in body
+    assert "config.extra.pdf_handbook" in body
+
+    config = yaml.safe_load(MKDOCS_CONFIG.read_text(encoding="utf-8"))
+    assert "announce.dismiss" in config["theme"]["features"]
+
+
+def test_smoke_workflow_reads_the_single_sourced_command() -> None:
+    data = yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))
+    triggers = data[True]
+    assert "schedule" in triggers
+    assert "workflow_dispatch" in triggers
+
+    steps = data["jobs"]["install-smoke"]["steps"]
+    run_steps = " ".join(
+        str(step.get("run", "")) for step in steps if isinstance(step, dict)
+    )
+    assert "tools/render_applicability --install-command" in run_steps
+    assert "tools/render_applicability --check-installed" in run_steps
+    assert "sase doctor -j" in run_steps
+    assert "--strict" not in run_steps
+
+
+def test_fmt_docs_recipes_cover_applicability() -> None:
+    recipe = JUSTFILE.read_text(encoding="utf-8")
+    assert "python tools/render_applicability\n" in recipe
+    assert "python tools/render_applicability --check" in recipe

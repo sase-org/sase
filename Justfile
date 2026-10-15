@@ -485,6 +485,7 @@ fmt-md: _setup-prettier
 fmt-docs: _setup-format-tools
     @printf "\n---------- Rendering generated docs... ----------\n"
     {{ format_venv_bin }}/python tools/render_model_docs
+    {{ format_venv_bin }}/python tools/render_applicability
 
 # Auto-fix keep-sorted blocks in YAML files
 fix-keep-sorted: _setup-keep-sorted
@@ -503,6 +504,7 @@ fmt-check: (_header "fmt-check") fmt-py-check fmt-md-check fmt-docs-check
 fmt-docs-check: _setup-format-tools
     @printf "\n---------- Checking generated docs... ----------\n"
     {{ format_venv_bin }}/python tools/render_model_docs --check
+    {{ format_venv_bin }}/python tools/render_applicability --check
 
 # Check the bundled size-alias policy from models.yml (CI mode, no writes).
 # Fails with fix-it diagnostics when the shipped catalog, tier defaults, or

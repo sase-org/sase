@@ -1,0 +1,43 @@
+name: Install smoke
+
+# Phase sase-1le.3 (applicability): prove the documented install command
+# installs the documented product. The command itself is single-sourced
+# from tools/render_applicability (--install-command), so this workflow
+# never drifts from the docs. While sase>=0.18 is unreleased the install
+# step fails loudly with a resolver error instead of silently installing
+# 0.1.0; that red run is the signal that product and docs disagree.
+
+on:
+  schedule:
+    - cron: '26 7 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  install-smoke:
+    name: Documented install smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Run the documented install command
+        run: eval "$(python3 tools/render_applicability --install-command)"
+
+      - name: Assert the installed version meets the documented floor
+        run: python3 tools/render_applicability --check-installed
+
+      - name: Smoke the CLI entry points
+        # Default doctor mode exits 0 on WARN and 1 on ERROR, so warnings
+        # are tolerated and only hard errors fail this step.
+        run: |
+          sase --help
+          sase doctor -j

@@ -4,7 +4,7 @@ The recommended way to install SASE is as a [uv](https://docs.astral.sh/uv/)-man
 tool:
 
 ```bash
-uv tool install sase
+uv tool install "sase>=0.18"
 ```
 
 Then verify the install:
@@ -124,10 +124,10 @@ To install SASE together with one or more plugins from the start, add `--with`:
 
 ```bash
 # SASE + GitHub PR support
-uv tool install sase --with sase-github
+uv tool install "sase>=0.18" --with sase-github
 
 # SASE + GitHub + Telegram
-uv tool install sase --with sase-github --with sase-telegram
+uv tool install "sase>=0.18" --with sase-github --with sase-telegram
 ```
 
 Add `--force` to replace an existing tool install. Be aware that uv's `--with`

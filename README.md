@@ -83,7 +83,7 @@ currently target Muse or Grok can select them (see the generated
 below run in SASE's built-in `home` sandbox, not in your current directory.
 
 ```bash
-uv tool install sase                                      # add a plugin too: uv tool install sase --with sase-github
+uv tool install "sase>=0.18"                   # add a plugin too: uv tool install "sase>=0.18" --with sase-github
 sase doctor                                               # check install, config, and provider authentication
 sase completion install                                   # optional: <TAB> completion for zsh, bash, or fish
 sase run "+home summarize what this repository does; do not change files" # auto-detected providers

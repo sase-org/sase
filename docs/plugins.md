@@ -202,10 +202,10 @@ Migrate the feed host last, after the feed-host fallback is released.
 
 ```bash
 # Core SASE (installs the sase tool)
-uv tool install sase
+uv tool install "sase>=0.18"
 
 # Core SASE + GitHub PR support in one command
-uv tool install sase --with sase-github
+uv tool install "sase>=0.18" --with sase-github
 ```
 
 The recommended way to add a plugin to an existing managed install is the

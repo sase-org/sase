@@ -1,5 +1,12 @@
 {% extends "base.html" %}
 
+{% block announce %}
+  {# Applicability release line (sase-1le.3). mkdocs-pdf.yml sets #}
+  {# extra.pdf_handbook, which hides this banner from the handbook PDF. #}
+  {% if not config.extra.pdf_handbook %}
+    {% include "generated/release_announce.html" %}
+  {% endif %}
+{% endblock %}
 {% block extrahead %}
   {{ super() }}
   {% set default_image = "images/sase_social_card.png" %}

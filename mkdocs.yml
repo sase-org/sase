@@ -109,6 +109,7 @@ theme:
         icon: material/weather-sunny
         name: Switch to light mode
   features:
+    - announce.dismiss
     - navigation.indexes
     - navigation.sections
     - navigation.tabs

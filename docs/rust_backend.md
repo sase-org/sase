@@ -636,7 +636,7 @@ Importing `sqlite3` only for exception types or annotations stays allowed.
 prebuilt wheel for the host platform from PyPI; no Rust toolchain is needed:
 
 ```bash
-uv tool install sase
+uv tool install "sase>=0.18"
 # or, for non-managed / library-style environments
 pip install sase
 ```

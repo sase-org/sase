@@ -1,0 +1,243 @@
+#!/usr/bin/env python3
+"""Single source for the documented install command and the docs release line.
+
+Phase sase-1le.3 (applicability) owns this module. Reviewer decision
+``install_command = floor``: every documented install command is
+``uv tool install "sase>=0.18"`` so a broken PyPI resolve fails loudly
+instead of silently installing 0.1.0. Raise ``INSTALL_FLOOR`` only when
+the tutorials start depending on a newer release.
+
+Handoff: the ``start`` phase (sase-1le.9) turns ``INSTALL_COMMAND`` into a
+``tools/render_docs`` source for ``start/install.md`` and the homepage.
+When a page listed in ``DOCUMENTED_COMMAND_FILES`` moves, re-point that
+list (or promote this constant) and keep ``--check`` green.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+MANIFEST_PATH = REPO_ROOT / ".release-please-manifest.json"
+ANNOUNCE_PARTIAL = (
+    REPO_ROOT / "docs" / "overrides" / "generated" / "release_announce.html"
+)
+
+INSTALL_FLOOR = "0.18"
+INSTALL_COMMAND = 'uv tool install "sase>=0.18"'
+
+# Newcomer-facing pages that must carry INSTALL_COMMAND verbatim in a
+# copy-pasteable fence. Dated blog posts and prose mentions of the install
+# method ("a normal `uv tool install sase` user") are intentionally excluded.
+DOCUMENTED_COMMAND_FILES = (
+    "docs/getting_started.md",
+    "README.md",
+    "INSTALL.md",
+    "docs/plugins.md",
+    "docs/rust_backend.md",
+)
+
+
+def _error(message: str) -> None:
+    print(f"[render_applicability] {message}", file=sys.stderr)
+
+
+def _parse_version(value: str) -> tuple[int, ...]:
+    parts: list[int] = []
+    for piece in value.strip().split("."):
+        digits = ""
+        for char in piece:
+            if not char.isdigit():
+                break
+            digits += char
+        if not digits:
+            break
+        parts.append(int(digits))
+    if not parts:
+        raise ValueError(f"cannot parse version from {value!r}")
+    return tuple(parts)
+
+
+def manifest_version(manifest_path: Path = MANIFEST_PATH) -> str:
+    payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+    version = payload.get(".")
+    if not isinstance(version, str) or not version:
+        raise ValueError(f"{manifest_path} has no '.' release-please version")
+    return version
+
+
+def is_released(version: str, floor: str = INSTALL_FLOOR) -> bool:
+    return _parse_version(version) >= _parse_version(floor)
+
+
+def render_announce(version: str, floor: str = INSTALL_FLOOR) -> str:
+    if is_released(version, floor):
+        return (
+            "These docs track the development branch"
+            f" &middot; Latest release: <strong>v{version}</strong>"
+            ' &middot; <a href="/getting_started/">Install SASE</a>\n'
+        )
+    return (
+        "These docs track the development branch"
+        f" &middot; <strong>v{floor} pending</strong>"
+        " &mdash; the documented install is not yet released"
+        ' &middot; <a href="/getting_started/">Install steps</a>\n'
+    )
+
+
+def render(
+    manifest_path: Path = MANIFEST_PATH,
+    partial_path: Path = ANNOUNCE_PARTIAL,
+) -> str:
+    version = manifest_version(manifest_path)
+    text = render_announce(version)
+    partial_path.parent.mkdir(parents=True, exist_ok=True)
+    partial_path.write_text(text, encoding="utf-8")
+    return text
+
+
+def check(
+    manifest_path: Path = MANIFEST_PATH,
+    partial_path: Path = ANNOUNCE_PARTIAL,
+) -> list[str]:
+    failures: list[str] = []
+    try:
+        version = manifest_version(manifest_path)
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        return [f"cannot read manifest version: {exc}"]
+    expected = render_announce(version)
+    try:
+        actual = partial_path.read_text(encoding="utf-8")
+    except OSError as exc:
+        failures.append(f"{partial_path} is not generated: {exc}")
+    else:
+        if actual != expected:
+            failures.append(
+                f"{partial_path} is stale for manifest version {version}; "
+                "run `just fmt-docs` to regenerate"
+            )
+    for relative in DOCUMENTED_COMMAND_FILES:
+        path = REPO_ROOT / relative
+        try:
+            body = path.read_text(encoding="utf-8")
+        except OSError as exc:
+            failures.append(f"{relative} is missing: {exc}")
+            continue
+        if INSTALL_COMMAND not in body:
+            failures.append(
+                f"{relative} does not carry the documented install command "
+                f"{INSTALL_COMMAND!r}"
+            )
+    return failures
+
+
+def check_installed(sase_exe: str | None = None) -> str:
+    exe = sase_exe or shutil.which("sase")
+    if not exe:
+        raise SystemExit(
+            "[render_applicability] `sase` is not on PATH after the "
+            f"documented install ({INSTALL_COMMAND})"
+        )
+    try:
+        proc = subprocess.run(
+            [exe, "version", "-j"],
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+    except subprocess.CalledProcessError as exc:
+        raise SystemExit(
+            "[render_applicability] `sase version -j` failed "
+            f"(exit {exc.returncode}): {(exc.stderr or '').strip()}"
+        )
+    try:
+        payload = json.loads(proc.stdout)
+    except json.JSONDecodeError as exc:
+        raise SystemExit(
+            f"[render_applicability] `sase version -j` is not JSON: {exc}"
+        )
+    packages = {
+        str(record.get("name", "")): record
+        for record in payload.get("packages", [])
+        if isinstance(record, dict)
+    }
+    record = packages.get("sase")
+    if record is None:
+        raise SystemExit(
+            "[render_applicability] `sase version -j` reports no `sase` package"
+        )
+    installed = str(
+        record.get("distribution_version")
+        or record.get("display_version")
+        or ""
+    )
+    if not installed:
+        raise SystemExit(
+            "[render_applicability] `sase version -j` reports no version"
+        )
+    try:
+        ok = _parse_version(installed) >= _parse_version(INSTALL_FLOOR)
+    except ValueError:
+        raise SystemExit(
+            "[render_applicability] cannot parse installed version "
+            f"{installed!r}"
+        )
+    if not ok:
+        raise SystemExit(
+            f"[render_applicability] installed sase {installed} is below "
+            f"the documented floor >={INSTALL_FLOOR}"
+        )
+    return (
+        f"[render_applicability] installed sase {installed} "
+        f"meets the documented floor >={INSTALL_FLOOR}"
+    )
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        description="Render and check the applicability release line."
+    )
+    parser.add_argument(
+        "--check",
+        action="store_true",
+        help="verify the generated partial and documented install "
+        "commands without writing (used by `just fmt-docs-check`)",
+    )
+    parser.add_argument(
+        "--install-command",
+        action="store_true",
+        help="print the single-sourced documented install command "
+        "(used by the install-smoke workflow)",
+    )
+    parser.add_argument(
+        "--check-installed",
+        action="store_true",
+        help="assert `sase version -j` meets the documented floor "
+        "(used by the install-smoke workflow)",
+    )
+    args = parser.parse_args(argv)
+
+    if args.install_command:
+        print(INSTALL_COMMAND)
+        return 0
+    if args.check_installed:
+        print(check_installed())
+        return 0
+    if args.check:
+        failures = check()
+        for failure in failures:
+            _error(failure)
+        return 1 if failures else 0
+    render()
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

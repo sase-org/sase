@@ -24,7 +24,7 @@ coding-agent CLI such as Claude Code, Codex, Antigravity CLI (`agy`), Qwen Code,
 OpenCode, Meta's Muse Code, or xAI's Grok Build. With Python and `uv` in place:
 
 ```bash
-uv tool install sase
+uv tool install "sase>=0.18"
 sase version
 ```
 
