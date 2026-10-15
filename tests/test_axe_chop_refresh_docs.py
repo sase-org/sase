@@ -94,6 +94,27 @@ def test_refresh_docs_emits_chained_update_and_polish_proposals(
 
 
 @pytest.mark.parametrize("prompt", [DEFAULT_UPDATE_PROMPT, DEFAULT_POLISH_PROMPT])
+def test_refresh_docs_default_prompts_follow_documentation_contract(
+    prompt: str,
+) -> None:
+    normalized_prompt = " ".join(prompt.lower().split())
+
+    assert "documentation-contract constraints" in normalized_prompt
+    assert "follow its page types, word budgets, and change-to-docs routing" in (
+        normalized_prompt
+    )
+    assert "keep each page in its single mode" in normalized_prompt
+    assert "propose a split instead of growing an over-budget page" in (
+        normalized_prompt
+    )
+    assert "fix broken steps only" in normalized_prompt
+    assert "never move pages between sections or tabs" in normalized_prompt
+    assert "report code/docs disagreements in your final response" in (
+        normalized_prompt
+    )
+
+
+@pytest.mark.parametrize("prompt", [DEFAULT_UPDATE_PROMPT, DEFAULT_POLISH_PROMPT])
 def test_refresh_docs_default_prompts_enforce_docs_only_scope(prompt: str) -> None:
     normalized_prompt = " ".join(prompt.lower().split())
 

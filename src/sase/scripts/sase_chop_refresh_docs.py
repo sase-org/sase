@@ -5,7 +5,23 @@ from sase.chops.builtin import BuiltinChopRuntime, builtin_chop, run_builtin_cho
 from sase.chops.sdk import ChopResultBuilder
 
 
-DEFAULT_UPDATE_PROMPT = """\
+CONTRACT_CONSTRAINTS = """\
+Documentation-contract constraints. When the repository defines a documentation
+contract (a docs map or a "writing docs" page), follow its page types, word budgets,
+and change-to-docs routing; otherwise use your best judgment for that project's
+layout:
+
+- Keep each page in its single mode: tutorials and guides direct, concepts explain,
+  reference lists facts.
+- Propose a split instead of growing an over-budget page.
+- In tutorial, guide, and concept pages, fix broken steps only; do not expand them.
+- Never move pages between sections or tabs.
+- Report code/docs disagreements in your final response instead of writing docs prose
+  about them.
+"""
+
+DEFAULT_UPDATE_PROMPT = (
+    """\
 Refresh the documentation for {project}.
 
 Review the current repository behavior and the changes since the last documentation
@@ -20,9 +36,13 @@ change the code to match the prose. If you identify a suspected code bug, descri
 in your final response so a human or separately scoped agent can pick it up (and you
 may also note it in the commit message body), but do not fix it. Run the repository's
 documentation checks when you change files.
-"""
 
-DEFAULT_POLISH_PROMPT = """\
+"""
+    + CONTRACT_CONSTRAINTS
+)
+
+DEFAULT_POLISH_PROMPT = (
+    """\
 Inspect the documentation changes made by the update agent for {project}.
 
 Verify every changed description against the current system behavior rather than
@@ -38,7 +58,10 @@ change the code to match the prose. If you identify a suspected code bug, descri
 in your final response so a human or separately scoped agent can pick it up (and you
 may also note it in the commit message body), but do not fix it. Run the repository's
 documentation checks when you change files.
+
 """
+    + CONTRACT_CONSTRAINTS
+)
 
 
 def _target_label(runtime: BuiltinChopRuntime) -> str:
