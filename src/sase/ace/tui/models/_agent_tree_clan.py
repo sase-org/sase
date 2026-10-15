@@ -20,6 +20,8 @@ def _reset_tree_projection(agent: Agent) -> None:
     agent.tree_parent_key = None
     agent.tree_depth = 0
     agent.clan_tribes = ()
+    agent.clan_waves = None
+    agent.clan_wave_slot = None
 
 
 def _rows_by_suffix(rows: Iterable[Agent]) -> dict[str, Agent]:
@@ -121,7 +123,7 @@ def _container_for_clan(
     rows: list[Agent],
     *,
     prior_runtime_order: list[tuple[AgentType, str, str | None]] | None = None,
-) -> Agent:
+) -> tuple[Agent, dict[int, str]]:
     direct = [row for row in rows if row.tree_depth == 1]
     runtime_members = direct or rows
     if direct and prior_runtime_order:
@@ -242,8 +244,12 @@ def _container_for_clan(
         agent_tab=agent_tab,
     )
     container.runtime_children.extend(runtime_members)
-    apply_clan_container_status(container, runtime_members, fallback="RUNNING")
-    return container
+    member_buckets = apply_clan_container_status(
+        container,
+        runtime_members,
+        fallback="RUNNING",
+    )
+    return container, member_buckets
 
 
 def _common_source_machine(rows: list[Agent]) -> str | None:
@@ -288,8 +294,8 @@ def _common_fleet_origin_installation_id(rows: list[Agent]) -> str | None:
     return None
 
 
-def _sort_clan_member_units(rows: list[Agent], fold_key: str) -> list[Agent]:
-    """Stable-sort direct clan-member subtrees by their anchor status."""
+def _clan_member_units(rows: list[Agent], fold_key: str) -> list[list[Agent]]:
+    """Build direct-member subtrees before applying any presentation order."""
     units: list[list[Agent]] = []
     unit_by_parent_key: dict[str, list[Agent]] = {}
     row_by_suffix = _rows_by_suffix(rows)
@@ -318,6 +324,11 @@ def _sort_clan_member_units(rows: list[Agent], fold_key: str) -> list[Agent]:
         else:
             parent_unit.append(row)
 
+    return units
+
+
+def _sort_clan_member_units(units: list[list[Agent]]) -> list[Agent]:
+    """Stable-sort direct clan-member subtrees by their anchor status."""
     units.sort(
         key=lambda unit: clan_member_status_priority(
             unit[0].status,
@@ -355,6 +366,13 @@ def project_clan_tree(agents: list[Agent]) -> list[Agent]:
     if not row_clans:
         return real_agents
 
+    # The TUI app's import path stays lean until a clan roster actually needs
+    # wave projection. This adapter also owns the Rust binding facade.
+    from ._agent_clan_waves import (
+        clan_wave_identity_key,
+        project_clan_wave_model,
+    )
+
     rows_by_clan: dict[ClanKey, list[Agent]] = {}
     for agent in real_agents:
         clan = row_clans.get(id(agent))
@@ -366,12 +384,23 @@ def project_clan_tree(agents: list[Agent]) -> list[Agent]:
         clan_name, generation = clan_key
         fold_key = clan_fold_key(clan_name, generation)
         _assign_clan_tree_links(rows, fold_key, parent_by_suffix)
-        containers[clan_key] = _container_for_clan(
+        units = _clan_member_units(rows, fold_key)
+        container, member_buckets = _container_for_clan(
             clan_name,
             rows,
             prior_runtime_order=prior_runtime_orders.get(clan_key),
         )
-        rows_by_clan[clan_key] = _sort_clan_member_units(rows, fold_key)
+        wave_summary, wave_slots = project_clan_wave_model(
+            clan_name,
+            units,
+            status_buckets=member_buckets,
+        )
+        container.clan_waves = wave_summary
+        for unit in units:
+            if unit:
+                unit[0].clan_wave_slot = wave_slots.get(clan_wave_identity_key(unit[0]))
+        containers[clan_key] = container
+        rows_by_clan[clan_key] = _sort_clan_member_units(units)
 
     projected: list[Agent] = []
     emitted: set[ClanKey] = set()

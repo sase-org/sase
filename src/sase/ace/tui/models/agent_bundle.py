@@ -62,6 +62,8 @@ _RUNTIME_ONLY_BUNDLE_FIELDS = (
             "tree_parent_key",
             "tree_depth",
             "clan_tribes",
+            "clan_waves",
+            "clan_wave_slot",
             "clan_context",
             "project_display_name",
             "_loaded_from_dismissed_bundle",

@@ -127,7 +127,7 @@ def apply_clan_container_status(
     members: Iterable[Agent],
     *,
     fallback: str,
-) -> None:
+) -> dict[int, str]:
     """Project a clan container's status from its direct members.
 
     Members are deduplicated by ``identity``, keeping the first occurrence.
@@ -167,8 +167,11 @@ def apply_clan_container_status(
         seen.add(member.identity)
         unique_members.append(member)
 
+    member_buckets = {
+        id(member): agent_status_bucket(member) for member in unique_members
+    }
     entries = tuple(
-        (member.status, agent_status_bucket(member)) for member in unique_members
+        (member.status, member_buckets[id(member)]) for member in unique_members
     )
     aggregate = aggregate_agent_group_effective_status(entries)
     aggregate_bucket = (
@@ -178,7 +181,7 @@ def apply_clan_container_status(
     source = unique_members[source_index] if source_index is not None else None
     if source is not None:
         container.status = source.status
-        container.status_bucket = agent_status_bucket(source)
+        container.status_bucket = member_buckets[id(source)]
         _copy_turn_status_presentation(container, source)
         container.status_display_source = source
     else:
@@ -186,19 +189,26 @@ def apply_clan_container_status(
         container.status_bucket = None
         _copy_turn_status_presentation(container, None)
         container.status_display_source = None
-    _set_clan_queued_wait_display_source(container, unique_members, aggregate_bucket)
+    _set_clan_queued_wait_display_source(
+        container,
+        unique_members,
+        aggregate_bucket,
+        member_buckets,
+    )
+    return member_buckets
 
 
 def _set_clan_queued_wait_display_source(
     container: Agent,
     unique_members: list[Agent],
     aggregate_bucket: str | None,
+    member_buckets: dict[int, str],
 ) -> None:
     """Attach or clear the lone queued member's wait-display row."""
     queued_members = [
         member
         for member in unique_members
-        if agent_status_bucket(member) == QUEUED_STATUS_BUCKET
+        if member_buckets[id(member)] == QUEUED_STATUS_BUCKET
     ]
     if aggregate_bucket == QUEUED_STATUS_BUCKET and len(queued_members) == 1:
         container.wait_display_source = wait_display_agent(queued_members[0])

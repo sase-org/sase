@@ -17,6 +17,7 @@ from sase.ace.tui.actions.cleanup_payload import (
     json_identities,
     serialize_agent,
 )
+from sase.ace.tui.models._agent_clan_waves import ClanWaveSlot, ClanWaveSummary
 from sase.ace.tui.models.agent import Agent, AgentType, LinkedRepoMetadata
 from sase.ops.commands.agent import _apply_cleanup_payload_for_result
 
@@ -98,6 +99,31 @@ def test_cleanup_archive_dto_fields_match_bundle_writer() -> None:
 
     assert dto_fields == writer_fields
     assert set(_REVIVAL_FIELDS) <= writer_fields
+
+
+def test_cleanup_archive_omits_runtime_clan_wave_projection() -> None:
+    agent = _local_agent(artifacts_dir=None)
+    agent.clan_waves = ClanWaveSummary(
+        layered=False,
+        numbered_wave_count=1,
+        has_seal=False,
+        waves=(),
+        members=(),
+        unresolved_identities=(),
+    )
+    agent.clan_wave_slot = ClanWaveSlot(
+        wave_index=1,
+        label_kind="number",
+        number=1,
+        rank=0,
+        open=True,
+    )
+
+    payload = serialize_agent(agent)
+
+    assert "clan_waves" not in payload
+    assert "clan_wave_slot" not in payload
+    json.dumps(payload)
 
 
 def test_cleanup_archive_round_trip_preserves_durable_record() -> None:

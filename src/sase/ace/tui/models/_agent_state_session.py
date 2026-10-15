@@ -14,6 +14,7 @@ if TYPE_CHECKING:
     from sase.core.agent_identity_facade import AgentOwnerIdentity
     from sase.core.agent_scan_wire import AgentClanContextWire
 
+    from ._agent_clan_waves import ClanWaveSlot, ClanWaveSummary
     from .agent import Agent
 
 
@@ -98,6 +99,16 @@ class AgentStateSessionFields:
     tree_parent_key: str | None = field(default=None, compare=False)
     tree_depth: int = field(default=0, compare=False)
     clan_tribes: tuple[str, ...] = field(default_factory=tuple, compare=False)
+    clan_waves: ClanWaveSummary | None = field(
+        default=None,
+        compare=False,
+        repr=False,
+    )
+    clan_wave_slot: ClanWaveSlot | None = field(
+        default=None,
+        compare=False,
+        repr=False,
+    )
     # Explicitly marks execution-neutral parallel-agent-session membership. Unlike
     # serial plan-chain linkage, these children own independent processes and
     # must be included when their session root is killed or dismissed.

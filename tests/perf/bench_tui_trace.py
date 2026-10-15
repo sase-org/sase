@@ -207,6 +207,61 @@ async def test_view_hints_scenario(_trace_env: tuple[Path, Path, Path]) -> None:
     print(json.dumps(result, indent=2), file=sys.stderr)
 
 
+def test_warm_clan_wave_projection_large_roster_stays_near_legacy(monkeypatch) -> None:
+    """Compare a warm 2,000-member wave projection with the pre-wave path."""
+    from datetime import datetime, timedelta
+
+    from sase.ace.tui.models import _agent_clan_waves as wave_adapter
+    from sase.ace.tui.models import _agent_tree_clan as tree_module
+    from sase.ace.tui.models.agent import Agent, AgentType
+    from sase.core import agent_clan_waves as wave_facade
+
+    rows = [
+        Agent(
+            agent_type=AgentType.RUNNING,
+            cl_name=f"large-clan.member-{index:04d}",
+            project_file="/tmp/bench/large-clan/project.sase",
+            status="RUNNING" if index % 4 else "DONE",
+            start_time=datetime(2026, 10, 15) + timedelta(seconds=index),
+            raw_suffix=f"20261015{index:06d}",
+            agent_name=f"large-clan.member-{index:04d}",
+            agent_clan="large-clan",
+            agent_clan_generation="large-generation",
+        )
+        for index in range(2_000)
+    ]
+
+    wave_facade.project_clan_waves.cache_clear()
+    tree_module.project_clan_tree(rows)  # cold call; the samples below are warm.
+
+    def median_ms(repeats: int = 12) -> float:
+        samples = []
+        for _ in range(repeats):
+            started = time.perf_counter()
+            tree_module.project_clan_tree(rows)
+            samples.append((time.perf_counter() - started) * 1_000)
+        return statistics.median(samples)
+
+    warm_ms = median_ms()
+    hits_before = wave_facade.project_clan_waves.cache_info().hits
+    monkeypatch.setattr(
+        wave_adapter,
+        "project_clan_wave_model",
+        lambda _clan_name, _units, **_kwargs: (None, {}),
+    )
+    legacy_ms = median_ms()
+    hits_after = wave_facade.project_clan_waves.cache_info().hits
+
+    print(
+        "\nclan wave projection (2,000 members, warm memo)\n"
+        f"legacy_p50_ms={legacy_ms:.3f} warm_p50_ms={warm_ms:.3f} "
+        f"overhead_pct={(warm_ms / legacy_ms - 1) * 100:.1f}"
+    )
+    assert hits_before > 0
+    assert hits_after == hits_before
+    assert warm_ms <= legacy_ms * 1.25
+
+
 async def test_idle_tick_and_fleet_refresh(
     _trace_env: tuple[Path, Path, Path],
 ) -> None:
