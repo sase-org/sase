@@ -1,3 +1,8 @@
+---
+title: SASE Blog
+description: Essays on structured agentic software engineering and the SASE launch post.
+---
+
 # SASE Blog
 
 The SASE Blog is the publishing surface for essays about Structured Agentic Software

@@ -1,0 +1,631 @@
+#!/usr/bin/env python3
+"""Enforce the sase.sh documentation contract (epic sase-1le, phase contract).
+
+Rules (see ``docs/contribute/writing-docs.md`` for the human version):
+
+1. Typing: a page outside the root ``index.md``, the six typed directories
+   (``start/``, ``guides/``, ``concepts/``, ``reference/``, ``contribute/``,
+   ``blog/``), generated stubs, and the legacy allowlist fails. New root
+   pages fail.
+2. Frontmatter: typed pages need ``title`` and a one-line ``description``
+   (<= 160 chars, except ``blog/`` which needs presence only). Unknown keys
+   fail. ``covers:`` is allowed only under ``reference/``.
+3. Budgets: per-directory caps from the contract table; legacy ceilings live
+   in ``docs/_meta/budgets.yml``. ``--fix`` lowers a ceiling when a page
+   shrinks and never raises one. Generated whole-file pages and
+   ``BEGIN GENERATED`` blocks don't count.
+4. Guide hygiene (``start/``, ``guides/``, ``concepts/`` only): no bead IDs,
+   ``src/`` paths, epic/phase labels, or history phrases.
+5. No test pins Guide prose: a test may not read files under ``docs/start/``,
+   ``docs/guides/``, or ``docs/concepts/``. The only exceptions are the
+   tutorial runner and this checker's own tests.
+6. Portability: no ``hooks:`` key and no plugin outside the allowlist in
+   ``mkdocs*.yml``.
+
+Words are counted outside frontmatter, fenced code, HTML comments, and
+generated blocks.
+"""
+
+from __future__ import annotations
+
+import argparse
+import fnmatch
+import math
+import re
+import sys
+from dataclasses import dataclass, field
+from pathlib import Path
+
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+DEFAULT_DOCS_DIR = REPO_ROOT / "docs"
+DEFAULT_BUDGETS_PATH = REPO_ROOT / "docs" / "_meta" / "budgets.yml"
+DEFAULT_MKDOCS_PATHS = (REPO_ROOT / "mkdocs.yml", REPO_ROOT / "mkdocs-pdf.yml")
+DEFAULT_TESTS_DIR = REPO_ROOT / "tests"
+
+TYPED_DIRS = ("start", "guides", "concepts", "reference", "contribute", "blog")
+GUIDE_DIRS = ("start", "guides", "concepts")
+
+#: Build-support paths that are never site content. ``images/`` holds image
+#: briefs (``*.prompt.md``/``*.critique.md``); the links phase formalizes
+#: their build exclusion in ``exclude_docs``.
+SUPPORT_PREFIXES = ("_templates/", "_meta/", "_includes/", "images/")
+
+KNOWN_FRONTMATTER_KEYS = frozenset(
+    {
+        "title",
+        "description",
+        "hide",
+        "search",
+        "tags",
+        "template",
+        "icon",
+        "status",
+    }
+)
+REFERENCE_ONLY_KEYS = frozenset({"covers"})
+BLOG_ONLY_KEYS = frozenset(
+    {
+        "date",
+        "draft",
+        "categories",
+        "slug",
+        "links",
+        "image",
+        "authors",
+        "readtime",
+        "comments",
+    }
+)
+
+DESCRIPTION_LIMIT = 160
+GUIDES_TARGET = 1500
+GUIDES_HARD = 2500
+
+#: (per-page cap, tier-total cap or None, over-cap severity)
+PAGE_BUDGETS: dict[str, tuple[int | None, int | None, str]] = {
+    "start": (2500, 10000, "error"),
+    "guides": (GUIDES_HARD, None, "error"),
+    "concepts": (3000, 25000, "error"),
+    "reference": (6000, None, "error"),
+    "contribute": (8000, None, "warning"),
+    "blog": (None, None, "warning"),
+}
+
+PLUGIN_ALLOWLIST = frozenset({"search", "redirects", "blog", "rss"})
+PDF_ONLY_PLUGINS = frozenset({"exporter"})
+
+WRITING_DOCS = "docs/contribute/writing-docs.md"
+
+FRONTMATTER_RE = re.compile(r"\A---\n(.*?)\n---\n?", re.DOTALL)
+FENCED_CODE_RE = re.compile(r"^(`{3,}|~{3,}).*?^\1[ \t]*$", re.DOTALL | re.MULTILINE)
+HTML_COMMENT_RE = re.compile(r"<!--.*?-->", re.DOTALL)
+GENERATED_BLOCK_RE = re.compile(
+    r"BEGIN GENERATED.*?END GENERATED", re.DOTALL | re.IGNORECASE
+)
+WHOLE_FILE_GENERATED_RE = re.compile(r"generated,?\s+do not edit", re.IGNORECASE)
+INLINE_CODE_RE = re.compile(r"`[^`\n]+`")
+WORD_RE = re.compile(r"\S+")
+
+HYGIENE_PATTERNS = (
+    (
+        "bead-id",
+        re.compile(r"\bsase-[0-9A-Za-z]+(?:\.[0-9A-Za-z]+)?\b"),
+        "Guide pages must not name bead IDs ({hit}). "
+        "Move history to the CHANGELOG or a decision record.",
+    ),
+    (
+        "src-path",
+        re.compile(r"(?<![\w/])src/[\w\-.]+"),
+        "Guide pages must not cite src/ paths ({hit}). "
+        "Link the Reference page that owns the fact instead.",
+    ),
+    (
+        "phase-label",
+        re.compile(r"\bE\d+\b|\bphase\s+sase-", re.IGNORECASE),
+        "Guide pages must not carry epic or phase labels ({hit}). "
+        "Reader-facing text never names the build plan.",
+    ),
+    (
+        "history-phrase",
+        re.compile(
+            r"\b(formerly|no longer|legacy|renamed|still mentions?)\b",
+            re.IGNORECASE,
+        ),
+        "Guide pages must not carry history phrases ({hit}). "
+        "History goes to the CHANGELOG, decision records, and "
+        "reference/upgrading.md.",
+    ),
+)
+
+TEST_PIN_RE = re.compile(r"docs[\\/](start|guides|concepts)[\\/]")
+TEST_PIN_EXEMPT_NAME_RES = (
+    re.compile(r"tutorial"),
+    re.compile(r"test_check_docs"),
+)
+
+
+@dataclass
+class Finding:
+    """One contract violation (``error``) or advisory (``warning``)."""
+
+    severity: str  # "error" or "warning"
+    message: str
+
+
+@dataclass
+class CheckContext:
+    """Resolved inputs for one ``check_tree`` run."""
+
+    docs_dir: Path
+    budgets_path: Path
+    mkdocs_paths: tuple[Path, ...]
+    tests_dir: Path
+    legacy_allowlist: set[str] = field(default_factory=set)
+    exclude_globs: tuple[str, ...] = ()
+
+
+def _parse_frontmatter(text: str) -> tuple[dict[str, object], str]:
+    """Split ``text`` into (frontmatter mapping, body)."""
+    match = FRONTMATTER_RE.match(text)
+    if not match:
+        return {}, text
+    raw = match.group(1)
+    data: dict[str, object] = {}
+    try:
+        import yaml
+    except ImportError:  # pragma: no cover - format venv always has PyYAML
+        return {}, text[match.end() :]
+    try:
+        loaded = yaml.safe_load(raw) or {}
+    except Exception:
+        return {}, text[match.end() :]
+    if isinstance(loaded, dict):
+        data = loaded
+    return data, text[match.end() :]
+
+
+def count_words(text: str) -> int:
+    """Count contract words: outside frontmatter, fences, comments, blocks."""
+    _, body = _parse_frontmatter(text)
+    body = GENERATED_BLOCK_RE.sub("", body)
+    body = FENCED_CODE_RE.sub("", body)
+    body = HTML_COMMENT_RE.sub("", body)
+    return len(WORD_RE.findall(body))
+
+
+def is_whole_file_generated(text: str) -> bool:
+    """Whether ``text`` is a generated file exempt from budgets."""
+    head, _ = _parse_frontmatter(text)
+    if head.get("generated"):
+        return True
+    return bool(WHOLE_FILE_GENERATED_RE.search(text))
+
+
+def _is_support_file(rel: str) -> bool:
+    return rel.startswith(SUPPORT_PREFIXES)
+
+
+def _is_excluded(rel: str, globs: tuple[str, ...]) -> bool:
+    return any(
+        fnmatch.fnmatch(rel, glob) or fnmatch.fnmatch("/" + rel, glob) for glob in globs
+    )
+
+
+def _load_tolerant_yaml(path: Path) -> dict[str, object]:
+    """Load YAML tolerating unknown tags (e.g. ``!ENV`` in mkdocs-pdf.yml)."""
+    import yaml
+
+    class _TolerantLoader(yaml.SafeLoader):
+        pass
+
+    def _unknown(loader: yaml.SafeLoader, _tag: str, node: yaml.Node) -> object:
+        if isinstance(node, yaml.MappingNode):
+            return loader.construct_mapping(node, deep=True)
+        if isinstance(node, yaml.SequenceNode):
+            return loader.construct_sequence(node, deep=True)
+        return loader.construct_scalar(node)
+
+    _TolerantLoader.add_multi_constructor("", _unknown)
+    try:
+        with path.open(encoding="utf-8") as handle:
+            return yaml.load(handle, Loader=_TolerantLoader) or {}
+    except FileNotFoundError:
+        return {}
+    except Exception:
+        return {}
+
+
+def _tier_of(rel: str) -> str | None:
+    top = rel.split("/", 1)[0]
+    return top if top in TYPED_DIRS else None
+
+
+def _is_hub(rel: str) -> bool:
+    return rel.rsplit("/", 1)[-1] == "index.md" and "/" in rel
+
+
+def _allowed_keys(tier: str | None) -> set[str]:
+    keys = set(KNOWN_FRONTMATTER_KEYS)
+    if tier == "reference":
+        keys |= REFERENCE_ONLY_KEYS
+    if tier == "blog":
+        keys |= BLOG_ONLY_KEYS
+    return keys
+
+
+def check_typing(rel: str, ctx: CheckContext) -> Finding | None:
+    """Rule 1: every content page has a type. New root pages fail."""
+    if rel == "index.md":
+        return None
+    if _tier_of(rel) is not None:
+        return None
+    if rel in ctx.legacy_allowlist:
+        return None
+    return Finding(
+        "error",
+        f"{rel}: untyped location. Move this page under one of "
+        f"{', '.join(d + '/' for d in TYPED_DIRS)}; new root pages fail "
+        f"the docs contract (see {WRITING_DOCS}).",
+    )
+
+
+def check_frontmatter(
+    rel: str, text: str, *, legacy: bool, tier: str | None
+) -> list[Finding]:
+    """Rule 2: typed pages need title + description; unknown keys fail."""
+    findings: list[Finding] = []
+    head, _ = _parse_frontmatter(text)
+    allowed = _allowed_keys(tier)
+    for key in sorted(head):
+        if key not in allowed:
+            findings.append(
+                Finding(
+                    "error",
+                    f"{rel}: unknown frontmatter key '{key}'. Allowed keys "
+                    f"here: {', '.join(sorted(allowed))}. Remove it or copy "
+                    "a template from docs/_templates/.",
+                )
+            )
+    if legacy:
+        return findings
+    for key in ("title", "description"):
+        if not head.get(key):
+            findings.append(
+                Finding(
+                    "error",
+                    f"{rel}: missing frontmatter key '{key}'. Typed pages "
+                    "need 'title' and a one-line 'description' "
+                    f"(see {WRITING_DOCS}).",
+                )
+            )
+    description = head.get("description")
+    if (
+        isinstance(description, str)
+        and tier != "blog"
+        and (len(description) > DESCRIPTION_LIMIT or "\n" in description)
+    ):
+        findings.append(
+            Finding(
+                "error",
+                f"{rel}: 'description' must be one line of at most "
+                f"{DESCRIPTION_LIMIT} chars (it is {len(description)}). "
+                "Shorten it; the page body carries the detail.",
+            )
+        )
+    return findings
+
+
+def check_budget(
+    rel: str,
+    words: int,
+    *,
+    legacy: bool,
+    tier: str | None,
+    ceilings: dict[str, int],
+    tier_totals: dict[str, int],
+) -> list[Finding]:
+    """Rule 3: per-page and per-tier word budgets."""
+    if legacy:
+        ceiling = ceilings.get(rel)
+        if ceiling is not None and words > ceiling:
+            return [
+                Finding(
+                    "error",
+                    f"{rel}: over budget at {words} words "
+                    f"(ceiling {ceiling}). This page may not grow. Put new "
+                    "reference material in a new `reference/` page, "
+                    "or regenerate.",
+                )
+            ]
+        return []
+    if tier is None or tier == "blog":
+        return []
+    page_cap, _, severity = PAGE_BUDGETS[tier]
+    findings: list[Finding] = []
+    if page_cap is not None and words > page_cap:
+        findings.append(
+            Finding(
+                severity,
+                f"{rel}: over budget at {words} words (cap {page_cap} for "
+                f"{tier}/). This page may not grow. Split it: anything "
+                "longer than one goal is two guides.",
+            )
+        )
+    elif tier == "guides" and words > GUIDES_TARGET:
+        findings.append(
+            Finding(
+                "warning",
+                f"{rel}: {words} words is past the {GUIDES_TARGET}-word "
+                "guides target. Consider splitting it before it hits "
+                f"the {GUIDES_HARD}-word cap.",
+            )
+        )
+    if _is_hub(rel) and words > 400:
+        findings.append(
+            Finding(
+                severity if tier != "contribute" else "warning",
+                f"{rel}: hub pages hold at most 400 words "
+                f"(it is {words}). Keep the orientation sentence and "
+                "grouped links; move the rest.",
+            )
+        )
+    tier_totals[tier] = tier_totals.get(tier, 0) + words
+    return findings
+
+
+def check_hygiene(rel: str, text: str) -> list[Finding]:
+    """Rule 4: Guide hygiene for ``start/``, ``guides/``, ``concepts/``."""
+    _, body = _parse_frontmatter(text)
+    body = FENCED_CODE_RE.sub("", body)
+    body = HTML_COMMENT_RE.sub("", body)
+    body = INLINE_CODE_RE.sub("", body)
+    findings: list[Finding] = []
+    for lineno, line in enumerate(body.splitlines(), start=1):
+        for _kind, pattern, template in HYGIENE_PATTERNS:
+            match = pattern.search(line)
+            if match:
+                findings.append(
+                    Finding(
+                        "error",
+                        f"{rel}:{lineno}: " + template.format(hit=match.group(0)),
+                    )
+                )
+    return findings
+
+
+def find_test_pins(tests_dir: Path) -> list[Finding]:
+    """Rule 5: no test pins Guide prose (except the tutorial runner)."""
+    findings: list[Finding] = []
+    if not tests_dir.is_dir():
+        return findings
+    for path in sorted(tests_dir.rglob("*.py")):
+        if any(res.search(path.name) for res in TEST_PIN_EXEMPT_NAME_RES):
+            continue
+        try:
+            text = path.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        for lineno, line in enumerate(text.splitlines(), start=1):
+            match = TEST_PIN_RE.search(line)
+            if match:
+                findings.append(
+                    Finding(
+                        "error",
+                        f"{path}:{lineno}: tests must not read docs Guide "
+                        f"prose ('{match.group(0)}...'). Point the test at "
+                        "the Reference or generated source instead (the "
+                        "tutorial runner and check_docs's own tests are "
+                        "the only exceptions).",
+                    )
+                )
+    return findings
+
+
+def _plugin_names(config: dict[str, object]) -> list[str]:
+    plugins = config.get("plugins", [])
+    names: list[str] = []
+    if isinstance(plugins, list):
+        for entry in plugins:
+            if isinstance(entry, str):
+                names.append(entry)
+            elif isinstance(entry, dict) and entry:
+                names.append(next(iter(entry)))
+    return names
+
+
+def check_portability(mkdocs_paths: tuple[Path, ...]) -> list[Finding]:
+    """Rule 6: no ``hooks:`` and no out-of-allowlist plugins."""
+    findings: list[Finding] = []
+    for path in mkdocs_paths:
+        config = _load_tolerant_yaml(path)
+        if not config:
+            continue
+        label = path.name
+        if "hooks" in config:
+            findings.append(
+                Finding(
+                    "error",
+                    f"{label}: 'hooks:' is forbidden by the docs contract "
+                    "(Zensical portability). Generate in tools/ before the "
+                    "build, with --check drift detection, the same way "
+                    "tools/render_model_docs already works.",
+                )
+            )
+        is_pdf_config = path.name != "mkdocs.yml"
+        for name in _plugin_names(config):
+            if name in PLUGIN_ALLOWLIST:
+                continue
+            if name in PDF_ONLY_PLUGINS and is_pdf_config:
+                continue
+            findings.append(
+                Finding(
+                    "error",
+                    f"{label}: plugin '{name}' is outside the docs "
+                    "contract allowlist "
+                    f"({', '.join(sorted(PLUGIN_ALLOWLIST))}, plus "
+                    f"{', '.join(sorted(PDF_ONLY_PLUGINS))} in the PDF "
+                    "config only). Remove it; generate in tools/ instead.",
+                )
+            )
+    return findings
+
+
+def load_budgets(budgets_path: Path) -> dict[str, int]:
+    """Read legacy ceilings from ``budgets.yml`` (missing file: empty)."""
+    config = _load_tolerant_yaml(budgets_path)
+    ceilings = config.get("ceilings", {})
+    if not isinstance(ceilings, dict):
+        return {}
+    return {
+        str(key): int(value) for key, value in ceilings.items() if str(value).isdigit()
+    }
+
+
+def load_exclude_globs(mkdocs_path: Path) -> tuple[str, ...]:
+    """Read core-MkDocs ``exclude_docs`` globs (a core key, not a plugin)."""
+    config = _load_tolerant_yaml(mkdocs_path)
+    globs = config.get("exclude_docs", [])
+    if isinstance(globs, str):
+        # Core MkDocs takes exclude_docs as a multiline string.
+        globs = [line.strip() for line in globs.splitlines() if line.strip()]
+    if not isinstance(globs, list):
+        return ()
+    return tuple(str(glob) for glob in globs if isinstance(glob, str))
+
+
+def build_context(
+    docs_dir: Path,
+    budgets_path: Path,
+    mkdocs_paths: tuple[Path, ...],
+    tests_dir: Path,
+) -> CheckContext:
+    """Assemble the allowlist and exclusion inputs for ``check_tree``."""
+    ceilings = load_budgets(budgets_path)
+    globs: list[str] = []
+    for path in mkdocs_paths:
+        if path.name == "mkdocs.yml":
+            globs.extend(load_exclude_globs(path))
+    return CheckContext(
+        docs_dir=docs_dir,
+        budgets_path=budgets_path,
+        mkdocs_paths=mkdocs_paths,
+        tests_dir=tests_dir,
+        legacy_allowlist=set(ceilings),
+        exclude_globs=tuple(globs),
+    )
+
+
+def check_tree(ctx: CheckContext) -> list[Finding]:
+    """Run every rule over one docs tree; return ordered findings."""
+    findings: list[Finding] = []
+    ceilings = load_budgets(ctx.budgets_path)
+    tier_totals: dict[str, int] = {}
+    pages = sorted(ctx.docs_dir.rglob("*.md"))
+    for path in pages:
+        rel = path.relative_to(ctx.docs_dir).as_posix()
+        if _is_support_file(rel) or _is_excluded(rel, ctx.exclude_globs):
+            continue
+        try:
+            text = path.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        tier = _tier_of(rel)
+        legacy = tier is None and rel in ctx.legacy_allowlist
+        typing = check_typing(rel, ctx)
+        if typing is not None:
+            findings.append(typing)
+            continue
+        if is_whole_file_generated(text):
+            continue
+        findings.extend(check_frontmatter(rel, text, legacy=legacy, tier=tier))
+        findings.extend(
+            check_budget(
+                rel,
+                count_words(text),
+                legacy=legacy,
+                tier=tier,
+                ceilings=ceilings,
+                tier_totals=tier_totals,
+            )
+        )
+        if tier in GUIDE_DIRS:
+            findings.extend(check_hygiene(rel, text))
+    for tier, (_page_cap, tier_cap, _severity) in PAGE_BUDGETS.items():
+        if tier_cap is not None and tier_totals.get(tier, 0) > tier_cap:
+            findings.append(
+                Finding(
+                    "error",
+                    f"{tier}/: tier total is {tier_totals[tier]} words "
+                    f"(cap {tier_cap}). Move pages out or split them; "
+                    f"the tier may not grow (see {WRITING_DOCS}).",
+                )
+            )
+    findings.extend(find_test_pins(ctx.tests_dir))
+    findings.extend(check_portability(ctx.mkdocs_paths))
+    return findings
+
+
+def ratchet_ceilings(ctx: CheckContext) -> list[str]:
+    """Lower legacy ceilings toward current sizes; never raise one."""
+    ceilings = load_budgets(ctx.budgets_path)
+    changed: list[str] = []
+    for rel in sorted(ceilings):
+        path = ctx.docs_dir / rel
+        if not path.is_file():
+            continue
+        shrunk_to = math.ceil(count_words(path.read_text(encoding="utf-8")) * 1.01)
+        if shrunk_to < ceilings[rel]:
+            ceilings[rel] = shrunk_to
+            changed.append(f"{rel}: {ceilings[rel]}")
+    if changed:
+        lines = [
+            "# Legacy per-page word ceilings for the docs contract.",
+            "#",
+            "# `tools/check_docs` fails a page that grows past its ceiling.",
+            "# `tools/check_docs --fix` (via `just fix`) lowers a ceiling when",
+            "# a page shrinks and never raises one. Ceilings only shrink; the",
+            "# decompose phase empties this allowlist at the epic end.",
+            "ceilings:",
+        ]
+        lines.extend(f"  {rel}: {ceilings[rel]}" for rel in sorted(ceilings))
+        ctx.budgets_path.parent.mkdir(parents=True, exist_ok=True)
+        ctx.budgets_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return changed
+
+
+def main(argv: list[str] | None = None) -> int:
+    """Entry point: ``tools/check_docs [--fix]`` from the repo root."""
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--fix",
+        action="store_true",
+        help="lower legacy ceilings that shrank; never raise one",
+    )
+    args = parser.parse_args(argv)
+    ctx = build_context(
+        DEFAULT_DOCS_DIR,
+        DEFAULT_BUDGETS_PATH,
+        DEFAULT_MKDOCS_PATHS,
+        DEFAULT_TESTS_DIR,
+    )
+    if args.fix:
+        for line in ratchet_ceilings(ctx):
+            print(f"lowered ceiling: {line}")
+        return 0
+    findings = check_tree(ctx)
+    for finding in findings:
+        print(f"{finding.severity}: {finding.message}")
+    errors = sum(1 for finding in findings if finding.severity == "error")
+    if errors:
+        print(f"check_docs: {errors} error(s)")
+        return 1
+    if findings:
+        print(f"check_docs: {len(findings)} warning(s)")
+    else:
+        print("check_docs: ok")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

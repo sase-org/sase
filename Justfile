@@ -308,7 +308,7 @@ _setup-terminal-smoke: _setup
         uv pip install --python {{ venv_bin }}/python --no-sources $(just _core-overrides-arg) -e ".[dev,terminal-smoke]"; \
     fi
 
-# Run linters (ruff + mypy + feature flags + pyscripts + test waits + changelog + terminology audit + symvision + toobig + keep-sorted)
+# Run linters (ruff + mypy + feature flags + pyscripts + test waits + changelog + terminology audit + symvision + docs contract + toobig + keep-sorted)
 lint: _setup (_header "lint") lint-keep-sorted
     @printf "\n---------- Running ruff linter on Python files... ----------\n"
     @just _lint-ruff
@@ -326,6 +326,8 @@ lint: _setup (_header "lint") lint-keep-sorted
     @just _lint-patch-stitch-terminology
     @printf "\n---------- Checking for unused Python definitions... ----------\n"
     @just _lint-symvision
+    @printf "\n---------- Checking docs contract... ----------\n"
+    @just docs-lint
     @printf "\n---------- Checking Python file line counts... ----------\n"
     @just _lint-toobig
 
@@ -463,8 +465,8 @@ _lint-toobig *args:
     {{ venv_bin }}/toobig src {{ if args == "" { "1000 850 700" } else { args } }}
     {{ venv_bin }}/toobig tests {{ if args == "" { "1000 850 700" } else { args } }}
 
-# Auto-fix all code (format + keep-sorted)
-fix: (_header "fix") fmt-py fmt-docs fmt-md fix-keep-sorted
+# Auto-fix all code (format + keep-sorted + docs budget ratchet)
+fix: (_header "fix") fmt-py fmt-docs fmt-md fix-keep-sorted fix-docs-budgets
 
 # Auto-format all code
 fmt: (_header "fmt") fmt-py fmt-docs fmt-md
@@ -819,6 +821,7 @@ check: (_require-tool-run "check") _setup
     @tools/run_silent "lint (changelog)"   just _lint-changelog
     @tools/run_silent "lint (patch/stitch terminology)" just _lint-patch-stitch-terminology
     @tools/run_silent "lint (symvision)"   just _lint-symvision
+    @tools/run_silent "lint (docs contract)" just docs-lint
     @tools/run_silent "SASE validation"     just validate
     @{{ venv_bin }}/python tools/probe_core_floor --advisory --sase-core-dir "{{ sase_core_dir }}"
     @tools/run_silent "committed plans"      just validate-committed-plans
@@ -849,6 +852,7 @@ check-full: (_require-tool-run "check-full") _setup
     @tools/run_silent "lint (changelog)"   just _lint-changelog
     @tools/run_silent "lint (patch/stitch terminology)" just _lint-patch-stitch-terminology
     @tools/run_silent "lint (symvision)"   just _lint-symvision
+    @tools/run_silent "lint (docs contract)" just docs-lint
     @tools/run_silent "SASE validation"     just validate
     @{{ venv_bin }}/python tools/probe_core_floor --advisory --sase-core-dir "{{ sase_core_dir }}"
     @tools/run_silent "committed plans"      just validate-committed-plans
@@ -916,6 +920,17 @@ pypi-smoke-shell:
 
 pypi-smoke-clean:
     {{ pypi_smoke_compose }} down -v --rmi all --remove-orphans
+
+# Enforce the sase.sh documentation contract: directory typing, frontmatter,
+# word budgets with a shrinking legacy allowlist, Guide hygiene, test-pin and
+# portability rules (tools/check_docs, run in the format venv).
+docs-lint: _setup-format-tools
+    {{ format_venv_bin }}/python tools/check_docs
+
+# Lower legacy docs ceilings that shrank; never raises one. Ceilings only
+# shrink; the decompose phase empties the allowlist at the epic end.
+fix-docs-budgets: _setup-format-tools
+    {{ format_venv_bin }}/python tools/check_docs --fix
 
 # Build the MkDocs Material site with strict warnings-as-errors behavior.
 # This target installs only docs tooling, because the docs build does not

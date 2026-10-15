@@ -1346,14 +1346,9 @@ when you need the exact current catalog.
 
 ## Documentation Workflow
 
-The docs site is a MkDocs Material project:
-
-| Path             | Purpose                                                                                           |
-| ---------------- | ------------------------------------------------------------------------------------------------- |
-| `mkdocs.yml`     | Main docs site configuration, strict build, navigation, blog, RSS, and theme settings.            |
-| `mkdocs-pdf.yml` | PDF handbook build configuration, inheriting the main site config.                                |
-| `docs/`          | Markdown, images, stylesheets, JavaScript, redirects, headers, and PDF templates.                 |
-| `site/`          | Generated site output. It is rebuilt by docs commands and deployed as the static asset directory. |
+The [documentation contract](contribute/writing-docs.md) owns tiers, templates, budgets,
+and routing: read it before adding, moving, or editing anything under `docs/`,
+`mkdocs*.yml`, or a sase.sh link in code. What follows is local mechanics only.
 
 Run the strict site build after changing docs navigation, links, images, or Markdown
 pages:

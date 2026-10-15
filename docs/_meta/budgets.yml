@@ -1,0 +1,64 @@
+# Legacy per-page word ceilings for the docs contract.
+#
+# `tools/check_docs` fails a page that grows past its ceiling.
+# `tools/check_docs --fix` (via `just fix`) lowers a ceiling when
+# a page shrinks and never raises one. Ceilings only shrink; the
+# decompose phase empties this allowlist at the epic end.
+ceilings:
+  ace.md: 103647
+  acknowledgements.md: 973
+  agent_auto_restart.md: 1877
+  agent_images.md: 5909
+  agent_providers.md: 5061
+  agent_sessions.md: 7939
+  agents_sidecar.md: 4440
+  architecture.md: 3062
+  artifact_links.md: 2424
+  artifact_references.md: 2022
+  artifacts_pane_contract.md: 1613
+  artifacts_pane_visual_grammar.md: 2673
+  axe.md: 15924
+  beads.md: 26596
+  change_spec.md: 2162
+  cli.md: 14508
+  commit_workflows.md: 8158
+  completion.md: 2970
+  configuration.md: 66054
+  content_layout.md: 782
+  development.md: 12346
+  editor.md: 4280
+  fakey.md: 773
+  getting_started.md: 3937
+  goals.md: 642
+  index.md: 924
+  init.md: 7268
+  instruction_bundles.md: 2305
+  instruction_inventory.md: 717
+  integrations.md: 2883
+  llms.md: 25148
+  macros.md: 29662
+  memory.md: 3495
+  memory_history.md: 2612
+  mentors.md: 1599
+  mobile_gateway.md: 3396
+  mobile_mvp_runbook.md: 2150
+  monitors.md: 8175
+  notifications.md: 18223
+  pager.md: 3475
+  perf_runbook.md: 11060
+  plugins.md: 9474
+  project_spec.md: 3146
+  prompt.md: 3402
+  query_language.md: 2029
+  remote_dispatch.md: 2935
+  rust_backend.md: 11094
+  sdd.md: 7582
+  sdd_storage.md: 3505
+  sudo.md: 2385
+  telemetry.md: 2394
+  tool.md: 6419
+  troubleshooting/agent-revival.md: 426
+  troubleshooting/runner-slots.md: 1989
+  vcs.md: 5642
+  workflow_spec.md: 2892
+  workspace.md: 6705

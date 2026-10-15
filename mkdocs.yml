@@ -8,6 +8,9 @@ docs_dir: docs
 site_dir: site
 strict: true
 use_directory_urls: true
+exclude_docs: |
+  _templates/*
+  _meta/*
 
 nav:
   - Home: index.md
@@ -73,6 +76,8 @@ nav:
       - Migration:
           - Content layout migration: content_layout.md
   - Contribute:
+      - Contribute: contribute/index.md
+      - Writing docs: contribute/writing-docs.md
       - Development: development.md
       - Rust backend: rust_backend.md
       - Fakey testing provider: fakey.md
