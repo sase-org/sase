@@ -25,6 +25,9 @@ from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     wait_for_svg_contains,
     wait_for_visual_idle,
 )
+from tests.ace.tui.visual._ace_top_bar_png_snapshot_helpers import (
+    wait_for_top_bar_density,
+)
 from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
 
 pytestmark = pytest.mark.visual
@@ -224,6 +227,7 @@ async def test_plans_filter_completion_png_snapshot(
         await wait_for_svg_contains(page, "wip")
         await wait_for_svg_contains(page, "done")
         await wait_for_visual_idle(page)
+        await wait_for_top_bar_density(page, expected="full")
 
         ace_png_visual.assert_page_png(
             page,

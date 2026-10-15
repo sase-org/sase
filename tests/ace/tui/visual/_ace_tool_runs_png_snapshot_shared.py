@@ -220,6 +220,7 @@ def seed_tool_run_surfaces(
     glances: list[ToolRunGlance],
     summaries: dict[str, ToolRunNodeSummary],
     details: dict[str, LoadedToolRunDetail] | None = None,
+    loaded_run_ids: list[str] | None = None,
 ) -> None:
     """Seed the glance/summary/detail seams with fixed fixtures (no I/O)."""
     from sase.ace.tui.tool_runs import detail as detail_module
@@ -268,6 +269,12 @@ def seed_tool_run_surfaces(
             detail_module._store_tool_run_detail(key, loaded)
         except Exception:
             pass
+        try:
+            cached = detail_module.cached_tool_run_detail(run_id, brief, store_token)
+        except Exception:
+            cached = None
+        if cached is not None and loaded_run_ids is not None:
+            loaded_run_ids.append(str(run_id))
         return loaded
 
     monkeypatch.setattr(detail_module, "load_tool_run_detail_blocking", _load)

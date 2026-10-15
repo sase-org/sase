@@ -25,6 +25,7 @@ from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patches,
     patch_startup_loaders,
     wait_for_startup,
+    wait_for_state,
     wait_for_svg_contains,
     wait_for_visual_idle,
 )
@@ -330,13 +331,26 @@ async def test_tool_runs_card_png_snapshots(
     from sase.ace.tui.widgets.decks.tool_runs import widget_live as runs_live_module
 
     monkeypatch.setattr(runs_live_module, "want_live_tick", lambda **kw: False)
+    card_details = _card_details()
+    loaded_run_ids: list[str] = []
     seed_tool_run_surfaces(
         monkeypatch,
         glances=_card_glances(),
         summaries=_card_summaries(),
-        details=_card_details(),
+        details=card_details,
+        loaded_run_ids=loaded_run_ids,
     )
     patch_startup_loaders(monkeypatch, agents=_card_agents())
+
+    def run_id_for_card(name: str) -> str:
+        for run_id, loaded in card_details.items():
+            brief = loaded.detail.brief
+            if name == "tr-c-mon":
+                if getattr(brief, "owner_id", None) == "tr-mon":
+                    return run_id
+            elif getattr(brief, "agent", None) == name:
+                return run_id
+        raise AssertionError(f"no seeded ToolRun detail for {name!r}")
 
     async with AcePage(query='"visual"', patches=patches(), size=(120, 40)) as page:
         await wait_for_startup(page)
@@ -344,9 +358,19 @@ async def test_tool_runs_card_png_snapshots(
         await page.expect_state("tab", "agents")
         await page.expect_state("agent_count", 6)
         for name, fragment, snapshot_name in _CARD_CASES:
+            run_id = run_id_for_card(name)
             await select_agent(page, name)
             await show_runs_card(page)
+            await wait_for_state(
+                page,
+                lambda run_id=run_id: run_id in loaded_run_ids,
+                description=f"ToolRun detail cache loaded for {name}",
+                timeout=60.0,
+            )
             await wait_for_svg_contains(page, fragment, timeout=60.0)
+            if name == "tr-c-failed":
+                await wait_for_svg_contains(page, "lint (symvision)", timeout=60.0)
+                await wait_for_svg_contains(page, "check output line 1", timeout=60.0)
             await wait_for_visual_idle(page)
             ace_png_visual.assert_page_png(
                 page, snapshot_name, title=f"ACE tool runs card ({name})"

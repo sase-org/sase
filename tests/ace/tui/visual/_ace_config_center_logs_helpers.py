@@ -7,6 +7,8 @@ import os
 from datetime import UTC, datetime
 from pathlib import Path
 
+import pytest
+
 from sase.logs import (
     RegisteredError,
     error_anchor,
@@ -29,7 +31,12 @@ def _write_log(path: Path, text: str) -> None:
     os.utime(path, (_FIXED_LOG_MTIME, _FIXED_LOG_MTIME))
 
 
-def _seed_logs_tab_files() -> None:
+def _seed_logs_tab_files(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """Seed deterministic logs and isolate unseeded slow-load telemetry."""
+    agent_load_path = tmp_path / "tui_agent_loads.jsonl"
+    agent_load_path.unlink(missing_ok=True)
+    monkeypatch.setenv("SASE_TUI_AGENT_LOADS_PATH", str(agent_load_path))
+    monkeypatch.setattr("sase.logs.log_tui_agent_load", lambda _record: None)
     current_session = toast_log._reset_current_toast_session(
         session_started_at=datetime(2026, 6, 17, 14, 24, tzinfo=UTC),
         pid=4242,
@@ -211,9 +218,11 @@ def _focused_launch_error_target() -> RegisteredError:
     )
 
 
-def _seed_focused_error_log() -> RegisteredError:
+def _seed_focused_error_log(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> RegisteredError:
     """Seed Logs-tab files with a visible registered-error anchor on the header."""
-    _seed_logs_tab_files()
+    _seed_logs_tab_files(monkeypatch, tmp_path)
     path = launch_failures_log_path()
     original = path.read_text(encoding="utf-8")
     header = "[2026-06-17 14:30:00 UTC] fanout launch failure: visual-auth"

@@ -72,6 +72,11 @@ async def show_reply_card(page: AcePage, panel_index: int = 0) -> AgentDetail:
     detail = page.app.query_one("#agent-detail-panel", AgentDetail)
     await wait_for_state(
         page,
+        lambda: _selected_agent_matches_detail(page, detail),
+        description="selected agent detail is current before switching Main cards",
+    )
+    await wait_for_state(
+        page,
         lambda: set(detail._main_deck_document.card_ids) == {"context", "reply"},
         description="Main deck has Context and Reply cards",
     )
@@ -99,11 +104,16 @@ async def show_reply_card(page: AcePage, panel_index: int = 0) -> AgentDetail:
         description="Main deck shows the Reply card",
     )
     await wait_for_visual_idle(page)
+    await wait_for_state(
+        page,
+        lambda: _main_card_header_visible(page, detail, panel_index, "reply"),
+        description="visible Main header selects Reply 2/2",
+    )
     return detail
 
 
 def _main_view_ready_to_cycle(detail: AgentDetail, panel_index: int) -> bool:
-    """Return whether ctrl+j can cycle the Main panel right now."""
+    """Return whether the selected Main document is applied and can be cycled."""
     try:
         panel = detail.deck_area.panel(panel_index)
     except Exception:
@@ -114,18 +124,101 @@ def _main_view_ready_to_cycle(detail: AgentDetail, panel_index: int) -> bool:
     except Exception:
         return False
     try:
-        document = panel.main_view._document
-        view_ids = set(document.card_ids) if document is not None else set()
+        document = detail._main_deck_document
+        view_document = panel.main_view._document
+        panel_document = panel._main_document
+        view_ids = set(document.card_ids)
     except Exception:
         return False
-    if view_ids != {"context", "reply"}:
+    if (
+        panel_document is not document
+        or view_document is not document
+        or view_ids != {"context", "reply"}
+    ):
         return False
     try:
         applied = int(getattr(panel, "_main_view_applied_generation", 0))
         generation = int(getattr(panel, "_view_generation", 0))
     except Exception:
         return False
-    return applied >= generation
+    try:
+        active = panel.active_main_card()
+    except Exception:
+        return False
+    return applied >= generation and active in view_ids
+
+
+def _selected_agent_matches_detail(page: AcePage, detail: AgentDetail) -> bool:
+    """Return whether the detail panel belongs to the selected row identity."""
+    try:
+        from sase.ace.tui.actions.agents._archive_view import (
+            archive_detail_owns_panel,
+        )
+
+        if archive_detail_owns_panel(page.app):
+            runtime = getattr(page.app, "_archive_reader_runtime", None)
+            if runtime is None or runtime.loading:
+                return False
+            selected = runtime.hydrated_agent
+        else:
+            selected = page.app._get_selected_agent()
+        current = detail._current_agent
+        return (
+            selected is not None
+            and current is not None
+            and selected.identity == current.identity
+        )
+    except Exception:
+        return False
+
+
+def _active_main_chrome_card(detail: AgentDetail, panel_index: int) -> str | None:
+    """Return the card selected by the Main header state."""
+    try:
+        panel = detail.deck_area.panel(panel_index)
+        tabs = panel._main_tabs()
+        active_index = panel._active_tab_index()
+        if active_index is None:
+            return None
+        return tabs[active_index].card_id
+    except Exception:
+        return None
+
+
+def _main_card_header_visible(
+    page: AcePage, detail: AgentDetail, panel_index: int, card_id: str
+) -> bool:
+    """Return whether the exported frame shows the selected Main card header."""
+    try:
+        panel = detail.deck_area.panel(panel_index)
+        tabs = panel._main_tabs()
+        active_index = panel._active_tab_index()
+        if (
+            active_index is None
+            or tabs[active_index].card_id != card_id
+            or _active_main_chrome_card(detail, panel_index) != card_id
+        ):
+            return False
+        title = tabs[active_index].title.replace(" ", "")
+        position = f"{active_index + 1}/{len(tabs)}"
+        visible_text = _page_svg_compact_styled_text(page)
+
+        # Deck headers can put the position between the title and decorative
+        # chevrons (for example, ``‹ 2/2 › Reply``). Normalize those chrome
+        # marks while retaining the slash so either supported title order is
+        # checked against the rendered frame.
+        def compact(value: str) -> str:
+            return "".join(
+                char.casefold() for char in value if char.isalnum() or char == "/"
+            )
+
+        visible_text = compact(visible_text)
+        title = compact(title)
+        position = compact(position)
+        expected_header = (f"{title}{position}", f"{position}{title}")
+        return any(token in visible_text for token in expected_header)
+    except Exception:
+        return False
 
 
 async def select_main_card(
@@ -147,8 +240,18 @@ async def select_navigable_main_card(
     page: AcePage, card_id: str, panel_index: int = 0
 ) -> None:
     """Pin a Main card after its block-navigation predicate is ready."""
-    await select_main_card(page, card_id, panel_index)
     detail = page.app.query_one("#agent-detail-panel", AgentDetail)
+    await wait_for_state(
+        page,
+        lambda: _selected_agent_matches_detail(page, detail),
+        description="selected agent identity is applied to the detail panel",
+    )
+    await wait_for_state(
+        page,
+        lambda: _main_view_ready_to_cycle(detail, panel_index),
+        description="selected Main document and view generation are applied",
+    )
+    await select_main_card(page, card_id, panel_index)
 
     def ready() -> bool:
         try:
@@ -162,6 +265,41 @@ async def select_navigable_main_card(
             return False
 
     await page.wait_for(lambda _state: ready(), timeout=15.0)
+    await wait_for_visual_idle(page)
+    panel = detail.deck_area.panel(panel_index)
+    # On narrow terminals the agent list can intentionally consume the entire
+    # usable width, leaving the detail panel's Main view at zero width. Keep
+    # the card selection semantic in that layout, and require a painted header
+    # only when Textual has actually laid out space for the view.
+    if panel.main_view.region.width > 0 and panel.main_view.region.height > 0:
+        try:
+            await wait_for_state(
+                page,
+                lambda: (
+                    _main_view_ready_to_cycle(detail, panel_index)
+                    and detail.deck_area.panel(panel_index).active_main_card()
+                    == card_id
+                    and _main_card_header_visible(page, detail, panel_index, card_id)
+                ),
+                description=f"Main view visibly applies the selected {card_id} card",
+            )
+        except AssertionError as exc:
+            view = panel.main_view
+            scroll = view._scroll_container()
+            width = view._spread_content_width()
+            rows = view.card_anchor_rows(width=width) if width > 0 else None
+            state = (
+                f"main_active={getattr(panel, '_main_active_card', None)!r}; "
+                f"view_active={view.active_card_id!r}; "
+                f"spread_active={view.spread_active_card()!r}; "
+                f"pending={getattr(view, '_spread_pending_card', None)!r}; "
+                f"scroll_y={getattr(scroll, 'scroll_y', None)!r}; "
+                f"max_scroll_y={getattr(scroll, 'max_scroll_y', None)!r}; "
+                f"anchor_rows={rows!r}; "
+                f"anchor_generation={getattr(view, '_section_anchor_generation', None)!r}/"
+                f"{getattr(view, '_section_generation', None)!r}"
+            )
+            raise AssertionError(f"{exc}\nMain card diagnostics: {state}") from exc
     await wait_for_visual_idle(page)
     focused = detail.deck_area.focused_panel()
     assert focused.deck is DeckId.MAIN

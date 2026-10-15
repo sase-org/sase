@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from sase.ace.testing import AcePage
@@ -27,12 +29,13 @@ pytestmark = pytest.mark.visual
 async def test_config_center_logs_tab_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
 ) -> None:
     patch_startup_loaders(monkeypatch)
     _patch_macro_sources(monkeypatch)
     _patch_plugins_catalog(monkeypatch)
     _patch_config_view(monkeypatch, None)
-    _seed_logs_tab_files()
+    _seed_logs_tab_files(monkeypatch, tmp_path)
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
@@ -53,12 +56,13 @@ async def test_config_center_logs_tab_png_snapshot(
 async def test_config_center_logs_tab_toasts_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
 ) -> None:
     patch_startup_loaders(monkeypatch)
     _patch_macro_sources(monkeypatch)
     _patch_plugins_catalog(monkeypatch)
     _patch_config_view(monkeypatch, None)
-    _seed_logs_tab_files()
+    _seed_logs_tab_files(monkeypatch, tmp_path)
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
@@ -88,12 +92,13 @@ async def test_config_center_logs_tab_toasts_png_snapshot(
 async def test_config_center_logs_tab_focused_error_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
 ) -> None:
     patch_startup_loaders(monkeypatch)
     _patch_macro_sources(monkeypatch)
     _patch_plugins_catalog(monkeypatch)
     _patch_config_view(monkeypatch, None)
-    target = _seed_focused_error_log()
+    target = _seed_focused_error_log(monkeypatch, tmp_path)
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
