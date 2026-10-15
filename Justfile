@@ -959,8 +959,10 @@ docs-pdf-check: _venv
     fi
     @set -e; \
     pdf_site_dir="$(mktemp -d)"; \
-    trap 'rm -rf "$pdf_site_dir"' EXIT; \
-    SASE_PDF_BUILD_DATE="$(date -u +%Y-%m-%d)" {{ venv_bin }}/mkdocs build --strict -f mkdocs-pdf.yml --site-dir "$pdf_site_dir"; \
+    pdf_config="$(mktemp "$PWD/mkdocs-pdf.XXXXXX")"; \
+    trap 'rm -rf "$pdf_site_dir" "$pdf_config"' EXIT; \
+    {{ venv_bin }}/python tools/curate_docs_pdf_nav --output "$pdf_config"; \
+    SASE_PDF_BUILD_DATE="$(date -u +%Y-%m-%d)" {{ venv_bin }}/mkdocs build --strict -f "$pdf_config" --site-dir "$pdf_site_dir"; \
     {{ venv_bin }}/python tools/postprocess_docs_pdf --site-dir "$pdf_site_dir"; \
     {{ venv_bin }}/python tools/validate_docs_pdf --site-dir "$pdf_site_dir"; \
     mkdir -p site/downloads; \

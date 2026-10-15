@@ -257,7 +257,7 @@ hide:
   <article class="sase-card sase-card--compact">
   <h3>Download the handbook</h3>
 
-  <p>Keep the current public docs and launch articles in one static PDF.</p>
+  <p>Read the Guide-tier handbook offline, with the launch essay included.</p>
 
 <a href="/downloads/sase-handbook.pdf">Download PDF</a>
 

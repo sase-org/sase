@@ -18,16 +18,9 @@ MIN_PAGE_COUNT = 8
 
 REQUIRED_SENTINELS = (
     "Structured Agentic Software Engineering",
-    "sase's TUI",
-    "AXE Automation",
-    "Spec-Driven Development",
-    "Patches",
+    "Getting Started: Your First 15 Minutes",
     "Why Coding Agents Need Orchestration",
-)
-
-BLOG_SENTINELS = (
-    "The SASE Blog is the publishing surface for essays",
-    "SASE is a local orchestration layer above coding-agent CLIs",
+    "SASE Wraps Agent CLIs, Not Models",
 )
 
 FORBIDDEN_FRONT_MATTER_TOKENS = (
@@ -43,8 +36,8 @@ REQUIRED_METADATA = {
 }
 
 REQUIRED_OUTLINE_TITLES = (
-    "sase's TUI User Guide",
-    "Configuration",
+    "Getting Started: Your First 15 Minutes",
+    "SASE: Structured Agentic Software Engineering",
 )
 
 
@@ -153,15 +146,11 @@ def main() -> int:
             _error(f"  - {sentinel}")
         return 1
 
-    if not any(_normalize(sentinel) in text for sentinel in BLOG_SENTINELS):
-        _error("missing blog-post sentinel text")
-        return 1
-
     if "1structuredagenticsoftwareengineering" not in _compact(text):
         _error("missing numbered handbook title")
         return 1
 
-    if _normalize("4.1 Overview") not in text:
+    if _normalize("Step 1 — Install SASE") not in text:
         _error("missing representative nested heading number")
         return 1
 
@@ -185,7 +174,10 @@ def main() -> int:
     missing_outline_titles = [
         title
         for title in REQUIRED_OUTLINE_TITLES
-        if not any(title in outline_title for outline_title in outline_titles)
+        if not any(
+            _normalize(title) in _normalize(outline_title)
+            for outline_title in outline_titles
+        )
     ]
     if missing_outline_titles:
         _error("missing representative PDF outline entries:")

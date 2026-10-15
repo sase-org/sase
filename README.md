@@ -150,8 +150,8 @@ installation details use [INSTALL.md](INSTALL.md), or follow
 - [Shell Completion](https://sase.sh/completion/) — `<TAB>` completion for zsh, bash,
   and fish
 - [Blog](https://sase.sh/blog/) — announcements and deep dives
-- [The SASE Handbook (PDF)](https://sase.sh/downloads/sase-handbook.pdf) — the full
-  documentation as a single document
+- [The SASE Handbook (PDF)](https://sase.sh/downloads/sase-handbook.pdf) — the
+  Guide-tier handbook and launch essay in one document
 - [Support](https://github.com/sase-org/sase/issues) — report bugs and ask questions in
   GitHub Issues
 

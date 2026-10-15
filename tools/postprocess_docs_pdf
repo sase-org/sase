@@ -114,6 +114,17 @@ def _flatten_nav(items: list[Any]) -> list[tuple[str, str]]:
     return pages
 
 
+def _is_handbook_source(source_path: str) -> bool:
+    """Return whether a MkDocs source belongs in the curated handbook."""
+    if source_path in {
+        "index.md",
+        "getting_started.md",
+        "blog/posts/structured-agentic-software-engineering.md",
+    }:
+        return True
+    return source_path.startswith(("start/", "concepts/", "guides/"))
+
+
 def _site_path_for(site_dir: Path, source_path: str, suffix: str) -> Path:
     source = Path(source_path)
     if source.name == "index.md":
@@ -131,7 +142,14 @@ def _headings_from_html(path: Path) -> tuple[Heading, ...]:
 
 def _load_chapters(site_dir: Path) -> list[Chapter]:
     config = yaml.safe_load(MKDOCS_CONFIG.read_text(encoding="utf-8"))
-    nav_pages = _flatten_nav(config["nav"])
+    nav_pages = [
+        (title, path)
+        for title, path in _flatten_nav(config["nav"])
+        if _is_handbook_source(path)
+    ]
+    launch_essay = "blog/posts/structured-agentic-software-engineering.md"
+    if all(path != launch_essay for _, path in nav_pages):
+        nav_pages.append(("The SASE Launch Essay", launch_essay))
     chapters: list[Chapter] = []
 
     for index, (nav_title, source_path) in enumerate(nav_pages, start=1):

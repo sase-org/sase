@@ -1,0 +1,70 @@
+#!/usr/bin/env python3
+"""Write a PDF MkDocs config whose navigation contains only handbook pages."""
+
+from __future__ import annotations
+
+import argparse
+from pathlib import Path
+from typing import Any
+
+import yaml
+
+
+ROOT = Path(__file__).resolve().parents[1]
+HANDBOOK_ROOTS = ("start/", "concepts/", "guides/")
+LAUNCH_ESSAY = "blog/posts/structured-agentic-software-engineering.md"
+
+
+def _is_handbook_source(source_path: str) -> bool:
+    return source_path in {"index.md", "getting_started.md", LAUNCH_ESSAY} or (
+        source_path.startswith(HANDBOOK_ROOTS)
+    )
+
+
+def _filter_nav(items: list[Any]) -> list[Any]:
+    filtered: list[Any] = []
+    for item in items:
+        if isinstance(item, str):
+            if _is_handbook_source(item):
+                filtered.append(item)
+            continue
+        if not isinstance(item, dict):
+            continue
+
+        section: dict[str, Any] = {}
+        for title, value in item.items():
+            if isinstance(value, str) and _is_handbook_source(value):
+                section[title] = value
+            elif isinstance(value, list):
+                children = _filter_nav(value)
+                if children:
+                    section[title] = children
+        if section:
+            filtered.append(section)
+    return filtered
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--output", type=Path, required=True)
+    args = parser.parse_args()
+
+    config = yaml.safe_load((ROOT / "mkdocs.yml").read_text(encoding="utf-8"))
+    nav = _filter_nav(config["nav"])
+    if not any(
+        isinstance(item, dict) and item.get("The SASE Launch Essay") == LAUNCH_ESSAY
+        for item in nav
+    ):
+        nav.append({"The SASE Launch Essay": LAUNCH_ESSAY})
+
+    generated = {
+        "INHERIT": "mkdocs-pdf.yml",
+        "nav": nav,
+    }
+    args.output.write_text(
+        yaml.safe_dump(generated, sort_keys=False), encoding="utf-8"
+    )
+
+
+if __name__ == "__main__":
+    main()
