@@ -1275,8 +1275,9 @@ substitution is used.
 
 sase's TUI recognizes valid single-line `<label>` tags as raw placeholders. A label must
 be nonempty, contain no leading or trailing whitespace, and be at most 100 characters.
-Raw placeholders are highlighted in prompt panes, participate in placeholder completion,
-and feed the saved common-placeholder history described in
+Raw placeholders are highlighted in prompt panes, the prompt-stash, trash, and
+pinned-stash previews, and the agent panel's raw-prompt header. They participate in
+placeholder completion and feed the saved common-placeholder history described in
 [sase's TUI completion](ace.md#completion). Repeated tags with the same exact,
 case-sensitive inner text are one logical placeholder. Tags inside inline code, fenced
 code blocks, or `%macros_enabled:false` regions stay literal and are excluded from

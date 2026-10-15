@@ -13,6 +13,7 @@ from sase.ace.tui.util.macro_syntax import (
     highlight_markdown_text,
     highlight_prompt_text,
 )
+from sase.macro.highlight_theme import ace_placeholder_highlight_styles
 
 
 def _styles_at(text: Text, needle: str, *, offset: int = 0) -> set[str]:
@@ -284,3 +285,65 @@ def test_stylize_project_tags_applies_region_offsets(monkeypatch) -> None:
 
     assert "dim #C75A31" in _styles_at(highlighted, "+sase")
     assert "bold #C75A31" in _styles_at(highlighted, "sase", offset=1)
+
+
+def _placeholder_styles() -> tuple[str, str]:
+    styles = ace_placeholder_highlight_styles()
+    return styles.delimiter.rich_style, styles.inner.rich_style
+
+
+def test_raw_placeholder_uses_delimiter_and_inner_styles() -> None:
+    highlighted = highlight_prompt_text("Review the <research>.md file")
+    delimiter, inner = _placeholder_styles()
+
+    assert delimiter in _styles_at(highlighted, "<research>")
+    assert inner in _styles_at(highlighted, "research")
+    assert delimiter in _styles_at(
+        highlighted, "<research>", offset=len("<research>") - 1
+    )
+    assert delimiter not in _styles_at(highlighted, ".md")
+    assert inner not in _styles_at(highlighted, ".md")
+    assert delimiter not in _styles_at(highlighted, "Review")
+    assert inner not in _styles_at(highlighted, "Review")
+
+
+def test_literal_placeholders_stay_unstyled() -> None:
+    source = "`<lit>`\n```\n<code>\n```\n<after>"
+    highlighted = highlight_prompt_text(source)
+    delimiter, inner = _placeholder_styles()
+
+    assert delimiter not in _styles_at(highlighted, "lit")
+    assert inner not in _styles_at(highlighted, "lit")
+    assert delimiter not in _styles_at(highlighted, "code")
+    assert inner not in _styles_at(highlighted, "code")
+    assert delimiter in _styles_at(highlighted, "<after>")
+    assert inner in _styles_at(highlighted, "after")
+
+
+def test_placeholder_styles_survive_non_bmp_offsets() -> None:
+    highlighted = highlight_prompt_text("😀 <emoji> z")
+    delimiter, inner = _placeholder_styles()
+
+    assert delimiter in _styles_at(highlighted, "<emoji>")
+    assert inner in _styles_at(highlighted, "emoji")
+    assert delimiter in _styles_at(highlighted, "<emoji>", offset=len("<emoji>") - 1)
+
+
+def test_placeholder_wins_inside_macro_arguments() -> None:
+    highlighted = highlight_prompt_text("#foo(<bar>)")
+    _, inner = _placeholder_styles()
+
+    assert inner in _styles_at(highlighted, "bar")
+
+
+def test_placeholder_overlay_fails_open(monkeypatch) -> None:
+    def _raise(*_args, **_kwargs):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr("sase.ace.tui.util.macro_syntax.placeholder_spans", _raise)
+    from sase.ace.tui.util.macro_syntax import _markdown_text_cache
+
+    _markdown_text_cache.clear()
+    highlighted = highlight_prompt_text("#foo fail-open <research> unique")
+
+    assert MACRO_TOKEN_STYLES["invocation"] in _styles_at(highlighted, "#foo")

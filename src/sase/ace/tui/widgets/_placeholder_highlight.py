@@ -21,6 +21,7 @@ from sase.ace.tui.widgets.placeholder_completion import (
     editor_range_to_offsets,
 )
 from sase.history.prompt_placeholders import CommonPlaceholderIndex
+from sase.macro.highlight_theme import placeholder_highlight_styles
 from sase.macro.placeholder_completion import PlaceholderSpan, placeholder_spans
 
 if TYPE_CHECKING:
@@ -254,10 +255,20 @@ class PlaceholderHighlightMixin(_MixinBase):
         base = self._resolve_placeholder_base_theme(active_name)
         syntax_styles = dict(base.syntax_styles)
         app_theme = self.app.current_theme
+        styles = placeholder_highlight_styles(
+            accent=app_theme.accent,
+            secondary=app_theme.secondary,
+        )
         syntax_styles.update(
             {
-                "placeholder.delimiter": Style(color=app_theme.accent, dim=True),
-                "placeholder.inner": Style(color=app_theme.secondary, bold=True),
+                "placeholder.delimiter": Style(
+                    color=styles.delimiter.color,
+                    dim=styles.delimiter.dim,
+                ),
+                "placeholder.inner": Style(
+                    color=styles.inner.color,
+                    bold=styles.inner.bold,
+                ),
             }
         )
         theme = dataclasses.replace(

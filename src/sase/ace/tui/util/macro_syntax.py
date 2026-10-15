@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections import OrderedDict
 from collections.abc import Callable
+import dataclasses
 from hashlib import blake2b
 from typing import Protocol
 
@@ -15,12 +16,15 @@ from rich.text import Text
 
 from sase.macro import alt_inspect, macro_inspect
 from sase.macro.glossary_catalog import EditorGlossaryCatalog
+from sase.macro.highlight_theme import ace_placeholder_highlight_styles
+from sase.macro.placeholder_completion import placeholder_spans
 from sase.macro.repo_mention_catalog import EditorRepoMentionCatalog
 
 from .artifact_ref_syntax import (
     ArtifactRefStylePalette,
     apply_artifact_ref_overlays,
 )
+from .editor_offsets import editor_range_to_offsets
 from .frontmatter_syntax import FRONTMATTER_MARKDOWN_LEXER
 from .lazy_syntax import (
     MARKDOWN_SYNTAX_HIGHLIGHT_MAX_BYTES,
@@ -216,6 +220,34 @@ def _project_tag_overlays_for_source(source: str) -> list[tuple[str, int, int]]:
         return []
 
 
+def _placeholder_overlays_for_source(source: str) -> list[tuple[str, int, int]]:
+    """Return ``(style, start, end)`` overlays for raw placeholders in *source*."""
+    if "<" not in source or ">" not in source:
+        return []
+    try:
+        styles = ace_placeholder_highlight_styles()
+        delimiter = styles.delimiter.rich_style
+        inner = styles.inner.rich_style
+        overlays: list[tuple[str, int, int]] = []
+        for span in placeholder_spans(source):
+            if not span.raw:
+                continue
+            full_range = editor_range_to_offsets(source, dataclasses.asdict(span.range))
+            inner_range = editor_range_to_offsets(
+                source, dataclasses.asdict(span.inner_range)
+            )
+            if full_range is None or inner_range is None:
+                continue
+            full_start, full_end = full_range
+            inner_start, inner_end = inner_range
+            overlays.append((delimiter, full_start, inner_start))
+            overlays.append((inner, inner_start, inner_end))
+            overlays.append((delimiter, inner_end, full_end))
+        return overlays
+    except Exception:
+        return []
+
+
 def _project_tag_overlays(span: object) -> list[tuple[str, int, int]]:
     """Return ``(style, start, end)`` overlays for one tag span."""
     kind = getattr(span, "kind", None)
@@ -363,6 +395,8 @@ def _highlight_prompt_text_uncached(
             max_bytes=MARKDOWN_SYNTAX_HIGHLIGHT_MAX_BYTES,
             max_lines=MARKDOWN_SYNTAX_HIGHLIGHT_MAX_LINES,
         )
+    for style, start, end in _placeholder_overlays_for_source(text):
+        highlighted.stylize(style, start, end)
     return highlighted
 
 

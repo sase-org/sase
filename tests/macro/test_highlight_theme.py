@@ -5,9 +5,11 @@ from typing import get_args
 from sase.macro.highlight import HighlightSpan, MacroHighlightRole
 from sase.macro.highlight_theme import (
     HighlightStyle,
+    ace_placeholder_highlight_styles,
     derive_argument_color,
     highlight_style_for_span,
     highlight_theme,
+    placeholder_highlight_styles,
 )
 
 
@@ -145,3 +147,17 @@ def test_project_tag_unknown_uses_warning_and_underline() -> None:
 
     assert style == highlight_theme()["macro.project_tag.unknown"]
     assert style.underline is True
+
+
+def test_placeholder_highlight_styles_split_delimiter_and_inner() -> None:
+    styles = placeholder_highlight_styles(accent="#aabbcc", secondary="#112233")
+
+    assert styles.delimiter == HighlightStyle("#aabbcc", dim=True)
+    assert styles.inner == HighlightStyle("#112233", bold=True)
+
+
+def test_ace_placeholder_highlight_styles_use_flexoki_accent_and_secondary() -> None:
+    styles = ace_placeholder_highlight_styles()
+
+    assert styles.delimiter == HighlightStyle("#9B76C8", dim=True)
+    assert styles.inner == HighlightStyle("#24837B", bold=True)

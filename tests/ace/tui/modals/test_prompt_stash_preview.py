@@ -8,6 +8,7 @@ from sase.ace.tui.modals._prompt_stash_preview import (
     _build_prompt_stash_preview,
 )
 from sase.core.prompt_stash_wire import PromptStashEntryWire
+from sase.macro.highlight_theme import ace_placeholder_highlight_styles
 from tests._project_display_case import ProjectDisplayCase
 
 
@@ -70,3 +71,19 @@ def test_metadata_projects_canonical_project_from_supplied_snapshot(
     assert f"Project:    {project_display_case.project_label}" in metadata
     assert canonical not in metadata
     assert entry.project == canonical
+
+
+def test_preview_highlights_raw_placeholders() -> None:
+    preview = _build_prompt_stash_preview(
+        _entry(text="Review the <research>.md file"),
+        prompt_count=1,
+    )
+    inner = ace_placeholder_highlight_styles().inner.rich_style
+    position = preview.body.plain.index("research")
+    styles = {
+        str(span.style)
+        for span in preview.body.spans
+        if span.start <= position < span.end and span.style is not None
+    }
+
+    assert inner in styles

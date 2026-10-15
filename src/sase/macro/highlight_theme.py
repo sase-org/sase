@@ -75,6 +75,35 @@ class HighlightStyle:
         )
 
 
+@dataclass(frozen=True, slots=True)
+class _PlaceholderHighlightStyles:
+    """Split styles for a raw ``<placeholder>``: delimiters and inner label."""
+
+    delimiter: HighlightStyle
+    inner: HighlightStyle
+
+
+def placeholder_highlight_styles(
+    *, accent: str | None, secondary: str | None
+) -> _PlaceholderHighlightStyles:
+    return _PlaceholderHighlightStyles(
+        delimiter=HighlightStyle(accent, dim=True),
+        inner=HighlightStyle(secondary, bold=True),
+    )
+
+
+@functools.cache
+def ace_placeholder_highlight_styles() -> _PlaceholderHighlightStyles:
+    """Placeholder styles derived from ACE's pinned theme (``ACE_THEME_NAME``)."""
+    from textual.theme import BUILTIN_THEMES
+
+    theme = BUILTIN_THEMES[ACE_THEME_NAME]
+    return placeholder_highlight_styles(
+        accent=theme.accent,
+        secondary=theme.secondary,
+    )
+
+
 def derive_argument_color(
     base: str | None,
     *,
@@ -328,8 +357,10 @@ def highlight_theme() -> Mapping[MacroHighlightRole, HighlightStyle]:
 __all__ = [
     "ACE_THEME_NAME",
     "HighlightStyle",
+    "ace_placeholder_highlight_styles",
     "derive_argument_color",
     "highlight_style_for_span",
     "highlight_theme",
     "macro_argument_palette",
+    "placeholder_highlight_styles",
 ]
