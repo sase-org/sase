@@ -23,7 +23,11 @@ from sase.ace.tui.tool_runs.summaries import (
 from ._shared import count_silent_rows
 from .document import build_tool_runs_document
 from .messages import ToolRunsDeckLoadResult
-from .rows import tool_runs_cache_signature, tool_runs_rows_for_document
+from .rows import (
+    tool_runs_cache_signature,
+    tool_runs_render_digest,
+    tool_runs_rows_for_document,
+)
 
 log = logging.getLogger(__name__)
 
@@ -73,11 +77,12 @@ def _empty_tool_runs_result(
 ) -> ToolRunsDeckLoadResult:
     """Return an empty (no runs) load result for one subject."""
     signature = tool_runs_cache_signature(selector_key, 0, (), False)
+    digest = tool_runs_render_digest(signature, details={})
     return ToolRunsDeckLoadResult(
         subject_identity=subject_identity,
         generation=generation,
         signature=signature,
-        document=build_tool_runs_document((), subject=subject, digest=signature),
+        document=build_tool_runs_document((), subject=subject, digest=digest),
         runs=(),
         total_runs=0,
         truncated=False,
@@ -147,6 +152,14 @@ def load_tool_runs_deck(
         render_width = max(20, int(width))
     except (TypeError, ValueError):
         render_width = 100
+    digest = tool_runs_render_digest(
+        signature,
+        details=details,
+        level=level,
+        width=render_width,
+        hint_numbers=hint_numbers,
+        store_token=store_token,
+    )
     return ToolRunsDeckLoadResult(
         subject_identity=subject_identity,
         generation=generation,
@@ -154,7 +167,7 @@ def load_tool_runs_deck(
         document=build_tool_runs_document(
             rows,
             subject=subject,
-            digest=signature,
+            digest=digest,
             total_runs=total,
             truncated=truncated,
             details=details,

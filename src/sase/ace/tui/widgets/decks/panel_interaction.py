@@ -63,6 +63,19 @@ class DeckPanelInteractionMixin:
             spread = False
         if spread:
             try:
+                pending = getattr(self.main_view, "_spread_pending_card", None)
+            except Exception:
+                pending = None
+            if pending is not None:
+                # Keep the requested card until layout proves the scroll.
+                if pending != self._main_active_card:
+                    self._main_active_card = pending
+                    try:
+                        self.refresh_chrome()
+                    except Exception:
+                        pass
+                return
+            try:
                 derived = self._main_spread_active()
             except Exception:
                 derived = None

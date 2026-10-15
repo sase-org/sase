@@ -10,6 +10,7 @@ from sase.ace.tui.widgets.decks.tool_runs.view import (
     ToolRunsDeckView,
     load_tool_runs_deck,
     tool_runs_cache_signature,
+    tool_runs_render_digest,
     tool_runs_rows_for_document,
 )
 
@@ -21,5 +22,6 @@ __all__ = [
     "build_tool_runs_document",
     "load_tool_runs_deck",
     "tool_runs_cache_signature",
+    "tool_runs_render_digest",
     "tool_runs_rows_for_document",
 ]

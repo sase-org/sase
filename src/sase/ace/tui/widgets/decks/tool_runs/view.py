@@ -10,7 +10,11 @@ from __future__ import annotations
 
 from .loader import load_tool_runs_deck
 from .messages import ToolRunsDeckLoaded, ToolRunsDeckLoadResult
-from .rows import tool_runs_cache_signature, tool_runs_rows_for_document
+from .rows import (
+    tool_runs_cache_signature,
+    tool_runs_render_digest,
+    tool_runs_rows_for_document,
+)
 from .widget import ToolRunsDeckView
 
 __all__ = [
@@ -19,5 +23,6 @@ __all__ = [
     "ToolRunsDeckView",
     "load_tool_runs_deck",
     "tool_runs_cache_signature",
+    "tool_runs_render_digest",
     "tool_runs_rows_for_document",
 ]

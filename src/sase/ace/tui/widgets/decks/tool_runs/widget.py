@@ -37,7 +37,11 @@ from ._shared import (
 from .document import build_tool_runs_document
 from .loader import load_tool_runs_deck
 from .messages import ToolRunsDeckLoaded, ToolRunsDeckLoadResult
-from .rows import tool_runs_cache_signature, tool_runs_rows_for_document
+from .rows import (
+    tool_runs_cache_signature,
+    tool_runs_render_digest,
+    tool_runs_rows_for_document,
+)
 from .widget_live import ToolRunsLiveMixin
 
 
@@ -63,6 +67,7 @@ class ToolRunsDeckView(ToolRunsLiveMixin, CardDocumentView):
         self._current_worker_subject: object | None = None
         self._current_worker_generation: int = 0
         self._painted_signature: str | None = None
+        self._painted_render_digest: str | None = None
         self._has_displayed_content = False
         self._detail_level: ToolRunsDetailLevel = DEFAULT_TOOL_RUNS_DETAIL_LEVEL
         self._current_agent: Any | None = None
@@ -182,9 +187,25 @@ class ToolRunsDeckView(ToolRunsLiveMixin, CardDocumentView):
                 fast_complete = len(fast_details) >= len(rows)
             except Exception:
                 fast_complete = False
+            try:
+                render_width = tool_runs_render_width(self)
+            except Exception:
+                render_width = 100
+            try:
+                hints = tool_runs_hint_numbers(self)
+            except Exception:
+                hints = None
+            render_digest = tool_runs_render_digest(
+                signature,
+                details=fast_details,
+                level=self._detail_level,
+                width=render_width,
+                hint_numbers=hints,
+                store_token=store_token,
+            )
             if (
-                signature
-                and signature == self._painted_signature
+                render_digest
+                and render_digest == self._painted_render_digest
                 and not force
                 and fast_complete
             ):
@@ -198,14 +219,14 @@ class ToolRunsDeckView(ToolRunsLiveMixin, CardDocumentView):
                     document=build_tool_runs_document(
                         rows,
                         subject=subject,
-                        digest=signature,
+                        digest=render_digest,
                         total_runs=total,
                         truncated=truncated,
                         details=fast_details,
                         level=self._detail_level,
-                        width=tool_runs_render_width(self),
+                        width=render_width,
                         now_s=now_s,
-                        hint_numbers=tool_runs_hint_numbers(self),
+                        hint_numbers=hints,
                     ),
                     runs=rows,
                     total_runs=total,
@@ -272,6 +293,7 @@ class ToolRunsDeckView(ToolRunsLiveMixin, CardDocumentView):
         self._current_subject = None
         self._current_subject_identity = None
         self._painted_signature = None
+        self._painted_render_digest = None
         self._has_displayed_content = False
         self._clear_live_state()
         try:
@@ -388,6 +410,10 @@ class ToolRunsDeckView(ToolRunsLiveMixin, CardDocumentView):
         except Exception:
             pass
         self._painted_signature = result.signature
+        try:
+            self._painted_render_digest = result.document.digest
+        except Exception:
+            self._painted_render_digest = None
         try:
             self._has_displayed_content = bool(ids)
         except Exception:

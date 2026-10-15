@@ -38,6 +38,8 @@ class CardDocumentView(CardDocumentViewBlocksMixin, SectionViewMixin, Static):
         self._render_mode: RenderMode = RenderMode.PAGED
         self._spread_pending_card: str | None = None
         self._spread_retry_count: int = 0
+        self._spread_scroll_generation: int = 0
+        self._spread_land_confirmed: bool = False
         self._init_block_view_state()
 
     @property
@@ -219,51 +221,97 @@ class CardDocumentView(CardDocumentViewBlocksMixin, SectionViewMixin, Static):
             return None
         self._spread_pending_card = card_id
         self._spread_retry_count = 0
+        self._spread_land_confirmed = False
+        self._spread_scroll_generation += 1
+        generation = self._spread_scroll_generation
         self.enable_section_layout_reserve()
         try:
-            self.call_after_refresh(lambda: self._apply_spread_scroll())
+            self.call_after_refresh(lambda: self._apply_spread_scroll(generation))
         except Exception:
             pass
         self._active_card = card_id
         return card_id
 
-    def _apply_spread_scroll(self) -> None:
+    def _spread_scroll_landed(self, row: int) -> bool:
+        """Return whether the current layout accepted scroll target ``row``."""
+        scroll = self._scroll_container()
+        if scroll is None:
+            return False
+        try:
+            current = int(scroll.scroll_y)
+            max_y = int(scroll.max_scroll_y)
+        except Exception:
+            return False
+        if max_y < row:
+            return False
+        return current == row
+
+    def _request_spread_scroll_y(self, row: int) -> None:
+        """Scroll immediately so layout cannot drop a deferred target."""
+        scroll = self._scroll_container()
+        if scroll is None:
+            return
+        try:
+            scroll.scroll_to(y=row, animate=False, immediate=True)
+        except TypeError:
+            try:
+                scroll.scroll_to(y=row, animate=False)
+            except Exception:
+                return
+        except Exception:
+            return
+        try:
+            self.call_after_refresh(lambda: sync_scrollbar_position(scroll))
+        except Exception:
+            pass
+
+    def _schedule_spread_scroll(self, generation: int) -> None:
+        try:
+            self.call_after_refresh(lambda: self._apply_spread_scroll(generation))
+        except Exception:
+            pass
+
+    def _finish_spread_scroll(self, row: int, generation: int) -> None:
+        """Clear pending only after a later refresh still shows the land."""
+        if self._spread_scroll_landed(row):
+            if self._spread_land_confirmed:
+                self._spread_pending_card = None
+                self._spread_retry_count = 0
+                self._spread_land_confirmed = False
+                return
+            self._spread_land_confirmed = True
+            self._schedule_spread_scroll(generation)
+            return
+        self._spread_land_confirmed = False
+        if self._spread_retry_count < 8:
+            self._spread_retry_count += 1
+            self._schedule_spread_scroll(generation)
+
+    def _apply_spread_scroll(self, generation: int | None = None) -> None:
+        if generation is not None and generation != self._spread_scroll_generation:
+            # A later user navigation owns the pending card now.
+            return
         card_id = self._spread_pending_card
         if card_id is None:
             return
+        live_generation = self._spread_scroll_generation
         if card_id == (
             self._document.cards[0].card_id
             if self._document and self._document.cards
             else None
         ):
-            try:
-                scroll = self._scroll_container()
-                if scroll is not None:
-                    scroll.scroll_to(y=0, animate=False)
-            except Exception:
-                pass
-            self._spread_pending_card = None
-            self._spread_retry_count = 0
+            self._request_spread_scroll_y(0)
+            self._finish_spread_scroll(0, live_generation)
             return
         row = self.spread_anchor_row(card_id)
         if row is None:
-            if self._spread_retry_count < 3:
+            self._spread_land_confirmed = False
+            if self._spread_retry_count < 8:
                 self._spread_retry_count += 1
-                try:
-                    self.call_after_refresh(lambda: self._apply_spread_scroll())
-                except Exception:
-                    pass
-            else:
-                self._spread_pending_card = None
+                self._schedule_spread_scroll(live_generation)
             return
-        try:
-            scroll = self._scroll_container()
-            if scroll is not None:
-                scroll.scroll_to(y=row, animate=False)
-        except Exception:
-            pass
-        self._spread_pending_card = None
-        self._spread_retry_count = 0
+        self._request_spread_scroll_y(row)
+        self._finish_spread_scroll(row, live_generation)
 
     def show_document(
         self,
@@ -437,6 +485,7 @@ class CardDocumentView(CardDocumentViewBlocksMixin, SectionViewMixin, Static):
                 # has not caught up yet, so keep the requested card instead
                 # of re-deriving from the stale scroll offset.
                 self._active_card = pending
+                self._schedule_spread_scroll(self._spread_scroll_generation)
             else:
                 active = self.spread_active_card()
                 if active is not None:
@@ -495,11 +544,25 @@ class CardDocumentView(CardDocumentViewBlocksMixin, SectionViewMixin, Static):
         # Honor a one-shot scroll-to-card recorded for duplicate panels.
         pending = getattr(self, "_spread_pending_card", None)
         if pending is not None and document.card(pending) is not None:
-            try:
-                self.call_after_refresh(lambda: self._apply_spread_scroll())
-            except Exception:
-                pass
+            self._schedule_spread_scroll(self._spread_scroll_generation)
         return self._active_card
+
+    def _publish_section_layout(
+        self,
+        *,
+        generation: int,
+        width: int,
+        anchors: tuple[Any, ...],
+    ) -> None:
+        super()._publish_section_layout(
+            generation=generation, width=width, anchors=anchors
+        )
+        pending = self._spread_pending_card
+        if pending is None:
+            return
+        self._spread_retry_count = 0
+        self._spread_land_confirmed = False
+        self._schedule_spread_scroll(self._spread_scroll_generation)
 
     def _spread_accent(self) -> str:
         try:

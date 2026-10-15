@@ -178,6 +178,12 @@ class DeckPanelChromeMixin:
         if deck is DeckId.MAIN:
             ids = [card.card_id for card in self._main_document.cards]  # type: ignore[attr-defined]
             active = getattr(self, "_main_active_card", None)
+            try:
+                pending = getattr(self.main_view, "_spread_pending_card", None)  # type: ignore[attr-defined]
+            except Exception:
+                pending = None
+            if pending is not None:
+                active = pending
             if active is None:
                 return None if not ids else None
             try:

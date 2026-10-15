@@ -184,6 +184,14 @@ class DeckPanelCardDocumentsMixin:
     def _store_document_active(self, deck: DeckId, card_id: str | None) -> None:
         """Store the active card for ``deck``."""
         if deck is DeckId.MAIN:
+            try:
+                pending = getattr(self.main_view, "_spread_pending_card", None)
+            except Exception:
+                pending = None
+            if pending is not None:
+                # Keep the in-flight spread target until layout proves it.
+                self._main_active_card = pending
+                return
             self._main_active_card = card_id
             return
         try:
