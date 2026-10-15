@@ -32,6 +32,7 @@ from ..models.agent_session_members import (
 from ..models.agent_groups import GroupingMode, GroupRow
 from ..models.agent_time import row_runtime_or_wait_ticks, wait_display_agent
 from ..models.tribe_display import TRIBE_IDENTITY_FALLBACK_COLOR
+from ._clan_wave_gutter import ClanWaveGutter
 from sase.ace.tui.tool_runs.attribution import (
     row_identity_from_agent,
     select_live_runs,
@@ -260,6 +261,7 @@ def agent_render_key(
     show_machine_chip: bool = False,
     tab_chip: tuple[str, str] | None = None,
     clan_projects: tuple[str, ...] | None = None,
+    clan_wave_gutter: ClanWaveGutter | None = None,
 ) -> tuple[Any, ...]:
     """Build the cache key for a single agent row.
 
@@ -338,6 +340,7 @@ def agent_render_key(
         agent.is_agent_session_container_row,
         agent.tree_parent_key,
         agent.tree_depth,
+        clan_wave_gutter,
         agent.clan_tribes,
         agent.agent_name,
         agent.presented_agent_name,

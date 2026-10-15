@@ -106,7 +106,6 @@ class AgentStateSessionFields:
     )
     clan_wave_slot: ClanWaveSlot | None = field(
         default=None,
-        compare=False,
         repr=False,
     )
     # Explicitly marks execution-neutral parallel-agent-session membership. Unlike

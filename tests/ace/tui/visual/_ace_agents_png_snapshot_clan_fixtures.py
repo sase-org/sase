@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from sase.ace.tui.models._agent_ordering import sort_and_reorder
 from sase.ace.tui.models.agent import Agent, AgentType
@@ -363,6 +363,164 @@ def multi_project_clan_agents() -> list[Agent]:
             member("two", 1, "bob-cli"),
             member("three", 2, "sase"),
             member("four", 3, "chezmoi"),
+        ],
+        [],
+    )
+
+
+def wave_clan_agents() -> list[Agent]:
+    """Return the layered clan shapes used by the wave-gutter snapshot."""
+    generation = "20261015120000"
+
+    def member(
+        clan: str,
+        suffix: str,
+        minute: int,
+        status: str,
+        *,
+        waits: tuple[str, ...] = (),
+        parent: Agent | None = None,
+        session: str | None = None,
+        role: str | None = None,
+        provider: str = "codex",
+        model: str = "gpt-5",
+        epic_bead: str | None = None,
+    ) -> Agent:
+        name = f"{clan}.{suffix}"
+        moment = datetime(2026, 10, 15, 12, minute, 0)
+        row = Agent(
+            agent_type=AgentType.RUNNING,
+            cl_name=f"visual-{clan}-{suffix}",
+            project_file="/workspace/sase/visual_project.sase",
+            status=status,
+            start_time=moment,
+            run_start_time=moment if status == "RUNNING" else None,
+            stop_time=moment + timedelta(minutes=2) if status == "DONE" else None,
+            raw_suffix=f"2026101512{minute:02d}00-{clan}-{suffix}",
+            agent_name=name,
+            agent_clan=clan if parent is None else None,
+            agent_clan_generation=generation if parent is None else None,
+            parent_timestamp=parent.raw_suffix if parent is not None else None,
+            role_suffix=f"--{role}" if role else None,
+            agent_session=session,
+            agent_session_role=("root" if session and role is None else role),
+            source_machine="athena",
+            tribe="epic",
+            epic_bead_id=epic_bead,
+            llm_provider=provider,
+            model=model,
+        )
+        row.waiting_for = list(waits)
+        return row
+
+    family_name = "wave-epic.family"
+    family = member(
+        "wave-epic",
+        "family",
+        0,
+        "RUNNING",
+        session=family_name,
+        provider="codex",
+    )
+    family_code = member(
+        "wave-epic",
+        "family--code",
+        1,
+        "DONE",
+        parent=family,
+        session=family_name,
+        role="code",
+        provider="claude",
+        model="sonnet",
+    )
+    family_review = member(
+        "wave-epic",
+        "family--review",
+        2,
+        "RUNNING",
+        parent=family,
+        session=family_name,
+        role="review",
+        provider="gemini",
+        model="gemini-pro",
+    )
+    epic_parallel = member("wave-epic", "parallel", 3, "DONE")
+    epic_implement = member(
+        "wave-epic",
+        "implement",
+        4,
+        "WAITING",
+        waits=(family_name,),
+    )
+    epic_verify = member(
+        "wave-epic",
+        "verify",
+        5,
+        "WAITING",
+        waits=("wave-epic.implement",),
+    )
+    epic_land = member(
+        "wave-epic",
+        "land",
+        6,
+        "WAITING",
+        waits=("wave-epic.verify",),
+        epic_bead="sase-wave-epic",
+    )
+
+    research_linker = member("wave-research", "linker", 10, "RUNNING", provider="codex")
+    research_image = member(
+        "wave-research",
+        "image",
+        11,
+        "WAITING",
+        waits=("wave-research.linker",),
+        provider="openai",
+        model="image-gen",
+    )
+    research_audio = member(
+        "wave-research",
+        "audio",
+        12,
+        "WAITING",
+        waits=("wave-research.linker",),
+        provider="google",
+        model="audio-preview",
+    )
+
+    chain = [
+        member(
+            "wave-chain",
+            str(index),
+            20 + index,
+            "DONE" if index < 5 else "RUNNING" if index == 5 else "WAITING",
+            waits=(f"wave-chain.{index - 1}",) if index > 1 else (),
+        )
+        for index in range(1, 15)
+    ]
+    flat = [
+        member("wave-flat", "brief", 40, "DONE"),
+        member("wave-flat", "review", 41, "RUNNING"),
+    ]
+    cycle = [
+        member("wave-cycle", "a", 50, "RUNNING", waits=("wave-cycle.b",)),
+        member("wave-cycle", "b", 51, "WAITING", waits=("wave-cycle.a",)),
+    ]
+    return sort_and_reorder(
+        [
+            family,
+            epic_parallel,
+            epic_implement,
+            epic_verify,
+            epic_land,
+            research_linker,
+            research_image,
+            research_audio,
+            family_code,
+            family_review,
+            *chain,
+            *flat,
+            *cycle,
         ],
         [],
     )

@@ -327,14 +327,25 @@ def _clan_member_units(rows: list[Agent], fold_key: str) -> list[list[Agent]]:
     return units
 
 
-def _sort_clan_member_units(units: list[list[Agent]]) -> list[Agent]:
-    """Stable-sort direct clan-member subtrees by their anchor status."""
-    units.sort(
-        key=lambda unit: clan_member_status_priority(
-            unit[0].status,
-            unit[0].retried_as_timestamp,
+def _sort_clan_member_units(
+    units: list[list[Agent]], *, layered: bool = False
+) -> list[Agent]:
+    """Order layered member subtrees by wave rank, otherwise by status."""
+    if layered:
+        units.sort(
+            key=lambda unit: (
+                unit[0].clan_wave_slot.rank
+                if unit[0].clan_wave_slot is not None
+                else float("inf")
+            )
         )
-    )
+    else:
+        units.sort(
+            key=lambda unit: clan_member_status_priority(
+                unit[0].status,
+                unit[0].retried_as_timestamp,
+            )
+        )
     return [row for unit in units for row in unit]
 
 
@@ -400,7 +411,10 @@ def project_clan_tree(agents: list[Agent]) -> list[Agent]:
             if unit:
                 unit[0].clan_wave_slot = wave_slots.get(clan_wave_identity_key(unit[0]))
         containers[clan_key] = container
-        rows_by_clan[clan_key] = _sort_clan_member_units(units)
+        rows_by_clan[clan_key] = _sort_clan_member_units(
+            units,
+            layered=wave_summary.layered,
+        )
 
     projected: list[Agent] = []
     emitted: set[ClanKey] = set()

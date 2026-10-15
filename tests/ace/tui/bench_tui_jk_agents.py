@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -107,7 +108,30 @@ async def test_bench_clan_jk_at_each_panel_fold_level(
 
     assert set(level_summaries) == set(CLAN_FOLD_SCALE)
     stall_path = _perf_jsonl.with_name("tui_stalls.jsonl")
-    assert not stall_path.exists() or not stall_path.read_text().strip()
+    stall_rows = (
+        [json.loads(line) for line in stall_path.read_text().splitlines() if line]
+        if stall_path.exists()
+        else []
+    )
+    actual_stalls = [
+        row
+        for row in stall_rows
+        if row.get("event") != "tui_memory_heartbeat"
+        or any(
+            row.get(field, 0)
+            for field in (
+                "loop_hitch_episodes",
+                "loop_hitch_seconds",
+                "loop_suppressed_episodes",
+                "loop_suppressed_seconds",
+                "pump_hitch_episodes",
+                "pump_hitch_seconds",
+                "pump_suppressed_episodes",
+                "pump_suppressed_seconds",
+            )
+        )
+    ]
+    assert not actual_stalls, f"TUI stall log contains actual stalls: {actual_stalls}"
 
 
 async def test_bench_selected_tribe_jk_at_each_fold_level(

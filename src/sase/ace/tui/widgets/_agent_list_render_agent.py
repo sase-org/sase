@@ -36,6 +36,7 @@ from ._agent_list_render_agent_prefix import (
     append_agent_row_prefix,
     tribe_style,
 )
+from ._clan_wave_gutter import ClanWaveGutter
 from ._agent_list_render_agent_status import append_agent_row_status
 from ._agent_list_render_cache import (
     AgentRenderCache,
@@ -162,6 +163,7 @@ def format_agent_option(
     show_machine_chip: bool = False,
     tab_chip: tuple[str, str] | None = None,
     clan_projects: tuple[str, ...] | None = None,
+    clan_wave_gutter: ClanWaveGutter | None = None,
 ) -> tuple[Text, Text, str]:
     """Build ``(left_text, suffix_text, option_id)`` parts for an agent row."""
     tribe_label = _inline_tribe_label(tribe_label)
@@ -182,6 +184,7 @@ def format_agent_option(
         show_machine_chip=show_machine_chip,
         tab_chip=tab_chip,
         clan_projects=visible_clan_projects,
+        clan_wave_gutter=clan_wave_gutter,
     )
     append_agent_row_status(
         text,
@@ -374,6 +377,7 @@ def cached_format_agent_option(
     unread_agent_ids: Collection[tuple[AgentType, str, str | None]] = (),
     show_machine_chip: bool = False,
     tab_chip: tuple[str, str] | None = None,
+    clan_wave_gutter: ClanWaveGutter | None = None,
 ) -> tuple[Text, Text, str]:
     """Memoized wrapper for :func:`format_agent_option`.
 
@@ -424,6 +428,7 @@ def cached_format_agent_option(
         show_machine_chip=show_machine_chip,
         tab_chip=tab_chip,
         clan_projects=visible_clan_projects,
+        clan_wave_gutter=clan_wave_gutter,
     )
     hit = cache.get_agent(key)
     if hit is not None:
@@ -453,6 +458,7 @@ def cached_format_agent_option(
         show_machine_chip=show_machine_chip,
         tab_chip=tab_chip,
         clan_projects=visible_clan_projects,
+        clan_wave_gutter=clan_wave_gutter,
     )
     cache.put_agent(key, parts)
     return parts

@@ -69,10 +69,29 @@ def _machine_row_patch_is_safe(old_agent: Agent, new_agent: Agent) -> bool:
     )
 
 
-def _clan_row_patch_preserves_order(old_agent: Agent, new_agent: Agent) -> bool:
-    """Whether a clan-projected row keeps its within-clan status rank."""
+def _clan_row_patch_preserves_order(
+    old_agent: Agent,
+    new_agent: Agent,
+    *,
+    layered_clan_keys: frozenset[tuple[str, str | None]] = frozenset(),
+) -> bool:
+    """Whether a clan-projected row keeps its within-clan presentation rank."""
     if not (old_agent.tree_depth > 0 or new_agent.tree_depth > 0):
         return True
+    old_slot = old_agent.clan_wave_slot
+    new_slot = new_agent.clan_wave_slot
+    clan_name = new_agent.presented_clan_reference_name() or new_agent.agent_clan
+    clan_key = (clan_name, new_agent.agent_clan_generation)
+    if (
+        old_slot is not None
+        and new_slot is not None
+        and clan_name is not None
+        and clan_key in layered_clan_keys
+    ):
+        return (old_slot.wave_index, old_slot.rank) == (
+            new_slot.wave_index,
+            new_slot.rank,
+        )
     return status_bucket_for(old_agent) == status_bucket_for(new_agent)
 
 
@@ -463,11 +482,10 @@ class PanelPatchMixin:
         if not _clan_row_patch_preserves_order(
             widget._agents[local_idx],
             agent,
+            layered_clan_keys=getattr(widget, "_layered_clan_keys", frozenset()),
         ):
-            # Direct clan-member units are ordered by the visible anchor's
-            # status in every grouping mode. A bucket change therefore needs
-            # re-projection even in STANDARD/BY_DATE, where status normally
-            # has no effect on row position.
+            # Layered clan units are ordered by wave rank; the fallback keeps
+            # the status-order guard for older/one-wave projections.
             self._record_display_patch_trace(
                 display_cost="row_patch",
                 fallback_reason="clan_member_order_change",

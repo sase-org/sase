@@ -130,6 +130,14 @@ def reference_sections(km: KeymapRegistry) -> Sections:
             ],
         ),
         (
+            "Clan Waves",
+            [
+                ("1 ╭ ├ ╰", "Wave order; braces group peers"),
+                ("∎ ─", "Final epic seal stage"),
+                ("? ─", "Cycle or unresolved wait"),
+            ],
+        ),
+        (
             "Node Rail",
             [(glyph.plain, meaning) for glyph, meaning in RAIL_LEGEND],
         ),

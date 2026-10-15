@@ -191,10 +191,13 @@ generations in one agent-log line. Explicit values always win, tombstoned tribes
 never inherited, joining an existing generation changes nothing, and a runner re-exec
 does not re-apply values already in preserved metadata.
 
-Clan membership is execution-neutral. It does not add waits, change launch order, choose
-a workspace or model, or otherwise rewrite launch behavior. Use `%wait` explicitly
-wherever ordering is required. The `clan=`, `session=`, and `tribe=` keywords on `%id`
-are mutually exclusive, and none can be combined with `%clan` in the same segment.
+Clan membership is execution-neutral. It does not add wait edges, change launch order,
+choose a workspace or model, or otherwise rewrite launch behavior. Use `%wait`
+explicitly where ordering is required; waits between members of one clan generation are
+shown as derived dependency waves in the Agents tab. A wave is a layer, not a barrier,
+so a later wave may start while earlier work is still running. The `clan=`, `session=`,
+and `tribe=` keywords on `%id` are mutually exclusive, and none can be combined with
+`%clan` in the same segment.
 
 The retired family keyword on `%id` is always accepted as `session=`. The retired
 `family` and `kind` agent-query values, the `--next-fork` family value, a gate
@@ -237,19 +240,21 @@ a later press fall back to selected-row structural handling and grouping collaps
 selection without an open enclosing workflow, session, or clan proceeds directly to the
 group-wide remaining-agent-node sweep. Selecting the clan row shows an aggregate `CLAN`
 header and a navigable summary of every section represented across its members. In the
-Agents list, direct members sort by status priority — Failed, Stopped, Running/Starting,
-Queued, Waiting, Done — and then by launch recency within a bucket. The `CLAN MEMBERS`
-jump-panel roster uses chronological launch order instead, keeping its number-to-member
-mapping stable while statuses change. The runtime is the union of member run intervals,
-with human-wait windows excluded — including a gate turn's pending and settling window —
-so concurrent members are not double-counted. When a sequential session has a concrete
-agent or monitor turn currently executing, the collapsed and expanded session container
-row shows `🏃‍♂️ <current-turn-runtime> / <session-total-runtime>` so the active turn
-duration is visible without opening the session. A clan container's live suffix
-collapses its parallel lanes with a minimum instead, since more than one lane can be
-live at once: `<lowest-running-lane-runtime> / <clan-total-runtime>`, where a
-sequential-session lane contributes its own total runtime -- the same value its own row
-shows to the right of its suffix.
+Agents list, one-wave clans keep status priority — Failed, Stopped, Running/Starting,
+Queued, Waiting, Done — and then launch recency within a bucket. Layered clans use
+dependency wave order, with launch order breaking ties and unresolved members trailing.
+The `CLAN MEMBERS` jump-panel roster uses wave order for layered clans, matching the
+tree; one-wave clans keep chronological launch order. These numbers stay stable while
+statuses change. The runtime is the union of member run intervals, with human-wait
+windows excluded — including a gate turn's pending and settling window — so concurrent
+members are not double-counted. When a sequential session has a concrete agent or
+monitor turn currently executing, the collapsed and expanded session container row shows
+`🏃‍♂️ <current-turn-runtime> / <session-total-runtime>` so the active turn duration is
+visible without opening the session. A clan container's live suffix collapses its
+parallel lanes with a minimum instead, since more than one lane can be live at once:
+`<lowest-running-lane-runtime> / <clan-total-runtime>`, where a sequential-session lane
+contributes its own total runtime -- the same value its own row shows to the right of
+its suffix.
 
 ### Clan summary folding
 

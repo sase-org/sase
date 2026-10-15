@@ -19,6 +19,7 @@ from tests.ace.tui.visual._ace_agents_png_snapshot_clan_fixtures import (
     multi_project_clan_agents,
     queued_clan_agents,
     running_clan_runtime_agents,
+    wave_clan_agents,
 )
 from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     assert_page_svg_contains,
@@ -181,7 +182,15 @@ async def test_clan_tree_fold_levels_png_snapshots(
             title="ACE clan tree expanded",
         )
 
-        await page.press("j", "j", "j")
+        audit_index = next(
+            index
+            for index, agent in enumerate(page.app._agents)
+            if agent.agent_name == "research.audit"
+        )
+        for _ in range(len(page.app._agents)):
+            if page.app.current_idx == audit_index:
+                break
+            await page.press("j")
         assert page.app._agents[page.app.current_idx].agent_name == "research.audit"
         await page.press("l")
         await page.expect_state("agent_count", 5)
@@ -227,6 +236,56 @@ async def test_clan_tree_fold_levels_png_snapshots(
             page,
             "agents_clan_tree_fully_expanded_by_status_120x40",
             title="ACE clan member fully expanded by status",
+        )
+
+
+async def test_clan_wave_gutter_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("sase.config.core.get_max_running_agents", lambda: 10)
+    pin_agents_visual_now(monkeypatch, datetime(2026, 10, 15, 12, 30, 0))
+    patch_startup_loaders(monkeypatch, agents=wave_clan_agents())
+
+    async with AcePage(query='"visual-wave"', patches=patches()) as page:
+        await wait_for_startup(page)
+        await page.press("shift+tab")
+        await page.expect_state("tab", "agents")
+        await wait_for_visual_idle(page)
+
+        epic_index = next(
+            index
+            for index, agent in enumerate(page.app._agents)
+            if agent.is_clan_container and agent.agent_clan == "wave-epic"
+        )
+        for _ in range(len(page.app._agents)):
+            if page.app.current_idx == epic_index:
+                break
+            await page.press("j")
+        assert page.app._agents[page.app.current_idx].agent_clan == "wave-epic"
+        await page.press("l")
+        await page.press("j")
+        assert page.app._agents[page.app.current_idx].agent_name == "wave-epic.family"
+        await page.press("l")
+        await wait_for_visual_idle(page)
+
+        panel = page.app.query_one(
+            f"#{panel_widget_id_for_key('epic')}",
+            AgentList,
+        )
+        rows = "\n".join(
+            option.prompt.plain
+            for option in panel._options  # type: ignore[union-attr]
+        )
+        assert " 1 ╭" in rows
+        assert "   │ └─" in rows
+        assert " ∎ ─" in rows
+        assert "wave-chain" in rows
+        assert "wave-cycle" in rows
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_clan_wave_gutter_expanded_120x40",
+            title="ACE layered clan wave gutters",
         )
 
 

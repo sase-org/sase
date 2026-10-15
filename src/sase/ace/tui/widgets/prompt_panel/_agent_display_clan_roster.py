@@ -26,10 +26,25 @@ CLAN_NEIGHBORS_IDENTITY_COLOR = "#00D7AF"
 
 
 def ordered_clan_members(agent: Agent) -> tuple[Agent, ...]:
-    """Return direct clan members in deterministic launch order."""
+    """Return direct members in wave order for layered clans, launch order otherwise."""
+    members = clan_members(agent)
+    if agent.clan_waves is not None and agent.clan_waves.layered:
+        return tuple(
+            sorted(
+                members,
+                key=lambda member: (
+                    member.clan_wave_slot is None,
+                    (
+                        member.clan_wave_slot.rank
+                        if member.clan_wave_slot is not None
+                        else 0
+                    ),
+                ),
+            )
+        )
     return tuple(
         sorted(
-            clan_members(agent),
+            members,
             key=lambda member: (
                 member.start_time is None,
                 (

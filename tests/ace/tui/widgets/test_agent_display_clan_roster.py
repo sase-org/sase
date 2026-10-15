@@ -8,6 +8,9 @@ from sase.ace.tui.models._agent_tree import project_clan_tree
 from sase.ace.tui.widgets.prompt_panel._agent_display_clan import (
     build_clan_detail_text,
 )
+from sase.ace.tui.widgets.prompt_panel._agent_display_clan_roster import (
+    ordered_clan_members,
+)
 from sase.ace.tui.widgets.prompt_panel._member_roster import (
     MEMBER_ENTRY_CURSOR_GLYPH,
 )
@@ -143,4 +146,45 @@ def test_clan_roster_launch_order_is_stable_while_statuses_churn() -> None:
     assert [target.status_bucket for target in after_maps[0].targets] == [
         "Done",
         "Failed",
+    ]
+
+
+def test_layered_clan_roster_numbers_match_agent_tree_wave_order() -> None:
+    dependent = make_clan_agent(
+        "research.dependent",
+        status="RUNNING",
+        start=datetime(2026, 7, 17, 12, 0, 0),
+    )
+    prerequisite = make_clan_agent(
+        "research.prerequisite",
+        status="WAITING",
+        start=datetime(2026, 7, 17, 12, 1, 0),
+    )
+    peer = make_clan_agent(
+        "research.peer",
+        status="DONE",
+        start=datetime(2026, 7, 17, 12, 2, 0),
+    )
+    dependent.waiting_for = ["research.prerequisite"]
+    projected = project_clan_tree([dependent, prerequisite, peer])
+    container = projected[0]
+
+    tree_order = [member.agent_name for member in projected if member.tree_depth == 1]
+    roster = ordered_clan_members(container)
+    jump_maps = []
+    detail = build_clan_detail_text(
+        container,
+        member_jump_map_publisher=jump_maps.append,
+    )
+
+    assert tree_order == [
+        "research.prerequisite",
+        "research.peer",
+        "research.dependent",
+    ]
+    assert [member.agent_name for member in roster] == tree_order
+    assert detail.plain.index(" 0  .prerequisite") < detail.plain.index(" 1  .peer")
+    assert detail.plain.index(" 1  .peer") < detail.plain.index(" 2  .dependent")
+    assert [target.member_identity for target in jump_maps[0].targets] == [
+        member.identity for member in roster
     ]

@@ -19,6 +19,14 @@ from ..models.tribe_display import (
 from ..provider_styles import provider_emoji_badge
 from ._agent_list_helpers import ordered_row_providers
 from ._agent_list_render_layout import render_tier_gutter
+from ._clan_wave_gutter import ClanWaveGutter
+from ._clan_wave_presentation import (
+    WAVE_LANE_GLYPH,
+    WAVE_NUMBER_DONE_STYLE,
+    WAVE_NUMBER_OPEN_STYLE,
+    WAVE_UNRESOLVED_STYLE,
+    wave_connector_style,
+)
 from ._clan_project_label import append_clan_project_label
 from ._agent_list_render_rail import (
     gate_glyph_style as _gate_glyph_style,
@@ -88,13 +96,47 @@ def _tree_depth_style(depth: int, *, is_selected: bool) -> str:
     return f"bold {color}" if is_selected else color
 
 
-def _append_tree_indent(text: Text, depth: int, *, is_selected: bool) -> None:
+def _append_tree_indent(
+    text: Text,
+    depth: int,
+    *,
+    is_selected: bool,
+    wave_gutter: ClanWaveGutter | None = None,
+) -> None:
     """Append a depth-aware branch using the existing child-row footprint.
 
     Leading spacing, each ancestor guide, and the terminal branch are
     separate spans so a connector keeps the color of the level it represents.
     """
     if depth <= 0:
+        return
+    if depth == 1 and wave_gutter is not None and wave_gutter.bracket is not None:
+        label = wave_gutter.label or ""
+        text.append(label.rjust(2), style=_wave_label_style(wave_gutter))
+        text.append(" ")
+        text.append(
+            wave_gutter.bracket,
+            style=wave_connector_style(is_selected=is_selected),
+        )
+        text.append(" ")
+        return
+    if depth > 1 and wave_gutter is not None and wave_gutter.lane is not None:
+        if wave_gutter.lane:
+            text.append(
+                f"   {WAVE_LANE_GLYPH} ",
+                style=wave_connector_style(is_selected=is_selected),
+            )
+        else:
+            text.append(" " * 5)
+        for ancestor_depth in range(2, depth):
+            text.append(
+                _TREE_GUIDE,
+                style=_tree_depth_style(ancestor_depth, is_selected=is_selected),
+            )
+        text.append(
+            _CHILD_INDENT.lstrip(),
+            style=_tree_depth_style(depth, is_selected=is_selected),
+        )
         return
     text.append("  ")
     for ancestor_depth in range(1, depth):
@@ -134,6 +176,7 @@ def append_agent_row_prefix(
     show_machine_chip: bool = False,
     tab_chip: tuple[str, str] | None = None,
     clan_projects: tuple[str, ...] = (),
+    clan_wave_gutter: ClanWaveGutter | None = None,
 ) -> Text:
     """Build the left-side chrome that precedes the status parenthetical."""
     text = render_tier_gutter(tier_styles)
@@ -169,7 +212,12 @@ def append_agent_row_prefix(
     kind = row_kind_glyph(agent, is_expanded=is_expanded)
     # Indentation for rows linked under a parent agent/workflow.
     if tree_depth > 0:
-        _append_tree_indent(text, tree_depth, is_selected=is_selected)
+        _append_tree_indent(
+            text,
+            tree_depth,
+            is_selected=is_selected,
+            wave_gutter=clan_wave_gutter,
+        )
         if approve_icon is not None:
             text.append(f"{approve_icon} ", style="bold #00FFFF")
         if kind is not None:
@@ -279,3 +327,9 @@ def append_agent_row_prefix(
         append_clan_project_label(text, clan_projects, bold=is_selected)
 
     return text
+
+
+def _wave_label_style(gutter: ClanWaveGutter) -> str:
+    if gutter.label_kind == "unresolved":
+        return WAVE_UNRESOLVED_STYLE
+    return WAVE_NUMBER_OPEN_STYLE if gutter.open else WAVE_NUMBER_DONE_STYLE

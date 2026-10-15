@@ -15,6 +15,7 @@ from ._agent_list_build_analysis import (
     compute_tier_styles,
     visible_agent_indices,
 )
+from ._clan_wave_gutter import build_clan_wave_gutters, layered_clan_keys
 from ._agent_list_build_rows import (
     agent_row_context,
     build_row_inputs,
@@ -107,6 +108,13 @@ def build_list(
         tree, panel_uses_cs=panel_uses_cs, mode=grouping_mode
     )
     visible = visible_agent_indices(tree)
+    visible_order = [
+        entry.agent_idx
+        for entry in tree
+        if entry.agent_idx is not None and entry.agent_idx in visible
+    ]
+    wave_gutters = build_clan_wave_gutters(agents, visible_order)
+    widget._layered_clan_keys = layered_clan_keys(agents)
 
     # Measure what you emit: format only the agent rows the tree will
     # actually paint. Collapsed-group members are skipped so they don't
@@ -122,6 +130,7 @@ def build_list(
         if i not in visible:
             continue
         ctx = agent_row_context(inputs, agent, i)
+        ctx["clan_wave_gutter"] = wave_gutters.get(i)
         tier_styles = agent_tier_styles.get(i, ())
         left, suffix, option_id = format_agent_row(
             widget._agent_render_cache, inputs, agent, i, ctx, tier_styles

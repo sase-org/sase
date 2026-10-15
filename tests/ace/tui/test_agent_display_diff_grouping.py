@@ -21,6 +21,7 @@ from ._agent_display_diff_helpers import (
     _rebuild_scope,
     _widget_sel,
 )
+from tests.ace.tui.widgets._agent_render_cache_helpers import style_at
 
 
 def _by_status_app(agents: list[Agent], monkeypatch: Any) -> _DisplayDiffApp:
@@ -47,6 +48,19 @@ def _clan_projection(status: str) -> list[Agent]:
     member.agent_clan = "research"
     member.agent_clan_generation = "20260718120000"
     return project_clan_tree([member])
+
+
+def _layered_clan_projection(first_status: str, second_status: str) -> list[Agent]:
+    first = _agent("research.first", tribe=None, suffix="first", status=first_status)
+    first.agent_clan = "research"
+    first.agent_clan_generation = "20260718120000"
+    second = _agent(
+        "research.second", tribe=None, suffix="second", status=second_status
+    )
+    second.agent_clan = "research"
+    second.agent_clan_generation = "20260718120000"
+    second.waiting_for = ["research.first"]
+    return project_clan_tree([first, second])
 
 
 def test_standard_clan_status_bucket_change_rebuilds_instead_of_patching(
@@ -83,6 +97,40 @@ def test_standard_clan_badge_only_change_patches_in_place(monkeypatch: Any) -> N
     assert app.full_rebuilds == 0
     assert app._agents_refresh_trace_records[-1].fallback_reason is None
     assert "row_patch" in _display_costs(app)
+
+
+def test_layered_clan_status_change_patches_and_dims_finished_wave(
+    monkeypatch: Any,
+) -> None:
+    previous_agents = _layered_clan_projection("RUNNING", "WAITING")
+    next_agents = _layered_clan_projection("DONE", "WAITING")
+    app = _DisplayDiffApp(previous_agents, monkeypatch)
+    app._agents_refresh_trace_records.clear()
+
+    app._agents = next_agents
+    app._refresh_agents_display_after_finalize(
+        previous_agents=previous_agents,
+        defer_detail=True,
+    )
+
+    assert app.full_rebuilds == 0
+    assert not any(
+        record.fallback_reason == "clan_member_order_change"
+        for record in app._agents_refresh_trace_records
+    )
+    assert "row_patch" in _display_costs(app)
+
+    first = next(agent for agent in next_agents if agent.agent_name == "research.first")
+    widget = app._widgets["#agent-list-panel"]
+    agent_idx = next(
+        index
+        for index, agent in enumerate(widget._agents)
+        if agent.identity == first.identity
+    )
+    row_idx = widget._row_by_agent_idx[agent_idx]
+    prompt = widget.get_option_at_index(row_idx).prompt
+    assert prompt is not None
+    assert str(style_at(prompt, prompt.plain.index("1"))) == "dim #5FAFFF"
 
 
 def test_by_status_badge_only_change_patches_in_place(monkeypatch: Any) -> None:

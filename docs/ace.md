@@ -1679,12 +1679,13 @@ root titles the sticky [header panel](#agents-tab-main-deck) `SESSION` (cyan, ma
 the name), then shows the session's normal Main deck cards, with its `SESSION TURNS`
 roster in the jump panel. A selected agent turn — standalone or session member — titles
 the header panel `AGENT TURN` (gold, matching the name). Both rosters use the numbered
-member jumps described above. Clan direct members in the Agents list sort by status
-priority — Failed, Stopped, Running/Starting, Queued, Waiting, Done — with launch
-recency breaking ties. The clan's `CLAN MEMBERS` jump-panel roster instead keeps
-chronological launch order so its numbers do not change as statuses change; a nested
-session remains one direct entry with its chain indented beneath it. Session rosters
-retain sequential chain order.
+member jumps described above. Layered clan members in the Agents list follow dependency
+wave order, with launch order breaking ties inside each wave; unresolved members trail.
+One-wave clans keep the existing status priority — Failed, Stopped, Running/Starting,
+Queued, Waiting, Done — with launch recency breaking ties. The clan's `CLAN MEMBERS`
+jump-panel roster follows the same wave order for layered clans, so its numbers match
+the tree and remain stable as statuses change. A nested session remains one direct entry
+with its chain indented beneath it. Session rosters retain sequential chain order.
 
 Selecting a session **turn** row (not the container) also shows its `SESSION TURNS`
 roster in the jump panel: the same enclosing session's members, in the same chain order,
@@ -2463,11 +2464,12 @@ within a session or workflow, move to that row and press `l` there; pressing `l`
 on the clan row itself has no effect. Lowercase `h` moves to the validated parent
 without changing fold state. Sequential session members use `--<suffix>` names and run
 one after another. Killing or dismissing a clan row cascades to the clan's live members;
-acting on one member leaves its siblings alone. Direct clan members always sort by the
-clan-local status priority Failed, Stopped, Running, Queued, Waiting, Done in every
-grouping mode; Starting shares Running's rank. Launch recency orders only members in the
-same status bucket. A session row moves as one unit with its follow-ups and workflow
-steps, preserving their adjacency and internal order.
+acting on one member leaves its siblings alone. Layered clan members sort by dependency
+wave and then launch order in every grouping mode; unresolved members trail. One-wave
+clans keep the clan-local status priority Failed, Stopped, Running, Queued, Waiting,
+Done, with Starting sharing Running's rank and launch recency ordering members in the
+same bucket. A session row moves as one unit with its follow-ups and workflow steps,
+preserving their adjacency and internal order.
 
 Clan rows aggregate member status using the same operational precedence: human-input
 questions, pending plan review, failure, and running/starting states outrank queued
@@ -6096,9 +6098,10 @@ the preferred card.
 - **CLAN / MEMBERS**: Shown when a synthetic clan row is selected. The orchid `CLAN`
   kind label renders as the header panel title and the identity fields (`Name`,
   `Tribes`, `Status`, `Runtime`, `Members`, `Fold`) live in the header panel; the
-  `CLAN MEMBERS` roster lives in the jump panel. Direct member rows use chronological
-  launch order (earliest first), which keeps their numbers stable while statuses change.
-  Each numbered row shows the hood-relative suffix, kind, status, model, and duration;
+  `CLAN MEMBERS` roster lives in the jump panel. Layered clans use dependency wave order
+  with launch order inside each wave, matching the Agents tree; one-wave clans use
+  chronological launch order. These numbers stay stable while statuses change. Each
+  numbered row shows the hood-relative suffix, kind, status, model, and duration;
   members of a nested sequential session are indented under its aggregate row. `Ctrl+J`
   / `Ctrl+K` move between the Main deck's cards, and pressing the row's number jumps to
   that member in the Agents list. At most 100 members receive numbers.

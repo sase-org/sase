@@ -313,6 +313,7 @@ def agent_row_context(inputs: _RowInputs, agent: Agent, index: int) -> dict[str,
         ),
         "show_machine_chip": inputs.show_machine_chip,
         "tab_chip": (inputs.tab_chips or {}).get(index),
+        "clan_wave_gutter": None,
     }
 
 
@@ -348,6 +349,7 @@ def format_agent_row(
         unread_agent_ids=inputs.unread,
         show_machine_chip=ctx["show_machine_chip"],
         tab_chip=ctx.get("tab_chip"),
+        clan_wave_gutter=ctx.get("clan_wave_gutter"),
     )
 
 

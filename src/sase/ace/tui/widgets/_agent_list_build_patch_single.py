@@ -7,6 +7,7 @@ boundaries here.
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import datetime
 from typing import Any
 
@@ -61,6 +62,14 @@ def patch_row(
         return False
 
     agent = widget._agents[agent_idx]
+    wave_gutter = ctx.get("clan_wave_gutter")
+    if (
+        wave_gutter is not None
+        and wave_gutter.bracket is not None
+        and agent.clan_wave_slot is not None
+    ):
+        wave_gutter = replace(wave_gutter, open=agent.clan_wave_slot.open)
+        ctx["clan_wave_gutter"] = wave_gutter
     is_marked = (
         ctx["is_marked"] if marked_agents is None else agent.identity in marked_agents
     )
@@ -111,6 +120,7 @@ def patch_row(
         unread_agent_ids=effective_unread,
         show_machine_chip=bool(ctx.get("show_machine_chip", False)),
         tab_chip=ctx.get("tab_chip"),
+        clan_wave_gutter=wave_gutter,
     )
 
     gap = 2 if suffix.cell_len else 0

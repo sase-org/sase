@@ -15,6 +15,7 @@ from unittest.mock import patch
 from sase.ace.tui.actions.agents._core import AgentsMixinCore
 from sase.ace.tui.actions.agents._loading import AgentLoadingMixin
 from sase.ace.tui.models.agent import Agent, AgentType
+from sase.ace.tui.models._agent_tree import project_clan_tree
 from sase.ace.tui.models.agent_group_fold import AgentGroupFoldRegistry
 from sase.ace.tui.models.agent_groups import GroupingMode
 from sase.ace.tui.models.agent_loader import AgentLoadState
@@ -448,6 +449,63 @@ def test_refresh_prior_pos_lands_on_visually_below_row() -> None:
 
     # Visually below beta was zeta; the global-index clamp would land on alpha.
     assert app._agents[app.current_idx].agent_name == "z1"
+
+
+def test_refresh_reorder_keeps_selected_clan_member_identity() -> None:
+    """A wave-order change keeps the selected member across finalize."""
+
+    def member(name: str, second: int, *, waits: list[str] | None = None) -> Agent:
+        row = Agent(
+            agent_type=AgentType.RUNNING,
+            cl_name=name,
+            project_file="/r/waves/project.sase",
+            status="WAITING",
+            start_time=datetime(2026, 10, 15, 12, 0, second),
+            raw_suffix=f"wave-{second}-{name}",
+            agent_name=name,
+            agent_clan="research",
+            agent_clan_generation="generation-1",
+        )
+        row.waiting_for = list(waits or ())
+        return row
+
+    dependent = member("research.dependent", 0, waits=["research.prerequisite"])
+    prerequisite = member("research.prerequisite", 1)
+    previous = project_clan_tree([dependent, prerequisite])
+    selected_identity = prerequisite.identity
+    old_selected_idx = next(
+        index
+        for index, agent in enumerate(previous)
+        if agent.identity == selected_identity
+    )
+    app = _RefreshFallbackApp(previous, current_idx=old_selected_idx)
+    prior_pos = app._capture_focused_visible_pos()
+
+    next_dependent = member("research.dependent", 0)
+    next_prerequisite = member("research.prerequisite", 1)
+    current = project_clan_tree([next_dependent, next_prerequisite])
+    assert [agent.agent_name for agent in current if agent.tree_depth == 1] == [
+        "research.dependent",
+        "research.prerequisite",
+    ]
+    app._agents = current
+    app._agents_with_children = list(current)
+    app._agents_local_with_children = list(current)
+    app._agents_local_visible = list(current)
+    app._agents_capacity_with_children = list(current)
+    app._invalidate_agent_panel_cache()
+
+    app._finalize_agent_list(
+        True,
+        selected_identity,
+        save_unfiltered=False,
+        fold_filter_already_applied=True,
+        prior_pos=prior_pos,
+        previous_agents=previous,
+        refresh_display=False,
+    )
+
+    assert app._agents[app.current_idx].identity == selected_identity
 
 
 def test_apply_inner_passes_prior_pos_to_finalize(monkeypatch: Any) -> None:
