@@ -6,6 +6,8 @@ theme:
   font: false
 
 extra:
+  # Material's analytics partial is disabled for generated PDF builds.
+  analytics: false
   pdf_handbook:
     build_date: !ENV [SASE_PDF_BUILD_DATE, ""]
     build_ref: !ENV [GITHUB_REF_NAME, ""]

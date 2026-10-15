@@ -11,66 +11,79 @@ use_directory_urls: true
 
 nav:
   - Home: index.md
-  - Getting Started:
-      - Your First 15 Minutes: getting_started.md
-      - Initialization: init.md
-      - Content Layout Migration: content_layout.md
-      - Agent Providers: agent_providers.md
-      - Instruction Inventory: instruction_inventory.md
-      - Instruction Bundles: instruction_bundles.md
-  - The Basics:
-      - Memory: memory.md
-      - Memory History: memory_history.md
-      - sase's TUI: ace.md
-      - Artifacts Pane Contract: artifacts_pane_contract.md
-      - Artifacts Visual Grammar: artifacts_pane_visual_grammar.md
-      - Scheduler and Service Host: axe.md
-      - Spec-Driven Development: sdd.md
-      - SDD Storage: sdd_storage.md
-      - Macros: macros.md
-      - Artifact References: artifact_references.md
-      - Artifact Links: artifact_links.md
-      - SASE Pager: pager.md
-      - Prompt History: prompt.md
-  - Beyond the Basics:
-      - Architecture: architecture.md
-      - Patches: change_spec.md
-      - Beads: beads.md
-      - Goals: goals.md
-      - Workflows: workflow_spec.md
-      - Agent Sessions: agent_sessions.md
-      - Agent Hood Synchronization: agents_sidecar.md
-      - Monitors: monitors.md
-      - Named Tools: tool.md
-      - Workspaces: workspace.md
-      - Mentors: mentors.md
-  - The Nitty Gritty:
-      - Commit Workflows: commit_workflows.md
-      - Notifications: notifications.md
-      - Sudo Requests: sudo.md
-      - Mobile Gateway: mobile_gateway.md
-      - Mobile MVP Runbook: mobile_mvp_runbook.md
-      - Remote Dispatch Runbook: remote_dispatch.md
-      - Performance Runbook: perf_runbook.md
-      - Telemetry: telemetry.md
-      - Agent Revival Log: troubleshooting/agent-revival.md
-      - Runner Slot Waits: troubleshooting/runner-slots.md
-  - Integrations:
-      - Editor Integration: editor.md
-      - Integration APIs: integrations.md
-      - Plugins: plugins.md
-      - Fakey Testing Provider: fakey.md
-      - LLM Providers: llms.md
-      - VCS Providers: vcs.md
-      - Rust Backend: rust_backend.md
-      - Shell Completion: completion.md
+  - Get started:
+      - Your first 15 minutes: getting_started.md
+      - Initialize SASE: init.md
+      - Shell completion: completion.md
+  - Guides:
+      - Fix problems:
+          - Restart an agent automatically: agent_auto_restart.md
+          - Recover an interrupted agent: troubleshooting/agent-revival.md
+          - Unstick a queued agent: troubleshooting/runner-slots.md
+  - Concepts:
+      - How SASE works: architecture.md
+      - Spec-driven development: sdd.md
   - Reference:
-      - CLI Reference: cli.md
+      - TUI:
+          - sase's TUI: ace.md
+          - SASE Pager: pager.md
+      - CLI:
+          - CLI reference: cli.md
+          - Query language: query_language.md
+          - Named tools: tool.md
+      - Configuration:
+          - Configuration: configuration.md
+          - ProjectSpec: project_spec.md
+      - Macros and workflows:
+          - Macros: macros.md
+          - Workflows: workflow_spec.md
+      - Work units:
+          - Patches: change_spec.md
+          - Beads: beads.md
+          - Goals: goals.md
+      - Agents and workspaces:
+          - Agent providers: agent_providers.md
+          - Agent sessions: agent_sessions.md
+          - Agent hood synchronization: agents_sidecar.md
+          - Agent attachments: agent_images.md
+          - Instruction bundles: instruction_bundles.md
+          - Mentors: mentors.md
+          - Remote dispatch: remote_dispatch.md
+          - Workspaces: workspace.md
+      - Automation:
+          - Scheduler and service host: axe.md
+          - Monitors: monitors.md
+          - Notifications: notifications.md
+          - Sudo requests: sudo.md
+      - Providers:
+          - LLM providers: llms.md
+          - VCS providers: vcs.md
+      - Memory:
+          - Memory: memory.md
+          - Memory history: memory_history.md
+      - Prompts and artifacts:
+          - Prompt history: prompt.md
+          - Artifact references: artifact_references.md
+          - Artifact links: artifact_links.md
+      - Integrations:
+          - Editor integration: editor.md
+          - Integration APIs: integrations.md
+          - Plugins: plugins.md
+          - Mobile gateway: mobile_gateway.md
+      - Migration:
+          - Content layout migration: content_layout.md
+  - Contribute:
       - Development: development.md
-      - Configuration: configuration.md
-      - Query Language: query_language.md
-      - ProjectSpec: project_spec.md
-      - Agent Attachments: agent_images.md
+      - Rust backend: rust_backend.md
+      - Fakey testing provider: fakey.md
+      - Telemetry: telemetry.md
+      - Performance runbook: perf_runbook.md
+      - Mobile MVP runbook: mobile_mvp_runbook.md
+      - Commit workflows: commit_workflows.md
+      - Instruction inventory: instruction_inventory.md
+      - SDD storage: sdd_storage.md
+      - Artifacts pane contract: artifacts_pane_contract.md
+      - Artifacts visual grammar: artifacts_pane_visual_grammar.md
       - Acknowledgements: acknowledgements.md
   - Blog:
       - Blog Home: blog/index.md
@@ -98,11 +111,20 @@ theme:
   features:
     - navigation.indexes
     - navigation.sections
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.path
+    - navigation.footer
     - navigation.top
-    - search.highlight
+    - toc.follow
+    - content.code.copy
     - search.suggest
+    - search.highlight
 
 extra:
+  analytics:
+    provider: cloudflare
+    token: ""
   social:
     - icon: fontawesome/brands/github
       link: https://github.com/sase-org/sase

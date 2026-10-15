@@ -1,5 +1,8 @@
 ---
 title: Structured Agentic Software Engineering
+hide:
+  - navigation
+  - toc
 ---
 
 <div class="sase-home">

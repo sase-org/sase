@@ -1,0 +1,4 @@
+{% set token = config.extra.analytics.token | default("", true) %}
+{% if token %}
+<script defer src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='{"token": "{{ token | e }}"}'></script>
+{% endif %}
