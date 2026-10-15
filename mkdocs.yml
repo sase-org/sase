@@ -1,5 +1,5 @@
 site_name: SASE
-site_description: Structured Agentic Software Engineering
+site_description: One developer. A team of coding agents. Tracked, reviewable, repeatable work.
 site_url: https://sase.sh/
 site_author: SASE contributors
 repo_url: https://github.com/sase-org/sase
@@ -129,7 +129,7 @@ plugins:
         as_creation: date
       categories:
         - categories
-      image: https://sase.sh/images/sase_overview.png
+      image: https://sase.sh/images/sase_social_card.png
 
 markdown_extensions:
   - admonition

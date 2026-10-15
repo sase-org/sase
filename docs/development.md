@@ -1382,6 +1382,12 @@ just docs-pdf-check
 `mkdocs-pdf.yml` in an isolated temporary site directory, post-processes and validates
 the handbook there, and copies only `downloads/sase-handbook.pdf` back into `site/`.
 
+`docs/images/sase_social_card.png` is the default `og:image`. Regenerate it with
+`just docs-social-card` from `tools/render_social_card`. LinkedIn, X, and Slack cache
+previews by image URL, so a redesign ships under a new filename. After a deploy,
+[LinkedIn's Post Inspector](https://www.linkedin.com/post-inspector/) refreshes
+LinkedIn's cache.
+
 ## Docs Deployment
 
 Production docs are deployed by `.github/workflows/docs-deploy.yml`, not by a Cloudflare

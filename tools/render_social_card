@@ -1,0 +1,173 @@
+#!/usr/bin/env python3
+"""Render the committed 1200x627 sase.sh social card.
+
+The card is the site-wide default ``og:image``. Crawlers cache images by
+URL, so a visual redesign must ship under a new filename (update
+``docs/overrides/main.html``, both rss ``image:`` entries, and the test
+to match). Fonts come from the bundled FiraCode files; this tool does
+not fall back to system fonts.
+"""
+
+from __future__ import annotations
+
+import argparse
+import sys
+from pathlib import Path
+
+from PIL import Image, ImageDraw, ImageFont
+
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+FONTS_DIR = REPO_ROOT / "src" / "sase" / "ace" / "tui" / "fonts"
+BOLD_FONT_PATH = FONTS_DIR / "FiraCode-Bold.ttf"
+REGULAR_FONT_PATH = FONTS_DIR / "FiraCode-Regular.ttf"
+
+WIDTH = 1200
+HEIGHT = 627
+PREVIEW_SIZE = (474, 248)
+
+BACKGROUND = "#05080f"
+DOT = "#16202c"
+FRAME = "#123a3a"
+TITLE = "#e7ecf2"
+SUBTITLE = "#b5cce1"
+TEAL = "#22d8c0"
+BLUE = "#6bbdf4"
+ORANGE = "#fe7455"
+CAPTION = "#7e90a4"
+
+LANES: tuple[tuple[int, str, str], ...] = (
+    (178, "Claude Code", TEAL),
+    (313, "Codex", BLUE),
+    (448, "Antigravity", ORANGE),
+)
+
+
+def _error(message: str) -> None:
+    print(f"[render_social_card] {message}", file=sys.stderr)
+
+
+def _load_font(path: Path, size: int) -> ImageFont.FreeTypeFont:
+    if not path.is_file():
+        raise FileNotFoundError(f"missing font: {path}")
+    return ImageFont.truetype(str(path), size=size)
+
+
+def _cover_crop(image: Image.Image, size: tuple[int, int]) -> Image.Image:
+    target_w, target_h = size
+    scale = max(target_w / image.width, target_h / image.height)
+    resized = image.resize(
+        (
+            max(target_w, round(image.width * scale)),
+            max(target_h, round(image.height * scale)),
+        ),
+        Image.Resampling.LANCZOS,
+    )
+    left = (resized.width - target_w) // 2
+    top = (resized.height - target_h) // 2
+    return resized.crop((left, top, left + target_w, top + target_h))
+
+
+def _draw_card(draw: ImageDraw.ImageDraw) -> None:
+    bold = {
+        28: _load_font(BOLD_FONT_PATH, 28),
+        34: _load_font(BOLD_FONT_PATH, 34),
+        52: _load_font(BOLD_FONT_PATH, 52),
+        212: _load_font(BOLD_FONT_PATH, 212),
+    }
+    regular = {
+        24: _load_font(REGULAR_FONT_PATH, 24),
+        46: _load_font(REGULAR_FONT_PATH, 46),
+    }
+
+    for x in range(30, WIDTH, 40):
+        for y in range(30, HEIGHT, 40):
+            draw.point((x, y), fill=DOT)
+
+    draw.rounded_rectangle((22, 22, 1178, 605), radius=28, outline=FRAME, width=3)
+
+    draw.text((84, 230), "sase", font=bold[212], fill=TITLE, anchor="lm")
+    draw.text(
+        (92, 378),
+        "Structured Agentic",
+        font=regular[46],
+        fill=SUBTITLE,
+        anchor="ls",
+    )
+    draw.text(
+        (92, 436),
+        "Software Engineering",
+        font=regular[46],
+        fill=SUBTITLE,
+        anchor="ls",
+    )
+
+    draw.rounded_rectangle((92, 497, 312, 549), radius=26, outline=TEAL, width=3)
+    draw.text((202, 523), "sase.sh", font=bold[34], fill=TEAL, anchor="mm")
+
+    draw.rounded_rectangle((700, 263, 800, 363), radius=18, outline=TEAL, width=5)
+    draw.text((750, 313), ">_", font=bold[52], fill=TEAL, anchor="mm")
+
+    draw.line((800, 313, 846, 313), fill=TEAL, width=5)
+    draw.line((846, 178, 846, 448), fill=TEAL, width=5)
+    for y, label, color in LANES:
+        draw.line((846, y, 884, y), fill=TEAL, width=5)
+        draw.polygon(((884, y - 11), (900, y), (884, y + 11)), fill=TEAL)
+        draw.rounded_rectangle(
+            (906, y - 34, 1124, y + 34),
+            radius=34,
+            outline=color,
+            width=4,
+        )
+        draw.text((1015, y), label, font=bold[28], fill=color, anchor="mm")
+
+    draw.text(
+        (1124, 545),
+        "one prompt → parallel agents",
+        font=regular[24],
+        fill=CAPTION,
+        anchor="rs",
+    )
+
+
+def _render_card() -> Image.Image:
+    image = Image.new("RGB", (WIDTH, HEIGHT), BACKGROUND)
+    _draw_card(ImageDraw.Draw(image))
+    return image
+
+
+def _write_card(output: Path, preview: Path | None = None) -> None:
+    card = _render_card()
+    output.parent.mkdir(parents=True, exist_ok=True)
+    card.save(output, optimize=True)
+    if preview is not None:
+        preview.parent.mkdir(parents=True, exist_ok=True)
+        _cover_crop(card, PREVIEW_SIZE).save(preview, optimize=True)
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        description="Render the 1200x627 sase.sh social card."
+    )
+    parser.add_argument(
+        "output",
+        type=Path,
+        help="path for the 1200x627 RGB PNG",
+    )
+    parser.add_argument(
+        "--preview",
+        type=Path,
+        default=None,
+        help="optional 474x248 cover-crop of the card (not committed)",
+    )
+    args = parser.parse_args(argv)
+    try:
+        _write_card(args.output, args.preview)
+    except (OSError, ValueError) as exc:
+        _error(str(exc))
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

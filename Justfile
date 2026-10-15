@@ -922,6 +922,13 @@ docs-check: _venv
     uv pip install --python {{ venv_bin }}/python --no-sources "mkdocs-material>=9.7,<10" "mkdocs-redirects>=1.2,<2" "mkdocs-rss-plugin>=1.18,<2"
     {{ venv_bin }}/mkdocs build --strict
 
+# Render the committed 1200x627 social card. Visual changes need a new
+# filename (update docs/overrides/main.html, both rss `image:` entries,
+# and the test to match) because crawlers cache images by URL.
+docs-social-card: _venv
+    uv pip install --python {{ venv_bin }}/python --no-sources "pillow"
+    {{ venv_bin }}/python tools/render_social_card docs/images/sase_social_card.png
+
 # Build and validate the downloadable PDF handbook. This target installs only
 # docs/PDF tooling, because docs-only CI does not check out or build the Rust
 # core package required by editable `sase` installs. Keep versions in sync with
@@ -946,6 +953,8 @@ docs-pdf-check: _venv
 docs-deploy-artifact-check:
     test -f site/index.html
     test -f site/_headers
+    test -f site/images/sase_social_card.png
+    grep -Fq 'content="https://sase.sh/images/sase_social_card.png"' site/index.html
     test -f site/downloads/sase-handbook.pdf
     test "$(head -c 4 site/downloads/sase-handbook.pdf)" = "%PDF"
     test -f site/blog/index.html
