@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field
+from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -216,21 +217,79 @@ def _has_real_prepare(tail: str) -> int:
     return -1
 
 
-def _classify_artifact_dir(artifact_dir: Path) -> str:
+def _has_handoff_phase(meta: dict[str, Any]) -> bool:
+    phases = meta.get("lifecycle_phases")
+    if not isinstance(phases, list):
+        return False
+    return any(
+        isinstance(entry, dict) and entry.get("phase") == "handoff" for entry in phases
+    )
+
+
+def _has_prepared_completion(artifact_dir: Path) -> bool:
+    payload = _read_json(
+        artifact_dir / "continuation" / "completion_intents" / "index.json"
+    )
+    intents = payload.get("intents")
+    return isinstance(intents, dict) and bool(intents)
+
+
+def _host_handoff_class(
+    artifact_dir: Path,
+    meta: dict[str, Any],
+    tail_text: Callable[[], str],
+) -> str | None:
+    """Classify an adopted handoff from host records, or ``None``.
+
+    ``None`` means there is no host-evidence class (no ``handoff``
+    lifecycle phase). Callers skip this step when
+    ``handoff_aborted.json`` exists, then fall through to the tool-call
+    tail scan used for older runs.
+    """
+    if not _has_handoff_phase(meta):
+        return None
+    if (artifact_dir / "plan_path.json").is_file():
+        return PLAN_HANDOFF
+    if meta.get("monitor_id") or meta.get("monitor_member_agent_name"):
+        prepared = _has_prepared_completion(artifact_dir)
+        if prepared or _has_real_prepare(tail_text()) != -1:
+            return MONITOR_PREPARED
+        return MONITOR_PLAIN
+    return OTHER_HANDOFF
+
+
+def _classify_artifact_dir(
+    artifact_dir: Path, meta: dict[str, Any] | None = None
+) -> str:
     """Classify one artifact dir; first match wins (unknown handled by caller)."""
     if _has_accepted_submission(artifact_dir):
         return ACCEPTED
-    tail = _tail_text(artifact_dir / "tool_calls.jsonl")
-    if any(marker in tail for marker in _PLAN_MARKERS):
-        return PLAN_HANDOFF
-    if _MONITOR_MARKER in tail:
-        prepare_at = _has_real_prepare(tail)
-        monitor_at = tail.find(_MONITOR_MARKER)
-        if prepare_at != -1 and prepare_at < monitor_at:
-            return MONITOR_PREPARED
-        return MONITOR_PLAIN
-    if any(marker in tail for marker in _OTHER_MARKERS):
-        return OTHER_HANDOFF
+    if meta is None:
+        meta = _read_json(artifact_dir / "agent_meta.json")
+    aborted = (artifact_dir / "handoff_aborted.json").is_file()
+    tail: str | None = None
+
+    def tail_text() -> str:
+        nonlocal tail
+        if tail is None:
+            tail = _tail_text(artifact_dir / "tool_calls.jsonl")
+        return tail
+
+    if not aborted:
+        host = _host_handoff_class(artifact_dir, meta, tail_text)
+        if host is not None:
+            return host
+        text = tail_text()
+        if any(marker in text for marker in _PLAN_MARKERS):
+            return PLAN_HANDOFF
+        if _MONITOR_MARKER in text:
+            prepare_at = _has_real_prepare(text)
+            monitor_at = text.find(_MONITOR_MARKER)
+            if prepare_at != -1 and prepare_at < monitor_at:
+                return MONITOR_PREPARED
+            return MONITOR_PLAIN
+        if any(marker in text for marker in _OTHER_MARKERS):
+            return OTHER_HANDOFF
     if _is_not_required(artifact_dir):
         return NOT_REQUIRED
     return MISS
@@ -395,7 +454,7 @@ def build_readout(
             if age_hours < 2.0:
                 continue
             mode, rendered = _delivery_mode_for_dir(artifact_dir)
-            provisional = _classify_artifact_dir(artifact_dir)
+            provisional = _classify_artifact_dir(artifact_dir, meta)
             run_class = provisional if provisional != MISS else UNKNOWN
             classified.append(
                 _ClassifiedRun(
@@ -411,7 +470,7 @@ def build_readout(
             )
             continue
         mode, rendered = _delivery_mode_for_dir(artifact_dir)
-        run_class = _classify_artifact_dir(artifact_dir)
+        run_class = _classify_artifact_dir(artifact_dir, meta)
         if mode == EXPLICIT and rendered:
             prior = first_explicit.get(provider)
             if prior is None or rendered < prior:

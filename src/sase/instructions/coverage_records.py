@@ -134,23 +134,56 @@ def _rendered_covers(rendered: datetime | None, start: datetime | None) -> bool:
     return rendered <= start + COVERAGE_SKEW
 
 
+def _root_records(records: list[ManifestRecord]) -> list[ManifestRecord]:
+    return [
+        record
+        for record in records
+        if not record.is_helper and record.actor != "native_helper"
+    ]
+
+
+def _session_recorded(session: RootSession, record: ManifestRecord) -> bool:
+    """Return whether *record* listed *session*'s provider session id.
+
+    Codex manifests store the rollout thread id, while discovery uses the
+    rollout filename stem (``rollout-<local-time>-<thread-id>``). A Codex
+    stem that ends with ``-<recorded id>`` counts as recorded.
+    """
+    if session.session_id in record.session_ids:
+        return True
+    if session.provider != "codex":
+        return False
+    return any(
+        session.session_id.endswith(f"-{recorded}") for recorded in record.session_ids
+    )
+
+
 def session_is_foreign(session: RootSession, records: list[ManifestRecord]) -> bool:
-    """Return whether *session* carries another invocation's bundle markers.
+    """Return whether *session* is another invocation's or was never recorded.
 
     True when the session has at least one marker and none of those
     invocation ids appear among *records*' root manifests.
+
+    Also true for a marker-less session when the run has at least one
+    same-provider non-helper root record, every such record recorded
+    ``session_ids``, and none of them records this session. A nested
+    ``claude -p`` started by a tool inside the workspace is the typical
+    case. Records that recorded no ids (legacy, shadow, or pre-writeback)
+    keep time-matching.
     """
+    roots = _root_records(records)
     marker_invocations = {invocation for _sha, invocation in session.bundle_markers}
-    if not marker_invocations:
+    if marker_invocations:
+        root_invocations = {
+            record.invocation_id for record in roots if record.invocation_id
+        }
+        return marker_invocations.isdisjoint(root_invocations)
+    provider_roots = [record for record in roots if record.provider == session.provider]
+    if not provider_roots:
         return False
-    root_invocations = {
-        record.invocation_id
-        for record in records
-        if record.invocation_id
-        and not record.is_helper
-        and record.actor != "native_helper"
-    }
-    return marker_invocations.isdisjoint(root_invocations)
+    if not all(record.session_ids for record in provider_roots):
+        return False
+    return not any(_session_recorded(session, record) for record in provider_roots)
 
 
 def matching_manifests(
@@ -160,8 +193,9 @@ def matching_manifests(
 
     A session that carries any bundle marker matches only records whose
     ``invocation_id`` is among those markers and never falls through to
-    session id or time. Marker-less sessions match recorded ``session_ids``,
-    then time-match only records that recorded none.
+    session id or time. Marker-less sessions match recorded ``session_ids``
+    (Codex rollout stems also match a recorded thread-id suffix), then
+    time-match only records that recorded none.
     """
     provider_candidates = [
         record
@@ -181,7 +215,7 @@ def matching_manifests(
         session_id_matches = [
             record
             for record in provider_candidates
-            if session.session_id in record.session_ids
+            if _session_recorded(session, record)
         ]
         if session_id_matches:
             matches = session_id_matches

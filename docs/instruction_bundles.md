@@ -233,12 +233,13 @@ legacy manifest as proof that all native instructions were restored.
 
 Root manifests record `delivery.status` (`explicit`, or `inherits_native` plus
 `fallback`), `channel`, `provider_cli_version` (cached probe, `null` on failure),
-`session_ids` (registered by the adapter, written back after the call), and the
-`subagent` slot. `shadow` is no longer written; readers still accept it for E2-era runs.
-The manifest is written before the call and atomically rewritten afterwards with session
-ids and any adapter-reported fallback. A killed process keeps the pre-call manifest.
-Bundle and manifest files are mode `0644`. The `agent_meta.json` `instructions` summary
-adds `delivery_status` and `helper_manifest`.
+`session_ids` (registered by the adapter, written back after the call; Codex stores the
+thread id, which matches the rollout filename stem suffix), and the `subagent` slot.
+`shadow` is no longer written; readers still accept it for E2-era runs. The manifest is
+written before the call and atomically rewritten afterwards with session ids and any
+adapter-reported fallback. A killed process keeps the pre-call manifest. Bundle and
+manifest files are mode `0644`. The `agent_meta.json` `instructions` summary adds
+`delivery_status` and `helper_manifest`.
 
 `%dispatch` launch requests do not forward `SASE_INSTRUCTIONS_FILE`. The target renders
 with its own code; no instruction bytes cross the wire. See

@@ -42,6 +42,7 @@ def _write_meta(
     provider: str,
     started_at: str = "2026-10-06T11:00:00Z",
     role: str | None = None,
+    extra: dict[str, object] | None = None,
 ) -> None:
     payload: dict[str, object] = {
         "name": name,
@@ -51,7 +52,14 @@ def _write_meta(
     }
     if role is not None:
         payload["agent_session_role"] = role
+    if extra:
+        payload.update(extra)
     (artifacts / "agent_meta.json").write_text(json.dumps(payload), encoding="utf-8")
+
+
+_HANDOFF_PHASE = {
+    "lifecycle_phases": [{"phase": "handoff", "at": "2026-10-06T12:00:00Z"}]
+}
 
 
 def _write_done(artifacts: Path) -> None:
@@ -198,6 +206,101 @@ def test_classify_not_required(tmp_path: Path) -> None:
     )
     (artifacts / "tool_calls.jsonl").write_text("", encoding="utf-8")
     assert _classify_artifact_dir(artifacts) == NOT_REQUIRED
+
+
+def test_classify_host_monitor_plain_without_tool_calls(tmp_path: Path) -> None:
+    """A lifecycle handoff plus ``monitor_id`` is a plain monitor handoff."""
+    artifacts = tmp_path / "host-mon"
+    artifacts.mkdir()
+    _write_meta(
+        artifacts,
+        name="10f--code",
+        provider="grok",
+        extra={
+            **_HANDOFF_PHASE,
+            "monitor_id": "9m6zn3csd5wf",
+            "monitor_member_agent_name": "10f--mon",
+        },
+    )
+    _write_done(artifacts)
+    assert _classify_artifact_dir(artifacts) == MONITOR_PLAIN
+
+
+def test_classify_host_monitor_prepared_from_intents(tmp_path: Path) -> None:
+    """Prepared monitor uses ``completion_intents/index.json`` intents."""
+    artifacts = tmp_path / "host-prep"
+    artifacts.mkdir()
+    _write_meta(
+        artifacts,
+        name="prep",
+        provider="codex",
+        extra={**_HANDOFF_PHASE, "monitor_id": "monid"},
+    )
+    _write_done(artifacts)
+    index = artifacts / "continuation" / "completion_intents" / "index.json"
+    index.parent.mkdir(parents=True)
+    index.write_text(
+        json.dumps({"intents": {"intent-1": {"filename": "intent-1.json"}}}),
+        encoding="utf-8",
+    )
+    assert _classify_artifact_dir(artifacts) == MONITOR_PREPARED
+
+
+def test_classify_host_plan_handoff(tmp_path: Path) -> None:
+    """``plan_path.json`` with a handoff phase is a plan handoff."""
+    artifacts = tmp_path / "host-plan"
+    artifacts.mkdir()
+    _write_meta(artifacts, name="pln", provider="muse", extra=_HANDOFF_PHASE)
+    _write_done(artifacts)
+    (artifacts / "plan_path.json").write_text(
+        json.dumps({"plan_path": "/tmp/plan.md"}), encoding="utf-8"
+    )
+    assert _classify_artifact_dir(artifacts) == PLAN_HANDOFF
+
+
+def test_classify_host_other_handoff(tmp_path: Path) -> None:
+    """A handoff phase with no plan or monitor markers is other."""
+    artifacts = tmp_path / "host-other"
+    artifacts.mkdir()
+    _write_meta(artifacts, name="oth", provider="grok", extra=_HANDOFF_PHASE)
+    _write_done(artifacts)
+    assert _classify_artifact_dir(artifacts) == OTHER_HANDOFF
+
+
+def test_classify_aborted_handoff_is_miss(tmp_path: Path) -> None:
+    """``handoff_aborted.json`` is never a handoff, even with a handoff phase."""
+    artifacts = tmp_path / "aborted"
+    artifacts.mkdir()
+    _write_meta(
+        artifacts,
+        name="aborted",
+        provider="grok",
+        extra={**_HANDOFF_PHASE, "monitor_id": "monid"},
+    )
+    _write_done(artifacts)
+    (artifacts / "handoff_aborted.json").write_text("{}", encoding="utf-8")
+    (artifacts / "tool_calls.jsonl").write_text(
+        "sase monitor start -p verify -- just check\n", encoding="utf-8"
+    )
+    assert _classify_artifact_dir(artifacts) == MISS
+
+
+def test_classify_accepted_beats_host_evidence(tmp_path: Path) -> None:
+    """An accepted submission wins even when host records show a handoff."""
+    artifacts = tmp_path / "accepted-host"
+    artifacts.mkdir()
+    _write_meta(
+        artifacts,
+        name="acc",
+        provider="codex",
+        extra={**_HANDOFF_PHASE, "monitor_id": "monid"},
+    )
+    _write_done(artifacts)
+    (artifacts / "final_submission.json").write_text(
+        json.dumps({"accepted_at": "2026-10-06T12:00:00Z"}), encoding="utf-8"
+    )
+    (artifacts / "plan_path.json").write_text("{}", encoding="utf-8")
+    assert _classify_artifact_dir(artifacts) == ACCEPTED
 
 
 def test_classify_miss(tmp_path: Path) -> None:

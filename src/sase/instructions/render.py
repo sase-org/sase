@@ -177,6 +177,18 @@ def render_coverage(block: Any, *, console: Any | None = None) -> None:
     target.print(table)
 
 
+def render_foreign_sessions(sessions: list[Any], *, console: Any | None = None) -> None:
+    """Print one ``-a`` line per session this run did not record."""
+    from rich.console import Console
+
+    target = console if console is not None else Console()
+    for session in sessions:
+        target.print(
+            f"{session.run_name}/{session.session_id}: "
+            "⊘ foreign — not recorded by this run; not scored"
+        )
+
+
 def render_section_diffs(diffs: list[Any], *, console: Any | None = None) -> None:
     """Render the ``-a`` intended-vs-observed section tables."""
     from rich.console import Console
@@ -263,6 +275,7 @@ def render_helper_rows(report: VerifyReport, *, console: Any | None = None) -> N
 __all__ = [
     "_coverage_block_to_json_dict",
     "render_coverage",
+    "render_foreign_sessions",
     "render_helper_rows",
     "render_json",
     "render_section_diffs",

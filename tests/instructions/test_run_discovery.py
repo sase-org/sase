@@ -296,3 +296,46 @@ def test_render_finds_dismissed_named_agent(
     assert recorded is not None
     assert facts["provider"] == "codex"
     assert recorded["bundle"]["sha256"] == manifest["bundle"]["sha256"]
+
+
+def test_find_codex_sessions_scans_local_date_directories(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Codex files rollouts by local date, so UTC-adjacent dirs are scanned."""
+    sessions_root = tmp_path / "sessions"
+    local_day = sessions_root / "2026" / "10" / "14"
+    local_day.mkdir(parents=True)
+    in_window = {
+        "type": "session_meta",
+        "payload": {
+            "session_id": "01a13d94-c6ae-70c0-bb68-e268763dfae7",
+            "timestamp": "2026-10-15T03:22:00Z",
+            "cwd": "/work/synthetic",
+        },
+    }
+    out_of_window = {
+        "type": "session_meta",
+        "payload": {
+            "session_id": "outside-thread",
+            "timestamp": "2026-10-14T20:00:00Z",
+            "cwd": "/work/synthetic",
+        },
+    }
+    (local_day / "rollout-2026-10-14T23-22-02-in.jsonl").write_text(
+        json.dumps(in_window) + "\n", encoding="utf-8"
+    )
+    (local_day / "rollout-2026-10-14T16-00-00-out.jsonl").write_text(
+        json.dumps(out_of_window) + "\n", encoding="utf-8"
+    )
+    monkeypatch.setattr(run_mod, "_codex_sessions_root", lambda: sessions_root)
+    run = run_mod.ScoredRun(
+        provider="codex",
+        name="sase-1kx.5.3.3.1--1",
+        workspace_dir="/work/synthetic",
+        artifact_dir="/work/synthetic",
+        started_at=datetime(2026, 10, 15, 3, 19, tzinfo=UTC),
+        ended_at=datetime(2026, 10, 15, 4, 0, tzinfo=UTC),
+        project=None,
+    )
+    matches = run_mod.find_codex_sessions(run)
+    assert [path.stem for path in matches] == ["rollout-2026-10-14T23-22-02-in"]

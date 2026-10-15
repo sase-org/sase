@@ -97,15 +97,25 @@ A session first matches a manifest by its bundle marker's invocation id. A sessi
 carries another invocation's marker never falls through to session id or time. Otherwise
 it matches by the adapter-recorded session id, then by provider and render time (5 s of
 skew allowed) against records that recorded no session ids. Explicit records with
-recorded session ids are not time-matched. `sase instructions verify -c` prints the
-per-provider-purpose coverage table: manifests, sessions, covered, up to 10 uncovered
-`(agent, session)` pairs, shadow-failure (`.error.json`) counts, and warm/cold
-`render_ms` p50/p95. With `-a NAME`, each observed root session also gets its
-intended-vs-observed section table: every included manifest section with the count of
-loaded sources whose text contains it, split into `native` and `explicit` channels
-(frame and heading-only sections are skipped). Counts use non- overlapping occurrences.
-Partial transcripts retain counts found in the prefix; a row is `◌` only when no
-occurrence appears in a partial read.
+recorded session ids are not time-matched. Codex rollout stems match a recorded thread
+id: discovery uses the filename stem (`rollout-<local-time>-<thread-id>`), and manifests
+store the bare thread id. Codex rollouts are found in local-date directories
+(`~/.codex/sessions/YYYY/MM/DD`), so discovery scans one UTC day on each side of the run
+window.
+
+A marker-less session that no same-provider root record lists, when all of those records
+recorded session ids, is not the run's session. A nested `claude -p` started by a tool
+inside the workspace is the typical case. verify, coverage, and conformance skip such
+sessions; `verify -a` labels each one `⊘ foreign` instead of scoring it.
+
+`sase instructions verify -c` prints the per-provider-purpose coverage table: manifests,
+sessions, covered, up to 10 uncovered `(agent, session)` pairs, shadow-failure
+(`.error.json`) counts, and warm/cold `render_ms` p50/p95. With `-a NAME`, each observed
+root session also gets its intended-vs-observed section table: every included manifest
+section with the count of loaded sources whose text contains it, split into `native` and
+`explicit` channels (frame and heading-only sections are skipped). Counts use non-
+overlapping occurrences. Partial transcripts retain counts found in the prefix; a row is
+`◌` only when no occurrence appears in a partial read.
 
 Symbols: `✓` present, `✗` absent, `◌` unverifiable (agy reports every instruction column
 as `◌`, with directive presence only when the conversation record exposes the prompt).
@@ -143,16 +153,29 @@ Delivery mode is `explicit` when the ordinary root manifest has
 pre-E2 runs. The table subtitle prints each provider's first explicit `rendered_at`; the
 soak watch starts there.
 
-Classes, first match wins:
+Classes, first match wins. Handoffs are recognized from host records first:
 
 1. accepted submission (`final_submission.json`)
-2. plan handoff (`sase plan propose` / `validate` / `decide`)
-3. monitor handoff with a prepared declaration (`sase final prepare` then
-   `sase monitor start`; a bare `-h`/`--help` prepare does not count)
-4. plain monitor handoff
-5. other recognized handoff (`sase pipe`, `sase questions`, `sase handoff`)
-6. declaration not required (`final_context.json`)
-7. **miss**
+2. plan handoff (`plan_path.json`, written only by the plan-handoff handler)
+3. monitor handoff with a prepared completion intent (`monitor_id` /
+   `monitor_member_agent_name` plus a non-empty
+   `continuation/completion_intents/index.json` `intents` object, or a real
+   `sase final prepare` in the tool-call tail)
+4. plain monitor handoff (`monitor_id` / `monitor_member_agent_name` without a prepared
+   intent)
+5. other adopted handoff (lifecycle `handoff` phase: questions, gate, pipe, or
+   successor)
+6. tool-call text fallback for older runs (`sase plan propose` / `validate` / `decide`;
+   `sase monitor start` with or without a real prepare; `sase pipe` / `sase questions` /
+   `sase handoff`)
+7. declaration not required (`final_context.json`)
+8. **miss**
+
+An aborted handoff (`handoff_aborted.json`) is never a handoff. Non-Claude providers do
+not record the handoff call itself in `tool_calls.jsonl` (the handoff SIGTERMs the
+runner before that call is flushed), so host records are the authoritative signal.
+Readouts computed before this host-evidence step overcount misses for Grok, Codex, and
+Muse.
 
 Misses are an upper bound and are labelled `≤`. `-j` emits one stable JSON document with
 `schema_version: 1`. Memory columns join `~/.sase/projects/<project>/memory_reads.jsonl`

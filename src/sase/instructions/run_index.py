@@ -365,14 +365,21 @@ def find_claude_helpers(session_path: Path) -> list[tuple[Path, str]]:
 
 
 def find_codex_sessions(run: ScoredRun) -> list[Path]:
-    """Find Codex rollouts whose ``session_meta`` matches *run*."""
+    """Find Codex rollouts whose ``session_meta`` matches *run*.
+
+    Codex files rollouts by local date, so a UTC window can miss the
+    directory of an evening (US) start. Scan one UTC day on each side;
+    ``_codex_rollout_matches`` still requires ``session_meta`` cwd and
+    timestamp inside ``[run.started_at, end]``.
+    """
     root = _codex_sessions_root()
     if not root.is_dir():
         return []
     end = run.ended_at or datetime.now(tz=UTC)
     days: set[str] = set()
-    cursor = run.started_at
-    while cursor.date() <= end.date():
+    cursor = run.started_at - timedelta(days=1)
+    last = end + timedelta(days=1)
+    while cursor.date() <= last.date():
         days.add(cursor.strftime("%Y/%m/%d"))
         cursor += timedelta(days=1)
         if len(days) > 366:

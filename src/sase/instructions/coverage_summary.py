@@ -109,8 +109,9 @@ def provider_session_coverage(
 ) -> tuple[int, int]:
     """Return ``(covered, total)`` root sessions for *provider*.
 
-    Foreign-marker sessions are omitted from *verdicts* and from this
-    total, so they are never counted uncovered.
+    Foreign sessions (another invocation's marker, or a marker-less
+    session this run never recorded) are omitted from *verdicts* and
+    from this total, so they are never counted uncovered.
     """
     wanted = {
         (item.run_name, item.session_id)

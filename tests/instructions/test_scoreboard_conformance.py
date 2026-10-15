@@ -369,7 +369,7 @@ def test_explicit_record_with_session_ids_does_not_time_claim(
         session_start=datetime(2026, 10, 1, 0, 0, 1, tzinfo=UTC),
     )
     assert matching_manifests(session, [record]) == []
-    assert session_is_foreign(session, [record]) is False
+    assert session_is_foreign(session, [record]) is True
 
 
 def test_foreign_session_dropped_from_verify_observations(

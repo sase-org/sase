@@ -326,6 +326,7 @@ def _run_instructions_verify(args: argparse.Namespace) -> int:
     from sase.instructions.run_index import UnknownAgentError
     from sase.instructions.render import (
         render_coverage,
+        render_foreign_sessions,
         render_helper_rows,
         render_json,
         render_section_diffs,
@@ -405,25 +406,29 @@ def _run_instructions_verify(args: argparse.Namespace) -> int:
         )
     diffs: list[coverage_mod.SectionDiff] = []
     section_diffs: dict[tuple[str, str], coverage_mod.SectionDiff] = {}
+    foreign_sessions: list[coverage_mod.RootSession] = []
     if agent is not None:
         runs_by_dir = {run.artifact_dir: run for run in scored}
         obs_by_session = {(obs.run_name, obs.session_id): obs for obs in observations}
+        records_by_dir: dict[str, list[coverage_mod.ManifestRecord]] = {}
+        for record in records:
+            records_by_dir.setdefault(record.artifact_dir, []).append(record)
         for session in sessions:
             # Scored runs are already filtered to this agent (by name or
-            # bead id), so every session here belongs to it.
+            # bead id). Foreign sessions were never recorded by this run.
             scored_run = runs_by_dir.get(session.artifact_dir)
             if scored_run is None:
+                continue
+            run_records = records_by_dir.get(session.artifact_dir, [])
+            if coverage_mod.session_is_foreign(session, run_records):
+                foreign_sessions.append(session)
                 continue
             obs = obs_by_session.get((session.run_name, session.session_id))
             diffs.append(
                 coverage_mod.section_diff_for_session(
                     session,
                     scored_run,
-                    [
-                        record
-                        for record in records
-                        if record.artifact_dir == session.artifact_dir
-                    ],
+                    run_records,
                     partial=bool(obs is not None and obs.partial),
                 )
             )
@@ -463,6 +468,7 @@ def _run_instructions_verify(args: argparse.Namespace) -> int:
         render_helper_rows(report)
     elif agent is not None:
         render_helper_rows(report)
+        render_foreign_sessions(foreign_sessions)
         render_section_diffs(diffs)
     return 0
 
