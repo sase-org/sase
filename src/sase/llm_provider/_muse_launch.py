@@ -26,10 +26,11 @@ MUSE_NO_AUTO_UPDATE_ENV = "MUSE_NO_AUTO_UPDATE"
 
 _PROMPT_FILE_TMPDIR_PART = "muse-prompts"
 
-# Muse accepts every canonical level. Meta documents ``max`` reasoning for the
-# standard Spark 1.3 model only; explicit requests for other model versions are
-# left to the CLI to validate. Muse's own default is ``high``, so a run with no
-# resolved effort shows blank in SASE while Muse actually used ``high``.
+# Muse accepts every canonical level. Muse Code's model catalog lists ``max``
+# for the Wonder models and Spark 1.3 (including their Contributor variants),
+# but not for Spark 1.2; other combinations are left to the CLI to validate.
+# Muse's own default is ``high``, so a run with no resolved effort shows blank
+# in SASE while Muse actually used ``high``.
 MUSE_EFFORT_CLI_ARGS: dict[str, list[str]] = {
     level: ["--reasoning-effort", level]
     for level in ("none", "minimal", "low", "medium", "high", "xhigh", "max")

@@ -26,7 +26,7 @@ def test_muse_command_construction(monkeypatch: pytest.MonkeyPatch) -> None:
 
     assert cmd[:3] == ["/opt/muse/bin/muse", "exec", "--json"]
     assert cmd[cmd.index("--workspace") + 1] == os.getcwd()
-    assert cmd[cmd.index("--model") + 1] == "muse-spark-1.3"
+    assert cmd[cmd.index("--model") + 1] == "muse-wonder-1.0"
     assert "--trust-workspace" in cmd
     assert "--disable-approval" in cmd
     assert "--disable-sandbox" in cmd

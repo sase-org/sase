@@ -5676,7 +5676,7 @@ disables it by default; `SASE_MUSE_SANDBOX=on` keeps the sandbox with
 Muse's Contributor models carry a **model advisory**: Meta uses their inputs and outputs
 to train and improve Meta's AI models (see the generated
 [Built-in Model Catalog](llms.md#built-in-model-catalog) for the current names). SASE
-keeps them fully reachable by name and never points a provider tier map at either.
+keeps them fully reachable by name and never points a provider tier map at any of them.
 Whichever shipped size aliases currently include a Contributor member route there
 automatically whenever a `muse` executable is available (see the generated
 [shipped size-alias defaults](llms.md#implicit-role-aliases)); override

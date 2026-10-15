@@ -18,7 +18,17 @@ from sase.llm_provider.model_manifest import provider_tier_model
 from sase.llm_provider.muse import MuseProvider
 from sase.llm_provider.registry import model_advisory_for, model_advisory_map
 
-_CONTRIBUTORS = ("muse-spark-1.3-contributor", "muse-spark-1.2-contributor")
+_CONTRIBUTORS = (
+    "muse-wonder-1.0-contributor",
+    "muse-wonder-full-1.0-contributor",
+    "muse-spark-1.3-contributor",
+    "muse-spark-1.2-contributor",
+)
+_UNFLAGGED_SIBLING_CONTRIBUTORS = tuple(
+    contributor
+    for contributor in _CONTRIBUTORS
+    if contributor != "muse-wonder-full-1.0-contributor"
+)
 _ARGON_SLUGS = (
     "gemini-4-argon-high",
     "gemini-4-argon-medium",
@@ -119,7 +129,7 @@ def test_one_bad_entry_does_not_drop_its_siblings() -> None:
 def test_muse_flags_the_contributor_model(contributor: str) -> None:
     advisories = MuseProvider().llm_model_advisories()
 
-    assert set(advisories) == set(_CONTRIBUTORS)
+    assert set(advisories) == set(_CONTRIBUTORS) | {"muse-wonder-full-1.0"}
     assert advisories[contributor]["severity"] == "warn"
     assert advisories[contributor]["label"] == "trains on your data"
     assert contributor.removesuffix("-contributor") in advisories[contributor]["detail"]
@@ -129,7 +139,6 @@ def test_muse_flags_the_contributor_model(contributor: str) -> None:
 def test_registry_publishes_the_contributor_advisory(contributor: str) -> None:
     assert model_advisory_map()[contributor]["label"] == "trains on your data"
     assert model_advisory_for(contributor) is not None
-    assert model_advisory_for(contributor.removesuffix("-contributor")) is None
     assert model_advisory_for(None) is None
 
 
@@ -192,10 +201,6 @@ def test_model_picker_row_carries_the_advisory(contributor: str) -> None:
     # The detail is searchable, so filtering on the terms finds the row.
     assert any("trains on your data" in term for term in flagged.search_terms)
 
-    standard = contributor.removesuffix("-contributor")
-    assert rows[standard].advisory_label is None
-    assert "⚠" not in rows[standard].label
-
 
 @pytest.mark.parametrize("contributor", _CONTRIBUTORS)
 def test_model_picker_option_renders_the_advisory(contributor: str) -> None:
@@ -206,7 +211,6 @@ def test_model_picker_option_renders_the_advisory(contributor: str) -> None:
     }
 
     assert "⚠ trains on your data" in options[contributor]
-    assert "⚠" not in options[contributor.removesuffix("-contributor")]
 
 
 @pytest.mark.parametrize("contributor", _CONTRIBUTORS)
@@ -224,10 +228,6 @@ def test_model_completion_detail_carries_the_advisory(contributor: str) -> None:
     assert flagged.advisory_severity == "warn"
     assert "⚠ trains on your data" in flagged.description
 
-    standard = contributor.removesuffix("-contributor")
-    assert entries[standard].advisory_label == ""
-    assert "⚠" not in entries[standard].description
-
 
 @pytest.mark.parametrize("contributor", _CONTRIBUTORS)
 def test_model_completion_payload_exposes_the_advisory(contributor: str) -> None:
@@ -239,7 +239,6 @@ def test_model_completion_payload_exposes_the_advisory(contributor: str) -> None
     }
 
     assert entries[contributor]["advisory_label"] == "trains on your data"
-    assert entries[contributor.removesuffix("-contributor")]["advisory_label"] == ""
 
 
 def test_model_completion_and_lsp_catalog_include_spark_13_metadata() -> None:
@@ -262,9 +261,12 @@ def test_model_completion_and_lsp_catalog_include_spark_13_metadata() -> None:
 @pytest.mark.parametrize("contributor", _CONTRIBUTORS)
 def test_model_label_marks_an_active_advisory_model(contributor: str) -> None:
     flagged = model_value_text(contributor, "muse", "high")
-    standard = contributor.removesuffix("-contributor")
-    plain = model_value_text(standard, "muse", "high")
 
-    assert flagged is not None and plain is not None
+    assert flagged is not None
     assert flagged.plain == f"MUSE({contributor}) ⚠ @ high"
-    assert plain.plain == f"MUSE({standard}) @ high"
+
+
+@pytest.mark.parametrize("contributor", _UNFLAGGED_SIBLING_CONTRIBUTORS)
+def test_standard_sibling_has_no_advisory(contributor: str) -> None:
+    standard = contributor.removesuffix("-contributor")
+    assert model_advisory_for(standard) is None

@@ -16,6 +16,10 @@ _READ_TOOL_FIXTURE = _FIXTURES / "muse_exec_read_tool_R708.1.jsonl"
 _WRITE_BASH_FIXTURE = _FIXTURES / "muse_exec_write_bash_tools_R708.1.jsonl"
 
 _MUSE_MODELS = [
+    "muse-wonder-1.0",
+    "muse-wonder-1.0-contributor",
+    "muse-wonder-full-1.0",
+    "muse-wonder-full-1.0-contributor",
     "muse-spark-1.3",
     "muse-spark-1.3-contributor",
     "muse-spark-1.2",

@@ -23,7 +23,14 @@ def test_muse_provider_is_registered_as_an_entry_point() -> None:
 
 
 @pytest.mark.parametrize(
-    "model", ["muse-spark-1.3", "muse-spark-1.2-contributor", "muse-spark-1.1"]
+    "model",
+    [
+        "muse-wonder-1.0",
+        "muse-wonder-full-1.0-contributor",
+        "muse-spark-1.3",
+        "muse-spark-1.2-contributor",
+        "muse-spark-1.1",
+    ],
 )
 def test_muse_known_models_resolve_implicitly(model: str) -> None:
     provider, resolved_model = resolve_model_provider(model)
@@ -40,6 +47,10 @@ def test_muse_provider_metadata_hooks() -> None:
     assert provider.llm_cli_status_color() == "#3D9BFF"
     assert provider.llm_known_model_names() == _MUSE_MODELS
     assert provider.llm_model_short_aliases() == {
+        "muse-wonder-1.0": "wonder10",
+        "muse-wonder-1.0-contributor": "wonder10c",
+        "muse-wonder-full-1.0": "wonderfull10",
+        "muse-wonder-full-1.0-contributor": "wonderfull10c",
         "muse-spark-1.3": "spark13",
         "muse-spark-1.3-contributor": "spark13c",
         "muse-spark-1.2": "spark12",
@@ -69,10 +80,10 @@ def test_muse_provider_surface_metadata_is_registered() -> None:
 
 
 def test_muse_provider_resolve_model_name_never_routes_a_tier_to_contributor() -> None:
-    """Both tiers map to the paid model; `small` phases route to `@small` directly."""
+    """Tiers avoid Contributors; `small` phases route to `@small` directly."""
     provider = MuseProvider()
-    assert provider.resolve_model_name() == "muse-spark-1.3"
-    assert provider.resolve_model_name("large") == "muse-spark-1.3"
+    assert provider.resolve_model_name() == "muse-wonder-1.0"
+    assert provider.resolve_model_name("large") == "muse-wonder-1.0"
     assert provider.resolve_model_name("small") == "muse-spark-1.3"
 
 

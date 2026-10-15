@@ -159,31 +159,57 @@ providers:
       large: grok-4.7
       small: grok-4.6
   muse:
-    # Both tiers map to the full-price model on purpose. Contributor models are
-    # trained on their inputs and outputs, and a tier mapping is SASE's own
-    # default choice of model, so it must never send a user's proprietary source
-    # into Meta's training corpus on the user's behalf. The shipped @xsmall,
-    # @small, and @medium alias pools do include muse-spark-1.3-contributor, so
-    # an agent launched at those sizes can reach it automatically when `muse` is
-    # on PATH; that is a different route, a configured shipped default the user
-    # can drop by overriding llm_provider.model_aliases.builtin.<size>. The
-    # Contributor model is also fully reachable by name.
+    # Neither tier maps to a Contributor model. Contributor models are trained
+    # on their inputs and outputs, and a tier mapping is SASE's own default
+    # choice of model, so it must never send a user's proprietary source into
+    # Meta's training corpus on the user's behalf. Wonder Full is plan-gated,
+    # so it is never a tier default. The shipped @xsmall, @small, and @medium
+    # alias pools do include muse-spark-1.3-contributor, so an agent launched at
+    # those sizes can reach it automatically when `muse` is on PATH; that is a
+    # different route, a configured shipped default the user can drop by
+    # overriding llm_provider.model_aliases.builtin.<size>. Contributor models
+    # are also fully reachable by name.
     models:
+      - muse-wonder-1.0
+      - muse-wonder-1.0-contributor
+      - muse-wonder-full-1.0
+      - muse-wonder-full-1.0-contributor
       - muse-spark-1.3
       - muse-spark-1.3-contributor
       - muse-spark-1.2
       - muse-spark-1.2-contributor
       - muse-spark-1.1
     short_aliases:
+      muse-wonder-1.0: wonder10
+      muse-wonder-1.0-contributor: wonder10c
+      muse-wonder-full-1.0: wonderfull10
+      muse-wonder-full-1.0-contributor: wonderfull10c
       muse-spark-1.3: spark13
       muse-spark-1.3-contributor: spark13c
       muse-spark-1.2: spark12
       muse-spark-1.2-contributor: spark12c
       muse-spark-1.1: spark11
     tiers:
-      large: muse-spark-1.3
+      large: muse-wonder-1.0
       small: muse-spark-1.3
     advisories:
+      muse-wonder-1.0-contributor:
+        severity: warn
+        label: trains on your data
+        detail: Meta uses this model's inputs and outputs to train and improve
+          its AI models. Same capabilities as muse-wonder-1.0.
+      muse-wonder-full-1.0:
+        severity: info
+        label: needs Power plan or higher
+        detail: Muse Code offers Muse Wonder Full only on its Power and Maximum
+          plans, and Meta does not serve it through the Meta Model API, so it is
+          unavailable on other plans and to API-key logins.
+      muse-wonder-full-1.0-contributor:
+        severity: warn
+        label: trains on your data
+        detail: Meta uses this model's inputs and outputs to train and improve
+          its AI models. Same capabilities as muse-wonder-full-1.0, which Muse
+          Code offers only on its Power and Maximum plans.
       muse-spark-1.3-contributor:
         severity: warn
         label: trains on your data

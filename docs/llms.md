@@ -903,26 +903,30 @@ Muse's synchronous ceiling goes to a SASE monitor, chosen before the command sta
 
 <!-- BEGIN GENERATED: model-tiers-muse -->
 
-| Tier    | Model            |
-| ------- | ---------------- |
-| `large` | `muse-spark-1.3` |
-| `small` | `muse-spark-1.3` |
+| Tier    | Model             |
+| ------- | ----------------- |
+| `large` | `muse-wonder-1.0` |
+| `small` | `muse-spark-1.3`  |
 
 <!-- END GENERATED: model-tiers-muse -->
 
-| Model                        | Context | In / Cached / Out (per 1M) | Notes                                                                                                                                      |
-| ---------------------------- | ------- | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| `muse-spark-1.3`             | 1M      | $1.25 / $0.15 / $4.25      | Current coding-optimized model for agentic workflows.                                                                                      |
-| `muse-spark-1.3-contributor` | 1M      | $0.10 / $0.002 / $0.20     | Same capabilities as 1.3. **Meta uses its inputs and outputs to train and improve Meta's AI models.** Rate limited; select countries only. |
-| `muse-spark-1.2`             | 1M      | $1.25 / $0.15 / $4.25      | Supported prior coding-optimized model.                                                                                                    |
-| `muse-spark-1.2-contributor` | 1M      | $0.10 / $0.002 / $0.20     | Same capabilities as 1.2. **Meta uses its inputs and outputs to train and improve Meta's AI models.** Rate limited; select countries only. |
-| `muse-spark-1.1`             | 1M      | $1.25 / $0.15 / $4.25      | Agentic and multimodal (text, images, video, documents).                                                                                   |
+| Model                              | Context | In / Cached / Out (per 1M) | Notes                                                                                                                                               |
+| ---------------------------------- | ------- | -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `muse-wonder-1.0`                  | 1M      | $4.00 / $0.20 / $20.00     | Meta's frontier model (preview) for coding and long-running agentic work; Muse Code's catalog default. Every Muse Code plan and the Meta Model API. |
+| `muse-wonder-1.0-contributor`      | 1M      | no published price         | Same capabilities as Wonder. **Meta uses its inputs and outputs to train and improve Meta's AI models.**                                            |
+| `muse-wonder-full-1.0`             | 1M      | subscription only          | Larger Wonder variant. Muse Code Power and Maximum plans only; not served through the Meta Model API.                                               |
+| `muse-wonder-full-1.0-contributor` | 1M      | subscription only          | Same capabilities as Wonder Full. **Meta uses its inputs and outputs to train and improve Meta's AI models.**                                       |
+| `muse-spark-1.3`                   | 1M      | $1.25 / $0.15 / $4.25      | Lower-latency coding-optimized model for agentic workflows.                                                                                         |
+| `muse-spark-1.3-contributor`       | 1M      | $0.10 / $0.002 / $0.20     | Same capabilities as 1.3. **Meta uses its inputs and outputs to train and improve Meta's AI models.** Rate limited; select countries only.          |
+| `muse-spark-1.2`                   | 1M      | $1.25 / $0.15 / $4.25      | Supported prior coding-optimized model.                                                                                                             |
+| `muse-spark-1.2-contributor`       | 1M      | $0.10 / $0.002 / $0.20     | Same capabilities as 1.2. **Meta uses its inputs and outputs to train and improve Meta's AI models.** Rate limited; select countries only.          |
+| `muse-spark-1.1`                   | 1M      | $1.25 / $0.15 / $4.25      | Agentic and multimodal (text, images, video, documents).                                                                                            |
 
-**Both tiers map to the full-price model on purpose** (see the generated tier table
+**Neither tier maps to a Contributor model on purpose** (see the generated tier table
 above). A tier mapping is SASE's own default choice of model, and mapping it to the
 Contributor model would silently ship a user's proprietary source into Meta's training
-corpus. SASE does not make that decision on anyone's behalf through the tier map, and a
-test pins that.
+corpus. Under `large_tier = wonder`, `large` follows Muse Code's Wonder default while
+`small` stays on Spark 1.3.
 
 **The shipped size aliases are a separate route, and they can reach the Contributor
 model.** Whichever shipped size aliases currently include a Contributor member (see the
@@ -940,10 +944,11 @@ the generated shipped-alias table is only ever reached by typing its name.
 ### Muse Reasoning Effort
 
 Muse accepts all seven canonical levels, including `max`. Meta documents `max` reasoning
-for the standard `muse-spark-1.3` model; it is not claimed for Contributor or older
-models. Muse's own internal default is `high`, so a run with no resolved effort shows
-blank in SASE while Muse actually used `high`; the recorded model identity (below)
-closes the equivalent gap for the model.
+for the Wonder models and Spark 1.3, including their Contributor variants, but not for
+Spark 1.2. Other combinations are left to Muse Code to validate. Muse's own internal
+default is `high`, so a run with no resolved effort shows blank in SASE while Muse
+actually used `high`; the recorded model identity (below) closes the equivalent gap for
+the model.
 
 ### The Event Stream
 
@@ -1845,7 +1850,7 @@ picker and completion order. This table is generated from
 | claude   | `opus`, `sonnet`, `haiku`, `claude-haiku-5-5`, `claude-haiku-4-5`, `claude-fable-5`                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | codex    | `gpt-6-astra`, `gpt-6.1-sol`, `gpt-6-luna`, `gpt-5.6-sol`, `gpt-5.6-terra`, `gpt-5.6-luna`, `gpt-5.5`, `gpt-5.3-codex`, `gpt-5.3-codex-spark`, `codex-mini-latest`, `o3`, `o4-mini`, `gpt-5.4`, `gpt-4.1`, `gpt-4.1-mini`, `gpt-4o`, `gpt-4o-mini`                                                                                                                                                                                                                                                        |
 | grok     | `grok-4.7`, `grok-4.6`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| muse     | `muse-spark-1.3`, `muse-spark-1.3-contributor`, `muse-spark-1.2`, `muse-spark-1.2-contributor`, `muse-spark-1.1`                                                                                                                                                                                                                                                                                                                                                                                          |
+| muse     | `muse-wonder-1.0`, `muse-wonder-1.0-contributor`, `muse-wonder-full-1.0`, `muse-wonder-full-1.0-contributor`, `muse-spark-1.3`, `muse-spark-1.3-contributor`, `muse-spark-1.2`, `muse-spark-1.2-contributor`, `muse-spark-1.1`                                                                                                                                                                                                                                                                            |
 | opencode | `anthropic/claude-sonnet-4-5`, `anthropic/claude-opus-4-5`, `openai/gpt-5`, `openai/gpt-5-mini`, `google/gemini-3-flash-preview`, `qwen/qwen3-coder-plus`                                                                                                                                                                                                                                                                                                                                                 |
 | qwen     | `qwen3.6-plus`, `qwen3-coder-plus`, `qwen3-coder-flash`, `qwen3-max`, `qwen-plus`, `qwen-max`                                                                                                                                                                                                                                                                                                                                                                                                             |
 
@@ -1871,7 +1876,7 @@ yourself.
 | claude   | `claude-haiku-5-5` → `haiku55`, `claude-haiku-4-5` → `haiku45`, `claude-fable-5` → `fable`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | codex    | `gpt-6-astra` → `astra`, `gpt-6.1-sol` → `gpt61sol`, `gpt-6-luna` → `gpt6luna`, `codex-mini-latest` → `mini`, `gpt-5.6-sol` → `gpt56sol`, `gpt-5.6-terra` → `gpt56terra`, `gpt-5.6-luna` → `gpt56luna`, `gpt-5.5` → `gpt55`, `gpt-5.4` → `gpt54`, `gpt-5.3-codex-spark` → `gpt53spark`, `gpt-5.3-codex` → `gpt53`, `gpt-4.1` → `gpt41`, `gpt-4.1-mini` → `gpt41m`, `gpt-4o-mini` → `gpt4om`                                                                                                                                                                                                                                                                                                                                                                             |
 | grok     | —                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| muse     | `muse-spark-1.3` → `spark13`, `muse-spark-1.3-contributor` → `spark13c`, `muse-spark-1.2` → `spark12`, `muse-spark-1.2-contributor` → `spark12c`, `muse-spark-1.1` → `spark11`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| muse     | `muse-wonder-1.0` → `wonder10`, `muse-wonder-1.0-contributor` → `wonder10c`, `muse-wonder-full-1.0` → `wonderfull10`, `muse-wonder-full-1.0-contributor` → `wonderfull10c`, `muse-spark-1.3` → `spark13`, `muse-spark-1.3-contributor` → `spark13c`, `muse-spark-1.2` → `spark12`, `muse-spark-1.2-contributor` → `spark12c`, `muse-spark-1.1` → `spark11`                                                                                                                                                                                                                                                                                                                                                                                                              |
 | opencode | `anthropic/claude-sonnet-4-5` → `sonnet45`, `anthropic/claude-opus-4-5` → `opus45`, `openai/gpt-5` → `gpt5`, `openai/gpt-5-mini` → `gpt5m`, `google/gemini-3-flash-preview` → `flash3`, `qwen/qwen3-coder-plus` → `qwen3cp`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | qwen     | `qwen3.6-plus` → `qwen36p`, `qwen3-coder-plus` → `qwen3cp`, `qwen3-coder-flash` → `qwen3cf`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 
@@ -1919,7 +1924,9 @@ whichever member the round-robin cursor currently selects. Override
 The bundled advisories are the manifest's `advisories` entries (see
 [Muse Code Integration](#muse-code-integration) for the Contributor rationale, and
 [Antigravity (`agy`) Integration](#antigravity-agy-integration) for the informational
-Gemini 4 Argon entitlement advisory).
+Gemini 4 Argon entitlement advisory). Muse Wonder Full also carries an informational
+advisory because Muse Code offers it only on Power and Maximum plans and Meta does not
+serve it through the Meta Model API.
 
 Source: `model_advisory_map()` / `model_advisory_for()` in
 `src/sase/llm_provider/registry.py`, `src/sase/doctor/checks_providers_advisory.py`
@@ -2042,7 +2049,7 @@ its own generated tier table with the same values:
 | claude   | `opus`                        | `sonnet`               |
 | codex    | `gpt-6.1-sol`                 | `codex-mini-latest`    |
 | grok     | `grok-4.7`                    | `grok-4.6`             |
-| muse     | `muse-spark-1.3`              | `muse-spark-1.3`       |
+| muse     | `muse-wonder-1.0`             | `muse-spark-1.3`       |
 | opencode | `anthropic/claude-sonnet-4-5` | `openai/gpt-5-mini`    |
 | qwen     | `qwen3.6-plus`                | `qwen3-coder-flash`    |
 
