@@ -500,31 +500,80 @@ def test_docs_split_nested_pointers_use_their_own_targets(tmp_path: Path) -> Non
         encoding="utf-8",
     )
     (docs / "reference").mkdir()
-    for title in ("Parent", "Child", "Grandchild"):
-        (docs / "reference" / f"{title.lower()}.md").write_text(
-            f"---\ntitle: {title}\ndescription: {title} facts.\n---\n\n# {title}\n",
-            encoding="utf-8",
-        )
+    (docs / "guides").mkdir()
+    (docs / "howtos").mkdir()
+    (docs / "reference/parent.md").write_text(
+        "---\ntitle: Parent\ndescription: Parent facts.\n---\n\n# Parent\n",
+        encoding="utf-8",
+    )
+    (docs / "guides/child.md").write_text(
+        "---\ntitle: Child\ndescription: Child facts.\n---\n\n# Child\n",
+        encoding="utf-8",
+    )
+    (docs / "howtos/grandchild.md").write_text(
+        "---\ntitle: Grandchild\ndescription: Grandchild facts.\n---\n\n# Grandchild\n",
+        encoding="utf-8",
+    )
     mapping = tmp_path / "split.yml"
     mapping.write_text(
         "sections:\n  Parent: reference/parent.md\n"
-        "  Parent > Child: reference/child.md\n"
-        "  Parent > Child > Grandchild: reference/grandchild.md\n",
+        "  Parent > Child: guides/child.md\n"
+        "  Parent > Child > Grandchild: howtos/grandchild.md\n",
         encoding="utf-8",
     )
 
     splitter.split(source, mapping, root=tmp_path)
 
     parent = (docs / "reference/parent.md").read_text(encoding="utf-8")
-    child = (docs / "reference/child.md").read_text(encoding="utf-8")
-    grandchild = (docs / "reference/grandchild.md").read_text(encoding="utf-8")
+    child = (docs / "guides/child.md").read_text(encoding="utf-8")
+    grandchild = (docs / "howtos/grandchild.md").read_text(encoding="utf-8")
     assert "Parent facts." in parent
     assert "Child facts." not in parent
-    assert "Moved to [Child](child.md#child-1)." in parent
+    assert "Moved to [Child](../guides/child.md#child-1)." in parent
     assert "Child facts." in child
     assert "Grandchild facts." not in child
-    assert "Moved to [Grandchild](grandchild.md#grandchild-1)." in child
+    assert "Moved to [Grandchild](../howtos/grandchild.md#grandchild-1)." in child
     assert "Grandchild facts." in grandchild
+
+
+def test_docs_split_nested_drop_keeps_explicit_anchor_target(
+    tmp_path: Path,
+) -> None:
+    splitter = _load("docs_split_nested_drop_fixture", TOOLS / "docs_split")
+    _move_fixture(tmp_path)
+    docs = tmp_path / "docs"
+    source = docs / "source.md"
+    source.write_text(
+        "# Source\n\n## Overview\n\nOverview facts.\n\n## Parent\n\nParent facts.\n\n"
+        "### Contents\n\nContents facts.\n",
+        encoding="utf-8",
+    )
+    (docs / "reference").mkdir()
+    for title in ("Overview", "Parent"):
+        (docs / "reference" / f"{title.lower()}.md").write_text(
+            f"---\ntitle: {title}\ndescription: {title} facts.\n---\n\n# {title}\n",
+            encoding="utf-8",
+        )
+    (docs / "reference/index.md").write_text(
+        "---\ntitle: Reference\ndescription: Reference index.\n---\n\n# Reference\n",
+        encoding="utf-8",
+    )
+    mapping = tmp_path / "split.yml"
+    mapping.write_text(
+        "sections:\n  Overview: reference/overview.md\n"
+        "  Parent: reference/parent.md\n"
+        "  Parent > Contents:\n"
+        "    drop: true\n"
+        "    anchor_target: reference/index.md#overview\n",
+        encoding="utf-8",
+    )
+
+    splitter.split(source, mapping, root=tmp_path)
+
+    parent = (docs / "reference/parent.md").read_text(encoding="utf-8")
+    assert "Moved to [Reference](index.md#overview)." in parent
+    remainder = source.read_text(encoding="utf-8")
+    assert "Moved to [Reference](reference/index.md#overview)." in remainder
 
 
 def test_docs_split_rewrites_inbound_links_but_skips_generated_sources(

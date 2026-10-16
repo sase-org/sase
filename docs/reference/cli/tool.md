@@ -13,8 +13,7 @@ Reference for `sase tool`. Run `sase tool --help` for the exact output on this c
 
 ```text
 usage: sase tool [-h]
-                 {failures,list,receipt,receipts,run,runs,show,stats,stop,wait}
-                 ...
+                 {failures,list,receipt,receipts,run,runs,show,stats,stop,wait} ...
 ```
 
 List, run, and inspect project-owned named tools and the machine-local ToolRun ledger. Bare `sase tool` defaults to `sase tool list`. Named tools are complete entries in the project's sase/sase.yml. User, machine, plugin, and builtin config cannot change argv. Ad-hoc commands require `sase tool run -- ARGV...`.
@@ -118,7 +117,7 @@ Options:
 ## `sase tool run`
 
 ```text
-usage: sase tool run [-h] [-q] [-T N] [-v] [-H | -d] [-k | -x] ...
+usage: sase tool run [-h] [-q | -v] [-T N] [-H | -d] [-k | -x] ...
 ```
 
 Execute a project-owned named tool, or an ad-hoc command after `--`, and record a ToolRun. Named tools run at the project root; ad-hoc commands use the invocation cwd. Extra arguments append only when the definition allows them. Tokens after `--` are preserved verbatim, including leading dashes. Options must precede TOOL or `--`. Humans default to exact stdout/stderr passthrough. Direct agent execution (SASE_AGENT_NAME) defaults to compact output. `-q` forces compact; `-v` forces streaming. Wrapper metadata goes to stderr. The child has no output TTY; stdin is inherited on the inline path, including the fail-open fallback below. The automatic detached path does not inherit stdin. `-H` hands the run off to a durable proc and returns at once with the run id. With `-H`, `-q` prints only the run id, while `-v` and `-T` are usage errors. `-d` starts a starter-scoped detached run for the calling agent instead (agents only); it stops when the agent's turn ends unless a monitor joins it. An agent's inline run of a catalog tool declared `long` or `unbounded` is refused before starting (exit `2`) when its class floor meets the provider's synchronous ceiling, with the monitor command to use instead. Exit codes: 0 accepted, 1 not started, 2 usage or refusal. An agent call with a sync budget and no live owner or parent run starts a plain `sase tool run` detached and follows it: the run's exit is returned when it lands inside the budget; at the budget the escalation block is printed and the follower exits `124` without stopping the run; SIGTERM, SIGINT, and SIGHUP do the same and exit `143`, `130`, and `129`. If detach cannot start, one warning is printed and the run falls back to inline. Automatic-path exits (`0` settled, `124` budget, `143`/`130`/ `129` signal, `1` follow error) stay distinct from the `-H`/`-d` codes (`0` accepted, `1` not started, `2` usage or refusal).

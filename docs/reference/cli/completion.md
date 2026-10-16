@@ -13,8 +13,7 @@ Reference for `sase completion`. Run `sase completion --help` for the exact outp
 
 ```text
 usage: sase completion [-h]
-                       {bash,candidates,deploy-chezmoi,ensure,fish,install,list,loader,refresh,spec,zsh}
-                       ...
+                       {bash,candidates,deploy-chezmoi,ensure,fish,install,list,loader,refresh,spec,zsh} ...
 ```
 
 Generate native shell-completion scripts from the live sase argparse tree, install them where the shell will actually load them, and inspect the structural spec those scripts are built from. With no subcommand, `sase completion` defaults to `sase completion list`. Write generated scripts to a file. Do not `eval "$(sase completion zsh)"` — that would pay a full sase startup on every new shell.

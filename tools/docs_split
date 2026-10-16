@@ -83,6 +83,7 @@ class _GeneratedPointer:
     anchor: str
     title: str
     origin: str
+    explicit: bool = False
 
 
 _ChunkLine = tuple[str, int | None, _GeneratedPointer | None]
@@ -487,9 +488,11 @@ def _section_chunks(
                 destination = child.target
                 anchor = ids[child.selector][0] if ids[child.selector] else ""
                 title_target = child.target
+                explicit = False
                 if child.drop and child.anchor_target:
                     destination, anchor = child.anchor_target
                     title_target = destination
+                    explicit = True
                 if destination is not None and title_target is not None:
                     title = target_titles.get(
                         title_target, Path(title_target).stem.title()
@@ -504,6 +507,7 @@ def _section_chunks(
                                 anchor=anchor,
                                 title=title,
                                 origin=target,
+                                explicit=explicit,
                             ),
                         )
                     )
@@ -588,6 +592,7 @@ def _normalize_chunk(
                         anchor=pointer.anchor,
                         title=pointer.title,
                         origin=pointer.origin,
+                        explicit=pointer.explicit,
                     ),
                 )
             )
@@ -737,9 +742,15 @@ def plan_split(
                     rewritten_parts.append(rewritten.rstrip())
                     moved_warn = moved_warn or part_warn
                     source_lines.clear()
-                pointer_target_path, anchor = anchor_map.get(
-                    pointer.anchor, (pointer.target, pointer.anchor)
-                )
+                if pointer.explicit:
+                    pointer_target_path, anchor = (
+                        pointer.target,
+                        pointer.anchor,
+                    )
+                else:
+                    pointer_target_path, anchor = anchor_map.get(
+                        pointer.anchor, (pointer.target, pointer.anchor)
+                    )
                 rewritten_parts.append(
                     "\n".join(
                         _pointer(

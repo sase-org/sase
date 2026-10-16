@@ -67,11 +67,11 @@ Options:
 ## `sase stitch list`
 
 ```text
-usage: sase stitch list [-h] [-a] [-A PATTERN] [-b REF]
-                        [-c {auto,always,never}] [-o] [-F]
+usage: sase stitch list [-h] [-a | -o] [-A PATTERN] [-b REF]
+                        [-c {auto,always,never}] [-F | -N]
                         [-f {pretty,full,oneline,json}] [-n N]
-                        [-m {hide,show,only}] [-N] [-T] [--origin ORIGIN]
-                        [-r NAME] [-R] [-S] [-s DATE] [-u DATE]
+                        [-m {hide,show,only}] [-T] [--origin ORIGIN] [-r NAME]
+                        [-R] [-S] [-s DATE] [-u DATE]
 ```
 
 Show a chronological, cross-repository stitch timeline across the primary repo and linked repos. Use --sdd to include all sidecar repository commits, and --all to merge repositories from every registered project.
