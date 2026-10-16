@@ -130,22 +130,22 @@ class TestLoadBaseline:
             == "evaluate_query_many.synthetic_1000_specs.persistent_query_keystroke"
         )
         assert spec.must_beat_python is True
-        assert spec.rust_slowdown_factor_override == pytest.approx(2.90)
+        assert spec.rust_slowdown_factor_override == pytest.approx(3.10)
         reason = spec.rust_slowdown_factor_reason
         for token in (
-            "32532695452",
-            "32558460537",
-            "32568874089",
-            "178.28",
-            "184.36",
-            "147.07",
-            "193.44",
+            "38906709061",
+            "38842775619",
+            "37008316626",
+            "77.88",
+            "194.93",
+            "171.77",
+            "206.78",
             "must_beat_python",
             "Revisit",
         ):
             assert token in reason, token
         override = raw["tolerance"]["per_anchor_rust_slowdown_factors"][spec.anchor_id]
-        assert override["rust_slowdown_factor"] == pytest.approx(2.90)
+        assert override["rust_slowdown_factor"] == pytest.approx(3.10)
 
     def test_rejects_unknown_schema_version(self, tmp_path: Path) -> None:
         bad = tmp_path / "bad.json"
@@ -234,7 +234,7 @@ class TestCheckAnchor:
             if a.anchor_id
             == "evaluate_query_many.synthetic_1000_specs.persistent_query_keystroke"
         )
-        hosted_max_s = 184.36e-6
+        hosted_max_s = 194.93e-6
         python_s = 5300e-6
 
         hosted = _check_anchor(
@@ -245,7 +245,7 @@ class TestCheckAnchor:
             notes=[],
         )
         assert hosted.passed
-        assert hosted.rust_slowdown_factor_used == pytest.approx(2.90)
+        assert hosted.rust_slowdown_factor_used == pytest.approx(3.10)
 
         doubled = _check_anchor(
             spec=spec,

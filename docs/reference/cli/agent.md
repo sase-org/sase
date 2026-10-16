@@ -13,8 +13,7 @@ Reference for `sase agent`. Run `sase agent --help` for the exact output on this
 
 ```text
 usage: sase agent [-h]
-                  {archive,artifacts,auto-restart,drain,hold,index,kill,list,names,persist-cleanup,persist-directive,prompts,restart,revert,search,show,sync,tab,tribe,wait}
-                  ...
+                  {archive,artifacts,auto-restart,drain,hold,index,kill,list,names,persist-cleanup,persist-directive,prompts,restart,revert,search,show,sync,tab,tribe,wait} ...
 ```
 
 Inspect and manage agents across projects. Running bare `sase agent` delegates to `sase agent list`.
@@ -269,7 +268,7 @@ Options:
 ### `sase agent auto-restart run`
 
 ```text
-usage: sase agent auto-restart run [-h] [-a DIR] [-p] [-n] [-j] [name]
+usage: sase agent auto-restart run [-h] [-n] [-j] (-a DIR | -p | name)
 ```
 
 Run the healer: claim the at-most-once ledger, verify the update-skew signature, witnesses, quiescence, and probe, then relaunch the failed agent under the same name. A manual run still honors the ledger.

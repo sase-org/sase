@@ -13,8 +13,7 @@ Reference for `sase prompt`. Run `sase prompt --help` for the exact output on th
 
 ```text
 usage: sase prompt [-h]
-                   {copy,delete,doctor,edit,export,list,prune,run,save,search,select,show,stash-archive,stats}
-                   ...
+                   {copy,delete,doctor,edit,export,list,prune,run,save,search,select,show,stash-archive,stats} ...
 ```
 
 Bare `sase prompt` defaults to `sase prompt list`.
