@@ -571,6 +571,8 @@ def collect_memory_root_units(
 
 def render_memory_root_units(
     units: MemoryRootUnits,
+    *,
+    projection_note: str | None = None,
 ) -> tuple[str | None, str | None]:
     """Render the legacy managed ``AGENTS.md`` document from *units*.
 
@@ -611,6 +613,7 @@ def render_memory_root_units(
         core_sections=core_sections,
         web_sections=web_sections,
         reference_entries=reference_entries,
+        projection_note=projection_note,
     )
     if render_error is not None or rendered is None:
         return None, render_error or "failed to render AGENTS template"

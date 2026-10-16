@@ -236,6 +236,7 @@ def _amd_sync_plan(
     generated_web_notes: dict[str, GeneratedShortMemoryNote],
     source_memory_root: Path,
     excluded_note_paths: frozenset[str] = frozenset(),
+    projection_note: str | None = None,
 ) -> AmdMemorySyncPlan | None:
     if not enable_amd:
         return plan_minimal_agents_sync(
@@ -250,6 +251,7 @@ def _amd_sync_plan(
         generated_web_notes=generated_web_notes,
         source_memory_root=source_memory_root,
         excluded_note_paths=excluded_note_paths,
+        projection_note=projection_note,
     )
 
 
@@ -497,6 +499,14 @@ def memory_root_context(
             )
     generated_short_note_bodies = generated_short_notes(generated_sase_body)
     generated_web_note_bodies = dict(memory_web_plan.web_note_bodies or {})
+    # D6: the projection header lives only in committed project-root files,
+    # never in home or chezmoi roots. Project roots are exactly the roots
+    # that manage project memory.
+    projection_note: str | None = None
+    if include_project_memory:
+        from sase.amd._template import PROJECT_PROJECTION_NOTE
+
+        projection_note = PROJECT_PROJECTION_NOTE
     amd_sync = _amd_sync_plan(
         root,
         enable_amd=enable_amd,
@@ -506,6 +516,7 @@ def memory_root_context(
         generated_web_notes=generated_web_note_bodies,
         source_memory_root=migration.source_memory_root,
         excluded_note_paths=excluded_note_paths,
+        projection_note=projection_note,
     )
     expected_files, expected_error = render_expected_memory_files(
         root,

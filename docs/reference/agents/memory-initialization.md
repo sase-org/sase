@@ -32,7 +32,9 @@ lifecycle state and is independent of `sase project enable`.
   `~/.local/share/chezmoi/home/sase/memory/` when `use_chezmoi: true`.
 - A managed project `AGENTS.md` only with that same explicit opt-in. `memory.h1_title`
   customizes its H1; otherwise SASE derives the stable `<project> - Agent Instructions`
-  title.
+  title. The project file opens with a short generated-source header naming
+  `sase/memory/`, `sase memory init`, and the per-invocation bundle inspectors; home and
+  chezmoi-home files carry no header.
 - Provider instruction files `CLAUDE.md`, `GEMINI.md`, `QWEN.md`, and `OPENCODE.md`;
   each is a byte-for-byte copy of that root's final `AGENTS.md`. Chezmoi home source
   roots stay on static `.md` files unless a machine overlay under `dot_config/sase/`
@@ -125,7 +127,9 @@ rebase, and pushes. This path does not run `commit_hooks.after`. Use
 `sase memory init --check` to report drift without writing, or
 `sase memory init --no-commit` when you want to review generated project files before
 committing. `--no-commit` only skips the project deploy path; home memory deployment
-still follows `use_chezmoi` when it is enabled.
+still follows `use_chezmoi` when it is enabled. CI checks the committed project
+instruction files without regenerating them: its home initialization runs outside the
+checkout, so `just validate` sees them exactly as committed.
 
 The tracking part of `--check` also fails when an existing managed file is untracked,
 including when Git ignores it. It does not require tracked files to have a clean index

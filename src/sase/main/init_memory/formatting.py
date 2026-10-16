@@ -52,6 +52,10 @@ def _is_standalone_strong_label(line: str) -> bool:
     return _STANDALONE_STRONG_LABEL_RE.match(line) is not None
 
 
+def _is_blockquote_line(line: str) -> bool:
+    return line.lstrip().startswith(">")
+
+
 def _wrap_text(
     text: str,
     *,
@@ -90,6 +94,7 @@ def _starts_block(line: str) -> bool:
         or _is_fence_line(line)
         or _is_list_item(line)
         or _is_standalone_strong_label(line)
+        or _is_blockquote_line(line)
     )
 
 
@@ -147,6 +152,17 @@ def format_generated_memory_markdown(content: str) -> str:
             else:
                 formatted.append(line)
             index += 1
+            continue
+
+        if _is_blockquote_line(line):
+            # Blockquotes pass through verbatim: joining and rewrapping them
+            # would drop the `>` prefixes prettier requires on every line.
+            while index < len(source_lines):
+                quote_line = source_lines[index].rstrip()
+                if not quote_line.strip() or not _is_blockquote_line(quote_line):
+                    break
+                formatted.append(quote_line)
+                index += 1
             continue
 
         if _is_list_item(line):

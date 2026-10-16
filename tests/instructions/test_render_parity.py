@@ -469,11 +469,88 @@ def test_render_fact_conflicts_and_unknowns_rejected() -> None:
         _parse_fact_overrides(["provider"])
 
 
+def test_legacy_repo_names_accepts_numbered_headings() -> None:
+    """The repository check runs on numbered/deeper headings (E4 drift gate)."""
+    from sase.instructions.parity import _legacy_repo_names
+
+    assert _legacy_repo_names("## Repositories\n\n- `alpha`: A.\n") == ("alpha",)
+    numbered = (
+        "## 1. Core Memory\n"
+        "\n"
+        "#### 1.1.3 Repositories\n"
+        "\n"
+        "- `alpha`: A.\n"
+        "\n"
+        "#### 1.1.4 Next\n"
+        "\n"
+        "- `beta`: B.\n"
+        "\n"
+        "## 2. Reference Memory\n"
+    )
+    assert _legacy_repo_names(numbered) == ("alpha",)
+    assert _legacy_repo_names("## 1. Core Memory\n\nno repos here\n") == ()
+
+
+def test_parity_numbered_repositories_heading_is_checked(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A bogus repo under a numbered heading fails parity as missing."""
+    base = tmp_path / "numbered"
+    project_root = base / "proj"
+    home_root = base / "home"
+    config_dir = _patch_global_config(monkeypatch, base)
+    _write_home(home_root)
+    _write_sase_like(project_root)
+    _render_legacy_files(
+        project_root, home_root, project="fixture", config_dir=config_dir
+    )
+    agents_path = project_root / "AGENTS.md"
+    text = agents_path.read_text(encoding="utf-8")
+    marker = "#### 1.1.3 Repositories"
+    assert marker in text
+    text = text.replace(marker, marker + "\n\n- `ghost-repo`: nowhere.", 1)
+    agents_path.write_text(text, encoding="utf-8")
+    compiled = compile_bundle(
+        make_facts(provider="codex", project="fixture"),
+        project_root=project_root,
+        home_root=home_root,
+    )
+    report = legacy_parity(compiled, project_root, home_root)
+    assert not report.ok
+    assert report.missing_repos == ("ghost-repo",)
+
+
+def test_compiled_bundle_contains_no_projection_header(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The project-only header never appears in a compiled bundle."""
+    from sase.amd._template import PROJECT_PROJECTION_NOTE
+
+    home_root = tmp_path / "empty-home"
+    home_root.mkdir()
+    config_dir = tmp_path / "global-config"
+    config_dir.mkdir()
+    write(config_dir / "sase.yml", "{}\n")
+    monkeypatch.setattr("sase.config.core.CONFIG_DIR", config_dir)
+    monkeypatch.setattr("sase.config.core.get_use_chezmoi", lambda: False)
+
+    compiled = compile_bundle(
+        make_facts(provider="codex", project="sase"),
+        project_root=_REPO_ROOT,
+        home_root=home_root,
+    )
+    assert PROJECT_PROJECTION_NOTE not in compiled.text
+    assert "sase instructions show NAME" not in compiled.text
+
+
 __all__ = [
+    "test_compiled_bundle_contains_no_projection_header",
+    "test_legacy_repo_names_accepts_numbered_headings",
     "test_parity_actstat_shaped_fixture",
     "test_parity_bob_cli_shaped_fixture",
     "test_parity_committed_agents_md",
     "test_parity_detects_missing_unit",
+    "test_parity_numbered_repositories_heading_is_checked",
     "test_parity_sase_shaped_fixture",
     "test_render_fact_conflicts_and_unknowns_rejected",
     "test_render_fact_overrides",

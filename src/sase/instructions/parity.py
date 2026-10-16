@@ -25,8 +25,10 @@ CONTRACT_MARKER = "SASE Final Declaration"
 #: Legacy generated-contract note mapped onto the package sections.
 _GENERATED_CONTRACT_STEM = "sase"
 
-_REPO_SECTION_RE = re.compile(r"^##\s+Repositories\s*$", re.MULTILINE)
-_H2_RE = re.compile(r"^##\s+.*$", re.MULTILINE)
+_REPO_SECTION_RE = re.compile(
+    r"^#{2,6}\s+(?:\d+(?:\.\d+)*\.?\s+)?Repositories\s*$", re.MULTILINE
+)
+_ANY_HEADING_RE = re.compile(r"^#{2,6}\s+.*$")
 _BACKTICK_RE = re.compile(r"`([^`]+)`")
 
 
@@ -84,7 +86,7 @@ def _legacy_repo_names(text: str | None) -> tuple[str, ...]:
         return ()
     end = len(lines)
     for index in range(start, len(lines)):
-        if _H2_RE.match(lines[index]):
+        if _ANY_HEADING_RE.match(lines[index]):
             end = index
             break
     names: list[str] = []

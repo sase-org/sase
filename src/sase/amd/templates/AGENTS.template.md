@@ -1,6 +1,6 @@
 # {{ title }}
 
-## Core Memory
+{{ projection_note }}## Core Memory
 
 The following memories contain core (always loaded) context:
 

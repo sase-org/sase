@@ -166,6 +166,14 @@ def test_format_keeps_dash_separators_off_list_continuation_starts() -> None:
     assert all(len(line) <= markdown_print_width() for line in formatted.splitlines())
 
 
+def test_format_passes_blockquotes_through_verbatim() -> None:
+    """Blockquote lines keep their `>` prefixes instead of being reflowed."""
+    from sase.amd._template import PROJECT_PROJECTION_NOTE
+
+    content = f"# Title\n\n{PROJECT_PROJECTION_NOTE}\n\n## Next\n"
+    assert format_generated_memory_markdown(content) == content
+
+
 def test_format_preserves_frontmatter() -> None:
     content = """---
 type: reference

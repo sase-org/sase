@@ -197,6 +197,101 @@ def test_contract_inputs_passthrough(tmp_path: Path) -> None:
     assert units.intros.webs
 
 
+def test_projection_note_renders_project_only_header(tmp_path: Path) -> None:
+    """The header sits under the H1, stays short, and parses clean."""
+    from sase.amd._agents_doc import parse_amd_agents_document
+    from sase.amd._template import PROJECT_PROJECTION_NOTE
+
+    root = _fixture_root(tmp_path)
+    plan = plan_amd_memory_sync(
+        root,
+        derive_project_title=True,
+        generated_short_notes={},
+        generated_long_notes={},
+        generated_web_notes={},
+        projection_note=PROJECT_PROJECTION_NOTE,
+    )
+    assert not plan.blockers
+    assert plan.agents_content is not None
+    content = plan.agents_content
+    h1_end = content.index("\n")
+    header_index = content.index("> This file is generated from `sase/memory/`")
+    core_index = content.index("## 1. Core Memory")
+    assert h1_end < header_index < core_index
+    # At most 4 rendered lines, naming the source and bundle inspectors.
+    assert PROJECT_PROJECTION_NOTE.count("\n") <= 3
+    assert "`sase memory init`" in PROJECT_PROJECTION_NOTE
+    assert "`sase instructions render`" in PROJECT_PROJECTION_NOTE
+    assert "`sase instructions show NAME`" in PROJECT_PROJECTION_NOTE
+    # Numbering, anchors, and parsed memory paths survive the header.
+    assert "## 1. Core Memory" in content
+    assert "## 2. Reference Memory" in content
+    parsed = parse_amd_agents_document(content)
+    assert parsed.has_short_section
+    assert parsed.has_long_section
+    units = collect_memory_root_units(
+        root,
+        plan.title,
+        generated_short_notes={},
+        generated_long_notes={},
+        generated_web_notes={},
+    )
+    assert parsed.short_memory_paths == tuple(unit.relative_path for unit in units.core)
+
+
+def test_projection_note_absent_by_default(tmp_path: Path) -> None:
+    """Without the note the render has no header (home/chezmoi roots)."""
+    root = _fixture_root(tmp_path)
+    plan = plan_amd_memory_sync(
+        root,
+        derive_project_title=True,
+        generated_short_notes={},
+        generated_long_notes={},
+        generated_web_notes={},
+    )
+    assert not plan.blockers
+    assert plan.agents_content is not None
+    assert "generated from `sase/memory/`" not in plan.agents_content
+    assert "per-invocation bundle" not in plan.agents_content
+
+
+def test_memory_root_context_header_is_project_only(tmp_path: Path) -> None:
+    """Only project-memory roots plan the header; home roots never do."""
+    from sase.main.init_memory.root_planning import memory_root_context
+
+    root = _fixture_root(tmp_path)
+    project_context = memory_root_context(
+        root,
+        (),
+        project_name="proj",
+        manage_memory=True,
+        enable_amd=True,
+        derive_project_title=True,
+        include_project_memory=True,
+    )
+    assert not project_context.blockers
+    project_agents = [
+        expected.content
+        for expected in project_context.expected_files
+        if expected.path.name == "AGENTS.md"
+    ]
+    assert len(project_agents) == 1
+    assert isinstance(project_agents[0], str)
+    assert "> This file is generated from `sase/memory/`" in project_agents[0]
+
+    home_context = memory_root_context(
+        root,
+        (),
+        manage_memory=True,
+        enable_amd=True,
+        include_project_memory=False,
+    )
+    assert not home_context.blockers
+    for expected in home_context.expected_files:
+        if expected.path.name == "AGENTS.md" and isinstance(expected.content, str):
+            assert "generated from `sase/memory/`" not in expected.content
+
+
 def test_minimal_golden_render(tmp_path: Path) -> None:
     """A one-note root renders the exact legacy document bytes."""
     root = tmp_path / "tiny"

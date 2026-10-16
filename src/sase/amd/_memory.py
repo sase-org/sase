@@ -364,6 +364,7 @@ def _render_managed_agents(
     web_memory_bodies: Mapping[str, GeneratedShortMemoryNote] | None = None,
     source_memory_root: Path | None = None,
     excluded_note_paths: frozenset[str] = frozenset(),
+    projection_note: str | None = None,
 ) -> tuple[str | None, str | None]:
     """Render the project-managed AMD ``AGENTS.md`` content for *root*.
 
@@ -382,7 +383,7 @@ def _render_managed_agents(
         source_memory_root=source_memory_root,
         excluded_note_paths=excluded_note_paths,
     )
-    return render_memory_root_units(units)
+    return render_memory_root_units(units, projection_note=projection_note)
 
 
 def plan_minimal_agents_sync(
@@ -425,6 +426,7 @@ def plan_amd_memory_sync(
     generated_web_notes: Mapping[str, GeneratedShortMemoryNote] | None = None,
     source_memory_root: Path | None = None,
     excluded_note_paths: frozenset[str] = frozenset(),
+    projection_note: str | None = None,
 ) -> AmdMemorySyncPlan:
     """Plan AMD-managed memory block synchronization for ``sase memory init``.
 
@@ -541,6 +543,7 @@ def plan_amd_memory_sync(
         web_memory_bodies=web_memory_bodies,
         source_memory_root=source_memory_root,
         excluded_note_paths=excluded_note_paths,
+        projection_note=projection_note,
     )
     if template_error is not None or agents_content is None:
         return AmdMemorySyncPlan(

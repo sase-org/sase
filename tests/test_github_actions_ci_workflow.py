@@ -51,10 +51,42 @@ def test_lint_job_initializes_sase_home_before_lint() -> None:
     )
 
     assert install_index < init_index < lint_index
-    assert steps[init_index]["run"] == (
-        "./.venv/bin/sase init memory --no-commit\n"
-        "./.venv/bin/sase skill init --force\n"
+    init_step = steps[init_index]
+    # The drift gate (E4 readable-projection): home init runs outside the
+    # checkout with absolute binary paths so the committed project
+    # instruction files are never rewritten before `just validate` checks
+    # them as committed.
+    assert init_step.get("working-directory") == "${{ runner.temp }}"
+    assert init_step["run"] == (
+        "$GITHUB_WORKSPACE/.venv/bin/sase init memory --no-commit\n"
+        "$GITHUB_WORKSPACE/.venv/bin/sase skill init --force\n"
     )
+
+
+def test_lint_job_never_regenerates_committed_project_files() -> None:
+    """No lint-job step may rewrite project memory before validation.
+
+    Any step that runs `sase init memory` or `sase memory init` without
+    `--check` must run outside the checkout (a temp working directory with
+    absolute binary paths); otherwise it would mask drift in the committed
+    project instruction files from the later `just validate` check.
+    """
+    from tests._github_actions_ci_helpers import _load_master_gate_workflow
+
+    for workflow in (_load_ci_workflow(), _load_master_gate_workflow()):
+        steps = workflow["jobs"]["lint"]["steps"]
+        for step in steps:
+            run_text = str(step.get("run", ""))
+            if "init memory" not in run_text and "memory init" not in run_text:
+                continue
+            if "--check" in run_text:
+                continue
+            assert step.get("working-directory") == "${{ runner.temp }}", (
+                f"step {step.get('name')!r} regenerates memory inside the checkout"
+            )
+            assert "./.venv/bin/sase" not in run_text, (
+                f"step {step.get('name')!r} uses a checkout-relative binary path"
+            )
 
 
 def test_lint_job_uses_single_lint_command() -> None:

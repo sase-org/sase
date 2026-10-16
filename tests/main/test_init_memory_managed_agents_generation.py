@@ -7,6 +7,7 @@ import subprocess
 
 import pytest
 
+import sase.config.core as config_core
 from tests.main.init_memory_handler_helpers import (
     long_note,
     patch_standard_paths,
@@ -166,3 +167,60 @@ def test_init_memory_managed_agents_inline_short_memory_is_single_pass_idempoten
     plan = plan_memory()
     assert plan.blockers == ()
     assert plan.actions == ()
+
+
+def test_projection_header_is_project_only_and_prettier_stable(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The project AGENTS.md carries the header; the home one never does."""
+    project_root = tmp_path / "project"
+    home_root = tmp_path / "home"
+    config_dir = tmp_path / "config"
+    project_root.mkdir()
+    home_root.mkdir()
+    patch_standard_paths(
+        monkeypatch,
+        project_root=project_root,
+        home_root=home_root,
+        config_dir=config_dir,
+    )
+    monkeypatch.setattr(config_core, "CONFIG_DIR", config_dir)
+    write(
+        project_root / "sase.yml",
+        'is_sase_managed: true\nmemory:\n  h1_title: "Managed Instructions"\n',
+    )
+    write(
+        project_root / "sase" / "memory" / "extra.md",
+        short_note("# Extra\n\n## Section\n"),
+    )
+    write(config_dir / "sase.yml", 'memory:\n  h1_title: "Home Instructions"\n')
+
+    assert run_handler() == 0
+
+    agents = (project_root / "AGENTS.md").read_text(encoding="utf-8")
+    assert agents.startswith(
+        "# Managed Instructions\n"
+        "\n"
+        "> This file is generated from `sase/memory/` by `sase memory init`;"
+    )
+    assert "`sase instructions render`" in agents
+    assert "`sase instructions show NAME`" in agents
+    assert "## 1. Core Memory" in agents
+
+    home_agents = (home_root / "AGENTS.md").read_text(encoding="utf-8")
+    assert home_agents.startswith("# Home Instructions\n")
+    assert "generated from `sase/memory/`" not in home_agents
+    assert "sase instructions show NAME" not in home_agents
+
+    for path in (project_root / "AGENTS.md", home_root / "AGENTS.md"):
+        result = subprocess.run(
+            [*prettier_command(), "--check", str(path)],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        assert result.returncode == 0, (
+            f"prettier --check failed for {path}:\nstdout={result.stdout}\n"
+            f"stderr={result.stderr}"
+        )

@@ -28,15 +28,18 @@ def _assert_derived_managed_agents(agents: str) -> None:
     assert agents.startswith("# project - Agent Instructions\n\n")
     # The body is hard-wrapped at the repo Markdown width, so compare on
     # collapsed whitespace rather than pinning where the line breaks land.
-    expected = (
+    # Project files carry the generated-source header between the H1 and the
+    # first numbered section (E4 readable-projection).
+    collapsed = " ".join(agents.split())
+    assert collapsed.startswith(
         "# project - Agent Instructions "
-        "## 1. Core Memory "
-        "The following memories contain core (always loaded) context: "
-        "### 1.1 SASE = Structured Agentic Software Engineering (sase) "
-        "#### 1.1.1 SASE Memory SASE memory is this project's durable agent "
-        "context"
+        "> This file is generated from `sase/memory/` by `sase memory init`; "
+        "edit the notes, not > this file. "
     )
-    assert " ".join(agents.split()).startswith(expected)
+    assert "> what an agent received with `sase instructions show NAME`. " in collapsed
+    header_end = collapsed.index("`sase instructions show NAME`.")
+    assert "## 1. Core Memory " in collapsed[header_end:]
+    assert "#### 1.1.1 SASE Memory " in collapsed
     assert "@sase/memory/sase.md" not in agents
     assert "@AGENTS.md" not in agents
     assert agents.endswith("\n")
