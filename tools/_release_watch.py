@@ -24,6 +24,7 @@ from _release_watch_api import (
     WatcherSignal,
     WorkflowRun,
     default_verdict_path,
+    parse_bead_closed,
     parse_run,
     parse_args,
 )
@@ -48,6 +49,7 @@ __all__ = [
     "WorkflowRun",
     "main",
     "parse_args",
+    "parse_bead_closed",
     "parse_run",
     "short_exception",
 ]

@@ -34,9 +34,22 @@ from _release_watch_api import (
     default_verdict_path,
     failed_excerpt,
     iso_utc,
+    parse_bead_closed,
     read_ci_watch_reason,
     run_process,
 )
+
+
+def _print_flushed(line: str) -> None:
+    """Default state-line sink: print at once, even under block buffering."""
+    print(line, flush=True)
+
+
+def _configure_line_buffering() -> None:
+    try:
+        sys.stdout.reconfigure(line_buffering=True)  # type: ignore[union-attr]
+    except Exception:
+        pass
 
 
 @dataclass
@@ -44,10 +57,11 @@ class ReleaseWatcher:
     options: WatchOptions
     reader: Any
     process: Callable[..., subprocess.CompletedProcess[str]] = run_process
+    spawn: Callable[..., Any] = subprocess.Popen
     now: Callable[[], datetime] = lambda: datetime.now(UTC)
     monotonic: Callable[[], float] = time.monotonic
     sleep: Callable[[float], None] = time.sleep
-    output: Callable[[str], None] = print
+    output: Callable[[str], None] = _print_flushed
     signal_module: Any = signal
     verdict_path: Path | None = None
     last_state_line: str = "no state read yet"
@@ -62,6 +76,10 @@ class ReleaseWatcher:
     received_signal: int | None = None
     _finalizing: bool = False
     _old_handlers: dict[int, Any] = field(default_factory=dict)
+    _watch_started_at: datetime | None = None
+    _gate_red_since: float | None = None
+    _gate_red_sha: str | None = None
+    _gate_rerun_shas: set[str] = field(default_factory=set)
 
     def __post_init__(self) -> None:
         self.verdict_path = (
@@ -88,9 +106,47 @@ class ReleaseWatcher:
         if not self._finalizing:
             raise WatcherSignal(signum)
 
+    def _bead_is_closed(self, bead_id: str) -> bool | None:
+        """Ask the bead store whether a bead is already closed.
+
+        None means the answer is unknown: callers fail open and proceed.
+        """
+        try:
+            result = self.process(
+                [
+                    "sase",
+                    "bead",
+                    "read",
+                    bead_id,
+                    "-r",
+                    "release-watch idempotent close check",
+                    "-f",
+                    "compact",
+                ],
+                timeout=GH_TIMEOUT,
+            )
+        except Exception:
+            return None
+        if result.returncode != 0:
+            return None
+        try:
+            return parse_bead_closed(result.stdout or "", bead_id)
+        except Exception:
+            return None
+
     def run(self) -> int:
+        _configure_line_buffering()
         self._install_signals()
         try:
+            if self.options.close_bead and self._bead_is_closed(
+                self.options.close_bead
+            ):
+                self.output(
+                    f"ALREADY_CLOSED {self.options.close_bead} is already "
+                    "closed; exiting without watching"
+                )
+                self._restore_signals()
+                return 0
             try:
                 self.reader.validate()
             except WatcherSignal:
@@ -101,12 +157,13 @@ class ReleaseWatcher:
                     f"startup validation failed: {short_exception(exc)}",
                 )
                 return self.finalize()
+            self._watch_started_at = self.now()
             started = self.monotonic()
             deadline_at = started + self.options.deadline
             while True:
                 if self.received_signal is not None:
                     self.set_verdict(
-                        "DEADLINE",
+                        "STOPPED",
                         f"signal {self.received_signal} arrived before a verdict",
                     )
                     break
@@ -192,12 +249,16 @@ class ReleaseWatcher:
                 )
         except WatcherSignal as exc:
             self.set_verdict(
-                "DEADLINE", f"received signal {exc.signum}; last state retained"
+                "STOPPED",
+                f"received signal {exc.signum}; last state: {self.last_state_line}",
             )
+            return self.finalize(detached=True)
         except BaseException as exc:
             self.set_verdict(
                 "WATCHER_BROKEN", short_exception(exc, include_traceback=True)
             )
+        if self.final_verdict == "STOPPED":
+            return self.finalize(detached=True)
         return self.finalize()
 
     def _render_state(self, values: Mapping[str, object], action: str) -> str:
@@ -310,11 +371,74 @@ class ReleaseWatcher:
                 )
         if not self._awaiting_core(snapshot) and self._floor_blocked(snapshot):
             return "CORE_FLOOR_BLOCKED", self._floor_blocked_detail(snapshot)
-        red_runs = [run for run in snapshot.fixed_runs if run.is_red]
+        gate_verdict = self._check_master_gate(snapshot)
+        if gate_verdict is not None:
+            return gate_verdict
+        started_at = self._watch_started_at
+        red_runs = [
+            run
+            for run in snapshot.fixed_runs
+            if run.is_red
+            and (started_at is None or run.created_at >= started_at)
+        ]
         deterministic = [run for run in red_runs if run.deterministic_failure]
         if deterministic or len(red_runs) >= self.options.max_red_full_ci:
             return "FULL_CI_RED", self._full_ci_red_detail(red_runs)
         return None
+
+    @staticmethod
+    def _gate_status(snapshot: Snapshot) -> str:
+        """Classify the Master Gate at HEAD: green, red, or neutral.
+
+        A missing run and an in-flight run are both neutral: they neither count
+        as red nor reset the red clock.
+        """
+        gate = snapshot.master_gate
+        if gate is None or gate.is_in_flight:
+            return "neutral"
+        if gate.conclusion in GOOD_CONCLUSIONS:
+            return "green"
+        return "red"
+
+    def _check_master_gate(self, snapshot: Snapshot) -> tuple[str, str] | None:
+        sha = snapshot.master_sha
+        if self._gate_red_sha != sha:
+            self._gate_red_sha = sha
+            self._gate_red_since = None
+        status = self._gate_status(snapshot)
+        if status == "green":
+            self._gate_red_since = None
+            return None
+        if status == "neutral":
+            return None
+        assert snapshot.master_gate is not None
+        gate = snapshot.master_gate
+        if self._gate_red_since is None:
+            self._gate_red_since = self.monotonic()
+            return None
+        red_minutes = (self.monotonic() - self._gate_red_since) / 60
+        budget = self.options.max_red_gate_minutes
+        if red_minutes < budget:
+            return None
+        failed = ",".join(gate.failed_jobs) or "unknown"
+        return (
+            "MASTER_GATE_RED",
+            f"no green Master Gate at HEAD {sha} for {red_minutes:.1f} "
+            f"minutes (budget {budget:g}): run {gate.run_id} {gate.url} "
+            f"conclusion={gate.conclusion} failed_jobs={failed}",
+        )
+
+    @staticmethod
+    def _gate_test_shards_only(gate: WorkflowRun) -> bool:
+        """True when every failed Master Gate job is a test shard.
+
+        Lint, docs, and core-wheel reds need a code fix, so they never earn a
+        blind rerun; test-shard reds are usually flakes worth one retry.
+        """
+        failed = gate.failed_jobs
+        return bool(failed) and all(
+            name.strip().lower().startswith("test") for name in failed
+        )
 
     def _awaiting_core(self, snapshot: Snapshot) -> bool:
         required = self.options.await_core_version
@@ -369,6 +493,8 @@ class ReleaseWatcher:
         return f"deadline passed; blocking condition: ci_watch release_reason={reason}; last state: {self.last_state_line}"
 
     def dispatch_due(self, snapshot: Snapshot) -> list[str]:
+        if self.options.no_dispatch:
+            return []
         now = self.monotonic()
         dispatches: list[tuple[str, int, tuple[str, ...]]] = []
         full = sorted(snapshot.fixed_runs, key=lambda run: run.updated_at, reverse=True)
@@ -460,6 +586,32 @@ class ReleaseWatcher:
                 item for item in dispatches if item not in publish_candidates
             ] + [chosen]
 
+        gate = snapshot.master_gate
+        gate_rerun_due = (
+            gate is not None
+            and not gate.is_in_flight
+            and gate.conclusion is not None
+            and gate.conclusion not in GOOD_CONCLUSIONS
+            and snapshot.master_sha not in self._gate_rerun_shas
+            and self._gate_test_shards_only(gate)
+        )
+        if gate_rerun_due:
+            assert gate is not None
+            dispatches.append(
+                (
+                    "master_gate_rerun",
+                    0,
+                    (
+                        "run",
+                        "rerun",
+                        str(gate.run_id),
+                        "--failed",
+                        "-R",
+                        self.options.repo,
+                    ),
+                )
+            )
+
         reported: list[str] = []
         for key, cooldown, argv_tail in dispatches:
             if now - self.last_dispatch.get(key, float("-inf")) < cooldown:
@@ -486,6 +638,8 @@ class ReleaseWatcher:
                 reported.append(failed)
                 continue
             self.last_dispatch[key] = now
+            if key == "master_gate_rerun":
+                self._gate_rerun_shas.add(snapshot.master_sha)
             self.actions.append(f"dispatched:{key}")
             reported.append(f"dispatched:{key}")
         return reported
@@ -729,20 +883,67 @@ class ReleaseWatcher:
             )
             self._write_verdict()
 
-    def finalize(self) -> int:
+    def _detached_close(self, argv: list[str]) -> None:
+        """Launch the bead close where a group SIGKILL cannot reach it.
+
+        The verdict file is already on disk. The closer runs in a new session
+        with its output beside the verdict file, and this process exits at
+        once without waiting for it.
+        """
+        assert self.verdict_path is not None
+        log_path = self.verdict_path.parent / (
+            self.verdict_path.stem + ".close.log"
+        )
+        try:
+            log_path.parent.mkdir(parents=True, exist_ok=True)
+            log_file = open(log_path, "a", encoding="utf-8")
+            try:
+                child = self.spawn(
+                    argv,
+                    stdin=subprocess.DEVNULL,
+                    stdout=log_file,
+                    stderr=subprocess.STDOUT,
+                    start_new_session=True,
+                    close_fds=True,
+                )
+            finally:
+                log_file.close()
+            pid = getattr(child, "pid", "?")
+            self.close_outcome = (
+                f"detached closer launched (pid {pid}); see {log_path}"
+            )
+        except Exception as exc:
+            self.close_outcome = (
+                f"detached closer failed: {short_exception(exc)}"
+            )
+        self.actions.append("bead_close:" + self.close_outcome)
+
+    def finalize(self, *, detached: bool = False) -> int:
         if self.final_verdict is None:
             self.set_verdict("WATCHER_BROKEN", "watch ended without a verdict")
         self._finalizing = True
         self.close_outcome = "not requested"
         self._write_verdict_with_fallback()
         argv = self._close_argv()
+        bead_id = self.options.close_bead
         if argv is not None:
             if self.options.once or self.options.dry_run:
                 self.close_outcome = "not run (dry-run/once)"
                 self.output("close_argv=" + json.dumps(argv))
+            elif detached:
+                self._detached_close(argv)
+            elif bead_id and self._bead_is_closed(bead_id):
+                self.close_outcome = "already closed (verified before attempt 1)"
+                self.actions.append("bead_close:" + self.close_outcome)
             else:
                 self.close_outcome = "failed after 3 attempts"
                 for attempt in range(1, 4):
+                    if attempt > 1 and bead_id and self._bead_is_closed(bead_id):
+                        self.close_outcome = (
+                            "already closed "
+                            f"(verified before attempt {attempt})"
+                        )
+                        break
                     try:
                         result = self.process(argv, timeout=GH_TIMEOUT)
                         if result.returncode == 0:

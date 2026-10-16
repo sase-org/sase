@@ -31,8 +31,12 @@ __all__ = [
     "test_mixed_job_log_without_visual_failure_is_not_drift",
     "test_mixed_job_log_fallback_preserves_visual_job_identity",
     "test_parse_args_await_core_version",
+    "test_parse_args_gate_budget_and_no_dispatch",
+    "test_parse_args_gate_budget_and_no_dispatch_defaults",
+    "test_parse_args_rejects_bad_gate_budget",
     "test_parse_args_rejects_malformed_await_core_version",
     "test_parse_arguments_rejects_bad_fixed_sha",
+    "test_parse_bead_closed_reads_only_the_header",
     "test_parse_run_completed_empty_or_invalid_conclusion_is_malformed",
     "test_parse_run_in_flight_empty_conclusion_is_valid",
     "test_visual_job_log_true_drift_and_test_failure_only",
@@ -331,6 +335,42 @@ def test_parse_run_in_flight_empty_conclusion_is_valid(status: str) -> None:
 def test_parse_args_await_core_version() -> None:
     opts = watch.parse_args(["--fixed-sha", SHA, "-c", "0.40.0"])
     assert opts.await_core_version == "0.40.0"
+
+
+def test_parse_args_gate_budget_and_no_dispatch_defaults() -> None:
+    opts = watch.parse_args(["--fixed-sha", SHA])
+    assert opts.max_red_gate_minutes == 120.0
+    assert opts.no_dispatch is False
+
+
+def test_parse_args_gate_budget_and_no_dispatch() -> None:
+    opts = watch.parse_args(
+        ["--fixed-sha", SHA, "-g", "30", "--no-dispatch"],
+    )
+    assert opts.max_red_gate_minutes == 30.0
+    assert opts.no_dispatch is True
+    long_opts = watch.parse_args(
+        ["--fixed-sha", SHA, "--max-red-gate-minutes", "45", "-n"],
+    )
+    assert long_opts.max_red_gate_minutes == 45.0
+    assert long_opts.no_dispatch is True
+
+
+def test_parse_args_rejects_bad_gate_budget() -> None:
+    for budget in ("0", "-5", "soon"):
+        with pytest.raises(watch.WatcherError, match="max-red-gate-minutes"):
+            watch.parse_args(["--fixed-sha", SHA, "--max-red-gate-minutes", budget])
+
+
+def test_parse_bead_closed_reads_only_the_header() -> None:
+    closed_compact = "↳   ✓  M sase-1lh.5 · Fake bead ← sase-1lh  ⧖ 18h\n"
+    assert watch_api.parse_bead_closed(closed_compact, "sase-1lh.5") is True
+    closed_full = "✓ sase-1lh.5 · Fake bead   [CLOSED]\n\nNOTES (1)\n  mentions [IN_PROGRESS] inline\n"
+    assert watch_api.parse_bead_closed(closed_full, "sase-1lh.5") is True
+    open_full = "◐ sase-1lh.5 · Fake bead   [IN_PROGRESS]\n"
+    assert watch_api.parse_bead_closed(open_full, "sase-1lh.5") is False
+    assert watch_api.parse_bead_closed("", "sase-1lh.5") is None
+    assert watch_api.parse_bead_closed("unrelated output", "sase-1lh.5") is None
 
 
 def test_parse_args_rejects_malformed_await_core_version() -> None:

@@ -23,6 +23,7 @@ NOW = datetime(2026, 10, 14, 12, tzinfo=UTC)
 SHA = "a" * 40
 
 __all__ = [
+    "FakeClock",
     "NOW",
     "SHA",
     "UTC",
@@ -38,6 +39,17 @@ __all__ = [
     "watch",
     "watch_api",
 ]
+
+
+class FakeClock:
+    def __init__(self) -> None:
+        self.value = 0.0
+
+    def monotonic(self) -> float:
+        return self.value
+
+    def sleep(self, seconds: float) -> None:
+        self.value += seconds
 
 
 def run(
@@ -93,13 +105,15 @@ def snapshot(
     publish: tuple[watch.WorkflowRun, ...] = (),
     core_version: str = "0.40.0",
     core_upload: datetime = NOW - timedelta(hours=3),
+    gate: watch.WorkflowRun | None = None,
+    master_sha: str = SHA,
 ) -> watch.Snapshot:
     return watch.Snapshot(
         pypi,
         release_pr,
         full,
-        SHA,
-        None,
+        master_sha,
+        gate,
         publish,
         core_version,
         core_upload,

@@ -33,6 +33,8 @@ EXIT_CODES = {
     "INSTALL_FAILED": 14,
     "DEADLINE": 15,
     "WATCHER_BROKEN": 16,
+    "MASTER_GATE_RED": 17,
+    "STOPPED": 18,
 }
 IN_FLIGHT = frozenset({"queued", "in_progress", "waiting", "pending", "requested"})
 BAD_CONCLUSIONS = frozenset(
@@ -85,6 +87,8 @@ class WatchOptions:
     verdict_file: str | None = None
     close_bead: str | None = None
     await_core_version: str | None = None
+    max_red_gate_minutes: float = 120.0
+    no_dispatch: bool = False
 
 
 @dataclass(frozen=True)
@@ -266,6 +270,37 @@ def core_version_meets(published: str, required: str) -> bool:
     return pub_stable
 
 
+_BEAD_CLOSED_STATUSES = ("[CLOSED]",)
+_BEAD_OPEN_STATUSES = (
+    "[OPEN]",
+    "[CLAIMED]",
+    "[READY]",
+    "[SNOOZED]",
+    "[IN_PROGRESS]",
+)
+
+
+def parse_bead_closed(output: str, bead_id: str) -> bool | None:
+    """Classify `sase bead read` output as closed, open, or unknown.
+
+    Only the header line before the bead id is trusted, so note prose can never
+    flip the answer. Returns None when nothing recognizable is found, so
+    callers fail open and still attempt the close.
+    """
+    text = (output or "").strip()
+    if not text or not bead_id:
+        return None
+    first_line = text.splitlines()[0]
+    head, _, _ = first_line.partition(bead_id)
+    if "✓" in head or any(
+        status in first_line for status in _BEAD_CLOSED_STATUSES
+    ):
+        return True
+    if any(status in first_line for status in _BEAD_OPEN_STATUSES):
+        return False
+    return None
+
+
 def parse_args(argv: Sequence[str] | None = None) -> WatchOptions:
     parser = _WatchArgumentParser(
         description=(
@@ -314,6 +349,23 @@ def parse_args(argv: Sequence[str] | None = None) -> WatchOptions:
         help="Stop after this many red fixed-code Full CI runs (default: 2)",
     )
     parser.add_argument(
+        "-g",
+        "--max-red-gate-minutes",
+        type=float,
+        default=120.0,
+        metavar="MINUTES",
+        help=(
+            "Stop with MASTER_GATE_RED after this many minutes with no green "
+            "Master Gate observed at HEAD (default: 120)"
+        ),
+    )
+    parser.add_argument(
+        "-n",
+        "--no-dispatch",
+        action="store_true",
+        help="Observe only: never dispatch workflows, still close the bead",
+    )
+    parser.add_argument(
         "--dry-run",
         action="store_true",
         help="Describe actions without dispatching or closing",
@@ -339,6 +391,8 @@ def parse_args(argv: Sequence[str] | None = None) -> WatchOptions:
         parser.error("--fixed-sha must be a 40- or 64-character Git SHA")
     if ns.max_red_full_ci < 1:
         parser.error("--max-red-full-ci must be at least 1")
+    if not ns.max_red_gate_minutes > 0:
+        parser.error("--max-red-gate-minutes must be a positive number of minutes")
     if ns.await_core_version is not None and not re.fullmatch(
         r"[0-9]+\.[0-9]+\.[0-9]+", ns.await_core_version
     ):
@@ -355,6 +409,8 @@ def parse_args(argv: Sequence[str] | None = None) -> WatchOptions:
         verdict_file=ns.verdict_file,
         close_bead=ns.close_bead,
         await_core_version=ns.await_core_version,
+        max_red_gate_minutes=ns.max_red_gate_minutes,
+        no_dispatch=ns.no_dispatch,
     )
 
 
