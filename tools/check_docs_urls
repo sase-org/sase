@@ -1,0 +1,277 @@
+#!/usr/bin/env python3
+"""Check frozen and code-linked sase.sh URLs against the built MkDocs site."""
+
+from __future__ import annotations
+
+import argparse
+import html.parser
+import re
+import subprocess
+import sys
+import tomllib
+from collections.abc import Iterator
+from pathlib import Path
+from urllib.parse import unquote, urlsplit
+
+
+ROOT = Path(__file__).resolve().parents[1]
+URL_CONTRACT = ROOT / "docs" / "_meta" / "url_contract.txt"
+SASE_URL_RE = re.compile(r"https://sase\.sh(?:/[^\s<>()[\]{}\"'`*]+)?", re.IGNORECASE)
+TRAILING_URL_PUNCTUATION = ".,;:!?)]}*"
+
+
+class _Anchors(html.parser.HTMLParser):
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.values: set[str] = set()
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        attributes = dict(attrs)
+        identifier = attributes.get("id")
+        if identifier:
+            self.values.add(identifier)
+        if tag == "a" and attributes.get("name"):
+            self.values.add(attributes["name"] or "")
+
+
+def extract_sase_urls(text: str) -> set[str]:
+    """Return absolute sase.sh URLs, retaining query strings and fragments."""
+    urls: set[str] = set()
+    for match in SASE_URL_RE.finditer(text):
+        url = match.group(0).rstrip(TRAILING_URL_PUNCTUATION)
+        urls.add(url)
+    return urls
+
+
+def read_url_contract(path: Path) -> set[str]:
+    urls: set[str] = set()
+    for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        parsed = urlsplit(line)
+        if parsed.scheme != "https" or parsed.netloc.lower() != "sase.sh":
+            raise ValueError(f"{path}:{number}: expected an https://sase.sh URL")
+        urls.add(line)
+    return urls
+
+
+def read_redirects(path: Path) -> dict[str, str]:
+    redirects: dict[str, str] = {}
+    for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        fields = line.split()
+        if len(fields) < 3:
+            raise ValueError(f"{path}:{number}: expected source target status")
+        source, target = fields[:2]
+        if not source.startswith("/") or not target.startswith("/"):
+            # Non-local redirect destinations are outside the built site contract.
+            continue
+        redirects[source] = target
+    return redirects
+
+
+def _redirect_target(path: str, redirects: dict[str, str]) -> str | None:
+    if path in redirects:
+        return redirects[path]
+    for source, target in redirects.items():
+        if "*" not in source:
+            continue
+        prefix, suffix = source.split("*", 1)
+        if path.startswith(prefix) and path.endswith(suffix):
+            middle = path[len(prefix) : len(path) - len(suffix) if suffix else None]
+            return target.replace(":splat", middle).replace("$1", middle)
+    return None
+
+
+def _apply_redirects(url: str, redirects: dict[str, str]) -> tuple[str, str | None]:
+    parsed = urlsplit(url)
+    path = parsed.path or "/"
+    fragment = parsed.fragment
+    visited: set[str] = set()
+    while True:
+        if path in visited:
+            return url, f"redirect loop while resolving {url}: {path} repeats"
+        visited.add(path)
+        target = _redirect_target(path, redirects)
+        if target is None:
+            break
+        target_parts = urlsplit(target)
+        path = target_parts.path or "/"
+        if target_parts.fragment:
+            fragment = target_parts.fragment
+    final = f"https://sase.sh{path}"
+    if parsed.query:
+        final += f"?{parsed.query}"
+    if fragment:
+        final += f"#{fragment}"
+    return final, None
+
+
+def _html_path(site_dir: Path, url: str) -> Path:
+    path = unquote(urlsplit(url).path or "/")
+    if not path.startswith("/"):
+        path = f"/{path}"
+    relative = path.lstrip("/")
+    if not relative:
+        return site_dir / "index.html"
+    candidate = site_dir / relative
+    if candidate.is_dir() or path.endswith("/"):
+        return candidate / "index.html"
+    if candidate.suffix:
+        return candidate
+    directory_page = candidate / "index.html"
+    if directory_page.is_file():
+        return directory_page
+    return candidate.with_suffix(".html")
+
+
+def validate_urls(
+    site_dir: Path,
+    references: list[tuple[str, str]],
+    redirects: dict[str, str],
+) -> list[str]:
+    """Return missing-page, missing-anchor, and redirect-loop diagnostics."""
+    errors: list[str] = []
+    anchor_cache: dict[Path, set[str]] = {}
+    for url, origin in references:
+        parsed = urlsplit(url)
+        if parsed.scheme != "https" or parsed.netloc.lower() != "sase.sh":
+            errors.append(f"{origin}: unsupported URL in contract: {url}")
+            continue
+        resolved, redirect_error = _apply_redirects(url, redirects)
+        if redirect_error:
+            errors.append(f"{origin}: {redirect_error}")
+            continue
+        html_path = _html_path(site_dir, resolved)
+        if not html_path.is_file():
+            # The curated handbook PDF is built by docs-pdf-check after the HTML
+            # site; the deploy artifact gate verifies its bytes in the same site.
+            if (
+                urlsplit(resolved).path == "/downloads/sase-handbook.pdf"
+                and _pdf_configures_public_artifact()
+            ):
+                continue
+            errors.append(f"{origin}: {url} resolves to missing page {html_path}")
+            continue
+        fragment = urlsplit(resolved).fragment
+        if not fragment:
+            continue
+        if html_path not in anchor_cache:
+            parser = _Anchors()
+            parser.feed(html_path.read_text(encoding="utf-8", errors="replace"))
+            anchor_cache[html_path] = parser.values
+        if unquote(fragment) not in anchor_cache[html_path]:
+            errors.append(
+                f"{origin}: {url} resolves to missing anchor #{unquote(fragment)}"
+            )
+    return errors
+
+
+def _pdf_configures_public_artifact() -> bool:
+    config = ROOT / "mkdocs-pdf.yml"
+    if not config.is_file():
+        return False
+    pattern = re.compile(
+        r"^\s+output:\s*downloads/sase-handbook\.pdf\s*$", re.MULTILINE
+    )
+    return pattern.search(config.read_text(encoding="utf-8")) is not None
+
+
+def _iter_source_files(source_dir: Path) -> Iterator[Path]:
+    for path in sorted(source_dir.rglob("*")):
+        if path.is_file() and "__pycache__" not in path.parts:
+            yield path
+
+
+def _latest_release_readme() -> tuple[str, str] | None:
+    project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))[
+        "project"
+    ]
+    tag = f"v{project['version']}"
+    try:
+        result = subprocess.run(
+            ["git", "show", f"{tag}:README.md"],
+            cwd=ROOT,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    except (FileNotFoundError, subprocess.CalledProcessError):
+        return None
+    return f"latest release README ({tag})", result.stdout
+
+
+def collect_references(site_dir: Path) -> list[tuple[str, str]]:
+    references: set[tuple[str, str]] = set()
+    for url in read_url_contract(URL_CONTRACT):
+        references.add((url, "docs/_meta/url_contract.txt"))
+
+    for html_path in sorted(site_dir.rglob("*.html")):
+        relative = html_path.relative_to(site_dir)
+        if relative == Path("404.html"):
+            continue
+        if relative.name == "index.html":
+            suffix = relative.parent.as_posix()
+            path = "/" if suffix == "." else f"/{suffix}/"
+        else:
+            path = f"/{relative.with_suffix('').as_posix()}"
+        references.add((f"https://sase.sh{path}", f"built page {relative.as_posix()}"))
+
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    for url in extract_sase_urls(readme):
+        if urlsplit(url).fragment:
+            references.add((url, "README.md deep link"))
+
+    source_references = [("README.md", readme)]
+    for source_path in _iter_source_files(ROOT / "src"):
+        try:
+            text = source_path.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            continue
+        source_references.append((source_path.relative_to(ROOT).as_posix(), text))
+    latest_readme = _latest_release_readme()
+    if latest_readme is not None:
+        source_references.append(latest_readme)
+    for origin, text in source_references:
+        for url in extract_sase_urls(text):
+            references.add((url, origin))
+
+    redirects = read_redirects(ROOT / "docs" / "_redirects")
+    for source, target in redirects.items():
+        references.add(
+            (f"https://sase.sh{target}", f"docs/_redirects target for {source}")
+        )
+    return sorted(references)
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("site_dir", nargs="?", type=Path, default=ROOT / "site")
+    args = parser.parse_args(argv)
+    if not args.site_dir.is_dir():
+        print(
+            f"error: built docs directory does not exist: {args.site_dir}",
+            file=sys.stderr,
+        )
+        return 2
+    try:
+        redirects = read_redirects(ROOT / "docs" / "_redirects")
+        references = collect_references(args.site_dir)
+    except (OSError, ValueError, KeyError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    errors = validate_urls(args.site_dir, references, redirects)
+    if errors:
+        print("Documentation URL contract failed:", file=sys.stderr)
+        for error in errors:
+            print(f"  - {error}", file=sys.stderr)
+        return 1
+    print(f"Documentation URL contract passed ({len(references)} URLs checked).")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

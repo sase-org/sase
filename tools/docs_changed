@@ -1,0 +1,92 @@
+#!/usr/bin/env python3
+"""Print ``run`` when the current change set can affect published docs."""
+
+from __future__ import annotations
+
+import re
+import subprocess
+import sys
+from pathlib import Path
+
+
+ROOT = Path(__file__).resolve().parents[1]
+SASE_URL_RE = re.compile(r"https://sase\.sh(?:/|\b)", re.IGNORECASE)
+
+
+def _git(*args: str, check: bool = True) -> str:
+    result = subprocess.run(
+        ["git", *args],
+        cwd=ROOT,
+        check=check,
+        capture_output=True,
+        text=True,
+    )
+    return result.stdout
+
+
+def _diff_base() -> str:
+    for candidate in ("origin/master", "master", "origin/main", "main"):
+        result = subprocess.run(
+            ["git", "merge-base", "HEAD", candidate],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode == 0:
+            return result.stdout.strip()
+    return "HEAD"
+
+
+def _changed_paths() -> set[str]:
+    base = _diff_base()
+    changed = set(_git("diff", "--name-only", base, "--").splitlines())
+    changed.update(_git("ls-files", "--others", "--exclude-standard").splitlines())
+    return changed
+
+
+def _contains_sase_url(path: str) -> bool:
+    working_path = ROOT / path
+    if working_path.is_file():
+        try:
+            if SASE_URL_RE.search(working_path.read_text(encoding="utf-8")):
+                return True
+        except UnicodeDecodeError:
+            pass
+    result = subprocess.run(
+        ["git", "show", f"HEAD:{path}"],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+    )
+    return result.returncode == 0 and SASE_URL_RE.search(result.stdout) is not None
+
+
+def docs_are_affected(paths: set[str]) -> bool:
+    for path in paths:
+        if path == "README.md" or path.startswith("docs/"):
+            return True
+        if Path(path).name.startswith("mkdocs") and Path(path).suffix in {
+            ".yml",
+            ".yaml",
+        }:
+            return True
+        if path.startswith("src/") and _contains_sase_url(path):
+            return True
+    return False
+
+
+def main() -> int:
+    paths = _changed_paths()
+    if docs_are_affected(paths):
+        print("run")
+    else:
+        print("skip")
+    return 0
+
+
+if __name__ == "__main__":
+    try:
+        raise SystemExit(main())
+    except (OSError, subprocess.CalledProcessError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        raise SystemExit(2) from exc

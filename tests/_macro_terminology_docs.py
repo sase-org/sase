@@ -38,6 +38,7 @@ _MACRO_DOCS_SCOPES = (
 _MACRO_DOCS_DECISIONS = Path("sase/memory/decisions")
 
 _MACRO_DOCS_ALLOWLIST: set[tuple[str, str]] = {
+    ("docs/_meta/url_contract.txt", "https://sase.sh/xprompt/"),
     ("docs/_redirects", "/xprompt/ /macros/ 301"),
     (
         "docs/blog/posts/structured-agentic-software-engineering.md",
@@ -161,6 +162,7 @@ _MACRO_DOCS_ALLOWLIST: set[tuple[str, str]] = {
 
 
 _MACRO_DOCS_REASONS: dict[str, str] = {
+    "docs/_meta/url_contract.txt": "frozen URL contract keeps the redirected public route resolvable",
     "docs/_redirects": "hosting redirect keeps the retired page URL working",
     "docs/blog/posts/structured-agentic-software-engineering.md": "published-post rename note required by docs-memory",
     "docs/macros.md": "the 'Renamed from xprompts' docs section is the docs allowlist",

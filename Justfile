@@ -825,6 +825,12 @@ check: (_require-tool-run "check") _setup
     @tools/run_silent "SASE validation"     just validate
     @{{ venv_bin }}/python tools/probe_core_floor --advisory --sase-core-dir "{{ sase_core_dir }}"
     @tools/run_silent "committed plans"      just validate-committed-plans
+    @docs_scope="$$(tools/docs_changed)"; \
+    if [ "$$docs_scope" = run ]; then \
+        tools/run_silent "docs (build + links)" just docs-check; \
+    else \
+        printf "[check] Skipping docs build; no docs inputs changed.\n"; \
+    fi
     @tools/run_silent "test (scoped)"      just test-scoped
     @{{ venv_bin }}/python tools/print_scoped_summary
     @tools/run_silent --finish
@@ -938,6 +944,7 @@ fix-docs-budgets: _setup-format-tools
 docs-check: _venv
     uv pip install --python {{ venv_bin }}/python --no-sources "mkdocs-material>=9.7,<10" "mkdocs-redirects>=1.2,<2" "mkdocs-rss-plugin>=1.18,<2"
     {{ venv_bin }}/mkdocs build --strict
+    tools/check_docs_urls site
 
 # Render the committed 1200x627 social card. Visual changes need a new
 # filename (update docs/overrides/main.html, both rss `image:` entries,

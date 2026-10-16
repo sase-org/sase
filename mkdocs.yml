@@ -8,9 +8,20 @@ docs_dir: docs
 site_dir: site
 strict: true
 use_directory_urls: true
+validation:
+  omitted_files: warn
+  absolute_links: warn
+  unrecognized_links: warn
+  anchors: warn
+
 exclude_docs: |
-  _templates/*
-  _meta/*
+  images/**/*.prompt.md
+  images/**/*.critique.md
+  images/infographic-style-brief.md
+  _templates/
+  _meta/
+  _includes/
+  README.md
 
 nav:
   - Home: index.md

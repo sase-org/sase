@@ -62,6 +62,15 @@ def test_master_gate_has_read_only_contents_permission() -> None:
     assert workflow["permissions"] == {"contents": "read"}
 
 
+def test_master_gate_builds_docs_without_core_wheel_dependency() -> None:
+    job = _load_master_gate_workflow()["jobs"]["docs"]
+
+    assert "needs" not in job
+    assert int(job["timeout-minutes"]) <= 20
+    assert any(step.get("run") == "just docs-check" for step in job["steps"])
+    assert not any("setup-sase" in str(step.get("uses", "")) for step in job["steps"])
+
+
 def test_master_gate_jobs_stay_within_the_twenty_minute_ceiling() -> None:
     workflow = _load_master_gate_workflow()
 

@@ -30,7 +30,7 @@ def test_patch_onboarding_content_includes_docs_lifecycle_and_storage() -> None:
     assert "Browse durable agent runs and open their artifacts." not in rendered
     assert "Trace committed work across projects." in rendered
     assert "Browse logical artifact files and their versions." in rendered
-    assert "https://sase.sh/patch/" in rendered
+    assert "https://sase.sh/change_spec/" in rendered  # docs/change_spec.md
     assert "https://sase.sh/vcs/" in rendered
     assert "https://sase.sh/plugins/" in rendered
     assert "~/.sase/projects/" in rendered

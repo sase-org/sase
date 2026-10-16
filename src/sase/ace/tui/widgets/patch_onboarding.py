@@ -26,7 +26,7 @@ from ._onboarding_common import (
 )
 
 _ACCENT = "#00D7AF"
-_PATCH_DOCS_URL = "https://sase.sh/patch/"
+_PATCH_DOCS_URL = "https://sase.sh/change_spec/"  # docs/change_spec.md
 _VCS_DOCS_URL = "https://sase.sh/vcs/"
 _PLUGINS_DOCS_URL = "https://sase.sh/plugins/"
 _LIFECYCLE: tuple[str, ...] = ("WIP", "Draft", "Ready", "Mailed", "Submitted")
