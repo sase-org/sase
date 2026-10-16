@@ -21,3 +21,6 @@ tests/agents_sync/goldens/
 
 # Generated documentation index; renderer output is checked from its sources.
 docs/README.md
+
+# Generated CLI reference; renderer output is checked by docs-gen-check.
+docs/reference/cli/

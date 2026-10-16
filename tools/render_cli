@@ -1,0 +1,486 @@
+#!/usr/bin/env python3
+"""Render generated CLI reference pages from the live argparse tree.
+
+Phase sase-1le.16 (cli-registry) owns this module. It walks
+``sase.main.parser.create_parser()`` — that is tooling, not an agent read —
+and renders one page per top-level command group plus an index:
+
+- ``docs/reference/cli/<group>.md``: usage, description, subcommands,
+  options (long/short flags, defaults, help), and the bare-``list``
+  default where it applies.
+- ``docs/reference/cli/index.md``: every group with its one-line summary.
+
+Hidden (``help=argparse.SUPPRESS``) subcommands and options are omitted:
+they are internal compatibility shims, not reference surface. Legacy
+top-level aliases (``changespec``, ``task``, ``vcs``, ``artifact-file``)
+share one parser object with their canonical group, so only the canonical
+page is generated and the alias is noted there.
+
+This is a ``.venv`` source: run ``just docs-gen`` (``just fix``) after
+changing parser help, and ``just docs-gen-check`` (``just check``) verifies
+every page is current. Never import this module from the narrow formatter
+venv.
+"""
+
+from __future__ import annotations
+
+import argparse
+import difflib
+import sys
+from pathlib import Path
+
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+OUTPUT_DIR = REPO_ROOT / "docs" / "reference" / "cli"
+INDEX_OUTPUT = OUTPUT_DIR / "index.md"
+
+GENERATED_MARKER = (
+    "<!-- generated, do not edit; source: argparse tree "
+    "(tools/render_cli; run just fix to regenerate) -->"
+)
+
+INDEX_TITLE = "CLI command groups"
+INDEX_DESCRIPTION = "Generated CLI reference, one page per sase command group."
+
+#: Legacy top-level aliases share one parser object with their canonical
+#: group. Generate the canonical page only; the alias is noted there.
+ALIASES: dict[str, str] = {
+    "changespec": "patch",
+    "task": "proc",
+    "vcs": "stitch",
+    "artifact-file": "artifact",
+}
+
+_SUPPRESS = argparse.SUPPRESS
+_NO_VALUE_ACTIONS = (
+    argparse._HelpAction,
+    argparse._StoreTrueAction,
+    argparse._StoreFalseAction,
+    argparse._CountAction,
+    argparse._VersionAction,
+)
+
+
+def _clean(text: str | None) -> str:
+    # argparse help escapes a literal percent as ``%%``; docs show one.
+    return " ".join((text or "").replace("%%", "%").split())
+
+
+def _cell(text: str | None) -> str:
+    cleaned = _clean(text).replace("|", "\\|")
+    return cleaned if cleaned else "—"
+
+
+def _yaml_quote(value: str) -> str:
+    """Double-quote a frontmatter scalar so colons never break YAML."""
+    return '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+
+def _first_sentence(text: str | None, limit: int = 160) -> str:
+    cleaned = _clean(text)
+    if not cleaned:
+        return ""
+    for sep in (". ", "! ", "? "):
+        if sep in cleaned:
+            cleaned = cleaned.split(sep, 1)[0] + sep.strip()
+            break
+    if len(cleaned) > limit:
+        cut = cleaned[:limit].rsplit(" ", 1)[0]
+        cleaned = (cut or cleaned[:limit]).rstrip() + "…"
+    return cleaned
+
+
+def _takes_value(action: argparse.Action) -> bool:
+    if isinstance(action, _NO_VALUE_ACTIONS):
+        return False
+    return bool(action.option_strings)
+
+
+def _metavar(action: argparse.Action) -> str:
+    metavar = action.metavar
+    if isinstance(metavar, (list, tuple)):
+        metavar = " ".join(str(part) for part in metavar)
+    if isinstance(metavar, str) and metavar:
+        return metavar
+    return action.dest.upper()
+
+
+def _option_label(action: argparse.Action) -> str:
+    parts: list[str] = []
+    takes_value = _takes_value(action)
+    metavar = _metavar(action) if takes_value else ""
+    for opt in action.option_strings:
+        if takes_value and opt.startswith("--"):
+            parts.append(f"`{opt} {metavar}`")
+        elif takes_value:
+            parts.append(f"`{opt} {metavar}`")
+        else:
+            parts.append(f"`{opt}`")
+    return ", ".join(parts)
+
+
+def _format_default(action: argparse.Action) -> str:
+    default = action.default
+    if default is _SUPPRESS or default is None:
+        return "—"
+    if isinstance(default, bool):
+        return "`true`" if default else "`false`"
+    if isinstance(default, (list, tuple)):
+        if not default:
+            return "—"
+        return "`" + _clean(", ".join(str(v) for v in default)) + "`"
+    text = _clean(str(default))
+    if len(text) > 60:
+        text = text[:57].rsplit(" ", 1)[0] + "…"
+    return f"`{text}`"
+
+
+def _describe_option(action: argparse.Action) -> str:
+    parts: list[str] = [_clean(action.help) or "—"]
+    extras: list[str] = []
+    if getattr(action, "required", False):
+        extras.append("required")
+    choices = getattr(action, "choices", None)
+    if isinstance(choices, (list, tuple, set)) and choices:
+        shown = ", ".join(f"`{c}`" for c in sorted(str(c) for c in choices)[:8])
+        extras.append(f"choices: {shown}")
+        if len(list(choices)) > 8:
+            extras.append(f"+{len(list(choices)) - 8} more")
+    if extras:
+        parts.append("(" + "; ".join(extras) + ")")
+    return " ".join(parts)
+
+
+def _subparsers(parser: argparse.ArgumentParser) -> list[argparse._SubParsersAction]:
+    return [a for a in parser._actions if isinstance(a, argparse._SubParsersAction)]
+
+
+def _choice_help(
+    subparsers_action: argparse._SubParsersAction, name: str
+) -> str | None:
+    for choice_action in subparsers_action._choices_actions:
+        if choice_action.dest == name:
+            return choice_action.help
+    return None
+
+
+def _visible_subcommands(
+    parser: argparse.ArgumentParser,
+) -> list[tuple[str, argparse.ArgumentParser, str | None]]:
+    """Sorted visible (non-SUPPRESS) subcommands, deduplicated by object."""
+    seen: set[int] = set()
+    result: list[tuple[str, argparse.ArgumentParser, str | None]] = []
+    for action in _subparsers(parser):
+        for name in sorted(action.choices.keys()):
+            child = action.choices[name]
+            if id(child) in seen:
+                continue
+            seen.add(id(child))
+            help_text = _choice_help(action, name)
+            if help_text is _SUPPRESS:
+                continue
+            result.append((name, child, help_text))
+    return result
+
+
+def _group_has_list_default(parser: argparse.ArgumentParser) -> bool:
+    return any(name == "list" for name, _, _ in _visible_subcommands(parser))
+
+
+def _format_grid(headers: tuple[str, ...], rows: list[tuple[str, ...]]) -> list[str]:
+    all_rows = [headers, *rows]
+    widths = tuple(max(len(row[i]) for row in all_rows) for i in range(len(headers)))
+    lines = [
+        "| " + " | ".join(c.ljust(w) for c, w in zip(headers, widths)) + " |",
+        "| " + " | ".join("-" * w for w in widths) + " |",
+    ]
+    for row in rows:
+        lines.append("| " + " | ".join(c.ljust(w) for c, w in zip(row, widths)) + " |")
+    return lines
+
+
+def _render_node(
+    parser: argparse.ArgumentParser,
+    prog: str,
+    level: int,
+    lines: list[str],
+) -> None:
+    """Render one parser node's usage, options, and subcommand table."""
+    try:
+        usage = parser.format_usage().strip()
+    except (ValueError, IndexError):
+        usage = ""
+    if usage:
+        lines.append("```text")
+        lines.append(usage)
+        lines.append("```")
+        lines.append("")
+    description = _clean(parser.description)
+    if description:
+        lines.append(description)
+        lines.append("")
+    if _group_has_list_default(parser):
+        lines.append(f"Bare `{prog}` defaults to `{prog} list`.")
+        lines.append("")
+    options = [
+        a
+        for a in parser._actions
+        if a.option_strings and a.help is not _SUPPRESS
+    ]
+    options.sort(key=lambda a: (a.option_strings[-1].lstrip("-").lower(), a.option_strings[0]))
+    if options:
+        lines.append("Options:")
+        lines.append("")
+        rows = [
+            (_option_label(a), _cell(_describe_option(a)), _format_default(a))
+            for a in options
+        ]
+        lines.extend(_format_grid(("Option", "Description", "Default"), rows))
+        lines.append("")
+    positionals = [
+        a
+        for a in parser._actions
+        if not a.option_strings
+        and not isinstance(a, argparse._SubParsersAction)
+        and a.dest not in ("help", _SUPPRESS)
+        and a.help is not _SUPPRESS
+    ]
+    if positionals:
+        lines.append("Arguments:")
+        lines.append("")
+        rows = [(f"`{a.dest}`", _cell(a.help)) for a in positionals]
+        lines.extend(_format_grid(("Argument", "Description"), rows))
+        lines.append("")
+    subs = _visible_subcommands(parser)
+    if subs:
+        lines.append("Subcommands:")
+        lines.append("")
+        rows = []
+        for name, child, help_text in subs:
+            summary = _clean(help_text) or _first_sentence(child.description) or "—"
+            rows.append((f"`{prog} {name}`", _cell(summary)))
+        lines.extend(_format_grid(("Subcommand", "Summary"), rows))
+        lines.append("")
+        for name, child, _help_text in subs:
+            heading = "#" * min(level, 6) + f" `{prog} {name}`"
+            lines.append(heading)
+            lines.append("")
+            _render_node(child, f"{prog} {name}", level + 1, lines)
+
+
+def _canonical_groups(
+    parser: argparse.ArgumentParser,
+) -> tuple[dict[str, argparse.ArgumentParser], dict[str, str], dict[str, str]]:
+    """Return (canonical parsers, top help by name, alias note by canonical)."""
+    sub = _subparsers(parser)
+    if not sub:
+        raise ValueError("root parser has no subcommands")
+    choices = sub[0].choices
+    helps: dict[str, str | None] = {}
+    for choice_action in sub[0]._choices_actions:
+        helps[choice_action.dest] = choice_action.help
+    canonical: dict[str, argparse.ArgumentParser] = {}
+    alias_note: dict[str, list[str]] = {}
+    for name in sorted(choices.keys()):
+        if name in ALIASES:
+            canonical_name = ALIASES[name]
+            alias_note.setdefault(canonical_name, []).append(name)
+            continue
+        child = choices[name]
+        if name not in canonical:
+            canonical[name] = child
+        else:
+            # Same name registered twice; keep the first object.
+            pass
+    # Drop canonical entries hidden at the top level (none today, but a
+    # SUPPRESS top-level help must never gain a reference page).
+    canonical = {
+        name: child
+        for name, child in canonical.items()
+        if helps.get(name) is not _SUPPRESS
+    }
+    top_help: dict[str, str] = {
+        name: helps.get(name) or "" for name in canonical.keys()
+    }
+    notes = {name: sorted(names) for name, names in alias_note.items()}
+    return canonical, top_help, notes
+
+
+def _page_description(
+    group: str, parser: argparse.ArgumentParser, top_help: str
+) -> str:
+    description = _first_sentence(parser.description) or _clean(top_help)
+    if not description:
+        description = f"CLI reference for `sase {group}`."
+    return _first_sentence(description, limit=160)
+
+
+def render_group_page(
+    group: str,
+    parser: argparse.ArgumentParser,
+    top_help: str,
+    aliases: list[str],
+) -> str:
+    """Render one ``docs/reference/cli/<group>.md`` page."""
+    title = f"sase {group}"
+    description = _page_description(group, parser, top_help)
+    lines = [
+        "---",
+        f"title: {_yaml_quote(title)}",
+        f"description: {_yaml_quote(description)}",
+        "---",
+        "",
+        GENERATED_MARKER,
+        "",
+        f"# sase {group}",
+        "",
+    ]
+    intro = _clean(top_help) or _first_sentence(parser.description)
+    if intro and intro != _clean(parser.description):
+        lines.append(intro)
+        lines.append("")
+    if aliases:
+        alias_list = ", ".join(f"`sase {alias}`" for alias in aliases)
+        lines.append(f"Aliases: {alias_list}.")
+        lines.append("")
+    lines.append(f"Reference for `sase {group}`. Run `sase {group} --help` for the exact output on this checkout.")
+    lines.append("")
+    _render_node(parser, f"sase {group}", 2, lines)
+    lines.append(f"Related: [CLI command groups](index.md).")
+    lines.append("")
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def render_index_text(
+    groups: dict[str, argparse.ArgumentParser], top_help: dict[str, str]
+) -> str:
+    """Render ``docs/reference/cli/index.md`` listing every group."""
+    lines = [
+        "---",
+        f"title: {_yaml_quote(INDEX_TITLE)}",
+        f"description: {_yaml_quote(INDEX_DESCRIPTION)}",
+        "---",
+        "",
+        GENERATED_MARKER,
+        "",
+        "# CLI command groups",
+        "",
+        "One page per `sase` command group, generated from the argparse tree.",
+        "Start here to find the group that owns a workflow.",
+        "",
+        "Groups:",
+        "",
+    ]
+    rows = []
+    for name in sorted(groups.keys()):
+        child = groups[name]
+        summary = _clean(top_help.get(name, "")) or _first_sentence(
+            child.description
+        ) or "—"
+        rows.append((f"[`sase {name}`]({name}.md)", _cell(summary)))
+    lines.extend(_format_grid(("Group", "Summary"), rows))
+    lines.append("")
+    lines.append("Legacy aliases (`sase changespec`, `sase task`, `sase vcs`,")
+    lines.append("`sase artifact-file`) share their canonical group's page.")
+    lines.append("")
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def _load_parser() -> argparse.ArgumentParser:
+    from sase.main.parser import create_parser
+
+    return create_parser()
+
+
+def generated_outputs(
+    root: Path = REPO_ROOT,
+) -> dict[Path, str]:
+    """Return every file this source owns, walked from the live parser."""
+    parser = _load_parser()
+    canonical, top_help, notes = _canonical_groups(parser)
+    outputs: dict[Path, str] = {}
+    out_dir = root / OUTPUT_DIR.relative_to(REPO_ROOT)
+    for group in sorted(canonical.keys()):
+        child = canonical[group]
+        path = out_dir / f"{group}.md"
+        outputs[path] = render_group_page(
+            group, child, top_help.get(group, ""), notes.get(group, [])
+        )
+    outputs[root / INDEX_OUTPUT.relative_to(REPO_ROOT)] = render_index_text(
+        canonical, top_help
+    )
+    return outputs
+
+
+def _expected_paths(outputs: dict[Path, str], root: Path) -> set[Path]:
+    return set(outputs.keys())
+
+
+def render(root: Path = REPO_ROOT) -> None:
+    """Write every artifact this source owns, pruning stale group pages."""
+    outputs = generated_outputs(root)
+    out_dir = root / OUTPUT_DIR.relative_to(REPO_ROOT)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    expected = _expected_paths(outputs, root)
+    for existing in sorted(out_dir.glob("*.md")):
+        if existing not in expected:
+            existing.unlink()
+    for path, content in outputs.items():
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content, encoding="utf-8")
+
+
+def check(root: Path = REPO_ROOT) -> list[str]:
+    """Diff every owned artifact without writing; return failure lines."""
+    try:
+        outputs = generated_outputs(root)
+    except (ImportError, OSError, ValueError) as exc:
+        return [f"cannot walk argparse tree: {exc}"]
+    failures: list[str] = []
+    out_dir = root / OUTPUT_DIR.relative_to(REPO_ROOT)
+    expected = _expected_paths(outputs, root)
+    if out_dir.is_dir():
+        for existing in sorted(out_dir.glob("*.md")):
+            if existing not in expected:
+                failures.append(
+                    f"{existing.relative_to(root)} is stale; run just fix to prune"
+                )
+    for path, expected_text in outputs.items():
+        try:
+            actual = path.read_text(encoding="utf-8")
+        except OSError:
+            failures.append(f"{path.relative_to(root)} is not generated")
+            continue
+        if actual != expected_text:
+            failures.extend(
+                difflib.unified_diff(
+                    actual.splitlines(),
+                    expected_text.splitlines(),
+                    fromfile=str(path.relative_to(root)),
+                    tofile=f"{path.relative_to(root)} (generated)",
+                    lineterm="",
+                )
+            )
+    return failures
+
+
+def main(argv: list[str] | None = None) -> int:
+    """Entry point: ``tools/render_cli [--check]`` from the repo root."""
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--check", action="store_true", help="check without writing")
+    args = parser.parse_args(argv)
+    if args.check:
+        failures = check()
+        for failure in failures:
+            print(failure)
+        if failures:
+            print("[render_cli] drift detected: run just fix", file=sys.stderr)
+            return 1
+        print("[render_cli] ok")
+        return 0
+    render()
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

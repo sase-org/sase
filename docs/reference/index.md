@@ -10,7 +10,8 @@ it names the thing so tutorials and guides can link to the facts.
 
 ## CLI
 
-- [CLI reference](../cli.md) — commands, flags, exit codes
+- [CLI reference](../cli.md) — command index and routing
+- [CLI command groups](cli/index.md) — generated flags, options, and subcommands
 - [Query language](../query_language.md) — filtering runs and beads
 - [Named tools](../tool.md) — declaring and running tools
 

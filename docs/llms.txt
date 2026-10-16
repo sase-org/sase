@@ -58,6 +58,73 @@
 - [ProjectSpec Format](https://sase.sh/project_spec/) — ProjectSpec Format — A ProjectSpec is SASE's project-level .sase file.
 - [Prompt History and Draft Recovery](https://sase.sh/prompt/) — Prompt History and Draft Recovery — Prompts you launch with sase run or from sase's TUI are recorded in prompt history when they are useful to replay.
 - [Query Language Reference](https://sase.sh/query_language/) — Query Language Reference — The Patch query language filters Patches using boolean expressions that combine string matching, property filters, and operational shorthands.
+- [sase agent-cli](https://sase.sh/reference/cli/agent-cli/) — Inspect the coding-agent CLIs supported by SASE and install or update installs whose management method can be identified safely.
+- [sase agent](https://sase.sh/reference/cli/agent/) — Inspect and manage agents across projects.
+- [sase artifact](https://sase.sh/reference/cli/artifact/) — Create, discover, inspect, resolve, open, and repair indexed artifacts.
+- [sase autonomy](https://sase.sh/reference/cli/autonomy/) — Inspect the core-owned %auto autonomy record: predict each gate decision exactly (`explain`), list the built-in profiles (`list`), read the host decision log…
+- [sase axe](https://sase.sh/reference/cli/axe/) — Alias of `sase scheduler`, plus the routine and job tree
+- [sase bead](https://sase.sh/reference/cli/bead/) — Lightweight git-native issue tracking
+- [sase chat](https://sase.sh/reference/cli/chat/) — Discover and inspect prior agent chat transcripts
+- [sase comments](https://sase.sh/reference/cli/comments/) — Preview mentor comments from JSON (reads from stdin or file)
+- [sase completion](https://sase.sh/reference/cli/completion/) — Generate native shell-completion scripts from the live sase argparse tree, install them where the shell will actually load them, and inspect the structural…
+- [sase config](https://sase.sh/reference/cli/config/) — Inspect merged configuration, layers, and mentor profile matching
+- [sase core](https://sase.sh/reference/cli/core/) — Inspect the required sase_core_rs Rust extension
+- [sase disk](https://sase.sh/reference/cli/disk/) — Inspect SASE-owned disk usage and delegate cleanup to each owner.
+- [sase doctor](https://sase.sh/reference/cli/doctor/) — Run fast, read-only diagnostics for the active SASE runtime, configuration, and project checkout.
+- [sase editor](https://sase.sh/reference/cli/editor/) — Run editor integration helpers
+- [sase file-history](https://sase.sh/reference/cli/file-history/) — Inspect and modify the file-reference history
+- [sase file-hook](https://sase.sh/reference/cli/file-hook/) — Inspect non-gating commands configured under `file_hooks` and the producer audit history for matching, dispatch, and pre-run failures.
+- [sase file](https://sase.sh/reference/cli/file/) — Filesystem completion helpers (consumed by editor integrations)
+- [sase final](https://sase.sh/reference/cli/final/) — Inspect host-owned finalizer instances, provider provenance, and the current turn's declaration obligations.
+- [sase flag](https://sase.sh/reference/cli/flag/) — Inspect the code-owned SASE feature-flag registry, persist a machine-local enable or disable choice, and scaffold a new flag plus its dedicated removal bead.
+- [sase gate](https://sase.sh/reference/cli/gate/) — Create durable command-backed gates from versioned JSON specifications, inspect what they ask for, run their repeatable actions, answer them headlessly, and…
+- [sase goal](https://sase.sh/reference/cli/goal/) — Create, list, show, edit, drop, reopen, merge, and check durable goal records.
+- [CLI command groups](https://sase.sh/reference/cli/) — Generated CLI reference, one page per sase command group.
+- [sase init](https://sase.sh/reference/cli/init/) — Check and initialize SASE-managed resources.
+- [sase instructions](https://sase.sh/reference/cli/instructions/) — Inspect agent instruction documents.
+- [sase launch](https://sase.sh/reference/cli/launch/) — Resolve pending launch approval requests created before detached agents are spawned.
+- [sase logs](https://sase.sh/reference/cli/logs/) — Collect logs and runtime data for a date range into a pack directory
+- [sase lsp](https://sase.sh/reference/cli/lsp/) — Start the SASE macro language server.
+- [sase machine](https://sase.sh/reference/cli/machine/) — Manage viewer-local aliases for enrolled remote machines.
+- [sase macro](https://sase.sh/reference/cli/macro/) — Expand and visualize macro workflows
+- [sase memory](https://sase.sh/reference/cli/memory/) — Inspect SASE memory context.
+- [sase migrate](https://sase.sh/reference/cli/migrate/) — Temporary offline migration kit for the canonical-only cutover.
+- [sase mobile](https://sase.sh/reference/cli/mobile/) — Run mobile integration helpers
+- [sase monitor](https://sase.sh/reference/cli/monitor/) — Hand a slow command off to a detached supervisor that runs as a real agent session member, with streaming output, a timeout, and an optional follow-up agent.
+- [sase notify](https://sase.sh/reference/cli/notify/) — Create and inspect raw notifications.
+- [sase pager](https://sase.sh/reference/cli/pager/) — Open artifact references, file paths, or stdin as one navigable SASE pager document.
+- [sase patch](https://sase.sh/reference/cli/patch/) — Inspect and maintain Patch lifecycle records.
+- [sase path](https://sase.sh/reference/cli/path/) — Print well-known sase paths (for editor integration)
+- [sase pipe](https://sase.sh/reference/cli/pipe/) — End this agent's turn and continue the run as the next agent session member in the same workspace, with the prompt you write.
+- [sase plan](https://sase.sh/reference/cli/plan/) — Review the plan pipeline, approve or reject pending proposals from the Patch, inspect SDD prompt/plan links, submit a new plan for review, search SDD and…
+- [sase plugin](https://sase.sh/reference/cli/plugin/) — Discover every SASE plugin that exists by treating the GitHub `sase--plugin` repository topic as the canonical registry.
+- [sase proc](https://sase.sh/reference/cli/proc/) — Inspect and run SASE procs.
+- [sase project](https://sase.sh/reference/cli/project/) — Inspect project lifecycle state and the current project.
+- [sase prompt](https://sase.sh/reference/cli/prompt/) — Inspect, search, and reuse previously submitted agent prompts
+- [sase questions](https://sase.sh/reference/cli/questions/) — Ask the user questions (used by /sase_questions skill)
+- [sase repo](https://sase.sh/reference/cli/repo/) — Initialize, inspect, and resolve repositories known by SASE.
+- [sase repro](https://sase.sh/reference/cli/repro/) — Capture and replay reproduction bundles
+- [sase restore](https://sase.sh/reference/cli/restore/) — Restore a reverted Patch by re-applying its diff and creating a new PR
+- [sase revert](https://sase.sh/reference/cli/revert/) — Revert a Patch by pruning its PR and archiving the diff
+- [sase revive-log](https://sase.sh/reference/cli/revive-log/) — Show recent agent revive attempts from the audit log
+- [sase run](https://sase.sh/reference/cli/run/) — Launch a detached background coding-agent run from a prompt, macro, or workflow.
+- [sase scheduler](https://sase.sh/reference/cli/scheduler/) — Control the SASE scheduler.
+- [sase screenshot](https://sase.sh/reference/cli/screenshot/) — Launch or reuse a real `sase tui` in tmux, drive it with keypresses and typed text, ask the live app to export SVG, and rasterize that SVG to PNG.
+- [sase service](https://sase.sh/reference/cli/service/) — Manage the per-machine SASE service host.
+- [sase skill](https://sase.sh/reference/cli/skill/) — Inspect, initialize, and audit generated SASE skills.
+- [sase snippet](https://sase.sh/reference/cli/snippet/) — Inspect or update the effective snippet catalog for a project.
+- [sase stitch](https://sase.sh/reference/cli/stitch/) — Dispatch a commit, proposal, or pull request, or show the cross-repository stitch timeline for the primary repo and configured linked repos.
+- [sase sudo](https://sase.sh/reference/cli/sudo/) — Create typed sudo request gates and answer them from a controlling terminal through the dedicated sudo runner.
+- [sase telemetry](https://sase.sh/reference/cli/telemetry/) — Inspect locally persisted telemetry.
+- [sase tmux-agent](https://sase.sh/reference/cli/tmux-agent/) — Launch an interactive agent CLI in a new tmux window.
+- [sase tool](https://sase.sh/reference/cli/tool/) — List, run, and inspect project-owned named tools and the machine-local ToolRun ledger.
+- [sase tui](https://sase.sh/reference/cli/tui/) — Open sase's TUI for agents, Patches, artifacts, notifications, and Services
+- [sase update](https://sase.sh/reference/cli/update/) — Upgrade sase and every installed sase plugin together, in one atomic operation, by delegating to `uv tool upgrade sase`.
+- [sase usage](https://sase.sh/reference/cli/usage/) — Inspect cached provider subscription-usage observations and submit explicit refreshes.
+- [sase validate](https://sase.sh/reference/cli/validate/) — Run SASE initialization and SDD validation checks
+- [sase var](https://sase.sh/reference/cli/var/) — Inspect historical output variables, retrieve a snapshot or selector values, or set variables on the current SASE agent run.
+- [sase version](https://sase.sh/reference/cli/version/) — Show the exact SASE host, Rust core, and plugin packages used by this process.
+- [sase workspace](https://sase.sh/reference/cli/workspace/) — Inspect and manage managed workspace checkouts
 - [Design decisions](https://sase.sh/reference/design-decisions/) — Why SASE works this way, generated from the decisions memory web.
 - [Glossary](https://sase.sh/reference/glossary/) — Every SASE term, generated from the glossary memory web.
 - [Reference](https://sase.sh/reference/) — Look up exact SASE facts here, generated from code where possible.

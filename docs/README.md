@@ -56,6 +56,73 @@
 - [ProjectSpec Format](project_spec.md) — ProjectSpec Format — A ProjectSpec is SASE's project-level .sase file.
 - [Prompt History and Draft Recovery](prompt.md) — Prompt History and Draft Recovery — Prompts you launch with sase run or from sase's TUI are recorded in prompt history when they are useful to replay.
 - [Query Language Reference](query_language.md) — Query Language Reference — The Patch query language filters Patches using boolean expressions that combine string matching, property filters, and operational shorthands.
+- [sase agent-cli](reference/cli/agent-cli.md) — Inspect the coding-agent CLIs supported by SASE and install or update installs whose management method can be identified safely.
+- [sase agent](reference/cli/agent.md) — Inspect and manage agents across projects.
+- [sase artifact](reference/cli/artifact.md) — Create, discover, inspect, resolve, open, and repair indexed artifacts.
+- [sase autonomy](reference/cli/autonomy.md) — Inspect the core-owned %auto autonomy record: predict each gate decision exactly (`explain`), list the built-in profiles (`list`), read the host decision log…
+- [sase axe](reference/cli/axe.md) — Alias of `sase scheduler`, plus the routine and job tree
+- [sase bead](reference/cli/bead.md) — Lightweight git-native issue tracking
+- [sase chat](reference/cli/chat.md) — Discover and inspect prior agent chat transcripts
+- [sase comments](reference/cli/comments.md) — Preview mentor comments from JSON (reads from stdin or file)
+- [sase completion](reference/cli/completion.md) — Generate native shell-completion scripts from the live sase argparse tree, install them where the shell will actually load them, and inspect the structural…
+- [sase config](reference/cli/config.md) — Inspect merged configuration, layers, and mentor profile matching
+- [sase core](reference/cli/core.md) — Inspect the required sase_core_rs Rust extension
+- [sase disk](reference/cli/disk.md) — Inspect SASE-owned disk usage and delegate cleanup to each owner.
+- [sase doctor](reference/cli/doctor.md) — Run fast, read-only diagnostics for the active SASE runtime, configuration, and project checkout.
+- [sase editor](reference/cli/editor.md) — Run editor integration helpers
+- [sase file-history](reference/cli/file-history.md) — Inspect and modify the file-reference history
+- [sase file-hook](reference/cli/file-hook.md) — Inspect non-gating commands configured under `file_hooks` and the producer audit history for matching, dispatch, and pre-run failures.
+- [sase file](reference/cli/file.md) — Filesystem completion helpers (consumed by editor integrations)
+- [sase final](reference/cli/final.md) — Inspect host-owned finalizer instances, provider provenance, and the current turn's declaration obligations.
+- [sase flag](reference/cli/flag.md) — Inspect the code-owned SASE feature-flag registry, persist a machine-local enable or disable choice, and scaffold a new flag plus its dedicated removal bead.
+- [sase gate](reference/cli/gate.md) — Create durable command-backed gates from versioned JSON specifications, inspect what they ask for, run their repeatable actions, answer them headlessly, and…
+- [sase goal](reference/cli/goal.md) — Create, list, show, edit, drop, reopen, merge, and check durable goal records.
+- [CLI command groups](reference/cli/index.md) — Generated CLI reference, one page per sase command group.
+- [sase init](reference/cli/init.md) — Check and initialize SASE-managed resources.
+- [sase instructions](reference/cli/instructions.md) — Inspect agent instruction documents.
+- [sase launch](reference/cli/launch.md) — Resolve pending launch approval requests created before detached agents are spawned.
+- [sase logs](reference/cli/logs.md) — Collect logs and runtime data for a date range into a pack directory
+- [sase lsp](reference/cli/lsp.md) — Start the SASE macro language server.
+- [sase machine](reference/cli/machine.md) — Manage viewer-local aliases for enrolled remote machines.
+- [sase macro](reference/cli/macro.md) — Expand and visualize macro workflows
+- [sase memory](reference/cli/memory.md) — Inspect SASE memory context.
+- [sase migrate](reference/cli/migrate.md) — Temporary offline migration kit for the canonical-only cutover.
+- [sase mobile](reference/cli/mobile.md) — Run mobile integration helpers
+- [sase monitor](reference/cli/monitor.md) — Hand a slow command off to a detached supervisor that runs as a real agent session member, with streaming output, a timeout, and an optional follow-up agent.
+- [sase notify](reference/cli/notify.md) — Create and inspect raw notifications.
+- [sase pager](reference/cli/pager.md) — Open artifact references, file paths, or stdin as one navigable SASE pager document.
+- [sase patch](reference/cli/patch.md) — Inspect and maintain Patch lifecycle records.
+- [sase path](reference/cli/path.md) — Print well-known sase paths (for editor integration)
+- [sase pipe](reference/cli/pipe.md) — End this agent's turn and continue the run as the next agent session member in the same workspace, with the prompt you write.
+- [sase plan](reference/cli/plan.md) — Review the plan pipeline, approve or reject pending proposals from the Patch, inspect SDD prompt/plan links, submit a new plan for review, search SDD and…
+- [sase plugin](reference/cli/plugin.md) — Discover every SASE plugin that exists by treating the GitHub `sase--plugin` repository topic as the canonical registry.
+- [sase proc](reference/cli/proc.md) — Inspect and run SASE procs.
+- [sase project](reference/cli/project.md) — Inspect project lifecycle state and the current project.
+- [sase prompt](reference/cli/prompt.md) — Inspect, search, and reuse previously submitted agent prompts
+- [sase questions](reference/cli/questions.md) — Ask the user questions (used by /sase_questions skill)
+- [sase repo](reference/cli/repo.md) — Initialize, inspect, and resolve repositories known by SASE.
+- [sase repro](reference/cli/repro.md) — Capture and replay reproduction bundles
+- [sase restore](reference/cli/restore.md) — Restore a reverted Patch by re-applying its diff and creating a new PR
+- [sase revert](reference/cli/revert.md) — Revert a Patch by pruning its PR and archiving the diff
+- [sase revive-log](reference/cli/revive-log.md) — Show recent agent revive attempts from the audit log
+- [sase run](reference/cli/run.md) — Launch a detached background coding-agent run from a prompt, macro, or workflow.
+- [sase scheduler](reference/cli/scheduler.md) — Control the SASE scheduler.
+- [sase screenshot](reference/cli/screenshot.md) — Launch or reuse a real `sase tui` in tmux, drive it with keypresses and typed text, ask the live app to export SVG, and rasterize that SVG to PNG.
+- [sase service](reference/cli/service.md) — Manage the per-machine SASE service host.
+- [sase skill](reference/cli/skill.md) — Inspect, initialize, and audit generated SASE skills.
+- [sase snippet](reference/cli/snippet.md) — Inspect or update the effective snippet catalog for a project.
+- [sase stitch](reference/cli/stitch.md) — Dispatch a commit, proposal, or pull request, or show the cross-repository stitch timeline for the primary repo and configured linked repos.
+- [sase sudo](reference/cli/sudo.md) — Create typed sudo request gates and answer them from a controlling terminal through the dedicated sudo runner.
+- [sase telemetry](reference/cli/telemetry.md) — Inspect locally persisted telemetry.
+- [sase tmux-agent](reference/cli/tmux-agent.md) — Launch an interactive agent CLI in a new tmux window.
+- [sase tool](reference/cli/tool.md) — List, run, and inspect project-owned named tools and the machine-local ToolRun ledger.
+- [sase tui](reference/cli/tui.md) — Open sase's TUI for agents, Patches, artifacts, notifications, and Services
+- [sase update](reference/cli/update.md) — Upgrade sase and every installed sase plugin together, in one atomic operation, by delegating to `uv tool upgrade sase`.
+- [sase usage](reference/cli/usage.md) — Inspect cached provider subscription-usage observations and submit explicit refreshes.
+- [sase validate](reference/cli/validate.md) — Run SASE initialization and SDD validation checks
+- [sase var](reference/cli/var.md) — Inspect historical output variables, retrieve a snapshot or selector values, or set variables on the current SASE agent run.
+- [sase version](reference/cli/version.md) — Show the exact SASE host, Rust core, and plugin packages used by this process.
+- [sase workspace](reference/cli/workspace.md) — Inspect and manage managed workspace checkouts
 - [Design decisions](reference/design-decisions.md) — Why SASE works this way, generated from the decisions memory web.
 - [Glossary](reference/glossary.md) — Every SASE term, generated from the glossary memory web.
 - [Reference](reference/index.md) — Look up exact SASE facts here, generated from code where possible.

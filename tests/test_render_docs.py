@@ -35,7 +35,11 @@ def test_registry_wraps_existing_and_new_renderers() -> None:
         "render_docs_map",
         "render_glossary",
         "render_design_decisions",
+        "render_cli",
     }
+    cli_sources = [s for s in runner.SOURCES if s.script == "render_cli"]
+    assert len(cli_sources) == 1
+    assert cli_sources[0].needs_sase
 
 
 def test_runner_selects_sources_by_environment_and_check_mode(tmp_path: Path) -> None:
