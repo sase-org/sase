@@ -1,0 +1,421 @@
+#!/usr/bin/env python3
+"""Render TUI keymaps and macro registries from their source contracts."""
+
+from __future__ import annotations
+
+import argparse
+import difflib
+from pathlib import Path
+import sys
+from typing import Any
+
+import yaml
+
+from sase.ace.tui.keymaps import metadata as keymap_metadata
+from sase.ace.tui.keymaps.display import key_display_name
+from sase.content_layout import resolve_macro_file_sources
+from sase.core.rust import require_rust_binding
+
+
+ROOT = Path(__file__).resolve().parents[1]
+OUTPUTS = (
+    Path("docs/reference/tui/keymaps.md"),
+    Path("docs/reference/macros/directives.md"),
+    Path("docs/reference/macros/discovery-order.md"),
+)
+
+_KEYMAP_GROUPS: tuple[tuple[str, str, str, str], ...] = (
+    ("Application", "app", "_BINDING_META", "app"),
+    ("Command Line panel", "command_line", "_COMMAND_LINE_BINDING_META", "scope"),
+    ("Config hub", "config", "_CONFIG_HUB_BINDING_META", "scope"),
+    ("Gate modal", "gate", "_GATE_BINDING_META", "scope"),
+    ("Gate input panel", "gate", "_GATE_INPUT_PANEL_BINDING_META", "scope"),
+    ("Machines pane", "machines", "_MACHINES_BINDING_META", "field"),
+    ("Memory panel", "memory", "_MEMORY_BINDING_META", "scope"),
+    ("Projects pane", "projects", "_PROJECTS_BINDING_META", "field"),
+    (
+        "Projects inventory",
+        "projects",
+        "_PROJECTS_INVENTORY_BINDING_META",
+        "field",
+    ),
+    ("Snippets panel", "snippets", "_SNIPPET_BINDING_META", "scope"),
+    ("Statistics pane", "statistics", "_STATISTICS_BINDING_META", "scope"),
+    ("Tools pane", "tool_runs", "_TOOL_RUNS_BINDING_META", "field"),
+)
+
+_SYNTAX_LABELS = {
+    "bare": "bare",
+    "brace_shorthand": "%{…}",
+    "colon": ":value",
+    "double_colon": ":: body",
+    "parenthesized": "(...)",
+    "plus": "+",
+}
+
+# Rust keeps the accepted legacy token as the canonical completion-contract name,
+# while the prompt preprocessor emits the current spelling and accepts both.
+_DIRECTIVE_DISPLAY = {
+    "xprompts_enabled": (
+        "macros_enabled",
+        "xprompts_enabled",
+        "Enable or disable macro expansion for a text region",
+    ),
+}
+
+
+def _cell(text: object) -> str:
+    """Format one value safely in a Markdown table cell."""
+    return " ".join(str(text).replace("|", "\\|").split()) or "—"
+
+
+def _code(text: object) -> str:
+    """Wrap Markdown inline code, handling key names that contain backticks."""
+    value = str(text)
+    if "|" in value:
+        return f"<code>{value.replace('|', '&#124;')}</code>"
+    if "`" not in value:
+        return f"`{value}`"
+    return f"`` {value} ``"
+
+
+def _keymap_rows(config: dict[str, Any]) -> list[tuple[str, str, str, str]]:
+    ace = config.get("ace")
+    keymaps = ace.get("keymaps") if isinstance(ace, dict) else None
+    if not isinstance(keymaps, dict):
+        raise ValueError("default_config.yml is missing ace.keymaps")
+
+    rows: list[tuple[str, str, str, str]] = []
+    for title, scope_name, metadata_name, row_kind in _KEYMAP_GROUPS:
+        scope = keymaps.get(scope_name)
+        metadata = getattr(keymap_metadata, metadata_name)
+        if not isinstance(scope, dict):
+            raise ValueError(f"default_config.yml is missing ace.keymaps.{scope_name}")
+        for item in metadata:
+            if row_kind == "app":
+                field, description = str(item[0]), str(item[1])
+            elif row_kind == "field":
+                field, description = str(item[0]), str(item[-1])
+            else:
+                field, description = str(item[0]), str(item[1])
+            if field not in scope:
+                raise ValueError(
+                    f"{metadata_name} names missing default ace.keymaps.{scope_name}.{field}"
+                )
+            raw_key = str(scope[field])
+            shown_key = key_display_name(raw_key) or "Unbound"
+            rows.append(
+                (title, shown_key, description, f"ace.keymaps.{scope_name}.{field}")
+            )
+
+    modes = keymaps.get("modes")
+    if not isinstance(modes, dict):
+        raise ValueError("default_config.yml is missing ace.keymaps.modes")
+
+    for mode_name, mode_value in modes.items():
+        if not isinstance(mode_value, dict):
+            continue
+        prefix = key_display_name(str(mode_value.get("prefix", "")))
+        mode_keys = mode_value.get("keys")
+        if not isinstance(mode_keys, dict):
+            continue
+        for path, raw_key in _flatten_mode_keys(mode_keys):
+            key = key_display_name(raw_key)
+            if prefix and key:
+                chord = (
+                    f"{prefix}{key}"
+                    if len(prefix) == 1 and len(key) == 1
+                    else f"{prefix} {key}"
+                )
+            else:
+                chord = prefix or key or "Unbound"
+            label = path.rsplit(".", 1)[-1].replace("_", " ").capitalize()
+            mode_title = str(mode_name).replace("_", " ").capitalize()
+            rows.append(
+                (
+                    mode_title,
+                    chord,
+                    label,
+                    f"ace.keymaps.modes.{mode_name}.keys.{path}",
+                )
+            )
+    return rows
+
+
+def _flatten_mode_keys(
+    mapping: dict[str, Any], prefix: str = ""
+) -> list[tuple[str, str]]:
+    flattened: list[tuple[str, str]] = []
+    for name, value in mapping.items():
+        path = f"{prefix}.{name}" if prefix else str(name)
+        if isinstance(value, dict):
+            flattened.extend(_flatten_mode_keys(value, path))
+        elif isinstance(value, str):
+            flattened.append((path, value))
+    return flattened
+
+
+def _render_keymaps(config: dict[str, Any]) -> str:
+    rows = _keymap_rows(config)
+    lines = [
+        "---",
+        "title: TUI keymaps",
+        "description: Default configurable key bindings for SASE's terminal interface.",
+        "---",
+        "",
+        "<!-- generated, do not edit; source: src/sase/default_config.yml and "
+        "src/sase/ace/tui/keymaps/metadata.py "
+        "(tools/render_keymap_macro_reference; run just fix to regenerate) -->",
+        "",
+        "# TUI keymaps",
+        "",
+        "These are the bundled defaults for configurable TUI actions. The key and action "
+        "labels come from the keymap configuration and the metadata used by the live "
+        "help surfaces. Fixed widget and text-editor keys are documented with their "
+        "behavior in the [TUI reference](../../ace.md).",
+        "",
+    ]
+    current_group = None
+    for group, key, description, config_path in rows:
+        if group != current_group:
+            current_group = group
+            lines.extend(
+                [
+                    f"## {group}",
+                    "",
+                    "| Default key | Action | Configuration |",
+                    "| --- | --- | --- |",
+                ]
+            )
+        lines.append(f"| {_code(key)} | {_cell(description)} | {_code(config_path)} |")
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def _directive_contract() -> list[dict[str, Any]]:
+    binding = require_rust_binding("directive_contract")
+    rows = binding()
+    if not isinstance(rows, list) or not all(isinstance(row, dict) for row in rows):
+        raise ValueError("Rust directive_contract returned an invalid catalog")
+    return rows
+
+
+def _syntax(row: dict[str, Any]) -> str:
+    forms = row.get("syntax_forms")
+    if not isinstance(forms, list):
+        return "—"
+    return ", ".join(_SYNTAX_LABELS.get(str(form), str(form)) for form in forms)
+
+
+def _render_directives() -> str:
+    rows = _directive_contract()
+    lines = [
+        "---",
+        "title: Macro directives",
+        "description: The generated catalog of prompt directives and their syntax.",
+        "---",
+        "",
+        "<!-- generated, do not edit; source: Rust directive_contract "
+        "(tools/render_keymap_macro_reference; run just fix to regenerate) -->",
+        "",
+        "# Macro directives",
+        "",
+        "The TUI, macro language server, and launch parser share this Rust-owned contract. "
+        "Aliases, syntax forms, argument summaries, and descriptions below are generated "
+        "from that contract. The marker directive uses its current `macros_enabled` "
+        "spelling here; `%xprompts_enabled` remains accepted for old prompts.",
+        "",
+        "| Directive | Alias | Forms | Arguments | Purpose |",
+        "| --- | --- | --- | --- | --- |",
+    ]
+    for row in rows:
+        contract_name = str(row.get("name") or "")
+        if not contract_name:
+            raise ValueError("Rust directive_contract returned a row without a name")
+        name, legacy_alias, display_description = _DIRECTIVE_DISPLAY.get(
+            contract_name,
+            (contract_name, "", str(row.get("description") or "")),
+        )
+        alias = row.get("alias")
+        alias_text = f"%{alias}" if isinstance(alias, str) and alias else "—"
+        if legacy_alias:
+            alias_text = f"%{legacy_alias} (legacy)"
+        alias_cell = f"`{_cell(alias_text)}`" if alias_text != "—" else "—"
+        flag = row.get("feature_flag")
+        description = display_description
+        if isinstance(flag, str) and flag:
+            description = f"{description} Feature flag: `{flag}`."
+        lines.append(
+            f"| `{_cell('%' + name)}` | {alias_cell} | "
+            f"{_cell(_syntax(row))} | {_cell(row.get('synopsis') or row.get('argument_hint') or '—')} | "
+            f"{_cell(description)} |"
+        )
+
+    lines.extend(["", "## Argument details", ""])
+    for row in rows:
+        contract_name = str(row["name"])
+        name, _legacy_alias, display_description = _DIRECTIVE_DISPLAY.get(
+            contract_name,
+            (contract_name, "", str(row.get("description") or "")),
+        )
+        lines.extend([f"### `%{name}`", "", display_description, ""])
+        positional = row.get("positional_suggestions")
+        if isinstance(positional, list) and positional:
+            suggestions = ", ".join(
+                f"`{_cell(item.get('value'))}`"
+                for item in positional
+                if isinstance(item, dict) and item.get("value") is not None
+            )
+            if suggestions:
+                lines.extend([f"Suggested values: {suggestions}.", ""])
+        keywords = row.get("keywords")
+        if isinstance(keywords, list) and keywords:
+            lines.extend(
+                [
+                    "| Keyword | Meaning | Suggested values |",
+                    "| --- | --- | --- |",
+                ]
+            )
+            for keyword in keywords:
+                if not isinstance(keyword, dict):
+                    continue
+                suggestions = ", ".join(
+                    f"`{_cell(item.get('value'))}`"
+                    for item in keyword.get("suggested_values", [])
+                    if isinstance(item, dict) and item.get("value") is not None
+                )
+                lines.append(
+                    f"| `{_cell(keyword.get('name'))}` | "
+                    f"{_cell(keyword.get('description'))} | {suggestions or '—'} |"
+                )
+            lines.append("")
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def _display_source_path(path: Path, root: Path, home: Path, scope: str) -> str:
+    resolved = path.expanduser().resolve(strict=False)
+    if scope == "project":
+        relative = resolved.relative_to(root.resolve())
+        return f"<project>/{relative.as_posix()}/"
+    if scope == "home":
+        relative = resolved.relative_to(home.resolve())
+        return f"~/{relative.as_posix()}/"
+    if scope == "home_project":
+        relative = resolved.relative_to(home.resolve()).parts
+        if relative and relative[-1] == "example":
+            relative = (*relative[:-1], "<project>")
+        return f"~/{Path(*relative).as_posix()}/"
+    return f"{resolved.as_posix()}/"
+
+
+def _render_discovery_order(root: Path) -> str:
+    sources = resolve_macro_file_sources(project_root=root, project="example")
+    if not sources:
+        raise ValueError("Rust content-layout contract returned no macro file sources")
+    rows = sorted(sources, key=lambda source: source.priority)
+    lines = [
+        "---",
+        "title: Macro discovery order",
+        "description: File-backed macro and workflow locations in lookup order.",
+        "---",
+        "",
+        "<!-- generated, do not edit; source: sase_core_rs.sase_content_layout "
+        "(tools/render_keymap_macro_reference; run just fix to regenerate) -->",
+        "",
+        "# Macro discovery order",
+        "",
+        "This table is the file-backed source order returned by SASE's Rust content-layout "
+        "contract. The first matching file definition wins. Project-local definitions "
+        "are namespaced with the project name; canonical locations are writable and "
+        "legacy locations are read-only compatibility paths.",
+        "",
+        "| Priority | Location | Source | Formats | Write policy |",
+        "| --- | --- | --- | --- | --- |",
+    ]
+    for source in rows:
+        if source.path is None:
+            continue
+        path = _display_source_path(source.path, root, Path.home(), source.scope)
+        role = "Canonical" if source.role == "canonical" else "Legacy compatibility"
+        writable = "Writable" if source.writable else "Read-only"
+        formats = ", ".join(f"`.{suffix}`" for suffix in source.formats)
+        lines.append(
+            f"| {source.priority} | `{path}` | {role} | {formats} | {writable} |"
+        )
+    lines.extend(
+        [
+            "",
+            "Configuration-defined macros, plugin definitions, and bundled package "
+            "definitions use separate loaders. Memory macros and skills use reserved "
+            "namespaces, so they do not take part in ordinary macro-name collisions. "
+            "See the [macro reference](../../macros.md) for those definition forms.",
+            "",
+        ]
+    )
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def _generated_outputs(root: Path = ROOT) -> dict[Path, str]:
+    config_path = root / "src/sase/default_config.yml"
+    config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+    if not isinstance(config, dict):
+        raise ValueError("default_config.yml is not a mapping")
+    return {
+        root / OUTPUTS[0]: _render_keymaps(config),
+        root / OUTPUTS[1]: _render_directives(),
+        root / OUTPUTS[2]: _render_discovery_order(root),
+    }
+
+
+def _check(root: Path = ROOT) -> list[str]:
+    failures: list[str] = []
+    for path, expected in _generated_outputs(root).items():
+        try:
+            actual = path.read_text(encoding="utf-8")
+        except OSError:
+            failures.append(f"{path.relative_to(root)} is not generated")
+            continue
+        if actual != expected:
+            failures.extend(
+                difflib.unified_diff(
+                    actual.splitlines(),
+                    expected.splitlines(),
+                    fromfile=str(path.relative_to(root)),
+                    tofile=f"{path.relative_to(root)} (generated)",
+                    lineterm="",
+                )
+            )
+    return failures
+
+
+def _render(root: Path = ROOT) -> None:
+    for path, content in _generated_outputs(root).items():
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content, encoding="utf-8")
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--check", action="store_true", help="check without writing")
+    args = parser.parse_args(argv)
+    try:
+        if args.check:
+            failures = _check()
+            for failure in failures:
+                print(failure)
+            if failures:
+                print(
+                    "[render_keymap_macro_reference] drift detected: run just fix",
+                    file=sys.stderr,
+                )
+                return 1
+        else:
+            _render()
+    except (OSError, ValueError, TypeError, AttributeError) as exc:
+        print(f"[render_keymap_macro_reference] {exc}", file=sys.stderr)
+        return 1
+    print("[render_keymap_macro_reference] ok")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

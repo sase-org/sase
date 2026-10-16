@@ -25,11 +25,15 @@ it names the thing so tutorials and guides can link to the facts.
 ## TUI
 
 - [sase's TUI](../ace.md) — tabs, pickers, panes
+- [TUI keymaps](tui/keymaps.md) — generated defaults for configurable actions
 - [SASE Pager](../pager.md) — paging long output
 
 ## Macros and workflows
 
 - [Macros](../macros.md) — reusable prompts and directives
+- [Directive catalog](macros/directives.md) — generated syntax and argument contract
+- [Macro discovery order](macros/discovery-order.md) — file-backed definitions by
+  priority
 - [Workflows](../workflow_spec.md) — multi-agent workflow files
 
 ## Work units

@@ -161,7 +161,10 @@
 - [Design decisions](reference/design-decisions.md) — Why SASE works this way, generated from the decisions memory web.
 - [Glossary](reference/glossary.md) — Every SASE term, generated from the glossary memory web.
 - [Reference](reference/index.md) — Look up exact SASE facts here, generated from code where possible.
+- [Macro directives](reference/macros/directives.md) — The generated catalog of prompt directives and their syntax.
+- [Macro discovery order](reference/macros/discovery-order.md) — File-backed macro and workflow locations in lookup order.
 - [Runner slots](reference/runner-slots.md) — How runner capacity admits queued agents, and what waiting.json records.
+- [TUI keymaps](reference/tui/keymaps.md) — Default configurable key bindings for SASE's terminal interface.
 - [Remote Dispatch Runbook](remote_dispatch.md) — Remote Dispatch Runbook — Remote dispatch lets one SASE controller discover, enroll, and operate agents on another machine.
 - [Spec-Driven Development (SDD)](sdd.md) — Spec-Driven Development (SDD) — SDD is sase's system for persisting the intent behind agent work.
 - [Sudo Requests](sudo.md) — Sudo Requests — SASE sudo requests let an agent ask for reviewed privileged execution without ever asking for, receiving, logging, or proxying a password.

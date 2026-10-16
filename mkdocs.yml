@@ -25,7 +25,7 @@ exclude_docs: |
 
 # BEGIN GENERATED: docs page moves not_in_nav
 not_in_nav: ""
-# END GENERATED: docs page moves not_in_nav 
+# END GENERATED: docs page moves not_in_nav
 
 nav:
   - Home: index.md
@@ -68,6 +68,7 @@ nav:
       - Reference hub: reference/index.md
       - TUI:
           - sase's TUI: ace.md
+          - Keymaps: reference/tui/keymaps.md
           - SASE Pager: pager.md
       - CLI:
           - Initialization: init.md
@@ -161,6 +162,8 @@ nav:
           - ProjectSpec: project_spec.md
       - Macros and workflows:
           - Macros: macros.md
+          - Directive catalog: reference/macros/directives.md
+          - Discovery order: reference/macros/discovery-order.md
           - Workflows: workflow_spec.md
       - Work units:
           - Spec-driven development: sdd.md

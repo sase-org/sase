@@ -24,3 +24,7 @@ docs/README.md
 
 # Generated CLI reference; renderer output is checked by docs-gen-check.
 docs/reference/cli/
+
+# Generated keymap and macro references; renderer output is checked by docs-gen-check.
+docs/reference/tui/
+docs/reference/macros/

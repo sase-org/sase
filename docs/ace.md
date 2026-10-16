@@ -1042,21 +1042,16 @@ stored size; launch routing uses the same `@small` fallback.
 
 ## Keybindings: Artifacts / Patches
 
+Default configurable actions are listed in the generated
+[TUI keymaps reference](reference/tui/keymaps.md). This page keeps behavior details and
+fixed widget keys.
+
 ### Navigation
 
-| Key                       | Action                                                                                       |
-| ------------------------- | -------------------------------------------------------------------------------------------- |
-| `j` / `k`                 | Move to next / previous visible row (banner at fold `< L2`, PR at the leaf level)            |
-| `<` / `>` / `~`           | Navigate to ancestor / child / sibling PR                                                    |
-| `'`                       | Jump by adaptive hint (current tab); hints land on collapsed banners too                     |
-| `Ctrl+O` / `Ctrl+Shift+O` | Walk the link trail first, then the current-tab jump stack; back falls through to first hint |
-| `$$` / `$1`-`$9` / `$0`   | Follow the first / numbered artifact link, or open the complete links panel                  |
-| `` ` ``                   | Jump to entry across all tabs (see [Jump All Modal](#jump-all-modal))                        |
-| `o` / `O`                 | Cycle PR grouping mode forward / reverse (`BY_PROJECT` ↔ `BY_DATE` ↔ `BY_STATUS`)            |
-| `g` / `G`                 | Scroll detail panel to top / bottom                                                          |
-| `Ctrl+D` / `Ctrl+U`       | Scroll detail panel down / up (half page)                                                    |
-| `{` / `}`                 | Narrow / widen the shared Artifacts list panel (with wraparound)                             |
-| `Ctrl+J` / `Ctrl+K`       | Load `ace.page_size` more rows / unload that page (rewrites the host `limit:` cap)           |
+| Key                     | Action                                                                      |
+| ----------------------- | --------------------------------------------------------------------------- |
+| `$$` / `$1`-`$9` / `$0` | Follow the first / numbered artifact link, or open the complete links panel |
+| `` ` ``                 | Jump to entry across all tabs (see [Jump All Modal](#jump-all-modal))       |
 
 > **Note:** `o` opens a direct grouping picker on the Agents tab. `o`/`O` cycle the L0
 > grouping bucket forward / reverse on Artifacts panes that have a grouping mode (each
@@ -1069,33 +1064,9 @@ stored size; launch routing uses the same `@small` fallback.
 
 ### PR Actions
 
-| Key             | Action                                                                                          |
-| --------------- | ----------------------------------------------------------------------------------------------- |
-| `A`             | Accept proposal (`!` = spec only, `@` = mark ready to mail)                                     |
-| `b`             | Rebase PR onto parent                                                                           |
-| `C` / `c1`-`c9` | Checkout PR (primary / workspace 1-9)                                                           |
-| `d`             | Show diff (Patches sub-tab only; `d` toggles sidecars on Stitches and the Services description) |
-| `e`             | Edit spec file                                                                                  |
-| `f`             | Edit the Patches filter query                                                                   |
-| `F`             | Edit hooks (re-run / delete via hint input; type `.` to pick from hook history)                 |
-| `M`             | Mail PR                                                                                         |
-| `m`             | Mark / unmark current PR (auto-advances to next)                                                |
-| `n`             | Rename PR (non-Sub/Rev PRs only)                                                                |
-| `!o`            | Mark PR origin (`sase`/`external`/`unknown`)                                                    |
-| `!R`            | Rewind to previous commit (`!` suffix skips VCS operations)                                     |
-| `R`             | Open the [Refresh panel](#refresh-panel)                                                        |
-| `y`             | Copy the PR's `@patch:` reference                                                               |
-| `s`             | Change status (opens status modal)                                                              |
-| `S`             | Bulk status change for all marked PRs                                                           |
-| `T` / `t`       | Checkout + tmux (primary workspace / prompt for a workspace number)                             |
-| `u`             | Clear all marks                                                                                 |
-| `v`             | View files (hint mode)                                                                          |
-| `V`             | Open the Agent Run Log modal for the current PR                                                 |
-| `w`             | Reword PR description                                                                           |
-| `W`             | Add tag to PR description                                                                       |
-| `x`             | Show/hide submitted PRs                                                                         |
-| `X`             | Show/hide reverted PRs                                                                          |
-| `Y`             | Sync workspace                                                                                  |
+| Key             | Action                                |
+| --------------- | ------------------------------------- |
+| `C` / `c1`-`c9` | Checkout PR (primary / workspace 1-9) |
 
 ### PR Grouping and Folding
 
@@ -1118,38 +1089,12 @@ parseable TIMESTAMPS entry fall into `(no timestamp)` under `Earlier`.
 The active grouping mode is shown in the Patches sub-tab's info-panel header as a
 `[group: <label>]` badge.
 
-| Key  | Action                                                                                                                                 |
-| ---- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| `l`  | Expand the focused banner one level (or peel one layer of the visible tree)                                                            |
-| `h`  | Collapse the focused banner; on a collapsed L1 banner, escalate to its parent. With agent focus, collapse the deepest enclosing group. |
-| `zL` | Snap to fully expanded — all banners and Patch rows visible (`z` fold-mode prefix; bare `L` does nothing on Patches)                   |
-| `H`  | Snap to fully collapsed — collapse every visible banner                                                                                |
-
 Collapsed banner rows are first-class navigation stops: `j`/`k` step through them just
 like Patch rows, and `'` jump-hints land on them too. After a fold change that hides the
 focused PR, focus snaps to the deepest collapsed ancestor banner so the cursor always
 sits on a row the user can see.
 
 ### Fold Mode (`z` prefix)
-
-| Key     | Action                                                 |
-| ------- | ------------------------------------------------------ |
-| `z` `c` | Cycle stitches section (expand → collapse)             |
-| `z` `d` | Cycle deltas section (summary → files → line counts)   |
-| `z` `h` | Cycle hooks section (expand → collapse)                |
-| `z` `m` | Cycle mentors section (expand → collapse)              |
-| `z` `t` | Cycle timestamps section (expand → collapse)           |
-| `z` `C` | Toggle stitches section (collapsed ↔ fully expanded)   |
-| `z` `D` | Toggle deltas section (summary ↔ line counts)          |
-| `z` `H` | Toggle hooks section (collapsed ↔ fully expanded)      |
-| `z` `M` | Toggle mentors section (collapsed ↔ fully expanded)    |
-| `z` `T` | Toggle timestamps section (collapsed ↔ fully expanded) |
-| `z` `z` | Cycle all sections                                     |
-| `z` `Z` | Toggle all sections (expand ↔ collapse)                |
-| `z` `1` | Set every section to collapsed (level 1)               |
-| `z` `2` | Set every section to expanded (level 2)                |
-| `z` `3` | Set every section to fully expanded (level 3)          |
-| `z` `L` | Expand every grouping banner                           |
 
 STITCHES, HOOKS, MENTORS, and TIMESTAMPS sections each cycle through three fold levels:
 
@@ -1180,27 +1125,15 @@ the full list. The section is omitted entirely when the Patch has no deltas.
 
 ### Workflows and Agents
 
-| Key        | Action                                                                                                                             |
-| ---------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| `r`        | Run workflow on current PR                                                                                                         |
-| `+`        | Run a custom agent (opens project/Patch selection)                                                                                 |
-| `Space`    | Prefill the prompt with the most recently launched VCS macro (blank home prompt if none; `Space` then `Ctrl+U` for a blank prompt) |
-| `,<space>` | Run an agent from the current PR (skips selection)                                                                                 |
-| `Ctrl+G`   | Open that most recent VCS macro in `$EDITOR` first                                                                                 |
-| `@`        | Restore a stashed prompt                                                                                                           |
+| Key        | Action                                             |
+| ---------- | -------------------------------------------------- |
+| `,<space>` | Run an agent from the current PR (skips selection) |
 
 If sase's TUI cannot detect a workspace provider for the selected Patch or agent, the
 quick-launch actions show an error toast instead of opening a prompt with a broken VCS
 prefix.
 
 ### Bang Mode (`!` prefix)
-
-| Key  | Action                                                                   |
-| ---- | ------------------------------------------------------------------------ |
-| `!!` | Run a background command (choose a project, a workspace, then a command) |
-| `!x` | Start / stop service host (or select process)                            |
-| `!o` | Mark PR origin (`sase`/`external`/`unknown`)                             |
-| `!R` | Rewind to previous commit (`!` suffix skips VCS operations)              |
 
 `!!` ends in a **Run Command** picker over previously run background commands: type to
 filter the history or enter a new command, move with `Ctrl+N` / `Ctrl+P` or the arrow
@@ -1220,13 +1153,9 @@ new one (the oldest finished index is reused once all nine are taken).
 Type `.` into the `F` edit-hooks input to open the hook history modal, which lists
 previously added hook commands:
 
-| Key         | Action                                        |
-| ----------- | --------------------------------------------- |
-| `j` / `k`   | Navigate through hook history                 |
-| `Enter`     | Add the highlighted hook to the current Patch |
-| `Ctrl+D`    | Delete highlighted hook from history          |
-| `Ctrl+G`    | Edit first — select hook and open in input    |
-| `Esc` / `q` | Cancel and close modal                        |
+| Key         | Action                 |
+| ----------- | ---------------------- |
+| `Esc` / `q` | Cancel and close modal |
 
 The modal supports live filtering as you type in the search box and displays last-used
 timestamps for each hook.
@@ -1234,26 +1163,6 @@ timestamps for each hook.
 ### Leader Mode (`,` prefix)
 
 Help is not a leader command: press the app-level `?` on any tab to open the Help modal.
-
-| Key        | Action                                                                                      |
-| ---------- | ------------------------------------------------------------------------------------------- |
-| `,,`       | Repeat the last leader command                                                              |
-| `,!`       | Run command using current PR context                                                        |
-| `,A`       | Open the Agent Run Log modal for the current PR                                             |
-| `,c`       | Clear COMMENTS field (kills CRS agents, deletes CRS proposals)                              |
-| `,C`       | Review mentors (opens Mentor Review modal)                                                  |
-| `,h`       | Run agent from home prompt context; bare prompts default to `#git:home`                     |
-| `,m`       | Open Launch Control (aliases, providers, tmux Agent; see [Launch Control](#launch-control)) |
-| `,U`       | Open Update panel (SASE, providers)                                                         |
-| `,E`       | Plan Everything from cached update snapshots and skip confirmation if runnable              |
-| `,L`       | Jump to the log entry for the most recent error toast                                       |
-| `,M`       | Kill running mentors                                                                        |
-| `,R`       | Show runners info                                                                           |
-| `,<space>` | Run agent from current PR (skips project selection)                                         |
-| `,.`       | Open the Prompts overlay on History                                                         |
-| `,Ctrl+G`  | Edit the newest prompt-history entry in `$EDITOR` (no overlay)                              |
-| `,>`       | Open the Prompts overlay on History with cancelled prompts visible                          |
-| `,@`       | Open the Prompts overlay on Stash without auto-restoring a lone entry                       |
 
 The `,h` shortcut opens a home-context prompt directly. Project and PR launch pickers
 use lifecycle-aware discovery: project entries, including `home` when it appears in
@@ -1287,19 +1196,9 @@ Press `,C` to open the Mentor Review modal, which lets you navigate mentor comme
 accept or reject suggestions, and apply accepted changes. See
 [docs/mentors.md](mentors.md) for the full mentor system reference.
 
-| Key                 | Action                                                   |
-| ------------------- | -------------------------------------------------------- |
-| `j` / `k`           | Navigate between mentors                                 |
-| `n` / `p`           | Navigate between comments within a mentor                |
-| `N` / `P`           | Navigate between accepted comments only                  |
-| `Ctrl+D` / `Ctrl+U` | Scroll comment details down / up                         |
-| `Space`             | Toggle acceptance of the current comment                 |
-| `a`                 | Apply accepted comments and propose (amend with propose) |
-| `A`                 | Apply accepted comments and commit                       |
-| `r`                 | Run a mentor profile (opens profile picker)              |
-| `y`                 | Copy the current comment to the clipboard                |
-| `Shift+K`           | Kill a running mentor                                    |
-| `Esc` / `q`         | Close modal                                              |
+| Key         | Action      |
+| ----------- | ----------- |
+| `Esc` / `q` | Close modal |
 
 ### Copy Mode (`%` prefix)
 
@@ -1308,19 +1207,11 @@ mouse, arrows or `j`/`k` and `Enter`, or complete any configured two-key acceler
 directly. `q`/`Esc` cancels; configured target keys take precedence if rebound to `j`,
 `k`, or `q`.
 
-| Key  | Action                   |
-| ---- | ------------------------ |
-| `%%` | Copy Patch               |
-| `%!` | Copy Patch + snapshot    |
-| `%b` | Copy bug number          |
-| `%c` | Copy PR number           |
-| `%n` | Copy PR name             |
-| `%@` | Copy `@patch:` reference |
-| `%l` | Copy Markdown link       |
-| `%p` | Copy project spec file   |
-| `%s` | Copy sase tui snapshot   |
-
 ## Keybindings: Agents Tab
+
+Default configurable actions are listed in the generated
+[TUI keymaps reference](reference/tui/keymaps.md). This page keeps behavior details and
+fixed widget keys.
 
 ### Machines
 
@@ -1407,36 +1298,14 @@ field (exact match, or `main` for the default tab).
 
 ### Navigation
 
-| Key                       | Action                                                                                                                                                                               |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `j` / `k`                 | Move to the next / previous visible row; while a whole panel is selected, or when the focused panel has no other selectable row, cycle whole panels instead                          |
-| `J` / `K`                 | Cycle focus across expanded tribe side panels (forward / reverse)                                                                                                                    |
-| `'`                       | Jump to a row, collapsed grouping banner, or split-panel title by adaptive hint                                                                                                      |
-| `Ctrl+O` / `Ctrl+Shift+O` | Walk the link trail first, then the current-tab jump stack; back falls through to first hint                                                                                         |
-| `$$` / `$1`-`$9` / `$0`   | Follow the first / numbered artifact link, or open the complete links panel                                                                                                          |
-| `Ctrl+J` / `Ctrl+K`       | Next / previous card in the focused deck panel (wraps; sets the panel's preferred card)                                                                                              |
-| `(` / `)`                 | Older / newer card block in the focused deck panel (wraps; only when the shown card has 2+ blocks)                                                                                   |
-| `]` / `[`                 | Next / previous agent tab (wraps; only while the strip shows two or more tabs; see [Agent Tabs](#agent-tabs))                                                                        |
-| _(palette)_               | Pick an agent tab from the command palette (`Agents: go to tab…`; same strip gating as `]`/`[`)                                                                                      |
-| `P`                       | Cycle the focused panel's deck view wider, pinning it fixed (wraps; Main and Files only, only when there is more than one distinct layout)                                           |
-| `` ` ``                   | Jump to entry across all tabs (see [Jump All Modal](#jump-all-modal))                                                                                                                |
-| `"`                       | Find and jump to any node, including hidden ones (see [Node Finder](#node-finder))                                                                                                   |
-| `0`–`9`                   | Jump from a selected clan, agent node, session member, or whole-panel roster to its numbered member or neighbor (live in the jump panel below the detail panels)                     |
-| `o`, then `p`/`d`/`s`/`m` | Choose grouping mode: Project, Date, Status, or Machine                                                                                                                              |
-| `oo`                      | Step the Agents panel layout ladder forward, then close the grouping picker (see [Grouping Modes](#grouping-modes))                                                                  |
-| `g`                       | Scroll to top (focused deck panel)                                                                                                                                                   |
-| `G`                       | Scroll to bottom (focused deck panel)                                                                                                                                                |
-| `Ctrl+D` / `Ctrl+U`       | Scroll the expanded jump panel when its content overflows, else the expanded header panel when its content overflows, else the focused deck panel (half page)                        |
-| `Ctrl+N` / `Ctrl+P`       | Focused panel to the next / previous deck (Main → Files → Tools → FINAL → RECORD, wraps)                                                                                             |
-| `p`                       | Pick the focused panel's deck: `m` Main, `f` Files, `t` Tools, `n` FINAL, `r` RECORD; `M`/`F`/`T`/`N`/`R` show it in the other panel (opening one below if needed); `pp`/`Esc` close |
-| `\` / `\|`                | Split deck panels stacked / side by side; the same key erases its divider, the other key nests a third panel or turns three panels                                                   |
-| `}` / `{`                 | Grow / shrink the focused deck panel (split layouts only)                                                                                                                            |
-| `Ctrl+F` / `Ctrl+B`       | Focus the next / previous deck panel in reading order, wrapping (split layouts only)                                                                                                 |
-| `Ctrl+Shift+F` / `>`      | Swap the focused panel's session with the next panel in reading order, wrapping; geometry and ratios stay with the slots and focus follows the content (split only)                  |
-| `Ctrl+Shift+B` / `<`      | Swap the focused panel's session with the previous panel in reading order, wrapping (split layouts only)                                                                             |
-| `Ctrl+Shift+D` / `Ctrl+X` | Close the focused deck panel; focus goes to the most recently focused survivor (split layouts only)                                                                                  |
-| `Ctrl+T`                  | Turn the deck layout: transpose a two-pane split, or a three-pane T layout (split layouts only)                                                                                      |
-| `Ctrl+S`                  | Toggle the node rail (persisted preference); while zoomed, restore the snapshot like `Z`                                                                                             |
+| Key                       | Action                                                                                                                                                           |
+| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `$$` / `$1`-`$9` / `$0`   | Follow the first / numbered artifact link, or open the complete links panel                                                                                      |
+| _(palette)_               | Pick an agent tab from the command palette (`Agents: go to tab…`; same strip gating as `]`/`[`)                                                                  |
+| `` ` ``                   | Jump to entry across all tabs (see [Jump All Modal](#jump-all-modal))                                                                                            |
+| `0`–`9`                   | Jump from a selected clan, agent node, session member, or whole-panel roster to its numbered member or neighbor (live in the jump panel below the detail panels) |
+| `o`, then `p`/`d`/`s`/`m` | Choose grouping mode: Project, Date, Status, or Machine                                                                                                          |
+| `oo`                      | Step the Agents panel layout ladder forward, then close the grouping picker (see [Grouping Modes](#grouping-modes))                                              |
 
 > **Note:** `o` opens a direct grouping picker on the Agents tab. `o`/`O` still cycle
 > the L0 grouping bucket forward / reverse on Artifacts panes that have a grouping mode
@@ -1488,44 +1357,6 @@ when tight. Expanded `CLAN MEMBERS` entries label wave, land, and unresolved gro
 their dependencies.
 
 ### Agent Actions
-
-| Key                 | Action                                                                                                                                                                                                                                                                                                                                         |
-| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `!R`                | Revive a previously dismissed agent                                                                                                                                                                                                                                                                                                            |
-| `a`                 | Open completion artifacts for the focused agent; in tmux, press again to close the viewer pane                                                                                                                                                                                                                                                 |
-| `+`                 | Run custom agent                                                                                                                                                                                                                                                                                                                               |
-| `A`                 | Toggle the agent's `%auto` autonomy record (off restores last profile on re-enable)                                                                                                                                                                                                                                                            |
-| `F`                 | Prepare a fork of the selected agent/session, named proc, monitor, clan container, or focused named tribe panel                                                                                                                                                                                                                                |
-| `n`                 | Name agent                                                                                                                                                                                                                                                                                                                                     |
-| `r`                 | Open the Refresh panel for the Agents tab                                                                                                                                                                                                                                                                                                      |
-| `R`                 | Edit prompt and relaunch the selected local agent, or retry a remote row on its owner                                                                                                                                                                                                                                                          |
-| `v`                 | View files (hint mode; annotates clan/session containers in place; adds `⚒ run log` targets on the Runs card that open the retained run log in the pager)                                                                                                                                                                                      |
-| `D`                 | Toggle prior-attempt view (only shown when the agent has retried)                                                                                                                                                                                                                                                                              |
-| `d`                 | Expand / collapse the agent header panel (sticky identity header above the detail panels)                                                                                                                                                                                                                                                      |
-| `.`                 | Expand / collapse the jump panel (sticky jump targets below the detail panels)                                                                                                                                                                                                                                                                 |
-| `I`                 | Show/hide non-run agents                                                                                                                                                                                                                                                                                                                       |
-| `V`                 | Open the focused agent's metadata as a sectioned document in the pager (see below)                                                                                                                                                                                                                                                             |
-| `w`                 | Wait/unwait agent (opens WaitModal — see below)                                                                                                                                                                                                                                                                                                |
-| `W`                 | Prepare a prompt that waits for the selected agent/session, clan, or named tribe; marks produce `%w:a,b,c`                                                                                                                                                                                                                                     |
-| `m`                 | Mark / unmark current agent, or all top-level agents in focused collapsed group (auto-advances to next)                                                                                                                                                                                                                                        |
-| `s`                 | Save and dismiss marked agents as a revivable group (opens optional group-name modal)                                                                                                                                                                                                                                                          |
-| `U`                 | Toggle the focused agent's unread marker                                                                                                                                                                                                                                                                                                       |
-| `u`                 | Clear all agent marks                                                                                                                                                                                                                                                                                                                          |
-| `x`                 | Kill / dismiss the agent, clan, or focused panel or group (or every marked agent); stop a monitor or proc                                                                                                                                                                                                                                      |
-| `X`                 | Open the cleanup panel for panel, all-panel, tribe, marked, group, or custom cleanup                                                                                                                                                                                                                                                           |
-| `Enter`             | Act on agent: review pending gate, go to Patch, or choose when several apply                                                                                                                                                                                                                                                                   |
-| `e`                 | Edit chat in editor; with marks, open all editable marked transcripts in one editor invocation                                                                                                                                                                                                                                                 |
-| `E`                 | Edit focused deck content in editor (Files opens the real path; Main/Tools/RECORD open the active card text as a temporary `.md`)                                                                                                                                                                                                              |
-| `t`                 | Open the focused agent's tmux target, or a workspace chooser (`m` marks many; a selector opens one)                                                                                                                                                                                                                                            |
-| `T`                 | Open tmux window in the agent's primary project workspace                                                                                                                                                                                                                                                                                      |
-| `N`                 | Open the Tribe & Tab modal (tribe input is pre-seeded with `pinned` for agents without a tribe; empty keeps it, `Ctrl+D` clears it; on a clan row or clan member it sets the clan's recorded tribe; the second input moves the agent's whole presentation root between tabs — empty keeps, `main` or `Ctrl+T` clears; remote rows cannot move) |
-| `z`                 | Start metadata fold mode for clan, agent node (session or single agent), or selected whole-tribe detail panels                                                                                                                                                                                                                                 |
-| `Z`                 | Zoom the focused deck panel in place (node column hidden); press again to restore                                                                                                                                                                                                                                                              |
-| `=`                 | Isolate the focused tribe panel, or restore the remembered pre-isolation layout                                                                                                                                                                                                                                                                |
-| `-`                 | Collapse every open agent-node/clan fold in the focused tribe panel, or restore the last sweep's folds                                                                                                                                                                                                                                         |
-| `_`                 | Collapse every open agent-node/clan fold in every eligible tribe panel, or restore the last sweep's folds                                                                                                                                                                                                                                      |
-| `Ctrl+N` / `Ctrl+P` | Focused panel to the next / previous deck (Main → Files → Tools → FINAL → RECORD, wraps)                                                                                                                                                                                                                                                       |
-| `p`                 | Pick the focused panel's deck: `m` Main, `f` Files, `t` Tools, `n` FINAL, `r` RECORD; `M`/`F`/`T`/`N`/`R` show it in the other panel (opening one below if needed); `pp`/`Esc` close                                                                                                                                                           |
 
 When `t` opens the **Tmux Workspace** chooser, a displayed selector key opens that one
 target immediately, even if other rows are already marked. `m` marks or unmarks the
@@ -1734,15 +1565,11 @@ when the deferred sections land.
 
 The default fold chords are:
 
-| Key       | Action                                                                                                                                 |
-| --------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| `zz`      | Cycle the whole Main deck document forward through its active scale                                                                    |
-| `zZ`      | Open every fold to the active maximum; at that maximum, close every fold to the minimum                                                |
-| `za`      | Cycle the foldable section, tribe `CLAN SUMMARIES`/`PROMPTS` entry, or session `SASE CONTEXT` lane at the top of the focused Main view |
-| `zA`      | Toggle that foldable section or entry between collapsed and fully expanded                                                             |
-| `z1`-`z2` | Set a session directly to level 1 or 2                                                                                                 |
-| `z1`-`z3` | Set a clan or single-agent scope directly to level 1-3                                                                                 |
-| `z1`-`z4` | Set a selected whole tribe panel directly to level 1-4                                                                                 |
+| Key       | Action                                                 |
+| --------- | ------------------------------------------------------ |
+| `z1`-`z2` | Set a session directly to level 1 or 2                 |
+| `z1`-`z3` | Set a clan or single-agent scope directly to level 1-3 |
+| `z1`-`z4` | Set a selected whole tribe panel directly to level 1-4 |
 
 The `Fold: N/M` header field reports the position within the active scale, while glyphs
 on foldable headings show their effective per-section levels. Only session panels print
@@ -2096,18 +1923,10 @@ reads and output paths so they can be opened with the normal file-hint flow.
 
 Artifact panel controls:
 
-| Key         | Action                                                                                                                   |
-| ----------- | ------------------------------------------------------------------------------------------------------------------------ |
-| selector    | Open the artifact with that one-key selector (`1`-`0`, then letters)                                                     |
-| `j` / `k`   | Move through artifact rows                                                                                               |
-| `m`         | Mark / unmark the highlighted artifact and advance to the next row                                                       |
-| `%`         | Open the file-kind **Copy as…** palette                                                                                  |
-| `y`         | Copy Markdown contents (an accelerator for the palette's `c` row)                                                        |
-| `Y`         | Copy the preferred anchored stored/source path                                                                           |
-| `Enter`     | Open marked artifacts in list order, or the highlighted row if unmarked                                                  |
-| `A`         | Open all artifacts in list order, ignoring marks                                                                         |
-| `z`         | Open marked artifacts (or the highlighted row) in a zoomed tmux pane; outside tmux it opens them normally with a warning |
-| `q` / `Esc` | Close the panel                                                                                                          |
+| Key         | Action                                                               |
+| ----------- | -------------------------------------------------------------------- |
+| selector    | Open the artifact with that one-key selector (`1`-`0`, then letters) |
+| `q` / `Esc` | Close the panel                                                      |
 
 The modal-local file palette offers `@` prompt-form references, `l` Markdown links, `c`
 Markdown contents, `p` stored paths, `P` source paths, `J` metadata JSON, and `s`
@@ -2141,17 +1960,6 @@ PDF/Markdown paging, and `pandoc` plus a supported PDF engine for Markdown rende
 Missing tools produce a warning instead of failing the TUI.
 
 Viewer controls:
-
-| Key   | Action                                                       |
-| ----- | ------------------------------------------------------------ |
-| `j`   | Next page when the artifact has multiple pages; wraps around |
-| `k`   | Previous page when the artifact has multiple pages           |
-| `n`   | Next artifact when viewing an artifact sequence              |
-| `p`   | Previous artifact when viewing an artifact sequence          |
-| `r`   | Refresh the current page                                     |
-| `z`   | Toggle tmux zoom when available for the viewer pane          |
-| `Tab` | Focus the SASE TUI from a tmux artifact pane                 |
-| `q`   | Close the viewer                                             |
 
 Only one plan artifact is shown for an agent. When both an archived plan and an SDD tale
 path are present, sase's TUI prefers the committed SDD plan; otherwise it keeps the path
@@ -2414,24 +2222,10 @@ rows.
 Labels such as L0, L1, and L2 describe a banner's nesting depth, not a shared fold
 setting. Every emitted grouping banner has its own binary expanded/collapsed state, kept
 separately for each tribe panel and grouping mode. Three independent folding layers can
-therefore be visible at once:
-
-| Layer             | What it controls                                         | Default keys                                                                                                                                                           |
-| ----------------- | -------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Grouping banner   | Project, Patch, date, status, and name buckets           | Repeated `H` collapses after scoped agent nodes/clans; `l` expands; `-` never sweeps banners                                                                           |
-| Structural row    | Clan members, session members, and workflow descendants  | `H` retreats a selected workflow/session one level, then remaining group agent nodes, then group clans; `l` expands; `-` sweeps every open agent node and clan at once |
-| Split-panel title | A whole tribe panel; collapsing requires multiple panels | `h` or `'` selects; `h` collapses; `l` expands; `L` hints an agent-node/clan/banner fold to toggle in the focused expanded panel                                       |
-
-| Key  | Action                                                                                                                                                                          |
-| ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `l`  | Expand the selected collapsed grouping banner or structural row; on whole-panel focus, expand or enter the panel                                                                |
-| `h`  | Navigate outward; collapse selected expanded panel; from collapsed panel, select the last expanded panel if one exists                                                          |
-| `L`  | From a row or the selected panel, hint every visible agent-node/clan/banner fold in the focused tribe to toggle; on a collapsed panel, show the already-collapsed warning       |
-| `H`  | Collapse selected workflow/session one level, then remaining group agent nodes/clans/group, or hint a fold to collapse in the selected panel; compact expanded LLM Calls detail |
-| `=`  | Isolate the focused tribe panel, or restore the pre-isolation layout; works from whole-panel focus or a row selection                                                           |
-| `-`  | Sweep every open agent node and clan in the focused panel closed in one press, or restore the last sweep; never touches grouping banners or the panel itself                    |
-| `_`  | Like `-`, but across every eligible tribe panel at once                                                                                                                         |
-| `,H` | Collapse one fold by hint: the selected tribe's expanded folds from a row; every tribe's expanded folds and panel titles from a selected panel                                  |
+therefore be visible at once: grouping banners contain project, Patch, date, status, and
+name buckets; structural rows contain clan members, session members, and workflow
+descendants; split-panel titles represent whole tribe panels. Their configurable default
+keys are listed in the generated [TUI keymaps reference](reference/tui/keymaps.md).
 
 Collapsed grouping banners at any depth are selectable rows; expanded banners remain
 visible headings but are skipped by row navigation. When a collapsed banner is focused,
@@ -3015,32 +2809,6 @@ behave the same from other tabs. Unread-completed actions operate on terminal ro
 are loaded in the Agents tab; `,j` can reveal a direct member hidden by a collapsed
 clan. Help is not a leader command: press the app-level `?` to open the Help modal.
 
-| Key        | Action                                                                                                                                         |
-| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| `,,`       | Repeat the last leader command                                                                                                                 |
-| `,/`       | Search the selected agent's metadata                                                                                                           |
-| `,h`       | Run agent from home prompt context; bare prompts default to `#git:home`                                                                        |
-| `,H`       | Collapse one fold by hint: the selected tribe's expanded folds from a row; every tribe's expanded folds and panel titles from a selected panel |
-| `,j`       | Jump to the next unread completed agent, revealing a collapsed clan when needed, and mark it read                                              |
-| `,J`       | Jump to the next visible stopped/terminal agent, newest first, without changing unread state                                                   |
-| `,u`       | Mark all loaded unread completed agents read, across tabs and collapsed clans; with none newly unread, press again within 10 seconds to undo   |
-| `,m`       | Open Launch Control (aliases, providers, tmux Agent; see [Launch Control](#launch-control))                                                    |
-| `,U`       | Open Update panel (SASE, providers)                                                                                                            |
-| `,E`       | Plan Everything from cached update snapshots and skip confirmation if runnable                                                                 |
-| `,y`       | Open the [Refresh panel](#refresh-panel) with Full history highlighted                                                                         |
-| `,R`       | Show runners info                                                                                                                              |
-| `,L`       | Jump to the log entry for the most recent error toast                                                                                          |
-| `,B`       | Capture an Agents-tab reproduction bundle for debugging row disappearance or duplication                                                       |
-| `,T`       | Toggle continuous Agents-tab repro invariant checks and auto-capture on violation                                                              |
-| `,r`       | Revert focused or marked agent commits, including recorded linked repos                                                                        |
-| `,x`       | Kill focused or marked agent(s) and edit their prompt(s)                                                                                       |
-| `,X`       | Kill & edit this session's last launched agent, ignoring marks and focus                                                                       |
-| `,<space>` | Run agent from current agent's PR (skips selection)                                                                                            |
-| `,.`       | Open the Prompts overlay on History                                                                                                            |
-| `,Ctrl+G`  | Edit the newest prompt-history entry in `$EDITOR` (no overlay)                                                                                 |
-| `,>`       | Open the Prompts overlay on History with cancelled prompts visible                                                                             |
-| `,@`       | Open the Prompts overlay on Stash without auto-restoring a lone entry                                                                          |
-
 Here, "stopped" means a dismissable terminal row such as `DONE`, `FAILED`, `PLAN DONE`,
 `TALE DONE`, `PLAN REJECTED`, `PLAN COMMITTED`, or `EPIC CREATED`; it is separate from
 the Agents header's "stopped" attention bucket for rows paused on user action.
@@ -3200,12 +2968,6 @@ not write a new bundle every refresh while the same violation remains active.
 
 ### Bang Mode (`!` prefix)
 
-| Key  | Action                                        |
-| ---- | --------------------------------------------- |
-| `!!` | Run background command                        |
-| `!x` | Start / stop service host (or select process) |
-| `!R` | Revive a previously dismissed agent           |
-
 ### Copy Mode (`%` prefix)
 
 Press `%` to open the **Copy as…** palette for the focused agent. It supports mouse
@@ -3213,22 +2975,11 @@ selection, arrows or `j`/`k` plus `Enter`, and every configured direct accelerat
 below. `q`/`Esc` cancels unless that key is itself configured for a copy target, in
 which case the target wins.
 
-| Key  | Action                                                                                      |
-| ---- | ------------------------------------------------------------------------------------------- |
-| `y`  | Copy the focused agent's durable `@agent:` reference                                        |
-| `%c` | Copy chat file path                                                                         |
-| `%E` | Copy file path                                                                              |
-| `%@` | Copy the focused concrete agent's durable global `@agent:` reference                        |
-| `%!` | Prefill a new prompt with the `@agent:` reference                                           |
-| `%l` | Copy a followable Markdown link (`[@agent:name](agent:name)`)                               |
-| `%j` | Copy agent metadata JSON (Inbox) or the archive bundle JSON (Archive)                       |
-| `%d` | Copy the agent's artifacts directory path                                                   |
-| `%n` | Copy the focused agent's `agent_name` (falls back to `display_name`; toast indicates which) |
-| `%p` | Copy agent prompt                                                                           |
-| `%r` | Copy the selected node's tool run id (when it has tool runs)                                |
-| `%s` | Copy sase tui snapshot                                                                      |
-
 ## Keybindings: Services Tab
+
+Default configurable actions are listed in the generated
+[TUI keymaps reference](reference/tui/keymaps.md). This page keeps behavior details and
+fixed widget keys.
 
 The visible tab is **Services**. Its sidebar is four stacked panels. The top **Service
 Procs** panel holds every service proc assembled from built-in, plugin, user, and
@@ -3421,33 +3172,12 @@ scrolled off screen on selection.
 
 ### Navigation
 
-| Key                       | Action                                                                                                                      |
-| ------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| `j` / `k`                 | Cycle the next / previous nav item in the focused panel (service proc, oneshot, routine, or job) and wrap inside that panel |
-| `J` / `K`                 | Jump into the first / last row of the next / previous panel                                                                 |
-| `Ctrl+N` / `Ctrl+P`       | Page through the focused job's run history (older / newer)                                                                  |
-| `'`                       | Jump to a current-tab entry by adaptive hint                                                                                |
-| `Ctrl+O` / `Ctrl+Shift+O` | Walk the link trail first, then the current-tab jump stack                                                                  |
-| `$$` / `$1`-`$9` / `$0`   | Follow the first / numbered job link, or open the complete links panel                                                      |
-| `` ` ``                   | Jump to an entry across all tabs                                                                                            |
-| `g`                       | Scroll to top                                                                                                               |
-| `G`                       | Scroll to bottom (pins auto-scroll)                                                                                         |
-| `Ctrl+D` / `Ctrl+U`       | Scroll output down / up by half a page                                                                                      |
-| `Ctrl+F` / `Ctrl+B`       | Scroll output down / up by a full page                                                                                      |
+| Key                     | Action                                                                 |
+| ----------------------- | ---------------------------------------------------------------------- |
+| `$$` / `$1`-`$9` / `$0` | Follow the first / numbered job link, or open the complete links panel |
+| `` ` ``                 | Jump to an entry across all tabs                                       |
 
 ### Commands
-
-| Key | Action                                                                                                                                 |
-| --- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| `a` | Add a routine, or add a job under the selected routine                                                                                 |
-| `d` | Expand / collapse the [description panel](#description-panel) for the selected service proc, routine, or job                           |
-| `e` | Edit the selected routine or job configuration                                                                                         |
-| `E` | Open the selected recorded job output in `$EDITOR`                                                                                     |
-| `+` | Run agent                                                                                                                              |
-| `r` | Restart the selected service proc, run an enabled selected job manually, or re-run the focused completed background command (`!!`) row |
-| `x` | Start / stop the selected service proc; on a oneshot row, kill it (after confirmation) or clear it once finished                       |
-| `X` | Clear output                                                                                                                           |
-| `.` | Show / hide oneshot rows (the Service Procs title counts hidden ones as `+N hidden`)                                                   |
 
 The `a` flow discovers installed `sase_job_*` executables and also accepts a custom
 executable. Both add and edit open a single-page property sheet showing every schema
@@ -3506,27 +3236,7 @@ property.
 
 Help is not a leader command: press the app-level `?` on any tab to open the Help modal.
 
-| Key       | Action                                                                                      |
-| --------- | ------------------------------------------------------------------------------------------- |
-| `,,`      | Repeat the last leader command                                                              |
-| `,h`      | Run agent from home prompt context; bare prompts default to `#git:home`                     |
-| `,m`      | Open Launch Control (aliases, providers, tmux Agent; see [Launch Control](#launch-control)) |
-| `,U`      | Open Update panel (SASE, providers)                                                         |
-| `,E`      | Plan Everything from cached update snapshots and skip confirmation if runnable              |
-| `,L`      | Jump to the log entry for the most recent error toast                                       |
-| `,R`      | Show runners info                                                                           |
-| `,.`      | Open the Prompts overlay on History                                                         |
-| `,Ctrl+G` | Edit the newest prompt-history entry in `$EDITOR` (no overlay)                              |
-| `,>`      | Open the Prompts overlay on History with cancelled prompts visible                          |
-| `,@`      | Open the Prompts overlay on Stash without auto-restoring a lone entry                       |
-
 ### Bang Mode (`!` prefix)
-
-| Key  | Action                                                     |
-| ---- | ---------------------------------------------------------- |
-| `!!` | Run background command                                     |
-| `!x` | Start / stop service host (or select process)              |
-| `!e` | Enable / disable the selected service proc on this machine |
 
 ### Copy Mode (`%` prefix)
 
@@ -3534,17 +3244,7 @@ Press `%` to open the **Copy as…** palette for the selected AXE row. Choose wi
 mouse, arrows or `j`/`k` plus `Enter`, or use a configured direct accelerator. `q`/`Esc`
 cancels, with configured target keys taking precedence.
 
-| Key  | Action                 |
-| ---- | ---------------------- |
-| `%o` | Copy visible output    |
-| `%O` | Copy full output       |
-| `%s` | Copy sase tui snapshot |
-
 ### Services Control
-
-| Key | Action                                             |
-| --- | -------------------------------------------------- |
-| `Q` | Open the [quit / restart menu](#quit-restart-menu) |
 
 ## Query System
 
@@ -3665,27 +3365,15 @@ the CLI contract.
 
 ## Global Keybindings
 
+Default configurable actions are listed in the generated
+[TUI keymaps reference](reference/tui/keymaps.md). This page keeps behavior details and
+fixed widget keys.
+
 These work on all tabs:
 
-| Key                     | Action                                                                                                                                                                 |
-| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Tab` / `Shift+Tab`     | Switch between Agents, Artifacts, and Services tabs                                                                                                                    |
-| `#`                     | Open SASE Admin Center home (repeat on home to resume the last section); inside a working section, jump to the alternate section (repeat to toggle back)               |
-| `.`                     | Artifacts: collapse/expand the relations panel; Services: show/hide oneshot rows; Agents: expand/collapse the jump panel                                               |
-| `:`                     | Open the [Command Line](#command-line): run `sase` commands without leaving the TUI                                                                                    |
-| `;`                     | Open the context-aware [Command Palette](#command-palette)                                                                                                             |
-| `i`                     | Show notifications inbox                                                                                                                                               |
-| `+`                     | Run a custom agent (opens project/Patch selection)                                                                                                                     |
-| `Space`                 | Prefill the prompt with the most recently launched VCS macro (blank home prompt if none; `Space` then `Ctrl+U` for a blank prompt)                                     |
-| `Ctrl+G`                | Open the agent editor pre-filled with the most recent VCS macro prefix                                                                                                 |
-| `Ctrl+L`                | Dismiss all currently-visible toast notifications                                                                                                                      |
-| `@`                     | Restore a stashed prompt: a lone entry restores directly; several open the Prompts overlay on Stash (`@@` pops the newest draft when several are stashed)              |
-| `$$` / `$1`-`$9` / `$0` | Follow the first / numbered contextual artifact link, or open the links panel                                                                                          |
-| `Q`                     | Open the quit / restart menu                                                                                                                                           |
-| `R`                     | Open the [Refresh panel](#refresh-panel) on Artifacts and Services (this tab, full history, usage, or everything). On Agents, retry the selected local or remote agent |
-| `r`                     | On Agents, open the Refresh panel. Artifacts and Services keep `r` for Patch workflow / Services run or re-run                                                         |
-| `q`                     | Quit (first closes an open artifact viewer pane)                                                                                                                       |
-| `?`                     | Show help modal                                                                                                                                                        |
+| Key                     | Action                                                                        |
+| ----------------------- | ----------------------------------------------------------------------------- |
+| `$$` / `$1`-`$9` / `$0` | Follow the first / numbered contextual artifact link, or open the links panel |
 
 The generic **Open SASE Admin Center** action and the first `#` always open a
 lightweight landing page without mounting a working pane. Press `#` again while home is
@@ -6893,8 +6581,9 @@ one or more prior attempts.
 
 ## Custom Keymaps
 
-All TUI keybindings are configurable via the `ace.keymaps` section in `sase.yml`. You
-can remap app-level, gate-modal, Memory-panel, and focused Statistics-pane keys and
+Configurable TUI actions use the `ace.keymaps` section in `sase.yml`; their bundled
+defaults are listed in the generated [TUI keymaps reference](reference/tui/keymaps.md).
+You can remap app-level, gate-modal, Memory-panel, and focused Statistics-pane keys and
 define entirely new prefix-key modes.
 
 ### Remapping Built-in Keys

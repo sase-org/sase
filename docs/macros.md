@@ -351,59 +351,44 @@ Markdown macros and YAML workflows are loaded from multiple locations. When two
 locations define a macro or workflow with the same name, the higher-priority source wins
 (first-wins).
 
-| Priority | Location                              | Role                                                        |
-| -------- | ------------------------------------- | ----------------------------------------------------------- |
-| 1        | `<project>/sase/macros/`              | Canonical project files; writable                           |
-| 2        | `<project>/.macros/`                  | Legacy hidden project files; read-only compatibility        |
-| 3        | `<project>/macros/`                   | Legacy visible project files; read-only compatibility       |
-| 4        | `~/sase/macros/`                      | Canonical user-wide files; writable                         |
-| 5        | `~/.macros/`                          | Legacy hidden home files; read-only compatibility           |
-| 6        | `~/macros/`                           | Legacy visible home files; read-only compatibility          |
-| 7        | `~/sase/macros/{project}/`            | Canonical project-specific home files; writable             |
-| 8        | `~/.config/sase/macros/{project}/`    | Legacy project-specific home files; read-only compatibility |
-| 9        | `<project>/sase/sase.yml`             | Canonical project config definitions; writable              |
-| 10       | `<project>/sase.yml`                  | Exclusive legacy project-config fallback                    |
-| 11       | `~/.config/sase/sase_*.yml`           | User overlays; reverse lexical winner order                 |
-| 12       | `~/.config/sase/sase.yml`             | User base config                                            |
-| 13       | Plugin `default_config.yml` resources | Installed plugin config definitions                         |
-| 14       | Package `default_config.yml`          | Built-in config definitions                                 |
-| 15       | Plugin packages (`sase_macros` EPs)   | Installed plugin files                                      |
-| 16       | `<sase_package>/default_macros/*.md`  | Built-in default Markdown files                             |
-| 17       | `<sase_package>/macros/`              | Built-in Markdown, YAML, and shared steps                   |
+The exact file-backed paths and their first-wins order are generated from the Rust
+content-layout contract in the
+[Macro discovery order reference](reference/macros/discovery-order.md).
 
 Skills are discovered separately, from canonical `skills/` directories only, and take
 `skills/`-namespaced reference names. See
-[Canonical Skill Sources](#canonical-skill-sources) for that order; no location in the
-table above can define a skill.
+[Canonical Skill Sources](#canonical-skill-sources) for that order; the file sources
+listed in the generated reference cannot define a skill.
 
 Memory notes are also discovered separately, from canonical (and legacy-compatible)
 `sase/memory/` directories only, and take `memory/`-namespaced reference names. See
-[Memory Field](#memory-field) and [Memory Order](content_layout.md#memory-order); no
-location in the table above can define a memory macro.
+[Memory Field](#memory-field) and [Memory Order](content_layout.md#memory-order); the
+file sources listed in the generated reference cannot define a memory macro.
 
 Each directory-based source can contain individual `.md` files and, where supported,
 `.yml` or `.yaml` workflows plus a `steps/` directory. Project config is exclusive: if
-priorities 9 and 10 both exist, SASE reports a collision instead of merging them. File
-directories are first-wins, so a canonical definition shadows a same-named legacy
-definition. All save, create, copy-on-edit, export, and workflow-editor destinations use
-writable canonical sources; legacy sources are displayed only for migration. See
-[Canonical SASE Content Layout](content_layout.md) for before/after paths and the
-compatibility timeline.
+the canonical and legacy project config locations both exist, SASE reports a collision
+instead of merging them. File directories are first-wins, so a canonical definition
+shadows a same-named legacy definition. All save, create, copy-on-edit, export, and
+workflow-editor destinations use writable canonical sources; legacy sources are
+displayed only for migration. See [Canonical SASE Content Layout](content_layout.md) for
+before/after paths and the compatibility timeline.
 
 For file-based macros, the macro name defaults to the filename stem (e.g.,
 `summarize.md` defines the macro `summarize`). The name can be overridden via the `name`
 field in the YAML front matter.
 
-Project-specific macros (priorities 7-8) are namespaced: a file `bar.md` in the `foo`
-project directory becomes `foo/bar`. Inline-capable project macros are referenced as
-`#foo/bar`; standalone project workflows are referenced as `#!foo/bar`.
+Project-specific home macros are namespaced: a file `bar.md` in the `foo` project
+directory becomes `foo/bar`. Inline-capable project macros are referenced as `#foo/bar`;
+standalone project workflows are referenced as `#!foo/bar`.
 
-When a project is detected (via the workspace provider), project macros (priorities 1-3)
-and local config macros are also auto-namespaced with the `{project}/` prefix. For
-example, if the project is `myapp` and `sase/macros/deploy.md` exists, it becomes
-`myapp/deploy` and is referenced as `#myapp/deploy`. A project workflow with no
-`prompt_part` would instead be launched as `#!myapp/deploy`. This prevents name
-collisions between project-local macros and global or built-in ones.
+When a project is detected (via the workspace provider), project macros from the
+canonical and legacy file directories and local config macros are auto-namespaced with
+the `{project}/` prefix. For example, if the project is `myapp` and
+`sase/macros/deploy.md` exists, it becomes `myapp/deploy` and is referenced as
+`#myapp/deploy`. A project workflow with no `prompt_part` would instead be launched as
+`#!myapp/deploy`. This prevents name collisions between project-local macros and global
+or built-in ones.
 
 An explicit namespaced reference also works when the caller is outside that project's
 checkout. For an enabled registered project, `#myapp/deploy` resolves checkout-backed
@@ -1984,25 +1969,8 @@ are extracted and stripped from the prompt before further processing.
 
 ### Supported Directives
 
-| Directive         | Alias | Description                                                                                                   |
-| ----------------- | ----- | ------------------------------------------------------------------------------------------------------------- |
-| `%model`          | `%m`  | Override the LLM model for this prompt                                                                        |
-| `%effort`         | `%e`  | Set the reasoning-effort level (e.g. `%effort:xhigh`)                                                         |
-| `%id`             | `%i`  | Assign an id, clan, session, or user-managed tribe                                                            |
-| `%clan`           | `%c`  | Declare a new named, rootless parallel agent clan                                                             |
-| `%wait`           | `%w`  | Wait for agents, closed beads, and/or a time floor; agent waits follow launched epics unless `for_epic=false` |
-| `%queue`          | `%q`  | Set per-launch capacity budget or multiplier, queue priority, and/or claim weight                             |
-| `%hold`           |       | Declare a pre-run admission hold on selected agents and procs                                                 |
-| `%dispatch`       |       | Launch on one enrolled remote machine                                                                         |
-| `%tab`            |       | Place this launch's presentation root on a named agent tab                                                    |
-| `%if`             |       | Statically omit a segment, or attach an admission predicate                                                   |
-| `%proc`           |       | Define and natively dispatch a stand-alone process unit                                                       |
-| `%final`          |       | Select configured finalizer instances for this launch                                                         |
-| `%hide`           | `%h`  | Hide the agent from the default Agents tab display                                                            |
-| `%auto`           | `%a`  | Auto-resolve plan, epic, and question gates; closed vocabulary below; other forms fail at launch              |
-| `%repeat`         | `%r`  | Run the prompt multiple times (e.g., `%repeat:3`)                                                             |
-| `%alt`            | `%{}` | Split prompt into variants with different text (brace shorthand)                                              |
-| `%macros_enabled` |       | Enable or disable macro expansion for a text region                                                           |
+See the generated [directive catalog](reference/macros/directives.md) for supported
+names, aliases, syntax forms, argument summaries, and descriptions.
 
 Agent identity uses `%id` or its `%i` alias. The retired `%name` and `%n` prompt
 directives are not launch aliases. Using either as a top-level directive now raises a
