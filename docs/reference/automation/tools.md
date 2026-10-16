@@ -531,3 +531,41 @@ leaving the recorded command and `-f` completion bindings untouched. See
 - [`sase tool`](../cli/tool.md)
 - [Tool run receipts](../../contribute/tool-run-receipts.md)
 - [LLM Calls panel](../tui/agents-deck-panels.md#agents-tab-llm-calls-panel)
+
+## `sase tool`
+
+Named-tool catalog and foreground ToolRun commands. With no subcommand, `sase tool`
+defaults to `sase tool list`.
+
+<a id="cli-options-26"></a> Moved to [sase tool](tools.md#sase-tool).
+
+<a id="command-behavior-15"></a> Moved to
+[Named tools and ToolRuns](tools.md#command-behavior-15).
+
+## Command behavior {#command-behavior-15}
+
+Humans default to exact stdout/stderr passthrough; wrapper metadata goes to stderr.
+Direct agent execution (`SASE_AGENT_NAME`) defaults to compact output. `-q` forces
+compact and `-v` forces streaming. Recording failures warn once and still execute the
+child exactly once without inventing a durable id. Catalog, usage, and missing-run
+errors exit `2`. `sase tool run` returns the child's exit code, or `128+signal`.
+
+Each recorded run captures a bounded pre/post fingerprint of configured repositories,
+input globs, allow-listed environment names, and toolchain probes. It also samples host
+load at start, roughly every ten seconds, and finish. `sase tool show` reports evidence
+completeness, whether complete fingerprints prove an input mutation, dirty-path counts,
+toolchain summaries, and samples. A missing repository/input, timed-out probe,
+unsupported host field, or observation budget exhaustion remains explicit incomplete
+evidence; SASE never substitutes zero or claims `mutated_input` from incomplete
+fingerprints.
+
+For definitions with `stages: run_silent`, nested `tools/run_silent` calls append stage
+events to the same run. Compact completion and `sase tool show` render that timeline,
+including repeated or overlapping stages and the interval-union time not attributed to
+any stage. `-j` exposes the complete stage, fingerprint, and sample records. `-l` is a
+different mode: it replays retained stdout and stderr without claiming a total ordering
+between those streams.
+
+`LAST` is the newest native result for this project and definition. `TYPICAL` is the
+observed median duration of at most 30 normally exited native runs within 30 days.
+Missing samples render as an em dash, never as zero or an ETA.

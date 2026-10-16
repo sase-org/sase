@@ -130,3 +130,74 @@ example `$SASE_SDD_PLANS_DIR/{YYYYMM}/{name}.md`.
 - [Plans](plans.md)
 - [Plan format](plan-format.md)
 - [Starting bead work](bead-work.md)
+
+## SDD repository and plan commands
+
+SDD initialization/path resolution lives under `sase repo`; artifact browsing and
+prompt/plan link maintenance live under `sase plan`. Link commands accept `-p/--path`,
+which may point at an SDD root or a project root. Bare `sase plan links` defaults to its
+`list` child.
+
+<a id="cli-options-30"></a> Moved to [sase plan](../cli/plan.md#sase-plan-links).
+
+## `sase plan`
+
+With no subcommand, `sase plan` defaults to the `sase plan list` dashboard.
+
+<a id="cli-options-46"></a> Moved to [sase plan](plan-cli.md#sase-plan).
+
+<a id="command-behavior-30"></a> Moved to
+[Plan commands](plan-cli.md#command-behavior-30).
+
+## Command behavior {#command-behavior-30}
+
+`sase plan list` prints a Rich dashboard by default and emits a stable JSON projection
+with `summary`, `proposed`, `approved`, and `rejected` keys when `-j/--json` is set.
+Repeat `-s/--status` with `approved`, `proposed`, or `rejected` to render or serialize
+only those sections; unrequested JSON section keys are omitted, while summary counts
+continue to describe the full collected view. `-n/--limit` controls the maximum rows in
+each Approved and Rejected history section (default `10`, with `0` meaning unlimited).
+Proposed rows are always shown in full, leading with the plan `name` (shortest unique
+form, dim `id_prefix` below) and a ready-to-paste approve/reject hint line. `-t/--tier`
+composes with both filters. Proposed `--json` rows carry the same `name` field alongside
+`id_prefix`. The JSON summary includes `status_filter`, `tier_filter`, and a non-default
+`limit` when applicable, plus `approved_scan_truncated` if a finite artifact scan may
+have omitted older approvals.
+
+Use the Proposed row's plan name as the selector for `sase plan approve` or
+`sase plan reject` (the row's `id_prefix` still works); omitting the selector is valid
+only when exactly one pending proposal exists. The Rejected rows are inferred from
+archived proposal files that are not represented by current proposed or approved state,
+so they are useful for history but are not actionable selectors. Omitting `--kind`
+defaults to `tale`; an epic-authored plan requires an explicit `--kind epic` or
+`--kind tale`. A gateless epic must be launched with `sase bead work <plan-file>`; the
+direct approval route does not launch epics. Tale/epic targets are validated before the
+proposal is consumed. Approval kind `approve` runs the coder without asking the runner
+to commit an SDD plan, `tale` commits the plan as an SDD tale and then runs the coder,
+`epic` commits the matching SDD tier and launches the bead follow-up, and `commit`
+records the approved plan in SDD without launching a coder. The `-m/--model` flag
+applies to the follow-up agent; `-p/--prompt` adds extra coder instructions only for the
+`approve` and `tale` paths. Use `-w/--wait` with comma-separated agent names and
+`bead=<id>` entries to hold the approved coder or launched epic phases until those
+dependencies finish. `sase plan reject` writes the rejection response first, then
+attempts the same durable cleanup path as TUI no-feedback rejection when the matching
+planner row is still discoverable.
+
+`sase plan search [query]` scans plans in the resolved SDD store (the `repo` source) and
+the machine-local `~/.sase/plans/` archive. The query is a literal case-insensitive
+substring; omit it to browse and filter. `--format` accepts `compact`, `full`, `json`,
+or `markdown`; `--kind` is repeatable and filters SDD-store artifacts to a plan tier
+(`tale` or `epic`), `prompt`, or a configured document-sidecar role such as `research`
+(an unknown kind is a usage error that lists the valid ones); `--status` is repeatable
+and filters frontmatter status to `wip` or `done`; `--source` selects `all`, `repo`, or
+`local`; `--sort` selects `relevance`, `recent`, or `title` (defaulting to relevance
+with a query and recent without one); `--since`/`--until` accept `YYYY-MM-DD`,
+`YYYY-MM`, `YYYYMM`, or relative durations such as `14d`; and `--limit` defaults to
+`20`, with `0` printing all matches.
+
+`sase plan validate <plan_file>` infers the validation schema from the authored `tier`;
+it no longer accepts `-t/--tier`. `--explain` prints tier-specific authoring guidance
+before human results or adds it to the JSON envelope, while `--quiet` suppresses only
+the successful human summary. See
+[Plan Frontmatter Schema and Validation](plan-format.md#plan-frontmatter-schema-and-validation)
+for diagnostics and exit codes.

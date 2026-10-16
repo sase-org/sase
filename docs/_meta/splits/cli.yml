@@ -1,0 +1,16 @@
+to: reference/cli/index.md
+sections:
+  _intro: reference/cli-notes.md
+  Daily Operation: reference/agents/agent-launches.md
+  Daily Operation > `sase autonomy`: reference/macros/directive-launch.md
+  Daily Operation > `sase agent auto-restart`: reference/agent-auto-restart.md
+  Daily Operation > `sase agent search`: reference/query-language.md
+  Daily Operation > `sase agent wait`: reference/agents/agent-sessions.md
+  Daily Operation > `sase agent hold`: reference/agents/agent-holds.md
+  Daily Operation > `sase service`: reference/agents/service-host.md
+  Work Tracking And Planning: reference/work-units/cli-workflows.md
+  Work Tracking And Planning > `sase goal`: reference/work-units/goals.md
+  Automation: reference/automation/scheduler.md
+  Prompt And Workflow Authoring: reference/macros/cli-and-editor.md
+  Review And Delivery: reference/vcs/commit-workflows.md
+  Operations And Diagnostics: reference/diagnostics.md

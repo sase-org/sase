@@ -535,7 +535,7 @@ run view the FINAL deck renders — reconciling the sealed plan, progress journa
 operation records, steps, and typed evidence — and prints it pretty (colored, default)
 or as JSON (`-f json`). With `-d/--artifacts-dir` it reads finalizer artifacts directly.
 Inside a SASE turn it defaults to the calling agent. See the
-[CLI docs](../../cli.md#review-and-delivery).
+[CLI docs](../vcs/commit-workflows.md#review-and-delivery).
 
 ## Related
 

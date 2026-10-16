@@ -318,7 +318,7 @@ that needs the terminal gate result can then run
 
 An agent hold is a durable reverse wait: while it is active, matching `WAITING` or
 `QUEUED` agents, later launches, and undispatched procs are kept from starting. Holds
-are armed with [`sase agent hold`](../../cli.md#sase-agent-hold) or the
+are armed with [`sase agent hold`](../agents/agent-holds.md#sase-agent-hold) or the
 [`%hold` directive](../macros/directive-launch.md#hold-directive). sase's TUI shows holds in three places:
 
 - **Agents tab rows.** A `QUEUED` row parked by a hold appends `held by <armer>` after
@@ -393,3 +393,22 @@ one or more prior attempts.
 
 - [TUI hub](index.md) — all Agents tab reference pages.
 - [Agent statuses](agent-statuses.md) — agent, wait, and completion statuses.
+
+## `sase repro`
+
+`sase repro` captures and replays debugging bundles for narrow, reproducible TUI bug
+classes. The current target is the Agents-tab loader/apply sequence used to diagnose row
+disappearance, reappearance, and duplicate workflow parents; see
+[Agents Tab Reproduction Bundles](agents-tab.md#agents-tab-reproduction-bundles).
+All of its options are long-only.
+
+<a id="cli-options-17"></a>
+Moved to [sase repro](agent-workflows.md#sase-repro).
+
+<a id="command-behavior-11"></a>
+Moved to [Agent workflows](agent-workflows.md#command-behavior-11).
+
+## Command behavior {#command-behavior-11}
+Use the in-TUI `,B` capture when a transient row-list bug has just happened in a live
+sase's TUI session. The CLI capture path is out-of-band: it loads current filesystem
+state and cannot reconstruct refreshes that already passed through the running TUI.

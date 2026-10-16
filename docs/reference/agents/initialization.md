@@ -380,3 +380,58 @@ and bundled skill list.
 ## Related
 
 - [Agents and workspaces](index.md) — the section hub.
+
+## `sase init`
+
+Bare `sase init` is the onboarding coordinator for SASE-managed resources. It runs
+read-only planners for config (owner identity), machine enrollment, memory,
+repositories, and skills, in that order, prints a grouped summary, and prompts once per
+initializer that needs work when stdin is interactive. Non-interactive runs never
+prompt; they print the drift summary and ask the caller to rerun with `--yes`. That flag
+runs needed initializers but cannot authorize creation of a missing provider sidecar
+repository, which always requires its own interactive `y`/`yes` response. The memory
+planner (which owns agent-document initialization) only generates managed project
+`AGENTS.md` from bare `sase init` when the current project's own `sase/sase.yml` sets
+`is_sase_managed: true`. The repository planner uses that same local marker and skips
+unmanaged repositories before provider work. Neither planner infers project ownership
+from `memory.h1_title`, existing memory notes, lifecycle state, or merged configuration.
+See [Initialization](index.md) for the full flow.
+
+`--all` applies that coordinator to every registered enabled main project from its
+recorded primary workspace, even when the command starts outside a project. It excludes
+disabled projects, internal sibling backing records, `home`, and other system-managed
+records, continues after per-project failures, and returns non-zero if any project has
+drift, is unavailable, or fails. `--all --check` is read-only, while non-interactive
+apply still requires `--yes`. `--all` is incompatible with `--enable-project-memory` and
+with explicit compatibility subcommands. `-p/--project` names a subset of the same
+enabled projects instead and has the same restrictions, plus it cannot be combined with
+`--all`.
+
+Advanced deploy controls stay on explicit subcommands such as
+`sase memory init --no-commit` and `sase skill init --no-push`. The compatibility
+subcommands `sase init config`, `sase init machine`, `sase init memory`,
+`sase init repo`, and `sase init skills` accept the flags of `sase config init`,
+`sase machine init`, `sase memory init`, `sase repo init`, and `sase skill init`.
+
+<a id="cli-options-19"></a> Moved to [sase init](initialization.md#sase-init).
+
+## `sase init repo`
+
+`sase init repo` is an alias for `sase repo init`. For targets marked
+`is_sase_managed: true` in their own `sase/sase.yml`, it initializes configured
+sidecars, creates or refreshes generated README files, ensures the managed plans and
+research declarations, and maintains the root `/sase/repos/` ignore rule. Missing or
+false markers produce an informative successful no-op, while invalid local configuration
+fails before provider or filesystem work. The command always targets the Git repository
+that contains the current directory; it has no `--path` option. GitHub setup creates
+missing sidecars with their configured public/private visibility. Bare-git projects
+refresh generated files automatically during repository setup and first SDD writes; the
+explicit command remains useful for refreshes and `--check` audits.
+
+When the GitHub sidecar is missing, this alias uses the same default-no
+repository-specific confirmation as `sase repo init`. EOF, interruption, and any answer
+other than `y`/`yes` return nonzero before remote creation. Generic `--yes` approval
+never authorizes repository creation; non-interactive bare onboarding instead reports
+the missing remote and defers its creation.
+
+<a id="cli-options-24"></a> Moved to [sase init](../cli/init.md).

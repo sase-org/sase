@@ -173,3 +173,52 @@ covers variables specific to commit workflows.
 ## Related
 
 - [Version control](index.md) — the section hub.
+
+## `sase stitch create`
+
+Dispatches a commit, proposal, or PR via the VCS provider layer. See
+[commit_workflows.md](index.md) for the full flow, payload, checkpoint, and resume
+semantics.
+
+<a id="cli-options-9"></a> Moved to [sase stitch](../cli/stitch.md).
+
+## `sase stitch`
+
+`sase stitch` defaults to `sase stitch list`, which shows a merged timeline for the
+primary repo and configured linked repos. Add `-S/--sdd` to include sidecar repository
+history. The legacy `sase vcs` spelling is still accepted as a deprecated alias.
+
+<a id="cli-options-10"></a> Moved to [sase stitch](commit-workflows.md#sase-stitch).
+
+<a id="command-behavior-5"></a> Moved to
+[Commit workflows](commit-workflows.md#command-behavior-5).
+
+## Command behavior {#command-behavior-5}
+
+`sase stitch list` date filters accept relative offsets (`Nh`, `Nd`, `Nw`), `today`,
+`yesterday`, `YYYY-MM-DD`, or `YYYY-MM-DDTHH:MM`. Day-granular `--until` / `--before`
+values include the full named day; relative and minute-precise values remain instant
+bounds. See [VCS Providers](providers.md#per-command-vcs-usage) for output examples and
+provider notes. `--all` spans every registered enabled or disabled project and
+deduplicates shared physical checkouts. Internal sibling backing checkouts remain
+visible as linked repositories of their owning projects. Global scope can be combined
+with repeatable `--repo` filters but not `--current-only`. Add `--sdd` to either scope
+before selecting SDD history with `--repo sdd`; without the opt-in, that repo filter
+does not expand the eligible set. `--all --sdd` includes materialized separate SDD
+repositories across registered projects. The `--limit` is the cap on the final merged
+timeline (default `40`; `0` means unlimited). `--origin` has no short form; repeat it to
+OR `stitch`, `auto`, and `manual` origins.
+
+## Review And Delivery
+
+Flag and option details live in the generated [CLI command groups](../cli/index.md):
+
+- [sase final](../cli/final.md), [sase stitch](../cli/stitch.md),
+  [sase revert](../cli/revert.md), [sase restore](../cli/restore.md),
+  [sase comments](../cli/comments.md)
+
+Workflows: [Commit workflows](index.md), [VCS](index.md),
+[Mentors](../automation/mentors.md).
+
+Delivery commands delegate to the VCS and workspace provider layers, so the same command
+surface can support plain git, GitHub pull requests, and other provider plugins.

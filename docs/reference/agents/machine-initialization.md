@@ -53,3 +53,23 @@ apply or issue a new bundle and run `sase machine repair`.
 ## Related
 
 - [Agents and workspaces](index.md) — the section hub.
+
+## `sase machine`
+
+With no subcommand, `sase machine` defaults to the offline `sase machine list`.
+Bootstrap bundles contain live single-use secrets and are never accepted as command-line
+values. `init` always needs an interactive stdin for candidate and alias selection; it
+reads the bundle from `-B/--bootstrap-file` or a hidden prompt. `add` and `repair` also
+accept a bundle on piped stdin when `--bootstrap-file` is omitted.
+
+<a id="cli-options-20"></a> Moved to
+[sase machine](machine-initialization.md#sase-machine).
+
+<a id="command-behavior-13"></a> Moved to
+[Machine initialization](machine-initialization.md#command-behavior-13).
+
+## Command behavior {#command-behavior-13}
+
+See the [Remote Dispatch Runbook](../integrations/remote-dispatch.md) for gateway
+supervision, Tailscale Serve, enrollment, launch constraints, and sase's TUI machine-row
+operation.

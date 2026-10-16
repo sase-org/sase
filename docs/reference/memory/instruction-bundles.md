@@ -114,3 +114,29 @@ output is raw bundle Markdown on stdout plus one summary line on stderr (sha256 
 
 - [Memory](index.md) — memory notes and history.
 - [Agent CLIs](../providers/agent-clis.md) — provider-specific instruction delivery.
+
+## `sase instructions`
+
+With no subcommand, `sase instructions` defaults to `sase instructions list`.
+
+<a id="cli-options-21"></a> Moved to
+[sase instructions](instruction-bundles.md#sase-instructions).
+
+## `sase skill`
+
+With no subcommand, `sase skill` defaults to the read-only `sase skill list` dashboard.
+It reports loaded skill sources, provider targets, and deployed-file drift without
+writing files. `sase skill init` generates and deploys agent skill files from macro
+sources marked with the `skill` field. Generated skill files begin with a
+`sase skill use` directive so agent-side skill use can be audited and later summarized
+with `sase skill log`, unless the source sets `log_skill_use: false`. See
+[macros.md — Skill Field](../macros/fields.md#skill-field) for the skill-source contract
+and provider targets. Existing files are skipped in non-interactive runs unless
+`--force` is passed; interactive runs prompt before overwriting. Commit and land macro
+template changes before deploying: writing chezmoi deploys are refused from dirty or
+unmerged sources, and refused when they would move the destination off the source commit
+recorded in the provenance manifest — see
+[Commit Before Deploying](../agents/initialization.md#commit-before-deploying).
+`sase init skills` is a compatibility alias for `sase skill init`.
+
+<a id="cli-options-25"></a> Moved to [sase skill](instruction-bundles.md#sase-skill).

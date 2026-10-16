@@ -143,7 +143,8 @@ viewer. `y`, `/`, and `o` warn instead of acting on image previews.
 
 ## Files Pane
 
-Files browses the artifact-file index that backs [`sase artifact list`](../../cli.md). The
+Files browses the artifact-file index that backs
+[`sase artifact list`](../cli/artifact.md#sase-artifact-list). The
 pane is one of the four fixed Artifacts views: Commits, Patches, Beads, and Files. The
 Agent pane is retired by default (`artifacts_agent_pane_retired`) and shows only with
 the opt-out. Configured document-provider panes appear between Beads and Files in the

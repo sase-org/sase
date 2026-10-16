@@ -425,3 +425,53 @@ remaining outer stops.
   reference.
 - [sase's TUI snippets](../tui/snippets.md#snippets-1) for the in-TUI prompt widget
   behavior.
+
+## `sase editor`
+
+`sase editor` exposes JSON-over-stdin helper operations for editor integrations. It is
+intentionally a fixed-operation bridge rather than a generic shell or filesystem API.
+
+<a id="cli-options-38"></a> Moved to [sase editor](editor.md#sase-editor).
+
+<a id="command-behavior-25"></a> Moved to
+[Editor Integration](editor.md#command-behavior-25).
+
+## Command behavior {#command-behavior-25}
+
+The `finalizer-catalog` request is `{"schema_version":1}` with an optional `project`
+hint; unknown fields are ignored. The response is a compact `status`/`message`/`entries`
+envelope. Malformed finalizer configuration returns `status: error` and no rows, and the
+builder never loads provider code.
+
+The `agent-catalog` request is just `{"schema_version":1}`; it has no project filter and
+reads the cross-project agent snapshot. Ordinary rows are de-duplicated by name and
+include `status` and `project`, with `kind: agent` for agents and `kind: monitor` for
+monitors. When group metadata is available, additive session, clan, and `@tribe` rows
+include `kind`, `member_count`, and display-ready `detail`; clan rows also include
+aggregate `status`. For the 20 most recently active sessions, SASE tries to enrich
+`detail` with the associated plan or bead's kind, structure, and title, and to add
+Markdown `documentation` carrying the goal, phase list, or parent/task context plus a
+session status footer. Unresolved or older sessions keep the plain member-count detail,
+and enrichment failure never removes ordinary rows; see
+[Editor Integration: Helper Bridge](#helper-bridge) for the exact fallback ladder. The
+structured macro catalog includes insertion metadata (`insertion`, `reference_prefix`,
+`kind`), typed argument metadata, display/source fields, and `definition_path` when SASE
+can resolve a real file to jump to.
+
+The snippet catalog uses the same source ordering as sase's TUI: macros marked with
+`snippet` front matter plus user-defined `ace.snippets`, with `ace.snippets` winning on
+trigger collisions. It also includes the generated initial-capital aliases (`foo` →
+`Foo`), so editor completion and the native fallback expose exactly the same
+trigger/template pairs as the TUI.
+
+## `sase lsp`
+
+Starts the macro language server over stdio for editor integrations.
+`SASE_MACRO_LSP_CMD` can override the server command during development. Without that
+override, `sase lsp` uses the current Python environment's `bin/sase-macro-lsp`, then
+`sase-macro-lsp` from `PATH`, then the newer debug/release binary from a sibling
+`../sase-core` checkout, then falls back to `cargo run` from that sibling checkout when
+Cargo is available. Full editable-install SASE updates reinstall the server into the
+uv-tool venv when pulled `sase-core` commits change.
+
+<a id="cli-options-43"></a> Moved to [sase lsp](editor.md#sase-lsp).

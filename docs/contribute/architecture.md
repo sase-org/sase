@@ -18,9 +18,9 @@ reviewed, retried, and handed off through stable project artifacts.
 
 | Area         | Responsibility                                                                                                                                    | Main References                                                                                   |
 | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| CLI          | Top-level `sase` commands, argument parsing, dispatch, and JSON helper bridges.                                                                   | [CLI reference](../cli.md)                                                                        |
+| CLI          | Top-level `sase` commands, argument parsing, dispatch, and JSON helper bridges.                                                                   | [CLI command groups](../reference/cli/index.md)                                                   |
 | sase's TUI   | Interactive TUI for Patches, agents, notifications, artifacts, and service status.                                                                | [sase's TUI](../reference/tui/index.md)                                                           |
-| Service host | Per-machine supervisor for configured daemon procs and transient oneshots; it owns the scheduler and mobile gateway procs.                        | [CLI reference](../cli.md#sase-service)                                                           |
+| Service host | Per-machine supervisor for configured daemon procs and transient oneshots; it owns the scheduler and mobile gateway procs.                        | [CLI reference](../reference/agents/service-host.md#sase-service-1)                               |
 | Axe          | Background orchestrator for scheduled hooks, mentors, workflow checks, comments, cleanup, and digests.                                            | [Axe](../reference/automation/scheduler.md)                                                       |
 | Macro        | Prompt templates, reference expansion, directives, typed inputs, and reusable workflows.                                                          | [Macros](../reference/macros/index.md)                                                            |
 | Workflows    | YAML multi-step execution with agent, bash, python, parallel, loop, and human checkpoint steps.                                                   | [Workflow spec](../reference/workflows.md)                                                        |
@@ -60,8 +60,9 @@ across those entry points:
 4. Prepare fixed or deferred workspace metadata. For a normal launch, claim the final
    numbered workspace atomically immediately before spawning the process.
 5. In the detached runner, wait for `%wait` dependencies and time floors, then pass
-   runner admission: no active [agent hold](../cli.md#sase-agent-hold) may match the
-   run, and its queue weight must fit the global `max_running_agents` budget or its own
+   runner admission: no active
+   [agent hold](../reference/agents/agent-holds.md#sase-agent-hold) may match the run,
+   and its queue weight must fit the global `max_running_agents` budget or its own
    `%queue` capacity budget. A deferred-workspace launch claims its numbered workspace
    only after admission.
 6. Continue macro or workflow processing and invoke the selected LLM provider or
@@ -115,16 +116,17 @@ the same Agents tab as top-level `▣` rows backed only by the proc store, count
 separately from agents. Workflow launches persist step state so sase's TUI and axe can
 inspect progress and recover meaningful output.
 
-Agent holds are durable reverse waits. [`sase agent hold`](../cli.md#sase-agent-hold)
-arms a hold in `~/.sase/agent_holds.json` that selects agents or named procs by name,
-tribe, or hood; it can freeze the WAITING/QUEUED agents already in scope and fence
-launches submitted later. Runner admission and undispatched `%proc` dispatch both
-consult active holds. A hold ends when it is released, when its armer settles or exits,
-or when its TTL expires, and a broken hold store fails open rather than stranding a
-waiter. The [`%hold` directive](../reference/macros/directive-launch.md#hold-directive)
-describes the same selectors in prompt text. Typed launches pre-arm the declared hold
-before admission can dispatch the unit, then rebind it to the running agent or proc;
-terminal units that never dispatch release their pre-armed holds.
+Agent holds are durable reverse waits.
+[`sase agent hold`](../reference/agents/agent-holds.md#sase-agent-hold) arms a hold in
+`~/.sase/agent_holds.json` that selects agents or named procs by name, tribe, or hood;
+it can freeze the WAITING/QUEUED agents already in scope and fence launches submitted
+later. Runner admission and undispatched `%proc` dispatch both consult active holds. A
+hold ends when it is released, when its armer settles or exits, or when its TTL expires,
+and a broken hold store fails open rather than stranding a waiter. The
+[`%hold` directive](../reference/macros/directive-launch.md#hold-directive) describes
+the same selectors in prompt text. Typed launches pre-arm the declared hold before
+admission can dispatch the unit, then rebind it to the running agent or proc; terminal
+units that never dispatch release their pre-armed holds.
 
 The service host is the machine-level supervisor for configured daemon procs. Its
 `service.procs` catalog comes from builtin, plugin, user, and machine-overlay config;
@@ -296,7 +298,7 @@ complete operation list and facade map.
 
 | Need                                     | Page                                                                                                                                                                                      |
 | ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Command discovery                        | [CLI reference](../cli.md)                                                                                                                                                                |
+| Command discovery                        | [CLI command groups](../reference/cli/index.md)                                                                                                                                           |
 | Contributor setup and source orientation | [Development](development.md)                                                                                                                                                             |
 | Runtime operations                       | [sase's TUI](../reference/tui/index.md), [Axe](../reference/automation/scheduler.md), [notifications](../reference/automation/notifications.md)                                           |
 | Durable work records                     | [Patches](../reference/work-units/patches.md), [memory](../reference/memory/memory.md), [SDD](../reference/work-units/index.md), [beads](../reference/work-units/index.md)                |

@@ -30,6 +30,7 @@ not_in_nav: |
   agents_sidecar.md
   axe.md
   beads.md
+  cli.md
   commit_workflows.md
   configuration.md
   content_layout.md
@@ -131,8 +132,8 @@ nav:
           - SASE Pager: reference/tui/pager.md
           - Keymaps: reference/tui/keymaps.md
       - CLI:
-          - CLI reference: cli.md
           - CLI command groups: reference/cli/index.md
+          - CLI behavior notes: reference/cli-notes.md
           - sase agent: reference/cli/agent.md
           - sase agent-cli: reference/cli/agent-cli.md
           - sase artifact: reference/cli/artifact.md
@@ -201,8 +202,8 @@ nav:
           - sase workspace: reference/cli/workspace.md
           - Query language: reference/query-language.md
           - Named tools: tool.md
+          - Diagnostics and support reports: reference/diagnostics.md
       - Configuration:
-          - Configuration files and behavior: configuration.md
           - Configuration reference:
               - Overview: reference/config/index.md
               - Core and identity: reference/config/core.md
@@ -284,6 +285,7 @@ nav:
           - Goals: reference/work-units/goals.md
           - Patches: reference/work-units/patches.md
           - ProjectSpec: reference/work-units/project-spec.md
+          - Work tracking CLI workflows: reference/work-units/cli-workflows.md
       - Agents and workspaces:
           - Agents and workspaces: reference/agents/index.md
           - Sessions and groups:
@@ -291,6 +293,8 @@ nav:
               - Agent sessions: reference/agents/agent-sessions.md
               - Agent tribes: reference/agents/agent-tribes.md
               - Agent-initiated launches: reference/agents/agent-launches.md
+              - Agent holds: reference/agents/agent-holds.md
+              - Agent output variables: reference/agents/output-variables.md
           - Workspace and initialization:
               - Workspaces: reference/agents/workspaces.md
               - Initialization: reference/agents/initialization.md
@@ -300,6 +304,7 @@ nav:
           - Shared data and recovery:
               - Agent hood synchronization: reference/agents/hood-sync.md
               - Agent attachments: reference/agent-attachments.md
+              - Disk cleanup: reference/disk-cleanup.md
               - Agent auto-restart: reference/agent-auto-restart.md
               - Agent revive log: reference/agent-revive-log.md
               - Runner slots: reference/runner-slots.md

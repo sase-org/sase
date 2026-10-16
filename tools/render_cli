@@ -92,7 +92,7 @@ def _first_sentence(text: str | None, limit: int = 160) -> str:
 
 
 def _takes_value(action: argparse.Action) -> bool:
-    if isinstance(action, _NO_VALUE_ACTIONS):
+    if isinstance(action, _NO_VALUE_ACTIONS) or action.nargs == 0:
         return False
     return bool(action.option_strings)
 
@@ -357,7 +357,9 @@ def render_group_page(
 
 
 def render_index_text(
-    groups: dict[str, argparse.ArgumentParser], top_help: dict[str, str]
+    groups: dict[str, argparse.ArgumentParser],
+    top_help: dict[str, str],
+    root_parser: argparse.ArgumentParser | None = None,
 ) -> str:
     """Render ``docs/reference/cli/index.md`` listing every group."""
     lines = [
@@ -373,9 +375,31 @@ def render_index_text(
         "One page per `sase` command group, generated from the argparse tree.",
         "Start here to find the group that owns a workflow.",
         "",
-        "Groups:",
-        "",
     ]
+    if root_parser is not None:
+        root_description = _clean(root_parser.description)
+        if root_description:
+            lines.extend((root_description, ""))
+        root_options = [
+            action
+            for action in root_parser._actions
+            if action.option_strings and action.help is not _SUPPRESS
+        ]
+        root_options.sort(
+            key=lambda action: (
+                action.option_strings[-1].lstrip("-").lower(),
+                action.option_strings[0],
+            )
+        )
+        if root_options:
+            lines.extend(("## Global options", ""))
+            option_rows = [
+                (_option_label(action), _cell(_describe_option(action)), _format_default(action))
+                for action in root_options
+            ]
+            lines.extend(_format_grid(("Option", "Description", "Default"), option_rows))
+            lines.append("")
+    lines.extend(("Groups:", ""))
     rows = []
     for name in sorted(groups.keys()):
         child = groups[name]
@@ -412,7 +436,7 @@ def generated_outputs(
             group, child, top_help.get(group, ""), notes.get(group, [])
         )
     outputs[root / INDEX_OUTPUT.relative_to(REPO_ROOT)] = render_index_text(
-        canonical, top_help
+        canonical, top_help, parser
     )
     return outputs
 

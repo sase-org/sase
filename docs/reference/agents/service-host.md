@@ -165,3 +165,149 @@ disable the service feature or suppress an explicit `sase service init`.
 ## Related
 
 - [Agents and workspaces](index.md) — the section hub.
+
+## `sase service`
+
+Bare `sase service` defaults to `status`, and bare `sase service proc` defaults to
+`proc list`.
+
+<a id="cli-options-3"></a> Moved to [sase service](service-host.md#sase-service).
+
+<a id="command-behavior-1"></a> Moved to
+[Service host initialization](service-host.md#command-behavior-1).
+
+## Command behavior {#command-behavior-1}
+
+Without `--yes`, `init` and `uninstall` only print the plan and the apply command. Their
+`--check` forms are read-only and return `1` for drift. `--force` allows a non-default
+`SASE_HOME` and uses a home-scoped unit identity; uninstalling that unit likewise
+requires `--force`. Platform lifecycle installation supports Linux systemd user units
+and macOS LaunchAgents. See
+[service configuration](../config/runtime-and-storage.md#service) for entry fields and
+layering.
+
+## `sase service`
+
+The service host supervises machine-level daemon procs independently of the TUI that
+started them. Bare `sase service` is read-only and delegates to `sase service status`;
+bare `sase service proc` delegates to `proc list`.
+
+```bash
+sase service status
+sase service start
+sase service proc list
+sase service proc restart scheduler
+sase service proc run -- just check
+```
+
+`start`, `stop`, and `restart` control the host; `run` intentionally owns the foreground
+terminal. `logs -n N` prints the bounded host log. `status -j` emits the host and every
+configured proc as JSON and exits `0` while the host is running or starting, otherwise
+`1`. When a native unit is installed, lifecycle commands use that platform manager;
+otherwise `start` uses the detached host path.
+
+`sase service status` prints the host summary (plus the host config error when one is
+set) and a proc table with `Restarts` and `Last exit` columns; the proc `State` column
+is colored by the same severity vocabulary as the Services tab (`crash_loop` and
+`backoff` fail, `exited` fails while desired running (a clean give-up only warns),
+`unavailable` warns, `disabled` and operator-stopped are muted). Below the table it
+repeats the blockers and warnings `sase service init` would report, such as provider
+CLIs missing from the captured `PATH`, a refused or login-session-only GitHub
+credential, and service procs whose executable cannot be found.
+
+When `service.procs` stops loading (for example a YAML error in a machine overlay), the
+host keeps supervising its last-known-good configuration and reports the load error as
+`Host error:` until the configuration loads again; running procs are not stopped because
+the new configuration is unreadable. A proc the restart policy gives up on — a clean
+exit under `restart: on-failure`, or any exit or spawn failure under `restart: never` —
+is parked: the host stops relaunching it and it stays `exited` with its last exit until
+`sase service proc start NAME` or `restart NAME` revives it, or its configuration
+changes. A proc that enters a crash loop, or a desired-running proc that is parked,
+raises a `service` [notification](../automation/notifications.md) naming the reason,
+restart count, and log path; a parked proc's notification also names the reviving
+`sase service proc start NAME` command.
+
+`sase service proc list` carries the same `Restarts` and `Last exit` columns and
+additionally exposes effective configuration, machine enablement, desired state, runtime
+state, source, launcher, and log path. `show NAME` reports uptime, the restart count,
+the last exit and when, the current restart decision reason, stop provenance, the
+description, and any pending start/restart request. `start NAME` and `restart NAME`
+record a durable request that the host consumes, then wait for the host to confirm it: a
+restart prints `service proc NAME restarted: pid OLD -> pid NEW`, a start prints
+`service proc NAME started: pid N` (or `already running: pid N`), and either exits
+non-zero when the host cannot confirm, the proc is disabled or unavailable, or the host
+is not running. A start or restart request also clears this boot's stop marker.
+`-n/--no-wait` returns as soon as the request is recorded and `-t/--timeout SECONDS`
+bounds the wait (default: the proc's stop timeout plus 10 seconds, at least 15).
+`stop NAME` stops the proc until the next boot; `enable NAME` and `disable NAME` persist
+a machine-local override. `logs NAME` prints that proc's bounded log. A configured proc
+that is invalid remains visible as unavailable rather than preventing unrelated entries
+from running.
+
+`sase service proc run -- COMMAND...` submits a transient oneshot through the durable
+proc service. It does not add the command to daemon desired state and the host never
+replays it after restart. It runs outside the service host's process tree, records its
+exit code, and appears in the Services tab's oneshots section under a `#1`–`#9` index;
+at most nine can be running at once, and finished ones never count. The TUI's `!!`
+background commands use this same path. `-c/--cwd`, `-l/--label`, `-p/--project`, and
+`-w/--workspace` add attribution; `-j` emits the created proc record.
+
+Install or inspect the native user unit with `sase service init`. Without `--yes` it
+prints a plan; `--check` is read-only and exits non-zero on drift, `--diff` includes the
+unit and redacted captured-environment diff, and `--yes` applies. Linux uses a systemd
+user service and macOS uses a LaunchAgent. A non-default `SASE_HOME` requires `--force`,
+which creates a home-scoped unit identity. `sase service uninstall` has the same
+plan/check/diff/apply shape; `--force` is also required when uninstalling the
+non-default-home unit. See
+[service configuration](../config/runtime-and-storage.md#service) and
+[initialization](#service-host).
+
+`sase proc` operates on durable procs: rows in `~/.sase/procs/procs.jsonl` with combined
+output logs under `~/.sase/procs/logs/`. New `sase proc run` submissions always create
+`command` rows under a supervisor; `--session` only controls attribution, and
+`--session none` records an unattributed command visible in every session scope.
+Historical `detached` rows remain readable and controllable. `sase task` is still
+accepted as a deprecated alias.
+
+The supervisor is independent of the submitting shell or TUI, so command work survives
+TUI restarts and runs with no TUI open. The compact list markers are `⌘` for `command`,
+`▣` for `tui`, and `◆` for historical `detached` rows; `sase proc show` spells out the
+kind and ownership. Use `sase proc kill REF` to stop any active store-backed proc. JSON
+output uses a `procs` array for `list` and a `proc` object for `run`, `show`, and
+`kill`. Retention keeps every pending or running proc plus the newest
+[`procs.history_limit`](../config/runtime-and-storage.md#procs) finished ones. See the
+[sase's TUI Procs tab](../tui/procs-tab.md#durable-procs) for the full model and the
+in-TUI equivalents.
+
+`sase proc run -N/--name NAME` and `sase proc list -N/--name NAME` address a proc by a
+**named proc** instead of its id: a bare name is derived beneath the calling sase-agent
+(outside a sase agent a bare name is an error), while a fully qualified name
+(`<agent>--<name>`; names may not contain `/`) is resolved exactly before falling back
+to an exact proc id, then a unique id prefix. Active uniqueness is scoped per project,
+and a name may be reused only after the proc holding it settles. `sase proc show REF`
+and `sase proc kill REF` accept the same named proc, id, or id-prefix forms (an id
+prefix needs at least three characters).
+
+Every command group with an exact `list` child defaults to that list view when invoked
+bare — `sase agent`, `sase agent-cli`, `sase artifact`, `sase bead`, `sase chat`,
+`sase completion`, `sase disk`, `sase file`, `sase file-history`, `sase file-hook`,
+`sase final`, `sase flag`, `sase gate`, `sase goal`, `sase instructions`,
+`sase machine`, `sase memory`, `sase migrate`, `sase monitor`, `sase notify`,
+`sase plan`, `sase plugin`, `sase proc`, `sase project`, `sase prompt`, `sase repo`,
+`sase skill`, `sase snippet`, `sase stitch`, `sase sudo`, `sase telemetry`, `sase tool`,
+`sase usage`, `sase var`, `sase workspace`, and `sase macro`. Nested groups such as
+`sase agent hold`, `sase agent prompts`, `sase agent tribe`, `sase artifact link`,
+`sase artifact link relation`, `sase artifact trash`, `sase axe job`,
+`sase axe routine`, `sase bead dep`, `sase bead ref`, `sase bead task-type`,
+`sase memory web`, `sase patch ref`, `sase plan links`, and `sase project alias` follow
+the same rule. A bare invocation prints a short notice naming the delegation, for
+example `No subcommand provided for 'sase repo'; delegating to 'sase repo list'.` Groups
+without a `list` child, such as `sase patch`, `sase axe`, or `sase bead pages`, do not
+delegate.
+
+This is a property of the parser, not a hand-maintained list: any group that gains an
+exact `list` child picks the behavior up automatically.
+
+The bare form is only the default view. When you need flags that belong to the list
+command, keep the `list` subcommand explicit, for example `sase notify list -j`,
+`sase agent hold list -j`, or `sase workspace list --json`.

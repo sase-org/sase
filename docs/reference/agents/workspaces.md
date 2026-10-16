@@ -356,3 +356,104 @@ currently consult the resource-plugin disable switches described in
 ## Related
 
 - [Agents and workspaces](index.md) — the section hub.
+
+## `sase repo`
+
+Bare `sase repo` defaults to `sase repo list`. The command family inventories primary,
+sidecar, linked, and opened external repositories, prepares a selected repo inside one
+workspace context, and exposes the durable audit history of successful opens.
+
+`sase repo list` defaults to the current project and infers both the project and
+workspace context from cwd. Primary repos come from ProjectSpecs, sidecars from
+`repos.sidecar` plus SDD store records, linked repos from resolved `repos.linked`
+(including compatibility aliases), and external repos from materialized workspace-local
+clones; a sidecar wins when the same checkout is also auto-injected as linked. The Rich
+table reports whether each repo is cloned in the selected workspace plus the number of
+registered workspaces containing it. External rows use the canonical project name or
+provider ref such as `gh:pallets/click`. Hidden `agents` rows remain visible and report
+the same stable machine-level path for every registered workspace context.
+
+<a id="cli-options-14"></a> Moved to [sase repo](workspaces.md#sase-repo).
+
+<a id="command-behavior-8"></a> Moved to [Workspaces](workspaces.md#command-behavior-8).
+
+## Command behavior {#command-behavior-8}
+
+`--all` and `--project` are mutually exclusive. JSON records retain source, description,
+`auto_clone`, environment, and SDD-storage metadata while making `path` and `exists`
+describe the selected workspace context.
+
+`sase repo open REPO -r "<reason>"` resolves `REPO` in three tiers: a host-project
+inventory name, another registered SASE project name, then an external provider ref
+(`gh:owner/repo` or `owner/repo` GitHub shorthand). It materializes and prepares the
+repo, prints only its path to stdout, records the per-run artifact markers used by
+sase's TUI and the commit finalizer, and appends an event to
+`~/.sase/projects/<project>/repo_opens.jsonl`. Run it inside a managed checkout to infer
+the host project and workspace. Reopening a valid external clone preserves its current
+contents and records a new open event.
+
+When a supported provider ref or another registered SASE project corresponds to a
+configured linked repo in the host project, `sase repo open` opens the linked checkout
+instead of cloning or reopening an external copy. Stdout remains exactly the linked
+path; stderr explains the redirect and suggests the configured linked name for next
+time. If a previous external checkout of the same repo exists, it is left untouched and
+reported as a warning so any work already there remains visible.
+
+| Open argument / flag | Description                                                                             |
+| -------------------- | --------------------------------------------------------------------------------------- |
+| `REPO`               | Inventory name, registered project name, `gh:owner/repo`, `owner/repo`, or record path. |
+| `-p, --project`      | Select the host project instead of inferring it from cwd.                               |
+| `-r, --reason`       | Required non-empty audit reason.                                                        |
+| `-w, --workspace`    | Select the host workspace number instead of inferring it from cwd.                      |
+
+When two inventory records share a name or slug, `sase repo open` refuses rather than
+guessing and lists each candidate as `<kind> '<name>' (<path>)`. To pick one, re-run the
+command with that candidate's path as `REPO`, copied exactly as printed: a record path
+is matched literally, ahead of any name or slug, so it selects that record even when its
+name collides with another's. This is a disambiguator, not a general "open any
+directory" mode — a path that matches no primary, sidecar, or linked record falls
+through to the usual name and provider-ref tiers and fails there.
+
+`sase repo log` renders a project-scoped summary and per-repo rollup of durable open
+events. Repo, agent, or workspace filters add agent and event drill-down panels; an
+event ID prefix shows one complete event. `--json` returns the same filtered data
+deterministically.
+
+| Log flag          | Description                                               |
+| ----------------- | --------------------------------------------------------- |
+| `-a, --agent`     | Filter by agent name or interactive user.                 |
+| `-i, --id`        | Show one event by exact ID or unambiguous ID prefix.      |
+| `-j, --json`      | Emit deterministic structured output.                     |
+| `-p, --project`   | Select the host project instead of inferring it from cwd. |
+| `-r, --repo`      | Filter by repository name.                                |
+| `-w, --workspace` | Filter by host workspace number.                          |
+
+## `sase repo init`
+
+`sase repo init` declares the managed plans, beads, and default `research` document
+sidecar, initializes every enabled configured sidecar, and ensures the project root
+`.gitignore` contains `/sase/repos/`, protecting host-scoped repository clones durably.
+`-c, --check` reports drift without writing, `-d, --diff` renders proposed full-file
+diffs, and `-C, --no-commit` writes project config and ignore changes without the normal
+project commit/pull/push sequence. `sase init repo` is an alias; bare `sase init` and
+`sase validate` include the same check for Git projects.
+
+## `sase workspace`
+
+Workspace commands inspect and maintain the managed checkout registry for the inferred
+project, or for the project named by `-p/--project`. With no subcommand,
+`sase workspace` defaults to `sase workspace list` with default options. Use
+`sase workspace list -p <project>`, `sase workspace list --all`, or
+`sase workspace list --json` when passing list flags.
+
+<a id="cli-options-28"></a> Moved to [sase workspace](workspaces.md#sase-workspace).
+
+<a id="command-behavior-17"></a> Moved to
+[Workspaces](workspaces.md#command-behavior-17).
+
+## Command behavior {#command-behavior-17}
+
+For built-in bare-git projects, `sase repo open` may initialize generated SDD guide
+files in the primary checkout before materializing a numbered workspace.
+`sase workspace list` and `sase workspace path` remain read-only and do not run SDD
+initialization.

@@ -464,7 +464,7 @@ applied invisibly.
 A successful launch notifies `Opened tmux window: <name> · <display name>` and dismisses
 back to Launch Control. A failure notifies with an error and leaves the panel open.
 
-See [`sase tmux-agent`](../../cli.md) and the
+See [`sase tmux-agent`](../cli/tmux-agent.md#sase-tmux-agent) and the
 [`tmux_agent`](../config/agents-and-runners.md#tmux_agent) config block for the
 CLI surface, the drop-in tmux binding, and the documented parity recipe against the
 script this feature replaces.
@@ -545,3 +545,20 @@ Moved to [Launch Control overrides](launch-control-overrides.md#examples-1).
 - [Launch Control overrides](launch-control-overrides.md) — temporary overrides and persistent edits.
 - [Provider routing](../providers/routing.md) — temporary overrides, disables, and priority.
 - [Models and aliases](../providers/models.md) — catalog, tiers, and aliases.
+
+## `sase tmux-agent`
+
+Launch an interactive agent CLI in a new tmux window. There are no subcommands — in
+particular no `list` child — so a bare `sase tmux-agent` paints the tmux menu instead of
+delegating. See [tmux Agent](#tmux-agent).
+
+<a id="cli-options-2"></a>
+Moved to [sase tmux-agent](launch-control.md#sase-tmux-agent).
+
+<a id="command-behavior"></a>
+Moved to [Launch Control](launch-control.md#command-behavior).
+
+## Command behavior
+`--renumber` is an internal hook invoked when an agent CLI window exits and is omitted
+from help. Outside tmux with no `--list`/`--dry-run`/`--json`, the command exits 2,
+explains that a tmux session is required, and still prints the catalog.

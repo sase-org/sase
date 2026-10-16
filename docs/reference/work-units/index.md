@@ -37,6 +37,8 @@ This hub links the records SASE uses to plan, track, review, and settle work.
 - [Goals](goals.md) — person-owned outcome records.
 - [Patches](patches.md) — review records for changes.
 - [ProjectSpec](project-spec.md) — project metadata and Patch records.
+- [Work tracking CLI workflows](cli-workflows.md) — how CLI work flows connect these
+  records.
 
 ## Related
 

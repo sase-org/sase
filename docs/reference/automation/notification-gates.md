@@ -536,3 +536,37 @@ running on Textual's event loop.
 - [Notifications](notifications.md)
 - [Notification types](notification-types.md)
 - [Automation migration notes](../upgrading/automation.md)
+
+## `sase gate`
+
+Create, inspect, answer, and manage durable command-backed gates and their optional
+gate-turn session members.
+
+<a id="cli-options-41"></a> Moved to [sase gate](notification-gates.md#sase-gate).
+
+<a id="command-behavior-26"></a> Moved to
+[Command-backed interaction gates](notification-gates.md#command-behavior-26).
+
+## Command behavior {#command-behavior-26}
+
+Gate creation accepts one option `query`, a required complete `primary_branch`, an
+`options` list with configurable labels, icons, default selections, and feedback modes,
+plus optional `groups` metadata for AND-branch submit controls. It returns a stable JSON
+descriptor with the request identity, owned paths, continuation/auto state, and hashes.
+`sase gate wait -j` emits `status`, `selected_option_ids`, `feedback`, and
+`response_path`; failed execution also emits `failure` and `failure_recovery` with the
+error report path and exact safe recovery commands. A CLI timeout can shorten but not
+extend the request timeout.
+
+`--turn` creates a processless session member that owns the pending decision and ends an
+agent-side creator's turn. `--next` is the default answered-branch follow-up prompt;
+branch-specific policy may override or suppress it, and non-answered terminal branches
+need their own explicit follow-up. `--next-fork session|turn|none` chooses inherited
+context, `--next-model` pins the successor model, and repeatable
+`--next-output none|results|tail|file` chooses what gate-command evidence reaches it.
+Use `sase gate wait` from non-agent automation; an agent that created a turn-backed gate
+must hand off rather than hold a provider process open. `-p/--panel` places the gate's
+notification in a named notification-panel tab and requires `-P/--panel-icon`. For
+`sase gate answer`, per-option input (`-s/--set`, `-O/--option-input`) and the legacy
+shared `-I/--input` value are mutually exclusive; a gate turn answers through a
+supervised background proc unless `-D/--no-detach` is given.

@@ -114,7 +114,8 @@ mobile credential environment variable into a mode-`0600` file, retires legacy
 gateway/AXE units, enables the unit, and starts it. `SASE_FEATURE_FLAGS` is never
 captured: the host resolves flags from saved state. Planning and diffs redact every
 captured value. Linux warns when user linger is off because the service may then stop at
-logout. See [`sase service`](../../cli.md#sase-service) for lifecycle commands.
+logout. See [`sase service`](../agents/service-host.md#sase-service-1) for lifecycle
+commands.
 
 Source: `src/sase/default_config.yml`, `src/sase/config/sase.schema.json`,
 `src/sase/service/config.py`, `src/sase/service/platform.py`

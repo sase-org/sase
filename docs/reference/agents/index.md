@@ -14,6 +14,8 @@ Reference pages describe agent sessions, setup, workspace storage, and shared ho
 - [Agent sessions](agent-sessions.md) — sequential chains of agent turns.
 - [Agent tribes](agent-tribes.md) — user-managed agent groups.
 - [Agent-initiated launches](agent-launches.md) — sessions started by an agent.
+- [Agent holds](agent-holds.md) — admission barriers for agents and undispatched procs.
+- [Agent output variables](output-variables.md) — published values and downstream reads.
 
 ## Workspace and initialization
 

@@ -119,3 +119,12 @@ fallback view so it can still be selected and recovered.
 - [TUI hub](index.md) — all TUI reference pages.
 - [Global controls](global-controls.md) — command palette, command line, auto-refresh.
 - [TUI keymaps](keymaps.md) — generated keymap defaults.
+
+## `sase screenshot`
+
+Capture a PNG from a real `sase tui` running in tmux. The command launches in the
+detached `sase_ace_agents` session unless `--window` names an existing tmux target. See
+[Agent screenshots](#agent-screenshots).
+
+<a id="cli-options-1"></a>
+Moved to [sase screenshot](launching.md#sase-screenshot).

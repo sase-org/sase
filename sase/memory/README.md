@@ -108,8 +108,8 @@ strand inherits no `type:` of its own and never inlines into `AGENTS.md`.
 - Type: `core`
 - Parent: `AGENTS.md`
 - Description: No description set.
-- Lines: 87
-- Approx. tokens: 1195
+- Lines: 85
+- Approx. tokens: 1147
 
 ### `sase/memory/decisions.md`
 
@@ -184,8 +184,8 @@ strand inherits no `type:` of its own and never inlines into `AGENTS.md`.
 - Parent: `AGENTS.md`
 - Description: Read before macros, prompt directives, or launching agents with git/gh
   VCS workflow blocks.
-- Lines: 167
-- Approx. tokens: 3701
+- Lines: 169
+- Approx. tokens: 3727
 
 ### `sase/memory/sase_artifacts.md`
 
@@ -270,7 +270,7 @@ strand inherits no `type:` of its own and never inlines into `AGENTS.md`.
 - Reference notes: 14
 - Web descriptor notes: 3
 - Total lines: 1595
-- Total approx. tokens: 22646
+- Total approx. tokens: 22624
 
 ## Commands
 

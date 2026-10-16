@@ -201,8 +201,8 @@ selection entirely, before query evaluation — SASE automation never acts on th
 [AXE](../automation/scheduler.md).
 
 **Setting it:** `sase patch set-origin <name> <sase|external|unknown>` (see
-[CLI Reference](../../cli.md#work-tracking-and-planning)), or press `o` on a PR row in
-sase's TUI Patches sub-tab (see
+[CLI Reference](cli-workflows.md#work-tracking-and-planning)), or press `o` on a PR row
+in sase's TUI Patches sub-tab (see
 [PR Origin Chip](../tui/artifacts-tab.md#pr-origin-chip)).
 
 **Example:**
@@ -543,3 +543,45 @@ STITCHES:
 
 - [Work units](index.md)
 - [ProjectSpec](project-spec.md)
+
+## `sase patch search`
+
+<a id="cli-options-11"></a> Moved to [sase patch](../cli/patch.md).
+
+<a id="command-behavior-6"></a> Moved to
+[Patch Format Documentation](patches.md#command-behavior-6).
+
+## Command behavior {#command-behavior-6}
+
+Search uses the normal enabled-project discovery scope. Disabled projects and internal
+sibling backing records are omitted from this CLI path; run
+`sase project list --state all` or `sase project show <project>` to inspect them, then
+run `sase project enable <project>` before using normal search and launch surfaces for
+new work.
+
+## `sase patch migrate-extension`
+
+One-time cleanup for older installs: renames legacy ProjectSpec files under
+`~/.sase/projects` from `.gp` to `.sase`, including archive siblings. Current readers
+still accept `.gp` as a fallback, so migration is not required before using SASE; it
+just normalizes on-disk filenames to the canonical extension.
+
+If a `.sase` sibling already exists with identical contents, the redundant `.gp` copy is
+removed. If the sibling differs, the command reports a conflict and preserves both files
+unless `--force` is set.
+
+<a id="cli-options-12"></a> Moved to [sase patch](../cli/patch.md).
+
+## `sase restore`
+
+<a id="cli-options-15"></a> Moved to [sase restore](patches.md#sase-restore).
+
+<a id="command-behavior-9"></a> Moved to
+[Patch Format Documentation](patches.md#command-behavior-9).
+
+## Command behavior {#command-behavior-9}
+
+If restoration reaches commit recreation, the current implementation calls
+`sase stitch create` with an unsupported positional Patch name and fails after applying
+the saved diff. See [VCS restore](../vcs/providers.md#sase-restore) for the resulting
+workspace state and manual recovery command.

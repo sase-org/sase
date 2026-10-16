@@ -311,3 +311,27 @@ gate pending with an evidence note rather than bypassing the reviewed flow silen
 - [Command-backed interaction gates](notification-gates.md)
 - [`sase sudo`](../cli/sudo.md)
 - [Automation](index.md)
+
+## `sase sudo`
+
+`sase sudo` creates typed sudo request gates and answers them from a controlling
+terminal through SASE's dedicated sudo runner; see [Sudo Requests](). With no
+subcommand, `sase sudo` defaults to `sase sudo list`.
+
+<a id="cli-options-42"></a> Moved to [sase sudo](sudo.md#sase-sudo).
+
+<a id="command-behavior-27"></a> Moved to [Sudo Requests](sudo.md#command-behavior-27).
+
+## Command behavior {#command-behavior-27}
+
+`--run` and `--approve` both authenticate and run the reviewed commands; `-c/--command`
+limits the run to selected reviewed command ids. Without `--run`, `--approve`, or
+`--deny`, an interactive terminal asks `Approve sudo request? [y/N]`, and a
+non-interactive caller gets a `tty_required` error. Approval always needs a controlling
+terminal, so the gate stays pending when none is available; denial runs no privileged
+command and works headlessly. For a machine-targeted request, approval runs the target's
+`sase sudo exec` over `ssh -t`. `-r/--resume` and `-R/--restart` are accepted for parity
+with `sase gate answer`, but both currently rerun the full selected command set; neither
+skips commands that already completed. To avoid repeating one, explicitly select only
+the remaining command ids with `-c/--command`. The hidden `sase sudo exec` subcommand is
+the target-side runner entrypoint.

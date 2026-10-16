@@ -497,7 +497,7 @@ shell that armed the hold. Each armer has at most one hold. A hold ends when it 
 released, when its armer ends (an agent armer's session settles, a `%proc` armer's proc
 reaches a terminal state, or a CLI armer's parent shell — or its `hold run` command —
 exits), or when its TTL expires. A broken hold store fails open: admission ignores it
-rather than stranding a waiter. The [`sase agent hold`](../../cli.md#sase-agent-hold) commands
+rather than stranding a waiter. The [`sase agent hold`](../agents/agent-holds.md#sase-agent-hold) commands
 arm, list, show, and release holds, and `sase agent hold run -- COMMAND` holds matching
 work only while one command runs. The **Holds** pane in sase's TUI
 [Config tab](../tui/admin-center.md#config-tab) lists active holds and releases
@@ -585,3 +585,36 @@ that stored summary; holds without one display `capture not recorded`.
 - [Directive catalog](directives.md)
 - [Directive syntax and completion](directive-syntax.md)
 - [Directive composition and fan-out](directive-composition.md)
+
+## `sase autonomy`
+
+Autonomy controls automatic resolution of plan and question gates. A fresh user launch
+without `%auto` is manual; bare `%auto` selects `standard`. The `tale` and `epic`
+profiles restrict which plan tier resolves automatically, while both still choose the
+first option for each question. See the
+[profile matrix](#auto-directive).
+
+```bash
+sase autonomy list
+sase autonomy show tale
+sase autonomy explain --prompt '%auto:tale'
+sase autonomy explain my-agent
+sase autonomy explain --gate plan/REQUEST_ID
+sase autonomy log my-agent --since 1h --kind plan --outcome auto
+```
+
+All four subcommands accept `-j/--json`; bare `sase autonomy` delegates to `list`.
+`list` includes effective epic phase/land role assignments. `show PROFILE` accepts
+`manual`, `standard`, `tale`, or `epic`. `explain` reads an agent's live record,
+dry-runs prompt text with `-p/--prompt` (leaving `$(...)` unexpanded), or reads the
+policy revision that decided a settled gate with `-g/--gate`. A gate can be named as
+`KIND/REQUEST_ID` or by its gate-turn short ID, member name, or owning agent. `--prompt`
+and `--gate` cannot be combined. Prediction does not launch work or answer a gate.
+
+`log [AGENT]` reads host decisions newest first. `-k/--kind` accepts `plan`,
+`epic_plan`, or `question`; `-o/--outcome` accepts `auto` or `ask`, and `-s/--since`
+accepts a date or relative bound such as `1h`. Manual evaluations leave no log rows.
+Launch, sudo, custom, and other privileged gates require human action regardless of
+profile. The live TUI `A` toggle applies to the next gate and is inherited by later
+successors; see
+[Auto-Approve Toggle](../tui/agent-workflows.md#auto-approve-toggle).

@@ -44,11 +44,11 @@
 
 ## Reference
 
-- [CLI Reference](cli.md) — CLI Reference — This page is a command index for the top-level sase CLI.
 - [Agent Attachments and Image Previews](reference/agent-attachments.md) — Images and videos agents produce, and how sase's TUI previews them.
 - [Agent auto-restart](reference/agent-auto-restart.md) — Recovery service for agents interrupted by a live update, and its limits.
 - [Agent revive log](reference/agent-revive-log.md) — Audit records for TUI agent revival, and how to read them.
 - [Agent clans](reference/agents/agent-clans.md) — Look up how parallel agent sessions are grouped and displayed.
+- [Agent holds](reference/agents/agent-holds.md) — Admission barriers for agents and undispatched procs.
 - [Agent-initiated launches](reference/agents/agent-launches.md) — Look up how an agent starts another session or workflow.
 - [Agent sessions](reference/agents/agent-sessions.md) — Look up sequential agent sessions and their shared history.
 - [Agent tribes](reference/agents/agent-tribes.md) — Look up how agents are grouped into persistent tribes.
@@ -57,6 +57,7 @@
 - [Initialization](reference/agents/initialization.md) — Look up project initialization commands and the files they manage.
 - [Machine initialization](reference/agents/machine-initialization.md) — Look up remote machine enrollment through SASE initialization.
 - [Memory initialization](reference/agents/memory-initialization.md) — Look up how SASE initializes, lists, and audits agent memory.
+- [Agent output variables](reference/agents/output-variables.md) — Publish and consume typed values from agent runs.
 - [Service host initialization](reference/agents/service-host.md) — Look up how SASE initializes its per-user service host.
 - [Workspaces](reference/agents/workspaces.md) — Look up workspace storage, repository commands, and workspace commands.
 - [Artifact Links](reference/artifact-links.md) — Typed relationships between durable SASE artifacts.
@@ -79,6 +80,7 @@
 - [Scheduler](reference/automation/scheduler.md) — Scheduler commands, lifecycle, recovery, state, and SASE integration.
 - [Sudo requests](reference/automation/sudo.md) — Request, review, and recover privileged commands run on behalf of SASE agents.
 - [Named tools and ToolRuns](reference/automation/tools.md) — Declare named tools and run commands with retained output and evidence.
+- [CLI behavior notes](reference/cli-notes.md) — Root command behavior and links to CLI command and subsystem references.
 - [sase agent-cli](reference/cli/agent-cli.md) — Inspect the coding-agent CLIs supported by SASE and install or update installs whose management method can be identified safely.
 - [sase agent](reference/cli/agent.md) — Inspect and manage agents across projects.
 - [sase artifact](reference/cli/artifact.md) — Create, discover, inspect, resolve, open, and repair indexed artifacts.
@@ -180,6 +182,8 @@
 - [Workspace configuration behavior](reference/config/workspace-behavior.md) — Configuration for workspace directory layout and lifecycle.
 - [Content layout](reference/content-layout.md) — Canonical paths for project and home SASE content.
 - [Design decisions](reference/design-decisions.md) — Why SASE works this way, generated from the decisions memory web.
+- [Diagnostics and support reports](reference/diagnostics.md) — Read-only validation, diagnostics, logs, and support bundle behavior.
+- [SASE disk cleanup](reference/disk-cleanup.md) — Inspect SASE-created bytes and delegate cleanup to the owning subsystem.
 - [Environment variables](reference/environment-variables.md) — Environment variables that configure providers, SDD, plugins, runtime, and workspaces.
 - [Glossary](reference/glossary.md) — Every SASE term, generated from the glossary memory web.
 - [Reference](reference/index.md) — Look up exact SASE facts here, generated from code where possible.
@@ -292,6 +296,7 @@
 - [Bead TUI integration](reference/work-units/bead-tui.md) — How SASE's TUI connects bead records with plans and task work.
 - [Starting bead work](reference/work-units/bead-work.md) — How `sase bead work` resolves plans and starts assigned bead work.
 - [Beads](reference/work-units/beads.md) — Bead identities, types, and the data model for work in SASE.
+- [Work tracking CLI workflows](reference/work-units/cli-workflows.md) — How CLI workflows connect beads, plans, goals, projects, and Patches.
 - [Goals](reference/work-units/goals.md) — Durable outcome records and their lifecycle, storage, and freshness.
 - [Work units](reference/work-units/index.md) — Reference pages for SASE's beads, plans, goals, Patches, and ProjectSpec files.
 - [Patches](reference/work-units/patches.md) — The fields, format, and lifecycle of a SASE Patch review record.
@@ -352,8 +357,9 @@
 - [Agent Hood Synchronization](agents_sidecar.md) — This page has moved to its new home.
 - [Scheduler — Background Automation](axe.md) — This page has moved to its new home.
 - [Bead Issue Tracking](beads.md) — This page has moved to its new home.
+- [CLI Reference](cli.md) — CLI Reference — Moved to CLI command groups.
 - [Commit Workflows](commit_workflows.md) — This page has moved to its new home.
-- [Configuration Reference](configuration.md) — Configuration Reference — Moved to Configuration files and merging.
+- [Configuration Reference](configuration.md) — Configuration Reference — Moved to Configuration reference.
 - [Canonical SASE Content Layout](content_layout.md) — This page has moved to its new home.
 - [Initialization](init.md) — This page has moved to its new home.
 - [Instruction Bundles](instruction_bundles.md) — This page has moved to its new home.
@@ -428,3 +434,4 @@
 | `/artifact_references/` | [`/reference/artifact-references/`](reference/artifact-references.md) |
 | `/artifact_links/` | [`/reference/artifact-links/`](reference/artifact-links.md) |
 | `/pager/` | [`/reference/tui/pager/`](reference/tui/pager.md) |
+| `/cli/` | [`/reference/cli/`](reference/cli/index.md) |

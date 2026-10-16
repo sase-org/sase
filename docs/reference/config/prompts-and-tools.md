@@ -349,3 +349,22 @@ Source: `src/sase/config/sase.schema.json`, `src/sase/config/tools.py`,
 
 - [Prompts and tools configuration](prompts.md) — generated keys and defaults.
 - [Macros](../macros/index.md) — macro behavior and syntax.
+
+## `sase file-hook`
+
+With no subcommand, `sase file-hook` delegates to `sase file-hook list`. The list shows
+each valid effective hook's name, description, command,
+project/sidecar/producer/glob/operation filters, timeout, and contributing config
+source. Invalid and duplicate hooks are already excluded with configuration warnings, so
+this is the runtime-effective view rather than a raw config dump.
+
+<a id="cli-options-33"></a> Moved to
+[sase file-hook](prompts-and-tools.md#sase-file-hook).
+
+<a id="command-behavior-21"></a> Moved to
+[Prompt and tool configuration](prompts-and-tools.md#command-behavior-21).
+
+## Command behavior {#command-behavior-21}
+
+See [`file_hooks`](#filehooks) for matching, merge, execution, producer audits, and
+notification behavior.

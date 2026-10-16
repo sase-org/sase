@@ -17,9 +17,20 @@ FEATURE_FLAG_OPTION_STRINGS: Final[tuple[tuple[str, ...], ...]] = (
 )
 PRINT_COMMAND_OPTION_STRINGS: Final[tuple[str, ...]] = ("-p", "--print-command")
 
-_ENABLE_HELP = "Enable a registered feature flag for this invocation"
-_DISABLE_HELP = "Disable a registered feature flag for this invocation"
-_PRINT_COMMAND_HELP = "Print the shell-quoted command to stderr before running it"
+_ENABLE_HELP = (
+    "Force a registered feature flag on for this invocation and every process it "
+    "launches. Repeatable; overrides config layers, a saved machine preference, "
+    "and inherited SASE_FEATURE_FLAGS."
+)
+_DISABLE_HELP = (
+    "Force a registered feature flag off for this invocation and every process it "
+    "launches. Repeatable; overrides config layers, a saved machine preference, "
+    "and inherited SASE_FEATURE_FLAGS."
+)
+_PRINT_COMMAND_HELP = (
+    "Print a shell-quoted `sase ...` header to stderr before running; omit this "
+    "switch, keep feature overrides, and skip tab completion."
+)
 
 
 class _GlobalOptionError(Exception):

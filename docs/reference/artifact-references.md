@@ -304,3 +304,105 @@ projection. See [Artifact Links](artifact-links.md) for the relation registry an
 - [Prompt history](prompt-history.md) — replaying prompts that cited artifacts.
 - [Hand a result to another agent](../guides/hand-a-result-to-another-agent.md) —
   follow-up workflow.
+
+## `sase file`
+
+With no subcommand, `sase file` defaults to `sase file list`.
+
+<a id="cli-options-39"></a> Moved to [sase file](artifact-references.md#sase-file).
+
+## `sase file-history`
+
+With no subcommand, `sase file-history` defaults to `sase file-history list`.
+
+<a id="cli-options-40"></a> Moved to
+[sase file-history](artifact-references.md#sase-file-history).
+
+## `sase artifact`
+
+`sase artifact` creates, discovers, inspects, resolves, opens, and repairs indexed
+artifacts. Bare `sase artifact` delegates to `sase artifact list`, and
+`sase artifact-file` remains a compatibility alias for the whole group.
+
+`sase artifact create` is intended for code agents running with `SASE_AGENT=1` and
+`SASE_ARTIFACTS_DIR` set. It copies a generated file into persistent SASE artifact
+storage and associates it with the current agent so the Agents tab can open it with `A`,
+even after the agent has been dismissed and revived. `-k/--kind` accepts `chat`, `plan`,
+`image`, `markdown`, `pdf`, or `file` and defaults to a kind inferred from the file
+extension. `-m/--move` opts into removing the source after it is stored, `-l/--label`
+sets the display label (default: the source file name), and `-b/--bead [ID]` attaches
+the new `file:` reference to a bead (a bare `-b` uses the agent's `SASE_BEAD_ID` bead).
+On success the command prints the artifact's `id:`, absolute `source:`, stored `path:`,
+durable `ref:` (`file:<id>`), and `var: artifacts[<index>]` (`bead:` follows with
+`--bead`). It also records the artifact in the agent's SASE-managed `artifacts` output
+variable. Only `create` is agent-gated; every other artifact subcommand works outside an
+agent run.
+
+<a id="cli-options-47"></a> Moved to
+[sase artifact](artifact-references.md#sase-artifact).
+
+<a id="command-behavior-31"></a> Moved to
+[Artifact References](artifact-references.md#command-behavior-31).
+
+## Command behavior {#command-behavior-31}
+
+`list` filters: `-k/--kind` is repeatable and accepts the artifact kinds above;
+`-l/--limit` defaults to `50` and `0` means unlimited; `-p/--project` accepts a display
+name, alias, or canonical key and exits 2 for an unknown project; `-q/--query` is a
+case-insensitive substring match over label and paths; `-s/--since` accepts the same
+DATE forms as `sase plan search` (`YYYY-MM-DD`, `YYYY-MM`, `YYYYMM`, or relative `14d` /
+`3w` / `2m`); and `-u/--unused` shows only artifact files with no recorded `file:<id>`
+consumption. Pretty output is a Rich panel with KIND, REF, LABEL, PROJECT (display
+name), AGENT, SIZE, and CREATED columns; `-j/--json` emits every record field —
+including `sha256`, `size_bytes`, and `mime_type` — plus the rendered `ref`.
+
+`show`, `path`, and `open` accept canonical artifact references (`file:`, `stitch:`,
+`patch:`, `bead:`, `agent:`, and document kinds such as `plan:`, `research:`, or
+`designs:`). Historical `commit:`, `chat:`, `bug:`, and `plans:` aliases remain readable
+for compatibility. Document kinds and `file:` preserve supported `#L`, `#page=`, and
+`#t=` fragments; `bead:` and `agent:` reject fragments because they resolve to
+regenerated pages whose anchors can drift. `bead:` resolves to the generated bead page
+in the current project's beads sidecar, and `agent:` resolves to the generated
+`agents/<global-name>/README.md` page in the current project's agents sidecar, so `path`
+and `open` work for both after `sase bead pages refresh` or `sase agent sync` has
+published the page. Bead and agent resolution is intentionally scoped to the reference
+context's single project; foreign bead prefixes report `unknown_project` instead of
+scanning every enabled project.
+
+A bare `default:<hash>` or `explicit:<hash>` index id is accepted as sugar for
+`file:<id>`. `path` exits 0 on success, 1 when the reference is malformed, missing, or
+ambiguous (status and candidates go to stderr), and 2 for kinds with no filesystem
+identity (`stitch:`, `patch:`, and historical `commit:` / `bug:`), pointing at `show`
+instead. `open` treats historical `commit:` as non-viewable, opens historical `bug:` in
+a browser, and currently opens a canonical `stitch:` at its resolved checkout; `patch:`
+has no viewer path. `show` also reports consumption from the append-only
+`~/.sase/artifacts/consumption.jsonl` ledger: `consumption_count`, `consumed_by_agents`,
+`consuming_agents`, and `last_consumed_at` in pretty output, plus an additive
+`consumption` object in `-j/--json` output. `doctor` exits 1 when it finds missing
+enrichment fields, missing stored files, duplicate ids, unsupported schema versions,
+malformed rows, digest mismatches, or an unhealthy artifact-link graph. Its link report
+includes dangling refs, stale projections, durable-versus-aggregate counts, read-outbox
+counts, derived coverage, and relation/origin totals; see
+[Artifact Links](artifact-links.md#health-and-recovery).
+
+`stats`, `prune`, `reclaim`, and opt-in automatic retention use one shared protection
+collector. It unions IDs found in persistent ProjectSpec and SDD text with canonical
+fragment-free `file:` IDs recorded in the consumption ledger, then passes the
+deduplicated set to the applicable planner. Stats keeps referenced, consumed, overlap,
+and total protection counts distinct. Prune and reclaim are dry runs unless `--apply` is
+passed and never select explicit or protected rows; automatic retention enforces the
+same union after agent finalization when `artifacts.retention.enabled` is true. A
+missing consumption ledger contributes no IDs; a present ledger that cannot be queried
+appears in protection-source evidence and blocks destructive apply or skips automatic
+enforcement.
+
+Every removal `prune`, `reclaim`, and automatic retention perform routes through the
+restorable trash under `~/.sase/artifacts/trash/`: one directory per entry holding
+`entry.json` (the complete original index row plus `trashed_at`, `reason`, and
+`size_bytes`) and, for a byte-backed row, the moved payload file. Nothing else
+hard-deletes. `trash restore` puts the payload back and re-inserts the index row; only
+`trash purge` deletes permanently, and without `-a/--all` it deletes only entries older
+than `artifacts.retention.trash_grace_days`. Because trashed bytes still occupy disk,
+`du` does not drop until a purge runs; both apply summaries print the trash root, and
+`reclaim --apply` says so outright. See
+[Store Lifecycle](agent-attachments.md#store-lifecycle) for the end-to-end workflow.

@@ -345,3 +345,109 @@ See [TUI keymaps](../tui/keymaps.md) for the Services tab keybinding reference.
 - [Scheduler jobs](scheduler-jobs.md)
 - [Schedule recurring work](../../guides/schedule-recurring-work.md)
 - [Automation migration notes](../upgrading/automation.md)
+
+## `sase axe`
+
+`sase axe start|stop|restart|status` is an alias of the matching `sase scheduler`
+command. `-v/--vcs-provider` below is a `sase axe` group flag only; it applies to every
+`axe` subcommand and has no `scheduler` spelling.
+
+<a id="cli-options-4"></a> Moved to [sase axe](scheduler.md#sase-axe).
+
+## `sase axe status`
+
+Shows the `scheduler` service proc's status through the service host. Human output is
+the default; JSON output is deterministic and never contains Rich markup or ANSI
+escapes. `-j, --json` emits the proc record. See [Scheduler Status](#scheduler-status).
+
+<a id="cli-options-5"></a> Moved to [sase axe](../cli/axe.md).
+
+## `sase axe start`
+
+Asks the service host to start the `scheduler` service proc and waits for the host to
+confirm. This command takes no options; scheduler execution overrides belong to
+`sase scheduler run` and `sase axe routine run`.
+
+## `sase axe stop`
+
+Asks the service host to stop the `scheduler` service proc and returns once the request
+is recorded. It takes no flags.
+
+## `sase axe restart`
+
+Asks the service host to stop and start the `scheduler` service proc and waits for the
+host to confirm the new pid. This command takes no options.
+
+## `sase axe maintenance`
+
+Maintenance mode pauses scheduled routine ticks without stopping the orchestrator.
+
+<a id="cli-options-6"></a> Moved to [sase axe](../cli/axe.md).
+
+<a id="command-behavior-2"></a> Moved to [Scheduler](scheduler.md#command-behavior-2).
+
+## Command behavior {#command-behavior-2}
+
+See [axe.md — Maintenance Mode](#maintenance-mode) for the runtime behavior.
+
+## `sase axe job`
+
+With no subcommand, `sase axe job` defaults to `sase axe job list`. Use the explicit
+`list` or `doctor` subcommand when passing diagnostic flags.
+
+<a id="cli-options-7"></a> Moved to [sase axe](../cli/axe.md).
+
+<a id="command-behavior-3"></a> Moved to [Scheduler](scheduler.md#command-behavior-3).
+
+## Command behavior {#command-behavior-3}
+
+`sase axe job doctor` exits `1` when any check is `ERROR` (a configured script job
+cannot be resolved) and `0` otherwise. Unconfigured available scripts and Telegram
+prerequisite gaps report `WARN`. The same job diagnostics are also surfaced by
+`sase doctor -C axe.jobs`. The hidden legacy `sase axe chop ...` group accepts the same
+subcommands (plus the hidden `--chop-verbose` and `--lumberjack` spellings) and keeps
+its schema-version-1 JSON; see [Compatibility aliases](#compatibility-aliases).
+
+## `sase axe routine`
+
+With no subcommand, `sase axe routine` defaults to `sase axe routine list`.
+
+<a id="cli-options-8"></a> Moved to [sase axe](../cli/axe.md).
+
+<a id="command-behavior-4"></a> Moved to [Scheduler](scheduler.md#command-behavior-4).
+
+## Command behavior
+
+Both listings print only the description summary line by default so the output stays
+scannable; `-v/--verbose` renders the full
+[description](scheduler-description-grammar.md#description-grammar).
+`sase axe routine run` takes the routine name positionally; its runner flags are the
+ones the orchestrator forwards when it spawns routines. The hidden legacy
+`sase axe lumberjack ...` group accepts the same subcommands.
+
+## Automation
+
+Flag and option details live in the generated [CLI command groups](../cli/index.md):
+
+- [sase scheduler](../cli/scheduler.md), [sase axe](../cli/axe.md)
+
+Workflows: [Scheduler]().
+
+The scheduler runs scheduled hooks, mentors, comment polling, workflow checks, `%wait`
+dependency resolution, cleanup, and error digests. sase's TUI starts the service host
+unless launched with `sase tui --no-service` (`--no-axe`).
+`sase axe start|stop|restart|status` is an alias of the matching `sase scheduler`
+command. The older `sase axe chop ...` and `sase axe lumberjack ...` spellings remain
+hidden compatibility aliases for `sase axe job ...` and `sase axe routine ...`; see
+[Compatibility aliases](#compatibility-aliases).
+
+Flag and option details live in the generated [CLI command groups](../cli/index.md):
+
+- [sase monitor](../cli/monitor.md), [sase pipe](../cli/pipe.md)
+
+Workflows: [Monitors](monitors.md).
+
+A long command (`just check-full`, a CI wait, a deploy) should run under a monitor
+rather than blocking an agent turn — see the `/sase_monitor` skill. Handing this agent's
+own turn to a successor is a different, in-process hand-off — see the `/sase_handoff`
+skill.

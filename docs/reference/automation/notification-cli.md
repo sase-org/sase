@@ -319,3 +319,30 @@ See [`sase notify`](../cli/notify.md#sase-notify) for the full CLI reference.
 - [Notification types](notification-types.md)
 - [`sase notify`](../cli/notify.md)
 - [Automation migration notes](../upgrading/automation.md)
+
+## `sase notify`
+
+With no subcommand, `sase notify` defaults to the compact `sase notify list` view. Use
+`sase notify list` for JSON, limit, query, unread, dismissed, or the clearest sender/tag
+filtering form. Use `sase notify create` to write a raw, non-privileged notification
+from stdin JSON. Use `sase gate create` and `sase gate wait` for command-backed gates.
+
+<a id="cli-options-45"></a> Moved to [sase notify](notification-cli.md#sase-notify).
+
+<a id="command-behavior-29"></a> Moved to
+[Notification CLI](notification-cli.md#command-behavior-29).
+
+## Command behavior {#command-behavior-29}
+
+Raw creation accepts JSON `icon`, `tags`, and `silent` fields plus repeatable
+`-t/--tag`; icons must be one emoji or display glyph, and CLI tags are appended to JSON
+tags, then normalized and deduplicated. Raw creation cannot create a registered
+privileged gate action. The query form, `sase notify list -q`, also matches tags, and
+`sase notify list --tag <tag>` filters to notifications with that exact normalized tag.
+
+`notify +1` never changes read, dismissed, muted, snoozed, ordering, or delivery state.
+When `notify create` uses a dedup key, `--plus-one-note` is required: it is appended on
+a match, while a miss creates the row. `--supersedes` identifies an old sender-scoped
+key to annotate and dismiss only when that miss creates the replacement; it has no
+effect when the current dedup key already matches a row. See
+[Notification `+1` Evidence](notifications.md#1-evidence).

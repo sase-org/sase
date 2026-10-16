@@ -10,6 +10,18 @@ description: "Generated CLI reference, one page per sase command group."
 One page per `sase` command group, generated from the argparse tree.
 Start here to find the group that owns a workflow.
 
+SASE - Structured Agentic Software Engineering. Root options appear before the command; options after it belong to the selected command.
+
+## Global options
+
+| Option                                  | Description                                                                                                                                                                               | Default |
+| --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
+| `-F <flag>`, `--disable-feature <flag>` | Force a registered feature flag off for this invocation and every process it launches. Repeatable; overrides config layers, a saved machine preference, and inherited SASE_FEATURE_FLAGS. | —       |
+| `-f <flag>`, `--enable-feature <flag>`  | Force a registered feature flag on for this invocation and every process it launches. Repeatable; overrides config layers, a saved machine preference, and inherited SASE_FEATURE_FLAGS.  | —       |
+| `-H`, `--full-help`                     | show full command inventory and exit                                                                                                                                                      | —       |
+| `-h`, `--help`                          | show compact help and exit                                                                                                                                                                | —       |
+| `-p`, `--print-command`                 | Print a shell-quoted `sase ...` header to stderr before running; omit this switch, keep feature overrides, and skip tab completion.                                                       | —       |
+
 Groups:
 
 | Group                                  | Summary                                                                           |

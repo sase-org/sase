@@ -55,19 +55,19 @@ Register an existing repository as an enabled SASE project. New projects are ena
 
 Options:
 
-| Option                               | Description                                                                                                             | Default |
-| ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------- | ------- |
-| `-a ALIAS`, `--alias ALIAS`          | Add a project alias (repeatable)                                                                                        | —       |
-| `-c`, `--check`                      | Show the read-only plan without applying it                                                                             | `false` |
-| `-h`, `--help`                       | show this help message and exit                                                                                         | —       |
-| `-j`, `--json`                       | Emit a plan document or NDJSON apply events                                                                             | `false` |
-| `-m`, `--make-current`               | Make the registered project current                                                                                     | `false` |
-| `-n NAME`, `--name NAME`             | Set the project display name                                                                                            | —       |
-| `-S NO_SETUP`, `--no-setup NO_SETUP` | Register without the remote management commit and push                                                                  | `false` |
-| `-Q PATH`, `--request-path PATH`     | Private versioned operation request sidecar. Defaults to $SASE_PROC_REQUEST_PATH when that environment variable is set. | —       |
-| `-R PATH`, `--result-path PATH`      | Private versioned typed result sidecar. Defaults to $SASE_PROC_RESULT_PATH when that environment variable is set.       | —       |
-| `-s SETUP`, `--setup SETUP`          | Request SASE management setup (human-only commit and push)                                                              | `false` |
-| `-y`, `--yes`                        | Apply without a confirmation prompt                                                                                     | `false` |
+| Option                           | Description                                                                                                             | Default |
+| -------------------------------- | ----------------------------------------------------------------------------------------------------------------------- | ------- |
+| `-a ALIAS`, `--alias ALIAS`      | Add a project alias (repeatable)                                                                                        | —       |
+| `-c`, `--check`                  | Show the read-only plan without applying it                                                                             | `false` |
+| `-h`, `--help`                   | show this help message and exit                                                                                         | —       |
+| `-j`, `--json`                   | Emit a plan document or NDJSON apply events                                                                             | `false` |
+| `-m`, `--make-current`           | Make the registered project current                                                                                     | `false` |
+| `-n NAME`, `--name NAME`         | Set the project display name                                                                                            | —       |
+| `-S`, `--no-setup`               | Register without the remote management commit and push                                                                  | `false` |
+| `-Q PATH`, `--request-path PATH` | Private versioned operation request sidecar. Defaults to $SASE_PROC_REQUEST_PATH when that environment variable is set. | —       |
+| `-R PATH`, `--result-path PATH`  | Private versioned typed result sidecar. Defaults to $SASE_PROC_RESULT_PATH when that environment variable is set.       | —       |
+| `-s`, `--setup`                  | Request SASE management setup (human-only commit and push)                                                              | `false` |
+| `-y`, `--yes`                    | Apply without a confirmation prompt                                                                                     | `false` |
 
 Arguments:
 
@@ -195,11 +195,11 @@ Options:
 | `-j`, `--json`                             | Emit a plan document or NDJSON apply events                                                                             | `false` |
 | `-m`, `--make-current`                     | Make the registered project current                                                                                     | `false` |
 | `-n NAME`, `--name NAME`                   | Set the project display name                                                                                            | —       |
-| `-S NO_SETUP`, `--no-setup NO_SETUP`       | Register without the remote management commit and push                                                                  | `false` |
+| `-S`, `--no-setup`                         | Register without the remote management commit and push                                                                  | `false` |
 | `-O KEY=VALUE`, `--option KEY=VALUE`       | Provider creation option (repeatable; validated strictly)                                                               | —       |
 | `-Q PATH`, `--request-path PATH`           | Private versioned operation request sidecar. Defaults to $SASE_PROC_REQUEST_PATH when that environment variable is set. | —       |
 | `-R PATH`, `--result-path PATH`            | Private versioned typed result sidecar. Defaults to $SASE_PROC_RESULT_PATH when that environment variable is set.       | —       |
-| `-s SETUP`, `--setup SETUP`                | Request SASE management setup (human-only commit and push)                                                              | `false` |
+| `-s`, `--setup`                            | Request SASE management setup (human-only commit and push)                                                              | `false` |
 | `-v VISIBILITY`, `--visibility VISIBILITY` | Repository visibility (sugar for --option visibility=VISIBILITY)                                                        | —       |
 | `-y`, `--yes`                              | Apply without a confirmation prompt                                                                                     | `false` |
 

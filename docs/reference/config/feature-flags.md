@@ -184,3 +184,35 @@ Source: `src/sase/feature_flags/registry.py`, `src/sase/feature_flags/schema.py`
   keys.
 - [Feature flag reference](../tui/machines-and-tools.md#config-flags-pane) — flag
   controls.
+
+## `sase flag`
+
+With no subcommand, `sase flag` defaults to `sase flag list`.
+
+<a id="cli-options-32"></a> Moved to [sase flag](feature-flags.md#sase-flag).
+
+<a id="command-behavior-20"></a> Moved to
+[Feature flag configuration](feature-flags.md#command-behavior-20).
+
+## Command behavior {#command-behavior-20}
+
+Unknown keys on `enable`/`disable` exit `2`. Store or scheduler-restart failures exit
+`1`; JSON then has `"ok": false` with the preference still recorded under `mutation`.
+`--json` emits one versioned document with separate `mutation` and `restart` objects.
+Neither command edits portable config files.
+
+A non-empty human `sase flag list` ends with a compact statistics footer: how many flags
+were rendered and which kinds they use, how many resolve on versus off, how many
+decisions came from a layer above the registry default, and whether any loaded removal
+bead is soon or due. Homogeneous kind or on/off values fold into the count head. For
+example:
+
+```text
+3 flags · 2 beta  1 sunset · 2 on  1 off · 1 overridden · ⧗ 1 soon  ⧗ 1 due
+```
+
+`--json` keeps schema version 1 and does not include this footer.
+
+`new` requires a SASE-managed checkout because the registry lives in this source tree.
+`--when-enabled`, `--when-disabled`, and `--remove-when` are required and each accepts
+`@<path>`. `-k/--kind` is `beta` (default; off) or `sunset` (on). There is no `--scope`.

@@ -476,3 +476,34 @@ STATUS: WIP
 
 - [Work units](index.md)
 - [Patches](patches.md)
+
+## `sase project`
+
+With no subcommand, `sase project` defaults to `sase project list`. Project lifecycle
+state is stored as `PROJECT_STATE` metadata in the ProjectSpec header; missing state
+means `enabled`.
+
+<a id="cli-options-13"></a> Moved to [sase project](project-spec.md#sase-project).
+
+<a id="command-behavior-7"></a> Moved to
+[ProjectSpec Format](project-spec.md#command-behavior-7).
+
+## Command behavior {#command-behavior-7}
+
+`sase project set-current` promotes an enabled project to the VCS macro MRU head without
+launching an agent. That is display and filter-seed context, not a lifecycle state; see
+[Current project](#current-project).
+
+Disabling refuses projects with live `RUNNING` claims or live artifact markers
+(`running.json`, `waiting.json`, or `pending_question.json`) unless `--force` is passed.
+Legacy `active` normalizes to enabled; `inactive`, `archived`, and `closed` normalize to
+disabled. Deprecated `activate`, `deactivate`, `archive`, and `close` command aliases
+remain accepted. The system-managed `home` project cannot be mutated. Normal launch and
+discovery surfaces default to enabled projects. `sibling` remains an internal
+backing-record marker for configured linked repos, not a third project state.
+
+sase's TUI exposes the same lifecycle mutations through the **Projects** tab of the SASE
+Admin Center (press `#`). That tab also supports marks for bulk lifecycle operations,
+alias editing with `A`, ProjectSpec editing through `$EDITOR`, confirmed deletion of
+whole SASE project directories, and the Repos/Workspaces inventory sub-tabs described
+above.

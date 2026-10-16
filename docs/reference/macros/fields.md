@@ -133,7 +133,7 @@ compact raw-template summary. Names and JSON are color-free and pipe-safe.
 template, composed expansion, source stack, aliases, calls, backlinks, unresolved calls,
 and cycle diagnostics.
 
-See [CLI Reference](../../cli.md#prompt-and-workflow-authoring).
+See [CLI Reference](cli-and-editor.md#prompt-and-workflow-authoring).
 
 Source: `src/sase/macro/snippet_bridge.py`, `src/sase/macro/models.py`,
 `src/sase/snippet/`

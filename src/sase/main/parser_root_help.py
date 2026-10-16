@@ -57,7 +57,7 @@ _COMPACT_ROOT_COMMANDS: tuple[CompactRootCommand, ...] = (
     ),
     CompactRootCommand(
         "memory",
-        "Inspect loaded memory, review proposals, and audit reference memory activity.",
+        "Inspect and initialize SASE memory, and audit reference memory activity.",
     ),
     CompactRootCommand(
         "patch",

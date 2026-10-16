@@ -425,3 +425,33 @@ reference-rendering links emits no section.
 - [Memory](index.md) — the memory reference hub.
 - [Memory history](history.md) — browse changes to memory records.
 - [Instruction bundles](instruction-bundles.md) — inspect generated instructions.
+
+## `sase memory`
+
+With no subcommand, `sase memory` defaults to `sase memory list`.
+
+<a id="cli-options-22"></a> Moved to [sase memory](memory.md#sase-memory).
+
+<a id="command-behavior-14"></a> Moved to [Memory](memory.md#command-behavior-14).
+
+## Command behavior {#command-behavior-14}
+
+`read` and `show` resolve each selector from the project's `sase/memory/` first and fall
+back to `~/sase/memory/`. The whole batch is resolved before anything is printed or
+logged, so one unknown selector fails the request. `-f/--format` accepts `markdown` (the
+default), `rich`, or `json`. `-d/--depth N` caps link and mention closure recursion
+(unlimited by default); `-d 0` prints only the requested selectors and lists every link
+as a reference. See [Memory](#audited-reads) for attribution and log details.
+
+Examples:
+
+```bash
+# read requires SASE agent identity
+sase memory read generated_skills.md --reason "Need generated skill context"
+sase memory read glossary:stitch glossary:patch -r "Need the terms"
+sase memory show generated_skills.md -f rich
+sase memory web show glossary agent
+sase memory log
+sase memory log --path generated_skills.md
+sase memory log --id <read-id>
+```

@@ -39,7 +39,7 @@ Every subcommand can emit machine-readable output, but not with the same flag: `
 differ by subcommand: `-f` is `--completion` on `start` but `--format` on `list` and
 `show`, and `-a` is `--agent` on `start` but `--all` on `list`, where `-l` is `--agent`.
 See `sase monitor --help` and each subcommand's `--help` for the complete flag
-reference, or [CLI Reference](../../cli.md).
+reference, or the [CLI command groups](../cli/index.md).
 
 `--diagnostics` reads the bounded stage diagnostics selected for a failed monitor;
 `--range START:END` reads a bounded byte interval from retained raw output. Both default

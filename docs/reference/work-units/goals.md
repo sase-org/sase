@@ -104,3 +104,15 @@ frozen, so those producers extend the ledger without breaking what exists here.
 
 - [Work units](index.md)
 - [Plans](plans.md)
+
+## `sase goal`
+
+Goals are durable records a person creates, lists, shows, edits, drops, reopens, and
+merges. Bare `sase goal` defaults to `sase goal list`, which shows unsettled goals with
+an honest freshness header (`synced Ns ago`, `local only`, or `never synced`) and footer
+chips (`↑ unpublished`, `refreshing…`, `⚠ N unreadable`). `-s/--status` filters the
+list; `done`, `dropped`, `settled`, and `all` scan history newest-first with `-n`
+defaulting to 20. `-j/--json` emits the wire structs the gateway consumes. `new`,
+`edit`, `drop`, `reopen`, `merge`, and `doctor --repair` are human verbs and refuse
+inside agent runs; `list`, `show`, and `doctor` work everywhere. See [Goals]() for the
+full tour.

@@ -92,3 +92,46 @@ usage, and troubleshooting.
 
 - [Macro reference](index.md)
 - [Directive catalog](directives.md)
+
+## `sase macro`
+
+With no subcommand, `sase macro` defaults to `sase macro list`.
+
+## `sase macro list`
+
+No flags. Outputs a JSON array of all available macros with name, type, source, inputs,
+tags, `is_skill`, and preview. Clients that insert references should prefer
+`kind`/`insertion` metadata when present so standalone workflows are inserted as
+`#!name` and inline-capable entries, including markdown macro swarms, are inserted as
+`#name`. Slash skill completion clients should filter to entries where `is_skill` is
+`true`.
+
+## `sase macro types`
+
+<a id="cli-options-18"></a>
+Moved to [sase macro](../cli/macro.md).
+
+<a id="command-behavior-12"></a>
+Moved to [Macro CLI and editor support](cli-and-editor.md#command-behavior-12).
+
+## Command behavior {#command-behavior-12}
+With no `NAME`, prints grouped tables of scalar, builtin, and plugin types. With `NAME`,
+shows one type's detail card. Unknown names exit 1.
+
+## Prompt And Workflow Authoring
+
+Flag and option details live in the generated
+[CLI command groups](../cli/index.md):
+
+- [sase macro](../cli/macro.md), [sase lsp](../cli/lsp.md),
+  [sase editor](../cli/editor.md), [sase file](../cli/file.md),
+  [sase file-history](../cli/file-history.md),
+  [sase skill](../cli/skill.md), [sase snippet](../cli/snippet.md)
+
+Workflows: [Macros](index.md), [Workflows](../workflows.md),
+[Editor integration](../integrations/editor.md).
+
+Use `#name(...)` for inline macro expansion and `#!workflow(...)` for standalone
+workflow references. Workspace references such as `+<project>`
+([project tag](reference-syntax.md#project-tags)), `#git:<project>`,
+and plugin-provided references are resolved before the prompt or workflow runs.

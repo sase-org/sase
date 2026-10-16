@@ -450,3 +450,15 @@ top of.
   workflow.
 - [Artifact references](artifact-references.md) — citing records in prompts.
 - [Editor integration](integrations/editor.md) — language-server prompt editing.
+
+## `sase chat`
+
+`sase chat` discovers and inspects saved agent chat transcripts. With no subcommand, it
+defaults to `sase chat list`. Subcommands:
+
+<a id="cli-options-50"></a> Moved to [sase chat](prompt-history.md#sase-chat).
+
+<a id="command-behavior-34"></a> Moved to
+[Prompt History and Draft Recovery](prompt-history.md#command-behavior-34).
+
+## Command behavior {#command-behavior-34}

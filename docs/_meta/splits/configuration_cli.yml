@@ -1,0 +1,276 @@
+to: reference/config/index.md
+sections:
+  CLI Flags: reference/cli-notes.md
+  CLI Flags > `sase (global)`: reference/cli-notes.md
+  CLI Flags > `sase (global)` > CLI options:
+    drop: true
+    anchor_target: reference/cli/index.md#global-options
+  CLI Flags > `sase tui`:
+    drop: true
+    anchor_target: reference/cli/tui.md#sase-tui
+  CLI Flags > `sase screenshot`: reference/tui/launching.md
+  CLI Flags > `sase screenshot` > CLI options:
+    drop: true
+    anchor_target: reference/cli/screenshot.md#sase-screenshot
+  CLI Flags > `sase tmux-agent`: reference/tui/launch-control.md
+  CLI Flags > `sase tmux-agent` > CLI options:
+    drop: true
+    anchor_target: reference/cli/tmux-agent.md#sase-tmux-agent
+  CLI Flags > `sase tmux-agent` > Command behavior: reference/tui/launch-control.md
+  CLI Flags > `sase service`: reference/agents/service-host.md
+  CLI Flags > `sase service` > CLI options:
+    drop: true
+    anchor_target: reference/cli/service.md#sase-service
+  CLI Flags > `sase service` > Command behavior: reference/agents/service-host.md
+  CLI Flags > `sase axe`: reference/automation/scheduler.md
+  CLI Flags > `sase axe` > CLI options:
+    drop: true
+    anchor_target: reference/cli/axe.md#sase-axe
+  CLI Flags > `sase axe status`: reference/automation/scheduler.md
+  CLI Flags > `sase axe status` > CLI options:
+    drop: true
+    anchor_target: reference/cli/axe.md
+  CLI Flags > `sase axe start`: reference/automation/scheduler.md
+  CLI Flags > `sase axe stop`: reference/automation/scheduler.md
+  CLI Flags > `sase axe restart`: reference/automation/scheduler.md
+  CLI Flags > `sase axe maintenance`: reference/automation/scheduler.md
+  CLI Flags > `sase axe maintenance` > CLI options:
+    drop: true
+    anchor_target: reference/cli/axe.md
+  CLI Flags > `sase axe maintenance` > Command behavior: reference/automation/scheduler.md
+  CLI Flags > `sase axe job`: reference/automation/scheduler.md
+  CLI Flags > `sase axe job` > CLI options:
+    drop: true
+    anchor_target: reference/cli/axe.md
+  CLI Flags > `sase axe job` > Command behavior: reference/automation/scheduler.md
+  CLI Flags > `sase axe routine`: reference/automation/scheduler.md
+  CLI Flags > `sase axe routine` > CLI options:
+    drop: true
+    anchor_target: reference/cli/axe.md
+  CLI Flags > `sase axe routine` > Command behavior: reference/automation/scheduler.md
+  CLI Flags > `sase stitch create`: reference/vcs/commit-workflows.md
+  CLI Flags > `sase stitch create` > CLI options:
+    drop: true
+    anchor_target: reference/cli/stitch.md
+  CLI Flags > `sase stitch`: reference/vcs/commit-workflows.md
+  CLI Flags > `sase stitch` > CLI options:
+    drop: true
+    anchor_target: reference/cli/stitch.md#sase-stitch
+  CLI Flags > `sase stitch` > Command behavior: reference/vcs/commit-workflows.md
+  CLI Flags > `sase patch search`: reference/work-units/patches.md
+  CLI Flags > `sase patch search` > CLI options:
+    drop: true
+    anchor_target: reference/cli/patch.md
+  CLI Flags > `sase patch search` > Command behavior: reference/work-units/patches.md
+  CLI Flags > `sase patch migrate-extension`: reference/work-units/patches.md
+  CLI Flags > `sase patch migrate-extension` > CLI options:
+    drop: true
+    anchor_target: reference/cli/patch.md
+  CLI Flags > `sase project`: reference/work-units/project-spec.md
+  CLI Flags > `sase project` > CLI options:
+    drop: true
+    anchor_target: reference/cli/project.md#sase-project
+  CLI Flags > `sase project` > Command behavior: reference/work-units/project-spec.md
+  CLI Flags > `sase repo`: reference/agents/workspaces.md
+  CLI Flags > `sase repo` > CLI options:
+    drop: true
+    anchor_target: reference/cli/repo.md#sase-repo
+  CLI Flags > `sase repo` > Command behavior: reference/agents/workspaces.md
+  CLI Flags > `sase revert`:
+    drop: true
+    anchor_target: reference/cli/revert.md#sase-revert
+  CLI Flags > `sase restore`: reference/work-units/patches.md
+  CLI Flags > `sase restore` > CLI options:
+    drop: true
+    anchor_target: reference/cli/restore.md#sase-restore
+  CLI Flags > `sase restore` > Command behavior: reference/work-units/patches.md
+  CLI Flags > `sase run`: reference/agents/agent-launches.md
+  CLI Flags > `sase run` > CLI options:
+    drop: true
+    anchor_target: reference/cli/run.md#sase-run
+  CLI Flags > `sase run` > Command behavior: reference/agents/agent-launches.md
+  CLI Flags > `sase repro`: reference/tui/agent-workflows.md
+  CLI Flags > `sase repro` > CLI options:
+    drop: true
+    anchor_target: reference/cli/repro.md#sase-repro
+  CLI Flags > `sase repro` > Command behavior: reference/tui/agent-workflows.md
+  CLI Flags > `sase macro`: reference/macros/cli-and-editor.md
+  CLI Flags > `sase macro expand`:
+    drop: true
+    anchor_target: reference/cli/macro.md
+  CLI Flags > `sase macro explain`:
+    drop: true
+    anchor_target: reference/cli/macro.md
+  CLI Flags > `sase macro list`: reference/macros/cli-and-editor.md
+  CLI Flags > `sase macro show`:
+    drop: true
+    anchor_target: reference/cli/macro.md
+  CLI Flags > `sase macro graph`:
+    drop: true
+    anchor_target: reference/cli/macro.md
+  CLI Flags > `sase macro catalog`:
+    drop: true
+    anchor_target: reference/cli/macro.md
+  CLI Flags > `sase macro types`: reference/macros/cli-and-editor.md
+  CLI Flags > `sase macro types` > CLI options:
+    drop: true
+    anchor_target: reference/cli/macro.md
+  CLI Flags > `sase macro types` > Command behavior: reference/macros/cli-and-editor.md
+  CLI Flags > `sase init`: reference/agents/initialization.md
+  CLI Flags > `sase init` > CLI options:
+    drop: true
+    anchor_target: reference/cli/init.md#sase-init
+  CLI Flags > `sase machine`: reference/agents/machine-initialization.md
+  CLI Flags > `sase machine` > CLI options:
+    drop: true
+    anchor_target: reference/cli/machine.md#sase-machine
+  CLI Flags > `sase machine` > Command behavior: reference/agents/machine-initialization.md
+  CLI Flags > `sase instructions`: reference/memory/instruction-bundles.md
+  CLI Flags > `sase instructions` > CLI options:
+    drop: true
+    anchor_target: reference/cli/instructions.md#sase-instructions
+  CLI Flags > `sase memory`: reference/memory/memory.md
+  CLI Flags > `sase memory` > CLI options:
+    drop: true
+    anchor_target: reference/cli/memory.md#sase-memory
+  CLI Flags > `sase memory` > Command behavior: reference/memory/memory.md
+  CLI Flags > `sase memory init`: reference/agents/memory-initialization.md
+  CLI Flags > `sase memory init` > CLI options:
+    drop: true
+    anchor_target: reference/cli/memory.md
+  CLI Flags > `sase init repo`: reference/agents/initialization.md
+  CLI Flags > `sase init repo` > CLI options:
+    drop: true
+    anchor_target: reference/cli/init.md
+  CLI Flags > `sase skill`: reference/memory/instruction-bundles.md
+  CLI Flags > `sase skill` > CLI options:
+    drop: true
+    anchor_target: reference/cli/skill.md#sase-skill
+  CLI Flags > `sase repo init`: reference/agents/workspaces.md
+  CLI Flags > `sase tool`: reference/automation/tools.md
+  CLI Flags > `sase tool` > CLI options:
+    drop: true
+    anchor_target: reference/cli/tool.md#sase-tool
+  CLI Flags > `sase tool` > Command behavior: reference/automation/tools.md
+  CLI Flags > `sase disk`: reference/disk-cleanup.md
+  CLI Flags > `sase disk` > CLI options:
+    drop: true
+    anchor_target: reference/cli/disk.md#sase-disk
+  CLI Flags > `sase disk` > Command behavior: reference/disk-cleanup.md
+  CLI Flags > `sase workspace`: reference/agents/workspaces.md
+  CLI Flags > `sase workspace` > CLI options:
+    drop: true
+    anchor_target: reference/cli/workspace.md#sase-workspace
+  CLI Flags > `sase workspace` > Command behavior: reference/agents/workspaces.md
+  CLI Flags > `sase bead`: reference/work-units/bead-cli.md
+  CLI Flags > `sase bead` > CLI options:
+    drop: true
+    anchor_target: reference/cli/bead.md#sase-bead
+  CLI Flags > `sase bead` > Command behavior: reference/work-units/bead-cli.md
+  CLI Flags > SDD repository and plan commands: reference/work-units/plan-cli.md
+  CLI Flags > SDD repository and plan commands > CLI options:
+    drop: true
+    anchor_target: reference/cli/plan.md#sase-plan-links
+  CLI Flags > `sase validate`: reference/diagnostics.md
+  CLI Flags > `sase doctor`: reference/diagnostics.md
+  CLI Flags > `sase doctor` > CLI options:
+    drop: true
+    anchor_target: reference/cli/doctor.md#sase-doctor
+  CLI Flags > `sase doctor` > Command behavior: reference/diagnostics.md
+  CLI Flags > `sase flag`: reference/config/feature-flags.md
+  CLI Flags > `sase flag` > CLI options:
+    drop: true
+    anchor_target: reference/cli/flag.md#sase-flag
+  CLI Flags > `sase flag` > Command behavior: reference/config/feature-flags.md
+  CLI Flags > `sase file-hook`: reference/config/prompts-and-tools.md
+  CLI Flags > `sase file-hook` > CLI options:
+    drop: true
+    anchor_target: reference/cli/file-hook.md#sase-file-hook
+  CLI Flags > `sase file-hook` > Command behavior: reference/config/prompts-and-tools.md
+  CLI Flags > `sase version`: reference/diagnostics.md
+  CLI Flags > `sase version` > CLI options:
+    drop: true
+    anchor_target: reference/cli/version.md#sase-version
+  CLI Flags > `sase var`: reference/agents/output-variables.md
+  CLI Flags > `sase var` > CLI options:
+    drop: true
+    anchor_target: reference/cli/var.md#sase-var
+  CLI Flags > `sase var` > Command behavior: reference/agents/output-variables.md
+  CLI Flags > `sase telemetry`: reference/diagnostics.md
+  CLI Flags > `sase telemetry` > CLI options:
+    drop: true
+    anchor_target: reference/cli/telemetry.md#sase-telemetry
+  CLI Flags > `sase telemetry` > Command behavior: reference/diagnostics.md
+  CLI Flags > `sase logs`: reference/diagnostics.md
+  CLI Flags > `sase logs` > CLI options:
+    drop: true
+    anchor_target: reference/cli/logs.md#sase-logs
+  CLI Flags > `sase logs` > Command behavior: reference/diagnostics.md
+  CLI Flags > `sase editor`: reference/integrations/editor.md
+  CLI Flags > `sase editor` > CLI options:
+    drop: true
+    anchor_target: reference/cli/editor.md#sase-editor
+  CLI Flags > `sase editor` > Command behavior: reference/integrations/editor.md
+  CLI Flags > `sase file`: reference/artifact-references.md
+  CLI Flags > `sase file` > CLI options:
+    drop: true
+    anchor_target: reference/cli/file.md#sase-file
+  CLI Flags > `sase file-history`: reference/artifact-references.md
+  CLI Flags > `sase file-history` > CLI options:
+    drop: true
+    anchor_target: reference/cli/file-history.md#sase-file-history
+  CLI Flags > `sase gate`: reference/automation/notification-gates.md
+  CLI Flags > `sase gate` > CLI options:
+    drop: true
+    anchor_target: reference/cli/gate.md#sase-gate
+  CLI Flags > `sase gate` > Command behavior: reference/automation/notification-gates.md
+  CLI Flags > `sase sudo`: reference/automation/sudo.md
+  CLI Flags > `sase sudo` > CLI options:
+    drop: true
+    anchor_target: reference/cli/sudo.md#sase-sudo
+  CLI Flags > `sase sudo` > Command behavior: reference/automation/sudo.md
+  CLI Flags > `sase lsp`: reference/integrations/editor.md
+  CLI Flags > `sase lsp` > CLI options:
+    drop: true
+    anchor_target: reference/cli/lsp.md#sase-lsp
+  CLI Flags > `sase path`:
+    drop: true
+    anchor_target: reference/cli/path.md#sase-path
+  CLI Flags > `sase usage`: reference/diagnostics.md
+  CLI Flags > `sase usage` > CLI options:
+    drop: true
+    anchor_target: reference/cli/usage.md#sase-usage
+  CLI Flags > `sase usage` > Command behavior: reference/diagnostics.md
+  CLI Flags > `sase notify`: reference/automation/notification-cli.md
+  CLI Flags > `sase notify` > CLI options:
+    drop: true
+    anchor_target: reference/cli/notify.md#sase-notify
+  CLI Flags > `sase notify` > Command behavior: reference/automation/notification-cli.md
+  CLI Flags > `sase plan`: reference/work-units/plan-cli.md
+  CLI Flags > `sase plan` > CLI options:
+    drop: true
+    anchor_target: reference/cli/plan.md#sase-plan
+  CLI Flags > `sase plan` > Command behavior: reference/work-units/plan-cli.md
+  CLI Flags > `sase artifact`: reference/artifact-references.md
+  CLI Flags > `sase artifact` > CLI options:
+    drop: true
+    anchor_target: reference/cli/artifact.md#sase-artifact
+  CLI Flags > `sase artifact` > Command behavior: reference/artifact-references.md
+  CLI Flags > `sase questions`:
+    drop: true
+    anchor_target: reference/cli/questions.md#sase-questions
+  CLI Flags > `sase agent`: reference/agents/agent-sessions.md
+  CLI Flags > `sase agent` > CLI options:
+    drop: true
+    anchor_target: reference/cli/agent.md#sase-agent
+  CLI Flags > `sase agent` > Command behavior: reference/agents/agent-sessions.md
+  CLI Flags > `sase agent-cli`: reference/providers/agent-clis.md
+  CLI Flags > `sase agent-cli` > CLI options:
+    drop: true
+    anchor_target: reference/cli/agent-cli.md#sase-agent-cli
+  CLI Flags > `sase agent-cli` > Command behavior: reference/providers/agent-clis.md
+  CLI Flags > `sase chat`: reference/prompt-history.md
+  CLI Flags > `sase chat` > CLI options:
+    drop: true
+    anchor_target: reference/cli/chat.md#sase-chat
+  CLI Flags > `sase chat` > Command behavior: reference/prompt-history.md

@@ -46,11 +46,11 @@
 
 ## Reference
 
-- [CLI Reference](https://sase.sh/cli/) — CLI Reference — This page is a command index for the top-level sase CLI.
 - [Agent Attachments and Image Previews](https://sase.sh/reference/agent-attachments/) — Images and videos agents produce, and how sase's TUI previews them.
 - [Agent auto-restart](https://sase.sh/reference/agent-auto-restart/) — Recovery service for agents interrupted by a live update, and its limits.
 - [Agent revive log](https://sase.sh/reference/agent-revive-log/) — Audit records for TUI agent revival, and how to read them.
 - [Agent clans](https://sase.sh/reference/agents/agent-clans/) — Look up how parallel agent sessions are grouped and displayed.
+- [Agent holds](https://sase.sh/reference/agents/agent-holds/) — Admission barriers for agents and undispatched procs.
 - [Agent-initiated launches](https://sase.sh/reference/agents/agent-launches/) — Look up how an agent starts another session or workflow.
 - [Agent sessions](https://sase.sh/reference/agents/agent-sessions/) — Look up sequential agent sessions and their shared history.
 - [Agent tribes](https://sase.sh/reference/agents/agent-tribes/) — Look up how agents are grouped into persistent tribes.
@@ -59,6 +59,7 @@
 - [Initialization](https://sase.sh/reference/agents/initialization/) — Look up project initialization commands and the files they manage.
 - [Machine initialization](https://sase.sh/reference/agents/machine-initialization/) — Look up remote machine enrollment through SASE initialization.
 - [Memory initialization](https://sase.sh/reference/agents/memory-initialization/) — Look up how SASE initializes, lists, and audits agent memory.
+- [Agent output variables](https://sase.sh/reference/agents/output-variables/) — Publish and consume typed values from agent runs.
 - [Service host initialization](https://sase.sh/reference/agents/service-host/) — Look up how SASE initializes its per-user service host.
 - [Workspaces](https://sase.sh/reference/agents/workspaces/) — Look up workspace storage, repository commands, and workspace commands.
 - [Artifact Links](https://sase.sh/reference/artifact-links/) — Typed relationships between durable SASE artifacts.
@@ -81,6 +82,7 @@
 - [Scheduler](https://sase.sh/reference/automation/scheduler/) — Scheduler commands, lifecycle, recovery, state, and SASE integration.
 - [Sudo requests](https://sase.sh/reference/automation/sudo/) — Request, review, and recover privileged commands run on behalf of SASE agents.
 - [Named tools and ToolRuns](https://sase.sh/reference/automation/tools/) — Declare named tools and run commands with retained output and evidence.
+- [CLI behavior notes](https://sase.sh/reference/cli-notes/) — Root command behavior and links to CLI command and subsystem references.
 - [sase agent-cli](https://sase.sh/reference/cli/agent-cli/) — Inspect the coding-agent CLIs supported by SASE and install or update installs whose management method can be identified safely.
 - [sase agent](https://sase.sh/reference/cli/agent/) — Inspect and manage agents across projects.
 - [sase artifact](https://sase.sh/reference/cli/artifact/) — Create, discover, inspect, resolve, open, and repair indexed artifacts.
@@ -182,6 +184,8 @@
 - [Workspace configuration behavior](https://sase.sh/reference/config/workspace-behavior/) — Configuration for workspace directory layout and lifecycle.
 - [Content layout](https://sase.sh/reference/content-layout/) — Canonical paths for project and home SASE content.
 - [Design decisions](https://sase.sh/reference/design-decisions/) — Why SASE works this way, generated from the decisions memory web.
+- [Diagnostics and support reports](https://sase.sh/reference/diagnostics/) — Read-only validation, diagnostics, logs, and support bundle behavior.
+- [SASE disk cleanup](https://sase.sh/reference/disk-cleanup/) — Inspect SASE-created bytes and delegate cleanup to the owning subsystem.
 - [Environment variables](https://sase.sh/reference/environment-variables/) — Environment variables that configure providers, SDD, plugins, runtime, and workspaces.
 - [Glossary](https://sase.sh/reference/glossary/) — Every SASE term, generated from the glossary memory web.
 - [Reference](https://sase.sh/reference/) — Look up exact SASE facts here, generated from code where possible.
@@ -294,6 +298,7 @@
 - [Bead TUI integration](https://sase.sh/reference/work-units/bead-tui/) — How SASE's TUI connects bead records with plans and task work.
 - [Starting bead work](https://sase.sh/reference/work-units/bead-work/) — How `sase bead work` resolves plans and starts assigned bead work.
 - [Beads](https://sase.sh/reference/work-units/beads/) — Bead identities, types, and the data model for work in SASE.
+- [Work tracking CLI workflows](https://sase.sh/reference/work-units/cli-workflows/) — How CLI workflows connect beads, plans, goals, projects, and Patches.
 - [Goals](https://sase.sh/reference/work-units/goals/) — Durable outcome records and their lifecycle, storage, and freshness.
 - [Work units](https://sase.sh/reference/work-units/) — Reference pages for SASE's beads, plans, goals, Patches, and ProjectSpec files.
 - [Patches](https://sase.sh/reference/work-units/patches/) — The fields, format, and lifecycle of a SASE Patch review record.
@@ -354,8 +359,9 @@
 - [Agent Hood Synchronization](https://sase.sh/agents_sidecar/) — This page has moved to its new home.
 - [Scheduler — Background Automation](https://sase.sh/axe/) — This page has moved to its new home.
 - [Bead Issue Tracking](https://sase.sh/beads/) — This page has moved to its new home.
+- [CLI Reference](https://sase.sh/cli/) — CLI Reference — Moved to CLI command groups.
 - [Commit Workflows](https://sase.sh/commit_workflows/) — This page has moved to its new home.
-- [Configuration Reference](https://sase.sh/configuration/) — Configuration Reference — Moved to Configuration files and merging.
+- [Configuration Reference](https://sase.sh/configuration/) — Configuration Reference — Moved to Configuration reference.
 - [Canonical SASE Content Layout](https://sase.sh/content_layout/) — This page has moved to its new home.
 - [Initialization](https://sase.sh/init/) — This page has moved to its new home.
 - [Instruction Bundles](https://sase.sh/instruction_bundles/) — This page has moved to its new home.
@@ -428,3 +434,4 @@
 - https://sase.sh/artifact_references/ → https://sase.sh/reference/artifact-references/
 - https://sase.sh/artifact_links/ → https://sase.sh/reference/artifact-links/
 - https://sase.sh/pager/ → https://sase.sh/reference/tui/pager/
+- https://sase.sh/cli/ → https://sase.sh/reference/cli/

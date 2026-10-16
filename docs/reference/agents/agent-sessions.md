@@ -273,3 +273,66 @@ and [browsing page anatomy](hood-sync.md#browsing-page-anatomy).
 ## Related
 
 - [Agents and workspaces](index.md) — the section hub.
+
+## `sase agent`
+
+`sase agent` provides cross-project visibility into running agents and synchronizes
+shared agent history. Subcommands:
+
+<a id="cli-options-48"></a> Moved to [sase agent](agent-sessions.md#sase-agent).
+
+<a id="command-behavior-32"></a> Moved to
+[Agent sessions](agent-sessions.md#command-behavior-32).
+
+## Command behavior {#command-behavior-32}
+
+Agent-index paths default to `~/.sase/agent_artifact_index.sqlite` and
+`~/.sase/projects`. `sase agent index vacuum` is a dry run unless `-a`/`--apply` is
+supplied. It reports freelist pages left by normal SQLite deletes and dismissed-identity
+row counts. Apply runs SQLite `VACUUM` to rebuild the index file and reclaim that free
+space; it never removes or alters an index row. `-i/--index-path` selects another index
+and `-j/--json` emits the machine-readable report.
+
+`sase agent persist-cleanup`, `sase agent persist-directive`, and `sase agent revert`
+are durable-operation entrypoints that sase's TUI runs as procs; they read their details
+from the `-Q/--request-path` sidecar and are not meant for direct use.
+
+## `sase agent wait`
+
+`sase agent wait NAME ...` resolves each target the same way `%wait` does: clan, then
+agent session, then workflow, then exact agent name. A session target waits on the whole
+session, including successors that appear after the wait begins. `sase agent wait -a`
+waits for every eligible agent running at command start and deliberately does not absorb
+later unrelated launches; when run from inside an agent it excludes the calling agent's
+own session so `-a` cannot wait on itself. `-p/--project` scopes target resolution and
+the `--all` snapshot to one project.
+
+By default the command stops when a target cannot progress without a human: a pending
+question, a submitted plan awaiting review, or a stopped artifact with no completion
+marker exits `3`. Use `-w/--wait-blocked` only when you want the gate to keep polling
+through those states. `-t/--timeout` exits `4` if unfinished targets remain after the
+duration, and `-i/--interval` pins the poll interval instead of using the adaptive
+default.
+
+Exit codes are `0` when every target succeeded, `1` when any target finished
+unsuccessfully, `2` for command usage or resolution errors, `3` for human-blocked
+targets without `-w`, `4` for timeout, and `130`/`143` for `SIGINT`/`SIGTERM`.
+Precedence is `1 > 3 > 4` when more than one condition applies.
+
+Progress output goes to stderr. The final settle summary goes to stdout, and `-j/--json`
+prints one stdout JSON envelope with no progress noise, so gate JSON and command
+substitution both stay predictable.
+
+`sase agent list -j` reports every live runner-slot waiter as `status: "QUEUED"`,
+whether it is waiting on the global budget or an authored `%queue(capacity=N)`
+weighted-load threshold. Its `queue_weight` reports requested capacity units, and
+`runner_slot_queue_position`/`runner_slot_queue_size` rank the same waiters in the
+capacity-aware display order used by sase's TUI: eligible waiters first, then parked
+waiters by current blocker severity, with priority and request FIFO preserved inside
+each group. A waiter parked by an [agent hold](agent-holds.md#sase-agent-hold) also
+reports the blocking hold's armer in `held_by` and that hold's expiry in
+`hold_expires_at`. Each entry also exports the epic-follow state: `wait_for_epics_of`
+(armed follow targets) and `epic_follows` (per-target `launching` / `following` /
+`blocked` stages with `epic_ids`, `added_bead_ids`, and blocker details).
+`sase agent wait` rows use the same shared phrasing (`↪ waits on <target>'s epic <id>`)
+as the TUI lanes.

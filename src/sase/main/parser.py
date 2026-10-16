@@ -152,7 +152,10 @@ def create_parser(*, only: str | None = None) -> argparse.ArgumentParser:
     """Create the full argument parser, or only one top-level command tree."""
     parser = SaseArgumentParser(
         add_help=False,
-        description="SASE - Structured Agentic Software Engineering",
+        description=(
+            "SASE - Structured Agentic Software Engineering. Root options appear "
+            "before the command; options after it belong to the selected command."
+        ),
         prog="sase",
     )
     parser.add_argument(

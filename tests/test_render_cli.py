@@ -137,8 +137,21 @@ def test_canonical_groups_fold_aliases() -> None:
 
 def test_index_lists_groups() -> None:
     tool = _load()
-    _, bead = _parsers()
-    text = tool.render_index_text({"bead": bead}, {"bead": "Lightweight"})
+    root, bead = _parsers()
+    root.add_argument("-f", "--enable-feature", metavar="FLAG", help="Enable a flag")
+    root._add_action(
+        argparse.Action(
+            option_strings=["-H", "--full-help"],
+            dest="full_help",
+            nargs=0,
+            help="Show every command",
+        )
+    )
+    text = tool.render_index_text({"bead": bead}, {"bead": "Lightweight"}, root)
     assert text.startswith('---\ntitle: "CLI command groups"\n')
     assert "generated, do not edit" in text
+    assert "## Global options" in text
+    assert "`-f FLAG`, `--enable-feature FLAG`" in text
+    assert "`-H`, `--full-help`" in text
+    assert "--full-help FULL_HELP" not in text
     assert "[`sase bead`](bead.md)" in text

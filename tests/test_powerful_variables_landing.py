@@ -29,9 +29,12 @@ def test_sase_core_rs_floor_is_published_powerful_variable_release() -> None:
     assert _declared_core_floor() >= POWERFUL_VARIABLE_CORE_FLOOR
 
 
-def test_configuration_documents_complete_sase_var_contract() -> None:
-    text = (ROOT / "docs" / "configuration.md").read_text(encoding="utf-8")
-    section = text.split("### `sase var`", 1)[1].split("### `sase telemetry`", 1)[0]
+def test_output_variables_and_generated_cli_document_sase_var_contract() -> None:
+    topic = (ROOT / "docs/reference/agents/output-variables.md").read_text(
+        encoding="utf-8"
+    )
+    cli = (ROOT / "docs/reference/cli/var.md").read_text(encoding="utf-8")
+    section = topic + "\n" + cli
     flat = " ".join(section.split())
 
     for required in [
@@ -40,10 +43,10 @@ def test_configuration_documents_complete_sase_var_contract() -> None:
         "`sase var get SELECTOR [...]`",
         "`sase var list`",
         "`sase var set KEY=VALUE [...]`",
-        "-f pretty\\|raw\\|json\\|jsonl",
+        "Snapshot reads accept `--format pretty` or `json`; selectors also accept `raw` and `jsonl`",
         "--value-json JSON",
         "[SCOPE.]KEY[PATH ...]",
-        "`--format raw` prints",
+        "`--format raw` prints one",
         "one value only",
         "`--format jsonl` emits one compact JSON object per match",
         "sase var get '<build>' --format json",
@@ -55,16 +58,6 @@ def test_configuration_documents_complete_sase_var_contract() -> None:
     assert "sase var show" not in section
     documented = set(re.findall(r"`sase var ([a-z]+)", section))
     assert documented == {"get", "list", "set"}
-
-    table = section.split("| Form", 1)[1].split("\n\n", 1)[0]
-    assert table.index("`sase var get`") < table.index("`sase var get '<AGENT_NAME>'`")
-    assert table.index("`sase var get '<AGENT_NAME>'`") < table.index(
-        "`sase var get SELECTOR [...]`"
-    )
-    assert table.index("`sase var get SELECTOR [...]`") < table.index("`sase var list`")
-    assert table.index("`sase var list`") < table.index(
-        "`sase var set KEY=VALUE [...]`"
-    )
 
 
 def test_published_docs_do_not_restore_var_show() -> None:

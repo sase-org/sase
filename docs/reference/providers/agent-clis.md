@@ -689,7 +689,7 @@ same bounded history used by sase's TUI, `,U`, and `,E` at
 override that file's maximum size; runs where no command reaches a terminal outcome are
 not recorded.
 
-This command manages the provider CLIs only. Use [`sase update`](../../cli.md) to
+This command manages the provider CLIs only. Use [`sase update`](../cli/update.md) to
 upgrade SASE itself and its plugins.
 
 The same inventory is available inside sase's TUI, as the **Agent CLIs** section of the
@@ -702,3 +702,20 @@ for missing CLIs with `*` mark-all, and confirmation previews. See the
 - [Providers and models](index.md) — provider integrations and model routing.
 - [Instruction bundles](../memory/instruction-bundles.md) — how providers receive
   instructions.
+
+## `sase agent-cli`
+
+`sase agent-cli` inventories the supported coding-agent CLIs, installs the ones whose
+provider declares an install script, and updates the ones whose install method can be
+identified safely. With no subcommand, it defaults to `sase agent-cli list`. See
+[Agent providers](#inventory-and-updates) for the per-install-method update behavior.
+
+<a id="cli-options-49"></a> Moved to [sase agent-cli](agent-clis.md#sase-agent-cli).
+
+<a id="command-behavior-33"></a> Moved to
+[Installing & Authenticating Agent Providers](agent-clis.md#command-behavior-33).
+
+## Command behavior {#command-behavior-33}
+
+`-o/--offline` uses only cached latest-version data and never contacts the network;
+`-r/--refresh` bypasses that cache.

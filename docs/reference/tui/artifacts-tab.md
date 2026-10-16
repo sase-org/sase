@@ -311,7 +311,7 @@ one-line note for `external` Patches, since AXE excludes external-origin Patches
 its candidate selection entirely (see [AXE](../automation/scheduler.md)). Press
 `!o` on a PR row (see [PR Actions](#pr-actions) above) to open the Mark PR Origin modal
 and set it explicitly, or run `sase patch set-origin <name> <sase|external|unknown>`
-(see [CLI Reference](../../cli.md#work-tracking-and-planning)). See
+(see [CLI Reference](../work-units/cli-workflows.md#work-tracking-and-planning)). See
 [PR_ORIGIN](../work-units/patches.md#pr_origin) and
 [Origin Matching](../query-language.md#origin-matching) for the underlying Patch
 field and the `origin:` query property.

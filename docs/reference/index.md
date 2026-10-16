@@ -9,8 +9,9 @@ Exact SASE facts; guides teach workflows.
 
 ## CLI
 
-- [CLI reference](../cli.md) — command index and routing
+- [CLI behavior notes](cli-notes.md) — root command behavior and routing
 - [CLI command groups](cli/index.md) — generated flags and subcommands
+- [Diagnostics and support reports](diagnostics.md) — validation and support commands
 - [Query language](query-language.md) — filtering runs and beads
 
 ## Configuration
@@ -47,6 +48,9 @@ Exact SASE facts; guides teach workflows.
 
 - [Agents and workspaces](agents/index.md) — sessions, setup, synchronization, and
   workspace storage
+- [Agent output variables](agents/output-variables.md) — published values from agent
+  runs
+- [SASE disk cleanup](disk-cleanup.md) — inspect and clean up SASE-created bytes
 
 ## Version control
 

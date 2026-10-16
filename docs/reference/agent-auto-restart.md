@@ -10,10 +10,10 @@ failure, records its evidence, and can relaunch an eligible agent under the same
 It is enabled by default and runs through the scheduler's `agent_auto_restart` job.
 
 An automatic restart uses the same stop, wipe, and relaunch machinery as
-[`sase agent restart NAME`](../cli.md), with preserved failure evidence and the live
-autonomy profile. Each lineage (the original run and its retry chain) gets at most one
-automatic restart. A claimed lineage that is later declined cannot be automatically
-retried. Manual restart remains available.
+[`sase agent restart NAME`](cli/agent.md#sase-agent-restart), with preserved failure
+evidence and the live autonomy profile. Each lineage (the original run and its retry
+chain) gets at most one automatic restart. A claimed lineage that is later declined
+cannot be automatically retried. Manual restart remains available.
 
 ## When a restart happens
 
@@ -232,3 +232,16 @@ the replacement's actual outcome.
 - **Evidence.** Every relaunch preserves the error report, traceback, log tail, facts,
   and verdict in the recovery bundle linked from the ledger record (`show TARGET`) and
   the episode notification.
+
+## `sase agent auto-restart`
+
+The scheduler's recovery service classifies update-skew failures and can relaunch an
+eligible agent once per lineage. Use `list` for pending claims, `list -a` for the full
+ledger, `show TARGET` for one record's evidence, and `scan` for read-only historical
+classification. `run NAME`, `run -a DIR`, or `run -p` invokes the healer; `resume`
+clears a storm pause. The configuration switch is
+[`agent_auto_restart.enabled`](config/agents-and-runners.md#agentautorestart).
+
+A bare invocation delegates to `list`. `run --dry-run` is read-only, and a successful
+`run -j` exit does not guarantee a relaunch. See [Agent Auto-Restart](#cli) for the
+options, output contracts, and current probe/deferral limitation.

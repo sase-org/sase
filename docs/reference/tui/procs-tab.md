@@ -210,7 +210,7 @@ exit code), and `sase proc kill ID`. A hidden legacy `--kind` filter remains for
 historical kind rows. Approved epics normally launch as
 [monitor turns](../automation/monitors.md); only an unresolvable planner agent
 session uses an unattributed command proc. See the
-[CLI reference](../../cli.md#daily-operation).
+[CLI reference](../agents/agent-launches.md#daily-operation).
 
 ### Filtering procs
 

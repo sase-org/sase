@@ -5,6 +5,6 @@
 # a page shrinks and never raises one. Ceilings only shrink; the
 # decompose phase empties this allowlist at the epic end.
 ceilings:
-  cli.md: 6927
-  configuration.md: 20655
+  cli.md: 96
+  configuration.md: 1635
   index.md: 361

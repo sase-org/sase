@@ -231,7 +231,7 @@ Once you know which plan you want, `sase plan show [TARGET]` resolves it — a p
 bead id — to exactly one plan and renders it as a colored, section-structured detail
 view matching the PLAN lane in sase's TUI, with `compact`, `json`, and byte-faithful
 `raw` output alongside the default `full` view. See
-[CLI](../../cli.md#work-tracking-and-planning) for the resolution ladder and format
+[CLI](cli-workflows.md#work-tracking-and-planning) for the resolution ladder and format
 details.
 
 ### Q&A Sections
