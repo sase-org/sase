@@ -42,8 +42,7 @@ and a workflow when several steps need to run together.
 
 ## Do it
 
-- [Get started with SASE](../getting_started.md) — launch a first agent with a task
-  prompt.
+- [Get started with SASE](../start/index.md) — launch a first agent with a task prompt.
 
 ## Look it up
 

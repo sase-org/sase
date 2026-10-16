@@ -40,8 +40,8 @@ same context for every task.
 
 ## Do it
 
-- [Get started with SASE](../getting_started.md) — launch a first agent and see the
-  shared context in use.
+- [Get started with SASE](../start/index.md) — launch a first agent and see the shared
+  context in use.
 
 ## Look it up
 

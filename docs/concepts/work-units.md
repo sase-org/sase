@@ -45,6 +45,8 @@ work unit, or review a change without losing the desired outcome.
 
 - [Get started with SASE](../start/index.md) — see work records in a first project
   workflow.
+- [Plan a multi-agent change](../guides/plan-multi-agent-change.md) — decompose large
+  work into reviewed phases.
 
 ## Look it up
 

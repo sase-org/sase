@@ -41,6 +41,10 @@ nav:
           - Choose providers and models: guides/choose-providers-models.md
           - Configure the essentials: guides/configure-essentials.md
           - Set up shell completion and your editor: guides/setup-completion-editor.md
+      - Plan and automate:
+          - Plan a multi-agent change: guides/plan-multi-agent-change.md
+          - Schedule recurring work: guides/schedule-recurring-work.md
+          - Get automated code review: guides/get-automated-code-review.md
       - Fix problems:
           - Diagnose problems with sase doctor: guides/diagnose-with-doctor.md
           - Unstick a queued agent: guides/unstick-queued-agent.md

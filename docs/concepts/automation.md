@@ -41,7 +41,11 @@ visible and preserve human judgment when the work needs it.
 
 ## Do it
 
-- [Get started with SASE](../getting_started.md) — run an agent and review its result.
+- [Get started with SASE](../start/index.md) — run an agent and review its result.
+- [Schedule recurring work](../guides/schedule-recurring-work.md) — run a check on a
+  schedule.
+- [Get automated code review](../guides/get-automated-code-review.md) — review each
+  change automatically.
 
 ## Look it up
 
