@@ -62,6 +62,15 @@ class ArtifactLinkEventSnapshot:
     _edge_identity_cache: frozenset[tuple[str, ...]] | None = field(
         default=None, init=False, repr=False, compare=False
     )
+    _alias_terminal_cache: dict[str, str] | None = field(
+        default=None, init=False, repr=False, compare=False
+    )
+    _alias_terminal_error: str | None = field(
+        default=None, init=False, repr=False, compare=False
+    )
+    _alias_terminals_ready: bool = field(
+        default=False, init=False, repr=False, compare=False
+    )
 
     @property
     def has_inputs(self) -> bool:
@@ -114,22 +123,48 @@ class ArtifactLinkEventSnapshot:
         except (TypeError, ValueError, RuntimeError):
             return False
 
+    def _cached_alias_terminals(self) -> dict[str, str] | None:
+        """Return the snapshot's alias terminal map from one cached sase-core call."""
+        if self._alias_terminals_ready:
+            if self._alias_terminal_error is not None:
+                raise ValueError(self._alias_terminal_error)
+            return self._alias_terminal_cache
+        try:
+            resolved = require_rust_binding("artifact_link_event_resolve_aliases")(
+                list(self.aliases),
+                [str(alias["old_ref"]) for alias in self.aliases],
+            )
+        except (TypeError, ValueError, RuntimeError) as exc:
+            message = str(exc)
+            object.__setattr__(self, "_alias_terminal_error", message)
+            object.__setattr__(self, "_alias_terminal_cache", None)
+            object.__setattr__(self, "_alias_terminals_ready", True)
+            raise ValueError(message) from exc
+        resolved_refs = (
+            resolved.get("resolved_refs") if isinstance(resolved, Mapping) else None
+        )
+        if not isinstance(resolved_refs, Mapping):
+            object.__setattr__(self, "_alias_terminal_cache", None)
+            object.__setattr__(self, "_alias_terminals_ready", True)
+            return None
+        terminal = {str(key): str(value) for key, value in resolved_refs.items()}
+        object.__setattr__(self, "_alias_terminal_cache", terminal)
+        object.__setattr__(self, "_alias_terminals_ready", True)
+        return terminal
+
     def _resolved_row_identity(self, row: Mapping[str, Any]) -> tuple[str, ...]:
+        """Resolve a row through one cached sase-core alias call per snapshot."""
         if not self.aliases:
             return artifact_link_row_identity(row)
         validated = validate_artifact_link_row(row)
         source = canonicalize_artifact_link_ref(str(validated["source_ref"]))
         target = canonicalize_artifact_link_ref(str(validated["target_ref"]))
-        resolved = require_rust_binding("artifact_link_event_resolve_aliases")(
-            list(self.aliases),
-            [source, target],
-        )
-        resolved_refs = resolved.get("resolved_refs")
-        if not isinstance(resolved_refs, Mapping):
+        terminal = self._cached_alias_terminals()
+        if terminal is None:
             return artifact_link_row_identity(validated)
         resolved_row = dict(validated)
-        resolved_row["source_ref"] = str(resolved_refs.get(source, source))
-        resolved_row["target_ref"] = str(resolved_refs.get(target, target))
+        resolved_row["source_ref"] = terminal.get(source, source)
+        resolved_row["target_ref"] = terminal.get(target, target)
         return artifact_link_row_identity(validate_artifact_link_row(resolved_row))
 
 

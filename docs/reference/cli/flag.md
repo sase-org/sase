@@ -95,9 +95,9 @@ Options:
 ## `sase flag new`
 
 ```text
-usage: sase flag new [-h] [-d DESCRIPTION] [-k {beta,sunset}]
-                     --when-enabled WHEN_ENABLED --when-disabled WHEN_DISABLED
-                     --remove-when REMOVE_WHEN [-r DATE/RELEASE]
+usage: sase flag new [-h] [-d DESCRIPTION] [-k {beta,sunset}] --when-enabled
+                     WHEN_ENABLED --when-disabled WHEN_DISABLED --remove-when
+                     REMOVE_WHEN [-r DATE/RELEASE]
                      [-z {xsmall,small,medium,large,xlarge}]
                      <key>
 ```

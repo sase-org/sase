@@ -13,7 +13,8 @@ Reference for `sase project`. Run `sase project --help` for the exact output on 
 
 ```text
 usage: sase project [-h]
-                    {add,alias,create,current,disable,enable,list,set-current,set-state,show,suggest} ...
+                    {add,alias,create,current,disable,enable,list,set-current,set-state,show,suggest}
+                    ...
 ```
 
 Inspect project lifecycle state and the current project. Running `sase project` defaults to `sase project list`.

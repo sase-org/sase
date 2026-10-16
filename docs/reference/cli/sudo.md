@@ -37,8 +37,8 @@ Subcommands:
 ## `sase sudo answer`
 
 ```text
-usage: sase sudo answer [-h] [-a | -d | -u] [-c ID] [-D | -N] [-f FEEDBACK]
-                        [-j] [-R | -r]
+usage: sase sudo answer [-h] [-a] [-c ID] [-d] [-D] [-f FEEDBACK] [-j] [-N]
+                        [-R | -r] [-u]
                         ID
 ```
 
