@@ -326,6 +326,97 @@ def test_accepted_sheet_cache_tracks_sibling_lifecycle(
     assert len(loads) == 4
 
 
+def test_pending_sheet_cache_reloads_gate_written_sibling(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A pending plan reloads when a gate-written sibling appears."""
+    import json as _json
+
+    import sase.sdd.plan_decision_handoff as handoff
+
+    plan = tmp_path / "pending.md"
+    plan.write_text(
+        "---\n"
+        "tier: tale\n"
+        "title: Pending plan\n"
+        "goal: Cover pending sheet invalidation\n"
+        "size: small\n"
+        "decisions:\n"
+        "  tui_note:\n"
+        "    ask: Authored ask text?\n"
+        "    memory: [tui.md]\n"
+        '    requested: "please also update the tui memory note"\n'
+        "    default: true\n"
+        "---\n"
+        "# Plan\n",
+        encoding="utf-8",
+    )
+    sibling = tmp_path / "pending.plan-decisions.json"
+    monkeypatch.delenv("SASE_ARTIFACTS_DIR", raising=False)
+
+    def write_sibling() -> None:
+        sibling.write_text(
+            _json.dumps(
+                {
+                    "schema": 1,
+                    "definitions": [
+                        {
+                            "id": "tui_note",
+                            "kind": "toggle",
+                            "ask": "Authored ask text?",
+                            "default": True,
+                            "effective_default": True,
+                            "memory": {"selectors": ["tui.md"]},
+                            "provenance": "asked",
+                            "requested_verified": True,
+                            "resolved": [],
+                            "quote": "please also update the tui memory note",
+                        }
+                    ],
+                },
+                indent=2,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        now_ns = sibling.stat().st_mtime_ns
+        os.utime(sibling, ns=(sibling.stat().st_atime_ns, now_ns + 1_000_000))
+
+    real_load = handoff.load_stamped_decisions
+    loads: list[str] = []
+
+    def counting_load(path: object, tier: object = None) -> object:
+        loads.append(str(path))
+        return real_load(path, tier)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(handoff, "load_stamped_decisions", counting_load)
+
+    agent = make_agent(archived_plan_path=str(plan), plan_path=str(plan))
+
+    def sheet_row() -> tuple[object, object]:
+        resolve_agent_associated_plan(agent)
+        sheet, decided_by, _via = associated_plan_sheet_for(str(plan))
+        assert sheet is not None
+        assert decided_by is None
+        rows = sheet.get("rows")
+        assert isinstance(rows, list) and len(rows) == 1
+        memory = rows[0].get("memory")
+        assert isinstance(memory, dict)
+        return rows[0].get("value"), memory.get("provenance")
+
+    assert sheet_row() == (False, "quote_not_found")
+    assert len(loads) == 1
+    assert sheet_row() == (False, "quote_not_found")
+    assert len(loads) == 1
+
+    write_sibling()
+    assert sheet_row() == (True, "asked")
+    assert len(loads) == 2
+    assert sheet_row() == (True, "asked")
+    assert len(loads) == 2
+
+
 def test_epic_phase_cache_reuses_validation_until_signature_changes(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

@@ -354,3 +354,218 @@ def test_cross_tier_plan_gate_turn_parks_without_dismissal(
     assert handled == []
     assert len(notified) == 1
     assert notified[0][1] == "Plan ready for review in sase tui"
+
+
+_PENDING_DECISION_TALE = """---
+tier: tale
+title: Keymap help overlay
+goal: Pressing ? shows bindings.
+size: small
+decisions:
+  grouping:
+    ask: How should the overlay group bindings?
+    choices:
+      pane: By pane, matching the footer hints
+      mode: By leader mode; denser, but splits pane actions
+    default: pane
+    why: pane keeps the footer's order
+---
+# Plan
+
+> [!decision] grouping = pane Order by pane.
+"""
+
+
+def _install_fake_create_gate_turn(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    member: Path,
+    bundle: Path,
+    on_create: Any | None = None,
+) -> None:
+    def fake_create_gate_turn(
+        request: dict[str, Any], *, before_auto_settle: Any = None
+    ) -> GateTurnCreation:
+        if on_create is not None:
+            on_create(request)
+        gate = GateCreationResult(
+            schema_version=3,
+            notification_id=None,
+            request_id="plan-1",
+            kind="plan",
+            bundle_path=bundle,
+            request_path=bundle / "request.json",
+            response_path=bundle / "response.json",
+            preview_path=None,
+            continuation_mode="plan_approval",
+            auto_resolution={"state": "resolved"},
+            hashes={},
+        )
+        record = GateTurnRecord(
+            gate_id="plan-1",
+            member_agent_name="test_agent--gate",
+            lane="test_agent",
+            project_name="test_proj",
+            artifacts_dir=str(member),
+            timestamp="20260827120000",
+            kind="plan",
+            gate_state="answered",
+            start_status="TALE",
+            stop_status="TALE APPROVED",
+            accent="#FFD75F",
+            label="Plan",
+            reason="wait for reviewer",
+            creator_agent="test_agent--plan",
+            bundle_path=str(bundle),
+            notification_id=None,
+            timeout_seconds=86400.0,
+            request_fingerprint=None,
+            workspace_policy="inherit",
+        )
+        if before_auto_settle is not None:
+            before_auto_settle(record, gate)
+        return GateTurnCreation(
+            gate=gate,
+            record=record,
+            project_file=None,
+            claim_move=None,
+            cl_name=None,
+        )
+
+    monkeypatch.setattr(
+        "sase.plan_gate_turn.create.create_gate_turn", fake_create_gate_turn
+    )
+    monkeypatch.setattr(
+        "sase.main.plan_approve_handler.get_auto_plan_approval_action",
+        lambda: "tale",
+    )
+    monkeypatch.setattr(
+        "sase.main.plan_approve_handler.get_auto_plan_approval_argument",
+        lambda: None,
+    )
+    monkeypatch.setattr(
+        "sase.llm_provider._plan_utils.mark_auto_approved_plan_handled",
+        lambda *_args, **_kwargs: None,
+    )
+
+
+def _prepare_gate_member(tmp_path: Path) -> tuple[Path, Path]:
+    member = tmp_path / "gate-member"
+    bundle = tmp_path / "bundle"
+    member.mkdir()
+    bundle.mkdir()
+    (member / "agent_meta.json").write_text(
+        json.dumps(
+            {
+                "gate_kind": "plan",
+                "gate_id": "plan-1",
+                "agent_session": "test_agent",
+                "name": "test_agent--gate",
+            }
+        ),
+        encoding="utf-8",
+    )
+    return member, bundle
+
+
+def test_create_plan_gate_turn_writes_sibling_before_create_gate_turn(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.sdd.plan_decision_freeze import (
+        read_frozen_definitions,
+        sibling_path_for_plan,
+    )
+
+    ctx = make_ctx(tmp_path)
+    state = make_state(tmp_path)
+    state.current_role_suffix = PLAN_CHAIN_PLAN_SUFFIX
+    state.qa_rounds = []
+    plan = write_plan(tmp_path, "plan.md", _PENDING_DECISION_TALE)
+    member, bundle = _prepare_gate_member(tmp_path)
+    seen: list[list[dict[str, Any]]] = []
+
+    def on_create(request: dict[str, Any]) -> None:
+        decisions = request.get("payload", {}).get("decisions")
+        assert isinstance(decisions, list) and decisions
+        sibling = sibling_path_for_plan(plan)
+        assert sibling.is_file()
+        frozen = read_frozen_definitions(plan)
+        assert frozen == decisions
+        seen.append(decisions)
+
+    _install_fake_create_gate_turn(
+        monkeypatch, member=member, bundle=bundle, on_create=on_create
+    )
+    create_plan_gate_turn(
+        str(plan),
+        session_id="plan-1",
+        ctx=ctx,
+        state=state,
+        agent_runtime="1m",
+    )
+    assert seen
+
+
+def test_create_plan_gate_turn_without_decisions_writes_no_sibling(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.sdd.plan_decision_freeze import sibling_path_for_plan
+
+    ctx = make_ctx(tmp_path)
+    state = make_state(tmp_path)
+    state.current_role_suffix = PLAN_CHAIN_PLAN_SUFFIX
+    state.qa_rounds = []
+    plan = write_plan(tmp_path, "plan.md", VALID_TALE_PLAN)
+    member, bundle = _prepare_gate_member(tmp_path)
+
+    def on_create(_request: dict[str, Any]) -> None:
+        assert not sibling_path_for_plan(plan).exists()
+
+    _install_fake_create_gate_turn(
+        monkeypatch, member=member, bundle=bundle, on_create=on_create
+    )
+    create_plan_gate_turn(
+        str(plan),
+        session_id="plan-1",
+        ctx=ctx,
+        state=state,
+        agent_runtime="1m",
+    )
+    assert not sibling_path_for_plan(plan).exists()
+
+
+def test_create_plan_gate_turn_survives_failing_freeze(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ctx = make_ctx(tmp_path)
+    state = make_state(tmp_path)
+    state.current_role_suffix = PLAN_CHAIN_PLAN_SUFFIX
+    state.qa_rounds = []
+    plan = write_plan(tmp_path, "plan.md", _PENDING_DECISION_TALE)
+    member, bundle = _prepare_gate_member(tmp_path)
+    created: list[bool] = []
+
+    def on_create(_request: dict[str, Any]) -> None:
+        created.append(True)
+
+    def boom(_plan_path: object, _definitions: object) -> bool:
+        raise RuntimeError("freeze failed")
+
+    monkeypatch.setattr(
+        "sase.sdd.plan_decision_freeze.write_gate_frozen_definitions", boom
+    )
+    _install_fake_create_gate_turn(
+        monkeypatch, member=member, bundle=bundle, on_create=on_create
+    )
+    creation = create_plan_gate_turn(
+        str(plan),
+        session_id="plan-1",
+        ctx=ctx,
+        state=state,
+        agent_runtime="1m",
+    )
+    assert created
+    assert creation.record.gate_id == "plan-1"

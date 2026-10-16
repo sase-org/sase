@@ -149,10 +149,12 @@ def load_stamped_decisions(
 
     Accepted plans (``decided_by`` set) never touch the reader's environment:
     they render from the frozen sibling, else from a neutral synthesis of the
-    authored map plus stamped answers. Pending plans keep the live
-    ``build_definitions`` path.
+    authored map plus stamped answers. A pending gated plan renders the
+    definitions its gate froze. Only a never-gated pending plan rebuilds host
+    facts live via ``build_definitions``.
     """
     try:
+        from sase.sdd.plan_decision_freeze import read_frozen_definitions
         from sase.sdd.plan_decisions import (
             build_definitions,
             sheet_binding,
@@ -175,16 +177,16 @@ def load_stamped_decisions(
         if plan is None or not getattr(plan, "decisions", ()):
             return None
         decided_by = getattr(plan, "decided_by", None)
+        try:
+            frozen = read_frozen_definitions(path)
+        except Exception:
+            frozen = None
         if decided_by is not None:
-            from sase.sdd.plan_decision_freeze import read_frozen_definitions
-
-            try:
-                frozen = read_frozen_definitions(path)
-            except Exception:
-                frozen = None
             definitions = frozen if frozen else _synthetic_accepted_definitions(plan)
             if not definitions:
                 return None
+        elif frozen:
+            definitions = frozen
         else:
             definitions = build_definitions(validation, "")
         values = {

@@ -214,11 +214,15 @@ error; retry paths re-stamp from the recorded gate response. Committed plans are
 validated in Archived mode, which is as strict as authoring mode but also allows these
 system-written answer fields.
 
-Decision definitions are frozen when the gate is created. In-gate edits can change
-prose, but changing anything under `decisions:` is refused with an invitation to change
-answers in the Decisions panel or send feedback to change the questions. Changing the
-decision set requires a new proposal. Clients that submit a review revision are also
-checked against the displayed revision; a stale revision fails before execution.
+Decision definitions are frozen when the gate is created. SASE writes those frozen
+definitions beside the durable plan as `<plan>.plan-decisions.json` and keeps that file
+on approval. Every surface showing a pending or accepted gated plan renders those frozen
+facts, so a decision's provenance (for example "you asked") never depends on the
+environment of the process reading it. In-gate edits can change prose, but changing
+anything under `decisions:` is refused with an invitation to change answers in the
+Decisions panel or send feedback to change the questions. Changing the decision set
+requires a new proposal. Clients that submit a review revision are also checked against
+the displayed revision; a stale revision fails before execution.
 
 A memory decision is a toggle with `memory: [<selector>, ...]`. Selectors use the
 [memory-read forms](../memory/memory.md#audited-reads): a note, a web, or a

@@ -30,11 +30,31 @@ decided_via: tui
 Body mentions tui_note.
 """
 
+PENDING_MEMORY_TALE = """---
+tier: tale
+title: Frozen memory tale
+goal: Cover frozen rendering.
+size: small
+decisions:
+  tui_note:
+    ask: Record conventions in the tui memory note?
+    memory: [tui.md]
+    requested: "please also update the tui memory note"
+    default: true
+---
+# Plan
+
+Body mentions tui_note.
+"""
+
 __all__ = [
     "FROZEN_MEMORY_TALE",
+    "PENDING_MEMORY_TALE",
     "test_accepted_frozen_definitions_ignore_reader_env",
     "test_accepted_synthetic_fallback_uses_authored_default",
     "test_frozen_resolved_path_survives_tmp_load",
+    "test_pending_frozen_definitions_ignore_reader_env",
+    "test_pending_without_sibling_keeps_live_host_facts",
 ]
 
 
@@ -153,3 +173,50 @@ def test_frozen_resolved_path_survives_tmp_load(
         isinstance(item, dict) and item.get("path") == "sase/memory/tui.md"
         for item in resolved
     )
+
+
+def test_pending_frozen_definitions_ignore_reader_env(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sase.sdd._plan_display_decisions import pending_decisions_text
+    from sase.sdd.plan_decision_handoff import load_stamped_decisions
+
+    plan_path = tmp_path / "pending.md"
+    plan_path.write_text(PENDING_MEMORY_TALE, encoding="utf-8")
+    _write_frozen_sibling(plan_path, _frozen_memory_definitions())
+    monkeypatch.delenv("SASE_ARTIFACTS_DIR", raising=False)
+    monkeypatch.chdir("/tmp")
+    stamped = load_stamped_decisions(plan_path)
+    assert stamped is not None
+    assert stamped.decided_by is None
+    rows = stamped.sheet.get("rows")
+    assert isinstance(rows, list) and len(rows) == 1
+    assert rows[0].get("value") is True
+    memory = rows[0].get("memory")
+    assert isinstance(memory, dict)
+    assert memory.get("provenance") == "asked"
+    plain = pending_decisions_text(stamped.sheet).plain
+    assert "you asked" in plain
+    assert "quote not found" not in plain
+
+
+def test_pending_without_sibling_keeps_live_host_facts(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sase.sdd.plan_decision_handoff import load_stamped_decisions
+
+    plan_path = tmp_path / "live.md"
+    plan_path.write_text(PENDING_MEMORY_TALE, encoding="utf-8")
+    sibling = plan_path.parent / f"{plan_path.stem}.plan-decisions.json"
+    assert not sibling.exists()
+    monkeypatch.delenv("SASE_ARTIFACTS_DIR", raising=False)
+    monkeypatch.chdir("/tmp")
+    stamped = load_stamped_decisions(plan_path)
+    assert stamped is not None
+    assert stamped.decided_by is None
+    rows = stamped.sheet.get("rows")
+    assert isinstance(rows, list) and len(rows) == 1
+    assert rows[0].get("value") is False
+    memory = rows[0].get("memory")
+    assert isinstance(memory, dict)
+    assert memory.get("provenance") == "quote_not_found"

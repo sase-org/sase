@@ -109,6 +109,18 @@ def create_plan_gate_turn(
     tier: PlanGateTier = "epic" if spec["kind"] == "epic_plan" else "tale"
     spec["turn"] = plan_gate_turn_block(tier)
 
+    # Pending readers render from this sibling, never from their own
+    # environment. Write before create_gate_turn so an auto-settled stamp
+    # finds the sibling already present and byte-identical.
+    try:
+        decisions = spec.get("payload", {}).get("decisions")
+        if isinstance(decisions, list) and decisions:
+            from sase.sdd.plan_decision_freeze import write_gate_frozen_definitions
+
+            write_gate_frozen_definitions(plan_file, decisions)
+    except Exception:
+        pass
+
     source_role_suffix = state.current_role_suffix or PLAN_CHAIN_PLAN_SUFFIX
     source_plan_agent_name = _agent_name_for_suffix(ctx.agent_name, source_role_suffix)
     source_meta = _read_meta(state.current_artifacts_dir)

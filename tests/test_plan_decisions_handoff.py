@@ -36,9 +36,12 @@ from tests.test_plan_decisions_handoff_epic import (
 )
 from tests.test_plan_decisions_handoff_frozen import (
     FROZEN_MEMORY_TALE,
+    PENDING_MEMORY_TALE,
     test_accepted_frozen_definitions_ignore_reader_env,
     test_accepted_synthetic_fallback_uses_authored_default,
     test_frozen_resolved_path_survives_tmp_load,
+    test_pending_frozen_definitions_ignore_reader_env,
+    test_pending_without_sibling_keeps_live_host_facts,
 )
 from tests.test_plan_decisions_handoff_receipt import (
     test_auto_receipt_hook_wires_values_and_label,
@@ -51,6 +54,7 @@ __all__ = [
     "AUTO_TALE",
     "FROZEN_MEMORY_TALE",
     "MEMORY_TALE",
+    "PENDING_MEMORY_TALE",
     "PENDING_TALE",
     "STAMPED_EPIC",
     "STAMPED_TALE",
@@ -72,7 +76,9 @@ __all__ = [
     "test_epic_context_resolves_plan_ref_and_skips_missing",
     "test_epic_context_resolves_snapshot_and_inherits",
     "test_frozen_resolved_path_survives_tmp_load",
+    "test_pending_frozen_definitions_ignore_reader_env",
     "test_pending_plan_yields_no_coder_block",
+    "test_pending_without_sibling_keeps_live_host_facts",
     "test_receipt_only_posts_with_decisions",
     "test_reviewer_block_helper_fails_open",
     "test_reviewer_block_helper_prefers_archived_copy",
