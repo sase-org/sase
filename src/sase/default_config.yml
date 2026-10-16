@@ -2283,7 +2283,10 @@ macros:
     content: |
       Can you complete the work for bead {{ bead_id }}? The bead is already reserved for you and assigned to your agent
       name: it was set to status=in_progress before you started reading this, either by the `sase bead work` launch
-      checkpoint or by the runtime promoting an ad-hoc wait-time claim. Do not set the status by hand. Read its
+      checkpoint or by the runtime promoting an ad-hoc wait-time claim. Do not set the status by hand. If the host
+      notice says the bead was already closed when this run started, the run is attached to the closed bead. Check
+      whether the earlier work landed before redoing anything, and run `sase bead open {{ bead_id }}` only if the work
+      is genuinely unfinished. Read its
       description and design file with `sase bead read {{ bead_id }} -r "Need the phase scope and design file"`, do the work, and close only this bead with
       `sase bead close {{ bead_id }} --note "<what you verified>"`. Honor the epic's DECISIONS shown by
       `sase bead read`; they are final, and only memory notes they authorize may be edited. Before closing, run
@@ -2309,6 +2312,10 @@ macros:
       Can you complete the work for task bead {{ bead_id }} by running the `sase bead read {{ bead_id }} -r "Need the task scope"` command,
       reviewing the command's output, doing the work, and then closing the bead by running the
       `sase bead close {{ bead_id }} --note "<what you verified>"` command?
+
+      If the host notice says the task bead was already closed when this run started, the run is attached to the closed
+      bead. Check whether the earlier work landed before redoing anything, and run `sase bead open {{ bead_id }}` only
+      if the work is genuinely unfinished. The `sase bead close` step is then a safe no-op or the real close.
 
       If you discover genuinely distinct follow-up work that is outside this task, use `/sase_new_task` with details
       identifying the current bead; it will corroborate a duplicate, attach a causally related active-epic issue, or

@@ -55,8 +55,10 @@ one by hand. Plan and epic bead descriptions do not take it.
 `sase bead snooze`, never by `update --status`) · `in_progress` · `closed`.
 
 Never set `claimed` by hand — the agent runner owns that transition. A bead you were
-launched to work on is already `in_progress` before you read your prompt, because an
-epic launch preassigns every phase bead and the land bead. Rerun
+launched to work on is normally `in_progress` before you read your prompt, because an
+epic launch preassigns every phase bead and the land bead. A launch against a bead that
+was already closed when the launch was submitted attaches without reopening it; the host
+adds a `CLOSED-BEAD LAUNCH:` note, and the prompt starts with a host notice. Rerun
 `sase bead work <epic-id>` to recover a runner that died; it reassigns every non-closed
 bead and never touches closed phases.
 

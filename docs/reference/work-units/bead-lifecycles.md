@@ -118,6 +118,39 @@ open ──claim──▶ claimed ──promote──▶ in_progress ──close
   released automatically. In managed standalone SDD stores the promotion must produce a
   local commit and is published the same best-effort way before model execution; in
   in-tree stores the agent commits the promotion along with its implementation instead.
+- **Attach.** A launch whose bead was already closed when it was submitted attaches
+  without reopening. Status, assignee, resolution, close reason, `closed_at`, close
+  history, and every ancestor stay as they were. The same mutation appends one
+  `CLOSED-BEAD LAUNCH:` note authored by the launching agent:
+
+  ```text
+  CLOSED-BEAD LAUNCH: agent <agent> launched against this closed bead; status left closed.
+  Launch submitted <submitted_at>; run <run_id>.
+  Prior close: <closed_at> · <resolution>.
+  ```
+
+  The `; run <run_id>` clause is omitted when the run id is absent; a missing
+  `closed_at` or resolution prints `unknown`. There is no dedup: every such launch adds
+  one note. The agent's prompt starts with this host notice:
+
+  ```text
+  Host notice: bead `<id>` was already closed (`<resolution>`, `<closed_at>`) when this
+  run started. This run is attached to it without reopening it, and a
+  `CLOSED-BEAD LAUNCH:` note on the bead records the relaunch. First check whether the
+  earlier work already landed (`git log --grep <id>` and the bead's notes via
+  `sase bead read <id>`). If it did, verify it and finish without redoing it; closing
+  the bead again is a safe no-op. If the work is genuinely unfinished, run
+  `sase bead open <id>` first and close it yourself with
+  `sase bead close <id> --note "<what you verified>"` when done (the finalizer will not
+  close a reopened `open` bead). If the resolution is `canceled` or `superseded`, do not
+  redo the work unless this prompt explicitly asks for it.
+  ```
+
+  A close made after submission still fails the launch with `closed_while_queued`. The
+  error names the bead, its `closed_at`, its resolution (plus the close reason when
+  present), the submission time, and the remedy: relaunch to run it against the closed
+  bead deliberately. `sase bead open` remains the path for a premature close.
+
 - **Release.** If the owning agent dies before it ever promoted its claim, the bead
   returns to `open` with an empty assignee. The runner shutdown path releases the claim
   on ordinary kills (except when a retry handoff is pending, which keeps the claim), and

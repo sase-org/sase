@@ -63,6 +63,14 @@ _DIRECTIVE_DISPLAY = {
     ),
 }
 
+# Catalog prose the generated contract description does not yet carry.
+_KEYWORD_DISPLAY = {
+    ("id", "bead"): (
+        "Associate this launch with a bead, including a closed bead; see "
+        "[Bead Claim Lifecycle](../work-units/bead-lifecycles.md#bead-claim-lifecycle)"
+    ),
+}
+
 
 def _cell(text: object) -> str:
     """Format one value safely in a Markdown table cell."""
@@ -283,9 +291,14 @@ def _render_directives() -> str:
                     for item in keyword.get("suggested_values", [])
                     if isinstance(item, dict) and item.get("value") is not None
                 )
+                keyword_name = str(keyword.get("name") or "")
+                meaning = _KEYWORD_DISPLAY.get(
+                    (name, keyword_name),
+                    str(keyword.get("description") or ""),
+                )
                 lines.append(
-                    f"| `{_cell(keyword.get('name'))}` | "
-                    f"{_cell(keyword.get('description'))} | {suggestions or '—'} |"
+                    f"| `{_cell(keyword_name)}` | "
+                    f"{_cell(meaning)} | {suggestions or '—'} |"
                 )
             lines.append("")
     return "\n".join(lines).rstrip() + "\n"

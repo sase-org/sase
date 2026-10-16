@@ -165,7 +165,10 @@ Here, "stopped" means a dismissable terminal row such as `DONE`, `FAILED`, `PLAN
 the Agents header's "stopped" attention bucket for rows paused on user action.
 
 The CLI equivalent of `,x` without the edit pause is `sase agent restart NAME`: it stops
-the named agent and immediately relaunches the stored prompt under the same name.
+the named agent and immediately relaunches the stored prompt under the same name. A
+relaunch whose bead is already closed now runs attached to that closed bead and records
+a `CLOSED-BEAD LAUNCH:` audit note, rather than failing; see
+[Bead Claim Lifecycle](../work-units/bead-lifecycles.md#bead-claim-lifecycle).
 
 SASE also has a scheduler-driven [Agent Auto-Restart](../agent-auto-restart.md)
 service for update-skew failures. An in-flight recovery appears as amber `↻ RESTARTING`

@@ -228,7 +228,9 @@ names, aliases, syntax forms, argument summaries, and descriptions.
 Agent identity uses `%id` or its `%i` alias. The retired `%name` and `%n` prompt
 directives are not launch aliases. Using either as a top-level directive now raises a
 migration error that points to `%id` / `%i` and, for clan membership, the
-`%id(<id>, clan=<clan>)` form.
+`%id(<id>, clan=<clan>)` form. `%id`'s `bead=` keyword may name a closed bead; the
+launch attaches without reopening it. See
+[Bead Claim Lifecycle](../work-units/bead-lifecycles.md#bead-claim-lifecycle).
 
 The retired `%tribe` and `%t` directives also raise a migration error. Use
 `%id(<id>, tribe=<tribe>)`, `%id(tribe=<tribe>)` / `#tribe:<tribe>`, or

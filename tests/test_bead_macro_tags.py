@@ -190,6 +190,8 @@ def test_builtin_phase_prompt_keeps_single_bead_ownership() -> None:
     assert "author a child epic whose phases each fit one coding agent" in prose
     assert "instead of another single-agent tale" in prose
     assert "unless one coder can clearly finish everything left" in prose
+    assert "already closed when this run started" in prose
+    assert "sase bead open {{ bead_id }}" in body
 
 
 def test_builtin_land_prompt_plans_remaining_work_only() -> None:
@@ -242,6 +244,16 @@ def test_builtin_task_prompt_omits_commit_deferral_line() -> None:
     assert (
         "Do not commit your changes unless/until the finalizer asks you to." not in body
     )
+
+
+def test_builtin_task_prompt_covers_closed_bead_attach() -> None:
+    body = get_all_prompts()["bd/work_task"].steps[0].prompt_part
+    assert body is not None
+    prose = _single_spaced(body)
+
+    assert "already closed when this run started" in prose
+    assert "sase bead open {{ bead_id }}" in body
+    assert "safe no-op or the real close" in prose
 
 
 def test_builtin_plan_review_uses_prompt_archive_and_plan_glob(

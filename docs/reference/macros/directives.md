@@ -53,7 +53,7 @@ Assign an agent ID with optional bead, clan, session, or user-managed tribe
 
 | Keyword | Meaning | Suggested values |
 | --- | --- | --- |
-| `bead` | Associate this launch with a bead | — |
+| `bead` | Associate this launch with a bead, including a closed bead; see [Bead Claim Lifecycle](../work-units/bead-lifecycles.md#bead-claim-lifecycle) | — |
 | `clan` | Derive the full ID and join this agent clan | — |
 | `session` | Attach this suffix to an existing agent session | — |
 | `family` | Attach this suffix to an existing agent session | — |
