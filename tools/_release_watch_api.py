@@ -17,7 +17,7 @@ import time
 import traceback
 import urllib.error
 import urllib.request
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta, UTC
 from pathlib import Path
 from typing import Any
@@ -138,6 +138,9 @@ class ReleasePullRequest:
     head_created_at: datetime
     url: str
     checks: Mapping[str, str]
+    merge_base_sha: str | None = None
+    head_behind_by: int = 0
+    merge_base_gate: str | None = None
 
     @property
     def is_merged(self) -> bool:
@@ -719,6 +722,26 @@ def _parse_release_pr(
     )
 
 
+def parse_compare_base(payload: object, where: str) -> tuple[str, int]:
+    """Parse a GitHub compare payload into (merge_base_sha, behind_by).
+
+    The compare direction is master...head, so ``behind_by`` counts how far
+    the head is behind current master. Raises ValueError on malformed input.
+    """
+    obj = _mapping(payload, where)
+    status = _required_str(obj, "status", where).lower()
+    if status not in {"ahead", "identical", "behind", "diverged"}:
+        raise ValueError(f"{where}.status is not recognized: {status!r}")
+    behind_raw = obj.get("behind_by", 0)
+    if not isinstance(behind_raw, int) or isinstance(behind_raw, bool):
+        raise ValueError(f"{where}.behind_by must be an integer")
+    if behind_raw < 0:
+        raise ValueError(f"{where}.behind_by must not be negative")
+    base_commit = _mapping(obj.get("merge_base_commit"), f"{where}.merge_base_commit")
+    merge_base_sha = _required_str(base_commit, "sha", f"{where}.merge_base_commit")
+    return merge_base_sha.lower(), behind_raw
+
+
 def failed_excerpt(text: str) -> str:
     cleaned = "\n".join(line.rstrip() for line in text.splitlines() if line.strip())
     if len(cleaned) > LOG_EXCERPT_LIMIT:
@@ -811,6 +834,7 @@ class GithubReader:
     gh: GhClient
     get_json: Callable[[str, float], object] = _http_json
     http_timeout: float = HTTP_TIMEOUT
+    cached_gate_runs: list[WorkflowRun] = field(default_factory=list, repr=False)
 
     def validate(self) -> None:
         self.gh.validate()
@@ -948,6 +972,44 @@ class GithubReader:
             )
         return tuple(sorted(fixed, key=lambda run: run.updated_at, reverse=True))
 
+    def _gate_conclusion_at(
+        self, sha: str, runs: Sequence[WorkflowRun]
+    ) -> str | None:
+        matches = [run for run in runs if run.sha == sha]
+        if not matches:
+            return None
+        latest = max(matches, key=lambda run: run.updated_at)
+        return latest.conclusion
+
+    def _enrich_pr_with_base(
+        self, pr: ReleasePullRequest, master_sha: str
+    ) -> ReleasePullRequest:
+        """Attach merge-base and base-gate info to a floor-failed PR.
+
+        Fail-open: any enrichment failure leaves the original PR unchanged so
+        the watcher can still reach a verdict instead of going WATCHER_BROKEN.
+        """
+        if not pr.floor_failed:
+            return pr
+        try:
+            payload = self.gh.json(
+                "api", f"repos/{self.repo}/compare/{master_sha}...{pr.head_sha}"
+            )
+            merge_base_sha, behind_by = parse_compare_base(
+                payload, f"compare {master_sha}...{pr.head_sha}"
+            )
+            gate = self._gate_conclusion_at(merge_base_sha, self.cached_gate_runs)
+            return replace(
+                pr,
+                merge_base_sha=merge_base_sha,
+                head_behind_by=behind_by,
+                merge_base_gate=gate,
+            )
+        except WatcherSignal:
+            raise
+        except Exception:
+            return pr
+
     def _master_gate(self) -> tuple[str, WorkflowRun | None]:
         ref = _mapping(
             self.gh.json("api", f"repos/{self.repo}/git/ref/heads/master"), "master ref"
@@ -955,6 +1017,7 @@ class GithubReader:
         target = _mapping(ref.get("object"), "master ref.object")
         master_sha = _required_str(target, "sha", "master ref").lower()
         runs = self._run_list("master-gate.yml", branch="master")
+        self.cached_gate_runs = list(runs)
         matches = [run for run in runs if run.sha == master_sha]
         if not matches:
             return master_sha, None
@@ -1011,6 +1074,24 @@ class GithubReader:
                 raise
             except Exception as exc:
                 result[name] = SignalFailure(name, str(exc))
+        pr_value = result.get("release_pr")
+        gate_value = result.get("master_gate")
+        if (
+            isinstance(pr_value, ReleasePullRequest)
+            and isinstance(gate_value, tuple)
+            and len(gate_value) == 2
+            and pr_value.floor_failed
+        ):
+            try:
+                master_sha = gate_value[0]
+                if isinstance(master_sha, str):
+                    result["release_pr"] = self._enrich_pr_with_base(
+                        pr_value, master_sha.lower()
+                    )
+            except WatcherSignal:
+                raise
+            except Exception:
+                pass
         # Publish parsing uses the core upload from this same poll. Keep failures attributed to publish.
         core = result.get("core_pypi")
         publish = result.get("publish")

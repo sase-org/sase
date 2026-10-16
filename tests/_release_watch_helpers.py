@@ -83,6 +83,10 @@ def pr(
     merged: datetime | None = None,
     floor: str = "success",
     head_created: datetime = NOW - timedelta(hours=2),
+    head_sha: str = SHA,
+    merge_base: str | None = None,
+    behind_by: int = 0,
+    base_gate: str | None = None,
 ) -> watch.ReleasePullRequest:
     return watch.ReleasePullRequest(
         299,
@@ -90,10 +94,13 @@ def pr(
         "MERGED" if merged else "OPEN",
         merged,
         "CLEAN",
-        SHA,
+        head_sha,
         head_created,
         "https://github.com/sase-org/sase/pull/299",
         {"release-core-floor-smoke": floor},
+        merge_base,
+        behind_by,
+        base_gate,
     )
 
 

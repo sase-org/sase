@@ -770,13 +770,22 @@ The defaults are repository `sase-org/sase`, a 12-hour deadline, five-minute pol
 a stop after two red Full CI runs covering the fixed commit. Coverage includes runs on
 descendants of that commit; `--fixed-sha` does not pin newly dispatched workflows, which
 run on the current `master`. Only runs created after the watch started count toward the
-red budget. Failed lint jobs or detected visual-golden drift stop the watch after a
-single red run. A red Master Gate at `HEAD` ends the watch with `MASTER_GATE_RED` after
-`-g/--max-red-gate-minutes` (default 120) with no green run observed there; in-flight
-runs neither count as red nor reset that clock. When only test shards failed, the
-watcher first retries them once per `HEAD` SHA with `gh run rerun --failed`. The watcher
-can dispatch Full CI and Publish when its conditions and cooldowns permit; it never
-merges a PR, edits source, or dispatches a core Release-plz workflow. Pass
+red budget, for both verdicts and Full CI dispatches. Failed lint jobs or detected
+visual-golden drift stop the watch after a single red run. A red Master Gate at `HEAD`
+ends the watch with `MASTER_GATE_RED` after `-g/--max-red-gate-minutes` (default 120)
+with no green run observed there; in-flight runs neither count as red nor reset that
+clock. When only test shards failed, the watcher first retries them once per `HEAD` SHA
+with `gh run rerun --failed`. The watcher can dispatch Full CI and Publish when its
+conditions and cooldowns permit; it never merges a PR, edits source, or dispatches a
+core Release-plz workflow. A floor-failed release-PR head that is behind current
+`master` with a non-green Master Gate at its merge-base is _stale_: the watcher reports
+no verdict, shows `release_pr=#NNN:open:stale` in the state line, and refreshes the head
+with one `publish.yml -f publish_existing=false` dispatch per master `HEAD` SHA
+(30-minute cooldown) while the Master Gate at `HEAD` is green and no Publish run is in
+flight. The refresh joins the existing Publish dedup so one dispatch serves every
+Publish reason, and a Publish run created after a refresh dispatch that leaves the head
+stale blocks any further refresh for that SHA. The `DEADLINE` detail names the stale
+head, its merge-base, and the merge-base gate result. Pass
 `-c/--await-core-version X.Y.Z` when a core release has already been requested: the
 watcher keeps polling while published `sase-core-rs` is below that stable version,
 reports `awaiting_core`, and suppresses `CORE_FLOOR_BLOCKED` from older floor evidence
@@ -799,7 +808,7 @@ installed package was built from `--fixed-sha` or require green CI for this verd
 | 0    | `RELEASED`           | Target version installed successfully (except the read-only `--once` shortcut)        |
 | 10   | `FULL_CI_RED`        | Fixed-code CI reached the failure threshold or a deterministic failure                |
 | 11   | `PUBLISH_FAILED`     | A post-merge Publish run failed                                                       |
-| 12   | `CORE_FLOOR_BLOCKED` | Release remains blocked on the Rust dependency floor after refresh                    |
+| 12   | `CORE_FLOOR_BLOCKED` | Floor smoke fails on a current (non-stale) release-PR head after refresh              |
 | 13   | `RELEASE_PR_GONE`    | Target is absent from PyPI and no matching open or merged release-please PR was found |
 | 14   | `INSTALL_FAILED`     | Temporary installation proof did not succeed                                          |
 | 15   | `DEADLINE`           | Watch deadline passed before a verdict                                                |

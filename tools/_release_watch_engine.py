@@ -80,6 +80,9 @@ class ReleaseWatcher:
     _gate_red_since: float | None = None
     _gate_red_sha: str | None = None
     _gate_rerun_shas: set[str] = field(default_factory=set)
+    _pr_refresh_shas: set[str] = field(default_factory=set)
+    _pr_refresh_dispatched_at: dict[str, datetime] = field(default_factory=dict)
+    _in_close_retry: bool = False
 
     def __post_init__(self) -> None:
         self.verdict_path = (
@@ -103,7 +106,7 @@ class ReleaseWatcher:
 
     def _handle_signal(self, signum: int, _frame: object) -> None:
         self.received_signal = signum
-        if not self._finalizing:
+        if not self._finalizing or self._in_close_retry:
             raise WatcherSignal(signum)
 
     def _bead_is_closed(self, bead_id: str) -> bool | None:
@@ -270,11 +273,12 @@ class ReleaseWatcher:
             elif name == "pypi" and isinstance(value, tuple):
                 item = "present" if self.options.version in value else "absent"
             elif name == "release_pr":
-                item = (
-                    "gone"
-                    if value is None
-                    else f"#{value.number}:{'merged' if value.is_merged else value.state.lower()}"
-                )
+                if value is None:
+                    item = "gone"
+                else:
+                    item = f"#{value.number}:{'merged' if value.is_merged else value.state.lower()}"
+                    if self._values_stale(values):
+                        item += ":stale"
             elif name == "full_ci" and isinstance(value, tuple):
                 latest = max(value, key=lambda run: run.updated_at, default=None)
                 item = (
@@ -369,6 +373,8 @@ class ReleaseWatcher:
                     "PUBLISH_FAILED",
                     f"post-merge Publish run {run.run_id} failed: {run.failed_jobs}",
                 )
+        if self._is_stale_head(snapshot):
+            return None
         if not self._awaiting_core(snapshot) and self._floor_blocked(snapshot):
             return "CORE_FLOOR_BLOCKED", self._floor_blocked_detail(snapshot)
         gate_verdict = self._check_master_gate(snapshot)
@@ -446,9 +452,47 @@ class ReleaseWatcher:
             return False
         return not core_version_meets(snapshot.core_version, required)
 
+    def _is_stale_head(self, snapshot: Snapshot) -> bool:
+        pr = snapshot.release_pr
+        if pr is None or not pr.floor_failed:
+            return False
+        if pr.merge_base_sha is None:
+            return False
+        if pr.merge_base_sha.lower() == snapshot.master_sha.lower():
+            return False
+        return pr.merge_base_gate not in GOOD_CONCLUSIONS
+
+    def _stale_head_detail(self, snapshot: Snapshot) -> str:
+        pr = snapshot.release_pr
+        assert pr is not None
+        base_gate = pr.merge_base_gate or "no-run"
+        base = pr.merge_base_sha or "unknown"
+        return (
+            f"stale head {pr.head_sha} is {pr.head_behind_by} behind master "
+            f"{snapshot.master_sha}; merge-base {base} gate={base_gate}"
+        )
+
+    def _values_stale(self, values: Mapping[str, object]) -> bool:
+        pr = values.get("release_pr")
+        gate = values.get("master_gate")
+        if not isinstance(pr, ReleasePullRequest) or not pr.floor_failed:
+            return False
+        if pr.merge_base_sha is None:
+            return False
+        if not isinstance(gate, tuple) or len(gate) != 2:
+            return False
+        master_sha = gate[0]
+        if not isinstance(master_sha, str):
+            return False
+        if pr.merge_base_sha.lower() == master_sha.lower():
+            return False
+        return pr.merge_base_gate not in GOOD_CONCLUSIONS
+
     def _floor_blocked(self, snapshot: Snapshot) -> bool:
         pr = snapshot.release_pr
         if pr is None or not pr.floor_failed:
+            return False
+        if self._is_stale_head(snapshot):
             return False
         newest_core = snapshot.core_uploaded_at
         publish = [
@@ -490,7 +534,27 @@ class ReleaseWatcher:
 
     def _deadline_detail(self, snapshot: Snapshot | None) -> str:
         reason = snapshot.ci_watch_reason if snapshot else "unknown"
-        return f"deadline passed; blocking condition: ci_watch release_reason={reason}; last state: {self.last_state_line}"
+        detail = f"deadline passed; blocking condition: ci_watch release_reason={reason}; last state: {self.last_state_line}"
+        if snapshot is not None and self._is_stale_head(snapshot):
+            detail += f"; {self._stale_head_detail(snapshot)}"
+        return detail
+
+    def _pr_refresh_due(self, snapshot: Snapshot) -> bool:
+        if not self._is_stale_head(snapshot):
+            return False
+        if self._gate_status(snapshot) != "green":
+            return False
+        if snapshot.publish_in_flight:
+            return False
+        sha = snapshot.master_sha
+        if sha in self._pr_refresh_shas:
+            return False
+        dispatched_at = self._pr_refresh_dispatched_at.get(sha)
+        if dispatched_at is not None:
+            for run in snapshot.publish_runs:
+                if run.created_at >= dispatched_at and not run.is_in_flight:
+                    return False
+        return True
 
     def dispatch_due(self, snapshot: Snapshot) -> list[str]:
         if self.options.no_dispatch:
@@ -498,7 +562,13 @@ class ReleaseWatcher:
         now = self.monotonic()
         dispatches: list[tuple[str, int, tuple[str, ...]]] = []
         full = sorted(snapshot.fixed_runs, key=lambda run: run.updated_at, reverse=True)
-        fixed_red = [run for run in full if run.is_red]
+        started_at = self._watch_started_at
+        fixed_red = [
+            run
+            for run in full
+            if run.is_red
+            and (started_at is None or run.created_at >= started_at)
+        ]
         newest = full[0] if full else None
         no_full_running = not snapshot.full_in_flight
         pr_not_merged = snapshot.release_pr is None or not snapshot.release_pr.is_merged
@@ -574,11 +644,29 @@ class ReleaseWatcher:
                     ),
                 )
             )
-        # A single Publish workflow dispatch satisfies both eligible reasons.
+        if self._pr_refresh_due(snapshot) and not self._awaiting_core(snapshot):
+            dispatches.append(
+                (
+                    "pr_refresh",
+                    30 * 60,
+                    (
+                        "workflow",
+                        "run",
+                        "publish.yml",
+                        "-R",
+                        self.options.repo,
+                        "--ref",
+                        "master",
+                        "-f",
+                        "publish_existing=false",
+                    ),
+                )
+            )
+        # A single Publish workflow dispatch satisfies every eligible reason.
         publish_candidates = [
             item
             for item in dispatches
-            if item[0] in {"floor_ratchet", "release_publish"}
+            if item[0] in {"floor_ratchet", "release_publish", "pr_refresh"}
         ]
         if len(publish_candidates) > 1:
             chosen = publish_candidates[0]
@@ -640,6 +728,12 @@ class ReleaseWatcher:
             self.last_dispatch[key] = now
             if key == "master_gate_rerun":
                 self._gate_rerun_shas.add(snapshot.master_sha)
+            if key == "pr_refresh":
+                self._pr_refresh_shas.add(snapshot.master_sha)
+                try:
+                    self._pr_refresh_dispatched_at[snapshot.master_sha] = self.now()
+                except Exception:
+                    pass
             self.actions.append(f"dispatched:{key}")
             reported.append(f"dispatched:{key}")
         return reported
@@ -937,25 +1031,57 @@ class ReleaseWatcher:
                 self.actions.append("bead_close:" + self.close_outcome)
             else:
                 self.close_outcome = "failed after 3 attempts"
-                for attempt in range(1, 4):
-                    if attempt > 1 and bead_id and self._bead_is_closed(bead_id):
-                        self.close_outcome = (
-                            "already closed "
-                            f"(verified before attempt {attempt})"
-                        )
-                        break
-                    try:
-                        result = self.process(argv, timeout=GH_TIMEOUT)
-                        if result.returncode == 0:
-                            self.close_outcome = f"closed on attempt {attempt}"
-                            break
-                        self.close_outcome = f"attempt {attempt} exited {result.returncode}: {(result.stderr or '').strip()[:300]}"
-                    except Exception as exc:
-                        self.close_outcome = (
-                            f"attempt {attempt} failed: {short_exception(exc)}"
-                        )
-                    if attempt < 3:
-                        self.sleep(30)
+                self._in_close_retry = True
+                try:
+                    if self.received_signal is not None:
+                        self._detached_close(argv)
+                    else:
+                        for attempt in range(1, 4):
+                            if self.received_signal is not None:
+                                self._detached_close(argv)
+                                break
+                            if (
+                                attempt > 1
+                                and bead_id
+                                and self._bead_is_closed(bead_id)
+                            ):
+                                self.close_outcome = (
+                                    "already closed "
+                                    f"(verified before attempt {attempt})"
+                                )
+                                break
+                            if self.received_signal is not None:
+                                self._detached_close(argv)
+                                break
+                            try:
+                                result = self.process(argv, timeout=GH_TIMEOUT)
+                                if result.returncode == 0:
+                                    self.close_outcome = (
+                                        f"closed on attempt {attempt}"
+                                    )
+                                    break
+                                self.close_outcome = f"attempt {attempt} exited {result.returncode}: {(result.stderr or '').strip()[:300]}"
+                            except WatcherSignal:
+                                self._detached_close(argv)
+                                break
+                            except Exception as exc:
+                                self.close_outcome = (
+                                    f"attempt {attempt} failed: {short_exception(exc)}"
+                                )
+                            if self.received_signal is not None:
+                                self._detached_close(argv)
+                                break
+                            if attempt < 3:
+                                try:
+                                    self.sleep(30)
+                                except WatcherSignal:
+                                    self._detached_close(argv)
+                                    break
+                                if self.received_signal is not None:
+                                    self._detached_close(argv)
+                                    break
+                finally:
+                    self._in_close_retry = False
                 self.actions.append("bead_close:" + self.close_outcome)
         self._restore_signals()
         self._write_verdict_with_fallback()

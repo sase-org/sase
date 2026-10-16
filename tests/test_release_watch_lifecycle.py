@@ -48,6 +48,7 @@ __all__ = [
     "test_once_preflight_prints_one_state_and_close_argv_without_running_it",
     "test_polling_sigterm_restores_handlers",
     "test_repeated_malformed_completed_reads_close_broken",
+    "test_signal_during_close_retry_starts_detached_closer",
     "test_sigterm_detaches_closer_with_stopped_verdict",
     "test_sigterm_then_group_sigkill_still_closes_bead",
     "test_startup_sigterm_is_stopped_and_restores_handlers",
@@ -601,3 +602,49 @@ def test_sigterm_then_group_sigkill_still_closes_bead(tmp_path: Path) -> None:
     assert verdict_file.read_text(encoding="utf-8").startswith(
         "RELEASE NOT CONFIRMED: STOPPED"
     )
+
+
+def test_signal_during_close_retry_starts_detached_closer(tmp_path: Path) -> None:
+    fake_signals = FakeSignals()
+    calls: list[tuple[list[str], dict[str, Any]]] = []
+    codes = [1]
+
+    def process(argv: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        calls.append((argv, kwargs))
+        if len(argv) >= 4 and argv[:3] == ["sase", "bead", "read"]:
+            return subprocess.CompletedProcess(argv, 0, "", "")
+        code = codes.pop(0) if codes else 0
+        return subprocess.CompletedProcess(argv, code, "", "failed" if code else "")
+
+    spawns: list[tuple[list[str], dict[str, Any]]] = []
+
+    def spawn(argv: list[str], **kwargs: Any) -> Any:
+        spawns.append((argv, kwargs))
+        return SimpleNamespace(pid=4242)
+
+    def sleep_then_term(_seconds: float) -> None:
+        handler = fake_signals.handlers[fake_signals.SIGTERM]
+        handler(fake_signals.SIGTERM, None)
+
+    watcher = watch.ReleaseWatcher(
+        options(tmp_path, close_bead="sase-1lh.5"),
+        Reader(),
+        process=process,
+        spawn=spawn,
+        sleep=sleep_then_term,
+        output=lambda _line: None,
+        signal_module=fake_signals,
+    )
+    watcher._install_signals()
+    watcher.set_verdict("DEADLINE", "time elapsed")
+
+    code = watcher.finalize()
+
+    assert code == watch.EXIT_CODES["DEADLINE"]
+    assert watcher.final_verdict == "DEADLINE"
+    assert len(spawns) == 1
+    assert spawns[0][0][:4] == ["sase", "bead", "close", "sase-1lh.5"]
+    assert spawns[0][1]["start_new_session"] is True
+    assert "detached closer launched" in watcher.close_outcome
+    closes = [call for call in calls if call[0][:3] == ["sase", "bead", "close"]]
+    assert len(closes) == 1

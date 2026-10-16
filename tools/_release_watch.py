@@ -25,6 +25,7 @@ from _release_watch_api import (
     WorkflowRun,
     default_verdict_path,
     parse_bead_closed,
+    parse_compare_base,
     parse_run,
     parse_args,
 )
@@ -50,6 +51,7 @@ __all__ = [
     "main",
     "parse_args",
     "parse_bead_closed",
+    "parse_compare_base",
     "parse_run",
     "short_exception",
 ]
