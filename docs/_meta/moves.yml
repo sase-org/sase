@@ -7,3 +7,12 @@ moves:
   - from: getting_started.md
     to: start/index.md
     kind: redirect
+  - from: agent_auto_restart.md
+    to: reference/agent-auto-restart.md
+    kind: redirect
+  - from: troubleshooting/runner-slots.md
+    to: reference/runner-slots.md
+    kind: redirect
+  - from: troubleshooting/agent-revival.md
+    to: reference/agent-revive-log.md
+    kind: redirect

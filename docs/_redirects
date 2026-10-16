@@ -7,7 +7,10 @@
 /xprompt/ /macros/ 301
 
 # BEGIN GENERATED: docs page moves redirects
+/agent_auto_restart/ /reference/agent-auto-restart/ 301
 /architecture/ /contribute/architecture/ 301
 /getting_started/ /start/ 301
 /instruction_inventory/ /instruction_bundles/ 301
+/troubleshooting/agent-revival/ /reference/agent-revive-log/ 301
+/troubleshooting/runner-slots/ /reference/runner-slots/ 301
 # END GENERATED: docs page moves redirects

@@ -14,9 +14,14 @@
 
 ## Guides
 
-- [Agent Auto-Restart](agent_auto_restart.md) — Agent Auto-Restart — SASE has a recovery service for agents interrupted by a live update.
-- [Agent Revival Audit Log](troubleshooting/agent-revival.md) — Agent Revival Audit Log — The TUI's revive flow (!R on the Agents tab; plain R retries the selected agent) writes a JSONL audit log to ~/.sase/logs/events.jsonl so post-mortem questions like "what was the last agent I tried to revive?" can be answered without grepping through dismissed-bundle directories.
-- [Agent queued for a runner slot](troubleshooting/runner-slots.md) — Agent queued for a runner slot — An agent shown as QUEUED is at an admission boundary: it has finished every dependency, bead, and time wait and is holding for runner capacity under its current admission budget, or for an agent hold that matches it.
+- [Add an existing repository](guides/add-existing-repository.md) — Register a repository you already have as a SASE project and initialize it.
+- [Choose providers and models](guides/choose-providers-models.md) — Install a provider CLI, check authentication, and pick the model agents use.
+- [Configure the essentials](guides/configure-essentials.md) — Set the handful of configuration values most setups change, and find the rest.
+- [Diagnose problems with sase doctor](guides/diagnose-with-doctor.md) — Run the read-only diagnostic checks and act on what they report.
+- [Guides](guides/index.md) — Goal-titled how-to guides for setting up SASE and fixing problems.
+- [Recover an interrupted agent](guides/recover-interrupted-agent.md) — Check whether an interrupted agent restarts itself, retry it, or revive it.
+- [Set up shell completion and your editor](guides/setup-completion-editor.md) — Complete sase commands with TAB and edit prompts with language assistance.
+- [Unstick a queued agent](guides/unstick-queued-agent.md) — Tell capacity waits apart from holds and clear whichever blocks the agent.
 
 ## Concepts
 
@@ -63,6 +68,8 @@
 - [ProjectSpec Format](project_spec.md) — ProjectSpec Format — A ProjectSpec is SASE's project-level .sase file.
 - [Prompt History and Draft Recovery](prompt.md) — Prompt History and Draft Recovery — Prompts you launch with sase run or from sase's TUI are recorded in prompt history when they are useful to replay.
 - [Query Language Reference](query_language.md) — Query Language Reference — The Patch query language filters Patches using boolean expressions that combine string matching, property filters, and operational shorthands.
+- [Agent auto-restart](reference/agent-auto-restart.md) — Recovery service for agents interrupted by a live update, and its limits.
+- [Agent revive log](reference/agent-revive-log.md) — Audit records for TUI agent revival, and how to read them.
 - [sase agent-cli](reference/cli/agent-cli.md) — Inspect the coding-agent CLIs supported by SASE and install or update installs whose management method can be identified safely.
 - [sase agent](reference/cli/agent.md) — Inspect and manage agents across projects.
 - [sase artifact](reference/cli/artifact.md) — Create, discover, inspect, resolve, open, and repair indexed artifacts.
@@ -133,6 +140,7 @@
 - [Design decisions](reference/design-decisions.md) — Why SASE works this way, generated from the decisions memory web.
 - [Glossary](reference/glossary.md) — Every SASE term, generated from the glossary memory web.
 - [Reference](reference/index.md) — Look up exact SASE facts here, generated from code where possible.
+- [Runner slots](reference/runner-slots.md) — How runner capacity admits queued agents, and what waiting.json records.
 - [Remote Dispatch Runbook](remote_dispatch.md) — Remote Dispatch Runbook — Remote dispatch lets one SASE controller discover, enroll, and operate agents on another machine.
 - [Spec-Driven Development (SDD)](sdd.md) — Spec-Driven Development (SDD) — SDD is sase's system for persisting the intent behind agent work.
 - [Sudo Requests](sudo.md) — Sudo Requests — SASE sudo requests let an agent ask for reviewed privileged execution without ever asking for, receiving, logging, or proxying a password.
@@ -179,3 +187,6 @@
 | `/instruction_inventory/` | [`/instruction_bundles/`](instruction_bundles.md) |
 | `/architecture/` | [`/contribute/architecture/`](contribute/architecture.md) |
 | `/getting_started/` | [`/start/`](start/index.md) |
+| `/agent_auto_restart/` | [`/reference/agent-auto-restart/`](reference/agent-auto-restart.md) |
+| `/troubleshooting/runner-slots/` | [`/reference/runner-slots/`](reference/runner-slots.md) |
+| `/troubleshooting/agent-revival/` | [`/reference/agent-revive-log/`](reference/agent-revive-log.md) |

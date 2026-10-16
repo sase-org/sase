@@ -1,3 +1,8 @@
+---
+title: Agent revive log
+description: Audit records for TUI agent revival, and how to read them.
+---
+
 # Agent Revival Audit Log
 
 The TUI's revive flow (`!R` on the Agents tab; plain `R` retries the selected agent)

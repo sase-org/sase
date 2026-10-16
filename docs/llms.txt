@@ -16,9 +16,14 @@
 
 ## Guides
 
-- [Agent Auto-Restart](https://sase.sh/agent_auto_restart/) — Agent Auto-Restart — SASE has a recovery service for agents interrupted by a live update.
-- [Agent Revival Audit Log](https://sase.sh/troubleshooting/agent-revival/) — Agent Revival Audit Log — The TUI's revive flow (!R on the Agents tab; plain R retries the selected agent) writes a JSONL audit log to ~/.sase/logs/events.jsonl so post-mortem questions like "what was the last agent I tried to revive?" can be answered without grepping through dismissed-bundle directories.
-- [Agent queued for a runner slot](https://sase.sh/troubleshooting/runner-slots/) — Agent queued for a runner slot — An agent shown as QUEUED is at an admission boundary: it has finished every dependency, bead, and time wait and is holding for runner capacity under its current admission budget, or for an agent hold that matches it.
+- [Add an existing repository](https://sase.sh/guides/add-existing-repository/) — Register a repository you already have as a SASE project and initialize it.
+- [Choose providers and models](https://sase.sh/guides/choose-providers-models/) — Install a provider CLI, check authentication, and pick the model agents use.
+- [Configure the essentials](https://sase.sh/guides/configure-essentials/) — Set the handful of configuration values most setups change, and find the rest.
+- [Diagnose problems with sase doctor](https://sase.sh/guides/diagnose-with-doctor/) — Run the read-only diagnostic checks and act on what they report.
+- [Guides](https://sase.sh/guides/) — Goal-titled how-to guides for setting up SASE and fixing problems.
+- [Recover an interrupted agent](https://sase.sh/guides/recover-interrupted-agent/) — Check whether an interrupted agent restarts itself, retry it, or revive it.
+- [Set up shell completion and your editor](https://sase.sh/guides/setup-completion-editor/) — Complete sase commands with TAB and edit prompts with language assistance.
+- [Unstick a queued agent](https://sase.sh/guides/unstick-queued-agent/) — Tell capacity waits apart from holds and clear whichever blocks the agent.
 
 ## Concepts
 
@@ -65,6 +70,8 @@
 - [ProjectSpec Format](https://sase.sh/project_spec/) — ProjectSpec Format — A ProjectSpec is SASE's project-level .sase file.
 - [Prompt History and Draft Recovery](https://sase.sh/prompt/) — Prompt History and Draft Recovery — Prompts you launch with sase run or from sase's TUI are recorded in prompt history when they are useful to replay.
 - [Query Language Reference](https://sase.sh/query_language/) — Query Language Reference — The Patch query language filters Patches using boolean expressions that combine string matching, property filters, and operational shorthands.
+- [Agent auto-restart](https://sase.sh/reference/agent-auto-restart/) — Recovery service for agents interrupted by a live update, and its limits.
+- [Agent revive log](https://sase.sh/reference/agent-revive-log/) — Audit records for TUI agent revival, and how to read them.
 - [sase agent-cli](https://sase.sh/reference/cli/agent-cli/) — Inspect the coding-agent CLIs supported by SASE and install or update installs whose management method can be identified safely.
 - [sase agent](https://sase.sh/reference/cli/agent/) — Inspect and manage agents across projects.
 - [sase artifact](https://sase.sh/reference/cli/artifact/) — Create, discover, inspect, resolve, open, and repair indexed artifacts.
@@ -135,6 +142,7 @@
 - [Design decisions](https://sase.sh/reference/design-decisions/) — Why SASE works this way, generated from the decisions memory web.
 - [Glossary](https://sase.sh/reference/glossary/) — Every SASE term, generated from the glossary memory web.
 - [Reference](https://sase.sh/reference/) — Look up exact SASE facts here, generated from code where possible.
+- [Runner slots](https://sase.sh/reference/runner-slots/) — How runner capacity admits queued agents, and what waiting.json records.
 - [Remote Dispatch Runbook](https://sase.sh/remote_dispatch/) — Remote Dispatch Runbook — Remote dispatch lets one SASE controller discover, enroll, and operate agents on another machine.
 - [Spec-Driven Development (SDD)](https://sase.sh/sdd/) — Spec-Driven Development (SDD) — SDD is sase's system for persisting the intent behind agent work.
 - [Sudo Requests](https://sase.sh/sudo/) — Sudo Requests — SASE sudo requests let an agent ask for reviewed privileged execution without ever asking for, receiving, logging, or proxying a password.
@@ -179,3 +187,6 @@
 - https://sase.sh/instruction_inventory/ → https://sase.sh/instruction_bundles/
 - https://sase.sh/architecture/ → https://sase.sh/contribute/architecture/
 - https://sase.sh/getting_started/ → https://sase.sh/start/
+- https://sase.sh/agent_auto_restart/ → https://sase.sh/reference/agent-auto-restart/
+- https://sase.sh/troubleshooting/runner-slots/ → https://sase.sh/reference/runner-slots/
+- https://sase.sh/troubleshooting/agent-revival/ → https://sase.sh/reference/agent-revive-log/

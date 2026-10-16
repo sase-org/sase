@@ -1,3 +1,8 @@
+---
+title: Agent auto-restart
+description: Recovery service for agents interrupted by a live update, and its limits.
+---
+
 # Agent Auto-Restart
 
 SASE has a recovery service for agents interrupted by a live update. It classifies the
@@ -5,7 +10,7 @@ failure, records its evidence, and can relaunch an eligible agent under the same
 It is enabled by default and runs through the scheduler's `agent_auto_restart` job.
 
 An automatic restart uses the same stop, wipe, and relaunch machinery as
-[`sase agent restart NAME`](cli.md), with preserved failure evidence and the live
+[`sase agent restart NAME`](../cli.md), with preserved failure evidence and the live
 autonomy profile. Each lineage (the original run and its retry chain) gets at most one
 automatic restart. A claimed lineage that is later declined cannot be automatically
 retried. Manual restart remains available.
@@ -164,9 +169,9 @@ failures instead of submitting healer work, so that scheduler path does not spen
 lineage's restart. A manual `run` during a storm pause can still claim or decline a
 record; clear the pause with `resume` before requesting recovery.
 
-See the [configuration reference](configuration.md#agent_auto_restart) for field types
-and defaults. `resume` clears a storm pause; it does not turn a disabled setting back on
-or reset a lineage's record.
+See the [configuration reference](../configuration.md#agent_auto_restart) for field
+types and defaults. `resume` clears a storm pause; it does not turn a disabled setting
+back on or reset a lineage's record.
 
 ## Notifications
 

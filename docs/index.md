@@ -209,7 +209,7 @@ hide:
 
   <p>Inspect update-skew recovery, its one-restart limit, and cases that need manual action.</p>
 
-<a href="agent_auto_restart/">Open agent auto-restart</a>
+<a href="reference/agent-auto-restart/">Open agent auto-restart</a>
 
   </article>
 

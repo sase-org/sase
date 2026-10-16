@@ -4348,9 +4348,8 @@ configuration errors do propagate: a bad value here must never strand a runner.
 
 Bounded deference is not priority aging and not preemption. A running agent is never
 stopped to make room, and a deferred waiter's own priority does not improve while it
-waits. See [Agent waiting for a runner slot](troubleshooting/runner-slots.md) for
-diagnosis, and [`%queue(priority=N)`](macros.md#supported-directives) for the directive
-itself.
+waits. See [Agent waiting for a runner slot](reference/runner-slots.md) for diagnosis,
+and [`%queue(priority=N)`](macros.md#supported-directives) for the directive itself.
 
 ### agent_scope_teardown
 
@@ -4391,8 +4390,8 @@ Source: `src/sase/default_config.yml`, `src/sase/config/_settings_system.py`,
 Controls recovery of agents interrupted by a live SASE update. It is enabled by default
 and requires the scheduler's `agent_auto_restart` job. It keeps a separate restart
 ledger and allows at most one automatic relaunch per lineage. See
-[Agent Auto-Restart](agent_auto_restart.md) for eligibility, evidence, and current
-healer limitations.
+[Agent Auto-Restart](reference/agent-auto-restart.md) for eligibility, evidence, and
+current healer limitations.
 
 ```yaml
 agent_auto_restart:

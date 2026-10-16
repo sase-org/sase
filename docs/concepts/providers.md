@@ -40,7 +40,9 @@ the work without being tied to one vendor's catalog.
 
 ## Do it
 
-- [Get started with SASE](../getting_started.md) — check provider readiness and launch a
+- [Choose providers and models](../guides/choose-providers-models.md) — ready one
+  provider and pick the model agents use.
+- [Get started with SASE](../start/index.md) — check provider readiness and launch a
   first agent.
 
 ## Look it up

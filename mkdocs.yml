@@ -35,10 +35,16 @@ nav:
       - Run your first agent: start/first-run.md
       - Make and review a change: start/first-change.md
   - Guides:
+      - guides/index.md
+      - Set up:
+          - Add an existing repository: guides/add-existing-repository.md
+          - Choose providers and models: guides/choose-providers-models.md
+          - Configure the essentials: guides/configure-essentials.md
+          - Set up shell completion and your editor: guides/setup-completion-editor.md
       - Fix problems:
-          - Restart an agent automatically: agent_auto_restart.md
-          - Recover an interrupted agent: troubleshooting/agent-revival.md
-          - Unstick a queued agent: troubleshooting/runner-slots.md
+          - Diagnose problems with sase doctor: guides/diagnose-with-doctor.md
+          - Unstick a queued agent: guides/unstick-queued-agent.md
+          - Recover an interrupted agent: guides/recover-interrupted-agent.md
   - Concepts:
       - How SASE works: concepts/index.md
       - Agents, sessions, and workspaces: concepts/agents.md
@@ -142,6 +148,9 @@ nav:
           - Agent sessions: agent_sessions.md
           - Agent hood synchronization: agents_sidecar.md
           - Agent attachments: agent_images.md
+          - Agent auto-restart: reference/agent-auto-restart.md
+          - Agent revive log: reference/agent-revive-log.md
+          - Runner slots: reference/runner-slots.md
           - Instruction bundles: instruction_bundles.md
           - Mentors: mentors.md
           - Remote dispatch: remote_dispatch.md

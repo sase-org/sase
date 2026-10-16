@@ -672,7 +672,7 @@ zero. Only a user-authored `%q(w=0)` propagates zero weight to successors.
 Holding a claim and waiting for one stay separate. Only a root or a live parallel clan
 member parks at the gate. Serial session members — the monitor and any ordinary
 follow-up included — ride the claim the session already holds. See
-[Agent queued for a runner slot](troubleshooting/runner-slots.md).
+[Agent queued for a runner slot](reference/runner-slots.md).
 
 ## Inspecting and stopping monitors
 
@@ -919,5 +919,5 @@ necessary. See the `/sase_handoff` skill for the command's flags and hazards.
   into a sequential agent session.
 - [CLI Reference](cli.md) for the full `sase monitor` command table.
 - [sase's TUI User Guide](ace.md) for how monitor rows render in the Agents tab.
-- [Agent queued for a runner slot](troubleshooting/runner-slots.md) for occupancy versus
+- [Agent queued for a runner slot](reference/runner-slots.md) for occupancy versus
   admission, including why a monitor still counts against `max_running_agents`.

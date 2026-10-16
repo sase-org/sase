@@ -900,7 +900,7 @@ entry, preventing premature firing on `Draft → Ready` transitions.
 
 ### Auto-Restart Episode Notifications
 
-See [`agent_auto_restart.md`](agent_auto_restart.md) for the full feature guide.
+See [Agent auto-restart](reference/agent-auto-restart.md) for the full feature guide.
 
 The update-skew healer (`sase agent auto-restart run`) posts one upserted amber `↻` row
 per update episode under sender `agent.auto-restart` (`action: "ViewReport"`). The first

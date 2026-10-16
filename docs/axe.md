@@ -275,7 +275,7 @@ backstop. `epic_launch_flush` is untouched by that guard; it already throttles v
 `run_every: "30s"`. `sidecar_auto_sync` lives in its own 30-second routine now.
 
 `agent_auto_restart` sweeps update-skew recoveries (see
-[`agent_auto_restart.md`](agent_auto_restart.md) for the full feature guide): it
+[Agent auto-restart](reference/agent-auto-restart.md) for the full feature guide): it
 enumerates recovery doorbells, recent failed rows, and stale, deferred, and launched
 ledger records, then submits `sase agent auto-restart run -p -j` as a durable proc
 (concurrency key `agent-auto-restart`, one at a time) when work exists. It settles

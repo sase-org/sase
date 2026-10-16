@@ -2034,9 +2034,8 @@ budget. Only a root or a live parallel clan member waits here; a serial session 
 rides the session's slot and never parks.
 
 Priority must be a non-negative integer and defaults to `10`; lower values are admitted
-first. See [Runner slot waits](troubleshooting/runner-slots.md) for how priority
-interacts with FIFO order and the bounded deference window applied to deprioritized
-waiters.
+first. See [Runner slot waits](reference/runner-slots.md) for how priority interacts
+with FIFO order and the bounded deference window applied to deprioritized waiters.
 
 `Enter` applies, `Tab` accepts a highlighted agent- or bead-name completion and
 otherwise moves focus to the next field, `Ctrl+R` runs the agent now by clearing every
@@ -3048,12 +3047,12 @@ the Agents header's "stopped" attention bucket for rows paused on user action.
 The CLI equivalent of `,x` without the edit pause is `sase agent restart NAME`: it stops
 the named agent and immediately relaunches the stored prompt under the same name.
 
-SASE also has a scheduler-driven [Agent Auto-Restart](agent_auto_restart.md) service for
-update-skew failures. An in-flight recovery appears as amber `↻ RESTARTING` with a dim
-reason. A replacement keeps the same name and shows a `↻` chip plus provenance
-describing the update and preserved error report (`v`). It allows at most one automatic
-restart per lineage; see the guide's current probe/deferral limitation before assuming
-that an eligible failure will relaunch. Inspect recovery with
+SASE also has a scheduler-driven [Agent Auto-Restart](reference/agent-auto-restart.md)
+service for update-skew failures. An in-flight recovery appears as amber `↻ RESTARTING`
+with a dim reason. A replacement keeps the same name and shows a `↻` chip plus
+provenance describing the update and preserved error report (`v`). It allows at most one
+automatic restart per lineage; see the guide's current probe/deferral limitation before
+assuming that an eligible failure will relaunch. Inspect recovery with
 `sase agent auto-restart list -a` and `sase agent auto-restart show NAME`.
 
 If any agents are marked, `,x` acts on that marked set instead of the focused row. Stale
@@ -5738,8 +5737,7 @@ the persistent artifact index was empty or stale.
 
 Every revival also writes structured events to `~/.sase/logs/events.jsonl` (start,
 per-agent success, per-agent failure). Read them back with `sase revive-log` — see
-[Agent revival audit log](troubleshooting/agent-revival.md) for the record schema and
-CLI flags.
+[Agent revive log](reference/agent-revive-log.md) for the record schema and CLI flags.
 
 #### Legacy Dismissed-Name Prefix
 

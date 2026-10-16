@@ -136,8 +136,8 @@ installation details use [INSTALL.md](INSTALL.md), or follow
 - [Macros](https://sase.sh/macros/) — reusable prompts and multi-step workflows
 - [Autonomy profiles](https://sase.sh/macros/#auto-directive) — choose which plan and
   question checkpoints resolve automatically and inspect the recorded decisions
-- [Agent auto-restart](https://sase.sh/agent_auto_restart/) — update-skew recovery,
-  evidence, and current limits
+- [Agent auto-restart](https://sase.sh/reference/agent-auto-restart/) — update-skew
+  recovery, evidence, and current limits
 - [Patches](https://sase.sh/change_spec/) — tracked PR-sized units of work
 - [Scheduler and Service Host](https://sase.sh/axe/) — scheduled and background agent
   work

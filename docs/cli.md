@@ -124,8 +124,8 @@ clears a storm pause. The configuration switch is
 
 A bare invocation delegates to `list`. `run --dry-run` can write recovery state for
 existing stale claims, and a successful `run -j` exit does not guarantee a relaunch. See
-[Agent Auto-Restart](agent_auto_restart.md#cli) for the options, output contracts, and
-current probe/deferral limitation.
+[Agent Auto-Restart](reference/agent-auto-restart.md#cli) for the options, output
+contracts, and current probe/deferral limitation.
 
 ### `sase agent search`
 

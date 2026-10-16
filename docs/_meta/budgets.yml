@@ -7,7 +7,6 @@
 ceilings:
   ace.md: 103647
   acknowledgements.md: 973
-  agent_auto_restart.md: 1877
   agent_images.md: 5909
   agent_providers.md: 5060
   agent_sessions.md: 7939
@@ -54,8 +53,6 @@ ceilings:
   sudo.md: 2385
   telemetry.md: 2394
   tool.md: 6419
-  troubleshooting/agent-revival.md: 426
-  troubleshooting/runner-slots.md: 1989
   vcs.md: 5642
   workflow_spec.md: 2892
   workspace.md: 6705

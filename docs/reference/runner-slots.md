@@ -1,3 +1,8 @@
+---
+title: Runner slots
+description: How runner capacity admits queued agents, and what waiting.json records.
+---
+
 # Agent queued for a runner slot
 
 An agent shown as `QUEUED` is at an admission boundary: it has finished every
@@ -83,33 +88,21 @@ any other blocker, such as a priority deference window. The queue ladder shows a
 normalized non-default priority as `pN` beside the entry it reordered. Press `w` on the
 agent to open the wait modal and edit the priority in place.
 
-To diagnose a wait:
-
-1. Check active, queued, and waiting agents with `sase agent list` or sase's TUI Agents
-   tab. A row that ends with `held by …` is waiting on a hold, not on capacity; see
-   [Held agents](#held-agents).
-2. Inspect the launch's `waiting.json`. `queue_capacity` is the persisted spelling of an
-   authored integer per-launch capacity budget, and `queue_capacity_explicit` says
-   whether it was authored; `queue_capacity_multiplier` instead records an authored
-   `<M>x` multiplier of the effective `max_running_agents` value. Older `wait_runners`
-   records still read as the legacy spelling. A `1.5x` multiplier resolves to `7.5`
-   against an effective limit of `5` and is recalculated on each queue poll. A waiter
-   without an authored budget records `queue_capacity: 0` with
-   `queue_capacity_explicit: false`, and `runner_admission_limit` in
-   `sase agent list -j` shows the admission limit that applies to that waiter.
-   `slot_requested_at` is the FIFO request time, and `runner_slot_queue_position` in
-   `sase agent list -j` is its current capacity-aware display rank among all live
-   capacity waiters. `queue_weight` is the requested capacity units, and `wait_priority`
-   is the value used inside each eligible or parked ordering group.
-   `wait_priority_explicit` distinguishes a deliberate `priority=N` from the implicit
-   `10` default.
-3. Press fixed `Ctrl+R` in Launch Control to edit `max_running_agents` persistently or
-   apply/clear a temporary value. Parked agents reread the effective capacity budget and
-   normally react within about two seconds. Setting another temporary value replaces the
-   first; expiry or Clear resumes configured behavior.
-4. Kill an unwanted parked agent normally. Dead or stale waiter PIDs are ignored
-   automatically and cannot wedge the queue. A crashed running process likewise stops
-   consuming a slot as soon as its PID is observed dead.
+To diagnose a wait, follow [Unstick a queued agent](../guides/unstick-queued-agent.md).
+The launch's `waiting.json` carries the full admission state behind those steps.
+`queue_capacity` is the persisted spelling of an authored integer per-launch capacity
+budget, and `queue_capacity_explicit` says whether it was authored;
+`queue_capacity_multiplier` instead records an authored `<M>x` multiplier of the
+effective `max_running_agents` value. Older `wait_runners` records still read as the
+legacy spelling. A `1.5x` multiplier resolves to `7.5` against an effective limit of `5`
+and is recalculated on each queue poll. A waiter without an authored budget records
+`queue_capacity: 0` with `queue_capacity_explicit: false`, and `runner_admission_limit`
+in `sase agent list -j` shows the admission limit that applies to that waiter.
+`slot_requested_at` is the FIFO request time, and `runner_slot_queue_position` in
+`sase agent list -j` is its current capacity-aware display rank among all live capacity
+waiters. `queue_weight` is the requested capacity units, and `wait_priority` is the
+value used inside each eligible or parked ordering group. `wait_priority_explicit`
+distinguishes a deliberate `priority=N` from the implicit `10` default.
 
 The slot gate runs in each agent process under a global file lock. It does not depend on
 the scheduler, so restarting the scheduler does not release or repair a slot wait.
@@ -173,16 +166,11 @@ An active [agent hold](../macros.md#hold-directive) keeps every agent it matches
 `held_by` (the armer key) and `hold_expires_at`. The runner rewrites these fields on
 every poll, so they clear as soon as no hold matches.
 
-To find and clear the hold:
-
-1. Run `sase agent hold list` to see active holds with their selectors and expiry, and
-   `sase agent hold show -k <armer-key>` for one hold's full detail.
-2. Release it with `sase agent hold release -k <armer-key>`, or from the **Holds** pane
-   in sase's TUI [Config tab](../configuration.md#config-tab). The held agent is
-   admitted on its next poll if capacity allows.
-3. Otherwise the hold ends by itself when its armer ends or its TTL expires. Run
-   `sase doctor -C agent_holds.stale` to report and prune holds whose armer died or
-   whose TTL passed.
+To find and clear the hold, follow
+[Unstick a queued agent](../guides/unstick-queued-agent.md). A hold ends by itself when
+its armer ends or its TTL expires; `sase doctor -C agent_holds.stale` reports and prunes
+holds whose armer died or whose TTL passed. The **Holds** pane in sase's TUI
+[Config tab](../configuration.md#config-tab) shows the same holds.
 
 If a held agent and the agent that armed the hold are waiting on each other, SASE posts
 a `Hold deadlock` notification. The TTL still guarantees that the pair eventually moves;

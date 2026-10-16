@@ -43,6 +43,10 @@ person a place to follow progress, inspect results, and decide what should happe
 ## Do it
 
 - [Get started with SASE](../start/index.md) — run and inspect a first agent task.
+- [Recover an interrupted agent](../guides/recover-interrupted-agent.md) — restart,
+  resume, or revive a broken run.
+- [Unstick a queued agent](../guides/unstick-queued-agent.md) — clear capacity waits and
+  holds.
 
 ## Look it up
 
