@@ -40,7 +40,7 @@ plan store. A plan may also declare [review decisions](#plan-decisions); their a
 and review stamps are written by SASE. A proposal may carry the transient `links:`
 authoring inlet: a list of typed artifact relationships that `sase plan propose`
 validates, persists, and removes before archiving; see
-[Authoring links in a proposed plan](../../artifact_links.md#authoring-links-in-a-proposed-plan).
+[Authoring links in a proposed plan](../artifact-links.md#authoring-links-in-a-proposed-plan).
 Plans with a `prompt` or `parent` property remain valid, but both are intentionally
 omitted from canonical schema and authoring output because new links use the Markdown
 header block; `parent` additionally reports a deprecation warning pointing at the
@@ -241,7 +241,7 @@ makes the effective default false; agent-context validation and proposal reject 
 authored true default without a verified quote. Validation outside an agent defers quote
 verification to proposal. An agent cannot turn a memory decision on unless its effective
 default is already true. Feedback about a memory decision remains provisional. See
-[launch authorship](../../prompt.md#launch-authorship) and the
+[launch authorship](../prompt-history.md#launch-authorship) and the
 [gate protocol](../automation/notification-gates.md#plan-decisions).
 
 When a plan-launched agent later commits, the host finalizer checks memory notes against

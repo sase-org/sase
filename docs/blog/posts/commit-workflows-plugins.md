@@ -12,7 +12,7 @@ categories:
 slug: commit-workflows-plugins
 links:
   - Commit Workflows: commit_workflows.md
-  - Plugins: plugins.md
+  - Plugins: reference/integrations/plugins.md
   - VCS Providers: vcs.md
   - "[04] Beads and SDD — Planning Multi-Agent Work That Actually Lands": blog/posts/beads-and-sdd.md
   - View on GitHub: https://github.com/sase-org/sase
@@ -193,8 +193,8 @@ contribute to the resolver, not which providers exist.
 
 - [Commit workflows](../../reference/vcs/index.md) — full pipeline, CLI flag table,
   result schema, resume protocol, environment variables, design principles.
-- [Plugins](../../plugins.md) — entry-point groups, discovery, writing new VCS /
-  workspace / LLM / macro / config plugins.
+- [Plugins](../../reference/integrations/plugins.md) — entry-point groups, discovery,
+  writing new VCS / workspace / LLM / macro / config plugins.
 - [VCS providers](../../reference/vcs/index.md) — provider selection tiers, per-command
   VCS usage, provider-specific details.
 - [\[06\] Patches in Practice — Review State Outside the Chat](changespecs-in-practice.md)

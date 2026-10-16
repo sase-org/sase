@@ -557,7 +557,7 @@ The LSP reads the launcher-materialized catalog snapshot, so restart the editor 
 after alias or provider config changes. sase's TUI live prompt bar can additionally
 overlay temporary alias overrides for `=alias`; see sase's TUI
 [model shortcut](../../ace.md#prompt-input-widget) and the
-[editor integration](../../editor.md#equals-model-shortcuts) notes.
+[editor integration](../integrations/editor.md#equals-model-shortcuts) notes.
 
 Provider rows such as `claude/` and `opencode/` are listed after model and alias rows in
 the broad `%model:` menu. Accepting one drills into that provider and reopens completion
@@ -597,7 +597,7 @@ uncertain, retrying the same request does not intentionally create a second remo
 launch.
 
 sase's TUI and the macro LSP complete configured machine aliases after `%dispatch:`. See
-the [Remote Dispatch Runbook](../../remote_dispatch.md) for gateway setup, enrollment, status,
+the [Remote Dispatch Runbook](../integrations/remote-dispatch.md) for gateway setup, enrollment, status,
 and remote-agent controls.
 
 ## Launch-Scoped Model Alias Overrides

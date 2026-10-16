@@ -32,8 +32,9 @@ want to review or edit it before it runs.
 ## 3. Use the shell when you prefer a command
 
 Run `sase prompt list` to see recent prompts, then use `sase prompt run <id> -e` to open
-one in an editor before launching. The [prompt reference](../prompt.md) lists search,
-filter, replay, and cancellation options.
+one in an editor before launching. The
+[prompt reference](../reference/prompt-history.md) lists search, filter, replay, and
+cancellation options.
 
 ## If it goes wrong
 
@@ -43,7 +44,8 @@ an unlaunched prompt.
 
 ## Related
 
-- [Prompt history](../prompt.md) — shell commands and prompt-history fields.
+- [Prompt history](../reference/prompt-history.md) — shell commands and prompt-history
+  fields.
 - [Prompts overlay](../ace.md#prompt-history-modal) — TUI History keybindings and
   filters.
 - [Prompts, macros, and workflows](../concepts/prompts.md) — how prompts fit with

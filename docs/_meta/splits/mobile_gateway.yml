@@ -1,0 +1,17 @@
+to: reference/integrations/index.md
+sections:
+  _intro: reference/integrations/mobile-gateway.md
+  Start Locally: reference/integrations/mobile-gateway.md
+  Host Bridge CLI Commands: contribute/mobile-gateway-api.md
+  Push Hints: reference/integrations/mobile-gateway.md
+  Private Remote Access And Packaging: reference/integrations/mobile-gateway.md
+  Hardening Test Commands: contribute/mobile-gateway-api.md
+  Pairing Flow: reference/integrations/mobile-gateway.md
+  Events: contribute/mobile-gateway-api.md
+  Notifications, Actions, And Attachments: contribute/mobile-gateway-api.md
+  Agents: contribute/mobile-gateway-api.md
+  Workflow Helpers: contribute/mobile-gateway-api.md
+  Storage And Revocation: reference/integrations/mobile-gateway.md
+  Network Exposure: reference/integrations/mobile-gateway.md
+  Contract Snapshot: contribute/mobile-gateway-api.md
+  Known MVP Limitations: reference/integrations/mobile-gateway.md

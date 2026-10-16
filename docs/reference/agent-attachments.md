@@ -1,3 +1,8 @@
+---
+title: "Agent Attachments and Image Previews"
+description: "Images and videos agents produce, and how sase's TUI previews them."
+---
+
 # Agent Attachments and Image Previews
 
 ## Overview
@@ -203,9 +208,8 @@ Finalization prints one summary line beside the other `[artifacts]` output:
 it is, remaining `store` candidates become `skip` with reason `capture_cap`. Reference
 rows cost no bytes, are not counted, and are never capped. `declared` counts
 auto-discovered candidates omitted because the agent already registered their source
-with `sase artifact create`. See
-[`configuration.md`](reference/config/artifacts.md#artifacts) for the
-`artifacts.capture` block.
+with `sase artifact create`. See [`configuration.md`](config/artifacts.md#artifacts) for
+the `artifacts.capture` block.
 
 ### The record fields
 
@@ -511,7 +515,7 @@ purges trash entries past the grace period, printing one `[artifacts] retention:
 with rows trashed, bytes reclaimed, and entries purged. The pass is wrapped defensively
 and never fails a run; when a protection source is unavailable it prints
 `[artifacts] retention skipped:` and touches nothing. See
-[configuration](reference/config/artifacts.md#artifacts) for the fields.
+[configuration](config/artifacts.md#artifacts) for the fields.
 
 Sources:
 
@@ -677,7 +681,7 @@ file:
 - sase's TUI notification modal can still open attached files in `$EDITOR` with `e` and
   cycle them with `Ctrl+N` / `Ctrl+P`.
 
-See [`notifications.md`](notifications.md) for the notification model and modal
+See [`notifications.md`](../notifications.md) for the notification model and modal
 keybindings.
 
 ## sase's TUI Artifact Viewer
@@ -796,3 +800,9 @@ and the relevant editor or artifact action. Use `e` in notifications, `E` on the
 tab, or the `a` artifact viewer whenever full-fidelity viewing is needed.
 
 Source: `src/sase/ace/tui/graphics/`
+
+## Related
+
+- [Prompt history](prompt-history.md) — replaying prompts that produced attachments.
+- [Artifact references](artifact-references.md) — citing records in prompts.
+- [Agents and workspaces](agents/index.md) — sessions and workspaces.

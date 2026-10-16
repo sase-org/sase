@@ -28,7 +28,7 @@ The normal `x` stop and `F` fork actions work on capable remote rows; actions th
 require local files, tmux, or local Patch state stay unavailable. Remote mutations are
 durable requests, optimistically annotate the row while in flight, and refresh the
 Agents list after they settle. Setup and recovery commands are covered by the
-[Remote Dispatch Runbook](../../remote_dispatch.md).
+[Remote Dispatch Runbook](../integrations/remote-dispatch.md).
 
 Remote agents are grouped into the same session and clan nodes as local ones, with the
 same queue badges (`cN`, `wN`) and the same session and clan status rules. A remote row

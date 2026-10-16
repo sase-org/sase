@@ -298,7 +298,7 @@ Source: `src/sase/default_config.yml`, `src/sase/config/sase.schema.json`,
 ## update
 
 Configures install-mode switching (see
-[Install mode switching](../../plugins.md#install-mode-switching)).
+[Install mode switching](../integrations/plugins-update.md#install-mode-switching)).
 
 ```yaml
 update:

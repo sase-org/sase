@@ -148,7 +148,7 @@ local row, whose Alias column instead shows the configured machine name). `c` sh
 persistent enrollment flow. For a selected remote, `r`, `R`, and `x` show repair,
 rename, and removal guidance, while `y` copies the displayed command; these guidance
 actions do not mutate machine state by themselves. See the
-[Remote Dispatch Runbook](../../remote_dispatch.md) for enrollment and credential handling.
+[Remote Dispatch Runbook](../integrations/remote-dispatch.md) for enrollment and credential handling.
 
 ### Projects tab
 
@@ -232,7 +232,7 @@ section.
 - **SASE** rows show the installed and latest versions of `sase` and `sase-core`; the
   highlighted row's detail includes its incoming commits.
 - **Plugins** rows bring the full
-  [`sase plugin`](../../plugins.md#plugin-catalog-sase-plugin-list-sase-plugin-show)
+  [`sase plugin`](../integrations/plugins.md#plugin-catalog-sase-plugin-list-sase-plugin-show)
   experience into the TUI: filter the catalog, inspect a plugin, and install, update,
   uninstall, or switch install mode. A plugin that declares commands shows a
   `❯ sase <name>` chip on the row and in the detail panel. Install, update, and
@@ -240,7 +240,7 @@ section.
   the metadata is known. Update comparisons cover single-plugin managed updates;
   collision warnings appear on single-plugin install confirmations. The completion toast
   labels net command-name additions `new command` and removals `removed`. See
-  [Where a command shows up](../../plugins.md#where-a-command-shows-up).
+  [Where a command shows up](../integrations/plugins-commands.md#where-a-command-shows-up).
 - **Agent CLIs** rows are a provider-colored master/detail browser for Claude Code,
   Codex CLI, OpenCode, Qwen Code, Antigravity, Muse Code, and Grok Build. Rows show
   installed → latest versions, install method, `↑` availability, and update marks.
@@ -276,7 +276,7 @@ loader and Rich renderables. They are split into **Built-in** and **Community**
 installed, `○` available, `↑` update available. Editable / dev installs (both core
 packages and plugins) carry a lowercase `dev` marker and are compared against their git
 upstream instead of PyPI. Update actions route editable packages through the
-[dev-update](../../plugins.md#dev-editable-installs) planner and managed packages through the
+[dev-update](../integrations/plugins-update.md#dev-editable-installs) planner and managed packages through the
 `uv` path. Blocked editable states appear as dim reasons such as `dev · local changes`,
 `dev · diverged`, `dev · detached HEAD`, `dev · no upstream`, or `dev · offline`.
 

@@ -50,8 +50,8 @@ allowed by the project's artifact-reference settings.
 
 ## Related
 
-- [Artifact references](../artifact_references.md) — supported reference forms and
-  resolution rules.
+- [Artifact references](../reference/artifact-references.md) — supported reference forms
+  and resolution rules.
 - [Agent artifacts](../reference/tui/agents-tab.md#agent-artifacts) — artifact panel
   controls.
 - [Agents, sessions, and workspaces](../concepts/agents.md) — agent runs and their

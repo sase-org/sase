@@ -10,7 +10,7 @@ categories:
   - Roadmap
 slug: whats-next-memory-mobile-web
 links:
-  - Mobile Gateway: mobile_gateway.md
+  - Mobile Gateway: reference/integrations/mobile-gateway.md
   - "[08] Where You Type — The Prompt Input Widget and sase-nvim": blog/posts/prompt-widget-and-nvim.md
   - View on GitHub: https://github.com/sase-org/sase
 ---
@@ -117,8 +117,8 @@ in the first place; memory, mobile, and web are how that durable object stays re
 
 ## What To Read Next
 
-- [Mobile gateway](../../mobile_gateway.md) — pairing, push hints, host-bridge commands,
-  events, notifications, agents, contract snapshot.
+- [Mobile gateway](../../reference/integrations/mobile-gateway.md) — pairing, push
+  hints, host-bridge commands, events, notifications, agents, contract snapshot.
 - [Shared memory research](https://github.com/sase-org/sase/blob/master/sdd/research/202605/zettel_sase_shared_memory.md)
   — the full proposal, including external research notes, design decisions, and open
   questions.

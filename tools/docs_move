@@ -170,8 +170,10 @@ def _rewrite_nav(text: str, source: str, target: str) -> str:
             end = index
             break
     region = "".join(lines[start:end])
+    # Require whitespace after ":" / "-" so hyphenated siblings such as
+    # cli-and-editor.md are not treated as the editor.md nav path.
     path_pattern = re.compile(
-        rf"(?P<prefix>:\s*|-[ \t]*)(?P<quote>['\"]?){re.escape(source)}(?P=quote)(?=$|[\r\n \t#])"
+        rf"(?P<prefix>:\s+|-[ \t]+)(?P<quote>['\"]?){re.escape(source)}(?P=quote)(?=$|[\r\n \t#])"
     )
     rewritten, replacements = path_pattern.subn(
         lambda match: (

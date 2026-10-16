@@ -1,3 +1,9 @@
+---
+title: "Query Language Reference"
+description:
+  "Boolean expressions that filter Patches in sase tui and other Patch queries."
+---
+
 # Query Language Reference
 
 The Patch query language filters Patches using boolean expressions that combine string
@@ -48,8 +54,8 @@ default `sase agent search` path uses the catalog profile. The CLI's `in:archive
 uses `agents-archive` against the compiled archive corpus. The live profile includes
 operational fields such as `machine`, `pinned`, `unread`, `needs`, and `source`; the
 archive profile adds `outcome`, `restorable`, `tab`, `clan_tribe`, and archive link
-facets. See [sase's TUI: Archive](ace.md#archive-agents-tab) and
-[sase's TUI: Agent Search](reference/tui/agents-tab-modes.md#agent-search).
+facets. See [sase's TUI: Archive](../ace.md#archive-agents-tab) and
+[sase's TUI: Agent Search](tui/agents-tab-modes.md#agent-search).
 
 In the Patches sub-tab, the canonical form of the active query stays visible in a
 persistent filter row. Press `/` (or the local `f`) to edit it. Typing previews each
@@ -59,14 +65,14 @@ your selection. A parse error is reported inline and leaves the visible list on 
 valid query. `Tab` accepts completions for property keys and values, shorthand sigils,
 predicates, and shorthands — and, while the row is empty, saved-query slots. A leading
 `#` saves or deletes a slot without changing the active query; see
-[sase's TUI: Editing Queries](ace.md#editing-queries).
+[sase's TUI: Editing Queries](../ace.md#editing-queries).
 
 Stitches, Beads, Plans, Files, and document-provider panes use the same idle chrome --
 the committed query stays visible without opening an editor -- but each pane has its own
 query profile and previews against **that pane's** loaded snapshot, not the Patch
 snapshot. `/` still focuses the row (as does the pane-local `f`); the tokens you can
 type are documented per pane in
-[sase's TUI Artifacts](ace.md#filtering-agent-patches-commits-beads-and-plans). The
+[sase's TUI Artifacts](../ace.md#filtering-agent-patches-commits-beads-and-plans). The
 top-level Agents tab hides its filter bar when idle; press `/` or `f` to edit the live
 Agent query there. `,/` searches the selected agent's metadata and does not edit the
 query.
@@ -320,3 +326,8 @@ feature %d                   drafted Patches containing "feature"
 c"README" +docs              case-sensitive "README" in the docs project
 *                            anything with errors, agents, or processes
 ```
+
+## Related
+
+- [CLI command groups](cli/index.md) — generated flags and subcommands.
+- [Patches](work-units/patches.md) — Patch records the query language filters.

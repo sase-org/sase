@@ -17,7 +17,7 @@ that fails to load can still appear there with its distribution's summary, so be
 listed does not prove that it can run. Load failures, name collisions, and shadowed
 names appear on `sase --full-help` instead, each marked `⚠`, and that footer closes with
 a pointer to `sase plugin list` and the Updates tab. See
-[Command plugins](plugins.md#command-plugins).
+[Command plugins](reference/integrations/plugins-commands.md#command-plugins-1).
 
 Compact help's `memory` blurb still mentions reviewing proposals, but that CLI workflow
 has been removed. Current memory commands inspect, read, initialize, and audit memory;
@@ -52,8 +52,9 @@ Flag and option details live in the generated
   [sase pager](reference/cli/pager.md)
 
 Workflows: [TUI](ace.md), [Scheduler](reference/automation/scheduler.md),
-[Monitors](reference/automation/monitors.md), [Prompt history](prompt.md),
-[VCS](reference/vcs/index.md), [Notifications](reference/automation/notifications.md),
+[Monitors](reference/automation/monitors.md),
+[Prompt history](reference/prompt-history.md), [VCS](reference/vcs/index.md),
+[Notifications](reference/automation/notifications.md),
 [Macros](reference/macros/index.md).
 
 `sase stitch list --origin ORIGIN` accepts `stitch`, `auto`, or `manual`; repeat the
@@ -391,7 +392,8 @@ Workflows: [Patches](reference/work-units/patches.md),
 [Beads](reference/work-units/index.md), [SDD](reference/work-units/index.md),
 [Goals](reference/work-units/goals.md),
 [Project lifecycle](reference/work-units/project-spec.md),
-[Initialization](reference/agents/index.md), [Remote dispatch](remote_dispatch.md),
+[Initialization](reference/agents/index.md),
+[Remote dispatch](reference/integrations/remote-dispatch.md),
 [Memory](reference/memory/memory.md).
 
 Patches are PR-sized review records. SDD stores durable prompt and planning artifacts.
@@ -638,7 +640,7 @@ Flag and option details live in the generated
   [sase skill](reference/cli/skill.md), [sase snippet](reference/cli/snippet.md)
 
 Workflows: [Macros](reference/macros/index.md), [Workflows](reference/workflows.md),
-[Editor integration](editor.md).
+[Editor integration](reference/integrations/editor.md).
 
 Use `#name(...)` for inline macro expansion and `#!workflow(...)` for standalone
 workflow references. Workspace references such as `+<project>`
@@ -679,9 +681,11 @@ Flag and option details live in the generated
   [sase tool](reference/cli/tool.md), [sase disk](reference/cli/disk.md),
   [sase workspace](reference/cli/workspace.md), [sase mobile](reference/cli/mobile.md)
 
-Workflows: [Configuration](reference/config/index.md), [Plugins](plugins.md),
-[Shell completion](completion.md), [Telemetry](contribute/telemetry.md),
-[Workspace](reference/agents/index.md), [Mobile gateway](mobile_gateway.md).
+Workflows: [Configuration](reference/config/index.md),
+[Plugins](reference/integrations/plugins.md),
+[Shell completion](reference/integrations/completion.md),
+[Telemetry](contribute/telemetry.md), [Workspace](reference/agents/index.md),
+[Mobile gateway](reference/integrations/mobile-gateway.md).
 
 The `sase artifact show`, `read`, `path`, `open`, and `link` commands take logical
 references without a leading `@`, for example
@@ -702,15 +706,15 @@ disk until that purge runs. Explicit artifacts, artifacts a ProjectSpec, plan, b
 research document references, artifacts recorded in the consumption ledger, and the
 newest capture of every label are never selected; if a required protection source cannot
 be read, `--apply` refuses rather than under-protecting. See
-[Store Lifecycle](agent_images.md#store-lifecycle).
+[Store Lifecycle](reference/agent-attachments.md#store-lifecycle).
 
 `sase artifact list` inventories only the persistent artifact-file index; it is not a
 catalog of every reference kind and it does not browse the agents-sidecar prompt
 archive. Use `sase agent prompts list/show/validate` for archived prompts and their
 published `ARTIFACTS` links. Use sase's TUI grouped `@` completion to browse prompt
 references, or its contextual **Copy as…** palette to copy a reference or pre-fill a new
-agent prompt from the selected entry. See [Artifact References](artifact_references.md)
-for the handoff workflow and
+agent prompt from the selected entry. See
+[Artifact References](reference/artifact-references.md) for the handoff workflow and
 [prompt preprocessing](contribute/llm-invocation.md#prompt-preprocessing-pipeline) for
 launch-time resolution.
 
@@ -760,10 +764,10 @@ and may gain additional keys over time, so scripts should key off check ids and 
 rather than assuming every nested field is permanent.
 
 The `completion` group is advisory and never fails a report: `completion.install` reads
-the [shell-completion](completion.md) install stamps, and the deep-only
-`completion.registration` spawns a real shell to confirm the script is actually
-registered (`sase doctor -D -C completion.registration`). Selecting a deep check without
-`-D` is rejected rather than silently skipped.
+the [shell-completion](reference/integrations/completion.md) install stamps, and the
+deep-only `completion.registration` spawns a real shell to confirm the script is
+actually registered (`sase doctor -D -C completion.registration`). Selecting a deep
+check without `-D` is rejected rather than silently skipped.
 
 `plugins.commands` loads mounted command adapters and reports command and claim
 problems. A load failure is `ERROR` on this check. A name collision is `ERROR` and names
@@ -775,7 +779,7 @@ parser, and a parser failure is `ERROR` too. A load or parser failure's suggeste
 step currently uses `sase plugin update <command-name>`. The command name may differ
 from the plugin name; use the owning distribution in the diagnostic to identify the
 plugin before updating it. See
-[Where a command shows up](plugins.md#where-a-command-shows-up).
+[Where a command shows up](reference/integrations/plugins-commands.md#where-a-command-shows-up).
 
 `project.junk_directories` reports directories under `~/.sase/projects/` that have no
 canonical ProjectSpec and gives a manual-review cleanup hint.

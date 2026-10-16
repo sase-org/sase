@@ -17,7 +17,7 @@ def register_machine_parser(subparsers: argparse._SubParsersAction) -> None:
             "subcommand, delegates to `sase machine list`."
         ),
         epilog=(
-            "Runbook: docs/remote_dispatch.md covers target gateway supervision, "
+            "Runbook: docs/reference/integrations/remote-dispatch.md covers target gateway supervision, "
             "Tailscale Serve, bootstrap issuance, enrollment, and live operation."
         ),
     )

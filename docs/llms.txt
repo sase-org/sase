@@ -46,17 +46,9 @@
 
 ## Reference
 
-- [Agent Attachments and Image Previews](https://sase.sh/agent_images/) — Agent Attachments and Image Previews — SASE treats files produced by agents as first-class completion artifacts.
-- [Artifact Links](https://sase.sh/artifact_links/) — Artifact Links — Artifact links are typed relationships between SASE artifacts.
-- [Artifact References](https://sase.sh/artifact_references/) — Artifact References — Artifact references are typed @<kind>:<argument> citations in launch prompts.
 - [CLI Reference](https://sase.sh/cli/) — CLI Reference — This page is a command index for the top-level sase CLI.
-- [Shell Completion](https://sase.sh/completion/) — Shell Completion — sase completion supports native shell completion for zsh, bash, and fish from the live sase argparse tree, so pressing <TAB> anywhere in the command line offers the right commands, options, static choices, and live values — bead ids with titles, project display names, macro names, and more — with no perceptible latency.
-- [Editor Integration](https://sase.sh/editor/) — Editor Integration — SASE exposes two editor-facing surfaces for prompt and macro editing:
-- [Mobile Gateway](https://sase.sh/mobile_gateway/) — Mobile Gateway — The SASE mobile gateway is a workstation-hosted HTTP gateway for paired mobile clients.
 - [SASE Pager](https://sase.sh/pager/) — SASE Pager — sase pager opens artifact references, file paths, or stdin in the SASE link-traversing pager.
-- [Plugin System](https://sase.sh/plugins/) — Plugin System — Sase uses Python entry points to discover optional functionality installed in the same Python environment as sase.
-- [Prompt History and Draft Recovery](https://sase.sh/prompt/) — Prompt History and Draft Recovery — Prompts you launch with sase run or from sase's TUI are recorded in prompt history when they are useful to replay.
-- [Query Language Reference](https://sase.sh/query_language/) — Query Language Reference — The Patch query language filters Patches using boolean expressions that combine string matching, property filters, and operational shorthands.
+- [Agent Attachments and Image Previews](https://sase.sh/reference/agent-attachments/) — Images and videos agents produce, and how sase's TUI previews them.
 - [Agent auto-restart](https://sase.sh/reference/agent-auto-restart/) — Recovery service for agents interrupted by a live update, and its limits.
 - [Agent revive log](https://sase.sh/reference/agent-revive-log/) — Audit records for TUI agent revival, and how to read them.
 - [Agent clans](https://sase.sh/reference/agents/agent-clans/) — Look up how parallel agent sessions are grouped and displayed.
@@ -70,6 +62,8 @@
 - [Memory initialization](https://sase.sh/reference/agents/memory-initialization/) — Look up how SASE initializes, lists, and audits agent memory.
 - [Service host initialization](https://sase.sh/reference/agents/service-host/) — Look up how SASE initializes its per-user service host.
 - [Workspaces](https://sase.sh/reference/agents/workspaces/) — Look up workspace storage, repository commands, and workspace commands.
+- [Artifact Links](https://sase.sh/reference/artifact-links/) — Typed relationships between durable SASE artifacts.
+- [Artifact References](https://sase.sh/reference/artifact-references/) — Typed @kind:argument citations that expand in launch prompts.
 - [Automation](https://sase.sh/reference/automation/) — Reference pages for SASE notifications, scheduling, monitors, tools, mentors, and sudo requests.
 - [Mentors](https://sase.sh/reference/automation/mentors/) — Configure and use automated review mentors for Patches.
 - [Monitor operations](https://sase.sh/reference/automation/monitor-operations/) — Inspect, stop, and view monitors in the SASE TUI.
@@ -192,6 +186,14 @@
 - [Environment variables](https://sase.sh/reference/environment-variables/) — Environment variables that configure providers, SDD, plugins, runtime, and workspaces.
 - [Glossary](https://sase.sh/reference/glossary/) — Every SASE term, generated from the glossary memory web.
 - [Reference](https://sase.sh/reference/) — Look up exact SASE facts here, generated from code where possible.
+- [Shell Completion](https://sase.sh/reference/integrations/completion/) — Native zsh, bash, and fish completion from the live sase argparse tree.
+- [Editor Integration](https://sase.sh/reference/integrations/editor/) — Language-server and helper-bridge surfaces for prompt and macro editing.
+- [Integrations](https://sase.sh/reference/integrations/) — Look up plugins, editor, completion, mobile, and remote dispatch surfaces.
+- [Mobile gateway](https://sase.sh/reference/integrations/mobile-gateway/) — Look up pairing, push hints, storage, and private remote access.
+- [Command plugins](https://sase.sh/reference/integrations/plugins-commands/) — Look up how plugins mount top-level sase commands.
+- [Installing and updating plugins](https://sase.sh/reference/integrations/plugins-update/) — Look up sase update and plugin install, update, and uninstall.
+- [Plugins](https://sase.sh/reference/integrations/plugins/) — Look up plugin groups, the catalog, installation, and disable switches.
+- [Remote Dispatch Runbook](https://sase.sh/reference/integrations/remote-dispatch/) — Enroll a remote machine and launch agents on it with %dispatch.
 - [Macro arguments and typed inputs](https://sase.sh/reference/macros/arguments/) — Argument syntax, input types, defaults, and rendered output shapes.
 - [Built-in and configured macros](https://sase.sh/reference/macros/built-ins/) — Built-in macros, configuration-defined macros, and local macro files.
 - [Macro CLI and editor support](https://sase.sh/reference/macros/cli-and-editor/) — Macro command behavior and editor language-server features.
@@ -212,6 +214,7 @@
 - [Memory](https://sase.sh/reference/memory/) — Lookup pages for durable memory, instruction bundles, and memory history.
 - [Instruction bundles](https://sase.sh/reference/memory/instruction-bundles/) — How SASE instruction bundles are previewed and how providers report delivery behavior.
 - [Memory](https://sase.sh/reference/memory/memory/) — How SASE stores, composes, audits, and links durable memory context.
+- [Prompt History and Draft Recovery](https://sase.sh/reference/prompt-history/) — Recorded prompts, replay, draft recovery, and the sase prompt command group.
 - [Installing and authenticating agent CLIs](https://sase.sh/reference/providers/agent-clis/) — Provider CLIs that SASE can install, authenticate, inspect, and update safely.
 - [Antigravity provider](https://sase.sh/reference/providers/agy/) — Antigravity CLI command construction, model mapping, and provider-specific behavior.
 - [Claude Code provider](https://sase.sh/reference/providers/claude/) — Claude Code command construction, model mapping, and provider-specific behavior.
@@ -227,6 +230,7 @@
 - [Provider retry and fallback](https://sase.sh/reference/providers/retry-and-fallback/) — Retry defaults, fallback behavior, and how provider failures affect invocations.
 - [Provider routing](https://sase.sh/reference/providers/routing/) — Per-prompt selection and temporary provider or model routing controls.
 - [Provider usage](https://sase.sh/reference/providers/usage/) — Subscription usage reporting and automatic provider disabling at usage limits.
+- [Query Language Reference](https://sase.sh/reference/query-language/) — Boolean expressions that filter Patches in sase tui and other Patch queries.
 - [Runner slots](https://sase.sh/reference/runner-slots/) — How runner capacity admits queued agents, and what waiting.json records.
 - [SASE Admin Center](https://sase.sh/reference/tui/admin-center/) — Navigation, sections, and editor behavior in the SASE Admin Center.
 - [Agent row glyphs](https://sase.sh/reference/tui/agent-row-glyphs/) — Glyphs, markers, and badges on Agents tab rows.
@@ -276,7 +280,6 @@
 - [Plans](https://sase.sh/reference/work-units/plans/) — Spec-Driven Development storage, artifacts, and plan lifecycle in SASE.
 - [ProjectSpec](https://sase.sh/reference/work-units/project-spec/) — The shared project-level file for project metadata and Patch records.
 - [Workflow Specification](https://sase.sh/reference/workflows/) — YAML workflow files, step types, inputs, and execution behavior.
-- [Remote Dispatch Runbook](https://sase.sh/remote_dispatch/) — Remote Dispatch Runbook — Remote dispatch lets one SASE controller discover, enroll, and operate agents on another machine.
 
 ## Contribute
 
@@ -292,9 +295,11 @@
 - [Instruction bundle internals](https://sase.sh/contribute/instruction-bundle-internals/) — Manifest, storage, cache, and delivery contracts for generated instruction bundles.
 - [Integration APIs](https://sase.sh/contribute/integration-apis/) — SASE exposes a small set of Python helpers for external plugins, chat clients, mobile clients, and editor integrations.
 - [LLM invocation internals](https://sase.sh/contribute/llm-invocation/) — Internal provider architecture, prompt processing, subprocess handling, and invocation lifecycle.
+- [Mobile gateway API](https://sase.sh/contribute/mobile-gateway-api/) — Host-bridge commands, events, and API contract for the mobile gateway.
 - [Mobile MVP Runbook](https://sase.sh/contribute/mobile-mvp-runbook/) — This runbook covers the private Android MVP that connects a phone to a workstation-hosted SASE mobile gateway.
 - [Prepared monitor completion](https://sase.sh/contribute/monitor-completion/) — Internal details for opt-in no-new prepared monitor completion.
 - [sase tui Performance Runbook](https://sase.sh/contribute/perf-runbook/) — This runbook explains how to capture and compare performance data for sase's TUI, the sase tui terminal user interface.
+- [Plugin API](https://sase.sh/contribute/plugin-api/) — Contributor contract for discovering and writing SASE plugins.
 - [Reader testing](https://sase.sh/contribute/reader-testing/) — How to run an observed reader round and turn the results into doc changes.
 - [Rust Backend (sase_core_rs)](https://sase.sh/contribute/rust-backend/) — A subset of sase's core APIs is served by a Rust extension distributed as sase-core-rs on PyPI and built from the sibling sase-core repo.
 - [SDD Storage](https://sase.sh/contribute/sdd-storage/) — The workspace provider owns SDD placement, while projects select a store beneath it.
@@ -332,8 +337,10 @@
 - [Instruction Bundles](https://sase.sh/instruction_bundles/) — This page has moved to its new home.
 - [LLM Provider Integration](https://sase.sh/llms/) — This page has moved to its new home.
 - [Macro Template Reference](https://sase.sh/macros/) — This page has moved to its new home.
+- [Mobile Gateway](https://sase.sh/mobile_gateway/) — This page has moved to its new home.
 - [Monitors](https://sase.sh/monitors/) — This page has moved to its new home.
 - [Notifications](https://sase.sh/notifications/) — This page has moved to its new home.
+- [Plugin System](https://sase.sh/plugins/) — This page has moved to its new home.
 - [Rust Backend (sase_core_rs)](https://sase.sh/rust_backend/) — This page has moved to its new home.
 - [Spec-Driven Development (SDD)](https://sase.sh/sdd/) — This page has moved to its new home.
 - [Named Tools and ToolRuns](https://sase.sh/tool/) — This page has moved to its new home.
@@ -386,3 +393,13 @@
 - https://sase.sh/init/ → https://sase.sh/reference/agents/
 - https://sase.sh/vcs/ → https://sase.sh/reference/vcs/
 - https://sase.sh/commit_workflows/ → https://sase.sh/reference/vcs/
+- https://sase.sh/plugins/ → https://sase.sh/reference/integrations/
+- https://sase.sh/mobile_gateway/ → https://sase.sh/reference/integrations/
+- https://sase.sh/editor/ → https://sase.sh/reference/integrations/editor/
+- https://sase.sh/completion/ → https://sase.sh/reference/integrations/completion/
+- https://sase.sh/remote_dispatch/ → https://sase.sh/reference/integrations/remote-dispatch/
+- https://sase.sh/query_language/ → https://sase.sh/reference/query-language/
+- https://sase.sh/agent_images/ → https://sase.sh/reference/agent-attachments/
+- https://sase.sh/prompt/ → https://sase.sh/reference/prompt-history/
+- https://sase.sh/artifact_references/ → https://sase.sh/reference/artifact-references/
+- https://sase.sh/artifact_links/ → https://sase.sh/reference/artifact-links/

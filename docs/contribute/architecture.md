@@ -29,7 +29,7 @@ reviewed, retried, and handed off through stable project artifacts.
 | Memory       | Always-loaded and on-demand context, explicit flat-note macro inclusion, audited reads, and sase's TUI-backed note/strand changes.                | [Memory](../reference/memory/memory.md)                                                           |
 | SDD          | Durable prompt, tale, epic, and research artifacts.                                                                                               | [SDD](../reference/work-units/plans.md)                                                           |
 | Beads        | Git-portable issue/dependency tracking and executable epic launch plans.                                                                          | [Beads](../reference/work-units/beads.md)                                                         |
-| Providers    | Pluggable LLM, VCS, workspace, config, and macro boundaries.                                                                                      | [Plugins](../plugins.md)                                                                          |
+| Providers    | Pluggable LLM, VCS, workspace, config, and macro boundaries.                                                                                      | [Plugins](../reference/integrations/plugins.md)                                                   |
 | Rust core    | Required `sase_core_rs` extension for ported parsing, query, notification, agent scan, launch and admission, retention, and bead data operations. | [Rust backend](rust-backend.md)                                                                   |
 | Integrations | Public helpers and fixed bridge APIs for editors, mobile gateway, and external packages.                                                          | [Integrations](integration-apis.md)                                                               |
 
@@ -249,7 +249,7 @@ workspace strategy:
 | LLM provider       | Agent CLI selection, concrete model mapping, subprocess invocation, retry defaults, usage metadata.              | [LLM providers](../reference/providers/index.md) |
 | VCS provider       | Diff, checkout, commit, amend, proposal/PR dispatch, reword, submit, sync, revert, restore, and review metadata. | [VCS providers](../reference/vcs/index.md)       |
 | Workspace provider | Workspace reference resolution, workspace directory allocation, submit/mail preparation, workflow metadata.      | [Workspaces](../reference/agents/index.md)       |
-| Resource plugins   | Extra macro/workflow files and default configuration.                                                            | [Plugins](../plugins.md)                         |
+| Resource plugins   | Extra macro/workflow files and default configuration.                                                            | [Plugins](../reference/integrations/plugins.md)  |
 | Integration APIs   | Public Python helpers and fixed JSON bridge contracts for sidecar tools.                                         | [Integrations](integration-apis.md)              |
 
 Core SASE ships built-in providers for common local use: bundled LLM provider entry
@@ -294,12 +294,12 @@ complete operation list and facade map.
 
 ## Read Next
 
-| Need                                     | Page                                                                                                                                                                       |
-| ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Command discovery                        | [CLI reference](../cli.md)                                                                                                                                                 |
-| Contributor setup and source orientation | [Development](development.md)                                                                                                                                              |
-| Runtime operations                       | [sase's TUI](../ace.md), [Axe](../reference/automation/scheduler.md), [notifications](../reference/automation/notifications.md)                                            |
-| Durable work records                     | [Patches](../reference/work-units/patches.md), [memory](../reference/memory/memory.md), [SDD](../reference/work-units/index.md), [beads](../reference/work-units/index.md) |
-| Prompt and workflow execution            | [Macros](../reference/macros/index.md), [workflow spec](../reference/workflows.md)                                                                                         |
-| Extension boundaries                     | [Plugins](../plugins.md), [LLM providers](../reference/providers/index.md), [VCS providers](../reference/vcs/index.md), [workspaces](../reference/agents/index.md)         |
-| Backend boundary                         | [Rust backend](rust-backend.md)                                                                                                                                            |
+| Need                                     | Page                                                                                                                                                                                      |
+| ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Command discovery                        | [CLI reference](../cli.md)                                                                                                                                                                |
+| Contributor setup and source orientation | [Development](development.md)                                                                                                                                                             |
+| Runtime operations                       | [sase's TUI](../ace.md), [Axe](../reference/automation/scheduler.md), [notifications](../reference/automation/notifications.md)                                                           |
+| Durable work records                     | [Patches](../reference/work-units/patches.md), [memory](../reference/memory/memory.md), [SDD](../reference/work-units/index.md), [beads](../reference/work-units/index.md)                |
+| Prompt and workflow execution            | [Macros](../reference/macros/index.md), [workflow spec](../reference/workflows.md)                                                                                                        |
+| Extension boundaries                     | [Plugins](../reference/integrations/plugins.md), [LLM providers](../reference/providers/index.md), [VCS providers](../reference/vcs/index.md), [workspaces](../reference/agents/index.md) |
+| Backend boundary                         | [Rust backend](rust-backend.md)                                                                                                                                                           |

@@ -11,7 +11,7 @@ Exact SASE facts; guides teach workflows.
 
 - [CLI reference](../cli.md) — command index and routing
 - [CLI command groups](cli/index.md) — generated flags and subcommands
-- [Query language](../query_language.md) — filtering runs and beads
+- [Query language](query-language.md) — filtering runs and beads
 
 ## Configuration
 
@@ -75,16 +75,14 @@ Exact SASE facts; guides teach workflows.
 
 ## Prompts and artifacts
 
-- [Prompt history](../prompt.md) — replaying past prompts
-- [Artifact references](../artifact_references.md) — citing records in prompts
-- [Artifact links](../artifact_links.md) — typed links between records
+- [Prompt history](prompt-history.md) — replaying past prompts
+- [Artifact references](artifact-references.md) — citing records in prompts
+- [Artifact links](artifact-links.md) — typed links between records
 
 ## Integrations
 
-- [Editor integration](../editor.md) — Neovim, completion support
-- [Integration APIs](../contribute/integration-apis.md) — building on SASE
-- [Plugins](../plugins.md) — extending SASE
-- [Mobile gateway](../mobile_gateway.md) — driving agents by phone
+- [Integrations](integrations/index.md) — plugins, editor, completion, mobile, and
+  remote dispatch
 
 ## Content layout and upgrading
 

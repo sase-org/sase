@@ -13,9 +13,9 @@ Bounds on automatic artifact capture at agent finalization, and the opt-in reten
 policy that bounds the store afterwards. Capture keeps bytes only for files a run
 authored that version control cannot reproduce; content already reachable from a durable
 commit becomes a byte-free reference row. See
-[VCS-Backed Artifact Files](../../agent_images.md#vcs-backed-artifact-files) for the
+[VCS-Backed Artifact Files](../agent-attachments.md#vcs-backed-artifact-files) for the
 decision matrix and the `vcs-cache` directory, and
-[Store Lifecycle](../../agent_images.md#store-lifecycle) for the report → dry run →
+[Store Lifecycle](../agent-attachments.md#store-lifecycle) for the report → dry run →
 opt-in retention progression that `artifacts.retention` completes.
 
 ```yaml
@@ -39,7 +39,7 @@ was squash-rewritten, at the cost of a longer walk per file.
 `max_file_size_bytes` and `pool_max_bytes` apply to launch-time prompt-artifact staging
 under the workspace-local `.sase/artifacts/` tree. The local manifest still records
 oversized files, but SASE does not copy their bytes into `.sase/artifacts/pool/`. See
-[Prompt Artifact Staging and Archive](../../agent_images.md#prompt-artifact-staging-and-archive)
+[Prompt Artifact Staging and Archive](../agent-attachments.md#prompt-artifact-staging-and-archive)
 for the layout and garbage-collection rules.
 
 `artifacts.retention` is the opt-in policy that runs once after each agent finalization,
@@ -124,7 +124,7 @@ captured input. The normal `artifacts.capture.max_file_size_bytes` limit applies
 
 Run `sase doctor -C config.artifact_refs` to find malformed, missing, nested,
 overlapping, or zero-usable-root configurations. See
-[Artifact References](../../artifact_references.md) for prompt syntax and context rules.
+[Artifact References](../artifact-references.md) for prompt syntax and context rules.
 
 ## Related
 

@@ -12,7 +12,7 @@ This page describes machine discovery, enrollment, activation, and review behavi
 `sase machine init` is the canonical remote-machine initializer. `sase init machine` and
 the bare `sase init` machine spec delegate to the same planner and apply service. The
 operational target-preparation flow is covered in the
-[Remote Dispatch Runbook](../../remote_dispatch.md).
+[Remote Dispatch Runbook](../integrations/remote-dispatch.md).
 
 `--check`, `--json`, and other previews inspect only local merged configuration: they
 never run discovery or talk to a gateway. `--diff` only renders ordinary initializer

@@ -299,7 +299,7 @@ unrelated settlement rows. The finished node shows its terminal status and unrea
 on the toast tick, from an exact read-only status probe. The targeted reload that
 follows is authoritative.
 
-See [`agent_images.md`](../../agent_images.md) for the full attachment contract and
+See [`agent_images.md`](../agent-attachments.md) for the full attachment contract and
 sase's TUI image preview notes.
 
 For user-agent completion and failure notifications, `action_data` also includes

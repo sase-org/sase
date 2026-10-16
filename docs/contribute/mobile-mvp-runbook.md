@@ -125,7 +125,8 @@ sase mobile gateway start
 Run in the foreground, the command prints a pairing code, pairing ID, and expiration;
 keep the process running while mobile clients connect. When the built-in `gateway`
 service proc is enabled on this machine, the command instead hands ownership to the
-service host and returns (see [Mobile Gateway](../mobile_gateway.md)).
+service host and returns (see
+[Mobile Gateway](../reference/integrations/mobile-gateway.md)).
 
 For an emulator pointed at host loopback, use `http://10.0.2.2:7629` as the base URL in
 the Android app. For a physical device on the same trusted LAN, bind explicitly to a LAN
@@ -275,8 +276,9 @@ Then smoke the end-to-end path:
   pair again.
 - Behavior did not change after upgrading SASE: the running gateway still serves the
   pre-upgrade `sase_gateway` binary until it restarts. When the same host also serves
-  [remote dispatch](../remote_dispatch.md#launch-and-operate), `sase machine status`
-  from another fleet machine reports that as `sase-gateway` version skew.
+  [remote dispatch](../reference/integrations/remote-dispatch.md#launch-and-operate),
+  `sase machine status` from another fleet machine reports that as `sase-gateway`
+  version skew.
 - Foreground notification will not appear: verify Android notification permission and
   that connected mode is enabled.
 - A snoozed notification never came back: with no consumer running, nothing rings at the

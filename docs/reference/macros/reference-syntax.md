@@ -393,7 +393,7 @@ a durable document, entity, revision, or file, and SASE resolves them late in pr
 preprocessing after macro expansion. The retired `#ref/<kind>:<argument>` renderer
 syntax is not accepted.
 
-See [Artifact References](../../artifact_references.md) for the grammar, live kinds,
+See [Artifact References](../artifact-references.md) for the grammar, live kinds,
 compatibility aliases, provider specs, publication links, and allow-listed `@file`
 roots.
 

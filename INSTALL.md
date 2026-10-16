@@ -114,9 +114,10 @@ up immediately. The same tab uninstalls plugins with `x`.
 
 The CLI equivalents are `sase plugin list`, `sase plugin show <plugin>`,
 `sase plugin install <plugin>`, and `sase plugin uninstall <plugin>` — see
-[docs/plugins.md](docs/plugins.md). Note that browsing the plugin catalog (in the
-Updates tab or via `sase plugin list`) requires an authenticated GitHub CLI (`gh`),
-since the catalog is fetched from the GitHub `sase--plugin` repository topic.
+[docs/reference/integrations/plugins.md](docs/reference/integrations/plugins.md). Note
+that browsing the plugin catalog (in the Updates tab or via `sase plugin list`) requires
+an authenticated GitHub CLI (`gh`), since the catalog is fetched from the GitHub
+`sase--plugin` repository topic.
 
 ### Alternative: install SASE and plugins in one command
 
@@ -184,8 +185,9 @@ sase plugin update -a  # upgrade every installed plugin, leaving sase core pinne
 ```
 
 Both paths require the canonical `uv tool install sase` install method. See
-[docs/plugins.md](docs/plugins.md#updating-sase-and-plugins-sase-update) for details,
-including how editable / dev checkouts are updated and how install-mode switching works.
+[docs/reference/integrations/plugins-update.md](docs/reference/integrations/plugins-update.md#updating-sase-and-plugins-sase-update)
+for details, including how editable / dev checkouts are updated and how install-mode
+switching works.
 
 ## System commands SASE uses at runtime
 

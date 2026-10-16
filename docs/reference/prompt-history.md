@@ -1,8 +1,14 @@
+---
+title: "Prompt History and Draft Recovery"
+description:
+  "Recorded prompts, replay, draft recovery, and the sase prompt command group."
+---
+
 # Prompt History and Draft Recovery
 
-Prompts you launch with `sase run` or from [sase's TUI](ace.md) are recorded in prompt
-history when they are useful to replay. Normal launch writes skip prompts shorter than
-five words (terse scraps like `y`, `ok`, or `fix the bug` are not worth replaying),
+Prompts you launch with `sase run` or from [sase's TUI](../ace.md) are recorded in
+prompt history when they are useful to replay. Normal launch writes skip prompts shorter
+than five words (terse scraps like `y`, `ok`, or `fix the bug` are not worth replaying),
 while recovery paths — and a few launch surfaces that opt in with `allow_short` — can
 still preserve a short submitted prompt when a launch fails. Current installs write
 monthly JSON shards under `~/.sase/prompt_history/YYMM.json`, with unparseable last-used
@@ -65,13 +71,13 @@ origin, which is kept. A blank or unrecognized `prompt_source_surface` is stored
 `unknown`. A human's short launch can therefore have authorship provenance even when the
 five-word history rule skips it.
 
-For [memory decisions in a plan](reference/work-units/plan-format.md#plan-decisions),
-SASE uses the original `submitted_prompt.md` from a human-typed root launch as evidence.
-It also checks human-authored plan feedback and free-text question answers in the
-planner's chain. Gate responses record whether the caller was a human or an agent.
-Automatically resolved responses, generated launches, macro-expanded instructions, model
-output, and selected question-option labels do not count as a human request. Older
-records without provenance remain readable but cannot establish that authorization.
+For [memory decisions in a plan](work-units/plan-format.md#plan-decisions), SASE uses
+the original `submitted_prompt.md` from a human-typed root launch as evidence. It also
+checks human-authored plan feedback and free-text question answers in the planner's
+chain. Gate responses record whether the caller was a human or an agent. Automatically
+resolved responses, generated launches, macro-expanded instructions, model output, and
+selected question-option labels do not count as a human request. Older records without
+provenance remain readable but cannot establish that authorization.
 
 ## Selectors
 
@@ -101,7 +107,7 @@ asks for a longer selector. Adding newer prompts never changes an existing promp
 | `sase prompt doctor`        | Read-only health report for the store (parseability, duplicates, oversized, …).                        |
 | `sase prompt delete`        | Remove exactly one prompt by selector.                                                                 |
 | `sase prompt prune`         | Remove prompts by objective criteria (`--keep`, `--before`, `--cancelled`, `--generated`, `--legacy`). |
-| `sase prompt save`          | Save a prompt as a reusable [macro](reference/macros/index.md) markdown file.                          |
+| `sase prompt save`          | Save a prompt as a reusable [macro](macros/index.md) markdown file.                                    |
 | `sase prompt export`        | Export a prompt to stdout or a local file; `--sdd` is a retired compatibility flag.                    |
 | `sase prompt stash-archive` | List, show, and restore drafts archived from Stash or Trash.                                           |
 
@@ -161,8 +167,8 @@ with `in Trash: restore it from the Trash view instead`. When the same id was ar
 more than once, `show` and `restore` use the newest copy. Older copies remain in
 `list -j`. `-n` changes how many rows are printed. `-q` and `-r` search the newest
 100,000 archive rows, then print up to that limit. `-q` does not match the id, project,
-or reason. See [Stash and Trash in the TUI](ace.md#prompt-stacks) for the keys and
-[Trash limits](reference/config/ace-prompts.md#acepromptstash) for retention settings.
+or reason. See [Stash and Trash in the TUI](../ace.md#prompt-stacks) for the keys and
+[Trash limits](config/ace-prompts.md#acepromptstash) for retention settings.
 
 ## Search
 
@@ -257,7 +263,7 @@ canonical-archive macro links, the local copy collapses into the archive hit, an
 ### Find a recent prompt
 
 For the TUI workflow, see
-[Find and replay an old prompt](guides/find-and-replay-prompt.md).
+[Find and replay an old prompt](../guides/find-and-replay-prompt.md).
 
 `list` defaults to the 20 most recent non-cancelled prompts, newest first. Narrow it
 with a case-insensitive substring filter:
@@ -272,9 +278,9 @@ sase prompt list -j               # stable JSON for scripts and editor integrati
 The table shows the prompt ID, last-used time, status, character count,
 project/macro/directive hint chips, and a one-line preview — never the full text.
 
-Inside [sase's TUI](ace.md), the same history is one keystroke away: press `Ctrl+K` in
-the prompt bar (or `,.` from any tab) to open the
-[Prompts overlay](ace.md#prompt-history-modal). Its filter accepts a leading
+Inside [sase's TUI](../ace.md), the same history is one keystroke away: press `Ctrl+K`
+in the prompt bar (or `,.` from any tab) to open the
+[Prompts overlay](../ace.md#prompt-history-modal). Its filter accepts a leading
 `project:<name>` qualifier, and `Ctrl+K` pre-scopes it to the project named by the
 current prompt's workspace reference.
 
@@ -314,14 +320,14 @@ sase prompt run ph_8f3a9c0d12ab -P "+bob-cli"        # a project tag works as th
 
 `--prefix` replaces `#` workspace refs that start a line (after optional `%directive`
 tokens). When it finds none, it prepends the new prefix instead. Launched prompts are
-stored with any [project tags](reference/macros/reference-syntax.md#project-tags)
-already expanded to their `#<workflow>:<directory-key>` form, so `--prefix` finds and
-replaces them. A cancelled prompt, or one rejected by tag validation, keeps the
-`+<project>` tags you typed. `--prefix` does not replace those tags; it prepends the new
-prefix, so the replay fails with `Only one workspace target is allowed per launch unit`.
-For those prompts, run `sase prompt edit <id>` without `-P` and change the tag by hand.
-The prompt-history picker in sase's TUI expands tags before it swaps the prefix, so it
-does not have this limitation.
+stored with any [project tags](macros/reference-syntax.md#project-tags) already expanded
+to their `#<workflow>:<directory-key>` form, so `--prefix` finds and replaces them. A
+cancelled prompt, or one rejected by tag validation, keeps the `+<project>` tags you
+typed. `--prefix` does not replace those tags; it prepends the new prefix, so the replay
+fails with `Only one workspace target is allowed per launch unit`. For those prompts,
+run `sase prompt edit <id>` without `-P` and change the tag by hand. The prompt-history
+picker in sase's TUI expands tags before it swaps the prefix, so it does not have this
+limitation.
 
 This is the shared, drift-free implementation behind the `sase run "#vcs:ref ."`
 compatibility path.
@@ -398,7 +404,7 @@ sase prompt prune --generated --legacy --yes      # back up, then remove
 ### Save a prompt as a reusable macro
 
 For the TUI workflow, see
-[Reuse a prompt with macros](guides/reuse-prompt-with-macros.md).
+[Reuse a prompt with macros](../guides/reuse-prompt-with-macros.md).
 
 ```bash
 sase prompt save ph_8f3a9c0d12ab -n fix-auth-review -t review
@@ -414,8 +420,9 @@ overwrites an existing macro file unless you pass `--force`.
 SASE's TUI prompt bar also saves drafts with `gX` or `Ctrl+G X`; the save panel starts
 in macro mode, and `Ctrl+X` switches to snippet mode. A stack saves its non-empty panes
 as one `---`-separated macro; snippet mode saves only the active pane. See
-[Prompt Stacks](ace.md#prompt-stacks) and [Creating Macros](ace.md#creating-macros) for
-the other keybindings and save locations.
+[Prompt Stacks](../ace.md#prompt-stacks) and
+[Creating Macros](../ace.md#creating-macros) for the other keybindings and save
+locations.
 
 ### Export a prompt to a file
 
@@ -454,3 +461,10 @@ sase prompt stats -j
 The `-j` JSON output of `list`, `stats`, and `doctor` uses a stable schema and degrades
 cleanly under `NO_COLOR` or when piped to a non-TTY, making it safe to build tooling on
 top of.
+
+## Related
+
+- [Find and replay an old prompt](../guides/find-and-replay-prompt.md) — the replay
+  workflow.
+- [Artifact references](artifact-references.md) — citing records in prompts.
+- [Editor integration](integrations/editor.md) — language-server prompt editing.

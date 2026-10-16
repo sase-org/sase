@@ -413,7 +413,7 @@ Source: `src/sase/llm_provider/models.yml` (built-in providers answer the
 ### Model Advisories
 
 A provider can flag individual models with an advisory through the
-[`llm_model_advisories()`](../../plugins.md#llm-provider-install-metadata-and-advisories)
+[`llm_model_advisories()`](../../contribute/plugin-api.md#llm-provider-install-metadata-and-advisories)
 hook — a discounted tier that trains on its inputs, a preview model with no stability
 guarantee, and so on. Each advisory is
 `{"severity": "warn"|"info", "label": <short>, "detail": <sentence>}`. Providers that

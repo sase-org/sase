@@ -85,7 +85,7 @@ When the selected project is disabled, unknown, home, unreadable, or has an inva
 glossary, the server suppresses glossary semantics for that context instead of falling
 back to another project's terms.
 
-See the [editor integration guide](../../editor.md) for setup, feature coverage, helper bridge
+See the [editor integration guide](../integrations/editor.md) for setup, feature coverage, helper bridge
 usage, and troubleshooting.
 
 ## Related

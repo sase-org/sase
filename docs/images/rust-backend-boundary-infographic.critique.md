@@ -122,11 +122,11 @@ binding categories the doc enumerates.
 5. **Mobile gateway is invisible.** `../sase-core/` ships **two** consumer surfaces from
    the same workspace: the `sase_core_py` PyO3 extension and the `sase_gateway`
    standalone Rust HTTP server (`docs/rust_backend.md` §Mobile Gateway, plus
-   `docs/mobile_gateway.md`). The diagram only depicts the PyO3 path, which is fine _if_
-   the title is scoped accordingly — but the bottom-layer label says "`../sase-core`
-   Rust workspace owns deterministic cores", which is broader than the rendered content.
-   Either narrow the layer's title to "PyO3 extension cores" or add a small adjacent box
-   for the gateway.
+   `docs/reference/integrations/mobile-gateway.md`). The diagram only depicts the PyO3
+   path, which is fine _if_ the title is scoped accordingly — but the bottom-layer label
+   says "`../sase-core` Rust workspace owns deterministic cores", which is broader than
+   the rendered content. Either narrow the layer's title to "PyO3 extension cores" or
+   add a small adjacent box for the gateway.
 6. **PyPI distribution / version pin is missing.** The doc opens by saying
    `sase-core-rs>=0.1.1,<0.2.0` is a hard runtime dep and is pulled from PyPI as a
    prebuilt wheel; the strict-loader / no-fallback story is enforced _because_ that

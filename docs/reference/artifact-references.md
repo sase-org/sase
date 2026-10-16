@@ -1,3 +1,8 @@
+---
+title: "Artifact References"
+description: "Typed @kind:argument citations that expand in launch prompts."
+---
+
 # Artifact References
 
 Artifact references are typed `@<kind>:<argument>` citations in launch prompts. They are
@@ -6,9 +11,9 @@ command substitution, using the project context for that prompt segment. Each su
 reference expands to prompt text, records a per-agent use row, and can publish as a
 numbered Markdown reference link.
 
-Prompt references record consumed artifacts; [Artifact Links](artifact_links.md) record
+Prompt references record consumed artifacts; [Artifact Links](artifact-links.md) record
 relationships. For a follow-up workflow, see
-[Hand a result to another agent](guides/hand-a-result-to-another-agent.md).
+[Hand a result to another agent](../guides/hand-a-result-to-another-agent.md).
 
 ## Prompt Grammar
 
@@ -67,9 +72,9 @@ macro renderer syntax is not accepted.
 
 Short references resolve from the prompt segment, not from the current working
 directory. A segment's leading `+<project>`
-[project tag](reference/macros/reference-syntax.md#project-tags), `#git:`, `#gh:`, or
-other VCS workflow tag supplies the project context. If a segment has no explicit tag,
-the caller's launch identity supplies it.
+[project tag](macros/reference-syntax.md#project-tags), `#git:`, `#gh:`, or other VCS
+workflow tag supplies the project context. If a segment has no explicit tag, the
+caller's launch identity supplies it.
 
 Context affects ambiguity:
 
@@ -106,8 +111,8 @@ it syncs or first-clones that kind's sidecar, rebuilds the completion catalog, a
 reopens the payload menu with the newly-arrived rows badged. Pointer kinds such as
 `@plan:` and `@research:` never auto-materialize at launch (see above), but they are
 reachable this way — `@research::` clones the sidecar on first use. See
-[sase's TUI](ace.md) for the full gesture and its status row. References inside inline
-code, fenced code, or disabled macro regions stay literal and do not trigger
+[sase's TUI](../ace.md) for the full gesture and its status row. References inside
+inline code, fenced code, or disabled macro regions stay literal and do not trigger
 materialization.
 
 ## Allow-Listed Files
@@ -236,7 +241,7 @@ Published prompts rewrite live references as stable Markdown reference links:
 Read [@research:202608/report.md][1] and [@file:~/bob/gtd.md][2].
 
 [1]: https://github.com/sase-org/sase--research/blob/<revision>/202608/report.md
-[2]: ../../files/objects/sha256/ab/<sha256>
+[2]: ../../../files/objects/sha256/ab/<sha256>
 ```
 
 Clean repository-backed documents link to the captured revision. Dirty or untracked
@@ -277,8 +282,8 @@ A failure before a successful local artifact-sidecar refresh leaves the request 
 for a later mutating `sase agent sync`. The same `--retry-quarantined` and
 `--drop-retired` controls used for agent publication also operate on queued Referenced
 By requests; `--retry-retired` revives retired agent-publication requests only. See
-[Agent Hood Synchronization](reference/agents/hood-sync.md#commands-and-status). Once
-the local refresh succeeds, however, the request is no longer in that outbox. A later
+[Agent Hood Synchronization](agents/hood-sync.md#commands-and-status). Once the local
+refresh succeeds, however, the request is no longer in that outbox. A later
 detached-push failure is recorded in the managed SDD sync log and is not retried from
 the Referenced By outbox.
 
@@ -291,4 +296,11 @@ managed write unless they explicitly opt in with `filters.causes`.
 
 Deliberate relationships render separately as a top `Links` table, while
 prompt-reference and read rows use the unified link graph behind the same Referenced By
-projection. See [Artifact Links](artifact_links.md) for the relation registry and CLI.
+projection. See [Artifact Links](artifact-links.md) for the relation registry and CLI.
+
+## Related
+
+- [Artifact links](artifact-links.md) — typed relationships between records.
+- [Prompt history](prompt-history.md) — replaying prompts that cited artifacts.
+- [Hand a result to another agent](../guides/hand-a-result-to-another-agent.md) —
+  follow-up workflow.

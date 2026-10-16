@@ -31,6 +31,8 @@ contracts, and the docs process itself.
 - [Agent sidecar synchronization](agents-sidecar-sync.md) — Publication and
   reconciliation internals.
 - [SDD storage](sdd-storage.md) — How work units persist.
+- [Plugin API](plugin-api.md) — discovering and writing plugins.
+- [Mobile gateway API](mobile-gateway-api.md) — host-bridge commands and contract.
 - [Integration APIs](integration-apis.md) — Python helpers for plugins, chat, mobile,
   and editor clients.
 - [Artifacts pane contract](artifacts-pane-contract.md) — The pane API.

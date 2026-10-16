@@ -181,7 +181,7 @@ manifest files are mode `0644`. The `agent_meta.json` `instructions` summary add
 
 `%dispatch` launch requests do not forward `SASE_INSTRUCTIONS_FILE`. The target renders
 with its own code; no instruction bytes cross the wire. See
-[Remote Dispatch](../remote_dispatch.md).
+[Remote Dispatch](../reference/integrations/remote-dispatch.md).
 
 ### Adapter contract
 
@@ -198,7 +198,7 @@ Adapters read the live delivery through
 `sase.llm_provider.instruction_delivery.current_instruction_delivery()`. They call
 `record_session` for every session id they start, `report_fallback` when materialization
 fails, and `materialize(slot)` for a private 0600 file that is removed after the call.
-Plugin authors: see [LLM Plugins](../plugins.md#llm-plugins-pluggy).
+Plugin authors: see [LLM Plugins](plugin-api.md#llm-plugins-pluggy).
 
 Each invocation writes `<artifacts>/instructions/NN-<provider>.md` (the bundle) and
 `NN-<provider>.json` (the normalized v2 manifest, `indent=2`, sorted keys), where `NN`

@@ -143,6 +143,39 @@ def test_docs_move_rewrites_links_frontmatter_nav_budgets_and_redirect(
     ).read_text(encoding="utf-8")
 
 
+def test_docs_move_nav_rewrite_ignores_hyphenated_sibling_paths(
+    tmp_path: Path,
+) -> None:
+    mover = _load("docs_move_hyphenated_nav_fixture", TOOLS / "docs_move")
+    _docs_move_fixture(tmp_path, "editor.md")
+    docs = tmp_path / "docs"
+    (docs / "editor.md").write_text("# Editor\n\nEditor page.\n", encoding="utf-8")
+    (tmp_path / "mkdocs.yml").write_text(
+        "site_name: Fixture\nnav:\n  - Home: index.md\n"
+        "  - Editor integration: editor.md\n"
+        "  - Macro CLI and editor: reference/macros/cli-and-editor.md\n"
+        "  - Setup: guides/setup-completion-editor.md\n"
+        "  - sase editor: reference/cli/editor.md\n",
+        encoding="utf-8",
+    )
+
+    mover.move_page(
+        "editor.md",
+        "reference/integrations/editor.md",
+        title="Editor Integration",
+        description="Language-server surfaces for prompt editing.",
+        root=tmp_path,
+    )
+
+    nav = (tmp_path / "mkdocs.yml").read_text(encoding="utf-8")
+    assert "Editor integration: reference/integrations/editor.md" in nav
+    assert "Macro CLI and editor: reference/macros/cli-and-editor.md" in nav
+    assert "Setup: guides/setup-completion-editor.md" in nav
+    assert "sase editor: reference/cli/editor.md" in nav
+    assert not (docs / "editor.md").exists()
+    assert (docs / "reference/integrations/editor.md").is_file()
+
+
 def test_docs_move_stub_records_all_heading_and_html_anchors(tmp_path: Path) -> None:
     mover = _load("docs_move_stub_fixture", TOOLS / "docs_move")
     renderer = _load("render_moves_stub_fixture", TOOLS / "render_moves")

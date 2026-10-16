@@ -171,8 +171,8 @@ a snoozed task is still live work the user chose to defer, not a black hole.
 those beads.
 
 Beads-pane query property values also accept `*` wildcards: `id:<epic-id>.*` lists an
-epic's phases (see [Wildcards](../../query_language.md#wildcards)). `sase bead search`
-is not a property query: its argument stays a literal substring (or `--regex` pattern).
+epic's phases (see [Wildcards](../query-language.md#wildcards)). `sase bead search` is
+not a property query: its argument stays a literal substring (or `--regex` pattern).
 
 ## Task Corroboration (+1)
 

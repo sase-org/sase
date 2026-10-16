@@ -1,0 +1,17 @@
+to: reference/integrations/index.md
+sections:
+  _intro: reference/integrations/plugins.md
+  Plugin Groups: reference/integrations/plugins.md
+  Available Plugin Packages: reference/integrations/plugins.md
+  Command Plugins: reference/integrations/plugins-commands.md
+  Installation: reference/integrations/plugins.md
+  "Plugin Catalog (`sase plugin list` / `sase plugin show`)":
+    reference/integrations/plugins.md
+  "Updating sase and plugins (`sase update`)":
+    reference/integrations/plugins-update.md
+  "Installing and updating plugins (`sase plugin install` / `sase plugin update`)":
+    reference/integrations/plugins-update.md
+  How Plugins Are Discovered: contribute/plugin-api.md
+  Disabling Plugins: reference/integrations/plugins.md
+  Writing a Plugin: contribute/plugin-api.md
+  Shipping input types: contribute/plugin-api.md

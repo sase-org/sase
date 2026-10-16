@@ -721,8 +721,9 @@ accept a bundle on piped stdin when `--bootstrap-file` is omitted.
 | `sase machine agent {stop,retry,fork}`    | action-specific arguments, `-j`, `-t`                                  | Submit a journaled remote lifecycle mutation; sase's TUI supplies revision-safe durable sidecars. |
 | `sase machine attention {answer,approve}` | action-specific arguments, `-j`, `-t`                                  | Answer a remote question or approve a gate through the same durable operation path.               |
 
-See the [Remote Dispatch Runbook](remote_dispatch.md) for gateway supervision, Tailscale
-Serve, enrollment, launch constraints, and sase's TUI machine-row operation.
+See the [Remote Dispatch Runbook](reference/integrations/remote-dispatch.md) for gateway
+supervision, Tailscale Serve, enrollment, launch constraints, and sase's TUI machine-row
+operation.
 
 ### `sase instructions`
 
@@ -1572,10 +1573,10 @@ aggregate `status`. For the 20 most recently active sessions, SASE tries to enri
 Markdown `documentation` carrying the goal, phase list, or parent/task context plus a
 session status footer. Unresolved or older sessions keep the plain member-count detail,
 and enrichment failure never removes ordinary rows; see
-[Editor Integration: Helper Bridge](editor.md#helper-bridge) for the exact fallback
-ladder. The structured macro catalog includes insertion metadata (`insertion`,
-`reference_prefix`, `kind`), typed argument metadata, display/source fields, and
-`definition_path` when SASE can resolve a real file to jump to.
+[Editor Integration: Helper Bridge](reference/integrations/editor.md#helper-bridge) for
+the exact fallback ladder. The structured macro catalog includes insertion metadata
+(`insertion`, `reference_prefix`, `kind`), typed argument metadata, display/source
+fields, and `definition_path` when SASE can resolve a real file to jump to.
 
 The snippet catalog uses the same source ordering as sase's TUI: macros marked with
 `snippet` front matter plus user-defined `ace.snippets`, with `ace.snippets` winning on
@@ -1877,7 +1878,7 @@ enrichment fields, missing stored files, duplicate ids, unsupported schema versi
 malformed rows, digest mismatches, or an unhealthy artifact-link graph. Its link report
 includes dangling refs, stale projections, durable-versus-aggregate counts, read-outbox
 counts, derived coverage, and relation/origin totals; see
-[Artifact Links](artifact_links.md#health-and-recovery).
+[Artifact Links](reference/artifact-links.md#health-and-recovery).
 
 `stats`, `prune`, `reclaim`, and opt-in automatic retention use one shared protection
 collector. It unions IDs found in persistent ProjectSpec and SDD text with canonical
@@ -1899,7 +1900,8 @@ hard-deletes. `trash restore` puts the payload back and re-inserts the index row
 than `artifacts.retention.trash_grace_days`. Because trashed bytes still occupy disk,
 `du` does not drop until a purge runs; both apply summaries print the trash root, and
 `reclaim --apply` says so outright. See
-[Store Lifecycle](agent_images.md#store-lifecycle) for the end-to-end workflow.
+[Store Lifecycle](reference/agent-attachments.md#store-lifecycle) for the end-to-end
+workflow.
 
 ### `sase questions`
 

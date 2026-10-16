@@ -171,9 +171,8 @@ local commit fails. Once the local refresh succeeds, SASE acknowledges the reque
 it created a commit, SASE starts that commit's push asynchronously. A later push failure
 is recorded in the managed SDD sync log rather than restored to this outbox. Queued
 requests use the same retry, quarantine, and retired-entry operator controls as hood
-publication. See
-[Artifact Reference Publication](../../artifact_references.md#publication) for the
-complete ordering and recovery boundary.
+publication. See [Artifact Reference Publication](../artifact-references.md#publication)
+for the complete ordering and recovery boundary.
 
 Use `sase agent prompts list` to browse the archive. `sase agent prompts show <prompt>`
 prints the archived Markdown document. `sase agent prompts validate` verifies headers,

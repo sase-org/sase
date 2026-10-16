@@ -52,9 +52,12 @@ hover, diagnostics, and jump-to-definition while editing prompts and macros.
 For completion, `sase doctor` runs the same install checks the installer uses; add
 `-D -C completion.registration` to probe a real shell when a new shell still completes
 nothing. For the editor, a server that cannot start usually needs a full SASE update or
-the `SASE_MACRO_LSP_CMD` override in [Editor integration](../editor.md#troubleshooting).
+the `SASE_MACRO_LSP_CMD` override in
+[Editor integration](../reference/integrations/editor.md#troubleshooting).
 
 ## Related
 
-- [Shell completion](../completion.md) — loaders, value kinds, caching, and latency.
-- [Editor integration](../editor.md) — language-server features and the helper bridge.
+- [Shell completion](../reference/integrations/completion.md) — loaders, value kinds,
+  caching, and latency.
+- [Editor integration](../reference/integrations/editor.md) — language-server features
+  and the helper bridge.

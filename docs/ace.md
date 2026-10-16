@@ -197,8 +197,8 @@ Link follows can cross tabs and keep a bounded 32-hop trail. `Ctrl+O` walks back
 `Ctrl+Shift+O` walks forward, restoring the tab, pane, project scope, query, selection,
 and supported AXE fold state. If no link-trail hop is available, those keys retain the
 current pane's normal jump-stack behavior. Ordinary navigation clears the link trail.
-See [Artifact Links](artifact_links.md#browsing-links-in-sases-tui) for relation and
-projection details.
+See [Artifact Links](reference/artifact-links.md#browsing-links-in-sases-tui) for
+relation and projection details.
 
 #### Link Jumps
 
@@ -239,8 +239,8 @@ keeps the current `limit:`, raising it only when the session would not fit:
 | Patch in a stack                    | `ancestor:<stack root>`                                                                            | `stack <root>`                         |
 | Submitted, reverted, archived patch | `name:<patch>`                                                                                     | `patch <name>`                         |
 
-The `*` above is the [wildcard filter](query_language.md#wildcards): `id:sase-16n.*`
-matches every phase of epic `sase-16n` but not the epic itself.
+The `*` above is the [wildcard filter](reference/query-language.md#wildcards):
+`id:sase-16n.*` matches every phase of epic `sase-16n` but not the epic itself.
 
 An `agent:` link climbs a four-step ladder, stopping at the first step that holds.
 Loaded on the Agents tab, it reveals in place, switching agent tabs and opening any
@@ -1603,9 +1603,9 @@ Query history is available on every Artifacts sub-tab whose pane contract enable
 Agents tab filter bar. Each pane has its own durable previous/next stack, and Help shows
 the active pane's stack with the configured previous/next key labels.
 
-See [`docs/query_language.md`](query_language.md) for the full query syntax reference,
-including boolean expressions, status shorthands, property filters, and searchable
-fields.
+See [`docs/reference/query-language.md`](reference/query-language.md) for the full query
+syntax reference, including boolean expressions, status shorthands, property filters,
+and searchable fields.
 
 ## Config Flags pane
 
@@ -1894,7 +1894,8 @@ Connect, repair, rename, and remove are guidance actions: they display canonical
 commands and safety notes but do not mutate machine state themselves. `Enter` selects
 the machine's agent tab when the tab strip is visible, and otherwise applies an Agents
 query of `machine:local` for the local controller or `machine:<alias>` for a remote (`f`
-always filters). See the [Remote Dispatch Runbook](remote_dispatch.md) for the
+always filters). See the
+[Remote Dispatch Runbook](reference/integrations/remote-dispatch.md) for the
 credentialed enrollment and recovery procedures.
 
 ## Projects Tab
@@ -3238,8 +3239,8 @@ its candidate selection entirely (see [AXE](reference/automation/scheduler.md)).
 and set it explicitly, or run `sase patch set-origin <name> <sase|external|unknown>`
 (see [CLI Reference](cli.md#work-tracking-and-planning)). See
 [PR_ORIGIN](reference/work-units/patches.md#pr_origin) and
-[Origin Matching](query_language.md#origin-matching) for the underlying Patch field and
-the `origin:` query property.
+[Origin Matching](reference/query-language.md#origin-matching) for the underlying Patch
+field and the `origin:` query property.
 
 ## Current project
 
@@ -3390,8 +3391,8 @@ truecolor when the terminal advertises it and 256-color approximations otherwise
 Generated images are already attached to successful agent completion notifications and
 recorded in `done.json` as `image_paths`. The Agents tab file panel and notification
 modal route supported raster image attachments through this preview layer before
-attempting text decoding. See [`agent_images.md`](agent_images.md) for supported image
-extensions, guardrails, and current preview behavior.
+attempting text decoding. See [`agent_images.md`](reference/agent-attachments.md) for
+supported image extensions, guardrails, and current preview behavior.
 
 <a id="agent-auto-naming"></a> <a id="providermodel-suffixes"></a>
 <a id="per-step-naming-for-multi-agent-workflows"></a> Moved to
@@ -3935,8 +3936,8 @@ structured dispatch result—including the current rejection and failed-receipt 
 row becomes outcome-unknown `WAITING`; use **Agents: check dispatch launch outcome**
 from the command palette. Once the owner's catalog exposes the matching logical or exact
 locator, sase's TUI removes the provisional row in favor of that authoritative row. The
-[Remote Dispatch Runbook](remote_dispatch.md#launch-and-operate) explains the portable
-source requirements and remote operation model.
+[Remote Dispatch Runbook](reference/integrations/remote-dispatch.md#launch-and-operate)
+explains the portable source requirements and remote operation model.
 
 ### Prompt Stacks
 
@@ -4134,11 +4135,12 @@ A permanent removal, and a replacement of a row's text, frontmatter, or cursor, 
 archived first to the append-only `prompt_stash_archive.jsonl` sitting next to
 `prompt_stash.jsonl`. The copy keeps the full previous text. Reason names are `popped`,
 `purged`, `evicted`, and `overwritten`; see
-[Recover a Stashed Draft](prompt.md#recover-a-stashed-draft). Moving a row into Trash,
-and bringing it back from Trash, do not write an archive copy. A confirmed purge stays
-recoverable from that file. List recent archive rows with `sase prompt stash-archive` (a
-bare invocation defaults to `list`), filter with `-q/--query` and `-r/--reason`, inspect
-one draft with `sase prompt stash-archive show ID`, and append drafts back to Stash with
+[Recover a Stashed Draft](reference/prompt-history.md#recover-a-stashed-draft). Moving a
+row into Trash, and bringing it back from Trash, do not write an archive copy. A
+confirmed purge stays recoverable from that file. List recent archive rows with
+`sase prompt stash-archive` (a bare invocation defaults to `list`), filter with
+`-q/--query` and `-r/--reason`, inspect one draft with
+`sase prompt stash-archive show ID`, and append drafts back to Stash with
 `sase prompt stash-archive restore ID...` (unique id prefixes work). The purge
 confirmation, purge and eviction toasts, and the in-place delete toast all name this
 recovery command.
@@ -4375,7 +4377,7 @@ token under the cursor:
   Markdown-style `=text=` / `==text==` marker pairs, or path-like tokens such as
   `path/=`. The old `*alias` and `**model` forms are ordinary prompt text. The macro LSP
   uses the same shared filter and edit plans; see
-  [Equals model shortcuts](editor.md#equals-model-shortcuts).
+  [Equals model shortcuts](reference/integrations/editor.md#equals-model-shortcuts).
   `ace.prompt_completion.auto_directive_menu` only controls whether sase's TUI
   auto-opens these menus and does not govern an external editor's `=` trigger.
 - **`@` reference completion**: A bare `@` opens the artifact-kind menu before a `:`
@@ -4391,37 +4393,37 @@ token under the cursor:
   finds the `research` kind. Rows are tiered so a fuzzy hit never outranks a literal one
   (prefix, then basename prefix, then contiguous substring, then ordered subsequence),
   then ranked by score, shorter text, and case-insensitive text; see
-  [Artifact references](editor.md#lsp-features) for the shared tier table. An empty
-  query is not ranked at all, so opening a menu keeps each group's provider order. After
-  any file reveal, `Ctrl+T` extends the token to the shared prefix only while every
-  leading row is a literal prefix match; once the query is fuzzy-only there is no shared
-  prefix to insert, so a single remaining row is accepted outright instead. Directory
-  navigation stays exact — only the trailing path segment is fuzzy. Accepting an
-  artifact kind inserts `@kind:` and immediately opens its payload rows; accepting a
-  directory inserts the `@`-prefixed directory and drills down; accepting a file inserts
-  the `@`-prefixed path. Dotfiles are hidden unless the typed path segment starts with
-  `.`. Documents, explicit artifact files, chats, beads, and agents come from bounded
-  project-scoped catalogs warmed off-thread. Bead rows are loaded from an mtime-cached
-  bead-store snapshot, and agent rows come from a bounded scan of the project's agents
-  sidecar. Agent rows display the readable local name when possible but insert the
-  durable global `@agent:<username>.<machine>.<name>` spelling. Commit and bug rows
-  appear only from snapshots the mounted Artifacts panes have already loaded, so typing
-  never launches Git, contacts a tracker, or performs unbounded filesystem scans, with
-  one explicit, user-initiated exception: typing a second `:` right after `@<kind>:`
-  with an empty payload (the `@<kind>::` gesture) consumes that keystroke and refreshes
-  the kind's backing sources now — cloning a missing sidecar, force-pulling an existing
-  one past the freshness TTL, or rescanning a local/session-only kind — then reopens the
-  payload menu. A pinned, non-selectable status row shows a live spinner while the sync
-  runs (`cloning <repo> …` on a first-ever clone, `syncing <repo> …` otherwise) and
-  settles to `<repo> synced · N new` or `<repo> sync failed · <detail>`; rows that
-  arrived from the sync are badged `[✦]` in place of their usual source badge until the
-  panel closes. A successful sync dismisses its status row after 2.5 seconds; a failed
-  one stays until the panel closes and falls back to a toast if the panel is already
-  gone. The gesture never fires with a non-empty payload (so `@file:default:` still
-  inserts a literal colon), and repeating it while a sync is already running for that
-  kind is a no-op. Payload acceptance replaces the complete `@kind:payload` context,
-  including when the cursor is in the middle of it. On an un-narrowed bare-`@` menu,
-  `Enter` submits the unexpanded `@` and dismisses the menu; `Ctrl+F` accepts the
+  [Artifact references](reference/integrations/editor.md#lsp-features) for the shared
+  tier table. An empty query is not ranked at all, so opening a menu keeps each group's
+  provider order. After any file reveal, `Ctrl+T` extends the token to the shared prefix
+  only while every leading row is a literal prefix match; once the query is fuzzy-only
+  there is no shared prefix to insert, so a single remaining row is accepted outright
+  instead. Directory navigation stays exact — only the trailing path segment is fuzzy.
+  Accepting an artifact kind inserts `@kind:` and immediately opens its payload rows;
+  accepting a directory inserts the `@`-prefixed directory and drills down; accepting a
+  file inserts the `@`-prefixed path. Dotfiles are hidden unless the typed path segment
+  starts with `.`. Documents, explicit artifact files, chats, beads, and agents come
+  from bounded project-scoped catalogs warmed off-thread. Bead rows are loaded from an
+  mtime-cached bead-store snapshot, and agent rows come from a bounded scan of the
+  project's agents sidecar. Agent rows display the readable local name when possible but
+  insert the durable global `@agent:<username>.<machine>.<name>` spelling. Commit and
+  bug rows appear only from snapshots the mounted Artifacts panes have already loaded,
+  so typing never launches Git, contacts a tracker, or performs unbounded filesystem
+  scans, with one explicit, user-initiated exception: typing a second `:` right after
+  `@<kind>:` with an empty payload (the `@<kind>::` gesture) consumes that keystroke and
+  refreshes the kind's backing sources now — cloning a missing sidecar, force-pulling an
+  existing one past the freshness TTL, or rescanning a local/session-only kind — then
+  reopens the payload menu. A pinned, non-selectable status row shows a live spinner
+  while the sync runs (`cloning <repo> …` on a first-ever clone, `syncing <repo> …`
+  otherwise) and settles to `<repo> synced · N new` or `<repo> sync failed · <detail>`;
+  rows that arrived from the sync are badged `[✦]` in place of their usual source badge
+  until the panel closes. A successful sync dismisses its status row after 2.5 seconds;
+  a failed one stays until the panel closes and falls back to a toast if the panel is
+  already gone. The gesture never fires with a non-empty payload (so `@file:default:`
+  still inserts a literal colon), and repeating it while a sync is already running for
+  that kind is a no-op. Payload acceptance replaces the complete `@kind:payload`
+  context, including when the cursor is in the middle of it. On an un-narrowed bare-`@`
+  menu, `Enter` submits the unexpanded `@` and dismisses the menu; `Ctrl+F` accepts the
   highlighted row even when it is the untouched first row, and `Ctrl+L` remains a
   manual-menu alias. Payload rows are rendered path-first — the source badge, then the
   reference path with dim directories and a bright basename, then a dim
@@ -5482,7 +5484,8 @@ prompt when none is recorded. The History tab loads prompts previously launched 
 sase's TUI or `sase run` in recency pages of `ace.page_size` rows (default 100). Normal
 launch writes skip prompts shorter than five words (e.g. `y`, `ok`) so they do not
 clutter the list, while failed-launch recovery can still preserve a short submitted
-prompt. The same history is available from the shell through [`sase prompt`](prompt.md).
+prompt. The same history is available from the shell through
+[`sase prompt`](reference/prompt-history.md).
 
 Bare prompts are stored after launch normalization, so a prompt without an explicit
 workspace reference appears with the default `#git:home` prefix. Explicit workspace
@@ -5879,27 +5882,28 @@ the last network check.
 
 Core rows show SASE package versions and incoming commits in their own per-package
 detail. Plugin rows bring the full
-[`sase plugin`](plugins.md#plugin-catalog-sase-plugin-list-sase-plugin-show) experience:
-filter the catalog, inspect a plugin, and install (`i`), update (`U`), uninstall (`x`),
-or switch install mode (`m`). Agent CLI rows are provider-colored, showing installed →
-latest versions, exact update or manual commands, vendor docs links, update marks, and
-durable update history. Missing agent CLIs that SASE can install show `latest v…` with
-an `[npm]` or `[script]` badge and carry the same install verb as plugins: `i` installs
-the highlighted CLI (or every install-marked row), and `Space` / `I` marks it for a bulk
-install. On any markable row — an installable plugin or CLI, or an updatable CLI — `*`
-marks every visible row in that section with the same action, or unmarks them when all
-are already marked. Marked rows show `[✓]`. `Esc` first clears every mark (including
-filter-hidden ones); with nothing marked, `Esc` closes the Admin Center. A filter that
-matches nothing shows `Nothing matches the current filter.` Every install opens a
-confirm preview first — the exact command, plus for an agent CLI its target directory
-and PATH status and, for a script install, the script URL, size, and full SHA-256 — then
-runs the previewed plan sequentially in one tracked proc, CLIs before plugins when a
-marked set mixes both. CLIs SASE cannot install toast their manual instructions instead.
-Providers that opt out of independent CLI management, including the bundled internal
-Fakey provider, are omitted from the Agent CLIs section. The plain substring filter
-(`/`) searches every row's own fields — name, owner/repo, description, and topics for
-plugins; name, display name, binary, install method, route, package, and `not installed`
-for agent CLIs; package name for SASE rows — across all sections at once.
+[`sase plugin`](reference/integrations/plugins.md#plugin-catalog-sase-plugin-list-sase-plugin-show)
+experience: filter the catalog, inspect a plugin, and install (`i`), update (`U`),
+uninstall (`x`), or switch install mode (`m`). Agent CLI rows are provider-colored,
+showing installed → latest versions, exact update or manual commands, vendor docs links,
+update marks, and durable update history. Missing agent CLIs that SASE can install show
+`latest v…` with an `[npm]` or `[script]` badge and carry the same install verb as
+plugins: `i` installs the highlighted CLI (or every install-marked row), and `Space` /
+`I` marks it for a bulk install. On any markable row — an installable plugin or CLI, or
+an updatable CLI — `*` marks every visible row in that section with the same action, or
+unmarks them when all are already marked. Marked rows show `[✓]`. `Esc` first clears
+every mark (including filter-hidden ones); with nothing marked, `Esc` closes the Admin
+Center. A filter that matches nothing shows `Nothing matches the current filter.` Every
+install opens a confirm preview first — the exact command, plus for an agent CLI its
+target directory and PATH status and, for a script install, the script URL, size, and
+full SHA-256 — then runs the previewed plan sequentially in one tracked proc, CLIs
+before plugins when a marked set mixes both. CLIs SASE cannot install toast their manual
+instructions instead. Providers that opt out of independent CLI management, including
+the bundled internal Fakey provider, are omitted from the Agent CLIs section. The plain
+substring filter (`/`) searches every row's own fields — name, owner/repo, description,
+and topics for plugins; name, display name, binary, install method, route, package, and
+`not installed` for agent CLIs; package name for SASE rows — across all sections at
+once.
 
 Every sase-managed agent-CLI update run from `,U`, `,E`, `A`, or `sase agent-cli update`
 — and every install run from the Updates tab — is appended to
@@ -5993,7 +5997,8 @@ with no marks it targets every safely updatable installed CLI. `i` installs
 `Space`/`I`-marked plugins and agent CLIs together — agent CLIs first, then plugins, in
 one tracked proc — or the highlighted row when nothing is marked. See the
 [Updates tab reference](reference/tui/admin-center.md#updates-tab) for the full keymap
-and behavior, [Plugins](plugins.md) for the equivalent `sase plugin` CLI, and
+and behavior, [Plugins](reference/integrations/plugins.md) for the equivalent
+`sase plugin` CLI, and
 [Agent providers](reference/providers/agent-clis.md#inventory-and-updates) for the
 equivalent `sase agent-cli` CLI.
 

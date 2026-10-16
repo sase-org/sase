@@ -39,7 +39,7 @@ DOCUMENTED_COMMAND_FILES = (
     "docs/index.md",
     "README.md",
     "INSTALL.md",
-    "docs/plugins.md",
+    "docs/reference/integrations/plugins.md",
     "docs/contribute/rust-backend.md",
 )
 

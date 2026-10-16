@@ -11,9 +11,9 @@ categories:
   - Plugins
 slug: telegram-mobile-agents
 links:
-  - Plugins: plugins.md
+  - Plugins: reference/integrations/plugins.md
   - Notifications: notifications.md
-  - Mobile Gateway: mobile_gateway.md
+  - Mobile Gateway: reference/integrations/mobile-gateway.md
   - "[06] Patches in Practice — Review State Outside the Chat": blog/posts/changespecs-in-practice.md
   - View on GitHub: https://github.com/sase-org/sase-telegram
 ---
@@ -127,7 +127,7 @@ Image notifications are how generated artifacts come back. The `sase_chop_tg_out
 script attaches generated images inline so you can review what an agent rendered without
 leaving the chat. Combined with launching from a photo, this closes the loop: send an
 image, get an image, both inside Telegram. For richer review of multi-image runs the
-[agent_images.md](../../agent_images.md) guide covers the local side.
+[agent_images.md](../../reference/agent-attachments.md) guide covers the local side.
 
 ## The Slash Command Surface
 
@@ -167,10 +167,10 @@ remote control for keeping the local install fresh.
 
 ## What This Replaces (And What It Doesn't)
 
-The [mobile gateway](../../mobile_gateway.md) is the richer host API for paired native
-clients, FCM push hints, and Tailscale Serve deployments. sase-telegram remains the
-chat-native option and covers a high-value subset of the mobile workflow with
-infrastructure that is already on every developer's phone:
+The [mobile gateway](../../reference/integrations/mobile-gateway.md) is the richer host
+API for paired native clients, FCM push hints, and Tailscale Serve deployments.
+sase-telegram remains the chat-native option and covers a high-value subset of the
+mobile workflow with infrastructure that is already on every developer's phone:
 
 - **What it replaces:** "I need to be at my laptop to approve a plan or answer a HITL
   question." Plan approvals, HITL requests, user questions, kill/retry, and launching
@@ -192,11 +192,11 @@ to whichever host runs outbound; the launch path is independent.
 - [sase-telegram on GitHub](https://github.com/sase-org/sase-telegram) — the plugin
   source, with the full inbound and outbound script implementations and configuration
   reference.
-- [Plugins overview](../../plugins.md) — how SASE plugins, chops, and entry points fit
-  together.
+- [Plugins overview](../../reference/integrations/plugins.md) — how SASE plugins, chops,
+  and entry points fit together.
 - [Notifications](../../notifications.md) — the notification model that sase-telegram
   drives, including indicator, toast, modal, and Telegram delivery paths.
-- [Mobile gateway](../../mobile_gateway.md) — where the longer-term native mobile story
-  is heading.
-- [Agent images](../../agent_images.md) — local-side review for runs that produce
-  rendered images.
+- [Mobile gateway](../../reference/integrations/mobile-gateway.md) — where the
+  longer-term native mobile story is heading.
+- [Agent images](../../reference/agent-attachments.md) — local-side review for runs that
+  produce rendered images.

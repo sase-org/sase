@@ -98,8 +98,9 @@ mobile_gateway:
 Push payloads are hint-only and must not contain bearer tokens, pairing codes, prompt
 bodies, response text, attachment contents, attachment tokens, or host paths. Only
 credential paths or environment-variable names are placed on the gateway command line.
-See [`docs/mobile_gateway.md`](../../mobile_gateway.md#push-hints) for setup examples
-and security notes.
+See
+[`docs/reference/integrations/mobile-gateway.md`](../integrations/mobile-gateway.md#push-hints)
+for setup examples and security notes.
 
 Source: `src/sase/default_config.yml`, `src/sase/integrations/mobile_gateway.py`
 

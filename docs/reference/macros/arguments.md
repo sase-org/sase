@@ -84,7 +84,7 @@ sase's TUI helps fill arguments in. Inside `#name(`, it offers the macro's missi
 accepting a `bool`, `path`, or `agent` input opens that input's value menu next. sase's
 TUI and `sase macro show` color argument keys and values by type and underline unknown,
 repeated, or mistyped keywords; the macro LSP reports the same argument spans as
-[semantic tokens](../../editor.md#semantic-token-legend). See
+[semantic tokens](../integrations/editor.md#semantic-token-legend). See
 [sase's TUI completion](../../ace.md#completion) and the
 [Prompt Input Widget](../../ace.md#prompt-input-widget).
 
@@ -158,7 +158,7 @@ sase; qualified names belong to plugins.
 
 The same catalog drives every surface: the runtime binder,
 [`sase macro types`](../cli/macro.md#sase-macro-types) and `sase macro show`, the
-[TUI prompt bar](../../ace.md#completion), and the [macro LSP](../../editor.md#lsp-features).
+[TUI prompt bar](../../ace.md#completion), and the [macro LSP](../integrations/editor.md#lsp-features).
 Completing, validating, and explaining a value follows one rule.
 
 ```yaml
@@ -304,7 +304,7 @@ Bare names belong to sase; qualified names belong to plugins. Distributions use 
 canonicalization, matching is exact and case-sensitive, and installing an unrelated
 plugin never changes what an existing macro means. A named type already defines its
 values, so an authored `choices` override is an error. Defaults must be string members
-of the resolved choices. See [Shipping input types](../../plugins.md#shipping-input-types) for
+of the resolved choices. See [Shipping input types](../../contribute/plugin-api.md#shipping-input-types) for
 the manifest and `sase macro types` for the installed catalog.
 
 ### Repeatable Inputs

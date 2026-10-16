@@ -229,7 +229,7 @@ writes the committed catalog to `sase/task_types.json` and generates the short
 generated agent instructions stay a function of committed files rather than whichever
 optional plugins happen to be installed. See
 [Required plugins](../config/prompts-and-tools.md#plugins) and
-[Task-type plugins](../../plugins.md#task-type-plugins).
+[Task-type plugins](../../contribute/plugin-api.md#task-type-plugins).
 
 Suppress a builtin for a project or the whole machine with `use: <plugin>@<slug>` plus
 `agent_creatable: false`; existing beads of that type keep rendering normally. The

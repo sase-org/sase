@@ -9,12 +9,17 @@
 # BEGIN GENERATED: docs page moves redirects
 /acknowledgements/ /contribute/acknowledgements/ 301
 /agent_auto_restart/ /reference/agent-auto-restart/ 301
+/agent_images/ /reference/agent-attachments/ 301
 /agent_providers/ /reference/providers/agent-clis/ 301
 /architecture/ /contribute/architecture/ 301
+/artifact_links/ /reference/artifact-links/ 301
+/artifact_references/ /reference/artifact-references/ 301
 /artifacts_pane_contract/ /contribute/artifacts-pane-contract/ 301
 /artifacts_pane_visual_grammar/ /contribute/artifacts-pane-visual-grammar/ 301
 /change_spec/ /reference/work-units/patches/ 301
+/completion/ /reference/integrations/completion/ 301
 /development/ /contribute/development/ 301
+/editor/ /reference/integrations/editor/ 301
 /fakey/ /contribute/fakey/ 301
 /getting_started/ /start/ 301
 /goals/ /reference/work-units/goals/ 301
@@ -26,6 +31,9 @@
 /mobile_mvp_runbook/ /contribute/mobile-mvp-runbook/ 301
 /perf_runbook/ /contribute/perf-runbook/ 301
 /project_spec/ /reference/work-units/project-spec/ 301
+/prompt/ /reference/prompt-history/ 301
+/query_language/ /reference/query-language/ 301
+/remote_dispatch/ /reference/integrations/remote-dispatch/ 301
 /sdd_storage/ /contribute/sdd-storage/ 301
 /sudo/ /reference/automation/sudo/ 301
 /telemetry/ /contribute/telemetry/ 301

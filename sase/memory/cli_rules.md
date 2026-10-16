@@ -39,4 +39,4 @@ These rules govern sase's built-in commands. Plugin-mounted top-level commands
 them but are exempt: sase routes the untouched argv after the command word to the
 plugin's own `main(argv, prog)` and never post-processes the subtree: no default-`list`
 delegation, no sase help formatter, and no short-alias or sorting requirements. See the
-Command plugins section in `docs/plugins.md`.
+Command plugins section in `docs/reference/integrations/plugins-commands.md`.

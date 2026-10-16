@@ -15,8 +15,8 @@ already part of an existing provider contract. Externally consumed public symbol
 tracked files of the consuming repository.
 
 For editor setup and user-facing behavior, start with the
-[editor integration guide](../editor.md). This page focuses on the integration-facing
-Python and bridge contracts.
+[editor integration guide](../reference/integrations/editor.md). This page focuses on
+the integration-facing Python and bridge contracts.
 
 ## Patch Macro Tags
 
@@ -427,7 +427,7 @@ printf '{"schema_version":1,"project":"sase","limit":20}\n' | sase mobile agent-
 External callers should import from these facade modules only. The `_mobile_agent_*` and
 `_mobile_helper_*` modules are private split implementations kept small for testability
 and should not be imported by plugins or clients. The public HTTP route contract is
-documented in [`docs/mobile_gateway.md`](../mobile_gateway.md).
+documented in [`docs/contribute/mobile-gateway-api.md`](mobile-gateway-api.md).
 
 Source: `src/sase/integrations/mobile_agents.py`,
 `src/sase/integrations/mobile_helpers.py`
@@ -461,14 +461,14 @@ most recently active session rows are enriched, when resolvable, with associated
 bead kind, structure, and title in `detail`, plus Markdown `documentation` for goal,
 phase, or task context. Older and unresolved sessions retain their member-count detail,
 and enrichment failures degrade safely; see
-[Editor Integration: Helper Bridge](../editor.md#helper-bridge) for the full fallback
-ladder. The `finalizer-catalog` operation returns configured `%final` completion rows
-from effective finalizer configuration, fail-closed on malformed config, without loading
-provider code. The `vcs-repo-catalog` operation returns provider-backed repository
-candidates for one VCS workflow and namespace, including structured failure fields and a
-stale-cache flag. Its entry `ref` is the full value to insert, not just the
-repository-name suffix. Editor integrations should use this bridge or `sase lsp` instead
-of importing private catalog modules directly.
+[Editor Integration: Helper Bridge](../reference/integrations/editor.md#helper-bridge)
+for the full fallback ladder. The `finalizer-catalog` operation returns configured
+`%final` completion rows from effective finalizer configuration, fail-closed on
+malformed config, without loading provider code. The `vcs-repo-catalog` operation
+returns provider-backed repository candidates for one VCS workflow and namespace,
+including structured failure fields and a stale-cache flag. Its entry `ref` is the full
+value to insert, not just the repository-name suffix. Editor integrations should use
+this bridge or `sase lsp` instead of importing private catalog modules directly.
 
 Source: `src/sase/integrations/editor_helpers.py`,
 `src/sase/integrations/_editor_helper_agents.py`,

@@ -1062,3 +1062,89 @@ moves:
       diff-storage: contribute/commit-workflow-orchestrator.md#diff-storage
       design-principles: contribute/commit-workflow-orchestrator.md#design-principles
     title: Commit Workflows
+  - from: plugins.md
+    to: reference/integrations/index.md
+    kind: stub
+    anchors:
+      plugin-groups: reference/integrations/plugins.md#plugin-groups
+      available-plugin-packages: reference/integrations/plugins.md#available-plugin-packages
+      installation: reference/integrations/plugins.md#installation
+      plugin-catalog-sase-plugin-list-sase-plugin-show: reference/integrations/plugins.md#plugin-catalog-sase-plugin-list-sase-plugin-show
+      catalog-fetching-and-cache: reference/integrations/plugins.md#catalog-fetching-and-cache
+      related-plugin-diagnostics: reference/integrations/plugins.md#related-plugin-diagnostics
+      disabling-plugins: reference/integrations/plugins.md#disabling-plugins
+      command-plugins: reference/integrations/plugins-commands.md#command-plugins-1
+      where-a-command-shows-up: reference/integrations/plugins-commands.md#where-a-command-shows-up
+      migrating-from-the-standalone-sase-listen: reference/integrations/plugins-commands.md#migrating-from-the-standalone-sase-listen
+      updating-sase-and-plugins-sase-update: reference/integrations/plugins-update.md#updating-sase-and-plugins-sase-update
+      dev-editable-installs: reference/integrations/plugins-update.md#dev-editable-installs
+      the-code-swap-lock: reference/integrations/plugins-update.md#the-code-swap-lock
+      install-mode-switching: reference/integrations/plugins-update.md#install-mode-switching
+      installing-and-updating-plugins-sase-plugin-install-sase-plugin-update: reference/integrations/plugins-update.md#installing-and-updating-plugins-sase-plugin-install-sase-plugin-update
+      removing-a-plugin-sase-plugin-uninstall: reference/integrations/plugins-update.md#removing-a-plugin-sase-plugin-uninstall
+      how-plugins-are-discovered: contribute/plugin-api.md#how-plugins-are-discovered
+      vcs-plugins-pluggy: contribute/plugin-api.md#vcs-plugins-pluggy
+      workspace-plugins-pluggy: contribute/plugin-api.md#workspace-plugins-pluggy
+      llm-plugins-pluggy: contribute/plugin-api.md#llm-plugins-pluggy
+      llm-provider-install-metadata-and-advisories: contribute/plugin-api.md#llm-provider-install-metadata-and-advisories
+      macro-plugins: contribute/plugin-api.md#macro-plugins
+      config-plugins: contribute/plugin-api.md#config-plugins
+      service-procs: contribute/plugin-api.md#service-procs
+      artifact-reference-and-file-hook-providers: contribute/plugin-api.md#artifact-reference-and-file-hook-providers
+      task-type-plugins: contribute/plugin-api.md#task-type-plugins
+      job-script-packages: contribute/plugin-api.md#job-script-packages
+      writing-a-plugin: contribute/plugin-api.md#writing-a-plugin
+      example-vcs-plugin: contribute/plugin-api.md#example-vcs-plugin
+      example-workspace-plugin: contribute/plugin-api.md#example-workspace-plugin
+      example-macro-plugin: contribute/plugin-api.md#example-macro-plugin
+      example-config-plugin: contribute/plugin-api.md#example-config-plugin
+      example-declarative-artifact-providers: contribute/plugin-api.md#example-declarative-artifact-providers
+      example-job-script-package: contribute/plugin-api.md#example-job-script-package
+      example-llm-provider-plugin: contribute/plugin-api.md#example-llm-provider-plugin
+      example-turn-finalizer-plugin: contribute/plugin-api.md#example-turn-finalizer-plugin
+      shipping-input-types: contribute/plugin-api.md#shipping-input-types
+    title: Plugin System
+  - from: mobile_gateway.md
+    to: reference/integrations/index.md
+    kind: stub
+    anchors:
+      start-locally: reference/integrations/mobile-gateway.md#start-locally
+      push-hints: reference/integrations/mobile-gateway.md#push-hints
+      private-remote-access-and-packaging: reference/integrations/mobile-gateway.md#private-remote-access-and-packaging
+      pairing-flow: reference/integrations/mobile-gateway.md#pairing-flow
+      storage-and-revocation: reference/integrations/mobile-gateway.md#storage-and-revocation
+      network-exposure: reference/integrations/mobile-gateway.md#network-exposure
+      known-mvp-limitations: reference/integrations/mobile-gateway.md#known-mvp-limitations
+      host-bridge-cli-commands: contribute/mobile-gateway-api.md#host-bridge-cli-commands
+      hardening-test-commands: contribute/mobile-gateway-api.md#hardening-test-commands
+      events: contribute/mobile-gateway-api.md#events
+      notifications-actions-and-attachments: contribute/mobile-gateway-api.md#notifications-actions-and-attachments
+      notification-activity-cursor: contribute/mobile-gateway-api.md#notification-activity-cursor
+      agents: contribute/mobile-gateway-api.md#agents
+      workflow-helpers: contribute/mobile-gateway-api.md#workflow-helpers
+      contract-snapshot: contribute/mobile-gateway-api.md#contract-snapshot
+    title: Mobile Gateway
+  - from: editor.md
+    to: reference/integrations/editor.md
+    kind: redirect
+  - from: completion.md
+    to: reference/integrations/completion.md
+    kind: redirect
+  - from: remote_dispatch.md
+    to: reference/integrations/remote-dispatch.md
+    kind: redirect
+  - from: query_language.md
+    to: reference/query-language.md
+    kind: redirect
+  - from: agent_images.md
+    to: reference/agent-attachments.md
+    kind: redirect
+  - from: prompt.md
+    to: reference/prompt-history.md
+    kind: redirect
+  - from: artifact_references.md
+    to: reference/artifact-references.md
+    kind: redirect
+  - from: artifact_links.md
+    to: reference/artifact-links.md
+    kind: redirect

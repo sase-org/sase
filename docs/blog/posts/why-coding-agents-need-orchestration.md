@@ -193,7 +193,8 @@ The docs that matter most at first are [Macros](../../reference/macros/index.md)
 [SDD](../../reference/work-units/index.md),
 [Beads](../../reference/work-units/index.md), [sase's TUI](../../ace.md),
 [AXE](../../reference/automation/scheduler.md),
-[VCS providers](../../reference/vcs/index.md), and [plugins](../../plugins.md).
+[VCS providers](../../reference/vcs/index.md), and
+[plugins](../../reference/integrations/plugins.md).
 
 <!--
 FUNNY DIAGRAM BRIEF 1 - place here after "The Fundamental Loop".
@@ -686,9 +687,9 @@ Three directions are incomplete but important:
 - [Memory](../../reference/memory/memory.md): SASE already has short-term project
   memory, audited long-term memory reads, and proposal-based writes. The next frontier
   is better retrieval, staleness handling, trust boundaries, and UI.
-- Mobile: the [mobile gateway](../../mobile_gateway.md) and Android MVP work point
-  toward a real mobile SASE client. Telegram covers a lot today, but a purpose-built app
-  can expose richer state than chat buttons.
+- Mobile: the [mobile gateway](../../reference/integrations/mobile-gateway.md) and
+  Android MVP work point toward a real mobile SASE client. Telegram covers a lot today,
+  but a purpose-built app can expose richer state than chat buttons.
 - Web: the Rust core boundary exists partly so a future web interface can share the same
   domain behavior as sase's TUI, Telegram, and editor integrations instead of becoming a
   separate almost-SASE.

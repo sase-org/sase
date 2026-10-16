@@ -133,7 +133,7 @@ ace:
 [Generated reference for `ace.artifact_file_viewer`](tui.md#ace-artifact_file_viewer)
 
 SASE launches mpv with `--no-config`, so put viewer-specific customization here rather
-than in an mpv profile. See [Video Preview](../../agent_images.md#video-preview) for
+than in an mpv profile. See [Video Preview](../agent-attachments.md#video-preview) for
 playback keys.
 
 ### `ace.artifacts`

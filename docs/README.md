@@ -44,17 +44,9 @@
 
 ## Reference
 
-- [Agent Attachments and Image Previews](agent_images.md) — Agent Attachments and Image Previews — SASE treats files produced by agents as first-class completion artifacts.
-- [Artifact Links](artifact_links.md) — Artifact Links — Artifact links are typed relationships between SASE artifacts.
-- [Artifact References](artifact_references.md) — Artifact References — Artifact references are typed @<kind>:<argument> citations in launch prompts.
 - [CLI Reference](cli.md) — CLI Reference — This page is a command index for the top-level sase CLI.
-- [Shell Completion](completion.md) — Shell Completion — sase completion supports native shell completion for zsh, bash, and fish from the live sase argparse tree, so pressing <TAB> anywhere in the command line offers the right commands, options, static choices, and live values — bead ids with titles, project display names, macro names, and more — with no perceptible latency.
-- [Editor Integration](editor.md) — Editor Integration — SASE exposes two editor-facing surfaces for prompt and macro editing:
-- [Mobile Gateway](mobile_gateway.md) — Mobile Gateway — The SASE mobile gateway is a workstation-hosted HTTP gateway for paired mobile clients.
 - [SASE Pager](pager.md) — SASE Pager — sase pager opens artifact references, file paths, or stdin in the SASE link-traversing pager.
-- [Plugin System](plugins.md) — Plugin System — Sase uses Python entry points to discover optional functionality installed in the same Python environment as sase.
-- [Prompt History and Draft Recovery](prompt.md) — Prompt History and Draft Recovery — Prompts you launch with sase run or from sase's TUI are recorded in prompt history when they are useful to replay.
-- [Query Language Reference](query_language.md) — Query Language Reference — The Patch query language filters Patches using boolean expressions that combine string matching, property filters, and operational shorthands.
+- [Agent Attachments and Image Previews](reference/agent-attachments.md) — Images and videos agents produce, and how sase's TUI previews them.
 - [Agent auto-restart](reference/agent-auto-restart.md) — Recovery service for agents interrupted by a live update, and its limits.
 - [Agent revive log](reference/agent-revive-log.md) — Audit records for TUI agent revival, and how to read them.
 - [Agent clans](reference/agents/agent-clans.md) — Look up how parallel agent sessions are grouped and displayed.
@@ -68,6 +60,8 @@
 - [Memory initialization](reference/agents/memory-initialization.md) — Look up how SASE initializes, lists, and audits agent memory.
 - [Service host initialization](reference/agents/service-host.md) — Look up how SASE initializes its per-user service host.
 - [Workspaces](reference/agents/workspaces.md) — Look up workspace storage, repository commands, and workspace commands.
+- [Artifact Links](reference/artifact-links.md) — Typed relationships between durable SASE artifacts.
+- [Artifact References](reference/artifact-references.md) — Typed @kind:argument citations that expand in launch prompts.
 - [Automation](reference/automation/index.md) — Reference pages for SASE notifications, scheduling, monitors, tools, mentors, and sudo requests.
 - [Mentors](reference/automation/mentors.md) — Configure and use automated review mentors for Patches.
 - [Monitor operations](reference/automation/monitor-operations.md) — Inspect, stop, and view monitors in the SASE TUI.
@@ -190,6 +184,14 @@
 - [Environment variables](reference/environment-variables.md) — Environment variables that configure providers, SDD, plugins, runtime, and workspaces.
 - [Glossary](reference/glossary.md) — Every SASE term, generated from the glossary memory web.
 - [Reference](reference/index.md) — Look up exact SASE facts here, generated from code where possible.
+- [Shell Completion](reference/integrations/completion.md) — Native zsh, bash, and fish completion from the live sase argparse tree.
+- [Editor Integration](reference/integrations/editor.md) — Language-server and helper-bridge surfaces for prompt and macro editing.
+- [Integrations](reference/integrations/index.md) — Look up plugins, editor, completion, mobile, and remote dispatch surfaces.
+- [Mobile gateway](reference/integrations/mobile-gateway.md) — Look up pairing, push hints, storage, and private remote access.
+- [Command plugins](reference/integrations/plugins-commands.md) — Look up how plugins mount top-level sase commands.
+- [Installing and updating plugins](reference/integrations/plugins-update.md) — Look up sase update and plugin install, update, and uninstall.
+- [Plugins](reference/integrations/plugins.md) — Look up plugin groups, the catalog, installation, and disable switches.
+- [Remote Dispatch Runbook](reference/integrations/remote-dispatch.md) — Enroll a remote machine and launch agents on it with %dispatch.
 - [Macro arguments and typed inputs](reference/macros/arguments.md) — Argument syntax, input types, defaults, and rendered output shapes.
 - [Built-in and configured macros](reference/macros/built-ins.md) — Built-in macros, configuration-defined macros, and local macro files.
 - [Macro CLI and editor support](reference/macros/cli-and-editor.md) — Macro command behavior and editor language-server features.
@@ -210,6 +212,7 @@
 - [Memory](reference/memory/index.md) — Lookup pages for durable memory, instruction bundles, and memory history.
 - [Instruction bundles](reference/memory/instruction-bundles.md) — How SASE instruction bundles are previewed and how providers report delivery behavior.
 - [Memory](reference/memory/memory.md) — How SASE stores, composes, audits, and links durable memory context.
+- [Prompt History and Draft Recovery](reference/prompt-history.md) — Recorded prompts, replay, draft recovery, and the sase prompt command group.
 - [Installing and authenticating agent CLIs](reference/providers/agent-clis.md) — Provider CLIs that SASE can install, authenticate, inspect, and update safely.
 - [Antigravity provider](reference/providers/agy.md) — Antigravity CLI command construction, model mapping, and provider-specific behavior.
 - [Claude Code provider](reference/providers/claude.md) — Claude Code command construction, model mapping, and provider-specific behavior.
@@ -225,6 +228,7 @@
 - [Provider retry and fallback](reference/providers/retry-and-fallback.md) — Retry defaults, fallback behavior, and how provider failures affect invocations.
 - [Provider routing](reference/providers/routing.md) — Per-prompt selection and temporary provider or model routing controls.
 - [Provider usage](reference/providers/usage.md) — Subscription usage reporting and automatic provider disabling at usage limits.
+- [Query Language Reference](reference/query-language.md) — Boolean expressions that filter Patches in sase tui and other Patch queries.
 - [Runner slots](reference/runner-slots.md) — How runner capacity admits queued agents, and what waiting.json records.
 - [SASE Admin Center](reference/tui/admin-center.md) — Navigation, sections, and editor behavior in the SASE Admin Center.
 - [Agent row glyphs](reference/tui/agent-row-glyphs.md) — Glyphs, markers, and badges on Agents tab rows.
@@ -274,7 +278,6 @@
 - [Plans](reference/work-units/plans.md) — Spec-Driven Development storage, artifacts, and plan lifecycle in SASE.
 - [ProjectSpec](reference/work-units/project-spec.md) — The shared project-level file for project metadata and Patch records.
 - [Workflow Specification](reference/workflows.md) — YAML workflow files, step types, inputs, and execution behavior.
-- [Remote Dispatch Runbook](remote_dispatch.md) — Remote Dispatch Runbook — Remote dispatch lets one SASE controller discover, enroll, and operate agents on another machine.
 
 ## Contribute
 
@@ -290,9 +293,11 @@
 - [Instruction bundle internals](contribute/instruction-bundle-internals.md) — Manifest, storage, cache, and delivery contracts for generated instruction bundles.
 - [Integration APIs](contribute/integration-apis.md) — SASE exposes a small set of Python helpers for external plugins, chat clients, mobile clients, and editor integrations.
 - [LLM invocation internals](contribute/llm-invocation.md) — Internal provider architecture, prompt processing, subprocess handling, and invocation lifecycle.
+- [Mobile gateway API](contribute/mobile-gateway-api.md) — Host-bridge commands, events, and API contract for the mobile gateway.
 - [Mobile MVP Runbook](contribute/mobile-mvp-runbook.md) — This runbook covers the private Android MVP that connects a phone to a workstation-hosted SASE mobile gateway.
 - [Prepared monitor completion](contribute/monitor-completion.md) — Internal details for opt-in no-new prepared monitor completion.
 - [sase tui Performance Runbook](contribute/perf-runbook.md) — This runbook explains how to capture and compare performance data for sase's TUI, the sase tui terminal user interface.
+- [Plugin API](contribute/plugin-api.md) — Contributor contract for discovering and writing SASE plugins.
 - [Reader testing](contribute/reader-testing.md) — How to run an observed reader round and turn the results into doc changes.
 - [Rust Backend (sase_core_rs)](contribute/rust-backend.md) — A subset of sase's core APIs is served by a Rust extension distributed as sase-core-rs on PyPI and built from the sibling sase-core repo.
 - [SDD Storage](contribute/sdd-storage.md) — The workspace provider owns SDD placement, while projects select a store beneath it.
@@ -330,8 +335,10 @@
 - [Instruction Bundles](instruction_bundles.md) — This page has moved to its new home.
 - [LLM Provider Integration](llms.md) — This page has moved to its new home.
 - [Macro Template Reference](macros.md) — This page has moved to its new home.
+- [Mobile Gateway](mobile_gateway.md) — This page has moved to its new home.
 - [Monitors](monitors.md) — This page has moved to its new home.
 - [Notifications](notifications.md) — This page has moved to its new home.
+- [Plugin System](plugins.md) — This page has moved to its new home.
 - [Rust Backend (sase_core_rs)](rust_backend.md) — This page has moved to its new home.
 - [Spec-Driven Development (SDD)](sdd.md) — This page has moved to its new home.
 - [Named Tools and ToolRuns](tool.md) — This page has moved to its new home.
@@ -386,3 +393,13 @@
 | `/init/` | [`/reference/agents/`](reference/agents/index.md) |
 | `/vcs/` | [`/reference/vcs/`](reference/vcs/index.md) |
 | `/commit_workflows/` | [`/reference/vcs/`](reference/vcs/index.md) |
+| `/plugins/` | [`/reference/integrations/`](reference/integrations/index.md) |
+| `/mobile_gateway/` | [`/reference/integrations/`](reference/integrations/index.md) |
+| `/editor/` | [`/reference/integrations/editor/`](reference/integrations/editor.md) |
+| `/completion/` | [`/reference/integrations/completion/`](reference/integrations/completion.md) |
+| `/remote_dispatch/` | [`/reference/integrations/remote-dispatch/`](reference/integrations/remote-dispatch.md) |
+| `/query_language/` | [`/reference/query-language/`](reference/query-language.md) |
+| `/agent_images/` | [`/reference/agent-attachments/`](reference/agent-attachments.md) |
+| `/prompt/` | [`/reference/prompt-history/`](reference/prompt-history.md) |
+| `/artifact_references/` | [`/reference/artifact-references/`](reference/artifact-references.md) |
+| `/artifact_links/` | [`/reference/artifact-links/`](reference/artifact-links.md) |

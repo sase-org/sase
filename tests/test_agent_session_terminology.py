@@ -107,7 +107,7 @@ _STALE_PHRASE_ALLOWLIST = {
     ("docs/reference/agents/hood-sync.md", "families/"),
     # Feature-flag docs for the same families/ redirect-stub legacy set.
     ("docs/reference/config/feature-flags.md", "families/"),
-    ("docs/plugins.md", "family="),
+    ("docs/contribute/plugin-api.md", "family="),
     ("sase/memory/glossary/sase-agent-session.md", "agent family"),
 }
 

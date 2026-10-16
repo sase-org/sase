@@ -37,8 +37,10 @@ not_in_nav: |
   instruction_bundles.md
   llms.md
   macros.md
+  mobile_gateway.md
   monitors.md
   notifications.md
+  plugins.md
   rust_backend.md
   sdd.md
   tool.md
@@ -101,7 +103,6 @@ nav:
           - Keymaps: reference/tui/keymaps.md
           - SASE Pager: pager.md
       - CLI:
-          - Shell completion: completion.md
           - CLI reference: cli.md
           - CLI command groups: reference/cli/index.md
           - sase agent: reference/cli/agent.md
@@ -170,7 +171,7 @@ nav:
           - sase var: reference/cli/var.md
           - sase version: reference/cli/version.md
           - sase workspace: reference/cli/workspace.md
-          - Query language: query_language.md
+          - Query language: reference/query-language.md
           - Named tools: tool.md
       - Configuration:
           - Configuration files and behavior: configuration.md
@@ -270,11 +271,10 @@ nav:
               - Memory initialization: reference/agents/memory-initialization.md
           - Shared data and recovery:
               - Agent hood synchronization: reference/agents/hood-sync.md
-              - Agent attachments: agent_images.md
+              - Agent attachments: reference/agent-attachments.md
               - Agent auto-restart: reference/agent-auto-restart.md
               - Agent revive log: reference/agent-revive-log.md
               - Runner slots: reference/runner-slots.md
-          - Remote dispatch: remote_dispatch.md
       - Version control:
           - Version control: reference/vcs/index.md
           - VCS providers: reference/vcs/providers.md
@@ -324,14 +324,18 @@ nav:
           - Instruction bundles: reference/memory/instruction-bundles.md
           - Memory history: reference/memory/history.md
       - Prompts and artifacts:
-          - Prompt history: prompt.md
-          - Artifact references: artifact_references.md
-          - Artifact links: artifact_links.md
+          - Prompt history: reference/prompt-history.md
+          - Artifact references: reference/artifact-references.md
+          - Artifact links: reference/artifact-links.md
       - Integrations:
-          - Editor integration: editor.md
-          - Integration APIs: contribute/integration-apis.md
-          - Plugins: plugins.md
-          - Mobile gateway: mobile_gateway.md
+          - Integrations: reference/integrations/index.md
+          - Plugins: reference/integrations/plugins.md
+          - Command plugins: reference/integrations/plugins-commands.md
+          - Plugin updates: reference/integrations/plugins-update.md
+          - Editor integration: reference/integrations/editor.md
+          - Shell completion: reference/integrations/completion.md
+          - Mobile gateway: reference/integrations/mobile-gateway.md
+          - Remote dispatch: reference/integrations/remote-dispatch.md
       - Content layout: reference/content-layout.md
       - Upgrading:
           - Upgrading: reference/upgrading/index.md
@@ -364,6 +368,10 @@ nav:
           - Workspace provider: contribute/workspace-provider.md
           - VCS provider API: contribute/vcs-provider-api.md
           - Commit workflow orchestrator: contribute/commit-workflow-orchestrator.md
+      - Plugin and mobile internals:
+          - Plugin API: contribute/plugin-api.md
+          - Mobile gateway API: contribute/mobile-gateway-api.md
+          - Integration APIs: contribute/integration-apis.md
       - SDD storage: contribute/sdd-storage.md
       - Artifacts pane contract: contribute/artifacts-pane-contract.md
       - Artifacts visual grammar: contribute/artifacts-pane-visual-grammar.md

@@ -525,9 +525,9 @@ session route, SSE event stream, audit log, and committed mobile API contract sn
 
 The Python repo owns user-facing startup through `sase mobile gateway start`,
 configuration defaults, and lifecycle glue. See
-[`docs/mobile_gateway.md`](../mobile_gateway.md) for local setup, pairing, Tailscale
-Serve guidance, security notes, and the contract snapshot path used by future Android
-work.
+[`docs/reference/integrations/mobile-gateway.md`](../reference/integrations/mobile-gateway.md)
+for local setup, pairing, Tailscale Serve guidance, security notes, and the contract
+snapshot path used by future Android work.
 
 ## Bead Backend
 

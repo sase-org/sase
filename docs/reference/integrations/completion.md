@@ -1,3 +1,8 @@
+---
+title: "Shell Completion"
+description: "Native zsh, bash, and fish completion from the live sase argparse tree."
+---
+
 # Shell Completion
 
 `sase completion` supports native shell completion for `zsh`, `bash`, and `fish` from
@@ -209,14 +214,14 @@ completes native file paths (for editor-drafted prompt files) _and_ stored macro
 together. Inside quoted or spaced prompt text, `#` completes macro names, `%` completes
 prompt directive names, `@` completes canonical artifact references such as
 `file:explicit:...`, and `+` completes
-[project tags](reference/macros/reference-syntax.md#project-tags) such as `+sase`; the
-inserted value keeps the marker and only replaces the active embedded fragment.
-Project-tag candidates (`sase completion candidates project_tag`) are the enabled,
-launchable projects whose `PROJECT_NAME` fits the tag syntax, sorted case-insensitively;
-sibling records and the system-managed `home` project are left out, and, unlike the TUI
-and LSP `+` picker, Patches are not offered. They skip provider detection to stay on the
-fast path, so a tag for a project without a detected VCS provider is still offered and
-fails at launch with the usual error.
+[project tags](../macros/reference-syntax.md#project-tags) such as `+sase`; the inserted
+value keeps the marker and only replaces the active embedded fragment. Project-tag
+candidates (`sase completion candidates project_tag`) are the enabled, launchable
+projects whose `PROJECT_NAME` fits the tag syntax, sorted case-insensitively; sibling
+records and the system-managed `home` project are left out, and, unlike the TUI and LSP
+`+` picker, Patches are not offered. They skip provider detection to stay on the fast
+path, so a tag for a project without a detected VCS provider is still offered and fails
+at launch with the usual error.
 
 ### Environment Variables
 
@@ -336,10 +341,10 @@ candidate subprocess.
 ## Plugin Commands
 
 Top-level commands mounted by plugins through the `sase_commands` entry-point group (see
-`plugins.md`) are merged into the same runtime spec the generators above consume, so
-`sase <name> <TAB>`, `sase completion spec`, and the TUI `:` command line all complete
-plugin subtrees. The checked-in structural snapshot stays builtin-only; only the live
-runtime spec carries plugin children.
+[Command plugins](plugins-commands.md)) are merged into the same runtime spec the
+generators above consume, so `sase <name> <TAB>`, `sase completion spec`, and the TUI
+`:` command line all complete plugin subtrees. The checked-in structural snapshot stays
+builtin-only; only the live runtime spec carries plugin children.
 
 Freshness follows the same cache identity as everything else: the shell grammar cache
 and the TUI spec cache key on the plugin command set (names, owners, versions,
@@ -367,3 +372,9 @@ exists, and not blocking the core experience:
 
 - **A `carapace-spec` emitter** from the same `CompletionSpec` model, for nushell,
   elvish, and PowerShell. SASE targets POSIX hosts today.
+
+## Related
+
+- [Editor integration](editor.md) — language server and helper bridge.
+- [Command plugins](plugins-commands.md) — plugin-mounted command completion.
+- [Integrations](index.md) — other integration pages.

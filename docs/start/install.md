@@ -72,4 +72,4 @@ You have installed SASE and checked that it can find an authenticated provider.
 ## Next
 
 - [Run your first agent](first-run.md)
-- [Shell completion](../completion.md)
+- [Shell completion](../reference/integrations/completion.md)

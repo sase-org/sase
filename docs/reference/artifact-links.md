@@ -1,3 +1,8 @@
+---
+title: "Artifact Links"
+description: "Typed relationships between durable SASE artifacts."
+---
+
 # Artifact Links
 
 Artifact links are typed relationships between SASE artifacts. They answer "why are
@@ -212,7 +217,7 @@ AXE `artifact_link_backfill` job covers older documents in bounded, checkpointed
 batches, drains queued read rows for agents that have since published, recomputes
 projected relationships, reconciles the machine-local aggregate, and repairs dangling
 references from Git rename history. See
-[Default routines](reference/automation/scheduler-housekeeping.md#housekeeping-1-hour-interval).
+[Default routines](automation/scheduler-housekeeping.md#housekeeping-1-hour-interval).
 
 ## Beads
 
@@ -332,3 +337,8 @@ commit workflow and hourly backfill retry those events. Rows for terminal agents
 remain unpublished for 90 days leave the live queue and enter the dropped audit.
 Publication commits isolate only canonical event and marker paths, leaving unrelated or
 pre-existing sidecar dirt for the normal declaration workflow.
+
+## Related
+
+- [Artifact references](artifact-references.md) — citations in launch prompts.
+- [Work units](work-units/index.md) — plans, beads, goals, and Patches.

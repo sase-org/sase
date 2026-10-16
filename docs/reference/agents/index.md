@@ -30,11 +30,12 @@ Reference pages describe agent sessions, setup, workspace storage, and shared ho
 - [Agent revive log](../agent-revive-log.md) — revival audit records.
 - [Runner slots](../runner-slots.md) — queued agent admission.
 - [Agent providers](../providers/agent-clis.md) — supported agent CLIs.
-- [Agent attachments](../../agent_images.md) — images agents can see.
+- [Agent attachments](../agent-attachments.md) — images agents can see.
 - [Instruction bundles](../memory/instruction-bundles.md) — generated agent
   instructions.
 - [Mentors](../automation/mentors.md) — automated code review.
-- [Remote dispatch](../../remote_dispatch.md) — running agents on another machine.
+- [Remote dispatch](../integrations/remote-dispatch.md) — running agents on another
+  machine.
 
 ## Related
 

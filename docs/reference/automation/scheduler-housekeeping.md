@@ -187,7 +187,7 @@ since published; reconciles cross-workspace local aggregates; and repairs dangli
 from Git rename history. A large derivation backlog converges over several hourly ticks
 instead of rescanning the full corpus each time. Run
 `sase axe job run artifact_link_backfill` for an immediate pass. The link model and
-doctor counters are documented in [Artifact Links](../../artifact_links.md).
+doctor counters are documented in [Artifact Links](../artifact-links.md).
 
 The `artifact_run_prune` job is a read-only preview for old `artifacts/ace-run/`
 directories. Protection facts are gathered in Python, while the preview classification,

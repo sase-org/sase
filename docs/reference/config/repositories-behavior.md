@@ -197,7 +197,7 @@ and provide the inline fields in the table instead.
 `ref.inventory.globs` and emits a warning; new configuration must use `inventory.globs`.
 The `beads` and `agents` sidecars are entity-backed rather than document inventories, so
 document filters do not apply to them. See
-[Artifact References](../../artifact_references.md) for canonical prompt forms and
+[Artifact References](../artifact-references.md) for canonical prompt forms and
 project-context rules.
 
 Workspace numbers `0` and `1` use the linked repo's primary checkout. Higher workspace
@@ -243,7 +243,8 @@ Configures remote-machine discovery, enrollment records, gateway deadlines, and 
 local federation worker. Ordinary config loading is pure: it reads and validates this
 section but never discovers peers or contacts a gateway. Use `sase machine init`,
 `discover`, or `status` for explicit network work. See the
-[Remote Dispatch Runbook](../../remote_dispatch.md) for the supported setup flow.
+[Remote Dispatch Runbook](../integrations/remote-dispatch.md) for the supported setup
+flow.
 
 ```yaml
 dispatch:

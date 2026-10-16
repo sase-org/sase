@@ -1,1426 +1,162 @@
+---
+title: Plugin System
+description: This page has moved to its new home.
+search:
+  exclude: true
+---
+
+<!-- generated, do not edit; source: docs/_meta/moves.yml -->
+
 # Plugin System
 
-Sase uses Python
-[entry points](https://packaging.python.org/en/latest/specifications/entry-points/) to
-discover optional functionality installed in the same Python environment as `sase`.
-Runtime providers use [pluggy](https://pluggy.readthedocs.io/) hooks; resource plugins
-expose package data such as macro files and `default_config.yml`.
-
-The core `sase` package provides the plugin infrastructure, the built-in LLM providers,
-and local git/directory workspace support. Extra packages add hosted VCS workflows,
-internal workflows, or integrations without changing the core package.
-
-## Plugin Groups
-
-Sase defines thirteen entry point groups:
-
-| Entry Point Group      | Entry Point Value | Purpose                                             | Example Plugin                  |
-| ---------------------- | ----------------- | --------------------------------------------------- | ------------------------------- |
-| `sase_artifact_refs`   | Provider class    | Declarative document artifact-reference providers   | third-party document provider   |
-| `sase_dispatch`        | Provider class    | Remote dispatch machine-access providers            | built-in or third-party         |
-| `sase_file_hooks`      | Provider class    | Reusable declarative file-hook templates            | third-party integration         |
-| `sase_finalizers`      | Provider class    | Turn-finalizer providers (metadata-only inventory)  | third-party finalizer packages  |
-| `sase_task_types`      | Hook class        | Declarative task-type specs for typed task beads    | `sase-github` (`github`)        |
-| `sase_vcs`             | Provider class    | VCS provider plugins (git, hg, etc.)                | `sase-github`                   |
-| `sase_workspace`       | Provider class    | Workspace provider plugins (ref resolution, submit) | `sase-github`                   |
-| `sase_llm`             | Provider class    | LLM provider plugins                                | built-in or third-party         |
-| `sase_macros`          | Package module    | Macro templates and workflows                       | `my_sase_plugin`                |
-| `sase_config`          | Package module    | Default configuration (`default_config.yml`)        | `sase-github`, `my_sase_plugin` |
-| `sase_plugin_manifest` | Package module    | Plugin metadata resource used by diagnostics        | third-party plugin packages     |
-| `sase_commands`        | Command module    | Top-level `sase <name>` commands                    | `sase-listen` (`listen`)        |
-| `sase_pager_history`   | Provider factory  | Section-history providers for the pager             | third-party memory provider     |
-
-Provider-class entry points resolve to a class that is instantiated and registered with
-pluggy. Package-module entry points resolve to a module whose package resources are read
-by Sase. Third-party `sase_dispatch` providers are inventoried from entry point metadata
-only: their provider ref is `<normalized-distribution>@<entry-point-name>`, and provider
-code is imported later in an isolated helper subprocess only for the selected discovery
-or connection-plan operation.
-
-An `sase_macros` package may provide ordinary templates in `macros/`.
-
-## Available Plugin Packages
-
-| Package                   | Description                                                                                                 | Entry Points                                                                                                                                                          |
-| ------------------------- | ----------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `sase` (core)             | Bare-git VCS/workspaces, built-in LLMs, and the plan reference provider                                     | `sase_vcs: bare_git`, `sase_workspace: bare_git`, `sase_artifact_refs: builtin`, `sase_dispatch: builtin`, `sase_llm: agy, claude, codex, grok, muse, opencode, qwen` |
-| `sase-github`             | GitHub VCS and workspace support, including GitHub CLI (`gh`) PR operations                                 | `sase_vcs: github`, `sase_workspace: github`, `sase_config: sase_github`, `sase_macros: sase_github`, `sase_task_types: github`                                       |
-| `sase-telegram`           | Telegram integration via job scripts (`sase_job_tg_outbound`, `sase_job_tg_inbound`)                        | CLI scripts (not pluggy entry points)                                                                                                                                 |
-| `sase-nvim`               | Neovim integration, including project spec syntax and prompt helpers                                        | standalone Neovim plugin files (not Python entry points)                                                                                                              |
-| `sase-listen`             | Markdown-to-MP3 audio editions; ships `sase listen`, which behaves like the standalone `sase-listen` binary | `sase_commands: listen`                                                                                                                                               |
-| `sase-research-artifacts` | Research audio macros, artifact references, and file-hook templates                                         | `sase_macros: sase_research_artifacts`, `sase_artifact_refs: research`, `sase_file_hooks: research-highlights`, `sase_config: sase_research_artifacts`                |
-
-`sase-nvim` carries no `sase--plugin` catalog topic, so it never appears in the catalog
-listing; install it from its repository instead of `sase plugin install`.
-
-## Command Plugins
-
-A plugin can mount a top-level `sase <name>` command — for example, `sase-listen` ships
-`sase listen`, which behaves exactly like the standalone `sase-listen` binary. Wherever
-a plugin command appears, it renders as the same command chip: `❯ sase listen`.
-
-A distribution declares one entry point per command in the `sase_commands` group. The
-entry-point **name** is the command name, and the **value** is a module (or
-`module:object`) exposing this contract:
-
-| Member                  | Required | Meaning                                                                                            |
-| ----------------------- | -------- | -------------------------------------------------------------------------------------------------- |
-| `main(argv, prog)`      | yes      | Runs the command on the untouched argv after the command word. Returns an exit code (`None` is 0). |
-| `build_parser(prog)`    | yes      | The full parser, used only for completion — never for dispatch. It must have no side effects.      |
-| `SUMMARY: str`          | no       | One-line description for help and completion. Falls back to the distribution's `Summary` metadata. |
-| `SASE_COMMAND_API: int` | no       | Contract version. Absent means 1; newer than sase supports is refused with an update hint.         |
-
-```toml
-# pyproject.toml
-[project.entry-points."sase_commands"]
-listen = "sase_listen.sase_command"
-```
-
-```python
-# sase_listen/sase_command.py — cheap to import, and never imports sase
-SASE_COMMAND_API = 1
-SUMMARY = "Turn Markdown into chaptered MP3 audio editions"
-
-
-def build_parser(prog="sase listen"):
-    from sase_listen.cli import app
-
-    return app.build_parser(prog=prog)
-
-
-def main(argv=None, *, prog="sase listen"):
-    from sase_listen import cli
-
-    return cli.main(argv, prog=prog)
-```
-
-The execution model is in-process: sase routes, the plugin parses. Sase sets `sys.argv`
-to `[f"sase {name}", *argv]` and calls `main(argv, prog=f"sase {name}")`, so libraries
-that read `sys.argv` see a standalone-shaped invocation. `SystemExit` raised inside the
-plugin propagates unchanged, and exceptions from the plugin's own `main` are never
-caught by sase — parity with the standalone binary holds by construction. Sase never
-post-processes a plugin subtree: no default-`list` delegation, no sase help formatter. A
-plugin may not patch or extend built-in commands, and plugin subtrees are exempt from
-sase's CLI rules.
-
-Name rules and collisions:
-
-- Names must match `^[a-z][a-z0-9-]{0,31}$`.
-- Built-in command names (including legacy aliases), legacy root words, and `help` are
-  reserved — built-ins always win and a plugin claiming one stays shadowed.
-- If two distributions claim one name, the command is disabled for both and every
-  surface names both owners. Sase never picks a winner by entry-point order.
-
-Path completion: an argparse action may set `action.sase_completion = "path"` or `"dir"`
-to request path completion; otherwise only argparse `choices` produce candidates.
-
-Disable switches: `SASE_DISABLE_PLUGINS` or `SASE_DISABLE_PLUGIN_COMMANDS` turns the
-whole group off. Both are permanent operational switches, not feature flags.
-
-### Where a command shows up
-
-Catalog panels, full help, and operation results label plugin commands with
-`❯ sase <name>`. Type `sase <name>` to run the command; `❯` is a visual marker. The
-label can also describe an uninstalled command or a command disabled by a name conflict,
-so a chip alone does not establish that the command can run.
-
-A **declared** command is named in a plugin's package metadata. A **mounted** command
-has an eligible name with exactly one owner and is exposed on `sase`. Mounting does not
-establish that its adapter can load or its parser can be built; doctor checks those
-separately. The owning **distribution** is the installed Python package, whose name can
-differ from the command name.
-
-**Help.** Compact `sase --help` lists mounted commands in a **Plugin commands** group:
-name, summary, and distribution. The group is omitted when none are mounted, and a load
-failure falls back to the distribution's summary in compact help, so a command listed
-there may still fail to run. `sase --full-help` adds the chip, the summary, and
-`(distribution version)`. Problem rows (failed to load, shadowed by a built-in, invalid
-name, or two distributions claiming one name) are marked `⚠` with a one-line reason. The
-footer says to manage plugins with `sase plugin list` or the Updates tab.
-
-**Doctor.** `sase doctor` runs `plugins.commands` by default. It loads mounted command
-adapters and reports command and claim problems; its mounted count includes only
-adapters that loaded successfully. A load failure or a name collision is `ERROR`. A
-shadowed or invalid name is `WARN`. Add `sase doctor -D -C plugins.commands-parsers` to
-build each parser as well; a parser failure is `ERROR`. The report currently suggests
-`sase plugin update <command-name>` for a load or parser failure. If that name does not
-identify the plugin in the catalog, use the owning distribution shown in the diagnostic
-with `sase plugin show <distribution>` to find the plugin to update. For a collision,
-doctor suggests uninstalling the first owner in its alphabetically sorted list; it does
-not uninstall anything automatically. Choose which plugin to keep before running an
-uninstall command.
-
-**Catalog.** `sase plugin list` prints each installed command's chip in that plugin's
-entry-point cell. `sase plugin show` adds a **Commands** row: one chip per installed
-command, with its summary and a yellow note for a name conflict, shadowed name, or
-invalid name. Adapter load failures are diagnosed by full help and doctor. An
-uninstalled plugin shows the upstream preview in dim, labeled
-`added on install · declared in pyproject.toml`, and only when that preview is known. An
-unknown preview omits the row. `sase plugin list -j` includes the installed declarations
-in each entry's `installed.commands` array, including names that cannot mount.
-
-**Updates tab.** An installed plugin row shows its chips in the row accent. An
-uninstalled row shows the cached declared preview in dim. Selecting it can fetch a
-preview for the detail panel; drawing the list itself does not fetch one. The detail
-panel uses the same Commands row as `sase plugin show`.
-
-The confirmation modal previews changes before running an operation. Command lines are
-omitted when the relevant metadata is unknown:
-
-- Install: `❯ Adds a new command: ❯ sase <name>` for each declared command. A batch row
-  gains ` (adds ❯ sase <name>, ...)`.
-- Update: a single-plugin managed update shows `❯ Adds command:` and
-  `❯ Removes command:` when the upstream declarations differ from the installed set. No
-  command lines appear when the sets agree. Multi-plugin and editable-checkout updates
-  do not show this comparison.
-- Uninstall: `❯ Removes command: ❯ sase <name>` for each installed declaration,
-  including commands that cannot currently mount.
-
-In a single-plugin install confirmation, a declared name that matches a built-in warns
-`sase <name> would be shadowed`. A name another installed plugin already mounts warns
-`sase <name> would conflict with <distribution> — both would be disabled`. Those
-warnings are yellow and appear before you confirm; batch-install and update
-confirmations do not show these collision warnings. After the change, the completion
-toast labels net added command names as `new command` and removed names as `removed`.
-These labels describe metadata changes; use full help or doctor to check whether the
-commands can load.
-
-Previews are best-effort. An unknown preview renders no command lines; it does not mean
-the plugin declares no commands.
-
-### Migrating from the standalone `sase-listen`
-
-```bash
-sase plugin install listen
-sase listen doctor
-uv tool uninstall sase-listen
-```
-
-Migrate the feed host last, after the feed-host fallback is released.
-
-## Installation
-
-```bash
-# Core SASE (installs the sase tool)
-uv tool install "sase>=0.18"
-
-# Core SASE + GitHub PR support in one command
-uv tool install "sase>=0.18" --with sase-github
-```
-
-The recommended way to add a plugin to an existing managed install is the
-[**Updates** tab of the SASE Admin Center](reference/tui/admin-center.md#updates-tab):
-press `#` inside `sase tui`, switch to the **Updates** tab, highlight the plugin, and
-press `i` to install. To install several plugins from sase's TUI, mark installable rows
-with `I` / `Space`, then press `i` once; sase's TUI previews one combined `uv` operation
-before changing the environment. A single-plugin preview offers both an explicit git
-variant and the default-source variant; when public PyPI definitively lacks the
-distribution the default variant already resolves to git automatically, so no redundant
-duplicate variant is offered. Otherwise press `g` in the confirmation modal to switch to
-the git variant before confirming. Install confirmations show the exact `uv` command and
-selected source; a batch preview also lists every included or skipped plugin, each with
-its own resolved source. Use `Ctrl+D` / `Ctrl+U` when a preview overflows. Install
-previews do not fetch incoming commit subjects—the repository-grouped commit pane is
-available on update confirmations when sase's TUI has an installed commit range to
-compare. The equivalent CLI for one plugin is `sase plugin install github`.
-
-## Plugin Catalog (`sase plugin list` / `sase plugin show`)
-
-`sase plugin` is a discovery surface for the whole SASE plugin ecosystem — not just what
-is installed locally. It treats the GitHub `sase--plugin` repository topic as the
-canonical registry, so the catalog always reflects reality: a repo gains or loses a
-listing purely by gaining or losing the topic, with no code change.
-
-> The same browse / install / update / uninstall operations are available interactively
-> in the
-> [**Updates** tab of the `sase tui` SASE Admin Center modal](reference/tui/admin-center.md#updates-tab)
-> (`#`), which reuses this catalog and these renderers for CLI parity and adds a SASE
-> Core panel for `sase update`.
-
-```bash
-# Catalog of every known plugin (built-in and community)
-sase plugin list
-sase plugin list -v          # add stars, last-updated, and the full topic list
-sase plugin list -j          # stable machine-readable JSON
-sase plugin list -o          # use cached catalog/latest-version data only
-sase plugin list -A          # also probe latest for uninstalled plugins
-
-# Detailed view of a single plugin
-sase plugin show github
-sase plugin show sase-github # short name, repo, or owner/repo all match
-sase plugin show github -j   # stable machine-readable JSON
-sase plugin show github -o   # use caches only; do not check GitHub/PyPI
-
-# Bypass caches and refetch from GitHub/PyPI
-sase plugin list -r
-sase plugin show github -r
-```
-
-- `sase plugin` with no subcommand defaults to `sase plugin list`.
-- **`list`** renders two clearly-labeled sections — **built-in** (published under the
-  official `sase-org` org) first, then **community** (third-party, shown with a warning)
-  — and marks installed versions, latest available versions, and updates. Status uses a
-  glyph plus a legend (`●` installed, `○` available, `↑` update available) so the output
-  is legible with no color. An installed index plugin behind PyPI renders as
-  `vOLD → vNEW` with a `↑` and a footer hint to run `sase plugin update --all`. An
-  editable checkout renders its current dev version and, when its upstream tracking
-  branch is ahead, `current → latest` with a dim `dev` tag.
-- **`show`** renders a detail panel: description, installed status and contributed entry
-  points, a **Commands** row for installed declarations or a known upstream command
-  preview, latest available version, repository, homepage, topics, stars, last update,
-  and license. Community plugins lead with a prominent third-party warning. An unknown
-  `<plugin_name>` prints ranked `did you mean…?` suggestions and exits non-zero. See
-  [Where a command shows up](#where-a-command-shows-up) for the chip and preview rules.
-- Built-in vs. community is decided by the owning org: `sase-org` (case-insensitive) is
-  built-in; anything else is community. Archived repos are surfaced with an archived
-  marker rather than hidden.
-- For a managed `uv tool` install, every package explicitly injected in `sase`'s
-  `uv-receipt.toml` is authoritative installed membership for the catalog and Admin
-  Center. Its version comes from live distribution metadata. SASE entry points and
-  recognized console-script / `sase-*` distribution naming remain the discovery fallback
-  for unmanaged environments and the source of contributed entry-point-group metadata. A
-  catalogued package absent from both paths (for example a Neovim-only integration)
-  correctly shows as not installed.
-- Latest available versions for index installs come from PyPI's package JSON
-  (`info.version`), which matches what `sase plugin update` would actually install.
-  `sase plugin list` probes latest versions for installed plugins only (update markers
-  and counts still match); pass `-A|--all-latest` to restore a full-catalog probe.
-  `sase plugin show` always fetches latest for the requested plugin. The Updates >
-  Plugins highlighted row fetches uninstalled latest lazily through the detail
-  debouncer. Editable checkouts derive their latest dev version from the upstream
-  tracking ref after a best-effort fetch, carry a lowercase `dev` source marker, and
-  base update availability on git ancestry rather than PEP 440 string comparison. A
-  local checkout can surface an `↑ dev update available` hint that recommends
-  `sase update` rather than `sase plugin update`. Direct-git installs are labeled as
-  `git` and are not compared against PyPI, so an immutable VCS install never gets a
-  false update prompt.
-- Blocked editable checkout states are shown as a dim reason instead of an update arrow:
-  `dev · local changes`, `dev · diverged`, `dev · detached HEAD`, `dev · no upstream`,
-  `dev · offline`, or an unavailable/fetch-failed reason. Fix the checkout manually,
-  then rerun `sase plugin list` or refresh the Admin Center Updates tab.
-- `sase plugin list -j` emits `schema_version: 3`. Each entry includes `install_type`,
-  `current_version`, an `installed` object with `entry_point_groups` and the mounted
-  `commands` the plugin provides, and a `latest` object with `version`,
-  `update_available`, `state`, and `reason` so automation can distinguish index updates
-  from editable-checkout dev states without parsing table text.
-
-### Catalog fetching and cache
-
-The catalog and latest-version probes are cached separately, so repeat runs are instant
-and bounded:
-
-- The data comes from explicit `gh api` pages of
-  `search/repositories?q=topic:sase--plugin&per_page=100`, which returns topics, owner,
-  description, stars, license, and timestamps inline — no per-repo follow-up lookups.
-  Each page has its own timeout. When GitHub's 1000-result search cap would truncate the
-  catalog, the fetch shards the topic query on stable `stars:` (then `created:`) ranges
-  and unions the results. Truncation or `incomplete_results` surface as catalog warnings
-  rather than silent drops.
-- The cache lives at `~/.sase/plugins/catalog_cache.json` and is written atomically. The
-  first run fetches and writes it; later runs read it and only touch the network when
-  `-r|--refresh` is passed. A cache older than the soft staleness threshold is still
-  used, but the footer warns more loudly.
-- Index latest-version results live at `~/.sase/plugins/latest_cache.json` with a short
-  TTL. Cache misses are fetched from PyPI concurrently with short timeouts; any timeout,
-  parse failure, or package missing from PyPI renders as "latest unknown" and the
-  command still exits successfully. Editable checkout probes are not written to this
-  PyPI cache.
-- `-o|--offline` makes `list` and `show` use caches only and make zero GitHub or PyPI
-  calls. If the catalog cache is missing or was populated from a different GitHub topic
-  query, offline mode fails with an actionable message; missing latest-version cache
-  entries render as unknown. Editable checkouts do not fetch in offline mode; they use
-  already-known git metadata when available or render `dev · offline`.
-- If `gh` runs but the call fails (network error, non-zero exit, or an
-  unauthenticated/auth error), SASE falls back to a compatible existing cache with a
-  loud "stale cached data" warning, or — when there is no compatible cache — re-raises
-  the error.
-- A missing `gh` (not on `PATH`) is always a hard error, even when a cache exists: SASE
-  never silently serves stale data while the CLI it needs is absent, and instead prints
-  the same actionable `gh` install / `gh auth login` hint that `sase doctor` uses. This
-  mirrors `src/sase/doctor/checks_plugins.py`.
-
-### Related plugin diagnostics
-
-The catalog answers "what exists and what do I have installed." For deeper install and
-configuration diagnostics, use the commands that already own each concern:
-
-```bash
-# Installed runtime and plugin packages
-sase version -v
-sase version -j
-
-# Resource entry-point loading and GitHub provider prerequisites
-sase doctor -C plugins.resources
-sase doctor -C plugins.github
-
-# Configured jobs, discoverable scripts, and Telegram job setup
-sase axe job list --available
-sase axe job doctor
-sase doctor -C axe.jobs
-```
-
-- `sase version -v` / `-j` inventories the installed `sase` host, the `sase-core-rs`
-  core, and SASE plugin packages discovered through entry points, console scripts, or
-  `sase-*` distribution names.
-- `sase doctor -C plugins.resources` reports resource entry-point load failures and any
-  resource-plugin disable environment variables (`ERROR` on a load failure, `WARN` when
-  loading is disabled). `sase doctor -C plugins.github` probes the GitHub CLI and
-  `gh auth status` when a GitHub provider plugin is installed.
-- `sase axe job list` shows configured jobs with status; add `--available` to include
-  discoverable executable job scripts. `sase axe job doctor` checks for missing
-  configured script jobs (`ERROR`), unconfigured available scripts (`WARN`), and
-  Telegram job `pass`/environment prerequisites (`WARN`). It also reports which Telegram
-  job entrypoints are in use: the canonical `sase_job_tg_inbound` and
-  `sase_job_tg_outbound` scripts are `OK`, while an install or config that only has the
-  legacy `sase_chop_tg_inbound` / `sase_chop_tg_outbound` names still works but gets a
-  `WARN` to upgrade `sase-telegram` and switch the configured job scripts. The same job
-  diagnostics are mirrored by `sase doctor -C axe.jobs`.
-
-## Updating sase and plugins (`sase update`)
-
-`sase update` updates `sase` **and every installed sase plugin together** from the
-canonical uv-tool environment. For a managed install it delegates to
-`uv tool upgrade sase`, re-resolving SASE core and injected plugins in one shot so they
-move forward as a coherent set. Receipt-owned editable / dev components of the same uv
-tool environment are detected from the receipt, updated from git, and reconciled so
-Python entry points, dependencies, and compiled Rust artifacts match the checked-out
-source (see [Dev / editable installs](#dev-editable-installs) below). Dev-update timing
-baselines can be summarized from the local journal with `tools/dev_update_timings`.
-
-```bash
-sase update            # update sase + all plugins
-sase update -n         # dry run: preview the uv or dev-update plan, change nothing
-sase update -q         # quiet: print only a one-line summary
-sase update -j         # stable machine-readable JSON
-sase update -v         # stream full output of every step (git, uv, cargo)
-sase update -t dev     # switch the install to dev (editable) mode; see below
-sase update -t pypi    # switch the install back to managed PyPI mode
-```
-
-While it runs, `sase update` shows a live timeline of steps on your terminal: every step
-is visible up front as a pending row, the running step shows its elapsed clock plus a
-short tail of its live output, and finished steps collapse to a one-line result. A
-failed step expands to its last output lines:
-
-```text
-╭─ sase update · dev install ─────────────────────────────────╮
-│ ✓ Inspect install        uv tool · 1 editable · 2 managed  0.4s │
-│ ✓ Check for updates      1 behind · 2 current              2.1s │
-│ ✓ Fast-forward sase      a1b2c3d → 9f8e7d6 · 1 commit       0.9s │
-│ ⠼ Rebuild Rust core into uv-tool venv                       0:31 │
-│     │    Compiling sase_core v0.14.2                            │
-│ ○ Restart scheduler                                             │
-╰──────────────────────────────────────────────────────── 0:44 ─╯
-```
-
-When the run finishes, the live region is replaced by a static final frame (no spinner,
-no tails), followed by the result panels highlighting what changed, what was already
-current, and reminding you to restart long-running agents:
-
-```text
-✓ sase           0.5.0 → 0.6.1
-✓ sase-github    0.3.2 → 0.4.0
-· sase-telegram  0.1.0   (already current)
-
-Updated sase + 1 plugin in 4.2s · 1 already current
-↻ service proc scheduler restarted: pid 41210 -> pid 41388 to load the updated code.
-```
-
-When stderr is not a terminal (or `TERM=dumb`), progress is append-only plain lines
-instead of a live region:
-
-```text
-sase update · dev install
-[00:00] → Inspect install
-[00:00] ✓ Inspect install — uv tool · 1 editable · 2 managed (0.4s)
-```
-
-- **Progress goes to stderr; results stay on stdout.** The live timeline and plain lines
-  are written to stderr, while the final summary panels stay on stdout, so
-  `sase update > out.txt` still shows live progress on the terminal and pipes stay
-  clean. `-j|--json` disables progress entirely.
-- **`-v|--verbose`** streams the full output of every step (git, uv, cargo) as it runs
-  instead of just the short tail. With `-j` or `-q` it is accepted but has no effect,
-  because the log always records full output.
-- **Every run leaves a log file** at `~/.sase/logs/update/update-<UTC>-<pid>.log` with
-  the full transcript (steps, commands, and all output). The newest 20 logs are kept.
-  The JSON payloads also carry a `log_path` key with the transcript path (or `null`),
-  without changing the schema version. Dry runs write no log.
-- **Ctrl-C exits `130`.** The running step's process group is interrupted, the final
-  frame prints, and the command exits `130` with no traceback. Checkouts are never left
-  mid-merge beyond what git itself guarantees.
-- **Mode switches (`-t/--to dev|pypi`) run in the same live session** after the
-  confirmation prompt and plan preview, with restart and completion rows, the same final
-  frame, and the same interrupt handling. A `--dry-run` preview shows a transient
-  timeline on terminals only while it plans its fetches; the dry-run panel remains the
-  only persistent output.
-
-- **Install method is required.** `sase update` only works when sase was installed with
-  `uv tool install sase` (the canonical install path). When it is run from a pip/pipx
-  install or from a dev checkout's virtualenv, it **fails fast with an actionable
-  message** and a non-zero exit code instead of touching the environment. The check is
-  strict: `uv` must be on `PATH`, the running interpreter's `sys.prefix` must resolve to
-  `<uv tool dir>/sase`, and that directory must contain a `uv-receipt.toml`.
-- **Managed installs** use `uv tool upgrade sase`, re-resolving sase core and all
-  injected plugins in a single shot so they move forward as a coherent set rather than
-  drifting out of sync.
-- **Editable checkouts** update only when they are clean and strictly behind their
-  upstream tracking branch. SASE fetches the upstream, fast-forwards the checkout,
-  reconstructs the uv-tool install from the receipt for editable Python packages, and
-  rebuilds `sase-core-rs` into the uv-tool venv when the Rust core checkout changed.
-  Before advancing the host checkout, SASE checks that its target
-  `sase-core-revision.txt` pin is contained in the core checkout target. If the core
-  checkout or its upstream lacks that revision, the host root is skipped with the
-  missing pin and core checkout reason; plugin roots remain independent. Multiple
-  packages in one git root are deduped.
-- **Blocked editable states are non-destructive.** Dirty, diverged, detached-HEAD,
-  no-upstream, offline, and fetch-failed checkouts are skipped with a reason. Commit or
-  stash local changes, resolve divergence manually, check out a branch with an upstream,
-  or rerun online; `sase update` never rebases, merges non-fast-forward, stashes, or
-  discards local work.
-- **Mixed installs** update editable packages through the dev path and managed packages
-  through uv in one run, with one combined result. This includes the common contributor
-  layout where `sase` and every plugin are editable but `sase-core-rs` remains a
-  published wheel: the comprehensive update reconstructs the editable receipt and
-  explicitly re-resolves the compatible core wheel without replacing or dropping those
-  editable sources.
-- **Restart behavior is automatic after real code changes.** In the CLI, SASE restarts
-  the scheduler when it is running so it loads the new code. In the Admin Center Updates
-  tab, SASE restarts sase's TUI and the service host through the same restart path as
-  the `Q` restart action. After a Rust rebuild, SASE checks that `sase-core-rs` exposes
-  every binding required by the host checkout. A failed check reports the missing
-  bindings and remedy, and neither the CLI nor the TUI restarts onto the incompatible
-  extension. No-op updates do not restart anything.
-- **The Admin Center mirrors the split.** On a highlighted **Plugins** row in the
-  Updates tab, `U` updates that installed plugin and `m` switches install mode.
-  Pane-wide `u` still runs only the SASE core + plugins update, while pane-wide `A`
-  deliberately targets the current supported agent-CLI inventory. Global `,U` opens the
-  Update panel from cached snapshots, with a providers row that lists each captured
-  provider's version transition and flags manual-only providers by name. Lowercase `e` /
-  `s` / `p` choose Everything, SASE, or providers and then confirm with `y`/`n`; capital
-  `E` / `S` / `P` plan the same scopes and skip only that confirmation after a runnable
-  preview succeeds. Global `,E` is the direct alias for `,U` then capital `E`, with the
-  same preview/no-op/error guarantees. The providers leg is still snapshot-gated: it
-  includes only provider names from the latest completed automatic check, revalidates
-  them live, and never guesses or privileges manual-only providers.
-- **`-n|--dry-run`** prints the exact `uv` command or editable-checkout plan that would
-  run and exits `0` without changing anything. uv itself has no dry-run, so sase
-  resolves and prints the managed plan itself.
-- **`-j|--json`** emits `schema_version: 4` with a stable, sorted payload. Managed
-  outcomes are reported under `managed`; editable-checkout plans/results are reported
-  under `dev`; `mode` is `managed`, `dev`, or `mixed`; `restart` reports whether the
-  scheduler was restarted, skipped, or failed, including `skipped_core_bindings` when
-  the extension failed verification. Dev results include `core_bindings_verified` as
-  true, false, or null when no check ran. The dry-run JSON reports `dry_run: true`, the
-  planned command or dev plan, and each package's current version.
-- **Installed shell-completion scripts are refreshed after a successful upgrade**, so a
-  stamped script does not drift behind the CLI it completes. A successful update
-  regenerates, `zcompile`s, and re-stamps every previously installed script, adds a
-  `completion_refresh` object to the JSON payload, and reports failures without failing
-  the update itself. See [Shell Completion](completion.md#refresh-existing-installs).
-- A no-op run (nothing to upgrade) renders a clean "Already up to date" state and still
-  exits `0`.
-- The authoritative record of what is in sase's environment is uv's own
-  `uv-receipt.toml`, not anything sase stores. `sase update` moves the whole environment
-  forward at once; to install or upgrade individual plugins, use
-  [`sase plugin install` / `sase plugin update`](#installing-and-updating-plugins-sase-plugin-install-sase-plugin-update).
-
-### Dev / editable installs
-
-When sase or a plugin is present in the uv tool environment as an **editable / dev
-install** (for example `uv tool install -e` against a local git checkout),
-`uv tool upgrade` cannot move it forward. `sase update` detects those editable
-requirements from the receipt and upgrades each one in place from git instead:
-
-- The run computes a mode of `managed` (only registry packages), `dev` (only editable
-  checkouts), or `mixed` (both), and handles each part with the matching backend.
-- For every editable checkout it runs `git fetch`, then a preflight: a checkout is
-  **actionable** only when it is clean and strictly behind its upstream. Checkouts that
-  are dirty, diverged, detached, ahead, or have no upstream are skipped with a printed
-  reason instead of being touched.
-- Actionable checkouts are advanced with `git merge --ff-only`, then reconciled into the
-  environment — `uv tool install` for Python packages and `just rust-install-uv-tool`
-  for the Rust core (`sase-core-rs`).
-- A wheel-installed `sase-core-rs` is reconciled as managed work even though it is a
-  transitive dependency rather than a top-level uv receipt requirement. Current or
-  safely skipped editable checkouts stay visible in the plan but do not block that
-  core-wheel update.
-- After any changed update (managed or dev), `sase update` restarts the scheduler so the
-  new code is picked up by background work.
-
-A normal `uv tool install sase` user is unaffected by this path, while a contributor
-running editable installs gets the same one-command update. `-n|--dry-run` previews the
-planned git/uv commands for both modes, and the `-j|--json` payload (schema version `2`)
-reports per-root dev outcomes alongside the managed package outcomes.
-
-#### The code-swap lock
-
-Fast-forwarding an editable checkout swaps the source tree out from under anything
-already importing from it. A process that has imported some modules and not yet imported
-others can end up mixing pre-swap and post-swap code. SASE guards that with an advisory
-lock at `~/.sase/locks/code-swap.lock`, with per-holder records under
-`~/.sase/locks/code-swap.holders/`. It has two kinds of holder, and the distinction
-matters:
-
-- **Blocking readers.** `sase bead work` takes a shared lock for its whole run. While it
-  holds one, `sase update` cannot take the exclusive lock its editable swap needs, so
-  the update stops before touching anything. Each actionable editable package is
-  reported with status `failed` and a reason that begins `deferred:`, and the command
-  exits non-zero without having changed anything — re-run it later rather than treating
-  it as a broken checkout:
-
-  ```text
-  deferred: <holder> is running against this checkout; re-run `sase update` when it finishes
-  ```
-
-  In the Admin Center's Updates tab the same condition disables the update instead:
-
-  ```text
-  A sase bead work is running against this checkout (<holder>). Re-run the update after it finishes.
-  ```
-
-  A direct `sase bead work` started while a swap is already in progress exits non-zero
-  without starting any work, rather than importing a torn tree. The host-owned launcher
-  used after an approved epic is the deliberate exception: a package-free bootstrap
-  waits for the swap to finish before importing SASE, then hands its shared lock to
-  `sase bead work` for launch orchestration. It prints
-  `sase: waiting for the source-tree swap to finish before launching` while queued.
-
-- **Advisory readers.** A long-lived agent runner registers as advisory for the lifetime
-  of its execution loop. Advisory holders never take the shared lock, so they can never
-  defer a swap and are never counted as blocking one. Instead, `sase update` and the
-  Admin Center's update preview print an informational line —
-  `N agent runner(s) are running from this checkout and a swap now can break their deferred imports.`
-  — so you can decide whether to wait. A runner is deliberately not allowed to block an
-  update indefinitely.
-
-Ordinary readers and the writer remain non-blocking and fail fast rather than queueing:
-a waiting reader may already hold pre-swap imports, and a waiting writer would stall
-sase's TUI. The approved-epic bootstrap can wait safely because it has not imported the
-editable package yet. Set `SASE_DISABLE_CODE_SWAP_LOCK=1` to bypass the mechanism
-entirely (both the barrier and the warning). Direct readers still have one accepted
-residual race: one that starts while a swap is already underway can import torn modules
-before it reaches the lock. The guarded approved-epic path closes that race for its own
-launch.
-
-### Install mode switching
-
-`sase update -t/--to dev|pypi` switches the whole install between the two modes instead
-of updating within one:
-
-- **`--to dev`** establishes the dev (editable) state for you: it clones (or
-  fast-forwards) the SASE checkouts, runs the editable reinstall, and rebuilds the local
-  `sase-core-rs` extension. Dev checkouts materialize owner-nested under the
-  `update.dev_root` config key (default `~/projects/github`) as
-  `<dev_root>/<owner>/<repo>` — for example `~/projects/github/sase-org/sase` — cloned
-  via SSH URLs. Legacy flat `~/projects/git/<repo>` checkouts are no longer reused; SASE
-  warns about them, and you can either set `update.dev_root` or move the tree into the
-  owner-nested layout.
-- **`--to pypi`** returns the install to managed mode, reinstalling published wheels
-  through `uv`.
-- Switching to the mode you are already in is a no-op. `-n|--dry-run` previews the plan;
-  without `-y|--yes` an interactive confirmation is required, and cancelling exits
-  non-zero. A changed switch restarts the scheduler (and sase's TUI plus the service
-  host when driven from the Updates tab) through the shared restart path.
-- **In the Admin Center Updates tab, highlight a Plugins row and press `m`** to switch
-  mode interactively: it shows the current mode and dev root, confirms, runs the switch
-  as a proc, and shows a restart toast.
-
-## Installing and updating plugins (`sase plugin install` / `sase plugin update`)
-
-`sase plugin install <plugin>` adds a plugin to the **same** uv tool environment as
-`sase`, so its entry points are discovered the next time `sase` runs.
-`sase plugin update <plugin>` upgrades one already-installed plugin (and `-a|--all`
-upgrades every installed plugin), leaving `sase` core pinned. Both build on the same
-`uv tool` engine as `sase update` and share its install-method requirement and
-beautiful, copy-pasteable output.
-
-```bash
-# Install (resolved through the GitHub catalog)
-sase plugin install github          # `github` -> the `sase-github` distribution
-sase plugin install sase-github     # repo name also works
-sase plugin install github -g       # install from the plugin's git repository
-sase plugin install github -n       # dry run: preview the uv command, change nothing
-sase plugin install 'sase-foo==1.2' # a raw requirement / git URL / path is passed through verbatim
-
-# Update
-sase plugin update github           # upgrade one installed plugin (sase core stays pinned)
-sase plugin update -a               # upgrade every installed plugin
-sase plugin update github -n        # dry run
-sase plugin install github -j       # stable machine-readable JSON (also on update)
-```
-
-- **Name resolution.** A bare `<plugin>` is resolved through the catalog (`github` →
-  `sase-github`), so the short name, repo, or `owner/repo` full name all work. A value
-  that already looks like a requirement, git URL, or local path (`==`, `git+…`, `…://…`,
-  `/path`) is passed through to uv verbatim. An unknown name prints ranked
-  `did you mean…?` suggestions and exits non-zero.
-- **Index-first resolution with a definitive git fallback.** By default a catalog hit is
-  installed from its published distribution (PyPI). It automatically falls back to
-  `git+<repository>` only when public PyPI gives a definitive "not found" (an HTTP 404)
-  for that distribution — an unreachable index, a timeout, or any other transient
-  failure keeps resolving from the index instead of silently switching source on an
-  outage. Pass `-g|--git` to force the repository install regardless of index state; a
-  forced `--git` never probes PyPI. The resolved `source` (`catalog`, `git`, or
-  `passthrough`) is reported in `-j|--json` output and sase's TUI install confirmation.
-- **The receipt is the source of truth.** uv's `--with X` _replaces_ the injected set
-  rather than appending to it, so both commands reconstruct the **full** `--with` set
-  from sase's `uv-receipt.toml` — faithfully preserving existing plugins, editable/dev
-  installs, version specifiers, and extras — before re-running `uv tool install`.
-  `update` additionally passes `--upgrade-package <name>` per target so only those
-  plugins move while everything else is pinned; this is why "update plugins" never
-  silently bumps `sase` core (use the comprehensive `sase update`, which also
-  re-resolves a managed core wheel in editable/dev mode, for that).
-- **Install method is required**, exactly as for `sase update`: the commands only work
-  when sase was installed with `uv tool install sase`, and otherwise fail fast with an
-  actionable message instead of touching the environment.
-- **Idempotent install.** Installing a plugin that is already injected prints "already
-  installed" and points at `sase plugin update <plugin>` rather than re-running uv.
-  Updating a plugin that is **not** installed points at `sase plugin install <plugin>`
-  instead.
-- **`-n|--dry-run`** prints the exact `uv` command (and, for install, the resulting
-  plugin set) and exits `0` without changing anything. **`-j|--json`** emits a stable,
-  sorted payload with `schema_version`, the resolved `command`, and per-package
-  outcomes; **`-r|--refresh`** refetches the catalog before resolving a name.
-- **Restart after real package changes.** Like `sase update`, `sase plugin install`,
-  `update`, and `uninstall` restart the scheduler from the CLI when uv actually changed
-  installed packages, and show an operation-specific post-restart toast when driven from
-  sase's TUI. The JSON payload carries the same restart status shape as `sase update`.
-- **Command-aware lifecycle.** Every install, update, and uninstall diffs the mounted
-  `sase <name>` command set around the `uv` mutation. Added commands are announced in
-  the result panel with a `❯ sase <name>` chip, their summary, and a
-  `Try it: sase <name> --help` hint; removed commands are announced with the chip and a
-  removal note. When the command set changed, shell completion is refreshed in a fresh
-  child process (best-effort, like `sase update`: a failure never fails the mutation and
-  prints a `sase completion refresh` retry). The `-j|--json` payload carries
-  `command_changes` (`added`/`removed`/`updated`, each with `name`, `distribution`, and
-  `version`) and `completion_refresh`.
-
-### Removing a plugin (`sase plugin uninstall`)
-
-`sase plugin uninstall <plugin>` removes one installed plugin from the **same** uv tool
-environment as `sase`, so its entry points are no longer discovered the next time `sase`
-runs. It reconstructs uv's `--with` set from the receipt with the target omitted, so
-sase core and every other plugin (including editable/dev installs) are preserved.
-
-```bash
-sase plugin uninstall github        # resolve the target straight from the receipt
-sase plugin uninstall sase-github   # repo name also works
-sase plugin uninstall github -n     # dry run: preview the uv command, change nothing
-sase plugin uninstall github -j     # stable machine-readable JSON
-```
-
-- **Receipt-first resolution.** Unlike `install`, the target is resolved straight from
-  sase's `uv-receipt.toml`, so an installed community plugin that is absent from the
-  catalog still resolves with no network call. (Pass `-r|--refresh` to refetch the
-  catalog when you want catalog-based name resolution.) There is no `-g|--git` flag.
-- **No-op success.** Uninstalling a plugin that is **not** installed is a no-op that
-  still exits `0` — explicitly unlike `update`, which points a not-installed target at
-  `sase plugin install`. An unknown name still prints ranked `did you mean…?`
-  suggestions and exits non-zero.
-- **Install method is required**, exactly as for `sase update` and the other
-  `sase plugin` mutations: it only works when sase was installed with
-  `uv tool install sase`, and otherwise fails fast with an actionable message.
-
-## How Plugins Are Discovered
-
-For catalog and Admin Center installed status, a managed uv tool receipt is
-authoritative: each explicitly-injected requirement is matched to its live
-`importlib.metadata` distribution by PEP 503-normalized name. Receipt inspection is best
-effort, so unmanaged environments or a temporarily unavailable receipt retain the
-generic discovery behavior.
-
-Generic plugin discovery uses `importlib.metadata.entry_points()` plus recognized
-console-script and distribution naming to find installed packages. It is also what
-supplies the contributed entry-point groups displayed by `sase plugin show`.
-
-There are two discovery paths:
-
-1. **Provider classes**: `sase_artifact_refs`, `sase_file_hooks`, `sase_task_types`,
-   `sase_vcs`, `sase_workspace`, and `sase_llm` entry points resolve to classes. The
-   relevant registry loads the class, instantiates it, and registers the instance with a
-   pluggy `PluginManager`.
-2. **Package resources**: `sase_macros`, `sase_config`, and `sase_plugin_manifest` entry
-   points resolve to modules. The shared helper in `src/sase/main/plugin_discovery.py`
-   sorts config and macro entry points by name, loads the modules, and skips module load
-   failures after logging them at debug level. `sase doctor -C plugins.resources` loads
-   resource entry points directly so packaging problems are visible as diagnostics
-   instead of only debug logs.
-
-### VCS Plugins (pluggy)
-
-VCS plugins use pluggy's hook system. The hook specification is defined in `VCSHookSpec`
-(`src/sase/vcs_provider/_hookspec.py`). Each hook method uses `firstresult=True`,
-meaning the first plugin to return a non-`None` result wins.
-
-The VCS registry (`src/sase/vcs_provider/_registry.py`) uses `sase_vcs` entry points in
-two ways:
-
-1. Detection/classification builds a pluggy manager containing all registered VCS
-   plugins.
-2. Runtime operations create a `VCSPluginManager` for the selected provider name, such
-   as `bare_git`, `github`, or `hg`.
-
-### Workspace Plugins (pluggy)
-
-Workspace plugins use pluggy's hook system, similar to VCS plugins. The hook
-specification is defined in `WorkspaceHookSpec`
-(`src/sase/workspace_provider/_hookspec.py`). Most hooks use `firstresult=True`; the
-exception is `ws_get_workflow_metadata` which collects results from all plugins. All
-hook method names are prefixed with `ws_`. Alongside reference resolution and workspace
-management, providers may implement the additive onboarding hooks `ws_parse_repo_ref`,
-`ws_list_local_repo_candidates`, `ws_probe_repo`, `ws_describe_repo_creation`, and
-`ws_create_repo`. Their argument names are frozen for out-of-tree plugins; the hookspec
-tests pin them. Repository creation creates only the provider-owned repository. SASE
-handles checkout, project registration, and setup as a separate convergent operation.
-
-The workspace registry (`src/sase/workspace_provider/_registry.py`) creates a singleton
-`WorkspacePluginManager`, registers `WorkspaceHookSpec`, and loads all `sase_workspace`
-provider classes from entry points. This is why all workspace metadata can be listed at
-once while hook dispatch still lets a single plugin handle each operation.
-
-See [Workspace provider internals](contribute/workspace-provider.md) for the full
-workspace provider reference.
-
-### LLM Plugins (pluggy)
-
-LLM provider plugins use pluggy's hook system. The hook specification is defined in
-`LLMHookSpec` (`src/sase/llm_provider/_hookspec.py`), and every hook is declared with
-`firstresult=True`. The core dispatch hooks (`llm_invoke`, `llm_resolve_model_name`) go
-through pluggy dispatch, so the first matching plugin handles a call. The metadata hooks
-are called directly on each registered plugin instance by the registry, so each provider
-contributes its own values:
-
-| Area                  | Hooks                                                                                                                                         |
-| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| Identity and models   | `llm_provider_name`, `llm_provider_short_name`, `llm_known_model_names`, `llm_model_short_aliases`, `llm_model_advisories`                    |
-| Skills                | `llm_skill_template_context`, `llm_skill_deploy_subpath`, `llm_additional_skill_deploy_subpaths`                                              |
-| Detection and display | `llm_cli_status_color`, `llm_autodetect_priority`, `llm_autodetect_cli_name`, `llm_auth_evidence`, `llm_hidden_from_model_pickers`            |
-| CLI management        | `llm_install_metadata`, `llm_interactive_cli`, `llm_hidden_from_agent_cli_management`                                                         |
-| Failure policy        | `llm_default_retry_config`, `llm_default_usage_limit_config`                                                                                  |
-| Instruction delivery  | `llm_instruction_delivery` (see [Delivery](contribute/instruction-bundle-internals.md#delivery))                                              |
-| Subscription usage    | `llm_usage_capabilities`, `llm_usage_probe` (see [Subscription usage extension](reference/providers/plugins.md#subscription-usage-extension)) |
-
-`llm_auth_evidence()` lists credential paths and API-key environment variable names
-(never secret values) for `sase doctor`. `llm_hidden_from_model_pickers()` hides a
-testing-only provider from the model picker and `%model` completion without changing
-routing, and `llm_hidden_from_agent_cli_management()` opts a provider out of
-`sase agent-cli` and the Admin Center's Agent CLIs list. Omitting any metadata hook
-keeps the default behavior. All hook method names are prefixed with `llm_`.
-`llm_instruction_delivery()` returns the provider's root and subagent slots; omitting
-it, raising, or returning an invalid mapping resolves to native discovery (legacy) for
-that invocation. The adapter contract for an explicit slot is in
-[Delivery](contribute/instruction-bundle-internals.md#adapter-contract).
-
-Core Sase ships Claude, Codex, Antigravity (`agy`), Qwen, OpenCode, Meta's Muse Code,
-and xAI's Grok Build providers as built-in entry points. Additional providers belong in
-external plugin packages that declare `sase_llm` entry points and provide their own
-metadata hooks.
-
-#### LLM Provider Install Metadata and Advisories
-
-`llm_install_metadata()` describes how a provider's CLI is installed, versioned, and
-updated, and drives
-[`sase agent-cli`](reference/providers/agent-clis.md#inventory-and-updates). Every key
-is optional and every one defaults to today's behavior, so an existing plugin needs no
-changes.
-
-| Key                         | Purpose                                                                                                               |
-| --------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| `manager`                   | `npm`, `homebrew`, `bundled`, or `script` (installed by a remote install script).                                     |
-| `package` / `brew_package`  | Package identity for the npm and Homebrew managers. An npm `package` also drives `sase agent-cli install`.            |
-| `display_name` / `docs_url` | Human-facing name and canonical vendor docs link.                                                                     |
-| `vendor`                    | Secondary label shown by tmux Agent (`"Anthropic"`, `"OpenAI"`, `"Google"`, `"Alibaba"`, `"SST"`, `"xAI"`, `"Meta"`). |
-| `version_argv`              | Argv used to probe the installed version (default `["--version"]`).                                                   |
-| `version_regex`             | Regex with a `version` group, when the CLI's version output is not plain semver.                                      |
-| `latest_version_package`    | npm package whose `latest` dist-tag is the newest known version.                                                      |
-| `latest_version_url`        | HTTPS JSON endpoint serving the newest version, for channel-versioned CLIs distributed outside npm.                   |
-| `latest_version_json_field` | Field to read from that endpoint's JSON body (default `version`).                                                     |
-| `version_compare`           | `pep440` (default) or `exact`. Use `exact` when release ids are not valid PEP 440 versions.                           |
-| `self_update_argv`          | The CLI's own update command; declaring one classifies the CLI as self-managed.                                       |
-| `self_update_env`           | Environment overlay applied to that update command, for CLIs whose update is env-driven rather than a subcommand.     |
-| `install_script_url`        | HTTPS install script `sase agent-cli install` fetches, digests, and runs without a shell.                             |
-| `install_env`               | Environment overlay applied to that install script.                                                                   |
-| `install_dir`               | Where the installer writes the binary, so SASE can name the target and find it afterwards.                            |
-| `install_dir_env`           | Environment variable that overrides `install_dir`.                                                                    |
-
-`llm_interactive_cli()` describes how the provider's CLI is launched in a terminal by
-[tmux Agent](ace.md#tmux-agent). All keys are optional so third-party providers stay
-compatible. Omitting the hook entirely means "launchable as the bare CLI name with no
-extra flags", so a new provider is usable the moment it declares a CLI.
-
-| Key           | Purpose                                                                                                          |
-| ------------- | ---------------------------------------------------------------------------------------------------------------- |
-| `argv`        | Base argv; defaults to `[llm_autodetect_cli_name()]`.                                                            |
-| `args`        | Always-on interactive args.                                                                                      |
-| `bypass_args` | Args that skip this CLI's approval prompts. Used when `tmux_agent.bypass_permissions` is on.                     |
-| `model_args`  | Argv fragment selecting a model; the literal `{model}` token is replaced with the configured model exactly once. |
-| `env`         | Environment the CLI needs in interactive mode.                                                                   |
-| `menu_key`    | Preferred single-character shortcut.                                                                             |
-| `supported`   | `False` marks a provider with no interactive CLI, which excludes it from the tmux Agent launcher.                |
-
-Malformed values degrade to the default rather than raising. A provider that should not
-appear in the launcher (the built-in `fakey` testing provider) returns
-`{"supported": False}`.
-
-`llm_model_advisories()` returns a per-model map of terms a user should see when they
-choose a model — a discounted tier that trains on its inputs, a preview model with no
-stability guarantee, and so on:
-
-```python
-@hookimpl
-def llm_model_advisories(self) -> dict[str, dict[str, str]]:
-    return {
-        "vendor-model-discounted": {
-            "severity": "warn",  # or "info"
-            "label": "trains on your data",
-            "detail": "One sentence the user reads before agreeing to this.",
-        }
-    }
-```
-
-Omitting the hook means no advisories, and non-conforming values are dropped rather than
-raising, so third-party providers stay compatible. The registry normalizes the map and
-every render site reads from it, so a new advisory needs no new render site. See
-[LLM Providers — Model advisories](reference/providers/models.md#model-advisories) for
-where advisories surface.
-
-See [LLM providers](reference/providers/index.md) for the provider reference, including
-authoring new providers with `@hookimpl`.
-
-### Macro Plugins
-
-Plugin packages can contribute macro templates by declaring a `sase_macros` entry point
-that points to a module. The module's package directory is searched for `macros/*.md`
-files and `macros/*.yml` / `macros/*.yaml` workflow files. Plugin macros are priority 8
-in the [discovery order](reference/macros/discovery.md#discovery-order) (above built-in
-files and below config-based macros).
-
-The retired entry-point and resource-directory spellings listed in the
-[Macros compatibility table](reference/upgrading/macros.md#retired-macro-spellings)
-remain accepted. When both entry-point groups register the same module value, the
-canonical `sase_macros` registration wins and the module is loaded once. SASE searches
-`macros/` first, falling back to the retired directory when the canonical directory is
-absent.
-
-Macro-plugin entry-point discovery is cached within each running process. Changes to the
-Python search path, its directory modification times (as during package installation or
-removal), or the plugin-disable environment variables invalidate that cache. Editing
-distribution metadata in place may not change those directory times. Cache invalidation
-also does not reload Python modules that are already imported; restart the TUI or other
-long-running consumer after changing entry points or plugin Python code during
-development.
-
-### Config Plugins
-
-Plugin packages can provide default configuration by declaring a `sase_config` entry
-point. The referenced module's package must contain a `default_config.yml` file. Plugin
-configs are merged between the bundled package defaults and the user's `sase.yml`. See
-the [Deep-Merge System](reference/config/files-and-merging.md#deep-merge-system) for
-details on the merge chain.
-
-### Service Procs
-
-A plugin declares a service proc through its `sase_config` layer: add a
-`service.procs.<name>` entry to the package's `default_config.yml` with a `command` (or
-exact argv array), a `description`, and the usual proc fields (`cwd`, `env`, `restart`,
-`stop_signal`, `stop_timeout`, `after`, `log_max_bytes`). See
-[service configuration](reference/config/runtime-and-storage.md#service) for the full
-field contract.
-
-Plugin-shipped entries default to `enabled: false`, so installing a plugin never starts
-work on a machine by itself. A machine opts in through its machine overlay, or at
-runtime with `sase service proc enable <name>`. There is no Python plugin proc API in
-v1: no entry-point group launches procs, only `service.procs` config declaration.
-
-### Artifact Reference and File-Hook Providers
-
-The `sase_artifact_refs` and `sase_file_hooks` groups share the declarative artifact
-provider host. A provider class can implement either or both hooks:
-
-- `artifact_ref_provider_specs()` returns one mapping or an iterable of mappings. Each
-  schema-versioned specification has a unique provider ID and `ref.kind`, plus its
-  Artifacts tab `ref.icon`, expansion, metadata, inventory, identity, and publication
-  policy. A sidecar selects it with `ref: {use: <plugin>@<provider-id>}`; local sidecar
-  fields deep-merge over the base. During the compatibility window, a ref provider spec
-  without `ref.icon` is admitted with a generic mark and a warning diagnostic.
-- `artifact_file_hook_provider_specs()` returns schema-versioned file-hook templates.
-  Each template has a unique provider ID, a `file_hook` mapping, and an optional list of
-  required fields. A configured hook selects it with `use: <plugin>@<provider-id>` and
-  supplies the required values.
-
-SASE validates all returned specifications before adding them to the registry. Duplicate
-provider IDs, duplicate reference kinds, reserved kinds, invalid schemas, load errors,
-and hook failures are diagnosed rather than silently taking precedence. The core package
-always registers the built-in `plan` reference provider through the same schema and
-registry path, even when third-party provider entry points are disabled. Run
-`sase doctor -C config.repos` for sidecar provider problems and `sase file-hook list`
-for configured file hooks.
-
-### Task-Type Plugins
-
-The `sase_task_types` group contributes declarative task-type specs to the catalog that
-`sase bead create -T 'task(<slug>)'` and `sase bead task-type` read. The hook
-specification is `task_type_specs()` in `src/sase/task_types/_hookspec.py`; it returns
-one mapping or an iterable of mappings matching the Rust `TaskTypeSpecWire` shape
-(`schema_version: 1`).
-
-Three sources feed one validator. First wins, later duplicates are dropped with a
-diagnostic naming the winner:
-
-1. Builtin specs (`bug`, `ci`, `feature`, `flake`, `memory`) from
-   `src/sase/task_types/_builtin.py`. Builtin slugs are reserved against plugins.
-2. Plugin hooks, collected from `sase_task_types` entry points sorted by name.
-   Per-plugin load failures become `entry_point_load_failed` diagnostics rather than
-   aborting the catalog.
-3. Project config (`bead.task_types`). An entry with `use: <plugin>@<slug>` deep-merges
-   its sibling keys onto that slug and may override a builtin. An entry without `use:`
-   defines a new slug and may not shadow a builtin or reserved slug (`plan`, `phase`,
-   `task`, `flag`, `untyped`, `unknown`, `all`, `none`).
-
-Each spec declares `task_type`, `label`, `summary`, `when_to_use`, optional
-`glyph`/`accent_color`/`agent_creatable`/`default_size`, typed `fields` (`string`,
-`enum`, `integer`, `date`), an optional Jinja `body_template`, and optional
-`triage.min_plus_ones`. Rust validates the spec, its field values, and its digest;
-Python owns discovery and membership. `sase doctor -C beads.task_types` surfaces catalog
-diagnostics.
-
-A plugin-provided type such as `github` is usually `agent_creatable: false` and is
-stamped by the external-issue mirror rather than by agents. When the plugin is absent,
-reads degrade: `sase bead show` prints the raw fields under a
-`(not installed on this machine)` header, and create names the package plus
-`sase plugin install`.
-
-List the providing distribution in
-[`plugins.required`](reference/config/prompts-and-tools.md#plugins) so
-`sase memory init` can snapshot the type into `sase/task_types.json`. Optional plugins
-that contribute types stay live-only and do not change generated `AGENTS.md`.
-
-```toml
-# pyproject.toml
-[project.entry-points."sase_task_types"]
-github = "sase_github.task_types:GitHubTaskTypes"
-```
-
-```python
-from sase.task_types import hookimpl
-
-
-class GitHubTaskTypes:
-    @hookimpl
-    def task_type_specs(self) -> dict[str, object]:
-        return {
-            "schema_version": 1,
-            "task_type": "github",
-            "label": "GitHub",
-            "summary": "A GitHub issue mirrored into a task bead.",
-            "when_to_use": "Agents never create this type.",
-            "glyph": "⑂",
-            "accent_color": "#B2B2B2",
-            "agent_creatable": False,
-            "fields": [],
-        }
-```
-
-See [Task Types](reference/work-units/beads.md#task-types) for the create grammar and
-degraded render.
-
-### Job Script Packages
-
-Job scripts are installed console scripts, not a pluggy entry-point group. Axe resolves
-the exact configured `script` name from `axe.job_script_dirs`, the running interpreter's
-bin directory, then `$PATH`; it never adds a `sase_job_` prefix. A package may also
-expose a `sase_config` resource when it wants to contribute disabled-by-default or
-ready-to-patch routine configuration. Exact-name job packages do not need to rename
-their public scripts to `sase_job_*` merely to appear installed in the catalog: when
-Sase injects them into its managed uv tool environment, receipt membership provides that
-installed identity.
-
-Proposal-emitting packages should depend on `sase` and use the public `sase.jobs` SDK.
-Scripts read `--context`, write their versioned result atomically to
-`SASE_JOB_RESULT_FILE`, and emit structured launch proposals. They must not call
-`sase run` themselves, and proposal prompts cannot contain standalone `#!workflow`
-references. Axe validates and launches proposals so dry runs remain side-effect free and
-action lifecycle stays observable.
-
-Packages can group proposals in one runner-owned clan by passing the same template to
-`clan` and a member ID to `agent_name`. The runner allocates one concrete clan, makes
-the first accepted proposal its declarer, assigns the `job` tribe at clan level, and
-resolves `wait_on` to full member names. Authors may also pass a literal Rich
-`clan_summary`; repeat the identical value on every member that shares the raw clan
-template. Axe remains the sole owner of concrete clan allocation and emits the summary
-only on the surviving declarer's `%clan` directive. Do not combine `clan` with `tribe`.
-
-A member ID may itself end in (or contain) one `@` auto-name marker, so `clan` and
-`agent_name` carry at most one marker each. Axe picks the clan token for the whole group
-first and then allocates each templated member inside that concrete clan, so
-`clan="toobig-@"` with `agent_name="split_file.src.pkg.large.@"` becomes
-`toobig-0.split_file.src.pkg.large.0`. Prefer a trailing `.@` over hashing a
-discriminator into the member ID: two members that would otherwise collide land on `.0`
-and `.1` instead of failing the run. See
-[Axe launch proposals](reference/automation/scheduler-jobs.md#structured-results-and-launch-proposals)
-for the full allocation rule.
-
-## Disabling Plugins
-
-Third-party plugin resources and declarative artifact-provider entry points can be
-disabled via environment variables:
-
-| Variable                            | Effect                                                      |
-| ----------------------------------- | ----------------------------------------------------------- |
-| `SASE_DISABLE_PLUGINS`              | Disable resource plugins and third-party artifact providers |
-| `SASE_DISABLE_PLUGIN_MACROS`        | Disable macro/workflow resource plugins only                |
-| `SASE_DISABLE_PLUGIN_CONFIG`        | Disable plugin `default_config.yml` resource loading only   |
-| `SASE_DISABLE_PLUGIN_ARTIFACT_REFS` | Disable artifact-reference provider entry points only       |
-| `SASE_DISABLE_PLUGIN_FILE_HOOKS`    | Disable file-hook provider entry points only                |
-| `SASE_DISABLE_PLUGIN_TASK_TYPES`    | Disable task-type plugin entry points only                  |
-| `SASE_DISABLE_PLUGIN_COMMANDS`      | Disable plugin-mounted `sase <name>` commands only          |
-
-Any non-empty value enables the disable. The VCS, workspace, and LLM provider registries
-load their provider entry points directly and do not consult these switches. These
-switches also do not remove the core built-in `plan` reference provider.
-
-## Writing a Plugin
-
-A sase plugin is a standard Python package that declares entry points in
-`pyproject.toml`.
-
-### Example: VCS Plugin
-
-```toml
-# pyproject.toml
-[project.entry-points."sase_vcs"]
-my_vcs = "my_sase_plugin.vcs:MyVCSPlugin"
-
-[project.entry-points."sase_config"]
-my_vcs = "my_sase_plugin"
-```
-
-The VCS plugin class implements hooks from `VCSHookSpec` using the `@hookimpl`
-decorator:
-
-```python
-from sase.vcs_provider._hookspec import hookimpl
-
-class MyVCSPlugin:
-    @hookimpl
-    def vcs_checkout(self, revision: str, cwd: str) -> tuple[bool, str | None] | None:
-        # Implementation here
-        ...
-
-    @hookimpl
-    def vcs_diff(self, cwd: str) -> tuple[bool, str | None] | None:
-        # Implementation here
-        ...
-```
-
-Methods should return `None` (implicitly or explicitly) for operations they don't
-support, allowing other plugins to handle them.
-
-### Example: Workspace Plugin
-
-```toml
-# pyproject.toml
-[project.entry-points."sase_workspace"]
-my_workspace = "my_sase_plugin.workspace:MyWorkspacePlugin"
-```
-
-The workspace plugin class implements hooks from `WorkspaceHookSpec` using the
-`@hookimpl` decorator:
-
-```python
-from sase.workspace_provider._hookspec import WorkflowMetadata, hookimpl
-
-class MyWorkspacePlugin:
-    @hookimpl
-    def ws_get_workflow_metadata(self) -> WorkflowMetadata | None:
-        return WorkflowMetadata(
-            workflow_type="my_vcs",
-            ref_pattern=r"#my_vcs:(\w+)",
-            display_name="My VCS",
-            pre_allocated_env_prefix="SASE_MYVCS",
-            vcs_family="git",
-            vcs_provider_name="my_vcs",
-        )
-
-    @hookimpl
-    def ws_detect_workflow_type(self, project_file: str) -> str | None:
-        # Return workflow type if this plugin handles the project
-        ...
-```
-
-### Example: Macro Plugin
-
-Place macro files in your package's `macros/` directory and register the module:
-
-```toml
-[project.entry-points."sase_macros"]
-my_plugin = "my_sase_plugin"
-```
-
-```
-my_sase_plugin/
-├── __init__.py
-└── macros/
-    ├── my_template.md
-    └── my_workflow.yml
-```
-
-Use `.md` for prompt templates and `.yml` / `.yaml` for workflow definitions.
-
-### Example: Config Plugin
-
-Place a `default_config.yml` alongside your module and register it:
-
-```toml
-[project.entry-points."sase_config"]
-my_plugin = "my_sase_plugin"
-```
-
-```
-my_sase_plugin/
-├── __init__.py
-└── default_config.yml
-```
-
-Plugin configs are merged using the
-[deep-merge system](reference/config/files-and-merging.md#deep-merge-system). User
-config in `sase.yml` takes precedence over plugin defaults.
-
-### Example: Declarative Artifact Providers
-
-Register artifact-reference and file-hook providers separately. Each class implements
-only the hook for its entry-point group:
-
-```toml
-[project.entry-points."sase_artifact_refs"]
-my_docs = "my_sase_plugin.artifacts:DocumentProviders"
-
-[project.entry-points."sase_file_hooks"]
-my_hooks = "my_sase_plugin.artifacts:FileHookProviders"
-```
-
-```python
-import pluggy
-
-
-hookimpl = pluggy.HookimplMarker("sase_artifact")
-
-
-class DocumentProviders:
-    @hookimpl
-    def artifact_ref_provider_specs(self):
-        return ({
-            "schema_version": 1,
-            "provider": "design",
-            "ref": {
-                "kind": "design",
-                "expansion_format": (
-                    "the {repo_relative_path} file in the {sidecar_role} sidecar repo"
-                ),
-                "properties": {},
-                "detail": {},
-                "identity": {},
-                "inventory": {"globs": ["**/*.md", "!drafts/**"]},
-                "publication": {
-                    "link": "vcs_permalink",
-                    "referenced_by": "markdown_table",
-                },
-            },
-        },)
-
-
-class FileHookProviders:
-    @hookimpl
-    def artifact_file_hook_provider_specs(self):
-        return ({
-            "schema_version": 1,
-            "provider": "research-highlights",
-            "required": ["command"],
-            "file_hook": {
-                "description": "Render new research reports into Highlights PDFs.",
-                "filters": {"sidecars": ["research"], "ops": ["ADD"]},
-                "timeout": "120s",
-            },
-        },)
-```
-
-The direct pluggy marker above is equivalent to SASE's public `hookimpl`. In the current
-release, importing `hookimpl` from `sase.artifact_providers` before another SASE module
-has initialized configuration can hit a circular import, so a plugin module loaded as an
-entry point should construct the marker directly.
-
-The project can then select the document provider with
-`repos.sidecar.custom.design.ref.use: my_sase_plugin@design` and instantiate the hook
-with a `file_hooks` entry containing `use: my_sase_plugin@research-highlights` plus its
-required `command`. Every hook command receives the producing project's display name in
-`SASE_FILE_HOOK_PROJECT` (unset when the project is missing or `unknown`), so a
-`research-highlights` command can route on it, for example with
-`-P "$SASE_FILE_HOOK_PROJECT"` (quoted, so names with spaces stay one argument).
-Provider and kind names must not collide with another installed provider or a reserved
-built-in kind. Use `sase doctor -C config.repos`, `sase doctor -C config.file_hooks`,
-and `sase file-hook list` to verify the effective configuration.
-
-### Example: Job Script Package
-
-Declare each executable by its full public name:
-
-```toml
-[project]
-dependencies = ["sase"]
-
-[project.scripts]
-my_job_audit = "my_sase_plugin.jobs.audit:main"
-```
-
-Use the SDK to load the runner context and write a validated result:
-
-```python
-from sase.jobs import JobResultBuilder, load_job_invocation
-
-
-def main() -> None:
-    invocation = load_job_invocation(description="Audit one target project")
-    target = invocation.context.target or {}
-    workspace = str(target["workspace"])
-    result = JobResultBuilder(
-        summary="audit: targets=1 proposals=2",
-        counters={"targets": 1, "proposals": 2},
-    )
-    clan_summary = "[bold]Project audit[/bold]"
-    result.propose(
-        "Audit recent changes and fix confirmed correctness bugs only.",
-        workspace,
-        proposal_id="audit",
-        agent_name="audit",
-        clan="project-audit-@",
-        clan_summary=clan_summary,
-    )
-    result.propose(
-        "Review the audit fixes and add focused regression tests.",
-        workspace,
-        agent_name="review",
-        clan="project-audit-@",
-        clan_summary=clan_summary,
-        wait_on="audit",
-    )
-    result.write(context=invocation.context)
-```
-
-Configure the exact script name and debug it through the runner:
-
-```yaml
-axe:
-  routines:
-    audits:
-      description: Run project audits every five minutes
-      interval: 300
-      jobs:
-        project_audit:
-          description: Audit enabled projects for actionable improvements
-          script: my_job_audit
-          for_each: { source: projects }
-```
-
-```bash
-sase axe job run 'project_audit[sase]' -L audits --dry-run --job-verbose
-```
-
-Third-party packages can opt into `sase plugin list` by adding the `sase--plugin`
-repository topic. See
-[Axe](reference/automation/scheduler-jobs.md#structured-results-and-launch-proposals)
-for the result contract, proposal fields, trigger/guard policy, and lifecycle statuses.
-
-### Example: LLM Provider Plugin
-
-LLM providers declare a `sase_llm` provider class:
-
-```toml
-[project.entry-points."sase_llm"]
-my_llm = "my_sase_plugin.llm:MyLLMProvider"
-```
-
-The provider implements hooks from `LLMHookSpec` using `@hookimpl`, including
-`llm_invoke()` for execution and metadata hooks such as `llm_provider_name()`,
-`llm_known_model_names()`, and `llm_autodetect_priority()`. Optional
-`llm_usage_capabilities()` (static, no I/O) and `llm_usage_probe(context)` collect
-subscription usage; omitting them leaves invoke unchanged. See
-[External provider plugins](reference/providers/plugins.md#external-provider-plugins-1)
-for the full provider contract.
-
-### Example: Turn-Finalizer Plugin
-
-Turn-finalizer providers declare a `sase_finalizers` provider object:
-
-```toml
-[project.entry-points."sase_finalizers"]
-my_checks = "my_sase_plugin.finalizers:MyChecksProvider"
-```
-
-The provider implements `describe()`, `validate()`, `execute()`, and `verify()`, each
-taking a JSON request mapping and returning a JSON result mapping; stdout stays the
-result channel. See `src/sase/finalizers/sdk.py` (`FinalizerProvider`,
-`dispatch_provider_request`) for the accepted entry-point shapes.
-
-**Run visibility.** Everything a finalizer reports also feeds the Agents tab ⊛ FINAL
-deck and `sase final status` (see
-[Finalizers on the Agents tab](reference/tui/agent-statuses.md#finalizers-on-the-agents-tab)):
-
-- **Step channel.** While an attempt runs, the host sets `SASE_FINALIZER_STEPS_FILE` to
-  an `attempt-<N>.<op>.steps.jsonl` path. Report structured progress with
-  `sase.finalizers.sdk.step(name, state=...)` (`state` is `start`, `ok`, `warn`, or
-  `fail`; text caps at 120 characters, detail at 500, file at 64 KiB). The helper does
-  nothing outside a finalizer attempt and never raises, so progress stays best-effort
-  observability that cannot change a verdict. Never scrape progress from stdout.
-- **Typed evidence.** Each result mapping may carry an `evidence` list of `kind`/`value`
-  records. The shared projection types them (`sha`, `url`, `bead`) and the FINAL deck
-  renders them on the instance card (commit SHAs, links, beads), picking one as the
-  headline.
-- **Operation records.** Every operation inside an attempt writes one uniform schema-v1
-  `attempt-<N>.<op>.outcome.json` record (`kind` is `subprocess`, `model_turn`,
-  `validation`, or `internal`) and emits `op_started`/`op_finished` journal events; work
-  before an attempt exists (plugin `describe`/`validate`) lands in
-  `preflight.<op>.outcome.json` instead. Records are write-once and exclusive, exactly
-  like the commit outcome record.
-
-## Shipping input types
-
-Plugins share closed enums with an `input_types.yml` manifest at the package root,
-beside `default_config.yml` and `macros/`:
-
-```yaml
-schema_version: 1
-types:
-  audio_edition:
-    description: Narration length for guide-backed audio editions.
-    choices:
-      - { value: brief, description: About 4 minutes }
-      - { value: full, label: Full edition, description: About 16 minutes }
-```
-
-Only static closed enums are supported. IDs match `[a-z0-9][a-z0-9_-]*`. The envelope
-accepts exactly `schema_version` and `types`; each type accepts exactly required
-`description` and `choices`. Values must be strings, nonempty words without whitespace,
-distinct, and different from literal `null`. Matching is exact and case-sensitive. A
-type with any error is wholly skipped while valid siblings remain usable; malformed
-files produce file diagnostics without breaking unrelated plugins or macros.
-
-The package must register a `sase_macros` entry point (or its compatibility alias) for
-SASE to discover this manifest. The providing distribution is identified by installed
-package metadata. When macro plugins are enabled, a registered distribution without a
-manifest is still known to the type registry: a reference to one of its types reports an
-unknown ID rather than a missing plugin. Changes to an already discovered manifest's
-modification time or size refresh the parsed type registry on its next lookup; adding a
-new manifest or changing entry points may require restarting a running consumer. Use
-`sase macro types` and `sase doctor -C config.macro_input_types` to inspect the result.
-
-Macros always use the qualified spelling `<distribution>@<id>`, for example
-`sase-research-artifacts@audio_edition`. Distributions use PEP 503 canonicalization.
-Missing plugins name the install command (`sase plugin install <dist>`); unknown IDs
-suggest known IDs and point to `sase macro types`. Named types reject an authored
-`choices` override because the type already defines its values. Serializers write the
-named type without copying resolved choices back.
-
-Project macros that reference a plugin type should list that distribution in the
-project's `plugins.required`; `sase doctor -C config.macro_input_types` warns with the
-exact requirement to add. See `sase macro types` for the installed catalog.
+This page has moved. See [Integrations](reference/integrations/index.md).
+
+## Moved sections
+
+<a id="plugin-groups"></a>
+
+- [Plugin groups](reference/integrations/plugins.md#plugin-groups)
+
+<a id="available-plugin-packages"></a>
+
+- [Available plugin packages](reference/integrations/plugins.md#available-plugin-packages)
+
+<a id="installation"></a>
+
+- [Installation](reference/integrations/plugins.md#installation)
+
+<a id="plugin-catalog-sase-plugin-list-sase-plugin-show"></a>
+
+- [Plugin catalog sase plugin list sase plugin show](reference/integrations/plugins.md#plugin-catalog-sase-plugin-list-sase-plugin-show)
+
+<a id="catalog-fetching-and-cache"></a>
+
+- [Catalog fetching and cache](reference/integrations/plugins.md#catalog-fetching-and-cache)
+
+<a id="related-plugin-diagnostics"></a>
+
+- [Related plugin diagnostics](reference/integrations/plugins.md#related-plugin-diagnostics)
+
+<a id="disabling-plugins"></a>
+
+- [Disabling plugins](reference/integrations/plugins.md#disabling-plugins)
+
+<a id="command-plugins"></a>
+
+- [Command plugins](reference/integrations/plugins-commands.md#command-plugins-1)
+
+<a id="where-a-command-shows-up"></a>
+
+- [Where a command shows up](reference/integrations/plugins-commands.md#where-a-command-shows-up)
+
+<a id="migrating-from-the-standalone-sase-listen"></a>
+
+- [Migrating from the standalone sase listen](reference/integrations/plugins-commands.md#migrating-from-the-standalone-sase-listen)
+
+<a id="updating-sase-and-plugins-sase-update"></a>
+
+- [Updating sase and plugins sase update](reference/integrations/plugins-update.md#updating-sase-and-plugins-sase-update)
+
+<a id="dev-editable-installs"></a>
+
+- [Dev editable installs](reference/integrations/plugins-update.md#dev-editable-installs)
+
+<a id="the-code-swap-lock"></a>
+
+- [The code swap lock](reference/integrations/plugins-update.md#the-code-swap-lock)
+
+<a id="install-mode-switching"></a>
+
+- [Install mode switching](reference/integrations/plugins-update.md#install-mode-switching)
+
+<a id="installing-and-updating-plugins-sase-plugin-install-sase-plugin-update"></a>
+
+- [Installing and updating plugins sase plugin install sase plugin update](reference/integrations/plugins-update.md#installing-and-updating-plugins-sase-plugin-install-sase-plugin-update)
+
+<a id="removing-a-plugin-sase-plugin-uninstall"></a>
+
+- [Removing a plugin sase plugin uninstall](reference/integrations/plugins-update.md#removing-a-plugin-sase-plugin-uninstall)
+
+<a id="how-plugins-are-discovered"></a>
+
+- [How plugins are discovered](contribute/plugin-api.md#how-plugins-are-discovered)
+
+<a id="vcs-plugins-pluggy"></a>
+
+- [Vcs plugins pluggy](contribute/plugin-api.md#vcs-plugins-pluggy)
+
+<a id="workspace-plugins-pluggy"></a>
+
+- [Workspace plugins pluggy](contribute/plugin-api.md#workspace-plugins-pluggy)
+
+<a id="llm-plugins-pluggy"></a>
+
+- [Llm plugins pluggy](contribute/plugin-api.md#llm-plugins-pluggy)
+
+<a id="llm-provider-install-metadata-and-advisories"></a>
+
+- [Llm provider install metadata and advisories](contribute/plugin-api.md#llm-provider-install-metadata-and-advisories)
+
+<a id="macro-plugins"></a>
+
+- [Macro plugins](contribute/plugin-api.md#macro-plugins)
+
+<a id="config-plugins"></a>
+
+- [Config plugins](contribute/plugin-api.md#config-plugins)
+
+<a id="service-procs"></a>
+
+- [Service procs](contribute/plugin-api.md#service-procs)
+
+<a id="artifact-reference-and-file-hook-providers"></a>
+
+- [Artifact reference and file hook providers](contribute/plugin-api.md#artifact-reference-and-file-hook-providers)
+
+<a id="task-type-plugins"></a>
+
+- [Task type plugins](contribute/plugin-api.md#task-type-plugins)
+
+<a id="job-script-packages"></a>
+
+- [Job script packages](contribute/plugin-api.md#job-script-packages)
+
+<a id="writing-a-plugin"></a>
+
+- [Writing a plugin](contribute/plugin-api.md#writing-a-plugin)
+
+<a id="example-vcs-plugin"></a>
+
+- [Example vcs plugin](contribute/plugin-api.md#example-vcs-plugin)
+
+<a id="example-workspace-plugin"></a>
+
+- [Example workspace plugin](contribute/plugin-api.md#example-workspace-plugin)
+
+<a id="example-macro-plugin"></a>
+
+- [Example macro plugin](contribute/plugin-api.md#example-macro-plugin)
+
+<a id="example-config-plugin"></a>
+
+- [Example config plugin](contribute/plugin-api.md#example-config-plugin)
+
+<a id="example-declarative-artifact-providers"></a>
+
+- [Example declarative artifact providers](contribute/plugin-api.md#example-declarative-artifact-providers)
+
+<a id="example-job-script-package"></a>
+
+- [Example job script package](contribute/plugin-api.md#example-job-script-package)
+
+<a id="example-llm-provider-plugin"></a>
+
+- [Example llm provider plugin](contribute/plugin-api.md#example-llm-provider-plugin)
+
+<a id="example-turn-finalizer-plugin"></a>
+
+- [Example turn finalizer plugin](contribute/plugin-api.md#example-turn-finalizer-plugin)
+
+<a id="shipping-input-types"></a>
+
+- [Shipping input types](contribute/plugin-api.md#shipping-input-types)

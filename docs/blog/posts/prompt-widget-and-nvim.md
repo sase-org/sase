@@ -13,7 +13,7 @@ slug: prompt-widget-and-nvim
 links:
   - sase's TUI: ace.md
   - Macros: reference/macros/index.md
-  - Plugins: plugins.md
+  - Plugins: reference/integrations/plugins.md
   - "[07] Driving SASE From Your Phone — Telegram as the Mobile Control Surface": blog/posts/telegram-mobile-agents.md
   - View on GitHub: https://github.com/sase-org/sase-nvim
 ---
