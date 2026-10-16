@@ -73,13 +73,12 @@ same `foo` agent hood. The agent `foo`, if it exists, is also considered part of
 _Also known as: agents.md file._
 
 An agent instruction file is a `.md` file that an agent CLI reads automatically when
-working in a directory that contains it. For example, the `AGENTS.md` file is the name
-of the agent instruction file that is supported by codex. sase supports one agent
-instruction file per supported agent CLI (ex: `CLAUDE.md` for claude, `GEMINI.md` for
-antigravity, etc...). The `sase init` command, which is run automatically as a sase
-post-commit hook, initializes the top-level agent instruction files using memories in
-the sase/memory/ directory and ensures that all agent instruction files in the same
-directory contain the same contents.
+working in a directory that contains it. `AGENTS.md` is the canonical name, kept beside
+a byte-identical `CLAUDE.md` copy for older Claude Code versions; Antigravity (agy),
+Qwen Code, and OpenCode all read `AGENTS.md` through native discovery.
+`sase memory init` renders the project files from the notes in `sase/memory/`. A
+SASE-launched agent does not read these files: it gets a per-invocation
+[Instruction Bundle](#instruction-bundle) built from the same notes instead.
 
 ## Agent Neighbor {#agent-neighbor}
 
@@ -278,6 +277,30 @@ contract.
 Not to be confused with a plan's `goal:` frontmatter field (one line of intent, no
 record behind it), a task bead (agent work tracking), or agent status (liveness, not
 outcomes).
+
+## Instruction Bundle {#instruction-bundle}
+
+_Also known as: instruction bundle._
+
+An instruction bundle is the frozen per-invocation render of the project, home, and SASE
+instructions for one agent invocation, built from `sase/memory/` plus the operator's
+home memory layer and a provider directive. Each SASE root invocation gets one bundle,
+delivered exactly once through an adapter-owned explicit channel; preview it with
+`sase instructions render` and inspect what an agent received with
+`sase instructions show NAME`. Successful preparation records the bundle bytes beside
+its [Instruction Manifest](#instruction-manifest) under `instructions/`. It never
+contains the committed `AGENTS.md` projection header.
+
+## Instruction Manifest {#instruction-manifest}
+
+_Also known as: instruction manifest._
+
+An instruction manifest is the JSON sibling of an
+[Instruction Bundle](#instruction-bundle): it records which sections were included and
+their digests, plus the delivery status, so an agent's intended context can be compared
+with what the provider actually loaded. Unlike a [Receipt](#receipt), which proves one
+settled tool run, a manifest records intent, never observed delivery — use
+`sase instructions verify` for the observed side.
 
 ## Job {#chop}
 

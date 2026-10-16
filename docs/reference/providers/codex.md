@@ -46,12 +46,11 @@ with that manifest; verification can also match sessions by bundle markers or
 timestamps.
 
 Without an active explicit bundle, the command uses the single-turn directive and does
-not override the CLI's project-document loading setting. Shadow-home suppression,
-however, currently follows the feature flag rather than the active delivery result: with
-the flag enabled, fallback runs still omit SASE-owned global instruction copies, the
-`~/AGENTS.md` fallback, and native memories. Disabling `codex_explicit_instructions`
-restores those shadow-home paths as well. This distinction matters when diagnosing a
-render failure or an oversized bundle.
+not override the CLI's project-document loading setting. Shadow-home suppression follows
+the active delivery result: fallback runs restore the SASE-owned global instruction
+copies, the `~/AGENTS.md` fallback, and native memories. Disabling
+`codex_explicit_instructions` restores those shadow-home paths as well. This distinction
+matters when diagnosing a render failure or an oversized bundle.
 
 ### Model Mapping {#model-mapping-2}
 
@@ -86,8 +85,8 @@ The generic `SASE_LLM_*_ARGS` variables take precedence over `SASE_CODEX_*_ARGS`
 By default, SASE launches Codex with a per-invocation shadow `CODEX_HOME` under
 `~/.cache/sase/codex_home/`. The shadow home copies `config.toml` and symlinks an
 allow-list of entries for authentication, hooks, skills, plugins, sessions, and caches
-back to the real Codex home. SQLite state is not shared. With explicit instructions
-enabled, native `memories` and SASE-owned global instruction files are omitted; foreign
+back to the real Codex home. SQLite state is not shared. With an active explicit
+delivery, native `memories` and SASE-owned global instruction files are omitted; foreign
 global `AGENTS.md` / `AGENTS.override.md` files remain available. With the flag
 disabled, `memories` is shared and `~/AGENTS.md` is linked when no Codex-global file
 wins. Config rewrites remain disposable. The shadow directory is removed after each

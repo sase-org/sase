@@ -8,9 +8,14 @@ summary:
   Each SASE root invocation gets one memory-built instruction bundle through an
   adapter-owned explicit channel, with SASE-owned native files suppressed.
 metadata:
-  status: accepted
+  status: superseded-in-part
   decided: 2026-10-14
+  superseded_by: decisions/readable-agents-md
 ---
+
+> _Superseded in part:_ the Cost clause's "until E4/E5" retirement of committed native
+> files, and the "until E4" legacy status of agy, Qwen, and OpenCode, are retired. See
+> [[decisions/readable-agents-md]]. The rest of this record stands.
 
 **Claim.** Every SASE root agent invocation renders one frozen instruction bundle from
 memory and, when the provider's sunset flag is on, delivers that bundle exactly once

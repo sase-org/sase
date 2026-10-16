@@ -114,7 +114,9 @@ Providers implement `llm_instruction_delivery` (`firstresult`) and return
 `inherits_native`. A missing hook, a hook error, or an invalid return resolves to
 legacy: both slots `inherits_native` with reason `provider_legacy`. Claude, Codex, Grok,
 and Muse return explicit root slots when their sunset flags are on, and `flag_disabled`
-legacy when off. Antigravity (agy), Qwen, and OpenCode stay `provider_legacy` until E4.
+legacy when off. Antigravity (agy), Qwen, and OpenCode stay `provider_legacy` on native
+`AGENTS.md` discovery; see
+[The Committed AGENTS.md Stays A Readable Projection](https://github.com/sase-org/sase/blob/master/sase/memory/decisions/readable-agents-md.md).
 
 `sase.llm_provider.instruction_delivery.resolve_delivery_plan(provider)` validates the
 hook result and never raises. Objects without `instruction_delivery` also resolve to

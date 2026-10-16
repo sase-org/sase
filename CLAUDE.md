@@ -216,9 +216,9 @@ costs, and the condition that would reopen it.
     (pull), with optional TTL (default 2h, cap 12h), fail-open store reads, and release
     scoped to the armer session or shell end.
 15. **Instructions Are Rendered Per Invocation And Delivered By Adapters**
-    (`instructions-per-invocation`) - Each SASE root invocation gets one memory-built
-    instruction bundle through an adapter-owned explicit channel, with SASE-owned native
-    files suppressed.
+    (`instructions-per-invocation`) - _[partly superseded by `readable-agents-md`]_ Each
+    SASE root invocation gets one memory-built instruction bundle through an
+    adapter-owned explicit channel, with SASE-owned native files suppressed.
 16. **Legacy V1 Agent Transport Is Read-Only History, Not An Import Source**
     (`v1-import-retired`) - _[superseded by `agents-sync-publish-only`]_ The legacy v1
     agents-sync import leg is sunset behind v1_import_retired; v1 payloads stay readable
@@ -258,12 +258,16 @@ costs, and the condition that would reopen it.
 26. **Size Aliases Descend The Effort Ladder** (`size-alias-effort-ladder`) - Built-in
     size aliases run a model at xhigh on its first appearance from @xlarge down and one
     rung lower on each reappearance; every alias should span more than one provider.
-27. **The Rust Core Is Required** (`rust-core-required`) - Shared backend behavior lives
+27. **The Committed AGENTS.md Stays A Readable Projection** (`readable-agents-md`) - The
+    repo commits the full runtime AGENTS.md projection plus a CLAUDE.md copy, checked by
+    CI; SASE runs still get per-invocation bundles, and agy, Qwen, and OpenCode stay on
+    native AGENTS.md discovery.
+28. **The Rust Core Is Required** (`rust-core-required`) - Shared backend behavior lives
     in sase-core with no Python fallback and no env-var backend switch.
-28. **Triage Annotates; It Never Changes an Exit Code**
+29. **Triage Annotates; It Never Changes an Exit Code**
     (`triage-annotates-does-not-change-exit-codes`) - KNOWN needs an independent
     witness; triage classifies failure evidence without changing command outcomes.
-29. **Verification Is Two-Speed** (`two-speed-verification`) - _[superseded by
+30. **Verification Is Two-Speed** (`two-speed-verification`) - _[superseded by
     `check-full-is-explicit`]_ just check is the agent default and just check-full gates
     landing, because host capacity is the constraint, not test speed.
 
@@ -281,7 +285,8 @@ File (agents.md file); Agent Neighbor; Agent Node; Agent Relation Jump Target (a
 jump target); Agent Tab (agents sub-tab, agents sub-tabs); Agent Tribe; Agent Turn;
 Artifact; Artifact Markdown File (artifact md file, artifact md); Artifact Reference
 (ref); Clan Wave; Core Memory (core memory); Current Project; Deck Panel (deck layout);
-Failure Signature; Feature Flag; Flag Bead (flag bead); Gate Turn; Goal (⌖); Job (Chop);
+Failure Signature; Feature Flag; Flag Bead (flag bead); Gate Turn; Goal (⌖); Instruction
+Bundle (instruction bundle); Instruction Manifest (instruction manifest); Job (Chop);
 LLM Calls; Machine Tab; Macro (xprompt); Macro Invocation (smack, macro reference, macro
 ref); Macro Memory (memory file, sase memory); Macro Part; Macro Swarm; Macro Workflow;
 Memory Strand; Memory Web; Named Proc; Nav Item (navigation item); Nav Section

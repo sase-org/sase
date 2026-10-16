@@ -23,7 +23,9 @@ preparation records the bundle and manifest under `instructions/` and exposes
 `SASE_INSTRUCTIONS_FILE` for the duration of the provider call, then restores its
 previous value. Calls without an artifacts directory skip bundle preparation and use the
 provider's native instruction path. The architecture is recorded as
-[Instructions Are Rendered Per Invocation And Delivered By Adapters](https://github.com/sase-org/sase/blob/master/sase/memory/decisions/instructions-per-invocation.md).
+[Instructions Are Rendered Per Invocation And Delivered By Adapters](https://github.com/sase-org/sase/blob/master/sase/memory/decisions/instructions-per-invocation.md),
+and the committed-file shape as
+[The Committed AGENTS.md Stays A Readable Projection](https://github.com/sase-org/sase/blob/master/sase/memory/decisions/readable-agents-md.md).
 Rendering a bundle does not prove the provider loaded it: use `sase instructions verify`
 to inspect observed delivery. If bundle preparation or transport fails, SASE attempts
 native delivery and records the fallback; see
@@ -35,13 +37,13 @@ See also
 
 ## Provider behavior at a glance
 
-| Provider                    | Root delivery            | Native helpers                                                                             |
-| --------------------------- | ------------------------ | ------------------------------------------------------------------------------------------ |
-| Claude                      | System-prompt file       | Separate helper bundle when the CLI supports it, with a guard against root-only operations |
-| Codex                       | `developer_instructions` | Inherit the root instructions; no separate helper bundle or mechanical guard               |
-| Grok                        | `--rules`                | No SASE helper delivery channel                                                            |
-| Muse                        | Prompt prefix            | No SASE helper delivery channel                                                            |
-| Antigravity, OpenCode, Qwen | Native discovery         | No explicit SASE helper bundle                                                             |
+| Provider                    | Root delivery                | Native helpers                                                                             |
+| --------------------------- | ---------------------------- | ------------------------------------------------------------------------------------------ |
+| Claude                      | System-prompt file           | Separate helper bundle when the CLI supports it, with a guard against root-only operations |
+| Codex                       | `developer_instructions`     | Inherit the root instructions; no separate helper bundle or mechanical guard               |
+| Grok                        | `--rules`                    | No SASE helper delivery channel                                                            |
+| Muse                        | Prompt prefix                | No SASE helper delivery channel                                                            |
+| Antigravity, OpenCode, Qwen | Native `AGENTS.md` discovery | No explicit SASE helper bundle                                                             |
 
 The four explicit adapters have default-enabled flags named
 `claude_explicit_instructions`, `codex_explicit_instructions`,

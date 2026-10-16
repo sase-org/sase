@@ -5,10 +5,9 @@ aliases:
 ---
 
 An agent instruction file is a `.md` file that an agent CLI reads automatically when
-working in a directory that contains it. For example, the `AGENTS.md` file is the name
-of the agent instruction file that is supported by codex. sase supports one agent
-instruction file per supported agent CLI (ex: `CLAUDE.md` for claude, `GEMINI.md` for
-antigravity, etc...). The `sase init` command, which is run automatically as a sase
-post-commit hook, initializes the top-level agent instruction files using memories in
-the sase/memory/ directory and ensures that all agent instruction files in the same
-directory contain the same contents.
+working in a directory that contains it. `AGENTS.md` is the canonical name, kept beside
+a byte-identical `CLAUDE.md` copy for older Claude Code versions; Antigravity (agy),
+Qwen Code, and OpenCode all read `AGENTS.md` through native discovery.
+`sase memory init` renders the project files from the notes in `sase/memory/`. A
+SASE-launched agent does not read these files: it gets a per-invocation
+[[glossary:instruction-bundle]] built from the same notes instead.

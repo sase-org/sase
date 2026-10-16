@@ -65,15 +65,16 @@ without an artifacts directory use the provider's native instruction path.
 | Codex               | `developer_instructions` (`codex.developer_instructions`, 32 KiB)  | `inherits_root`                                                          | `project_doc_max_bytes=0` in SASE-managed projects; no SASE `AGENTS.md` in the shadow home  | `codex_explicit_instructions`  |
 | Grok                | `--rules` (`grok.rules`, 120 KiB)                                  | `none`                                                                   | none needed (no `--trust`); `GROK_MEMORY=0`                                                 | `grok_explicit_instructions`   |
 | Muse                | prompt prefix (`muse.prompt_prefix`)                               | `none`                                                                   | drop `--trust-workspace`                                                                    | `muse_explicit_instructions`   |
-| agy, Qwen, OpenCode | declared legacy (`provider_legacy`)                                | `inherits_native`                                                        | none                                                                                        | none                           |
+| agy, Qwen, OpenCode | native `AGENTS.md` discovery (`provider_legacy`)                   | `inherits_native`                                                        | none                                                                                        | none                           |
 
 ### Rollback
 
 `sase flag disable <provider>_explicit_instructions` on each execution host selects that
 provider's native instruction path. Substitute `claude`, `codex`, `grok`, or `muse` for
 `<provider>`; `sase flag enable <provider>_explicit_instructions` restores explicit
-delivery. A render or delivery failure already falls back per invocation, subject to the
-[Codex fallback limitation](codex.md#codex-instruction-delivery). Codex's allowlist
+delivery. A render or delivery failure already falls back per invocation, restoring the
+native shadow-home paths for Codex; see
+[Codex instruction delivery](codex.md#codex-instruction-delivery). Codex's allowlist
 shadow home applies in both flag states.
 
 ## Verifying instruction delivery

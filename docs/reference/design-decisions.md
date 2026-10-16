@@ -292,7 +292,8 @@ eligibility transition for undispatched procs) are pre-run. Directive summary in
 
 ## Instructions Are Rendered Per Invocation And Delivered By Adapters {#instructions-per-invocation}
 
-_Status: accepted · Decided: 2026-10-14._
+_Status: superseded-in-part · Decided: 2026-10-14 · Superseded by:
+[The Committed AGENTS.md Stays A Readable Projection](#readable-agents-md)._
 
 _Also known as: instructions-per-invocation, explicit instruction delivery, instruction
 bundle delivery._
@@ -534,6 +535,24 @@ ordered fallback, or a `(A | B) || C` last resort, whenever more than one provid
 serve that size.
 
 [Read the full record on GitHub.](https://github.com/sase-org/sase/blob/master/sase/memory/decisions/size-alias-effort-ladder.md)
+
+## The Committed AGENTS.md Stays A Readable Projection {#readable-agents-md}
+
+_Status: accepted · Decided: 2026-10-16._
+
+_Also known as: readable-agents-md, readable AGENTS.md, C1 readable projection._
+
+The repo commits the full runtime AGENTS.md projection plus a CLAUDE.md copy, checked by
+CI; SASE runs still get per-invocation bundles, and agy, Qwen, and OpenCode stay on
+native AGENTS.md discovery.
+
+**Claim.** The repo commits the full runtime projection (`AGENTS.md` plus a
+byte-identical `CLAUDE.md` copy), checked by CI. It is the readable standing
+instructions and the per-invocation fallback. SASE runs still get
+[Instructions Are Rendered Per Invocation And Delivered By Adapters](#instructions-per-invocation)
+bundles. Antigravity (agy), Qwen, and OpenCode stay on native `AGENTS.md` discovery.
+
+[Read the full record on GitHub.](https://github.com/sase-org/sase/blob/master/sase/memory/decisions/readable-agents-md.md)
 
 ## The Rust Core Is Required {#rust-core-required}
 
