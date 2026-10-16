@@ -125,9 +125,9 @@ when reading descriptions back.
 
 **PR tag inheritance:** When creating a child PR (one whose PARENT is an existing
 Patch), PR tags from the parent PR's body are automatically inherited. Parent tags are
-read in either spelling — legacy `TAG=` or new `SASE_TAG=` — so inheritance works across
-the migration. The merge order is: parent PR tags (lowest priority) -> config `pr_tags`
--> `BUG` tag (highest priority), followed by runtime-owned `AGENT` and `MACHINE` tags.
+read in either spelling — `TAG=` or `SASE_TAG=` — so inheritance works across the
+migration. The merge order is: parent PR tags (lowest priority) -> config `pr_tags` ->
+`BUG` tag (highest priority), followed by runtime-owned `AGENT` and `MACHINE` tags.
 Inherited or configured `AGENT` and `MACHINE` values are ignored so child PRs do not
 retain stale parent runtime provenance.
 
@@ -152,21 +152,22 @@ automatically suffixed with `_<N>` if a Patch with the same base name already ex
 
 ## Environment Variables
 
+The shared `SASE_BEAD_ID`, `SASE_BUG_ID`, `SASE_VCS_PROVIDER`, and
+`SASE_LINKED_REPOS_JSON` variables are listed in the
+[environment-variable reference](../environment-variables.md#vcs-provider). This table
+covers variables specific to commit workflows.
+
 | Variable                            | Purpose                                                                                                                                                                                 |
 | ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `SASE_COMMIT_METHOD`                | Dispatch method (set by macro `environment:` section)                                                                                                                                   |
 | `SASE_COMMIT_METHOD_ALLOW_OVERRIDE` | Allow `-t/--type` to override a conflicting `SASE_COMMIT_METHOD`                                                                                                                        |
 | `SASE_ARTIFACTS_DIR`                | Directory for `commit_result.json` and other artifacts                                                                                                                                  |
 | `SASE_AGENT_NAME`                   | Agent name used for `SASE_AGENT=` runtime commit provenance                                                                                                                             |
-| `SASE_BEAD_ID`                      | Bead ID written as a linked `SASE_BEAD=` footer tag without changing the subject                                                                                                        |
 | `SASE_PLAN`                         | Plan source for storage/staging, status update, and the storage-relative `SASE_PLAN=` commit tag; ignored once the plan is done or archived, and not inherited by nested agent launches |
 | `SASE_AGENT_PROJECT_FILE`           | Project file for Patch/STITCHES tracking                                                                                                                                                |
 | `SASE_AGENT_CL_NAME`                | PR name used for proposal diff naming                                                                                                                                                   |
 | `SASE_PR_NAME`                      | PR name (set by `#pr` macro input)                                                                                                                                                      |
 | `SASE_PR_STATUS`                    | Initial PR Patch status (`draft`, `wip`, `ready`)                                                                                                                                       |
-| `SASE_BUG_ID`                       | Bug ID for PR metadata                                                                                                                                                                  |
-| `SASE_VCS_PROVIDER`                 | Override VCS provider detection (see [VCS providers](providers.md))                                                                                                                     |
-| `SASE_LINKED_REPOS_JSON`            | JSON metadata for configured linked repos passed to agents                                                                                                                              |
 | `SASE_LINKED_REPO_<ENV_NAME>_DIR`   | Workspace-matched path for one configured linked repo                                                                                                                                   |
 
 ## Related

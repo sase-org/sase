@@ -249,7 +249,7 @@
 - [Upgrading](reference/upgrading/index.md) — Upgrade and history notes, organized by area with the newest notes first.
 - [Local state cutover](reference/upgrading/local-state.md) — The temporary offline kit for moving legacy local state into canonical locations.
 - [Macro migration notes](reference/upgrading/macros.md) — Migration notes for macro names, prompt fields, and launch syntax.
-- [Provider migration notes](reference/upgrading/providers.md) — Historical compatibility notes for provider metadata and model selection.
+- [Provider migration notes](reference/upgrading/providers.md) — Historical compatibility notes for VCS commands, provider metadata, and model selection.
 - [Work unit migration notes](reference/upgrading/work-units.md) — Compatibility notes for bead, plan, Patch, and ProjectSpec formats.
 - [Workspace upgrades](reference/upgrading/workspaces.md) — Upgrade notes for the managed workspace root and adjacent checkouts.
 - [Commit workflows](reference/vcs/commit-workflows.md) — Look up commit, proposal, and pull request workflow behavior.

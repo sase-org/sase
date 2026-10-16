@@ -183,10 +183,9 @@ as warnings, alongside local manifests and plan cross-links.
 moves them to this archive only with `--write`.
 
 Existing top-level v1 `manifest.json` and `agents/<machine-qualified-name>` bundles are
-left untouched. Sync can still read those records for compatibility, but it no longer
-creates, refreshes, imports, or retires v1 transport data. Historical local imports can
-be swept entirely (every transport, every machine) with
-`sase agent names purge-local-state`.
+left untouched. Sync reads those records for compatibility and does not create, refresh,
+import, or retire v1 transport data. Historical local imports can be swept entirely
+(every transport, every machine) with `sase agent names purge-local-state`.
 
 ## Browsing page anatomy
 
@@ -361,8 +360,8 @@ quarantine flag for both hood and Referenced By requests and gives them a fresh 
 budget before running the normal full reconciliation.
 
 Retired agent-publication requests stay stopped until an explicit recovery. After a
-publisher fix that makes previously terminal work publishable, revive that project's
-retired hood requests once with:
+publisher fix makes terminal work publishable, revive that project's retired hood
+requests once with:
 
 ```bash
 sase agent sync --retry-retired -p project-alias   # -t
@@ -418,8 +417,8 @@ sase agent sync --check --json
 Neither check mode imports agent history, publishes local hoods, changes the sidecar
 worktree, commits, or pushes. Without `--refresh`, `--check` does not run Git or scan
 local agent artifacts: it rewrites cached project status with publication outbox
-diagnostics and carries forward previously recorded Git ahead/behind counts. Those
-counts can therefore be absent or stale.
+diagnostics and carries forward recorded Git ahead/behind counts. Those counts can
+therefore be absent or stale.
 
 `--check --refresh` fetches remote refs and recomputes ahead and behind counts without
 checking out remote content. `--refresh` is rejected unless `--check` is also present.
@@ -454,10 +453,9 @@ Textual event loop.
 - A malformed published v2 owner manifest, snapshot, or referenced digest is ignored
   while deterministic indexes are rebuilt; publication still validates the current
   owner's authority files before committing.
-- If publication fails because one of your own published files no longer matches its
-  recorded digest, run `sase agent sync --repair-digests -p <project>`. If publication
-  reports on-disk hoods that the owner manifest omits, run
-  `sase agent sync --repair-manifest -p <project>`.
+- If a published file differs from its recorded digest, run
+  `sase agent sync --repair-digests -p <project>`. If publication reports on-disk hoods
+  that the owner manifest omits, run `sase agent sync --repair-manifest -p <project>`.
 - A queued agent-hood publication failure leaves the primary commit successful, with a
   warning naming the recovery command, and a durable retry request under the project's
   SASE state. Fix credentials/connectivity, then run `sase agent sync -p <project>` for

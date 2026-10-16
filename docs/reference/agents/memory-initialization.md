@@ -103,10 +103,10 @@ provides shared bead workflow guidance and has `sase/memory/sase_sizes.md` as a 
 size-scale note. Top-level project-only reference notes are listed in the
 `## Reference Memory` section of managed agent instructions, generated for SASE-managed
 project repositories only and never for home or chezmoi-home roots. The core
-`sase/memory/task_types.md` catalog note is likewise project-only. A root that no longer
-manages those notes (for example, a home root that previously generated them) deletes
-generated copies on the next `sase memory init` pass; copies a human has since edited
-are left alone and keep behaving as ordinary notes. Project memory reads linked-repo
+`sase/memory/task_types.md` catalog note is likewise project-only. When a root stops
+managing those notes (for example, when project-memory generation is disabled for a home
+root), `sase memory init` deletes generated copies; copies a human has since edited are
+left alone and keep behaving as ordinary notes. Project memory reads linked-repo
 descriptions from the project-local `sase/sase.yml`; home memory reads them from the
 global config `~/.config/sase/sase.yml`, or from the chezmoi-managed config path when
 `use_chezmoi: true`. Generated memory requires agents to use `/sase_repo` before reading

@@ -27,11 +27,11 @@ agent's git diff. For current successful runs, those prompt-referenced media fil
 persisted alongside the other default generated-media artifacts — as byte copies or as
 byte-free version-control references, per
 [VCS-Backed Artifact Files](#vcs-backed-artifact-files) — so the Agents-tab artifact
-picker can still open them after a workspace is cleaned up. Legacy runs without
-persisted default artifacts fall back to prompt-file discovery at view time.
-Prompt-referenced media are not notification delivery attachments unless they also
-appear in `done.json.image_paths`, appear in `done.json.video_paths`, or were saved
-explicitly with `sase artifact create`.
+picker can still open them after a workspace is cleaned up. Runs without persisted
+default artifacts fall back to prompt-file discovery at view time. Prompt-referenced
+media are not notification delivery attachments unless they also appear in
+`done.json.image_paths`, appear in `done.json.video_paths`, or were saved explicitly
+with `sase artifact create`.
 
 Supported image extensions are:
 
@@ -98,10 +98,10 @@ keep that source media one keypress away in sase's TUI.
 
 Prompt-referenced media are artifact-list entries in sase's TUI, not notification
 delivery attachments. Current runs persist them to the global artifact index during
-finalization; legacy runs can still synthesize them from prompt artifacts when sase's
-TUI loads the row. Downstream notification plugins should continue to use
-`done.json.image_paths` and `done.json.video_paths` for the generated-media notification
-contract.
+finalization; runs without persisted records can still synthesize them from prompt
+artifacts when sase's TUI loads the row. Downstream notification plugins should continue
+to use `done.json.image_paths` and `done.json.video_paths` for the generated-media
+notification contract.
 
 Source: `src/sase/core/artifact_file_defaults.py`
 
@@ -327,7 +327,7 @@ Each line is a schema-versioned envelope:
     "artifact_id": "default:52895d68931185056fd0e49f",
     "resolved_path": "/home/user/.sase/artifacts/agents/sase/20260730134501/image.png",
     "resolution_status": "exact",
-    "agent_name": "sase-b8.2",
+    "agent_name": "example-agent",
     "agent_source": "SASE_AGENT_NAME",
     "artifacts_dir": "/home/user/.sase/projects/gh_sase-org__sase/artifacts/ace-run/202607/30/20260730134501",
     "project": "gh_sase-org__sase"

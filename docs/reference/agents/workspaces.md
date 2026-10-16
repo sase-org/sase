@@ -53,14 +53,13 @@ policy.
 
 ### Numeric Identity
 
-| Range     | Meaning                                                                                                                                         |
-| --------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| `#0`      | Primary checkout from ProjectSpec `WORKSPACE_DIR`. Also used as the placeholder for deferred launches.                                          |
-| `#1`–`#9` | Reserved. The allocator never hands these out, but legacy tests and call sites that pass them by hand still work via the compatibility wrapper. |
-| `#10`+    | Claim-allocated numbered workspaces. New agents allocate from this unified pool starting at `#10`.                                              |
+| Range     | Meaning                                                                                                                                            |
+| --------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `#0`      | Primary checkout from ProjectSpec `WORKSPACE_DIR`. Also used as the placeholder for deferred launches.                                             |
+| `#1`–`#9` | Reserved. The allocator never hands these out, but tests and call sites that pass them by hand remain supported through the compatibility wrapper. |
+| `#10`+    | Claim-allocated numbered workspaces. New agents allocate from this unified pool starting at `#10`.                                                 |
 
-Older releases allocated agent workspaces starting at `#1` and special-cased axe at
-`#100`. The current allocator uses one shared pool for every claim source;
+The current allocator uses one shared pool for every claim source;
 `claim_next_axe_workspace()`, launch executor pre-claims, and `axe` deferred claims all
 start at `#10` unless a caller passes explicit `min_workspace` / `max_workspace` bounds.
 `get_first_available_axe_workspace()` is a read-only selector and is not used to occupy
@@ -78,7 +77,7 @@ and the `SASE_WORKSPACE_ROOT` environment override:
 | Value         | Layout                                                                                                                                                                                                                                 |
 | ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `xdg-state`   | Default. Platform state root plus namespace: `$XDG_STATE_HOME/sase/workspaces/<project_key>/<project>_<num>/` on Linux, `~/Library/Application Support/sase/workspaces/...` on macOS, `%LOCALAPPDATA%\sase\workspaces\...` on Windows. |
-| `adjacent`    | Legacy `<primary>_<num>/` siblings of the primary checkout. Explicit opt-in; byte-for-byte compatible with previous releases.                                                                                                          |
+| `adjacent`    | Adjacent `<primary>_<num>/` siblings of the primary checkout. Explicit opt-in to keep this layout.                                                                                                                                     |
 | absolute path | Treat the configured path as the managed-root base and create `<project_key>/<project>_<num>/` checkouts under it.                                                                                                                     |
 
 `SASE_WORKSPACE_ROOT` overrides `workspace.root` for the process and is interpreted as
@@ -94,21 +93,21 @@ config wins over the heuristic.
 Each managed checkout writes a `.sase/checkout.json` marker recording the project name,
 project key, workspace number, primary workspace path, and the registry path. CWD-based
 project inference (used by `sase bead`, the file panel, and similar callers) reads the
-nearest marker first and only falls back to sibling-pattern scanning for adjacent legacy
+nearest marker first and only falls back to sibling-pattern scanning for adjacent
 layouts.
 
 Configured linked repositories for a numbered checkout are cloned beneath that host
 checkout at `sase/repos/linked/<linked_repo>`. Before every agent or workflow launch,
 SASE atomically removes the numbered checkout's entire `sase/repos/` tree and deletes it
 in the background. Sidecars configured with `auto_clone: true` (normally `plans`) are
-then cloned directly from their recorded authoritative remotes. Legacy GitHub HTTPS
-records are resolved to canonical SSH before the clone command runs; already-valid SSH
-and local remotes are preserved, while any remaining HTTP(S) metadata fails launch
-preparation before Git executes. The normalization is read-only, so rerunning
-`sase repo init` persists the migrated record but is not required for a safe launch.
-Other linked repositories and ordinary document sidecars remain lazy unless configured
-for automatic cloning and can be materialized on demand through `/sase_repo`. External
-repos are also cloned on demand below `sase/repos/external/projects/` or
+then cloned directly from their recorded authoritative remotes. GitHub HTTPS records are
+resolved to canonical SSH before the clone command runs; already-valid SSH and local
+remotes are preserved, while any remaining HTTP(S) metadata fails launch preparation
+before Git executes. The normalization is read-only, so rerunning `sase repo init`
+persists the migrated record but is not required for a safe launch. Other linked
+repositories and ordinary document sidecars remain lazy unless configured for automatic
+cloning and can be materialized on demand through `/sase_repo`. External repos are also
+cloned on demand below `sase/repos/external/projects/` or
 `sase/repos/external/<scheme>/`. SASE protects the whole tree immediately with the
 per-clone `/sase/repos/` exclude rule; run `sase repo init` to add the same rule durably
 to the tracked root `.gitignore`. Use `--check` to report drift, `--diff` to preview it,
@@ -121,9 +120,9 @@ The registry tracks every workspace the store owns — including primary `#0` �
 records `checkout_dir`, `materialization`, `role`, `pinned`, `created_at`, and
 `last_used_at`. Registry writes are atomic. `sase workspace repair` is the canonical way
 to reconcile the registry against the filesystem after a manual delete or a partially
-completed migration. Adjacent checkouts keep their legacy sibling behavior and normally
-do not write a persistent registry; `cleanup` and `repair` treat a missing registry as
-"nothing managed here" rather than an error.
+completed migration. Adjacent checkouts keep sibling behavior and normally do not write
+a persistent registry; `cleanup` and `repair` treat a missing registry as "nothing
+managed here" rather than an error.
 
 <a id="adjacent-compatibility-and-migration"></a> Moved to
 [Workspace upgrades](../upgrading/workspaces.md#adjacent-compatibility-and-migration).
@@ -135,8 +134,8 @@ do not write a persistent registry; `cleanup` and `repair` treat a missing regis
   move execution state out of the primary backup surface; if you want crashed-agent
   working trees included, add `~/.local/state/sase/workspaces/` (or the platform
   equivalent) to your backup profile explicitly.
-- **BTRFS / ZFS snapshots.** A snapshot of `~/projects` no longer freezes every
-  workspace atomically once the canonical checkouts live elsewhere. Snapshot the state
+- **BTRFS / ZFS snapshots.** Once canonical checkouts live outside `~/projects`, a
+  snapshot of that tree does not freeze every workspace atomically. Snapshot the state
   root alongside the source tree if atomicity matters.
 - **NFS / network home directories.** If `$HOME` is on NFS and your source tree is on
   local SSD, switching to `xdg-state` can move workspaces to slow storage. Set
@@ -174,11 +173,8 @@ reports a collision naming both checkouts; recover or intentionally select the e
 checkout before using the alias. Exact configured names remain valid even while such a
 duplicate external checkout exists.
 
-| Command                                                               | Description                                                                              |
-| --------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| `sase repo list [-a] [-p PROJECT] [-w N] [-j]`                        | Show repo kinds and clone status for one workspace; JSON includes the full clone matrix. |
-| `sase repo log [-r REPO] [-a AGENT] [-w N] [-i ID] [-p PROJECT] [-j]` | Summarize or filter durable repo-open events, or inspect one event by ID prefix.         |
-| `sase repo open REPO -r REASON [-w N] [-p PROJECT]`                   | Materialize, prepare, audit, and print an inventory, project, or external repo checkout. |
+See the generated [repo CLI reference](../cli/repo.md) for the command inventory and
+exact options.
 
 Bare `sase repo` defaults to `sase repo list`. `sase repo list --all` includes enabled
 and disabled projects at primary workspace context, while `sase repo log` remains
@@ -195,15 +191,8 @@ defaults to `sase workspace list` with default options. `sase workspace list --a
 switches from one inferred/selected project to the shared inventory across enabled and
 disabled projects; `--json` emits the same inventory model as structured data.
 
-| Command                                                                | Description                                                                                                                                                            |
-| ---------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `sase workspace list [-p PROJECT] [-a/--all] [-j/--json]`              | List one project's registry or all registered workspaces. All-project rows include claim/liveness, pin, staleness, checkout presence, and isolated per-project issues. |
-| `sase workspace path NUM`                                              | Print the configured checkout path for `NUM` without cloning or preparing it.                                                                                          |
-| `sase workspace cleanup -s/--stale`                                    | Remove unclaimed managed checkouts older than `workspace.cleanup_ttl_days`. `-n/--dry-run` previews.                                                                   |
-| `sase workspace compact [NUM ...] [-n] [-j]`                           | Safely retrofit unclaimed, clean, registry-owned numbered checkouts to borrow primary Git objects and repack away duplicate private packs.                             |
-| `sase workspace repair [-n]`                                           | Drop missing registry entries, re-materialize live claimed checkouts, repoint stale SASE Git alternates, or dissociate borrowers when sharing is disabled.             |
-| `sase workspace migrate --to xdg-state [-s/--symlink-transition] [-n]` | Move existing `<primary>_<num>` adjacent checkouts under the managed `xdg-state` root and register them. Exits non-zero on skipped refusals.                           |
-| `sase workspace migrate --finalize`                                    | Remove `<primary>_<num>` transition symlinks once workflows have adapted to the managed paths.                                                                         |
+See the generated [workspace CLI reference](../cli/workspace.md) for the command
+inventory and exact options.
 
 The all-project inventory includes disabled projects only when `--all` is explicit. One
 corrupt or unreadable registry is returned as an isolated issue and does not suppress
@@ -276,21 +265,21 @@ preview registry/checkout reconciliation separately.
 configured path without cloning. Use this command when you only need to inspect the
 path.
 
-The hidden legacy `sase workspace open NUM -r REASON` command (superseded by
-`sase repo open`, and omitted from help and the table above) is intentionally more
-forceful. It requires a non-empty `-r/--reason`, records the same repo-open audit event
-as `sase repo open`, materializes the requested checkout, backs up uncommitted local
-changes through the normal workspace-preparation path, cleans it, checks out the active
-VCS provider's default parent revision, runs the provider's workspace sync hook when
-available, and then prints the path. For built-in bare-git projects, it first makes sure
-the primary checkout has generated SDD guide files. `list` and `path` remain read-only
-and do not run SDD initialization. `--clean` is accepted as a compatibility flag for
-this default behavior. Use a claim-range number such as `10` when handing a numbered
-checkout to an external shell, editor, or debugging tool. `#0` is the primary checkout,
-and `#1` through `#9` are reserved compatibility numbers rather than good choices for
-new manual checkouts. For linked-repo work, `-p/--project` is still the project
-selector: pass the configured linked repo name there, then the workspace number as the
-positional argument.
+The hidden `sase workspace open NUM -r REASON` compatibility command is omitted from
+help. It remains available to callers that need its forceful preparation behavior;
+`sase repo open` is the documented command for opening a repository. It requires a
+non-empty `-r/--reason`, records the same repo-open audit event as `sase repo open`,
+materializes the requested checkout, backs up uncommitted local changes through the
+normal workspace-preparation path, cleans it, checks out the active VCS provider's
+default parent revision, runs the provider's workspace sync hook when available, and
+then prints the path. For built-in bare-git projects, it first makes sure the primary
+checkout has generated SDD guide files. `list` and `path` remain read-only and do not
+run SDD initialization. `--clean` is accepted as a compatibility flag for this default
+behavior. Use a claim-range number such as `10` when handing a numbered checkout to an
+external shell, editor, or debugging tool. `#0` is the primary checkout, and `#1`
+through `#9` are reserved compatibility numbers rather than good choices for new manual
+checkouts. For linked-repo work, `-p/--project` is still the project selector: pass the
+configured linked repo name there, then the workspace number as the positional argument.
 
 ### Workspace maintenance
 
@@ -319,9 +308,9 @@ the invariant this protects and how to restore rescued commits by hand.
 
 Checkout preparation for the same numbered workspaces (`#2` and above) also heals the
 checkout itself instead of failing on leftover git state. Launches, launch retries, and
-retained linked-repo clones use this path; the primary checkout (`#0`, or the legacy
-`#1`), home mode, and `sase workspace open` keep the fail-closed behavior. The ladder,
-printed to the run log as `Self-heal: ...` lines, is:
+retained linked-repo clones use this path; the primary checkout (`#0`, or reserved
+compatibility number `#1`), home mode, and `sase workspace open` keep the fail-closed
+behavior. The ladder, printed to the run log as `Self-heal: ...` lines, is:
 
 1. Rescue first: an interrupted rebase, `am`, merge, cherry-pick, revert, or bisect,
    unmerged paths, or a detached HEAD holding orphan commits is bundled into the rescue
@@ -351,13 +340,12 @@ visible failed run, since the agent never started and anything valuable was resc
 
 `migrate --to xdg-state` is opt-in. Existing adjacent checkouts are left in place until
 the command is invoked. With `--symlink-transition` it leaves a `<primary>_<num>`
-symlink at the original adjacent path so legacy tooling that still walks `..` for
-siblings keeps working; the canonical checkout lives under the managed root. Migration
-refuses to overwrite a real directory at the managed destination — pre-existing managed
-content is reported and skipped instead of clobbered. `cleanup --stale` removes both the
-canonical managed checkout and its transition symlink. Once workflows are adapted,
-`migrate --finalize` removes the leftover transition symlinks without touching the
-canonical checkouts.
+symlink at the original adjacent path so tools that walk `..` for siblings keep working;
+the canonical checkout lives under the managed root. Migration refuses to overwrite a
+real directory at the managed destination — pre-existing managed content is reported and
+skipped instead of clobbered. `cleanup --stale` removes both the canonical managed
+checkout and its transition symlink. Once workflows are adapted, `migrate --finalize`
+removes the leftover transition symlinks without touching the canonical checkouts.
 
 ## Disabling Plugins
 

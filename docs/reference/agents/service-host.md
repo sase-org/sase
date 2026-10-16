@@ -54,11 +54,11 @@ The captured environment includes the SSH agent handle (`SSH_AUTH_SOCK`, plus
 `SSH_AGENT_PID` when present) whenever it names a live socket. That is a convenience,
 not a durable credential: an agent socket captured from a login shell
 (`/tmp/ssh-*/agent.*`) belongs to that session and dies with it. At host start, a
-captured agent socket that no longer exists is ignored and the manager's agent applies —
-on Linux that is the systemd user manager's `SSH_AUTH_SOCK`, often a live but empty
-socket. A captured login-shell socket is still not a durable credential. Do not count on
-it to keep host-owned git work, such as plan archival from a Telegram approval,
-authenticated across a reboot or a new login session.
+captured agent socket that is missing is ignored and the manager's agent applies — on
+Linux that is the systemd user manager's `SSH_AUTH_SOCK`, often a live but empty socket.
+A captured login-shell socket is still not a durable credential. Do not count on it to
+keep host-owned git work, such as plan archival from a Telegram approval, authenticated
+across a reboot or a new login session.
 
 Readiness is decided by the git remote, not by what an agent holds.
 `sase service init --check`, `sase service status`, and plan approvals each ask the
@@ -95,9 +95,9 @@ error, and backs off exponentially instead of failing on every scheduled tick. B
 not mirrored until the credential is restored. Operational lease preparation retries a
 transient transport failure (connection reset, timeout, DNS) up to three attempts. It
 re-checks a `Permission denied (publickey)` once after about 10 seconds before failing,
-so a brief remote-side refusal, such as during a GitHub incident, no longer fails the
-leased operation. A refusal that survives the re-check is reported with the existing
-remediation.
+so a brief remote-side refusal, such as during a GitHub incident, can recover before the
+leased operation fails. A refusal that survives the re-check is reported with the
+existing remediation.
 
 The code cannot restore the credential, so this is yours to fix. There are two supported
 ways to give the host an unattended credential:
@@ -142,8 +142,8 @@ ways to give the host an unattended credential:
    `SSH_AUTH_SOCK=<the reported socket> ssh-add <your private key>`, using the socket
    the service host inherits rather than your shell's. It survives logout when lingering
    is enabled, but not a reboot, and needs your passphrase once per boot. After a reboot
-   you only need to `ssh-add` into the manager's agent again; a stale capture no longer
-   masks it.
+   load the key into the manager's agent again with `ssh-add`; a missing capture lets
+   the manager's agent handle authentication.
 
 After either, run `sase service init` and `sase service restart`, and confirm
 `sase service status` reports no SSH warning.

@@ -151,8 +151,8 @@ including an empty run. Matching stays case-insensitive, consecutive `*` collaps
 Query panes use one of two dialects, and globs compose with each dialect's own syntax:
 
 - **Flat dialects** (Beads, Plans, Files, Stitches, and document-provider panes) accept
-  `-` negation (`-id:sase-x7.*`) and comma lists (`id:sase-16n,sase-16n.*`), and bare
-  values may start with `*` or contain `/` (`path:202609/*tags`).
+  `-` negation (`-id:sase-<other>.*`) and comma lists (`id:sase-<root>,sase-<root>.*`),
+  and bare values may start with `*` or contain `/` (`path:202609/*tags`).
 - **Boolean dialects** (the Patch query language on this page, the Agents tab filter
   with its `in:inbox` / `in:archive` scopes, and `sase agent search`) use `NOT` (or `!`)
   and `OR` instead of `-` and commas. Their bare values must start with a letter, digit,
@@ -166,11 +166,11 @@ exact-match fields, so a `*` in any of them is an anchored whole-value glob: `st
 globs the base status and `sibling:` compares the family name with any `__<N>` suffix
 removed.
 
-| Field kind                                                         | `*` semantics                                    | Example                                                                                   |
-| ------------------------------------------------------------------ | ------------------------------------------------ | ----------------------------------------------------------------------------------------- |
-| Exact-match string fields (`id`, `name`, `project`, ...) and `sha` | Anchored whole-value glob                        | `id:sase-16n.*` matches `sase-16n.1` and `sase-16n.10`, but not `sase-16n` or `sase-16n5` |
-| Substring string fields (`path`, `assignee`, `model`, ...)         | Unanchored glob: may match anywhere in the value | `path:202609/*tags` matches `docs/202609/tags.md`                                         |
-| Enum, bool, int, and date fields                                   | `*` is literal, so value validation rejects it   | `status:clo*` fails with `must be one of ...`                                             |
+| Field kind                                                         | `*` semantics                                    | Example                                                                                                  |
+| ------------------------------------------------------------------ | ------------------------------------------------ | -------------------------------------------------------------------------------------------------------- |
+| Exact-match string fields (`id`, `name`, `project`, ...) and `sha` | Anchored whole-value glob                        | `id:sase-<root>.*` matches `sase-<root>.1` and `sase-<root>.10`, but not `sase-<root>` or `sase-<root>5` |
+| Substring string fields (`path`, `assignee`, `model`, ...)         | Unanchored glob: may match anywhere in the value | `path:202609/*tags` matches `docs/202609/tags.md`                                                        |
+| Enum, bool, int, and date fields                                   | `*` is literal, so value validation rejects it   | `status:clo*` fails with `must be one of ...`                                                            |
 
 ### Property Shorthand Prefixes
 

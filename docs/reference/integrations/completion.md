@@ -256,7 +256,7 @@ install, but can false-fail a refresh targeting a disposable or currently unregi
 directory. Use `sase doctor -D -C completion.registration` when you want to test the
 active shell registration explicitly.
 
-Legacy raw snapshots whose owner is `chezmoi` are refreshed in place to loaders, but the
+Raw snapshots whose owner is `chezmoi` are refreshed in place to loaders, but the
 managed source still needs a one-time `sase completion deploy-chezmoi` migration so a
 later `chezmoi apply` cannot restore the frozen grammar. The explicit refresh command
 exits nonzero when any selected outcome cannot be refreshed. To convert a chezmoi-owned

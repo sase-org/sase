@@ -319,7 +319,7 @@ pairing codes and bearer tokens, not a hardened mTLS or SPAKE2 protocol.
   Oversized, missing, directory, traversal, symlinked, or unknown-risk files appear in
   manifests without download tokens.
 - Telegram remains supported through the shared pending-action compatibility path. If an
-  older Telegram install has only legacy pending-action JSON, mobile can read it, but
+  Telegram installations with only compatibility pending-action JSON can be read, but
   Telegram is not yet required to use the shared store as its only source of truth.
 - Agent project context is intentionally an MVP metadata and known-project cwd selector.
   It does not expose arbitrary host directory selection, and clients must use SASE

@@ -60,8 +60,9 @@ sase's CLI rules.
 Name rules and collisions:
 
 - Names must match `^[a-z][a-z0-9-]{0,31}$`.
-- Built-in command names (including legacy aliases), legacy root words, and `help` are
-  reserved — built-ins always win and a plugin claiming one stays shadowed.
+- Built-in command names (including compatibility aliases), compatibility root words,
+  and `help` are reserved — built-ins always win and a plugin claiming one stays
+  shadowed.
 - If two distributions claim one name, the command is disabled for both and every
   surface names both owners. Sase never picks a winner by entry-point order.
 

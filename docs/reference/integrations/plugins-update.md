@@ -146,7 +146,7 @@ sase update · dev install
   planned command or dev plan, and each package's current version.
 - **Installed shell-completion scripts are refreshed after a successful upgrade**, so a
   stamped script does not drift behind the CLI it completes. A successful update
-  regenerates, `zcompile`s, and re-stamps every previously installed script, adds a
+  regenerates, `zcompile`s, and re-stamps every installed script, adds a
   `completion_refresh` object to the JSON payload, and reports failures without failing
   the update itself. See [Shell Completion](completion.md#refresh-existing-installs).
 - A no-op run (nothing to upgrade) renders a clean "Already up to date" state and still
@@ -244,9 +244,8 @@ of updating within one:
   `sase-core-rs` extension. Dev checkouts materialize owner-nested under the
   `update.dev_root` config key (default `~/projects/github`) as
   `<dev_root>/<owner>/<repo>` — for example `~/projects/github/sase-org/sase` — cloned
-  via SSH URLs. Legacy flat `~/projects/git/<repo>` checkouts are no longer reused; SASE
-  warns about them, and you can either set `update.dev_root` or move the tree into the
-  owner-nested layout.
+  via SSH URLs. SASE skips flat `~/projects/git/<repo>` checkouts and warns; set
+  `update.dev_root` or move a checkout into the owner-nested layout to reuse it.
 - **`--to pypi`** returns the install to managed mode, reinstalling published wheels
   through `uv`.
 - Switching to the mode you are already in is a no-op. `-n|--dry-run` previews the plan;
@@ -330,9 +329,9 @@ sase plugin install github -j       # stable machine-readable JSON (also on upda
 ### Removing a plugin (`sase plugin uninstall`)
 
 `sase plugin uninstall <plugin>` removes one installed plugin from the **same** uv tool
-environment as `sase`, so its entry points are no longer discovered the next time `sase`
-runs. It reconstructs uv's `--with` set from the receipt with the target omitted, so
-sase core and every other plugin (including editable/dev installs) are preserved.
+environment as `sase`, so its entry points are absent from the next `sase` invocation.
+It reconstructs uv's `--with` set from the receipt with the target omitted, so sase core
+and every other plugin (including editable/dev installs) are preserved.
 
 ```bash
 sase plugin uninstall github        # resolve the target straight from the receipt

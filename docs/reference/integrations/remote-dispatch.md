@@ -165,22 +165,8 @@ activation succeeds. A submitted chezmoi apply whose outcome cannot be observed 
 reported in progress by proc identity and is never followed by an untracked second
 apply.
 
-The machine command group is deliberately split between offline inventory, explicit
-network work, and local mutations:
-
-| Command                          | Behavior                                                                                         |
-| -------------------------------- | ------------------------------------------------------------------------------------------------ |
-| `sase machine` / `list`          | Read configured aliases only; never contacts a provider or gateway.                              |
-| `sase machine discover`          | Query configured discovery providers explicitly; `-p` is repeatable.                             |
-| `sase machine bootstrap`         | Issue a target-local, single-use bundle; the secret is written only to stdout.                   |
-| `sase machine init`              | Interactively discover, select, enroll, reload config, and require an authenticated hello.       |
-| `sase machine add`               | Enroll a named endpoint or discovered candidate, optionally recording an SSH handoff target.     |
-| `sase machine show`              | Show one local machine record, including the effective SSH handoff target.                       |
-| `sase machine status`            | Run bounded authenticated hello checks for selected aliases, or every alias when none are given. |
-| `sase machine repair`            | Rotate a quarantined or mismatched enrollment with a fresh one-time bundle and activate it.      |
-| `sase machine rename` / `remove` | Change viewer-local alias state; removal also deletes the local credential reference.            |
-| `sase machine agent`             | Journaled `stop` / `retry` / `fork` of a remote agent on its owning host (see below).            |
-| `sase machine attention`         | Journaled `answer` / `approve` of a pending remote question or gate on its owning host.          |
+See the generated [machine CLI reference](../cli/machine.md) for the command inventory
+and exact options.
 
 `sase machine add -S/--ssh-target` records the SSH destination that terminal handoffs,
 such as [remote sudo requests](../automation/sudo.md#remote-flow), use for that machine.
@@ -264,9 +250,9 @@ matches).
   detail panel shows a `Feed error:` line. A remote `WAS RUNNING` row also carries a
   `last seen … ago` label.
 - Remote rows show the owning machine's authored capacity and weight as `cN` / `wN`
-  badges and `Capacity:` / `Weight:` detail lines, including `c0` for a persisted legacy
-  zero-capacity record. Their load is never added to the `load:` gauge in sase's TUI
-  Agents status row, which counts only the controller's own runners.
+  badges and `Capacity:` / `Weight:` detail lines, including `c0` for a persisted
+  compatibility zero-capacity record. Their load is never added to the `load:` gauge in
+  sase's TUI Agents status row, which counts only the controller's own runners.
 - Remote stop, retry, fork, bounded content, machine status, launch-outcome checks, and
   pending question/gate actions appear only when the selected row advertises the
   matching capability.

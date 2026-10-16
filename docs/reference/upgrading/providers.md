@@ -1,11 +1,20 @@
 ---
 title: Provider migration notes
-description: Historical compatibility notes for provider metadata and model selection.
+description:
+  Historical compatibility notes for VCS commands, provider metadata, and model
+  selection.
 ---
 
 # Provider migration notes
 
-This page records provider compatibility changes that affect older projects or runs.
+This page records compatibility changes that affect older projects or runs.
+
+## Commit Timeline
+
+`sase stitch list` presents a day-grouped commit timeline across the primary and linked
+repositories. Sidecar history is opt-in with `--sdd`; `--all` also scans registered
+projects. Use `-s` / `--since` to filter by date and `-A` / `--author` to filter by
+author. `--sort` is not available. `-N` / `--no-fetch` skips fetching remote refs.
 
 ## Provider Override Files
 

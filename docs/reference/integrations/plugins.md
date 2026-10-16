@@ -235,24 +235,18 @@ sase doctor -C axe.jobs
   Telegram job `pass`/environment prerequisites (`WARN`). It also reports which Telegram
   job entrypoints are in use: the canonical `sase_job_tg_inbound` and
   `sase_job_tg_outbound` scripts are `OK`, while an install or config that only has the
-  legacy `sase_chop_tg_inbound` / `sase_chop_tg_outbound` names still works but gets a
-  `WARN` to upgrade `sase-telegram` and switch the configured job scripts. The same job
-  diagnostics are mirrored by `sase doctor -C axe.jobs`.
+  compatibility `sase_chop_tg_inbound` / `sase_chop_tg_outbound` names still work but
+  get a `WARN` to upgrade `sase-telegram` and switch the configured job scripts. The
+  same job diagnostics are mirrored by `sase doctor -C axe.jobs`.
 
 ## Disabling Plugins
 
 Third-party plugin resources and declarative artifact-provider entry points can be
 disabled via environment variables:
 
-| Variable                            | Effect                                                      |
-| ----------------------------------- | ----------------------------------------------------------- |
-| `SASE_DISABLE_PLUGINS`              | Disable resource plugins and third-party artifact providers |
-| `SASE_DISABLE_PLUGIN_MACROS`        | Disable macro/workflow resource plugins only                |
-| `SASE_DISABLE_PLUGIN_CONFIG`        | Disable plugin `default_config.yml` resource loading only   |
-| `SASE_DISABLE_PLUGIN_ARTIFACT_REFS` | Disable artifact-reference provider entry points only       |
-| `SASE_DISABLE_PLUGIN_FILE_HOOKS`    | Disable file-hook provider entry points only                |
-| `SASE_DISABLE_PLUGIN_TASK_TYPES`    | Disable task-type plugin entry points only                  |
-| `SASE_DISABLE_PLUGIN_COMMANDS`      | Disable plugin-mounted `sase <name>` commands only          |
+See the generated
+[environment-variable reference](../environment-variables.md#plugin-system) for the
+disable switches and their effects.
 
 Any non-empty value enables the disable. The VCS, workspace, and LLM provider registries
 load their provider entry points directly and do not consult these switches. These

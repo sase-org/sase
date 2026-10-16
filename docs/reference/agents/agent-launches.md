@@ -49,7 +49,7 @@ sase launch reject <selector> [-f <feedback>]
 The selector may be a request ID, notification ID, or unique notification prefix.
 Approval verifies the neutral request bundle, revalidates and replans the stored prompt
 in its original working directory, and records host dispatch status in the write-once
-response. A multi-slot launch is all-or-nothing. In-flight requests from the legacy
+response. A multi-slot launch is all-or-nothing. In-flight requests from the older
 launch-request layout remain answerable during the compatibility window.
 
 For the complete request schema, preview behavior, slot limits, and dispatch rules, see

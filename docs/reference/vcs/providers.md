@@ -118,14 +118,6 @@ A bare `sase stitch` prints
 the timeline. The legacy `sase vcs` spelling is still accepted as a deprecated alias and
 uses the same default.
 
-This command replaces the old repository-constellation `sase stitch list` summary. The
-new command is intentionally not a drop-in replacement: sidecar repositories are now
-excluded unless `--sdd` is supplied, `-N` / `--no-fetch` skips remote fetches instead of
-description lookups, `-s` is now `--since` instead of `--sort`, and `--sort` no longer
-exists. It also adds timeline filters and controls such as `--all`, `--author`,
-`--branch`, `--fetch`, `--limit`, `--merges`, `--no-tags`, `--reverse`, `--sdd`, and
-`--until`.
-
 Global discovery canonicalizes checkout paths, so a repository registered independently
 and linked from one or more projects is read and fetched only once. Registered project
 display names take precedence; colliding linked-repo and sidecar labels are qualified
@@ -172,25 +164,7 @@ sase stitch list --reverse --format json --no-tags
 
 Options:
 
-| Option                                    | Purpose                                                                                                |
-| ----------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| `-a`, `--all`                             | Read repositories from every registered enabled or disabled project.                                   |
-| `-A`, `--author PATTERN`                  | Filter by author name/email substring. Repeatable values are ORed case-insensitively.                  |
-| `-b`, `--branch REF`, `--ref REF`         | Compare against `origin/REF` instead of the resolved remote ref.                                       |
-| `-c`, `--color auto/always/never`         | Control colorized pretty/full output.                                                                  |
-| `-o`, `--current-only`                    | Read only the current/primary repo.                                                                    |
-| `-F`, `--fetch`                           | Fetch remote refs now, bypassing the 60-second freshness cache.                                        |
-| `-f`, `--format pretty/full/oneline/json` | Choose compact pretty output, full commit-message blocks, pipe-friendly lines, or JSON.                |
-| `-n`, `--limit N`                         | Max commits in the merged timeline (default: 40); `0` means unlimited.                                 |
-| `-m`, `--merges hide/show/only`           | Control merge-commit visibility. `hide` is the default; `show` marks merges; `only` shows only merges. |
-| `-N`, `--no-fetch`                        | Skip the remote fetch and compare against existing remote-tracking refs.                               |
-| `-T`, `--no-tags`                         | Hide trailing SASE commit tags in pretty/full/oneline output and omit them from JSON.                  |
-| `--origin stitch/auto/manual`             | Filter by commit origin. Repeatable values are ORed.                                                   |
-| `-r`, `--repo NAME`                       | Restrict to a resolved repo name. Repeatable.                                                          |
-| `-R`, `--reverse`                         | Display the selected commits oldest-first.                                                             |
-| `-S`, `--sdd`                             | Include commits from all available sidecar repositories.                                               |
-| `-s`, `--since DATE`, `--after DATE`      | Include commits at or after `DATE`.                                                                    |
-| `-u`, `--until DATE`, `--before DATE`     | Include commits at or before `DATE`.                                                                   |
+See the generated [stitch CLI reference](../cli/stitch.md) for the full option list.
 
 `--all` and `--current-only` are mutually exclusive. `--current-only` reads only the
 current/primary repo even when `--sdd` is supplied. `--repo` remains repeatable in
@@ -309,7 +283,7 @@ status change action (`s`); the revert runs as a background proc. (`X` only show
 hides reverted Patches in the list.)
 
 1. Refuse when another Patch uses this one as its parent
-2. Pick the renamed Patch name with the next free `__<N>` suffix
+2. Choose the next free `__<N>` suffix for the restored Patch name
 3. Save the diff to `~/.sase/reverted/<new_name>.diff` via `diff_revision()`
 4. Close the remote change via `abandon_change()`, then prune the revision via `prune()`
    and drop any branch alias
@@ -323,7 +297,7 @@ Steps 3 and 4 run only when the Patch has a PR.
 
 #### Restore (status change from "Reverted" to "WIP", "Draft", or "Ready")
 
-Attempts to restore a previously reverted Patch as a background proc.
+Attempts to restore a reverted Patch as a background proc.
 
 1. Rename the Patch back to its base name (dropping the `__<N>` suffix)
 2. Checkout parent or default branch via `checkout()`
@@ -338,9 +312,9 @@ Attempts to restore a previously reverted Patch as a background proc.
 **Current limitation:** the final step invokes `sase stitch create <base-name> -B keep`,
 but `sase stitch create` accepts no positional Patch name. It therefore exits with a
 usage error after the Patch rename, hook-status reset, checkout, and diff application
-have already happened. The operation does not roll those steps back. Inspect the renamed
-workspace and applied changes, then finish manually with a valid command such as
-`sase stitch create -m '<conventional commit message>' -B keep`; do not assume that a
+have already happened. The operation does not roll those steps back. Inspect the
+resulting workspace and applied changes, then finish manually with a valid command such
+as `sase stitch create -m '<conventional commit message>' -B keep`; do not assume that a
 reported restore failure left the workspace untouched.
 
 #### Archive (status change to "Archived")
@@ -654,80 +628,25 @@ workspace:
 
 ## Configuration Reference
 
-### Full `sase.yml` Example
+<a id="full-saseyml-example"></a> <a id="schema"></a>
 
-```yaml
-# ~/.config/sase/sase.yml
+The generated [configuration reference](../config/repositories.md#vcs_provider) lists
+the `vcs_provider` keys and defaults.
 
-vcs_provider:
-  provider: auto # "git", "hg", or "auto" (default: "auto")
-  pr_tags: {} # optional key-value tags appended to PR commit messages (rendered SASE_-prefixed, e.g. SASE_BUG=value)
-  use_project_pr_prefix: false # prepend [<project>] to PR titles / PR descriptions
-```
+<a id="environment-variable"></a>
 
-### Environment Variable
+The [environment-variable reference](../environment-variables.md#vcs-provider) covers
+`SASE_VCS_PROVIDER`.
+
+<a id="cli-flags"></a>
+
+Generated [TUI](../cli/tui.md) and [axe](../cli/axe.md) references list the provider
+flag and its options.
+
+For example, set the environment variable to choose a provider for one command:
 
 ```bash
-# Override VCS provider for a single command
 SASE_VCS_PROVIDER=git sase stitch create -m "Update parser"
-
-# Set for the entire shell session
-export SASE_VCS_PROVIDER=hg
-```
-
-### CLI Flags
-
-Available as `-v, --vcs-provider` on `sase tui` and `sase axe` only. On `sase axe`, the
-flag belongs to the `axe` command itself and must come before the subcommand, and it
-only takes effect for `job run` and `routine run`:
-
-```bash
-sase tui --vcs-provider git
-sase tui --vcs-provider hg
-sase tui -v auto
-
-sase axe --vcs-provider git routine run <name>
-```
-
-Valid values for the CLI flag and the config key: `git`, `hg`, `auto`. The environment
-variable is passed through as written, so a concrete provider name such as `bare_git` or
-`github` also works there.
-
-### Schema
-
-The `vcs_provider` section in `sase.yml` is validated against the installed config
-schema returned by `sase path config-schema`:
-
-```json
-{
-  "vcs_provider": {
-    "type": "object",
-    "additionalProperties": false,
-    "properties": {
-      "provider": {
-        "type": "string",
-        "enum": ["git", "hg", "auto"],
-        "default": "auto"
-      },
-      "workspace_root": {
-        "type": "string"
-      },
-      "default_hooks": {
-        "type": "array",
-        "items": { "type": "string" }
-      },
-      "pr_tags": {
-        "type": "object",
-        "additionalProperties": { "type": "string" },
-        "default": {}
-      },
-      "use_project_pr_prefix": {
-        "type": "boolean",
-        "default": false
-      }
-    }
-  }
-}
 ```
 
 ## Troubleshooting

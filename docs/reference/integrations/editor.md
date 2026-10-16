@@ -133,8 +133,7 @@ the start of a logical line, or immediately after an ASCII space, with the caret
 the equals marker. Escaped or embedded equals signs, Markdown-style `=text=` /
 `==text==` marker pairs, paths, inline and fenced code, disabled prompt regions,
 frontmatter, Jinja, placeholders, and directive-owned input stay ordinary text. The
-former `*alias` and `**model` syntax is a hard-cutover legacy spelling and remains
-ordinary text.
+`*alias` and `**model` forms are compatibility spellings that remain ordinary text.
 
 The `=alias` menu lists only effective `implicit_alias` and `user_alias` rows from the
 launcher-materialized model catalog, in canonical catalog order, with case-insensitive
@@ -186,11 +185,11 @@ roles, indexed artifact files, Patches, beads, agents, and stitches — against 
 inserted payload, the row's title, and, for scoped rows, the qualified `scope@title`
 target. For example, `@stitch:core@fix` can match the `sase-core` repository scope and a
 commit subject containing `fix` in the same query. Likewise, `@research:site` finds
-`@research:202607/sase_sites_hub_and_pages/sase_sites_hub_and_pages.md`,
-`@agent:sase-b3` finds `@agent:bbugyi200.athena.sase-b3.5` from a mid-name fragment, and
-`@file:panel` finds a `default:<hex>` indexed file by its file name. Rows are grouped
-into tiers so a fuzzy hit never outranks a literal one, then ordered by score, provider
-rank where a provider declares one, shorter text, and case-insensitive text:
+`@research:202607/sase_sites_hub_and_pages/sase_sites_hub_and_pages.md`, `@agent:blue`
+finds `@agent:team.blue.checker` from a mid-name fragment, and `@file:panel` finds a
+`default:<hex>` indexed file by its file name. Rows are grouped into tiers so a fuzzy
+hit never outranks a literal one, then ordered by score, provider rank where a provider
+declares one, shorter text, and case-insensitive text:
 
 | Tier | Meaning                                   | Example query against `202607/sase_sites_hub_and_pages/…` |
 | ---- | ----------------------------------------- | --------------------------------------------------------- |
@@ -322,7 +321,8 @@ Session rows carry a `detail` of `session · N members` by default. For the 20 s
 with the most recent activity — and only those, so the short-lived helper subprocess
 stays fast enough for interactive completion — the helper additionally tries to resolve
 an associated plan or bead. It checks concrete session members newest-first and uses the
-session root only as a legacy fallback, then enriches the row in three descending rungs:
+session root only as a compatibility fallback, then enriches the row in three descending
+rungs:
 
 1. A plan or bead resolved with a title: `detail` becomes
    `<kind> · <structure> · <title>`, such as
@@ -341,7 +341,7 @@ list, or a phase/task bead's parent context, closed by a
 `session · N members · <status>` footer. Rung 3 and unenriched sessions have no
 `documentation`. Every session keeps its plain `session · N members` detail if
 resolution fails outright, and group enrichment is additive throughout, so missing plans
-or malformed legacy metadata never hide ordinary agent rows.
+or malformed compatibility metadata never hide ordinary agent rows.
 
 `finalizer-catalog` requires `{"schema_version":1}` and optionally accepts `project`.
 Unknown request fields are ignored. It returns the effective configured finalizer

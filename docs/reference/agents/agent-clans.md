@@ -147,14 +147,14 @@ the record (source `captured`, fill-only).
 
 Precedence: for a `(clan, generation)` key, an attribute present in the record
 (including an explicit edited-unset tombstone) wins over member-derived values, so
-member artifacts that predate the record — legacy, imported, or remote artifacts — still
-resolve, but never override it. `declared`, `script`, `edited`, and `inherited`
-overwrites beat member values; `propagated` and `captured` only fill missing attributes,
-so a clan-level tribe edit sticks even when newer epic members carry `clan_tribe=epic`.
-An empty or failed summary never erases a recorded one. The scan contract therefore
-resolves summaries and tribes within one clan generation from the record first, falling
-back to the newest explicit member declaration only when the record is silent. Rich
-markup is rendered when valid and shown as literal text when invalid.
+member artifacts without a clan record — imported or remote artifacts — still resolve,
+but never override it. `declared`, `script`, `edited`, and `inherited` overwrites beat
+member values; `propagated` and `captured` only fill missing attributes, so a clan-level
+tribe edit sticks even when newer epic members carry `clan_tribe=epic`. An empty or
+failed summary never erases a recorded one. The scan contract therefore resolves
+summaries and tribes within one clan generation from the record first, falling back to
+the newest explicit member declaration only when the record is silent. Rich markup is
+rendered when valid and shown as literal text when invalid.
 
 Because the record outlives any single member, clan summaries and tribes survive kills,
 dismissals, relaunches, and full restarts: deleting the declaring agent's artifacts
@@ -170,16 +170,16 @@ because fill-only `propagated` values never overwrite the record. Member edits a
 their `agent_meta.json` and `%clan` prompt rewrites so older readers still see the new
 tribe.
 
-Re-creating a clan: when a launch creates a new generation of a previously recorded clan
-without an explicit `tribe=` (and without an epic environment tribe), the new member
-inherits the remembered tribe; without an explicit `summary=`/`summary_script=` (and
-without an epic nomination), it re-runs the remembered summary script through the usual
-launch-time summary path, falling back to the remembered text when the script is missing
-or produces no output. Inherited values are stored in the new member's metadata,
-recorded under the new generation with source `inherited`, and named with their source
-generations in one agent-log line. Explicit values always win, tombstoned tribes are
-never inherited, joining an existing generation changes nothing, and a runner re-exec
-does not re-apply values already in preserved metadata.
+New clan generation: when a launch creates a generation of a recorded clan without an
+explicit `tribe=` (and without an epic environment tribe), the new member inherits the
+remembered tribe; without an explicit `summary=`/`summary_script=` (and without an epic
+nomination), it re-runs the remembered summary script through the usual launch-time
+summary path, falling back to the remembered text when the script is missing or produces
+no output. Inherited values are stored in the new member's metadata, recorded under the
+new generation with source `inherited`, and named with their source generations in one
+agent-log line. Explicit values always win, tombstoned tribes are never inherited,
+joining an existing generation changes nothing, and a runner re-exec does not re-apply
+values already in preserved metadata.
 
 Clan membership is execution-neutral. It does not add wait edges, change launch order,
 choose a workspace or model, or otherwise rewrite launch behavior. Use `%wait`
@@ -263,11 +263,11 @@ up to 100 targets: `0`–`9` for documents with at most ten entries, or `00`–`
 first 100 entries in a larger document. Additional entries appear only in an unnumbered
 remainder count. Press a number while the clan is selected to expand only that member's
 ancestor chain and jump to its row, or to reveal a neighboring clan through folds and
-panels; with `sase-1ao.3` selected the neighbor digit lands on `sase-1ao` and back
-again, and `Ctrl+O` returns to the previous selection. `Esc` cancels a pending first
-digit. Use `Ctrl+J` and `Ctrl+K` to move between the visible section headings; numbered
-roster rows live in the jump panel, so they are neither `Ctrl+J`/`Ctrl+K` stops nor
-`za`/`zA` targets.
+panels; with a clan member selected, the neighbor digit lands on its neighboring clan
+and back again, and `Ctrl+O` returns to the previous selection. `Esc` cancels a pending
+first digit. Use `Ctrl+J` and `Ctrl+K` to move between the visible section headings;
+numbered roster rows live in the jump panel, so they are neither `Ctrl+J`/`Ctrl+K` stops
+nor `za`/`zA` targets.
 
 The summary has three session-only fold levels:
 
@@ -303,18 +303,18 @@ session state for the next container selection.
 
 `sase bead work <epic-id>` puts every phase worker and the final land agent in clan
 `<epic-id>` and tribe `@epic`. `%wait(for_epic=)` follows epics an agent launches and is
-unrelated to tribe `@epic`. For an epic named `sase-6g`, the generated prompt has this
-shape:
+unrelated to tribe `@epic`. For an epic named `sase-<epic>`, the generated prompt has
+this shape:
 
 ```text
-%id(!sase-6g.1, bead=sase-6g.1)
-%clan(sase-6g, tribe=epic, summary_script=sase_clan_summary_epic)
-#bd/work_phase_bead:sase-6g.1
+%id(!sase-<epic>.<phase>, bead=sase-<epic>.<phase>)
+%clan(sase-<epic>, tribe=epic, summary_script=sase_clan_summary_epic)
+#bd/work_phase_bead:sase-<epic>.<phase>
 ---
-%id(!land, clan=sase-6g, bead=sase-6g)
-%wait(sase-6g.1, for_epic=false)
-%wait(bead=sase-6g.1)
-#bd/land_epic:sase-6g
+%id(!land, clan=sase-<epic>, bead=sase-<epic>)
+%wait(sase-<epic>.<phase>, for_epic=false)
+%wait(bead=sase-<epic>.<phase>)
+#bd/land_epic:sase-<epic>
 ```
 
 Generated phase and land waits use `for_epic=false` on their agent dependency and also

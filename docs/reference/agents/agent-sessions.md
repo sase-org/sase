@@ -7,14 +7,14 @@ description: Look up sequential agent sessions and their shared history.
 
 This page describes the sequential session model and how related agent turns are shown.
 
-SASE uses three different kinds of agent grouping. Agent sessions were formerly called
-agent families.
+SASE uses three kinds of agent grouping. The
+[directive reference](../macros/directives.md) documents their prompt syntax.
 
-| Concept           | Directive or naming form                  | Purpose                                                              |
-| ----------------- | ----------------------------------------- | -------------------------------------------------------------------- |
-| **Agent clan**    | `%clan:<name>` / `%id(<id>, clan=<name>)` | Declare or join a named, rootless container for parallel agents      |
-| **Agent session** | `%i(<suffix>, session=<parent>)`          | A strictly sequential chain named `<session>--<suffix>`              |
-| **Agent tribe**   | `%id([<id>], tribe=<name>)` / `#tribe`    | A user-managed label displayed with an `@` prefix, such as `@review` |
+| Group             | Purpose                                                              |
+| ----------------- | -------------------------------------------------------------------- |
+| **Agent clan**    | A named, rootless container for parallel agents                      |
+| **Agent session** | A strictly sequential chain named `<session>--<suffix>`              |
+| **Agent tribe**   | A user-managed label displayed with an `@` prefix, such as `@review` |
 
 Dot-separated names also define an agent _hood_: `foo.bar` and `foo.baz` are neighbors
 in hood `foo`, and the agent named `foo` belongs to hood `foo` as well. A deeper name
@@ -59,8 +59,8 @@ Arbitrary suffixes are ordinary session labels, not configured lifecycle hooks. 
 does not discover or execute custom `kind: agent_session` definitions. Replace a stale
 definition with an explicit session attachment or an agent-requested launch.
 
-Session members were formerly called shells: an agent turn is the assistant speaking, a
-monitor turn is a tool result arriving, and a gate turn is the human's move.
+An agent turn is the assistant speaking, a monitor turn is a tool result arriving, and a
+gate turn is the human's move.
 
 A `--mon` suffix (and `--mon-0`, `--mon-1`, … for later members in the same session) is
 a **monitor turn**: a session member whose work is one supervised OS command instead of
@@ -135,10 +135,10 @@ Selecting a real multi-member session root in sase's TUI opens the Main deck wit
 underlined `SESSION` (cyan, matching the name), with a numbered `SESSION TURNS` roster
 in the jump panel in stable chain order: agent turns in chain order, with each monitor
 spliced in directly after its starter turn. The original member and each follow-up are
-direct jump targets; synthetic planner projections and legacy parallel-family
-scaffolding are not. The roster follows the global panel fold keys (`zz`, `zZ`, and the
-direct level keys); the root's foldable output variables, workflow variables, SASE
-context, slow calls, and errors use the same chords plus `za`/`zA`.
+direct jump targets; synthetic planner projections and parallel-family scaffolding are
+not. The roster follows the global panel fold keys (`zz`, `zZ`, and the direct level
+keys); the root's foldable output variables, workflow variables, SASE context, slow
+calls, and errors use the same chords plus `za`/`zA`.
 
 Session summaries have two effective levels. Level 1 shows bounded activity, wait/retry,
 context, and compact member metadata; level 2 adds full foldable metadata plus member

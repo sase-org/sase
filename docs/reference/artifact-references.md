@@ -21,7 +21,7 @@ Use the unquoted form when the argument contains no spaces:
 
 ```text
 @plan:202608/artifact_ref_contract.md
-@bead:sase-js.9
+@bead:sase-<id>
 @stitch:sase@f499469
 ```
 
@@ -283,9 +283,9 @@ for a later mutating `sase agent sync`. The same `--retry-quarantined` and
 `--drop-retired` controls used for agent publication also operate on queued Referenced
 By requests; `--retry-retired` revives retired agent-publication requests only. See
 [Agent Hood Synchronization](agents/hood-sync.md#commands-and-status). Once the local
-refresh succeeds, however, the request is no longer in that outbox. A later
-detached-push failure is recorded in the managed SDD sync log and is not retried from
-the Referenced By outbox.
+refresh succeeds, SASE removes the request from that outbox. A later detached-push
+failure is recorded in the managed SDD sync log and is not retried from the Referenced
+By outbox.
 
 The write-back attempt can delay the publishing command's return, but it begins only
 after the prompt archive has been pushed and cannot roll that publication back. Because

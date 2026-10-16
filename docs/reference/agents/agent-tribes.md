@@ -137,7 +137,7 @@ never collapses the panel itself. When the focused panel has nothing left to col
 `-` reverses itself and re-expands exactly the folds its own last sweep in that panel
 closed, restoring each structural fold to the level it held before. The restore is
 filtered at press time to folds still live in that panel and still collapsed, so it
-tolerates folds re-expanded by hand and never resurrects a fold that no longer exists.
+tolerates folds re-expanded by hand and never resurrects a fold absent from the data.
 Each panel remembers at most one sweep; a fresh sweep replaces that panel's record.
 Armed panels mark each fold `-` would re-expand with a gold `▿` on the owner row and
 `▿N` in the panel title, clearing the markers as soon as the next press would sweep

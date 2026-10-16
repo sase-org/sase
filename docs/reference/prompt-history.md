@@ -92,24 +92,9 @@ by a recency index that would change every time you launch something new:
 If a short prefix matches more than one prompt, the command prints the colliding IDs and
 asks for a longer selector. Adding newer prompts never changes an existing prompt's ID.
 
-## Command Inventory
+## Command Reference
 
-| Command                     | Purpose                                                                                                |
-| --------------------------- | ------------------------------------------------------------------------------------------------------ |
-| `sase prompt list`          | List recent prompts as a Rich table (default) or stable JSON (`-j`).                                   |
-| `sase prompt show`          | Print one prompt as raw text, Markdown, or JSON.                                                       |
-| `sase prompt search`        | Find prompts matching a query across the canonical agents archive and local history.                   |
-| `sase prompt stats`         | Summarize the store: counts, size, length percentiles, largest prompts, top chips.                     |
-| `sase prompt copy`          | Copy a prompt's exact text to the system clipboard.                                                    |
-| `sase prompt run`           | Replay a stored prompt through the normal launch path.                                                 |
-| `sase prompt edit`          | Open a stored prompt in the editor, then launch the edited text.                                       |
-| `sase prompt select`        | Pick a prompt with an `fzf` picker, then launch it.                                                    |
-| `sase prompt doctor`        | Read-only health report for the store (parseability, duplicates, oversized, …).                        |
-| `sase prompt delete`        | Remove exactly one prompt by selector.                                                                 |
-| `sase prompt prune`         | Remove prompts by objective criteria (`--keep`, `--before`, `--cancelled`, `--generated`, `--legacy`). |
-| `sase prompt save`          | Save a prompt as a reusable [macro](macros/index.md) markdown file.                                    |
-| `sase prompt export`        | Export a prompt to stdout or a local file; `--sdd` is a retired compatibility flag.                    |
-| `sase prompt stash-archive` | List, show, and restore drafts archived from Stash or Trash.                                           |
+The generated [prompt CLI reference](cli/prompt.md) lists every subcommand and option.
 
 `list`, `show`, `search`, `stats`, and `doctor` are read-only. `list`, `search` (default
 `compact` format), `stats`, and `doctor` never print full prompt text — they show
@@ -296,15 +281,11 @@ sase prompt show ph_8f3a9c0d12ab -f markdown   # metadata header + body
 sase prompt show ph_8f3a9c0d12ab -f json       # metadata + full text
 ```
 
-### Rerun a prompt, optionally editing first
+### Replay a prompt
 
-```bash
-sase prompt run ph_8f3a9c0d12ab            # launch the exact prompt
-sase prompt run ph_8f3a9c0d12ab -e         # open in the editor, then launch
-sase prompt edit ph_8f3a9c0d12ab           # memorable alias for edit-before-launch
-```
-
-`edit` (and `run -e`) abort cleanly without launching if you save an empty buffer.
+For the find-and-replay workflow, see
+[Find and replay an old prompt](../guides/find-and-replay-prompt.md). `edit` and
+`run -e` abort without launching when the saved buffer is empty.
 
 ### Replay under another VCS prefix
 

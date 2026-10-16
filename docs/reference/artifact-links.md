@@ -189,7 +189,7 @@ title: Implement the artifact browser
 goal: Make historical artifacts searchable
 size: small
 links:
-  - ref: bead:sase-123
+  - ref: bead:sase-<id>
     relation: implements
     description: This plan implements the accepted task
 ---
