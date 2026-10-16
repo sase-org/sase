@@ -13,7 +13,8 @@ Reference for `sase service`. Run `sase service --help` for the exact output on 
 
 ```text
 usage: sase service [-h]
-                    {init,logs,proc,restart,run,start,status,stop,uninstall} ...
+                    {init,logs,proc,restart,run,start,status,stop,uninstall}
+                    ...
 ```
 
 Manage the per-machine SASE service host. Bare `sase service` is harmless and shows `sase service status`; use `sase service run` only when you intentionally want the host in the foreground.
@@ -72,7 +73,8 @@ Options:
 
 ```text
 usage: sase service proc [-h]
-                         {disable,enable,list,logs,restart,run,show,start,stop} ...
+                         {disable,enable,list,logs,restart,run,show,start,stop}
+                         ...
 ```
 
 Control configured daemon service procs and launch transient oneshot service procs. Running `sase service proc` defaults to `sase service proc list`.

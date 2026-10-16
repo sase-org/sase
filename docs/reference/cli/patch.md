@@ -15,7 +15,8 @@ Reference for `sase patch`. Run `sase patch --help` for the exact output on this
 
 ```text
 usage: sase patch [-h]
-                  {accept,archive,current,mail,migrate-extension,rebase,ref,restore,revert,rewind,reword,search,set-origin,status,submit,sync,sync-deltas,sync-external,tag} ...
+                  {accept,archive,current,mail,migrate-extension,rebase,ref,restore,revert,rewind,reword,search,set-origin,status,submit,sync,sync-deltas,sync-external,tag}
+                  ...
 ```
 
 Inspect and maintain Patch lifecycle records.

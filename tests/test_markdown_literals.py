@@ -8,7 +8,9 @@ import pytest
 
 from sase.markdown_literals import (
     protect_emphasis_literals,
+    protect_intraword_underscores,
     restore_emphasis_literals,
+    restore_intraword_underscores,
 )
 
 _THEMATIC_RE = re.compile(r"^ {0,3}(?:(?:\*[ \t]*){3,}|(?:_[ \t]*){3,})\r?$")
@@ -103,3 +105,49 @@ def test_protected_text_hides_underscores_and_stars(text: str) -> None:
         assert remainder.count(sentinels.glue) == len(
             _GLUE_RE.findall(original_remainder)
         )
+
+
+_INTRAWORD_RE = re.compile(r"(?<=[^\W_])_+(?=[^\W_])")
+
+INTRAWORD_ROUND_TRIP = [
+    *TABLE_ROWS,
+    "has \ue000 snake_case\n",
+    "```python\nsnake_case = 1\n```\n",
+    "Use `snake_case` here.\n",
+    "See https://example.com/snake_case\n",
+    "---\nname: snake_case\n---\nBody.\n",
+]
+
+
+@pytest.mark.parametrize("text", INTRAWORD_ROUND_TRIP)
+def test_intraword_protect_restore_round_trip(text: str) -> None:
+    """Intraword protection is exactly reversible for every corpus entry."""
+    protected, sentinel = protect_intraword_underscores(text)
+    assert restore_intraword_underscores(protected, sentinel) == text
+    assert _INTRAWORD_RE.search(protected) is None
+
+
+def test_intraword_protection_skips_occupied_pua() -> None:
+    """Text already containing U+E000 gets a later sentinel."""
+    text = "has \ue000 snake_case\n"
+    protected, sentinel = protect_intraword_underscores(text)
+    assert sentinel not in text
+    assert sentinel == "\ue001"
+    assert f"snake{sentinel}case" in protected
+
+
+def test_only_intraword_underscore_runs_are_replaced() -> None:
+    """Leading, trailing, dunder, and escaped underscores stay real."""
+    text = (
+        "memory_glossary a___b é_ü _article_ _leading trailing_ __init__.py foo\\_bar\n"
+    )
+    protected, sentinel = protect_intraword_underscores(text)
+    assert f"memory{sentinel}glossary" in protected
+    assert f"a{sentinel * 3}b" in protected
+    assert f"é{sentinel}ü" in protected
+    assert "_article_" in protected
+    assert "_leading" in protected
+    assert "trailing_" in protected
+    assert "__init__.py" in protected
+    assert r"foo\_bar" in protected
+    assert restore_intraword_underscores(protected, sentinel) == text

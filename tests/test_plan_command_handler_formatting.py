@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 from collections.abc import Callable
 from pathlib import Path
 from unittest.mock import patch
@@ -201,3 +202,102 @@ def test_link_inlet_publication_that_breaks_the_archive_restores_the_scratch(
     error = capsys.readouterr().err
     assert error.splitlines()[0] == HEADLINE
     assert "decision-branch-unknown" in error
+
+
+def test_second_formatting_pass_that_breaks_validation_proposes_nothing(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Archival formats the plan again; propose checks that pass too."""
+    calls: list[str] = []
+
+    def formatter(raw: str) -> str:
+        calls.append(raw)
+        if len(calls) == 1:
+            return raw
+        return _rename_first_callout(raw)
+
+    code, plan_file, artifacts_dir, sase_home, kill = _propose(
+        tmp_path, monkeypatch, DECISIONS_TALE, formatter
+    )
+
+    assert code == 1
+    _assert_nothing_proposed(plan_file, DECISIONS_TALE, artifacts_dir, sase_home, kill)
+    error = capsys.readouterr().err
+    assert error.splitlines()[0] == HEADLINE
+    assert "decision-branch-unknown" in error
+    assert "    > [!decision] tui_nope" in error.splitlines()
+
+
+_prettier_required = pytest.mark.skipif(
+    shutil.which("prettier") is None, reason="prettier is unavailable"
+)
+
+INCIDENT_EPIC = """---
+tier: epic
+title: Stop Prettier from rewriting identifiers
+goal: Keep decision IDs intact across prettier
+phases:
+  - id: protection
+    title: Protect underscores
+    depends_on: []
+    description: "protection: protect intraword underscores before prettier."
+    size: small
+decisions:
+  memory_glossary:
+    ask: Add `/sase_memory_write`?
+    default: false
+---
+# Plan
+
+> [!decision] memory_glossary Add `/sase_memory_write`. (also called an *article*) as a Bob note.
+"""
+
+
+@_prettier_required
+def test_incident_shaped_epic_proposes_and_archives(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Real prettier keeps memory_glossary through propose and archival."""
+    from sase.sdd.plan_archive import archive_plan_file
+    from sase.sdd.store import SddStore
+
+    sase_home = tmp_path / ".sase"
+    redirect_sase_home(monkeypatch, sase_home)
+    artifacts_dir = _make_artifacts_dir(sase_home)
+    plan_file = tmp_path / "incident.md"
+    plan_file.write_text(INCIDENT_EPIC, encoding="utf-8")
+    monkeypatch.setenv("SASE_AGENT", "agent-x")
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(artifacts_dir))
+
+    with patch(
+        "sase.main.plan_propose_handler.kill_agent_runner_group",
+        side_effect=SystemExit(0),
+    ) as kill:
+        code = _invoke_plan(plan_file)
+
+    assert code == 0
+    marker = json.loads(
+        (artifacts_dir / ".sase_plan_pending").read_text(encoding="utf-8")
+    )
+    proposed = Path(marker["plan_file"]).read_text(encoding="utf-8")
+    assert "memory_glossary" in proposed
+    assert "memory*glossary" not in proposed
+    kill.assert_called_once()  # type: ignore[attr-defined]
+
+    store_root = tmp_path / "sidecar-plans"
+    store_root.mkdir()
+    source = tmp_path / "to-archive.md"
+    source.write_text(proposed, encoding="utf-8")
+    result = archive_plan_file(
+        source,
+        SddStore("sidecar_repos", store_root, store_root),
+        tier="epic",
+        yyyymm="202610",
+        primary_root=tmp_path,
+        preserve_existing=False,
+    )
+    archived = result.path.read_text(encoding="utf-8")
+    assert "memory_glossary" in archived
+    assert "memory*glossary" not in archived

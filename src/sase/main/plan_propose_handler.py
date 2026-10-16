@@ -354,8 +354,19 @@ def handle_plan_propose_command(plan_file: str) -> NoReturn:
     # only after this runner is gone.  Check it here, while the agent can
     # still fix the plan: nothing below this point has run yet, so a failure
     # leaves the scratch file, the archive, and the runner untouched.
+    # Archival formats the plan a second time; a first pass that only
+    # normalizes emphasis can make the second pass invalid, so check that
+    # text too.
     if failure := _formatted_plan_failure(
         validation, formatted, target_tier, artifacts_dir
+    ):
+        print(failure, file=sys.stderr)
+        sys.exit(1)
+    if failure := _formatted_plan_failure(
+        validation,
+        format_with_prettier(formatted),
+        target_tier,
+        artifacts_dir,
     ):
         print(failure, file=sys.stderr)
         sys.exit(1)

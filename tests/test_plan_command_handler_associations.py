@@ -84,7 +84,7 @@ def test_plan_command_stamps_proposer_before_formatting(
     proposer = globalize_owned_agent_name("q8--plan")
     expected_fields = {**expected_association, "proposed_by": proposer}
     _assert_archived_associations(artifacts_dir, content, expected_fields)
-    assert len(formatted_inputs) == 1
+    assert len(formatted_inputs) == 2
     stamped_frontmatter, _body, _had_frontmatter = parse_frontmatter(
         formatted_inputs[0]
     )
@@ -164,7 +164,7 @@ def test_plan_command_overwrites_authored_project_with_registered_display_name(
     ):
         assert _invoke_plan(plan_file) == 0
 
-    assert len(formatted_inputs) == 1
+    assert len(formatted_inputs) == 2
     stamped, _body, _had = parse_frontmatter(formatted_inputs[0])
     assert stamped["project"] == "Registered Display"
 

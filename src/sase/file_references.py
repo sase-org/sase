@@ -12,7 +12,9 @@ from pathlib import Path
 from sase.markdown_literals import (
     EmphasisSentinels,
     protect_emphasis_literals,
+    protect_intraword_underscores,
     restore_emphasis_literals,
+    restore_intraword_underscores,
 )
 from sase.markdown_width import prettier_markdown_argv
 from sase.output import (
@@ -532,13 +534,15 @@ def format_with_prettier(text: str, *, print_width: int | None = None) -> str:
             passed straight through to ``prettier_markdown_argv()`` so there is
             exactly one resolution point.
     """
+    original = text
     if shutil.which("prettier") is None:
-        return text
+        return original
 
+    protected, sentinel = protect_intraword_underscores(original)
     try:
         result = subprocess.run(
             prettier_markdown_argv(print_width=print_width),
-            input=text,
+            input=protected,
             capture_output=True,
             text=True,
             check=True,
@@ -550,12 +554,12 @@ def format_with_prettier(text: str, *, print_width: int | None = None) -> str:
         # This preserves literal underscores in filenames and identifiers.
         # Loop because prettier can double-escape (\_  → \\_), and a single
         # replace only peels one layer.
-        text = result.stdout
-        while r"\_" in text:
-            text = text.replace(r"\_", "_")
-        return text
+        formatted = result.stdout
+        while r"\_" in formatted:
+            formatted = formatted.replace(r"\_", "_")
+        return restore_intraword_underscores(formatted, sentinel)
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
-        return text
+        return original
 
 
 def format_markdown_files_with_prettier(
@@ -574,6 +578,14 @@ def format_markdown_files_with_prettier(
         return True
     if shutil.which("prettier") is None:
         return False
+
+    originals: list[tuple[Path, str, str]] = []
+    for path in selected:
+        original = path.read_text(encoding="utf-8")
+        protected, sentinel = protect_intraword_underscores(original)
+        originals.append((path, original, sentinel))
+        if protected != original:
+            path.write_text(protected, encoding="utf-8")
     try:
         subprocess.run(
             [
@@ -587,13 +599,17 @@ def format_markdown_files_with_prettier(
             timeout=max(10.0, min(300.0, 10.0 + len(selected) * 0.25)),
         )
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
+        for path, original, _sentinel in originals:
+            path.write_text(original, encoding="utf-8")
         return False
 
-    for path in selected:
+    for path, _original, sentinel in originals:
         text = path.read_text(encoding="utf-8")
-        unescaped = _unescape_prettier_underscores(text)
-        if unescaped != text:
-            path.write_text(unescaped, encoding="utf-8")
+        restored = restore_intraword_underscores(
+            _unescape_prettier_underscores(text), sentinel
+        )
+        if restored != text:
+            path.write_text(restored, encoding="utf-8")
     return True
 
 
@@ -609,8 +625,9 @@ def format_agent_prompt_markdown(text: str) -> str:
     Agent-prompt formatting is prettier reflow plus block normalization, but
     inline ``_`` / ``*`` characters are preserved literally. Launch-time
     preprocessing, the editor ``gf`` action, and the published prompt document
-    still share this one helper. Plain ``format_with_prettier`` intentionally
-    keeps raw prettier parity for repo-tracked Markdown.
+    still share this one helper. Plain ``format_with_prettier`` keeps raw
+    prettier parity except for intraword underscores, which are protected
+    because raw prettier corrupts them.
     """
     protected: str
     sentinels: EmphasisSentinels

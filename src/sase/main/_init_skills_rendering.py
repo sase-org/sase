@@ -12,6 +12,10 @@ import jinja2
 import yaml  # type: ignore[import-untyped]
 
 from sase.main.init_plan import InitOperation
+from sase.markdown_literals import (
+    protect_intraword_underscores,
+    restore_intraword_underscores,
+)
 from sase.markdown_width import markdown_print_width, prettier_markdown_argv
 from sase.mdtemplates import render_markdown_template
 from sase.macro.loader_skills import (
@@ -192,10 +196,13 @@ def format_unique_skill_outputs_batch(outputs: Sequence[str]) -> list[str]:
     with tempfile.TemporaryDirectory(prefix="sase-init-skills-") as temp_dir:
         temp_path = Path(temp_dir)
         paths: list[Path] = []
+        sentinels: list[str] = []
         for index, output in enumerate(outputs):
+            protected, sentinel = protect_intraword_underscores(output)
             path = temp_path / f"skill-{index}.md"
-            path.write_text(output, encoding="utf-8")
+            path.write_text(protected, encoding="utf-8")
             paths.append(path)
+            sentinels.append(sentinel)
 
         subprocess.run(
             [
@@ -209,8 +216,11 @@ def format_unique_skill_outputs_batch(outputs: Sequence[str]) -> list[str]:
             timeout=_PRETTIER_TIMEOUT_SECONDS,
         )
         return [
-            _unescape_prettier_underscores(path.read_text(encoding="utf-8"))
-            for path in paths
+            restore_intraword_underscores(
+                _unescape_prettier_underscores(path.read_text(encoding="utf-8")),
+                sentinel,
+            )
+            for path, sentinel in zip(paths, sentinels, strict=True)
         ]
 
 

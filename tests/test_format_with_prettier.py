@@ -1,5 +1,6 @@
 """Tests for the parameterized prose wrap width of format_with_prettier."""
 
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -319,3 +320,116 @@ def test_agent_prompt_formatter_joins_lines_with_space() -> None:
         format_agent_prompt_markdown("ends foo_bar\nbaz__qux\n")
         == "ends foo_bar baz__qux\n"
     )
+
+
+_INTRAWORD_RE = re.compile(r"(?<=[^\W_])_+(?=[^\W_])")
+_INCIDENT_PARAGRAPH = (
+    "> [!decision] memory_glossary Add `/sase_memory_write`. "
+    "(also called an *article*) as a Bob note.\n"
+)
+
+
+def test_format_with_prettier_hides_intraword_underscores_from_stdin() -> None:
+    """No intraword underscore run is visible on prettier's stdin."""
+
+    def run(cmd: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        stdin = kwargs["input"]
+        assert isinstance(stdin, str)
+        assert _INTRAWORD_RE.search(stdin) is None
+        return subprocess.CompletedProcess(cmd, 0, stdout=stdin, stderr="")
+
+    with (
+        patch("sase.file_references.shutil.which", return_value="/usr/bin/prettier"),
+        patch("sase.file_references.subprocess.run", side_effect=run),
+    ):
+        assert (
+            format_with_prettier("memory_glossary and _article_\n")
+            == "memory_glossary and _article_\n"
+        )
+
+
+def test_format_with_prettier_failure_returns_original_not_protected() -> None:
+    """A failing prettier returns the caller's text, never the sentinel form."""
+    original = "memory_glossary\n"
+    with (
+        patch("sase.file_references.shutil.which", return_value="/usr/bin/prettier"),
+        patch(
+            "sase.file_references.subprocess.run",
+            side_effect=subprocess.CalledProcessError(1, ["prettier"]),
+        ),
+    ):
+        result = format_with_prettier(original)
+    assert result == original
+    assert "\ue000" not in result
+
+
+def test_format_markdown_files_failure_restores_original_bytes(
+    tmp_path: Path,
+) -> None:
+    """A failed bulk prettier run leaves no sentinel on disk."""
+    path = tmp_path / "plan.md"
+    original = "memory_glossary\n"
+    path.write_text(original, encoding="utf-8")
+
+    def run(cmd: list[str], **_kwargs: Any) -> subprocess.CompletedProcess[str]:
+        on_disk = path.read_text(encoding="utf-8")
+        assert "memory_glossary" not in on_disk
+        assert _INTRAWORD_RE.search(on_disk) is None
+        raise subprocess.CalledProcessError(1, cmd)
+
+    with (
+        patch("sase.file_references.shutil.which", return_value="/usr/bin/prettier"),
+        patch("sase.file_references.subprocess.run", side_effect=run),
+    ):
+        assert not format_markdown_files_with_prettier((path,))
+
+    assert path.read_text(encoding="utf-8") == original
+
+
+@_prettier_required
+def test_format_with_prettier_keeps_incident_decision_id() -> None:
+    """The incident paragraph keeps memory_glossary across two format passes."""
+    once = format_with_prettier(_INCIDENT_PARAGRAPH)
+    twice = format_with_prettier(once)
+    assert "memory_glossary" in once
+    assert "memory*glossary" not in once
+    assert twice == once
+
+
+@_prettier_required
+def test_format_with_prettier_leaves_foo_bar_and_qux_unchanged() -> None:
+    """Intraword and emphasis underscores that prettier already handles stay put."""
+    text = "foo_bar baz _qux_\n"
+    assert format_with_prettier(text) == text
+
+
+@_prettier_required
+def test_format_with_prettier_keeps_code_span_underscore_closer() -> None:
+    """A later `_` inside a code span does not rewrite snake_case to snake*case."""
+    text = "Use snake_case names and a literal `_`.\n"
+    formatted = format_with_prettier(text)
+    assert "snake_case" in formatted
+    assert "`_`" in formatted
+    assert "snake*case" not in formatted
+
+
+@_prettier_required
+def test_format_markdown_files_keeps_memory_glossary(tmp_path: Path) -> None:
+    """The bulk prettier path restores protected decision IDs."""
+    path = tmp_path / "plan.md"
+    path.write_text(_INCIDENT_PARAGRAPH, encoding="utf-8")
+    assert format_markdown_files_with_prettier((path,))
+    text = path.read_text(encoding="utf-8")
+    assert "memory_glossary" in text
+    assert "memory*glossary" not in text
+
+
+@_prettier_required
+def test_skill_batch_formatter_keeps_memory_glossary() -> None:
+    """Generated-skill batch formatting restores protected decision IDs."""
+    from sase.main._init_skills_rendering import format_unique_skill_outputs_batch
+
+    formatted = format_unique_skill_outputs_batch([_INCIDENT_PARAGRAPH])
+    assert len(formatted) == 1
+    assert "memory_glossary" in formatted[0]
+    assert "memory*glossary" not in formatted[0]

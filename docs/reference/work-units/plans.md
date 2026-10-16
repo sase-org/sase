@@ -152,10 +152,12 @@ tier use the `PLAN` fallback. The pulse file is consumed by the inotify-based ar
 watcher and is harmless when no TUI is open.
 
 `sase plan propose` formats the plan with prettier and re-validates the formatted copy
-before archiving it. If formatting would change the plan's validity or its decision
+before archiving it. It then formats that copy a second time, matching archival, and
+re-validates again. If either pass would change the plan's validity or its decision
 callouts, propose exits non-zero and proposes nothing: the scratch file, the archive,
 and the running agent are left untouched, so the agent can fix the plan and propose
-again.
+again. SASE protects intraword underscores (`snake_case`) from Prettier's emphasis
+parsing so a second pass cannot rewrite identifiers into `snake*case`.
 
 Humans can approve the pending proposal from sase's TUI or from the CLI. `sase plan`
 lists pending PlanApproval notifications, recent approvals, and inferred rejected

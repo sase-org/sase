@@ -9,7 +9,17 @@ labels), so formatting them with raw prettier corrupts paths and identifiers.
 This module protects those literals with width-preserving Unicode private-use
 sentinels before prettier runs and restores them afterwards. Prettier still
 reflows prose and normalizes block structure; it can no longer see or rewrite
-inline emphasis characters.
+the protected characters.
+
+``protect_emphasis_literals`` hides every inline ``_`` and ``*`` so agent
+prompts round-trip exactly. ``protect_intraword_underscores`` is the narrower
+guard used by plain ``format_with_prettier``: CommonMark never lets an
+intraword ``_`` run open or close emphasis, so shielding those runs cannot
+change rendered meaning. Prettier's parser still pairs such a run with a later
+``_`` closer, even one inside a code span, and reprints the span with ``*``
+(``memory_glossary`` plus ``_article_`` becomes ``memory*glossary`` plus
+``_article*``). Protecting the intraword run is the identity for every string,
+and no intraword ``_`` run survives protection.
 
 This module intentionally imports nothing from ``sase`` at module scope.
 
@@ -17,8 +27,11 @@ Invariants:
 
 - ``restore_emphasis_literals(protect_emphasis_literals(x)[0], sentinels) == x``
   for every string.
-- The protected text contains no ``_`` or ``*`` outside bullet prefixes and
-  thematic-break lines.
+- The emphasis-protected text contains no ``_`` or ``*`` outside bullet
+  prefixes and thematic-break lines.
+- ``restore_intraword_underscores(protect_intraword_underscores(x)[0],
+  sentinel) == x`` for every string, and the protected text contains no
+  intraword ``_`` run.
 - Protection is bijective inside code spans, fences, URLs, HTML, YAML front
   matter, and the ``\\x00XPF_n\\x00`` placeholders, so those regions also
   round-trip exactly.
@@ -32,6 +45,7 @@ from dataclasses import dataclass
 _THEMATIC_BREAK_RE = re.compile(r"^ {0,3}(?:(?:\*[ \t]*){3,}|(?:_[ \t]*){3,})\r?$")
 _BULLET_RE = re.compile(r"^([ \t]*(?:>[ \t]*)*)\*(?=[ \t\r]|$)")
 _GLUE_RE = re.compile(r"(?<=\S) (?=\*+(?:[ \t\r]|$))")
+_INTRAWORD_UNDERSCORE_RE = re.compile(r"(?<=[^\W_])_+(?=[^\W_])")
 
 _PUA_START = 0xE000
 _PUA_END = 0xF8FF
@@ -46,8 +60,8 @@ class EmphasisSentinels:
     glue: str
 
 
-def _choose_sentinels(text: str) -> EmphasisSentinels:
-    """Pick three PUA code points absent from *text*.
+def _unused_pua_code_points(text: str, count: int) -> list[str]:
+    """Pick *count* PUA code points absent from *text*.
 
     Each sentinel is one code point. Prettier measures PUA characters as
     width 1, so wrapping width is unchanged.
@@ -55,13 +69,19 @@ def _choose_sentinels(text: str) -> EmphasisSentinels:
     used = set(text)
     chosen: list[str] = []
     code = _PUA_START
-    while len(chosen) < 3:
+    while len(chosen) < count:
         if code > _PUA_END:
             raise ValueError("no free private-use code points for sentinels")
         candidate = chr(code)
         if candidate not in used:
             chosen.append(candidate)
         code += 1
+    return chosen
+
+
+def _choose_sentinels(text: str) -> EmphasisSentinels:
+    """Pick three PUA code points absent from *text*."""
+    chosen = _unused_pua_code_points(text, 3)
     return EmphasisSentinels(underscore=chosen[0], star=chosen[1], glue=chosen[2])
 
 
@@ -108,8 +128,34 @@ def restore_emphasis_literals(text: str, sentinels: EmphasisSentinels) -> str:
     )
 
 
+def protect_intraword_underscores(text: str) -> tuple[str, str]:
+    """Replace intraword ``_`` runs with a width-preserving PUA sentinel.
+
+    A run is intraword when a Unicode letter or digit sits on both sides
+    (``(?<=[^\\W_])_+(?=[^\\W_])``). Every other underscore is left for
+    prettier, including ``_article_``, ``_leading``, ``trailing_``,
+    ``__init__.py``, ``self.__dict__``, and an authored backslash-escaped
+    underscore. The replacement covers the whole text, including code
+    spans, fences, URLs, HTML, and YAML front matter: it is a bijection,
+    so those regions round-trip without a Markdown tokenizer.
+    """
+    sentinel = _unused_pua_code_points(text, 1)[0]
+
+    def _replace(match: re.Match[str]) -> str:
+        return sentinel * len(match.group(0))
+
+    return _INTRAWORD_UNDERSCORE_RE.sub(_replace, text), sentinel
+
+
+def restore_intraword_underscores(text: str, sentinel: str) -> str:
+    """Map the intraword-underscore sentinel back to ``_``."""
+    return text.replace(sentinel, "_")
+
+
 __all__ = [
     "EmphasisSentinels",
     "protect_emphasis_literals",
+    "protect_intraword_underscores",
     "restore_emphasis_literals",
+    "restore_intraword_underscores",
 ]

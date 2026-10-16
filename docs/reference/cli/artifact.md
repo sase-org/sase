@@ -15,7 +15,8 @@ Reference for `sase artifact`. Run `sase artifact --help` for the exact output o
 
 ```text
 usage: sase artifact [-h]
-                     {create,doctor,link,list,open,pane,path,prune,prune-runs,read,reclaim,show,stats,trash} ...
+                     {create,doctor,link,list,open,pane,path,prune,prune-runs,read,reclaim,show,stats,trash}
+                     ...
 ```
 
 Create, discover, inspect, resolve, open, and repair indexed artifacts. Bare `sase artifact` defaults to `sase artifact list`. `sase artifact link` writes typed edges; `sase artifact read` prints an artifact and records the read. Canonical prompt archives live in the agents sidecar and are inspected with `sase agent prompts`.
@@ -88,7 +89,8 @@ Options:
 
 ```text
 usage: sase artifact link [-h]
-                          {add,import-indexes,list,migrate-notes,relation,rm,suggest} ...
+                          {add,import-indexes,list,migrate-notes,relation,rm,suggest}
+                          ...
 ```
 
 Typed, bidirectional artifact links. Bare `sase artifact link` defaults to `sase artifact link list`. `add` always takes an explicit source ref, a closed-registry relation, a target ref, and a one-line why. `blocks` and `depends-on` error with a pointer to `sase bead dep`. `suggest` prints hard-evidence candidates and writes nothing.
