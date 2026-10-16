@@ -51,7 +51,6 @@
 - [Agent Hood Synchronization](https://sase.sh/agents_sidecar/) — Agent Hood Synchronization — SASE publishes deterministic project-scoped agent-hood snapshots and canonical prompt archives through each managed project's hidden agents sidecar.
 - [Artifact Links](https://sase.sh/artifact_links/) — Artifact Links — Artifact links are typed relationships between SASE artifacts.
 - [Artifact References](https://sase.sh/artifact_references/) — Artifact References — Artifact references are typed @<kind>:<argument> citations in launch prompts.
-- [Scheduler — Background Automation](https://sase.sh/axe/) — Scheduler — Background Automation — The scheduler is the background automation subsystem of sase.
 - [Bead Issue Tracking](https://sase.sh/beads/) — Bead Issue Tracking — Bead is a lightweight, git-native issue tracking system built into sase.
 - [Patch Format Documentation](https://sase.sh/change_spec/) — Patch Format Documentation — A Patch is SASE's durable local record for one unit of reviewable work.
 - [CLI Reference](https://sase.sh/cli/) — CLI Reference — This page is a command index for the top-level sase CLI.
@@ -60,10 +59,7 @@
 - [Goals](https://sase.sh/goals/) — Goals — Goals are durable records of outcomes a person wants: what will be true, how you'll know, and what happened along the way.
 - [Initialization](https://sase.sh/init/) — Initialization — SASE initialization commands create or refresh durable files that agents and sidecar tools rely on.
 - [Macro Template Reference](https://sase.sh/macros/) — Macro Template Reference — Macros are reusable prompt templates with optional typed inputs and Jinja2 support.
-- [Mentors](https://sase.sh/mentors/) — Mentors — Mentors are automated AI code review agents for Patches.
 - [Mobile Gateway](https://sase.sh/mobile_gateway/) — Mobile Gateway — The SASE mobile gateway is a workstation-hosted HTTP gateway for paired mobile clients.
-- [Monitors](https://sase.sh/monitors/) — Monitors — A monitor turn is a real agent session member whose work is one supervised OS command instead of an LLM turn.
-- [Notifications](https://sase.sh/notifications/) — Notifications — Sase includes a notification system that surfaces important events from background processes (axe, workflows, mentors) to the user through sase's TUI.
 - [SASE Pager](https://sase.sh/pager/) — SASE Pager — sase pager opens artifact references, file paths, or stdin in the SASE link-traversing pager.
 - [Plugin System](https://sase.sh/plugins/) — Plugin System — Sase uses Python entry points to discover optional functionality installed in the same Python environment as sase.
 - [ProjectSpec Format](https://sase.sh/project_spec/) — ProjectSpec Format — A ProjectSpec is SASE's project-level .sase file.
@@ -71,6 +67,24 @@
 - [Query Language Reference](https://sase.sh/query_language/) — Query Language Reference — The Patch query language filters Patches using boolean expressions that combine string matching, property filters, and operational shorthands.
 - [Agent auto-restart](https://sase.sh/reference/agent-auto-restart/) — Recovery service for agents interrupted by a live update, and its limits.
 - [Agent revive log](https://sase.sh/reference/agent-revive-log/) — Audit records for TUI agent revival, and how to read them.
+- [Automation](https://sase.sh/reference/automation/) — Reference pages for SASE notifications, scheduling, monitors, tools, mentors, and sudo requests.
+- [Mentors](https://sase.sh/reference/automation/mentors/) — Configure and use automated review mentors for Patches.
+- [Monitor operations](https://sase.sh/reference/automation/monitor-operations/) — Inspect, stop, and view monitors in the SASE TUI.
+- [Monitors](https://sase.sh/reference/automation/monitors/) — Start and supervise commands that outlive the SASE agent that launched them.
+- [Notification CLI](https://sase.sh/reference/automation/notification-cli/) — Command-line operations for listing and managing notifications.
+- [Command-backed interaction gates](https://sase.sh/reference/automation/notification-gates/) — Gate decisions, inputs, actions, and continuation behavior for SASE interactions.
+- [Notification storage](https://sase.sh/reference/automation/notification-storage/) — Storage behavior for SASE notifications.
+- [Notification tags](https://sase.sh/reference/automation/notification-tags/) — Notification tags and the colors and icons used in notification tabs.
+- [Notification types](https://sase.sh/reference/automation/notification-types/) — Notification payloads, fields, and silent notification behavior.
+- [Notifications](https://sase.sh/reference/automation/notifications/) — View, sort, mute, snooze, and receive notification updates in SASE.
+- [Scheduler configuration](https://sase.sh/reference/automation/scheduler-configuration/) — Global scheduler settings and the fields used to configure routines.
+- [Default scheduler routines](https://sase.sh/reference/automation/scheduler-default-routines/) — The built-in routines that run background SASE maintenance and automation.
+- [Scheduler description grammar](https://sase.sh/reference/automation/scheduler-description-grammar/) — The grammar and style rules for scheduler routine descriptions.
+- [Scheduler housekeeping](https://sase.sh/reference/automation/scheduler-housekeeping/) — Tasks handled by the scheduler's housekeeping routine.
+- [Scheduler jobs](https://sase.sh/reference/automation/scheduler-jobs/) — Script jobs, manual runs, job history, service views, and job-agent records.
+- [Scheduler](https://sase.sh/reference/automation/scheduler/) — Scheduler commands, lifecycle, recovery, state, and SASE integration.
+- [Sudo requests](https://sase.sh/reference/automation/sudo/) — Request, review, and recover privileged commands run on behalf of SASE agents.
+- [Named tools and ToolRuns](https://sase.sh/reference/automation/tools/) — Declare named tools and run commands with retained output and evidence.
 - [sase agent-cli](https://sase.sh/reference/cli/agent-cli/) — Inspect the coding-agent CLIs supported by SASE and install or update installs whose management method can be identified safely.
 - [sase agent](https://sase.sh/reference/cli/agent/) — Inspect and manage agents across projects.
 - [sase artifact](https://sase.sh/reference/cli/artifact/) — Create, discover, inspect, resolve, open, and repair indexed artifacts.
@@ -215,8 +229,6 @@
 - [Provider migration notes](https://sase.sh/reference/upgrading/providers/) — Historical compatibility notes for provider metadata and model selection.
 - [Remote Dispatch Runbook](https://sase.sh/remote_dispatch/) — Remote Dispatch Runbook — Remote dispatch lets one SASE controller discover, enroll, and operate agents on another machine.
 - [Spec-Driven Development (SDD)](https://sase.sh/sdd/) — Spec-Driven Development (SDD) — SDD is sase's system for persisting the intent behind agent work.
-- [Sudo Requests](https://sase.sh/sudo/) — Sudo Requests — SASE sudo requests let an agent ask for reviewed privileged execution without ever asking for, receiving, logging, or proxying a password.
-- [Named Tools and ToolRuns](https://sase.sh/tool/) — Named Tools and ToolRuns — A named tool is a project-declared command (check, test, ...) that sase tool run executes exactly as declared and records as a ToolRun: who ran it, when, with what result, how long each stage took, and what the repository and host looked like before and after.
 - [VCS Provider Reference](https://sase.sh/vcs/) — VCS Provider Reference — The VCS provider layer is an abstraction that lets sase commands work with both Git and Mercurial repositories.
 - [Workflow Specification](https://sase.sh/workflow_spec/) — Workflow Specification — This document describes the YAML workflow format for sase macro workflows.
 - [Workspace Provider Reference](https://sase.sh/workspace/) — Workspace Provider Reference — The workspace provider layer is an abstraction that handles workspace-level operations that vary across VCS hosting environments.
@@ -235,11 +247,13 @@
 - [Integration APIs](https://sase.sh/contribute/integration-apis/) — SASE exposes a small set of Python helpers for external plugins, chat clients, mobile clients, and editor integrations.
 - [LLM invocation internals](https://sase.sh/contribute/llm-invocation/) — Internal provider architecture, prompt processing, subprocess handling, and invocation lifecycle.
 - [Mobile MVP Runbook](https://sase.sh/contribute/mobile-mvp-runbook/) — This runbook covers the private Android MVP that connects a phone to a workstation-hosted SASE mobile gateway.
+- [Prepared monitor completion](https://sase.sh/contribute/monitor-completion/) — Internal details for opt-in no-new prepared monitor completion.
 - [sase tui Performance Runbook](https://sase.sh/contribute/perf-runbook/) — This runbook explains how to capture and compare performance data for sase's TUI, the sase tui terminal user interface.
 - [Reader testing](https://sase.sh/contribute/reader-testing/) — How to run an observed reader round and turn the results into doc changes.
 - [Rust Backend (sase_core_rs)](https://sase.sh/contribute/rust-backend/) — A subset of sase's core APIs is served by a Rust extension distributed as sase-core-rs on PyPI and built from the sibling sase-core repo.
 - [SDD Storage](https://sase.sh/contribute/sdd-storage/) — The workspace provider owns SDD placement, while projects select a store beneath it.
 - [Telemetry](https://sase.sh/contribute/telemetry/) — SASE records debugging and health metric history locally.
+- [Tool run receipts](https://sase.sh/contribute/tool-run-receipts/) — Internal receipt policy and verification details for recorded tool runs.
 - [Writing docs](https://sase.sh/contribute/writing-docs/) — The sase.sh documentation contract for humans and agents.
 
 ## Blog
@@ -259,11 +273,15 @@
 ## Compatibility
 
 - [sase's TUI User Guide](https://sase.sh/ace/) — sase's TUI User Guide — sase's TUI is the primary TUI for the SASE toolkit.
+- [Scheduler — Background Automation](https://sase.sh/axe/) — This page has moved to its new home.
 - [Configuration Reference](https://sase.sh/configuration/) — Configuration Reference — Moved to Configuration files and merging.
 - [Canonical SASE Content Layout](https://sase.sh/content_layout/) — This page has moved to its new home.
 - [Instruction Bundles](https://sase.sh/instruction_bundles/) — This page has moved to its new home.
 - [LLM Provider Integration](https://sase.sh/llms/) — This page has moved to its new home.
+- [Monitors](https://sase.sh/monitors/) — This page has moved to its new home.
+- [Notifications](https://sase.sh/notifications/) — This page has moved to its new home.
 - [Rust Backend (sase_core_rs)](https://sase.sh/rust_backend/) — This page has moved to its new home.
+- [Named Tools and ToolRuns](https://sase.sh/tool/) — This page has moved to its new home.
 
 ## Moved pages
 
@@ -292,3 +310,9 @@
 - https://sase.sh/llms/ → https://sase.sh/reference/providers/
 - https://sase.sh/instruction_bundles/ → https://sase.sh/reference/memory/instruction-bundles/
 - https://sase.sh/memory/ → https://sase.sh/reference/memory/memory/
+- https://sase.sh/notifications/ → https://sase.sh/reference/automation/notifications/
+- https://sase.sh/axe/ → https://sase.sh/reference/automation/scheduler/
+- https://sase.sh/monitors/ → https://sase.sh/reference/automation/monitors/
+- https://sase.sh/tool/ → https://sase.sh/reference/automation/tools/
+- https://sase.sh/mentors/ → https://sase.sh/reference/automation/mentors/
+- https://sase.sh/sudo/ → https://sase.sh/reference/automation/sudo/

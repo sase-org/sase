@@ -16,22 +16,22 @@ reviewed, retried, and handed off through stable project artifacts.
 
 ## System Boundary
 
-| Area         | Responsibility                                                                                                                                    | Main References                                                       |
-| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
-| CLI          | Top-level `sase` commands, argument parsing, dispatch, and JSON helper bridges.                                                                   | [CLI reference](../cli.md)                                            |
-| sase's TUI   | Interactive TUI for Patches, agents, notifications, artifacts, and service status.                                                                | [sase's TUI](../ace.md)                                               |
-| Service host | Per-machine supervisor for configured daemon procs and transient oneshots; it owns the scheduler and mobile gateway procs.                        | [CLI reference](../cli.md#sase-service)                               |
-| Axe          | Background orchestrator for scheduled hooks, mentors, workflow checks, comments, cleanup, and digests.                                            | [Axe](../axe.md)                                                      |
-| Macro        | Prompt templates, reference expansion, directives, typed inputs, and reusable workflows.                                                          | [Macros](../macros.md)                                                |
-| Workflows    | YAML multi-step execution with agent, bash, python, parallel, loop, and human checkpoint steps.                                                   | [Workflow spec](../workflow_spec.md)                                  |
-| Gates        | Durable, command-backed user decisions and processless session-turn handoffs.                                                                     | [Notifications](../notifications.md#command-backed-interaction-gates) |
-| Patches      | PR-sized review records with lifecycle state, stitches, hooks, comments, mentors, and timestamps.                                                 | [Patches](../change_spec.md)                                          |
-| Memory       | Always-loaded and on-demand context, explicit flat-note macro inclusion, audited reads, and sase's TUI-backed note/strand changes.                | [Memory](../reference/memory/memory.md)                               |
-| SDD          | Durable prompt, tale, epic, and research artifacts.                                                                                               | [SDD](../sdd.md)                                                      |
-| Beads        | Git-portable issue/dependency tracking and executable epic launch plans.                                                                          | [Beads](../beads.md)                                                  |
-| Providers    | Pluggable LLM, VCS, workspace, config, and macro boundaries.                                                                                      | [Plugins](../plugins.md)                                              |
-| Rust core    | Required `sase_core_rs` extension for ported parsing, query, notification, agent scan, launch and admission, retention, and bead data operations. | [Rust backend](rust-backend.md)                                       |
-| Integrations | Public helpers and fixed bridge APIs for editors, mobile gateway, and external packages.                                                          | [Integrations](integration-apis.md)                                   |
+| Area         | Responsibility                                                                                                                                    | Main References                                                                                   |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| CLI          | Top-level `sase` commands, argument parsing, dispatch, and JSON helper bridges.                                                                   | [CLI reference](../cli.md)                                                                        |
+| sase's TUI   | Interactive TUI for Patches, agents, notifications, artifacts, and service status.                                                                | [sase's TUI](../ace.md)                                                                           |
+| Service host | Per-machine supervisor for configured daemon procs and transient oneshots; it owns the scheduler and mobile gateway procs.                        | [CLI reference](../cli.md#sase-service)                                                           |
+| Axe          | Background orchestrator for scheduled hooks, mentors, workflow checks, comments, cleanup, and digests.                                            | [Axe](../axe.md)                                                                                  |
+| Macro        | Prompt templates, reference expansion, directives, typed inputs, and reusable workflows.                                                          | [Macros](../macros.md)                                                                            |
+| Workflows    | YAML multi-step execution with agent, bash, python, parallel, loop, and human checkpoint steps.                                                   | [Workflow spec](../workflow_spec.md)                                                              |
+| Gates        | Durable, command-backed user decisions and processless session-turn handoffs.                                                                     | [Notifications](../reference/automation/notification-gates.md#command-backed-interaction-gates-1) |
+| Patches      | PR-sized review records with lifecycle state, stitches, hooks, comments, mentors, and timestamps.                                                 | [Patches](../change_spec.md)                                                                      |
+| Memory       | Always-loaded and on-demand context, explicit flat-note macro inclusion, audited reads, and sase's TUI-backed note/strand changes.                | [Memory](../reference/memory/memory.md)                                                           |
+| SDD          | Durable prompt, tale, epic, and research artifacts.                                                                                               | [SDD](../sdd.md)                                                                                  |
+| Beads        | Git-portable issue/dependency tracking and executable epic launch plans.                                                                          | [Beads](../beads.md)                                                                              |
+| Providers    | Pluggable LLM, VCS, workspace, config, and macro boundaries.                                                                                      | [Plugins](../plugins.md)                                                                          |
+| Rust core    | Required `sase_core_rs` extension for ported parsing, query, notification, agent scan, launch and admission, retention, and bead data operations. | [Rust backend](rust-backend.md)                                                                   |
+| Integrations | Public helpers and fixed bridge APIs for editors, mobile gateway, and external packages.                                                          | [Integrations](integration-apis.md)                                                               |
 
 The Python host owns user-facing orchestration, plugin calls, subprocess handling,
 filesystem context, TUI rendering, and workflow side effects. Rust owns reusable
@@ -85,7 +85,7 @@ agent-initiated launches freeze the same digest behind LaunchApproval; AXE job b
 containing an active `%if`/`%proc` directive dispatch through the same durable bundle
 under the internal `axe_chop` source surface, with the originating job run owning the
 bundle across process restarts (see
-[Structured Results and Launch Proposals](../axe.md#structured-results-and-launch-proposals)).
+[Structured Results and Launch Proposals](../reference/automation/scheduler-jobs.md#structured-results-and-launch-proposals)).
 Within an AXE job clan, dispatch — not planning — owns the declarer decision: the first
 surviving (eligible, dispatched) member of an undeclared clan claims it durably, so a
 `%if`-skipped statically planned declarer never leaves later members joining a clan
@@ -166,16 +166,16 @@ gate turn is the human's move. Once their evidence is readable, later session fo
 include the agent transcript, monitor log, or gate decision record.
 
 Questions, plan review, agent-side workflow HITL, agent-initiated launch approval, and
-beta [sudo requests](../sudo.md) use gate turns. At the handoff boundary SASE persists
-the verified gate bundle, names the turn, transfers or releases the workspace claim
-according to policy, releases the runner slot, and ends the provider turn. A client
-later selects a branch; SASE first writes a write-once decision receipt, so the choice
-is durable and a conflicting answer fails before any command runs. It then runs the
-branch's hashed commands (normally in a supervised detached proc), records their output,
-settles the turn, and optionally launches the next agent-turn session member. The
-answered branch can inherit a default follow-up; timeout, stopped, failed, and lost
-outcomes require explicit follow-up policy. This makes a human pause durable without
-holding a provider process or runner slot open.
+beta [sudo requests](../reference/automation/sudo.md) use gate turns. At the handoff
+boundary SASE persists the verified gate bundle, names the turn, transfers or releases
+the workspace claim according to policy, releases the runner slot, and ends the provider
+turn. A client later selects a branch; SASE first writes a write-once decision receipt,
+so the choice is durable and a conflicting answer fails before any command runs. It then
+runs the branch's hashed commands (normally in a supervised detached proc), records
+their output, settles the turn, and optionally launches the next agent-turn session
+member. The answered branch can inherit a default follow-up; timeout, stopped, failed,
+and lost outcomes require explicit follow-up policy. This makes a human pause durable
+without holding a provider process or runner slot open.
 
 ## State Model
 
@@ -229,7 +229,7 @@ agent artifact-run retention, and workspace Git object compaction. Unowned Cargo
 strays are reported but never deleted. The hourly axe `disk_pressure` job runs the
 owner-safe passes early when free space runs low. See
 [`sase disk`](../reference/cli/disk.md#sase-disk) and
-[axe housekeeping](../axe.md#housekeeping-1-hour-interval).
+[axe housekeeping](../reference/automation/scheduler-housekeeping.md#housekeeping-1-hour-interval).
 
 The canonical project/home namespace and legacy read boundary are documented in
 [Canonical SASE Content Layout](../reference/content-layout.md). Global config, `.sase`

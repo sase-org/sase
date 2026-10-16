@@ -823,7 +823,7 @@ tool-triage-backtest *args: _setup (_header "tool-triage-backtest")
 # outside that captured region — and reads the selection manifest `test-scoped`
 # just finished writing to show what the run decided either way.
 #
-# Agents must run guarded tools through `sase tool run` (docs/tool.md).
+# Agents must run guarded tools through `sase tool run` (docs/reference/automation/tools.md).
 # The guard is the first dependency, ahead of `_setup`, so a refusal costs
 # milliseconds rather than a dependency sync.
 _require-tool-run name:

@@ -212,7 +212,7 @@ AXE `artifact_link_backfill` job covers older documents in bounded, checkpointed
 batches, drains queued read rows for agents that have since published, recomputes
 projected relationships, reconciles the machine-local aggregate, and repairs dangling
 references from Git rename history. See
-[Default routines](axe.md#housekeeping-1-hour-interval).
+[Default routines](reference/automation/scheduler-housekeeping.md#housekeeping-1-hour-interval).
 
 ## Beads
 

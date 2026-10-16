@@ -189,7 +189,7 @@ What counts as a target depends on the selected row:
 - A **workflow step child** uses its parent workflow's Patch; a child of a project-level
   workflow uses that workflow's meta Patch, if it recorded one.
 - A **remote row** answers its pending
-  [remote attention](../../notifications.md#remote-attention) request.
+  [remote attention](../automation/notifications.md#remote-attention) request.
 - A **clan container** toasts `Select an agent inside this clan`. Monitors and named
   procs have no targets, and a grouping banner ignores `Enter`.
 

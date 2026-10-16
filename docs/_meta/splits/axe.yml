@@ -1,0 +1,33 @@
+to: reference/automation/scheduler.md
+sections:
+  _intro: reference/automation/scheduler.md
+  Overview: reference/automation/scheduler.md
+  Architecture: reference/automation/scheduler.md
+  CLI Commands: reference/automation/scheduler.md
+  Scheduler Status: reference/automation/scheduler.md
+  Default Routines: reference/automation/scheduler-default-routines.md
+  Default Routines > hooks (5-second interval): reference/automation/scheduler-default-routines.md
+  Default Routines > waits (10-second interval): reference/automation/scheduler-default-routines.md
+  Default Routines > agent_waits (2-second interval): reference/automation/scheduler-default-routines.md
+  Default Routines > sidecar_sync (30-second interval): reference/automation/scheduler-default-routines.md
+  Default Routines > checks (5-minute interval): reference/automation/scheduler-default-routines.md
+  Default Routines > usage (60-second interval): reference/automation/scheduler-default-routines.md
+  Default Routines > external_mirror (15-minute interval): reference/automation/scheduler-default-routines.md
+  Default Routines > comments (1-minute interval): reference/automation/scheduler-default-routines.md
+  Default Routines > housekeeping (1-hour interval): reference/automation/scheduler-housekeeping.md
+  Configuration: reference/automation/scheduler-configuration.md
+  Configuration > Global Settings: reference/automation/scheduler-configuration.md
+  Configuration > Routine Configuration: reference/automation/scheduler-configuration.md
+  Configuration > Description Grammar: reference/automation/scheduler-description-grammar.md
+  Configuration > Script Jobs: reference/automation/scheduler-jobs.md
+  Configuration > Manual Job Runs: reference/automation/scheduler-jobs.md
+  Configuration > Job Run History: reference/automation/scheduler-jobs.md
+  Configuration > Services Tab Views: reference/automation/scheduler-jobs.md
+  Configuration > Job-Agent Registry: reference/automation/scheduler-jobs.md
+  Concurrency Management: reference/automation/scheduler-jobs.md
+  Agent Completion Artifacts: reference/automation/scheduler-jobs.md
+  Maintenance Mode: reference/automation/scheduler.md
+  Supervision and Recovery: reference/automation/scheduler.md
+  State Directory: reference/automation/scheduler.md
+  Process Lifecycle: reference/automation/scheduler.md
+  sase's TUI Integration: reference/automation/scheduler.md

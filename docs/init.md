@@ -230,8 +230,8 @@ captured environment file, exit `1`); there is no dedicated temp-root warning. R
 `sase service init --yes` from a shell with the intended `SASE_TMPDIR` to realign them.
 The reaper job itself also logs a warning when it scans a captured `SASE_TMPDIR` root
 while the default `$SASE_HOME/tmp` root still holds entries; see
-[the `housekeeping` routine](axe.md#housekeeping-1-hour-interval) for what that warning
-does and does not catch.
+[the `housekeeping` routine](reference/automation/scheduler-housekeeping.md#housekeeping-1-hour-interval)
+for what that warning does and does not catch.
 
 `init --yes` refuses a SASE agent process. When the calling shell sets `SASE_AGENT` or
 `SASE_AGENT_NAME`, or its `PATH` contains an ephemeral workspace entry, apply exits 2

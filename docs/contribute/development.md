@@ -154,11 +154,12 @@ so a scoped false negative surfaces there within roughly the CI test leg's runti
 is the backstop, not a silent gap. A `just check` pass with a `just check-full` failure
 is a test-infrastructure bug; file it rather than treating it as remaining product work.
 
-Both recipes are [guarded](../tool.md#guarded-recipes): in a SASE agent process
-(`SASE_AGENT` set), `just check` and `just check-full` refuse with exit 2 unless they
-run inside `sase tool run check` / `sase tool run check-full` for this checkout, or with
-an explicit `SASE_TOOL_BYPASS='<reason>'` (the guard also fails open when `sase` is not
-on `PATH`). Humans, CI, finalizers, monitors, and procs run them raw as before.
+Both recipes are [guarded](../reference/automation/tools.md#guarded-recipes): in a SASE
+agent process (`SASE_AGENT` set), `just check` and `just check-full` refuse with exit 2
+unless they run inside `sase tool run check` / `sase tool run check-full` for this
+checkout, or with an explicit `SASE_TOOL_BYPASS='<reason>'` (the guard also fails open
+when `sase` is not on `PATH`). Humans, CI, finalizers, monitors, and procs run them raw
+as before.
 
 ```bash
 sase tool run check        # how an agent runs `just check`

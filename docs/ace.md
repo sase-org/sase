@@ -1198,7 +1198,7 @@ command has been run yet, sase's TUI shows a toast and does nothing.
 
 Press `,C` to open the Mentor Review modal, which lets you navigate mentor comments,
 accept or reject suggestions, and apply accepted changes. See
-[docs/mentors.md](mentors.md) for the full mentor system reference.
+[Mentors](reference/automation/mentors.md) for the full mentor system reference.
 
 | Key         | Action      |
 | ----------- | ----------- |
@@ -1389,7 +1389,9 @@ Expanded — the summary, a blank gutter row, and the reflowed body:
 The body is reflowed rather than replayed: blank lines separate blocks, a block whose
 first line starts with `-`, `*`, or `•` renders as a hanging-indent bullet list, and
 every other block is joined into one paragraph and re-wrapped to the current pane width.
-See [Description Grammar](axe.md#description-grammar) for the authored form.
+See
+[Description Grammar](reference/automation/scheduler-description-grammar.md#description-grammar)
+for the authored form.
 
 `ace.axe_description_expanded` (default `true`) sets the state each `sase tui` session
 starts in. `d` flips an in-memory session state and repaints from cached snapshot data —
@@ -2899,10 +2901,10 @@ for the resolution order and state-file format.
 ## Notifications Modal
 
 Press `i` to open the notifications modal. On the Agents tab, `Enter` opens the selected
-agent's pending gate or Patch directly, without the modal. See
-[`docs/notifications.md`](notifications.md) for the full keybinding reference, modal
-tabs, priority/error/muted classification, and the per-notification snooze and mute
-affordances.
+agent's pending gate or Patch directly, without the modal. See the
+[notifications reference](reference/automation/notifications.md) for the full keybinding
+reference, modal tabs, priority/error/muted classification, and the per-notification
+snooze and mute affordances.
 
 Rows and the detail header begin with the notification's single-glyph icon when one is
 present, with a per-action fallback icon otherwise. The text action badge remains
@@ -2918,7 +2920,8 @@ underlying panel.
 
 The `inbox:` top-bar group renders one colored `<icon><count>` chip per
 notification-panel tab, in the panel's own order and colors, or a dim `inbox: 0` when
-nothing is pending. See [Top-Bar Indicator](notifications.md#top-bar-indicator) for the
+nothing is pending. See
+[Top-Bar Indicator](reference/automation/notifications.md#top-bar-indicator) for the
 snoozed-only and overflow forms.
 
 ### Snooze Reminder Scheduling
@@ -2944,14 +2947,14 @@ Once due, sase's TUI performs one current-state snapshot read, applies counts, t
 and status projections, then schedules the next future deadline. Each observed resurface
 batch produces toasts (one per row, or grouped per severity when more than three rows
 arrive together) and at most one tmux bell, unless a
-[delivery rule](notifications.md#delivery-rules) overrides it — including rows that were
-marked read while snoozed — and no repeat on later polls. Cancelled, dismissed,
-permanently muted, and not-yet-due rows never ring. If another process wins the expiry,
-the persisted unread state and `resurfaced_at` still make the transition observable
-here. Resurfaced rows sort as recent activity in the modal while continuing to display
-their original sent time. See
-[`docs/notifications.md`](notifications.md#snooze-expiry-and-resurfacing) for the full
-state and timing contract.
+[delivery rule](reference/automation/notifications.md#delivery-rules) overrides it —
+including rows that were marked read while snoozed — and no repeat on later polls.
+Cancelled, dismissed, permanently muted, and not-yet-due rows never ring. If another
+process wins the expiry, the persisted unread state and `resurfaced_at` still make the
+transition observable here. Resurfaced rows sort as recent activity in the modal while
+continuing to display their original sent time. See the
+[notifications reference](reference/automation/notifications.md#snooze-expiry-and-resurfacing)
+for the full state and timing contract.
 
 ## Notification Actions
 
@@ -2970,7 +2973,7 @@ is selected. The following notification action types are supported:
 | `OpenToolRun`         | Tool run        | Selects the settled run's Agents-tab node with its ⚒ Runs card active and the run's block selected, or opens Admin Center → Tools focused on the run                                                   |
 | `PlanApproval`        | Agent           | Opens the plan approval modal                                                                                                                                                                          |
 | `RemoteAttention`     | Remote machine  | Opens the remote question or gate modal and submits to the owning machine                                                                                                                              |
-| `SudoRequest`         | Agent           | Opens the [sudo review modal](sudo.md#review-ux); approving runs in a terminal                                                                                                                         |
+| `SudoRequest`         | Agent           | Opens the [sudo review modal](reference/automation/sudo.md#review-ux); approving runs in a terminal                                                                                                    |
 | `Tmux`                | External bridge | Runs `tm <workspace-name>` for the notification's `action_data.workspace_dir`                                                                                                                          |
 | `UserQuestion`        | Agent           | Opens the structured user-question response modal                                                                                                                                                      |
 | `ViewErrorReport`     | Axe/agent       | Opens `action_data.error_report_path`, or the first attached file, in `$EDITOR`                                                                                                                        |
@@ -3011,7 +3014,8 @@ audible notification classes, and explicit snooze-expiry reminders retain their 
 bell behavior; snoozing a plan review therefore still produces the requested reminder
 bell when it expires.
 
-These are defaults. [`ace.notification_rules`](notifications.md#delivery-rules) can
+These are defaults.
+[`ace.notification_rules`](reference/automation/notifications.md#delivery-rules) can
 suppress a toast or replace the bell with a sound file or silence for any notification,
 including snooze-expiry reminders; rows whose toast is suppressed are left out of the
 grouped-toast count.

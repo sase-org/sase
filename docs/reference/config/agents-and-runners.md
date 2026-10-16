@@ -12,8 +12,8 @@ Configuration for agent admission, runner capacity, and lifecycle behavior.
 
 Settings for durable, command-backed gates. The only current setting controls how the
 hourly `gate_turn_reclaim` housekeeping job settles a
-[gate turn](../../notifications.md#gate-turns-and-continuation) whose gate has already
-passed its own deadline.
+[gate turn](../automation/notification-gates.md#gate-turns-and-continuation) whose gate
+has already passed its own deadline.
 
 ```yaml
 gate:

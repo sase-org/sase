@@ -30,7 +30,7 @@ just check-full    # Exhaustive: fmt-check + lint + sase validate + full suite +
 SASE agents use `just check` unless explicitly instructed to run `just check-full`, and
 run either one through `sase tool run check` / `sase tool run check-full`: in an agent
 shell the raw recipes refuse unless `SASE_TOOL_BYPASS='<reason>'` is set (see
-[Guarded recipes](https://sase.sh/tool/#guarded-recipes)).
+[Guarded recipes](https://sase.sh/reference/automation/tools/#guarded-recipes)).
 
 ## Adding Dependencies
 

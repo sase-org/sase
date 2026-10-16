@@ -170,8 +170,8 @@ correct replacement when the live registry can resolve it.
 
 See [Task Types](../../beads.md#task-types) for how required plugins feed the committed
 `sase/task_types.json` snapshot, and
-[Required Plugin Notification](../../notifications.md#required-plugin-notification) for
-the human install offer.
+[Required Plugin Notification](../automation/notification-types.md#required-plugin-notification)
+for the human install offer.
 
 Source: `src/sase/plugins/required.py`, `src/sase/config/sase.schema.json`
 
@@ -181,8 +181,8 @@ Source: `src/sase/plugins/required.py`, `src/sase/config/sase.schema.json`
 
 Defines mentor agents that run automated code reviews when a Patch's diff, changed
 files, or amend notes match configurable criteria. Each profile groups one or more
-mentors with shared matching rules. See [docs/mentors.md](../../mentors.md) for the full
-mentor system reference.
+mentors with shared matching rules. See the
+[Mentors reference](../automation/mentors.md) for the full mentor system reference.
 
 ```yaml
 mentor_profiles:
@@ -349,7 +349,7 @@ tools:
 TYPICAL (median duration of up to 30 normally exited native runs in 30 days). Missing
 samples render as an em dash, never as zero or an ETA. It also reports CLASS (the
 effective duration class, `short` when unset) and calibrates each declaration against
-the corpus (see [Duration classes](../../tool.md#duration-classes)).
+the corpus (see [Duration classes](../automation/tools.md#duration-classes)).
 
 Source: `src/sase/config/sase.schema.json`, `src/sase/config/tools.py`,
 `src/sase/main/tool_handler.py`

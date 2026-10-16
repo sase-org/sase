@@ -272,7 +272,7 @@ chip, exactly as an exhausted `0%` usage window. In compact density the `load:` 
 drops, leaving `8/10`. Hovering the gauge spells out the units in use and free, or that
 new agents queue until capacity frees up when it is full. The tooltip also lists each
 claim holder and its weight, and a session's running monitor holds its session's claim
-even when the session row is under Done (see [Runner slots](../../monitors.md#runner-slots)).
+even when the session row is under Done (see [Runner slots](../automation/monitors.md#runner-slots)).
 The running count keeps its stable green count style. A nonzero queue count is
 cornflower blue.
 

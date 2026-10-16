@@ -388,7 +388,7 @@ the next agent-turn member; timeout, stop, failure, and loss do so only when tha
 explicitly declares a follow-up. The built-in question, plan, workflow HITL, and
 agent-initiated launch flows use this model, as can custom `sase gate create --turn`
 requests. See
-[Command-backed interaction gates](notifications.md#command-backed-interaction-gates).
+[Command-backed interaction gates](reference/automation/notification-gates.md#command-backed-interaction-gates-1).
 
 `sase pipe '<prompt>'` creates a session member the same way a plan approval or a
 question follow-up does: it ends the calling agent's turn in-process and continues the
@@ -397,7 +397,7 @@ free numeric suffix (role `feedback`) by default, or an explicit `--name TOKEN` 
 (role: the token itself), per the suffix table above. Every host-composed successor
 inherits autonomy structurally from its predecessor's live record; an explicit `%auto`
 in agent-authored follow-up text can only narrow. See
-[Monitors: Pipe vs. monitor](monitors.md#pipe-vs-monitor).
+[Monitors: Pipe vs. monitor](reference/automation/monitor-operations.md#pipe-vs-monitor).
 
 SASE resolves `parent` to the newest visible matching agent or session member in the
 current project. If the parent is still running, the new member appears immediately as

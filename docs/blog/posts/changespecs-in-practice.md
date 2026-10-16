@@ -206,8 +206,8 @@ It is recorded atomically by SASE and is not normally edited by hand.
 
 - [Patch format](../../change_spec.md) — every field, every state transition, complete
   examples.
-- [Mentors](../../mentors.md) — profile matching criteria, execution lifecycle, sase's
-  TUI review modal, apply modes, file-snapshot semantics.
+- [Mentors](../../reference/automation/mentors.md) — profile matching criteria,
+  execution lifecycle, sase's TUI review modal, apply modes, file-snapshot semantics.
 - [sase's TUI](../../ace.md) — the full keybinding reference for the Artifacts, Agents,
   and Axe tabs.
 - [\[07\] Driving SASE From Your Phone — Telegram as the Mobile Control Surface](telegram-mobile-agents.md)

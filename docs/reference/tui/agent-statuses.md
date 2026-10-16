@@ -40,7 +40,7 @@ Running bucket when it handed off to a successor.
 | **EPIC APPROVED** | Grey on the settled gate turn | Epic approval was durably accepted; creation is being attempted and no epic ID has been back-filled yet          |
 | **QUESTION**      | Gate accent; legacy dim       | Agent is asking the user a question (via `/sase_questions`)                                                      |
 | **ANSWERED**      | Grey on the settled gate turn | The answer was accepted and a successor is being launched                                                        |
-| **SUDO**          | Gate accent                   | An agent's [sudo request](../../sudo.md) is waiting for review; it settles as `SUDOED` or `DENIED`                     |
+| **SUDO**          | Gate accent                   | An agent's [sudo request](../automation/sudo.md) is waiting for review; it settles as `SUDOED` or `DENIED`                     |
 | **RETRYING**      | Orange                        | Agent hit a retryable error and is in a countdown before retrying                                                |
 
 Modern `/sase_questions` calls hand the session to a processless `QUESTION` gate turn

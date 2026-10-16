@@ -30,6 +30,8 @@ contracts, and the docs process itself.
   and editor clients.
 - [Artifacts pane contract](artifacts-pane-contract.md) — The pane API.
 - [Artifacts visual grammar](artifacts-pane-visual-grammar.md) — Pane visuals.
+- [Tool run receipts](tool-run-receipts.md) — Internal receipt policy and verification.
+- [Prepared monitor completion](monitor-completion.md) — Internal completion policy.
 
 ## Docs process
 

@@ -1,0 +1,12 @@
+to: reference/automation/notifications.md
+sections:
+  _intro: reference/automation/notifications.md
+  Overview: reference/automation/notifications.md
+  Viewing Notifications: reference/automation/notifications.md
+  Notification Types: reference/automation/notification-types.md
+  Notification Fields: reference/automation/notification-types.md
+  Silent Notifications: reference/automation/notification-types.md
+  Tags: reference/automation/notification-tags.md
+  CLI: reference/automation/notification-cli.md
+  Command-backed interaction gates: reference/automation/notification-gates.md
+  Storage: reference/automation/notification-storage.md

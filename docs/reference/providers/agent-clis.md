@@ -649,7 +649,7 @@ reason for each CLI and changes nothing.
 
 SASE only automates updates it can identify safely, and it never guesses an update
 command. `sase agent-cli` itself never runs `sudo`; when a manual step needs root, an
-agent must go through a human-reviewed [sudo request](../../sudo.md) instead:
+agent must go through a human-reviewed [sudo request](../automation/sudo.md) instead:
 
 | Install method                   | Behavior                                                                                |
 | -------------------------------- | --------------------------------------------------------------------------------------- |

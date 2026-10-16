@@ -49,7 +49,6 @@
 - [Agent Hood Synchronization](agents_sidecar.md) — Agent Hood Synchronization — SASE publishes deterministic project-scoped agent-hood snapshots and canonical prompt archives through each managed project's hidden agents sidecar.
 - [Artifact Links](artifact_links.md) — Artifact Links — Artifact links are typed relationships between SASE artifacts.
 - [Artifact References](artifact_references.md) — Artifact References — Artifact references are typed @<kind>:<argument> citations in launch prompts.
-- [Scheduler — Background Automation](axe.md) — Scheduler — Background Automation — The scheduler is the background automation subsystem of sase.
 - [Bead Issue Tracking](beads.md) — Bead Issue Tracking — Bead is a lightweight, git-native issue tracking system built into sase.
 - [Patch Format Documentation](change_spec.md) — Patch Format Documentation — A Patch is SASE's durable local record for one unit of reviewable work.
 - [CLI Reference](cli.md) — CLI Reference — This page is a command index for the top-level sase CLI.
@@ -58,10 +57,7 @@
 - [Goals](goals.md) — Goals — Goals are durable records of outcomes a person wants: what will be true, how you'll know, and what happened along the way.
 - [Initialization](init.md) — Initialization — SASE initialization commands create or refresh durable files that agents and sidecar tools rely on.
 - [Macro Template Reference](macros.md) — Macro Template Reference — Macros are reusable prompt templates with optional typed inputs and Jinja2 support.
-- [Mentors](mentors.md) — Mentors — Mentors are automated AI code review agents for Patches.
 - [Mobile Gateway](mobile_gateway.md) — Mobile Gateway — The SASE mobile gateway is a workstation-hosted HTTP gateway for paired mobile clients.
-- [Monitors](monitors.md) — Monitors — A monitor turn is a real agent session member whose work is one supervised OS command instead of an LLM turn.
-- [Notifications](notifications.md) — Notifications — Sase includes a notification system that surfaces important events from background processes (axe, workflows, mentors) to the user through sase's TUI.
 - [SASE Pager](pager.md) — SASE Pager — sase pager opens artifact references, file paths, or stdin in the SASE link-traversing pager.
 - [Plugin System](plugins.md) — Plugin System — Sase uses Python entry points to discover optional functionality installed in the same Python environment as sase.
 - [ProjectSpec Format](project_spec.md) — ProjectSpec Format — A ProjectSpec is SASE's project-level .sase file.
@@ -69,6 +65,24 @@
 - [Query Language Reference](query_language.md) — Query Language Reference — The Patch query language filters Patches using boolean expressions that combine string matching, property filters, and operational shorthands.
 - [Agent auto-restart](reference/agent-auto-restart.md) — Recovery service for agents interrupted by a live update, and its limits.
 - [Agent revive log](reference/agent-revive-log.md) — Audit records for TUI agent revival, and how to read them.
+- [Automation](reference/automation/index.md) — Reference pages for SASE notifications, scheduling, monitors, tools, mentors, and sudo requests.
+- [Mentors](reference/automation/mentors.md) — Configure and use automated review mentors for Patches.
+- [Monitor operations](reference/automation/monitor-operations.md) — Inspect, stop, and view monitors in the SASE TUI.
+- [Monitors](reference/automation/monitors.md) — Start and supervise commands that outlive the SASE agent that launched them.
+- [Notification CLI](reference/automation/notification-cli.md) — Command-line operations for listing and managing notifications.
+- [Command-backed interaction gates](reference/automation/notification-gates.md) — Gate decisions, inputs, actions, and continuation behavior for SASE interactions.
+- [Notification storage](reference/automation/notification-storage.md) — Storage behavior for SASE notifications.
+- [Notification tags](reference/automation/notification-tags.md) — Notification tags and the colors and icons used in notification tabs.
+- [Notification types](reference/automation/notification-types.md) — Notification payloads, fields, and silent notification behavior.
+- [Notifications](reference/automation/notifications.md) — View, sort, mute, snooze, and receive notification updates in SASE.
+- [Scheduler configuration](reference/automation/scheduler-configuration.md) — Global scheduler settings and the fields used to configure routines.
+- [Default scheduler routines](reference/automation/scheduler-default-routines.md) — The built-in routines that run background SASE maintenance and automation.
+- [Scheduler description grammar](reference/automation/scheduler-description-grammar.md) — The grammar and style rules for scheduler routine descriptions.
+- [Scheduler housekeeping](reference/automation/scheduler-housekeeping.md) — Tasks handled by the scheduler's housekeeping routine.
+- [Scheduler jobs](reference/automation/scheduler-jobs.md) — Script jobs, manual runs, job history, service views, and job-agent records.
+- [Scheduler](reference/automation/scheduler.md) — Scheduler commands, lifecycle, recovery, state, and SASE integration.
+- [Sudo requests](reference/automation/sudo.md) — Request, review, and recover privileged commands run on behalf of SASE agents.
+- [Named tools and ToolRuns](reference/automation/tools.md) — Declare named tools and run commands with retained output and evidence.
 - [sase agent-cli](reference/cli/agent-cli.md) — Inspect the coding-agent CLIs supported by SASE and install or update installs whose management method can be identified safely.
 - [sase agent](reference/cli/agent.md) — Inspect and manage agents across projects.
 - [sase artifact](reference/cli/artifact.md) — Create, discover, inspect, resolve, open, and repair indexed artifacts.
@@ -213,8 +227,6 @@
 - [Provider migration notes](reference/upgrading/providers.md) — Historical compatibility notes for provider metadata and model selection.
 - [Remote Dispatch Runbook](remote_dispatch.md) — Remote Dispatch Runbook — Remote dispatch lets one SASE controller discover, enroll, and operate agents on another machine.
 - [Spec-Driven Development (SDD)](sdd.md) — Spec-Driven Development (SDD) — SDD is sase's system for persisting the intent behind agent work.
-- [Sudo Requests](sudo.md) — Sudo Requests — SASE sudo requests let an agent ask for reviewed privileged execution without ever asking for, receiving, logging, or proxying a password.
-- [Named Tools and ToolRuns](tool.md) — Named Tools and ToolRuns — A named tool is a project-declared command (check, test, ...) that sase tool run executes exactly as declared and records as a ToolRun: who ran it, when, with what result, how long each stage took, and what the repository and host looked like before and after.
 - [VCS Provider Reference](vcs.md) — VCS Provider Reference — The VCS provider layer is an abstraction that lets sase commands work with both Git and Mercurial repositories.
 - [Workflow Specification](workflow_spec.md) — Workflow Specification — This document describes the YAML workflow format for sase macro workflows.
 - [Workspace Provider Reference](workspace.md) — Workspace Provider Reference — The workspace provider layer is an abstraction that handles workspace-level operations that vary across VCS hosting environments.
@@ -233,11 +245,13 @@
 - [Integration APIs](contribute/integration-apis.md) — SASE exposes a small set of Python helpers for external plugins, chat clients, mobile clients, and editor integrations.
 - [LLM invocation internals](contribute/llm-invocation.md) — Internal provider architecture, prompt processing, subprocess handling, and invocation lifecycle.
 - [Mobile MVP Runbook](contribute/mobile-mvp-runbook.md) — This runbook covers the private Android MVP that connects a phone to a workstation-hosted SASE mobile gateway.
+- [Prepared monitor completion](contribute/monitor-completion.md) — Internal details for opt-in no-new prepared monitor completion.
 - [sase tui Performance Runbook](contribute/perf-runbook.md) — This runbook explains how to capture and compare performance data for sase's TUI, the sase tui terminal user interface.
 - [Reader testing](contribute/reader-testing.md) — How to run an observed reader round and turn the results into doc changes.
 - [Rust Backend (sase_core_rs)](contribute/rust-backend.md) — A subset of sase's core APIs is served by a Rust extension distributed as sase-core-rs on PyPI and built from the sibling sase-core repo.
 - [SDD Storage](contribute/sdd-storage.md) — The workspace provider owns SDD placement, while projects select a store beneath it.
 - [Telemetry](contribute/telemetry.md) — SASE records debugging and health metric history locally.
+- [Tool run receipts](contribute/tool-run-receipts.md) — Internal receipt policy and verification details for recorded tool runs.
 - [Writing docs](contribute/writing-docs.md) — The sase.sh documentation contract for humans and agents.
 
 ## Blog
@@ -257,11 +271,15 @@
 ## Compatibility
 
 - [sase's TUI User Guide](ace.md) — sase's TUI User Guide — sase's TUI is the primary TUI for the SASE toolkit.
+- [Scheduler — Background Automation](axe.md) — This page has moved to its new home.
 - [Configuration Reference](configuration.md) — Configuration Reference — Moved to Configuration files and merging.
 - [Canonical SASE Content Layout](content_layout.md) — This page has moved to its new home.
 - [Instruction Bundles](instruction_bundles.md) — This page has moved to its new home.
 - [LLM Provider Integration](llms.md) — This page has moved to its new home.
+- [Monitors](monitors.md) — This page has moved to its new home.
+- [Notifications](notifications.md) — This page has moved to its new home.
 - [Rust Backend (sase_core_rs)](rust_backend.md) — This page has moved to its new home.
+- [Named Tools and ToolRuns](tool.md) — This page has moved to its new home.
 
 ## Moved pages
 
@@ -292,3 +310,9 @@
 | `/llms/` | [`/reference/providers/`](reference/providers/index.md) |
 | `/instruction_bundles/` | [`/reference/memory/instruction-bundles/`](reference/memory/instruction-bundles.md) |
 | `/memory/` | [`/reference/memory/memory/`](reference/memory/memory.md) |
+| `/notifications/` | [`/reference/automation/notifications/`](reference/automation/notifications.md) |
+| `/axe/` | [`/reference/automation/scheduler/`](reference/automation/scheduler.md) |
+| `/monitors/` | [`/reference/automation/monitors/`](reference/automation/monitors.md) |
+| `/tool/` | [`/reference/automation/tools/`](reference/automation/tools.md) |
+| `/mentors/` | [`/reference/automation/mentors/`](reference/automation/mentors.md) |
+| `/sudo/` | [`/reference/automation/sudo/`](reference/automation/sudo.md) |

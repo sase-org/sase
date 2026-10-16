@@ -16,8 +16,9 @@ keeps its historical `axe` name.
 
 The YAML below is an abridged illustration of the shipped defaults, not the whole file:
 it shows the shape of a lane and a job and omits some lanes and jobs entirely. See
-[AXE Automation](../../axe.md#default-routines) for the complete lane-by-lane inventory,
-and `src/sase/default_config.yml` for the literal defaults.
+[AXE Automation](../automation/scheduler-default-routines.md#default-routines) for the
+complete lane-by-lane inventory, and `src/sase/default_config.yml` for the literal
+defaults.
 
 ```yaml
 axe:
@@ -424,8 +425,8 @@ characters, then — if anything follows — a blank line, then a free-form body
 whole string capped at 2000 characters. Violations produce the
 `description_summary_blank`, `description_summary_too_long`,
 `description_body_separator_required`, and `description_too_long` diagnostics. See
-[AXE — Description Grammar](../../axe.md#description-grammar) for the full contract, the
-authoring style guide, and the YAML literal-block form.
+[AXE — Description Grammar](../automation/scheduler-description-grammar.md#description-grammar)
+for the full contract, the authoring style guide, and the YAML literal-block form.
 
 Routines were formerly called lumberjacks and jobs were called chops. The old spellings
 remain accepted, schema-valid input aliases but are marked deprecated: `lumberjacks` for
@@ -436,8 +437,8 @@ remain accepted, schema-valid input aliases but are marked deprecated: `lumberja
 should use the canonical keys. `sase config show` prints the effective AXE block with
 the canonical names. Legacy `sase_chop_*` executables still exist beside the
 `sase_job_*` entrypoints. See
-[AXE compatibility aliases](../../axe.md#compatibility-aliases) for the matching CLI,
-environment, and artifact-reference aliases.
+[AXE compatibility aliases](../automation/scheduler.md#compatibility-aliases) for the
+matching CLI, environment, and artifact-reference aliases.
 
 All jobs are scripts. Exact-name resolution checks `job_script_dirs`, then the running
 interpreter's bin directory, then `$PATH`. Invalid fields, duplicate identities,
@@ -506,7 +507,7 @@ recursion, no content reads) and a positive `max_quiet` duration, fires when its
 computed state token changes or `max_quiet` elapses since the last fire, always uses
 `on_observation` checkpoint semantics, and fails open (fires without advancing its
 checkpoint) on an unreadable path. See
-[AXE — Triggers, Guards, Dedupe, and Targets](../../axe.md#triggers-guards-dedupe-and-targets)
+[AXE — Triggers, Guards, Dedupe, and Targets](../automation/scheduler-jobs.md#triggers-guards-dedupe-and-targets)
 for the full contract. Skips are recorded with reasons. Manual runs bypass the trigger
 but honor guards; with `agent_runners`, a manual run while participating lanes are
 occupied skips unless `sase axe job run -f/--force` is used. `once_per` can be a key
@@ -514,7 +515,7 @@ template string or an object with `key` and bounded `capacity`; proposal-supplie
 `dedupe_key` values take precedence. `dedupe_key` is durable work identity, not a retry
 clock: it stays reserved after a successful no-op launch, so jobs whose work can go
 stale between scans should recheck eligibility with a proposal `%if::` predicate (see
-[Structured Results and Launch Proposals](../../axe.md#structured-results-and-launch-proposals))
+[Structured Results and Launch Proposals](../automation/scheduler-jobs.md#structured-results-and-launch-proposals))
 instead of folding a repository revision into the key. When dedupe removes a proposal
 from a `wait_on` chain, AXE walks through the skipped dependencies to the nearest
 earlier proposal that survives filtering. If none survives, AXE removes the wait.
@@ -527,12 +528,13 @@ thresholds stay declarative in configuration. Its default prompts are strictly
 documentation-scoped and tell agents to report suspected code bugs instead of fixing
 them. The defaults can be replaced with non-blank `vars.prompt` and `vars.polish_prompt`
 strings; operators are responsible for the scoping language in replacement prompts. See
-[Axe structured results and launch proposals](../../axe.md#structured-results-and-launch-proposals)
+[Axe structured results and launch proposals](../automation/scheduler-jobs.md#structured-results-and-launch-proposals)
 for the result document, proposal fields, lifecycle statuses, and debugging commands.
 
 Every job entry must carry a `description` following the
-[description grammar](../../axe.md#description-grammar). Bare-string list entries are no
-longer valid because they cannot carry one; use map form or object-form list entries:
+[description grammar](../automation/scheduler-description-grammar.md#description-grammar).
+Bare-string list entries are no longer valid because they cannot carry one; use map form
+or object-form list entries:
 
 ```yaml
 jobs:

@@ -688,7 +688,7 @@ authored true default without a verified quote. Validation outside an agent defe
 verification to proposal. An agent cannot turn a memory decision on unless its effective
 default is already true. Feedback about a memory decision remains provisional. See
 [launch authorship](prompt.md#launch-authorship) and the
-[gate protocol](notifications.md#plan-decisions).
+[gate protocol](reference/automation/notification-gates.md#plan-decisions).
 
 When a plan-launched agent later commits, the host finalizer checks memory notes against
 the accepted memory decisions, including decisions inherited from the agent's epic. A

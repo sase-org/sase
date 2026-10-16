@@ -26,11 +26,15 @@ exclude_docs: |
 # BEGIN GENERATED: docs page moves not_in_nav
 not_in_nav: |
   ace.md
+  axe.md
   configuration.md
   content_layout.md
   instruction_bundles.md
   llms.md
+  monitors.md
+  notifications.md
   rust_backend.md
+  tool.md
 # END GENERATED: docs page moves not_in_nav
 
 nav:
@@ -215,14 +219,31 @@ nav:
           - Agent auto-restart: reference/agent-auto-restart.md
           - Agent revive log: reference/agent-revive-log.md
           - Runner slots: reference/runner-slots.md
-          - Mentors: mentors.md
           - Remote dispatch: remote_dispatch.md
           - Workspaces: workspace.md
       - Automation:
-          - Scheduler and service host: axe.md
-          - Monitors: monitors.md
-          - Notifications: notifications.md
-          - Sudo requests: sudo.md
+          - Overview: reference/automation/index.md
+          - Notifications:
+              - Notifications: reference/automation/notifications.md
+              - Notification types: reference/automation/notification-types.md
+              - Notification tags: reference/automation/notification-tags.md
+              - Notification CLI: reference/automation/notification-cli.md
+              - Interaction gates: reference/automation/notification-gates.md
+              - Notification storage: reference/automation/notification-storage.md
+          - Scheduler:
+              - Scheduler: reference/automation/scheduler.md
+              - Default routines: reference/automation/scheduler-default-routines.md
+              - Housekeeping: reference/automation/scheduler-housekeeping.md
+              - Configuration: reference/automation/scheduler-configuration.md
+              - Description grammar: reference/automation/scheduler-description-grammar.md
+              - Jobs: reference/automation/scheduler-jobs.md
+          - Monitors:
+              - Monitors: reference/automation/monitors.md
+              - Monitor operations: reference/automation/monitor-operations.md
+          - Named tools: reference/automation/tools.md
+          - Other automation:
+              - Mentors: reference/automation/mentors.md
+              - Sudo requests: reference/automation/sudo.md
       - Providers:
           - Providers and models: reference/providers/index.md
           - Agent CLIs: reference/providers/agent-clis.md
@@ -264,6 +285,8 @@ nav:
       - Design decisions: reference/design-decisions.md
   - Contribute:
       - Contribute: contribute/index.md
+      - Tool run receipts: contribute/tool-run-receipts.md
+      - Prepared monitor completion: contribute/monitor-completion.md
       - Architecture: contribute/architecture.md
       - LLM invocation internals: contribute/llm-invocation.md
       - Instruction bundle internals: contribute/instruction-bundle-internals.md

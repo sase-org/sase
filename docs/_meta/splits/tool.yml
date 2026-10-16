@@ -1,0 +1,25 @@
+to: reference/automation/tools.md
+sections:
+  _intro: reference/automation/tools.md
+  Try it: reference/automation/tools.md
+  Catalog provenance: reference/automation/tools.md
+  Project identity: reference/automation/tools.md
+  Stage recording: reference/automation/tools.md
+  Demand recording: reference/automation/tools.md
+  Run output versus retained output: reference/automation/tools.md
+  Stream fidelity: reference/automation/tools.md
+  History and retention: reference/automation/tools.md
+  Incomplete evidence: reference/automation/tools.md
+  Fingerprinted toolchain and external state (E4 hermetic-baseline): contribute/tool-run-receipts.md
+  Receipt catalog policy and mixed-core rollout (E4 core-pin-catalog): contribute/tool-run-receipts.md
+  "Verdict receipts: mint, query, and no-skip (E4 receipt-execution-cli)": contribute/tool-run-receipts.md
+  Receipt opportunity report (E4 opportunity-report): contribute/tool-run-receipts.md
+  Stats: contribute/tool-run-receipts.md
+  Failure semantics: reference/automation/tools.md
+  Failure triage: reference/automation/tools.md
+  Inline-then-escalate: reference/automation/tools.md
+  Hand-off and lifecycle control: reference/automation/tools.md
+  In the TUI: reference/automation/tools.md
+  Rerunnable harness: reference/automation/tools.md
+  Guarded recipes: reference/automation/tools.md
+  Measuring adoption: contribute/tool-run-receipts.md

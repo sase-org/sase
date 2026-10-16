@@ -1,680 +1,134 @@
+---
+title: Named Tools and ToolRuns
+description: This page has moved to its new home.
+search:
+  exclude: true
+---
+
+<!-- generated, do not edit; source: docs/_meta/moves.yml -->
+
 # Named Tools and ToolRuns
 
-A **named tool** is a project-declared command (`check`, `test`, ...) that
-`sase tool run` executes exactly as declared and records as a **ToolRun**: who ran it,
-when, with what result, how long each stage took, and what the repository and host
-looked like before and after. History is machine-local and useful immediately.
-
-A ToolRun is an execution record. It is not an [LLM Calls](ace.md) row, which is only
-the Agents-tab view of what a provider did inside an agent run.
-
-## Try it
-
-```bash
-sase tool                                   # list the catalog with LAST and TYPICAL
-sase tool run check                         # run `just check`, record a ToolRun
-sase tool run test -- tests/tool            # extra args, only where the tool allows them
-sase tool run -- sh -c 'echo hi; exit 3'    # ad-hoc argv; the `--` is mandatory
-sase tool runs -n 5                         # newest recorded runs for this project
-sase tool show RUN                          # one run: stages, evidence, samples
-sase tool show RUN -l                       # replay the retained full stdout/stderr
-sase tool show RUN -j                       # the complete versioned JSON record
-```
-
-## Catalog provenance
-
-Named tools live under `tools:` in the **project's own** `sase/sase.yml` and are read as
-complete entries. User, machine, plugin, and builtin config cannot supply or alter argv;
-a `tools:` key in those layers is diagnosed and ignored. Malformed entries are errors
-(exit `2`) that name the entry and field, and nothing is spawned. Argv is never expanded
-for shell syntax or environment variables; write `[sh, -c, ...]` when a shell is wanted.
-Named tools run at the project root, ad-hoc commands at the invocation directory. See
-the [field reference](reference/cli/tool.md#sase-tool).
-
-`tool_runs:` (retention and log caps) is separate operational policy and follows
-ordinary config precedence.
-
-### Duration classes
-
-Each catalog entry may declare `duration_class: short | long | unbounded`, the floor
-below which the tool essentially never finishes:
-
-| Class                        | Floor                 | Meaning                                                    |
-| ---------------------------- | --------------------- | ---------------------------------------------------------- |
-| `short` (default when unset) | 0 s                   | Can finish in minutes; always fits inline.                 |
-| `long`                       | 600 s (10 m)          | Essentially never finishes in under 10 minutes.            |
-| `unbounded`                  | none (no upper bound) | Waits on something external; never fits under any ceiling. |
-
-A class is a floor, not a forecast: `check` stays `short` on purpose (it fails fast, and
-its over-ceiling tail is reactive escalation's problem), while `check-full` is `long` (a
-superset of the full test suite). The Rust core owns the class enum, the floor table,
-and validation; an unknown value is a catalog error (exit `2`) naming the entry. Like
-`receipt:`, the field is excluded from the definition digest and serialized only when
-declared, so declaring or changing a class never moves TYPICAL history, triage identity,
-or receipt coverage, and undeclared entries stay byte-identical.
-
-`sase tool list` shows the effective class in a CLASS column and calibrates each
-declaration against the corpus: each JSON tool gains `duration_class` and
-`duration_calibration` (object or `null`; the envelope `schema_version` stays `1`), and
-each calibration summary prints as one stderr diagnostic line in human mode. Calibration
-stays silent below 10 samples and otherwise suggests the class the TYPICAL numbers
-support; it never gates a run. Ad-hoc runs have no class and are always `short`.
-
-Mixed installed cores fail closed: a core older than the duration-class wire rejects
-`duration_class` as an unknown catalog field, so the pin bump and the first declaration
-land together and `just install-venv` heals a stale wheel (same rollout as `receipt:`).
-
-## Project identity
-
-Every run is recorded under the project identity of the repository that owns its
-catalog, and an ad-hoc run under the identity of its working directory's repository.
-That one identity fills `runs.project`, `fingerprint_before/after.project_identity`, and
-`fingerprint.repos[0].identity`, and it is what `sase tool runs` (without `-a`) scopes
-to. So `sase tool run check` from a linked repo checkout such as
-`sase/repos/linked/sase-core` is recorded as that repo's `check`, not as the host
-project's, and the two never share history, LAST, or flake evidence.
-
-A repo that is a registered project keeps its registry key (`sase-core`,
-`gh_sase-org__sase`). Any other repo gets a stable key derived from it:
-`gh_<owner>__<repo>` from a GitHub `origin`, otherwise its directory name with a `_<N>`
-workspace suffix stripped, so every numbered checkout of one repo shares an identity. A
-repo nested inside another checkout is never claimed by it. `SASE_PROJECT` names the
-agent's own project and is not consulted.
-
-Rows recorded before this rule keep the identity they were recorded with; they are not
-rewritten. Linked-repo `check` runs from that period carry the host project's identity
-and are told apart only by `definition_digest`.
-
-## Stage recording
-
-A stage recorded by `tools/run_silent` is one row of the enclosing run. The stage
-command runs without `SASE_TOOL_RUN_EVENTS` and `SASE_MONITOR_DIAGNOSTICS_DIR`, so a
-nested `tools/run_silent` (or a test that invokes one) records nothing into the
-enclosing run's stage timeline or monitor diagnostics. `SASE_TOOL_RUN_ID` stays, so a
-nested `sase tool run` keeps its parent link. The test suite scrubs those variables and
-`SASE_TOOL_RUN_ID` at session start, which covers `stages: none` tools such as `test`; a
-test that needs them sets them explicitly. `SASE_TOOL_RUN_DEMAND` deliberately passes
-through: a stage that leases pytest workers reports its grant to the enclosing run's
-demand record (see below).
-
-## Demand recording
-
-Every recorded run also captures the demand evidence a future admission design needs:
-provider and ceiling context, process-tree CPU and memory, and pytest worker grants with
-token-wait time. `sase tool show RUN` renders the record, and `show -j` carries the raw
-`run.demand` object. Three writers contribute, each fail-open — a recording failure
-warns at most once per process and never changes the child's result:
-
-- The agent-side starter records the provider (`SASE_AGENT_LLM_PROVIDER` and friends,
-  with the `SASE_TOOL_RUN_PROVIDER` overlay as fallback) and the synchronous kill
-  ceilings. A foreground run and a starter-scoped (detached) reservation record
-  ceilings; a plain hand-off reservation records the provider only. The adopt worker
-  never writes context, so it cannot overwrite the starter's facts.
-- The executing wrapper reaps the child with `wait4` for CPU seconds and max RSS, and
-  samples live tree RSS on its ~10 s tick. CPU covers the child plus every descendant
-  that exited and was reaped inside the tree; max RSS is the largest single process, not
-  a sum.
-- The child reports pytest worker grants over
-  `SASE_TOOL_RUN_DEMAND=<run log dir>/demand.jsonl`, one JSON line per grant, so any
-  project's test runner can report grants. `tools/run_pytest` pops the variable before
-  pytest starts, and the test suite scrubs it at session start, so nested runs never
-  append to the parent's record.
-
-A lost run (wrapper killed) records no usage and no grants; that gap is not
-reconstructed.
-
-A grant line is
-`{"schema_version": 1, "kind": "worker_grant", "run_id": "<id>", "grant": {...}}` with
-the grant carrying `grant_id`, `source`, `observed_ts_ms`, `lane` (`scoped`, `fast`,
-`cov`, ...), `path` (`serial`, `gear`, `lease`, or `bypass`), `requested_floor`,
-`requested_ceiling`, `granted` (`0` for a refused or timed-out lease), `budget`,
-`wait_ms`, `selected_files`, and `escalated_from`.
-
-The reader is bounded: at most 64 KiB per file, lines over 4 KiB skipped, at most 64
-grants, exact-int types only, and an out-of-range value drops that grant with an
-`ignored out-of-range demand grant <id>` diagnostic instead of failing the whole
-request. Usage carries typed availability reasons instead of zeros: `rusage unavailable`
-when the child settled without `wait4` figures, and `tree RSS unavailable on this host`
-when the host has no process tree to sample.
-
-## Run output versus retained output
-
-A human at a terminal gets the child's stdout and stderr passed through unchanged; the
-wrapper's own metadata goes to stderr. Every run also retains full output privately,
-capped per run, and it is only shown by `sase tool show RUN -l`; truncation is stated
-explicitly. Default JSON never contains child output.
-
-| Flag | Meaning                                                                     |
-| ---- | --------------------------------------------------------------------------- |
-| `-q` | Compact output: metadata, the last `-T` failure lines, and a `show` pointer |
-| `-T` | Tail lines kept in compact output (default 200)                             |
-| `-v` | Stream child output live                                                    |
-
-When retained output overflows `tool_runs.run_log_max_bytes`, the child is still drained
-and streamed in full. The run footer, `sase tool show RUN -j` (`output_truncation`), and
-`sase tool show RUN -l` each state how many bytes were dropped per stream, so a capped
-log is never mistaken for a complete one.
-
-Precedence: an explicit `-q` or `-v` wins; otherwise a direct agent invocation
-(`SASE_AGENT_NAME`) defaults to compact and everything else streams. When the run is
-already owned by a running monitor or proc that captures the output, the tool writes no
-duplicate log and records the owner id and parent run instead. An inherited monitor or
-proc id whose owner has already settled (agents launched by a monitored epic launch
-inherit that id) is stale: it owns nothing and is not recorded. A SASE agent is always a
-new ownership root: agent launches scrub every inherited `SASE_TOOL_*`,
-`SASE_MONITOR_*`, and `SASE_PROC_*` variable (including `SASE_TOOL_BYPASS`), and a run
-started from a SASE agent process never attributes itself to an ancestor's monitor,
-proc, or parent run.
-
-## Stream fidelity
-
-The child gets a single merged pipe (stdout and stderr into one stream, one pump)
-whenever a single target receives both streams: when an enclosing owner holds the output
-(monitor logs, `2>&1` tails), or when the wrapper's own fds 1 and 2 name the same device
-and inode. Only the merged mode preserves the child's stdout/stderr interleaving; two
-pipes pumped on two threads regroup output by stream. Inline compact mode (`-q`, or the
-agent default) retains separate stdout and stderr logs and therefore keeps two pipes
-even when the wrapper's fds share a target.
-
-Merged runs retain the interleaved bytes in the stdout log; the stderr log stays empty.
-`sase tool show RUN -l` replays each retained file to its own stream and claims no total
-order between two retained streams: order across stdout and stderr is meaningful only
-for merged runs.
-
-## History and retention
-
-`sase tool runs` filters by `-t` tool, `-s` state, `-A` agent, `-a` all projects, and
-pages with `-n`/`-c`. `sase tool list` reports LAST (the newest native result) and
-TYPICAL (the median of up to 30 normally exited runs in 30 days with the same
-definition, no appended args). No samples render as an em dash, never as an ETA.
-`sase disk list` shows the ToolRun owner, and `sase disk reap` previews its retention.
-
-Retention keeps run summaries for `summary_days`, detailed stage and sample rows for
-`detail_days`, and retained output and event files for `log_days` after settlement.
-`log_max_bytes` is an aggregate target: once age has been applied, the oldest settled
-runs' files are selected until the remainder fits. Unsettled runs and their files are
-never selected; if they alone exceed the target, the preview and apply report the
-`over_target_bytes` instead of hiding it. Reclaimed bytes count only files actually
-unlinked (no-follow, confined to the ToolRun root), never SQLite row deletion.
-
-## Incomplete evidence
-
-Missing observations are recorded as absent with a typed reason: an unsupported host
-field, a probe that timed out or exited non-zero, an input that does not exist, an
-exhausted observation budget. They are never replaced with zero, and a run is never
-called `mutated_input` unless both fingerprints are complete. A run whose wrapper was
-SIGKILLed is later reported `lost`, without a guessed duration or exit code.
-
-## Fingerprinted toolchain and external state (E4 hermetic-baseline)
-
-`check` and `check-full` version-probe every lint toolchain they run: `python`, `just`,
-`sase-core-rs`, plus `ruff`, `mypy`, `symvision`, and `prettier`. Each probe runs in at
-most 1 s and all probes share a 2 s budget; an unavailable or failing probe makes the
-fingerprint explicitly incomplete instead of yielding an old-looking successful
-identity, and a changed lint-tool version moves the fingerprint digest so an old receipt
-can never cover a new toolchain. This does not fix install provenance (`sase-vr` still
-tracks that ruff/mypy resolve by install date rather than `uv.lock`): the probes capture
-the drift instead of preventing it.
-
-Bead and feature-flag state read by lint stages (`_lint-flags`, symvision
-`--epic-symbol`) is external state and is deliberately not fingerprinted: digesting it
-would invalidate every receipt on any unrelated bead close. Receipts built on `check`
-fingerprints therefore carry a conservative time-to-live of at most 2 h, and receipt
-lookup refuses expired coverage. A bead change inside that window that flips a lint
-verdict is an explicit limitation of the receipt, not proof of coverage; the next
-`check` re-observes and mints again.
-
-## Receipt catalog policy and mixed-core rollout (E4 core-pin-catalog)
-
-Only `check` declares an opt-in `receipt:` policy (`accept: [pass, no_new_failures]`,
-`ttl: 2h`); `check-full`, `install-venv`, and ad-hoc runs stay receipt-less. The policy
-is normalized by the Rust core but excluded from the definition digest, so editing it
-never moves historical duration or corpus identity, while adding toolchain probes or
-fingerprint inputs still moves the digest once, as intended. The beta `tool_receipts`
-flag was removed at E4 landing: the policy is now always exposed on the loaded
-definition and the flag-off branch is deleted.
-
-Mixed installed cores fail closed with a clear diagnostic, never with a stale identity.
-The pinned source revision (`sase-core-revision.txt`) is the receipt-capable core, and
-dev installs build the extension from that checkout, so `just install-venv` heals a
-stale wheel. A published `sase-core-rs` older than the receipt wire rejects the
-`receipt:` key as an unknown catalog field (`sase tool run` exits 2 naming the entry),
-and Python code calling the receipt bindings fails the "Check pinned core bindings" lint
-step instead of crashing with `AttributeError` at runtime. Apollo and unconfigured-mac
-machines stay on the pass-only path until their ledgers grow enough for an independent
-KNOWN precision gate; no receipt is shared across machines.
-
-## Verdict receipts: mint, query, and no-skip (E4 receipt-execution-cli)
-
-After wrapper settlement and E3 triage settlement, both the foreground and the claimed
-hand-off worker paths settle a verdict receipt through the same Rust mint API: mint only
-for a named, non-bypassed run whose before/after fingerprints are complete and equal,
-with `mutated_input = false`, `settled_by = wrapper`, and a verdict in that tool's
-`receipt.accept` set. Ad-hoc, bypassed, mutated, incomplete, non-wrapper-settled,
-control, infrastructure, environment, NEW, undetermined, and unaccepted no-new runs
-leave no receipt row. A later same-identity, same-fingerprint non-success supersedes an
-earlier receipt until a later eligible success. The settle adapter is fail open for tool
-execution (it records a diagnostic and never changes the child's result); receipt lookup
-stays fail closed.
-
-`sase tool receipt TOOL [-a/--accept {pass,no-new}] [-j/--json]` reports the covering
-receipt for one named tool at the current fingerprint: exit 0 for covered (receipt id,
-source run id, verdict, age), 1 for exactly one typed refusal (`no_receipt`,
-`fingerprint_changed: <path>` with bounded changed paths, `expired`,
-`incomplete_fingerprint`, `verdict_insufficient`, `definition_changed`, or
-`invalidated_by_later_run`), and 2 for an unknown tool or usage error. `-j` emits a
-versioned (`schema_version: 1`) machine-readable envelope. The query states what the
-ledger holds and never claims any completion policy is met.
-
-Every `sase tool run` invokes its child despite an existing receipt. A covering receipt
-is proof for host completion to consult; it never skips, reuses, or redirects execution.
-
-## Receipt opportunity report (E4 opportunity-report)
-
-`sase tool receipts [-d/--days N] [-j/--json]` lists retained receipts and reports
-content-equivalent verification repeats: counts, summed duration and hours, top tools,
-and the observation window, all versioned (`schema_version: 1`). The comparison is
-content-addressed — path content at each HEAD plus dirty/untracked hashes, with
-toolchain, environment, extra arguments, and catalog identity kept in the key, comparing
-Git blobs by content rather than by HEAD alone — so a verified dirty tree later
-committed and rechecked at a new HEAD counts as a repeat opportunity. Missing Git
-objects and incomplete fingerprints are reported as uncomparable, never guessed. The
-report informs a later reuse decision; it never changes what `run` executes and never
-claims the current tree is covered.
-
-## Stats
-
-`sase tool stats [-a/--all] [-d/--days N] [-j/--json] [-t/--tool TOOL]` turns the ledger
-into routine readouts: per tool, stage, route, and provider p50/p90, the outcome and
-censoring mix, ceiling kills and wasted hours, repeats and duplicates, a daily trend, a
-chronological backtest, and host pressure. The default scope is the current catalog
-project over 7 days; `-a` includes every project, `-t` filters to one tool and prints
-its detail sections, and `-d` must be 1–180. Exit codes: 0 when reported (an empty
-window prints `no recorded runs`), 1 on a store or binding failure, 2 on usage errors.
-`-j` prints the core result plus a top-level `host`, sorted and indented with
-`schema_version: 1`.
-
-The report is read-only and machine-local: it reconciles unsettled runs first, then
-opens the ledger without migrating or writing. Compare machines by running `stats` on
-each host (`ssh <host> sase tool stats -j`), never by merging ledgers.
-
-Definitions, in plain words:
-
-- The **bare-settled cohort** is `succeeded`/`failed` runs with a known duration and no
-  extra args. Percentiles use nearest rank; a missing value renders as an em dash, never
-  as zero.
-- **Routes** are `escalated` (a join record, or an inline-then-escalate run whose
-  recorded ceiling budget is smaller than its duration), `detached` (a hand-off run with
-  a starter), `handoff` (without a starter), `owned` (a foreground run inside a monitor
-  or proc), and `inline` (everything else). `handoff + owned + escalated` is
-  monitor-owned.
-- A **ceiling kill** is an `inline`, `signaled` run by a named agent that died inside
-  85%–100% (+60 s grace) of its recorded ceiling, or inside 530–550 s without recorded
-  context (the legacy signature). A run with recorded context but no ceiling is never
-  counted as a ceiling kill. **Waste** buckets are exclusive: killed at ceiling,
-  timeout, stopped, lost, interrupted, then any other signal.
-- **Repeats** are exact-state repetition: same project, tool, definition, extra args,
-  and complete fingerprint, ordered by creation. A repeat after a signaled, interrupted,
-  or lost run counts separately, as does a run that started before an earlier same-key
-  run ended (a concurrent duplicate). The content-equivalent E4b measurement stays
-  `sase tool receipts`.
-- **Trend** buckets runs per local day, empty days included. The **backtest** is a
-  baseline, not a forecaster: each in-window element with at least 20 earlier elements
-  is checked against the p10–p90 band of the 60 most recent priors, and the report
-  states coverage against the ≥80% target and median width against the ≤3× target.
-  Conditioning on selection size or continuation mode belongs to the parked forecast
-  work; this is the baseline such a forecast must beat.
-- **Pressure** buckets host samples in 30 s windows and reports busy buckets (2+
-  distinct runs), the share of buckets with memory PSI above 10, and p90 PSI and
-  load-per-CPU. OOM kills are not observable from the ledger.
-
-Stage detail reaches back over the `detail_days` retention horizon; older windows lose
-stage rows while run summaries survive to `summary_days`.
-
-Each held reconsider condition from the tool-routing research has a stats field:
-
-| Condition  | Stats field                                                                                           |
-| ---------- | ----------------------------------------------------------------------------------------------------- |
-| Rest of E6 | Per-stage backtest coverage and width                                                                 |
-| E7         | `pressure.busy_memory_over_threshold_share`, concurrent-duplicate hours, token-wait runs and timeouts |
-| E8         | Run counts from each host (`ssh <host> sase tool stats -j`)                                           |
-| E4b        | `sase tool receipts`, not this report                                                                 |
-
-## Failure semantics
-
-The child's exit code is returned, or `128+signal`; catalog and usage errors return `2`.
-If recording fails (unwritable store, lock contention), the command still runs exactly
-once with the same argv and exit code, a single warning is printed, and no durable id is
-claimed. SIGTERM and SIGINT are forwarded and produce `143`/`signaled` and
-`130`/`interrupted`.
-
-Under a live monitor or proc owner the child shares the wrapper's process group, so the
-owner's stop reaches the whole tree and the wrapper does not escalate on its own. An
-inline run puts the child in its own session and escalates a forwarded SIGTERM/SIGINT to
-SIGKILL on the child's process group after 5 seconds; on Linux the child is also killed
-if the wrapper dies. When a later `sase tool run` finds a run whose wrapper is gone (the
-run is settled `lost`), it reaps that run's leftover process group with SIGTERM, then
-SIGKILL after 2 seconds, but only while the group leader still matches the recorded
-child's start identity; a reused PID is never signaled. `sase tool runs` and
-`sase tool show` reconcile lost runs without signaling anything.
-
-## Failure triage
-
-Every settled named-tool failure is extracted into durable **failure items**. An item is
-classified as `NEW`, `KNOWN`, `FLAKY`, or `UNKNOWN`: `KNOWN` needs an independent
-witness; `FLAKY` needs the reproducible-flake baseline; and missing or insufficient
-evidence is `UNKNOWN`, not an assertion that the failure belongs elsewhere. A verdict
-summarizes the stored items (`new_failures`, `no_new_failures`, or unavailable triage)
-without changing the command outcome. `sase tool show RUN` and `sase tool show RUN -j`
-retain the items, evidence, possible owners, stage decisions, and verdict after logs are
-reaped.
-
-For `stages: run_silent` tools, agent-attributed runs use `known` continuation: a failed
-stage continues only when it has one or more items and every item is KNOWN or FLAKY.
-`-x` restores fail-fast and `-k` continues every failed stage. All three modes preserve
-the first continued failure's exit code when `tools/run_silent --finish` closes the
-recipe. If a continued failure reaches a child exit of zero without that finish record,
-the wrapper reports a failed run and exits `1` rather than manufacturing success. A
-plain recipe line after a continued failure is not a `run_silent` stage and keeps that
-line's own exit code, just as `just` does.
-
-`sase tool failures` groups current signatures by class, tool and stage, and reports
-runs, agents, first/last seen, and possible owners. Its default scope is the catalog
-repository; linked-repository runs are a separate identity and never witness this
-repository's items. Rows created before catalog-owned identity was fixed remain history.
-Renaming a stage description starts a new stage key and therefore breaks continuity.
-Thin ledgers deliberately produce mostly UNKNOWN items until independent evidence has
-accumulated. Classification uses the stored rule version and evidence, with the
-`min_witnesses` and `touched_requires_clean_witness` knobs recorded alongside it.
-
-## Inline-then-escalate
-
-Every agent `sase tool run` starts inline from the agent's point of view, and a run
-still going near the caller's synchronous ceiling moves into a monitor under the same
-ToolRun id without being cancelled or rerun. A `short` tool such as `check` settles
-inline inside the budget. A run that outlasts the budget prints one shared escalation
-block and exits `124` while the run keeps going; the agent runs the printed
-`sase monitor start -J ...` join next and ends the turn. The explicit legs behind that
-block — `sase tool run -d`, the ceiling-bounded `sase tool wait` / `sase tool show -F`,
-and `sase monitor start -J` — are documented under "Hand-off and lifecycle control"
-below and share the run's id end to end.
-
-`sase tool run` refuses an inline run before starting anything (exit `2`) when all four
-conditions hold: the caller is a SASE agent (`SASE_AGENT` is set), a valid provider
-synchronous ceiling is present (`SASE_PROVIDER_SYNC_CEILING_SECONDS`), the run is a
-named catalog tool, and the tool's duration class floor meets that ceiling (`long` under
-a 600 s ceiling; `unbounded` under any ceiling). The refusal prints why (tool, class,
-floor, ceiling), states that nothing was started, and prints two runnable forms: a
-`sase monitor start -p verify` hand-off with a `--next` placeholder, and the
-prepared-completion variant (`-f <ref>`) with the `verification.command` argv to seal
-first. No ToolRun row is written and no child starts.
-
-The class is a floor, not a forecast, so on a correctly declared catalog the refusal can
-only fire where the ceiling would have killed the run anyway. There is no bypass flag:
-running inline past the ceiling is killed anyway, and a monitor always works. A
-misdeclared class is fixed in the project-owned catalog, and with no `long` or
-`unbounded` declaration nothing is ever refused (rollback is the catalog itself).
-Humans, CI, monitors, and procs never evaluate the check, and ad-hoc runs are never
-refused.
-
-## Hand-off and lifecycle control
-
-A handed-off run has a durable identity before its caller lets go. The launcher reserves
-a `created` run that already names its owner (a proc or a monitor), then starts the
-owner, whose command is a hidden worker that atomically claims that exact run and
-executes the frozen invocation. The printed handle is durable from the reservation on:
-the run stays discoverable, followable, waitable, and stoppable through its id, and it
-settles to either an authoritative outcome or an explicit, typed uncertainty. One
-ToolRun links to exactly one proc; each `-H` invocation is a new request, and a run id
-executes at most once. The owner proc is attributed to a TUI session only when the
-process that submitted it is itself a live registered session. An agent escalation,
-`-d`, and a human shell `-H` leave it unattributed even when another TUI is open; there
-is no fallback to the newest TUI session. Unattributed procs remain visible in the Procs
-tab's **this session** scope. See [Durable Procs](ace.md#durable-procs).
-
-```bash
-sase tool run -H check     # returns at once with a run id; the shell may close
-sase tool show RUN -F      # stream the run live until it settles, then summarize
-sase tool wait RUN         # block until it settles; exit with its exit code
-sase tool stop RUN         # ask the owner to stop it; reports requested vs stopped
-```
-
-Agents hand off through `sase monitor start` (which reserves the run and prints its id
-before the turn ends) or detach with `-d` (see "Detached runs" below);
-`sase tool run -H` refuses inside an agent or a live owner with the exact monitor form
-to use instead (exit `2`). An agent's inline run of a catalog tool declared `long` or
-`unbounded` is likewise refused before starting when its class floor meets the
-provider's synchronous ceiling (see "Inline-then-escalate" above).
-
-### Detached runs
-
-`sase tool run -d/--detach` (agents only) starts a normal hand-off run that also carries
-a `starter` record naming the agent runner that started it (`SASE_AGENT_NAME` plus the
-runner PID from `$SASE_ARTIFACTS_DIR/agent_meta.json`, paired with boot/start-time
-identity so a reused PID never counts as proof). Detached output mirrors `-H` and adds
-the starter lifetime plus the join hint; `-q` prints only the run id:
-
-```bash
-sase tool run -d check     # agent-only; stopped when the turn ends unless joined
-```
-
-An unjoined detached run never outlives its starter. Eagerly, the end of the provider
-invocation that started it stops every unjoined run scoped to that runner (a monitor
-handoff records its join first, so an actively joined run is never touched). As a
-backstop, the adopting worker polls the starter about every five seconds once claimed:
-while the starter identity is live the run is left alone, and after the starter dies the
-run survives only while its join names an active monitor — otherwise it is stopped with
-`requested_by: sase` and a reason naming the case
-(`starter agent X ended without joining`, `joining monitor Y ended`). `sase tool show`
-renders the scope (`detached by agent X ...`) and the join (`joined by monitor Y at T`),
-and detached runs never raise the settlement notification: either the starter reads the
-result inline or the joined monitor's follow-up does.
-
-Recording is **fail-closed** like `-H`: if the starter cannot be resolved, the
-reservation cannot be committed, or the proc cannot start, nothing starts (exit `1`).
-Usage and refusals exit `2`: a human caller (use `-H` instead), a live owner or parent
-run, `-H` together with `-d`, and `-v`/`-T`. `-k`/`-x` are allowed and travel as the
-envelope continuation mode, and `long` tools are accepted detached since a join can
-finish them.
-
-### Inline-then-escalate
-
-(Agents only.) A plain `sase tool run` from an agent with a sync budget and no live
-owner or parent run starts the run detached (same reservation, starter, and continuation
-envelope as `-d`) and follows it inline: compact mode follows with inline-identical
-stage lines and footer, `-v` streams the proc log. The run's exit is returned when it
-settles inside the budget. At the budget the follower prints the shared escalation block
-and exits `124` without stopping the run; `SIGTERM`, `SIGINT`, and `SIGHUP` do the same
-and exit `143`, `130`, and `129`. If detach cannot start, one
-`sase: inline escalation unavailable (<why>); running inline` warning is printed and the
-command runs inline under a new id. The automatic path does not inherit stdin; the
-inline path (including that fallback) does.
-
-### Ceiling-bounded wait
-
-(Agents only.) An agent's `sase tool wait` and `sase tool show -F` never block past the
-caller's synchronous ceiling: the wait budget is computed by the Rust core from the hard
-ceiling (`SASE_PROVIDER_SYNC_CEILING_SECONDS`) and the soft ceiling
-(`SASE_PROVIDER_SYNC_SOFT_CEILING_SECONDS`) as the smaller of the budgets that are
-present — the hard budget is the ceiling minus a margin of 15% clamped to 90–300 s (but
-never below half the ceiling), the soft budget is the soft ceiling itself, and a tie
-reports `hard`. With neither ceiling there is no budget. `wait` uses the smaller of `-t`
-and the budget (a clamped `-t` prints one notice); `show -F` stops following at the
-budget. At the bound both print one shared escalation block on stderr and exit `124`
-without stopping the run: tool and run id, elapsed time, the budget source, the
-`sase monitor start -J ...` join form, the bounded `sase tool wait ... -T 200` re-wait
-form, and the turn-end stop rule. A run that is not joinable (not detached, another
-agent's run, or joined elsewhere) prints only the still-running line plus the re-wait
-form — never a join command that would be refused. `wait -j` adds an `escalation` object
-(`budget_seconds`, `source`, `joinable`, `join_command`) at the deadline;
-`schema_version` stays 1. Humans are never bounded.
-
-### Monitor joins
-
-(Agents only.) `sase monitor start -J/--join RUN` hands an existing detached run to a
-monitor under the same ToolRun id — the join form the escalation block prints. The
-joining caller must be the agent that started the run, and `-J` refuses a command
-remainder, `-c`, `-f` (use `-n` for a follow-up), and `-a` with exit `2`, as do a caller
-outside an agent, a run with no starter scope, and another agent's run. Settled,
-stop-requested, and joined-elsewhere races exit `1` with the state and a
-`sase tool show` pointer.
-
-The join is recorded atomically after the monitor member exists and before its proc
-submits (a refusal tears the member down; a submit failure releases the join), and no
-wrapper resolution or new ToolRun reservation happens for joins. The monitor proc runs
-the hidden `sase tool _join RUN` worker: it reasserts the join as an idempotent replay,
-streams the run's output and stage lines into the monitor log without a deadline, then
-renders a compact summary with the existing triage footer and mirrors the run's mapped
-exit code (recorded code, `128+signal`, `143` for a requested stop with no code, else
-`1`). On SIGTERM/SIGINT it requests a stop through the proc owner with a reason naming
-the joining monitor (naming the timeout when the monitor's termination intent says
-timeout), waits at most 15 seconds, and exits `143`/`130`. The joined run is never
-settled as monitor-owned: its executing proc stays the owner, and `sase monitor show`
-renders the scope and join as before. `sase tool stop` on a run joined by an active
-monitor stops that monitor — suppressing its follow-up while the join worker stops the
-run; with a terminal joining monitor the existing proc-owner path applies. Monitor stop,
-timeout, and a lost joiner converge with the detached-run watchdog, preserving the
-`stop_requested` settlement reason.
-
-Recording failures behave differently by leg. Explicit `-H` is **fail-closed**: if the
-reservation cannot be committed, nothing starts (exit `1`, "nothing was started").
-Foreground `sase tool run` stays **fail-open** as above. A monitor start's reservation
-is **fail-open**: it falls back to wrapped execution with one reason line in the monitor
-log, since the monitor id itself is already durable.
-
-Every settlement records a typed `terminal_cause`: `exited`, `signal`, `interrupt`,
-`stop_requested`, `timeout`, `launch_failed`, `owner_lost`, or `wrapper_lost`. A stop
-settles `signaled`/`stop_requested`, including before the command started ("command was
-not run"). Killing any process leaves either a recoverable run or a run that says, in a
-typed field, why its outcome is unknown — nothing is replayed and no success is
-fabricated. A reboot yields truthful reconciliation (`lost`), never a rerun. One ToolRun
-is not an exactly-once guarantee for external side effects: a lost acknowledgement
-retried by the caller creates a second run, and each run executes once.
-
-Platform note: on Linux a terminal-launched proc escapes into its own transient
-`systemd-run --user --scope` (with `OOMPolicy=continue`) whenever the user's systemd
-manager is reachable, so closing the terminal no longer reaches the run; where no user
-manager is reachable the proc stays in the terminal's cgroup unless its `detach_scope`
-escapes, and closing the terminal then still reaches the run. `show` on a run whose
-owner row or logs were pruned reports the owner and the log as no longer retained, by
-name — the summary survives.
-
-## In the TUI
-
-The Agents tab surfaces each node's runs without ever touching the ledger: a live-only
-`⚒` chip on the owning row (the monitor row for monitor-owned runs, never the starter),
-a header chip answering whether the latest check added NEW failures, and the Tools
-deck's `⚒ Runs` card with a stage waterfall, triage items, and a bounded log tail. LLM
-Calls rows, the slow-tool list, and monitor/proc Context cards link to the run instead
-of copying it. Admin Center → Tools (tab `7`) covers project-wide runs, failure
-signatures, and the tool catalog. Stopping a run and starting a catalog tool are
-explicit, confirmed flows; when a hand-off settles, an `OpenToolRun` notification jumps
-back to the run. In the Procs tab, `Enter` on the owner proc or on a monitor that joined
-the run opens Tools focused on that run, unless the row also has a Command Line tag,
-which opens its transcript block first. See [Opening a row](ace.md#opening-a-row),
-[Agents Tab Tool Runs](reference/tui/agents-deck-panels.md#agents-tab-tool-runs), and
-the [Tools tab](ace.md#tools-tab). The TUI never reconciles: a silent run is shown in
-red and left for its owner (or a backend reconcile) to settle.
-
-## Rerunnable harness
-
-```bash
-just smoke-tool-runs                                    # core smoke + fixture harness
-tools/smoke_sase_tool_runs --sase .venv/bin/sase -j     # per-case JSON report and DoD map
-tools/smoke_sase_tool_runs --live                       # also real monitor/proc owners and overhead
-tools/smoke_sase_tool_runs --keep                       # keep the temp fixtures (path printed)
-```
-
-The harness drives the executable named by `--sase` (default: `sase` on `PATH`) against
-an isolated `SASE_HOME`, a private `HOME` so user config and plugin overlays cannot leak
-in, a temporary git project, and a known fixture catalog. It inspects the real store
-through versioned queries; it never runs the expensive SASE catalog, and its only fault
-injection is at the filesystem and process boundary. The report records which Python and
-`sase_core_rs` module the executable actually loaded. Default mode runs every hermetic
-case and labels the live cases `not-run`; `--live` adds a real monitor, a real proc, the
-hand-off fault matrix (acceptance, stop races, viewer detach, worker crash, delivery,
-monitor hand-off), and the cold-start overhead measurement.
-`tests/test_sase_tool_runs_smoke.py` is the pytest twin and shares the same cases.
-
-A `--keep` directory holds one `world-*` subdirectory per case group. Inspect one with
-`SASE_HOME=<kept>/world-NAME/sase-home HOME=<kept>/world-NAME/user-home sase tool runs -a`.
-
-## Guarded recipes
-
-`check` and `check-full` are guarded: run as a SASE agent, `just check` refuses unless
-it runs inside `sase tool run check` for that project root, or with an explicit bypass.
-`test` and `install-venv` are never guarded. The guard is a guardrail against habit, not
-a security boundary.
-
-```bash
-sase tool run check                                # the wrapped form agents use
-SASE_TOOL_BYPASS='<why>' just check                # run raw on purpose; the value is the reason
-```
-
-### The environment contract
-
-Three variables decide everything, and the decision is makeable without starting a
-`sase` process — the override exists precisely for when `sase` is broken. Any repo can
-implement this table from scratch (linked-repo catalogs do exactly that):
-
-| Variable                                  | Set by                  | Meaning                                                                                                                                                                                                                                                                   |
-| ----------------------------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `SASE_AGENT`                              | the agent runner        | this process tree is a SASE agent process                                                                                                                                                                                                                                 |
-| `SASE_TOOL_NAME`                          | `sase tool run`, always | the tree is inside `sase tool run <name>`, or `ad-hoc`                                                                                                                                                                                                                    |
-| `SASE_TOOL_PROJECT_ROOT`                  | `sase tool run`, always | the resolved project root the named run executes in; empty for an ad-hoc run                                                                                                                                                                                              |
-| `SASE_TOOL_BYPASS`                        | an agent or human       | run raw on purpose; any non-empty value bypasses, and the value is the reason                                                                                                                                                                                             |
-| `SASE_PROVIDER_SYNC_CEILING_SECONDS`      | the agent runner        | the caller's provider-harness kill ceiling in seconds for one synchronous command; set around each provider invocation, scrubbed at agent, monitor, and proc boundaries, unset when the provider declares none                                                            |
-| `SASE_PROVIDER_SYNC_SOFT_CEILING_SECONDS` | the agent runner        | the most time an agent should block on one `sase tool run` before escalating to a monitor in seconds; it kills nothing; set around each provider invocation from `tool_runs.soft_ceiling`, scrubbed at agent, monitor, and proc boundaries, unset when none is configured |
-
-`SASE_TOOL_NAME` is exported whether or not recording succeeded: recording stays
-fail-open, so a guard keyed on the run id would refuse the child of a fail-open
-`sase tool run check` and tell the agent to run the command it is already running.
-
-`SASE_TOOL_PROJECT_ROOT` exists so a wrapper marker from one checkout cannot satisfy
-another checkout's guard: the guard requires the name _and_ the root to match. Ad-hoc
-runs (`SASE_TOOL_NAME=ad-hoc`, empty root) never match a guarded recipe's name.
-
-### The guard rule
-
-An agent may run a guarded recipe only from inside `sase tool run <that tool>` for
-_that_ project root, or with an explicit bypass. The match is strict:
-`sase tool run -- sh -c 'just install-venv && just check'` does not satisfy the `check`
-guard, because the named identity is what run history, fingerprints, and receipts key
-on.
-
-The guard is `tools/require_tool_run`, a dependency-free POSIX `sh` script wired as the
-**first** `just` dependency of each guarded recipe, ahead of `_setup`. It refuses — it
-does not redirect — printing the wrapped form and the bypass form and exiting 2:
-
-- `SASE_AGENT` unset (humans, CI, finalizers, monitors, procs): allowed, silently.
-- `SASE_TOOL_NAME` equals the tool _and_ `SASE_TOOL_PROJECT_ROOT` is the recipe's own
-  root: allowed, silently.
-- `SASE_TOOL_BYPASS` non-empty: allowed, with one stderr line naming the reason.
-- `sase` not on `PATH` at all: allowed with one stderr line — fail open, since there is
-  no wrapped form to print.
-- Otherwise: refused with the wrapped and bypass forms on stderr, exit 2.
-
-### Monitor wrapping
-
-The guard cannot see detached runs: monitor supervisors scrub agent identity on purpose.
-`verify`-profile monitors therefore wrap what they run — an exact catalog match upgrades
-to a named `sase tool run <name>`, anything else wraps ad-hoc — in the proc argv only,
-leaving the recorded command and `-f` completion bindings untouched. See
-[Monitors](monitors.md) (§"Tool-run wrapping") for the policy table and the
-`monitor.tool_wrap` config field.
-
-## Measuring adoption
-
-```bash
-tools/tool_adoption_report -d 7 -j
-```
-
-The read-only report pairs each agent's normalized LLM tool-call records (per file, by
-`tool_use_id`), classifies heavy (>=20 s) `just check` / `just check-full` invocations
-as wrapped in `sase tool run`, raw, or bypassed (`SASE_TOOL_BYPASS=... just check`), and
-reports count and wall-time shares with their denominators. It also counts refusals: an
-exit-2 raw call carrying the guard marker, followed by a wrapped call. Each call is
-filtered by its own timestamp rather than its file's modification time, so a window
-cannot mix in older calls. Unpaired, negative, over-six-hour, truncated, undated, and
-ambiguous (pipelines, multi-command) records are counted, not guessed. It does not read
-the ToolRun ledger, so ledger counts and recording errors are separate coverage signals.
+This page has moved. See [Named tools and ToolRuns](reference/automation/tools.md).
+
+## Moved sections
+
+<a id="try-it"></a>
+
+- [Try it](reference/automation/tools.md#try-it)
+
+<a id="catalog-provenance"></a>
+
+- [Catalog provenance](reference/automation/tools.md#catalog-provenance)
+
+<a id="duration-classes"></a>
+
+- [Duration classes](reference/automation/tools.md#duration-classes)
+
+<a id="project-identity"></a>
+
+- [Project identity](reference/automation/tools.md#project-identity)
+
+<a id="stage-recording"></a>
+
+- [Stage recording](reference/automation/tools.md#stage-recording)
+
+<a id="demand-recording"></a>
+
+- [Demand recording](reference/automation/tools.md#demand-recording)
+
+<a id="run-output-versus-retained-output"></a>
+
+- [Run output versus retained output](reference/automation/tools.md#run-output-versus-retained-output)
+
+<a id="stream-fidelity"></a>
+
+- [Stream fidelity](reference/automation/tools.md#stream-fidelity)
+
+<a id="history-and-retention"></a>
+
+- [History and retention](reference/automation/tools.md#history-and-retention)
+
+<a id="incomplete-evidence"></a>
+
+- [Incomplete evidence](reference/automation/tools.md#incomplete-evidence)
+
+<a id="stats"></a>
+
+- [Stats](contribute/tool-run-receipts.md#stats)
+
+<a id="failure-semantics"></a>
+
+- [Failure semantics](reference/automation/tools.md#failure-semantics)
+
+<a id="failure-triage"></a>
+
+- [Failure triage](reference/automation/tools.md#failure-triage)
+
+<a id="inline-then-escalate"></a>
+
+- [Inline then escalate](reference/automation/tools.md#inline-then-escalate)
+
+<a id="hand-off-and-lifecycle-control"></a>
+
+- [Hand off and lifecycle control](reference/automation/tools.md#hand-off-and-lifecycle-control)
+
+<a id="detached-runs"></a>
+
+- [Detached runs](reference/automation/tools.md#detached-runs)
+
+<a id="inline-then-escalate-1"></a>
+
+- [Inline then escalate 1](reference/automation/tools.md#inline-then-escalate-1)
+
+<a id="ceiling-bounded-wait"></a>
+
+- [Ceiling bounded wait](reference/automation/tools.md#ceiling-bounded-wait)
+
+<a id="monitor-joins"></a>
+
+- [Monitor joins](reference/automation/tools.md#monitor-joins)
+
+<a id="in-the-tui"></a>
+
+- [In the tui](reference/automation/tools.md#in-the-tui)
+
+<a id="rerunnable-harness"></a>
+
+- [Rerunnable harness](reference/automation/tools.md#rerunnable-harness)
+
+<a id="guarded-recipes"></a>
+
+- [Guarded recipes](reference/automation/tools.md#guarded-recipes)
+
+<a id="the-environment-contract"></a>
+
+- [The environment contract](reference/automation/tools.md#the-environment-contract)
+
+<a id="the-guard-rule"></a>
+
+- [The guard rule](reference/automation/tools.md#the-guard-rule)
+
+<a id="monitor-wrapping"></a>
+
+- [Monitor wrapping](reference/automation/tools.md#monitor-wrapping)
+
+<a id="measuring-adoption"></a>
+
+- [Measuring adoption](contribute/tool-run-receipts.md#measuring-adoption)
+
+<a id="fingerprinted-toolchain-and-external-state-e4-hermetic-baseline"></a>
+
+- [Fingerprinted toolchain and external state e4 hermetic baseline](contribute/tool-run-receipts.md#fingerprinted-toolchain-and-external-state-e4-hermetic-baseline)
+
+<a id="receipt-catalog-policy-and-mixed-core-rollout-e4-core-pin-catalog"></a>
+
+- [Receipt catalog policy and mixed core rollout e4 core pin catalog](contribute/tool-run-receipts.md#receipt-catalog-policy-and-mixed-core-rollout-e4-core-pin-catalog)
+
+<a id="verdict-receipts-mint-query-and-no-skip-e4-receipt-execution-cli"></a>
+
+- [Verdict receipts mint query and no skip e4 receipt execution cli](contribute/tool-run-receipts.md#verdict-receipts-mint-query-and-no-skip-e4-receipt-execution-cli)
+
+<a id="receipt-opportunity-report-e4-opportunity-report"></a>
+
+- [Receipt opportunity report e4 opportunity report](contribute/tool-run-receipts.md#receipt-opportunity-report-e4-opportunity-report)

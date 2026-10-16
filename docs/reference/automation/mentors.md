@@ -1,3 +1,8 @@
+---
+title: "Mentors"
+description: "Configure and use automated review mentors for Patches."
+---
+
 # Mentors
 
 ## Overview
@@ -24,7 +29,7 @@ The lifecycle is:
 Mentors are configured through `mentor_profiles` in `sase.yml`. SASE loads merged
 config, so user-level profiles from `~/.config/sase/sase.yml` and project-local profiles
 from `sase/sase.yml` can both contribute profiles. See
-[`docs/reference/config/prompts-and-tools.md`](reference/config/prompts-and-tools.md#mentorprofiles)
+[`docs/reference/config/prompts-and-tools.md`](../config/prompts-and-tools.md#mentorprofiles)
 for the field reference.
 
 A profile defines when it should run. Each profile contains one or more mentors, and
@@ -281,7 +286,7 @@ mentor: `▸` (selected), `●` (running), `✗` (failed/killed), or `✓` (all 
 accepted). Read state persists across modal opens and is stored per Patch and stitch.
 
 Unread comment counts also appear inline in the Patches sub-tab list (see
-[sase's TUI docs](ace.md#mentor-comment-stats-in-pr-list)).
+[sase's TUI docs](../../ace.md#mentor-comment-stats-in-pr-list)).
 
 ### Kill Mentors (`,M`)
 

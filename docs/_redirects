@@ -20,9 +20,11 @@
 /integrations/ /contribute/integration-apis/ 301
 /memory/ /reference/memory/memory/ 301
 /memory_history/ /reference/memory/history/ 301
+/mentors/ /reference/automation/mentors/ 301
 /mobile_mvp_runbook/ /contribute/mobile-mvp-runbook/ 301
 /perf_runbook/ /contribute/perf-runbook/ 301
 /sdd_storage/ /contribute/sdd-storage/ 301
+/sudo/ /reference/automation/sudo/ 301
 /telemetry/ /contribute/telemetry/ 301
 /troubleshooting/agent-revival/ /reference/agent-revive-log/ 301
 /troubleshooting/runner-slots/ /reference/runner-slots/ 301

@@ -99,10 +99,11 @@ Below the threshold, an epic land agent uses `llm_provider.epic_lander_model`. A
 above it, it uses `llm_provider.big_epic_lander_model` instead. An explicit land model
 remains authoritative over both.
 
-See [`bead_task_triage`](../../axe.md#checks-5-minute-interval) for how the
-`task_triage` fields gate `TaskTriage` notifications,
-[Task Triage Notification](../../notifications.md#task-triage-notification) for the
-post-upgrade dismissal of already-raised sub-threshold gates,
+See
+[`bead_task_triage`](../automation/scheduler-default-routines.md#checks-5-minute-interval)
+for how the `task_triage` fields gate `TaskTriage` notifications,
+[Task Triage Notification](../automation/notification-types.md#task-triage-notification)
+for the post-upgrade dismissal of already-raised sub-threshold gates,
 [Discovered Follow-Up Capture and Triage](../../beads.md#discovered-follow-up-capture-and-triage)
 for the human-facing triage lifecycle.
 
@@ -123,7 +124,7 @@ Source: `src/sase/default_config.yml`
 
 Configuration for the external tracker mirror. See
 [External Issue Mirroring](../../beads.md#external-issue-mirroring) and the
-[`external_mirror` lane](../../axe.md#external_mirror-15-minute-interval)'s
+[`external_mirror` lane](../automation/scheduler-default-routines.md#external_mirror-15-minute-interval)'s
 `external_issue_mirror` and `external_pr_mirror` jobs, the first production use of
 `for_each: {source: projects}` fan-out.
 

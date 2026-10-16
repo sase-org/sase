@@ -1,3 +1,9 @@
+---
+title: "Sudo requests"
+description:
+  "Request, review, and recover privileged commands run on behalf of SASE agents."
+---
+
 # Sudo Requests
 
 SASE sudo requests let an agent ask for reviewed privileged execution without ever
@@ -12,8 +18,8 @@ A sudo request moves through four steps:
 1. An agent finishes all non-root preparation, then pipes one JSON request to
    `sase sudo request`. SASE validates it, snapshots the SHA-256 of every executable,
    seals the reviewed command manifest, and creates a `sudo` gate backed by a
-   [gate turn](notifications.md#gate-turns-and-continuation). The turn shows the `SUDO`
-   status, and the agent's turn ends.
+   [gate turn](notification-gates.md#gate-turns-and-continuation). The turn shows the
+   `SUDO` status, and the agent's turn ends.
 2. A reviewer opens the request in sase's TUI, checks the commands, and chooses which
    ones to run.
 3. `sase sudo answer` authenticates through the real `sudo` prompt in a terminal. The

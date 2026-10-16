@@ -1055,8 +1055,8 @@ first and then allocates each templated member inside that concrete clan, so
 `toobig-0.split_file.src.pkg.large.0`. Prefer a trailing `.@` over hashing a
 discriminator into the member ID: two members that would otherwise collide land on `.0`
 and `.1` instead of failing the run. See
-[Axe launch proposals](axe.md#structured-results-and-launch-proposals) for the full
-allocation rule.
+[Axe launch proposals](reference/automation/scheduler-jobs.md#structured-results-and-launch-proposals)
+for the full allocation rule.
 
 ## Disabling Plugins
 
@@ -1324,8 +1324,9 @@ sase axe job run 'project_audit[sase]' -L audits --dry-run --job-verbose
 ```
 
 Third-party packages can opt into `sase plugin list` by adding the `sase--plugin`
-repository topic. See [Axe](axe.md#structured-results-and-launch-proposals) for the
-result contract, proposal fields, trigger/guard policy, and lifecycle statuses.
+repository topic. See
+[Axe](reference/automation/scheduler-jobs.md#structured-results-and-launch-proposals)
+for the result contract, proposal fields, trigger/guard policy, and lifecycle statuses.
 
 ### Example: LLM Provider Plugin
 

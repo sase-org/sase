@@ -12,7 +12,6 @@ Exact SASE facts; guides teach workflows.
 - [CLI reference](../cli.md) — command index and routing
 - [CLI command groups](cli/index.md) — generated flags and subcommands
 - [Query language](../query_language.md) — filtering runs and beads
-- [Named tools](../tool.md) — declaring and running tools
 
 ## Configuration
 
@@ -50,16 +49,13 @@ Exact SASE facts; guides teach workflows.
 - [Agent auto-restart](agent-auto-restart.md) — update-skew recovery, limits
 - [Agent revive log](agent-revive-log.md) — revival audit records
 - [Runner slots](runner-slots.md) — capacity admission, queued agents
-- [Mentors](../mentors.md) — automated code review
 - [Remote dispatch](../remote_dispatch.md) — running agents elsewhere
 - [Workspaces](../workspace.md) — numbered clones agents claim
 
 ## Automation
 
-- [Scheduler and service host](../axe.md) — recurring and hosted work
-- [Monitors](../monitors.md) — long commands outliving agents
-- [Notifications](../notifications.md) — staying informed
-- [Sudo requests](../sudo.md) — approving privileged commands
+- [Automation](automation/index.md) — notifications, scheduling, monitors, and related
+  tools
 
 ## Providers
 

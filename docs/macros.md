@@ -1708,7 +1708,7 @@ add more skill sources, so `sase skill list` may show entries that are not bundl
 | `sase_var`           | Attach named output variables to the current SASE agent run                                   |
 
 The sudo request workflow behind `sase_sudo` is described under
-[Sudo Requests](sudo.md).
+[Sudo Requests](reference/automation/sudo.md).
 
 ## Memory Field
 
@@ -1898,8 +1898,9 @@ Scheduled automation is no longer implemented by job-owned macro workflows. The 
 workflows were retired. Axe now runs scripts that may emit structured launch proposals;
 shared triggers, guards, checkpoints, dedupe, and target fan-out stay in the runner.
 Proposal prompts may use inline `#macro` templates, but standalone `#!workflow`
-references are rejected. See [Axe](axe.md#structured-results-and-launch-proposals) for
-the script/result contract and the builtin documentation refresh job.
+references are rejected. See
+[Axe](reference/automation/scheduler-jobs.md#structured-results-and-launch-proposals)
+for the script/result contract and the builtin documentation refresh job.
 
 ## Config-Based Macros
 

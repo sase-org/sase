@@ -164,7 +164,7 @@ def test_launch_followup_agent_inherits_auto_structurally_without_prefix(
 ) -> None:
     # Autonomy rides structural inheritance (the follow-up inherits the starter
     # member's live record), so even with auto-approve state present no %auto
-    # prefix is re-emitted. See docs/monitors.md.
+    # prefix is re-emitted. See docs/reference/automation/monitors.md.
     monitor_dir, _starter_dir, _project_file = _promote_and_start_monitor(
         tmp_path, monkeypatch
     )

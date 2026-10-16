@@ -67,7 +67,7 @@ context, and repository observations without submitting or executing them. Bind 
 returned single-use ref with `sase monitor start -f <ref>`; only an eligible successful
 monitor result lets the host install that declaration and run finalizers without another
 model turn. A plain monitor profile carries no completion authority. See
-[Prepared host completion](../../monitors.md#prepared-host-completion).
+[Prepared host completion](../automation/monitors.md#prepared-host-completion).
 
 The built-in `builtin@commit` provider checks the main workspace, configured linked Git
 worktrees, and repositories opened through `/sase_repo`. Dirty enforced repositories

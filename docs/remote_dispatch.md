@@ -178,8 +178,9 @@ network work, and local mutations:
 | `sase machine attention`         | Journaled `answer` / `approve` of a pending remote question or gate on its owning host.          |
 
 `sase machine add -S/--ssh-target` records the SSH destination that terminal handoffs,
-such as [remote sudo requests](sudo.md#remote-flow), use for that machine. It defaults
-to the alias itself; `sase machine show ALIAS` prints the effective target.
+such as [remote sudo requests](reference/automation/sudo.md#remote-flow), use for that
+machine. It defaults to the alias itself; `sase machine show ALIAS` prints the effective
+target.
 
 `--bootstrap-file` is available on `init`, `add`, and `repair`. The `init` workflow
 always requires an interactive stdin for candidate selection and alias prompts; it gets
@@ -269,7 +270,8 @@ matches).
   inbox rather than inferred from row-follow state. Dismissing one locally sticks for
   that revision, a new revision arrives as a fresh unread row, and a host outage does
   not dismiss them. `Enter` on a remote row with a pending request opens the same
-  answer/approve flow; see [Remote Attention](notifications.md#remote-attention).
+  answer/approve flow; see
+  [Remote Attention](reference/automation/notifications.md#remote-attention).
 
 Prompt submission first validates portable source proof off the TUI event loop. A
 preflight failure restores the prompt to the prompt bar with a

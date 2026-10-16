@@ -64,7 +64,7 @@ that never starts, see [Unstick a queued agent](unstick-queued-agent.md).
 
 ## Related
 
-- [Mentors](../mentors.md) — profiles, severities, output format, and every key in the
-  review modal.
+- [Mentors](../reference/automation/mentors.md) — profiles, severities, output format,
+  and every key in the review modal.
 - [Automation and human checkpoints](../concepts/automation.md) — where automated review
   fits among autonomous outcomes and human checkpoints.

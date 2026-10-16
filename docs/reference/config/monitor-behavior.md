@@ -33,7 +33,8 @@ relationship is invalid; schema validation rejects non-positive values. Strict
 
 An unrecognized `tool_wrap` value falls back to `verify` at runtime. Wrapping changes
 only the argv the proc supervisor execs, never the recorded monitor command; see
-[Tool-run wrapping](../../monitors.md#tool-run-wrapping) for the per-command rules.
+[Tool-run wrapping](../automation/monitors.md#tool-run-wrapping) for the per-command
+rules.
 
 Source: `src/sase/default_config.yml`, `src/sase/config/_settings_display.py`,
 `src/sase/config/sase.schema.json`, `src/sase/monitor/result_projection.py`,

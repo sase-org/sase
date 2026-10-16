@@ -568,7 +568,8 @@ conditions survive. For example:
 
 Snoozing always snoozes the bead's own notification in the same step — there is no
 separate scheduler, and the bead's row stays visible in the notification panel's
-`Snoozed` tab (see [Tabs and Ordering](notifications.md#tabs-and-ordering) in the
+`Snoozed` tab (see
+[Tabs and Ordering](reference/automation/notifications.md#tabs-and-ordering) in the
 notifications doc) for the whole deferral. When the wake time arrives, the notification
 resurfaces as a `BeadSnooze` gate with three options: **Close** (primary; empty feedback
 uses a preset "stale, no new evidence" reason, any feedback text replaces it), **Ready**
@@ -775,8 +776,9 @@ of them have been below the bar for
 days, one `BeadStaleCleanup` gate offers the oldest 50 (naming any remainder) so the
 reviewer can close a selected subset as `canceled`. The job keeps a single pending gate
 and cancels it when the backlog drops below the bar. See
-[Stale Task Cleanup Notification](notifications.md#stale-task-cleanup-notification) and
-the [housekeeping lane](axe.md#housekeeping-1-hour-interval).
+[Stale Task Cleanup Notification](reference/automation/notification-types.md#stale-task-cleanup-notification)
+and the
+[housekeeping lane](reference/automation/scheduler-housekeeping.md#housekeeping-1-hour-interval).
 
 The gate offers three decisions:
 
@@ -797,11 +799,11 @@ proposals as `task` beads, marks them `ready`, and records why it declined any o
 ### External Issue Mirroring
 
 The `external_issue_mirror` AXE job (see
-[external_mirror lane](axe.md#external_mirror-15-minute-interval)) keeps every enabled
-project's issue tracker mirrored into task beads: each pass diffs the tracker against
-local beads on `external_ref` and creates an explicitly `small`, `open` task bead —
-never `ready` — for every uncovered issue, so a first-pass backlog never floods the
-`TaskTriage` gate queue. Run
+[external_mirror lane](reference/automation/scheduler-default-routines.md#external_mirror-15-minute-interval))
+keeps every enabled project's issue tracker mirrored into task beads: each pass diffs
+the tracker against local beads on `external_ref` and creates an explicitly `small`,
+`open` task bead — never `ready` — for every uncovered issue, so a first-pass backlog
+never floods the `TaskTriage` gate queue. Run
 `sase bead sync-external [--project P] [--dry-run] [--full]` to trigger or preview the
 same pass manually.
 

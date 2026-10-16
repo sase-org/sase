@@ -277,7 +277,7 @@ command. `-v/--vcs-provider` below is a `sase axe` group flag only; it applies t
 Shows the `scheduler` service proc's status through the service host. Human output is
 the default; JSON output is deterministic and never contains Rich markup or ANSI
 escapes. `-j, --json` emits the proc record. See
-[Scheduler Status](axe.md#scheduler-status).
+[Scheduler Status](reference/automation/scheduler.md#scheduler-status).
 
 | Flag         | Values | Default | Description                   |
 | ------------ | ------ | ------- | ----------------------------- |
@@ -311,7 +311,8 @@ Maintenance mode pauses scheduled routine ticks without stopping the orchestrato
 | `sase axe maintenance exit`   | exits 0                              | Remove the marker if present.                   |
 | `sase axe maintenance status` | exits 0 when active, 1 when inactive | Print the active marker reason, PID, timestamp. |
 
-See [axe.md — Maintenance Mode](axe.md#maintenance-mode) for the runtime behavior.
+See [axe.md — Maintenance Mode](reference/automation/scheduler.md#maintenance-mode) for
+the runtime behavior.
 
 ### `sase axe job`
 
@@ -329,7 +330,8 @@ cannot be resolved) and `0` otherwise. Unconfigured available scripts and Telegr
 prerequisite gaps report `WARN`. The same job diagnostics are also surfaced by
 `sase doctor -C axe.jobs`. The hidden legacy `sase axe chop ...` group accepts the same
 subcommands (plus the hidden `--chop-verbose` and `--lumberjack` spellings) and keeps
-its schema-version-1 JSON; see [Compatibility aliases](axe.md#compatibility-aliases).
+its schema-version-1 JSON; see
+[Compatibility aliases](reference/automation/scheduler.md#compatibility-aliases).
 
 ### `sase axe routine`
 
@@ -342,7 +344,8 @@ With no subcommand, `sase axe routine` defaults to `sase axe routine list`.
 | `sase axe routine status` | -                      | Show per-routine process status.                                                                         |
 
 Both listings print only the description summary line by default so the output stays
-scannable; `-v/--verbose` renders the full [description](axe.md#description-grammar).
+scannable; `-v/--verbose` renders the full
+[description](reference/automation/scheduler-description-grammar.md#description-grammar).
 `sase axe routine run` takes the routine name positionally; its runner flags are the
 ones the orchestrator forwards when it spawns routines. The hidden legacy
 `sase axe lumberjack ...` group accepts the same subcommands.
@@ -1635,8 +1638,9 @@ supervised background proc unless `-D/--no-detach` is given.
 ### `sase sudo`
 
 `sase sudo` creates typed sudo request gates and answers them from a controlling
-terminal through SASE's dedicated sudo runner; see [Sudo Requests](sudo.md). With no
-subcommand, `sase sudo` defaults to `sase sudo list`.
+terminal through SASE's dedicated sudo runner; see
+[Sudo Requests](reference/automation/sudo.md). With no subcommand, `sase sudo` defaults
+to `sase sudo list`.
 
 | Form                    | Flags                                                                                                                               | Description                                                                                                              |
 | ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
@@ -1701,14 +1705,14 @@ With no subcommand, `sase notify` defaults to the compact `sase notify list` vie
 filtering form. Use `sase notify create` to write a raw, non-privileged notification
 from stdin JSON. Use `sase gate create` and `sase gate wait` for command-backed gates.
 
-| Form                       | Flags                                                                                         | Description                                                                                                             |
-| -------------------------- | --------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| `sase notify`              | `-s/--sender`, `-t/--tag`                                                                     | Shortcut for `sase notify list` with default compact output                                                             |
-| `sase notify +1 [ID] NOTE` | `-k/--dedup-key`, `-s/--sender`                                                               | Append corroboration by exact/unique ID prefix or sender-scoped dedup key                                               |
-| `sase notify create`       | `-k/--dedup-key`, `-p/--plus-one-note`, `-S/--supersedes`, `-s/--sender`, `-t/--tag`          | Create a raw notification or atomically append to a matching deduplicated row                                           |
-| `sase notify list`         | `-j/--json`, `-l/--limit`, `-q/--query`, `-t/--tag`, `-s/--sender`, `-u/--unread`, `-a/--all` | List recent notifications; `-j` includes `plus_ones`, count, and `dedup_key`                                            |
-| `sase notify show`         | `-i/--id`, `-f/--format` (`markdown` or `json`)                                               | Show one notification by id; defaults to markdown                                                                       |
-| `sase notify rules`        | `-e/--explain ID`, `-j/--json`                                                                | List merged [delivery rules](notifications.md#delivery-rules) in evaluation order, or explain one row's toast and sound |
+| Form                       | Flags                                                                                         | Description                                                                                                                                  |
+| -------------------------- | --------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `sase notify`              | `-s/--sender`, `-t/--tag`                                                                     | Shortcut for `sase notify list` with default compact output                                                                                  |
+| `sase notify +1 [ID] NOTE` | `-k/--dedup-key`, `-s/--sender`                                                               | Append corroboration by exact/unique ID prefix or sender-scoped dedup key                                                                    |
+| `sase notify create`       | `-k/--dedup-key`, `-p/--plus-one-note`, `-S/--supersedes`, `-s/--sender`, `-t/--tag`          | Create a raw notification or atomically append to a matching deduplicated row                                                                |
+| `sase notify list`         | `-j/--json`, `-l/--limit`, `-q/--query`, `-t/--tag`, `-s/--sender`, `-u/--unread`, `-a/--all` | List recent notifications; `-j` includes `plus_ones`, count, and `dedup_key`                                                                 |
+| `sase notify show`         | `-i/--id`, `-f/--format` (`markdown` or `json`)                                               | Show one notification by id; defaults to markdown                                                                                            |
+| `sase notify rules`        | `-e/--explain ID`, `-j/--json`                                                                | List merged [delivery rules](reference/automation/notifications.md#delivery-rules) in evaluation order, or explain one row's toast and sound |
 
 Raw creation accepts JSON `icon`, `tags`, and `silent` fields plus repeatable
 `-t/--tag`; icons must be one emoji or display glyph, and CLI tags are appended to JSON
@@ -1721,7 +1725,7 @@ When `notify create` uses a dedup key, `--plus-one-note` is required: it is appe
 a match, while a miss creates the row. `--supersedes` identifies an old sender-scoped
 key to annotate and dismiss only when that miss creates the replacement; it has no
 effect when the current dedup key already matches a row. See
-[Notification `+1` Evidence](notifications.md#1-evidence).
+[Notification `+1` Evidence](reference/automation/notifications.md#1-evidence).
 
 ### `sase plan`
 

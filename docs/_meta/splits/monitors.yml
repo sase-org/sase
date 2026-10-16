@@ -1,0 +1,14 @@
+to: reference/automation/monitors.md
+sections:
+  _intro: reference/automation/monitors.md
+  The agent-session picture: reference/automation/monitors.md
+  Starting a monitor: reference/automation/monitors.md
+  The follow-up agent: reference/automation/monitors.md
+  Runner slots: reference/automation/monitors.md
+  Inspecting and stopping monitors: reference/automation/monitor-operations.md
+  In sase's TUI: reference/automation/monitor-operations.md
+  Visibility: reference/automation/monitor-operations.md
+  "Example: approved epic launches": reference/automation/monitor-operations.md
+  Pipe vs. monitor: reference/automation/monitor-operations.md
+  See also: reference/automation/monitor-operations.md
+  Starting a monitor > Opt-in no-new prepared completion (E4 verdict-completion): contribute/monitor-completion.md

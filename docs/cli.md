@@ -606,7 +606,7 @@ unless launched with `sase tui --no-service` (`--no-axe`).
 `sase axe start|stop|restart|status` is an alias of the matching `sase scheduler`
 command. The older `sase axe chop ...` and `sase axe lumberjack ...` spellings remain
 hidden compatibility aliases for `sase axe job ...` and `sase axe routine ...`; see
-[Compatibility aliases](axe.md#compatibility-aliases).
+[Compatibility aliases](reference/automation/scheduler.md#compatibility-aliases).
 
 Flag and option details live in the generated
 [CLI command groups](reference/cli/index.md):
@@ -648,7 +648,7 @@ Flag and option details live in the generated
   [sase comments](reference/cli/comments.md)
 
 Workflows: [Commit workflows](commit_workflows.md), [VCS](vcs.md),
-[Mentors](mentors.md).
+[Mentors](reference/automation/mentors.md).
 
 Delivery commands delegate to the VCS and workspace provider layers, so the same command
 surface can support plain git, GitHub pull requests, and other provider plugins.

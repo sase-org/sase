@@ -198,7 +198,7 @@ tools:
     # identity. The loader always exposes it. `check-full`, `install-venv`, and
     # ad-hoc runs stay receipt-less. Requires a receipt-capable core past
     # sase-core-revision.txt 9f86897 (an older core rejects `receipt:` as an
-    # unknown field); see docs/tool.md rollout notes.
+    # unknown field); see docs/contribute/tool-run-receipts.md rollout notes.
     receipt:
       accept: [pass, no_new_failures]
       ttl: 2h

@@ -417,9 +417,9 @@ When a list read expires a due snooze, the gateway publishes a `notifications_ch
 event with `reason: "snooze_expired"` **after** releasing the notification-store lock,
 carrying the newest expired row's activity cursor (and its `notification_id` when
 exactly one row expired). Connected clients can therefore refresh from one unrelated
-read rather than waiting for another action. See
-[`docs/notifications.md`](notifications.md#snooze-expiry-and-resurfacing) for the
-underlying state and timing contract.
+read rather than waiting for another action. See the
+[notifications reference](reference/automation/notifications.md#snooze-expiry-and-resurfacing)
+for the underlying state and timing contract.
 
 Inspect a plan approval notification before acting on it:
 

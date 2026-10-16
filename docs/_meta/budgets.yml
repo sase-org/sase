@@ -11,7 +11,6 @@ ceilings:
   agents_sidecar.md: 4440
   artifact_links.md: 2424
   artifact_references.md: 2010
-  axe.md: 15924
   beads.md: 26596
   change_spec.md: 2162
   cli.md: 6927
@@ -23,10 +22,7 @@ ceilings:
   index.md: 361
   init.md: 7264
   macros.md: 29265
-  mentors.md: 1599
   mobile_gateway.md: 3396
-  monitors.md: 8175
-  notifications.md: 18223
   pager.md: 3475
   plugins.md: 9474
   project_spec.md: 3146
@@ -34,8 +30,6 @@ ceilings:
   query_language.md: 2029
   remote_dispatch.md: 2935
   sdd.md: 7582
-  sudo.md: 2385
-  tool.md: 6419
   vcs.md: 5642
   workflow_spec.md: 2892
   workspace.md: 6705

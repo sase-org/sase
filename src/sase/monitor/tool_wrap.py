@@ -5,7 +5,7 @@ and ``monitor_execution_argv`` stay byte-identical to what the starter wrote,
 because ``monitor/host_completion_state.py::_command_argv`` reads those for
 prepared-completion ``-f`` bindings.
 
-Policy (see ``docs/monitors.md``):
+Policy (see ``docs/reference/automation/monitors.md``):
 
 - host-owned ``execution_argv`` launch: never wrapped;
 - a command that is already exactly one ``sase tool run ...``: untouched;

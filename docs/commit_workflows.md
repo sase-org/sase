@@ -768,8 +768,9 @@ Start from `sase final context -f json` and fill its `manifest_template` rather 
 guessing digests or obligation IDs. When the context has `assigned_bead`, every
 repository decision inside the wrapped declaration also needs its `bead_action`, exactly
 as for `sase final submit`. `sase final prepare <file> -j` prints the `intent_ref` to
-bind. See [Prepared host completion](monitors.md#prepared-host-completion) for monitor
-settlement and recovery behavior.
+bind. See
+[Prepared host completion](reference/automation/monitors.md#prepared-host-completion)
+for monitor settlement and recovery behavior.
 
 **Flow:**
 

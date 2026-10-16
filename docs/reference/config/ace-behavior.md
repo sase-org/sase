@@ -179,8 +179,8 @@ starts expanded (`true`, the default) or collapsed to its summary line in each
 configurable under `ace.keymaps.app` — flips the state in memory for the rest of the
 session; it never writes the toggle back to configuration, so this key is the only
 durable setting. Descriptions themselves follow the
-[AXE description grammar](../../axe.md#description-grammar), and the panel's layout,
-height budget, and overflow row are described in
+[AXE description grammar](../automation/scheduler-description-grammar.md#description-grammar),
+and the panel's layout, height budget, and overflow row are described in
 [sase's TUI — Description Panel](../../ace.md#description-panel).
 
 Because the Services tab claims `d`, the `show_diff` action is active only on the

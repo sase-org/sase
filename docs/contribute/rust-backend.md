@@ -53,7 +53,7 @@ The shipped Rust-backed operations are grouped by the Python facade that calls t
   `next_snooze_deadline`. Expiry stamps one shared `resurfaced_at` per batch, marks rows
   unmuted and unread, skips dismissed rows, and leaves permanent mutes untouched.
   Callers must not reimplement expiry, ordering, or deadline arithmetic in Python — see
-  [`docs/notifications.md`](../notifications.md#snooze-expiry-and-resurfacing)
+  [notifications reference](../reference/automation/notifications.md#snooze-expiry-and-resurfacing)
 - Temporary LLM provider-disable state: `provider_disable_wire_schema_version`,
   `provider_disable_get`, `provider_disable_set_relative`, `provider_disable_set_until`,
   `provider_disable_try_set_relative`, `provider_disable_try_set_until`, and

@@ -1,925 +1,110 @@
+---
+title: Monitors
+description: This page has moved to its new home.
+search:
+  exclude: true
+---
+
+<!-- generated, do not edit; source: docs/_meta/moves.yml -->
+
 # Monitors
 
-A **monitor turn** is a real [agent session](agent_sessions.md) member whose work is one
-supervised OS command instead of an LLM turn. `sase monitor start` hands a slow command
-off to a detached supervisor process and returns immediately, so an agent can run
-`just check`, wait on a CI job, or sleep before a deploy without blocking its own turn.
-
-SASE agents are single-turn: a provider turn runs, the runner captures it, and the agent
-is done. Provider-native background-execution or scheduled wake-up tools assume a
-multi-turn session and do nothing useful here — the turn ends and the wake-up never
-fires. Monitors are the SASE-native replacement: use `/sase_monitor` (or
-`sase monitor start` directly) instead of any built-in monitor, background-execution, or
-scheduled wake-up tool.
-
-## The agent-session picture
-
-Starting a monitor promotes the calling sase-agent to an agent session, exactly as
-`%id(suffix, session=parent)` would, and adds the monitor as a named proc member. No
-successor is launched yet. After the command settles, the frozen outcome branch may
-launch one ordinary follow-up, complete through the host, or do nothing. `stopped` and
-`lost` always do nothing:
-
-```
-sase-agent "acme"    before                     right after `sase monitor start`
-────────────────────────────────────────────────────────────────────────────────
-acme                 (one-turn agent, RUNNING) acme            (agent session)
-                                                ├─ acme--0      DONE       ← starter turn, killed
-                                                └─ acme--mon    TESTING    ← monitor named proc
-```
-
-After the command finishes on an ordinary `continue` branch:
-
-```
-acme
-├─ acme--0      DONE
-├─ acme--mon    TESTED     ← monitor finished
-└─ acme--1      RUNNING    ← follow-up turn
-```
-
-| Term         | Meaning                                                                         |
-| ------------ | ------------------------------------------------------------------------------- |
-| starter turn | The agent turn that ran `sase monitor start` (absent for host-started monitors) |
-| monitor turn | The `--mon` named proc representing the supervised command                      |
-| supervisor   | The detached process that runs the command and streams its output               |
-| follow-up    | The agent turn launched under the session after the command finishes            |
-
-`sase monitor start`, run from inside an agent, is the last thing that agent does: it
-kills the calling agent's turn (the same handoff mechanism `sase plan propose` and
-`sase questions` use), while the supervisor keeps the command running under the same
-workspace claim. The workspace is never released and re-claimed between the starter and
-the follow-up — the follow-up sees exactly the tree the monitor started with, plus
-whatever the command itself changed.
-
-A monitor turn has an ordinary artifacts directory, just like an agent turn, so
-everything that already understands agent sessions — the Agents tab, session roster,
-runtime aggregation, `sase chat`, `%wait`/`#fork` resolution — works on it with no
-special casing. There is no separate monitor store: a monitor's durable record is its
-`agent_meta.json` plus `done.json`, and `sase monitor list`/`show` are queries over the
-existing agent artifact index.
-
-## Starting a monitor
-
-Host finalizer recovery and conflict-repair turns cannot hand off through
-`sase monitor start`, `sase pipe`, plan proposal, or questions. Those turns are owned by
-an already-running finalizer that must receive their result in the same invocation; a
-handoff cannot complete that contract. The CLI refuses before creating the handoff.
-Finish the repair and any verification inline, or report the blocker to the host.
-
-```bash
-sase monitor start \
-  -p verify \
-  -r 'Verify the refactor before replying to the user' \
-  -t 45m \
-  -n 'Fix anything just check reported, then reply to the user.' \
-  -- just check
-```
-
-When `just check-full` is explicitly requested (typically to repair a CI failure), use
-the same `verify` profile — never run it inline.
-
-Use the same shape when the command you need is an agent-completion gate. The intended
-composition is a monitor running `sase agent wait`, followed by a normal follow-up agent
-that acts on the result:
-
-```bash
-sase monitor start \
-  -s WAITING -S WAITED \
-  -n 'agents finished; land the epic' \
-  -- sase agent wait -a
-```
-
-That keeps the wait outside the current provider turn, preserves the workspace claim,
-and records the wait output where the follow-up can inspect it.
-
-- The command is the remainder after `--` (for example `-- just check`). That is the
-  form `sase monitor start --help` shows. `-c/--command` still works as a hidden
-  compatibility alias for a single shell string, but new invocations should use `--`. A
-  single word after `--` is used verbatim as the shell command, so quote a pipeline or
-  `&&` chain as one argument (`-- 'just fix && just check'`). Several words are
-  re-quoted with `shlex.join`, so each stays one literal argument and shell operators
-  among them are not interpreted. SASE already runs the command with `/bin/sh -c`, so do
-  not wrap it in `bash -c` or `sh -c`; `sase monitor start` warns when it sees that
-  redundant wrapper.
-- `-p/--profile verify` supplies the standard verification policy: `TESTING` / `TESTED`
-  labels, `--next-output auto`, no continuation after success, and a recovery
-  continuation after failure or timeout. `-n/--next` replaces the built-in recovery
-  instruction. Profile selection alone never authorizes host completion; prepared
-  completion still requires `-f/--completion`.
-- `-s/--start-status` and `-S/--stop-status` are required when no profile supplies them
-  — the present-tense label shown while the command runs (e.g. `TESTING`) and the
-  past-tense label shown when it finishes (e.g. `TESTED`). Each is capped at 20
-  characters; over-length values are truncated with a trailing `…` and a warning.
-  `TESTING` / `TESTED` is the pair for `just check` and `just check-full`; a different
-  kind of wait picks its own pair (for example `SLEEPING FOR 300s` → `SLEPT FOR 300s`).
-- `-r/--reason` defaults to `run command`. `-t/--timeout` defaults to `1h` (bare
-  seconds, or `90s` / `45m` / `2h`). Pass both when the default reason or budget would
-  be misleading.
-- `--idle-timeout` / `-i` is optional. It kills a command that stops producing output
-  for the given duration, while still allowing intentionally quiet commands when
-  omitted.
-- `--next` / `-n` is the shared follow-up instruction. Without a profile, policy, or
-  prepared completion, omitting it makes the monitor fire-and-forget: the command still
-  runs to completion and its output, exit state, and runtime are recorded, but no agent
-  launches afterward.
-- `--model` / `-m` selects a model or alias for an ordinary follow-up (for example
-  `opus`, `opus@high`, `@small`, or `codex/gpt-5`). It may accompany `--next`, a
-  profile, an outcome policy, or a prepared completion that has a recovery branch. When
-  omitted, an ordinary follow-up inherits the starter's model and reasoning effort.
-- `-o/--next-output auto|tail|file|none` controls how much retained command output is
-  handed to the follow-up agent. `auto` is the default and selects outcome-aware
-  evidence; `tail` embeds a bounded raw tail; `file` points at refs and log locators;
-  `none` gives only the outcome summary and `sase monitor show --all-lines` pointer.
-- `-k/--checkpoint FILE` binds an authored YAML/JSON checkpoint by content digest. Use
-  it to preserve the objective, constraints, findings, unresolved decisions, remaining
-  work, source refs, or coverage separately from `--next`.
-- `-P/--policy FILE` loads a per-outcome JSON/YAML policy. It is mutually exclusive with
-  `-p/--profile`; both are validated and frozen before SASE creates the monitor member.
-- `-f/--completion REF` binds a single-use host-completion intent produced by
-  `sase final prepare`. The monitored argv must exactly match the intent's verification
-  command.
-- `--label` / `-L`, `--agent` / `-a` (`--lane` remains accepted as a deprecated alias),
-  `--cwd` / `-C`, and `--tail-lines` / `-T` are optional; see
-  `sase monitor start --help` for the full list.
-- `-k`, `-P`, `-p`, and `-f` are always available: every new monitor persists versioned
-  continuation records, so checkpoint, outcome-policy, profile, and host-completion
-  controls work unconditionally.
-
-`--cwd` may name any directory inside a managed checkout, including a repository opened
-with `sase repo open`. When `--cwd` is omitted, the default is the current directory
-when it is inside a repo opened with `sase repo open`, else the agent's workspace, else
-`$PWD`. The command runs in that directory, but the monitor records and claims the
-checkout that contains it, and an ordinary follow-up starts at that checkout's root.
-When the directory is inside the caller's own workspace, the caller's claim moves to the
-monitor; inside a different managed workspace, the monitor takes a fresh claim and the
-caller keeps its own. A directory outside every managed checkout uses workspace `0`.
-
-Before it creates the monitor member or binds a completion intent, `sase monitor start`
-checks the target workspace's claims. If another live process holds that workspace, the
-start fails with `could not claim workspace for monitor: …` and leaves no monitor row
-behind. A claim left by the same agent whose process has died is taken over instead.
-
-Only one monitor may be running per agent at a time. Repeating the same full request
-returns the existing running record; changing the command, cwd, reason, label, timeout,
-idle timeout, next action, model, status labels, tail lines, profile, checkpoint,
-policy, completion intent, output policy, or joined run is rejected until the active
-monitor settles. A `lost` monitor is never implicitly replayed: repeating the identical
-request is refused with a pointer to `sase monitor show`, while a different request may
-start a new monitor.
-
-### Joining a detached ToolRun
-
-(Agents only.) `sase monitor start -J/--join RUN` adopts an existing starter-scoped
-detached ToolRun — the kind `sase tool run -d` starts — instead of starting a command.
-The run keeps one id end to end, and its executing proc stays the owner; the monitor
-only follows it:
-
-```bash
-sase monitor start -J 0f1a2b3c -p verify -n 'finish check'
-```
-
-The display command replays the original `sase tool run` words (ad-hoc argv included),
-the default label is `tool:<name> (joined)`, and the default reason is
-`finish <tool> (joined run)`. `-J` cannot be combined with a command remainder, `-c`,
-`-f` (pass `-n` for a follow-up instead), or `-a`: the join always runs on the calling
-agent's lane. The caller must be the agent that started the run; anything else — outside
-an agent, a run with no starter scope, or another agent's run — is refused with exit
-`2`. A run that already settled, has a stop request, or is joined elsewhere is refused
-with exit `1`, showing the state and a `sase tool show RUN` pointer. No monitor starts
-on any refusal.
-
-The join records atomically after the monitor member exists and before its proc submits;
-a refused or failed start tears the member down (releasing the join) and runs nothing.
-The monitor proc follows the run into the monitor log without a deadline, then renders a
-compact summary with the triage footer and exits with the run's mapped code. In the
-Procs tab that proc carries a `tool-run-join:<id>` tag, so `Enter` opens Admin Center →
-Tools focused on the run (`⏎: run`) instead of jumping to the monitor's agent. A monitor
-that owns a reserved run uses `tool-run:<id>` and opens the same way. See
-[Opening a row](ace.md#opening-a-row). `stop`, timeout, and a lost joiner converge
-through the detached-run watchdog with the `stop_requested` reason preserved, and
-`sase tool stop RUN` on a joined run stops the active joining monitor (suppressing its
-follow-up) rather than the run's proc.
-
-### Tool-run wrapping
-
-A `verify`-profile monitor runs its command inside `sase tool run`, so the run is
-recorded with the monitor as owner and the starter agent attributed — plain
-`-- just check` is equivalent to `-- sase tool run check` and agents need not remember
-the wrapper. Only the argv the proc supervisor execs is wrapped: `monitor_command` and
-`monitor_execution_argv` stay exactly as written, so every prepared-completion `-f`
-binding keeps resolving the raw command. The wrapper is built from the supervisor's own
-Python (`sys.executable -m sase`), never `PATH`. The starter's provider rides along as
-`SASE_TOOL_RUN_PROVIDER` for the run's demand context; ceilings are never forwarded,
-because a monitor has none.
-
-Where the table below resolves to a tool run, the start reserves that run up front — a
-`created` hand-off run owned by the monitor id — and the proc execs the claiming worker
-instead of the wrapped argv, so one semantic run is never recorded twice. The run id
-prints in the start output (`Tool run`), rides the `--json` envelope (`tool_run_id`),
-persists as the flat `monitor_tool_run_id` meta field, and shows in `sase monitor show`,
-so the follow-up can `sase tool show RUN -F`, `sase tool stop RUN`, or
-`sase tool wait RUN` on it. If the reservation cannot be committed, the start keeps the
-wrapped argv (fail-open) and pre-writes one `sase: tool run not reserved (...)` reason
-line to the monitor log.
-
-| Monitor                                                                                                | Proc argv                                    |
-| ------------------------------------------------------------------------------------------------------ | -------------------------------------------- |
-| Host-owned `execution_argv` launch (an epic `sase bead work`)                                          | unchanged, **never** wrapped                 |
-| Exactly one `sase tool run …` already                                                                  | unchanged                                    |
-| `SASE_TOOL_BYPASS` set or `monitor.tool_wrap: off`                                                     | unchanged, plus one reason line in the log   |
-| No profile or a non-`verify` profile under the default `monitor.tool_wrap: verify`                     | unchanged, plus one reason line in the log   |
-| The project tool catalog cannot be loaded                                                              | unchanged, plus one reason line in the log   |
-| A simple command equal to a catalog tool's argv, with the monitor's cwd at that catalog's project root | `<sase> tool run <name>` (**named upgrade**) |
-| Anything else under `-p verify` (or with any or no profile under `monitor.tool_wrap: all`)             | `<sase> tool run -- /bin/sh -c CMD` (ad-hoc) |
-
-Rows are checked top to bottom and the first match wins. A simple command is one shell
-word-split with no operators, redirects, globs, expansions, or leading `NAME=value`
-assignment: `just check` upgrades by name, while `just install-venv && just check`,
-`just check 2>&1 | tail -20`, or `FOO=1 just check` wraps ad-hoc with the command
-verbatim, so the run is at least as faithful as the raw command. Extra arguments match
-only where that tool's `args: allow` policy permits them. Every unwrapped-by-policy case
-writes exactly one `sase: running unwrapped (<reason>)` line at the top of the monitor
-log, so the log explains itself. `monitor.tool_wrap` (`off | verify | all`, default
-`verify`) changes the policy without a code change: `all` widens wrapping to every
-monitor and `off` disables it; see [Tool runs](tool.md) for the environment contract and
-the guarded recipes this pairs with.
-
-### Checkpoints and outcome policies
-
-An authored checkpoint is a bounded (at most 256 KiB), UTF-8 YAML or JSON object. It
-must provide at least one of `objective`, `constraints`, `findings`,
-`unresolved_decisions`, or `remaining_work`; each accepts a string or a list of strings.
-Optional `source_refs` and `coverage` identify the evidence and scope already handled.
-Do not put `next` or `next_action` in the file: the checkpoint records durable state,
-while `-n/--next` records what the successor should do.
-
-```yaml
-objective: Finish the parser refactor safely.
-constraints:
-  - Preserve the public CLI.
-findings:
-  - The focused tests pass.
-remaining_work:
-  - Run the full verification gate.
-source_refs:
-  - file:explicit:parser-notes
-coverage:
-  - parser
-  - cli
-```
-
-An explicit outcome policy chooses `continue`, `none`, or `complete` independently for
-`completed`, `failed`, and `timeout`. It may also spell out `stopped` and `lost`, but
-those two outcomes never dispatch. A `continue` branch can set `next_action`, `model`,
-and evidence policy; an explicit branch overrides the shared `--next`, `--model`, and
-`--next-output` values. A `complete` branch is rejected unless `--completion` binds a
-prepared intent.
-
-```yaml
-completed:
-  action: none
-failed:
-  action: continue
-  next_action: Repair the failed verification, then finish the task.
-  model: opus@high
-timeout:
-  action: continue
-  next_action: Diagnose the timeout without rerunning the command blindly.
-```
-
-SASE freezes the validated policy, inherited route, prepared-completion ref, and
-checkpoint before changing workspace claims. Editing the source files afterward cannot
-change a running monitor's settlement decision.
-
-### Prepared host completion
-
-`sase final prepare` turns a normal finalizer declaration plus one exact verification
-command into a host-sealed, single-use intent. Preparation publishes the current final
-context and records the relevant repositories' HEAD, index, dirty paths, and protected
-or foreign state. It does **not** accept a final submission, run a finalizer, commit, or
-end the turn.
-
-Prepare retains observations for every relevant repository as evidence, but eligibility
-and the worktree-staleness fingerprint use only repositories with a repository decision.
-Those are the repositories host completion can commit; unrelated sidecars may have
-pre-existing dirt or receive concurrent commits without making a safe completion stale.
-
-```json
-{
-  "success_message": "Required checks passed in {duration}.",
-  "verification": { "command": ["just", "check-full"] },
-  "declaration": {
-    "schema_version": 2,
-    "context_digest": "<from sase final context>",
-    "plan_digest": "<from sase final context>",
-    "payloads": [
-      {
-        "instance_id": "commit",
-        "payload": {
-          "repositories": [
-            {
-              "repo_id": "<repository obligation id>",
-              "action": "commit",
-              "message": "docs: refresh user documentation"
-            }
-          ],
-          "deferrals": []
-        }
-      }
-    ]
-  }
-}
-```
-
-Prepare the wrapper, then bind the returned `intent_ref` to the matching command:
-
-```bash
-sase final prepare completion.json -j
-sase monitor start -p verify -f '<intent-ref>' -- just check
-```
-
-Binding is atomic. A command mismatch creates no monitor, and a failed monitor startup
-returns the intent to the prepared state; once a live monitor has bound it, the intent
-cannot be reused. If the command completes successfully and the sealed command,
-finalizer plan, repository observations, workspace, and diagnostics remain eligible, the
-host installs the prepared declaration and runs its finalizers without another model
-turn. The monitor reports `Completed by host` and retains a completion receipt.
-
-A failed or timed-out command, stale repository state, or another eligibility failure
-invalidates host completion and launches one ordinary recovery continuation instead.
-That successor receives the reason and must repair or finish normally; without `--next`,
-it is told to diagnose the failure or stale verification and then finish the requested
-change. Stopped and lost monitors never complete or continue automatically.
-
-The monitor's host-completion status (`Host final` in sase's TUI) reads `finalizing`
-while the finalizers run, `completed_by_host` once they succeed, and `recovery` after
-the intent was invalidated and handed to a recovery continuation. `needs_attention`
-means a commit receipt is ambiguous, so SASE neither completes nor continues
-automatically; inspect the receipt and finish the change by hand. A monitor that carries
-a host-completion status cannot be resumed with `sase monitor resume`. See
-[Commit Finalizer](commit_workflows.md#commit-finalizer) for the declaration side of the
-protocol.
-
-### Opt-in no-new prepared completion (E4 verdict-completion)
-
-The default prepared intent accepts `pass`: only a verify monitor whose child exited
-zero can complete. An explicitly prepared `accept: no-new` intent additionally permits a
-verify monitor whose settled ToolRun is the bound named verification to complete when
-that run's verdict is `no_new_failures` — every failure item KNOWN or FLAKY, none NEW or
-UNKNOWN. The manifest spells it `accept: no-new` (omitted means `pass`); only a verify
-monitor whose settled ToolRun is the bound run may use it, so a raw command, an
-unrelated ToolRun, a lost monitor, or a missing owner link can never complete no-new.
-
-For the no-new path the host re-observes each obligated checkout at the last host-owned
-precommit boundary and Rust-looks-up its covering receipt: the verified fingerprint and
-source run, expiry, invalidation, verdict, policy, and current tree must all still
-agree, and every obligated repository must appear in the receipt's fingerprint. Any
-mismatch withholds all commits and launches ordinary recovery with the typed reason.
-Resumed host completion and multi-repo obligations re-verify the same receipt and source
-run before finishing; a stale once-checked result is never reused. The default
-`accept: pass` path keeps its existing eligibility and gains no receipt requirement.
-
-Commits and bead closes record verdict provenance: the receipt id, source run, verdict,
-and KNOWN list when a covering receipt authorized the completion, or `unverified` for
-the ordinary `/sase_final` path without one. The `unverified` mark is nonblocking
-provenance, not a refusal. No-new never masks NEW/UNKNOWN items and never changes a
-child's exit code.
-
-### Resolving the implicit agent
-
-`--agent` / `-a` is only needed to start a monitor outside an agent turn (no
-`SASE_AGENT_NAME` set) or to target a different agent than the caller. From inside an
-agent -- including an epic phase lane and a promoted agent session -- omitting it
-resolves the calling agent turn metadata-first:
-
-1. The caller's own artifacts dir (`SASE_ARTIFACTS_DIR`), when it belongs to the caller.
-2. An exact `SASE_AGENT_NAME` match against an artifact's own name.
-3. The newest non-monitor member of the caller's own session, when `SASE_AGENT_NAME`
-   names a session container rather than a concrete turn -- session members can replace
-   one another inside a single process, leaving `SASE_AGENT_NAME` set to the session
-   while the running turn's own artifacts carry the concrete member name. A settled
-   `--mon` member is never selected here, even when it is the newest member of the
-   session.
-
-An unresolvable caller (no artifacts match any of the above) is a clear error naming
-`-a/--agent`, not a silent fallback to the current working directory or another agent's
-lane. `sase monitor show`/`stop` with no id resolve the same way, against the caller's
-own durable session -- never a parent's or sibling's.
-
-The stored command string is executed with `/bin/sh -c`, so shell quoting, redirection,
-and variable expansion in a single-string command are the caller's responsibility.
-Monitors are for batch commands: do not use them for interactive programs or commands
-that require a TTY.
-
-### Supervision guarantees
-
-The detached supervisor owns the command's process group and writes combined stdout and
-stderr to a bounded rotating log. Completion is based on process exit, not pipe EOF, so
-a backgrounded grandchild that holds stdout open cannot keep the monitor running after
-the command process exits. Total timeouts and TERM-to-KILL escalation are checked on
-every supervisor tick, independent of whether the command is quiet, chatty, writing
-partial lines, or emitting non-UTF-8 bytes. Non-UTF-8 output is retained with
-replacement characters rather than crashing the supervisor.
-
-Monitor logs are bounded. The active log is `live_reply.md`; when it rotates, readers
-stitch the rotated `live_reply.md.1` and active file where appropriate. Very large
-output therefore keeps a recent on-disk view and a head-plus-tail retained summary for
-the follow-up agent rather than preserving unlimited bytes.
-
-The command does not inherit the starter agent's `SASE_AGENT*` identity or
-`SASE_ARTIFACTS_DIR`, so tools run by the command cannot accidentally write artifacts or
-variables into the dead starter's directory. It receives `SASE_MONITOR_ID`,
-`SASE_MONITOR_ARTIFACTS_DIR`, and `SASE_MONITOR_DIAGNOSTICS_DIR` instead. Only the
-command's own `tools/run_silent` stages record into that diagnostics directory: a
-stage's children never inherit it, so a nested `tools/run_silent` cannot add stages of
-its own.
-
-### Surviving the starter's teardown
-
-`sase monitor start`, run from inside an agent, hands the command to a supervisor and
-then kills the calling agent's runner group as part of the same handoff. The supervisor
-must not be a casualty of that kill: it is spawned through a double-fork bootstrap that
-reparents it to PID 1 _before_ `start_monitor` returns, so a process-tree teardown
-launched after the call cannot reach it by walking PPIDs. The supervisor also sets
-`SIGHUP` to ignored and installs its `SIGTERM`/`SIGINT` handling in the first statements
-it runs, before any expensive import, closing the startup window in which a stray signal
-could kill it silently.
-
-On Linux, when the starter runs inside a SASE-owned systemd unit or scope such as
-`sase.service` or under a reachable user systemd manager, the supervisor also moves into
-its own transient `systemd-run --user --scope` (with `OOMPolicy=continue`), so
-restarting that service does not kill a running monitor. Set
-`SASE_DETACH_SCOPE_DISABLE=1` to opt out.
-
-### A start is fast, and never silent
-
-An in-agent `sase monitor start` has to finish inside the harness's own tool budget:
-Codex's yielding `exec_command` hands control back to the model after about 30 seconds
-while the command keeps running, and anything still running when the turn ends is
-killed. So the start touches only what it needs and says so at once:
-
-- Inside an agent it prints one line to stderr before any slow work
-  (`sase monitor start: starting monitor for lane <lane>; ... wait for it to exit`), so
-  a yielded result is never empty. All stdout, including the `--json` envelope, still
-  prints before the runner is killed.
-- The calling agent is resolved by reading its own `SASE_ARTIFACTS_DIR` directly. The
-  full project scan is only the fallback for a missing, stale, or foreign pin.
-- The lane's existing monitors are read once, through the artifact index's
-  `agent_session` candidate filter, and that snapshot answers the replay check and the
-  `--mon` suffix allocation. A lane read does not hydrate other lanes' records or walk
-  the project's source directories.
-- Each phase of the start (identity, lane lock, replay lookup, lane resolution, claim
-  preflight, member creation, ToolRun reservation, supervisor spawn and ack, intent
-  persistence) is timed. The timings are logged at debug level and written to
-  `monitor_start_timing.json` in the new member's artifacts directory.
-
-On a host with about 12,000 artifact records this took an in-agent start from roughly
-20-40 seconds to well under one.
-
-### Startup acknowledgement
-
-The monitored command runs under the durable proc service's detached supervisor, and
-`start_monitor` never hands back a `running` record for a supervisor that is not
-provably alive, because its caller's very next act — inside an agent — is to kill
-itself. Once the supervisor has taken ownership, it writes a `.proc_started`
-acknowledgement in its proc runtime directory. `start_monitor` waits for that marker for
-up to 20 seconds (`SASE_PROC_START_ACK_TIMEOUT_SECONDS` overrides the budget), polling
-the supervisor's liveness too so a supervisor that is already dead fails fast instead of
-waiting out the full budget. A failed start hands the workspace claim back to the
-still-live starter exactly as it held it (never releasing it into the free pool),
-returns any bound completion intent to the prepared state, tears the member down as
-terminal `failed`, and raises `MonitorError` — so the starter agent stays alive,
-`sase monitor start` exits non-zero, and nothing downstream ever hands off to a phantom.
-
-### A monitor owns its workspace until it is reconciled
-
-A running monitor's workspace claim is not released just because its supervisor's pid
-looks dead. The stale-claim sweeper reconciles a monitor's own markers first (killing a
-confirmed-dead process group, finalizing the log, disposing the claim, and running or
-recording the follow-up disposition) and only then releases the claim — and if
-reconciliation itself fails, the sweeper leaves that claim in place rather than
-guessing. This closes the window where another agent could be handed a workspace a
-monitor is still using: a not-yet-reconciled dead supervisor is exactly the state a live
-monitor is in from the outside, so a bare dead-pid check is not sufficient evidence to
-release.
-
-### Status and bucket
-
-The displayed status is always the configured label. Because those labels are arbitrary
-strings, the underlying **bucket** (Running / Done / Failed, used for grouping and
-counting) is tracked separately from the label, from `monitor_state`:
-
-| `monitor_state` | Bucket  | Displayed status                                   |
-| --------------- | ------- | -------------------------------------------------- |
-| `running`       | Running | start status                                       |
-| `completed`     | Done    | stop status                                        |
-| `failed`        | Failed  | stop status (+ exit code or supervisor error)      |
-| `timeout`       | Failed  | stop status (+ total-timeout or idle-timeout note) |
-| `stopped`       | Done    | stop status                                        |
-| `lost`          | Failed  | stop status; command outcome is unknown            |
-
-The stop-status label is descriptive text, not a success condition. It is reused for
-every terminal state, including an explicit stop; use the bucket, `monitor_state`, exit
-code, and output to decide what happened.
-
-### Display contract
-
-A monitor's identity on every surface is the ordered pair of its two labels. Three
-orthogonal signals carry the rest:
-
-| signal     | carries                         | mechanism                                                     |
-| ---------- | ------------------------------- | ------------------------------------------------------------- |
-| **hue**    | _which_ kind of monitor this is | one deterministic accent color per pair                       |
-| **weight** | live or settled                 | `bold` while running, normal weight once settled              |
-| **glyph**  | how it went                     | `✓` completed, `⊘` stopped, `✗` failed, `⧖` timeout, `⚠` lost |
-
-Failure keeps red: `failed`, `timeout`, and `lost` render bold red regardless of the
-pair accent. Two different pairs can share a color; the words still differ. Reusing one
-pair across related monitors (for example every `just check` wait as `TESTING` /
-`TESTED`) makes those rows read as one lane.
-
-A monitor is terminal only after it is settled: the command has exited or been
-reconciled, the log has been finalized, the workspace claim has been released or
-transferred, and the follow-up has launched or its disposition has been recorded.
-Polling commands such as `sase monitor show --follow` and `%wait` continue waiting while
-a monitor is stopped but not yet settled.
-
-A failing `just check` shows up as a Failed member with its exit code visible, and the
-follow-up agent still launches so it can fix what broke. A timed-out command is killed
-(its whole process group, not just the shell), and the follow-up is told plainly which
-budget fired: total runtime or no-output idle time. A `lost` monitor means the command
-outcome is unknown: the supervisor died or belongs to a previous boot without a frozen
-command result. Lost monitors are not automatically re-run, and their recorded follow-up
-action is not launched. A known command result that survived a later bookkeeping crash
-is not lost: settlement resumes the frozen status, exit code, reason, and command-end
-time, finishes remaining artifacts and follow-up work, and does not rerun the command.
-`sase monitor resume` still rejects `lost`; this repair does not scan or rewrite
-historical monitors that were already terminalized as lost.
-
-## The follow-up agent
-
-When the frozen outcome branch selects `continue`, one follow-up agent turn launches
-under the same agent session once the command finishes and the monitor settles. A shared
-`--next`, the `verify` profile, or an explicit policy may supply that branch. It
-receives:
-
-- the starter's full prior conversation, via `#fork`, once the starter's own record has
-  settled (settlement waits up to 60 seconds for it); the follow-up joins the session it
-  forks and does not wait on or list itself, though it still waits for any other live
-  session member;
-- the original `--reason` and the resolved next instruction, verbatim, under its own
-  heading;
-- the authored checkpoint, when supplied, as protected state distinct from the next
-  action;
-- a command-run breakdown: outcome, exit code, elapsed time vs. the timeout budget, and
-  the selected output policy from `--next-output`;
-- the full log path and the exact `sase monitor show <id> --all-lines` invocation to
-  read more than the tail.
-
-By default, the follow-up inherits the starter's model and reasoning effort. Pass
-`--model` / `-m` to replace that routing with a model, provider-qualified model, or
-model alias; an optional `@effort` suffix travels with the selection. `%model` text in
-`--next` remains literal prompt text and does not control routing.
-
-### Failure triage in follow-ups
-
-When a failed monitor has a settled ToolRun with triage, its follow-up prompt inserts a
-`## Failure triage` section before selected diagnostics. It gives the verdict, NEW and
-UNKNOWN items with their evidence and possible owners, KNOWN/FLAKY counts, and the exact
-`sase tool show RUN -j` command. The section is absent only when no stored triage is
-available; it never changes the monitor result or the command's exit code.
-
-Continuation history is replayed from versioned parent links rather than reconstructed
-from turn names. Each ancestor is hydrated once in order, including local authored
-prompt segments, host instructions, final responses, checkpoints, and monitor-result
-evidence. A missing ancestor is disclosed as a gap; SASE does not guess across uncertain
-legacy history. Artifact-run pruning keeps old runs that a live or recoverable
-continuation still references, and SASE registers required checkpoints and monitor
-results as portable artifacts, so replay can still hydrate them after the local files
-are gone.
-
-Automatic retries keep failed-attempt evidence under `attempts/<N>/`, but continuation
-replay excludes superseded failed attempts from the ancestor chain. A later `#fork`
-therefore follows the settled attempt and its original launch lineage without injecting
-obsolete retry errors as extra conversation turns. Prior attempts remain inspectable in
-the TUI's [attempt view](reference/tui/agent-workflows.md#prior-agent-attempts).
-
-Before invoking the provider, SASE measures the fully expanded continuation against its
-context and transport budget. If essential content is too large, the provider is not
-called: the follow-up becomes `not-launchable`, the budget decision and composed prompt
-remain inspectable, and recovery guidance asks for an adequate checkpoint or a route
-with more context. The monitored command is not rerun merely to reconstruct context.
-
-A follow-up that cannot launch keeps its recovery evidence. Before SASE releases the
-monitor's workspace, it saves a best-effort `git diff HEAD` plus untracked files as
-`diagnostics/worktree_recovery.diff` (recorded as `monitor_worktree_recovery_diff_path`)
-and links it from the saved prompt. An agent waiting on that monitor gets a
-[terminally blocked wait](macros.md#syntax) notification that names the
-`sase monitor resume <id>` command and the saved diff. If the follow-up was blocked only
-because the starter had not settled yet, a later `sase monitor resume` repairs the
-missing parent link and launches normally.
-
-The launch is not coupled to a workspace-claim handoff that can fail: if the monitor's
-own workspace claim can no longer be transferred to the follow-up (for example, a stale
-sweep already released it), the follow-up still launches — first against a fresh claim
-on the same workspace, then against workspace `0` if that workspace has since been taken
-by another agent. Either fallback is recorded as a **degraded** launch, and the
-follow-up prompt says plainly which happened, because a follow-up in a different
-workspace than the monitor ran in cannot assume the command's artifacts are present.
-Only when a follow-up genuinely cannot be launched at all is it dropped — and even then
-the composed prompt is persisted as a durable artifact so the instruction can be
-replayed by hand instead of surviving only as an error string. See
-[Visibility](#visibility) below for how a dropped or degraded follow-up is surfaced.
-
-The follow-up prompt's body is enclosed in a macro-disabled region, so directives,
-`#macro` references, and `$(...)` command substitution inside `--reason`, `--next`,
-table fields, diagnostics, and embedded output are delivered as literal text. Only the
-routing prefix remains live: `#fork:`, `%model:`, `%effort:`, a `%queue(...)` line that
-carries the monitor's recorded queue weight (plus any recorded priority or capacity),
-and the starter's VCS workspace reference. Successors inherit autonomy structurally from
-the starter member's live record; an explicit `%auto` in agent-authored follow-up text
-can only narrow, and a widening request keeps the inherited record. When
-`--next-output tail` is used, retained output is also fenced and labeled as untrusted
-program output. The command and cwd fields are fenced too, so directive-shaped strings
-inside a shell command or path remain literal even if the disabled region is ever
-removed. `--next-output auto` defaults completed runs to facts and refs, failed runs to
-bounded selected diagnostics when available, and timeouts to a bounded raw tail. Use
-`--next-output file` for large or hostile logs when the follow-up should inspect the log
-explicitly, or `--next-output none` when the outcome summary and
-`sase monitor show --all-lines` pointer are enough. The continuation evidence limits
-live under `monitor.evidence_limits` in `sase.yml`; the shipped defaults are 8 KiB
-selected diagnostics, 4 KiB fallback tail, 12 KiB total raw excerpt budget, and 200
-raw-tail lines.
-
-## Runner slots
-
-A monitor is not a way to free runner capacity. The session keeps its one weighted claim
-against [`max_running_agents`](reference/config/agents-and-runners.md#maxrunningagents)
-for the monitor's whole lifetime, and the monitor inherits the starter's queue weight.
-The starter's runner process exits at handoff, but occupancy stays continuous: the
-monitor member counts as soon as it has a recorded supervisor pid. An ordinary follow-up
-carries that weight forward in its `%queue(...)` prefix and, as a serial session member,
-continues the session's claim. A fire-and-forget monitor (an outcome policy with no
-continuation) still holds the claim until the command settles. In-process successors
-such as `sase pipe` keep the same session's claim as well; they never become a second
-occupant.
-
-The host-owned monitor that launches an approved epic is the exception: it records an
-explicit zero queue weight and consumes no capacity, because the phase agents it
-launches claim their own. That host-set zero applies to the monitor member only:
-successors inherit the starter's weight (or the default `1.0`), never the monitor's
-zero. Only a user-authored `%q(w=0)` propagates zero weight to successors.
-
-Holding a claim and waiting for one stay separate. Only a root or a live parallel clan
-member parks at the gate. Serial session members — the monitor and any ordinary
-follow-up included — ride the claim the session already holds. See
-[Agent queued for a runner slot](reference/runner-slots.md).
-
-## Inspecting and stopping monitors
-
-```bash
-sase monitor list                          # active monitors, newest first
-sase monitor list --all --agent acme       # include finished monitors for one agent
-sase monitor list --status failed --status timeout
-
-sase monitor show <id>                     # details plus an output tail
-sase monitor show <id> --follow            # stream new output until it finishes
-sase monitor show <id> --all-lines --output-only
-sase monitor show <id> --diagnostics       # selected failed-stage diagnostics
-sase monitor show <id> --range 0:65536     # retained raw-output byte range
-sase monitor resume <id> [-j] [-k checkpoint.yml] [-m codex/gpt-5]
-
-sase monitor stop [<id>]                   # stop a running monitor; omit id to target
-                                            # the calling agent's active monitor
-```
-
-`ID` accepts a monitor id (or unique prefix), the monitor turn's agent name, or the
-owning sase-agent name. `sase monitor stop` never launches the recorded follow-up agent,
-even when `--next` was given.
-
-`sase agent kill -n <name>` uses the same stop behavior when the name resolves to a live
-monitor member or its owner. `sase monitor stop` remains the clearest explicit form.
-
-Every subcommand can emit machine-readable output, but not with the same flag: `start`,
-`list`, `resume`, and `stop` take `-j/--json`, while `list` and `show` take
-`-f/--format` (`table`/`markdown`/`json` for `list`, `markdown`/`json` for `show`).
-`sase monitor show` has **no** `-j` — use `--format json` there. Short options also
-differ by subcommand: `-f` is `--completion` on `start` but `--format` on `list` and
-`show`, and `-a` is `--agent` on `start` but `--all` on `list`, where `-l` is `--agent`.
-See `sase monitor --help` and each subcommand's `--help` for the complete flag
-reference, or [CLI Reference](cli.md).
-
-`--diagnostics` reads the bounded stage diagnostics selected for a failed monitor;
-`--range START:END` reads a bounded byte interval from retained raw output. Both default
-to at most 65,536 bytes and accept `-b/--max-bytes`. They are snapshot modes, so neither
-can be combined with `--follow`; diagnostics and ranges are mutually exclusive, and a
-range cannot be combined with `--all-lines`.
-
-`sase monitor resume <id>` reconciles a terminal monitor's frozen result and launches an
-eligible requested follow-up without rerunning the monitored command. Repeating a
-successful resume returns the same acknowledged successor. Supplying `-k/--checkpoint`
-or `-m/--model` creates an immutable manual-recovery branch only when the original
-delivery was not already acknowledged. Concurrent receiver adoption is revalidated under
-the delivery lock before any undelivered branch is fenced, so an acknowledged delivery
-is never overwritten. A dispatching branch whose launch receipts or process identity
-cannot prove the receiver uninvoked is recorded as `needs_attention` instead of spawning
-another successor. When settlement recorded a follow-up as `not-launchable` only because
-the starter had not settled in time, resume first repairs that missing parent link.
-Ineligible monitors — still running, stopped or lost, fire-and-forget, owned by host
-completion, or already delivered, among others — make `resume` exit `2` and print the
-precise eligible resume command to stderr when one exists; with `-j`, the JSON result
-carries `code` and `suggested_command` fields.
-
-Reading monitors also performs dead-supervisor reconciliation. `sase monitor list`, the
-sase's TUI Agents tab refresh path, and the axe scheduler look for running monitor turns
-whose supervisor identity is no longer alive. Shared outcome freeze lives in the Rust
-proc store: `begin_proc_settlement` persists the observed status, reason, exit code, and
-command-end time under the same lock that moves the proc into `settling`. Python keeps
-process control and settlement side effects and must consume that frozen observation.
-Same-boot dead supervisors whose command was never observed are reconciled to `failed`
-on the legacy artifact path, or `lost` on the proc-backed path: SASE kills a leftover
-process group only when no frozen or sidecar evidence shows the command has already
-exited, finalizes the log, disposes the workspace claim, and launches or records the
-follow-up disposition. A same-boot supervisor that already froze a command result
-resumes that result and applies the original continuation policy once. Pre-reboot
-supervisors without a frozen observation reconcile to `lost`; their command effects are
-unknown, so the follow-up is recorded as not launched. A frozen observation survives
-reboot without changing its facts. The follow-up error for an unknown outcome does not
-claim a reboot unless the persisted termination reason is `reboot`.
-
-## In sase's TUI
-
-A monitor row renders with an amber `⚙` glyph beside the agent list's bash/python step
-glyphs and omits a left-side title — identity is the right-hand `%id`
-(`<session>--mon`), not the configured monitor label or command. A live elapsed suffix
-shows while running, or an exit-code / timeout badge once terminal. Monitor turns appear
-in the session roster and contribute to the session's total runtime (unlike a gate turn,
-whose window is a human wait and is excluded from that total), but — like workflow steps
-— they are not counted as agents in the [Statistics tab](ace.md#statistics-tab) or
-tribe/clan summaries: a session with one agent and one monitor turn is a one-agent
-session that ran one command. A collapsed session or clan container row carries an amber
-`⚙N` badge for its running monitors and a grey `⚙N` badge for its finished ones, so both
-counts are visible without expanding the subtree; the two badges partition the subtree's
-monitors exactly, and a failed, timed-out, or lost monitor counts in the finished (grey)
-lane along with a clean completion. The tribe panel title aggregates both lanes across
-the whole tribe, so a fully collapsed panel still reports running and completed
-monitored work.
-
-Selecting a monitor row keeps the ordinary agent header and renders a `MONITOR` detail
-section in place of the usual prompt and reply body. It opens with compact `Result`,
-`Next`, and `Evidence` rows, then shows the shell-highlighted `Command`, whichever of
-`Cwd`, `Reason`, `Next action`, `Next model`, `Next output`, profile, policy, and
-completion fields were recorded, then `Status` (the effective label in its pair accent,
-with the other half dim after a `→`) and `State` (a colored glyph plus the machine state
-name, with `(exit N)` appended once an exit code is known). `Timeout` reports elapsed
-time against the budget (`3m12s of 45m0s budget`), falling back to a plain `Elapsed` row
-for a record with no recorded budget, and an `--idle-timeout` adds its own
-`Idle timeout` row. Next come the full `Monitor id`, its short form, and the exact
-`sase monitor show <short-id> --follow` command to stream the rest from a shell. When
-recorded, trailing rows show a follow-up error (`Follow-up`) or degradation
-(`Degraded`), the host-completion status (`Host final`), and the evidence and
-continuation locators: `Diagnostics`, `Retained log`, `Result ref`, `Checkpoint`,
-`Node ref`, `Manifest`, `Budget`, and `Saved prompt`.
-
-Beneath that, an `OUTPUT` block renders the captured stdout/stderr. Because
-`live_reply.md` holds a command's raw merged output rather than prose, it is rendered as
-a plain ANSI-aware log rather than through the markdown path used for agent replies, and
-a monitor whose retained output was capped shows an
-`… output truncated (head + tail retained) …` notice above it. A monitor that has not
-written anything yet shows `No output yet.`.
-
-When the monitor's session (or its starter) is selected, that same block appears inline
-as a `MONITOR` phase in the AGENT REPLY stream, at the starter's position in the session
-conversation: an amber `⚙ MONITOR` divider, the command, the recorded detail fields, and
-the full captured output. File-hint mode renders the monitor document with `[N]` markers
-on the command and log instead of falling back to the empty prompt view.
-
-With a **running** monitor row selected, the Agents tab's kill key (`x` by default)
-stops the monitor instead of killing an agent: it opens a `Stop Monitor` confirmation
-that defaults to **Keep running**, and confirming runs the same `stop_monitor` path as
-`sase monitor stop`, so no follow-up agent launches. On a settled monitor row, `x`
-behaves like an ordinary dismiss. See
-[Agent Row Glyphs](reference/tui/agent-row-glyphs.md#agent-row-glyphs-1) and
-[Sequential Agent Sessions](agent_sessions.md#sequential-agent-sessions).
-
-A monitor row is also a fork target, active or settled: `F` opens a prompt prefilled
-with `#fork:<id>`, where `<id>` is the monitor's exact durable proc ID (not the reusable
-`<session>--mon` proc name), so a later monitor that reuses the same proc name can never
-hijack an already-queued fork. The footer and prompt label still show the friendly proc
-name. Because a monitor has no chat, retry, edit-chat, and rename are never offered for
-it. The injected fork content is the same command execution record described above
-(`Command`, `Status`/`State`, timeout/elapsed, and the captured `OUTPUT`), explicitly
-labeled as untrusted program output rather than a prior conversation. An implicit
-`%wait` on a monitor fork target releases on that monitor's terminal state — completed,
-failed, timed out, stopped, or lost — not only on a clean completion.
-
-## Visibility
-
-A stalled monitor handoff — a supervisor that never reported a real outcome, or a
-follow-up that never launched — is not something a project owner should have to notice
-by its absence. Two independent conditions render distinctly, in the Agents tab and
-`sase monitor list`, wherever the plain exit-code/timeout badges above do not already
-cover them:
-
-- **A terminal monitor with no recorded exit code.** A `failed` or `lost` monitor whose
-  supervisor never reported a real exit code (died on arrival, or belongs to a previous
-  boot) renders with a red `⚠` badge in place of the exit-code badge — the command's
-  outcome is unknown, not merely non-zero.
-- **A dropped or degraded follow-up.** A monitor whose outcome selected `continue` but
-  did not launch, or launched degraded, renders with an amber `⚑` flag independent of
-  the monitor's own state — a monitor can finish cleanly and still strand its follow-up.
-
-`sase monitor list` marks the same monitor row with the `⚑` flag next to its `STATE`
-cell (in both the table and `--format markdown` output) so a stalled handoff is visible
-without `--json` plumbing; `sase monitor show <id>` prints a `Follow-up error` line for
-a dropped follow-up and a `Follow-up degraded` line for a degraded one, and both
-commands' JSON envelopes carry `followup_outcome` (`launched` / `launched-degraded` /
-`not-launchable` / `host-completed`), `followup_error`, and `followup_degraded_reason`,
-plus versioned `result`, `evidence`, `continuation`, and `context_budget` objects for
-compact clients.
-
-Ordinary continuation delivery is keyed by monitor result and outcome branch. SASE
-reserves the successor identity before spawning it, and the intended receiver
-acknowledges that reservation before its provider is invoked. Concurrent settlement or
-reconciliation therefore discovers the same delivery instead of launching a duplicate
-model turn. A dispatch that cannot be proved safe remains visible as not launchable or
-needing attention with its saved prompt and delivery record.
-
-Monitors themselves are notification-neutral: a monitor is an execution and handoff
-mechanism, not a workflow that files notifications, so neither a completed monitor nor a
-dropped `--next` appends a notification row. The badges and flags above, plus
-`monitor_followup_outcome` / `monitor_followup_error` in `agent_meta.json` and
-`done.json`, are the durable signals — read them with `sase monitor list`,
-`sase monitor show <id>`, or the Agents tab. Two related notifications belong to other
-features: an agent whose `%wait` targets a monitor that ended without a launchable
-follow-up gets a `wait_checks` "never self-resolve" notification, and the approved-epic
-launcher below releases the planner's completion notification when its monitor settles.
-
-## Example: approved epic launches
-
-Launching an approved epic (`sase bead work <plan> --yes-to-all …`) is itself a
-long-running command, so it normally runs under a monitor rather than a bare detached
-proc. Its monitor turn reads `EPIC APPROVED` while running and uses the configured
-`EPIC CREATED` label after every terminal state, even failure, timeout, stop, or loss;
-check the state and exit details instead of treating that label as success. A successful
-launch attempts to back-fill the epic ID; when that metadata lands, the planner row
-itself moves to `EPIC CREATED`, and otherwise it remains `EPIC APPROVED`. The launch
-acquires an operational workspace lease for the project and runs in that leased
-checkout, never in the user's primary checkout; the lease's claim moves to the monitor.
-The monitor records an explicit zero queue weight, and no follow-up agent is recorded —
-`sase bead work` launches the phase agents itself. If the planner's agent session cannot
-be resolved (a very old artifacts layout, a wiped agent), the launch falls back to a
-detached proc in the same leased workspace rather than silently dropping the approval.
-Other monitor-start errors fail the approval instead of using the proc fallback. The
-planner's completion notification is held until the launch monitor settles, folds in the
-launch outcome, and is published once even if more than one settlement path observes the
-result. AXE's `epic_launch_flush` job flushes a held notification whose launch never
-settled after a 90-second grace period, with a resume command. See
-[Plan Approval Flow](beads.md#plan-approval-flow) for the approval side of that handoff.
-
-The host-owned epic launcher keeps `sase bead work` as the visible logical command. If
-an editable-source update is swapping that checkout when approval arrives, a minimal
-pre-import bootstrap prints
-`sase: waiting for the source-tree swap to finish before launching`, waits for the
-shared lock, and only then starts `sase bead work` against one consistent source tree.
-This waiting exception is specific to host-owned approved-epic launches; running
-`sase bead work` directly remains fail-fast during a swap.
-
-## Pipe vs. monitor
-
-`sase pipe '<prompt>'` (the `/sase_handoff` skill) looks similar — it also kills the
-calling agent and continues the run as a new session member — but it solves a different
-problem. A monitor runs and waits on an OS command; nothing about the command's content
-is an LLM turn. Pipe hands the agent's own unfinished _turn_ to a fresh successor: no
-command runs, nothing is captured or timed out, and the successor's prompt is written by
-the agent, not derived from a command's outcome.
-
-Concretely:
-
-|                         | Monitor                                      | Pipe                                            |
-| ----------------------- | -------------------------------------------- | ----------------------------------------------- |
-| What runs               | A supervised OS command                      | Nothing — the successor is an ordinary LLM turn |
-| New member's turn       | `--mon` named proc, then a `--<n>` follow-up | One `--<n>` (or `--<name>`) session member      |
-| Follow-up prompt source | `--next` text plus a command-run breakdown   | The `PROMPT` argument, verbatim                 |
-| Bound                   | One monitor active per agent                 | `max_agent_pipe_chain` config field             |
-
-Before this command existed, agents got a successor by monitoring a no-op command:
-
-```bash
-sase monitor start -s SLEEPING -S SLEPT -r '...' -n '<the real prompt>' -- sleep 1
-```
-
-That only worked because `sase monitor start` already kills the caller and its
-supervisor already launches a session follow-up once the command settles — a monitor
-supervisor, a proc row, and a one-second sleep, purely to obtain a hand-off. Use
-`sase pipe` for a hand-off instead; the `sleep 1 --next '...'` pattern is no longer
-necessary. See the `/sase_handoff` skill for the command's flags and hazards.
-
-## See also
-
-- [Agent Clans, Sessions, and Tribes](agent_sessions.md) for how a monitor turn fits
-  into a sequential agent session.
-- [CLI Reference](cli.md) for the full `sase monitor` command table.
-- [sase's TUI User Guide](ace.md) for how monitor rows render in the Agents tab.
-- [Agent queued for a runner slot](reference/runner-slots.md) for occupancy versus
-  admission, including why a monitor still counts against `max_running_agents`.
+This page has moved. See [Monitors](reference/automation/monitors.md).
+
+## Moved sections
+
+<a id="the-agent-session-picture"></a>
+
+- [The agent session picture](reference/automation/monitors.md#the-agent-session-picture)
+
+<a id="starting-a-monitor"></a>
+
+- [Starting a monitor](reference/automation/monitors.md#starting-a-monitor)
+
+<a id="joining-a-detached-toolrun"></a>
+
+- [Joining a detached toolrun](reference/automation/monitors.md#joining-a-detached-toolrun)
+
+<a id="tool-run-wrapping"></a>
+
+- [Tool run wrapping](reference/automation/monitors.md#tool-run-wrapping)
+
+<a id="checkpoints-and-outcome-policies"></a>
+
+- [Checkpoints and outcome policies](reference/automation/monitors.md#checkpoints-and-outcome-policies)
+
+<a id="prepared-host-completion"></a>
+
+- [Prepared host completion](reference/automation/monitors.md#prepared-host-completion)
+
+<a id="resolving-the-implicit-agent"></a>
+
+- [Resolving the implicit agent](reference/automation/monitors.md#resolving-the-implicit-agent)
+
+<a id="supervision-guarantees"></a>
+
+- [Supervision guarantees](reference/automation/monitors.md#supervision-guarantees)
+
+<a id="surviving-the-starters-teardown"></a>
+
+- [Surviving the starters teardown](reference/automation/monitors.md#surviving-the-starters-teardown)
+
+<a id="a-start-is-fast-and-never-silent"></a>
+
+- [A start is fast and never silent](reference/automation/monitors.md#a-start-is-fast-and-never-silent)
+
+<a id="startup-acknowledgement"></a>
+
+- [Startup acknowledgement](reference/automation/monitors.md#startup-acknowledgement)
+
+<a id="a-monitor-owns-its-workspace-until-it-is-reconciled"></a>
+
+- [A monitor owns its workspace until it is reconciled](reference/automation/monitors.md#a-monitor-owns-its-workspace-until-it-is-reconciled)
+
+<a id="status-and-bucket"></a>
+
+- [Status and bucket](reference/automation/monitors.md#status-and-bucket)
+
+<a id="display-contract"></a>
+
+- [Display contract](reference/automation/monitors.md#display-contract)
+
+<a id="the-follow-up-agent"></a>
+
+- [The follow up agent](reference/automation/monitors.md#the-follow-up-agent)
+
+<a id="failure-triage-in-follow-ups"></a>
+
+- [Failure triage in follow ups](reference/automation/monitors.md#failure-triage-in-follow-ups)
+
+<a id="runner-slots"></a>
+
+- [Runner slots](reference/automation/monitors.md#runner-slots)
+
+<a id="opt-in-no-new-prepared-completion-e4-verdict-completion"></a>
+
+- [Opt in no new prepared completion e4 verdict completion](contribute/monitor-completion.md#opt-in-no-new-prepared-completion-e4-verdict-completion)
+
+<a id="inspecting-and-stopping-monitors"></a>
+
+- [Inspecting and stopping monitors](reference/automation/monitor-operations.md#inspecting-and-stopping-monitors)
+
+<a id="in-sases-tui"></a>
+
+- [In sases tui](reference/automation/monitor-operations.md#in-sases-tui)
+
+<a id="visibility"></a>
+
+- [Visibility](reference/automation/monitor-operations.md#visibility)
+
+<a id="example-approved-epic-launches"></a>
+
+- [Example approved epic launches](reference/automation/monitor-operations.md#example-approved-epic-launches)
+
+<a id="pipe-vs-monitor"></a>
+
+- [Pipe vs monitor](reference/automation/monitor-operations.md#pipe-vs-monitor)
+
+<a id="see-also"></a>
+
+- [See also](reference/automation/monitor-operations.md#see-also)
