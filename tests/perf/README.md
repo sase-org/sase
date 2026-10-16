@@ -74,8 +74,8 @@ importtime) with:
 .venv/bin/python tests/perf/capture_tui_startup.py all --output-dir ~/.sase/perf
 ```
 
-Individual steps and the jq recipes live in `docs/perf_runbook.md` under
-[Attributed startup capture (sase-132.1)](../../docs/perf_runbook.md#attributed-startup-capture-sase-1321).
+Individual steps and the jq recipes live in `docs/contribute/perf-runbook.md` under
+[Attributed startup capture (sase-132.1)](../../docs/contribute/perf-runbook.md#attributed-startup-capture-sase-1321).
 Label each bench from the script's `host_state` (`quiet` vs `busy`). Startup-window
 contention is `startup_window=true` on `tui_trace.jsonl` spans.
 
@@ -293,10 +293,11 @@ end to end.
 Baseline numbers are not committed: shared-host timing is noisy. Later `sase-1es` phases
 rerun the relevant cases and record before/after numbers in their bead notes; the final
 before/after table lives on bead `sase-1es.8`. The performance model is documented in
-`docs/pager.md` ("Performance") with the bench recipe in `docs/perf_runbook.md` ("Pager
-bench"). The committed regression gates are regular tests: dismissed-view release in
-`tests/pager/test_view_leak.py`, and the strip-cache bound plus the 20k-line
-`tracemalloc` ceiling in `tests/pager/test_perf_gates.py`.
+`docs/pager.md` ("Performance") with the bench recipe in
+`docs/contribute/perf-runbook.md` ("Pager bench"). The committed regression gates are
+regular tests: dismissed-view release in `tests/pager/test_view_leak.py`, and the
+strip-cache bound plus the 20k-line `tracemalloc` ceiling in
+`tests/pager/test_perf_gates.py`.
 
 ## Prompt keys (`<space>` / `<ctrl+n/p>`, epic `sase-1ex`)
 
@@ -311,6 +312,6 @@ pytest -s -m slow tests/ace/tui/bench_prompt_bar_keys.py
 `tests/ace/tui/test_prompt_key_perf_smoke.py` is the fast non-slow smoke test that runs
 the smallest case end to end, and `tests/ace/tui/_prompt_key_io_probes.py` is the
 main-thread I/O probe helper the `sase-1ex` structural tests assert zeros through. See
-the "Prompt keys" recipe in `docs/perf_runbook.md`, including its "Final results" table.
-Baseline numbers are not committed: the final before/after table lives on bead
-`sase-1ex.12` and in the runbook.
+the "Prompt keys" recipe in `docs/contribute/perf-runbook.md`, including its "Final
+results" table. Baseline numbers are not committed: the final before/after table lives
+on bead `sase-1ex.12` and in the runbook.

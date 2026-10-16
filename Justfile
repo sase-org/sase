@@ -1551,11 +1551,11 @@ bead-perf-scale-record *args: _setup
 # as a recorded known miss (sase-1io.7.6.1; ratio:ready owned by sase-1j5),
 # because shared-runner wall clocks are contention-sensitive and the
 # misses below are real scaling gaps with follow-ups, not noise (see
-# docs/perf_runbook.md "Bead history-independence gate"). Tolerance 0.5 is
+# docs/contribute/perf-runbook.md "Bead history-independence gate"). Tolerance 0.5 is
 # the runner-noise calibration; the strict all-criteria <10% check lives in
 # `just bead-perf-scale --check-gate` locally. --gate-allow names known
 # misses (each is owned by a follow-up task listed in
-# docs/perf_runbook.md: sase-1j5, sase-1iu, sase-1iv, sase-1iw, sase-1ix);
+# docs/contribute/perf-runbook.md: sase-1j5, sase-1iu, sase-1iv, sase-1iw, sase-1ix);
 # they are measured and reported, never skipped. Drop ids off this list as
 # follow-ups land.
 bead-perf-scale-gate *args: _setup

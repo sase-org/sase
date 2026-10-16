@@ -1,3 +1,10 @@
+---
+title: "Integration APIs"
+description:
+  "SASE exposes a small set of Python helpers for external plugins, chat clients, mobile
+  clients, and editor integrations."
+---
+
 # Integration APIs
 
 SASE exposes a small set of Python helpers for external plugins, chat clients, mobile
@@ -8,7 +15,7 @@ already part of an existing provider contract. Externally consumed public symbol
 tracked files of the consuming repository.
 
 For editor setup and user-facing behavior, start with the
-[editor integration guide](editor.md). This page focuses on the integration-facing
+[editor integration guide](../editor.md). This page focuses on the integration-facing
 Python and bridge contracts.
 
 ## Patch Macro Tags
@@ -140,7 +147,7 @@ ordinary bead waits those epics added. `entry.wait.has_wait` stays false when on
 sample above checks `has_wait` and will not show an epic-only follow. Use these fields
 alongside `wait_for_beads` to explain why a completed agent's dependent still waits. The
 shared phrasing helpers live in `sase.core.wait_epic_follow_view`; see
-[Agent Names, Waits, and Queue Admission](macros.md#agent-names-waits-and-queue-admission)
+[Agent Names, Waits, and Queue Admission](../macros.md#agent-names-waits-and-queue-admission)
 for scheduling semantics.
 
 Source: `src/sase/integrations/agent_list_entries.py`,
@@ -268,7 +275,7 @@ the Admin Center Procs query accepts `service` and `svc:<name>`. Rows without th
 read as `service=None`, so existing consumers are unaffected.
 
 The storage model, CLI inspection commands, retention, and sase's TUI rendering are
-documented under [Durable Procs](ace.md#durable-procs).
+documented under [Durable Procs](../ace.md#durable-procs).
 
 Source: `src/sase/procs/__init__.py`, `src/sase/procs/runner.py`,
 `src/sase/procs/store.py`
@@ -321,7 +328,7 @@ paths, action state, read/dismissed state, mute/snooze state, resurface time, an
 priority counts. They are current-state reads: any due snooze is expired atomically
 before projection, and the reported `expired_ids` name the rows that made the transition
 on this read. Ordering, `limit`, and `newer_than` all use the `(activity_at, id)` cursor
-described in [`docs/notifications.md`](notifications.md#activity-ordering), so a
+described in [`docs/notifications.md`](../notifications.md#activity-ordering), so a
 resurfaced old notification appears on the first bounded page and crosses a `newer_than`
 cursor taken before it resurfaced, while `timestamp` still reports the original sent
 time. Detail reads include dismissed and silent rows so clients can rebuild local state
@@ -419,7 +426,7 @@ printf '{"schema_version":1,"project":"sase","limit":20}\n' | sase mobile agent-
 External callers should import from these facade modules only. The `_mobile_agent_*` and
 `_mobile_helper_*` modules are private split implementations kept small for testability
 and should not be imported by plugins or clients. The public HTTP route contract is
-documented in [`docs/mobile_gateway.md`](mobile_gateway.md).
+documented in [`docs/mobile_gateway.md`](../mobile_gateway.md).
 
 Source: `src/sase/integrations/mobile_agents.py`,
 `src/sase/integrations/mobile_helpers.py`
@@ -453,7 +460,7 @@ most recently active session rows are enriched, when resolvable, with associated
 bead kind, structure, and title in `detail`, plus Markdown `documentation` for goal,
 phase, or task context. Older and unresolved sessions retain their member-count detail,
 and enrichment failures degrade safely; see
-[Editor Integration: Helper Bridge](editor.md#helper-bridge) for the full fallback
+[Editor Integration: Helper Bridge](../editor.md#helper-bridge) for the full fallback
 ladder. The `finalizer-catalog` operation returns configured `%final` completion rows
 from effective finalizer configuration, fail-closed on malformed config, without loading
 provider code. The `vcs-repo-catalog` operation returns provider-backed repository
@@ -506,7 +513,7 @@ statuses: `already_running`, `launched`, or `launch_failed`.
 `read_chat_install_status()` returns `running`, `succeeded`, `failed`, or `not_found`.
 Worker logs live under `~/.sase/chat_install/logs/`. Configuration fields are documented
 in
-[`docs/reference/config/integrations-behavior.md`](reference/config/integrations-behavior.md#chatinstall).
+[`docs/reference/config/integrations-behavior.md`](../reference/config/integrations-behavior.md#chatinstall).
 The API, config key, and state paths keep the `chat_install` name for compatibility, but
 chat integrations should present this workflow to users as an update.
 

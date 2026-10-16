@@ -82,7 +82,7 @@ Exact SASE facts; guides teach workflows.
 ## Integrations
 
 - [Editor integration](../editor.md) — Neovim, completion support
-- [Integration APIs](../integrations.md) — building on SASE
+- [Integration APIs](../contribute/integration-apis.md) — building on SASE
 - [Plugins](../plugins.md) — extending SASE
 - [Mobile gateway](../mobile_gateway.md) — driving agents by phone
 

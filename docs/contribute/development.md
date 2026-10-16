@@ -1,3 +1,8 @@
+---
+title: "Development"
+description: "This page orients contributors working in the sase repository."
+---
+
 # Development
 
 This page orients contributors working in the `sase` repository. It covers local setup,
@@ -149,7 +154,7 @@ so a scoped false negative surfaces there within roughly the CI test leg's runti
 is the backstop, not a silent gap. A `just check` pass with a `just check-full` failure
 is a test-infrastructure bug; file it rather than treating it as remaining product work.
 
-Both recipes are [guarded](tool.md#guarded-recipes): in a SASE agent process
+Both recipes are [guarded](../tool.md#guarded-recipes): in a SASE agent process
 (`SASE_AGENT` set), `just check` and `just check-full` refuse with exit 2 unless they
 run inside `sase tool run check` / `sase tool run check-full` for this checkout, or with
 an explicit `SASE_TOOL_BYPASS='<reason>'` (the guard also fails open when `sase` is not
@@ -266,7 +271,7 @@ invalidate its own validator-verdict cache — `pyproject.toml`, `uv.lock`, the 
 installed distribution's `dist-info` metadata, the compiled `sase_core_rs` extension,
 the venv's `bin/python`, and a `core-source` bucket (the linked sase-core checkout's
 source identity plus the venv's built-from stamp — see
-[Source / development workflow](rust_backend.md#source-development-workflow)). The
+[Source / development workflow](rust-backend.md#source-development-workflow)). The
 selector reuses those same digests rather than forking a second, divergent fingerprint,
 but as a **per-input map** (`tools/validate_test_environment._fingerprint_inputs`)
 instead of one opaque combined hash, so it can say _which_ input moved instead of only
@@ -645,7 +650,7 @@ without a progress heartbeat) and `SASE_TEST_GATE_MAX_HOLD` (default 4 hours, ev
 heartbeats continue) reclaim a wedged grant so one sleeping `tools/run_pytest` cannot
 keep a third of the host pool overnight. `SASE_PYTEST_WORKER_FLOOR` and
 `SASE_PYTEST_WORKER_CEILING` tune automatic grants; invalid or inconsistent values fail
-before pytest starts. See [Configuration](reference/environment-variables.md#general)
+before pytest starts. See [Configuration](../reference/environment-variables.md#general)
 for the complete contract.
 
 Test selectors are normalized from the directory where `just` was invoked, so this works
@@ -871,10 +876,10 @@ currently reproducible node IDs against the committed baseline at
 `tests/reproducible_flake_baseline.txt` and exits non-zero on any node that is not
 already listed there. The failure names each new node and ends with
 `Additions require a filed bead; fix or file the node before landing.` — so the response
-to a red gate is to fix the test or file a [`flake` task bead](beads.md#task-types) and
-add the node with a comment naming that bead, never to add the node silently. After that
-gate succeeds, `just check-full` runs `just fix-tui-screenshots` so local exhaustive
-verification can refresh screenshot goldens.
+to a red gate is to fix the test or file a [`flake` task bead](../beads.md#task-types)
+and add the node with a comment naming that bead, never to add the node silently. After
+that gate succeeds, `just check-full` runs `just fix-tui-screenshots` so local
+exhaustive verification can refresh screenshot goldens.
 
 The gate deliberately judges a narrower sample than the report:
 
@@ -1224,7 +1229,7 @@ install changes:
 sase core health
 ```
 
-See the [Rust backend reference](rust_backend.md) for the Python/Rust boundary, shipped
+See the [Rust backend reference](rust-backend.md) for the Python/Rust boundary, shipped
 Rust-backed operations, source build path, and benchmark expectations.
 
 ## Linked repositories
@@ -1346,8 +1351,8 @@ when you need the exact current catalog.
 
 ## Documentation Workflow
 
-The [documentation contract](contribute/writing-docs.md) owns tiers, templates, budgets,
-and routing: read it before adding, moving, or editing anything under `docs/`,
+The [documentation contract](writing-docs.md) owns tiers, templates, budgets, and
+routing: read it before adding, moving, or editing anything under `docs/`,
 `mkdocs*.yml`, or a sase.sh link in code. What follows is local mechanics only.
 
 Run the strict site build after changing docs navigation, links, images, or Markdown

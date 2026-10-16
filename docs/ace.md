@@ -118,11 +118,11 @@ sase's TUI has three tabs, cycled with `Tab` and `Shift+Tab`:
 While a prompt input bar is open, `Tab`/`Shift+Tab` belong to the prompt (snippet
 expansion, tabstops, list indent) and never switch tabs.
 
-| Tab           | Description                                                                                                                                                                                                                                                                                                                                                        |
-| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **Agents**    | View running and completed agents, their files and prompts                                                                                                                                                                                                                                                                                                         |
-| **Artifacts** | Browse Commits, Patches, Beads, configured document providers, and Files. Agent history lives in the Agents tab Archive (`,a`); the Artifacts ▸ Agent sub-tab is retired (restore it with `sase flag disable artifacts_agent_pane_retired`). See the [Artifacts pane contract](artifacts_pane_contract.md) and [visual grammar](artifacts_pane_visual_grammar.md). |
-| **Services**  | Monitor the service host, configured service procs, scheduler work, and background commands                                                                                                                                                                                                                                                                        |
+| Tab           | Description                                                                                                                                                                                                                                                                                                                                                                              |
+| ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Agents**    | View running and completed agents, their files and prompts                                                                                                                                                                                                                                                                                                                               |
+| **Artifacts** | Browse Commits, Patches, Beads, configured document providers, and Files. Agent history lives in the Agents tab Archive (`,a`); the Artifacts ▸ Agent sub-tab is retired (restore it with `sase flag disable artifacts_agent_pane_retired`). See the [Artifacts pane contract](contribute/artifacts-pane-contract.md) and [visual grammar](contribute/artifacts-pane-visual-grammar.md). |
+| **Services**  | Monitor the service host, configured service procs, scheduler work, and background commands                                                                                                                                                                                                                                                                                              |
 
 Agents is the first tab and the startup default. Each tab has contextual help: press `?`
 to open the Help modal on its **Keymaps** view, then `]` to switch to the tab's
@@ -321,8 +321,9 @@ only, a dim italic hint naming both places its description can be configured:
 `ref.pane.description` in the sidecar's ref config, or
 `ace.artifacts.panes."<pane_id>".description` in `sase.yml`. See
 [`ace.artifacts`](reference/config/ace-behavior.md#aceartifacts) for the config surface
-and [Artifacts pane visual grammar](artifacts_pane_visual_grammar.md#pane-brief) for the
-full rendering rules.
+and
+[Artifacts pane visual grammar](contribute/artifacts-pane-visual-grammar.md#pane-brief)
+for the full rendering rules.
 
 ### Navigation in Agent, Commits, Beads, Provider Documents, and Files
 
@@ -830,7 +831,8 @@ bead (and a bead's linked plan) is an artifact link, so follow it from the
 **Status**, or **Project** (`o` / `O`). Other document providers reuse the same list,
 filter, detail, preview, copy, and refresh behavior from their declared properties and
 detail fields, and group only when they declare `ref.grouping` (or `ref.pane.group_by`);
-see [Grouping declarations](artifacts_pane_contract.md#grouping-declarations).
+see
+[Grouping declarations](contribute/artifacts-pane-contract.md#grouping-declarations).
 
 ### Commit Detail and Linked Plans
 
@@ -2085,7 +2087,7 @@ column counts (LLM invocations, agent runs, or an ungrouped count) and whether a
 column applies. Perf counts come from telemetry and TUI logs, not the artifact index, so
 they are not comparable with the run counts on the other sub-tabs. Perf is global: the
 project chip remains visible but is marked **not applied**. See
-[Reading the Admin Center Perf view](perf_runbook.md#reading-the-admin-center-perf-view)
+[Reading the Admin Center Perf view](contribute/perf-runbook.md#reading-the-admin-center-perf-view)
 for data sources, retention, and probe details.
 
 The Statistics **Macros** sub-tab reports macros referenced by agent launch prompts:
@@ -6310,5 +6312,6 @@ wait for the same release and then run one job at a time.
 For diagnosing TUI latency, set `SASE_TUI_TRACE=1` before launching `sase tui`. Tracing
 is near-zero-cost when the env var is unset; with it enabled, each instrumented hot path
 emits one JSONL line per span to `~/.sase/perf/tui_trace.jsonl` (override via
-`SASE_TUI_TRACE_PATH=…`). See [`docs/perf_runbook.md`](perf_runbook.md) for the full
-span catalog, benchmark harness, and per-phase performance targets.
+`SASE_TUI_TRACE_PATH=…`). See
+[`docs/contribute/perf-runbook.md`](contribute/perf-runbook.md) for the full span
+catalog, benchmark harness, and per-phase performance targets.

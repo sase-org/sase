@@ -93,9 +93,9 @@ state after a wake.
 
 What's missing on the phone side is richer interactions, push hints that feel native to
 the OS, and a story for non-loopback deployments that isn't "wire up Tailscale
-yourself." The [mobile MVP runbook](../../mobile_mvp_runbook.md) covers debug APK
-install, signed releases, Firebase-configured internal builds, Tailscale Serve setup,
-the threat model, and rollback steps for the path that exists today.
+yourself." The [mobile MVP runbook](../../contribute/mobile-mvp-runbook.md) covers debug
+APK install, signed releases, Firebase-configured internal builds, Tailscale Serve
+setup, the threat model, and rollback steps for the path that exists today.
 
 ## Web
 

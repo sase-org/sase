@@ -6,7 +6,7 @@ within one process, so opening the same WAL database through both copies
 truncates or unlinks ``-shm``/``-wal`` under a live mapping, which causes
 SIGBUS crashes and index corruption. Every SQLite file therefore has exactly
 one owning library; see the "SQLite ownership" section of
-``docs/rust_backend.md``.
+``docs/contribute/rust-backend.md``.
 
 This test AST-scans ``src/sase`` for new ``sqlite3.connect`` call sites
 (including ``from sqlite3 import connect`` and ``sqlite3.Connection(...)``
@@ -52,7 +52,7 @@ _RULE_HELP = (
     "opened through both stdlib sqlite3 and sase_core_rs in one process "
     "(lost POSIX locks, -shm truncate/unlink, SIGBUS, corruption). "
     "Route new Python access to a Rust-owned file through a sase_core_rs "
-    "binding; see docs/rust_backend.md (SQLite ownership)."
+    "binding; see docs/contribute/rust-backend.md (SQLite ownership)."
 )
 
 

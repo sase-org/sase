@@ -178,6 +178,7 @@ def test_docs_move_stub_records_all_heading_and_html_anchors(tmp_path: Path) -> 
     stub = (docs / "source.md").read_text(encoding="utf-8")
     for anchor in move["anchors"]:
         assert f'<a id="{anchor}"></a>' in stub
+    assert '<a id="repeated"></a>\n\n- [Repeated](reference/source.md#repeated)' in stub
 
 
 def test_moves_renderer_preserves_manual_redirects_and_generates_stubs(

@@ -1,3 +1,8 @@
+---
+title: "Telemetry"
+description: "SASE records debugging and health metric history locally."
+---
+
 # Telemetry
 
 SASE records debugging and health metric history locally. No network service is
@@ -198,7 +203,7 @@ its project chip stays visible but adds **not applied**.
 **All time** has no real start instant, so its absolute span reads
 `through <end> · start bounded by retained data` instead of naming a date. What it
 covers is whatever the agent-artifact index and the telemetry store still retain — see
-[Retention and rollups](perf_runbook.md#retention-and-rollups) for the Perf view's two
+[Retention and rollups](perf-runbook.md#retention-and-rollups) for the Perf view's two
 retention rules.
 
 The eight numbered views answer different questions:
@@ -288,7 +293,7 @@ faces do not append that scope label. The Projects view retains an `(no Patch)` 
 runs that have a project but no Patch attribution. Perf does not apply the project
 filter because its telemetry labels and TUI diagnostic logs do not carry project
 attribution. See
-[Reading the Admin Center Perf view](perf_runbook.md#reading-the-admin-center-perf-view)
+[Reading the Admin Center Perf view](perf-runbook.md#reading-the-admin-center-perf-view)
 for its panels, sources, retention, and probe flags.
 
 Override these focused-pane bindings under `ace.keymaps.statistics`; the effective keys

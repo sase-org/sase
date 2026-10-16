@@ -205,7 +205,7 @@ def test_contract_set_is_always_added(repo: Path) -> None:
 
 def test_contract_set_applies_to_docs_only_changes(repo: Path) -> None:
     _commit_contract_manifest(repo, "tests/test_d.py")
-    _touch(repo, "docs/development.md")
+    _touch(repo, "docs/contribute/development.md")
 
     selection = select(repo)
 
@@ -223,7 +223,7 @@ def test_absent_contract_manifest_is_valid(repo: Path) -> None:
 
 def test_contract_manifest_ignores_comments_and_blanks(repo: Path) -> None:
     _commit_contract_manifest(repo, "# generated", "", "tests/test_d.py")
-    _touch(repo, "docs/development.md")
+    _touch(repo, "docs/contribute/development.md")
 
     selection = select(repo)
 

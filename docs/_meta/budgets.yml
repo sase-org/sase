@@ -12,8 +12,6 @@ ceilings:
   agents_sidecar.md: 4440
   artifact_links.md: 2424
   artifact_references.md: 2010
-  artifacts_pane_contract.md: 1613
-  artifacts_pane_visual_grammar.md: 2673
   axe.md: 15924
   beads.md: 26596
   change_spec.md: 2162
@@ -21,35 +19,27 @@ ceilings:
   commit_workflows.md: 8158
   completion.md: 2970
   configuration.md: 20655
-  development.md: 12346
   editor.md: 4280
-  fakey.md: 773
   goals.md: 642
   index.md: 361
   init.md: 7264
   instruction_bundles.md: 2305
-  integrations.md: 2883
   llms.md: 25148
   macros.md: 29265
   memory.md: 3495
   memory_history.md: 2612
   mentors.md: 1599
   mobile_gateway.md: 3396
-  mobile_mvp_runbook.md: 2150
   monitors.md: 8175
   notifications.md: 18223
   pager.md: 3475
-  perf_runbook.md: 11060
   plugins.md: 9474
   project_spec.md: 3146
   prompt.md: 3269
   query_language.md: 2029
   remote_dispatch.md: 2935
-  rust_backend.md: 11094
   sdd.md: 7582
-  sdd_storage.md: 3505
   sudo.md: 2385
-  telemetry.md: 2394
   tool.md: 6419
   vcs.md: 5642
   workflow_spec.md: 2892

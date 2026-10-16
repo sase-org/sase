@@ -171,7 +171,7 @@ def _rewrite_nav(text: str, source: str, target: str) -> str:
             break
     region = "".join(lines[start:end])
     path_pattern = re.compile(
-        rf"(?P<prefix>:\s*|-[ \t]*)(?P<quote>['\"]?){re.escape(source)}(?P=quote)(?=$|[ \t#])"
+        rf"(?P<prefix>:\s*|-[ \t]*)(?P<quote>['\"]?){re.escape(source)}(?P=quote)(?=$|[\r\n \t#])"
     )
     rewritten, replacements = path_pattern.subn(
         lambda match: (

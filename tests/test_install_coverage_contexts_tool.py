@@ -233,7 +233,7 @@ def test_an_uncommitted_docs_change_does_not_block_the_install(
 ) -> None:
     """Only instrumented code can desynchronize the database from HEAD."""
     _full_database(repo)
-    _write(repo, "docs/development.md", "# docs\n\nedited\n")
+    _write(repo, "docs/contribute/development.md", "# docs\n\nedited\n")
 
     assert tool.main([]) == 0
     assert baseline_path(contexts_dir, _head(repo)).is_file()

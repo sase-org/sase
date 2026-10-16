@@ -3227,8 +3227,9 @@ cache-read tokens are persisted as a `usage.json` artifact in the agent run dire
 
 When telemetry is enabled, token counts are recorded as local debugging counters
 (`sase_llm_input_tokens_total`, `sase_llm_output_tokens_total`,
-`sase_llm_cache_read_tokens_total`). See [docs/telemetry.md](telemetry.md) for the full
-telemetry reference.
+`sase_llm_cache_read_tokens_total`). See
+[docs/contribute/telemetry.md](contribute/telemetry.md) for the full telemetry
+reference.
 
 Source: `src/sase/llm_provider/_subprocess.py`, `src/sase/llm_provider/types.py`
 

@@ -1,3 +1,9 @@
+---
+title: "Artifacts pane visual grammar"
+description:
+  "Every configured Artifacts pane renders through one shared, contract-driven shell."
+---
+
 # Artifacts pane visual grammar
 
 Every configured Artifacts pane — Commits, Patches, Beads, Files, every document

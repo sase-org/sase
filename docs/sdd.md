@@ -55,8 +55,8 @@ hooks should use those variables or repo resolvers instead of assuming `sdd/` is
 relative to the checkout.
 
 Project and user configuration cannot override this selection. See
-[SDD Storage](sdd_storage.md) for the provider contract, sidecar-repo convention, setup
-guidance, and offline/push behavior.
+[SDD Storage](contribute/sdd-storage.md) for the provider contract, sidecar-repo
+convention, setup guidance, and offline/push behavior.
 
 For built-in bare-git projects, SASE creates or refreshes the generated SDD guide files
 automatically. Target an existing project with its `+<project>`
@@ -372,7 +372,7 @@ text for a row both sides carry, and stages the file. A difference in frontmatte
 `PROMPT`, `PARENT`, `BEAD`, or the authored body, an unparseable header, or a
 modify/delete conflict is never merged; it is left to SASE's normal conflict handling,
 which for sidecar integration restores the pre-rebase state (see
-[SDD Storage](sdd_storage.md#concurrency-and-recovery)).
+[SDD Storage](contribute/sdd-storage.md#concurrency-and-recovery)).
 
 A plan's parent is recorded in the `PARENT` bullet. The historical `parent:` frontmatter
 property is deprecated: it remains accepted so already-committed plans still validate,
@@ -853,7 +853,7 @@ Storage selection is not configurable. The workspace provider owns it. Retired
 `sase doctor` for cleanup.
 
 See the [configuration reference](reference/config/index.md) for configuration keys and
-[SDD Storage](sdd_storage.md) for mode behavior.
+[SDD Storage](contribute/sdd-storage.md) for mode behavior.
 
 ## Multi-Workspace Behavior
 
@@ -871,5 +871,5 @@ normal VCS sync path. Prefer `sase repo path plans`, `sase repo path beads`,
 `sase repo path <document-role>`, or the `SASE_SDD_*_DIR` variables over hard-coded
 relative paths. Numbered-workspace sidecar clones borrow Git objects from the primary
 workspace's clone of the same sidecar when one exists; see
-[Network Git Operations](sdd_storage.md#network-git-operations) for clone retries and
-timeouts.
+[Network Git Operations](contribute/sdd-storage.md#network-git-operations) for clone
+retries and timeouts.

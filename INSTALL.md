@@ -88,7 +88,7 @@ exactly the shape `install-dev` creates. Preview any global install first with `
 monitor (exit 2), because they replace the global `sase` every agent and the scheduler
 run. Contributors working in a checkout almost always want `just install-venv` instead —
 see
-[Your `sase` versus this checkout's `.venv`](docs/development.md#your-sase-versus-this-checkouts-venv).
+[Your `sase` versus this checkout's `.venv`](docs/contribute/development.md#your-sase-versus-this-checkouts-venv).
 
 ## Installing plugins
 

@@ -114,7 +114,7 @@ def test_deleted_test_file_is_not_selected(repo: Path) -> None:
 
 
 def test_docs_only_change_selects_nothing(repo: Path) -> None:
-    _touch(repo, "docs/development.md")
+    _touch(repo, "docs/contribute/development.md")
 
     selection = select(repo)
 

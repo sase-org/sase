@@ -1,3 +1,8 @@
+---
+title: "Fakey Testing Provider"
+description: "fakey is a deterministic fake agent CLI bundled with SASE."
+---
+
 # Fakey Testing Provider
 
 `fakey` is a deterministic fake agent CLI bundled with SASE. Its first-class

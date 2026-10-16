@@ -171,7 +171,7 @@ def build_detail_header_summary(
 
     Emits one parent ``tui_trace`` span plus one child span per resolver
     (bead sase-l6.1) so a real capture can attribute the enrichment cost to
-    a specific lane; see ``docs/perf_runbook.md``. Free when
+    a specific lane; see ``docs/contribute/perf-runbook.md``. Free when
     ``SASE_TUI_TRACE`` is unset.
     """
     resolved_lanes = ALL_DETAIL_CONTEXT_LANES if lanes is None else lanes

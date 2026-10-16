@@ -63,11 +63,9 @@ def _stub_text(root: Path, move: PageMove) -> str:
                 from_path, target_path, target_anchor if separator else None
             )
             label = old_anchor.replace("-", " ").replace("_", " ").capitalize()
-            if index == 0:
-                lines.extend([f'<a id="{old_anchor}"></a>', ""])
-            else:
-                lines.append(f'  <a id="{old_anchor}"></a>')
-            lines.append(f"- [{label}]({link})")
+            if index:
+                lines.append("")
+            lines.extend([f'<a id="{old_anchor}"></a>', "", f"- [{label}]({link})"])
     return "\n".join(lines) + "\n"
 
 

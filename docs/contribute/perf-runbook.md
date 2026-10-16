@@ -1,3 +1,10 @@
+---
+title: "sase tui Performance Runbook"
+description:
+  "This runbook explains how to capture and compare performance data for sase's TUI, the
+  sase tui terminal user interface."
+---
+
 # `sase tui` Performance Runbook
 
 This runbook explains how to capture and compare performance data for sase's TUI, the

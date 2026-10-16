@@ -1514,7 +1514,7 @@ With no subcommand, `sase telemetry` prints a delegation notice and runs
 | ------------ | ----------------------------------------------------------- | ------- | -------------------- |
 | _subcommand_ | `cleanup-test-data`, `health`, `list`, `snapshot`, `status` | `list`  | Telemetry subcommand |
 
-See [docs/telemetry.md](telemetry.md) for the full CLI reference including
+See [docs/telemetry.md](contribute/telemetry.md) for the full CLI reference including
 per-subcommand flags.
 
 ### `sase logs`

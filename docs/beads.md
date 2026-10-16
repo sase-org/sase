@@ -1259,8 +1259,8 @@ repository keeps the store **at its root** rather than under a `beads/` subdirec
 not been migrated yet still keeps bead state at `beads/` in the root of its auto-cloned
 `--plans` repository; the `.sase/sdd-store.json` record decides which, and only a record
 that names a `beads` sidecar (schema version 3) resolves to the dedicated repository.
-See [SDD Storage](sdd_storage.md) for the record format and the adoption transaction
-that performs the move.
+See [SDD Storage](contribute/sdd-storage.md) for the record format and the adoption
+transaction that performs the move.
 
 Isolating bead state this way gives it its own git history, its own cooperative write
 lock, and its own repository-health preflight, so hot bead writes no longer serialize

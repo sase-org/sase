@@ -737,7 +737,8 @@ writes the schema-3 store record that makes bead commands resolve to the new rep
 and only then removes `beads/` from the plans clone. `sase repo init --check` lists that
 data move as a distinct planned action. Adoption is idempotent, so rerunning
 initialization after a partial failure retries cleanly; see
-[SDD Storage](sdd_storage.md) for the full transaction and its failure semantics.
+[SDD Storage](contribute/sdd-storage.md) for the full transaction and its failure
+semantics.
 
 ```bash
 sase repo init                    # initialize sidecars and project wiring
@@ -758,7 +759,7 @@ Built-in bare-git projects keep their provider-owned in-tree SDD layout. For tho
 projects, `sase repo init` refreshes the existing generated SDD guides while still
 maintaining the managed sidecar declarations and repository ignore rule. Keep conceptual
 SDD documentation in [docs/sdd.md](sdd.md) and storage-mode details in
-[docs/sdd_storage.md](sdd_storage.md).
+[docs/contribute/sdd-storage.md](contribute/sdd-storage.md).
 
 ## Skill Initialization
 

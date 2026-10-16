@@ -1,3 +1,10 @@
+---
+title: "Artifacts pane contract"
+description:
+  "ArtifactsPaneContract is the host-owned record that decides what a pane can do before
+  widgets, keybindings, or document providers run."
+---
+
 # Artifacts pane contract
 
 `ArtifactsPaneContract` is the host-owned record that decides what a pane can do before
@@ -62,7 +69,7 @@ into each pane's default query when no `limit:` is present; `limit:all` is the u
 synonym on every pane, and the shared parser also accepts `limit:0` for the same state.
 `Ctrl+J` (`artifacts_load_more`) raises the cap by one page and `Ctrl+K`
 (`artifacts_unload`) lowers it, never dropping below one page. See
-[sase's TUI Artifacts](ace.md) for the user-facing keys and coverage badges.
+[sase's TUI Artifacts](../ace.md) for the user-facing keys and coverage badges.
 
 ## Declarative `ref.pane`
 
@@ -124,7 +131,7 @@ with `ref.capabilities.suppress: {filter_session: "browse only"}`.
 Every pane, including Patch and a degraded third-party tab, renders through the shared
 shell. The five canonical states, accent rules, relation-panel slot, and grouping
 banners are specified in
-[Artifacts pane visual grammar](artifacts_pane_visual_grammar.md).
+[Artifacts pane visual grammar](artifacts-pane-visual-grammar.md).
 
 ## Relation primitives
 
@@ -198,7 +205,7 @@ behind after the user moves on.
 `$` link-follow uses the same lens, but reaches it through the host-owned jump engine
 rather than a single rewrite: fold expansion, targeted hydration of a row the pane never
 loaded, one verified context rewrite, then identity and neutral fallbacks. See
-[Link Jumps](ace.md#link-jumps) for the user-facing behavior, including the toast and
+[Link Jumps](../ace.md#link-jumps) for the user-facing behavior, including the toast and
 the context query each artifact kind lands in.
 
 ## Identity field

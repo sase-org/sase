@@ -673,8 +673,8 @@ Flag and option details live in the generated
   [sase workspace](reference/cli/workspace.md), [sase mobile](reference/cli/mobile.md)
 
 Workflows: [Configuration](reference/config/index.md), [Plugins](plugins.md),
-[Shell completion](completion.md), [Telemetry](telemetry.md), [Workspace](workspace.md),
-[Mobile gateway](mobile_gateway.md).
+[Shell completion](completion.md), [Telemetry](contribute/telemetry.md),
+[Workspace](workspace.md), [Mobile gateway](mobile_gateway.md).
 
 The `sase artifact show`, `read`, `path`, `open`, and `link` commands take logical
 references without a leading `@`, for example

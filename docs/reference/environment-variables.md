@@ -154,7 +154,8 @@ models accept only `low`/`medium`/`high`/`xhigh` for `--effort`; see
 | `SASE_EPIC_PLAN_LAUNCH_LOCK_TIMEOUT`        | Positive seconds an epic plan launch waits for another launch in the same project (default: 900).                                                                            |
 | `SASE_EPIC_APPROVAL_PREFLIGHT_LOCK_TIMEOUT` | Positive seconds an approval preflight waits for an in-flight epic launch before deferring its health check to the detached launch (default: 120).                           |
 
-See [SDD storage concurrency and recovery](../sdd_storage.md#concurrency-and-recovery)
+See
+[SDD storage concurrency and recovery](../contribute/sdd-storage.md#concurrency-and-recovery)
 for the lock, recovery snapshot, and failed-integration cooldown behavior.
 
 ### Plugin System

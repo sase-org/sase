@@ -207,3 +207,73 @@ moves:
       backing-up-and-restoring: reference/upgrading/local-state.md#backing-up-and-restoring
       planning-running-and-verifying: reference/upgrading/local-state.md#planning-running-and-verifying
     title: Configuration Reference
+  - from: development.md
+    to: contribute/development.md
+    kind: redirect
+  - from: rust_backend.md
+    to: contribute/rust-backend.md
+    kind: stub
+    title: Rust Backend (sase_core_rs)
+    anchors:
+      rust-backend-sasecorers: contribute/rust-backend.md#rust-backend-sase_core_rs
+      why-a-rust-backend: contribute/rust-backend.md#why-a-rust-backend
+      architecture: contribute/rust-backend.md#architecture
+      command-line-grammar-handle: contribute/rust-backend.md#command-line-grammar-handle
+      prompt-prediction-handles: contribute/rust-backend.md#prompt-prediction-handles
+      prequential-replay-calibration: contribute/rust-backend.md#prequential-replay-calibration
+      current-word-completion: contribute/rust-backend.md#current-word-completion
+      prediction-cost: contribute/rust-backend.md#prediction-cost
+      archive-source-cross-machine-prompt-archive: contribute/rust-backend.md#archive-source-cross-machine-prompt-archive
+      prediction-rss: contribute/rust-backend.md#prediction-rss
+      mobile-gateway: contribute/rust-backend.md#mobile-gateway
+      bead-backend: contribute/rust-backend.md#bead-backend
+      sqlite-ownership: contribute/rust-backend.md#sqlite-ownership
+      installing-the-rust-backend: contribute/rust-backend.md#installing-the-rust-backend
+      released-sase-recommended-for-users: contribute/rust-backend.md#released-sase-recommended-for-users
+      source-development-workflow: contribute/rust-backend.md#source-development-workflow
+      changing-sase-core-from-a-sase-workspace: contribute/rust-backend.md#changing-sase-core-from-a-sase-workspace
+      who-owns-the-published-version-window: contribute/rust-backend.md#who-owns-the-published-version-window
+      watching-a-release: contribute/rust-backend.md#watching-a-release
+      local-rust-installation: contribute/rust-backend.md#local-rust-installation
+      required-extension-and-cleanup-compatibility-exception: contribute/rust-backend.md#required-extension-and-cleanup-compatibility-exception
+      backend-health-check: contribute/rust-backend.md#backend-health-check
+      runtime-version-inventory: contribute/rust-backend.md#runtime-version-inventory
+      justfile-targets: contribute/rust-backend.md#justfile-targets
+      performance: contribute/rust-backend.md#performance
+      workstation-profile: contribute/rust-backend.md#workstation-profile
+      core-operations-phase-7b-microbenchmarks: contribute/rust-backend.md#core-operations-phase-7b-microbenchmarks
+      end-to-end-tui-cli-surfaces-phase-7c: contribute/rust-backend.md#end-to-end-tui-cli-surfaces-phase-7c
+      agent-launch-migration-phase-9: contribute/rust-backend.md#agent-launch-migration-phase-9
+      where-rust-helps-where-it-does-not: contribute/rust-backend.md#where-rust-helps-where-it-does-not
+      performance-regression-floor: contribute/rust-backend.md#performance-regression-floor
+      triage-support-note: contribute/rust-backend.md#triage-support-note
+      verifying-the-backend: contribute/rust-backend.md#verifying-the-backend
+      the-ci-source-revision-pin: contribute/rust-backend.md#the-ci-source-revision-pin
+      golden-contract: contribute/rust-backend.md#golden-contract
+      editable-dev-prebuild-cache: contribute/rust-backend.md#editable-dev-prebuild-cache
+      rollback: contribute/rust-backend.md#rollback
+      migration-history: contribute/rust-backend.md#migration-history
+  - from: fakey.md
+    to: contribute/fakey.md
+    kind: redirect
+  - from: telemetry.md
+    to: contribute/telemetry.md
+    kind: redirect
+  - from: perf_runbook.md
+    to: contribute/perf-runbook.md
+    kind: redirect
+  - from: mobile_mvp_runbook.md
+    to: contribute/mobile-mvp-runbook.md
+    kind: redirect
+  - from: integrations.md
+    to: contribute/integration-apis.md
+    kind: redirect
+  - from: artifacts_pane_contract.md
+    to: contribute/artifacts-pane-contract.md
+    kind: redirect
+  - from: artifacts_pane_visual_grammar.md
+    to: contribute/artifacts-pane-visual-grammar.md
+    kind: redirect
+  - from: sdd_storage.md
+    to: contribute/sdd-storage.md
+    kind: redirect

@@ -876,8 +876,8 @@ and the opt-out.
 Network Git commands for SDD sidecar repositories (clone, fetch, and push during bead
 sync, SDD integration, repository health checks, and agent publishing) retry failures
 that the Rust core classifies as transient; see
-[Network Git Operations](sdd_storage.md#network-git-operations) for attempts, timeouts,
-and the environment variables that tune them. Those operations are logged to
+[Network Git Operations](contribute/sdd-storage.md#network-git-operations) for attempts,
+timeouts, and the environment variables that tune them. Those operations are logged to
 `~/.sase/logs/tui_git_ops.jsonl`, and `sase doctor -C vcs.git_transport_margin` reads
 the most recent samples and warns when they keep running close to their time limit. Run
 it with `-v` to see which sidecar stores were slow.

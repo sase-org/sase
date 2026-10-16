@@ -61,7 +61,6 @@
 - [Goals](https://sase.sh/goals/) — Goals — Goals are durable records of outcomes a person wants: what will be true, how you'll know, and what happened along the way.
 - [Initialization](https://sase.sh/init/) — Initialization — SASE initialization commands create or refresh durable files that agents and sidecar tools rely on.
 - [Instruction Bundles](https://sase.sh/instruction_bundles/) — Instruction Bundles — An instruction bundle collects the project, home, and SASE instructions for one agent invocation.
-- [Integration APIs](https://sase.sh/integrations/) — Integration APIs — SASE exposes a small set of Python helpers for external plugins, chat clients, mobile clients, and editor integrations.
 - [LLM Provider Integration](https://sase.sh/llms/) — LLM Provider Integration — This document describes the LLM provider abstraction layer in sase.
 - [Macro Template Reference](https://sase.sh/macros/) — Macro Template Reference — Macros are reusable prompt templates with optional typed inputs and Jinja2 support.
 - [Memory](https://sase.sh/memory/) — Memory — SASE memory is durable context that survives individual agent chats.
@@ -209,21 +208,22 @@
 
 ## Contribute
 
-- [Artifacts pane contract](https://sase.sh/artifacts_pane_contract/) — Artifacts pane contract — ArtifactsPaneContract is the host-owned record that decides what a pane can do before widgets, keybindings, or document providers run.
-- [Artifacts pane visual grammar](https://sase.sh/artifacts_pane_visual_grammar/) — Artifacts pane visual grammar — Every configured Artifacts pane — Commits, Patches, Beads, Files, every document provider, and a degraded provider that failed to load — renders through one shared, contract-driven shell.
 - [Commit Workflows](https://sase.sh/commit_workflows/) — Commit Workflows — Sase provides three unified workflows for landing code changes: commit, propose, and pull request.
 - [Acknowledgements](https://sase.sh/contribute/acknowledgements/) — People, projects, and research that shaped SASE.
 - [Architecture](https://sase.sh/contribute/architecture/) — Architecture internals, runtime flow, state ownership, and provider boundaries inside SASE.
+- [Artifacts pane contract](https://sase.sh/contribute/artifacts-pane-contract/) — ArtifactsPaneContract is the host-owned record that decides what a pane can do before widgets, keybindings, or document providers run.
+- [Artifacts pane visual grammar](https://sase.sh/contribute/artifacts-pane-visual-grammar/) — Every configured Artifacts pane renders through one shared, contract-driven shell.
+- [Development](https://sase.sh/contribute/development/) — This page orients contributors working in the sase repository.
+- [Fakey Testing Provider](https://sase.sh/contribute/fakey/) — fakey is a deterministic fake agent CLI bundled with SASE.
 - [Contribute](https://sase.sh/contribute/) — Contributor guides, internals, contracts, and runbooks for SASE.
+- [Integration APIs](https://sase.sh/contribute/integration-apis/) — SASE exposes a small set of Python helpers for external plugins, chat clients, mobile clients, and editor integrations.
+- [Mobile MVP Runbook](https://sase.sh/contribute/mobile-mvp-runbook/) — This runbook covers the private Android MVP that connects a phone to a workstation-hosted SASE mobile gateway.
+- [sase tui Performance Runbook](https://sase.sh/contribute/perf-runbook/) — This runbook explains how to capture and compare performance data for sase's TUI, the sase tui terminal user interface.
 - [Reader testing](https://sase.sh/contribute/reader-testing/) — How to run an observed reader round and turn the results into doc changes.
+- [Rust Backend (sase_core_rs)](https://sase.sh/contribute/rust-backend/) — A subset of sase's core APIs is served by a Rust extension distributed as sase-core-rs on PyPI and built from the sibling sase-core repo.
+- [SDD Storage](https://sase.sh/contribute/sdd-storage/) — The workspace provider owns SDD placement, while projects select a store beneath it.
+- [Telemetry](https://sase.sh/contribute/telemetry/) — SASE records debugging and health metric history locally.
 - [Writing docs](https://sase.sh/contribute/writing-docs/) — The sase.sh documentation contract for humans and agents.
-- [Development](https://sase.sh/development/) — Development — This page orients contributors working in the sase repository.
-- [Fakey Testing Provider](https://sase.sh/fakey/) — Fakey Testing Provider — fakey is a deterministic fake agent CLI bundled with SASE.
-- [Mobile MVP Runbook](https://sase.sh/mobile_mvp_runbook/) — Mobile MVP Runbook — This runbook covers the private Android MVP that connects a phone to a workstation-hosted SASE mobile gateway.
-- [`sase tui` Performance Runbook](https://sase.sh/perf_runbook/) — `sase tui` Performance Runbook — This runbook explains how to capture and compare performance data for sase's TUI, the sase tui terminal user interface.
-- [Rust Backend (`sase_core_rs`)](https://sase.sh/rust_backend/) — Rust Backend (`sase_core_rs`) — A subset of sase's core APIs is served by a Rust extension distributed as sase-core-rs on PyPI and built from the sibling sase-core repo.
-- [SDD Storage](https://sase.sh/sdd_storage/) — SDD Storage — The workspace provider owns SDD placement.
-- [Telemetry](https://sase.sh/telemetry/) — Telemetry — SASE records debugging and health metric history locally.
 
 ## Blog
 
@@ -244,6 +244,7 @@
 - [sase's TUI User Guide](https://sase.sh/ace/) — sase's TUI User Guide — sase's TUI is the primary TUI for the SASE toolkit.
 - [Configuration Reference](https://sase.sh/configuration/) — Configuration Reference — Moved to Configuration files and merging.
 - [Canonical SASE Content Layout](https://sase.sh/content_layout/) — This page has moved to its new home.
+- [Rust Backend (sase_core_rs)](https://sase.sh/rust_backend/) — This page has moved to its new home.
 
 ## Moved pages
 
@@ -257,3 +258,13 @@
 - https://sase.sh/content_layout/ → https://sase.sh/reference/upgrading/
 - https://sase.sh/ace/ → https://sase.sh/reference/tui/
 - https://sase.sh/configuration/ → https://sase.sh/reference/config/
+- https://sase.sh/development/ → https://sase.sh/contribute/development/
+- https://sase.sh/rust_backend/ → https://sase.sh/contribute/rust-backend/
+- https://sase.sh/fakey/ → https://sase.sh/contribute/fakey/
+- https://sase.sh/telemetry/ → https://sase.sh/contribute/telemetry/
+- https://sase.sh/perf_runbook/ → https://sase.sh/contribute/perf-runbook/
+- https://sase.sh/mobile_mvp_runbook/ → https://sase.sh/contribute/mobile-mvp-runbook/
+- https://sase.sh/integrations/ → https://sase.sh/contribute/integration-apis/
+- https://sase.sh/artifacts_pane_contract/ → https://sase.sh/contribute/artifacts-pane-contract/
+- https://sase.sh/artifacts_pane_visual_grammar/ → https://sase.sh/contribute/artifacts-pane-visual-grammar/
+- https://sase.sh/sdd_storage/ → https://sase.sh/contribute/sdd-storage/

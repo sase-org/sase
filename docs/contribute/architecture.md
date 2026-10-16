@@ -30,8 +30,8 @@ reviewed, retried, and handed off through stable project artifacts.
 | SDD          | Durable prompt, tale, epic, and research artifacts.                                                                                               | [SDD](../sdd.md)                                                      |
 | Beads        | Git-portable issue/dependency tracking and executable epic launch plans.                                                                          | [Beads](../beads.md)                                                  |
 | Providers    | Pluggable LLM, VCS, workspace, config, and macro boundaries.                                                                                      | [Plugins](../plugins.md)                                              |
-| Rust core    | Required `sase_core_rs` extension for ported parsing, query, notification, agent scan, launch and admission, retention, and bead data operations. | [Rust backend](../rust_backend.md)                                    |
-| Integrations | Public helpers and fixed bridge APIs for editors, mobile gateway, and external packages.                                                          | [Integrations](../integrations.md)                                    |
+| Rust core    | Required `sase_core_rs` extension for ported parsing, query, notification, agent scan, launch and admission, retention, and bead data operations. | [Rust backend](rust-backend.md)                                       |
+| Integrations | Public helpers and fixed bridge APIs for editors, mobile gateway, and external packages.                                                          | [Integrations](integration-apis.md)                                   |
 
 The Python host owns user-facing orchestration, plugin calls, subprocess handling,
 filesystem context, TUI rendering, and workflow side effects. Rust owns reusable
@@ -244,13 +244,13 @@ engineering state without depending on one terminal session.
 Provider abstractions keep SASE above any single agent runtime, version-control host, or
 workspace strategy:
 
-| Provider Layer     | What It Owns                                                                                                     | Details                            |
-| ------------------ | ---------------------------------------------------------------------------------------------------------------- | ---------------------------------- |
-| LLM provider       | Agent CLI selection, concrete model mapping, subprocess invocation, retry defaults, usage metadata.              | [LLM providers](../llms.md)        |
-| VCS provider       | Diff, checkout, commit, amend, proposal/PR dispatch, reword, submit, sync, revert, restore, and review metadata. | [VCS providers](../vcs.md)         |
-| Workspace provider | Workspace reference resolution, workspace directory allocation, submit/mail preparation, workflow metadata.      | [Workspaces](../workspace.md)      |
-| Resource plugins   | Extra macro/workflow files and default configuration.                                                            | [Plugins](../plugins.md)           |
-| Integration APIs   | Public Python helpers and fixed JSON bridge contracts for sidecar tools.                                         | [Integrations](../integrations.md) |
+| Provider Layer     | What It Owns                                                                                                     | Details                             |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------- | ----------------------------------- |
+| LLM provider       | Agent CLI selection, concrete model mapping, subprocess invocation, retry defaults, usage metadata.              | [LLM providers](../llms.md)         |
+| VCS provider       | Diff, checkout, commit, amend, proposal/PR dispatch, reword, submit, sync, revert, restore, and review metadata. | [VCS providers](../vcs.md)          |
+| Workspace provider | Workspace reference resolution, workspace directory allocation, submit/mail preparation, workflow metadata.      | [Workspaces](../workspace.md)       |
+| Resource plugins   | Extra macro/workflow files and default configuration.                                                            | [Plugins](../plugins.md)            |
+| Integration APIs   | Public Python helpers and fixed JSON bridge contracts for sidecar tools.                                         | [Integrations](integration-apis.md) |
 
 Core SASE ships built-in providers for common local use: bundled LLM provider entry
 points, plain-git VCS support, and bare-git workspaces. Optional packages can add hosted
@@ -289,7 +289,7 @@ core API, not presentation logic.
 
 The Python host still owns side effects that require app context: plugin dispatch,
 VCS/workspace calls, process signalling, file locks, TUI rendering, user confirmation,
-macro lookup, and workflow orchestration. See [Rust backend](../rust_backend.md) for the
+macro lookup, and workflow orchestration. See [Rust backend](rust-backend.md) for the
 complete operation list and facade map.
 
 ## Read Next
@@ -297,9 +297,9 @@ complete operation list and facade map.
 | Need                                     | Page                                                                                                             |
 | ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
 | Command discovery                        | [CLI reference](../cli.md)                                                                                       |
-| Contributor setup and source orientation | [Development](../development.md)                                                                                 |
+| Contributor setup and source orientation | [Development](development.md)                                                                                    |
 | Runtime operations                       | [sase's TUI](../ace.md), [Axe](../axe.md), [notifications](../notifications.md)                                  |
 | Durable work records                     | [Patches](../change_spec.md), [memory](../memory.md), [SDD](../sdd.md), [beads](../beads.md)                     |
 | Prompt and workflow execution            | [Macros](../macros.md), [workflow spec](../workflow_spec.md)                                                     |
 | Extension boundaries                     | [Plugins](../plugins.md), [LLM providers](../llms.md), [VCS providers](../vcs.md), [workspaces](../workspace.md) |
-| Backend boundary                         | [Rust backend](../rust_backend.md)                                                                               |
+| Backend boundary                         | [Rust backend](rust-backend.md)                                                                                  |

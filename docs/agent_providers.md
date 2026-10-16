@@ -552,7 +552,7 @@ For demos and hermetic end-to-end tests, `SASE_LLM_EXEC_PROVIDER=fakey` dispatch
 through fakey while preserving the requested provider/model in display metadata. Run
 artifacts record the dispatched provider as `exec_llm_provider`.
 
-See the [fakey reference](fakey.md) for scenarios and environment controls.
+See the [fakey reference](contribute/fakey.md) for scenarios and environment controls.
 
 ## Verify
 

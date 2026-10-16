@@ -33,7 +33,7 @@ def _fixture_files() -> dict[str, str]:
         "uv.lock": "",
         "Justfile": "check:\n\t@true\n",
         "tools/run_pytest": "#!/usr/bin/env python3\n",
-        "docs/development.md": "# docs\n",
+        "docs/contribute/development.md": "# docs\n",
         "src/pkg/__init__.py": "",
         "src/pkg/a.py": "VALUE = 1\n",
         "src/pkg/b.py": "from pkg.a import VALUE\n",

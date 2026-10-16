@@ -1,0 +1,1329 @@
+---
+title: "Rust Backend (sase_core_rs)"
+description:
+  "A subset of sase's core APIs is served by a Rust extension distributed as
+  sase-core-rs on PyPI and built from the sibling sase-core repo."
+---
+
+# Rust Backend (`sase_core_rs`)
+
+A subset of sase's core APIs is served by a Rust extension distributed as
+[`sase-core-rs`](https://pypi.org/project/sase-core-rs/) on PyPI and built from the
+sibling [`sase-core`](https://github.com/sase-org/sase-core) repo. `sase` declares
+`sase-core-rs` as a hard runtime dependency (see `pyproject.toml` for the pinned range),
+so a normal `uv tool install sase` (or `pip install sase`) pulls a prebuilt wheel
+automatically — no Rust toolchain required and no env-var backend selection. Most ported
+operations fail fast when the extension or a required binding is unavailable. The
+agent-cleanup planner and cleanup-mutation wrappers are a temporary compatibility
+exception: they retain Python fallback paths for missing or stale cleanup bindings.
+
+The shipped Rust-backed operations are grouped by the Python facade that calls them:
+
+- Project parsing: `parse_project_bytes`
+- Project lifecycle helpers: normalize legacy state to canonical `enabled` / `disabled`,
+  read and update `PROJECT_STATE`, derive the true-project predicate and `git` / `gh`
+  VCS kind, and list lifecycle-filtered project records for CLI/TUI/launch discovery.
+  Internal `sibling` backing records remain parseable but are not true projects.
+- Query parsing and evaluation: `tokenize_query`, `parse_query`, `canonicalize_query`,
+  legacy one-shot `evaluate_query_many`, and the product persistent-corpus path
+  (`compile_corpus`, `compile_query`, `evaluate_many`) used by
+  `sase.core.query_corpus_facade`
+- Agent artifact scan/index and statistics operations: `scan_agent_artifacts`,
+  `rebuild_agent_artifact_index`, `upsert_agent_artifact_index_row`,
+  `delete_agent_artifact_index_row`, `query_agent_artifact_index`, and dismissed
+  projection replacement for hiding dismissed identities in indexed visible-inbox
+  queries. Scan records project each run's launch-boundary `macros.json`, the index
+  signs that marker so late writes refresh the row, and the run statistics query rolls
+  the projection up by macro, model, project, co-usage, and optional focused detail.
+- Status and status-transition helpers: `read_status_from_lines`, `apply_status_update`,
+  and `plan_status_transition`
+- Git query parsers: `parse_git_name_status_z`, `parse_git_branch_name`,
+  `derive_git_workspace_name`, `parse_git_conflicted_files`, `parse_git_local_changes`,
+  VCS-log parsing, and standalone commit-origin classification through
+  `classify_commit_origin`
+- Notification JSONL store operations: `read_notifications_snapshot`,
+  `append_notification`, `apply_notification_state_update`, and `rewrite_notifications`.
+  The agent-keyed completion dismissal (`DismissAgentCompletionsMatchingAgents`) also
+  covers row-owned settlement rows (`epic-launch`/`monitor-settlement`) that name an
+  exact `(cl_name, raw_suffix)`. The store owns every temporal snooze semantic:
+  deadlines are validated as timezone-aware future instants and normalized to canonical
+  UTC before any row changes (a rejected bulk snooze stays atomic), the current-state
+  read expires due and malformed-legacy rows under the same exclusive lock it reads
+  with, and snapshots/outcomes report `expired_ids` plus the earliest remaining
+  `next_snooze_deadline`. Expiry stamps one shared `resurfaced_at` per batch, marks rows
+  unmuted and unread, skips dismissed rows, and leaves permanent mutes untouched.
+  Callers must not reimplement expiry, ordering, or deadline arithmetic in Python — see
+  [`docs/notifications.md`](../notifications.md#snooze-expiry-and-resurfacing)
+- Temporary LLM provider-disable state: `provider_disable_wire_schema_version`,
+  `provider_disable_get`, `provider_disable_set_relative`, `provider_disable_set_until`,
+  `provider_disable_try_set_relative`, `provider_disable_try_set_until`, and
+  `provider_disable_clear`. The Rust core owns the versioned
+  `llm_provider_disables.json` schema, bounded lock, atomic writes, per-provider
+  validation/pruning, expiry semantics, deterministic provider ordering, and
+  multi-process read/modify/write cycle. Conditional try-set operations prune and decide
+  absence-plus-write under that same lock, returning the active record plus whether the
+  caller inserted it. Unconditional setters remain the replacement path for manual
+  duration changes. Python owns provider registration, routing policy, TUI presentation,
+  and the lock-free display peek overlay.
+- Shared macro choice assistance (contracts phase): `macro_argument_choice_candidates`
+  and `macro_input_type_label` from the editor-completion domain. The candidate builder
+  takes `{"hint", "partial", "replacement", "selected"}` where `partial` filters (empty
+  keeps declared order, otherwise case-insensitive prefix first then the shared Rust
+  fuzzy matcher with stable declared-order ties), `replacement` is the whole current
+  value for repeatable active-element detection, and `selected` excludes only repeatable
+  values while keeping the edited element eligible. It inserts the exact canonical value
+  (never the label), quoting structural macro syntax (commas, `+`), synthesizing
+  `true`/`false` for bool, and marking the displayed default without reordering. The
+  label is the value union for up to four choices, else `<named_type> (N)` or
+  `enum (N)`; domains show named types, scalars show keywords. Wires carry additive
+  `named_type`/`value_role` with rich `value`/`label`/`description` choices; old
+  payloads without them still deserialize.
+- Agent cleanup planning plus deterministic cleanup mutations: dismissed-identity index
+  writes, artifact-marker deletion, workspace-release text mutation, and
+  hook/mentor/comment kill marking. These calls prefer Rust but retain cleanup-specific
+  Python compatibility paths for missing or stale bindings. In the current sase TUI host
+  path, dismissed-bundle JSON persistence stays in Python, while the summary SQLite
+  index (`dismissed_bundles/index.sqlite`) is owned by `sase_core::agent_archive::store`
+  and reached only through `sase_core_rs` bindings (see "SQLite Ownership").
+- Agent launch preparation, low-level detached spawn, timestamp allocation, fan-out
+  planning, typed Agent/Proc launch-plan validation, admission-journal replay, `%if`
+  condition evaluation, `%proc` script/argv/env preparation, and RUNNING-field
+  workspace-claim planning/mutation helpers
+- Bead data operations: read queries (`show`, `list`, `ready`, `blocked`, `stats`,
+  `doctor`, epic-child lookups), merged multi-workspace reads, mutations (`init`,
+  `create`, `update`, `open`, `close`, `rm`, `dep add`, ready-to-work flags, sync-clean
+  checks, compatibility projection export), deterministic epic work planning, and the
+  early `sase bead` CLI fast path for common read/write commands
+- Disk and retention owners: managed-temp reaping (`reap_managed_tmpdir`), disk-pressure
+  and disk-inventory classification (`classify_disk_pressure`,
+  `classify_disk_inventory`), cleanup-outcome normalization, proc runtime retention
+  (`apply_proc_runtime_retention`), and `ace-run` retention preview plus its fail-closed
+  apply refusal (`apply_agent_artifact_run_retention`). Each has its own wire schema
+  version that the Python adapter checks before calling; the adapters gather inputs
+  (filesystem measurements, protection facts, configured thresholds) and handle
+  host-side follow-ups such as dropping reaped directories from the agent artifact index
+- Memory history over git alone (`memory_history_sync`, `memory_history_subjects`,
+  `memory_history_resolve`, `memory_history_timeline`, `memory_history_version`,
+  `memory_history_compare`, `memory_history_feed`, and
+  `memory_history_wire_schema_version`), called through
+  `sase.core.memory_history_facade` with scopes assembled by
+  `sase.memory.history.scopes`. The Rust core owns lineage, shim aliasing,
+  classification, cause attribution, the per-scope snapshot, and prose comparison;
+  Python owns scope inputs, the thread-safe service, the CLI, the visual vocabulary, and
+  all rendering.
+- Instruction manifest v2 (`instruction_manifest_wire_schema_version`,
+  `normalize_instruction_manifest`), called through `sase.core.instruction_manifest`.
+  The Rust core owns the closed vocabulary, the wire types, the validation invariants,
+  delivery-channel and fallback invariants, and the `common_digest` definition; Python
+  owns bundle composition and manifest assembly. Readers continue to accept v1.
+- Git object-sharing planning for managed workspaces (`plan_git_object_sharing`)
+- AXE configuration composition and entry-edit planning (`axe_config_compose`,
+  `axe_config_plan_entry`), including routine/job input aliases, description-shape
+  diagnostics, and the public routine/job projection; the public routine/job status
+  `--json` projection (`project_axe_status_public`); and agent-tribe identity
+  resolution, including the public `job` alias for the stored `chop` tribe
+  (`resolve_agent_tribe_identity`)
+
+The intentionally Python-owned host surfaces include:
+
+- `parse_project_file` — Python file-path API. The Rust binding consumes bytes; routing
+  the file-path API through it would either re-read the file or duplicate the Python
+  parser's tokenization for no measurable win.
+- `build_query_context`, `evaluate_query`, `evaluate_query_with_context` — per-row query
+  host logic. Batch product filtering uses a cached Rust query corpus; the public
+  `evaluate_query_many(query, changespecs)` API remains as a compatibility wrapper that
+  compiles a temporary Rust corpus for one call.
+- `build_changespec_graph_index` — Patch graph index construction.
+- `transition_changespec_status` — the side-effecting status transition (acquires a file
+  lock, rewrites the project file, performs archive moves and suffix renames). The pure
+  decision step inside it routes through Rust via `plan_status_transition`.
+- Project lifecycle mutations stay on the Python host path: `sase project` resolves the
+  mutable ProjectSpec file, holds the ProjectSpec lock, checks live `RUNNING` claims and
+  artifact markers, and delegates only the pure `PROJECT_STATE` parse/update/list
+  operations to Rust.
+- Cross-project repo and workspace inventories are frontend-neutral Python adapters, not
+  TUI implementations. `repo_inventory.py` composes Rust project records with
+  Python-owned linked-repo config and SDD store records;
+  `workspace_provider/inventory.py` composes them with Python workspace registries and
+  `RUNNING` claims. The CLI and Admin Center consume these same adapters so their rows
+  cannot drift. They are intended to move behind a Rust wire API when those inputs
+  become core-owned.
+- High-level subprocess orchestration, process liveness checks outside launch,
+  filesystem mutation outside the prepared prompt/output path, TUI rendering, and plugin
+  entry points stay on the host by design.
+- Agent launch host responsibilities stay in Python: provider/workspace plugin calls,
+  VCS preallocation env mapping, project-file locking, workspace-directory cleanup, TUI
+  notifications, macro catalog expansion, history writes, job registry recording, and
+  user-facing launch callbacks. Rust owns deterministic launch planning/preparation and
+  the low-level detached spawn binding.
+- LLM provider registration, selector policy, temporary alias-override precedence,
+  dispatch decisions, and sase's TUI Launch Control provider-routing UI stay on the
+  Python host path. The provider-disable facade delegates durable state and mutation
+  atomicity to the Rust binding, but Python remains responsible for deciding how an
+  active disable affects aliases, completions, explicit requests, and already-running
+  provider processes.
+- Agent cleanup process signalling, dismissed-bundle persistence, and TUI orchestration
+  stay on the Python host path. Rust owns the dismissed-bundle summary index plus
+  reusable cleanup planning, compact dismissed-identity writes, artifact deletion,
+  workspace-release content rewrites, and Patch-entry kill marking exposed through
+  Python helpers in `sase.core.agent_cleanup_*`.
+- Managed-workspace Git subprocesses, project locks, and filesystem mutations stay in
+  Python. Rust owns the deterministic Git object-sharing policy: alternate path
+  resolution, SASE-owned versus foreign alternate classification, and rewrite plans that
+  preserve non-SASE entries.
+- Bead host responsibilities stay in Python where they touch the surrounding
+  application: storage-location discovery, SASE workspace/project lookup, VCS prompt
+  context for `sase bead work`, macro resolution, user confirmation, agent launch,
+  rollback of already-spawned children, and telemetry increments. Rust owns the bead
+  data model, storage/query engine, JSONL codecs, mutation transactions, single-store ID
+  allocation, deterministic work-plan DAG, and CLI output planning.
+- Explicit and automatically captured artifact-file storage remains Python-owned because
+  it copies or moves files into `~/.sase/artifacts/` and updates the local JSONL
+  association index under a file lock. Reads and filtering of that artifact-file index
+  go through the Rust-backed `artifact_file_query_facade`. Separately, Rust owns the
+  agent-run artifact scanner and its persistent agent index. Python owns best-effort
+  lifecycle orchestration around the agent index: syncing dismissed-agent projection
+  inputs before sase's TUI loads, refreshing rows after marker mutations, and
+  dispatching `sase agent index gc`.
+
+## Why a Rust Backend?
+
+The `sase.core` package is a stable Python facade carved out specifically so individual
+operations can be re-served by faster Rust implementations one at a time. Parsing
+project `.sase` files dominates many cold-path workloads (TUI startup, large search
+results, axe routine scans), so it was the first operation routed through this seam.
+
+## Architecture
+
+![Layered diagram showing Python host responsibilities, the `sase.core` facade and wire records, the required `sase_core_rs` PyO3 extension, Rust-owned backend operations in `../sase-core`, and the health/test contract loop.](../images/rust-backend-boundary-infographic.png)
+
+```
+                ┌─────────────────────────────────────────────┐
+                │              sase Python code               │
+                └────────────────────┬────────────────────────┘
+                                     │ calls
+                                     ▼
+                ┌─────────────────────────────────────────────┐
+                │          sase.core (Python facade)          │
+                │  parser_facade · query_facade · status_*    │
+                │  agent_scan_facade · git_query_facade       │
+                └────────────┬───────────────────┬────────────┘
+                             │                   │
+                ported facades                unported facades
+                             │                   │
+                             ▼                   ▼
+                ┌──────────────────────┐   ┌──────────────────┐
+                │  sase_core_rs (PyO3) │   │  Python impl     │
+                │  required extension  │   │  (host logic)    │
+                └──────────────────────┘   └──────────────────┘
+```
+
+Important boundary modules under `src/sase/core/` include the following. This is a
+guided map, not an exhaustive directory listing; some `*_facade.py` modules are
+Rust-backed boundaries, while others are Python-owned host adapters.
+
+| Module                            | Purpose                                                                                                            |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `rust.py`                         | Strict `sase_core_rs` loader (`require_rust_extension`, `require_rust_binding`)                                    |
+| `health.py`                       | `sase core health` Rust-extension probe + report                                                                   |
+| `parser_facade.py`                | `parse_project_file` Python API + Rust-backed `parse_project_bytes`                                                |
+| `project_lifecycle_facade.py`     | Rust-backed ProjectSpec lifecycle parse/update/list helpers                                                        |
+| `project_lifecycle_wire.py`       | Project lifecycle and project-record wire dataclasses                                                              |
+| `wire.py`                         | Stable wire record types that cross the Python ↔ Rust boundary                                                     |
+| `wire_conversion.py`              | Python `Patch` ↔ wire record serialization                                                                         |
+| `query_facade.py`                 | `parse_query` (Rust); per-row query context/eval (Python host logic); batch compatibility wrapper over Rust corpus |
+| `query_corpus_facade.py`          | Persistent Rust query corpus wrapper for cached batch evaluation                                                   |
+| `notification_store_facade.py`    | Notification JSONL snapshot, append, rewrite, and state mutation facade (Rust)                                     |
+| `notification_store_wire.py`      | Stable notification snapshot/update wire records across the Rust boundary                                          |
+| `status_facade.py`                | Status line helpers + planner (Rust); side-effecting transition (Python host logic)                                |
+| `graph_index_facade.py`           | `build_changespec_graph_index()` facade (Python host logic)                                                        |
+| `agent_scan_facade.py`            | Agent artifact scan plus persistent index query/rebuild/update/delete facade (Rust)                                |
+| `agent_scan_wire.py`              | Stable wire records for agent-artifact scans and index maintenance                                                 |
+| `agent_identity_facade.py`        | Rust-backed agent identity, ownership, validation, and name-rewriting boundary                                     |
+| `agent_runtime_facade.py`         | Rust-backed clan/session wall-clock runtime aggregation                                                            |
+| `artifact_file_facade.py`         | Compatibility import surface; artifact-file storage/default synthesis is Python-owned                              |
+| `artifact_file_query_facade.py`   | Rust-backed query facade for the persistent artifact-file index                                                    |
+| `agent_cleanup_wire.py`           | Stable cleanup planning and side-effect intent wires                                                               |
+| `agent_cleanup_facade.py`         | Agent cleanup target conversion and `plan_agent_cleanup()` facade                                                  |
+| `agent_cleanup_execution.py`      | Host-safe wrappers for Rust-backed deterministic cleanup mutations                                                 |
+| `agent_launch_wire.py`            | Stable launch, workspace-claim, and fan-out wire records                                                           |
+| `agent_launch_facade.py`          | Rust-backed launch preparation, spawn, timestamp allocation, and fan-out planning                                  |
+| `agent_launch_claims.py`          | Rust-backed RUNNING-field claim planning/mutation helpers                                                          |
+| `bead_read_facade.py`             | Rust-backed bead read facade for one active bead store                                                             |
+| `bead_mutation_facade.py`         | Rust-backed bead mutation facade                                                                                   |
+| `bead_wire.py`                    | Stable bead issue/dependency conversion helpers across the Rust boundary                                           |
+| `status_wire.py`                  | Stable wire records for the status state machine                                                                   |
+| `status_wire_conversion.py`       | Python plan reference + project-file → request-wire converter                                                      |
+| `git_query_facade.py`             | Pure Git query parsers facade (Rust)                                                                               |
+| `git_query_wire.py`               | Stable wire records for the Git query parsers                                                                      |
+| `git_object_sharing.py`           | Rust-backed managed-workspace Git alternates planning                                                              |
+| `managed_tmp_reaper.py`           | Schema-checked adapter over the Rust managed-temp reaper                                                           |
+| `disk_pressure.py`                | Filesystem observation plus the Rust disk-pressure classifier                                                      |
+| `agent_artifact_run_retention.py` | `ace-run` retention protection gathering plus the Rust preview/refusal owner                                       |
+| `agent_tribe.py`                  | Rust-backed tribe validation and public/stored tribe identity resolution                                           |
+| `instruction_manifest.py`         | Thin adapter over the Rust instruction-manifest wire version and normalizer                                        |
+
+### Command Line grammar handle
+
+The `:` Command Line panel completes through the frozen `CommandLineGrammar` pyclass in
+`sase_core_rs` (`crates/sase_core/src/command_line/` in `sase-core`, bound in
+`crates/sase_core_py/src/command_line/`). It is built once from the cached
+`sase completion spec -d -j` file (`src/sase/completion/command_line_spec.py`) off the
+event loop, then answers per keystroke: `resolve` (tokens, cursor slot, advisory
+diagnostics, live signature, run policy), `complete` (fuzzy-ranked candidates), and
+`command_help` (the doc peek). The sase side
+(`src/sase/completion/command_line_grammar.py`) is only a loader plus typed views. Every
+`start`, `end`, `cursor`, `replace_start`, `replace_end`, and `match_runs` value is a
+Unicode scalar (char) offset, exactly a Python `str` index. The
+`COMMAND_LINE_GRAMMAR_SCHEMA_VERSION` mirror (Rust `COMMAND_LINE_WIRE_SCHEMA_VERSION`)
+fails fast on drift, and sase-core owns the fixture regeneration step
+(`crates/sase_core/tests/fixtures/command_line/`).
+
+### Prompt prediction handles
+
+Next-word prompt prediction compiles through the frozen `PromptPredictionCorpus` and
+`PromptPredictionModel` pyclasses in `sase_core_rs`
+(`crates/sase_core/src/prompt_prediction/` in `sase-core`, bound in
+`crates/sase_core_py/src/prompt_prediction/`). Each corpus compiles typed prompt rows
+once off the event loop with the GIL released (recency-weighted n-gram mass, distinct
+support, per-project partitions); a model cheaply composes frozen corpora (history,
+session, archive) plus config and answers per keystroke: `predict` (confidence gate,
+ghost continuation, menu candidates) and `rank_prefix` (context-aware current-word
+ranking). Python rebuilds the model, not the corpora, whenever any corpus swaps. The
+sase side (`src/sase/core/prompt_prediction_facade.py` plus the
+`prompt_prediction_wire.py` dataclasses) is only a loader plus typed views, and
+`tools/validate_sase_core_rs` probes the compile/predict/rank round trip. The
+`PROMPT_PREDICTION_WIRE_SCHEMA_VERSION` mirror (Rust
+`PROMPT_PREDICTION_WIRE_SCHEMA_VERSION`) fails fast on drift.
+
+#### Prequential replay calibration
+
+`tools/prompt_prediction_replay` scores the Rust prequential replay evaluator
+(`evaluate_prompt_prediction_replay`) over typed prompt history and prints
+aggregate-only tables (never prompt text). Method: typed rows are deduped, sorted oldest
+first, warmed on the oldest 40%, then every word-boundary position of each later row is
+scored before that row joins the corpus; per-position evidence is recorded once and the
+threshold grid (`min_p` 0.40-0.85, `min_margin` 0.05-0.40, `min_support` 1-5) sweeps
+over those records without replaying. Rows land in novel/mid/near-duplicate cohorts by
+5-gram overlap with prior text (<30% / in between / >=70%). Each sweep point also
+carries the novel-cohort coverage and precision so presets can be calibrated against
+novel prompts without replaying.
+
+2026-09-30 replay over 11,631 rows (3,301 typed after the generated-origin filter; 1,320
+warmed, 1,971 scored, 142,120 positions; ungated top-1 43.2%, top-3 54.0%), run under
+the corrected support semantics (distinct support counts each observation once across
+history, session, archive and draft; the project partition only boosts mass):
+
+| preset   | coverage | precision | novel precision | mid precision | near-dup precision |
+| -------- | -------: | --------: | --------------: | ------------: | -----------------: |
+| cautious |    18.1% |     85.0% |           77.6% |         90.2% |              94.7% |
+| balanced |    25.9% |     80.7% |           65.1% |         85.8% |              96.9% |
+| eager    |    59.0% |     62.9% |           40.6% |         68.3% |              93.5% |
+
+Method: the sweep grid (`min_p` 0.40-0.85, `min_margin` 0.05-0.40, `min_support` 1-5)
+scores 400 points over the recorded per-position evidence without replaying. Balanced
+(`min_p=0.75, min_margin=0.20, min_support=2`) is the max-coverage point meeting overall
+precision of at least 75% and novel precision of at least 65%; the margin is flat across
+0.05-0.40 there, so it keeps its previous value. Eager (`0.40/0.05/1`) is the
+max-coverage point meeting overall precision of at least 60%. Cautious (`0.60/0.40/5`)
+is the max-coverage point meeting overall precision of at least 85% with novel precision
+at least 5 points above balanced (77.6% vs a 70.1% bar); it is strictly tighter than
+balanced via `min_support` 5 > 2, and the 0.40 margin is load-bearing at `min_p` 0.60 —
+unlike the old `0.75/0.35/4`, which gated exactly the same positions as balanced because
+a 0.75 top-1 share leaves the runner-up at most 0.25. Coverage 18.1% vs 25.9% confirms
+the two presets now gate measurably different sets. Calibration outcome: headroom is
+thin everywhere that matters (balanced novel +0.1pp over its 65% bar, cautious overall
++0.0pp over 85%, eager overall +2.9pp over 60%), so re-run the tool before loosening any
+preset.
+
+#### Current-word completion
+
+Setting request `complete_current_word` with the cursor inside a partial word runs the
+prefix-restricted path (`predict_completion` in `model.rs`) instead of the boundary
+gate. `split_partial_word` (`tokenize.rs`) splits the trailing token off the cursor text
+— leading affixes (`(`, quotes, `*`, `_`, backtick, `[`) stripped, prefix kept exactly
+as typed — and returns `None` for text ending in whitespace or boundary punctuation, or
+a trailing token that cannot be a word (structural, hash-like, secret-like, over 32
+characters): those fall through to the ordinary boundary path, so results stay identical
+with the flag off. Candidates are restricted to vocabulary keys starting with the
+casefolded prefix (`’` folds to `'`), scored and gated over that restricted distribution
+with a conservative denominator (`score_and_gate_restricted`); the menu still ranks the
+restricted words, but a prefix shorter than the preset `min_prefix_chars` forces the
+gate to `None` (non-confident, no completion). The draft counts only the text before the
+prefix, so the partial word is never observed as its own successor. The completed word
+keeps the typed casing and the suffix comes from the corpus surface (`completion_word`):
+an all-caps prefix of 2+ letters uppercases the suffix, and a surface whose casefold
+does not extend the typed casefold yields no completion. The ghost drops the completed
+word itself and keeps at most `max_words - 1` following words.
+
+Python wire: request `complete_current_word` (default `False`) round-trips through
+`PromptPredictionRequest.to_dict`; the result carries the frozen
+`PromptPredictionWordCompletion` record (`prefix` as typed, `word`, `suffix` to insert —
+empty when the typed word is already the predicted word), parsed with
+`.get("word_completion")` so an older core without the field yields `None`.
+
+Calibration (`tools/prompt_prediction_replay --midword`; report-time cutoff: rows with k
+below a preset's `min_prefix_chars` report coverage 0.0 / precision null by design,
+verified in `replay.rs midword_metrics_for` — they are not gate measurements). Full
+replay 2026-10-01 (11,643 rows; 1,978 scored; 142,733 positions). Rule (plan
+`202609/next_word_autosuggest.md` §8.2): smallest k with overall precision at or above
+the preset target (cautious 85%, balanced 75%, eager 60%) and novel precision within 10
+points of overall:
+
+| preset   |   k | coverage | precision | savings | novel precision | mid precision | near-dup precision |
+| -------- | --: | -------: | --------: | ------: | --------------: | ------------: | -----------------: |
+| cautious |   3 |    40.2% |     94.4% |   13.2% |           91.5% |         96.0% |              98.7% |
+| cautious |   4 |    34.6% |     94.9% |    7.9% |           92.1% |         96.3% |              99.0% |
+| balanced |   2 |    47.8% |     91.7% |   28.0% |           86.5% |         93.8% |              98.7% |
+| balanced |   3 |    49.8% |     94.6% |   20.3% |           91.1% |         96.0% |              99.2% |
+| balanced |   4 |    45.2% |     95.1% |   12.7% |           91.6% |         96.2% |              99.3% |
+| eager    |   1 |    72.7% |     75.9% |   61.0% |           63.2% |         80.0% |              95.8% |
+| eager    |   2 |    69.7% |     84.9% |   50.8% |           76.2% |         87.7% |              97.3% |
+| eager    |   3 |    65.2% |     90.9% |   36.6% |           85.1% |         92.3% |              98.7% |
+| eager    |   4 |    60.0% |     92.0% |   23.1% |           86.2% |         93.0% |              99.0% |
+
+Cautious k=3 (94.4% overall / 91.5% novel, gap 2.9pp) and balanced k=2 (91.7% / 86.5%,
+gap 5.2pp) pass with margin, so their finals equal the seeds (3 and 2). Eager k=1 (75.9%
+/ 63.2%, gap 12.7pp) fails the novel gate, while k=2 (84.9% / 76.2%, gap 8.7pp) passes —
+final 2, so `PRESET_EAGER.min_prefix_chars` moved 1 → 2 in `predict.rs` (with a doc note
+and the field doc now reading finals 3/2/2). The post-edit wheel confirms the cutoff: a
+`--score-every 200` smoke replay reports eager k=1 suppressed (coverage 0.0, precision
+null) with k=2..4 unchanged, since the seed edit only moves the suppression boundary,
+never the measurements.
+
+2026-10-01 `--bench` on the same history (300 samples; rows_total=11643 rows_used=3273
+tokens=237949 contexts=225485 successor_entries=320677; compile_ms=891.4 per_1k_ms=272.3
+approx_mb=54.40; sampled=300 blocked=209 confident=33; full log
+`/tmp/sase_1dq2_bench.log`): `predict` p50=1.099 / p95=1.901 / max=2.663 ms, ghost-only
+request p50=0.238 / p95=0.603 / max=0.952 ms, `rank_prefix` (n=12) p50=0.213 / p95=0.317
+ms. Draft buckets (typing-path latency): ≤1000 chars n=87 p50=0.225 / p95=0.566 ms;
+≤4000 n=4 p50=0.634 / p95=0.917 ms; ≤10000 and ≤20000 empty. Chosen
+`NEXT_WORD_SYNC_MAX_DRAFT_CHARS=4000` — the largest bucket with typing-path p95 ≤ 1 ms —
+is the TUI cutoff. A typing-triggered current-word `auto` request with more than 4000
+characters **before the cursor** defers off the keystroke path and uses
+`ace.prompt_completion.debounce_ms`. Text after the cursor does not count, and explicit
+requests remain synchronous. The sample above 1000 chars is thin (n=4), so re-run the
+bench before trusting tighter thresholds.
+
+#### Prediction cost
+
+The replay's own scorer reports latency p50 ~1.2ms / p95 ~2.2ms and `approx_bytes`
+~56.8MB across 3,261 used rows and ~224k contexts; those numbers come from `replay.rs`,
+not production predict. `tools/prompt_prediction_replay --bench` measures production
+instead: it compiles real history exactly as the TUI does, then times the production
+`PromptPredictionModel.predict` (default request: limit 5, max_words 4, draft on, text
+capped at 20k characters) over sampled word-boundary prefixes and `rank_prefix` over
+3-letter current-word prefixes, printing aggregates only. Latency includes the JSON
+binding round trip.
+
+2026-09-30 `--bench` on real history (installed wheel at pin `c3042fd`; 11,634 rows,
+3,264 used, 237k tokens, ~225k contexts, ~320k successor entries; three 300-sample runs
+plus one 1,000-sample run): compile ~890 ms (~273 ms per 1k used rows), `approx_bytes`
+~54.2 MB; non-blocked `predict` p50 ~0.9 ms / p95 ~1.8-2.2 ms / max ~4.4 ms (about two
+thirds of the 2/3-prompt prefixes block); `rank_prefix` p95 ~0.3 ms. The same bench on
+the pre-core-perf wheel measured `predict` p50 ~3.0 ms / p95 ~8.7 ms.
+
+Core-perf (phase `sase-1cj.12.3`) kept every result identical while cutting per-request
+work: packed copyable context keys (no `Vec` clone per pair or lookup), flat
+rank-ordered successor arrays (no per-context map), per-pass cached context totals,
+interned per-request draft counts, one fused score+gate pass over a memoized mass table,
+a sorted prefix index for `rank_prefix`, and pre-sized compile maps. The ignored release
+test `performance_budgets_on_representative_corpus` (~4k hub-and-tail rows from a Zipf
+vocabulary with varied lengths and project tags; 95% typical-length prefixes plus
+multi-KB drafts and 20k-character ceiling probes) pins the measured lossless floor
+(dev-update profile; release is faster): compile 500 ms per 1k, predict p95 2.5 ms,
+archive-composed p95 3.5 ms, corpus 80 MB.
+
+The core computes the gate and ghost before truncating the menu, and `limit` only drives
+the per-row continuation previews, so the TUI's ghost-only paths (arming after a word
+commit and auto mode) request zero menu rows; only an explicit Ctrl+T request that may
+open the menu asks for `NEXT_WORD_MENU_LIMIT` rows. `--bench` times that zero-row
+request on the same prefixes (`ghost_*` lines): identical ghosts and gates at p50 ~0.2
+ms / p95 ~0.6-0.75 ms / max ~1.0-1.6 ms across the same runs.
+
+The parent-plan budgets (predict p95 ≤ 0.5 ms local-only and ≤ 1 ms with the archive,
+compile ≤ 50 ms per 1k rows, local corpus ≤ 5 MB) are still not met losslessly. The
+remaining per-keystroke gap is the draft: every request re-counts the whole draft into
+per-order n-gram tables and offers every draft word as a scoring candidate. With no
+draft the zero-row request measures p95 ~0.44 ms, so the latency budget needs a
+result-identical draft-count redesign in the core. Compile needs tokenize/compile
+co-design (~1.5M pairs aggregate per full rebuild), and the evidence set itself floors
+above 5 MB losslessly. These stay open as tracked follow-up work on epic `sase-1cj`,
+never as silent evidence drops.
+
+#### Archive source (cross-machine prompt archive)
+
+The archive source (`src/sase/history/prompt_prediction_archive.py`) reads the enabled
+projects' canonical agents-sidecar prompt archives through the Rust-backed
+`prompt_archive_inventory` facade, bounded to the 6 most recent month directories per
+sidecar and 1.5M whitespace tokens newest first. It compiles each document's
+`PromptArchiveDocument.body` (header bullets already excluded) after stripping rendered
+reference-style link tables (`[label]: url`, including bare labels with the URL on the
+next indented line). Rows carry the sidecar's sync project key and the document mtime
+epoch with `origin=None`, so the core `looks_generated` heuristic still excludes
+machine-generated archive prompts at compile time — the inventory schema records no
+launch-topology field, so there is nothing archive-side to filter on. Paragraphs dedup
+by normalized hash (whitespace-folded, casefolded) within the archive (swarm copies) and
+against local history paragraphs; fully duplicated documents are dropped.
+
+2026-09 extraction over 3 sidecars: 7,126 documents in window, 34,792 paragraphs, 10,744
+within-archive dupes, 7,393 history dupes, 4,819 documents kept (4,063 rows used after
+the core's generated filter), 1.09M whitespace tokens / 594k Rust tokens. The pruned
+archive corpus (`prune_singleton_contexts`, role `archive`, weight 0.25) compiles in
+~2.6s with `approx_bytes` ~28.8MB, under the 60MB budget (2026-09 layout; Prediction RSS
+below has the current-layout figures). The TUI builds it off-thread only after first
+paint (`_prompt_prediction_archive_primed`), on month-directory mtime/count token
+change, at most every 10 minutes; `ace.prompt_completion.next_word_sources` (default
+`[history]`) gates it, and disabling the source drops the corpus without a rebuild.
+
+Default decision: `tools/prompt_prediction_replay --sources history,archive` appends the
+archive rows with real epochs to the same prequential replay, so older archived prompts
+act as background while recent ones are scored — a measure of cross-machine value.
+Because the replay runs the archive at full weight with no singleton pruning, it is an
+upper bound on the production source (0.25, pruned). Archive joins the default only on a
+clear win: **+1 point or more novel top-3 at equal coverage with near-duplicate top-1
+dropping at most 1 point**; otherwise the default stays `[history]` and the archive is
+an opt-in (`next_word_sources: [history, archive]`).
+
+2026-09-30 sampled comparison (`--score-every 6`: every 6th post-warm row scored, every
+row still joining the corpus, same stride for both runs). History: 3,301 typed, 329
+scored rows, 24,342 positions. History+archive: 7,719 typed (4,418 archive rows at full
+weight, no singleton pruning), 730 scored rows, 104,274 positions:
+
+| run             | novel top-3 | near-dup top-1 | balanced cov | balanced prec |
+| --------------- | ----------: | -------------: | -----------: | ------------: |
+| history         |       40.3% |          79.7% |        27.7% |         84.6% |
+| history+archive |       31.2% |          80.4% |        42.4% |         93.1% |
+
+The archive floods the mix with near-duplicates (55,789 of 104,274 positions) while
+novel top-3 drops 9.1 points — the +1pt rule fails, and the drop goes the wrong way even
+at full weight (an upper bound on the production 0.25 pruned source). Balanced novel
+gated precision also falls 65.6% to 62.2%, below its 65% calibration bar. Final verdict:
+the default stays `[history]`; the archive remains an opt-in.
+
+#### Prediction RSS
+
+2026-09-30 process RSS (VmRSS before/after, after `gc.collect`, aggregates only;
+corroborated by a second run with a warmed allocator): building the history corpus
+retains ~180MB over the row-loaded baseline (3,261 rows used, `approx_bytes` ~56.8MB,
+compile ~0.9s) and the pruned archive corpus retains ~130MB more (4,126 rows used,
+`approx_bytes` ~27.0MB, compile ~2.5s) — roughly 3.6x `approx_bytes` resident, against
+the ≤ 60 MB budget. Resident HashMap capacity beyond the flat-array estimate is the
+likely gap. This is tracked follow-up work on epic `sase-1cj`: reaching the budget needs
+lossy pruning/quantization (a product decision) or allocator / layout work, not silent
+evidence drops.
+
+The Rust extension is a sibling repo at `../sase-core/`, organized as a Cargo workspace
+with a PyO3 crate at `crates/sase_core_py/`.
+
+## Mobile Gateway
+
+The mobile gateway is also built from the sibling `../sase-core/` workspace, but it is a
+standalone Rust HTTP server rather than a PyO3 binding. The `crates/sase_gateway` crate
+owns the host gateway's wire records, pairing/token store, bind policy, authenticated
+session route, SSE event stream, audit log, and committed mobile API contract snapshot.
+
+The Python repo owns user-facing startup through `sase mobile gateway start`,
+configuration defaults, and lifecycle glue. See
+[`docs/mobile_gateway.md`](../mobile_gateway.md) for local setup, pairing, Tailscale
+Serve guidance, security notes, and the contract snapshot path used by future Android
+work.
+
+## Bead Backend
+
+The `sase bead` path is Rust-owned for data operations. Canonical bead state lives in
+append-only event streams under the resolved SDD bead store (`sdd/beads/events/**` in
+in-tree mode, `.sase/sdd/beads/events/**` in local or legacy separate-repo mode, the
+repository-root `events/**` in a schema-3 `--beads` sidecar, and `beads/events/**` in a
+schema-2 split `--plans` sidecar) when present; `issues.jsonl` is regenerated as a
+compatibility projection, and `beads.db` is only the mutation flock. Event reduction,
+JSONL/config parsing, read-model freshness and rebuild, mutations, single-store ID
+allocation, deterministic epic work planning, and common CLI output planning all live in
+`sase-core` and are exposed through `sase_core_rs`. The versioned SQLite read model
+(`<git-dir>/sase/bead-read-model/<key>.sqlite`) serves hot reads behind an O(1)
+freshness token with generation compare-and-swap rebuilds; appended events apply
+incrementally after the stored merge frontier, with rebuild fallback on any precondition
+failure and serve/tail/rebuild outcome telemetry; `sase bead doctor` reports its health
+and `sase bead doctor --verify-cache` diffs it against replay. The sealed-archive watch
+(`bead_seal_watch_triggers`) measures the three gated triggers — hot stream file count,
+full stat sweep cost, and store working-tree size — against core threshold constants for
+doctor to render. Python remains the host layer for path discovery, VCS context, macro
+lookup, confirmation prompts, launch/rollback, and telemetry side effects.
+
+Golden contract fixtures live under `tests/test_bead/golden/`:
+
+- `cli/` pins stdout/stderr for `init`, `create`, `list`, `show`, `ready`, `blocked`,
+  `stats`, `dep add`, `update`, `open`, `close`, `rm`, `sync --status`, and
+  representative error paths.
+- `jsonl/` pins current and legacy JSONL shapes, corrupt-line tolerance, empty/missing
+  import behavior, hierarchy, dependencies, cross-epic blockers, and Patch metadata.
+- `stores/current/` is a complete deterministic bead store used by the CLI golden tests.
+- Rust parity fixtures in `../sase-core/crates/sase_core/tests/fixtures/bead/` pin
+  legacy JSONL import, deterministic event migration, event-backed reads, and
+  regenerated projection behavior.
+
+Run the focused contract tests with:
+
+```bash
+pytest tests/test_bead/test_cli_golden.py tests/test_bead/test_jsonl_golden_fixtures.py
+cargo test --workspace bead
+```
+
+The reproducible bead benchmark harness is:
+
+```bash
+python tests/perf/bench_bead.py --runs 5 --output /tmp/bead-bench.json
+python tests/perf/bench_bead.py --runs 5 --issues 10000 --dependencies 20000 --output /tmp/bead-bench-large.json
+```
+
+By default the shell measurements run `python -m sase.main.entry`; pass
+`--sase-bin "$(command -v sase)"` to measure an installed console script. The harness
+reports JSON summaries for:
+
+- shell command latency for `sase bead list`, `ready`, and `show`;
+- direct Python `BeadProject` reads;
+- synthetic stores sized by `--issues` and `--dependencies`.
+
+The Phase A local baseline on the then-active 399-line store was approximately:
+
+| Command / action            | Baseline |
+| --------------------------- | -------- |
+| `sase bead list`            | 0.32s    |
+| `sase bead ready`           | 0.34s    |
+| `sase bead show <id>`       | 0.36s    |
+| Plain Python startup        | 0.08s    |
+| Importing `sase.main.entry` | 0.23s    |
+| Importing `sase_core_rs`    | 0.02s    |
+
+Post-migration targets for bead checks and future regression floors:
+
+- `sase bead list`, `ready`, and `show` on the current-size store: p50 under 120ms from
+  shell command start.
+- Direct Rust read bindings after Python startup: p50 under 10ms.
+- Large synthetic store, 10k issues / 20k dependencies: direct Rust read queries under
+  50ms p50, and write plus JSONL export under 150ms p50.
+- No drift in the Phase A golden CLI output unless the migration plan records an
+  intentional compatibility change.
+
+## SQLite Ownership
+
+One process loads two independent SQLite copies: stdlib `sqlite3` (statically linked
+into CPython, so there is no shared library to unify on) and the bundled copy inside
+`sase_core_rs`. POSIX advisory locks belong to a (process, file) pair and never conflict
+within one process, so when both copies open the same WAL-mode database file, neither
+copy sees the other's locks: the second opener truncates `-shm` under a live mapping
+(SIGBUS on the next page access) or checkpoints and unlinks `-wal`/`-shm`
+mid-transaction (corruption). Linking against a shared system SQLite was rejected for
+wheel portability, and process-wide serialization was rejected as fragile end state, so
+the standing rule is:
+
+**Every SQLite database file is opened by exactly one SQLite library per process.**
+
+| File(s)                                       | Owner     | Opened via                   |
+| --------------------------------------------- | --------- | ---------------------------- |
+| `agent_artifact_index.sqlite`                 | Rust core | `sase_core_rs` bindings only |
+| `dismissed_bundles/index.sqlite`              | Rust core | `sase_core_rs` bindings only |
+| `tools/runs.sqlite`                           | Rust core | `sase_core_rs` bindings only |
+| `telemetry/metrics.sqlite`                    | Rust core | `sase_core_rs` bindings only |
+| `<git-dir>/sase/bead-read-model/<key>.sqlite` | Rust core | `sase_core_rs` bindings only |
+| `beads.db`                                    | Python    | stdlib `sqlite3` only        |
+| `chats_catalog.sqlite`                        | Python    | stdlib `sqlite3` only        |
+| External agy conversation DBs                 | Python    | stdlib `sqlite3` only        |
+
+New Python access to a Rust-owned file must go through a `sase_core_rs` binding, never
+through stdlib `sqlite3`. `tests/test_sqlite_single_owner.py` enforces this statically:
+it fails when a module outside the allowlist calls `sqlite3.connect` (or constructs
+`sqlite3.Connection`), and when an allowlisted module references a Rust-owned filename.
+Importing `sqlite3` only for exception types or annotations stays allowed.
+
+## Installing the Rust Backend
+
+### Released `sase` (recommended for users)
+
+`sase-core-rs` is a regular runtime dependency of `sase`. A standard install pulls a
+prebuilt wheel for the host platform from PyPI; no Rust toolchain is needed:
+
+```bash
+uv tool install "sase>=0.18"
+# or, for non-managed / library-style environments
+pip install sase
+```
+
+The release matrix ships wheels for CPython 3.12+ on Linux x86_64, Linux aarch64, macOS
+universal2, and Windows x86_64. After install, `python -c "import sase_core_rs"`
+succeeds inside the same venv that runs `sase`.
+
+### Source / development workflow
+
+`just install-venv` automatically builds and installs `sase_core_rs` from a sibling
+`../sase-core` checkout when one exists and a Rust toolchain (`cargo`) is on `PATH`.
+This satisfies the `sase-core-rs` runtime dependency from local source so the editable
+`sase` install does not have to round-trip through PyPI:
+
+```bash
+git clone https://github.com/sase-org/sase-core.git ../sase-core
+just install-venv     # builds sase_core_rs from ../sase-core, then installs sase in editable mode
+```
+
+This is the checkout-`.venv` path: it never touches your global `sase` command. For the
+three install commands and when to use each, see
+[Your `sase` versus this checkout's `.venv`](development.md#your-sase-versus-this-checkouts-venv).
+
+Throughout this page, `../sase-core` stands for the configured core checkout. The
+Justfile uses `SASE_CORE_DIR` when it is set, then a workspace's linked
+`sase/repos/linked/sase-core` checkout (or the `SASE_LINKED_REPO_SASE_CORE_DIR` family
+of variables), and falls back to the sibling `../sase-core`. Before building, the Rust
+install targets fast-forward a clean core checkout that is strictly behind its upstream,
+then refuse to build from a checkout that is still behind the `sase-core-rs` floor in
+`pyproject.toml`; set `SASE_ALLOW_STALE_CORE=1` to skip the refresh and downgrade the
+floor check to a warning for an intentional bisect.
+
+Dev installs always track the local checkout. The published `sase-core-rs` version
+window in `pyproject.toml` applies only to wheel-based installs: editable installs pass
+a uv override that lifts the window so the locally built extension is never downgraded
+to a published wheel during dependency resolution, and `sase update` rebuilds the
+editable extension from the checkout whenever it finds a published wheel installed in a
+dev environment. Every successful `rust-install` (cached wheel or fresh build) also
+records the source it built from in `.venv/.sase-core-rs-source.json`. The identity is
+the checkout's `HEAD` plus a digest of uncommitted and untracked changes under
+`crates/`, `Cargo.toml`, `Cargo.lock`, and `rust-toolchain.toml` (build output under
+`target/` is never hashed), captured before the build starts so an edit made mid-build
+still reads as stale. Any recipe that runs the shared `_setup` step (`just check`,
+`just test`, `just lint`, ...) compares that stamp with the current identity and
+rebuilds the extension, printing
+`[setup] Rebuilding sase_core_rs: linked sase-core source changed since the extension was built.`,
+when the stamp is missing or differs. The check runs only when `_setup` builds from a
+local checkout with `cargo` on `PATH`; it is skipped when `SASE_CORE_WHEEL` supplies a
+prebuilt wheel and when the checkout's identity cannot be computed (a non-git checkout).
+The host wheel cache below keys on the same input paths.
+
+#### Changing sase-core from a sase workspace
+
+Open the linked checkout with `sase repo open sase-core -r "<why>"` and work in the
+printed path; the command names sase-core's `AGENTS.md` on stderr. Follow that guide's
+recipes for the edit, then move the pin so CI builds a core that has it: see
+[The CI source revision pin](#the-ci-source-revision-pin).
+
+#### Who owns the published version window
+
+The `sase-core-rs` requirement in `pyproject.toml` is owned by the
+`sync-release-metadata` job in `publish.yml`, not by feature agents. On scheduled or
+manual release-generation runs that find a pending release-please branch, that job
+re-reads PyPI, selects the newest fully published stable `sase-core-rs`, and ratchets
+the requirement (and `uv.lock`) on the release branch in one commit. The window only
+ever moves at release time, in that one place.
+
+If your change calls a `sase-core` binding or depends on core behavior that has not been
+published yet: do nothing. Land the Python change as usual — a source checkout builds
+`sase_core_rs` from `../sase-core` regardless of the declared window, so nothing blocks
+local development or the feature PR. The release lane (`release-core-floor-smoke` in
+`ci.yml`, plus the floor-pinned leg of `publish.yml`'s `install-smoke`) mechanically
+blocks the `sase` release until a `sase-core` release publishes the capability, which is
+the correct place for that invariant to be enforced.
+
+To run the ratchet by hand (for example, to preview what the release branch will do):
+
+```bash
+just ratchet-core-window --report-only   # print the proposed version and diff, write nothing
+just ratchet-core-window --check         # exit non-zero if a ratchet is pending
+just ratchet-core-window                 # apply: rewrite pyproject.toml and uv.lock
+```
+
+Docs-only commands do not need the application package or the Rust extension.
+`just docs-check` and `just docs-pdf-check` install only MkDocs tooling into `.venv`,
+which is why documentation CI can run without checking out `../sase-core`.
+
+#### Watching a release
+
+From a SASE checkout, `tools/release_watch` tracks a target PyPI version and Full CI
+runs covering a specified master commit. It uses Python's standard library and an
+authenticated `gh` CLI to read PyPI, the release PR, Full CI, Master Gate, Publish, and
+`sase-core-rs` release state. It does not need an installed SASE package for those
+reads.
+
+Replace `VERSION` with the intended release version and `FULL_SHA` with the full 40- or
+64-character commit SHA; a branch name or abbreviated SHA is not accepted:
+
+```bash
+tools/release_watch --version VERSION --fixed-sha FULL_SHA --once --dry-run
+```
+
+This reads one snapshot and reports which actions would be eligible. A successful
+`--once` exits 0 without dispatching workflows, installing the release, closing a bead,
+or writing a final verdict. It confirms that the signals can be read, not that the
+release is ready. Pass `--version` explicitly: the current CLI default is the fixed
+value `0.18.0`, not the next release discovered from GitHub.
+
+Before starting a continuous watch, inspect the preflight output. Unless the version is
+already on PyPI, an open or merged release-please PR must exist: its branch starts with
+`release-please--` and its title contains the target version. A continuous watch exits
+`RELEASE_PR_GONE` when no such PR is found; it does not wait for PR creation.
+
+To keep watching and allow workflow dispatch, omit both `--once` and `--dry-run`:
+
+```bash
+tools/release_watch --version VERSION --fixed-sha FULL_SHA \
+  --deadline 12h --poll 5m --verdict-file /tmp/sase-release-verdict.md
+```
+
+The defaults are repository `sase-org/sase`, a 12-hour deadline, five-minute polls, and
+a stop after two red Full CI runs covering the fixed commit. Coverage includes runs on
+descendants of that commit; `--fixed-sha` does not pin newly dispatched workflows, which
+run on the current `master`. Failed lint jobs or detected visual-golden drift stop the
+watch after a single red run. The watcher can dispatch Full CI and Publish when its
+conditions and cooldowns permit; it never merges a PR, edits source, or dispatches a
+core Release-plz workflow. Pass `-c/--await-core-version X.Y.Z` when a core release has
+already been requested: the watcher keeps polling while published `sase-core-rs` is
+below that stable version, reports `awaiting_core`, and suppresses `CORE_FLOOR_BLOCKED`
+from older floor evidence until the minimum is on PyPI. Use `--dry-run` to suppress
+workflow dispatch and bead closure while polling. It still reads live services, writes
+its verdict, and can run the temporary installation check.
+
+When the target version appears on PyPI, the watcher installs that exact version into a
+fresh temporary virtualenv, checks `sase --version`, and records the installed
+`sase-core-rs` version. It uses `uv` when available or `venv` and `pip` otherwise,
+retries failed attempts within a 20-minute window, and removes each temporary
+environment. An in-progress attempt can outlast that window or the watch deadline.
+`RELEASED` proves that the target package can be installed and reports its version; the
+watcher checks this before the CI and PR failure conditions. It does not verify that the
+installed package was built from `--fixed-sha` or require green CI for this verdict.
+
+| Exit | Verdict              | Meaning                                                                               |
+| ---- | -------------------- | ------------------------------------------------------------------------------------- |
+| 0    | `RELEASED`           | Target version installed successfully (except the read-only `--once` shortcut)        |
+| 10   | `FULL_CI_RED`        | Fixed-code CI reached the failure threshold or a deterministic failure                |
+| 11   | `PUBLISH_FAILED`     | A post-merge Publish run failed                                                       |
+| 12   | `CORE_FLOOR_BLOCKED` | Release remains blocked on the Rust dependency floor after refresh                    |
+| 13   | `RELEASE_PR_GONE`    | Target is absent from PyPI and no matching open or merged release-please PR was found |
+| 14   | `INSTALL_FAILED`     | Temporary installation proof did not succeed                                          |
+| 15   | `DEADLINE`           | Watch deadline or termination signal arrived before a verdict                         |
+| 16   | `WATCHER_BROKEN`     | Invalid arguments, startup failure, or repeatedly unreadable signals                  |
+
+The watch prints its evidence and `verdict_file` path on exit. Without `--verdict-file`,
+it writes `release_verdict.md` under the monitor diagnostics directory when available,
+otherwise in a fresh temporary directory. Optional `--close-bead ID` attempts to close
+that bead after **every** final verdict, including failures, and requires the `sase`
+CLI. Success closes it normally; every other verdict requests resolution `canceled` and
+attaches the verdict as a note. `--dry-run` and `--once` suppress closure. Inspect the
+recorded closure outcome separately from the exit code. Agents should hand a long watch
+to [a SASE monitor](../monitors.md).
+
+For contributors, `tools/release_watch` calls the facade in `tools/_release_watch.py`.
+Argument parsing and GitHub/PyPI reads live in `tools/_release_watch_api.py`; polling
+and finalization live in `tools/_release_watch_engine.py`.
+
+#### Local Rust installation
+
+`just rust-install` remains the explicit way to install the local Rust artifacts, and
+`just rust-install-uv-tool` targets the uv-tool venv at `$(uv tool dir)/sase` for users
+who installed `sase` via `uv tool install` and want the latest local Rust code instead
+of the published wheel:
+
+```bash
+just rust-install                 # repo .venv (used by `just test`, benchmarks)
+just rust-install-uv-tool         # $(uv tool dir)/sase
+just rust-install /path/to/venv   # any other venv (pipx, system Python, custom location)
+```
+
+Those targets first validate the configured `sase-core` checkout, then consult the
+host-level wheel cache under `~/.sase/cache/sase-core-wheels/`. A clean checkout with an
+exact key match installs the cached wheel; a miss, dirty checkout, upstream-diverged
+checkout, or key-computation failure falls back to `maturin develop --release` inside
+`../sase-core/crates/sase_core_py/`. Successful release builds from clean checkouts are
+stored back in the cache with bounded LRU pruning. Explicit `SASE_CORE_WHEEL` installs
+still take precedence over the cache.
+
+After the wheel step, `rust-install` chains `just rust-lsp-install` for the same venv.
+Both artifacts come from one checkout, so `sase-macro-lsp` can never lag the directive
+contract compiled into `sase_core_rs`; a stale binary would otherwise fail sase's
+TUI/LSP parity tests with a confusing completion diff. Re-running the target after a
+`../sase-core` update is the supported way to refresh an existing source install.
+
+Editable `sase update` uses `just rust-dev-install-uv-tool` instead. It builds with the
+`dev-update` Cargo profile from `sase-core`, which inherits `release` but disables LTO,
+uses 16 codegen units, and disables incremental compilation so repeated updates do not
+leave unbounded `incremental/` trees under the shared target roots. The Justfile also
+sets `CARGO_INCREMENTAL=0` on those dev-update build commands so older `sase-core`
+checkouts keep the same bounded-disk behavior. Set `SASE_RUST_DEV_PROFILE=release` to
+force the published release profile for one update without editing the Justfile. A
+prebuild-cache miss makes this step a full Cargo build that can take several minutes, so
+`sase update` gives it its own one-hour deadline instead of the five-minute limit used
+for its Git and uv steps; the same deadline applies when the update runs from sase's TUI
+Updates panel. After the rebuild, editable updates run
+`tools/check_sase_core_rs_bindings` against the host source tree in the uv-tool venv, so
+the installed extension must expose every binding that the updated sase checkout
+requires before the update can restart its process.
+
+A measured feature-unified
+`cargo build --release -p sase_core_py -p sase_macro_lsp --features sase_core_py/extension-module`
+(sase-core has since removed that crate feature in 1d129cd; wheel builds now pass
+`pyo3/extension-module` through maturin's `features`, so do not copy this command) still
+left `maturin develop --release` rebuilding the PyO3 crate through maturin's
+`cargo rustc` path, so the dev-update recipe uses the fallback design from the
+fast-update plan: separate target directories for the Python extension and LSP builds.
+
+```bash
+CARGO_INCREMENTAL=0 \
+  CARGO_TARGET_DIR=../sase-core/target/uv-tool-py \
+  CARGO_BUILD_BUILD_DIR=../sase-core/target/uv-tool-py/build \
+  maturin develop --profile ${SASE_RUST_DEV_PROFILE:-dev-update}
+CARGO_INCREMENTAL=0 \
+  CARGO_TARGET_DIR=../sase-core/target/uv-tool-lsp \
+  CARGO_BUILD_BUILD_DIR=../sase-core/target/uv-tool-lsp/build \
+  cargo build --profile ${SASE_RUST_DEV_PROFILE:-dev-update} -p sase_macro_lsp
+```
+
+This does not deduplicate the first compile after `cargo clean`, but it prevents the two
+dev-update builds from invalidating each other's cached units on later runs. After each
+build the recipe deletes that target's `incremental/` directory. The LSP artifact is
+copied from the selected profile directory, for example
+`target/uv-tool-lsp/dev-update/sase-macro-lsp`. The recipe copies that binary into the
+uv-tool venv with the same atomic temp-file install used by `just rust-lsp-install`,
+which builds the LSP the same way (dev-update profile, isolated `uv-tool-lsp` target).
+The separate `rust-install*` targets remain available for direct maintenance and
+`just install-venv`; they build the extension with the release profile (or install a
+cached release wheel) and then chain `rust-lsp-install`. CI builds its release wheel and
+LSP binary directly with `maturin build --release` and `cargo build --release`.
+
+Launched agents receive `TMPDIR`/`TMP`/`TEMP`, `CARGO_TARGET_DIR`, and
+`CARGO_BUILD_BUILD_DIR` under SASE's managed temp root for each run. Agent code and ad
+hoc commands should use those exported directories; do not invent a target directory
+under `~/.cache`, `~/Sync`, or `/var/tmp`, because an invented root has no owner and no
+retention policy. The same Rust-owned managed-temp reaper wire accepts optional
+`pressure_low_free_space_min_age_seconds` and reports
+`pressure_effective_min_age_seconds`; when the configured free-space floor is breached,
+the effective pressure age is the lower of the base pressure age and the low-space age.
+The wire also carries an optional `dead_launch` backstop (`enabled`, `grace_seconds`,
+procfs root, current/exempt pids) that reaps launch-keyed `agent-tmp`/`cargo-targets`/
+legacy `build-targets` children no live process holds after the grace, reporting
+`dead_launch_*` counts plus `dead_launch_observer` (`procfs`, `unobservable`, or
+`disabled`); while that observer is usable, pressure never removes a held entry and an
+unheld entry needs only the dead-launch grace rather than the pressure minimum age. The
+repo-owned exceptions are the two Justfile roots above: `../sase-core/target/uv-tool-py`
+for `sase_core_rs` and `../sase-core/target/uv-tool-lsp` for `sase-macro-lsp`. Those are
+shared across workspaces on purpose, visible to disk tooling, and safe to prune at the
+`incremental/` layer while preserving `deps/`. Each isolated target also sets
+`CARGO_BUILD_BUILD_DIR` beside it so a host `build.build-dir` default cannot merge those
+recipe caches; that setting relocates cargo's intermediate output (`incremental/`,
+`deps/`, `.fingerprint/`) from `<target>/<profile>/` to `<target>/build/<profile>/`,
+which is where the Justfile cleanup and `sase disk` inventory look for it — not the
+un-isolated `<target>/<profile>/` layout an older `sase-core` used.
+`[profile.dev-update] incremental = false` in `sase-core`'s workspace `Cargo.toml` is
+the root fix that covers every entry point, including a bare
+`cargo build --profile dev-update`; `CARGO_INCREMENTAL=0` above is a belt-and-suspenders
+override for checkouts predating that profile change.
+
+### Required Extension And Cleanup Compatibility Exception
+
+A working `sase` install requires a loadable `sase_core_rs` extension. There is no
+`SASE_CORE_BACKEND` env var, no global Python escape hatch, and no supported way to run
+SASE without the wheel. Most ported facades fail fast:
+`sase.core.rust.require_rust_extension` raises `ImportError` for a missing or misbuilt
+extension, and `require_rust_binding` raises `AttributeError` when the wheel is too old
+to expose a requested binding. The current agent-cleanup planner catches those two
+errors and uses its Python reference planner; cleanup-mutation wrappers likewise return
+a sentinel that lets their host callers use the compatibility implementation. These
+narrow cleanup fallbacks do not make the extension optional, and `sase core health`
+still exits non-zero when the extension is missing or stale.
+
+If a contributor's local checkout does not have a working `sase_core_rs`, the fix is to
+run `just install-venv` (or `just rust-install` against a sibling `../sase-core/`) — not
+to disable Rust.
+
+## Backend Health Check
+
+`sase core health` is the scriptable answer to "is the Rust extension loadable and
+working?". It imports `sase_core_rs`, calls cheap parser, launch, and bead probes
+(`parse_query("status:Ready")`, `agent_launch_wire_schema_version()`,
+`plan_agent_launch_fanout(...)`, and a temporary-store
+`bead_cli_execute(["show", ...])`), and reports module path / version / Python version /
+platform tag in one block. Two output modes:
+
+```bash
+sase core health        # human-readable, line-oriented
+sase core health -j     # machine-readable JSON (alias: --json)
+```
+
+Exit codes:
+
+| Extension state                                 | `status` | Exit |
+| ----------------------------------------------- | -------- | ---- |
+| importable, parser + launch + bead probes work  | `ok`     | 0    |
+| missing or misbuilt                             | `error`  | 1    |
+| importable but a parser/launch/bead probe fails | `error`  | 1    |
+| importable but missing a representative binding | `error`  | 1    |
+
+A misbuilt wheel that fails to import with a non-`ImportError` is surfaced verbatim in
+the `error` / `error_kind` fields rather than silently masked.
+
+Release jobs and CI install-smokes call `sase core health` instead of probing
+`import sase_core_rs` and a binding by hand: it is the same check, but its exit code is
+the contract.
+
+## Runtime Version Inventory
+
+`sase version` complements `sase core health` by answering "which local SASE packages is
+this process actually using?" It reports the host `sase` distribution, the required
+`sase-core-rs` distribution, and installed SASE plugin packages, including entry-point
+plugins and script-only plugin packages.
+
+```bash
+sase version             # human-readable runtime/package inventory
+sase version -v          # add install, source, git, and plugin-signal audit fields
+sase version -j          # stable JSON payload for support/debug tooling
+```
+
+The command is local-only: it does not check latest available releases. Editable
+development installs prefer source metadata and git state over stale installed
+distribution metadata, so a checkout after tag `v0.1.2` may display a PEP 440 local
+version such as `0.1.2+4.g26c39e004`. Verbose and JSON output keep the installed
+distribution version and the source version side by side so stale editable metadata is
+visible.
+
+## Justfile Targets
+
+Each target prints a friendly skip message when `../sase-core` is absent and exits 0, so
+contributors without the sibling checkout are never blocked.
+
+| Target                          | Description                                                                                                               |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `just rust-install`             | Install `sase_core_rs` from the host wheel cache or build via `maturin develop --release` on cache miss                   |
+| `just rust-install-uv-tool`     | Same as `rust-install` but targets `$(uv tool dir)/sase` for users who installed sase via `uv tool install`               |
+| `just rust-dev-install`         | Build and install `sase_core_rs` and `sase-macro-lsp` into a venv using the `dev-update` profile and isolated target dirs |
+| `just rust-dev-install-uv-tool` | Same as `rust-dev-install` but targets `$(uv tool dir)/sase`; this is the Rust reconcile step used by editable dev update |
+| `just rust-lsp-install`         | Build `sase-macro-lsp` (dev-update profile, isolated target) and atomically copy only that binary into a venv             |
+| `just rust-lsp-install-uv-tool` | Same as `rust-lsp-install` but targets `$(uv tool dir)/sase`                                                              |
+| `just rust-test`                | `cargo test --workspace` in `../sase-core`                                                                                |
+| `just rust-fmt`                 | Auto-format Rust sources with `cargo fmt --all`                                                                           |
+| `just rust-fmt-check`           | CI-mode formatting verification (`cargo fmt --all -- --check`)                                                            |
+| `just rust-clippy`              | `cargo clippy --workspace --all-targets -- -D warnings`                                                                   |
+| `just rust-check`               | Combined Rust check: `rust-fmt-check` + `rust-clippy` + `rust-test`                                                       |
+| `just rust-bench`               | Run the direct-parser Rust benchmark (`cargo run --release --example bench_parse`)                                        |
+| `just bench-core`               | Python `parse_project_bytes` benchmark (Rust-direct + facade rows)                                                        |
+| `just bead-perf-smoke`          | Tiny `sase bead` shell/facade/work-plan benchmark used as the CI smoke artifact                                           |
+| `just bench-agent-scan`         | Python agent-artifact scan benchmark vs current direct loaders                                                            |
+| `just bench-agent-launch`       | Fake-spawn launch benchmark through the Rust preparation binding                                                          |
+| `just bench-epic-launch`        | Isolated `sase bead work` history-scale benchmark (generated SASE_HOME, fake spawn)                                       |
+| `just launch-perf-check`        | CI-friendly launch regression check against the Phase 1 fan-out baseline                                                  |
+| `just phase7-perf-check`        | Run the Phase 7 regression-floor checker against the recorded Rust ceilings                                               |
+
+## Performance
+
+Phase 7 captured a deliberate measurement pass after the Rust default flip; Phase 8 then
+deleted the Python halves of the ported operations, so the historical Python comparisons
+are frozen evidence rather than live measurements. The raw JSON artifacts live under
+`sdd/plans/202604/perf_artifacts/`; the tables below summarize the medians a reader
+should expect when running the same harnesses against the same Rust extension.
+
+### Workstation profile
+
+All numbers below come from a single capture machine (Phase 7B + 7C, 2026-04-29):
+
+- Linux x86_64, CPython 3.14.3.
+- `sase-core-rs` editable install built from a sibling `../sase-core/` checkout via
+  `just rust-install`; metadata in every artifact's `metadata.rust_module_path` /
+  `metadata.rust_module_version` records the exact extension probed.
+- Sample sizes per scenario are recorded inline below and pinned in each artifact's
+  `metadata.runs` / `metadata.warmup`. End-to-end TUI/CLI runs are 10–12 samples;
+  microbenchmarks are 20–200 samples per scenario.
+
+The historical `python_median` columns are preserved as Phase 7B baselines — they are no
+longer reproducible from a post-Phase 8 install (the Python halves are gone) but remain
+useful for understanding why each operation was kept on Rust. `speedup` reads
+`python_median / rust_median` against those frozen Python numbers.
+
+### Core operations (Phase 7B microbenchmarks)
+
+Driver: `tests/perf/phase7/run_phase7b.py`. One `*_summary.json` artifact per shipped
+operation under `sdd/plans/202604/perf_artifacts/rust_backend_phase7_<op>_summary.json`;
+each artifact embeds the Phase 7A `Phase7Metadata` envelope, the relevant scenario
+summaries, and pre-computed `(workload, scenario)` comparison rows.
+
+| Operation                    | Workload                 | Scenario                   | py median (Phase 7B) | rust median |   speedup |
+| ---------------------------- | ------------------------ | -------------------------- | -------------------: | ----------: | --------: |
+| `parse_project_bytes`        | golden_myproj            | facade                     |               296 µs |      124 µs |  **2.4×** |
+| `parse_project_bytes`        | synthetic_200_specs      | facade                     |              26.7 ms |     19.1 ms |  **1.4×** |
+| `parse_query`                | parse_only               | direct                     |              12.3 µs |      5.8 µs |  **2.1×** |
+| `scan_agent_artifacts`       | synthetic_6p_200pp       | scan_facade                |               145 ms |      120 ms | **1.21×** |
+| `read_status_from_lines`     | synthetic_200_specs_pure | read_status_from_lines     |               182 µs |      349 µs |     0.52× |
+| `apply_status_update`        | synthetic_200_specs_pure | apply_status_update        |               256 µs |      377 µs |     0.68× |
+| `plan_status_transition`     | synthetic_200_specs_pure | plan_status_transition     |              8.66 µs |    18.78 µs |     0.46× |
+| `parse_git_name_status_z`    | synthetic_medium (1k)    | parse_git_name_status_z    |               626 µs |      880 µs |     0.71× |
+| `parse_git_branch_name`      | normalizers_x4           | parse_git_branch_name      |              8.74 µs |    10.40 µs |     0.84× |
+| `derive_git_workspace_name`  | normalizers_x5           | derive_git_workspace_name  |              11.7 µs |     13.5 µs |     0.87× |
+| `parse_git_conflicted_files` | normalizers_50_lines     | parse_git_conflicted_files |              5.35 µs |     6.83 µs |     0.78× |
+| `parse_git_local_changes`    | normalizers_150_entries  | parse_git_local_changes    |              4.51 µs |     5.68 µs |     0.79× |
+
+The historical one-shot Rust `evaluate_query_many(query, dicts)` binding remains a
+non-product diagnostic row only. The shipped product route uses a persistent Rust query
+corpus: compile `Patch` wire records once per stable list object, then compile/evaluate
+each query string against that cached corpus. Query-corpus Phase 6 measured the product
+query-keystroke path at 37-74x faster than the Python batch reference on the synthetic
+workloads and added the `synthetic_1000_specs` persistent query-keystroke row to the
+regression floor.
+
+The full per-percentile data (min / median / p95 / max) is in each artifact's
+`workloads[].baseline` / `workloads[].candidate`; the `comparisons[]` rows pre-compute
+`ratio`, `speedup`, and `percent_delta` for every `(workload, scenario)` pair.
+
+### End-to-end TUI / CLI surfaces (Phase 7C)
+
+Driver: `tests/perf/bench_phase7_e2e.py`. One artifact per `(surface, backend)`
+invocation under
+`sdd/plans/202604/perf_artifacts/rust_backend_phase7_<surface>_<backend>.json`; the
+home-tree `sase agent list` rows sit in the gitignored
+`sdd/plans/202604/perf_artifacts/local_only/` dir because they reflect a
+workstation-specific tree.
+
+| Surface                      | Workload                          | runs |     rust | python (Phase 7B) |   speedup |
+| ---------------------------- | --------------------------------- | ---- | -------: | ----------------: | --------: |
+| `sase_run_startup`           | `import_launch_query_cold`        | 12   | 249.3 ms |          252.6 ms |     1.01× |
+| `sase_agents_status_listing` | `synthetic_8_projects_25_agents`  | 12   | 298.5 ms |          774.5 ms | **2.59×** |
+| `sase_agents_status_listing` | `home_tree` (local-only artifact) | 5    | 885.8 ms |        1,799.7 ms | **2.03×** |
+| `sase_ace_cold_open`         | `synthetic_100_cs_50_agents`      | 10   | 1,472 ms |          1,237 ms |     0.84× |
+
+`sase_run_startup` measures cold subprocess
+`python -c "from sase.main.query_handler._launch import launch_query"`; it deliberately
+stops at the dispatcher's provider boundary, never resolves a provider, never touches
+the network, and never claims a workspace. The `metadata.extra.boundary` field in the
+artifact records this scope so a future agent can push the boundary further toward
+provider resolution without invalidating the comparison.
+
+### Agent launch migration (Phase 9)
+
+Driver: `tests/perf/bench_agent_launch.py`; regression check:
+`tests/perf/check_agent_launch_regression.py`. The harness uses temp ProjectSpec files
+and fake subprocess writes so it never starts an LLM CLI, but it now runs launch
+preparation through the production Rust binding. The committed Phase 1 baseline is
+`tests/perf/agent_launch_phase1_baseline.json`.
+
+The Phase 1 baseline intentionally includes parent-side fan-out sleeps: three-way
+`%model` and `%r` launches each spent about 2,001 ms in the parent before the migration.
+`just launch-perf-check` runs the current harness without those sleeps and fails if
+`model_fanout` or `repeat_fanout` exceeds 25% of the Phase 1 median. Single-prompt, VCS,
+and deferred-workspace fake launches also have a generous 100 ms median ceiling so the
+gate catches accidental blocking work without depending on a specific workstation's
+sub-millisecond numbers.
+
+### Where Rust helps, where it does not
+
+**Wins:**
+
+- `sase agent list -j` cold listing is the headline Rust win — ~2.6× on the synthetic
+  8×25 tree and ~2.0× on this workstation's home tree. The cold subprocess wall-time is
+  dominated by `scan_agent_artifacts`, which Rust ports.
+- `parse_project_bytes` is a clean ~2.4× win on small files and ~1.4× on a 200-spec
+  synthetic file.
+- `parse_query` direct parsing is a ~2.1× win on the parse-only workload.
+
+**Honest negatives (kept on Rust for shared-core hygiene rather than user-perceived
+latency):**
+
+- The status-line helpers (`read_status_from_lines`, `apply_status_update`,
+  `plan_status_transition`) and the small Git normalizers (`parse_git_branch_name`,
+  `derive_git_workspace_name`, `parse_git_conflicted_files`, `parse_git_local_changes`)
+  are 13–55% slower under Rust than the historical Python implementations on the inputs
+  they actually see in production. These are dispatch-overhead-dominated cores at
+  sub-10-µs absolute cost; the gap is single-digit microseconds and is invisible against
+  the surrounding subprocess / atomic-write cost.
+- `parse_git_name_status_z` is consistently ~25–30% slower than the historical Python on
+  synthetic streams, but the end-to-end `git diff --name-status -z` workloads in
+  `bench_git_query_ops` show parse is single-digit microseconds next to
+  multi-millisecond subprocess cost.
+- `sase tui` cold open is ~19% slower under Rust on the synthetic Pilot harness. The
+  harness mocks `find_all_changespecs`, so the Rust scan/parse hot paths are not
+  exercised; what remains is AceApp / Pilot constructor cost plus per-call PyO3 dispatch
+  overhead at small inputs. Treat it as a known small-input dispatch tax, not a
+  routed-op regression.
+- `sase run` startup is dispatch-neutral at the cold-import scope: the cost users pay
+  before the dispatcher can call any LLM is dominated by Python interpreter startup +
+  sase package import.
+
+### Performance regression floor
+
+`tests/perf/baselines/phase7_regression_floor.json` pins absolute Rust ceilings for the
+anchors that matter (`golden_myproj` and `synthetic_200_specs` for
+`parse_project_bytes`, `parse_only` for `parse_query`, `synthetic_6p_200pp` for
+`scan_agent_artifacts`, `golden_myproj_pure` for `apply_status_update`, the
+`synthetic_1000_specs` persistent query-corpus product route, and the synthetic 5k
+notification-store snapshot/mutation routes). The relative `must_beat_python` check is
+disabled for anchors whose Python halves were deleted in Phase 8D — only the absolute
+Rust ceiling stays in force. `parse_query.parse_only.direct` and the persistent
+query-corpus product route keep `must_beat_python: true` because both comparable rows
+are still produced by the current harnesses. The CI `phase7-perf-floor` GitHub Actions
+job runs the checker (`tests/perf/phase7_check_regression.py`) on every PR and uploads
+`rust_backend_phase7_floor_check.json` as the build artifact.
+
+`tests/perf/agent_launch_phase1_baseline.json` pins the launch migration baseline. The
+`launch-perf-floor` GitHub Actions job runs `just launch-perf-check` on every PR and
+uploads `agent_launch_regression_check.json` so a fan-out latency regression has a
+comparable report.
+
+### Triage support note
+
+When investigating a Rust-extension issue:
+
+- **Confirm the extension is loaded.** `sase core health` (or `sase core health -j` for
+  scripts) prints the `sase_core_rs` module path / version and the result of cheap
+  parser, launch, and bead binding probes. Exit code 0 means the extension loaded and
+  worked; non-zero means the wheel is missing, stale, or misbuilt.
+- **Recognise a wheel-load failure.** A missing or stale extension surfaces as
+  `ImportError` / `AttributeError` from a shipped operation, or as `sase core health`
+  exit code 1 with `error_kind` / `error` fields naming the underlying import error. The
+  publish-workflow `install-smoke` runs `sase core health` on every release and dumps
+  `pip list` plus `sase_core_rs.__file__` / `__version__` on failure.
+- **There is no env-var escape hatch.** If `sase_core_rs` is broken, the user-facing fix
+  is reinstalling sase or pinning to a known-good `sase-core-rs` version, not setting an
+  env var. See the [Rollback](#rollback) section below.
+
+## Verifying The Backend
+
+A handful of commands cover "is my install healthy?" end-to-end:
+
+```bash
+sase core health             # Rust health: status + module path + version + platform
+sase core health -j          # same, JSON for scripting
+sase version                 # local host/core/plugin package inventory
+sase version -j              # same, JSON for support/debug tooling
+
+just check-full              # formatting, lint, SDD validation, and the full test suite
+just rust-check              # cargo fmt --check + clippy + cargo test (requires sibling ../sase-core checkout)
+just bead-perf-smoke         # tiny Rust-backed bead shell/facade/work-plan benchmark
+just launch-perf-check       # launch fan-out regression floor against the Phase 1 baseline
+just phase7-perf-check       # Phase 7 regression-floor check against the recorded Rust ceilings
+```
+
+The reusable CI workflow (`.github/workflows/ci.yml`) runs the full Python suite under
+CPython 3.12 / 3.13 / 3.14 for pull requests and for the scheduled Full CI lane. The
+per-SHA master gate (`.github/workflows/master-gate.yml`) runs the sharded Python 3.12
+fast suite on every master push, while Full CI carries the visual and performance-floor
+jobs off the push path. Coverage-contexts, cost attribution, and the contention soak
+move further out still, onto the scheduled `.github/workflows/telemetry.yml` (CI
+Telemetry) lane, so a timeout in one of those measurement jobs can never block a
+release. The publish workflow's `install-smoke` job installs the built `sase` wheel into
+a fresh venv and runs `sase core health`; on failure it dumps `pip list`,
+Python/platform info, and `sase_core_rs.__file__` / `__version__` so missing-wheel or
+ABI-mismatch failures are diagnosable from the build log without a manual repro.
+
+#### The CI source revision pin
+
+`ci.yml`'s `build-core` job and `master-gate.yml`'s `core-wheel` job both build
+`sase_core_rs` from the full 40-character git SHA recorded in `sase-core-revision.txt`,
+not from `sase-core`'s HEAD at build time. An unpinned checkout let an ordinary
+`sase-core` push redden `sase` master with no `sase` commit involved, and made two CI
+runs of the same `sase` SHA build different Rust cores. The master gate caches the built
+wheel under a key that includes the pinned SHA, so it rebuilds only when the pin moves.
+`tools/ratchet_core_revision` (`just ratchet-core-revision`) moves the pin to
+`sase-core`'s current remote HEAD: `--check` writes nothing, `--report-only` prints the
+change without writing, and a bare run rewrites the file. All three exit 0 when the pin
+already matches, 2 when a bump is pending, reported, or applied, and 3 when the pin file
+is missing or malformed or the remote HEAD cannot be determined.
+`.github/workflows/core-pin-ratchet.yml` runs the check every six hours (or on manual
+dispatch), then applies the bump — treating the apply step's exit 2 as success — and
+opens a PR from a `core-pin-ratchet-<sha12>` branch unless that branch already exists;
+it never runs on push, so the ratchet itself can't redden a commit's gate. A declaration
+that commits both repos gets the pin automatically: the host commits the pinned
+`sase-core` sibling first (see `repos.linked[].revision_pin` in
+[repository configuration](../reference/config/repositories-behavior.md#repos)) and
+writes its pushed SHA into `sase-core-revision.txt` before the primary commit, so one
+turn lands one green commit per repo. Agents only bump the pin by hand when their `sase`
+change needs an already-landed core commit (`just ratchet-core-revision`). If `sase`
+source now calls a binding the pinned revision doesn't expose, the `lint` job's "Check
+pinned core bindings" step (`tools/check_sase_core_rs_bindings --remedy ...`) fails with
+the missing binding names and names the pin bump as the remedy, instead of a bare
+`AttributeError` surfacing later in a consumer job. This is a source-revision pin,
+separate from the published `sase-core-rs` window `pyproject.toml` declares — see
+[Who owns the published version window](#who-owns-the-published-version-window) above;
+`tools/probe_core_floor` keeps its advisory role over that window unchanged.
+
+## Golden Contract
+
+For the fully ported operations, the historical Python halves are gone, so the
+compatibility seam is the _golden corpus_ rather than a live Python/Rust dual-run
+comparison. Agent cleanup is the current exception described above. The corpus pins the
+Rust extension's expected output byte-for-byte across parser, query, agent scan, status,
+and Git query helpers:
+
+| Surface                      | Tests                                                                                                                    |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| Patch parser                 | `tests/test_core_golden.py`, `tests/test_core_wire.py`, `tests/test_core_facade/test_parser.py`                          |
+| Query parse / canonical form | `tests/test_core_query_golden_*` (errors / eval / tokens / wire), `tests/test_core_facade/test_query.py`                 |
+| Agent artifact scan          | `tests/test_core_agent_scan_*.py` + `tests/agent_scan_golden/` fixture builder                                           |
+| Notification store           | `tests/test_core_notification_store.py`, `tests/test_core_facade/test_notification_store.py`                             |
+| Snooze expiry end-to-end     | `tests/notification_store/test_snooze_e2e_matrix.py`, `../sase-core/crates/sase_core/tests/notification_store_parity/`   |
+| Status helpers + planner     | `tests/test_core_facade/test_status.py`, `tests/test_core_status_lines.py`, `tests/test_core_status_wire.py`             |
+| Git query parsers            | `tests/test_core_git_query.py`                                                                                           |
+| Agent launch                 | `tests/core/test_agent_launch_*.py`, `tests/test_agent_launch_executor.py`, `tests/perf/test_agent_launch_regression.py` |
+| Beads                        | `tests/test_bead/`, `tests/test_core_facade/test_bead_*.py`, `../sase-core/crates/sase_core/tests/bead_*`                |
+| Strict-loader contract       | `tests/test_core_rust.py`, `tests/test_core_health.py`                                                                   |
+
+The `tests/core_golden/` corpus (`myproj.sase`, `myproj-archive.sase`) plus the
+`inline_snapshot` JSON expectations in `test_core_golden.py` are the cross-language
+reference: any change to the Rust output that breaks a snapshot must be matched by an
+equivalent change in the corresponding `sase-core` Rust parity test
+(`../sase-core/.../tests/`) before either side ships.
+
+## Editable Dev Prebuild Cache
+
+sase's TUI can opportunistically prebuild editable `sase-core` Rust artifacts while an
+update is only being advertised. The producer runs detached from the automatic
+update-status worker when `ace.updates.prebuild_rust` is true (the default) and the
+cached status reports an editable core checkout behind its upstream. Set
+`ace.updates.prebuild_rust: false` in config to disable it; `sase update` then always
+runs the normal `just rust-dev-install-uv-tool` build path.
+
+The cache lives under `~/.sase/cache/rust-prebuild/`. Each completed set is stamped with
+the exact upstream core commit, `Cargo.lock` digest, `rustc --version`, Rust dev
+profile, target interpreter, and Python ABI. `sase update` consumes a set only when all
+of those fields still match the live checkout and tool venv; otherwise it reports a miss
+reason and runs the normal `just rust-dev-install-uv-tool` path. The install step copies
+the extension and LSP binary atomically, purges stale extension copies, and then probes
+`import sase_core_rs` before it counts as a hit.
+
+Only the two newest completed sets are retained. It is safe to remove the whole cache
+directory manually:
+
+```bash
+rm -rf ~/.sase/cache/rust-prebuild
+```
+
+The next eligible sase's TUI update check recreates it, and confirmed updates continue
+to fall back to the normal build path while the cache is empty or stale.
+
+## Rollback
+
+After Phase 8 the rollback model is **wheel/package fix, not env-var workaround**. There
+is no `SASE_CORE_BACKEND` escape hatch, no Python implementation to fall back to for
+ported operations, and no per-user mitigation that bypasses Rust.
+
+- A Rust-side regression is fixed and re-released as a `sase-core-rs` patch version that
+  `sase` depends on. The pinned range is updated in `pyproject.toml` and a `sase` patch
+  release pulls the corrected wheel.
+- For a regression that drifted before Phase 8 closed, the only safe path is to revert
+  the Phase 8 PR(s) that removed the Python halves, ship a patch release that restores
+  the Python implementations, then redo verification before re-attempting the deletion.
+
+If a user reports a `sase core health` failure post-release, the support workflow is:
+
+1. Verify the installed `sase-core-rs` version (`pip show sase-core-rs` or the JSON
+   output of `sase core health -j`).
+2. Reinstall: `uv tool install --force sase` (or `pip install --force-reinstall sase`)
+   to repull the wheel.
+3. If the wheel itself is broken on the user's platform, pin to the previous
+   `sase-core-rs` version and file a bug in `../sase-core` with the
+   `sase core health -j` output, the platform tag, and the failing binding.
+
+The Phase 6/7 release-cycle artefacts (`SASE_CORE_BACKEND=python` escape hatch, dual-run
+JSONL, `parity-gate` job) are deleted; do not reach for them when triaging post-Phase-8
+issues.
+
+## Migration History
+
+The migration ran across nine phases. Phases 0–7 added the Rust backend behind a
+default-Python escape hatch and the parity gate; Phase 8 deleted the dispatcher, the
+dual-run plumbing, and the Python halves of every ported operation that did not need
+them as host logic. The full per-phase narrative lives in
+`sdd/research/202604/rust_backend_migration.md` and
+`sdd/plans/202604/rust_backend_phase{0..8}*.md`. The handoffs that record each
+subphase's changes are alongside their plan files
+(`sdd/plans/202604/rust_backend_phase8_phase8{a..g}_handoff.md`).

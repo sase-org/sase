@@ -44,7 +44,7 @@ NEXT_WORD_REVEAL_DELAY_MS = 350
 #: synchronously while ``len(text_before_cursor)`` fits in this many
 #: characters. Longer drafts defer off the Textual pump (thin timer plus a
 #: pump-free ``asyncio.to_thread`` predict). Chosen in
-#: ``docs/rust_backend.md`` as the largest bench bucket whose typing-path
+#: ``docs/contribute/rust-backend.md`` as the largest bench bucket whose typing-path
 #: p95 stays at or under 1 ms on real history.
 NEXT_WORD_SYNC_MAX_DRAFT_CHARS = 4000
 

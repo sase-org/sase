@@ -449,7 +449,7 @@ AgentsFilterBar .filter-bar-completion > .option-list--option-highlighted {
     margin-top: 1;
 }
 
-/* Shared Artifacts shell grammar (see docs/artifacts_pane_visual_grammar.md).
+/* Shared Artifacts shell grammar (see docs/contribute/artifacts-pane-visual-grammar.md).
    Panes with a dedicated id selector keep owning their exact layout; these
    classes give panes without one (the degraded surface, synthetic/third-
    party providers) the same identity, state, empty, and footer treatment. */

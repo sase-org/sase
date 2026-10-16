@@ -207,9 +207,9 @@ empty/error states show the effective keys for widening, clearing, or retrying. 
 Overview Agents Run, Success Rate, and Commits tiles open Projects, while Plans Proposed
 and Questions open Plans & Questions. The plan and question tiles remain all-project
 values even when a project is selected; see
-[Telemetry: Admin Center Statistics tab](../../telemetry.md#admin-center-statistics-tab) for
+[Telemetry: Admin Center Statistics tab](../../contribute/telemetry.md#admin-center-statistics-tab) for
 the view contents, range syntax, and project-filter caveats, and
-[Reading the Admin Center Perf view](../../perf_runbook.md#reading-the-admin-center-perf-view)
+[Reading the Admin Center Perf view](../../contribute/perf-runbook.md#reading-the-admin-center-perf-view)
 for Perf data sources and retention.
 
 ### Tools tab

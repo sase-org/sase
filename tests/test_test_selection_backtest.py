@@ -251,7 +251,7 @@ def test_backtest_reports_the_root_commit_rather_than_dropping_it(
 def test_backtest_reports_a_commit_that_changed_no_src_python(
     history: Path, contexts_dir: Path
 ) -> None:
-    _write(history, "docs/development.md", "# docs\nmore\n")
+    _write(history, "docs/contribute/development.md", "# docs\nmore\n")
     _git(history, "add", "-A")
     _git(history, "commit", "-q", "-m", "docs only")
 

@@ -59,7 +59,6 @@
 - [Goals](goals.md) — Goals — Goals are durable records of outcomes a person wants: what will be true, how you'll know, and what happened along the way.
 - [Initialization](init.md) — Initialization — SASE initialization commands create or refresh durable files that agents and sidecar tools rely on.
 - [Instruction Bundles](instruction_bundles.md) — Instruction Bundles — An instruction bundle collects the project, home, and SASE instructions for one agent invocation.
-- [Integration APIs](integrations.md) — Integration APIs — SASE exposes a small set of Python helpers for external plugins, chat clients, mobile clients, and editor integrations.
 - [LLM Provider Integration](llms.md) — LLM Provider Integration — This document describes the LLM provider abstraction layer in sase.
 - [Macro Template Reference](macros.md) — Macro Template Reference — Macros are reusable prompt templates with optional typed inputs and Jinja2 support.
 - [Memory](memory.md) — Memory — SASE memory is durable context that survives individual agent chats.
@@ -207,21 +206,22 @@
 
 ## Contribute
 
-- [Artifacts pane contract](artifacts_pane_contract.md) — Artifacts pane contract — ArtifactsPaneContract is the host-owned record that decides what a pane can do before widgets, keybindings, or document providers run.
-- [Artifacts pane visual grammar](artifacts_pane_visual_grammar.md) — Artifacts pane visual grammar — Every configured Artifacts pane — Commits, Patches, Beads, Files, every document provider, and a degraded provider that failed to load — renders through one shared, contract-driven shell.
 - [Commit Workflows](commit_workflows.md) — Commit Workflows — Sase provides three unified workflows for landing code changes: commit, propose, and pull request.
 - [Acknowledgements](contribute/acknowledgements.md) — People, projects, and research that shaped SASE.
 - [Architecture](contribute/architecture.md) — Architecture internals, runtime flow, state ownership, and provider boundaries inside SASE.
+- [Artifacts pane contract](contribute/artifacts-pane-contract.md) — ArtifactsPaneContract is the host-owned record that decides what a pane can do before widgets, keybindings, or document providers run.
+- [Artifacts pane visual grammar](contribute/artifacts-pane-visual-grammar.md) — Every configured Artifacts pane renders through one shared, contract-driven shell.
+- [Development](contribute/development.md) — This page orients contributors working in the sase repository.
+- [Fakey Testing Provider](contribute/fakey.md) — fakey is a deterministic fake agent CLI bundled with SASE.
 - [Contribute](contribute/index.md) — Contributor guides, internals, contracts, and runbooks for SASE.
+- [Integration APIs](contribute/integration-apis.md) — SASE exposes a small set of Python helpers for external plugins, chat clients, mobile clients, and editor integrations.
+- [Mobile MVP Runbook](contribute/mobile-mvp-runbook.md) — This runbook covers the private Android MVP that connects a phone to a workstation-hosted SASE mobile gateway.
+- [sase tui Performance Runbook](contribute/perf-runbook.md) — This runbook explains how to capture and compare performance data for sase's TUI, the sase tui terminal user interface.
 - [Reader testing](contribute/reader-testing.md) — How to run an observed reader round and turn the results into doc changes.
+- [Rust Backend (sase_core_rs)](contribute/rust-backend.md) — A subset of sase's core APIs is served by a Rust extension distributed as sase-core-rs on PyPI and built from the sibling sase-core repo.
+- [SDD Storage](contribute/sdd-storage.md) — The workspace provider owns SDD placement, while projects select a store beneath it.
+- [Telemetry](contribute/telemetry.md) — SASE records debugging and health metric history locally.
 - [Writing docs](contribute/writing-docs.md) — The sase.sh documentation contract for humans and agents.
-- [Development](development.md) — Development — This page orients contributors working in the sase repository.
-- [Fakey Testing Provider](fakey.md) — Fakey Testing Provider — fakey is a deterministic fake agent CLI bundled with SASE.
-- [Mobile MVP Runbook](mobile_mvp_runbook.md) — Mobile MVP Runbook — This runbook covers the private Android MVP that connects a phone to a workstation-hosted SASE mobile gateway.
-- [`sase tui` Performance Runbook](perf_runbook.md) — `sase tui` Performance Runbook — This runbook explains how to capture and compare performance data for sase's TUI, the sase tui terminal user interface.
-- [Rust Backend (`sase_core_rs`)](rust_backend.md) — Rust Backend (`sase_core_rs`) — A subset of sase's core APIs is served by a Rust extension distributed as sase-core-rs on PyPI and built from the sibling sase-core repo.
-- [SDD Storage](sdd_storage.md) — SDD Storage — The workspace provider owns SDD placement.
-- [Telemetry](telemetry.md) — Telemetry — SASE records debugging and health metric history locally.
 
 ## Blog
 
@@ -242,6 +242,7 @@
 - [sase's TUI User Guide](ace.md) — sase's TUI User Guide — sase's TUI is the primary TUI for the SASE toolkit.
 - [Configuration Reference](configuration.md) — Configuration Reference — Moved to Configuration files and merging.
 - [Canonical SASE Content Layout](content_layout.md) — This page has moved to its new home.
+- [Rust Backend (sase_core_rs)](rust_backend.md) — This page has moved to its new home.
 
 ## Moved pages
 
@@ -257,3 +258,13 @@
 | `/content_layout/` | [`/reference/upgrading/`](reference/upgrading/index.md) |
 | `/ace/` | [`/reference/tui/`](reference/tui/index.md) |
 | `/configuration/` | [`/reference/config/`](reference/config/index.md) |
+| `/development/` | [`/contribute/development/`](contribute/development.md) |
+| `/rust_backend/` | [`/contribute/rust-backend/`](contribute/rust-backend.md) |
+| `/fakey/` | [`/contribute/fakey/`](contribute/fakey.md) |
+| `/telemetry/` | [`/contribute/telemetry/`](contribute/telemetry.md) |
+| `/perf_runbook/` | [`/contribute/perf-runbook/`](contribute/perf-runbook.md) |
+| `/mobile_mvp_runbook/` | [`/contribute/mobile-mvp-runbook/`](contribute/mobile-mvp-runbook.md) |
+| `/integrations/` | [`/contribute/integration-apis/`](contribute/integration-apis.md) |
+| `/artifacts_pane_contract/` | [`/contribute/artifacts-pane-contract/`](contribute/artifacts-pane-contract.md) |
+| `/artifacts_pane_visual_grammar/` | [`/contribute/artifacts-pane-visual-grammar/`](contribute/artifacts-pane-visual-grammar.md) |
+| `/sdd_storage/` | [`/contribute/sdd-storage/`](contribute/sdd-storage.md) |

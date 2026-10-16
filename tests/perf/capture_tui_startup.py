@@ -1,6 +1,6 @@
 """Attributed TUI startup capture for sase-132 and later phases.
 
-Reproduces the baseline-phase recipe in ``docs/perf_runbook.md``:
+Reproduces the baseline-phase recipe in ``docs/contribute/perf-runbook.md``:
 
 - standalone ``bench_agent_load_tiering.py --sase-home`` labeled quiet/busy
 - live traced ``sase tui`` startups (tmux) plus an optional ``--profile`` run

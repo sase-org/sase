@@ -100,7 +100,7 @@ serial app message pump. Reuse these established fixes; don't invent new paths.
     `refresh.auto_tick` span (`surfaces_reloaded`, `surfaces`, `axe_file_opens`) and
     `axe.collect` events (`file_opens`) on `SASE_TUI_TRACE=1`. A quiet tick should
     reload no surfaces and open near-zero axe files. Capture commands are in
-    `docs/perf_runbook.md` under Idle-host CPU diet.
+    `docs/contribute/perf-runbook.md` under Idle-host CPU diet.
 15. **Editable-install TUIs keep running the imported snapshot.** A long-running TUI
     whose checkout has advanced still executes the code it imported at start until
     restart (`src/sase/ace/tui/stale_running_code.py`). The detector surfaces this via a
@@ -124,5 +124,5 @@ Perceived causes are usually wrong; profile before and after.
   the axe collector emits `axe.collect` with `file_opens`.
 - Benches (p50/p95/max tables): `pytest -s -m slow tests/ace/tui/bench_tui_jk.py` and
   `pytest -s -m slow tests/perf/bench_tui_trace.py`. Full capture/compare recipes:
-  `docs/perf_runbook.md` (including the idle-host CPU diet recipe) and
+  `docs/contribute/perf-runbook.md` (including the idle-host CPU diet recipe) and
   `tests/perf/README.md`.

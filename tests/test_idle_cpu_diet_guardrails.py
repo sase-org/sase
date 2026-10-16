@@ -1,6 +1,6 @@
 """Deterministic idle-CPU-diet budgets: zero-spawn ticks, skip counters, status overlay.
 
-Wall-clock idle-host numbers live in ``docs/perf_runbook.md``. The chop-SDK
+Wall-clock idle-host numbers live in ``docs/contribute/perf-runbook.md``. The chop-SDK
 import-graph floor is ``tests/test_chop_import_budget.py``; the shipped
 fs-trigger fire/skip contract is ``tests/test_axe_default_chop_triggers.py``.
 This module locks those wins into lumberjack metrics and the status snapshot wire.

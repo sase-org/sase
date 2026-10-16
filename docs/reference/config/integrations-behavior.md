@@ -31,8 +31,8 @@ to timestamped logs under `~/.sase/chat_install/logs/`. The configuration key an
 paths remain named `chat_install` for compatibility. The old `chat_install.command` and
 `chat_install.sync_workspace` keys have been removed; delete them from user config if
 schema validation reports them. See
-[`docs/integrations.md`](../../integrations.md#chat-update-worker) for the
-integration-facing Python API.
+[`docs/integrations.md`](../../contribute/integration-apis.md#chat-update-worker) for
+the integration-facing Python API.
 
 Source: `src/sase/default_config.yml`, `src/sase/integrations/chat_install.py`
 
@@ -107,4 +107,4 @@ Source: `src/sase/default_config.yml`, `src/sase/integrations/mobile_gateway.py`
 
 - [Integrations and telemetry configuration](integrations.md) — generated keys and
   defaults.
-- [Integrations](../../integrations.md) — integration APIs.
+- [Integrations](../../contribute/integration-apis.md) — integration APIs.

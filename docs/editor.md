@@ -413,7 +413,8 @@ remaining outer stops.
 
 - [Macro reference](macros.md) for macro syntax, discovery order, typed inputs,
   snippets, and workflows.
-- [Integration APIs](integrations.md#editor-helper-bridge) for the Python helper facade.
+- [Integration APIs](contribute/integration-apis.md#editor-helper-bridge) for the Python
+  helper facade.
 - [Configuration](reference/cli/editor.md#sase-editor) for CLI flag and
   environment-variable reference.
 - [sase's TUI snippets](ace.md#snippets) for the in-TUI prompt widget behavior.

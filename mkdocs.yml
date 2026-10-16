@@ -28,6 +28,7 @@ not_in_nav: |
   ace.md
   configuration.md
   content_layout.md
+  rust_backend.md
 # END GENERATED: docs page moves not_in_nav
 
 nav:
@@ -234,7 +235,7 @@ nav:
           - Artifact links: artifact_links.md
       - Integrations:
           - Editor integration: editor.md
-          - Integration APIs: integrations.md
+          - Integration APIs: contribute/integration-apis.md
           - Plugins: plugins.md
           - Mobile gateway: mobile_gateway.md
       - Content layout: reference/content-layout.md
@@ -249,16 +250,16 @@ nav:
       - Architecture: contribute/architecture.md
       - Writing docs: contribute/writing-docs.md
       - Reader testing: contribute/reader-testing.md
-      - Development: development.md
-      - Rust backend: rust_backend.md
-      - Fakey testing provider: fakey.md
-      - Telemetry: telemetry.md
-      - Performance runbook: perf_runbook.md
-      - Mobile MVP runbook: mobile_mvp_runbook.md
+      - Development: contribute/development.md
+      - Rust backend: contribute/rust-backend.md
+      - Fakey testing provider: contribute/fakey.md
+      - Telemetry: contribute/telemetry.md
+      - Performance runbook: contribute/perf-runbook.md
+      - Mobile MVP runbook: contribute/mobile-mvp-runbook.md
       - Commit workflows: commit_workflows.md
-      - SDD storage: sdd_storage.md
-      - Artifacts pane contract: artifacts_pane_contract.md
-      - Artifacts visual grammar: artifacts_pane_visual_grammar.md
+      - SDD storage: contribute/sdd-storage.md
+      - Artifacts pane contract: contribute/artifacts-pane-contract.md
+      - Artifacts visual grammar: contribute/artifacts-pane-visual-grammar.md
       - Acknowledgements: contribute/acknowledgements.md
   - Blog:
       - Blog Home: blog/index.md

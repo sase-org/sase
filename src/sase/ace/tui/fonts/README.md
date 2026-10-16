@@ -5,8 +5,8 @@ with its own font database. It is pointed at this directory via `font_dirs` with
 `skip_system_fonts=True`, so only these files participate in rendering — no platform
 font stack is consulted. Comparison is byte-exact by default; explicit area and
 alpha-aware color-intensity overrides are available for bounded non-canonical-platform
-drift. See the Visual Snapshot Workflow in `docs/development.md` for the comparison and
-regeneration contract.
+drift. See the Visual Snapshot Workflow in `docs/contribute/development.md` for the
+comparison and regeneration contract.
 
 The ACE visual renderer maps every generic family (monospace/sans-serif/serif and the
 default) to Fira Code, so all text resolves here regardless of the font family Textual

@@ -13,7 +13,7 @@ from sase.ace.tui.artifact_tabs import ARTIFACTS_ACCENTS, EXTERNAL_ACCENT
 
 _HEX_RE = re.compile(r"^#[0-9A-F]{6}$")
 
-# The app's stock Textual theme surfaces (see ``docs/artifacts_pane_visual_grammar.md``).
+# The app's stock Textual theme surfaces (see ``docs/contribute/artifacts-pane-visual-grammar.md``).
 _DARK_SURFACES = ("#121212", "#1E1E1E")
 _LIGHT_SURFACES = ("#E0E0E0", "#D8D8D8")
 _CHIP_TEXT = "#1A1A1A"

@@ -9,7 +9,7 @@ stranded fakey agent for real, and exactly one enriched notification reports
 what moved.
 
 Hermeticity for the *relaunched* agent's execution follows the pattern
-documented in ``docs/fakey.md`` and used by ``tests/fakey/test_provider.py``:
+documented in ``docs/contribute/fakey.md`` and used by ``tests/fakey/test_provider.py``:
 ``SASE_LLM_EXEC_PROVIDER=fakey`` pins the real CLI invocation to the harmless
 fakey binary no matter which provider is chosen for display/routing, and
 ``SASE_<PROVIDER>_PATH`` lets a provider whose real CLI is not installed in

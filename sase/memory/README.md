@@ -252,7 +252,7 @@ strand inherits no `type:` of its own and never inlines into `AGENTS.md`.
   responsiveness (navigation, refresh, rendering, startup), and before diagnosing TUI
   freezes or stalls.
 - Lines: 128
-- Approx. tokens: 2148
+- Approx. tokens: 2154
 
 ### `sase/memory/tui_screenshot.md`
 
@@ -270,7 +270,7 @@ strand inherits no `type:` of its own and never inlines into `AGENTS.md`.
 - Reference notes: 14
 - Web descriptor notes: 3
 - Total lines: 1592
-- Total approx. tokens: 22557
+- Total approx. tokens: 22563
 
 ## Commands
 

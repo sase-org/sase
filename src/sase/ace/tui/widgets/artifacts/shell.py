@@ -8,7 +8,7 @@ regardless of provider. Renderers here are pure: they consume an
 and never look up a pane id in ``ARTIFACTS_ACCENTS``, invoke provider code,
 resolve providers, touch the filesystem, or perform data-scaled work.
 
-See ``docs/artifacts_pane_visual_grammar.md`` for the full state precedence
+See ``docs/contribute/artifacts-pane-visual-grammar.md`` for the full state precedence
 table, layout order, and extension checklist.
 """
 

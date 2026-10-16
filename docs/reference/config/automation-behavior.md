@@ -33,7 +33,7 @@ projects retain their provider-backed `.sase/sdd/` clone. Materialized layouts r
 metadata in the primary workspace's `.sase/sdd-store.json`. Providerless projects fall
 back to a primary-workspace `.sase/sdd/` store. The retired `sdd.storage` and
 `sdd.version_controlled` keys are ignored, stripped before validation, and reported by
-`sase doctor` for cleanup. See [SDD Storage](../../sdd_storage.md) and
+`sase doctor` for cleanup. See [SDD Storage](../../contribute/sdd-storage.md) and
 [Beads](../../beads.md).
 
 The default current layout has a schema-version 3 `sidecar_repos` record: every recorded
