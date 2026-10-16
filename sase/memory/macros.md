@@ -89,7 +89,7 @@ TTL expiry; a broken hold store fails open so admission never strands a waiter. 
 `%hold` is a directive error (a hold needs at least one selector); there is no `%h`
 alias (`%h` stays `%hide`), and `%hold` cannot combine with `%repeat` or `%dispatch`.
 Imperative form: `sase agent hold create|run|list|show|release`. Full contract:
-`docs/macros.md` Hold Directive and `docs/cli.md`.
+`docs/reference/macros/directive-launch.md` Hold Directive and `docs/cli.md`.
 
 Beta `%proc` units (`%proc("cmd")`, `%proc(...)::` code form) dispatch natively without
 an agent runner slot. `%queue`/`%q` fields on a proc gate _dispatch_ only: the unit

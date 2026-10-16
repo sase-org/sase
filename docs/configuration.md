@@ -563,13 +563,13 @@ background agents, and multi-prompt queries (containing `---` separators) are la
 as sequential detached background agents.
 
 From an interactive terminal outside an agent or durable proc, a prompt whose
-[`%hold`](macros.md#hold-directive) preview combines `future` with `scope=host` prints
-the preview and asks `Arm this hold? [y/N]`. An over-threshold `pending` capture also
-asks when the preview can resolve project context; typed launch plans can do so, while a
-plain project-scoped `sase run` prompt currently cannot and skips this confirmation.
-Declining prints `Hold not armed; launch cancelled.` and exits `1`. Despite that prompt
-text, accepting only permits the launch during the current beta; it does not arm the
-hold.
+[`%hold`](reference/macros/directive-launch.md#hold-directive) preview combines `future`
+with `scope=host` prints the preview and asks `Arm this hold? [y/N]`. An over-threshold
+`pending` capture also asks when the preview can resolve project context; typed launch
+plans can do so, while a plain project-scoped `sase run` prompt currently cannot and
+skips this confirmation. Declining prints `Hold not armed; launch cancelled.` and exits
+`1`. Despite that prompt text, accepting only permits the launch during the current
+beta; it does not arm the hold.
 
 ### `sase repro`
 
@@ -840,12 +840,12 @@ writing files. `sase skill init` generates and deploys agent skill files from ma
 sources marked with the `skill` field. Generated skill files begin with a
 `sase skill use` directive so agent-side skill use can be audited and later summarized
 with `sase skill log`, unless the source sets `log_skill_use: false`. See
-[macros.md — Skill Field](macros.md#skill-field) for the skill-source contract and
-provider targets. Existing files are skipped in non-interactive runs unless `--force` is
-passed; interactive runs prompt before overwriting. Commit and land macro template
-changes before deploying: writing chezmoi deploys are refused from dirty or unmerged
-sources, and refused when they would move the destination off the source commit recorded
-in the provenance manifest — see
+[macros.md — Skill Field](reference/macros/fields.md#skill-field) for the skill-source
+contract and provider targets. Existing files are skipped in non-interactive runs unless
+`--force` is passed; interactive runs prompt before overwriting. Commit and land macro
+template changes before deploying: writing chezmoi deploys are refused from dirty or
+unmerged sources, and refused when they would move the destination off the source commit
+recorded in the provenance manifest — see
 [Commit Before Deploying](init.md#commit-before-deploying). `sase init skills` is a
 compatibility alias for `sase skill init`.
 
@@ -1506,8 +1506,9 @@ slots, which finalize as successful skipped slots. `null`, `false`, numeric zero
 strings, empty lists, and empty maps are not-stop; string values `0`, `false`, `no`, and
 `off` are also not-stop case-insensitively after trimming. Any other value stops the
 chain. `STOP` affects only repeat-chain continuation; ordinary `%wait` consumers read it
-as a normal variable. See [Repeat Directive](macros.md#repeat-directive) in the macro
-reference for the full cascade semantics.
+as a normal variable. See
+[Repeat Directive](reference/macros/directive-composition.md#repeat-directive) in the
+macro reference for the full cascade semantics.
 
 ### `sase telemetry`
 

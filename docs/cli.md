@@ -53,7 +53,7 @@ Flag and option details live in the generated
 
 Workflows: [TUI](ace.md), [Scheduler](axe.md), [Monitors](monitors.md),
 [Prompt history](prompt.md), [VCS](vcs.md), [Notifications](notifications.md),
-[Macros](macros.md).
+[Macros](reference/macros/index.md).
 
 `sase stitch list --origin ORIGIN` accepts `stitch`, `auto`, or `manual`; repeat the
 flag to OR multiple origins. `sase stitch list --format json` includes the same
@@ -64,15 +64,16 @@ can start from prompt text, macro or workflow references, the editor, or the
 prompt-history picker, and multi-prompt input expands into sequential background
 launches. sase's TUI uses the same launch machinery when users start agents from the
 TUI. When `sase run` is used from an interactive terminal (not from inside an agent or a
-durable proc) and its [`%hold`](macros.md#hold-directive) preview is broad, it prints
-the preview and asks `Arm this hold? [y/N]`; declining cancels the launch and exits `1`.
-A host-scoped hold that includes `future` is always broad. A `pending` hold is broad
-when its live capture exceeds `agent_hold_confirm_capture_threshold`, but that check
-needs project context: typed launch plans can resolve it, while a plain project-scoped
-`sase run` prompt currently cannot and therefore skips this confirmation. Once accepted,
-the launch submission pre-arms the hold before admission can race ahead, then rebinds
-ownership to the launched runner. Narrow and non-interactive holds use that same pre-arm
-path without the extra prompt.
+durable proc) and its [`%hold`](reference/macros/directive-launch.md#hold-directive)
+preview is broad, it prints the preview and asks `Arm this hold? [y/N]`; declining
+cancels the launch and exits `1`. A host-scoped hold that includes `future` is always
+broad. A `pending` hold is broad when its live capture exceeds
+`agent_hold_confirm_capture_threshold`, but that check needs project context: typed
+launch plans can resolve it, while a plain project-scoped `sase run` prompt currently
+cannot and therefore skips this confirmation. Once accepted, the launch submission
+pre-arms the hold before admission can race ahead, then rebinds ownership to the
+launched runner. Narrow and non-interactive holds use that same pre-arm path without the
+extra prompt.
 
 The short option `-n` is not one flag across commands: `sase agent kill -n NAME` and
 `sase agent hold create -n NAME` are `--name` (for `kill` it is required; a bare name is
@@ -87,7 +88,8 @@ list view. `sase agent hold create -p` is `--pending`, not `--project`.
 Autonomy controls automatic resolution of plan and question gates. A fresh user launch
 without `%auto` is manual; bare `%auto` selects `standard`. The `tale` and `epic`
 profiles restrict which plan tier resolves automatically, while both still choose the
-first option for each question. See the [profile matrix](macros.md#auto-directive).
+first option for each question. See the
+[profile matrix](reference/macros/directive-launch.md#auto-directive).
 
 ```bash
 sase autonomy list
@@ -202,9 +204,9 @@ phrasing (`↪ waits on <target>'s epic <id>`) as the TUI lanes.
 An agent hold is a durable, reverse-wait admission barrier: while it is active, matching
 agents stay WAITING or QUEUED instead of starting, and matching procs that have not been
 dispatched yet stay pending. `sase agent hold` is the standalone CLI for the hold store
-that the [`%hold` directive](macros.md#hold-directive) also describes in prompt text.
-The CLI and directive are available without a feature flag. Use the CLI when you need to
-inspect, release, or arm a hold outside a launch prompt.
+that the [`%hold` directive](reference/macros/directive-launch.md#hold-directive) also
+describes in prompt text. The CLI and directive are available without a feature flag.
+Use the CLI when you need to inspect, release, or arm a hold outside a launch prompt.
 
 ```bash
 sase agent hold create -n planner -t nightly   # block one name plus a tribe
@@ -414,18 +416,19 @@ Projects tab. When nothing resolves, the command explains that and exits 0. Use
 from default launch views, and `sase project enable <project>` to make it launchable
 again. Disabling refuses projects with live `RUNNING` claims or active artifact markers
 unless `--force` is passed. Project arguments also accept the
-[project tag](macros.md#project-tags) spelling, so `sase project show +sase` works like
-`sase project show sase`. `sase project list` has a `TAG` column and `sase project show`
-a `Tag:` line with each project's `+<name>` spelling (`-` or omitted when the name does
-not fit tag syntax), colored by project accent on a color terminal; their `--json`
-output adds `tag` (`null` when the name does not fit tag syntax), `workflow_type`, and
-`accent` (`null` for disabled projects). Legacy active/inactive values and the
-deprecated lifecycle command aliases remain read-compatible. sase's TUI **Projects** tab
-(in the SASE Admin Center, opened with `#`) provides the interactive counterpart,
-including marking multiple projects, editing a ProjectSpec in `$EDITOR`, and deleting
-obsolete SASE project directories after confirmation. There is no CLI delete subcommand;
-full project-directory deletion is only available from sase's TUI Projects tab and
-removes state under `~/.sase/projects/`, not workspace checkouts.
+[project tag](reference/macros/reference-syntax.md#project-tags) spelling, so
+`sase project show +sase` works like `sase project show sase`. `sase project list` has a
+`TAG` column and `sase project show` a `Tag:` line with each project's `+<name>`
+spelling (`-` or omitted when the name does not fit tag syntax), colored by project
+accent on a color terminal; their `--json` output adds `tag` (`null` when the name does
+not fit tag syntax), `workflow_type`, and `accent` (`null` for disabled projects).
+Legacy active/inactive values and the deprecated lifecycle command aliases remain
+read-compatible. sase's TUI **Projects** tab (in the SASE Admin Center, opened with `#`)
+provides the interactive counterpart, including marking multiple projects, editing a
+ProjectSpec in `$EDITOR`, and deleting obsolete SASE project directories after
+confirmation. There is no CLI delete subcommand; full project-directory deletion is only
+available from sase's TUI Projects tab and removes state under `~/.sase/projects/`, not
+workspace checkouts.
 
 `sase project suggest [PROVIDER] [-a|--all] [-j|--json] [-o|--owner OWNER]... [-r|--refresh]`
 ranks the repositories worth adding as projects, grouped as `RESUME`, `ON THIS MACHINE`,
@@ -630,13 +633,13 @@ Flag and option details live in the generated
   [sase file-history](reference/cli/file-history.md),
   [sase skill](reference/cli/skill.md), [sase snippet](reference/cli/snippet.md)
 
-Workflows: [Macros](macros.md), [Workflows](workflow_spec.md),
+Workflows: [Macros](reference/macros/index.md), [Workflows](reference/workflows.md),
 [Editor integration](editor.md).
 
 Use `#name(...)` for inline macro expansion and `#!workflow(...)` for standalone
 workflow references. Workspace references such as `+<project>`
-([project tag](macros.md#project-tags)), `#git:<project>`, and plugin-provided
-references are resolved before the prompt or workflow runs.
+([project tag](reference/macros/reference-syntax.md#project-tags)), `#git:<project>`,
+and plugin-provided references are resolved before the prompt or workflow runs.
 
 ## Review And Delivery
 

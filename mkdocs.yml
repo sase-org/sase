@@ -31,6 +31,7 @@ not_in_nav: |
   content_layout.md
   instruction_bundles.md
   llms.md
+  macros.md
   monitors.md
   notifications.md
   rust_backend.md
@@ -203,10 +204,26 @@ nav:
               - Environment variables: reference/environment-variables.md
           - ProjectSpec: project_spec.md
       - Macros and workflows:
-          - Macros: macros.md
-          - Directive catalog: reference/macros/directives.md
-          - Discovery order: reference/macros/discovery-order.md
-          - Workflows: workflow_spec.md
+          - Macros: reference/macros/index.md
+          - Syntax and references:
+              - Macro files and references: reference/macros/reference-syntax.md
+              - Arguments and typed inputs: reference/macros/arguments.md
+              - Template rendering: reference/macros/templating.md
+              - Tags: reference/macros/tags.md
+          - Definitions:
+              - Discovery: reference/macros/discovery.md
+              - Generated discovery order: reference/macros/discovery-order.md
+              - Fields: reference/macros/fields.md
+              - Built-in and configured macros: reference/macros/built-ins.md
+          - Directives:
+              - Directive catalog: reference/macros/directives.md
+              - Syntax and completion: reference/macros/directive-syntax.md
+              - Launch directives: reference/macros/directive-launch.md
+              - Composition and fan-out: reference/macros/directive-composition.md
+          - Macro CLI and editor: reference/macros/cli-and-editor.md
+          - Multi-agent prompts: reference/macros/multi-agent-prompts.md
+          - Troubleshooting: reference/macros/troubleshooting.md
+          - Workflows: reference/workflows.md
       - Work units:
           - Spec-driven development: sdd.md
           - Patches: change_spec.md

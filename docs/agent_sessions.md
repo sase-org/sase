@@ -49,7 +49,8 @@ normal template allocation. In macro swarms, prefer keyed markers like `{@1}` so
 clan member, wait, fork/resume target, and prose reference is substituted in the parent
 dispatch before any member starts. Bare templates such as `research.@` still work, but
 their references use latest-wins lookup and are unsafe for late-starting swarm members.
-See [Macro template directives](macros.md#directives) for `{@<id>}` and `{@<id>!}`.
+See [Macro template directives](reference/macros/directive-syntax.md#directives) for
+`{@<id>}` and `{@<id>!}`.
 
 ### Launch-time clan summaries
 
@@ -546,7 +547,7 @@ Two bundled macros help assemble common follow-up prompt bodies. They build text
 ```
 
 The full directive grammar is documented under
-[Macro directives](macros.md#supported-directives).
+[Macro directives](reference/macros/directive-syntax.md#supported-directives).
 
 ### Attaching within a multi-agent prompt
 

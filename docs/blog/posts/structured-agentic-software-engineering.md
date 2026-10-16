@@ -10,7 +10,7 @@ slug: structured-agentic-software-engineering
 image: images/blog/agents_observability_still.png
 links:
   - sase's TUI: ace.md
-  - Macros: macros.md
+  - Macros: reference/macros/index.md
   - Initialization: init.md
   - Configuration: configuration.md
   - View on GitHub: https://github.com/sase-org/sase

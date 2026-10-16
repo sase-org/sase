@@ -19,7 +19,9 @@ def test_provider_reference_separates_muse_and_grok_selection() -> None:
 
 
 def test_macro_model_comments_avoid_overloaded_explicit_only_wording() -> None:
-    text = (ROOT / "docs/macros.md").read_text(encoding="utf-8")
+    text = (ROOT / "docs/reference/macros/directive-syntax.md").read_text(
+        encoding="utf-8"
+    )
 
     assert "%model:muse/muse-spark-1.3" in text
     assert "Meta Muse Code — never auto-detected from PATH" in text

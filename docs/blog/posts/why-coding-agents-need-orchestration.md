@@ -10,7 +10,7 @@ categories:
 slug: why-coding-agents-need-orchestration
 links:
   - Get started: start/index.md
-  - Macros: macros.md
+  - Macros: reference/macros/index.md
   - Spec-Driven Development: sdd.md
   - sase's TUI: ace.md
   - View on GitHub: https://github.com/sase-org/sase
@@ -189,9 +189,9 @@ Here is the SASE loop:
 5. sase's TUI shows the live state. AXE watches the background state. Plugins translate
    VCS and notification operations.
 
-The docs that matter most at first are [Macros](../../macros.md), [SDD](../../sdd.md),
-[Beads](../../beads.md), [sase's TUI](../../ace.md), [AXE](../../axe.md),
-[VCS providers](../../vcs.md), and [plugins](../../plugins.md).
+The docs that matter most at first are [Macros](../../reference/macros/index.md),
+[SDD](../../sdd.md), [Beads](../../beads.md), [sase's TUI](../../ace.md),
+[AXE](../../axe.md), [VCS providers](../../vcs.md), and [plugins](../../plugins.md).
 
 <!--
 FUNNY DIAGRAM BRIEF 1 - place here after "The Fundamental Loop".
@@ -206,10 +206,10 @@ Keep it funny, but make the hierarchy legible.
 
 ## Macros Are The Smallest Load-Bearing Idea
 
-An [Macro](../../macros.md) is a reusable prompt reference. You write `#foo`, SASE
-expands `foo`, and the agent sees the rendered text. It sounds small. It is not small.
-Macros are how SASE keeps prompts composable enough to reuse and structured enough to
-orchestrate.
+An [Macro](../../reference/macros/index.md) is a reusable prompt reference. You write
+`#foo`, SASE expands `foo`, and the agent sees the rendered text. It sounds small. It is
+not small. Macros are how SASE keeps prompts composable enough to reuse and structured
+enough to orchestrate.
 
 The hierarchy runs from tiny to large:
 
@@ -272,7 +272,8 @@ outputs.
 
 Directives are `%` tags that change launch behavior. They are extracted from the prompt
 before the agent sees it. The full reference is in
-[Macros: Directives](../../macros.md#directives); this is the practical tour.
+[Macros: Directives](../../reference/macros/directive-syntax.md#directives); this is the
+practical tour.
 
 | Directive | Alias | What it does                                                                                                                     | Example                                                            |
 | --------- | ----- | -------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |

@@ -208,14 +208,15 @@ typed prefix, so one cached fetch serves the whole word, not just one keystroke.
 completes native file paths (for editor-drafted prompt files) _and_ stored macro names
 together. Inside quoted or spaced prompt text, `#` completes macro names, `%` completes
 prompt directive names, `@` completes canonical artifact references such as
-`file:explicit:...`, and `+` completes [project tags](macros.md#project-tags) such as
-`+sase`; the inserted value keeps the marker and only replaces the active embedded
-fragment. Project-tag candidates (`sase completion candidates project_tag`) are the
-enabled, launchable projects whose `PROJECT_NAME` fits the tag syntax, sorted
-case-insensitively; sibling records and the system-managed `home` project are left out,
-and, unlike the TUI and LSP `+` picker, Patches are not offered. They skip provider
-detection to stay on the fast path, so a tag for a project without a detected VCS
-provider is still offered and fails at launch with the usual error.
+`file:explicit:...`, and `+` completes
+[project tags](reference/macros/reference-syntax.md#project-tags) such as `+sase`; the
+inserted value keeps the marker and only replaces the active embedded fragment.
+Project-tag candidates (`sase completion candidates project_tag`) are the enabled,
+launchable projects whose `PROJECT_NAME` fits the tag syntax, sorted case-insensitively;
+sibling records and the system-managed `home` project are left out, and, unlike the TUI
+and LSP `+` picker, Patches are not offered. They skip provider detection to stay on the
+fast path, so a tag for a project without a detected VCS provider is still offered and
+fails at launch with the usual error.
 
 ### Environment Variables
 

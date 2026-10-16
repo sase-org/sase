@@ -1,6 +1,6 @@
 ---
 diagram: docs/images/macro-resolution-infographic.png
-embedded_in: docs/macros.md
+embedded_in: docs/reference/macros/index.md
 phase: final-review
 pdf: false
 ---
@@ -9,9 +9,9 @@ pdf: false
 
 ## Outcome
 
-The revised infographic is accurate enough to embed in `docs/macros.md`. It preserves
-the useful three-zone inputs → resolution → outcomes structure while removing legacy
-compatibility paths from the discovery inset.
+The revised infographic is accurate enough to embed in `docs/reference/macros/index.md`.
+It preserves the useful three-zone inputs → resolution → outcomes structure while
+removing legacy compatibility paths from the discovery inset.
 
 ## Accuracy Review
 
@@ -30,9 +30,9 @@ The final labels match the authoritative launch and expansion model:
    developer tools.
 
 The discovery panel now presents only the 11 canonical project, home, config, plugin,
-and package sources from the current `docs/macros.md` table. Their relative first-wins
-order is preserved. The six legacy directory and config fallback paths are intentionally
-absent.
+and package sources from the current `docs/reference/macros/index.md` table. Their
+relative first-wins order is preserved. The six legacy directory and config fallback
+paths are intentionally absent.
 
 ## Visual Review
 

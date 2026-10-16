@@ -50,6 +50,6 @@ and a workflow when several steps need to run together.
 
 ## Look it up
 
-- [Macros](../macros.md) — macro syntax, inputs, and expansion behavior.
-- [Workflow specification](../workflow_spec.md) — workflow steps and control flow.
+- [Macros](../reference/macros/index.md) — macro syntax, inputs, and expansion behavior.
+- [Workflow specification](../reference/workflows.md) — workflow steps and control flow.
 - [Glossary](../reference/glossary.md#macro) — macro, invocation, and workflow terms.

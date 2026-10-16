@@ -49,10 +49,10 @@ legacy single-sidecar shape continues to resolve byte-for-byte as before.
 
 Built-in bare-git projects also auto-create or refresh generated SDD guide files during
 first-use `#git:<project>` initialization (target existing projects with their
-`+<project>` [project tag](../../macros.md#project-tags)), existing bare-repo
-registration, `#git`/workspace materialization, and the first in-tree SDD write.
-Setup/materialization flows commit and push only those generated init paths with an
-`Initialize SDD` init commit when needed.
+`+<project>` [project tag](../macros/reference-syntax.md#project-tags)), existing
+bare-repo registration, `#git`/workspace materialization, and the first in-tree SDD
+write. Setup/materialization flows commit and push only those generated init paths with
+an `Initialize SDD` init commit when needed.
 
 For a repository whose own `sase/sase.yml` sets `is_sase_managed: true`, running
 `sase repo init` or its `sase init repo` alias writes managed entries for plans, beads,

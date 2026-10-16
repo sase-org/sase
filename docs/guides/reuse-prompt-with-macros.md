@@ -30,7 +30,7 @@ projects. Give it a short name that describes what it does and save it.
 Type `#<name>` where you want the saved instructions to appear, replacing `<name>` with
 the name you chose. Add the details for this run, then review the prompt before
 launching. Macro arguments and expansion rules are listed in the
-[Macro reference](../macros.md).
+[Macro reference](../reference/macros/index.md).
 
 ## If it goes wrong
 
@@ -40,5 +40,5 @@ and preview its definition.
 
 ## Related
 
-- [Macros](../macros.md) — macro names, inputs, and expansion behavior.
+- [Macros](../reference/macros/index.md) — macro names, inputs, and expansion behavior.
 - [Prompts, macros, and workflows](../concepts/prompts.md) — when to use a macro.

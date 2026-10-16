@@ -53,7 +53,7 @@ Launch**, **05 Memory**, **06 Snippets**, and **07 Macros**. With the bundled pr
 press `0` and then `1`-`7` to open those children. Remap the prefix with
 `ace.keymaps.config.select_subtab` without changing the visible default badges.
 
-**Holds** lists the active [agent holds](../../macros.md#hold-directive) with their selectors
+**Holds** lists the active [agent holds](../macros/directive-launch.md#hold-directive) with their selectors
 and expiry. `j` / `k` move, `d` releases the highlighted hold immediately, and `r`
 reloads the list. See [agent hold limits](../config/agents-and-runners.md#agent-hold-limits) for the TTL settings.
 

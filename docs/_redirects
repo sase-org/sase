@@ -28,4 +28,5 @@
 /telemetry/ /contribute/telemetry/ 301
 /troubleshooting/agent-revival/ /reference/agent-revive-log/ 301
 /troubleshooting/runner-slots/ /reference/runner-slots/ 301
+/workflow_spec/ /reference/workflows/ 301
 # END GENERATED: docs page moves redirects

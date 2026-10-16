@@ -6,7 +6,7 @@ pdf: false
 
 ## Target
 
-Embedded in `docs/workflow_spec.md` after the opening paragraph and before
+Embedded in `docs/reference/workflows.md` after the opening paragraph and before
 `## Table of Contents`.
 
 ## Intended Alt Text

@@ -38,7 +38,8 @@ names from `sase autonomy list`: `standard` (tale plans approve + archive, epic 
 approve + launch, questions take the first option), `tale` (epic plans wait for you),
 `epic` (tale plans wait for you), or `manual` (everything waits). Custom profile names
 are not supported. This setting controls generated workers; a fresh user launch without
-`%auto` remains manual. See the [profile matrix](../../macros.md#auto-directive).
+`%auto` remains manual. See the
+[profile matrix](../macros/directive-launch.md#auto-directive).
 
 ```yaml
 autonomy:
@@ -191,7 +192,8 @@ Bounded deference is not priority aging and not preemption. A running agent is n
 stopped to make room, and a deferred waiter's own priority does not improve while it
 <a id="agentscopeteardown"></a> waits. See
 [Agent waiting for a runner slot](../runner-slots.md) for diagnosis, and
-[`%queue(priority=N)`](../../macros.md#supported-directives) for the directive itself.
+[`%queue(priority=N)`](../macros/directive-syntax.md#supported-directives) for the
+directive itself.
 
 ## agent_scope_teardown
 
@@ -254,7 +256,7 @@ Source: `src/sase/default_config.yml`, `src/sase/config/_settings_system.py`
 ## agent hold limits
 
 Three top-level keys bound agent holds armed by the `sase agent hold create` / `run`
-commands and the [`%hold` directive](../../macros.md#hold-directive).
+commands and the [`%hold` directive](../macros/directive-launch.md#hold-directive).
 
 ```yaml
 agent_hold_default_ttl: 2h

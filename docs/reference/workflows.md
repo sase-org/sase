@@ -1,10 +1,15 @@
+---
+title: "Workflow Specification"
+description: "YAML workflow files, step types, inputs, and execution behavior."
+---
+
 # Workflow Specification
 
 This document describes the YAML workflow format for sase macro workflows. Workflows
 enable multi-step agent pipelines with control flow, parallel execution, and
 human-in-the-loop approval.
 
-![Workflow execution model showing inputs, environment, ordered steps, prompt injection, control flow wrappers, artifacts, parallel branches, join modes, and HITL gates](images/workflow-execution-infographic.png)
+![Workflow execution model showing inputs, environment, ordered steps, prompt injection, control flow wrappers, artifacts, parallel branches, join modes, and HITL gates](../images/workflow-execution-infographic.png)
 
 ## Table of Contents
 
@@ -51,7 +56,7 @@ steps: # Ordered list of steps (required)
 | Field         | Required | Description                                                                      |
 | ------------- | -------- | -------------------------------------------------------------------------------- |
 | `description` | No       | One-line human-facing summary for catalogs and other rich macro surfaces.        |
-| `tags`        | No       | Semantic role tags. See [Macro Tags](macros.md#tags) for available tags.         |
+| `tags`        | No       | Semantic role tags. See [Macro Tags](macros/tags.md#tags) for available tags.    |
 | `hidden`      | No       | Hide the workflow run row from sase's TUI default Agents-tab view.               |
 | `wraps_all`   | No       | Legacy wrapper flag; new workflows should prefer `tags: vcs`.                    |
 | `input`       | No       | Input parameter definitions. See [Input Parameters](#input-parameters).          |
@@ -102,29 +107,30 @@ input: { diff_path: path, split_desc: { type: line, default: "multiple PRs" } }
 
 `type` names the value the same way it does for markdown macros: scalar → inline `enum`
 → builtin → plugin. This table is the workflow view of that catalog; see
-[Typed Inputs](macros.md#typed-inputs) for the rule, value rules, and model contract.
+[Typed Inputs](macros/arguments.md#typed-inputs) for the rule, value rules, and model
+contract.
 
-| Type     | Description                                                                              |
-| -------- | ---------------------------------------------------------------------------------------- |
-| `word`   | Single word, no whitespace                                                               |
-| `line`   | Single line, no newlines (the default when `type` is omitted)                            |
-| `text`   | Multi-line text (any content)                                                            |
-| `path`   | File path (a single line; spaces are allowed)                                            |
-| `int`    | Integer value (alias `integer`)                                                          |
-| `bool`   | Boolean value (`true`/`false`, `yes`/`no`, `1`/`0`, `on`/`off`; alias `boolean`)         |
-| `float`  | Floating point value                                                                     |
-| `code`   | Structured source plus language (see [Supported Types](macros.md#supported-types))       |
-| `enum`   | One of the input's `choices`; `choices` work in both shortform and longform              |
-| `agent`  | Agent name (no whitespace); sase's TUI completes agent targets                           |
-| `effort` | One of the seven `%effort` levels (`none`/`minimal`/`low`/`medium`/`high`/`xhigh`/`max`) |
-| `model`  | A model token `%model` would accept without the default-provider fallback                |
+| Type     | Description                                                                                  |
+| -------- | -------------------------------------------------------------------------------------------- |
+| `word`   | Single word, no whitespace                                                                   |
+| `line`   | Single line, no newlines (the default when `type` is omitted)                                |
+| `text`   | Multi-line text (any content)                                                                |
+| `path`   | File path (a single line; spaces are allowed)                                                |
+| `int`    | Integer value (alias `integer`)                                                              |
+| `bool`   | Boolean value (`true`/`false`, `yes`/`no`, `1`/`0`, `on`/`off`; alias `boolean`)             |
+| `float`  | Floating point value                                                                         |
+| `code`   | Structured source plus language (see [Supported Types](macros/arguments.md#supported-types)) |
+| `enum`   | One of the input's `choices`; `choices` work in both shortform and longform                  |
+| `agent`  | Agent name (no whitespace); sase's TUI completes agent targets                               |
+| `effort` | One of the seven `%effort` levels (`none`/`minimal`/`low`/`medium`/`high`/`xhigh`/`max`)     |
+| `model`  | A model token `%model` would accept without the default-provider fallback                    |
 
 Plugin-shared enums use `<distribution>@<id>` (for example
 `sase-research-artifacts@audio_edition`). `sase macro types` lists the installed
 catalog. `string` is a deprecated alias of `line`.
 
 Inputs can also set `description` and, on the last positional input, `repeatable: true`;
-see [Typed Inputs](macros.md#typed-inputs) for the shared input rules.
+see [Typed Inputs](macros/arguments.md#typed-inputs) for the shared input rules.
 
 ### Default Values
 
@@ -337,7 +343,7 @@ order):
 Both `.yml` and `.yaml` extensions are checked. First match wins. New shared steps are
 written only to canonical project or home directories; the legacy sources remain
 readable during the
-[content-layout compatibility window](reference/upgrading/content-layout.md#compatibility-and-collisions).
+[content-layout compatibility window](upgrading/content-layout.md#compatibility-and-collisions).
 
 ### Override Behavior
 
@@ -1034,3 +1040,8 @@ steps:
     bash: echo "finalized=true"
     output: { finalized: bool }
 ```
+
+## Related
+
+- [Macros and directives](macros/index.md)
+- [Multi-agent prompts](macros/multi-agent-prompts.md)

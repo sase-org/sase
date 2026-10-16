@@ -585,9 +585,9 @@ A follow-up that cannot launch keeps its recovery evidence. Before SASE releases
 monitor's workspace, it saves a best-effort `git diff HEAD` plus untracked files as
 `diagnostics/worktree_recovery.diff` (recorded as `monitor_worktree_recovery_diff_path`)
 and links it from the saved prompt. An agent waiting on that monitor gets a
-[terminally blocked wait](../../macros.md#syntax) notification that names the
-`sase monitor resume <id>` command and the saved diff. If the follow-up was blocked only
-because the starter had not settled yet, a later `sase monitor resume` repairs the
+[terminally blocked wait](../macros/directive-syntax.md#syntax) notification that names
+the `sase monitor resume <id>` command and the saved diff. If the follow-up was blocked
+only because the starter had not settled yet, a later `sase monitor resume` repairs the
 missing parent link and launches normally.
 
 The launch is not coupled to a workspace-claim handoff that can fail: if the monitor's

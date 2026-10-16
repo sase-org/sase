@@ -6,7 +6,7 @@ pdf: false
 
 ## Target
 
-- Document: `docs/macros.md`
+- Document: `docs/reference/macros/index.md`
 - Insertion point: after the introductory use-case list and before the authoritative
   text pipeline.
 - Final asset path: `docs/images/macro-resolution-infographic.png`
@@ -78,17 +78,18 @@ The deterministic label groups are:
   argument/`$(cmd)` processing, typed-input validation, and Jinja2/legacy rendering →
   unmask → directive extraction → expanded prompt text.
 - Discovery: the 11 canonical project, home, config, plugin, and package sources from
-  `docs/macros.md`, retaining their relative first-wins order while omitting all legacy
-  compatibility paths.
+  `docs/reference/macros/index.md`, retaining their relative first-wins order while
+  omitting all legacy compatibility paths.
 - Outcomes: inline expansion, standalone workflow launch, depth-capped multi-agent
   fan-out, and a visually separate developer-tools card for `sase macro graph` /
   `sase macro explain`.
 
 ## Canonical Relabel (Deterministic Overlay)
 
-All visible labels use the canonical spelling from the current `docs/macros.md`
-(Discovery Order table, `sase macro graph` / `sase macro explain` spellings). `<pkg>`
-abbreviates `<sase_package>`. Canvas kept at 1672x941 sRGB.
+All visible labels use the canonical spelling from the current
+`docs/reference/macros/index.md` (Discovery Order table, `sase macro graph` /
+`sase macro explain` spellings). `<pkg>` abbreviates `<sase_package>`. Canvas kept at
+1672x941 sRGB.
 
 - Inputs: `inline macro · embeddable workflow`; `· macro swarm`.
 - Iterative title: `Iterative macro expansion · ≤100 passes`.
@@ -133,5 +134,5 @@ sha256sum docs/images/macro-resolution-infographic.png
   downward with a loop-back arrow, and developer tooling is visually separate from
   runtime outcomes.
 - Every technical label was compared with the launch/expansion pipelines and canonical
-  entries in the discovery table in `docs/macros.md`.
+  entries in the discovery table in `docs/reference/macros/index.md`.
 - Final SHA-256: `11d309a60628f3e9f356b2f7bc1dc46eb1ba3a9e871c783612c079a022ab55f2`.

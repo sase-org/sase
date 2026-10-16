@@ -29,11 +29,11 @@ Exact SASE facts; guides teach workflows.
 
 ## Macros and workflows
 
-- [Macros](../macros.md) — reusable prompts and directives
+- [Macros](macros/index.md) — reusable prompts and directives
 - [Directive catalog](macros/directives.md) — generated syntax and arguments
 - [Macro discovery order](macros/discovery-order.md) — file-backed definitions by
   priority
-- [Workflows](../workflow_spec.md) — multi-agent workflow files
+- [Workflows](workflows.md) — multi-agent workflow files
 
 ## Work units
 

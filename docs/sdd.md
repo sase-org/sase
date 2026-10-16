@@ -60,12 +60,13 @@ convention, setup guidance, and offline/push behavior.
 
 For built-in bare-git projects, SASE creates or refreshes the generated SDD guide files
 automatically. Target an existing project with its `+<project>`
-[project tag](macros.md#project-tags); first-use `#git:<project>` initialization (which
-creates a new project and keeps its `#git:` spelling) includes them in the initial
-commit; existing bare-repo registration, `#git` materialization, and `sase repo open`
-commit and push an `Initialize SDD` init commit when the generated files are missing or
-stale. First SDD writes, plan archiving, and `sase bead init` also refresh the generated
-files before writing project-local SDD content.
+[project tag](reference/macros/reference-syntax.md#project-tags); first-use
+`#git:<project>` initialization (which creates a new project and keeps its `#git:`
+spelling) includes them in the initial commit; existing bare-repo registration, `#git`
+materialization, and `sase repo open` commit and push an `Initialize SDD` init commit
+when the generated files are missing or stale. First SDD writes, plan archiving, and
+`sase bead init` also refresh the generated files before writing project-local SDD
+content.
 
 Research notes live under `research/{YYYYMM}/` inside the effective SDD root. A
 `#research` macro (defined in user or project config -- the packaged default was

@@ -2781,10 +2781,11 @@ Once an epic bead exists, the shared launch path:
    later phases combine their suffix, `clan=<epic-id>`, and `bead=<phase-id>`, and the
    land agent combines `land`, the clan, and `bead=<epic-id>`.
 6. Renders a single `---`-separated multi-prompt. Each per-phase agent is named
-   `<epic_id>.<N>` and references the [`work_phase_bead`](macros.md#available-tags)
-   macro; a final land agent named `<epic_id>.land` references the
-   [`land_epic`](macros.md#available-tags) macro. Every segment joins clan `<epic_id>`
-   and assigns that whole clan to tribe `@epic` with the single
+   `<epic_id>.<N>` and references the
+   [`work_phase_bead`](reference/macros/tags.md#available-tags) macro; a final land
+   agent named `<epic_id>.land` references the
+   [`land_epic`](reference/macros/tags.md#available-tags) macro. Every segment joins
+   clan `<epic_id>` and assigns that whole clan to tribe `@epic` with the single
    `%clan(<epic_id>, tribe=epic)` directive. Each phase dependency becomes both a
    `%w(<blocker-agent>, for_epic=false)` wait on the blocker phase-agent name and a
    `%w(bead=<blocker-phase-id>)` closure wait. The explicit `for_epic=false` keeps
@@ -2895,10 +2896,11 @@ or `--bug-id`), `sase bead work` preserves the current project's VCS context in 
 generated prompt. The first phase segment targets the project reference and adds a `#pr`
 reference for the Patch, while later phase and land segments target the Patch ref
 directly. For non-Patch epics launched from a known SASE workspace, each segment is
-still prefixed with the project's [project tag](macros.md#project-tags) (for example
-`+sase`, which expands to `#gh:gh_sase-org__sase`); a bead routed to another enabled
-project uses that project's tag. If the current directory is not associated with a SASE
-project, the prompts are left unprefixed and run in the caller's normal launch context.
+still prefixed with the project's
+[project tag](reference/macros/reference-syntax.md#project-tags) (for example `+sase`,
+which expands to `#gh:gh_sase-org__sase`); a bead routed to another enabled project uses
+that project's tag. If the current directory is not associated with a SASE project, the
+prompts are left unprefixed and run in the caller's normal launch context.
 
 If checkpoint creation fails before it commits, the command restores every phase/epic
 status and assignee it changed, and restores `is_ready_to_work` only when this attempt

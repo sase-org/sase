@@ -84,9 +84,9 @@ The complete first-wins order is:
 14. Package `default_macros/`, then package `macros/`
 
 Markdown macros, YAML workflows, and shared `steps/` follow the same filesystem order
-where the source supports that format. See [Macros](../../macros.md#discovery-order) and
-the [workflow specification](../../workflow_spec.md#search-paths) for format-specific
-details.
+where the source supports that format. See
+[Macros](../macros/discovery.md#discovery-order) and the
+[workflow specification](../workflows.md#search-paths) for format-specific details.
 
 ## Memory Order
 
@@ -101,7 +101,7 @@ exclusive: a non-identical legacy tree next to its canonical counterpart is a co
 that blocks reads instead of merging them. There is no project-specific home memory
 scope and no plugin or package memory source. A selected project's notes shadow
 same-stem home notes rather than aggregating with them. See
-[Memory Field](../../macros.md#memory-field) for the reference-naming contract and
+[Memory Field](../macros/fields.md#memory-field) for the reference-naming contract and
 [Memory](../memory/memory.md) for note types, memory webs, and the audited-read
 workflow.
 

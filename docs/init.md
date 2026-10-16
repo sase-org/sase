@@ -614,7 +614,7 @@ details.
 This audited path is distinct from `#memory/<stem>` macro inclusion: an explicitly
 authored `#memory/<stem>` reference in a prompt expands the same note body at launch
 time, for both `type: core` and `type: reference` notes, without writing an audit event.
-See [Memory Field](macros.md#memory-field).
+See [Memory Field](reference/macros/fields.md#memory-field).
 
 Every read must include a non-empty reason via `-r` or `--reason`. The command also
 requires agent attribution from `SASE_AGENT_NAME`, `SASE_AGENT`, or
@@ -767,11 +767,12 @@ SDD documentation in [docs/sdd.md](sdd.md) and storage-mode details in
 ## Skill Initialization
 
 Generated skills start as Markdown sources in a canonical `skills/` directory that set a
-truthy `skill` frontmatter field — see [Skill Field](macros.md#skill-field).
-`sase skill list` is the read-only inventory: it shows loaded skill sources, the
-providers they target, and whether generated `SKILL.md` files are current, stale, or
-missing. It also reports misplaced sources in a "Misplaced Sources" panel. Bare
-`sase skill` shows the same dashboard.
+truthy `skill` frontmatter field — see
+[Skill Field](reference/macros/fields.md#skill-field). `sase skill list` is the
+read-only inventory: it shows loaded skill sources, the providers they target, and
+whether generated `SKILL.md` files are current, stale, or missing. It also reports
+misplaced sources in a "Misplaced Sources" panel. Bare `sase skill` shows the same
+dashboard.
 
 `sase skill init` renders those sources into provider-specific `SKILL.md` files, and
 exits non-zero without writing anything while any placement violation remains. Sources
@@ -835,5 +836,5 @@ manifest guard. Both are deliberate escape hatches that can revert other agents'
 deployments; reach for them only when you know the destination is stale. `--force` still
 records the new manifest entry.
 
-See [Macro Skill Field](macros.md#skill-field) for the skill-source contract and bundled
-skill list.
+See [Macro Skill Field](reference/macros/fields.md#skill-field) for the skill-source
+contract and bundled skill list.

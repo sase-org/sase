@@ -12,7 +12,7 @@ categories:
 slug: prompt-widget-and-nvim
 links:
   - sase's TUI: ace.md
-  - Macros: macros.md
+  - Macros: reference/macros/index.md
   - Plugins: plugins.md
   - "[07] Driving SASE From Your Phone — Telegram as the Mobile Control Surface": blog/posts/telegram-mobile-agents.md
   - View on GitHub: https://github.com/sase-org/sase-nvim
@@ -191,6 +191,6 @@ catalog make them the same input system from two different front doors.
   table, completion semantics, and the snippet expansion grammar.
 - [sase-nvim on GitHub](https://github.com/sase-org/sase-nvim) — installation, the full
   `<C-t>` dispatcher table, LSP configuration, and the YAML schema registration.
-- [Macros reference](../../macros.md) — the language the widget and the plugin both
-  speak.
+- [Macros reference](../../reference/macros/index.md) — the language the widget and the
+  plugin both speak.
 - [sase's TUI guide](../../ace.md) — the rest of the TUI the prompt widget sits inside.

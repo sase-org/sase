@@ -128,8 +128,9 @@ Permanent configuration is `pager.syntax: auto | never` (default `auto`). CLI `-
 overrides it. Files that exceed the syntax caps stay fully visible and searchable, just
 without highlighting. Unknown types can still be forced with an explicit lexer.
 
-Markdown sections also color resolved [`+<project>` tags](macros.md#project-tags) in
-top-level prose: a dim `+` and a bold name in the project's accent color, or neutral for
+Markdown sections also color resolved
+[`+<project>` tags](reference/macros/reference-syntax.md#project-tags) in top-level
+prose: a dim `+` and a bold name in the project's accent color, or neutral for
 accent-less projects. Unknown tags stay plain text, and fenced code and frontmatter stay
 tag-free. The overlay reads the already-loaded project catalog and never builds it, so
 in practice it appears only when the pager runs inside sase's TUI; a standalone

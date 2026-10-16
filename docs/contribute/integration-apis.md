@@ -147,7 +147,7 @@ ordinary bead waits those epics added. `entry.wait.has_wait` stays false when on
 sample above checks `has_wait` and will not show an epic-only follow. Use these fields
 alongside `wait_for_beads` to explain why a completed agent's dependent still waits. The
 shared phrasing helpers live in `sase.core.wait_epic_follow_view`; see
-[Agent Names, Waits, and Queue Admission](../macros.md#agent-names-waits-and-queue-admission)
+[Agent Names, Waits, and Queue Admission](../reference/macros/directive-launch.md#agent-names-waits-and-queue-admission)
 for scheduling semantics.
 
 Source: `src/sase/integrations/agent_list_entries.py`,

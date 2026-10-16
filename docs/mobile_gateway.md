@@ -598,8 +598,9 @@ Select a known SASE project context by passing the project name, not a path. The
 resolves only `<sase_home>/projects/<project>/<project>.sase` (falling back to legacy
 `.gp`) and uses that file's `WORKSPACE_DIR` as the cwd for project-local prompt and
 macro resolution. This context does not select a launch workspace by itself, so include
-the normal workspace ref (a `+<project>` [project tag](macros.md#project-tags) for a
-known project) in the prompt when you want the agent to run in that project:
+the normal workspace ref (a `+<project>`
+[project tag](reference/macros/reference-syntax.md#project-tags) for a known project) in
+the prompt when you want the agent to run in that project:
 
 ```bash
 curl -sS -X POST "$BASE_URL/api/v1/agents/launch" \

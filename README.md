@@ -97,10 +97,11 @@ sase tui                                                  # open the interactive
 
 For a first run, use the auto-detected-provider command, or one of the explicit
 Muse/Grok examples for deterministic provider selection. The `+home`
-[project tag](docs/macros.md#project-tags) targets the built-in `home` project, which is
-bootstrapped automatically, so the first run needs no project setup. It expands to the
-canonical `#git:home` workspace reference. After the run completes, `sase tui` opens the
-TUI with the completed run visible on the Agents tab.
+[project tag](docs/reference/macros/reference-syntax.md#project-tags) targets the
+built-in `home` project, which is bootstrapped automatically, so the first run needs no
+project setup. It expands to the canonical `#git:home` workspace reference. After the
+run completes, `sase tui` opens the TUI with the completed run visible on the Agents
+tab.
 
 If `sase doctor` reports a missing provider, install and authenticate it, then run the
 check again; see

@@ -127,14 +127,14 @@ project expose a primary user-facing name without renaming its project directory
 such as `#gh:bob`, `#gh_bob`, and `#gh(bob)` behave like refs to the `gh_bbugyi200__bob`
 directory-key project.
 
-The same names drive [project tags](macros.md#project-tags): `+bob` (or `+Bob`, an alias
-such as `+bobby`, or the directory key `+gh_bbugyi200__bob`) expands at launch to
-`#gh:gh_bbugyi200__bob`, the provider and directory key SASE already knows for that
-project. The tag SASE offers in completion and shows in its TUI is `+<PROJECT_NAME>` (or
-`+<directory key>` when `PROJECT_NAME` is unset), so a project only gets one when that
-name starts with a letter, uses only letters, digits, `_`, `.`, or `-`, and does not end
-in `.` or `-`. Every `sase project` subcommand that takes a project argument also
-accepts the tag spelling, so `sase project show +bob` works like
+The same names drive [project tags](reference/macros/reference-syntax.md#project-tags):
+`+bob` (or `+Bob`, an alias such as `+bobby`, or the directory key `+gh_bbugyi200__bob`)
+expands at launch to `#gh:gh_bbugyi200__bob`, the provider and directory key SASE
+already knows for that project. The tag SASE offers in completion and shows in its TUI
+is `+<PROJECT_NAME>` (or `+<directory key>` when `PROJECT_NAME` is unset), so a project
+only gets one when that name starts with a letter, uses only letters, digits, `_`, `.`,
+or `-`, and does not end in `.` or `-`. Every `sase project` subcommand that takes a
+project argument also accepts the tag spelling, so `sase project show +bob` works like
 `sase project show bob`.
 
 Workspace providers can create display names automatically. The GitHub provider uses

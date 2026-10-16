@@ -289,8 +289,9 @@ Macros use the shared first-wins content-layout order:
 Earlier sources win on name conflicts. Project and home canonical directories are the
 only writable filesystem destinations; legacy directories remain read-compatible but are
 not offered for new saves. File-based macros use YAML front matter for metadata and the
-file body for content. The [Macro discovery table](../../macros.md#discovery-order)
-lists every source separately.
+file body for content. The
+[Macro discovery table](../macros/discovery.md#discovery-order) lists every source
+separately.
 
 Source: `src/sase/macro/loader.py` <a id="macroaliases"></a>
 
@@ -357,4 +358,4 @@ Source: `src/sase/config/sase.schema.json`, `src/sase/config/tools.py`,
 ## Related
 
 - [Prompts and tools configuration](prompts.md) — generated keys and defaults.
-- [Macros](../../macros.md) — macro behavior and syntax.
+- [Macros](../macros/index.md) — macro behavior and syntax.

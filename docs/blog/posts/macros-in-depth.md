@@ -10,8 +10,8 @@ categories:
   - Macros
 slug: macros-in-depth
 links:
-  - Macros: macros.md
-  - Workflow Specification: workflow_spec.md
+  - Macros: reference/macros/index.md
+  - Workflow Specification: reference/workflows.md
   - Get started: start/index.md
   - View on GitHub: https://github.com/sase-org/sase
 ---
@@ -23,10 +23,10 @@ what's underneath that tag and when to stop there instead of reaching for a work
 
 <!-- more -->
 
-The [Macro reference](../../macros.md) shows how a one-file prompt becomes a reusable
-`#tag`. This post zooms in. We will walk from that one-file Macro up through typed
-inputs, directives, and multi-agent fan-out, and only at the end show why YAML workflows
-exist — because most of the time you do not need one.
+The [Macro reference](../../reference/macros/index.md) shows how a one-file prompt
+becomes a reusable `#tag`. This post zooms in. We will walk from that one-file Macro up
+through typed inputs, directives, and multi-agent fan-out, and only at the end show why
+YAML workflows exist — because most of the time you do not need one.
 
 ## The Smallest Macro Is a Markdown File
 
@@ -39,7 +39,8 @@ required.
 Discovery order is deterministic and project-aware: canonical project files, legacy
 project fallbacks, canonical home files, legacy home fallbacks, project-specific home
 files, config entries, `sase_macros` plugin packages, then SASE's built-in defaults.
-First match wins. The [full table is in the docs](../../macros.md#discovery-order); the
+First match wins. The
+[full table is in the docs](../../reference/macros/discovery.md#discovery-order); the
 practical implication is that a project-local override always beats a user override
 which always beats a plugin which always beats a built-in. That ordering is what lets
 `crs`, `fix_hook`, and the commit workflows ship as overridable defaults.
@@ -92,8 +93,8 @@ Directives compose. `%wait(planner, time=5m)` waits for the `planner` agent to l
 then adds a five-minute floor before launching. `%id:!reviewer` forces reuse of an
 existing name by wiping the previous owner from the TUI — useful when retrying a flow
 that already claimed the name. The
-[full directive reference](../../macros.md#supported-directives) lists every directive,
-alias, and form.
+[full directive reference](../../reference/macros/directive-syntax.md#supported-directives)
+lists every directive, alias, and form.
 
 The point is that you can control execution — model, dependencies, autonomy, plan mode —
 from the same Markdown file that contains the prompt. There is no second YAML file, no
@@ -152,8 +153,8 @@ later steps. Agent steps can declare an `output:` schema and SASE will validate 
 response. A final `done.json` artifact records the completion outcome the rest of the
 system (notifications, `%wait` resolution, Patch stitching) consumes.
 
-The [workflow spec reference](../../workflow_spec.md) covers every field, control flow
-form, and template feature.
+The [workflow spec reference](../../reference/workflows.md) covers every field, control
+flow form, and template feature.
 
 ## Don't Reach for Workflows First
 
@@ -190,9 +191,9 @@ copy, that is the command that tells you why.
 
 ## What To Read Next
 
-- [Macros reference](../../macros.md) — the full surface: discovery, frontmatter,
-  directives, Jinja, fan-out, plugin packaging.
-- [Workflow specification](../../workflow_spec.md) — every step type, control flow form,
-  join mode, and template feature.
+- [Macros reference](../../reference/macros/index.md) — the full surface: discovery,
+  frontmatter, directives, Jinja, fan-out, plugin packaging.
+- [Workflow specification](../../reference/workflows.md) — every step type, control flow
+  form, join mode, and template feature.
 - [\[03\] AXE — The Background Daemon That Keeps Agent Work Moving](axe-background-daemon.md)
   — what runs your `%wait` dependencies and `done.json` completions in the background.

@@ -56,7 +56,6 @@
 - [Editor Integration](editor.md) — Editor Integration — SASE exposes two editor-facing surfaces for prompt and macro editing:
 - [Goals](goals.md) — Goals — Goals are durable records of outcomes a person wants: what will be true, how you'll know, and what happened along the way.
 - [Initialization](init.md) — Initialization — SASE initialization commands create or refresh durable files that agents and sidecar tools rely on.
-- [Macro Template Reference](macros.md) — Macro Template Reference — Macros are reusable prompt templates with optional typed inputs and Jinja2 support.
 - [Mobile Gateway](mobile_gateway.md) — Mobile Gateway — The SASE mobile gateway is a workstation-hosted HTTP gateway for paired mobile clients.
 - [SASE Pager](pager.md) — SASE Pager — sase pager opens artifact references, file paths, or stdin in the SASE link-traversing pager.
 - [Plugin System](plugins.md) — Plugin System — Sase uses Python entry points to discover optional functionality installed in the same Python environment as sase.
@@ -187,8 +186,22 @@
 - [Environment variables](reference/environment-variables.md) — Environment variables that configure providers, SDD, plugins, runtime, and workspaces.
 - [Glossary](reference/glossary.md) — Every SASE term, generated from the glossary memory web.
 - [Reference](reference/index.md) — Look up exact SASE facts here, generated from code where possible.
+- [Macro arguments and typed inputs](reference/macros/arguments.md) — Argument syntax, input types, defaults, and rendered output shapes.
+- [Built-in and configured macros](reference/macros/built-ins.md) — Built-in macros, configuration-defined macros, and local macro files.
+- [Macro CLI and editor support](reference/macros/cli-and-editor.md) — Macro command behavior and editor language-server features.
+- [Directive composition and fan-out](reference/macros/directive-composition.md) — Directives for review, follow-up, repetition, and prompt fan-out.
+- [Launch directives](reference/macros/directive-launch.md) — Directives for agent identity, launch settings, and queue admission.
+- [Directive syntax and completion](reference/macros/directive-syntax.md) — Directive forms, completion behavior, and model and dispatch settings.
 - [Macro directives](reference/macros/directives.md) — The generated catalog of prompt directives and their syntax.
 - [Macro discovery order](reference/macros/discovery-order.md) — File-backed macro and workflow locations in lookup order.
+- [Macro discovery](reference/macros/discovery.md) — How SASE finds macros, workflows, skills, and memory references.
+- [Macro fields](reference/macros/fields.md) — The snippet, skill, and memory fields available in macro front matter.
+- [Macro Template Reference](reference/macros/index.md) — Reference pages for macro syntax, directives, fields, and workflows.
+- [Multi-agent prompts and workflows](reference/macros/multi-agent-prompts.md) — Prompt segments, output variables, macro swarms, and workflows.
+- [Macro files and reference syntax](reference/macros/reference-syntax.md) — Macro file format, reference forms, workspace references, and project tags.
+- [Macro tags](reference/macros/tags.md) — Available macro tags, their definitions, and tag-based lookup.
+- [Macro template rendering](reference/macros/templating.md) — Template context, placeholders, protected content, aliases, and expansion.
+- [Macro troubleshooting](reference/macros/troubleshooting.md) — Common macro expansion problems and ways to diagnose them.
 - [Memory History](reference/memory/history.md) — How SASE records and displays changes to memory notes and instruction documents.
 - [Memory](reference/memory/index.md) — Lookup pages for durable memory, instruction bundles, and memory history.
 - [Instruction bundles](reference/memory/instruction-bundles.md) — How SASE instruction bundles are previewed and how providers report delivery behavior.
@@ -224,11 +237,12 @@
 - [Content layout migration](reference/upgrading/content-layout.md) — Migration steps and compatibility behavior for SASE content paths.
 - [Upgrading](reference/upgrading/index.md) — Upgrade and history notes, organized by area with the newest notes first.
 - [Local state cutover](reference/upgrading/local-state.md) — The temporary offline kit for moving legacy local state into canonical locations.
+- [Macro migration notes](reference/upgrading/macros.md) — Historical notes about renamed macros and legacy placeholders.
 - [Provider migration notes](reference/upgrading/providers.md) — Historical compatibility notes for provider metadata and model selection.
+- [Workflow Specification](reference/workflows.md) — YAML workflow files, step types, inputs, and execution behavior.
 - [Remote Dispatch Runbook](remote_dispatch.md) — Remote Dispatch Runbook — Remote dispatch lets one SASE controller discover, enroll, and operate agents on another machine.
 - [Spec-Driven Development (SDD)](sdd.md) — Spec-Driven Development (SDD) — SDD is sase's system for persisting the intent behind agent work.
 - [VCS Provider Reference](vcs.md) — VCS Provider Reference — The VCS provider layer is an abstraction that lets sase commands work with both Git and Mercurial repositories.
-- [Workflow Specification](workflow_spec.md) — Workflow Specification — This document describes the YAML workflow format for sase macro workflows.
 - [Workspace Provider Reference](workspace.md) — Workspace Provider Reference — The workspace provider layer is an abstraction that handles workspace-level operations that vary across VCS hosting environments.
 
 ## Contribute
@@ -276,6 +290,7 @@
 - [Canonical SASE Content Layout](content_layout.md) — This page has moved to its new home.
 - [Instruction Bundles](instruction_bundles.md) — This page has moved to its new home.
 - [LLM Provider Integration](llms.md) — This page has moved to its new home.
+- [Macro Template Reference](macros.md) — This page has moved to its new home.
 - [Monitors](monitors.md) — This page has moved to its new home.
 - [Notifications](notifications.md) — This page has moved to its new home.
 - [Rust Backend (sase_core_rs)](rust_backend.md) — This page has moved to its new home.
@@ -316,3 +331,5 @@
 | `/tool/` | [`/reference/automation/tools/`](reference/automation/tools.md) |
 | `/mentors/` | [`/reference/automation/mentors/`](reference/automation/mentors.md) |
 | `/sudo/` | [`/reference/automation/sudo/`](reference/automation/sudo.md) |
+| `/macros/` | [`/reference/macros/`](reference/macros/index.md) |
+| `/workflow_spec/` | [`/reference/workflows/`](reference/workflows.md) |

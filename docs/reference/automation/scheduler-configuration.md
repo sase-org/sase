@@ -111,7 +111,7 @@ summary/body grammar in
 `proposed_launches`; it does not gate mentor, hook, or CRS workflow launchers. The
 runner prepends it to each proposed prompt as `%queue(capacity=N)` unless the prompt
 already authors its own `%queue` capacity, so it follows the
-[per-launch capacity budget](../../macros.md#agent-names-waits-and-queue-admission)
+[per-launch capacity budget](../macros/directive-launch.md#agent-names-waits-and-queue-admission)
 rules: the agent starts when the occupied weighted load plus its own weight fits within
 `N`, and `1` makes a default-weight lane agent run alone. `N` must be at least `1`;
 `wait_runners: 0` produces a `%queue(capacity=0)` that is rejected at launch. When a job

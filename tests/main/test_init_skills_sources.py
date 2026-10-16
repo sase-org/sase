@@ -374,7 +374,7 @@ def test_renamed_handoff_skill_source_replaces_pipe() -> None:
 
 
 def test_docs_macro_bundled_skills_table_matches_packaged_sources() -> None:
-    docs_path = Path(__file__).resolve().parents[2] / "docs/macros.md"
+    docs_path = Path(__file__).resolve().parents[2] / "docs/reference/macros/fields.md"
     table_names: list[str] = []
     in_table = False
     for line in docs_path.read_text(encoding="utf-8").splitlines():

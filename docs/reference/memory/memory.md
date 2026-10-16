@@ -81,7 +81,7 @@ This is explicit, launch-time prompt composition, not an audited lookup: expandi
 `sase memory read` (below) when an already-running agent needs to consult reference
 memory on its own and have that access recorded. It is not a restoration of the retired
 dynamic-memory runtime — there is no keyword matching, prompt scanning, or automatic
-context injection. See [Memory Field](../../macros.md#memory-field) for the full
+context injection. See [Memory Field](../macros/fields.md#memory-field) for the full
 expansion contract and [Memory Order](../upgrading/content-layout.md#memory-order) for
 source precedence.
 

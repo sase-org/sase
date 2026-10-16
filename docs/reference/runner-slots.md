@@ -160,8 +160,8 @@ own weight so already-parked upgrades keep the same run-alone behavior.
 
 ## Held agents
 
-An active [agent hold](../macros.md#hold-directive) keeps every agent it matches
-`QUEUED` at this gate even when capacity is free. A held row ends with
+An active [agent hold](macros/directive-launch.md#hold-directive) keeps every agent it
+matches `QUEUED` at this gate even when capacity is free. A held row ends with
 `held by <armer>`, and the agent's `waiting.json` and `sase agent list -j` entry carry
 `held_by` (the armer key) and `hold_expires_at`. The runner rewrites these fields on
 every poll, so they clear as soon as no hold matches.

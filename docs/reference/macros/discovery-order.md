@@ -23,4 +23,4 @@ This table is the file-backed source order returned by SASE's Rust content-layou
 | 10 | `~/sase/xprompts/<project>/` | Legacy compatibility | `.md`, `.yml`, `.yaml` | Read-only |
 | 11 | `~/.config/sase/xprompts/<project>/` | Legacy compatibility | `.md`, `.yml`, `.yaml` | Read-only |
 
-Configuration-defined macros, plugin definitions, and bundled package definitions use separate loaders. Memory macros and skills use reserved namespaces, so they do not take part in ordinary macro-name collisions. See the [macro reference](../../macros.md) for those definition forms.
+Configuration-defined macros, plugin definitions, and bundled package definitions use separate loaders. Memory macros and skills use reserved namespaces, so they do not take part in ordinary macro-name collisions. See the [macro reference](index.md) for those definition forms.

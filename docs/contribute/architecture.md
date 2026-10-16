@@ -21,9 +21,9 @@ reviewed, retried, and handed off through stable project artifacts.
 | CLI          | Top-level `sase` commands, argument parsing, dispatch, and JSON helper bridges.                                                                   | [CLI reference](../cli.md)                                                                        |
 | sase's TUI   | Interactive TUI for Patches, agents, notifications, artifacts, and service status.                                                                | [sase's TUI](../ace.md)                                                                           |
 | Service host | Per-machine supervisor for configured daemon procs and transient oneshots; it owns the scheduler and mobile gateway procs.                        | [CLI reference](../cli.md#sase-service)                                                           |
-| Axe          | Background orchestrator for scheduled hooks, mentors, workflow checks, comments, cleanup, and digests.                                            | [Axe](../axe.md)                                                                                  |
-| Macro        | Prompt templates, reference expansion, directives, typed inputs, and reusable workflows.                                                          | [Macros](../macros.md)                                                                            |
-| Workflows    | YAML multi-step execution with agent, bash, python, parallel, loop, and human checkpoint steps.                                                   | [Workflow spec](../workflow_spec.md)                                                              |
+| Axe          | Background orchestrator for scheduled hooks, mentors, workflow checks, comments, cleanup, and digests.                                            | [Axe](../reference/automation/scheduler.md)                                                       |
+| Macro        | Prompt templates, reference expansion, directives, typed inputs, and reusable workflows.                                                          | [Macros](../reference/macros/index.md)                                                            |
+| Workflows    | YAML multi-step execution with agent, bash, python, parallel, loop, and human checkpoint steps.                                                   | [Workflow spec](../reference/workflows.md)                                                        |
 | Gates        | Durable, command-backed user decisions and processless session-turn handoffs.                                                                     | [Notifications](../reference/automation/notification-gates.md#command-backed-interaction-gates-1) |
 | Patches      | PR-sized review records with lifecycle state, stitches, hooks, comments, mentors, and timestamps.                                                 | [Patches](../change_spec.md)                                                                      |
 | Memory       | Always-loaded and on-demand context, explicit flat-note macro inclusion, audited reads, and sase's TUI-backed note/strand changes.                | [Memory](../reference/memory/memory.md)                                                           |
@@ -45,10 +45,10 @@ epic execution, or mobile/editor helper bridges. The launch path follows the sam
 across those entry points:
 
 1. Parse prompt text, directives, and optional multi-prompt separators, then expand
-   `+<project>` [project tags](../macros.md#project-tags) and canonicalize ProjectSpec
-   aliases in launch-bound VCS refs. For example, `+bob` expands to `#gh:bob-cli` (and
-   `#gh:bob` canonicalizes to the same stable directory-key ref) before history or
-   artifact snapshots are written.
+   `+<project>` [project tags](../reference/macros/reference-syntax.md#project-tags) and
+   canonicalize ProjectSpec aliases in launch-bound VCS refs. For example, `+bob`
+   expands to `#gh:bob-cli` (and `#gh:bob` canonicalizes to the same stable
+   directory-key ref) before history or artifact snapshots are written.
 2. Expand the swarm, repeat, or alternative directives needed to determine the launch
    slots and validate their names.
 3. Resolve each slot's workspace reference, such as `+<project>` or a plugin-provided
@@ -121,10 +121,10 @@ tribe, or hood; it can freeze the WAITING/QUEUED agents already in scope and fen
 launches submitted later. Runner admission and undispatched `%proc` dispatch both
 consult active holds. A hold ends when it is released, when its armer settles or exits,
 or when its TTL expires, and a broken hold store fails open rather than stranding a
-waiter. The [`%hold` directive](../macros.md#hold-directive) describes the same
-selectors in prompt text. Typed launches pre-arm the declared hold before admission can
-dispatch the unit, then rebind it to the running agent or proc; terminal units that
-never dispatch release their pre-armed holds.
+waiter. The [`%hold` directive](../reference/macros/directive-launch.md#hold-directive)
+describes the same selectors in prompt text. Typed launches pre-arm the declared hold
+before admission can dispatch the unit, then rebind it to the running agent or proc;
+terminal units that never dispatch release their pre-armed holds.
 
 The service host is the machine-level supervisor for configured daemon procs. Its
 `service.procs` catalog comes from builtin, plugin, user, and machine-overlay config;
@@ -300,6 +300,6 @@ complete operation list and facade map.
 | Contributor setup and source orientation | [Development](development.md)                                                                                                         |
 | Runtime operations                       | [sase's TUI](../ace.md), [Axe](../axe.md), [notifications](../notifications.md)                                                       |
 | Durable work records                     | [Patches](../change_spec.md), [memory](../reference/memory/memory.md), [SDD](../sdd.md), [beads](../beads.md)                         |
-| Prompt and workflow execution            | [Macros](../macros.md), [workflow spec](../workflow_spec.md)                                                                          |
+| Prompt and workflow execution            | [Macros](../reference/macros/index.md), [workflow spec](../reference/workflows.md)                                                    |
 | Extension boundaries                     | [Plugins](../plugins.md), [LLM providers](../reference/providers/index.md), [VCS providers](../vcs.md), [workspaces](../workspace.md) |
 | Backend boundary                         | [Rust backend](rust-backend.md)                                                                                                       |

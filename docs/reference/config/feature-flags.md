@@ -59,14 +59,14 @@ error. Write the session and turn spellings in new prompts and config, and use `
 for proc commands.
 
 The retired macro spellings in
-[the macro rename section](../../macros.md#retired-macro-spellings) are always accepted.
-Supplying a retired spelling in a new command, config key, frontmatter key, environment
-variable, or `sase path` target resolves to its replacement. The retired entry-point
-group is still loaded, a plugin's packaged copy of the retired definition directory is
-still read, and those retired directories stay visible to expansion, workflow loading,
-completion, catalogs, and save choices. Config keys, frontmatter keys, and the
-plugin-disable environment variable are an error when both the retired name and the
-macro name are present. The LSP command environment variable is the exception: a
+[the macro rename section](../upgrading/macros.md#retired-macro-spellings) are always
+accepted. Supplying a retired spelling in a new command, config key, frontmatter key,
+environment variable, or `sase path` target resolves to its replacement. The retired
+entry-point group is still loaded, a plugin's packaged copy of the retired definition
+directory is still read, and those retired directories stay visible to expansion,
+workflow loading, completion, catalogs, and save choices. Config keys, frontmatter keys,
+and the plugin-disable environment variable are an error when both the retired name and
+the macro name are present. The LSP command environment variable is the exception: a
 non-empty macro value wins and the retired value is ignored. See that section for which
 names those are. The region alias there stays accepted. State files and agent artifact
 filenames already written under the old names stay readable, and new writes use only the
@@ -91,7 +91,7 @@ the typed plan for LaunchApproval; after approval, the same admission coordinato
 resolves waits, evaluates `%if::` predicates, and dispatches eligible units — agent
 units through the established agent launch path, and `%proc` units through native
 stand-alone named-proc dispatch; see
-[Typed launch units](../../macros.md#typed-launch-units).
+[Typed launch units](../macros/directive-syntax.md#typed-launch-units).
 
 ### Saved machine preferences
 

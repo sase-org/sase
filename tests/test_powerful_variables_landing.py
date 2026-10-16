@@ -71,8 +71,11 @@ def test_published_docs_do_not_restore_var_show() -> None:
     for relative in (
         "docs/configuration.md",
         "docs/cli.md",
-        "docs/macros.md",
         "src/sase/macros/skills/sase_var.md",
     ):
         text = (ROOT / relative).read_text(encoding="utf-8")
         assert "sase var show" not in text, relative
+
+    for path in sorted((ROOT / "docs/reference/macros").glob("*.md")):
+        text = path.read_text(encoding="utf-8")
+        assert "sase var show" not in text, path.relative_to(ROOT)

@@ -101,7 +101,7 @@ asks for a longer selector. Adding newer prompts never changes an existing promp
 | `sase prompt doctor`        | Read-only health report for the store (parseability, duplicates, oversized, …).                        |
 | `sase prompt delete`        | Remove exactly one prompt by selector.                                                                 |
 | `sase prompt prune`         | Remove prompts by objective criteria (`--keep`, `--before`, `--cancelled`, `--generated`, `--legacy`). |
-| `sase prompt save`          | Save a prompt as a reusable [macro](macros.md) markdown file.                                          |
+| `sase prompt save`          | Save a prompt as a reusable [macro](reference/macros/index.md) markdown file.                          |
 | `sase prompt export`        | Export a prompt to stdout or a local file; `--sdd` is a retired compatibility flag.                    |
 | `sase prompt stash-archive` | List, show, and restore drafts archived from Stash or Trash.                                           |
 
@@ -314,14 +314,14 @@ sase prompt run ph_8f3a9c0d12ab -P "+bob-cli"        # a project tag works as th
 
 `--prefix` replaces `#` workspace refs that start a line (after optional `%directive`
 tokens). When it finds none, it prepends the new prefix instead. Launched prompts are
-stored with any [project tags](macros.md#project-tags) already expanded to their
-`#<workflow>:<directory-key>` form, so `--prefix` finds and replaces them. A cancelled
-prompt, or one rejected by tag validation, keeps the `+<project>` tags you typed.
-`--prefix` does not replace those tags; it prepends the new prefix, so the replay fails
-with `Only one workspace target is allowed per launch unit`. For those prompts, run
-`sase prompt edit <id>` without `-P` and change the tag by hand. The prompt-history
-picker in sase's TUI expands tags before it swaps the prefix, so it does not have this
-limitation.
+stored with any [project tags](reference/macros/reference-syntax.md#project-tags)
+already expanded to their `#<workflow>:<directory-key>` form, so `--prefix` finds and
+replaces them. A cancelled prompt, or one rejected by tag validation, keeps the
+`+<project>` tags you typed. `--prefix` does not replace those tags; it prepends the new
+prefix, so the replay fails with `Only one workspace target is allowed per launch unit`.
+For those prompts, run `sase prompt edit <id>` without `-P` and change the tag by hand.
+The prompt-history picker in sase's TUI expands tags before it swaps the prefix, so it
+does not have this limitation.
 
 This is the shared, drift-free implementation behind the `sase run "#vcs:ref ."`
 compatibility path.

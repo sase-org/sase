@@ -13,7 +13,7 @@ the wait modal, artifacts, and reproduction bundles.
 The Agents tab shows one agent tab at a time instead of the whole roster. A tab is a
 presentation-only placement: it never changes where an agent runs, its identity, clan,
 session, or tribe. Tabs come from each root's recorded tab (see
-[Tab Directive](../../macros.md#tab-directive)): `%tab:<name>` authors a named tab, and roots
+[Tab Directive](../macros/directive-syntax.md#tab-directive)): `%tab:<name>` authors a named tab, and roots
 without one land on the default tab. The default tab is labeled `main`, or
 `⌂ <machine name>` in machine mode (`ace.agent_tabs.machine_tabs`: `on`, or `auto` when
 dispatch machines are configured), where `<machine name>` is the viewer's

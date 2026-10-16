@@ -347,7 +347,7 @@ def _render_discovery_order(root: Path) -> str:
             "Configuration-defined macros, plugin definitions, and bundled package "
             "definitions use separate loaders. Memory macros and skills use reserved "
             "namespaces, so they do not take part in ordinary macro-name collisions. "
-            "See the [macro reference](../../macros.md) for those definition forms.",
+            "See the [macro reference](index.md) for those definition forms.",
             "",
         ]
     )

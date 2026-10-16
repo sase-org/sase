@@ -1,6 +1,6 @@
 ---
 diagram: workflow-execution-infographic.png
-embedding_doc: docs/workflow_spec.md
+embedding_doc: docs/reference/workflows.md
 prompt_sidecar: docs/images/workflow-execution-infographic.prompt.md
 critique_date: 2026-05-10
 pdf: false
@@ -9,19 +9,19 @@ pdf: false
 # Critique: `workflow-execution-infographic.png`
 
 This critique reviews the infographic embedded immediately under the opening paragraph
-of `docs/workflow_spec.md` (and above `## Table of Contents`). The image is a 1672×941
-16:9 landscape diagram with three vertical zones: a left column of two source blocks
-(`Inputs`, `Environment`); a center execution lane of six rows labeled `agent`, `bash`,
-`python`, `hidden`, `parallel`, `HITL`, surrounded top-and-bottom by thin bands labeled
-`if`, `for`, `while`, `repeat/until`; a floating `prompt_part` document fragment that
-arrows into the agent row; and a right zone with a "Parallel Branches" column (Branch
-A–D), a "Join (merge results)" panel listing `object`, `array`, `text`, `lastOf`, and a
-single "Continue Workflow" exit arrow.
+of `docs/reference/workflows.md` (and above `## Table of Contents`). The image is a
+1672×941 16:9 landscape diagram with three vertical zones: a left column of two source
+blocks (`Inputs`, `Environment`); a center execution lane of six rows labeled `agent`,
+`bash`, `python`, `hidden`, `parallel`, `HITL`, surrounded top-and-bottom by thin bands
+labeled `if`, `for`, `while`, `repeat/until`; a floating `prompt_part` document fragment
+that arrows into the agent row; and a right zone with a "Parallel Branches" column
+(Branch A–D), a "Join (merge results)" panel listing `object`, `array`, `text`,
+`lastOf`, and a single "Continue Workflow" exit arrow.
 
 The original prompt is preserved in `workflow-execution-infographic.prompt.md`;
 deterministic ImageMagick labels were composited on top of a no-text background to lock
 left-column terminology to the spec. This critique is grounded in the current
-`docs/workflow_spec.md` and the shared `docs/images/infographic-style-brief.md`.
+`docs/reference/workflows.md` and the shared `docs/images/infographic-style-brief.md`.
 
 ## Summary
 
@@ -107,15 +107,15 @@ cleanup concept entirely, and label step outputs with awkward composite strings 
 
 ## Accuracy errors against current spec
 
-These are checked against `docs/workflow_spec.md` (the embedding doc) and the shared
-`infographic-style-brief.md`.
+These are checked against `docs/reference/workflows.md` (the embedding doc) and the
+shared `infographic-style-brief.md`.
 
-1. **`hidden` is a modifier, not an execution type.** `workflow_spec.md` §"Hidden Steps"
-   says: "Any step can be marked `hidden: true` to suppress it from sase's TUI Agents
-   tab. Hidden steps execute normally but don't appear as visible agents." The brief
-   enumerates `hidden` in its step-type list, but the brief is itself imprecise here;
-   the spec is authoritative. Showing `hidden` as a distinct row with its own output
-   arrow is wrong against the spec's semantics.
+1. **`hidden` is a modifier, not an execution type.** `reference/workflows.md` §"Hidden
+   Steps" says: "Any step can be marked `hidden: true` to suppress it from sase's TUI
+   Agents tab. Hidden steps execute normally but don't appear as visible agents." The
+   brief enumerates `hidden` in its step-type list, but the brief is itself imprecise
+   here; the spec is authoritative. Showing `hidden` as a distinct row with its own
+   output arrow is wrong against the spec's semantics.
 2. **HITL is a directive (`hitl: true`), not an execution type.** The spec puts HITL
    under "Human-in-the-Loop" as a directive that pauses execution after an `agent`,
    `bash`, or `python` step. The prompt sidecar explicitly instructed "not as a
@@ -243,8 +243,8 @@ its post-processing label script, scoped to the diagram only.
 
 ## Out of scope for this critique
 
-- The PNG, the prompt sidecar, and `docs/workflow_spec.md` itself are unchanged by this
-  phase per the epic plan in `sdd/epics/202605/diagram_review.md`. Phase 19
+- The PNG, the prompt sidecar, and `docs/reference/workflows.md` itself are unchanged by
+  this phase per the epic plan in `sdd/epics/202605/diagram_review.md`. Phase 19
   (`sase-2s.19`, "Regenerate diagram: workflow-execution") owns the regenerated image,
   the updated prompt sidecar if needed, and any related label-composition tooling.
 - Style consistency across all infographics in the diagram-review epic is the regen

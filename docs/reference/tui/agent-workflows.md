@@ -22,7 +22,7 @@ Keyed markers such as `%id:research.{@1}.final` are preferred for macro swarms: 
 resolves every matching key in `%id`, `%clan`, `clan=`, waits, fork/resume references,
 and prose before any spawned member can start. Bare `@` still works, but template
 references use latest-wins lookup and can be unsafe when a swarm member starts after a
-newer overlapping launch. See [Macro template directives](../../macros.md#directives) for
+newer overlapping launch. See [Macro template directives](../macros/directive-syntax.md#directives) for
 `{@<id>}` and `{@<id>!}` qualification rules.
 
 Names are permanent IDs: a name used by any existing agent state remains reserved until
@@ -204,7 +204,7 @@ The row shows `⚡` while enabled, and the footer label switches between `auto-a
 and `unapprove`.
 
 Every enabled built-in profile also chooses the first option for each question. See the
-[profile matrix](../../macros.md#auto-directive).
+[profile matrix](../macros/directive-launch.md#auto-directive).
 
 ### Plan Approval Keybindings
 
@@ -319,7 +319,7 @@ that needs the terminal gate result can then run
 An agent hold is a durable reverse wait: while it is active, matching `WAITING` or
 `QUEUED` agents, later launches, and undispatched procs are kept from starting. Holds
 are armed with [`sase agent hold`](../../cli.md#sase-agent-hold) or the
-[`%hold` directive](../../macros.md#hold-directive). sase's TUI shows holds in three places:
+[`%hold` directive](../macros/directive-launch.md#hold-directive). sase's TUI shows holds in three places:
 
 - **Agents tab rows.** A `QUEUED` row parked by a hold appends `held by <armer>` after
   its queue position. If a held agent and the agent that armed the hold end up blocking

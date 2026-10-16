@@ -892,14 +892,15 @@ authoring new providers with `@hookimpl`.
 Plugin packages can contribute macro templates by declaring a `sase_macros` entry point
 that points to a module. The module's package directory is searched for `macros/*.md`
 files and `macros/*.yml` / `macros/*.yaml` workflow files. Plugin macros are priority 8
-in the [discovery order](macros.md#discovery-order) (above built-in files and below
-config-based macros).
+in the [discovery order](reference/macros/discovery.md#discovery-order) (above built-in
+files and below config-based macros).
 
 The retired entry-point and resource-directory spellings listed in the
-[Macros compatibility table](macros.md#retired-macro-spellings) remain accepted. When
-both entry-point groups register the same module value, the canonical `sase_macros`
-registration wins and the module is loaded once. SASE searches `macros/` first, falling
-back to the retired directory when the canonical directory is absent.
+[Macros compatibility table](reference/upgrading/macros.md#retired-macro-spellings)
+remain accepted. When both entry-point groups register the same module value, the
+canonical `sase_macros` registration wins and the module is loaded once. SASE searches
+`macros/` first, falling back to the retired directory when the canonical directory is
+absent.
 
 Macro-plugin entry-point discovery is cached within each running process. Changes to the
 Python search path, its directory modification times (as during package installation or

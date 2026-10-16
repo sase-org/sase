@@ -3664,8 +3664,9 @@ the start stays prompt-level metadata, and `---` lines inside fenced code blocks
 left alone. A `#name` macro swarm invocation stays a single pane and expands only when
 it is launched. During live editing, typed `---` lines stay literal text; add prompt
 panes with `g-` in prompt NORMAL mode. The detailed multi-agent parsing rules live in
-the [Macro reference](macros.md#multi-agent-prompts). For steps to split and follow
-independent tasks, see [Run agents in parallel](guides/run-agents-in-parallel.md).
+the [Macro reference](reference/macros/multi-agent-prompts.md#multi-agent-prompts). For
+steps to split and follow independent tasks, see
+[Run agents in parallel](guides/run-agents-in-parallel.md).
 
 ### Cursor Readout
 
@@ -3900,8 +3901,8 @@ submit; declared frontmatter inputs are still collected. Set
 `ace.prompt_inputs.macro_placeholder_args: false` to keep live raw tags literal when
 using `gX`, `gL`, or a fresh `gx` extraction and mint no placeholder-derived `text`
 inputs; Jinja-variable inference for `gL` still runs. See
-[Raw Prompt Placeholders](macros.md#raw-prompt-placeholders) for the exact conversion
-and naming rules.
+[Raw Prompt Placeholders](reference/macros/templating.md#raw-prompt-placeholders) for
+the exact conversion and naming rules.
 
 ### Launch Target Picker
 
@@ -4055,8 +4056,8 @@ when it creates a frontmatter-local helper. Set
 preserving `gL` Jinja-variable inference. `gw` only writes the currently bound
 definition—it does not reinterpret newly typed raw placeholders. Tags in inline code,
 fenced code, and disabled macro regions stay literal throughout. See
-[Raw Prompt Placeholders](macros.md#raw-prompt-placeholders) for the exact launch,
-conversion, and naming rules.
+[Raw Prompt Placeholders](reference/macros/templating.md#raw-prompt-placeholders) for
+the exact launch, conversion, and naming rules.
 
 `Ctrl+G p` opens the Prompts overlay on the Stash tab from the prompt bar. From the main
 sase's TUI tabs, when you are not typing in a text field, `@` acts on Stash. If the open
@@ -4216,8 +4217,8 @@ through the tracked proc queue in order:
   [SASE memory note](reference/memory/memory.md), since it already commits and pushes
   for you while regenerating `AGENTS.md` and the provider instruction shims.
 - **`sase skill init`** — offered instead of the two above when you edited a canonical
-  [skill source](macros.md#skill-field), since it already commits, pushes, and deploys
-  the generated skill files for you.
+  [skill source](reference/macros/fields.md#skill-field), since it already commits,
+  pushes, and deploys the generated skill files for you.
 
 With a single offered action, `Enter` runs it and `Esc` skips, matching the previous
 plain commit/push confirmation. With more than one, each row's key toggles it and
@@ -4250,7 +4251,8 @@ token under the cursor:
   syntax) at the earliest existing workspace target in that `---` segment, or at the
   segment's leading tag position when it has none — and a Patch row places
   `#<workflow>:<patch>` the same way. Either way, the other workspace targets in that
-  segment are removed. See [Project Tags](macros.md#project-tags).
+  segment are removed. See
+  [Project Tags](reference/macros/reference-syntax.md#project-tags).
 - **VCS ref completion**: When the cursor is inside the root segment of a registered VCS
   workflow ref, such as `#gh:`, `#gh:sa`, or `#git(`, completion lists that provider's
   projects and active PR-sized Patches. Providers can add namespace rows, such as GitHub
@@ -4338,8 +4340,8 @@ token under the cursor:
   `%m`), completion lists user-facing prompt directives and accepts aliases into their
   canonical forms. For example, `%m` completes to `%model` and `%w` completes to
   `%wait`. The same shared directive matrix used by the macro LSP is documented in
-  [Directive Completion Matrix](macros.md#directive-completion-matrix): `%model`
-  completes live model catalog rows, aliases, provider drill-down rows, and
+  [Directive Completion Matrix](reference/macros/directive-syntax.md#directive-completion-matrix):
+  `%model` completes live model catalog rows, aliases, provider drill-down rows, and
   parenthesized alias keys; `%effort`, `%auto`, `%repeat`, and `%macros_enabled`
   complete their fixed values; `%id`, `%clan`, and `%wait(...)` complete their supported
   keyword names and keyword-value rows. `%wait:` never offers structured keywords, so
@@ -4446,7 +4448,7 @@ token under the cursor:
   each distinct live tag before launch; `Ctrl+L` can keep a tag literal. Saving a new
   macro converts the same live tags to typed inputs. Inline-code, fenced-code, and
   disabled-region tags stay literal in both paths; see
-  [Raw Prompt Placeholders](macros.md#raw-prompt-placeholders).
+  [Raw Prompt Placeholders](reference/macros/templating.md#raw-prompt-placeholders).
 
   By default (`ace.prompt_completion.placeholder_ranking: smart`) saved rows are ranked
   by the same weighted composite the history-word menu uses: how strongly a tag relates
@@ -4469,8 +4471,9 @@ token under the cursor:
   `./`, `../`, `~/`, or containing `/`), completion shows matching filesystem entries.
   Tokens starting with `@` are also recognized — the `@` prefix is preserved in the
   completed path (useful for file-reference arguments). Relative paths use the
-  prompt-selected base directory: `+<project>` [project tags](macros.md#project-tags),
-  registered workspace-provider refs, and known-project refs such as `#git:<project>` or
+  prompt-selected base directory: `+<project>`
+  [project tags](reference/macros/reference-syntax.md#project-tags), registered
+  workspace-provider refs, and known-project refs such as `#git:<project>` or
   `#gh:<owner>/<repo>` can root completion in that project checkout. If no prompt
   workspace ref resolves, sase's TUI uses the TUI process directory.
 - **File-history completion**: `Ctrl+G r` opens a list of recently referenced files and
@@ -5160,7 +5163,8 @@ prose shorthand, URLs, unknown macro names, `#name+`, and completed colon text s
 ### Alt Brace Syntax (`%{...}`)
 
 The prompt input has dedicated highlighting and editing help for the `%{A | B}` alt
-fan-out shorthand (see the [Alt Directive reference](macros.md#alt-directive)). It
+fan-out shorthand (see the
+[Alt Directive reference](reference/macros/directive-composition.md#alt-directive)). It
 distinguishes the alt delimiters from the branch separators so a fan-out is easy to read
 at a glance:
 
@@ -6000,8 +6004,9 @@ privacy, publication, status, and recovery behavior.
 The prompt input supports expandable text snippets triggered by pressing `Tab`. Snippets
 are configured in the `ace.snippets` section of `sase.yml` as a mapping of trigger words
 to template strings. Inspect or edit the same catalog from the shell with
-[`sase snippet`](macros.md#snippet-cli) (`list`, `show`, `add`, `delete`), or from
-sase's TUI with the [Snippets panel](#snippets-panel) (`gT` / `Ctrl+G T`).
+[`sase snippet`](reference/macros/fields.md#snippet-cli) (`list`, `show`, `add`,
+`delete`), or from sase's TUI with the [Snippets panel](#snippets-panel) (`gT` /
+`Ctrl+G T`).
 
 ```yaml
 ace:

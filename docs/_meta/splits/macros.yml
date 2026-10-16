@@ -1,0 +1,53 @@
+to: reference/macros/index.md
+sections:
+  _intro: reference/macros/index.md
+  Table of Contents:
+    drop: true
+  Renamed from xprompts: reference/upgrading/macros.md
+  CLI Subcommands: reference/macros/cli-and-editor.md
+  Editor LSP: reference/macros/cli-and-editor.md
+  Discovery Order: reference/macros/discovery.md
+  File Format: reference/macros/reference-syntax.md
+  Reference Syntax: reference/macros/reference-syntax.md
+  Arguments: reference/macros/arguments.md
+  Shorthand Syntax: reference/macros/arguments.md
+  Typed Inputs: reference/macros/arguments.md
+  Output Specification: reference/macros/arguments.md
+  Jinja2 Integration: reference/macros/templating.md
+  Legacy Placeholders: reference/upgrading/macros.md
+  Raw Prompt Placeholders: reference/macros/templating.md
+  Tags: reference/macros/tags.md
+  Snippet Field: reference/macros/fields.md
+  Skill Field: reference/macros/fields.md
+  Memory Field: reference/macros/fields.md
+  Built-in Macros: reference/macros/built-ins.md
+  Config-Based Macros: reference/macros/built-ins.md
+  Local Configuration Files: reference/macros/built-ins.md
+  Directives: reference/macros/directive-syntax.md
+  Directives > Supported Directives: reference/macros/directive-syntax.md
+  Directives > Tab Directive: reference/macros/directive-syntax.md
+  Directives > Directive Completion Matrix: reference/macros/directive-syntax.md
+  Directives > Static Conditional Segments: reference/macros/directive-syntax.md
+  Directives > Typed launch units: reference/macros/directive-syntax.md
+  Directives > Equals model shortcuts: reference/macros/directive-syntax.md
+  Directives > Remote Dispatch: reference/macros/directive-syntax.md
+  Directives > Launch-Scoped Model Alias Overrides: reference/macros/directive-syntax.md
+  Directives > Agent Names, Waits, and Queue Admission: reference/macros/directive-launch.md
+  Directives > Example: reference/macros/directive-launch.md
+  Directives > Effort Directive: reference/macros/directive-launch.md
+  Directives > Hide Directive: reference/macros/directive-launch.md
+  Directives > Auto Directive: reference/macros/directive-launch.md
+  Directives > Hold Directive: reference/macros/directive-launch.md
+  Directives > Editor Review Marker (` @`): reference/macros/directive-composition.md
+  Directives > Plan Approval and Coder Follow-up {#plan-directive}: reference/macros/directive-composition.md
+  Directives > Repeat Directive: reference/macros/directive-composition.md
+  Directives > Alt Directive: reference/macros/directive-composition.md
+  Directives > Multi-Model Fan-Out: reference/macros/directive-composition.md
+  Directives > Multi-Value Directives: reference/macros/directive-composition.md
+  Command Substitution: reference/macros/templating.md
+  Protected Content: reference/macros/templating.md
+  Macro Aliases: reference/macros/templating.md
+  Recursive Expansion: reference/macros/templating.md
+  Multi-Agent Prompts: reference/macros/multi-agent-prompts.md
+  Relationship to Workflows: reference/macros/multi-agent-prompts.md
+  Troubleshooting: reference/macros/troubleshooting.md

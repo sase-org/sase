@@ -58,7 +58,6 @@
 - [Editor Integration](https://sase.sh/editor/) — Editor Integration — SASE exposes two editor-facing surfaces for prompt and macro editing:
 - [Goals](https://sase.sh/goals/) — Goals — Goals are durable records of outcomes a person wants: what will be true, how you'll know, and what happened along the way.
 - [Initialization](https://sase.sh/init/) — Initialization — SASE initialization commands create or refresh durable files that agents and sidecar tools rely on.
-- [Macro Template Reference](https://sase.sh/macros/) — Macro Template Reference — Macros are reusable prompt templates with optional typed inputs and Jinja2 support.
 - [Mobile Gateway](https://sase.sh/mobile_gateway/) — Mobile Gateway — The SASE mobile gateway is a workstation-hosted HTTP gateway for paired mobile clients.
 - [SASE Pager](https://sase.sh/pager/) — SASE Pager — sase pager opens artifact references, file paths, or stdin in the SASE link-traversing pager.
 - [Plugin System](https://sase.sh/plugins/) — Plugin System — Sase uses Python entry points to discover optional functionality installed in the same Python environment as sase.
@@ -189,8 +188,22 @@
 - [Environment variables](https://sase.sh/reference/environment-variables/) — Environment variables that configure providers, SDD, plugins, runtime, and workspaces.
 - [Glossary](https://sase.sh/reference/glossary/) — Every SASE term, generated from the glossary memory web.
 - [Reference](https://sase.sh/reference/) — Look up exact SASE facts here, generated from code where possible.
+- [Macro arguments and typed inputs](https://sase.sh/reference/macros/arguments/) — Argument syntax, input types, defaults, and rendered output shapes.
+- [Built-in and configured macros](https://sase.sh/reference/macros/built-ins/) — Built-in macros, configuration-defined macros, and local macro files.
+- [Macro CLI and editor support](https://sase.sh/reference/macros/cli-and-editor/) — Macro command behavior and editor language-server features.
+- [Directive composition and fan-out](https://sase.sh/reference/macros/directive-composition/) — Directives for review, follow-up, repetition, and prompt fan-out.
+- [Launch directives](https://sase.sh/reference/macros/directive-launch/) — Directives for agent identity, launch settings, and queue admission.
+- [Directive syntax and completion](https://sase.sh/reference/macros/directive-syntax/) — Directive forms, completion behavior, and model and dispatch settings.
 - [Macro directives](https://sase.sh/reference/macros/directives/) — The generated catalog of prompt directives and their syntax.
 - [Macro discovery order](https://sase.sh/reference/macros/discovery-order/) — File-backed macro and workflow locations in lookup order.
+- [Macro discovery](https://sase.sh/reference/macros/discovery/) — How SASE finds macros, workflows, skills, and memory references.
+- [Macro fields](https://sase.sh/reference/macros/fields/) — The snippet, skill, and memory fields available in macro front matter.
+- [Macro Template Reference](https://sase.sh/reference/macros/) — Reference pages for macro syntax, directives, fields, and workflows.
+- [Multi-agent prompts and workflows](https://sase.sh/reference/macros/multi-agent-prompts/) — Prompt segments, output variables, macro swarms, and workflows.
+- [Macro files and reference syntax](https://sase.sh/reference/macros/reference-syntax/) — Macro file format, reference forms, workspace references, and project tags.
+- [Macro tags](https://sase.sh/reference/macros/tags/) — Available macro tags, their definitions, and tag-based lookup.
+- [Macro template rendering](https://sase.sh/reference/macros/templating/) — Template context, placeholders, protected content, aliases, and expansion.
+- [Macro troubleshooting](https://sase.sh/reference/macros/troubleshooting/) — Common macro expansion problems and ways to diagnose them.
 - [Memory History](https://sase.sh/reference/memory/history/) — How SASE records and displays changes to memory notes and instruction documents.
 - [Memory](https://sase.sh/reference/memory/) — Lookup pages for durable memory, instruction bundles, and memory history.
 - [Instruction bundles](https://sase.sh/reference/memory/instruction-bundles/) — How SASE instruction bundles are previewed and how providers report delivery behavior.
@@ -226,11 +239,12 @@
 - [Content layout migration](https://sase.sh/reference/upgrading/content-layout/) — Migration steps and compatibility behavior for SASE content paths.
 - [Upgrading](https://sase.sh/reference/upgrading/) — Upgrade and history notes, organized by area with the newest notes first.
 - [Local state cutover](https://sase.sh/reference/upgrading/local-state/) — The temporary offline kit for moving legacy local state into canonical locations.
+- [Macro migration notes](https://sase.sh/reference/upgrading/macros/) — Historical notes about renamed macros and legacy placeholders.
 - [Provider migration notes](https://sase.sh/reference/upgrading/providers/) — Historical compatibility notes for provider metadata and model selection.
+- [Workflow Specification](https://sase.sh/reference/workflows/) — YAML workflow files, step types, inputs, and execution behavior.
 - [Remote Dispatch Runbook](https://sase.sh/remote_dispatch/) — Remote Dispatch Runbook — Remote dispatch lets one SASE controller discover, enroll, and operate agents on another machine.
 - [Spec-Driven Development (SDD)](https://sase.sh/sdd/) — Spec-Driven Development (SDD) — SDD is sase's system for persisting the intent behind agent work.
 - [VCS Provider Reference](https://sase.sh/vcs/) — VCS Provider Reference — The VCS provider layer is an abstraction that lets sase commands work with both Git and Mercurial repositories.
-- [Workflow Specification](https://sase.sh/workflow_spec/) — Workflow Specification — This document describes the YAML workflow format for sase macro workflows.
 - [Workspace Provider Reference](https://sase.sh/workspace/) — Workspace Provider Reference — The workspace provider layer is an abstraction that handles workspace-level operations that vary across VCS hosting environments.
 
 ## Contribute
@@ -278,6 +292,7 @@
 - [Canonical SASE Content Layout](https://sase.sh/content_layout/) — This page has moved to its new home.
 - [Instruction Bundles](https://sase.sh/instruction_bundles/) — This page has moved to its new home.
 - [LLM Provider Integration](https://sase.sh/llms/) — This page has moved to its new home.
+- [Macro Template Reference](https://sase.sh/macros/) — This page has moved to its new home.
 - [Monitors](https://sase.sh/monitors/) — This page has moved to its new home.
 - [Notifications](https://sase.sh/notifications/) — This page has moved to its new home.
 - [Rust Backend (sase_core_rs)](https://sase.sh/rust_backend/) — This page has moved to its new home.
@@ -316,3 +331,5 @@
 - https://sase.sh/tool/ → https://sase.sh/reference/automation/tools/
 - https://sase.sh/mentors/ → https://sase.sh/reference/automation/mentors/
 - https://sase.sh/sudo/ → https://sase.sh/reference/automation/sudo/
+- https://sase.sh/macros/ → https://sase.sh/reference/macros/
+- https://sase.sh/workflow_spec/ → https://sase.sh/reference/workflows/

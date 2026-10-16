@@ -10,9 +10,9 @@ workspace directory management.
 A **workspace reference** is a prompt prefix such as `+sase`, `#git:sase`, `#gh:sase`,
 or a ref registered by another workspace provider. It tells SASE which project and
 workspace should be used before the rest of the prompt or workflow runs. The
-`+<project>` [project tag](macros.md#project-tags) is the default spelling for a known
-project; the `#` forms remain for Patches, `owner/repo`, `@agent`, paren forms, and
-creating new projects.
+`+<project>` [project tag](reference/macros/reference-syntax.md#project-tags) is the
+default spelling for a known project; the `#` forms remain for Patches, `owner/repo`,
+`@agent`, paren forms, and creating new projects.
 
 SASE keeps three related concepts distinct:
 

@@ -21,7 +21,6 @@ ceilings:
   goals.md: 642
   index.md: 361
   init.md: 7264
-  macros.md: 29265
   mobile_gateway.md: 3396
   pager.md: 3475
   plugins.md: 9474
@@ -31,5 +30,4 @@ ceilings:
   remote_dispatch.md: 2935
   sdd.md: 7582
   vcs.md: 5642
-  workflow_spec.md: 2892
   workspace.md: 6705

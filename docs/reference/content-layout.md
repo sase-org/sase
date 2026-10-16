@@ -59,10 +59,10 @@ canonical `skills/` directory is rejected rather than read:
 
 Scopes 1 and 3 namespace the macro reference with the project, so a source named `foo`
 is expanded as `#<project>/skill/foo` there and `#skill/foo` elsewhere. The provider
-skill name stays `foo` in every scope. See [Skill Field](../macros.md#skill-field) for
-the full contract.
+skill name stays `foo` in every scope. See [Skill Field](macros/fields.md#skill-field)
+for the full contract.
 
 ## Related
 
-- [Macros](../macros.md) — source order for macros and workflows.
+- [Macros](macros/index.md) — source order for macros and workflows.
 - [Upgrading](upgrading/index.md) — migration and compatibility notes.

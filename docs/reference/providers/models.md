@@ -31,9 +31,10 @@ Key design principles:
 
 ## Per-Prompt Provider Switching
 
-The `%model` directive (see [macro directives](../../macros.md#directives)) can switch
-both the model and the LLM provider for a single prompt. Provider resolution uses
-configured aliases first, then concrete provider/model syntax and known model metadata.
+The `%model` directive (see
+[macro directives](../macros/directive-syntax.md#directives)) can switch both the model
+and the LLM provider for a single prompt. Provider resolution uses configured aliases
+first, then concrete provider/model syntax and known model metadata.
 
 ### Configured Model Aliases
 
@@ -179,9 +180,9 @@ priority providers are annotated `priority`, and providers left behind the activ
 priority provider are annotated `backup`. Provider rows such as `claude/` sit at the
 bottom of the broad menu; accepting one opens that provider's scoped model list and
 inserts qualified values such as `claude/opus`. See
-[macro directive syntax](../../macros.md#syntax) for the row anatomy. The completion
-menu is read-only; sase's TUI Launch Control (`,m`) remains the authoritative place to
-edit alias targets and to set or clear temporary overrides.
+[macro directive syntax](../macros/directive-syntax.md#syntax) for the row anatomy. The
+completion menu is read-only; sase's TUI Launch Control (`,m`) remains the authoritative
+place to edit alias targets and to set or clear temporary overrides.
 
 There are no built-in Launch Control buckets: the compact five-size-alias contract ships
 no automatic grouping. sase's TUI Launch Control instead shows the three scalar
@@ -204,7 +205,7 @@ The check is provider-neutral and read-only. For retired prompt directive syntax
 ### Macro model inputs
 
 A macro input declared with `type: model` (see
-[Supported Types](../../macros.md#supported-types)) is valid exactly when
+[Supported Types](../macros/arguments.md#supported-types)) is valid exactly when
 `%model:<value>` would be accepted by the directive parser and would route to a provider
 without the default-provider fallback. Aliases need `@` (`@large` routes; bare `large`
 does not). `provider/model` is open for unknown model ids (`codex/new-model` routes) and
@@ -312,7 +313,7 @@ a launch-scoped keyword matching the alias `default_model` references also beats
 machine-wide temporary override on the `default model` setting. An explicit concrete
 model for the current agent remains concrete, while an explicit alias is resolved
 through this launch map. See
-[Launch-Scoped Model Alias Overrides](../../macros.md#launch-scoped-model-alias-overrides)
+[Launch-Scoped Model Alias Overrides](../macros/directive-syntax.md#launch-scoped-model-alias-overrides)
 for syntax and validation rules.
 
 > **Migration note:** `@worker`, `@other`, `@coder`, registered `@<provider>_coder`
@@ -475,8 +476,8 @@ There are five ways an effort reaches a launch, in precedence order:
 
 1. An explicit per-prompt `%effort:<level>` directive, or the `@<level>` suffix on a
    `%model`/alias reference (`%model:opus@xhigh`, `%model:@large@medium`). See
-   [Effort Directive](../../macros.md#effort-directive) for the directive syntax and
-   per-branch fan-out (`%{%m:opus@xhigh | %m:sonnet@low}`).
+   [Effort Directive](../macros/directive-launch.md#effort-directive) for the directive
+   syntax and per-branch fan-out (`%{%m:opus@xhigh | %m:sonnet@low}`).
 2. A trailing effort on the selected alias target, temporary model override, or pool
    member (for example `claude/opus@medium`). An outer alias-reference suffix wins over
    effort carried by the alias target.

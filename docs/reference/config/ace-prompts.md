@@ -76,7 +76,7 @@ back into config. See
 [docs/ace.md — Capitalized aliases](../../ace.md#capitalized-aliases) for the full rule.
 
 See [docs/ace.md — Snippets](../../ace.md#snippets) for usage details and
-[docs/macros.md — Snippet CLI](../../macros.md#snippet-cli) for `sase snippet list`,
+[Macro fields — Snippet CLI](../macros/fields.md#snippet-cli) for `sase snippet list`,
 `show`, `add`, and `delete`.
 
 Source: `src/sase/ace/tui/widgets/prompt_text_area.py` <a id="acepromptcompletion"></a>
@@ -176,11 +176,12 @@ The old `*alias` and `**model` forms remain ordinary prompt text. `Ctrl+T` remai
 available for both shortcut menus when automatic directive menus are disabled.
 
 File-path completion roots relative lookups in the prompt-selected workspace. A
-`+<project>` [project tag](../../macros.md#project-tags), registered workspace-provider
-refs, and known-project refs such as `#git:<project>` or `#gh:<owner>/<repo>` can root
-lookup in that project checkout. If no prompt workspace ref resolves, lookups fall back
-to the TUI process directory. These root rules are shared by live path suggestions,
-manual `Ctrl+T` path completion, and the manual `Ctrl+R` recursive finder.
+`+<project>` [project tag](../macros/reference-syntax.md#project-tags), registered
+workspace-provider refs, and known-project refs such as `#git:<project>` or
+`#gh:<owner>/<repo>` can root lookup in that project checkout. If no prompt workspace
+ref resolves, lookups fall back to the TUI process directory. These root rules are
+shared by live path suggestions, manual `Ctrl+T` path completion, and the manual
+`Ctrl+R` recursive finder.
 
 Source: `src/sase/ace/tui/widgets/prompt_completion.py`,
 `src/sase/ace/tui/widgets/_prompt_soft_completion.py`,
@@ -356,8 +357,8 @@ ace:
 
 Raw placeholders in YAML frontmatter, inline code, fenced code, or
 `%macros_enabled:false` regions are never collected. See
-[Raw Prompt Placeholders](../../macros.md#raw-prompt-placeholders) for the submit panel,
-literal-tag control, and macro conversion workflow.
+[Raw Prompt Placeholders](../macros/templating.md#raw-prompt-placeholders) for the
+submit panel, literal-tag control, and macro conversion workflow.
 
 Source: `src/sase/agent/prompt_placeholder_inputs.py`,
 `src/sase/ace/tui/actions/agent_workflow/_launch_start.py`,

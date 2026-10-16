@@ -242,11 +242,11 @@ The pipeline runs in strict order. Prompt directives are extracted after macro
 expansion, so directives embedded in macros are honored. Before extraction, segments
 disabled by a static `%if(should_run=false)` are dropped, and a kept segment loses only
 its `%if(...)` line (see
-[Static Conditional Segments](../macros.md#static-conditional-segments)). Late-phase
-command substitution and reference processing run with fenced blocks protected, so
-examples inside code fences are not executed or rewritten. Canonical artifact references
-are expanded before ordinary file references: built-in artifact expansions become
-portable semantic prose (for example
+[Static Conditional Segments](../reference/macros/directive-syntax.md#static-conditional-segments)).
+Late-phase command substitution and reference processing run with fenced blocks
+protected, so examples inside code fences are not executed or rewritten. Canonical
+artifact references are expanded before ordinary file references: built-in artifact
+expansions become portable semantic prose (for example
 `the 202608/foobar.md file in the plans sidecar repo`) and do not inject `@path` tokens
 that the ordinary file-reference pass would re-parse. Unknown `@kind:` references remain
 unchanged as prose. The retired `#ref/<kind>` renderer syntax is not accepted.
