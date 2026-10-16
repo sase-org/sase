@@ -44,20 +44,30 @@ def format_clan_wave_pips(summary: ClanWaveSummary | None) -> Text:
     if len(numbered) > 12:
         states = {wave.state.value for wave in numbered}
         worst_state = next(state for state in _WAVE_STATE_PRIORITY if state in states)
-        glyph, style = _WAVE_PIP_STYLES[worst_state]
         completed = sum(wave.state.value == "done" for wave in numbered)
-        text.append(f"{glyph} {completed}/{summary.numbered_wave_count}", style=style)
+        append_clan_wave_state_pip(text, worst_state)
+        _glyph, style = _WAVE_PIP_STYLES[worst_state]
+        text.append(f" {completed}/{summary.numbered_wave_count}", style=style)
     else:
         for wave in numbered:
-            glyph, style = _WAVE_PIP_STYLES[wave.state.value]
-            text.append(glyph, style=style)
+            append_clan_wave_state_pip(text, wave.state.value)
 
     if summary.has_seal:
         seal = next(wave for wave in summary.waves if wave.kind == "seal")
-        glyph, style = _WAVE_PIP_STYLES[seal.state.value]
         text.append(" ")
-        text.append("∎", style=style)
+        append_clan_wave_state_pip(text, seal.state.value, label="∎")
     return text
+
+
+def append_clan_wave_state_pip(
+    text: Text,
+    state: str,
+    *,
+    label: str | None = None,
+) -> None:
+    """Append one state pip or wave label using the shared wave palette."""
+    glyph, style = _WAVE_PIP_STYLES[state]
+    text.append(glyph if label is None else label, style=style)
 
 
 def wave_connector_style(*, is_selected: bool) -> str:
@@ -73,6 +83,7 @@ __all__ = [
     "WAVE_NUMBER_DONE_STYLE",
     "WAVE_NUMBER_OPEN_STYLE",
     "WAVE_UNRESOLVED_STYLE",
+    "append_clan_wave_state_pip",
     "format_clan_wave_pips",
     "wave_connector_style",
 ]

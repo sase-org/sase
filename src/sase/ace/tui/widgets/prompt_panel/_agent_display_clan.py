@@ -33,6 +33,7 @@ from ._agent_display_clan_roster import (
     agent_session_rows,
     ordered_clan_members,
 )
+from ._agent_display_clan_waves import append_clan_waves_section
 from ._agent_clan_summary_text import clan_summary_text
 from ._agent_display_clan_sections import (
     append_context_section,
@@ -190,6 +191,12 @@ def build_clan_detail_text(
             now=now,
         )
         body = text
+
+    append_clan_waves_section(
+        body,
+        agent,
+        level=_effective_fold_level("waves", fold_level, overrides),
+    )
 
     roster_entries = clan_roster_entries(
         agent,

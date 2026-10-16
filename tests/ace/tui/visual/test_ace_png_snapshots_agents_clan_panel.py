@@ -16,6 +16,7 @@ from tests.ace.tui.visual._ace_agents_png_snapshot_clan_fixtures import (
     clan_tree_agents,
     decorate_clan_panel_sections,
     epic_clan_agents,
+    wave_clan_agents,
 )
 from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     assert_page_svg_contains,
@@ -210,6 +211,61 @@ async def test_epic_clan_panel_png_snapshots(
             lambda _state: (
                 page.app._agents[page.app.current_idx].identity == container_identity
             )
+        )
+
+
+async def test_clan_waves_ladder_png_snapshots(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("sase.config.core.get_max_running_agents", lambda: 10)
+    pin_agents_visual_now(monkeypatch, datetime(2026, 10, 15, 12, 30, 0))
+    patch_startup_loaders(monkeypatch, agents=wave_clan_agents())
+
+    async with AcePage(query='"visual-wave"', patches=patches()) as page:
+        await wait_for_startup(page)
+        await page.press("shift+tab")
+        await page.expect_state("tab", "agents")
+        await wait_for_visual_idle(page)
+
+        epic_index = next(
+            index
+            for index, agent in enumerate(page.app._agents)
+            if agent.is_clan_container and agent.agent_clan == "wave-epic"
+        )
+        for _ in range(len(page.app._agents)):
+            if page.app.current_idx == epic_index:
+                break
+            await page.press("j")
+        assert page.app._agents[page.app.current_idx].agent_clan == "wave-epic"
+        await wait_for_visual_idle(page)
+
+        assert_page_svg_contains(page, "WAVES")
+        assert_page_svg_contains(page, "wave 1 in flight")
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_clan_waves_ladder_level_1_120x40",
+            title="ACE clan WAVES ladder fold level 1",
+        )
+
+        await page.press("z", "z")
+        assert page.app.panel_fold_level.value == "expanded"
+        await wait_for_visual_idle(page)
+        assert_page_svg_contains(page, "after")
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_clan_waves_ladder_level_2_120x40",
+            title="ACE clan WAVES ladder fold level 2",
+        )
+
+        await page.press("z", "z")
+        assert page.app.panel_fold_level.value == "fully_expanded"
+        await wait_for_visual_idle(page)
+        assert_page_svg_contains(page, "waits on")
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_clan_waves_ladder_level_3_120x40",
+            title="ACE clan WAVES ladder fold level 3",
         )
 
 

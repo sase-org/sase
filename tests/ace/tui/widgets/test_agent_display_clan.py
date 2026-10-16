@@ -479,7 +479,13 @@ def test_clan_full_render_bypasses_attempt_and_artifact_paths() -> None:
         start=datetime(2026, 7, 17, 12, 0, 0),
         stop=datetime(2026, 7, 17, 12, 1, 0),
     )
-    container = project_clan_tree([member])[0]
+    dependent = make_clan_agent(
+        "research.dependent",
+        status="WAITING",
+        start=datetime(2026, 7, 17, 12, 1, 0),
+    )
+    dependent.waiting_for = ["research.only"]
+    container = project_clan_tree([member, dependent])[0]
 
     class _Harness(AgentDisplayRenderMixin):
         attempt_pinned_number = 4
@@ -506,4 +512,5 @@ def test_clan_full_render_bypasses_attempt_and_artifact_paths() -> None:
     flat = flatten_card_document(harness.content)
     assert isinstance(flat, Text)
     assert flat.plain.startswith("CLAN\nName: research\n")
+    assert "WAVES" in flat.plain
     assert harness._app._member_jump_maps[container.identity].targets[0].number == "0"

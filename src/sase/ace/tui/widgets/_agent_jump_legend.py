@@ -6,27 +6,18 @@ from rich.cells import cell_len
 from rich.console import Console, ConsoleOptions, RenderResult
 from rich.text import Text
 
-from sase.agent.status_buckets import AGENT_STATUS_BUCKET_GLYPHS
-
-from ._agent_list_styling import _AGENT_NAME_ANNOTATION_STYLE
 from .prompt_panel._member_in_flight import (
     IN_FLIGHT_RUNNING_TINT,
-    in_flight_glyph_style,
-    in_flight_label_style,
-    in_flight_pad_style,
+    append_member_status_cell,
     is_in_flight_jump_bucket,
 )
-from .prompt_panel._member_roster import (
-    MemberJumpMap,
-    member_status_style,
-)
+from .prompt_panel._member_roster import MemberJumpMap
 
 MIN_LABEL_CELLS = 10
 
 _NEUTRAL_ACCENT = "#8787AF"
 _JUMP_TITLE_STYLE = "bold #D7D7FF"
 _DIM_STYLE = "dim"
-_NAME_STYLE = _AGENT_NAME_ANNOTATION_STYLE
 _DISMISSED_PREFIX_STYLE = "dim #FFAF00"
 _LABEL_BUDGETS: tuple[int, ...] = (32, 24, 18, 14, 12, 10)
 _NARROW_MODES = ("collapsed",)
@@ -114,26 +105,7 @@ def _build_cell(
     if dismissed:
         cell.append("⊘ ", style=_DISMISSED_PREFIX_STYLE)
     cell.append(number, style=f"bold black on {accent}")
-    lit = is_in_flight_jump_bucket(bucket, dismissed=dismissed)
-    if lit and bucket is not None:
-        cell.append(" ", style=in_flight_pad_style(bucket))
-        cell.append(label, style=in_flight_label_style(bucket))
-        glyph = AGENT_STATUS_BUCKET_GLYPHS.get(bucket, "")
-        if glyph:
-            cell.append(" ", style=in_flight_pad_style(bucket))
-            cell.append(glyph, style=in_flight_glyph_style(bucket))
-        cell.append(" ", style=in_flight_pad_style(bucket))
-    else:
-        cell.append(" ")
-        if dismissed:
-            cell.append(label, style=f"dim {_NAME_STYLE}")
-        else:
-            cell.append(label, style=_NAME_STYLE)
-        if bucket is not None:
-            glyph = AGENT_STATUS_BUCKET_GLYPHS.get(bucket, "")
-            if glyph:
-                cell.append(" ")
-                cell.append(glyph, style=member_status_style(bucket))
+    append_member_status_cell(cell, label, bucket=bucket, dismissed=dismissed)
     if show_archive_hint and dismissed:
         cell.append(" archive", style=_DIM_STYLE)
     return cell

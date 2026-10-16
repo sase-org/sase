@@ -6102,16 +6102,15 @@ the preferred card.
   - `CODE` — when the agent began writing code
   - `EPIC` — when an epic follow-up agent was launched after plan approval
   - `DONE` — when execution completed
-- **CLAN / MEMBERS**: Shown when a synthetic clan row is selected. The orchid `CLAN`
-  kind label renders as the header panel title and the identity fields (`Name`,
-  `Tribes`, `Status`, `Runtime`, `Members`, `Fold`) live in the header panel; the
-  `CLAN MEMBERS` roster lives in the jump panel. Layered clans use dependency wave order
-  with launch order inside each wave, matching the Agents tree; one-wave clans use
-  chronological launch order. These numbers stay stable while statuses change. Each
-  numbered row shows the hood-relative suffix, kind, status, model, and duration;
-  members of a nested sequential session are indented under its aggregate row. `Ctrl+J`
-  / `Ctrl+K` move between the Main deck's cards, and pressing the row's number jumps to
-  that member in the Agents list. At most 100 members receive numbers.
+- **CLAN / MEMBERS**: Selecting a synthetic clan shows the orchid `CLAN` identity in the
+  header and its `CLAN MEMBERS` roster in the jump panel. Layered clans follow
+  dependency wave order as in the Agents tree; one-wave clans use launch order. Their
+  foldable `WAVES` ladder summarizes live progress, then shows predecessor and external
+  waits at higher folds. It appears before the roster, or before the frozen summary in a
+  detached live layout. Member numbers stay stable across status changes; rows show
+  suffix, kind, status, model, and duration, with sequential session members indented.
+  `Ctrl+J` / `Ctrl+K` move between Main cards, and row numbers jump to Agents-list
+  members. At most 100 members are numbered.
 - **SESSION**: Shown when a real multi-member session root is selected. The collapsed
   identity includes a `Models:` strip with each distinct recorded provider/model pair
   once, in first-use order. It uses one row normally and a second row before omitting

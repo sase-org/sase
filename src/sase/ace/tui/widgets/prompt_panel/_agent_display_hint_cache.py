@@ -8,6 +8,10 @@ from dataclasses import dataclass
 from hashlib import blake2b
 from typing import Any, cast
 
+from sase.agent.status_buckets import (
+    AGENT_STATUS_BUCKET_GLYPHS,
+    agent_status_bucket,
+)
 from sase.project_display_names import project_display_name_map_signature
 
 from ...agent_completion import agent_wait_status_maps_for_app
@@ -88,6 +92,51 @@ def _digest_parts(*parts: object) -> str:
         digest.update(len(encoded).to_bytes(8, "big"))
         digest.update(encoded)
     return digest.hexdigest()
+
+
+def _member_status_signature(member: Agent) -> tuple[object, ...]:
+    bucket = agent_status_bucket(member)
+    return (
+        member.identity,
+        member.display_status,
+        bucket,
+        AGENT_STATUS_BUCKET_GLYPHS.get(bucket, ""),
+    )
+
+
+def _clan_wave_render_signature(agent: Agent) -> tuple[object, ...] | None:
+    """Return the wave facts that can change the rendered ladder or its hints."""
+    summary = agent.clan_waves
+    if summary is None:
+        return None
+    return (
+        summary.layered,
+        summary.numbered_wave_count,
+        summary.has_seal,
+        tuple(
+            (
+                wave.number,
+                wave.kind,
+                wave.member_identities,
+                wave.ghost_names,
+                wave.state.value,
+                wave.predecessor_identities,
+            )
+            for wave in summary.waves
+        ),
+        tuple(
+            (
+                member.identity,
+                member.relative_label,
+                member.wave_index,
+                member.predecessors,
+                member.ghost_predecessors,
+                member.external_wait_count,
+            )
+            for member in summary.members
+        ),
+        summary.unresolved_identities,
+    )
 
 
 def _source_digest_parts(agent: Agent) -> list[tuple[str, object]]:
@@ -247,14 +296,14 @@ def agent_hint_render_cache_key(
     if agent.is_clan_container:
         snapshot = get_cached_clan_section_snapshot(widget, agent)
         member_states = tuple(
-            (member.identity, member.display_status)
+            _member_status_signature(member)
             for member in clan_section_member_rows(agent)
         )
         agent_state_digest = _digest_parts(
             member_states,
             agent.agent_clan,
             agent.agent_clan_generation,
-            agent.clan_waves,
+            _clan_wave_render_signature(agent),
             snapshot.revision if snapshot is not None else 0,
         )
         source_digest = _digest_parts(agent.clan_summary)

@@ -45,12 +45,19 @@ def append_fold_heading(
     section_id: str,
     level: FoldLevel,
     count: int | None,
+    summary: str | Text | None = None,
 ) -> None:
     append_major_section_divider(text)
     heading = Text()
     append_fold_glyph(heading, level)
     heading.append(title, style=_CLAN_SECTION_HEADING_STYLE)
-    if count is not None:
+    if summary is not None:
+        heading.append(" · ", style="dim")
+        if isinstance(summary, Text):
+            heading.append_text(summary)
+        else:
+            heading.append(summary, style="dim")
+    elif count is not None:
         heading.append(f" · {count}", style=fold_count_style(title))
     append_section_heading(text, heading, section_id=section_id)
 

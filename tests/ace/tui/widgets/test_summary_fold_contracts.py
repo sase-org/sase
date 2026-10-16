@@ -244,6 +244,7 @@ def _clan_case() -> _FoldContractCase:
         roster_title="CLAN MEMBERS",
         content_section="ERRORS",
         empty_sections=(
+            "WAVES",
             "ERRORS",
             "OUTPUT VARIABLES",
             "WORKFLOW VARIABLES",
@@ -344,6 +345,35 @@ def test_numbered_rosters_and_jump_maps_exist_at_every_fold_level(
         assert " 0  " in rendered.plain
         assert rendered.jump_map.targets
         assert rendered.jump_map.targets[0].number == "0"
+
+
+def test_layered_clan_waves_follow_all_three_fold_levels() -> None:
+    first = _clan_member(suffix="first", with_content=False)
+    second = _clan_member(suffix="second", with_content=False)
+    first.status = "RUNNING"
+    second.status = "WAITING"
+    second.waiting_for = ["contract.first"]
+    container = project_clan_tree([first, second])[0]
+
+    rendered = {
+        level: build_clan_detail_text(
+            container,
+            now=NOW,
+            snapshot=ClanSectionSnapshot(in_memory=aggregate_clan_in_memory(container)),
+            fold_level=level,
+        ).plain
+        for level in CLAN_FOLD_SCALE
+    }
+
+    for level, detail in rendered.items():
+        assert "WAVES" in detail, level
+    assert rendered[FoldLevel.COLLAPSED].index("WAVES") < rendered[
+        FoldLevel.COLLAPSED
+    ].index("CLAN MEMBERS")
+    assert "\n   1 " not in rendered[FoldLevel.COLLAPSED]
+    assert "no dependencies" in rendered[FoldLevel.EXPANDED]
+    assert "after .first" in rendered[FoldLevel.EXPANDED]
+    assert "waits on .first ▶" in rendered[FoldLevel.FULLY_EXPANDED]
 
 
 def test_scanning_tail_exactly_tracks_unloaded_required_enrichment(
