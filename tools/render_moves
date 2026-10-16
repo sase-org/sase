@@ -1,0 +1,164 @@
+#!/usr/bin/env python3
+"""Render redirects, moved-page stubs, and MkDocs nav exclusions from moves.yml."""
+
+from __future__ import annotations
+
+import argparse
+import difflib
+from pathlib import Path
+import re
+import sys
+
+from docs_moves import PageMove, REPO_ROOT, load_moves, markdown_link, site_url
+from docs_render_utils import replace_generated_block
+
+
+REDIRECTS_MARKER = "docs page moves redirects"
+NOT_IN_NAV_MARKER = "docs page moves not_in_nav"
+STUB_MARKER = "<!-- generated, do not edit; source: docs/_meta/moves.yml -->"
+
+
+def _title_for(root: Path, from_path: str) -> str:
+    path = root / "docs" / from_path
+    if path.is_file():
+        text = path.read_text(encoding="utf-8")
+        match = re.search(r"^#\s+(.+?)\s*#*\s*$", text, flags=re.MULTILINE)
+        if match:
+            return match.group(1).strip()
+    return Path(from_path).stem.replace("_", " ").replace("-", " ").title()
+
+
+def _stub_text(root: Path, move: PageMove) -> str:
+    from_path = move.from_path
+    to_path = move.to_path
+    title = _title_for(root, from_path)
+    destination = markdown_link(from_path, to_path)
+    lines = [
+        STUB_MARKER,
+        f"# {title}",
+        "",
+        f"This page has moved. See [{Path(to_path).stem.replace('-', ' ').title()}]({destination}).",
+    ]
+    if move.anchors:
+        lines.extend(["", "## Moved sections", ""])
+        for old_anchor, target in move.anchors.items():
+            target_path, separator, target_anchor = target.partition("#")
+            link = markdown_link(
+                from_path, target_path, target_anchor if separator else None
+            )
+            label = old_anchor.replace("-", " ").replace("_", " ").capitalize()
+            lines.extend([f'<a id="{old_anchor}"></a>', f"- [{label}]({link})"])
+    return "\n".join(lines) + "\n"
+
+
+def generated_outputs(root: Path = REPO_ROOT) -> tuple[dict[Path, str], set[Path]]:
+    moves = load_moves(root)
+    redirects: list[str] = []
+    stubs: dict[Path, str] = {}
+    not_in_nav: list[str] = []
+    for move in moves:
+        if move.kind == "redirect":
+            redirects.append(f"{site_url(move.from_path)} {site_url(move.to_path)} 301")
+        else:
+            relative_path = Path("docs") / Path(move.from_path)
+            stubs[root / relative_path] = _stub_text(root, move)
+            not_in_nav.append(move.from_path)
+
+    redirect_path = root / "docs" / "_redirects"
+    redirect_source = redirect_path.read_text(encoding="utf-8")
+    redirect_text = replace_generated_block(
+        redirect_source,
+        REDIRECTS_MARKER,
+        "\n".join(sorted(redirects)) if redirects else "# No whole-page redirects.",
+        prefix="#",
+        suffix="",
+    )
+
+    mkdocs_path = root / "mkdocs.yml"
+    mkdocs_source = mkdocs_path.read_text(encoding="utf-8")
+    if not_in_nav:
+        nav_lines = ["not_in_nav: |", *(f"  {path}" for path in sorted(not_in_nav))]
+    else:
+        nav_lines = ['not_in_nav: ""']
+    mkdocs_text = replace_generated_block(
+        mkdocs_source,
+        NOT_IN_NAV_MARKER,
+        "\n".join(nav_lines),
+        prefix="#",
+        suffix="",
+        insert_before=r"^nav:",
+    )
+    outputs = {redirect_path: redirect_text, mkdocs_path: mkdocs_text, **stubs}
+    expected_stubs = set(stubs)
+    return outputs, expected_stubs
+
+
+def _stale_stubs(root: Path, expected: set[Path]) -> set[Path]:
+    docs = root / "docs"
+    stale: set[Path] = set()
+    for path in docs.rglob("*.md"):
+        if path in expected:
+            continue
+        try:
+            first_line = path.open(encoding="utf-8").readline().strip()
+        except OSError:
+            continue
+        if first_line == STUB_MARKER:
+            stale.add(path)
+    return stale
+
+
+def render(root: Path = REPO_ROOT) -> None:
+    outputs, expected_stubs = generated_outputs(root)
+    for path, content in outputs.items():
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content.rstrip() + "\n", encoding="utf-8")
+    for path in _stale_stubs(root, expected_stubs):
+        path.unlink()
+
+
+def check(root: Path = REPO_ROOT) -> list[str]:
+    outputs, expected_stubs = generated_outputs(root)
+    failures: list[str] = []
+    for path, expected in outputs.items():
+        try:
+            actual = path.read_text(encoding="utf-8")
+        except OSError:
+            failures.append(f"{path.relative_to(root)} is not generated")
+            continue
+        if actual != expected:
+            failures.extend(
+                difflib.unified_diff(
+                    actual.splitlines(),
+                    expected.splitlines(),
+                    fromfile=str(path.relative_to(root)),
+                    tofile=f"{path.relative_to(root)} (generated)",
+                    lineterm="",
+                )
+            )
+    failures.extend(
+        f"{path.relative_to(root)} is a stale generated move stub"
+        for path in sorted(_stale_stubs(root, expected_stubs))
+    )
+    return failures
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--check", action="store_true", help="check without writing")
+    args = parser.parse_args(argv)
+    try:
+        if args.check:
+            failures = check()
+            for failure in failures:
+                print(failure, file=sys.stderr)
+            return 1 if failures else 0
+        render()
+    except (OSError, ValueError) as exc:
+        print(f"[render_moves] {exc}", file=sys.stderr)
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

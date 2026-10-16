@@ -1,0 +1,4 @@
+moves:
+  - from: instruction_inventory.md
+    to: instruction_bundles.md
+    kind: redirect

@@ -72,7 +72,7 @@ def test_lint_does_not_run_sase_validation() -> None:
     assert "just validate" not in output
 
 
-def test_fix_uses_formatter_venv_without_application_setup(tmp_path: Path) -> None:
+def test_fix_routes_generated_docs_to_their_declared_venvs(tmp_path: Path) -> None:
     copy_justfile(tmp_path)
     calls = tmp_path / "calls.log"
     (tmp_path / "src").mkdir()
@@ -102,23 +102,23 @@ def test_fix_uses_formatter_venv_without_application_setup(tmp_path: Path) -> No
         text=True,
     ).stdout.strip()
     (Path(site_packages) / "yaml.py").write_text("", encoding="utf-8")
-    (tmp_path / "tools/render_model_docs").write_text(
+    (tmp_path / "tools/render_docs").write_text(
         "from pathlib import Path\n"
         "import os\n"
+        "import sys\n"
+        "venv = 'format' if '.venv-format' in sys.executable else 'sase'\n"
+        "args = ' '.join(sys.argv[1:])\n"
         "with Path(os.environ['JUST_SPY_FILE']).open('a', encoding='utf-8') as f:\n"
-        "    f.write('format-python tools/render_model_docs\\n')\n",
+        "    f.write(f'{venv}-python tools/render_docs {args}\\n')\n",
         encoding="utf-8",
     )
-    (tmp_path / "tools/render_applicability").write_text(
-        "from pathlib import Path\n"
-        "import os\n"
-        "with Path(os.environ['JUST_SPY_FILE']).open('a', encoding='utf-8') as f:\n"
-        "    f.write('format-python tools/render_applicability\\n')\n",
-        encoding="utf-8",
+    (tmp_path / "tools/check_docs").write_text(
+        "raise SystemExit(0)\n", encoding="utf-8"
     )
 
     _install_executable(
         tmp_path / ".venv/bin/python",
+        'if [ "$1" = "tools/render_docs" ]; then echo "sase-python $*" >> "$JUST_SPY_FILE"; exit 0; fi\n'
         'echo forbidden-app-python >> "$JUST_SPY_FILE"\nexit 91\n',
     )
     _install_executable(
@@ -146,8 +146,8 @@ def test_fix_uses_formatter_venv_without_application_setup(tmp_path: Path) -> No
     recorded = calls.read_text(encoding="utf-8")
     assert "ruff format src/ tests/" in recorded
     assert "ruff check --fix src/ tests/" in recorded
-    assert "format-python tools/render_model_docs" in recorded
-    assert "format-python tools/render_applicability" in recorded
+    assert "format-python tools/render_docs --format-only" in recorded
+    assert "sase-python tools/render_docs --sase-only" in recorded
     assert "prettier --write **/*.md" in recorded
     assert "keep-sorted sample.yml" in recorded
     assert "forbidden-app-python" not in recorded

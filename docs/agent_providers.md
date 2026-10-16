@@ -196,12 +196,12 @@ instead (decision `helpers-return-roots-declare`). Mechanical enforcement exists
 where a provider exposes a helper channel. Everything else relies on that contract
 sentence. Limits by provider capability, not hidden:
 
-| Provider  | Helper coverage                                                                                                                                                                                                                    |
-| --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Claude    | Helper bundle plus PreToolUse guard (static template on fallback); live probes confirm forked (depth-2) helpers carry `agent_id`, so the guard covers forks. Full surface list: [Instruction Inventory](instruction_inventory.md). |
-| Codex     | Children inherit the process-level `developer_instructions`. There is no separate helper bundle or mechanical guard; helpers must follow the root-only declaration rule.                                                           |
-| Grok      | Subagents get nothing; sentence only, with the child channel deferred.                                                                                                                                                             |
-| Muse, agy | No helper coverage.                                                                                                                                                                                                                |
+| Provider  | Helper coverage                                                                                                                                                                                                              |
+| --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Claude    | Helper bundle plus PreToolUse guard (static template on fallback); live probes confirm forked (depth-2) helpers carry `agent_id`, so the guard covers forks. Further details: [Instruction Bundles](instruction_bundles.md). |
+| Codex     | Children inherit the process-level `developer_instructions`. There is no separate helper bundle or mechanical guard; helpers must follow the root-only declaration rule.                                                     |
+| Grok      | Subagents get nothing; sentence only, with the child channel deferred.                                                                                                                                                       |
+| Muse, agy | No helper coverage.                                                                                                                                                                                                          |
 
 ## Claude Code
 

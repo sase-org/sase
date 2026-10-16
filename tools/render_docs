@@ -1,0 +1,99 @@
+#!/usr/bin/env python3
+"""Run registered generated documentation sources in their declared venv."""
+
+from __future__ import annotations
+
+import argparse
+import importlib.util
+from dataclasses import dataclass
+from importlib.machinery import SourceFileLoader
+from pathlib import Path
+import sys
+from types import ModuleType
+
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+@dataclass(frozen=True)
+class Source:
+    name: str
+    script: str
+    needs_sase: bool
+
+
+# Keep the model renderer first: it is the established YAML-only source and
+# guards its no-sase-import guarantee with a dedicated test.
+SOURCES = (
+    Source("model-catalog", "render_model_docs", False),
+    Source("applicability", "render_applicability", False),
+    Source("page-moves", "render_moves", False),
+    Source("docs-map", "render_docs_map", False),
+)
+
+
+def _load_source(source: Source, root: Path) -> ModuleType:
+    path = root / "tools" / source.script
+    name = f"sase_render_source_{source.name.replace('-', '_')}"
+    loader = SourceFileLoader(name, str(path))
+    spec = importlib.util.spec_from_loader(
+        name,
+        loader,
+    )
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"cannot load renderer source {path}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def run(
+    *,
+    check: bool,
+    needs_sase: bool | None = None,
+    root: Path = ROOT,
+    sources: tuple[Source, ...] = SOURCES,
+) -> int:
+    selected = [
+        source
+        for source in sources
+        if needs_sase is None or source.needs_sase is needs_sase
+    ]
+    if not selected:
+        print("[render_docs] no registered sources match this venv")
+        return 0
+    result = 0
+    for source in selected:
+        try:
+            module = _load_source(source, root)
+            main = getattr(module, "main")
+            source_result = main(["--check"] if check else [])
+        except (ImportError, OSError, RuntimeError, AttributeError) as exc:
+            print(f"[render_docs] {source.name}: {exc}", file=sys.stderr)
+            source_result = 1
+        if source_result:
+            result = int(source_result)
+    return result
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument(
+        "--format-only",
+        action="store_true",
+        help="run YAML/JSON-only sources in the formatter venv",
+    )
+    mode.add_argument(
+        "--sase-only",
+        action="store_true",
+        help="run sources that require sase importable in .venv",
+    )
+    parser.add_argument("--check", action="store_true", help="check without writing")
+    args = parser.parse_args(argv)
+    needs_sase = True if args.sase_only else False if args.format_only else None
+    return run(check=args.check, needs_sase=needs_sase)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

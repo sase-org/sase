@@ -409,8 +409,8 @@ With no subcommand, `sase instructions` defaults to `sase instructions list`. Th
 inventory shows project, subdirectory, home, and chezmoi-source `AGENTS.md` files, their
 H1 titles, whether they look managed, core/reference memory reference counts, and nearby
 provider instruction file status. It never writes files; `sase memory init` is the
-command that creates or refreshes these documents. For every instruction surface and its
-migration disposition, see the [Instruction Inventory](instruction_inventory.md).
+command that creates or refreshes these documents. For instruction-surface and
+provider-delivery details, see [Instruction Bundles](instruction_bundles.md).
 
 ## Memory Initialization
 

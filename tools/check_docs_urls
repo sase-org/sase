@@ -10,12 +10,15 @@ import subprocess
 import sys
 import tomllib
 from collections.abc import Iterator
-from pathlib import Path
-from urllib.parse import unquote, urlsplit
+from pathlib import Path, PurePosixPath
+from urllib.parse import quote, unquote, urlsplit
+
+import yaml  # type: ignore[import-untyped]
 
 
 ROOT = Path(__file__).resolve().parents[1]
 URL_CONTRACT = ROOT / "docs" / "_meta" / "url_contract.txt"
+MOVES_MAP = ROOT / "docs" / "_meta" / "moves.yml"
 SASE_URL_RE = re.compile(r"https://sase\.sh(?:/[^\s<>()[\]{}\"'`*]+)?", re.IGNORECASE)
 TRAILING_URL_PUNCTUATION = ".,;:!?)]}*"
 
@@ -71,6 +74,63 @@ def read_redirects(path: Path) -> dict[str, str]:
             continue
         redirects[source] = target
     return redirects
+
+
+def _docs_url(path: str) -> str:
+    page = PurePosixPath(path)
+    if page.name == "index.md":
+        parent = page.parent.as_posix()
+        return "/" if parent == "." else f"/{quote(parent, safe='/-')}/"
+    return f"/{quote(page.with_suffix('').as_posix(), safe='/-')}/"
+
+
+def read_move_contract(path: Path = MOVES_MAP) -> tuple[dict[str, str], list[tuple[str, str]]]:
+    """Return required whole-page redirects and URLs that prove moved anchors."""
+    payload = yaml.safe_load(path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict) or not isinstance(payload.get("moves"), list):
+        raise ValueError(f"{path} must contain a moves list")
+    redirects: dict[str, str] = {}
+    references: list[tuple[str, str]] = []
+    for number, item in enumerate(payload["moves"], 1):
+        if not isinstance(item, dict):
+            raise ValueError(f"{path}: moves[{number}] must be a mapping")
+        source = item.get("from")
+        target = item.get("to")
+        kind = item.get("kind", "redirect")
+        if not isinstance(source, str) or not isinstance(target, str):
+            raise ValueError(f"{path}: moves[{number}] needs from and to paths")
+        source_url = _docs_url(source)
+        target_url = _docs_url(target)
+        references.append((f"https://sase.sh{target_url}", f"{path}: canonical target"))
+        if kind == "redirect":
+            redirects[source_url] = target_url
+            references.append((f"https://sase.sh{source_url}", f"{path}: redirect source"))
+        elif kind == "stub":
+            references.append((f"https://sase.sh{source_url}", f"{path}: stub page"))
+            anchors = item.get("anchors", {})
+            if not isinstance(anchors, dict):
+                raise ValueError(f"{path}: moves[{number}] anchors must be a mapping")
+            for old_anchor, moved_to in anchors.items():
+                if not isinstance(old_anchor, str) or not isinstance(moved_to, str):
+                    raise ValueError(f"{path}: moves[{number}] has an invalid anchor")
+                references.append(
+                    (
+                        f"https://sase.sh{source_url}#{old_anchor}",
+                        f"{path}: preserved stub anchor",
+                    )
+                )
+                target_path, separator, target_anchor = moved_to.partition("#")
+                if separator:
+                    target_page_url = _docs_url(target_path)
+                    references.append(
+                        (
+                            f"https://sase.sh{target_page_url}#{target_anchor}",
+                            f"{path}: moved anchor target",
+                        )
+                    )
+        else:
+            raise ValueError(f"{path}: moves[{number}] kind must be redirect or stub")
+    return redirects, references
 
 
 def _redirect_target(path: str, redirects: dict[str, str]) -> str | None:
@@ -209,6 +269,9 @@ def collect_references(site_dir: Path) -> list[tuple[str, str]]:
     for url in read_url_contract(URL_CONTRACT):
         references.add((url, "docs/_meta/url_contract.txt"))
 
+    _, move_references = read_move_contract()
+    references.update(move_references)
+
     for html_path in sorted(site_dir.rglob("*.html")):
         relative = html_path.relative_to(site_dir)
         if relative == Path("404.html"):
@@ -259,11 +322,17 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     try:
         redirects = read_redirects(ROOT / "docs" / "_redirects")
+        move_redirects, _ = read_move_contract()
         references = collect_references(args.site_dir)
-    except (OSError, ValueError, KeyError) as exc:
+    except (OSError, ValueError, KeyError, yaml.YAMLError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
-    errors = validate_urls(args.site_dir, references, redirects)
+    errors = [
+        f"docs/_redirects is missing move redirect {source} → {target}"
+        for source, target in move_redirects.items()
+        if redirects.get(source) != target
+    ]
+    errors.extend(validate_urls(args.site_dir, references, redirects))
     if errors:
         print("Documentation URL contract failed:", file=sys.stderr)
         for error in errors:

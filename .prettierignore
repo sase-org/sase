@@ -18,3 +18,6 @@ src/sase/sdd/templates/
 
 # Exact renderer snapshots are Markdown outputs, not prose sources.
 tests/agents_sync/goldens/
+
+# Generated documentation index; renderer output is checked from its sources.
+docs/README.md

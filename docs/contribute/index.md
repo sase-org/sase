@@ -26,7 +26,6 @@ contracts, and the docs process itself.
 - [SDD storage](../sdd_storage.md) — How work units persist.
 - [Artifacts pane contract](../artifacts_pane_contract.md) — The pane API.
 - [Artifacts visual grammar](../artifacts_pane_visual_grammar.md) — Pane visuals.
-- [Instruction inventory](../instruction_inventory.md) — Historical epic artifact.
 
 ## Docs process
 

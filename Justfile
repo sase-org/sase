@@ -466,10 +466,10 @@ _lint-toobig *args:
     {{ venv_bin }}/toobig tests {{ if args == "" { "1000 850 700" } else { args } }}
 
 # Auto-fix all code (format + keep-sorted + docs budget ratchet)
-fix: (_header "fix") fmt-py fmt-docs fmt-md fix-keep-sorted fix-docs-budgets
+fix: (_header "fix") fmt-py fmt-docs docs-gen fmt-md fix-keep-sorted fix-docs-budgets
 
 # Auto-format all code
-fmt: (_header "fmt") fmt-py fmt-docs fmt-md
+fmt: (_header "fmt") fmt-py fmt-docs docs-gen fmt-md
 
 # Auto-format Python code
 fmt-py: _setup-format-tools
@@ -483,11 +483,19 @@ fmt-md: _setup-prettier
     @printf "\n---------- Formatting Markdown with prettier... ----------\n"
     {{ prettier_bin }} --write "**/*.md"
 
+# Renderer registry sources: tools/render_model_docs,
+# tools/render_applicability, tools/render_moves, and tools/render_docs_map.
+# Shared modules: tools/docs_moves.py and tools/docs_render_utils.py.
+# Section-move operator: tools/docs_split.
 # Render generated Markdown blocks
 fmt-docs: _setup-format-tools
     @printf "\n---------- Rendering generated docs... ----------\n"
-    {{ format_venv_bin }}/python tools/render_model_docs
-    {{ format_venv_bin }}/python tools/render_applicability
+    {{ format_venv_bin }}/python tools/render_docs --format-only
+
+# Render generated docs whose sources import the sase package.
+docs-gen: _venv
+    @printf "\n---------- Rendering sase-backed docs... ----------\n"
+    {{ venv_bin }}/python tools/render_docs --sase-only
 
 # Auto-fix keep-sorted blocks in YAML files
 fix-keep-sorted: _setup-keep-sorted
@@ -500,13 +508,17 @@ lint-keep-sorted: _setup-keep-sorted
     git ls-files -z '*.yml' '*.yaml' | xargs -0 -r sh -c 'for path do [ ! -e "$path" ] || printf "%s\0" "$path"; done' sh | xargs -0 -r {{ keep_sorted_bin }} --mode lint
 
 # Check all formatting (CI mode)
-fmt-check: (_header "fmt-check") fmt-py-check fmt-md-check fmt-docs-check
+fmt-check: (_header "fmt-check") fmt-py-check fmt-md-check fmt-docs-check docs-gen-check
 
 # Check generated Markdown blocks are current (CI mode, no writes)
 fmt-docs-check: _setup-format-tools
     @printf "\n---------- Checking generated docs... ----------\n"
-    {{ format_venv_bin }}/python tools/render_model_docs --check
-    {{ format_venv_bin }}/python tools/render_applicability --check
+    {{ format_venv_bin }}/python tools/render_docs --format-only --check
+
+# Check generated docs whose sources import the sase package.
+docs-gen-check: _venv
+    @printf "\n---------- Checking sase-backed docs... ----------\n"
+    {{ venv_bin }}/python tools/render_docs --sase-only --check
 
 # Check the bundled size-alias policy from models.yml (CI mode, no writes).
 # Fails with fix-it diagnostics when the shipped catalog, tier defaults, or
@@ -811,6 +823,7 @@ check: (_require-tool-run "check") _setup
     @tools/run_silent "fmt (python)"       just fmt-py-check
     @tools/run_silent "fmt (markdown)"     just fmt-md-check
     @tools/run_silent "fmt (generated docs)" just fmt-docs-check
+    @tools/run_silent "fmt (sase-backed docs)" just docs-gen-check
     @tools/run_silent "model policy" just model-policy-check
     @tools/run_silent "lint (keep-sorted)" just lint-keep-sorted
     @tools/run_silent "lint (ruff)"        just _lint-ruff
@@ -848,6 +861,7 @@ check-full: (_require-tool-run "check-full") _setup
     @tools/run_silent "fmt (python)"       just fmt-py-check
     @tools/run_silent "fmt (markdown)"     just fmt-md-check
     @tools/run_silent "fmt (generated docs)" just fmt-docs-check
+    @tools/run_silent "fmt (sase-backed docs)" just docs-gen-check
     @tools/run_silent "model policy" just model-policy-check
     @tools/run_silent "lint (keep-sorted)" just lint-keep-sorted
     @tools/run_silent "lint (ruff)"        just _lint-ruff

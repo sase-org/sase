@@ -23,6 +23,10 @@ exclude_docs: |
   _includes/
   README.md
 
+# BEGIN GENERATED: docs page moves not_in_nav
+not_in_nav: ""
+# END GENERATED: docs page moves not_in_nav 
+
 nav:
   - Home: index.md
   - Get started:
@@ -96,7 +100,6 @@ nav:
       - Performance runbook: perf_runbook.md
       - Mobile MVP runbook: mobile_mvp_runbook.md
       - Commit workflows: commit_workflows.md
-      - Instruction inventory: instruction_inventory.md
       - SDD storage: sdd_storage.md
       - Artifacts pane contract: artifacts_pane_contract.md
       - Artifacts visual grammar: artifacts_pane_visual_grammar.md

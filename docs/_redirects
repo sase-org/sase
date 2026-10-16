@@ -5,3 +5,7 @@
 /blog/posts/why-coding-agents-need-orchestration/ /blog/posts/structured-agentic-software-engineering/ 301
 /series/agentic-software-engineering/ /blog/posts/structured-agentic-software-engineering/ 301
 /xprompt/ /macros/ 301
+
+# BEGIN GENERATED: docs page moves redirects
+/instruction_inventory/ /instruction_bundles/ 301
+# END GENERATED: docs page moves redirects

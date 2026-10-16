@@ -11,12 +11,14 @@ from __future__ import annotations
 import importlib.util
 from importlib.machinery import SourceFileLoader
 from pathlib import Path
+import sys
 from types import ModuleType
 
 import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 TOOL_PATH = ROOT / "tools" / "render_applicability"
+RENDER_DOCS_PATH = ROOT / "tools" / "render_docs"
 MKDOCS_CONFIG = ROOT / "mkdocs.yml"
 PDF_CONFIG = ROOT / "mkdocs-pdf.yml"
 MAIN_HTML = ROOT / "docs" / "overrides" / "main.html"
@@ -99,5 +101,17 @@ def test_smoke_workflow_reads_the_single_sourced_command() -> None:
 
 def test_fmt_docs_recipes_cover_applicability() -> None:
     recipe = JUSTFILE.read_text(encoding="utf-8")
-    assert "python tools/render_applicability\n" in recipe
-    assert "python tools/render_applicability --check" in recipe
+    assert "python tools/render_docs --format-only" in recipe
+    assert "python tools/render_docs --format-only --check" in recipe
+    runner = SourceFileLoader("render_docs_test", str(RENDER_DOCS_PATH))
+    spec = importlib.util.spec_from_loader("render_docs_test", runner)
+    assert spec is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules["render_docs_test"] = module
+    runner.exec_module(module)
+    assert any(
+        source.name == "applicability"
+        and source.script == "render_applicability"
+        and not source.needs_sase
+        for source in module.SOURCES
+    )

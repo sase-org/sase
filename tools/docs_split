@@ -1,0 +1,366 @@
+#!/usr/bin/env python3
+"""Move selected H2/H3 sections to existing docs pages and update move links."""
+
+from __future__ import annotations
+
+import argparse
+from dataclasses import dataclass
+from pathlib import Path, PurePosixPath
+import posixpath
+import re
+import sys
+from urllib.parse import unquote, urlsplit, urlunsplit
+
+import yaml  # type: ignore[import-untyped]
+
+from docs_moves import MOVES_PATH
+
+
+ROOT = Path(__file__).resolve().parents[1]
+HEADING_RE = re.compile(r"^\s{0,3}(#{1,6})\s+(.+?)\s*#*\s*$")
+EXPLICIT_ANCHOR_RE = re.compile(r"\s*\{#([^}]+)\}\s*$")
+MARKDOWN_LINK_RE = re.compile(r"(?P<prefix>\]\()(?P<target><[^>]+>|[^)\s]+)")
+
+
+@dataclass(frozen=True)
+class Heading:
+    level: int
+    title: str
+    anchor: str
+    path: tuple[str, ...]
+    start: int
+    end: int
+
+
+def _slugify(value: str) -> str:
+    explicit = EXPLICIT_ANCHOR_RE.search(value)
+    if explicit:
+        return explicit.group(1)
+    title = EXPLICIT_ANCHOR_RE.sub("", value).strip()
+    title = re.sub(r"[`*_~]", "", title)
+    title = re.sub(r"<[^>]+>", "", title)
+    title = re.sub(r"[^\w\-\s]", "", title.lower(), flags=re.UNICODE)
+    return re.sub(r"\s+", "-", title).strip("-")
+
+
+def _headings(lines: list[str]) -> list[Heading]:
+    raw: list[tuple[int, str, int]] = []
+    fence: str | None = None
+    for index, line in enumerate(lines):
+        fence_match = re.match(r"^\s*(`{3,}|~{3,})", line)
+        if fence_match:
+            marker = fence_match.group(1)[0]
+            if fence is None:
+                fence = marker
+            elif marker == fence:
+                fence = None
+            continue
+        if fence is not None:
+            continue
+        match = HEADING_RE.match(line)
+        if match:
+            raw.append((len(match.group(1)), match.group(2).strip(), index))
+
+    headings: list[Heading] = []
+    parents: dict[int, str] = {}
+    slug_counts: dict[str, int] = {}
+    for position, (level, title, start) in enumerate(raw):
+        for known_level in tuple(parents):
+            if known_level >= level:
+                parents.pop(known_level)
+        if level in {2, 3}:
+            parents[level] = title
+        path = tuple(parents[item] for item in sorted(parents) if item in {2, 3})
+        anchor = _slugify(title)
+        count = slug_counts.get(anchor, 0)
+        slug_counts[anchor] = count + 1
+        if count:
+            anchor = f"{anchor}-{count}"
+        end = len(lines)
+        for next_level, _, next_start in raw[position + 1 :]:
+            if next_level <= level:
+                end = next_start
+                break
+        headings.append(Heading(level, title, anchor, path, start, end))
+    return headings
+
+
+def _normalize_source(root: Path, value: str | Path) -> str:
+    path = Path(value)
+    if path.is_absolute():
+        try:
+            relative = path.resolve().relative_to((root / "docs").resolve())
+        except ValueError as exc:
+            raise ValueError("source page must be inside docs/") from exc
+    else:
+        relative = path
+        if relative.parts and relative.parts[0] == "docs":
+            relative = Path(*relative.parts[1:])
+    pure = PurePosixPath(relative.as_posix())
+    if pure.is_absolute() or ".." in pure.parts or pure.suffix.lower() != ".md":
+        raise ValueError("source page must be a safe docs-relative .md path")
+    return pure.as_posix()
+
+
+def _target_path(value: object) -> str:
+    if not isinstance(value, str) or not value:
+        raise ValueError("each moved section needs a target docs-relative .md path")
+    path = PurePosixPath(value)
+    if path.is_absolute() or ".." in path.parts or path.suffix.lower() != ".md":
+        raise ValueError(f"unsafe target docs path: {value!r}")
+    return path.as_posix()
+
+
+def _mapping_items(mapping_path: Path) -> list[tuple[str, str]]:
+    payload = yaml.safe_load(mapping_path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict) or not isinstance(payload.get("sections"), dict):
+        raise ValueError(f"{mapping_path} must contain a sections mapping")
+    result: list[tuple[str, str]] = []
+    for heading, value in payload["sections"].items():
+        if not isinstance(heading, str) or not heading.strip():
+            raise ValueError(f"{mapping_path} contains an empty section heading")
+        target = value.get("target") if isinstance(value, dict) else value
+        result.append((heading.strip(), _target_path(target)))
+    if not result:
+        raise ValueError(f"{mapping_path} contains no sections")
+    return result
+
+
+def _select_sections(
+    headings: list[Heading], requests: list[tuple[str, str]]
+) -> list[tuple[Heading, str]]:
+    selected: list[tuple[Heading, str]] = []
+    for wanted, target in requests:
+        exact = [
+            heading
+            for heading in headings
+            if heading.level in {2, 3}
+            and " > ".join(heading.path) == wanted
+        ]
+        if not exact and " > " not in wanted:
+            exact = [
+                heading
+                for heading in headings
+                if heading.level in {2, 3} and heading.title == wanted
+            ]
+        if len(exact) != 1:
+            raise ValueError(
+                f"heading {wanted!r} matched {len(exact)} sections; use a unique H2/H3 path"
+            )
+        selected.append((exact[0], target))
+    selected.sort(key=lambda item: item[0].start)
+    for (left, _), (right, _) in zip(selected, selected[1:]):
+        if right.start < left.end:
+            raise ValueError(
+                f"selected sections overlap: {left.title!r} contains {right.title!r}"
+            )
+    return selected
+
+
+def _resolve_local_target(href: str, origin: str) -> tuple[str, str, str, bool] | None:
+    target = href[1:-1] if href.startswith("<") and href.endswith(">") else href
+    parsed = urlsplit(target)
+    if parsed.scheme or parsed.netloc or not parsed.path and not parsed.fragment:
+        return None
+    path = unquote(parsed.path)
+    root_relative = path.startswith("/")
+    if root_relative:
+        resolved = posixpath.normpath(path.lstrip("/"))
+    elif path:
+        resolved = posixpath.normpath(
+            posixpath.join(posixpath.dirname(origin), path)
+        )
+    else:
+        resolved = origin
+    return resolved, parsed.query, unquote(parsed.fragment), root_relative
+
+
+def _href_for(
+    *,
+    origin: str,
+    target: str,
+    query: str,
+    anchor: str,
+    root_relative: bool,
+) -> str:
+    if root_relative:
+        path = f"/{target}"
+    elif target == origin:
+        path = ""
+    else:
+        path = posixpath.relpath(target, posixpath.dirname(origin) or ".")
+    return urlunsplit(("", "", path, query, anchor))
+
+
+def _rewrite_links(
+    text: str,
+    *,
+    origin: str,
+    destination: str,
+    source: str,
+    moved_anchors: dict[str, tuple[str, str]],
+    remap_source_anchors: bool,
+) -> str:
+    def replace(match: re.Match[str]) -> str:
+        raw = match.group("target")
+        angle = raw.startswith("<") and raw.endswith(">")
+        href = raw[1:-1] if angle else raw
+        resolved = _resolve_local_target(href, origin)
+        if resolved is None:
+            return match.group(0)
+        target_path, query, anchor, root_relative = resolved
+        new_path, new_anchor = target_path, anchor
+        if target_path == source and anchor in moved_anchors and remap_source_anchors:
+            new_path, new_anchor = moved_anchors[anchor]
+        elif origin != destination and not root_relative:
+            # The Markdown file moved: keep the same local destination from its new home.
+            pass
+        new_href = _href_for(
+            origin=destination,
+            target=new_path,
+            query=query,
+            anchor=new_anchor,
+            root_relative=root_relative,
+        )
+        return match.group("prefix") + (f"<{new_href}>" if angle else new_href)
+
+    return MARKDOWN_LINK_RE.sub(replace, text)
+
+
+def _update_moves_map(
+    root: Path,
+    source: str,
+    moved: list[tuple[Heading, str]],
+) -> str:
+    moves_path = root / MOVES_PATH
+    payload = yaml.safe_load(moves_path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict) or not isinstance(payload.get("moves"), list):
+        raise ValueError(f"{moves_path} must contain a moves list")
+    records: list[dict[str, object]] = payload["moves"]
+    entry = next(
+        (record for record in records if isinstance(record, dict) and record.get("from") == source),
+        None,
+    )
+    if entry is None:
+        entry = {"from": source, "to": moved[0][1], "kind": "stub", "anchors": {}}
+        records.append(entry)
+    if entry.get("kind", "stub") != "stub":
+        raise ValueError(f"{source} already has a whole-page redirect in {moves_path}")
+    anchors_value = entry.setdefault("anchors", {})
+    if not isinstance(anchors_value, dict):
+        raise ValueError(f"{moves_path}: anchors for {source} must be a mapping")
+    for heading, target in moved:
+        target_anchor = heading.anchor
+        value = f"{target}#{target_anchor}"
+        old_value = anchors_value.get(heading.anchor)
+        if old_value is not None and old_value != value:
+            raise ValueError(f"{moves_path}: conflicting mapping for #{heading.anchor}")
+        anchors_value[heading.anchor] = value
+    return yaml.safe_dump(payload, sort_keys=False, allow_unicode=True)
+
+
+def split(
+    source_value: str | Path,
+    mapping_path: str | Path,
+    *,
+    root: Path = ROOT,
+) -> list[tuple[str, str]]:
+    source = _normalize_source(root, source_value)
+    source_file = root / "docs" / source
+    mapping_file = Path(mapping_path)
+    if not mapping_file.is_absolute():
+        mapping_file = root / mapping_file
+    lines = source_file.read_text(encoding="utf-8").splitlines(keepends=True)
+    requested = _mapping_items(mapping_file)
+    selected = _select_sections(_headings(lines), requested)
+    moved_anchors = {
+        heading.anchor: (target, heading.anchor) for heading, target in selected
+    }
+    for _, target in selected:
+        if not (root / "docs" / target).is_file():
+            raise ValueError(
+                f"target docs/{target} must exist with its frontmatter before splitting"
+            )
+
+    moved_parts: dict[str, list[str]] = {}
+    remove_ranges: list[tuple[int, int]] = []
+    for heading, target in selected:
+        block = "".join(lines[heading.start : heading.end])
+        block = _rewrite_links(
+            block,
+            origin=source,
+            destination=target,
+            source=source,
+            moved_anchors=moved_anchors,
+            remap_source_anchors=True,
+        )
+        moved_parts.setdefault(target, []).append(block.strip("\n"))
+        remove_ranges.append((heading.start, heading.end))
+
+    removed = {index for start, end in remove_ranges for index in range(start, end)}
+    remainder = "".join(line for index, line in enumerate(lines) if index not in removed)
+    remainder = _rewrite_links(
+        remainder,
+        origin=source,
+        destination=source,
+        source=source,
+        moved_anchors=moved_anchors,
+        remap_source_anchors=True,
+    )
+
+    writes: dict[Path, str] = {source_file: remainder}
+    for target, parts in moved_parts.items():
+        target_file = root / "docs" / target
+        existing = target_file.read_text(encoding="utf-8")
+        existing = _rewrite_links(
+            existing,
+            origin=target,
+            destination=target,
+            source=source,
+            moved_anchors=moved_anchors,
+            remap_source_anchors=True,
+        )
+        separator = "\n" if not existing.endswith("\n\n") else ""
+        writes[target_file] = existing + separator + "\n\n".join(parts).rstrip() + "\n"
+
+    docs_root = root / "docs"
+    for path in docs_root.rglob("*.md"):
+        if path == source_file or path in writes:
+            continue
+        relative = path.relative_to(docs_root).as_posix()
+        text = path.read_text(encoding="utf-8")
+        rewritten = _rewrite_links(
+            text,
+            origin=relative,
+            destination=relative,
+            source=source,
+            moved_anchors=moved_anchors,
+            remap_source_anchors=True,
+        )
+        if rewritten != text:
+            writes[path] = rewritten
+
+    moves_map = _update_moves_map(root, source, selected)
+    writes[root / MOVES_PATH] = moves_map
+    for path, text in writes.items():
+        path.write_text(text, encoding="utf-8")
+    return [(" > ".join(heading.path), target) for heading, target in selected]
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("source", help="source Markdown page, relative to docs/ or repo root")
+    parser.add_argument("mapping", help="YAML mapping from H2/H3 headings to target pages")
+    args = parser.parse_args(argv)
+    try:
+        moved = split(args.source, args.mapping)
+    except (OSError, ValueError, yaml.YAMLError) as exc:
+        print(f"[docs_split] {exc}", file=sys.stderr)
+        return 1
+    for heading, target in moved:
+        print(f"Moved {heading} → docs/{target}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -1,0 +1,99 @@
+<!-- generated, do not edit -->
+# Documentation map
+
+## Home
+
+- [Structured Agentic Software Engineering](index.md) — Structured Agentic Software Engineering — SASE coordinates coding-agent work through a Python CLI and TUI backed by a required Rust core: durable plans, tracked handoffs, reviewable changes, resumable runs, and automation that can move across model and version-control providers.
+
+## Get started
+
+- [Shell Completion](completion.md) — Shell Completion — sase completion supports native shell completion for zsh, bash, and fish from the live sase argparse tree, so pressing <TAB> anywhere in the command line offers the right commands, options, static choices, and live values — bead ids with titles, project display names, macro names, and more — with no perceptible latency.
+- [Getting Started: Your First 15 Minutes](getting_started.md) — A hands-on tour: install SASE, check provider readiness, launch a safe first agent run, find and reuse its artifacts, and pick up the vocabulary you'll keep bumping into in about 15 minutes.
+- [Initialization](init.md) — Initialization — SASE initialization commands create or refresh durable files that agents and sidecar tools rely on.
+
+## Guides
+
+- [Agent Auto-Restart](agent_auto_restart.md) — Agent Auto-Restart — SASE has a recovery service for agents interrupted by a live update.
+- [Agent Revival Audit Log](troubleshooting/agent-revival.md) — Agent Revival Audit Log — The TUI's revive flow (!R on the Agents tab; plain R retries the selected agent) writes a JSONL audit log to ~/.sase/logs/events.jsonl so post-mortem questions like "what was the last agent I tried to revive?" can be answered without grepping through dismissed-bundle directories.
+- [Agent queued for a runner slot](troubleshooting/runner-slots.md) — Agent queued for a runner slot — An agent shown as QUEUED is at an admission boundary: it has finished every dependency, bead, and time wait and is holding for runner capacity under its current admission budget, or for an agent hold that matches it.
+
+## Concepts
+
+- [Architecture](architecture.md) — Architecture — SASE is a Python orchestration layer for agentic software engineering, backed by a required Rust core for selected deterministic data operations.
+- [Spec-Driven Development (SDD)](sdd.md) — Spec-Driven Development (SDD) — SDD is sase's system for persisting the intent behind agent work.
+
+## Reference
+
+- [sase's TUI User Guide](ace.md) — sase's TUI User Guide — sase's TUI is the primary TUI for the SASE toolkit.
+- [Agent Attachments and Image Previews](agent_images.md) — Agent Attachments and Image Previews — SASE treats files produced by agents as first-class completion artifacts.
+- [Installing & Authenticating Agent Providers](agent_providers.md) — Installing & Authenticating Agent Providers — SASE normally orchestrates an existing coding-agent CLI; the exception is the bundled fakey testing provider.
+- [Agent Clans, Sessions, and Tribes](agent_sessions.md) — Agent Clans, Sessions, and Tribes — SASE uses three different kinds of agent grouping.
+- [Agent Hood Synchronization](agents_sidecar.md) — Agent Hood Synchronization — SASE publishes deterministic project-scoped agent-hood snapshots and canonical prompt archives through each managed project's hidden agents sidecar.
+- [Artifact Links](artifact_links.md) — Artifact Links — Artifact links are typed relationships between SASE artifacts.
+- [Artifact References](artifact_references.md) — Artifact References — Artifact references are typed @<kind>:<argument> citations in launch prompts.
+- [Scheduler — Background Automation](axe.md) — Scheduler — Background Automation — The scheduler is the background automation subsystem of sase.
+- [Bead Issue Tracking](beads.md) — Bead Issue Tracking — Bead is a lightweight, git-native issue tracking system built into sase.
+- [Patch Format Documentation](change_spec.md) — Patch Format Documentation — A Patch is SASE's durable local record for one unit of reviewable work.
+- [CLI Reference](cli.md) — CLI Reference — This page is a command index for the top-level sase CLI.
+- [Configuration Reference](configuration.md) — Configuration Reference — This document is the central reference for all sase configuration: config files, YAML sections, environment variables, and CLI flags.
+- [Canonical SASE Content Layout](content_layout.md) — Canonical SASE Content Layout — SASE-owned project and home content lives under a visible sase/ namespace.
+- [Editor Integration](editor.md) — Editor Integration — SASE exposes two editor-facing surfaces for prompt and macro editing:
+- [Goals](goals.md) — Goals — Goals are durable records of outcomes a person wants: what will be true, how you'll know, and what happened along the way.
+- [Instruction Bundles](instruction_bundles.md) — Instruction Bundles — An instruction bundle collects the project, home, and SASE instructions for one agent invocation.
+- [Integration APIs](integrations.md) — Integration APIs — SASE exposes a small set of Python helpers for external plugins, chat clients, mobile clients, and editor integrations.
+- [LLM Provider Integration](llms.md) — LLM Provider Integration — This document describes the LLM provider abstraction layer in sase.
+- [Macro Template Reference](macros.md) — Macro Template Reference — Macros are reusable prompt templates with optional typed inputs and Jinja2 support.
+- [Memory](memory.md) — Memory — SASE memory is durable context that survives individual agent chats.
+- [Memory History](memory_history.md) — Memory History — Every committed version of every SASE memory note, web, strand, and agent instruction file (AGENTS.md plus its provider shims, project and home) can be browsed quickly and understood at a glance.
+- [Mentors](mentors.md) — Mentors — Mentors are automated AI code review agents for Patches.
+- [Mobile Gateway](mobile_gateway.md) — Mobile Gateway — The SASE mobile gateway is a workstation-hosted HTTP gateway for paired mobile clients.
+- [Monitors](monitors.md) — Monitors — A monitor turn is a real agent session member whose work is one supervised OS command instead of an LLM turn.
+- [Notifications](notifications.md) — Notifications — Sase includes a notification system that surfaces important events from background processes (axe, workflows, mentors) to the user through sase's TUI.
+- [SASE Pager](pager.md) — SASE Pager — sase pager opens artifact references, file paths, or stdin in the SASE link-traversing pager.
+- [Plugin System](plugins.md) — Plugin System — Sase uses Python entry points to discover optional functionality installed in the same Python environment as sase.
+- [ProjectSpec Format](project_spec.md) — ProjectSpec Format — A ProjectSpec is SASE's project-level .sase file.
+- [Prompt History and Draft Recovery](prompt.md) — Prompt History and Draft Recovery — Prompts you launch with sase run or from sase's TUI are recorded in prompt history when they are useful to replay.
+- [Query Language Reference](query_language.md) — Query Language Reference — The Patch query language filters Patches using boolean expressions that combine string matching, property filters, and operational shorthands.
+- [Remote Dispatch Runbook](remote_dispatch.md) — Remote Dispatch Runbook — Remote dispatch lets one SASE controller discover, enroll, and operate agents on another machine.
+- [Sudo Requests](sudo.md) — Sudo Requests — SASE sudo requests let an agent ask for reviewed privileged execution without ever asking for, receiving, logging, or proxying a password.
+- [Named Tools and ToolRuns](tool.md) — Named Tools and ToolRuns — A named tool is a project-declared command (check, test, ...) that sase tool run executes exactly as declared and records as a ToolRun: who ran it, when, with what result, how long each stage took, and what the repository and host looked like before and after.
+- [VCS Provider Reference](vcs.md) — VCS Provider Reference — The VCS provider layer is an abstraction that lets sase commands work with both Git and Mercurial repositories.
+- [Workflow Specification](workflow_spec.md) — Workflow Specification — This document describes the YAML workflow format for sase macro workflows.
+- [Workspace Provider Reference](workspace.md) — Workspace Provider Reference — The workspace provider layer is an abstraction that handles workspace-level operations that vary across VCS hosting environments.
+
+## Contribute
+
+- [Acknowledgements](acknowledgements.md) — Acknowledgements — Before sase existed, Boris Cherny -- the inventor of Claude Code -- pioneered a practical workflow for parallel agentic development: five git checkouts, each in its own tmux tab, each running Claude Code in plan mode.
+- [Artifacts pane contract](artifacts_pane_contract.md) — Artifacts pane contract — ArtifactsPaneContract is the host-owned record that decides what a pane can do before widgets, keybindings, or document providers run.
+- [Artifacts pane visual grammar](artifacts_pane_visual_grammar.md) — Artifacts pane visual grammar — Every configured Artifacts pane — Commits, Patches, Beads, Files, every document provider, and a degraded provider that failed to load — renders through one shared, contract-driven shell.
+- [Commit Workflows](commit_workflows.md) — Commit Workflows — Sase provides three unified workflows for landing code changes: commit, propose, and pull request.
+- [Contribute](contribute/index.md) — Contributor guides, internals, contracts, and runbooks for SASE.
+- [Writing docs](contribute/writing-docs.md) — The sase.sh documentation contract for humans and agents.
+- [Development](development.md) — Development — This page orients contributors working in the sase repository.
+- [Fakey Testing Provider](fakey.md) — Fakey Testing Provider — fakey is a deterministic fake agent CLI bundled with SASE.
+- [Mobile MVP Runbook](mobile_mvp_runbook.md) — Mobile MVP Runbook — This runbook covers the private Android MVP that connects a phone to a workstation-hosted SASE mobile gateway.
+- [`sase tui` Performance Runbook](perf_runbook.md) — `sase tui` Performance Runbook — This runbook explains how to capture and compare performance data for sase's TUI, the sase tui terminal user interface.
+- [Rust Backend (`sase_core_rs`)](rust_backend.md) — Rust Backend (`sase_core_rs`) — A subset of sase's core APIs is served by a Rust extension distributed as sase-core-rs on PyPI and built from the sibling sase-core repo.
+- [SDD Storage](sdd_storage.md) — SDD Storage — The workspace provider owns SDD placement.
+- [Telemetry](telemetry.md) — Telemetry — SASE records debugging and health metric history locally.
+
+## Blog
+
+- [SASE Blog](blog/index.md) — Essays on structured agentic software engineering and the SASE launch post.
+- [[03] AXE — The Background Daemon That Keeps Agent Work Moving](blog/posts/axe-background-daemon.md) — Agents shouldn't poll. AXE is the background daemon that does the polling for them so the engineering workflow keeps moving while individual agents finish, fail, or wait.
+- [[04] Beads and SDD — Planning Multi-Agent Work That Actually Lands](blog/posts/beads-and-sdd.md) — Orchestration only matters if you can split work into pieces with a real ordering. Beads and Spec-Driven Development are how SASE files that work and schedules it.
+- [[06] Patches in Practice — Review State Outside the Chat](blog/posts/changespecs-in-practice.md) — Patches are the durable, reviewable shape of one PR of agent work. They survive the chat. Getting Started names them; this post lives inside them.
+- [[05] Commit Workflows — The Pluggable Path From Diff to PR](blog/posts/commit-workflows-plugins.md) — Every agent eventually has to land code somewhere. SASE's commit workflows are the small, runtime-uniform layer that turns a diff into a commit, a proposal, or a pull request without the agent caring which VCS is underneath.
+- [[01] Hello, SASE — Your First 15 Minutes Orchestrating Coding Agents](blog/posts/hello-sase-your-first-15-minutes.md) — A hands-on tour: install SASE, check provider readiness, launch a safe first agent run, find the agent record, and pick up the vocabulary you'll keep bumping into — in about 15 minutes.
+- [[02] Macros in Depth — From One File to Full Workflows](blog/posts/macros-in-depth.md) — Macros up close: when a single Markdown file is the right shape, when typed inputs and directives are enough, and when the job really does want a YAML workflow.
+- [[08] Where You Type — The Prompt Input Widget and sase-nvim](blog/posts/prompt-widget-and-nvim.md) — Where the operator actually types: a multiline Textual TextArea with completion, history, snippets, and a Vim mode in the TUI — and sase-nvim, the Neovim plugin that gives the same prompt language a richer editor.
+- [SASE: Structured Agentic Software Engineering](blog/posts/structured-agentic-software-engineering.md) — From a tmux full of coding agents to an operating layer around them: agent CLIs, Macros, sase's TUI Agents tab, and a practical install path for SASE.
+- [[07] Driving SASE From Your Phone — Telegram as the Mobile Control Surface](blog/posts/telegram-mobile-agents.md) — The sase-telegram plugin turns an existing Telegram chat into a mobile control surface for SASE — launch agents, approve plans, kill runs, and review generated images from the phone in your pocket.
+- [[09] What's Next — Shared Memory, Mobile, and the Web Surface](blog/posts/whats-next-memory-mobile-web.md) — SASE today is the orchestration layer. The next horizon is shared memory across agents, a mobile control surface, and a web frontend that doesn't require a terminal.
+- [[00] The Missing Operating Layer for Coding Agents](blog/posts/why-coding-agents-need-orchestration.md) — SASE's first principles: Macros, SDD, Beads, sase's TUI, AXE, plugins, and the durable operating layer around coding-agent CLIs.
+
+## Moved pages
+
+| Old path | New home |
+| --- | --- |
+| `/instruction_inventory/` | [`/instruction_bundles/`](instruction_bundles.md) |

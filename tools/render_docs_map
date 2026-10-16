@@ -1,0 +1,221 @@
+#!/usr/bin/env python3
+"""Render docs/README.md and docs/llms.txt from the live documentation tree."""
+
+from __future__ import annotations
+
+import argparse
+import difflib
+import fnmatch
+from pathlib import Path, PurePosixPath
+import re
+import sys
+from urllib.parse import urljoin
+
+import yaml  # type: ignore[import-untyped]
+
+from docs_moves import REPO_ROOT, load_moves, site_url
+from docs_render_utils import markdown_title_and_description
+
+
+GENERATED_MARKER = "<!-- generated, do not edit -->"
+ROOT = REPO_ROOT
+OUTPUTS = (Path("docs/README.md"), Path("docs/llms.txt"))
+TYPED_TABS = {
+    "start": "Get started",
+    "guides": "Guides",
+    "concepts": "Concepts",
+    "reference": "Reference",
+    "contribute": "Contribute",
+    "blog": "Blog",
+}
+
+
+def _nav_pages(nav: object) -> tuple[list[str], dict[str, str]]:
+    if not isinstance(nav, list):
+        return [], {}
+    tab_order: list[str] = []
+    page_tabs: dict[str, str] = {}
+
+    def visit(nodes: object, current_tab: str) -> None:
+        if not isinstance(nodes, list):
+            return
+        for node in nodes:
+            if not isinstance(node, dict):
+                continue
+            for label, value in node.items():
+                if len(tab_order) == 0 or current_tab == "":
+                    tab = str(label)
+                    if tab not in tab_order:
+                        tab_order.append(tab)
+                else:
+                    tab = current_tab
+                if isinstance(value, str) and value.endswith(".md"):
+                    page_tabs[PurePosixPath(value).as_posix()] = tab
+                elif isinstance(value, list):
+                    visit(value, tab)
+
+    for node in nav:
+        if not isinstance(node, dict):
+            continue
+        label, value = next(iter(node.items()))
+        tab = str(label)
+        if tab not in tab_order:
+            tab_order.append(tab)
+        if isinstance(value, str) and value.endswith(".md"):
+            page_tabs[PurePosixPath(value).as_posix()] = tab
+        else:
+            visit(value, tab)
+    return tab_order, page_tabs
+
+
+def _excluded_by_mkdocs(path: str, configured: object) -> bool:
+    if isinstance(configured, str):
+        patterns = configured.splitlines()
+    elif isinstance(configured, list):
+        patterns = [item for item in configured if isinstance(item, str)]
+    else:
+        patterns = []
+    for raw_pattern in patterns:
+        pattern = raw_pattern.strip()
+        if not pattern:
+            continue
+        if pattern.endswith("/") and path.startswith(pattern):
+            return True
+        regex = re.escape(pattern)
+        regex = regex.replace(r"\*\*/", r"(?:.*/)?")
+        regex = regex.replace(r"\*\*", r".*")
+        regex = regex.replace(r"\*", r"[^/]*")
+        regex = regex.replace(r"\?", r"[^/]")
+        if re.fullmatch(regex, path):
+            return True
+        if fnmatch.fnmatchcase(path, pattern):
+            return True
+    return False
+
+
+def _read_documents(root: Path) -> tuple[list[tuple[str, str, str, str]], list[str]]:
+    config = yaml.safe_load((root / "mkdocs.yml").read_text(encoding="utf-8"))
+    if not isinstance(config, dict):
+        raise ValueError("mkdocs.yml must contain a mapping")
+    tab_order, page_tabs = _nav_pages(config.get("nav"))
+    moves = load_moves(root)
+    stub_paths = {move.from_path for move in moves if move.kind == "stub"}
+    documents: list[tuple[str, str, str, str]] = []
+    for path in sorted((root / "docs").rglob("*.md")):
+        relative = path.relative_to(root / "docs").as_posix()
+        if relative in {"README.md"} or relative.startswith(
+            ("_meta/", "_templates/", "_includes/")
+        ):
+            continue
+        if _excluded_by_mkdocs(relative, config.get("exclude_docs")):
+            continue
+        text = path.read_text(encoding="utf-8")
+        title, description = markdown_title_and_description(path, text)
+        if relative in stub_paths:
+            tab = "Compatibility"
+        else:
+            first = PurePosixPath(relative).parts[0]
+            tab = TYPED_TABS.get(first, page_tabs.get(relative, "Unlisted"))
+        documents.append((tab, relative, title, description))
+    ordered_tabs = tab_order[:]
+    for tab in sorted({row[0] for row in documents}):
+        if tab not in ordered_tabs:
+            ordered_tabs.append(tab)
+    return documents, ordered_tabs
+
+
+def _site_base(root: Path) -> str:
+    config = yaml.safe_load((root / "mkdocs.yml").read_text(encoding="utf-8"))
+    value = config.get("site_url") if isinstance(config, dict) else None
+    if not isinstance(value, str) or not value:
+        raise ValueError("mkdocs.yml must define site_url")
+    return value.rstrip("/") + "/"
+
+
+def render_docs_map(root: Path = ROOT) -> tuple[str, str]:
+    documents, tab_order = _read_documents(root)
+    moves = load_moves(root)
+    base_url = _site_base(root)
+    grouped: dict[str, list[tuple[str, str, str]]] = {}
+    for tab, path, title, description in documents:
+        grouped.setdefault(tab, []).append((path, title, description))
+
+    readme = [GENERATED_MARKER, "# Documentation map", ""]
+    llms = [GENERATED_MARKER, "# SASE", "", "> Documentation pages, organized by the site's top-level sections.", ""]
+    for tab in tab_order:
+        pages = sorted(grouped.get(tab, []), key=lambda item: item[0])
+        if not pages:
+            continue
+        readme.extend([f"## {tab}", ""])
+        llms.extend([f"## {tab}", ""])
+        for path, title, description in pages:
+            url = urljoin(base_url, site_url(path).lstrip("/"))
+            readme.append(f"- [{title}]({path}) — {description}")
+            llms.append(f"- [{title}]({url}) — {description}")
+        readme.append("")
+        llms.append("")
+
+    if moves:
+        readme.extend(["## Moved pages", "", "| Old path | New home |", "| --- | --- |"])
+        llms.extend(["## Moved pages", ""])
+        for move in moves:
+            old_url = site_url(move.from_path)
+            new_url = site_url(move.to_path)
+            readme.append(f"| `{old_url}` | [`{new_url}`]({move.to_path}) |")
+            llms.append(f"- {urljoin(base_url, old_url.lstrip('/'))} → {urljoin(base_url, new_url.lstrip('/'))}")
+        readme.append("")
+        llms.append("")
+    return "\n".join(readme).rstrip() + "\n", "\n".join(llms).rstrip() + "\n"
+
+
+def _outputs(root: Path) -> dict[Path, str]:
+    readme, llms = render_docs_map(root)
+    return {root / OUTPUTS[0]: readme, root / OUTPUTS[1]: llms}
+
+
+def render(root: Path = ROOT) -> None:
+    for path, content in _outputs(root).items():
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content, encoding="utf-8")
+
+
+def check(root: Path = ROOT) -> list[str]:
+    failures: list[str] = []
+    for path, expected in _outputs(root).items():
+        try:
+            actual = path.read_text(encoding="utf-8")
+        except OSError:
+            failures.append(f"{path.relative_to(root)} is not generated")
+            continue
+        if actual != expected:
+            failures.extend(
+                difflib.unified_diff(
+                    actual.splitlines(),
+                    expected.splitlines(),
+                    fromfile=str(path.relative_to(root)),
+                    tofile=f"{path.relative_to(root)} (generated)",
+                    lineterm="",
+                )
+            )
+    return failures
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--check", action="store_true", help="check without writing")
+    args = parser.parse_args(argv)
+    try:
+        if args.check:
+            failures = check()
+            for failure in failures:
+                print(failure, file=sys.stderr)
+            return 1 if failures else 0
+        render()
+    except (OSError, ValueError) as exc:
+        print(f"[render_docs_map] {exc}", file=sys.stderr)
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

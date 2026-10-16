@@ -9,7 +9,7 @@ ceilings:
   acknowledgements.md: 973
   agent_auto_restart.md: 1877
   agent_images.md: 5909
-  agent_providers.md: 5061
+  agent_providers.md: 5060
   agent_sessions.md: 7939
   agents_sidecar.md: 4440
   architecture.md: 3062
@@ -31,9 +31,8 @@ ceilings:
   getting_started.md: 3937
   goals.md: 642
   index.md: 922
-  init.md: 7268
+  init.md: 7264
   instruction_bundles.md: 2305
-  instruction_inventory.md: 717
   integrations.md: 2883
   llms.md: 25148
   macros.md: 29662
