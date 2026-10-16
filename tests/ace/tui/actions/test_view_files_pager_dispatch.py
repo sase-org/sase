@@ -199,6 +199,18 @@ def test_prepare_view_input_snapshots_patch_inputs_without_building_context(
     )
 
 
+def test_prepare_view_input_routes_logical_plan_target_to_files() -> None:
+    plan_ref = "plan:202610/x.md"
+    app = _make_app(plan_ref)
+
+    prepared = app._prepare_view_input("1")
+
+    assert prepared is not None
+    assert prepared.request.files == (plan_ref,)
+    assert prepared.request.bead_ids == ()
+    assert prepared.request.tool_run_log_ids == ()
+
+
 def test_link_context_from_capture_builds_agent_context(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

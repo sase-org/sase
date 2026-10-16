@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from dataclasses import replace
 from datetime import datetime
 from pathlib import Path
 from types import SimpleNamespace
@@ -247,6 +248,62 @@ def test_clan_worker_indexes_logical_plan_reference(
     assert enriched.hint_paths["202608/clan.md"] == str(resolved)
     resolve.assert_called_once_with(
         "plan:202608/clan.md",
+        workspace_dir=str(tmp_path),
+        workspace_num=7,
+    )
+
+
+def test_clan_worker_resolves_plan_context_lane_before_alias_indexing(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    member = _agent("research.one", workspace_dir=str(tmp_path), workspace_num=7)
+    container = project_clan_tree([member])[0]
+    container.clan_summary = "Path: plan:X/Y.md"
+    in_memory = aggregate_clan_in_memory(container)
+    base_disk = _disk_for(ClanSectionSnapshot(in_memory=in_memory))
+    logical_ref = "plan:X/Y.md"
+    resolved = tmp_path / "plans" / "X" / "Y.md"
+    disk = replace(
+        base_disk,
+        context_lanes=(
+            ClanContextLane(
+                label="PLAN",
+                entries=(
+                    ClanContextEntry(
+                        key=logical_ref,
+                        label=logical_ref,
+                        member_labels=(in_memory.members[0].label,),
+                        values=(logical_ref,),
+                    ),
+                ),
+            ),
+        ),
+    )
+
+    monkeypatch.setattr(
+        "sase.ace.tui.widgets.prompt_panel._agent_clan_aggregation."
+        "build_agent_group_disk_snapshot",
+        lambda *_args, **_kwargs: disk,
+    )
+    monkeypatch.setattr(
+        "sase.sdd.plan_refs.parse_plan_reference",
+        lambda value: SimpleNamespace(path=value.removeprefix("plan:")),
+    )
+    resolve = Mock(return_value=SimpleNamespace(resolved_path=resolved))
+    monkeypatch.setattr("sase.sdd.plan_refs.resolve_plan_reference", resolve)
+
+    enriched = build_clan_disk_snapshot(
+        object(),
+        container,
+        in_memory,
+        sections={"context"},
+    )
+
+    assert enriched.hint_paths[logical_ref] == str(resolved)
+    assert all("/plan:" not in target for target in enriched.hint_paths.values())
+    resolve.assert_called_once_with(
+        logical_ref,
         workspace_dir=str(tmp_path),
         workspace_num=7,
     )

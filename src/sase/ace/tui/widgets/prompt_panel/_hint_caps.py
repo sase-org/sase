@@ -17,7 +17,7 @@ from sase.pager.hint_budgets import (
 from ._file_path_hints import (
     FileHintMatcher,
     append_text_with_file_hints,
-    iter_file_path_matches,
+    iter_container_file_path_matches,
 )
 
 __all__ = [
@@ -49,7 +49,7 @@ def append_bounded_text_with_file_hints(
     style: str = "",
     *,
     budget: HintContentBudget | None = None,
-    matcher: FileHintMatcher = iter_file_path_matches,
+    matcher: FileHintMatcher = iter_container_file_path_matches,
 ) -> int:
     """Append a capped, annotated prefix and an explicit truncation notice."""
     bounded = bound_hint_content(content, budget=budget, matcher=matcher)

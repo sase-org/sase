@@ -57,12 +57,14 @@ clan summary, member-attributed `ERRORS`, variable, `REPLIES`, and `PROMPTS` bod
 per-entry `SASE CONTEXT` rows, `SLOW TOOL CALLS` rows, and the `COMMITS` lane; each path
 resolves against the workspace of the member that produced it, and summary paths that
 name a plan, artifact, or delta resolve through an index computed during clan enrichment
-rather than a blind workspace join. A logical `plan:` reference is marked and resolved
-as one token including the prefix, and an archived `prompts/<YYYYMM>/<name>.md`
-reference resolves into the project's agents sidecar checkout rather than the agent
-workspace. Hints exist only where text is actually visible, so availability follows the
-active fold level — level 1 hints the clan summary only, level 2 adds the bounded triage
-lines, and level 3 adds full bodies and per-entry context, tool-call, and commit rows.
+rather than a blind workspace join. A logical `plan:` reference stays one hint token and
+opens when selected through the agent workspace, project primary, and machine plan
+archive; it is never joined to a workspace path. Ordinary agent prompt and reply text
+uses the same plan lookup, and archived `prompts/<YYYYMM>/<name>.md` references can open
+from the agents sidecar before clan enrichment finishes. Hints exist only where text is
+actually visible, so availability follows the active fold level — level 1 hints the clan
+summary only, level 2 adds the bounded triage lines, and level 3 adds full bodies and
+per-entry context, tool-call, and commit rows.
 Markers are numbered in document order. The jump panel is hidden while hint mode is
 active and returns with the same fixed member numbers when it ends. While clan
 enrichment is still in flight the hint bar stays open and the document is re-annotated

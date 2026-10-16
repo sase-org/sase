@@ -13,6 +13,8 @@ import pytest
 
 from sase.ace.tui.models._agent_clan_sections import (
     CLAN_DISK_SECTIONS,
+    ClanContextEntry,
+    ClanContextLane,
     ClanDiskSnapshot,
     ClanSectionSnapshot,
     ClanTextEntry,
@@ -123,6 +125,7 @@ def test_clan_summary_prefers_worker_resolved_plan_path(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """The worker's full logical token alias is authoritative for rendering."""
     container, snapshot = rich_clan_snapshot()
     member = clan_section_member_rows(container)[0]
     member.workspace_dir = str(tmp_path)
@@ -134,7 +137,7 @@ def test_clan_summary_prefers_worker_resolved_plan_path(
         snapshot,
         disk=replace(
             disk,
-            hint_paths={"202608/clan.md": resolved},
+            hint_paths={"plan:202608/clan.md": resolved},
         ),
     )
     monkeypatch.setattr(
@@ -159,6 +162,72 @@ def test_clan_summary_prefers_worker_resolved_plan_path(
         and span.end >= end
         for span in rendered.spans
     )
+
+
+@pytest.mark.parametrize(
+    "hint_paths",
+    [
+        {},
+        {"202608/x.md": "/wrong/suffix.md"},
+        {"prompts/202608/x.md": "/wrong/prompt.md"},
+    ],
+)
+def test_unindexed_logical_plan_hint_keeps_its_identity(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    hint_paths: dict[str, str],
+) -> None:
+    container, snapshot = rich_clan_snapshot()
+    member = clan_section_member_rows(container)[0]
+    member.workspace_dir = str(tmp_path)
+    container.clan_summary = "Path: plan:202608/x.md"
+    disk = snapshot.disk
+    assert disk is not None
+    snapshot = replace(snapshot, disk=replace(disk, hint_paths=hint_paths))
+    monkeypatch.setattr(
+        "sase.sdd.plan_refs.resolve_plan_reference",
+        Mock(side_effect=AssertionError("renderer performed a plan-store lookup")),
+    )
+    state = HeaderHintState(1, {}, None, {})
+
+    build_clan_detail_text(container, snapshot=snapshot, hint_state=state)
+
+    assert state.hint_mappings == {1: "plan:202608/x.md"}
+
+
+def test_fold_level_three_plan_context_hint_keeps_logical_identity(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    container, snapshot = rich_clan_snapshot()
+    disk = snapshot.disk
+    assert disk is not None
+    lane = ClanContextLane(
+        label="PLAN",
+        entries=(
+            ClanContextEntry(
+                key="plan:X/Y.md",
+                label="plan:X/Y.md",
+                member_labels=(".one",),
+                values=("plan:X/Y.md",),
+            ),
+        ),
+    )
+    snapshot = replace(snapshot, disk=replace(disk, context_lanes=(lane,)))
+    monkeypatch.setattr(
+        "sase.sdd.plan_refs.resolve_plan_reference",
+        Mock(side_effect=AssertionError("renderer performed a plan-store lookup")),
+    )
+    state = HeaderHintState(1, {}, None, {})
+
+    rendered = build_clan_detail_text(
+        container,
+        snapshot=snapshot,
+        hint_state=state,
+        fold_level=FoldLevel.FULLY_EXPANDED,
+    )
+
+    assert "SASE CONTEXT" in rendered.plain
+    assert "plan:X/Y.md" in state.hint_mappings.values()
 
 
 def test_clan_summary_unindexed_prompt_is_not_hijacked_by_plan_suffix(

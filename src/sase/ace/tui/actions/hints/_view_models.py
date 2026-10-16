@@ -45,6 +45,7 @@ class MaterializedReports:
     link_context: LinkResolutionContext = field(default_factory=LinkResolutionContext)
     bead_sections: tuple[PagerSection, ...] = ()
     bead_failures: tuple[str, ...] = ()
+    unresolved_plan_refs: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)

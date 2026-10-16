@@ -14,6 +14,7 @@ from ...models._agent_clan_sections import ClanContextEntry
 from ...models.agent_associated_plan import AssociatedPlanSummary, BeadSummary
 from ..file_panel._linked_deltas import LinkedDeltaGroup
 from ._artifact_files import ArtifactFilePath
+from ._file_path_hints import logical_plan_hint_target
 from sase.ace.tui.bead_hint_targets import bead_hint_target
 
 
@@ -57,6 +58,9 @@ def _typed_context_value_path(
         if isinstance(value, AssociatedPlanSummary):
             return value.actual_path
         if isinstance(value, str):
+            logical_target = logical_plan_hint_target(value)
+            if logical_target is not None:
+                return logical_target
             return _resolve_path(value, member_workspace)
         return None
 

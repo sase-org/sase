@@ -11,6 +11,7 @@ from sase.ace.tui.util.artifact_ref_syntax import artifact_ref_style_palette_fro
 from sase.ace.tui.util.macro_syntax import MACRO_TOKEN_STYLES
 from sase.ace.tui.widgets.prompt_panel._agent_display_state import HeaderHintState
 from sase.ace.tui.widgets.prompt_panel._hint_caps import HintContentBudget
+from sase.pager.path_hints import iter_file_path_matches
 
 from tests.ace.tui.widgets._agent_display_helpers import (
     FakePromptPanel,
@@ -29,6 +30,43 @@ from tests.ace.tui.widgets._agent_display_raw_prompt_helpers import (
 
 
 class TestAgentRawPromptHintMode:
+    def test_ordinary_agent_reply_hints_logical_plan_references(
+        self,
+        tmp_path: Path,
+        monkeypatch,
+    ) -> None:
+        workspace_dir = tmp_path / "workspace"
+        workspace_dir.mkdir()
+        agent = make_artifact_agent(
+            tmp_path,
+            status="DONE",
+            workspace_dir=str(workspace_dir),
+            raw_prompt="",
+        )
+        body = "see plan:202610/x.md and src/a.py"
+        Path(agent.response_path).write_text(body, encoding="utf-8")
+        monkeypatch.setattr(
+            "sase.sdd.plan_refs.resolve_plan_reference",
+            lambda *_args, **_kwargs: (_ for _ in ()).throw(
+                AssertionError("agent render performed a plan-store lookup")
+            ),
+        )
+        panel = FakePromptPanel()
+
+        result = panel.update_display_with_hints(agent)
+
+        assert "see [1] plan:202610/x.md and [2] src/a.py" in plain_of(
+            panel.captured[-1]
+        )
+        assert result.file_hints == {
+            1: "plan:202610/x.md",
+            2: str(workspace_dir / "src/a.py"),
+        }
+        assert [match.group(2) for match in iter_file_path_matches(body)] == [
+            "202610/x.md",
+            "src/a.py",
+        ]
+
     def test_hint_mode_prompt_and_chat_use_logical_project_name(
         self,
         tmp_path: Path,

@@ -22,6 +22,11 @@ from ...llm_calls.report import write_tool_call_report
 from ._artifact_ref_repair import repair_artifact_read_path
 from ._link_context_capture import CapturedLinkContext, link_context_from_capture
 from ._view_models import HintReportSpec, MaterializedReports
+from ._view_target_repair import (
+    repair_archived_prompt_path,
+    resolve_logical_plan_target,
+)
+from ...widgets.prompt_panel._file_path_hints import logical_plan_hint_target
 
 
 def memory_version_pin_sections(
@@ -197,7 +202,23 @@ def materialize_selected_view_files(
     materialized: list[str] = []
     failed: list[str] = []
     missing: list[str] = []
+    unresolved_plan_refs: list[str] = []
+    plan_resolution_cache: dict[str, str | None] = {}
     for file_path in files:
+        logical_plan_ref = logical_plan_hint_target(file_path)
+        if logical_plan_ref is not None:
+            if logical_plan_ref not in plan_resolution_cache:
+                plan_resolution_cache[logical_plan_ref] = resolve_logical_plan_target(
+                    logical_plan_ref,
+                    link_context,
+                )
+            resolved_plan = plan_resolution_cache[logical_plan_ref]
+            if resolved_plan is None:
+                unresolved_plan_refs.append(logical_plan_ref)
+            else:
+                materialized.append(resolved_plan)
+            continue
+
         spec = reports.get(file_path)
         if spec is None:
             resolved_path = file_path
@@ -232,6 +253,13 @@ def materialize_selected_view_files(
             if repaired_path is not None and os.path.exists(repaired_path):
                 materialized.append(repaired_path)
                 continue
+        repaired_prompt_path = repair_archived_prompt_path(
+            resolved_path,
+            captured_link_context.project_file,
+        )
+        if repaired_prompt_path is not None:
+            materialized.append(repaired_prompt_path)
+            continue
         missing.append(resolved_path)
     return MaterializedReports(
         tuple(dict.fromkeys(materialized)),
@@ -240,4 +268,5 @@ def materialize_selected_view_files(
         link_context,
         tuple(bead_sections),
         tuple(bead_failures),
+        tuple(dict.fromkeys(unresolved_plan_refs)),
     )

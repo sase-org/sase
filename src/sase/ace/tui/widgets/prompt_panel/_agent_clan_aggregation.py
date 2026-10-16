@@ -35,6 +35,7 @@ from ._agent_clan_disk_aggregation import (
 from ._agent_display_clan_context import clan_context_entry_hint_target
 from ._file_path_hints import (
     LOGICAL_PLAN_REFERENCE_PREFIX,
+    logical_plan_hint_target,
     resolve_agent_workspace_dir,
 )
 from ._agent_clan_member_content import (
@@ -306,6 +307,44 @@ def _build_clan_hint_paths(
         if row.identity in labels
     }
 
+    summary_plain = clan_summary_text(agent).plain
+    logical_references: dict[str, None] = {}
+    for match in _LOGICAL_PLAN_REFERENCE_RE.finditer(summary_plain):
+        reference = logical_plan_hint_target(match.group(1))
+        if reference is not None:
+            logical_references.setdefault(reference, None)
+    for lane in disk.context_lanes:
+        if lane.label != "PLAN":
+            continue
+        for entry in lane.entries:
+            for value in entry.values:
+                if isinstance(value, str):
+                    reference = logical_plan_hint_target(value)
+                    if reference is not None:
+                        logical_references.setdefault(reference, None)
+
+    resolved_plan_targets: dict[str, str] = {}
+    if fallback_workspace is not None and logical_references:
+        from sase.sdd.plan_refs import parse_plan_reference, resolve_plan_reference
+
+        for reference in logical_references:
+            try:
+                parsed = parse_plan_reference(reference)
+                resolution = resolve_plan_reference(
+                    reference,
+                    workspace_dir=fallback_workspace,
+                    workspace_num=workspace_num,
+                )
+            except Exception:
+                continue
+            if resolution.resolved_path is None:
+                continue
+            resolved_target = str(resolution.resolved_path)
+            resolved_plan_targets[reference] = resolved_target
+            _index_hint_path(hint_paths, reference, resolved_target)
+            _index_hint_path(hint_paths, parsed.path, resolved_target)
+            _index_hint_path(hint_paths, resolved_target, resolved_target)
+
     for lane in disk.context_lanes:
         for entry in lane.entries:
             target = clan_context_entry_hint_target(
@@ -314,35 +353,19 @@ def _build_clan_hint_paths(
                 member_workspaces=member_workspaces,
                 fallback_workspace=fallback_workspace,
             )
-            if target is None:
+            target_path = target
+            if lane.label == "PLAN" and target is not None:
+                logical_reference = logical_plan_hint_target(target)
+                if logical_reference is not None:
+                    target_path = resolved_plan_targets.get(logical_reference)
+            if target_path is None:
                 continue
-            _index_hint_path(hint_paths, entry.label, target)
-            _index_hint_path(hint_paths, entry.key, target)
-            _index_hint_path(hint_paths, target, target)
+            if not Path(target_path).is_absolute():
+                continue
+            _index_hint_path(hint_paths, entry.label, target_path)
+            _index_hint_path(hint_paths, entry.key, target_path)
+            _index_hint_path(hint_paths, target_path, target_path)
 
-    if fallback_workspace is None:
-        return hint_paths
-
-    from sase.sdd.plan_refs import parse_plan_reference, resolve_plan_reference
-
-    summary_plain = clan_summary_text(agent).plain
-    for match in _LOGICAL_PLAN_REFERENCE_RE.finditer(summary_plain):
-        reference = match.group(1)
-        try:
-            parsed = parse_plan_reference(reference)
-            resolution = resolve_plan_reference(
-                reference,
-                workspace_dir=fallback_workspace,
-                workspace_num=workspace_num,
-            )
-        except Exception:
-            continue
-        if resolution.resolved_path is None:
-            continue
-        target = str(resolution.resolved_path)
-        _index_hint_path(hint_paths, reference, target)
-        _index_hint_path(hint_paths, parsed.path, target)
-        _index_hint_path(hint_paths, target, target)
     _index_archived_prompt_references(hint_paths, summary_plain, project_key)
     return hint_paths
 

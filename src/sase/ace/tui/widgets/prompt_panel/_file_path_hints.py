@@ -148,6 +148,26 @@ def resolve_file_path(path: str, workspace_dir: str | None) -> str:
     return os.path.abspath(expanded)
 
 
+def logical_plan_hint_target(token: str) -> str | None:
+    """Return the canonical identity for a logical plan hint token."""
+    value = token.strip()
+    if value.startswith("@"):
+        value = value[1:]
+    if not value.startswith(LOGICAL_PLAN_REFERENCE_PREFIX):
+        return None
+    if not value.removeprefix(LOGICAL_PLAN_REFERENCE_PREFIX):
+        return None
+    return value
+
+
+def _resolve_hint_target(path: str, workspace_dir: str | None) -> str:
+    """Keep logical plan references as identities; resolve other hints as paths."""
+    logical_target = logical_plan_hint_target(path)
+    if logical_target is not None:
+        return logical_target
+    return resolve_file_path(path, workspace_dir)
+
+
 def clear_file_hint_resolution_caches() -> None:
     """Start a fresh bounded memoization scope for one hint render."""
     resolve_agent_workspace_dir.cache_clear()
@@ -244,7 +264,7 @@ def append_text_with_file_hints(
         resolved_path = (
             path_resolver(path, workspace_dir)
             if path_resolver is not None
-            else resolve_file_path(path, workspace_dir)
+            else _resolve_hint_target(path, workspace_dir)
         )
 
         # Add hint marker and styled file path

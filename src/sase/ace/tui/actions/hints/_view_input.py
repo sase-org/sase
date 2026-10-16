@@ -274,6 +274,11 @@ class ViewInputProcessingMixin(CommitHintProcessingMixin):
                 f"File no longer exists: {missing_path}",
                 severity="warning",
             )
+        for plan_ref in outcome.unresolved_plan_refs:
+            self.notify(  # type: ignore[attr-defined]
+                f"Could not resolve {plan_ref}",
+                severity="warning",
+            )
         for bead_failure in outcome.bead_failures:
             self.notify(bead_failure, severity="warning")  # type: ignore[attr-defined]
 

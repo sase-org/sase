@@ -14,6 +14,7 @@ from ._file_path_hints import (
     append_text_with_file_hints,
     file_hint_match_span,
     iter_container_file_path_matches,
+    logical_plan_hint_target,
     resolve_file_path,
 )
 from ._hint_caps import HintContentBudget, bound_hint_content
@@ -76,8 +77,17 @@ def container_hint_path_resolver(
     """Prefer worker-resolved container aliases, then use normal fallback."""
 
     def resolve(path: str, workspace_dir: str | None) -> str:
+        logical_target = logical_plan_hint_target(path)
+        if logical_target is not None:
+            exact = hint_paths.get(logical_target)
+            if exact is None:
+                exact = hint_paths.get(path)
+            return exact if exact is not None else logical_target
+
         normalized_path = _normalize_hint_token(path)
-        stripped_path = _strip_logical_plan_prefix(path)
+        stripped_path = (
+            path.strip().lstrip("@").removeprefix(LOGICAL_PLAN_REFERENCE_PREFIX)
+        )
         normalized_stripped_path = _normalize_hint_token(stripped_path)
         for token in (
             path,
@@ -111,10 +121,6 @@ def container_hint_path_resolver(
 
 def _normalize_hint_token(value: str) -> str:
     return value.strip().lstrip("@").removeprefix("./").rstrip("/")
-
-
-def _strip_logical_plan_prefix(value: str) -> str:
-    return value.strip().lstrip("@").removeprefix(LOGICAL_PLAN_REFERENCE_PREFIX)
 
 
 __all__ = ["container_hint_path_resolver", "container_text_with_file_hints"]
