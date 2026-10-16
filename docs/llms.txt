@@ -22,8 +22,12 @@
 ## Concepts
 
 - [Agents, sessions, and workspaces](https://sase.sh/concepts/agents/) — How SASE gives delegated agent work an isolated place to run and a durable history.
+- [Automation and human checkpoints](https://sase.sh/concepts/automation/) — How SASE runs recurring work and keeps important decisions reviewable.
 - [How SASE works](https://sase.sh/concepts/) — The small set of ideas that explains how SASE keeps agent work organized and reviewable.
 - [How changes land](https://sase.sh/concepts/landing/) — How SASE carries agent changes through review and into version control.
+- [Memory and agent instructions](https://sase.sh/concepts/memory/) — How shared instructions and durable context guide agents across tasks.
+- [Prompts, macros, and workflows](https://sase.sh/concepts/prompts/) — How one task prompt can grow into reusable instructions and repeatable work.
+- [Providers and models](https://sase.sh/concepts/providers/) — How SASE connects agent work to coding-agent providers and models.
 - [Work units](https://sase.sh/concepts/work-units/) — How goals, plans, beads, and Patches represent outcomes, coordinated work, and reviewable changes.
 
 ## Reference

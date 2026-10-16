@@ -42,6 +42,10 @@ nav:
       - How SASE works: concepts/index.md
       - Agents, sessions, and workspaces: concepts/agents.md
       - Work units: concepts/work-units.md
+      - Prompts, macros, and workflows: concepts/prompts.md
+      - Memory and agent instructions: concepts/memory.md
+      - Automation and human checkpoints: concepts/automation.md
+      - Providers and models: concepts/providers.md
       - How changes land: concepts/landing.md
   - Reference:
       - Reference hub: reference/index.md
