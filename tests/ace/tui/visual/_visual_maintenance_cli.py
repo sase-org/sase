@@ -61,7 +61,8 @@ clean, applied, or partial. Status partial means some nodes or goldens
 were skipped (failed tests, unstable captures, concurrent edits, or
 skipped stale removal); those goldens were left unchanged and are not
 known to be current — read the WARNING block or the manifest skipped list.
-Check mode is strict: it never writes and exits 1 on required drift.
+Check mode never writes; it recaptures first-pass failures serially
+and exits 1 on drift that reproduces.
 
 Exit codes:
   {EXIT_SUCCESS}  check is clean, or an update finished (clean, applied, or partial)

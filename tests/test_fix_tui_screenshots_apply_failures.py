@@ -248,7 +248,7 @@ def test_concurrent_edit_skips_only_the_conflicting_path(
     )
 
 
-def test_check_does_not_run_verification_pass(tmp_path: Path) -> None:
+def test_check_recaptures_drift_then_still_reports_mismatch(tmp_path: Path) -> None:
     init_repo(tmp_path)
     red = make_png(1, 1)
     blue = make_png(1, 1, (0, 0, 255, 255))
@@ -266,5 +266,7 @@ def test_check_does_not_run_verification_pass(tmp_path: Path) -> None:
         main(["--check"], repo_root=tmp_path, hooks=silent_hooks(runner), environ={})
         == EXIT_DRIFT
     )
-    assert len(runner.calls) == 1
-    assert not str(runner.calls[0]["run_id"]).endswith("-verify")
+    assert len(runner.calls) == 3
+    assert all("-recover" not in str(call["run_id"]) for call in runner.calls)
+    assert any("-verify" in str(call["run_id"]) for call in runner.calls)
+    assert runner.calls[1]["workers"] == 1

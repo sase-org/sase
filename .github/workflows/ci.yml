@@ -193,7 +193,7 @@ jobs:
       - name: Check TUI screenshots
         run: just fix-tui-screenshots --check
       - name: Locate visual report
-        if: failure()
+        if: always()
         id: visual_report
         run: |
           python3 - <<'PY'
@@ -204,15 +204,28 @@ jobs:
           pointer = Path(".pytest_cache/sase-visual/latest-report.json")
           status = "missing"
           manifest = ""
+          unstable_count = 0
           if pointer.is_file():
               data = json.loads(pointer.read_text(encoding="utf-8"))
               status = str(data.get("status") or "unknown")
               manifest = str(data.get("manifest") or "")
+              if manifest:
+                  try:
+                      payload = json.loads(
+                          Path(manifest).read_text(encoding="utf-8")
+                      )
+                  except (OSError, json.JSONDecodeError):
+                      payload = {}
+                  unstable = payload.get("unstable") or []
+                  if isinstance(unstable, list):
+                      unstable_count = len(unstable)
           output = Path(os.environ["GITHUB_OUTPUT"])
           with output.open("a", encoding="utf-8") as handle:
               handle.write(f"status={status}\n")
               handle.write(f"manifest={manifest}\n")
+              handle.write(f"unstable_count={unstable_count}\n")
           print(f"SASE_VISUAL_REPORT_STATUS={status}", flush=True)
+          print(f"SASE_VISUAL_UNSTABLE_COUNT={unstable_count}", flush=True)
           PY
       - name: Build visual report
         if: failure() && steps.visual_report.outputs.manifest != ''
@@ -261,6 +274,26 @@ jobs:
             --report-url "$VISUAL_REPORT_URL"
           cat .pytest_cache/sase-visual-report/summary.md >> "$GITHUB_STEP_SUMMARY"
           bash .pytest_cache/sase-visual-report/annotations.sh
+      - name: Publish unstable recapture summary
+        if: success() && steps.visual_report.outputs.unstable_count != '0' && steps.visual_report.outputs.manifest != ''
+        env:
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_SHA: ${{ github.sha }}
+          VISUAL_MANIFEST: ${{ steps.visual_report.outputs.manifest }}
+        run: |
+          tools/render_visual_snapshot_failure_report \
+            --manifest "$VISUAL_MANIFEST" \
+            --output-dir .pytest_cache/sase-visual-report \
+            --repo "$GITHUB_REPOSITORY" \
+            --sha "$GITHUB_SHA"
+          cat .pytest_cache/sase-visual-report/summary.md >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload first-attempt diffs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ace-visual-first-attempt-diffs
+          path: .pytest_cache/sase-visual/runs/*/first-attempt-diffs
+          if-no-files-found: ignore
       - name: Upload visual artifacts
         if: failure()
         uses: actions/upload-artifact@v4

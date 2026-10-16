@@ -18,6 +18,7 @@ from tests._fix_tui_screenshots_helpers import (
     write_golden,
 )
 from tests.ace.tui.visual._visual_maintenance import (
+    EXIT_DRIFT,
     EXIT_FAILURE,
     EXIT_SUCCESS,
     EXIT_USAGE,
@@ -296,10 +297,15 @@ def test_check_mode_ignores_salvage(tmp_path: Path) -> None:
     )
     assert (
         main(["--check"], repo_root=tmp_path, hooks=silent_hooks(runner), environ={})
-        == EXIT_FAILURE
+        == EXIT_DRIFT
     )
     assert target.read_bytes() == red
-    assert len(runner.calls) == 1
+    assert len(runner.calls) == 3
+    assert all(
+        "recover" not in str(call["run_id"]) and "retry" not in str(call["run_id"])
+        for call in runner.calls
+    )
+    assert any("-verify" in str(call["run_id"]) for call in runner.calls)
 
 
 def test_no_inventory_once_then_clean_retry_applies_retry_candidates(

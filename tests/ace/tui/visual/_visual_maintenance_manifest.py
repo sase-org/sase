@@ -72,6 +72,14 @@ def print_summary(manifest: ChangeManifest, *, stream: Any | None = None) -> Non
         file=out,
     )
     print(f"scope: {manifest.requested_scope}", file=out)
+    if manifest.unstable:
+        print("unstable (passed on recapture):", file=out)
+        for record in manifest.unstable:
+            target = record.node_id or record.path or "unknown"
+            print(
+                f"  {target} after {record.attempts} attempt(s)",
+                file=out,
+            )
     if manifest.warnings or manifest.skipped:
         print("WARNING:", file=out)
         for warning in manifest.warnings:
@@ -145,12 +153,18 @@ def build_manifest(
     extra: Mapping[str, Any],
     warnings: Sequence[str] = (),
     skipped: Sequence[SkippedRecord] = (),
+    unstable: Sequence[SkippedRecord] = (),
     attempts: Sequence[AttemptRecord] = (),
     pruning_skipped_reason: str | None = None,
 ) -> ChangeManifest:
     full_inventory = bool(extra.get("full_inventory", False))
     pruning_allowed = bool(extra.get("pruning_allowed", False))
     complete = bool(extra.get("complete", False))
+    extra_payload = {
+        key: value
+        for key, value in extra.items()
+        if key not in {"full_inventory", "pruning_allowed", "complete"}
+    }
     return ChangeManifest(
         run_id=run_id,
         mode="check" if request.check else "update",
@@ -191,8 +205,10 @@ def build_manifest(
         git_index_fingerprint=baseline.git_index_fingerprint,
         warnings=tuple(warnings),
         skipped=tuple(skipped),
+        unstable=tuple(unstable),
         attempts=tuple(attempts),
         pruning_skipped_reason=pruning_skipped_reason,
+        extra=extra_payload,
     )
 
 

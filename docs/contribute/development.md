@@ -1015,16 +1015,17 @@ warning instead of an error; check mode treats it as an execution failure (exit 
 `-n N` / `--numprocesses N` (with or without a leading `--`) is translated to
 `SASE_PYTEST_WORKERS=N` for the governed runner rather than reaching pytest (`-n auto`
 and `-n logical` fall back to the governed default); `-n` inside `PYTEST_ADDOPTS` is a
-usage error. Pass `--check` to inventory the same way without writing goldens; check
-mode does no salvage, stays strict, and exits 1 on required drift. Arguments after `--`
-are pytest selectors (paths, node IDs, `-k`). Targeted runs apply only captured changes
-and never prune unvisited files. A requested full run applies creates and updates, but
-stale removal needs complete evidence — every collected node trusted (skipped and
-xfailed nodes excepted), no capture protocol errors, and trusted captures from each root
-that has goldens; otherwise pruning is skipped with a warning, the run reports no stale
-entries, and the status is `partial`. When another run in the same checkout holds the
-maintenance lock, the runner prints a waiting notice and waits (bounded, 2 hours)
-instead of refusing at once; timing out exits 2.
+usage error. Pass `--check` to inventory without writing goldens; it recaptures
+first-pass failures serially (workers=1, up to two attempts, skipped above 25 nodes),
+reports retry-only passes as `unstable`, and exits 1 on drift that reproduces. Arguments
+after `--` are pytest selectors (paths, node IDs, `-k`). Targeted runs apply only
+captured changes and never prune unvisited files. A requested full run applies creates
+and updates, but stale removal needs complete evidence — every collected node trusted
+(skipped and xfailed nodes excepted), no capture protocol errors, and trusted captures
+from each root that has goldens; otherwise pruning is skipped with a warning, the run
+reports no stale entries, and the status is `partial`. When another run in the same
+checkout holds the maintenance lock, the runner prints a waiting notice and waits
+(bounded, 2 hours) instead of refusing at once; timing out exits 2.
 
 ```bash
 just fix-tui-screenshots
@@ -1063,14 +1064,15 @@ current run, any run with an unfinished (`planned` or `applying`) or unreadable 
 journal, the 10 most recent runs, and any run with a file modified in the last 24 hours
 survive, and the rest are deleted. The manifest records `warnings`, `skipped` (each with
 a reason such as `test_failed`, `unstable`, `owner_mismatch`, or `concurrent_edit`, plus
-evidence paths), `attempts`, and `pruning_skipped_reason`, and the HTML report and
-`summary.md` end with a "Not updated" section listing the same skips. Inspect every
-creation and removal, then each update group (representative plus members), then the
-"Not updated" list — generation is not approval, and a skipped golden is not known to be
-current. After an interrupted apply, the next update invocation may restore the recorded
-baseline when hashes still match; if the journal conflicts with the current goldens,
-update mode refuses with exit 2. A check invocation never performs recovery writes and
-fails with exit 3 while an unfinished journal exists.
+evidence paths), `unstable` (check-mode nodes that passed only on recapture),
+`attempts`, and `pruning_skipped_reason`. The HTML report and `summary.md` list
+`unstable` nodes in an Unstable table and end with a "Not updated" section for skips.
+Inspect every creation and removal, then each update group (representative plus
+members), then the "Not updated" list — generation is not approval, and a skipped golden
+is not known to be current. After an interrupted apply, the next update invocation may
+restore the recorded baseline when hashes still match; if the journal conflicts with the
+current goldens, update mode refuses with exit 2. A check invocation never performs
+recovery writes and fails with exit 3 while an unfinished journal exists.
 
 `just` may normalize a non-zero child code to 1. Automation that needs the distinction
 between drift (1), usage/environment refusal (2: bad arguments, a pytest usage error,
@@ -1160,10 +1162,13 @@ CI will render the replacement corpus.
 The default lane (`just test`, `just test-cov`, and every leg of the Python matrix)
 excludes visual tests. The dedicated Linux Python 3.12 `visual-test` job is the
 check-only visual execution: it runs `just fix-tui-screenshots --check` and uploads the
-current run's report plus raw captures. It never writes goldens, never relaxes equality,
-and never implies that an execution failure is merely unaccepted corpus drift. This
-keeps one broad lane plus one diagnostic lane authoritative for snapshots while
-preventing a future Python-specific rendering change from reddening the whole matrix.
+current run's report plus raw captures. Recapture-only matches stay visible as an
+Unstable table on `$GITHUB_STEP_SUMMARY` even when the job is green, and first-attempt
+diffs are uploaded as `ace-visual-first-attempt-diffs`. It never writes goldens, never
+relaxes equality, and never implies that an execution failure is merely unaccepted
+corpus drift. This keeps one broad lane plus one diagnostic lane authoritative for
+snapshots while preventing a future Python-specific rendering change from reddening the
+whole matrix.
 
 ### Visual Failure Report
 
@@ -1189,14 +1194,15 @@ In GitHub Actions the `visual-test` job reads
 `.pytest_cache/sase-visual/latest-report.json`, re-renders that run's manifest with
 repository and SHA context, uploads the HTML, then re-renders with
 `--report-url "$VISUAL_REPORT_URL"` so the summary and annotations point at the freshly
-uploaded artifact. On execution failure it still uploads available logs and partial
-captures and reports that failure rather than telling operators to accept goldens. The
-HTML is uploaded via `actions/upload-artifact@v7` with `archive: false`, which is what
-makes the per-failure anchors browsable directly from the Actions UI. Expected links
-point at the immutable `https://github.com/<repo>/blob/<sha>/<expected_repo_path>` URL;
-actual/diff links point at the report artifact rather than a public PNG URL because the
-raw PNGs are only uploaded as a zipped `ace-visual-artifacts` bundle and have no stable
-per-file URL.
+uploaded artifact. On a green job with recapture-only matches it still appends the
+Unstable table to `$GITHUB_STEP_SUMMARY` and uploads first-attempt diffs. On execution
+failure it still uploads available logs and partial captures and reports that failure
+rather than telling operators to accept goldens. The HTML is uploaded via
+`actions/upload-artifact@v7` with `archive: false`, which is what makes the per-failure
+anchors browsable directly from the Actions UI. Expected links point at the immutable
+`https://github.com/<repo>/blob/<sha>/<expected_repo_path>` URL; actual/diff links point
+at the report artifact rather than a public PNG URL because the raw PNGs are only
+uploaded as a zipped `ace-visual-artifacts` bundle and have no stable per-file URL.
 
 Add a visual test when the risk is layout, styling, focus highlighting, modal
 composition, or a regression that is hard to express as state. Prefer a plain

@@ -279,6 +279,7 @@ class ChangeManifest:
     extra: dict[str, Any] = field(default_factory=dict)
     warnings: tuple[str, ...] = ()
     skipped: tuple[SkippedRecord, ...] = ()
+    unstable: tuple[SkippedRecord, ...] = ()
     attempts: tuple[AttemptRecord, ...] = ()
     pruning_skipped_reason: str | None = None
 
@@ -314,6 +315,7 @@ class ChangeManifest:
             "git_index_fingerprint": self.git_index_fingerprint,
             "warnings": list(self.warnings),
             "skipped": [record.to_dict() for record in self.skipped],
+            "unstable": [record.to_dict() for record in self.unstable],
             "attempts": [record.to_dict() for record in self.attempts],
             "pruning_skipped_reason": self.pruning_skipped_reason,
         }

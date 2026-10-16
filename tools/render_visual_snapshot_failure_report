@@ -90,6 +90,7 @@ class ManifestReport:
     contact_sheet_path: str | None
     metadata: dict[str, Any]
     not_updated: tuple[Mapping[str, Any], ...] = ()
+    unstable: tuple[Mapping[str, Any], ...] = ()
 
 
 def parse_args(argv: Sequence[str]) -> argparse.Namespace:
@@ -224,6 +225,7 @@ def write_outputs(
     run_summary: Sequence[str] = (),
     contact_sheet_path: str | None = None,
     not_updated: Sequence[Mapping[str, Any]] = (),
+    unstable: Sequence[Mapping[str, Any]] = (),
 ) -> None:
     """Write the four report files into *output_dir*."""
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -236,6 +238,7 @@ def write_outputs(
             run_summary=run_summary,
             contact_sheet_path=contact_sheet_path,
             not_updated=not_updated,
+            unstable=unstable,
         )
     )
     (output_dir / SUMMARY_NAME).write_text(
@@ -247,6 +250,7 @@ def write_outputs(
             run_summary=run_summary,
             contact_sheet_path=contact_sheet_path,
             not_updated=not_updated,
+            unstable=unstable,
         )
     )
     (output_dir / ANNOTATIONS_NAME).write_text(
@@ -266,6 +270,7 @@ def render_html(
     run_summary: Sequence[str] = (),
     contact_sheet_path: str | None = None,
     not_updated: Sequence[Mapping[str, Any]] = (),
+    unstable: Sequence[Mapping[str, Any]] = (),
 ) -> str:
     """Render the self-contained HTML report."""
     body_parts: list[str] = []
@@ -284,12 +289,43 @@ def render_html(
             body_parts.append(group_summary)
         for record in records:
             body_parts.append(_render_html_section(record, context=context))
+    unstable_section = _render_unstable_html(unstable)
+    if unstable_section:
+        body_parts.append(unstable_section)
     not_updated_section = _render_not_updated_html(not_updated)
     if not_updated_section:
         body_parts.append(not_updated_section)
 
     body = "\n".join(body_parts)
     return _HTML_TEMPLATE.format(title=html.escape(title, quote=False), body=body)
+
+
+def _render_unstable_html(
+    unstable: Sequence[Mapping[str, Any]],
+) -> str:
+    """Render the Unstable section for nodes that passed only on recapture."""
+    entries = [entry for entry in unstable if isinstance(entry, Mapping)]
+    if not entries:
+        return ""
+    rows: list[str] = []
+    for entry in entries:
+        target = html.escape(
+            str(entry.get("node_id") or entry.get("path") or "?"), quote=False
+        )
+        attempts = html.escape(str(entry.get("attempts") or "?"), quote=False)
+        path = html.escape(str(entry.get("path") or "—"), quote=False)
+        rows.append(
+            f"<tr><td>{target}</td><td>{attempts}</td><td>{path}</td></tr>"
+        )
+    return (
+        '<section class="unstable"><h2>Unstable</h2>'
+        "<p>These nodes passed their test and matched goldens only on "
+        "recapture.</p>"
+        "<table><thead><tr><th>Node</th><th>Attempts</th><th>Path</th></tr>"
+        "</thead><tbody>"
+        + "".join(rows)
+        + "</tbody></table></section>"
+    )
 
 
 def _render_not_updated_html(
@@ -541,6 +577,7 @@ def render_summary(
     run_summary: Sequence[str] = (),
     contact_sheet_path: str | None = None,
     not_updated: Sequence[Mapping[str, Any]] = (),
+    unstable: Sequence[Mapping[str, Any]] = (),
 ) -> str:
     """Render the compact ``summary.md`` GitHub job summary."""
     lines: list[str] = [f"# {title}", ""]
@@ -550,10 +587,12 @@ def render_summary(
     if contact_sheet_path is not None:
         lines.append(f"Representative contact sheet: `{_md_text(contact_sheet_path)}`")
         lines.append("")
+    unstable_lines = _unstable_md_lines(unstable)
     not_updated_lines = _not_updated_md_lines(not_updated)
     if not records:
         lines.append(empty_message)
         lines.append("")
+        lines.extend(unstable_lines)
         lines.extend(not_updated_lines)
         return "\n".join(lines)
 
@@ -582,8 +621,33 @@ def render_summary(
             f"{diff} | {group} |"
         )
     lines.append("")
+    lines.extend(unstable_lines)
     lines.extend(not_updated_lines)
     return "\n".join(lines)
+
+
+def _unstable_md_lines(
+    unstable: Sequence[Mapping[str, Any]],
+) -> list[str]:
+    """Render the Unstable markdown table for recapture-only passes."""
+    entries = [entry for entry in unstable if isinstance(entry, Mapping)]
+    if not entries:
+        return []
+    lines = [
+        "## Unstable",
+        "",
+        "These nodes passed their test and matched goldens only on recapture.",
+        "",
+        "| Node | Attempts | Path |",
+        "| --- | --- | --- |",
+    ]
+    for entry in entries:
+        node = _md_text(str(entry.get("node_id") or entry.get("path") or "?"))
+        attempts = _md_text(str(entry.get("attempts") or "?"))
+        path = _md_text(str(entry.get("path") or "—"))
+        lines.append(f"| `{node}` | {attempts} | `{path}` |")
+    lines.append("")
+    return lines
 
 
 def _not_updated_md_lines(
@@ -782,6 +846,7 @@ def write_outputs_from_manifest(
         run_summary=report.run_summary,
         contact_sheet_path=report.contact_sheet_path,
         not_updated=report.not_updated,
+        unstable=report.unstable,
     )
     return report.metadata
 
@@ -813,6 +878,12 @@ def load_manifest_report(
         if isinstance(skipped, list)
         else ()
     )
+    unstable_raw = raw.get("unstable")
+    unstable = (
+        tuple(item for item in unstable_raw if isinstance(item, Mapping))
+        if isinstance(unstable_raw, list)
+        else ()
+    )
     return ManifestReport(
         records=tuple(records),
         title=MAINTENANCE_REPORT_TITLE,
@@ -821,6 +892,7 @@ def load_manifest_report(
         contact_sheet_path=contact_sheet,
         metadata=metadata,
         not_updated=not_updated,
+        unstable=unstable,
     )
 
 
@@ -1073,6 +1145,10 @@ def _manifest_report_metadata(
     skipped_count = (
         len(skipped_raw) if isinstance(skipped_raw, list) else 0
     )
+    unstable_raw = manifest.get("unstable")
+    unstable_count = (
+        len(unstable_raw) if isinstance(unstable_raw, list) else 0
+    )
     groups: dict[str, list[FailureRecord]] = defaultdict(list)
     for record in records:
         if record.group_id is not None:
@@ -1086,6 +1162,7 @@ def _manifest_report_metadata(
         "contact_sheet": contact_sheet_path,
         "record_count": len(records),
         "skipped_count": skipped_count,
+        "unstable_count": unstable_count,
         "groups": [
             {
                 "id": group_id,
@@ -1132,6 +1209,9 @@ def _run_summary_lines(manifest: dict[str, Any]) -> tuple[str, ...]:
     if isinstance(warnings, list) and warnings:
         for warning in warnings[:5]:
             parts.append(f"warning: {warning}")
+    unstable = manifest.get("unstable")
+    if isinstance(unstable, list) and unstable:
+        parts.append(f"unstable: {len(unstable)} node(s) passed on recapture")
     skipped = manifest.get("skipped")
     if isinstance(skipped, list) and skipped:
         parts.append(f"not-updated: {len(skipped)} golden(s) left unchanged")

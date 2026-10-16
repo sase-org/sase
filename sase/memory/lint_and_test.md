@@ -140,8 +140,8 @@ a `partial` run, read the WARNING block or the manifest's `skipped` list and
 `pruning_skipped_reason`; never read `counts:` alone as "nothing to update". `-n N`
 after `--` becomes the governed `SASE_PYTEST_WORKERS` request (`-n` in `PYTEST_ADDOPTS`
 is a usage error). A second run in the same checkout waits for the maintenance lock
-(bounded, default 2 h). `--check` stays strict: it never writes and exits 1 on required
-drift.
+(bounded, default 2 h). `--check` never writes; it recaptures failed nodes serially,
+passes only exact matches, and exits 1 on drift that reproduces.
 
 Goldens live under `tests/ace/tui/visual/snapshots/png/` and
 `tests/pager/visual/snapshots/png/`. Reports land in unique run directories under

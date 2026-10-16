@@ -176,7 +176,7 @@ strand inherits no `type:` of its own and never inlines into `AGENTS.md`.
   changes in the separate repos contained in the sase/repos/ directory), you MUST read
   this note before you finish your turn.
 - Lines: 160
-- Approx. tokens: 2390
+- Approx. tokens: 2404
 
 ### `sase/memory/macros.md`
 
@@ -270,7 +270,7 @@ strand inherits no `type:` of its own and never inlines into `AGENTS.md`.
 - Reference notes: 14
 - Web descriptor notes: 3
 - Total lines: 1593
-- Total approx. tokens: 22584
+- Total approx. tokens: 22598
 
 ## Commands
 

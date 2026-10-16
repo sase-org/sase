@@ -469,6 +469,21 @@ def test_visual_suite_runs_only_in_dedicated_job() -> None:
     assert "--manifest" in workflow_text
     assert "do not accept goldens from this run" in workflow_text
     assert "SASE_VISUAL_REPORT_STATUS=" in workflow_text
+    assert "unstable_count" in workflow_text
+    assert any(
+        "first-attempt-diffs" in str(step.get("with", {}).get("path", ""))
+        for step in jobs["visual-test"]["steps"]
+    )
+    locate = next(
+        step
+        for step in jobs["visual-test"]["steps"]
+        if step.get("id") == "visual_report"
+    )
+    assert locate["if"] == "always()"
+    assert any(
+        step.get("name") == "Publish unstable recapture summary"
+        for step in jobs["visual-test"]["steps"]
+    )
 
 
 def test_ace_page_group_isolation_job_runs_dedicated_lane() -> None:
