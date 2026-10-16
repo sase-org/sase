@@ -7,5 +7,6 @@
 /xprompt/ /macros/ 301
 
 # BEGIN GENERATED: docs page moves redirects
+/architecture/ /contribute/architecture/ 301
 /instruction_inventory/ /instruction_bundles/ 301
 # END GENERATED: docs page moves redirects

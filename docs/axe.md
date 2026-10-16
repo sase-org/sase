@@ -1179,9 +1179,9 @@ be nonblank, contain no NUL byte, fit within 32 KiB of UTF-8, and avoid both the
 text-block terminator and `+` (which macro argument decoding would turn into a space).
 
 A proposal that also carries an active `%if` predicate is admitted through the typed
-launch path (see [Agent Launch Flow](architecture.md#agent-launch-flow)), so a member
-statically planned to declare the clan can still be skipped at admission time. That
-promotion works the same way once-per filtering already promotes the first accepted
+launch path (see [Agent Launch Flow](contribute/architecture.md#agent-launch-flow)), so
+a member statically planned to declare the clan can still be skipped at admission time.
+That promotion works the same way once-per filtering already promotes the first accepted
 member: admission-time filtering promotes the first surviving (eligible, dispatched)
 member of an undeclared clan to declarer regardless of which member was planned to
 declare it, carrying the group's agreed `tribe` and `clan_summary` with it. A skipped or
@@ -1270,21 +1270,21 @@ A proposal's `prompt` may contain typed directives such as `%if::` (a Bash or Py
 condition fence) or `%proc`. A batch containing an active directive routes through the
 same durable typed admission coordinator used by sase's TUI, `sase run`, and
 LaunchApproval, joining AXE as a fourth typed-admission source; see
-[Agent Launch Flow](architecture.md#agent-launch-flow). A `%if` predicate evaluates
-after its unit's `%wait` dependency settles and before any runner, agent identity, proc
-identity, or model request is allocated. For a selected managed project, the predicate
-itself briefly uses a claimed, prepared operational workspace so stale job checkouts can
-observe newer pushed work before admission decides. Exit `0` admits the unit normally;
-exit `1` records a skip with no runner, identity, proc, or model allocation. AXE owns
-the admission bundle across the run, keeping the job in active `launched` state until
-every admitted unit reaches its own terminal state, and treats predicate skips as
-successful no-op outcomes rather than once-per duplicates or launcher errors. A
-structured proposal `wait_on` becomes both a typed admission-order edge and, for an
-admitted Agent unit, a restored named-agent `%wait` in the prompt AXE dispatches to the
-runner. If admission skips or condition-errors an intermediate proposal, AXE relinks
-that runner wait to the nearest earlier proposal that actually launched; if no ancestor
-launched, it dispatches without a named wait. A batch with no active `%if`/`%proc`
-directive keeps using the plain launch path unchanged.
+[Agent Launch Flow](contribute/architecture.md#agent-launch-flow). A `%if` predicate
+evaluates after its unit's `%wait` dependency settles and before any runner, agent
+identity, proc identity, or model request is allocated. For a selected managed project,
+the predicate itself briefly uses a claimed, prepared operational workspace so stale job
+checkouts can observe newer pushed work before admission decides. Exit `0` admits the
+unit normally; exit `1` records a skip with no runner, identity, proc, or model
+allocation. AXE owns the admission bundle across the run, keeping the job in active
+`launched` state until every admitted unit reaches its own terminal state, and treats
+predicate skips as successful no-op outcomes rather than once-per duplicates or launcher
+errors. A structured proposal `wait_on` becomes both a typed admission-order edge and,
+for an admitted Agent unit, a restored named-agent `%wait` in the prompt AXE dispatches
+to the runner. If admission skips or condition-errors an intermediate proposal, AXE
+relinks that runner wait to the nearest earlier proposal that actually launched; if no
+ancestor launched, it dispatches without a named wait. A batch with no active
+`%if`/`%proc` directive keeps using the plain launch path unchanged.
 
 Python job packages should use the public `sase.jobs` SDK (`load_job_invocation`,
 `JobLogger`, `JobReport`, `JobResultBuilder`, and `launch_proposal`) for argument

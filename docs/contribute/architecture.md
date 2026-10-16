@@ -1,3 +1,10 @@
+---
+title: Architecture
+description:
+  Architecture internals, runtime flow, state ownership, and provider boundaries inside
+  SASE.
+---
+
 # Architecture
 
 SASE is a Python orchestration layer for agentic software engineering, backed by a
@@ -5,26 +12,26 @@ required Rust core for selected deterministic data operations. The system keeps 
 state outside any one chat transcript so agents can be launched, tracked, resumed,
 reviewed, retried, and handed off through stable project artifacts.
 
-![SASE component communication diagram](images/sase-component-communication.png)
+![SASE component communication diagram](../images/sase-component-communication.png)
 
 ## System Boundary
 
-| Area         | Responsibility                                                                                                                                    | Main References                                                    |
-| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
-| CLI          | Top-level `sase` commands, argument parsing, dispatch, and JSON helper bridges.                                                                   | [CLI reference](cli.md)                                            |
-| sase's TUI   | Interactive TUI for Patches, agents, notifications, artifacts, and service status.                                                                | [sase's TUI](ace.md)                                               |
-| Service host | Per-machine supervisor for configured daemon procs and transient oneshots; it owns the scheduler and mobile gateway procs.                        | [CLI reference](cli.md#sase-service)                               |
-| Axe          | Background orchestrator for scheduled hooks, mentors, workflow checks, comments, cleanup, and digests.                                            | [Axe](axe.md)                                                      |
-| Macro        | Prompt templates, reference expansion, directives, typed inputs, and reusable workflows.                                                          | [Macros](macros.md)                                                |
-| Workflows    | YAML multi-step execution with agent, bash, python, parallel, loop, and human checkpoint steps.                                                   | [Workflow spec](workflow_spec.md)                                  |
-| Gates        | Durable, command-backed user decisions and processless session-turn handoffs.                                                                     | [Notifications](notifications.md#command-backed-interaction-gates) |
-| Patches      | PR-sized review records with lifecycle state, stitches, hooks, comments, mentors, and timestamps.                                                 | [Patches](change_spec.md)                                          |
-| Memory       | Always-loaded and on-demand context, explicit flat-note macro inclusion, audited reads, and sase's TUI-backed note/strand changes.                | [Memory](memory.md)                                                |
-| SDD          | Durable prompt, tale, epic, and research artifacts.                                                                                               | [SDD](sdd.md)                                                      |
-| Beads        | Git-portable issue/dependency tracking and executable epic launch plans.                                                                          | [Beads](beads.md)                                                  |
-| Providers    | Pluggable LLM, VCS, workspace, config, and macro boundaries.                                                                                      | [Plugins](plugins.md)                                              |
-| Rust core    | Required `sase_core_rs` extension for ported parsing, query, notification, agent scan, launch and admission, retention, and bead data operations. | [Rust backend](rust_backend.md)                                    |
-| Integrations | Public helpers and fixed bridge APIs for editors, mobile gateway, and external packages.                                                          | [Integrations](integrations.md)                                    |
+| Area         | Responsibility                                                                                                                                    | Main References                                                       |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| CLI          | Top-level `sase` commands, argument parsing, dispatch, and JSON helper bridges.                                                                   | [CLI reference](../cli.md)                                            |
+| sase's TUI   | Interactive TUI for Patches, agents, notifications, artifacts, and service status.                                                                | [sase's TUI](../ace.md)                                               |
+| Service host | Per-machine supervisor for configured daemon procs and transient oneshots; it owns the scheduler and mobile gateway procs.                        | [CLI reference](../cli.md#sase-service)                               |
+| Axe          | Background orchestrator for scheduled hooks, mentors, workflow checks, comments, cleanup, and digests.                                            | [Axe](../axe.md)                                                      |
+| Macro        | Prompt templates, reference expansion, directives, typed inputs, and reusable workflows.                                                          | [Macros](../macros.md)                                                |
+| Workflows    | YAML multi-step execution with agent, bash, python, parallel, loop, and human checkpoint steps.                                                   | [Workflow spec](../workflow_spec.md)                                  |
+| Gates        | Durable, command-backed user decisions and processless session-turn handoffs.                                                                     | [Notifications](../notifications.md#command-backed-interaction-gates) |
+| Patches      | PR-sized review records with lifecycle state, stitches, hooks, comments, mentors, and timestamps.                                                 | [Patches](../change_spec.md)                                          |
+| Memory       | Always-loaded and on-demand context, explicit flat-note macro inclusion, audited reads, and sase's TUI-backed note/strand changes.                | [Memory](../memory.md)                                                |
+| SDD          | Durable prompt, tale, epic, and research artifacts.                                                                                               | [SDD](../sdd.md)                                                      |
+| Beads        | Git-portable issue/dependency tracking and executable epic launch plans.                                                                          | [Beads](../beads.md)                                                  |
+| Providers    | Pluggable LLM, VCS, workspace, config, and macro boundaries.                                                                                      | [Plugins](../plugins.md)                                              |
+| Rust core    | Required `sase_core_rs` extension for ported parsing, query, notification, agent scan, launch and admission, retention, and bead data operations. | [Rust backend](../rust_backend.md)                                    |
+| Integrations | Public helpers and fixed bridge APIs for editors, mobile gateway, and external packages.                                                          | [Integrations](../integrations.md)                                    |
 
 The Python host owns user-facing orchestration, plugin calls, subprocess handling,
 filesystem context, TUI rendering, and workflow side effects. Rust owns reusable
@@ -38,7 +45,7 @@ epic execution, or mobile/editor helper bridges. The launch path follows the sam
 across those entry points:
 
 1. Parse prompt text, directives, and optional multi-prompt separators, then expand
-   `+<project>` [project tags](macros.md#project-tags) and canonicalize ProjectSpec
+   `+<project>` [project tags](../macros.md#project-tags) and canonicalize ProjectSpec
    aliases in launch-bound VCS refs. For example, `+bob` expands to `#gh:bob-cli` (and
    `#gh:bob` canonicalizes to the same stable directory-key ref) before history or
    artifact snapshots are written.
@@ -53,8 +60,8 @@ across those entry points:
 4. Prepare fixed or deferred workspace metadata. For a normal launch, claim the final
    numbered workspace atomically immediately before spawning the process.
 5. In the detached runner, wait for `%wait` dependencies and time floors, then pass
-   runner admission: no active [agent hold](cli.md#sase-agent-hold) may match the run,
-   and its queue weight must fit the global `max_running_agents` budget or its own
+   runner admission: no active [agent hold](../cli.md#sase-agent-hold) may match the
+   run, and its queue weight must fit the global `max_running_agents` budget or its own
    `%queue` capacity budget. A deferred-workspace launch claims its numbered workspace
    only after admission.
 6. Continue macro or workflow processing and invoke the selected LLM provider or
@@ -78,7 +85,7 @@ agent-initiated launches freeze the same digest behind LaunchApproval; AXE job b
 containing an active `%if`/`%proc` directive dispatch through the same durable bundle
 under the internal `axe_chop` source surface, with the originating job run owning the
 bundle across process restarts (see
-[Structured Results and Launch Proposals](axe.md#structured-results-and-launch-proposals)).
+[Structured Results and Launch Proposals](../axe.md#structured-results-and-launch-proposals)).
 Within an AXE job clan, dispatch — not planning — owns the declarer decision: the first
 surviving (eligible, dispatched) member of an undeclared clan claims it durably, so a
 `%if`-skipped statically planned declarer never leaves later members joining a clan
@@ -108,16 +115,16 @@ the same Agents tab as top-level `▣` rows backed only by the proc store, count
 separately from agents. Workflow launches persist step state so sase's TUI and axe can
 inspect progress and recover meaningful output.
 
-Agent holds are durable reverse waits. [`sase agent hold`](cli.md#sase-agent-hold) arms
-a hold in `~/.sase/agent_holds.json` that selects agents or named procs by name, tribe,
-or hood; it can freeze the WAITING/QUEUED agents already in scope and fence launches
-submitted later. Runner admission and undispatched `%proc` dispatch both consult active
-holds. A hold ends when it is released, when its armer settles or exits, or when its TTL
-expires, and a broken hold store fails open rather than stranding a waiter. The
-[`%hold` directive](macros.md#hold-directive) describes the same selectors in prompt
-text. Typed launches pre-arm the declared hold before admission can dispatch the unit,
-then rebind it to the running agent or proc; terminal units that never dispatch release
-their pre-armed holds.
+Agent holds are durable reverse waits. [`sase agent hold`](../cli.md#sase-agent-hold)
+arms a hold in `~/.sase/agent_holds.json` that selects agents or named procs by name,
+tribe, or hood; it can freeze the WAITING/QUEUED agents already in scope and fence
+launches submitted later. Runner admission and undispatched `%proc` dispatch both
+consult active holds. A hold ends when it is released, when its armer settles or exits,
+or when its TTL expires, and a broken hold store fails open rather than stranding a
+waiter. The [`%hold` directive](../macros.md#hold-directive) describes the same
+selectors in prompt text. Typed launches pre-arm the declared hold before admission can
+dispatch the unit, then rebind it to the running agent or proc; terminal units that
+never dispatch release their pre-armed holds.
 
 The service host is the machine-level supervisor for configured daemon procs. Its
 `service.procs` catalog comes from builtin, plugin, user, and machine-overlay config;
@@ -159,8 +166,8 @@ gate turn is the human's move. Once their evidence is readable, later session fo
 include the agent transcript, monitor log, or gate decision record.
 
 Questions, plan review, agent-side workflow HITL, agent-initiated launch approval, and
-beta [sudo requests](sudo.md) use gate turns. At the handoff boundary SASE persists the
-verified gate bundle, names the turn, transfers or releases the workspace claim
+beta [sudo requests](../sudo.md) use gate turns. At the handoff boundary SASE persists
+the verified gate bundle, names the turn, transfers or releases the workspace claim
 according to policy, releases the runner slot, and ends the provider turn. A client
 later selects a branch; SASE first writes a write-once decision receipt, so the choice
 is durable and a conflicting answer fails before any command runs. It then runs the
@@ -188,7 +195,7 @@ The project-adjacent taxonomy has three non-overlapping roles:
   Linked/sidecar checkouts materialized within it remain repos, not workspaces. By
   default a managed Git workspace borrows the primary checkout's object database through
   Git alternates, so moving or deleting the primary checkout calls for
-  [`sase workspace repair`](workspace.md#sase-workspace-cli).
+  [`sase workspace repair`](../workspace.md#sase-workspace-cli).
 
 | State             | Location / Owner                                                               | Use                                                                                                                                                                                            |
 | ----------------- | ------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -221,11 +228,11 @@ with `--apply`, delegates cleanup to them: the managed-temp reaper, proc runtime
 agent artifact-run retention, and workspace Git object compaction. Unowned Cargo-shaped
 strays are reported but never deleted. The hourly axe `disk_pressure` job runs the
 owner-safe passes early when free space runs low. See
-[`sase disk`](configuration.md#sase-disk) and
-[axe housekeeping](axe.md#housekeeping-1-hour-interval).
+[`sase disk`](../configuration.md#sase-disk) and
+[axe housekeeping](../axe.md#housekeeping-1-hour-interval).
 
 The canonical project/home namespace and legacy read boundary are documented in
-[Canonical SASE Content Layout](content_layout.md). Global config, `.sase` runtime
+[Canonical SASE Content Layout](../content_layout.md). Global config, `.sase` runtime
 state, package resources, and plugin resources deliberately remain outside that
 namespace.
 
@@ -237,13 +244,13 @@ engineering state without depending on one terminal session.
 Provider abstractions keep SASE above any single agent runtime, version-control host, or
 workspace strategy:
 
-| Provider Layer     | What It Owns                                                                                                     | Details                         |
-| ------------------ | ---------------------------------------------------------------------------------------------------------------- | ------------------------------- |
-| LLM provider       | Agent CLI selection, concrete model mapping, subprocess invocation, retry defaults, usage metadata.              | [LLM providers](llms.md)        |
-| VCS provider       | Diff, checkout, commit, amend, proposal/PR dispatch, reword, submit, sync, revert, restore, and review metadata. | [VCS providers](vcs.md)         |
-| Workspace provider | Workspace reference resolution, workspace directory allocation, submit/mail preparation, workflow metadata.      | [Workspaces](workspace.md)      |
-| Resource plugins   | Extra macro/workflow files and default configuration.                                                            | [Plugins](plugins.md)           |
-| Integration APIs   | Public Python helpers and fixed JSON bridge contracts for sidecar tools.                                         | [Integrations](integrations.md) |
+| Provider Layer     | What It Owns                                                                                                     | Details                            |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------- | ---------------------------------- |
+| LLM provider       | Agent CLI selection, concrete model mapping, subprocess invocation, retry defaults, usage metadata.              | [LLM providers](../llms.md)        |
+| VCS provider       | Diff, checkout, commit, amend, proposal/PR dispatch, reword, submit, sync, revert, restore, and review metadata. | [VCS providers](../vcs.md)         |
+| Workspace provider | Workspace reference resolution, workspace directory allocation, submit/mail preparation, workflow metadata.      | [Workspaces](../workspace.md)      |
+| Resource plugins   | Extra macro/workflow files and default configuration.                                                            | [Plugins](../plugins.md)           |
+| Integration APIs   | Public Python helpers and fixed JSON bridge contracts for sidecar tools.                                         | [Integrations](../integrations.md) |
 
 Core SASE ships built-in providers for common local use: bundled LLM provider entry
 points, plain-git VCS support, and bare-git workspaces. Optional packages can add hosted
@@ -282,17 +289,17 @@ core API, not presentation logic.
 
 The Python host still owns side effects that require app context: plugin dispatch,
 VCS/workspace calls, process signalling, file locks, TUI rendering, user confirmation,
-macro lookup, and workflow orchestration. See [Rust backend](rust_backend.md) for the
+macro lookup, and workflow orchestration. See [Rust backend](../rust_backend.md) for the
 complete operation list and facade map.
 
 ## Read Next
 
-| Need                                     | Page                                                                                                 |
-| ---------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| Command discovery                        | [CLI reference](cli.md)                                                                              |
-| Contributor setup and source orientation | [Development](development.md)                                                                        |
-| Runtime operations                       | [sase's TUI](ace.md), [Axe](axe.md), [notifications](notifications.md)                               |
-| Durable work records                     | [Patches](change_spec.md), [memory](memory.md), [SDD](sdd.md), [beads](beads.md)                     |
-| Prompt and workflow execution            | [Macros](macros.md), [workflow spec](workflow_spec.md)                                               |
-| Extension boundaries                     | [Plugins](plugins.md), [LLM providers](llms.md), [VCS providers](vcs.md), [workspaces](workspace.md) |
-| Backend boundary                         | [Rust backend](rust_backend.md)                                                                      |
+| Need                                     | Page                                                                                                             |
+| ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| Command discovery                        | [CLI reference](../cli.md)                                                                                       |
+| Contributor setup and source orientation | [Development](../development.md)                                                                                 |
+| Runtime operations                       | [sase's TUI](../ace.md), [Axe](../axe.md), [notifications](../notifications.md)                                  |
+| Durable work records                     | [Patches](../change_spec.md), [memory](../memory.md), [SDD](../sdd.md), [beads](../beads.md)                     |
+| Prompt and workflow execution            | [Macros](../macros.md), [workflow spec](../workflow_spec.md)                                                     |
+| Extension boundaries                     | [Plugins](../plugins.md), [LLM providers](../llms.md), [VCS providers](../vcs.md), [workspaces](../workspace.md) |
+| Backend boundary                         | [Rust backend](../rust_backend.md)                                                                               |

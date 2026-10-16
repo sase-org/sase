@@ -75,13 +75,13 @@ initialize the system. The deeper engineering pieces get their own posts.
 
 SASE is not a model router that happens to know about coding. It is an orchestration
 layer around existing agent runtimes. The
-[architecture guide](../../architecture.md#agent-launch-flow) describes the launch path:
-parse prompt text and directives, resolve a workspace reference, expand Macros, invoke
-the selected LLM provider or workflow executor, stream subprocess output, write agent
-artifacts, emit notifications, and hand review or commit work back to the VCS layer. The
-[LLM provider docs](../../llms.md#provider-architecture) make the boundary explicit:
-providers are thin. They construct CLI commands and run subprocesses; preprocessing and
-postprocessing live in SASE.
+[architecture internals](../../contribute/architecture.md#agent-launch-flow) describe
+the launch path: parse prompt text and directives, resolve a workspace reference, expand
+Macros, invoke the selected LLM provider or workflow executor, stream subprocess output,
+write agent artifacts, emit notifications, and hand review or commit work back to the
+VCS layer. The [LLM provider docs](../../llms.md#provider-architecture) make the
+boundary explicit: providers are thin. They construct CLI commands and run subprocesses;
+preprocessing and postprocessing live in SASE.
 
 That boundary is the whole trick. SASE never has to replace Claude Code, Codex,
 Antigravity CLI (`agy`), Qwen Code, OpenCode, or Meta's Muse Code. It launches the CLI

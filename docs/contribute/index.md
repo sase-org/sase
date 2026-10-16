@@ -11,6 +11,8 @@ contracts, and the docs process itself.
 ## Build and develop
 
 - [Development](../development.md) — Setup, verification, and source layout.
+- [Architecture](architecture.md) — Runtime flow, state ownership, and provider
+  boundaries.
 - [Rust backend](../rust_backend.md) — The required core and its boundary.
 - [Fakey testing provider](../fakey.md) — The fake provider for tests.
 

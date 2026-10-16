@@ -39,8 +39,10 @@ nav:
           - Recover an interrupted agent: troubleshooting/agent-revival.md
           - Unstick a queued agent: troubleshooting/runner-slots.md
   - Concepts:
-      - How SASE works: architecture.md
-      - Spec-driven development: sdd.md
+      - How SASE works: concepts/index.md
+      - Agents, sessions, and workspaces: concepts/agents.md
+      - Work units: concepts/work-units.md
+      - How changes land: concepts/landing.md
   - Reference:
       - Reference hub: reference/index.md
       - TUI:
@@ -57,6 +59,7 @@ nav:
           - Macros: macros.md
           - Workflows: workflow_spec.md
       - Work units:
+          - Spec-driven development: sdd.md
           - Patches: change_spec.md
           - Beads: beads.md
           - Goals: goals.md
@@ -95,6 +98,7 @@ nav:
       - Design decisions: reference/design-decisions.md
   - Contribute:
       - Contribute: contribute/index.md
+      - Architecture: contribute/architecture.md
       - Writing docs: contribute/writing-docs.md
       - Development: development.md
       - Rust backend: rust_backend.md

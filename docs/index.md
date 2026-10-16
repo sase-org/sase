@@ -127,7 +127,7 @@ hide:
     provider boundaries, and docs workflow.
   </p>
 
-<a href="architecture/">Read the architecture map</a>
+<a href="contribute/architecture/">Read the architecture map</a>
 
   </article>
 
@@ -214,7 +214,7 @@ hide:
 
   <p>See how CLI, sase's TUI, axe, workflows, providers, and the Rust core fit together.</p>
 
-<a href="architecture/">Open architecture</a>
+<a href="concepts/">How SASE works</a>
 
   </article>
 

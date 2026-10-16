@@ -2,3 +2,6 @@ moves:
   - from: instruction_inventory.md
     to: instruction_bundles.md
     kind: redirect
+  - from: architecture.md
+    to: contribute/architecture.md
+    kind: redirect

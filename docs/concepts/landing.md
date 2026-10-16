@@ -1,0 +1,48 @@
+---
+title: How changes land
+description: How SASE carries agent changes through review and into version control.
+search:
+  boost: 2
+---
+
+# How changes land
+
+SASE routes completed work through a host-owned workflow that records the result and
+asks the active version-control provider to carry it forward.
+
+## The idea in one picture
+
+```text
+Agent work ──► Host finalizer ──► VCS provider ──┬──► Commit or proposal
+                                  └── Pull request ──► Patch
+Commit or proposal ──► Stitches
+```
+
+## How it works
+
+After an agent turn finishes, the host's
+[commit finalizer](../commit_workflows.md#commit-finalizer) checks for changes and runs
+the selected workflow. The workflow calls the [VCS provider](../vcs.md), which handles
+operations for the project's version-control system.
+
+A workflow can create a commit, save a proposal, or open a pull request. SASE records
+commit and proposal results as [Stitches](../commit_workflows.md); a pull request
+creates a Patch that carries the review state. The agent supplies the result for the
+host to process, while the host owns the finalizer and the VCS operation.
+
+## When it matters
+
+- Choose a commit when the change belongs directly on the current branch.
+- Choose a proposal when you want to save a diff for later application.
+- Choose a pull request when another person should review the change before it merges.
+
+## Do it
+
+- [Review and land a change](../commit_workflows.md) — understand the available commit
+  workflows.
+
+## Look it up
+
+- [Commit workflows](../commit_workflows.md) — workflow behavior and finalizer details.
+- [VCS providers](../vcs.md) — version-control operations and provider boundaries.
+- [Patch format](../change_spec.md) — the review record created for a pull request.

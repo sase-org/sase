@@ -19,8 +19,10 @@
 
 ## Concepts
 
-- [Architecture](architecture.md) — Architecture — SASE is a Python orchestration layer for agentic software engineering, backed by a required Rust core for selected deterministic data operations.
-- [Spec-Driven Development (SDD)](sdd.md) — Spec-Driven Development (SDD) — SDD is sase's system for persisting the intent behind agent work.
+- [Agents, sessions, and workspaces](concepts/agents.md) — How SASE gives delegated agent work an isolated place to run and a durable history.
+- [How SASE works](concepts/index.md) — The small set of ideas that explains how SASE keeps agent work organized and reviewable.
+- [How changes land](concepts/landing.md) — How SASE carries agent changes through review and into version control.
+- [Work units](concepts/work-units.md) — How goals, plans, beads, and Patches represent outcomes, coordinated work, and reviewable changes.
 
 ## Reference
 
@@ -58,6 +60,7 @@
 - [Glossary](reference/glossary.md) — Every SASE term, generated from the glossary memory web.
 - [Reference](reference/index.md) — Look up exact SASE facts here, generated from code where possible.
 - [Remote Dispatch Runbook](remote_dispatch.md) — Remote Dispatch Runbook — Remote dispatch lets one SASE controller discover, enroll, and operate agents on another machine.
+- [Spec-Driven Development (SDD)](sdd.md) — Spec-Driven Development (SDD) — SDD is sase's system for persisting the intent behind agent work.
 - [Sudo Requests](sudo.md) — Sudo Requests — SASE sudo requests let an agent ask for reviewed privileged execution without ever asking for, receiving, logging, or proxying a password.
 - [Named Tools and ToolRuns](tool.md) — Named Tools and ToolRuns — A named tool is a project-declared command (check, test, ...) that sase tool run executes exactly as declared and records as a ToolRun: who ran it, when, with what result, how long each stage took, and what the repository and host looked like before and after.
 - [VCS Provider Reference](vcs.md) — VCS Provider Reference — The VCS provider layer is an abstraction that lets sase commands work with both Git and Mercurial repositories.
@@ -70,6 +73,7 @@
 - [Artifacts pane contract](artifacts_pane_contract.md) — Artifacts pane contract — ArtifactsPaneContract is the host-owned record that decides what a pane can do before widgets, keybindings, or document providers run.
 - [Artifacts pane visual grammar](artifacts_pane_visual_grammar.md) — Artifacts pane visual grammar — Every configured Artifacts pane — Commits, Patches, Beads, Files, every document provider, and a degraded provider that failed to load — renders through one shared, contract-driven shell.
 - [Commit Workflows](commit_workflows.md) — Commit Workflows — Sase provides three unified workflows for landing code changes: commit, propose, and pull request.
+- [Architecture](contribute/architecture.md) — Architecture internals, runtime flow, state ownership, and provider boundaries inside SASE.
 - [Contribute](contribute/index.md) — Contributor guides, internals, contracts, and runbooks for SASE.
 - [Writing docs](contribute/writing-docs.md) — The sase.sh documentation contract for humans and agents.
 - [Development](development.md) — Development — This page orients contributors working in the sase repository.
@@ -100,3 +104,4 @@
 | Old path | New home |
 | --- | --- |
 | `/instruction_inventory/` | [`/instruction_bundles/`](instruction_bundles.md) |
+| `/architecture/` | [`/contribute/architecture/`](contribute/architecture.md) |

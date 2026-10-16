@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 920 300" role="img" aria-labelledby="title desc">
+  <title id="title">The seven core SASE nouns</title>
+  <desc id="desc">A project provides a workspace for an agent. A prompt or macro and a bead or plan guide the agent. The agent produces a Patch, while the TUI surfaces the work and its progress.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">
+      <path d="M0,0 L10,4 L0,8 Z" fill="#47c5c4" />
+    </marker>
+    <marker id="arrow-muted" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">
+      <path d="M0,0 L10,4 L0,8 Z" fill="#a9c3cc" />
+    </marker>
+    <style>
+      .box { fill: #14252d; stroke: #47c5c4; stroke-width: 2; }
+      .node { fill: #f4fbfc; font: 600 19px sans-serif; text-anchor: middle; }
+      .edge { fill: none; stroke: #47c5c4; stroke-width: 2.5; marker-end: url(#arrow); }
+      .observe { fill: none; stroke: #a9c3cc; stroke-width: 2; stroke-dasharray: 7 6; marker-end: url(#arrow-muted); }
+    </style>
+  </defs>
+
+  <path class="edge" d="M205 83 H245" />
+  <path class="edge" d="M405 83 H445" />
+  <path class="edge" d="M605 83 H645" />
+  <path class="edge" d="M325 190 C360 150 475 145 505 120" />
+  <path class="edge" d="M525 190 C520 163 520 146 525 120" />
+  <path class="observe" d="M755 190 C720 155 680 140 605 110" />
+  <path class="observe" d="M795 190 C795 155 790 140 770 120" />
+
+  <rect class="box" x="45" y="48" width="160" height="70" rx="12" />
+  <text class="node" x="125" y="91">Project</text>
+  <rect class="box" x="245" y="48" width="160" height="70" rx="12" />
+  <text class="node" x="325" y="91">Workspace</text>
+  <rect class="box" x="445" y="48" width="160" height="70" rx="12" />
+  <text class="node" x="525" y="91">Agent</text>
+  <rect class="box" x="645" y="48" width="160" height="70" rx="12" />
+  <text class="node" x="725" y="91">Patch</text>
+
+  <rect class="box" x="245" y="190" width="160" height="64" rx="12" />
+  <text class="node" x="325" y="229">Prompt / macro</text>
+  <rect class="box" x="445" y="190" width="160" height="64" rx="12" />
+  <text class="node" x="525" y="229">Bead / plan</text>
+  <rect class="box" x="725" y="190" width="160" height="64" rx="12" />
+  <text class="node" x="805" y="229">TUI</text>
+</svg>
