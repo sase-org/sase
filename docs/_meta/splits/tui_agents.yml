@@ -1,0 +1,35 @@
+to: reference/tui/index.md
+sections:
+  "Keybindings: Agents Tab > Agent Tabs": reference/tui/agents-tab.md
+  "Keybindings: Agents Tab > Navigation": reference/tui/agents-tab.md
+  "Keybindings: Agents Tab > Agent Actions": reference/tui/agents-tab.md
+  "Keybindings: Agents Tab > Forking Agents and Groups": reference/tui/agents-tab.md
+  "Keybindings: Agents Tab > Refresh Panel": reference/tui/agents-tab.md
+  "Keybindings: Agents Tab > Wait Modal": reference/tui/agents-tab.md
+  "Keybindings: Agents Tab > VCS Tag Resolution in Fork/Wait": reference/tui/agents-tab.md
+  "Keybindings: Agents Tab > Workflow Visibility": reference/tui/agents-tab.md
+  "Keybindings: Agents Tab > Agent Artifacts": reference/tui/agents-tab.md
+  "Keybindings: Agents Tab > Agents Tab Reproduction Bundles": reference/tui/agents-tab.md
+  "Keybindings: Agents Tab > Machines": reference/tui/agents-tab-modes.md
+  "Keybindings: Agents Tab > Opened Repository Context": reference/tui/agents-tab-modes.md
+  "Keybindings: Agents Tab > Agent Search": reference/tui/agents-tab-modes.md
+  "Keybindings: Agents Tab > Leader Mode (`,` prefix)": reference/tui/agents-tab-modes.md
+  "Keybindings: Agents Tab > Bang Mode (`!` prefix)": reference/tui/agents-tab-modes.md
+  "Keybindings: Agents Tab > Copy Mode (`%` prefix)": reference/tui/agents-tab-modes.md
+  "Keybindings: Agents Tab > Clan and Session Detail Panels": reference/tui/agents-tab-panels.md
+  "Keybindings: Agents Tab > Sase Agent Neighbors Section": reference/tui/agents-tab-panels.md
+  "Keybindings: Agents Tab > Tribe Side Panels": reference/tui/agents-tab-panels.md
+  "Keybindings: Agents Tab > Group Banners and Folding": reference/tui/agents-tab-grouping.md
+  "Keybindings: Agents Tab > Grouping Modes": reference/tui/agents-tab-grouping.md
+  "Keybindings: Agents Tab > Agent Row Glyphs": reference/tui/agent-row-glyphs.md
+  "Agent Statuses": reference/tui/agent-statuses.md
+  "Agents Tab Main Deck": reference/tui/agents-main-deck.md
+  "Agents Tab LLM Calls Panel": reference/tui/agents-deck-panels.md
+  "Agents Tab Tool Runs": reference/tui/agents-deck-panels.md
+  "Agents Zoom and Node Rail": reference/tui/agents-main-deck.md
+  "Agent Auto-Naming": reference/tui/agent-workflows.md
+  "Plan Workflows": reference/tui/agent-workflows.md
+  "Launch Approval": reference/tui/agent-workflows.md
+  "Agent Holds": reference/tui/agent-workflows.md
+  "Linked Chats in Multi-Step Workflows": reference/tui/agent-workflows.md
+  "Retry/Fallback Display": reference/tui/agent-workflows.md

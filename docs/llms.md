@@ -375,9 +375,10 @@ one normalized record per tool call to `$SASE_ARTIFACTS_DIR/tool_calls.jsonl`:
   `tool_use_result` envelope when present.
 
 sase's TUI LLM Calls panel reads this same `tool_calls.jsonl` to render the per-agent
-timeline — see [Agents Tab LLM Calls Panel](ace.md#agents-tab-llm-calls-panel). The
-reader pairs a `ToolUse` with its `ToolResult` by `tool_use_id` and collapses them into
-one row.
+timeline — see
+[Agents Tab LLM Calls Panel](reference/tui/agents-deck-panels.md#agents-tab-llm-calls-panel).
+The reader pairs a `ToolUse` with its `ToolResult` by `tool_use_id` and collapses them
+into one row.
 
 Stream parsing is the only writer for new runs. SASE does **not** install Claude Code
 hooks and does **not** write to the workspace's `.claude/settings.local.json`; earlier
@@ -519,8 +520,8 @@ preserves these invariants:
   For explicitly supported Antigravity versions, a guarded best-effort extractor may
   decode new rows from Antigravity's local trajectory DB and append
   `source="trajectory"` records to `tool_calls.jsonl`; otherwise sase's TUI
-  [Agents Tab LLM Calls Panel](ace.md#agents-tab-llm-calls-panel) shows nothing for
-  `agy` runs.
+  [Agents Tab LLM Calls Panel](reference/tui/agents-deck-panels.md#agents-tab-llm-calls-panel)
+  shows nothing for `agy` runs.
 - **Usage accounting** — `InvokeResult.usage` is `None` and no `usage.json` is written;
   `agy` print mode exposes no stable token counters.
 - **Thinking extraction** — no thinking artifact is produced.
@@ -627,7 +628,7 @@ SASE captures Codex tool calls from the `codex exec --json` NDJSON stream; it do
 install Codex hooks or mutate user Codex configuration for telemetry. When
 `SASE_ARTIFACTS_DIR` is present, the stream parser appends normalized Codex records to
 `$SASE_ARTIFACTS_DIR/tool_calls.jsonl` for sase's TUI
-[Agents Tab LLM Calls Panel](ace.md#agents-tab-llm-calls-panel).
+[Agents Tab LLM Calls Panel](reference/tui/agents-deck-panels.md#agents-tab-llm-calls-panel).
 
 Current fixture coverage is based on Codex CLI `0.130.0`. For stream items that expose
 both start and completion events (`command_execution`, `file_change`, and named tool
@@ -722,10 +723,10 @@ SASE captures Qwen tool calls from the `qwen --output-format stream-json` event 
 it does not install Qwen hooks. When `SASE_ARTIFACTS_DIR` is present, the stream parser
 normalizes Qwen's nested `tool_use` and `tool_result` blocks into records appended to
 `$SASE_ARTIFACTS_DIR/tool_calls.jsonl` for sase's TUI
-[Agents Tab LLM Calls Panel](ace.md#agents-tab-llm-calls-panel) with `runtime: "qwen"`
-and `source: "stream"`. Malformed or unsupported tool-shaped events emit a diagnostic
-instead of producing a malformed record. The LLM Calls reader collapses each
-start/result pair into a single row.
+[Agents Tab LLM Calls Panel](reference/tui/agents-deck-panels.md#agents-tab-llm-calls-panel)
+with `runtime: "qwen"` and `source: "stream"`. Malformed or unsupported tool-shaped
+events emit a diagnostic instead of producing a malformed record. The LLM Calls reader
+collapses each start/result pair into a single row.
 
 ### Commit Finalization
 
@@ -996,8 +997,8 @@ SASE builds tool-call records purely from the stdout stream; it does not wire Mu
 hook system and does not read Muse state off disk for this. When `SASE_ARTIFACTS_DIR` is
 present, normalized records are appended to `$SASE_ARTIFACTS_DIR/tool_calls.jsonl` with
 `runtime: "muse"` and `source: "stream"` for sase's TUI
-[Agents Tab LLM Calls Panel](ace.md#agents-tab-llm-calls-panel). Fixture coverage is
-keyed to Muse release `0.1.0-R708.1`.
+[Agents Tab LLM Calls Panel](reference/tui/agents-deck-panels.md#agents-tab-llm-calls-panel).
+Fixture coverage is keyed to Muse release `0.1.0-R708.1`.
 
 | Event                                             | Carries                                                                   | Use                                                              |
 | ------------------------------------------------- | ------------------------------------------------------------------------- | ---------------------------------------------------------------- |
@@ -1213,10 +1214,10 @@ SASE captures Grok tool calls from the `streaming-messages-json` event stream; i
 not install Grok hooks. When `SASE_ARTIFACTS_DIR` is present, normalized records are
 appended to `$SASE_ARTIFACTS_DIR/tool_calls.jsonl` with `runtime: "grok"` and
 `source: "stream"` for sase's TUI
-[Agents Tab LLM Calls Panel](ace.md#agents-tab-llm-calls-panel). Grok's native tool
-names are mapped onto SASE's canonical display names so the shared summarizers in
-`_tool_call_common.py` produce rich previews instead of falling through to a generic
-`{"input_keys": [...]}` row:
+[Agents Tab LLM Calls Panel](reference/tui/agents-deck-panels.md#agents-tab-llm-calls-panel).
+Grok's native tool names are mapped onto SASE's canonical display names so the shared
+summarizers in `_tool_call_common.py` produce rich previews instead of falling through
+to a generic `{"input_keys": [...]}` row:
 
 | Grok tool              | Canonical display name |
 | ---------------------- | ---------------------- |
@@ -1860,9 +1861,9 @@ picker and completion order. This table is generated from
 
 Providers also declare compact display shorthands for long model ids via the
 `llm_model_short_aliases()` hook. These shorthands appear in
-[provider/model agent-name suffixes](ace.md#providermodel-suffixes) on the Agents tab
-and act as filter terms in the coder model picker. They are display-only: `%model`
-resolution uses known model names and
+[provider/model agent-name suffixes](reference/tui/agent-workflows.md#providermodel-suffixes)
+on the Agents tab and act as filter terms in the coder model picker. They are
+display-only: `%model` resolution uses known model names and
 [configured model aliases](#configured-model-aliases), not these shorthands. For
 example, `%model:fable` does _not_ select `claude-fable-5` — it falls back to the
 default provider (with a warning) unless you define `fable` as a configured model alias
@@ -1901,12 +1902,12 @@ advisory-flagged models.
 Advisories render at every point a user meets the model, all reading from the registry
 so no render site hardcodes a model id:
 
-| Surface                                           | Rendering                                                      |
-| ------------------------------------------------- | -------------------------------------------------------------- |
-| [sase's TUI model picker](ace.md#custom-approval) | `⚠ <label>` suffix on the row, with `detail` as secondary text |
-| `%model` completion detail                        | `— ⚠ <label>` appended to the completion description           |
-| [Resolved model label](#model-tier-system)        | An inline `⚠` marker for the run's whole life                  |
-| `sase doctor -C llm.model_advisory`               | A **warning** naming each configured route that lands on one   |
+| Surface                                                                     | Rendering                                                      |
+| --------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| [sase's TUI model picker](reference/tui/agent-workflows.md#custom-approval) | `⚠ <label>` suffix on the row, with `detail` as secondary text |
+| `%model` completion detail                                                  | `— ⚠ <label>` appended to the completion description           |
+| [Resolved model label](#model-tier-system)                                  | An inline `⚠` marker for the run's whole life                  |
+| `sase doctor -C llm.model_advisory`                                         | A **warning** naming each configured route that lands on one   |
 
 `⚠` (orange) marks `severity: "warn"`; `ⓘ` (blue) marks `severity: "info"`.
 
@@ -3126,7 +3127,7 @@ immediately.
 ### TUI Display
 
 sase's TUI Agents tab reflects retry state (see
-[Retry/Fallback Display](ace.md#retryfallback-display)):
+[Retry/Fallback Display](reference/tui/agent-workflows.md#retryfallback-display)):
 
 - **RETRYING (Ns)** — Waiting before the next attempt (bold orange, with countdown)
 - **↻N** — Retry count annotation on running agents
@@ -3340,8 +3341,8 @@ share the same artifact hooks for live replies and usage files.
 When `SASE_ARTIFACTS_DIR` is set, the streaming output is also written in real-time to
 `<SASE_ARTIFACTS_DIR>/live_reply.md`. While the Agents-tab follow is active, the Reply
 card replaces that body from this file and `live_reply_timestamps.jsonl`; see
-[Agents Tab Main Deck](ace.md#agents-tab-main-deck). The file remains available after
-execution completes.
+[Agents Tab Main Deck](reference/tui/agents-main-deck.md#agents-tab-main-deck-1). The
+file remains available after execution completes.
 
 Providers that support richer streams may write sidecar artifacts. Codex and Grok both
 write reasoning content to `<SASE_ARTIFACTS_DIR>/codex_thinking.jsonl` (the filename is

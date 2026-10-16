@@ -111,7 +111,8 @@ and `--gate` cannot be combined. Prediction does not launch work or answer a gat
 accepts a date or relative bound such as `1h`. Manual evaluations leave no log rows.
 Launch, sudo, custom, and other privileged gates require human action regardless of
 profile. The live TUI `A` toggle applies to the next gate and is inherited by later
-successors; see [Auto-Approve Toggle](ace.md#auto-approve-toggle).
+successors; see
+[Auto-Approve Toggle](reference/tui/agent-workflows.md#auto-approve-toggle).
 
 ### `sase agent auto-restart`
 

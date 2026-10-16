@@ -1872,7 +1872,8 @@ source):
   machine (`!e`), and runner counts
 - The `SVC` footer pill shows service health: a teal `N/M` count of running versus
   counted service procs, or a red `!` when the host is not running or a counted proc is
-  unhealthy (see [Service Health Pill](ace.md#service-health-pill))
+  unhealthy (see
+  [Service Health Pill](reference/tui/agent-statuses.md#service-health-pill))
 
 Select a service proc row in the Service Procs panel before pressing `x` or `r`; those
 keys intentionally do nothing on routine and job rows in the routines panels. `!x`

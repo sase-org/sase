@@ -572,9 +572,9 @@ explicit, confirmed flows; when a hand-off settles, an `OpenToolRun` notificatio
 back to the run. In the Procs tab, `Enter` on the owner proc or on a monitor that joined
 the run opens Tools focused on that run, unless the row also has a Command Line tag,
 which opens its transcript block first. See [Opening a row](ace.md#opening-a-row),
-[Agents Tab Tool Runs](ace.md#agents-tab-tool-runs), and the
-[Tools tab](ace.md#tools-tab). The TUI never reconciles: a silent run is shown in red
-and left for its owner (or a backend reconcile) to settle.
+[Agents Tab Tool Runs](reference/tui/agents-deck-panels.md#agents-tab-tool-runs), and
+the [Tools tab](ace.md#tools-tab). The TUI never reconciles: a silent run is shown in
+red and left for its owner (or a backend reconcile) to settle.
 
 ## Rerunnable harness
 

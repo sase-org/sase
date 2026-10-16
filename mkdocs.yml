@@ -25,6 +25,7 @@ exclude_docs: |
 
 # BEGIN GENERATED: docs page moves not_in_nav
 not_in_nav: |
+  ace.md
   content_layout.md
 # END GENERATED: docs page moves not_in_nav
 
@@ -68,7 +69,17 @@ nav:
   - Reference:
       - Reference hub: reference/index.md
       - TUI:
+          - TUI hub: reference/tui/index.md
           - sase's TUI: ace.md
+          - Agents tab: reference/tui/agents-tab.md
+          - Agents tab search and modes: reference/tui/agents-tab-modes.md
+          - Agents tab panels: reference/tui/agents-tab-panels.md
+          - Agents tab grouping: reference/tui/agents-tab-grouping.md
+          - Agent row glyphs: reference/tui/agent-row-glyphs.md
+          - Agent statuses: reference/tui/agent-statuses.md
+          - Agents tab main deck: reference/tui/agents-main-deck.md
+          - Agents tab LLM calls and tool runs: reference/tui/agents-deck-panels.md
+          - Agent workflows: reference/tui/agent-workflows.md
           - Keymaps: reference/tui/keymaps.md
           - SASE Pager: pager.md
       - CLI:

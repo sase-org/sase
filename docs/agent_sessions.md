@@ -58,10 +58,10 @@ displays this description near the top of the clan's `CLAN` panel; it is metadat
 not sent to the member as work instructions. When the clan belongs to a tribe, the
 tribe's `TRIBE` document (shown when the whole tribe panel is focused) also indexes this
 description in its `CLAN SUMMARIES` section (see
-[Tribe Side Panels](ace.md#tribe-side-panels)). Use a literal for stable context, the
-double-colon shorthand for a larger text block, or an executable when the description
-depends on state available as the runner starts. A literal keeps the work prompt
-immediately below the declaration:
+[Tribe Side Panels](reference/tui/agents-tab-panels.md#tribe-side-panels)). Use a
+literal for stable context, the double-colon shorthand for a larger text block, or an
+executable when the description depends on state available as the runner starts. A
+literal keeps the work prompt immediately below the declaration:
 
 ```text
 %id:research.lead
@@ -487,8 +487,8 @@ after, with a single shared number width. Session members already shown under
 `SESSION TURNS` are never repeated in `NEIGHBORS`; they are reported as a dim
 `… +N also listed under SESSION TURNS` tail. Every neighbor is always listed and
 numbered after the session members, whatever the fold level. See
-[Sase Agent Neighbors Section](ace.md#sase-agent-neighbors-section) for the full
-behavior, which single agents share through their own three-level scale.
+[Sase Agent Neighbors Section](reference/tui/agents-tab-panels.md#sase-agent-neighbors-section)
+for the full behavior, which single agents share through their own three-level scale.
 
 #### Session member detail folding
 
@@ -814,8 +814,9 @@ workflow and ref. Otherwise it omits the VCS tag so you can add the intended `#g
 `#gh`, or other workflow reference yourself. Marked waits instead take VCS context from
 the selected marked row, or the first named mark when the selection is elsewhere. The
 current rows determine only that optional VCS prefix; they do not pin the eventual clan
-or tribe fork source. See [Forking Agents and Groups](ace.md#forking-agents-and-groups)
-for selection and revalidation behavior.
+or tribe fork source. See
+[Forking Agents and Groups](reference/tui/agents-tab.md#forking-agents-and-groups) for
+selection and revalidation behavior.
 
 ## Agent-Initiated Session Launches
 
@@ -863,4 +864,5 @@ response. A multi-slot launch is all-or-nothing. In-flight requests from the leg
 launch-request layout remain answerable during the compatibility window.
 
 For the complete request schema, preview behavior, slot limits, and dispatch rules, see
-[Launch Approval](ace.md#launch-approval) and `sase launch request --help`.
+[Launch Approval](reference/tui/agent-workflows.md#launch-approval) and
+`sase launch request --help`.

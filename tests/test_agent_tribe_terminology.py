@@ -38,6 +38,15 @@ _CURRENT_DOCUMENTATION = (
     Path("docs/ace.md"),
     Path("docs/agent_sessions.md"),
     Path("docs/macros.md"),
+    Path("docs/reference/tui/agents-tab.md"),
+    Path("docs/reference/tui/agents-tab-modes.md"),
+    Path("docs/reference/tui/agents-tab-panels.md"),
+    Path("docs/reference/tui/agents-tab-grouping.md"),
+    Path("docs/reference/tui/agent-row-glyphs.md"),
+    Path("docs/reference/tui/agent-statuses.md"),
+    Path("docs/reference/tui/agents-main-deck.md"),
+    Path("docs/reference/tui/agents-deck-panels.md"),
+    Path("docs/reference/tui/agent-workflows.md"),
     Path("sase/memory/cli_rules.md"),
 )
 

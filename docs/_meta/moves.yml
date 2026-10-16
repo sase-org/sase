@@ -30,3 +30,65 @@ moves:
       macro-compatibility-order: reference/upgrading/content-layout.md#macro-compatibility-order
       memory-order: reference/upgrading/content-layout.md#memory-order
     title: Canonical SASE Content Layout
+  - from: ace.md
+    to: reference/tui/index.md
+    kind: stub
+    anchors:
+      machines: reference/tui/agents-tab-modes.md#machines
+      opened-repository-context: reference/tui/agents-tab-modes.md#opened-repository-context
+      agent-search: reference/tui/agents-tab-modes.md#agent-search
+      leader-mode-prefix-1: reference/tui/agents-tab-modes.md#leader-mode-prefix-1
+      bang-mode-prefix-1: reference/tui/agents-tab-modes.md#bang-mode-prefix-1
+      copy-mode-prefix-1: reference/tui/agents-tab-modes.md#copy-mode-prefix-1
+      agent-tabs: reference/tui/agents-tab.md#agent-tabs
+      navigation-1: reference/tui/agents-tab.md#navigation-1
+      agent-actions: reference/tui/agents-tab.md#agent-actions
+      x-how-a-kill-is-carried-out: reference/tui/agents-tab.md#x-how-a-kill-is-carried-out
+      enter-act-on-an-agent: reference/tui/agents-tab.md#enter-act-on-an-agent
+      forking-agents-and-groups: reference/tui/agents-tab.md#forking-agents-and-groups
+      refresh-panel: reference/tui/agents-tab.md#refresh-panel
+      wait-modal: reference/tui/agents-tab.md#wait-modal
+      vcs-tag-resolution-in-forkwait: reference/tui/agents-tab.md#vcs-tag-resolution-in-forkwait
+      workflow-visibility: reference/tui/agents-tab.md#workflow-visibility
+      agent-artifacts: reference/tui/agents-tab.md#agent-artifacts
+      agents-tab-reproduction-bundles: reference/tui/agents-tab.md#agents-tab-reproduction-bundles
+      clan-and-session-detail-panels: reference/tui/agents-tab-panels.md#clan-and-session-detail-panels
+      sase-agent-neighbors-section: reference/tui/agents-tab-panels.md#sase-agent-neighbors-section
+      tribe-side-panels: reference/tui/agents-tab-panels.md#tribe-side-panels
+      group-banners-and-folding: reference/tui/agents-tab-grouping.md#group-banners-and-folding
+      grouping-modes: reference/tui/agents-tab-grouping.md#grouping-modes
+      agent-row-glyphs: reference/tui/agent-row-glyphs.md#agent-row-glyphs-1
+      agents-zoom-and-node-rail: reference/tui/agents-main-deck.md#agents-zoom-and-node-rail
+      agents-tab-main-deck: reference/tui/agents-main-deck.md#agents-tab-main-deck-1
+      agent-auto-naming: reference/tui/agent-workflows.md#agent-auto-naming
+      providermodel-suffixes: reference/tui/agent-workflows.md#providermodel-suffixes
+      per-step-naming-for-multi-agent-workflows: reference/tui/agent-workflows.md#per-step-naming-for-multi-agent-workflows
+      plan-workflows: reference/tui/agent-workflows.md#plan-workflows
+      auto-approve-toggle: reference/tui/agent-workflows.md#auto-approve-toggle
+      plan-approval-keybindings: reference/tui/agent-workflows.md#plan-approval-keybindings
+      custom-approval: reference/tui/agent-workflows.md#custom-approval
+      launch-approval: reference/tui/agent-workflows.md#launch-approval
+      agent-holds: reference/tui/agent-workflows.md#agent-holds
+      linked-chats-in-multi-step-workflows: reference/tui/agent-workflows.md#linked-chats-in-multi-step-workflows
+      retryfallback-display: reference/tui/agent-workflows.md#retryfallback-display
+      prior-agent-attempts: reference/tui/agent-workflows.md#prior-agent-attempts
+      agent-statuses: reference/tui/agent-statuses.md#agent-statuses-1
+      execution-waiting-review-and-handoff-statuses: reference/tui/agent-statuses.md#execution-waiting-review-and-handoff-statuses
+      service-health-pill: reference/tui/agent-statuses.md#service-health-pill
+      completed-statuses: reference/tui/agent-statuses.md#completed-statuses
+      agent-revival: reference/tui/agent-statuses.md#agent-revival
+      legacy-dismissed-name-prefix: reference/tui/agent-statuses.md#legacy-dismissed-name-prefix
+      agents-deck-picker: reference/tui/agent-statuses.md#agents-deck-picker
+      agent-data-decks-and-cards: reference/tui/agent-statuses.md#agent-data-decks-and-cards
+      deck-views: reference/tui/agent-statuses.md#deck-views
+      card-blocks: reference/tui/agent-statuses.md#card-blocks
+      finalizers-on-the-agents-tab: reference/tui/agent-statuses.md#finalizers-on-the-agents-tab
+      agents-tab-llm-calls-panel: reference/tui/agents-deck-panels.md#agents-tab-llm-calls-panel
+      agents-tab-tool-runs: reference/tui/agents-deck-panels.md#agents-tab-tool-runs
+      state-vocabulary: reference/tui/agents-deck-panels.md#state-vocabulary
+      at-a-glance-the-row-chip: reference/tui/agents-deck-panels.md#at-a-glance-the-row-chip
+      in-context-the-header-chip-and-tool-runs-field: reference/tui/agents-deck-panels.md#in-context-the-header-chip-and-tool-runs-field
+      to-diagnose-the-runs-card: reference/tui/agents-deck-panels.md#to-diagnose-the-runs-card
+      links-from-llm-calls-slow-tools-and-context-cards: reference/tui/agents-deck-panels.md#links-from-llm-calls-slow-tools-and-context-cards
+      stopping-a-run-and-running-a-tool: reference/tui/agents-deck-panels.md#stopping-a-run-and-running-a-tool
+    title: sase's TUI User Guide

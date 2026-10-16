@@ -602,7 +602,7 @@ Automatic retries keep failed-attempt evidence under `attempts/<N>/`, but contin
 replay excludes superseded failed attempts from the ancestor chain. A later `#fork`
 therefore follows the settled attempt and its original launch lineage without injecting
 obsolete retry errors as extra conversation turns. Prior attempts remain inspectable in
-the TUI's [attempt view](ace.md#prior-agent-attempts).
+the TUI's [attempt view](reference/tui/agent-workflows.md#prior-agent-attempts).
 
 Before invoking the provider, SASE measures the fully expanded continuation against its
 context and transport budget. If essential content is too large, the provider is not
@@ -797,7 +797,8 @@ With a **running** monitor row selected, the Agents tab's kill key (`x` by defau
 stops the monitor instead of killing an agent: it opens a `Stop Monitor` confirmation
 that defaults to **Keep running**, and confirming runs the same `stop_monitor` path as
 `sase monitor stop`, so no follow-up agent launches. On a settled monitor row, `x`
-behaves like an ordinary dismiss. See [Agent Row Glyphs](ace.md#agent-row-glyphs) and
+behaves like an ordinary dismiss. See
+[Agent Row Glyphs](reference/tui/agent-row-glyphs.md#agent-row-glyphs-1) and
 [Sequential Agent Sessions](agent_sessions.md#sequential-agent-sessions).
 
 A monitor row is also a fork target, active or settled: `F` opens a prompt prefilled

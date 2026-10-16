@@ -1356,7 +1356,7 @@ result channel. See `src/sase/finalizers/sdk.py` (`FinalizerProvider`,
 
 **Run visibility.** Everything a finalizer reports also feeds the Agents tab ⊛ FINAL
 deck and `sase final status` (see
-[Finalizers on the Agents tab](ace.md#finalizers-on-the-agents-tab)):
+[Finalizers on the Agents tab](reference/tui/agent-statuses.md#finalizers-on-the-agents-tab)):
 
 - **Step channel.** While an attempt runs, the host sets `SASE_FINALIZER_STEPS_FILE` to
   an `attempt-<N>.<op>.steps.jsonl` path. Report structured progress with

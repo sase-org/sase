@@ -996,8 +996,9 @@ ace:
 [Generated reference for `ace.tool_calls`](reference/config/tui.md#ace-tool_calls)
 
 The threshold drives the `SLOW TOOL CALLS` section of the Agents metadata header and the
-slow markers in the [Agents Tab LLM Calls Panel](ace.md#agents-tab-llm-calls-panel). A
-missing, negative, or non-integer value falls back to `20`.
+slow markers in the
+[Agents Tab LLM Calls Panel](reference/tui/agents-deck-panels.md#agents-tab-llm-calls-panel).
+A missing, negative, or non-integer value falls back to `20`.
 
 #### `ace.updates`
 
@@ -1292,10 +1293,10 @@ The Agents show/hide non-run agents toggle is `toggle_hide_non_run_agents`, defa
 It moved off `.` (which now toggles the Agents jump panel); the Services
 `toggle_hide_reverted` keeps `.` for axe commands.
 
-Agents-tab [`Enter`](ace.md#enter-act-on-an-agent) is `act_on_agent`, default `enter`:
-it opens the selected row's pending gate or jumps to its Patch, and offers a chooser
-when more than one target applies. The older direct Patch jump remains as
-`jump_to_agent_patch`, default `unbound`. A stale
+Agents-tab [`Enter`](reference/tui/agents-tab.md#enter-act-on-an-agent) is
+`act_on_agent`, default `enter`: it opens the selected row's pending gate or jumps to
+its Patch, and offers a chooser when more than one target applies. The older direct
+Patch jump remains as `jump_to_agent_patch`, default `unbound`. A stale
 `ace.keymaps.modes.leader_mode.keys.jump_to_notification` override (the retired `,n`
 chord) is ignored with a warning pointing at `act_on_agent`.
 
@@ -1343,7 +1344,7 @@ except the Agents tab, where `view_agent_metadata` owns it.
 
 Remote retry, stop, and fork reuse the ordinary `agents_retry`, `kill_agent`, and
 `edit_hooks` actions when the row advertises those capabilities. See
-[Machines](ace.md#machines).
+[Machines](reference/tui/agents-tab-modes.md#machines).
 
 **`modes`** — Prefix-key mode definitions. Built-in modes (`fold_mode`, `copy_mode`,
 `leader_mode`, `bang_mode`) can be reconfigured, and custom modes can be added. Each
@@ -1696,8 +1697,8 @@ Source: `src/sase/ace/config.py`, `src/sase/core/prompt_stash_facade.py`,
 
 Controls whether a multi-card agent data deck renders spread (every card on one
 scrollable page) or paged (one card at a time) on the Agents tab deck panels, under the
-automatic deck view (see [Deck Views](ace.md#deck-views)). A fixed deck view bypasses
-these thresholds entirely.
+automatic deck view (see [Deck Views](reference/tui/agent-statuses.md#deck-views)). A
+fixed deck view bypasses these thresholds entirely.
 
 ```yaml
 ace:
@@ -1709,8 +1710,9 @@ ace:
 
 Jump to any deck with `p` then its picker letter: `m` Main, `f` Files, `t` Tools, `n`
 FINAL (capitals open it in the other panel). See
-[Agent data decks and cards](ace.md#agent-data-decks-and-cards) and
-[Finalizers on the Agents tab](ace.md#finalizers-on-the-agents-tab).
+[Agent data decks and cards](reference/tui/agent-statuses.md#agent-data-decks-and-cards)
+and
+[Finalizers on the Agents tab](reference/tui/agent-statuses.md#finalizers-on-the-agents-tab).
 
 [Generated reference for `ace.agent_decks`](reference/config/tui.md#ace-agent_decks)
 
@@ -4694,9 +4696,9 @@ relaunches stranded agents through `sase agent drain` (see `llm_provider.usage_l
 and Launch Control's automatic provider drain in `ace.md`).
 
 `agent_decks` and `agent_tabs` are no longer registered. The Agents tab always shows
-[data decks and cards](ace.md#agent-data-decks-and-cards) and
-[agent tabs](ace.md#agent-tabs). A saved preference for a flag that is no longer
-registered is removed the next time an installing process reconciles
+[data decks and cards](reference/tui/agent-statuses.md#agent-data-decks-and-cards) and
+[agent tabs](reference/tui/agents-tab.md#agent-tabs). A saved preference for a flag that
+is no longer registered is removed the next time an installing process reconciles
 `feature_flags.json`.
 
 The retired family keyword on `%id` is always accepted as `session=`, the `family` and
@@ -5672,8 +5674,8 @@ hold.
 `sase repro` captures and replays debugging bundles for narrow, reproducible TUI bug
 classes. The current target is the Agents-tab loader/apply sequence used to diagnose row
 disappearance, reappearance, and duplicate workflow parents; see
-[Agents Tab Reproduction Bundles](ace.md#agents-tab-reproduction-bundles). All of its
-options are long-only.
+[Agents Tab Reproduction Bundles](reference/tui/agents-tab.md#agents-tab-reproduction-bundles).
+All of its options are long-only.
 
 | Form                            | Flag                | Values | Default  | Description                                                                |
 | ------------------------------- | ------------------- | ------ | -------- | -------------------------------------------------------------------------- |

@@ -2759,8 +2759,9 @@ While an epic launch is in flight the waiter stays parked. Once the epic IDs are
 SASE adds their closure conditions to the wait. A failed or skipped launch, a dismissed
 launch target, or a dependency cycle can leave a blocked follow; AXE reports the
 blocker, and the TUI shows it with a teal `↪` annotation. Use the
-[Wait modal](ace.md#wait-modal) to inspect or change the policy. Generated epic phase
-and land schedules explicitly use `for_epic=false` alongside phase-bead waits.
+[Wait modal](reference/tui/agents-tab.md#wait-modal) to inspect or change the policy.
+Generated epic phase and land schedules explicitly use `for_epic=false` alongside
+phase-bead waits.
 
 Existing persisted waits without `wait_for_epics_of` retain their older completion-only
 behavior. This compatibility rule concerns saved wait state; omitting `for_epic=` in a

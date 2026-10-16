@@ -5,7 +5,7 @@ description: Look up exact SASE facts here, generated from code where possible.
 
 # Reference
 
-Exact SASE facts and behaviors; guides teach workflows.
+Exact SASE facts; guides teach workflows.
 
 ## CLI
 
@@ -22,9 +22,10 @@ Exact SASE facts and behaviors; guides teach workflows.
 
 ## TUI
 
+- [TUI](tui/index.md) — Agents tab
 - [sase's TUI](../ace.md) — tabs, pickers, panes
-- [TUI keymaps](tui/keymaps.md) — generated keymap defaults
-- [SASE Pager](../pager.md) — paging long output
+- [TUI keymaps](tui/keymaps.md) — keymap defaults
+- [SASE Pager](../pager.md) — paging output
 
 ## Macros and workflows
 

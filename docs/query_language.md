@@ -49,7 +49,7 @@ uses `agents-archive` against the compiled archive corpus. The live profile incl
 operational fields such as `machine`, `pinned`, `unread`, `needs`, and `source`; the
 archive profile adds `outcome`, `restorable`, `tab`, `clan_tribe`, and archive link
 facets. See [sase's TUI: Archive](ace.md#archive-agents-tab) and
-[sase's TUI: Agent Search](ace.md#agent-search).
+[sase's TUI: Agent Search](reference/tui/agents-tab-modes.md#agent-search).
 
 In the Patches sub-tab, the canonical form of the active query stays visible in a
 persistent filter row. Press `/` (or the local `f`) to edit it. Typing previews each

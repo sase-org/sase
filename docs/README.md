@@ -44,7 +44,6 @@
 
 ## Reference
 
-- [sase's TUI User Guide](ace.md) — sase's TUI User Guide — sase's TUI is the primary TUI for the SASE toolkit.
 - [Agent Attachments and Image Previews](agent_images.md) — Agent Attachments and Image Previews — SASE treats files produced by agents as first-class completion artifacts.
 - [Installing & Authenticating Agent Providers](agent_providers.md) — Installing & Authenticating Agent Providers — SASE normally orchestrates an existing coding-agent CLI; the exception is the bundled fakey testing provider.
 - [Agent Clans, Sessions, and Tribes](agent_sessions.md) — Agent Clans, Sessions, and Tribes — SASE uses three different kinds of agent grouping.
@@ -164,6 +163,16 @@
 - [Macro directives](reference/macros/directives.md) — The generated catalog of prompt directives and their syntax.
 - [Macro discovery order](reference/macros/discovery-order.md) — File-backed macro and workflow locations in lookup order.
 - [Runner slots](reference/runner-slots.md) — How runner capacity admits queued agents, and what waiting.json records.
+- [Agent row glyphs](reference/tui/agent-row-glyphs.md) — Glyphs, markers, and badges on Agents tab rows.
+- [Agent statuses](reference/tui/agent-statuses.md) — Agent, wait, and completion statuses on the Agents tab.
+- [Agent workflows](reference/tui/agent-workflows.md) — Plan workflows, approvals, holds, and retries on the Agents tab.
+- [Agents tab LLM calls and tool runs](reference/tui/agents-deck-panels.md) — LLM call and tool run panels on the Agents tab.
+- [Agents tab main deck](reference/tui/agents-main-deck.md) — The main deck view, detail zoom, and the node rail.
+- [Agents tab grouping](reference/tui/agents-tab-grouping.md) — Group banners, folding, and grouping modes on the Agents tab.
+- [Agents tab search and modes](reference/tui/agents-tab-modes.md) — Search, leader, bang, and copy modes on the Agents tab.
+- [Agents tab panels](reference/tui/agents-tab-panels.md) — Clan, session, neighbor, and tribe panels on the Agents tab.
+- [Agents tab](reference/tui/agents-tab.md) — Tabs, keys, lists, and actions on the sase TUI Agents tab.
+- [TUI](reference/tui/index.md) — Reference pages for the sase TUI Agents tab surfaces.
 - [TUI keymaps](reference/tui/keymaps.md) — Default configurable key bindings for SASE's terminal interface.
 - [Content layout migration](reference/upgrading/content-layout.md) — Migration steps and compatibility behavior for SASE content paths.
 - [Upgrading](reference/upgrading/index.md) — Upgrade and history notes, organized by area with the newest notes first.
@@ -209,6 +218,7 @@
 
 ## Compatibility
 
+- [sase's TUI User Guide](ace.md) — sase's TUI User Guide — sase's TUI is the primary TUI for the SASE toolkit.
 - [Canonical SASE Content Layout](content_layout.md) — This page has moved to its new home.
 
 ## Moved pages
@@ -223,3 +233,4 @@
 | `/troubleshooting/agent-revival/` | [`/reference/agent-revive-log/`](reference/agent-revive-log.md) |
 | `/acknowledgements/` | [`/contribute/acknowledgements/`](contribute/acknowledgements.md) |
 | `/content_layout/` | [`/reference/upgrading/`](reference/upgrading/index.md) |
+| `/ace/` | [`/reference/tui/`](reference/tui/index.md) |
