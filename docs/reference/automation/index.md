@@ -7,8 +7,8 @@ description:
 
 # Automation
 
-This section covers the reference behavior for SASE's notification and automation
-features.
+This section is the lookup home for SASE notifications, scheduling, monitors, named
+tools, mentors, and sudo requests.
 
 ## Notifications
 
@@ -43,3 +43,5 @@ features.
 ## Related
 
 - [Reference](../index.md) — the product reference hub.
+- [Automation migration notes](../upgrading/automation.md) — scheduler naming and other
+  upgrade notes.

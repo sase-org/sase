@@ -5,7 +5,7 @@ description: View, sort, mute, snooze, and receive notification updates in SASE.
 
 # Notifications
 
-This page explains how to view and manage notifications in SASE.
+This page names how SASE stores, displays, and delivers notifications.
 
 ## Overview
 
@@ -55,6 +55,9 @@ send time alongside its relative age (`sent today 13:18:42 · 4m ago`), tiered a
 configured timezone.
 
 ### Modal Keybindings
+
+Open the modal with `i` from any tab; that binding is on the generated
+[TUI keymaps](../tui/keymaps.md) page. Keys inside the modal:
 
 | Key                 | Action                                                                      |
 | ------------------- | --------------------------------------------------------------------------- |
@@ -131,9 +134,9 @@ listing every branch in canonical query order with the primary branch marked, an
 `Attachments` line when the gate has files. The card renders instantly from the
 notification row and enriches itself with the verified bundle a moment later without
 blocking navigation. When a bundle cannot be resolved, hashed, or parsed — a deleted
-directory, a corrupted `request.json`, a legacy bundle layout — the card degrades to
-`▲ Gate details unavailable` rather than going blank; press `d` to open Gate Debug and
-see exactly why. Every other notification, including attachment-less ones, gets a
+directory, a corrupted `request.json`, or an earlier bundle layout — the card degrades
+to `▲ Gate details unavailable` rather than going blank; press `d` to open Gate Debug
+and see exactly why. Every other notification, including attachment-less ones, gets a
 compact summary card instead of an empty pane.
 
 ### `+1` Evidence
@@ -335,13 +338,15 @@ notification-ID tie-breaker is required anywhere a cursor is persisted (mobile
 `newer_than`/high-water, Telegram delivery) so two rows sharing an activity instant
 cannot hide one another.
 
-#### Legacy and Malformed Deadlines
+<a id="legacy-and-malformed-deadlines"></a>
 
-A legacy row whose `snooze_until` is unparseable or timezone-naive must not stay
-silently muted forever. The current-state reconciliation path treats it as immediately
-due: the row resurfaces at once and is reported as an expiry, while every new mutation
-path rejects such a value outright. Rows written before the resurface field existed
-default cleanly to `resurfaced_at: null`.
+#### Unparseable deadlines
+
+A stored row whose `snooze_until` is unparseable or timezone-naive is treated as
+immediately due: the row resurfaces at once and is reported as an expiry, while every
+new mutation path rejects such a value outright. Rows written before the resurface field
+existed default to `resurfaced_at: null`. See
+[Automation migration notes](../upgrading/automation.md#unparseable-snooze-deadlines).
 
 #### Raw Versus Current-State Reads
 
@@ -601,3 +606,4 @@ ace:
 - [Notification CLI](notification-cli.md)
 - [Command-backed interaction gates](notification-gates.md)
 - [Notification storage](notification-storage.md)
+- [Automation migration notes](../upgrading/automation.md)

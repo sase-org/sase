@@ -12,6 +12,8 @@ and the newest notes first.
 
 - [Content layout](content-layout.md) — migration and compatibility notes for project
   and home content.
+- [Automation migration notes](automation.md) — scheduler naming, monitor hand-off, and
+  gate contracts.
 - [Provider migration notes](providers.md) — provider metadata and model-selection
   history.
 

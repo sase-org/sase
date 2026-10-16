@@ -318,6 +318,7 @@ nav:
           - Upgrading: reference/upgrading/index.md
           - Content layout migration: reference/upgrading/content-layout.md
           - Local state cutover: reference/upgrading/local-state.md
+          - Automation migration notes: reference/upgrading/automation.md
           - Provider migration notes: reference/upgrading/providers.md
       - Glossary: reference/glossary.md
       - Design decisions: reference/design-decisions.md

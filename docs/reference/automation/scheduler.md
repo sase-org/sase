@@ -12,9 +12,10 @@ This page covers scheduler commands, lifecycle, recovery, and integration with S
 The scheduler is the background automation subsystem of sase. It watches Patches (the
 per-PR records that sase uses to track work) and periodically runs lifecycle jobs such
 as hook completion, mentor launch, workflow cleanup, comment polling, `%wait` dependency
-checks, and error digests. AXE is its former name and remains an accepted alias:
-`sase axe start|stop|restart|status` is the same command as
-`sase scheduler start|stop|restart|status`.
+checks, and error digests. `sase axe start|stop|restart|status` is the same command as
+`sase scheduler start|stop|restart|status`. Older lumberjack/chop spellings remain
+accepted; see
+[Automation migration notes](../upgrading/automation.md#scheduler-routine-and-job-names).
 
 The scheduler uses a multi-process architecture: an **Orchestrator** spawns multiple
 **Routines**, and each routine runs a subset of jobs on its own schedule.
@@ -80,61 +81,15 @@ The `sase axe` surface remains for the routine/job tree (`sase axe job`,
 ## CLI Commands
 
 `sase axe job` and `sase axe routine` default to their `list` views when invoked without
-a nested subcommand.
+a nested subcommand. See the generated [`sase scheduler`](../cli/scheduler.md) and
+[`sase axe`](../cli/axe.md) pages for flags and subcommands. To put a repeated check on
+a schedule, follow [Schedule recurring work](../../guides/schedule-recurring-work.md).
 
-| Command                                | Description                                                           |
-| -------------------------------------- | --------------------------------------------------------------------- |
-| `sase scheduler`                       | Show scheduler status through the `scheduler` service proc            |
-| `sase scheduler start`                 | Start the `scheduler` service proc                                    |
-| `sase scheduler stop`                  | Stop the `scheduler` service proc                                     |
-| `sase scheduler restart`               | Restart the `scheduler` service proc                                  |
-| `sase scheduler run`                   | Run the scheduler orchestrator in the foreground                      |
-| `sase axe start`                       | Alias of `sase scheduler start`                                       |
-| `sase axe stop`                        | Alias of `sase scheduler stop`                                        |
-| `sase axe restart`                     | Alias of `sase scheduler restart`                                     |
-| `sase axe status`                      | Alias of `sase scheduler status`                                      |
-| `sase axe status --json`               | Emit the `scheduler` service proc record as JSON                      |
-| `sase axe job list`                    | List configured jobs with status (`-a` adds discoverable scripts)     |
-| `sase axe job list -v`                 | Add full descriptions, resolution paths, and search-directory detail  |
-| `sase axe job list --json`             | Emit the job inventory as a schema-version-2 JSON object              |
-| `sase axe job doctor`                  | Diagnose configured/available jobs and Telegram setup (`-j` for JSON) |
-| `sase axe job run <name>`              | Run a single job in the foreground                                    |
-| `sase axe job run <name> -L <routine>` | Run a single job attributed to a specific routine                     |
-| `sase axe routine list`                | List configured routines and their enabled jobs                       |
-| `sase axe routine list -v`             | Add each routine's full description under `details`                   |
-| `sase axe routine run <name>`          | Run a single routine in the foreground                                |
-| `sase axe routine status`              | Show status of all routines                                           |
-| `sase axe maintenance enter -r <text>` | Pause routine ticks until maintenance exits                           |
-| `sase axe maintenance exit`            | Clear the maintenance marker                                          |
-| `sase axe maintenance status`          | Show whether maintenance mode is active                               |
+### Compatibility aliases {#compatibility-aliases}
 
-### Compatibility aliases
-
-Current commands, configuration, examples, and public JSON use routine/job terms. The
-older names remain accepted as compatibility aliases where existing installations may
-still send them:
-
-| Legacy spelling                                                   | Current spelling                                       | Notes                                                                                |
-| ----------------------------------------------------------------- | ------------------------------------------------------ | ------------------------------------------------------------------------------------ |
-| `sase axe lumberjack ...`                                         | `sase axe routine ...`                                 | Hidden CLI alias; completions and help advertise `routine`.                          |
-| `sase axe chop ...`                                               | `sase axe job ...`                                     | Hidden CLI alias; legacy invocations keep schema-version-1 JSON.                     |
-| `axe.lumberjacks.<name>.chops`                                    | `axe.routines.<name>.jobs`                             | Accepted on input; effective config and new examples use canonical keys.             |
-| `chop_script_dirs`, `chop_timeout`                                | `job_script_dirs`, `job_timeout`                       | The old keys remain input aliases.                                                   |
-| `lumberjack_log_*`, `lumberjack_restart_backoff_max_seconds`      | `routine_log_*`, `routine_restart_backoff_max_seconds` | The old keys remain input aliases.                                                   |
-| `verbose_lumberjack_diagnostics`                                  | `verbose_routine_diagnostics`                          | The old key remains an input alias.                                                  |
-| `SASE_CHOP_*`, `sase_chop_*`, `sase.chops`                        | `SASE_JOB_*`, `sase_job_*`, `sase.jobs`                | Script authors should use the job-named entrypoints and SDK facade.                  |
-| `sase_chop_tg_inbound`, `sase_chop_tg_outbound` (`sase-telegram`) | `sase_job_tg_inbound`, `sase_job_tg_outbound`          | `sase axe job doctor` warns when only the legacy entrypoints are found.              |
-| `chop:<routine>/<job>` artifact references                        | `job:<routine>/<job>` artifact references              | Both resolve to the same stored link identity.                                       |
-| `sase doctor -C axe.chops`                                        | `sase doctor -C axe.jobs`                              | The old check ID remains a selection alias.                                          |
-| Stored `chop` agent tribe                                         | `job` tribe                                            | See [Structured Results](scheduler-jobs.md#structured-results-and-launch-proposals). |
-
-Canonical commands such as `sase axe job list --json` and `sase axe job doctor --json`
-emit schema-version-2 JSON with routine/job field names (for example `routines`,
-`routine_name`, `configured_jobs`, and `jobs`), and `sase config show` prints the AXE
-block with canonical keys. Hidden legacy `chop` commands keep the schema-version-1
-envelopes. Runtime state paths and durable registries are not migrated: directories
-under `~/.sase/axe/lumberjacks/`, per-job `chops/` subdirectories, and
-`agent_chops.json` remain intentionally legacy-named storage.
+Older lumberjack/chop spellings remain accepted as hidden aliases of the current
+routine/job commands. See
+[Automation migration notes](../upgrading/automation.md#scheduler-routine-and-job-names).
 
 ### Examples
 
@@ -255,8 +210,9 @@ clears the stop marker and asks the host to launch the orchestrator.
 SASE maintains a best-effort `~/.sase/axe/lifecycle.jsonl` journal capped at 256 KiB. It
 appends every successful orchestrator start and each completed stop or restart request,
 with its source. A start attempt that fails or exits before the PID is published has no
-start entry. New records no longer stamp the retired desired-state marker; readers
-tolerate old entries that still carry the field.
+start entry. New records omit the retired desired-state marker; readers tolerate old
+entries that still carry the field. See
+[Automation migration notes](../upgrading/automation.md#scheduler-lifecycle-journal).
 
 Managed restart paths, including sase's TUI and update-triggered restarts, ask the
 service host to restart the `scheduler` service proc and report the host's answer
@@ -277,15 +233,15 @@ next step.
 ├── maintenance.json                # Optional maintenance marker that pauses routine ticks
 ├── logs/
 │   ├── axe.log                     # Orchestrator startup log
-│   └── lumberjack-{name}.log       # Per-routine logs (legacy filename)
+│   └── lumberjack-{name}.log       # Per-routine logs
 ├── lumberjacks/
-│   └── {name}/                     # Per-routine state (legacy directory name)
+│   └── {name}/                     # Per-routine state
 │       ├── pid                     # Routine PID
 │       ├── status.json             # Current status (updated every 5s)
 │       ├── metrics.json            # Cumulative metrics (updated every 30s)
 │       ├── chop_timestamps.json    # Last successful run_every timestamp per job
 │       ├── agent_chops.json        # Durable registry of agents launched by this routine's jobs
-│       ├── chops/                  # Per-job run history (legacy directory name)
+│       ├── chops/                  # Per-job run history
 │       │   └── {job}/
 │       │       ├── index.json      # Ordered run IDs (newest first)
 │       │       └── runs/
@@ -336,20 +292,18 @@ unit (`sase.service` or another `sase-*` scope or service) **or** the user's sys
 manager is reachable (the launcher's cgroup sits under `user@<uid>.service`, or the user
 bus socket exists), so stopping or restarting the scheduler, a SASE service, or the
 launching terminal or tmux pane scope does not tear down the agents and procs it
-launched. SASE scopes carry `OOMPolicy=continue`, so one OOM-killed process no longer
-stops the whole scope. Outside a reachable user manager, children keep the ordinary
+launched. SASE scopes carry `OOMPolicy=continue`, so one OOM-killed process does not
+stop the whole scope. Outside a reachable user manager, children keep the ordinary
 new-session detach; on macOS they always detach into a new session. Set
-`SASE_DETACH_SCOPE_DISABLE=1` to turn off the child escape.
+`SASE_DETACH_SCOPE_DISABLE=1` to turn off the child escape. See
+[Automation migration notes](../upgrading/automation.md#oom-in-a-sase-scope).
 
-This matters because an OOM kill in a terminal or tmux pane scope used to SIGTERM every
-agent launched from it: systemd's default `OOMPolicy=stop` stops the whole scope after
-one OOM kill, and agents launched from the TUI shared the TUI pane's cgroup. A SIGTERM
-that is neither an explicit user kill nor a handoff is now recorded as an **external**
-kill: the runner log prints a `Kill source: external ...` line (with the cgroup's
-OOM-kill count when available), the `AGENT_KILLS` metric uses `reason="external"`, and
-`done.json` gains the additive `kill_source` (`"user"` or `"external"`) and optional
-`kill_evidence` (`cgroup_unit` plus `oom_kill_delta`) keys on killed runs. `outcome`
-stays `"killed"`.
+A SIGTERM that is neither an explicit user kill nor a handoff is recorded as an
+**external** kill: the runner log prints a `Kill source: external ...` line (with the
+cgroup's OOM-kill count when available), the `AGENT_KILLS` metric uses
+`reason="external"`, and `done.json` gains the additive `kill_source` (`"user"` or
+`"external"`) and optional `kill_evidence` (`cgroup_unit` plus `oom_kill_delta`) keys on
+killed runs. `outcome` stays `"killed"`.
 
 ## sase's TUI Integration
 
@@ -380,7 +334,7 @@ starts or stops the whole service host. `sase tui --restart-service` (`--restart
 load (it is a no-op when the host is not running); the pill keeps showing health
 throughout.
 
-See [`docs/ace.md`](../../ace.md) for the full Services tab keybinding reference.
+See [TUI keymaps](../tui/keymaps.md) for the Services tab keybinding reference.
 
 ## Related
 
@@ -389,3 +343,5 @@ See [`docs/ace.md`](../../ace.md) for the full Services tab keybinding reference
 - [Scheduler configuration](scheduler-configuration.md)
 - [Scheduler description grammar](scheduler-description-grammar.md)
 - [Scheduler jobs](scheduler-jobs.md)
+- [Schedule recurring work](../../guides/schedule-recurring-work.md)
+- [Automation migration notes](../upgrading/automation.md)

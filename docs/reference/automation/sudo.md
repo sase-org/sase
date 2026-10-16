@@ -182,12 +182,8 @@ leaves the gate pending. Those surfaces can still display or deny the request, a
 
 ## Terminal Commands
 
-| Command                        | Flags                                                                                                                                                      | Behavior                                                                   |
-| ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
-| `sase sudo` / `sase sudo list` | `-a/--all`, `-j/--json`, `-l/--limit`, `-p/--project`                                                                                                      | List pending sudo gate turns; `--all` includes settled ones.               |
-| `sase sudo show ID`            | `-j/--json`                                                                                                                                                | Show one gate; `--json` adds the sealed manifest, target, and risk badges. |
-| `sase sudo request`            | `-j/--json`, `-o/--origin-agent`                                                                                                                           | Create a sudo gate from one JSON object on stdin.                          |
-| `sase sudo answer ID`          | `-u/--run` or `-a/--approve`, `-d/--deny`, `-c/--command ID`, `-D/--detach`, `-N/--no-detach`, `-f/--feedback`, `-j/--json`, `-r/--resume`, `-R/--restart` | Approve (authenticate and run) or deny one gate.                           |
+See the generated [`sase sudo`](../cli/sudo.md) page for flags and subcommands. Bare
+`sase sudo` defaults to `sase sudo list`.
 
 `ID` is a sudo gate ID such as `sudo-<uuid>` or a gate-turn reference. `--run` and
 `--approve` both authenticate and run. Approval detaches by default after the
@@ -309,3 +305,9 @@ During host policy changes, keep an already-authenticated root escape hatch open
 the reviewed change has been applied and verified. If a lockout risk appears, use that
 terminal to restore the last known-good sudoers or sysctl state, then leave the sudo
 gate pending with an evidence note rather than bypassing the reviewed flow silently.
+
+## Related
+
+- [Command-backed interaction gates](notification-gates.md)
+- [`sase sudo`](../cli/sudo.md)
+- [Automation](index.md)

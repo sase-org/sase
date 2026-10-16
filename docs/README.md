@@ -70,7 +70,7 @@
 - [Notification tags](reference/automation/notification-tags.md) — Notification tags and the colors and icons used in notification tabs.
 - [Notification types](reference/automation/notification-types.md) — Notification payloads, fields, and silent notification behavior.
 - [Notifications](reference/automation/notifications.md) — View, sort, mute, snooze, and receive notification updates in SASE.
-- [Scheduler configuration](reference/automation/scheduler-configuration.md) — Global scheduler settings and the fields used to configure routines.
+- [Scheduler configuration](reference/automation/scheduler-configuration.md) — Global scheduler settings and the fields that configure routines.
 - [Default scheduler routines](reference/automation/scheduler-default-routines.md) — The built-in routines that run background SASE maintenance and automation.
 - [Scheduler description grammar](reference/automation/scheduler-description-grammar.md) — The grammar and style rules for scheduler routine descriptions.
 - [Scheduler housekeeping](reference/automation/scheduler-housekeeping.md) — Tasks handled by the scheduler's housekeeping routine.
@@ -230,6 +230,7 @@
 - [Agents tab](reference/tui/agents-tab.md) — Tabs, keys, lists, and actions on the sase TUI Agents tab.
 - [TUI](reference/tui/index.md) — Reference pages for the sase TUI Agents tab surfaces.
 - [TUI keymaps](reference/tui/keymaps.md) — Default configurable key bindings for SASE's terminal interface.
+- [Automation migration notes](reference/upgrading/automation.md) — Upgrade notes for scheduler naming, monitor hand-off, and gate contracts.
 - [Content layout migration](reference/upgrading/content-layout.md) — Migration steps and compatibility behavior for SASE content paths.
 - [Upgrading](reference/upgrading/index.md) — Upgrade and history notes, organized by area with the newest notes first.
 - [Local state cutover](reference/upgrading/local-state.md) — The temporary offline kit for moving legacy local state into canonical locations.

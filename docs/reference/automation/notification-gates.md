@@ -231,49 +231,20 @@ superseded by the next submission instead of blocking it. sase's TUI submits gat
 decisions, including plan and epic approvals, as a tracked `sase gate answer` proc, so
 an accepted decision keeps running after the modal closes.
 
-Rollout keeps existing bundles readable. Upgrade `sase-core` first so every surface has
-the indexed turn lookup and acceptance policy. Then upgrade the SASE Python package,
-sase's TUI, and mobile clients against that binding, and finally upgrade Telegram so its
-receiver submits answers through the same supervised proc path. In-flight legacy gates
-still fall back to their historical `response.json` path. Telegram receiver adoption
-requires no config edit beyond enablement: the plugin declares a `telegram_receiver`
-service proc that ships disabled, so enable it in the owning machine's overlay and the
-sase service keeps it running. `--once` remains the diagnostic direct poll path, and
-disabled or credential-less receivers self-terminate. Control it with
-`sase service proc stop|restart|disable telegram_receiver`. A TUI update restarts the
-service host and therefore the receiver; a CLI `sase update` restarts only the
+In-flight gates from earlier layouts still finish through `response.json`. Telegram
+receiver adoption requires no config edit beyond enablement: the plugin declares a
+`telegram_receiver` service proc that ships disabled, so enable it in the owning
+machine's overlay and the sase service keeps it running. `--once` remains the diagnostic
+direct poll path, and disabled or credential-less receivers self-terminate. Control it
+with `sase service proc stop|restart|disable telegram_receiver`. A TUI update restarts
+the service host and therefore the receiver; a CLI `sase update` restarts only the
 scheduler, so restart the receiver manually after a package upgrade to load the current
-code.
+code. See
+[Automation migration notes](../upgrading/automation.md#neutral-gate-bundles-and-per-option-input).
 
-Latency evidence from isolated probes on 2026-09-14:
-
-- Exact turn lookup over 5,002 fixture artifacts had p50 1.317 ms, p95 3.755 ms, and max
-  13.008 ms across 25 lookups. Index rebuild took 3.554 s off the click path. The target
-  resolved to the owning gate turn rather than a later inherited-code successor.
-- Ten blocked-command acceptance runs wrote `decision_receipt.json` at p50 18.95 ms, p95
-  21.6 ms, and max 22.53 ms. Notification dismissal followed at p50 35.37 ms, p95 44.47
-  ms, and max 46.35 ms, while `response.json` stayed unwritten until the held command
-  was released.
-
-Matched before/after evidence for the two refresh paths, from isolated fixtures on
-2026-09-20:
-
-- Acceptance receipt to Agents row data, over a 1,500-artifact synthetic archive: the
-  acceptance pulse now lands inside the answered agent's own directory, so it names an
-  exact row instead of falling through to a project-level pulse. The broad tier-1 load
-  that route used to force cost p50 74.8 ms, p95 123.4 ms, and max 185.6 ms; the exact
-  artifact-dir delta that replaces it costs p50 1.7 ms, p95 2.5 ms, and max 2.5 ms
-  across 25 runs — about 44x cheaper at the median.
-- Response publication to refresh-pulse visibility, across ten settlements holding a 150
-  ms follow-up-launch barrier: the pulse now fires at p50 97.7 ms, p95 130.3 ms, where
-  the old ordering would not have published it until p50 407.5 ms, p95 450.8 ms —
-  roughly 310 ms earlier at the median, and unbounded by however long the follow-up
-  launch actually takes.
-
-These measurements exercise local durability and notification behavior only. Live
-Telegram callback acknowledgement, message delivery, and keyboard edits remain bounded
-by Bot API round-trip time and rate limits; terminal keyboard cleanup is retried from
-the on-disk tombstone when a remote edit fails.
+Live Telegram callback acknowledgement, message delivery, and keyboard edits remain
+bounded by Bot API round-trip time and rate limits; terminal keyboard cleanup is retried
+from the on-disk tombstone when a remote edit fails.
 
 ### Gate turns and continuation
 
@@ -307,8 +278,8 @@ The built-in front doors choose statuses and continuation policy for their domai
 
 - `/sase_questions` creates `QUESTION` / `ANSWERED`; an answer launches the next session
   member with the accumulated Q&A.
-- `/sase_plan` creates a `TALE`, `EPIC`, or legacy `PLAN` turn. Feedback launches a
-  replanner, while approval follows the selected tale/epic/commit policy.
+- `/sase_plan` creates a `TALE`, `EPIC`, or `PLAN` turn. Feedback launches a replanner,
+  while approval follows the selected tale/epic/commit policy.
 - Agent-side workflow HITL creates `HITL`; accept, edit, feedback, and rerun branches
   may launch a continuation, while rejection or an unconfigured terminal branch stops.
 - Agent-side `sase launch request` creates `LAUNCH` and defaults to resuming the
@@ -405,12 +376,12 @@ creation error rather than a gate that fails on first answer. `secret: true` rea
 command's stdin unredacted but is written to `response.json` and the execution journal
 as `{"$redacted": true}` — masked display alone would not be enough, since the response
 file is durable audit data. That covers every place those two files hold the value:
-`option_inputs`, the legacy shared `input` beside it, and the stored command result. A
-command is free to echo its stdin back, so any result string that merely _contains_ a
-submitted secret is replaced whole rather than spliced. Only non-empty string secrets
-are matched, because a secret boolean or small integer carries no entropy and matching
-on it would redact unrelated output. The journal's `result_digest` is taken from the raw
-result and still identifies exactly what the command returned.
+`option_inputs`, the shared `input` beside it, and the stored command result. A command
+is free to echo its stdin back, so any result string that merely _contains_ a submitted
+secret is replaced whole rather than spliced. Only non-empty string secrets are matched,
+because a secret boolean or small integer carries no entropy and matching on it would
+redact unrelated output. The journal's `result_digest` is taken from the raw result and
+still identifies exactly what the command returned.
 
 `inputs` and a raw `input_schema` are mutually exclusive per option: declaring both is a
 creation error unless the raw schema exactly equals what `inputs` would compile to. An
@@ -464,11 +435,11 @@ regardless of where it was tapped.
 **Submission is per option.** A surface submits `option_inputs`, a mapping of selected
 option id to that option's own JSON value; a two-member AND branch can hand each member
 a different value without either schema having to tolerate the other's fields. The
-legacy shared-value contract (`input_data`, one JSON value applied to every selected
-option) still works for bundles that predate per-option submission; the two are mutually
+shared-value contract (`input_data`, one JSON value applied to every selected option)
+still works for bundles that predate per-option submission; the two are mutually
 exclusive, and supplying both is a creation-time `conflicting_input` error.
 `response.json` always records `option_inputs` (every entry is the same value under the
-legacy path) alongside the existing `input` field, so nothing that reads `input` today
+shared path) alongside the existing `input` field, so nothing that reads `input` today
 breaks.
 
 ### Gate actions
@@ -549,22 +520,19 @@ from opening.
 
 ### Compatibility window
 
-Readers resolve the neutral bundle first and then fall back to in-flight legacy plan,
-question, launch, or HITL request directories. New producers do not dual-write the old
-trees. Keep these fallbacks for at least one complete SASE release after neutral writers
-ship and beyond the 24-hour remote-action stale window. The cross-kind resolver
-regression test locks this rule in; removing a fallback requires a separately announced
-migration after that window, updated fixtures, and explicit release notes.
-
+Readers resolve the neutral bundle first and then fall back to in-flight plan, question,
+launch, or HITL request directories. New producers do not dual-write the old trees.
 Unanswered schema-v2 neutral bundles also remain hash-verifiable and answerable. Readers
 project their historical first branch as the primary action in memory; new gate creation
-requires schema v3 and an explicit `primary_branch`.
+requires schema v3 and an explicit `primary_branch`. See
+[Automation migration notes](../upgrading/automation.md#neutral-gate-bundles-and-per-option-input).
 
-Question summaries use the same resolver, so sase's TUI can render both neutral and
-legacy questions. Gate command execution from sase's TUI is scheduled as tracked
-background work rather than running on Textual's event loop.
+Question summaries use the same resolver, so sase's TUI can render both layouts. Gate
+command execution from sase's TUI is scheduled as tracked background work rather than
+running on Textual's event loop.
 
 ## Related
 
 - [Notifications](notifications.md)
 - [Notification types](notification-types.md)
+- [Automation migration notes](../upgrading/automation.md)

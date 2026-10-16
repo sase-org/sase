@@ -6,7 +6,9 @@ description:
 
 # Monitors
 
-This page explains how monitor turns start, run follow-ups, and report outcomes.
+This page names how a monitor turn starts, runs a supervised command, and reports the
+outcome. A monitor turn is a real agent-session member whose work is one OS command
+instead of an LLM turn.
 
 ## The agent-session picture
 
@@ -134,9 +136,10 @@ and records the wait output where the follow-up can inspect it.
 - `-f/--completion REF` binds a single-use host-completion intent produced by
   `sase final prepare`. The monitored argv must exactly match the intent's verification
   command.
-- `--label` / `-L`, `--agent` / `-a` (`--lane` remains accepted as a deprecated alias),
-  `--cwd` / `-C`, and `--tail-lines` / `-T` are optional; see
-  `sase monitor start --help` for the full list.
+- `--label` / `-L`, `--agent` / `-a` (`--lane` remains accepted as an alias), `--cwd` /
+  `-C`, and `--tail-lines` / `-T` are optional; see the generated
+  [`sase monitor start`](../cli/monitor.md#sase-monitor-start) page for the full flag
+  list.
 - `-k`, `-P`, `-p`, and `-f` are always available: every new monitor persists versioned
   continuation records, so checkpoint, outcome-policy, profile, and host-completion
   controls work unconditionally.
@@ -564,10 +567,9 @@ Continuation history is replayed from versioned parent links rather than reconst
 from turn names. Each ancestor is hydrated once in order, including local authored
 prompt segments, host instructions, final responses, checkpoints, and monitor-result
 evidence. A missing ancestor is disclosed as a gap; SASE does not guess across uncertain
-legacy history. Artifact-run pruning keeps old runs that a live or recoverable
-continuation still references, and SASE registers required checkpoints and monitor
-results as portable artifacts, so replay can still hydrate them after the local files
-are gone.
+history. Artifact-run pruning keeps old runs that a live or recoverable continuation
+still references, and SASE registers required checkpoints and monitor results as
+portable artifacts, so replay can still hydrate them after the local files are gone.
 
 Automatic retries keep failed-attempt evidence under `attempts/<N>/`, but continuation
 replay excludes superseded failed attempts from the ancestor chain. A later `#fork`
@@ -651,16 +653,5 @@ follow-up included — ride the claim the session already holds. See
 
 - [Monitor operations](monitor-operations.md)
 - [Named tools and ToolRuns](tools.md)
-
-A **monitor turn** is a real [agent session](../../agent_sessions.md) member whose work
-is one supervised OS command instead of an LLM turn. `sase monitor start` hands a slow
-command off to a detached supervisor process and returns immediately, so an agent can
-run `just check`, wait on a CI job, or sleep before a deploy without blocking its own
-turn.
-
-SASE agents are single-turn: a provider turn runs, the runner captures it, and the agent
-is done. Provider-native background-execution or scheduled wake-up tools assume a
-multi-turn session and do nothing useful here — the turn ends and the wake-up never
-fires. Monitors are the SASE-native replacement: use `/sase_monitor` (or
-`sase monitor start` directly) instead of any built-in monitor, background-execution, or
-scheduled wake-up tool.
+- [`sase monitor`](../cli/monitor.md)
+- [Automation migration notes](../upgrading/automation.md)

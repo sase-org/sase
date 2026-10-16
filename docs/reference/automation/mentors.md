@@ -5,6 +5,10 @@ description: "Configure and use automated review mentors for Patches."
 
 # Mentors
 
+This page names mentor profiles, matching rules, and how review comments land on a
+Patch. For the review-and-apply workflow, follow
+[Get automated code review](../../guides/get-automated-code-review.md).
+
 ## Overview
 
 Mentors are automated AI code review agents for Patches. A Patch is SASE's local record
@@ -14,15 +18,6 @@ review profiles match, and then run focused review agents in the background.
 The scheduler drives mentor checks. When a mentor finds issues, it writes structured
 JSON comments with severities (`error`, `warning`, or `suggestion`). You review those
 comments in sase's TUI and can launch an apply agent for the accepted comments.
-
-The lifecycle is:
-
-1. Match mentor profiles against Patch commits.
-2. Register matching profiles in the Patch `MENTORS` field.
-3. Wait for non-skipped hooks on the latest regular commit to become ready.
-4. Start mentor agents when runner capacity is available.
-5. Save structured JSON output and file snapshots.
-6. Review, accept, and apply comments from sase's TUI.
 
 ## Configuration
 
@@ -285,8 +280,7 @@ along with an accepted/total count. The side panel also shows a status indicator
 mentor: `▸` (selected), `●` (running), `✗` (failed/killed), or `✓` (all comments
 accepted). Read state persists across modal opens and is stored per Patch and stitch.
 
-Unread comment counts also appear inline in the Patches sub-tab list (see
-[sase's TUI docs](../../ace.md#mentor-comment-stats-in-pr-list)).
+Unread comment counts also appear inline in the Patches sub-tab list.
 
 ### Kill Mentors (`,M`)
 
@@ -304,3 +298,10 @@ Mentors run on Patches that meet **all** of the following:
 - The Patch has at least one commit.
 - At least one mentor profile's matching criteria are satisfied.
 - All non-skipped hooks for the latest regular commit are ready.
+
+## Related
+
+- [Get automated code review](../../guides/get-automated-code-review.md)
+- [Default scheduler routines](scheduler-default-routines.md)
+- [Prompt and tool configuration](../config/prompts-and-tools.md#mentorprofiles)
+- [Automation](index.md)

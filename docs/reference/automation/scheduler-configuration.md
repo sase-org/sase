@@ -1,6 +1,6 @@
 ---
 title: Scheduler configuration
-description: Global scheduler settings and the fields used to configure routines.
+description: Global scheduler settings and the fields that configure routines.
 ---
 
 # Scheduler configuration
@@ -9,13 +9,10 @@ This page describes global scheduler settings and routine configuration.
 
 ## Configuration
 
-Axe is configured in `sase.yml` under the `axe:` section. See the
-[AXE configuration behavior](../config/scheduler-behavior.md) and generated
-[scheduler configuration keys](../config/scheduler.md).
+Axe is configured in `sase.yml` under the `axe:` section. Keys, types, and defaults are
+on the generated [scheduler configuration](../config/scheduler.md) page; behavior notes
+are on [AXE configuration behavior](../config/scheduler-behavior.md).
 
-<a id="global-settings"></a> Moved to [Scheduler configuration](#global-settings).
-<a id="routine-configuration"></a> <a id="routine-fields"></a> <a id="job-fields"></a>
-Moved to [Scheduler configuration](#routine-configuration).
 <a id="description-grammar"></a> <a id="diagnostics"></a>
 <a id="authoring-style-guide"></a> Moved to
 [Scheduler description grammar](scheduler-description-grammar.md#description-grammar).
@@ -30,25 +27,13 @@ Moved to [Scheduler jobs](scheduler-jobs.md#services-tab-views).
 <a id="job-agent-registry"></a> Moved to
 [Scheduler jobs](scheduler-jobs.md#job-agent-registry).
 
-## Global Settings
-
-| Setting                               | Default  | Description                                               |
-| ------------------------------------- | -------- | --------------------------------------------------------- |
-| `max_hook_runners`                    | 3        | Concurrent hook runners allowed globally                  |
-| `max_agent_runners`                   | 3        | Concurrent agent runners allowed globally                 |
-| `zombie_timeout_seconds`              | 7200     | Timeout for marking jobs as zombie                        |
-| `query`                               | `""`     | Optional query filter for all Patches                     |
-| `job_script_dirs`                     | `[]`     | Directories to search for job scripts                     |
-| `routine_log_max_bytes`               | 52428800 | Maximum bytes retained for each bounded routine log       |
-| `routine_log_temp_max_age_seconds`    | 300      | Age before orphaned log-rotation temp files may be reaped |
-| `routine_restart_backoff_max_seconds` | 60       | Maximum delay between retries for a crashing routine      |
-| `verbose_routine_diagnostics`         | false    | Include verbose diagnostics in job script context JSON    |
+## Global Settings {#global-settings}
 
 The `query` setting uses the same Patch query language as sase's TUI. CLI flags on
 `sase scheduler run` and `sase axe routine run` override the configured query, runner
 limits, and zombie timeout for that process.
 
-## Routine Configuration
+## Routine Configuration {#routine-configuration}
 
 ```yaml
 axe:
@@ -96,16 +81,10 @@ work it owns, and every job requires one explaining what that job does. Both fol
 summary/body grammar in
 [Description Grammar](scheduler-description-grammar.md#description-grammar).
 
-### Routine Fields
+### Routine Fields {#routine-fields}
 
-| Field          | Type                   | Required | Description                                                                                                                              |
-| -------------- | ---------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| `description`  | `str`                  | yes      | Summary line, then a blank line, then an optional body (see [Description Grammar](scheduler-description-grammar.md#description-grammar)) |
-| `interval`     | `int`                  | no       | Seconds between job polling cycles; defaults to `1`                                                                                      |
-| `job_timeout`  | `str \| null`          | no       | Default positive compound duration for jobs in this routine                                                                              |
-| `wait_runners` | `int \| null`          | no       | Per-launch capacity budget for lane agents, emitted as `%queue(capacity=N)`; omitting it uses only the global capacity budget            |
-| `env`          | `dict[str, env-value]` | no       | Values inherited by every job; individual job env wins                                                                                   |
-| `jobs`         | list or map            | no       | Composable job definitions                                                                                                               |
+Routine field names, types, and defaults are on the generated
+[scheduler configuration](../config/scheduler.md) page.
 
 `wait_runners` applies only to agents emitted through a script job's
 `proposed_launches`; it does not gate mentor, hook, or CRS workflow launchers. The
@@ -118,22 +97,11 @@ rules: the agent starts when the occupied weighted load plus its own weight fits
 proposes a clan, every member carries the budget and waits independently, so a low
 budget can serialize the clan.
 
-### Job Fields
+### Job Fields {#job-fields}
 
-| Field         | Type                   | Required  | Description                                                                                                                              |
-| ------------- | ---------------------- | --------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| `name`        | `str`                  | list only | Job identity in object-list form; map form uses the mapping key                                                                          |
-| `description` | `str`                  | yes       | Summary line, then a blank line, then an optional body (see [Description Grammar](scheduler-description-grammar.md#description-grammar)) |
-| `script`      | `str \| null`          | no        | Exact executable name; defaults to the job identity                                                                                      |
-| `enabled`     | `bool`                 | no        | Soft-disable a keyed entry without deleting the packaged/base configuration                                                              |
-| `run_every`   | `str \| null`          | no        | Positive compound duration (e.g., `"5m"`, `"1h30m"`, `"1d"`)                                                                             |
-| `timeout`     | `str \| null`          | no        | Per-job timeout duration (overrides the routine's `job_timeout`)                                                                         |
-| `env`         | `dict[str, env-value]` | no        | Values merged over routine env; literals or `{env:}`, `{file:}`, `{pass:}` refs                                                          |
-| `inhibit_if`  | list or map            | no        | `patch` / `agent_hood` / `agent_clan` / `agent_runners` guards evaluated before the script; `changespec` is a legacy alias               |
-| `trigger`     | string or map          | no        | `always`, `git.commits_since`, or `fs`; scheduled runs fire only when it accepts                                                         |
-| `once_per`    | string or object       | no        | Bounded per-proposal dedupe-key template                                                                                                 |
-| `for_each`    | list or source         | no        | Literal target objects or `source: projects`, expanded to stable per-target instances                                                    |
-| `vars`        | `dict`                 | no        | Non-secret configuration copied into the script context                                                                                  |
+Job field names, types, and defaults are on the generated
+[scheduler configuration](../config/scheduler.md) page. `inhibit_if.changespec` remains
+accepted as an alias of `inhibit_if.patch`.
 
 Map-form jobs compose by identity across config layers. A higher-priority layer can
 patch a single field or set `enabled: false` while retaining the rest of a packaged
@@ -146,11 +114,14 @@ state. Literal targets may include an `overrides:` object for per-target fields 
 Configuration is validated fail-closed. Unknown fields, duplicate job identities, and
 invalid or non-positive durations produce actionable errors with their config paths.
 Secret references resolve at dispatch and fail closed with provider-specific
-diagnostics. Legacy `agent:` and `macro:` job fields are rejected: scheduled agent work
-must originate from a script's structured launch proposals.
+diagnostics. Scheduled agent work must originate from a script's structured launch
+proposals; `agent:` and `macro:` job fields are rejected. See
+[Automation migration notes](../upgrading/automation.md#rejected-agent-and-macro-job-fields).
 
 ## Related
 
 - [Scheduler description grammar](scheduler-description-grammar.md)
 - [Scheduler jobs](scheduler-jobs.md)
 - [Scheduler](scheduler.md)
+- [Scheduler configuration keys](../config/scheduler.md)
+- [Automation migration notes](../upgrading/automation.md)

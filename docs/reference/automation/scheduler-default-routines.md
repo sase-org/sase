@@ -9,28 +9,12 @@ This page lists the default routines and the work each routine performs.
 
 ## Default Routines
 
-The scheduler ships with nine default routines:
+The scheduler ships with nine default routines.
 
-<a id="hooks-5-second-interval"></a> Moved to
-[Default scheduler routines](#hooks-5-second-interval).
-<a id="waits-10-second-interval"></a> Moved to
-[Default scheduler routines](#waits-10-second-interval).
-<a id="agentwaits-2-second-interval"></a> Moved to
-[Default scheduler routines](#agentwaits-2-second-interval).
-<a id="sidecarsync-30-second-interval"></a> <a id="wait-release-telemetry"></a> Moved to
-[Default scheduler routines](#sidecarsync-30-second-interval).
-<a id="checks-5-minute-interval"></a> Moved to
-[Default scheduler routines](#checks-5-minute-interval).
-<a id="usage-60-second-interval"></a> Moved to
-[Default scheduler routines](#usage-60-second-interval).
-<a id="externalmirror-15-minute-interval"></a> Moved to
-[Default scheduler routines](#externalmirror-15-minute-interval).
-<a id="comments-1-minute-interval"></a> Moved to
-[Default scheduler routines](#comments-1-minute-interval).
 <a id="housekeeping-1-hour-interval"></a> Moved to
 [Scheduler housekeeping](scheduler-housekeeping.md#housekeeping-1-hour-interval).
 
-## hooks (5-second interval)
+## hooks (5-second interval) {#hooks-5-second-interval}
 
 High-frequency hook lifecycle management:
 
@@ -55,7 +39,7 @@ minutes. `stale_running_cleanup` keeps the default `always` trigger: its actual 
 process liveness (a claim's owning PID dying), which has no filesystem proxy — a dead
 PID does not touch any project, claim, or artifact file.
 
-## waits (10-second interval)
+## waits (10-second interval) {#waits-10-second-interval}
 
 Bead-claim reconciliation and epic-launch flushing:
 
@@ -65,7 +49,7 @@ Bead-claim reconciliation and epic-launch flushing:
 | `epic_launch_flush`  | Flush planner completions orphaned by unsettled epic launches |
 | `agent_auto_restart` | Sweep update-skew recoveries; submit the healer as a proc     |
 
-## agent_waits (2-second interval)
+## agent_waits (2-second interval) {#agentwaits-2-second-interval}
 
 Fast-polling agent dependency resolution:
 
@@ -73,10 +57,10 @@ Fast-polling agent dependency resolution:
 | ------------- | ------------------------------------------------------------------ |
 | `wait_checks` | Resolve successful agent and closed-bead waits; write `ready.json` |
 
-`wait_checks` runs in its own 2-second routine so a slow `sidecar_auto_sync` pass can no
-longer convoy it behind a shared 10-second tick.
+`wait_checks` runs in its own 2-second routine so a slow `sidecar_auto_sync` pass does
+not convoy it behind a shared 10-second tick.
 
-## sidecar_sync (30-second interval)
+## sidecar_sync (30-second interval) {#sidecarsync-30-second-interval}
 
 Primary sidecar convergence, isolated from wait resolution:
 
@@ -84,10 +68,9 @@ Primary sidecar convergence, isolated from wait resolution:
 | ------------------- | ---------------------------------------------------------------------- |
 | `sidecar_auto_sync` | Fetch/fast-forward opted-in primary sidecar clones (plans, beads, ...) |
 
-The routine interval provides the 30-second cadence (the old per-job `run_every` is
-gone; the per-job `2m` timeout stays). After a `beads`-role refresh, the chop touches
-that project's completion pulse so `agent_waits` re-evaluates bead waits on its next
-2-second tick.
+The routine interval provides the 30-second cadence. The per-job `2m` timeout stays.
+After a `beads`-role refresh, the job touches that project's completion pulse so
+`agent_waits` re-evaluates bead waits on its next 2-second tick.
 
 `bead_claim_checks` and `wait_checks` both ship with an `fs` trigger watching the
 per-project completion pulse
@@ -216,7 +199,7 @@ first writer wins — and is skipped entirely once the waiter is gone. The waiti
 treats an unreadable or malformed marker as not ready and keeps polling (bounded by its
 periodic fallback, which never reads `ready.json`).
 
-### Wait release telemetry
+### Wait release telemetry {#wait-release-telemetry}
 
 Each crossed wait barrier records how it was released and how long each segment took, in
 `agent_meta.json`:
@@ -263,7 +246,7 @@ The `agent_waits` and `sidecar_sync` routines activate on the scheduler restart
 `wait_checks` trigger checkpoint fires once, and `sidecar_sync` re-checks every role
 once because its backoff schedule file lives in the routine state dir.
 
-## checks (5-minute interval)
+## checks (5-minute interval) {#checks-5-minute-interval}
 
 Lower-frequency status checks:
 
@@ -311,7 +294,7 @@ left and came back.
 
 After project discovery succeeds and returns a non-empty inventory, the same
 reconciliation also cancels pending gates when their project leaves the active
-inventory, and cancels producer-owned gates no longer represented in the routine's lane
+inventory, and cancels producer-owned gates that are absent from the routine's lane
 state. An unavailable inventory fails closed without sweeping anything. A project whose
 bead store is temporarily unreadable is likewise preserved for retry rather than being
 mistaken for an inactive project and swept.
@@ -354,7 +337,7 @@ primary branch) deletes the Off branch and makes the On branch unconditional; it
 collects a required `winner` choice (`enabled` or `disabled`) for the worker brief and
 submits the same deduplicated `sase bead work <flag-id> --yes-to-all` proc; **Extend**
 requires a reason plus a new date and release line, pushes both thresholds out, and
-leaves the bead `open` so the next tick finds it no longer due and cancels the gate as
+leaves the bead `open` so the next tick finds it is not due and cancels the gate as
 stale; **Keep** requires a reason and launches a worker to convert the behavior into an
 ordinary config field, then close the bead — it was never a feature flag; **Close**
 requires a reason and abandons the removal by closing the bead as `canceled`, leaving
@@ -390,7 +373,7 @@ because process death leaves no filesystem event to watch. To spot leaks by hand
 `systemctl --user list-units 'sase-agent-*'`; to reap one pass immediately, run
 `sase axe job run orphan_agent_scope_reap`.
 
-## usage (60-second interval)
+## usage (60-second interval) {#usage-60-second-interval}
 
 Subscription-usage collection, owned by the scheduler:
 
@@ -410,7 +393,9 @@ to the 60-second cooldown and any `Retry-After`. A host that shares an account w
 another machine can opt out per provider with
 `llm_provider.usage_metrics.providers.<name>.enabled: false` in a machine overlay.
 
-## external_mirror (15-minute interval)
+<a id="externalmirror-15-minute-interval"></a>
+
+## external_mirror (15-minute interval) {#external_mirror-15-minute-interval}
 
 Isolated remote-tracker polling:
 
@@ -451,11 +436,10 @@ links, and title drift.
 
 The [`external_mirror.issues.filters`](../config/automation-behavior.md#externalmirror)
 surface (empty by default) excludes tracker issues from mirroring by author, label,
-title, or state; a non-empty filter means the bead list is no longer a strict superset
-of the issue list. Filters gate creation only — clearing a filter re-examines the issues
-it previously dropped, but a filter never deletes a bead that already exists. Records a
-filter drops count toward `sase bead sync-external`'s `filtered=<n>` per-project
-summary.
+title, or state; a non-empty filter means the bead list is not a strict superset of the
+issue list. Filters gate creation only — clearing a filter re-examines issues the filter
+excluded, but a filter never deletes a bead that already exists. Records a filter drops
+count toward `sase bead sync-external`'s `filtered=<n>` per-project summary.
 
 Two machines reconciling stale copies of a hosted bead sidecar can independently import
 the same issue before either has seen the other's copy. The local partial-unique index
@@ -474,7 +458,7 @@ rather than attempting an interactive provider call.
 See [Builtin `external_pr_mirror`](scheduler-jobs.md#builtin-external_pr_mirror) below
 for that job's own behavior, including where its cursor and backoff state live.
 
-## comments (1-minute interval)
+## comments (1-minute interval) {#comments-1-minute-interval}
 
 Comment polling:
 
@@ -487,3 +471,4 @@ Comment polling:
 - [Scheduler](scheduler.md)
 - [Scheduler configuration](scheduler-configuration.md)
 - [Scheduler housekeeping](scheduler-housekeeping.md)
+- [Schedule recurring work](../../guides/schedule-recurring-work.md)

@@ -5,7 +5,8 @@ description: Command-line operations for listing and managing notifications.
 
 # Notification CLI
 
-This page documents the notification command-line interface.
+This page names notification and gate CLI behavior that is not only a flag table. See
+the generated [`sase notify`](../cli/notify.md) page for flags and subcommands.
 
 ## CLI
 
@@ -246,13 +247,13 @@ never extend the request's own gate timeout.
 to sase's TUI modals: `answer` selects a branch and supplies each selected option's
 declared input (`--set field=value` typed by its declaration,
 `--option-input <opt>=@file.json` for a whole per-option value, or `--input @file.json`
-for the legacy shared value) and resumes or restarts a partially executed AND branch
-with `--resume` / `--restart`. On an already-answered turn-backed tale whose selected
-branch requested a coder, `--resume` retries only that unfinished handoff: it reuses the
-stored answer, skips option commands and plan archival, and launches nothing when the
-successor is already recorded. Conflicting `--option` / input values are refused.
-`--restart` still means "run the whole option branch again" and does not recover a coder
-handoff. `act` runs one declared action headlessly, including opening `$EDITOR` for an
+for the shared value) and resumes or restarts a partially executed AND branch with
+`--resume` / `--restart`. On an already-answered turn-backed tale whose selected branch
+requested a coder, `--resume` retries only that unfinished handoff: it reuses the stored
+answer, skips option commands and plan archival, and launches nothing when the successor
+is already recorded. Conflicting `--option` / input values are refused. `--restart`
+still means "run the whole option branch again" and does not recover a coder handoff.
+`act` runs one declared action headlessly, including opening `$EDITOR` for an
 `edit_file` action, without answering the gate; `show` prints a gate's declared
 branches, each option's input fields, and its declared actions, so an author can check
 that the gate they wrote asks for what they intended. When a decision has been accepted
@@ -316,3 +317,5 @@ See [`sase notify`](../cli/notify.md#sase-notify) for the full CLI reference.
 
 - [Notifications](notifications.md)
 - [Notification types](notification-types.md)
+- [`sase notify`](../cli/notify.md)
+- [Automation migration notes](../upgrading/automation.md)

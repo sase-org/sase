@@ -5,7 +5,7 @@ description: Inspect, stop, and view monitors in the SASE TUI.
 
 # Monitor operations
 
-This page covers monitor inspection and the monitor views in SASE's TUI.
+This page names how to inspect, stop, and view monitors in sase's TUI.
 
 ## Inspecting and stopping monitors
 
@@ -69,15 +69,15 @@ proc store: `begin_proc_settlement` persists the observed status, reason, exit c
 command-end time under the same lock that moves the proc into `settling`. Python keeps
 process control and settlement side effects and must consume that frozen observation.
 Same-boot dead supervisors whose command was never observed are reconciled to `failed`
-on the legacy artifact path, or `lost` on the proc-backed path: SASE kills a leftover
-process group only when no frozen or sidecar evidence shows the command has already
-exited, finalizes the log, disposes the workspace claim, and launches or records the
-follow-up disposition. A same-boot supervisor that already froze a command result
-resumes that result and applies the original continuation policy once. Pre-reboot
-supervisors without a frozen observation reconcile to `lost`; their command effects are
-unknown, so the follow-up is recorded as not launched. A frozen observation survives
-reboot without changing its facts. The follow-up error for an unknown outcome does not
-claim a reboot unless the persisted termination reason is `reboot`.
+on the artifact path, or `lost` on the proc-backed path: SASE kills a leftover process
+group only when no frozen or sidecar evidence shows the command has already exited,
+finalizes the log, disposes the workspace claim, and launches or records the follow-up
+disposition. A same-boot supervisor that already froze a command result resumes that
+result and applies the original continuation policy once. Pre-reboot supervisors without
+a frozen observation reconcile to `lost`; their command effects are unknown, so the
+follow-up is recorded as not launched. A frozen observation survives reboot without
+changing its facts. The follow-up error for an unknown outcome does not claim a reboot
+unless the persisted termination reason is `reboot`.
 
 ## In sase's TUI
 
@@ -236,28 +236,17 @@ Concretely:
 | Follow-up prompt source | `--next` text plus a command-run breakdown   | The `PROMPT` argument, verbatim                 |
 | Bound                   | One monitor active per agent                 | `max_agent_pipe_chain` config field             |
 
-Before this command existed, agents got a successor by monitoring a no-op command:
+Use `sase pipe` for a hand-off that does not supervise a command. See the
+`/sase_handoff` skill for the command's flags and hazards, and
+[Automation migration notes](../upgrading/automation.md#monitor-hand-off-is-sase-pipe)
+for the retired `sleep 1` pattern.
 
-```bash
-sase monitor start -s SLEEPING -S SLEPT -r '...' -n '<the real prompt>' -- sleep 1
-```
-
-That only worked because `sase monitor start` already kills the caller and its
-supervisor already launches a session follow-up once the command settles — a monitor
-supervisor, a proc row, and a one-second sleep, purely to obtain a hand-off. Use
-`sase pipe` for a hand-off instead; the `sleep 1 --next '...'` pattern is no longer
-necessary. See the `/sase_handoff` skill for the command's flags and hazards.
-
-## See also
-
-- [Agent Clans, Sessions, and Tribes](../../agent_sessions.md) for how a monitor turn
-  fits into a sequential agent session.
-- [CLI Reference](../../cli.md) for the full `sase monitor` command table.
-- [sase's TUI User Guide](../../ace.md) for how monitor rows render in the Agents tab.
-- [Agent queued for a runner slot](../runner-slots.md) for occupancy versus admission,
-  including why a monitor still counts against `max_running_agents`.
+<a id="see-also"></a>
 
 ## Related
 
 - [Monitors](monitors.md)
 - [Named tools and ToolRuns](tools.md)
+- [`sase monitor`](../cli/monitor.md)
+- [Agent queued for a runner slot](../runner-slots.md)
+- [Automation migration notes](../upgrading/automation.md)

@@ -21,9 +21,10 @@ No prefix is added automatically. Builtin jobs therefore declare names such as
 `script: sase_job_hook_checks` explicitly. As a discovery convenience, the
 available-script inventory (`sase axe job list -a`) lists every executable in
 `axe.job_script_dirs` plus `sase_job_*` executables beside the interpreter and on
-`$PATH`. Legacy `sase_chop_*` executables are still installed and discovered, but when
-both spellings resolve to the same file or console-script entry point the inventory
-shows only the `sase_job_*` name. Resolution always uses the configured full name.
+`$PATH`. `sase_chop_*` executables are still installed and discovered, but when both
+spellings resolve to the same file or console-script entry point the inventory shows
+only the `sase_job_*` name. Resolution always uses the configured full name. See
+[Automation migration notes](../upgrading/automation.md#scheduler-routine-and-job-names).
 
 Axe runs script jobs as:
 
@@ -32,18 +33,18 @@ Axe runs script jobs as:
 ```
 
 The context file contains the effective runner limits, zombie timeout, query, routine
-name, routine state directory, paths to legacy-named serialized `all_changespecs.json`
-and `filtered_changespecs.json` files, the current `target`, configured `vars`, the run
+name, routine state directory, paths to serialized `all_changespecs.json` and
+`filtered_changespecs.json` files, the current `target`, configured `vars`, the run
 source (`scheduled`, `manual`, or `oneshot`), the `dry_run` flag, and the run-local
 result path. The result path is also exported as `SASE_JOB_RESULT_FILE`; the source and
 dry-run flag are mirrored as `SASE_JOB_SOURCE` and `SASE_JOB_DRY_RUN` (`1` for true, `0`
 for false). `SASE_JOB_VERBOSE` enables opt-in debug output. Target fields are exported
 as `SASE_JOB_TARGET_<FIELD>` along with `SASE_JOB_TARGET_KEY`. Each of these variables
-is also mirrored under its legacy `SASE_CHOP_*` spelling for older scripts; configuring
-both spellings with different values is rejected. Scripts with direct side effects must
-honor `dry_run` before mutating external state; runner-level dry-run only previews
-launch proposals. Scheduled script jobs within one routine tick run concurrently; use
-`timeout` or `job_timeout` to keep a slow script from blocking later ticks indefinitely.
+is also mirrored under its `SASE_CHOP_*` spelling for older scripts; configuring both
+spellings with different values is rejected. Scripts with direct side effects must honor
+`dry_run` before mutating external state; runner-level dry-run only previews launch
+proposals. Scheduled script jobs within one routine tick run concurrently; use `timeout`
+or `job_timeout` to keep a slow script from blocking later ticks indefinitely.
 
 Script job stdout and stderr are streamed to the job's per-run log file while the
 subprocess is still alive (see [Job Run History](#job-run-history) below). The
@@ -275,7 +276,7 @@ Policy is runner-owned and evaluated before the script:
   not met) still advances the clock as before. Guard evaluation is not free — put a
   guard on a lane whose tick interval matches the cost of re-checking it.
 - `inhibit_if` supports `patch`, `agent_hood`, `agent_clan`, and `agent_runners` guards.
-  The legacy `changespec` guard key remains accepted as an alias.
+  The `changespec` guard key remains accepted as an alias of `patch`.
   `agent_clan.name_prefix` matches canonical clan metadata on active agents only; dotted
   agent names are not treated as clans. `agent_runners.max` defaults to `0` and inhibits
   while more than that many participating lanes are occupied, a participating-lane count
@@ -443,11 +444,11 @@ When the same job name appears under multiple routines, `sase axe job run <job>`
 with an unambiguous error listing the candidate routines (exit code 2). Pass
 `-L/--routine` to pick one. A name that is not configured anywhere but matches a
 discoverable executable still runs, attributed to the synthetic `_oneshot` routine. The
-CLI run is recorded under the legacy-named
-`~/.sase/axe/lumberjacks/<routine>/chops/<job>/` path exactly like a scheduled run,
-except its metadata is tagged with `source = "oneshot"` (vs `"scheduled"`). The command
-exits 0 for `success`, `skipped`, `no_op`, `launched`, and `action_succeeded` outcomes,
-and non-zero otherwise, including when the same job already has a live run.
+CLI run is recorded under `~/.sase/axe/lumberjacks/<routine>/chops/<job>/` exactly like
+a scheduled run, except its metadata is tagged with `source = "oneshot"` (vs
+`"scheduled"`). The command exits 0 for `success`, `skipped`, `no_op`, `launched`, and
+`action_succeeded` outcomes, and non-zero otherwise, including when the same job already
+has a live run.
 
 **From sase's TUI:**
 
@@ -470,8 +471,8 @@ a glance why a run started.
 ## Job Run History
 
 Every job execution — whether kicked off by a scheduled routine tick or by
-`sase axe job run …` — is recorded as a separate run under the legacy-named
-`~/.sase/axe/lumberjacks/<routine>/chops/<job>/` path. Each run is assigned a sortable,
+`sase axe job run …` — is recorded as a separate run under
+`~/.sase/axe/lumberjacks/<routine>/chops/<job>/`. Each run is assigned a sortable,
 microsecond- precision `run_id`. `index.json` (kept next to `runs/`) lists the job's run
 IDs newest-first:
 
@@ -576,9 +577,9 @@ The durable `agent_chops.json` linkage associates launched proposals with job li
 state. Configuration is always script-based. Each launched agent receives
 `SASE_JOB_ROUTINE`, `SASE_JOB_NAME`, `SASE_JOB_RUN_ID`, and a prompt hash; the
 housekeeping pass uses the registry plus normal agent completion artifacts to finalize
-`launched` runs. The same values are mirrored under the legacy `SASE_CHOP_*` names,
-which are still accepted from installed callers but are not the documented authoring
-surface.
+`launched` runs. The same values are mirrored under the `SASE_CHOP_*` names, which are
+still accepted from installed callers but are not the documented authoring surface. See
+[Automation migration notes](../upgrading/automation.md#scheduler-routine-and-job-names).
 
 Linkage is explicit: a registry record is created only for proposal launches the runner
 itself performs and for continuation respawns (retry or model-fallback) of an
@@ -654,3 +655,4 @@ terminal/rendering tools are missing. The direct agent run-log binding is `V`.
 - [Scheduler](scheduler.md)
 - [Scheduler configuration](scheduler-configuration.md)
 - [Default scheduler routines](scheduler-default-routines.md)
+- [Automation migration notes](../upgrading/automation.md)

@@ -72,7 +72,7 @@
 - [Notification tags](https://sase.sh/reference/automation/notification-tags/) — Notification tags and the colors and icons used in notification tabs.
 - [Notification types](https://sase.sh/reference/automation/notification-types/) — Notification payloads, fields, and silent notification behavior.
 - [Notifications](https://sase.sh/reference/automation/notifications/) — View, sort, mute, snooze, and receive notification updates in SASE.
-- [Scheduler configuration](https://sase.sh/reference/automation/scheduler-configuration/) — Global scheduler settings and the fields used to configure routines.
+- [Scheduler configuration](https://sase.sh/reference/automation/scheduler-configuration/) — Global scheduler settings and the fields that configure routines.
 - [Default scheduler routines](https://sase.sh/reference/automation/scheduler-default-routines/) — The built-in routines that run background SASE maintenance and automation.
 - [Scheduler description grammar](https://sase.sh/reference/automation/scheduler-description-grammar/) — The grammar and style rules for scheduler routine descriptions.
 - [Scheduler housekeeping](https://sase.sh/reference/automation/scheduler-housekeeping/) — Tasks handled by the scheduler's housekeeping routine.
@@ -232,6 +232,7 @@
 - [Agents tab](https://sase.sh/reference/tui/agents-tab/) — Tabs, keys, lists, and actions on the sase TUI Agents tab.
 - [TUI](https://sase.sh/reference/tui/) — Reference pages for the sase TUI Agents tab surfaces.
 - [TUI keymaps](https://sase.sh/reference/tui/keymaps/) — Default configurable key bindings for SASE's terminal interface.
+- [Automation migration notes](https://sase.sh/reference/upgrading/automation/) — Upgrade notes for scheduler naming, monitor hand-off, and gate contracts.
 - [Content layout migration](https://sase.sh/reference/upgrading/content-layout/) — Migration steps and compatibility behavior for SASE content paths.
 - [Upgrading](https://sase.sh/reference/upgrading/) — Upgrade and history notes, organized by area with the newest notes first.
 - [Local state cutover](https://sase.sh/reference/upgrading/local-state/) — The temporary offline kit for moving legacy local state into canonical locations.

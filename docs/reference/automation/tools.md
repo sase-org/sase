@@ -5,7 +5,8 @@ description: Declare named tools and run commands with retained output and evide
 
 # Named tools and ToolRuns
 
-This page describes named tool declarations, ToolRuns, and their recorded evidence.
+This page names project-declared tools and the ToolRun records `sase tool run` writes
+for each execution. A ToolRun is an execution record, not an LLM Calls row.
 
 ## Try it
 
@@ -80,9 +81,8 @@ workspace suffix stripped, so every numbered checkout of one repo shares an iden
 repo nested inside another checkout is never claimed by it. `SASE_PROJECT` names the
 agent's own project and is not consulted.
 
-Rows recorded before this rule keep the identity they were recorded with; they are not
-rewritten. Linked-repo `check` runs from that period carry the host project's identity
-and are told apart only by `definition_digest`.
+A stored row keeps the identity it was recorded with. See
+[Automation migration notes](../upgrading/automation.md#toolrun-project-identity).
 
 ## Stage recording
 
@@ -143,16 +143,11 @@ wrapper's own metadata goes to stderr. Every run also retains full output privat
 capped per run, and it is only shown by `sase tool show RUN -l`; truncation is stated
 explicitly. Default JSON never contains child output.
 
-| Flag | Meaning                                                                     |
-| ---- | --------------------------------------------------------------------------- |
-| `-q` | Compact output: metadata, the last `-T` failure lines, and a `show` pointer |
-| `-T` | Tail lines kept in compact output (default 200)                             |
-| `-v` | Stream child output live                                                    |
-
-When retained output overflows `tool_runs.run_log_max_bytes`, the child is still drained
-and streamed in full. The run footer, `sase tool show RUN -j` (`output_truncation`), and
-`sase tool show RUN -l` each state how many bytes were dropped per stream, so a capped
-log is never mistaken for a complete one.
+See the generated [`sase tool run`](../cli/tool.md#sase-tool-run) page for `-q`, `-T`,
+and `-v`. When retained output overflows `tool_runs.run_log_max_bytes`, the child is
+still drained and streamed in full. The run footer, `sase tool show RUN -j`
+(`output_truncation`), and `sase tool show RUN -l` each state how many bytes were
+dropped per stream, so a capped log is never mistaken for a complete one.
 
 Precedence: an explicit `-q` or `-v` wins; otherwise a direct agent invocation
 (`SASE_AGENT_NAME`) defaults to compact and everything else streams. When the run is
@@ -419,11 +414,11 @@ retried by the caller creates a second run, and each run executes once.
 
 Platform note: on Linux a terminal-launched proc escapes into its own transient
 `systemd-run --user --scope` (with `OOMPolicy=continue`) whenever the user's systemd
-manager is reachable, so closing the terminal no longer reaches the run; where no user
+manager is reachable, so closing the terminal does not reach the run; where no user
 manager is reachable the proc stays in the terminal's cgroup unless its `detach_scope`
 escapes, and closing the terminal then still reaches the run. `show` on a run whose
-owner row or logs were pruned reports the owner and the log as no longer retained, by
-name — the summary survives.
+owner row or logs were pruned reports the owner and the log as not retained, by name —
+the summary survives.
 
 ## In the TUI
 
@@ -532,12 +527,6 @@ leaving the recorded command and `-f` completion bindings untouched. See
 ## Related
 
 - [Monitors](monitors.md)
+- [`sase tool`](../cli/tool.md)
 - [Tool run receipts](../../contribute/tool-run-receipts.md)
-
-A **named tool** is a project-declared command (`check`, `test`, ...) that
-`sase tool run` executes exactly as declared and records as a **ToolRun**: who ran it,
-when, with what result, how long each stage took, and what the repository and host
-looked like before and after. History is machine-local and useful immediately.
-
-A ToolRun is an execution record. It is not an [LLM Calls](../../ace.md) row, which is
-only the Agents-tab view of what a provider did inside an agent run.
+- [LLM Calls panel](../tui/agents-deck-panels.md#agents-tab-llm-calls-panel)

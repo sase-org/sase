@@ -7,21 +7,21 @@ description: Tasks handled by the scheduler's housekeeping routine.
 
 This page describes the scheduler housekeeping routine.
 
-## housekeeping (1-hour interval)
+## housekeeping (1-hour interval) {#housekeeping-1-hour-interval}
 
 Periodic maintenance:
 
-| Job                          | Description                                                                     |
-| ---------------------------- | ------------------------------------------------------------------------------- |
-| `error_digest`               | Send error notification digests (creates `ViewErrorReport` notification action) |
-| `notification_store_compact` | Archive old dismissed notifications out of the live JSONL store                 |
-| `managed_tmp_reap`           | Prune stale scratch under every registered managed SASE temp root               |
-| `proc_runtime_sweep`         | Prune stale rowless proc runtime directories                                    |
-| `disk_pressure`              | Notify on disk pressure and run owner-safe cleanup early                        |
-| `bead_stale_cleanup`         | Sweep stale sub-threshold ready task beads into one `BeadStaleCleanup` gate     |
-| `gate_turn_reclaim`          | Settle pending gate turns whose gates answered, canceled, expired, or vanished  |
-| `artifact_link_backfill`     | Derive and reconcile artifact links, drain reads, and repair renamed refs       |
-| `artifact_run_prune`         | Preview old ace-run directories and empty shard cleanup                         |
+| Job                          | Description                                                                      |
+| ---------------------------- | -------------------------------------------------------------------------------- |
+| `error_digest`               | Send error notification digests (creates `ViewErrorReport` notification action)  |
+| `notification_store_compact` | Archive old dismissed notifications out of the live JSONL store                  |
+| `managed_tmp_reap`           | Prune stale scratch under every registered managed SASE temp root                |
+| `proc_runtime_sweep`         | Prune stale rowless proc runtime directories                                     |
+| `disk_pressure`              | Notify on disk pressure and run owner-safe cleanup early                         |
+| `bead_stale_cleanup`         | Sweep stale sub-threshold ready task beads into one `BeadStaleCleanup` gate      |
+| `gate_turn_reclaim`          | Settle pending gate turns whose gates answered, canceled, expired, or vanished   |
+| `artifact_link_backfill`     | Derive and reconcile artifact links, drain reads, and repair refs after a rename |
+| `artifact_run_prune`         | Preview old ace-run directories and empty shard cleanup                          |
 
 The `error_digest` job summarizes recent errors into a digest file stored at
 `~/.sase/axe/error_digests/digest_<timestamp>.txt`. The notification includes a
@@ -37,7 +37,7 @@ The `notification_store_compact` job bounds `~/.sase/notifications/notifications
 by moving dismissed rows older than 3 days into `notifications-archive.jsonl`. Unread
 and still-actionable rows stay in the live file. sase's TUI snapshot reads are memoized
 against an mtime+size token, so this pass lives on `housekeeping` rather than the TUI
-refresh cadence that previously re-parsed the whole store every tick.
+refresh cadence.
 
 The `managed_tmp_reap` job bounds every managed SASE temp root writers actually used.
 Each `get_sase_managed_tmpdir()` call registers its resolved root (`$SASE_TMPDIR`, else
@@ -55,9 +55,9 @@ mid-run) after 3 days, build targets (`cargo-targets/`, `build-targets/`) after 
 and artifacts sase's TUI and screenshot tooling reads back (`launch-prompts/`,
 `screenshots/`, `workflow-artifacts/`) after 14 days. Launched agents default
 `TMPDIR`/`TMP`/`TEMP`, `CARGO_TARGET_DIR`, and `CARGO_BUILD_BUILD_DIR` to per-launch
-directories under those managed buckets, so shell scratch and Cargo targets no longer
-fall back to host-global `/tmp`. Launched agents also get line-tables-only debug info
-for the dev and test Cargo profiles, which keeps per-launch targets small. They get
+directories under those managed buckets, so shell scratch and Cargo targets do not fall
+back to host-global `/tmp`. Launched agents also get line-tables-only debug info for the
+dev and test Cargo profiles, which keeps per-launch targets small. They get
 `CARGO_INCREMENTAL=0` by default, or `CARGO_INCREMENTAL=1` when
 [`managed_tmp.agent_cargo_incremental`](../config/runtime-and-storage.md#managedtmp) is
 enabled (athena only, where the splitting rustc wrapper runs metadata-only units
@@ -69,7 +69,7 @@ working directory). That removal goes through the same Rust reaper as the hourly
 Monitor/gate handoffs leave cleanup to the reaper: a follow-up turn mints a fresh
 scratch key from `launch_spawn._managed_agent_scratch_env`, so the handoff outcome skips
 runner-exit cleanup and the old key goes quiet. The hourly pass then runs a dead-launch
-backstop over the launch-keyed buckets (`agent-tmp/`, `cargo-targets/`, legacy
+backstop over the launch-keyed buckets (`agent-tmp/`, `cargo-targets/`,
 `build-targets/`): entries whose newest descendant write predates
 `managed_tmp.dead_launch.grace_seconds` (2 hours by default) and that the batch procfs
 observer reports as held by no live process are removed largest-first within the removal
@@ -85,12 +85,12 @@ the managed root grows beyond 16 GiB by default, or when the filesystem holding 
 below SASE's shared disk-pressure warn threshold: the larger of 3 GiB and
 [`disk.pressure.warn_free_percent`](../config/runtime-and-storage.md#disk) (5% by
 default) of that filesystem. Under pressure, aged entries of at least 64 MiB in
-regenerable build-output buckets (`cargo-targets/`, plus the legacy `build-targets/`),
-and cargo/core target-shaped top-level residue, are removed largest-first until the root
-is estimated below 8 GiB, available space is estimated back above that same warn
-threshold, or the removal budget is reached. Pressure pruning is liveness-aware while
-the procfs observer is available: a held entry is never removed, an entry whose liveness
-is incomplete is preserved, and an unheld entry needs only the dead-launch grace rather
+regenerable build-output buckets (`cargo-targets/`, plus `build-targets/`), and
+cargo/core target-shaped top-level residue, are removed largest-first until the root is
+estimated below 8 GiB, available space is estimated back above that same warn threshold,
+or the removal budget is reached. Pressure pruning is liveness-aware while the procfs
+observer is available: a held entry is never removed, an entry whose liveness is
+incomplete is preserved, and an unheld entry needs only the dead-launch grace rather
 than the pressure minimum age. Pressure pruning otherwise waits 12 hours, but once the
 free-space floor is breached it uses the lower configured low-space age, 1 hour by
 default, without weakening the fresh-descendant check. The horizons, removal budget,
