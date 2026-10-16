@@ -115,9 +115,9 @@ launch time. Multipliers accept up to two decimal places.
 
 When upgrading from an unweighted scheduler build, restart sase's TUI and the service
 host and let already running agent processes finish or relaunch them under the new
-binary. Legacy records without `queue_weight` still read as `1.0`, but mixed old and new
-admission processes do not provide a safe weighted-capacity rollout because old binaries
-do not enforce weighted claims. <a id="maxagentpipechain"></a>
+binary. Records without a `queue_weight` field use `1.0`, but mixed admission processes
+do not provide a safe weighted-capacity rollout because every process must enforce
+weighted claims. <a id="maxagentpipechain"></a>
 
 ## max_agent_pipe_chain
 

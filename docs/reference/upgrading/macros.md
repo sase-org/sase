@@ -1,11 +1,42 @@
 ---
 title: Macro migration notes
-description: Historical notes about renamed macros and legacy placeholders.
+description: Migration notes for macro names, prompt fields, and launch syntax.
 ---
 
 # Macro migration notes
 
 This page preserves macro renaming and placeholder migration history.
+
+## Agent launch spellings
+
+Older agent selectors use `family` where current prompts and config use `session`. The
+compatibility parser also maps older shell gate fields and values to `turn`; proc list
+and run commands use `--name`. Supplying both an older and current spelling for the same
+field is an error. Write session and turn forms in new prompts and config.
+
+## Workflow launch syntax
+
+Use `#name` for inline macros and `#!name` for standalone workflows. A top-level
+`sase run '#sync'` invocation remains accepted with a warning; write
+`sase run '#!sync'`. Macro swarms accept `#!name` as a compatibility prefix; write
+`#name` in new prompts.
+
+## Workflow configuration
+
+Standalone workflow definitions belong in YAML files under the file-backed macro
+sources. Top-level `workflows:` blocks in project, user, or overlay config are ignored.
+See [Macro discovery](../macros/discovery.md#discovery-order) for the supported sources.
+
+## Template and input aliases
+
+| Accepted form       | Canonical form     |
+| ------------------- | ------------------ |
+| `{{ wait_chats }}`  | `{{ wait.chats }}` |
+| `{{ cl_name }}`     | `{{ patch_name }}` |
+| input type `string` | input type `line`  |
+| `wraps_all: true`   | `tags: vcs`        |
+
+Use the canonical form in new templates, inputs, and workflow definitions.
 
 ## Renamed from xprompts
 

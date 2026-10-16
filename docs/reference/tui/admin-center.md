@@ -115,9 +115,10 @@ Launch Control modal (including bucket rows), not a configurable leader-key entr
 Choosing Provider default writes the empty schema sentinel; a currently active temporary
 effort override remains effective until expiry or clear.
 
-The deprecated `linked_repos` and `sibling_repos` keys remain readable as compatibility
-aliases for [`repos.linked`](../config/repositories-behavior.md#repos), but the Config tab no longer offers a one-key
-migration action. Prefer editing the config to use `repos.linked` directly.
+The Config tab edits the canonical [`repos.linked`](../config/repositories-behavior.md#repos)
+mapping; its editor has no one-key migration action. Hand-edited config can still use the
+`linked_repos` and `sibling_repos` aliases. See
+[Configuration migration notes](../upgrading/configuration.md#repository-configuration).
 
 SASE Admin Center never writes without showing the diff and validation first, and never
 edits a built-in or plugin default (those layers are read-only).
@@ -337,39 +338,17 @@ in one shared mark set whose aggregate line counts plugin installs, CLI installs
 CLI updates separately; `Esc` clears every mark, of any kind and regardless of the
 active filter, before closing. All slow work runs off the event loop. Core/plugin code
 changes retain the existing automatic sase's TUI and service host restart behavior after
-the other legs finish. The context-sensitive keymaps are:
+the other legs finish. The Tools pane bindings are listed in the generated
+[TUI keymap reference](keymaps.md).
 
-| Key                 | Action                                                                                                                  |
-| ------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| `j` / `k`           | Move the highlight down / up                                                                                            |
-| `'`                 | Jump to a row via adaptive hints, across every section                                                                  |
-| `I` / `Space`       | Mark / unmark the highlighted row (`I` is an alias of `Space`)                                                          |
-| `*`                 | Mark / unmark every visible row in the highlighted row's section with the same action                                   |
-| `i`                 | Open the install preview for the marked set (plugins and agent CLIs together), or for the highlighted row when unmarked |
-| `x`                 | Uninstall the highlighted plugin (only when installed)                                                                  |
-| `u`                 | Run `sase update` for SASE core plus all installed plugins                                                              |
-| `A`                 | Update marked agent CLIs from anywhere, or every safely updatable installed agent CLI otherwise                         |
-| `H`                 | Toggle the agent-CLI run history between the highlighted CLI and every CLI                                              |
-| `a`                 | Publish and reconcile every enabled agents repository, draining queued publication retries                              |
-| `U`                 | Update the highlighted installed plugin when that row has an update available                                           |
-| `m`                 | Switch install mode (PyPI managed ↔ dev editable; the `sase update --to` analog)                                        |
-| `r`                 | Refresh — refetch the catalog and latest versions (the `-r/--refresh` analog)                                           |
-| `Ctrl+D`            | Scroll the detail panel down                                                                                            |
-| `Ctrl+U`            | Scroll the detail panel up                                                                                              |
-| `g`                 | Scroll the detail panel to the top                                                                                      |
-| `G`                 | Scroll the detail panel to the bottom                                                                                   |
-| `o`                 | Toggle offline (cache-only) mode, with a header badge (the `-o/--offline` analog)                                       |
-| `v`                 | Toggle verbose list columns — stars / last-updated (the `-v/--verbose` analog)                                          |
-| `/`                 | Focus the filter input (matches every row's own name / description / topics, across all sections)                       |
-| `#` (default)       | From home, resume the last section used; in a section, jump to the previous one, press again to toggle                  |
-| `Tab` / `Shift+Tab` | From home enter Config / Updates; otherwise switch SASE Admin Center tabs (`1`–`8` jump directly)                       |
-| `Esc`               | Clear every mark first, including any hidden by the filter; close when no marks are active                              |
-| `q`                 | Close SASE Admin Center                                                                                                 |
+From home, `Tab` enters Config and `Shift+Tab` enters Updates; within a working section
+they switch tabs. `1`–`8` select a section directly. Pressing `#` from home resumes the
+last section; within a section it toggles between the current and previous section.
+`Esc` clears every mark before closing, and `q` closes the Admin Center.
 
-The Admin Center opener is the effective `ace.keymaps.app.open_config_center` binding
-(`number_sign` / `#` by default), so a custom binding is repeated in the same way and
-appears in the landing-page hint. The remaining section-navigation keymaps above are
-widget-local and are not configurable through `default_config.yml`.
+The Admin Center opener uses the effective `ace.keymaps.app.open_config_center` binding
+(`number_sign` / `#` by default), which is shown in the generated keymap reference and
+the landing-page hint. Section navigation is pane-local and cannot be configured.
 
 ## Related
 

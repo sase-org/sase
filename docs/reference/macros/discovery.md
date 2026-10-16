@@ -22,19 +22,16 @@ Skills are discovered separately, from canonical `skills/` directories only, and
 [Canonical Skill Sources](fields.md#canonical-skill-sources) for that order; the file sources
 listed in the generated reference cannot define a skill.
 
-Memory notes are also discovered separately, from canonical (and legacy-compatible)
-`sase/memory/` directories only, and take `memory/`-namespaced reference names. See
+Memory notes are also discovered separately from `sase/memory/` directories and take
+`memory/`-namespaced reference names. See
 [Memory Field](fields.md#memory-field) and
 [Memory Order](../upgrading/content-layout.md#memory-order); the file sources
 listed in the generated reference cannot define a memory macro.
 
-Each directory-based source can contain individual `.md` files and, where supported,
-`.yml` or `.yaml` workflows plus a `steps/` directory. Project config is exclusive: if
-the canonical and legacy project config locations both exist, SASE reports a collision
-instead of merging them. File directories are first-wins, so a canonical definition
-shadows a same-named legacy definition. All save, create, copy-on-edit, export, and
-workflow-editor destinations use writable canonical sources; legacy sources are
-displayed only for migration. See
+Project config is exclusive: if the canonical and compatibility project config
+locations both exist, SASE reports a collision instead of merging them. All save,
+create, copy-on-edit, export, and workflow-editor destinations use writable canonical
+sources. See
 [Canonical SASE Content Layout](../content-layout.md) for before/after paths and
 the compatibility timeline.
 
@@ -47,7 +44,8 @@ directory becomes `foo/bar`. Inline-capable project macros are referenced as `#f
 standalone project workflows are referenced as `#!foo/bar`.
 
 When a project is detected (via the workspace provider), project macros from the
-canonical and legacy file directories and local config macros are auto-namespaced with
+canonical and compatibility file directories and local config macros are auto-namespaced
+with
 the `{project}/` prefix. For example, if the project is `myapp` and
 `sase/macros/deploy.md` exists, it becomes `myapp/deploy` and is referenced as
 `#myapp/deploy`. A project workflow with no `prompt_part` would instead be launched as

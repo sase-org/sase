@@ -15,130 +15,29 @@ Environment variables that configure providers, SDD, plugins, runtime, and works
 
 ### LLM Provider
 
-| Variable                                       | Description                                                                                     |
-| ---------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| `SASE_MODEL_TIER_OVERRIDE`                     | Force all LLM invocations to a specific tier (`large` or `small`).                              |
-| `SASE_MODEL_SIZE_OVERRIDE`                     | Legacy alias for `SASE_MODEL_TIER_OVERRIDE` (`big` or `little`).                                |
-| `SASE_LLM_EXEC_PROVIDER`                       | Execute through this registered provider while preserving requested model metadata.             |
-| `SASE_LLM_LARGE_ARGS`                          | Extra CLI args appended for `large` tier invocations (any provider).                            |
-| `SASE_LLM_SMALL_ARGS`                          | Extra CLI args appended for `small` tier invocations (any provider).                            |
-| `SASE_CLAUDE_LARGE_ARGS`                       | Claude-specific extra args for `large` tier (fallback if generic unset).                        |
-| `SASE_CLAUDE_SMALL_ARGS`                       | Claude-specific extra args for `small` tier (fallback if generic unset).                        |
-| `SASE_CLAUDE_MAX_WAIT_CONTINUATIONS`           | Claude [single-turn wait guard](providers/claude.md#single-turn-wait-guard) cap (default: `2`). |
-| `SASE_CODEX_PATH`                              | Path to the Codex CLI binary (default: PATH lookup, then NVM_BIN/codex).                        |
-| `SASE_CODEX_LARGE_ARGS`                        | Codex-specific extra args for `large` tier (fallback if generic unset).                         |
-| `SASE_CODEX_SMALL_ARGS`                        | Codex-specific extra args for `small` tier (fallback if generic unset).                         |
-| `SASE_CODEX_DISABLE_SHADOW_HOME`               | Set to `1` to launch Codex with the inherited `CODEX_HOME`.                                     |
-| `SASE_QWEN_PATH`                               | Path to the Qwen Code CLI binary (default: `qwen`).                                             |
-| `SASE_QWEN_LARGE_ARGS`                         | Qwen-specific extra args for `large` tier (fallback if generic unset).                          |
-| `SASE_QWEN_SMALL_ARGS`                         | Qwen-specific extra args for `small` tier (fallback if generic unset).                          |
-| `SASE_OPENCODE_PATH`                           | Path to the OpenCode CLI binary (default: `opencode`).                                          |
-| `SASE_OPENCODE_LARGE_ARGS`                     | OpenCode-specific extra args for `large` tier (fallback if generic unset).                      |
-| `SASE_OPENCODE_SMALL_ARGS`                     | OpenCode-specific extra args for `small` tier (fallback if generic unset).                      |
-| `SASE_AGY_PATH`                                | Path to the Antigravity CLI binary (default: `agy`).                                            |
-| `SASE_AGY_PRINT_TIMEOUT`                       | Override the `agy --print-timeout` Go duration (default: `24h`).                                |
-| `SASE_AGY_MAX_NO_PROGRESS_CONTINUATIONS`       | Override the no-progress continuation cap (default: `2`).                                       |
-| `SASE_AGY_LARGE_ARGS`                          | Antigravity-specific extra args for `large` tier (fallback if generic unset).                   |
-| `SASE_AGY_SMALL_ARGS`                          | Antigravity-specific extra args for `small` tier (fallback if generic unset).                   |
-| `SASE_MUSE_PATH`                               | Path to the Muse Code CLI binary (default: `muse`).                                             |
-| `SASE_MUSE_LARGE_ARGS`                         | Muse-specific extra args for `large` tier (fallback if generic unset).                          |
-| `SASE_MUSE_SMALL_ARGS`                         | Muse-specific extra args for `small` tier (fallback if generic unset).                          |
-| `SASE_MUSE_SANDBOX`                            | Set to `on` to keep Muse's sandbox with `--sandbox-network enabled`.                            |
-| `SASE_GROK_PATH`                               | Path to the Grok Build CLI binary (default: `grok`).                                            |
-| `SASE_GROK_LARGE_ARGS`                         | Grok-specific extra args for `large` tier (fallback if generic unset).                          |
-| `SASE_GROK_SMALL_ARGS`                         | Grok-specific extra args for `small` tier (fallback if generic unset).                          |
-| `SASE_CONTINUATION_BUDGET_ENFORCE`             | Set to `1` to apply continuation-budget preflight outside monitor successors.                   |
-| `SASE_CONTINUATION_CONTEXT_LIMIT_BYTES`        | Positive context-limit override for continuation preflight (default: `800000`).                 |
-| `SASE_CONTINUATION_TRANSPORT_LIMIT_BYTES`      | Optional positive transport-limit override for continuation preflight.                          |
-| `SASE_CONTINUATION_CHECKPOINT_THRESHOLD_BYTES` | Optional positive checkpoint-threshold override.                                                |
-| `SASE_CONTINUATION_INSTRUCTION_RESERVE_BYTES`  | Positive instruction-reserve override (default: `0`).                                           |
-| `SASE_CONTINUATION_TOOL_RESERVE_BYTES`         | Positive tool-context reserve override (default: `0`).                                          |
-| `SASE_CONTINUATION_OUTPUT_RESERVE_BYTES`       | Positive output reserve override (default: `0`).                                                |
-| `SASE_CONTINUATION_REASONING_RESERVE_BYTES`    | Positive reasoning reserve override (default: `0`).                                             |
+The detailed [LLM environment-variable reference](#environment-variable-reference)
+covers provider and model-selection variables.
 
-For the per-provider args, the generic `SASE_LLM_*_ARGS` variables are checked first. If
-unset, the provider-specific variable is used as a fallback. Values are split on
-whitespace and appended to the CLI command.
+### VCS Provider
 
-Monitor successors always run the continuation-budget preflight; the explicit enforce
-variable is for another invocation path that needs the same guard. The preflight
-measures the final expanded prompt after replay. When essential content exceeds the
-effective budget, SASE records the decision and refuses before calling the provider.
-Each `SASE_CONTINUATION_*_BYTES` variable outranks the matching
-[`llm_provider.continuation_budget`](config/llm-provider-behavior.md#llmprovidercontinuationbudget)
-setting, including provider and model overrides. Invalid, zero, or negative numeric
-overrides fall back to the corresponding default or remain unset.
+| Variable                                   | Description                                                                                                                                                                                                                                                                                                                  |
+| ------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SASE_VCS_PROVIDER`                        | Override VCS provider selection (`git`, `hg`, or `auto`).                                                                                                                                                                                                                                                                    |
+| `SASE_WORKSPACE_ROOT`                      | Override the workspace-root base for this process. Use an absolute path; `WorkspaceStore` appends `<project_key>/<project>_<num>/` for managed checkouts.                                                                                                                                                                    |
+| `SASE_BUG_ID`                              | Bug ID for PR workflows. When set and non-zero, injects `SASE_BUG=<id>` into PR tags and Patch.                                                                                                                                                                                                                              |
+| `SASE_BEAD_ID`                             | Assigned bead ID for commit workflows. When set, `sase stitch create` adds a linked `SASE_BEAD=` footer tag, leaves the subject unchanged, and requires an explicit `-B/--bead-action keep\|close` (see [Explicit Bead Action](../commit_workflows.md#explicit-bead-action)).                                                |
+| `SASE_GH_TIMEOUT`                          | Positive per-attempt timeout, in seconds, for SASE's retried `gh` CLI calls (default: `20`).                                                                                                                                                                                                                                 |
+| `SASE_GH_MAX_RETRY_SLEEP`                  | Positive cap, in seconds, on one wait between `gh` retries, including a server-requested retry delay (default: `60`).                                                                                                                                                                                                        |
+| `SASE_GIT_LOCK_RETRY_DELAYS`               | Comma-separated finite non-negative delays, in seconds, for shared Git `index.lock` recovery backoff (default: `0.1,0.2,0.4,0.8,1.6,3.2`). Invalid, empty, negative, NaN, or infinite values use that built-in schedule. An explicit empty caller schedule means no backoff; it does not skip the 15-second stale-age check. |
+| `SASE_LINKED_REPOS_JSON`                   | Resolved linked-repo metadata passed to launched agents.                                                                                                                                                                                                                                                                     |
+| `SASE_LINKED_REPO_<ENV_NAME>_DIR`          | Workspace-matched directory for one configured linked repo.                                                                                                                                                                                                                                                                  |
+| `SASE_LINKED_REPO_<ENV_NAME>_PRIMARY_DIR`  | Primary checkout directory for one linked repo.                                                                                                                                                                                                                                                                              |
+| `SASE_SIBLING_REPOS_JSON`                  | Compatibility alias for `SASE_LINKED_REPOS_JSON`.                                                                                                                                                                                                                                                                            |
+| `SASE_SIBLING_REPO_<ENV_NAME>_DIR`         | Compatibility alias for `SASE_LINKED_REPO_<ENV_NAME>_DIR`.                                                                                                                                                                                                                                                                   |
+| `SASE_SIBLING_REPO_<ENV_NAME>_PRIMARY_DIR` | Compatibility alias for `SASE_LINKED_REPO_<ENV_NAME>_PRIMARY_DIR`.                                                                                                                                                                                                                                                           |
 
-SASE-launched Codex subprocesses use a disposable shadow `CODEX_HOME` by default. The
-shadow home is created under `~/.cache/sase/codex_home/`, receives a copy of the real
-`config.toml`, symlinks other Codex home entries back to the real home, and is removed
-when the subprocess exits. If the real Codex home does not provide `AGENTS.override.md`
-or `AGENTS.md`, SASE also links `~/AGENTS.md` into the shadow as Codex's
-`$CODEX_HOME/AGENTS.md` fallback. This prevents Codex runtime config rewrites from
-dirtying the user-managed Codex config while preserving auth, hooks, skills, logs, and
-caches.
-
-Qwen Code uses
-`qwen --input-format text --output-format stream-json --yolo --model <model>` and
-expects users to configure Qwen auth through Qwen's supported settings path. Qwen OAuth
-free tier access ended on 2026-04-15; use API keys, Alibaba Cloud Coding Plan,
-OpenRouter, Fireworks, or another Qwen-supported provider.
-
-OpenCode uses
-`opencode run --format json --dangerously-skip-permissions --model <provider/model> --dir <cwd> <prompt>`
-and expects users to configure OpenCode auth/settings through its normal XDG paths.
-OpenCode model names usually include a provider prefix; use `opencode models` to list
-models in your configured environment.
-
-Muse Code uses
-`muse exec --json --workspace <cwd> --model <model> --trust-workspace --disable-approval --disable-sandbox --user-input-auto-resolve --no-foreign-personal-context --session-id <uuid> --prompt-file <tempfile>`
-and expects users to authenticate with `muse login` or `META_API_KEY`. SASE always sets
-`MUSE_NO_AUTO_UPDATE=1` for agent runs so Muse's launcher cannot replace its binary
-mid-run; update Muse with `sase agent-cli update muse` instead. Muse's sandbox makes
-`.git` read-only inside the workspace, which would break in-run commits, so SASE
-disables it by default; `SASE_MUSE_SANDBOX=on` keeps the sandbox with
-`--sandbox-network enabled` at the documented cost of in-run commits failing.
-
-Muse's Contributor models carry a **model advisory**: Meta uses their inputs and outputs
-to train and improve Meta's AI models (see the generated
-[Built-in Model Catalog](providers/models.md#built-in-model-catalog) for the current
-names). SASE keeps them fully reachable by name and never points a provider tier map at
-any of them. Whichever shipped size aliases currently include a Contributor member route
-there automatically whenever a `muse` executable is available (see the generated
-[shipped size-alias defaults](providers/models.md#implicit-role-aliases)); override
-`llm_provider.model_aliases.builtin.<size>` to opt out. The advisory renders in sase's
-TUI model picker, in `%model` completion detail, and in the resolved model label, and
-`sase doctor -C llm.model_advisory` warns when a configured default or model alias
-resolves to any advisory-flagged model. See
-[LLM Providers — Model advisories](providers/models.md#model-advisories).
-
-Grok Build uses
-`grok --prompt-file /dev/stdin --output-format streaming-messages-json --permission-mode bypassPermissions --model <model> --cwd <cwd> --session-id <uuid> --no-plan --no-ask-user --no-auto-update --no-leader`
-and expects users to authenticate with `grok login` or `XAI_API_KEY`. `grok` is a
-generic executable name shared with a stale community CLI (`grok-dev`) and Homebrew's
-deprecated regex tool. Like Muse, Grok never participates in default-provider
-autodetection. It is reached by explicit selection (see
-[llm_provider.provider](#llm-provider) above) or by the separate model-alias router:
-whichever shipped size aliases currently target Grok can select it whenever a `grok`
-executable is available (see the generated
-[shipped size-alias defaults](providers/models.md#implicit-role-aliases)). Routing
-checks executable presence, while `sase doctor` performs the Grok Build identity probe.
-Grok models accept only `low`/`medium`/`high`/`xhigh` for `--effort`; see
-[LLM Providers — Reasoning Effort](providers/models.md#reasoning-effort).
-
-### VCS Provider {#vcs-provider-1}
-
-| Variable                          | Description                                                                                                                                                                                                                                                                                                                  |
-| --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `SASE_VCS_PROVIDER`               | Override VCS provider selection (`git`, `hg`, or `auto`).                                                                                                                                                                                                                                                                    |
-| `SASE_WORKSPACE_ROOT`             | Override the workspace-root base for this process. Use an absolute path; `WorkspaceStore` appends `<project_key>/<project>_<num>/` for managed checkouts.                                                                                                                                                                    |
-| `SASE_BUG_ID`                     | Bug ID for PR workflows. When set and non-zero, injects `SASE_BUG=<id>` into PR tags and Patch.                                                                                                                                                                                                                              |
-| `SASE_BEAD_ID`                    | Assigned bead ID for commit workflows. When set, `sase stitch create` adds a linked `SASE_BEAD=` footer tag, leaves the subject unchanged, and requires an explicit `-B/--bead-action keep\|close` (see [Explicit Bead Action](../commit_workflows.md#explicit-bead-action)).                                                |
-| `SASE_GH_TIMEOUT`                 | Positive per-attempt timeout, in seconds, for SASE's retried `gh` CLI calls (default: `20`).                                                                                                                                                                                                                                 |
-| `SASE_GH_MAX_RETRY_SLEEP`         | Positive cap, in seconds, on one wait between `gh` retries, including a server-requested retry delay (default: `60`).                                                                                                                                                                                                        |
-| `SASE_GIT_LOCK_RETRY_DELAYS`      | Comma-separated finite non-negative delays, in seconds, for shared Git `index.lock` recovery backoff (default: `0.1,0.2,0.4,0.8,1.6,3.2`). Invalid, empty, negative, NaN, or infinite values use that built-in schedule. An explicit empty caller schedule means no backoff; it does not skip the 15-second stale-age check. |
-| `SASE_LINKED_REPOS_JSON`          | Resolved linked-repo metadata passed to launched agents.                                                                                                                                                                                                                                                                     |
-| `SASE_LINKED_REPO_<ENV_NAME>_DIR` | Workspace-matched directory for one configured linked repo.                                                                                                                                                                                                                                                                  |
+`<ENV_NAME>` is the uppercase, sanitized repository name. Duplicate names receive a
+numeric suffix.
 
 ### SDD Git Operations
 
@@ -186,11 +85,11 @@ VCS, workspace, and LLM registries load provider entry points directly.
 | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `SASE_TMPDIR`                        | Override SASE's [managed temp root](config/runtime-and-storage.md#managedtmp). When unset, the root is `$SASE_HOME/tmp` (`~/.sase/tmp` by default). Keep it off tmpfs and out of file-sync folders, because build scratch can be large.                                                                                                                                                                                               |
 | `SASE_DETACH_SCOPE_DISABLE`          | Set to `1`, `true`, `yes`, or `on` to stop detached agent runners, procs, monitors, and scheduler/hook/bead-sync workers from escaping SASE's systemd cgroup. By default on Linux, when the launcher runs inside a SASE-owned systemd unit or scope, or anywhere under a reachable user systemd manager, and `systemd-run` exists, SASE starts that work in its own transient `systemd-run --user --scope` with `OOMPolicy=continue`. |
-| `SASE_AXE_DISABLE_SYSTEMD_SCOPE`     | Legacy alias for `SASE_DETACH_SCOPE_DISABLE`: set to a truthy value to stop the same detached work from escaping SASE's systemd cgroup.                                                                                                                                                                                                                                                                                               |
+| `SASE_AXE_DISABLE_SYSTEMD_SCOPE`     | Compatibility alias for `SASE_DETACH_SCOPE_DISABLE`: set to a truthy value to stop the same detached work from escaping SASE's systemd cgroup.                                                                                                                                                                                                                                                                                        |
 | `SASE_FEATURE_FLAGS`                 | Strict JSON object of booleans carrying the resolved feature-flag snapshot for this process and its children. Outranks config layers and a saved machine preference. Root `-f/--enable-feature` and `-F/--disable-feature` merge into this variable so launched processes inherit those CLI overrides.                                                                                                                                |
 | `SASE_MACRO_LSP_CMD`                 | Override the command used by `sase lsp` to launch the macro language server.                                                                                                                                                                                                                                                                                                                                                          |
 | `SASE_CORE_DIR`                      | Preferred `sase-core` source checkout for `Justfile` Rust build/install targets; overrides `../sase-core`.                                                                                                                                                                                                                                                                                                                            |
-| `SASE_RUST_DEV_PROFILE`              | Cargo profile for the `just` Rust dev-install recipes and editable `sase-core` update prebuilds (default: `dev-update`); set `release` to force the published release profile. See [Rust Backend](../rust_backend.md).                                                                                                                                                                                                                |
+| `SASE_RUST_DEV_PROFILE`              | Cargo profile for the `just` Rust dev-install recipes and editable `sase-core` update prebuilds (default: `dev-update`); set `release` to force the published release profile. See [Rust Backend](../contribute/rust-backend.md).                                                                                                                                                                                                     |
 | `SASE_FORMAT_VENV_DIR`               | Virtualenv the `just` formatting recipes install their narrow formatter tool set into (default: `.venv-format`).                                                                                                                                                                                                                                                                                                                      |
 | `SASE_PYTEST_DIST`                   | xdist scheduler for the `just` pytest recipes: `worksteal` (default) or `loadfile` (fallback). Invalid values fail before worker-token acquisition; serial inline-snapshot modes ignore it.                                                                                                                                                                                                                                           |
 | `SASE_PYTEST_SANDBOX_DIR`            | Pytest-published sandbox root inherited by test subprocesses; bead-store writes during pytest must target a path at or below this directory.                                                                                                                                                                                                                                                                                          |
@@ -257,7 +156,7 @@ Complete reference of environment variables used by the LLM provider layer.
 | `SASE_LLM_LARGE_ARGS`                | Extra CLI args for `large` tier invocations                                                                                                                                                               |
 | `SASE_LLM_SMALL_ARGS`                | Extra CLI args for `small` tier invocations                                                                                                                                                               |
 | `SASE_MODEL_TIER_OVERRIDE`           | Force all invocations to a specific model tier                                                                                                                                                            |
-| `SASE_MODEL_SIZE_OVERRIDE`           | Legacy alias for `SASE_MODEL_TIER_OVERRIDE`                                                                                                                                                               |
+| `SASE_MODEL_SIZE_OVERRIDE`           | Compatibility alias for `SASE_MODEL_TIER_OVERRIDE`                                                                                                                                                        |
 | `SASE_PROVIDER_SYNC_CEILING_SECONDS` | Set by the agent runner around each provider invocation: that harness's hard per-command kill ceiling in seconds (unset when the provider declares none); scrubbed at agent, monitor, and proc boundaries |
 
 `SASE_LLM_EXEC_PROVIDER` must name a registered provider. It changes subprocess dispatch
@@ -335,12 +234,6 @@ mid-run; `sase agent-cli update grok` runs Grok Build's own `update` subcommand 
 
 External provider plugins document their own environment variables in their respective
 repos.
-
-### VCS Provider
-
-| Variable            | Description                                          |
-| ------------------- | ---------------------------------------------------- |
-| `SASE_VCS_PROVIDER` | Override VCS provider (`"git"`, `"hg"`, or `"auto"`) |
 
 ## Related
 

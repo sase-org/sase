@@ -434,7 +434,7 @@ moves:
       opencode-specific: reference/environment-variables.md#opencode-specific
       muse-code-specific: reference/environment-variables.md#muse-code-specific
       grok-specific: reference/environment-variables.md#grok-specific
-      vcs-provider: reference/environment-variables.md#vcs-provider-1
+      vcs-provider: reference/environment-variables.md#vcs-provider
       retry-and-fallback: reference/providers/retry-and-fallback.md#retry-and-fallback
       configuration-1: reference/providers/retry-and-fallback.md#configuration-1
       config-fields-1: reference/providers/retry-and-fallback.md#config-fields-1
@@ -659,14 +659,14 @@ moves:
       renamed-from-xprompts: reference/upgrading/macros.md#renamed-from-xprompts
       retired-macro-spellings: reference/upgrading/macros.md#retired-macro-spellings
       legacy-placeholders: reference/upgrading/macros.md#legacy-placeholders
-      cli-subcommands: reference/macros/cli-and-editor.md#cli-subcommands
-      sase-macro-expand: reference/macros/cli-and-editor.md#sase-macro-expand
-      sase-macro-explain: reference/macros/cli-and-editor.md#sase-macro-explain
-      sase-macro-list: reference/macros/cli-and-editor.md#sase-macro-list
-      sase-macro-show: reference/macros/cli-and-editor.md#sase-macro-show
-      sase-macro-graph: reference/macros/cli-and-editor.md#sase-macro-graph
-      sase-macro-catalog: reference/macros/cli-and-editor.md#sase-macro-catalog
-      sase-macro-types: reference/macros/cli-and-editor.md#sase-macro-types
+      cli-subcommands: reference/cli/macro.md#sase-macro
+      sase-macro-expand: reference/cli/macro.md#sase-macro-expand
+      sase-macro-explain: reference/cli/macro.md#sase-macro-explain
+      sase-macro-list: reference/cli/macro.md#sase-macro-list
+      sase-macro-show: reference/cli/macro.md#sase-macro-show
+      sase-macro-graph: reference/cli/macro.md#sase-macro-graph
+      sase-macro-catalog: reference/cli/macro.md#sase-macro-catalog
+      sase-macro-types: reference/cli/macro.md#sase-macro-types
       editor-lsp: reference/macros/cli-and-editor.md#editor-lsp
       discovery-order: reference/macros/discovery.md#discovery-order
       file-format: reference/macros/reference-syntax.md#file-format
@@ -711,7 +711,7 @@ moves:
       available-tags: reference/macros/tags.md#available-tags
       defining-tags: reference/macros/tags.md#defining-tags
       tag-based-lookup: reference/macros/tags.md#tag-based-lookup
-      backward-compatibility: reference/macros/tags.md#backward-compatibility
+      backward-compatibility: reference/upgrading/macros.md#template-and-input-aliases
       snippet-field: reference/macros/fields.md#snippet-field
       snippet-cli: reference/macros/fields.md#snippet-cli
       skill-field: reference/macros/fields.md#skill-field

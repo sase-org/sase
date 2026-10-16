@@ -127,9 +127,10 @@ concatenate entries onto the effective list, matching `mentor_profiles` merge be
 Hook names must remain unique across the effective list; invalid or duplicate entries
 are warned about and skipped. Unknown `file_hooks` keys are rejected the same way, so a
 hook carrying one is skipped with a warning rather than silently losing that filter.
-Filter fields at the hook top level are no longer accepted; move `projects`, `sidecars`,
-`path_globs`, `agent_name_globs`, `ops`, `causes`, and `producers` under `filters`. Note
-that `globs` was renamed to `filters.path_globs`; the old key is not accepted.
+Hook filter fields belong under `filters`: `projects`, `sidecars`, `path_globs`,
+`agent_name_globs`, `ops`, `causes`, and `producers`. `globs` is not accepted; use
+`filters.path_globs`. See
+[Configuration migration notes](../upgrading/configuration.md#file-hook-filters).
 
 Source: `src/sase/config/file_hooks.py`, `src/sase/file_hooks/engine.py`,
 `src/sase/file_hooks/audit.py`, `src/sase/file_hooks/producer.py`,
@@ -275,23 +276,12 @@ macros:
     tags: [crs]
 ```
 
-Macros use the shared first-wins content-layout order:
-
-1. Project `sase/macros/`, then legacy project `.macros/` and `macros/`
-2. Home `~/sase/macros/`, then legacy home `~/.macros/` and `~/macros/`
-3. `~/sase/macros/{project}/`, then legacy `~/.config/sase/macros/{project}/`
-4. Project `sase/sase.yml` (root `sase.yml` is an exclusive legacy fallback)
-5. User `sase_*.yml` overlays, then `~/.config/sase/sase.yml`
-6. Plugin config and package default config
-7. Plugin macro resources
-8. `<sase_package>/default_macros/*.md`, then `<sase_package>/macros/*.md`
-
-Earlier sources win on name conflicts. Project and home canonical directories are the
-only writable filesystem destinations; legacy directories remain read-compatible but are
-not offered for new saves. File-based macros use YAML front matter for metadata and the
+Macro resolution uses the shared first-wins content-layout order. Within config sources,
+project `sase/sase.yml` wins over user overlays and base config; plugin config and
+package defaults follow. File-based macros use YAML front matter for metadata and the
 file body for content. The
-[Macro discovery table](../macros/discovery.md#discovery-order) lists every source
-separately.
+[Macro discovery reference](../macros/discovery.md#discovery-order) lists the complete
+file-source order and writable locations.
 
 Source: `src/sase/macro/loader.py` <a id="macroaliases"></a>
 

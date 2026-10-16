@@ -74,10 +74,10 @@ that resolve even when unset: `@xsmall`, `@small`, `@medium`, `@large`, and `@xl
 Each is a direct selector with no fallback chain to another alias — override one by
 setting `model_aliases.builtin.<size>` to a concrete model, an `A | B` round-robin pool,
 an `A || B` ordered fallback, or a parenthesized `(A | B) || C` last-resort. Phase and
-task launches route directly to the size alias matching their size metadata; a legacy
-phase or task with no size metadata routes through `@small`. New tasks require an
-explicit size after `/sase_new_task` has ruled out a semantic duplicate and a causally
-related in-progress epic. See
+task launches route directly to the size alias matching their size metadata; a phase or
+task with no size metadata routes through `@small`. New tasks require an explicit size
+after `/sase_new_task` has ruled out a semantic duplicate and a causally related
+in-progress epic. See
 [Built-in size aliases](../providers/models.md#implicit-role-aliases) for the full
 shipped-defaults table and
 [Role Aliases for Delegated Work](../providers/models.md#role-aliases-for-delegated-work)
@@ -103,32 +103,14 @@ that initial window, the panel's Ctrl+J / Ctrl+K keys add or subtract a fixed 10
 step and never drop below this configured limit; they do not use `ace.page_size`.
 
 Accepted tale follow-ups without an approval-time model validate the actual handoff plan
-and choose the matching size alias directly. Legacy tale plans without size metadata use
+and choose the matching size alias directly. Tale plans without size metadata use
 `@medium`. An approval-time model, a `%model` directive in a custom coder prompt, or an
 outer effort suffix remains authoritative.
 
-`model_aliases.builtin.epic_creator` is retired. SASE no longer launches an epic-creator
-agent, resolves that alias implicitly, or treats it as a builtin override, so a stale
-entry should be deleted rather than repointed. `sase doctor` reports a leftover entry
-under the `model_aliases.builtin.epic_creator` key.
-
-> The `llm_provider.worker_models` map and the reserved `@worker` / `@other` aliases
-> were removed in epic sase-5d. Use a size alias (`@xsmall`, `@small`, `@medium`,
-> `@large`, `@xlarge`) or an explicit model instead of `@worker`, and
-> `llm_provider.default_model` instead of `@other`. The `phase_worker` bucket and its
-> `<size>_phase_worker` aliases from that epic were themselves retired by the later
-> size-alias simplification below. `sase doctor` reports configs that still reference
-> removed keys or aliases, including retired `@coder` and registered `@<provider>_coder`
-> builtin entries.
-
-> The implicit role aliases (`@default`, `@epic_lander`, `@big_epic_lander`), the five
-> `<size>_worker` aliases, the automatic `worker` bucket, and the capability/cost
-> aliases (`@smart`, `@smarter`, `@smartest`, `@cheap`, `@cheaper`, `@cheapest`) were
-> removed in favor of the five direct built-in size aliases above plus the three scalar
-> `default_model` / `epic_lander_model` / `big_epic_lander_model` fields. A custom alias
-> can still opt into a bucket of any name, including `worker` — it just has no special
-> behavior anymore. Run `sase doctor -C config.model_aliases` for the exact destination
-> of any retired name still present in your config or directives.
+There is no built-in `epic_creator` model alias. `sase doctor` reports a leftover
+`model_aliases.builtin.epic_creator` setting so it can be removed. See
+[Provider migration notes](../upgrading/providers.md#model-aliases) for removed alias
+names and current replacements.
 
 The TUI also supports **temporary**, per-alias session-level provider/model overrides
 (set from [Launch Control](../../ace.md#launch-control), `,m`) that do **not** edit this

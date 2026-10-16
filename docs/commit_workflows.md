@@ -546,7 +546,7 @@ provider-specific metadata (e.g., Google PR tags) without manual entry. `AGENT` 
 rather than static config. Note that the rendered keys carry the `SASE_` prefix (e.g. a
 configured `MARKDOWN` tag is written as `SASE_MARKDOWN=`), so external tooling that
 consumes these tags must accept the prefixed names. See
-[configuration.md](reference/environment-variables.md#vcs-provider) for the config
+[Environment variables](reference/environment-variables.md#vcs-provider) for the config
 format.
 
 **PR tag stripping:** When PR tags are present in the commit description (trailing lines

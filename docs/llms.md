@@ -603,7 +603,7 @@ This page has moved. See [Providers and models](reference/providers/index.md).
 
 <a id="vcs-provider"></a>
 
-- [Vcs provider](reference/environment-variables.md#vcs-provider-1)
+- [Vcs provider](reference/environment-variables.md#vcs-provider)
 
 <a id="retry-and-fallback"></a>
 

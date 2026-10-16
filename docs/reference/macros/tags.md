@@ -81,10 +81,7 @@ crs_wf = get_by_tag(MacroTag.crs)
 fh_wf = get_by_tag(MacroTag.fix_hook)
 ```
 
-### Backward Compatibility
-
-The legacy `wraps_all: true` field on workflows is still supported — it automatically
-adds the `vcs` tag. New workflows should use `tags: vcs` instead.
+Workflow field behavior is documented in the [Workflow specification](../workflows.md#fields).
 
 Source: `src/sase/macro/tags.py`, `src/sase/macro/models.py`
 

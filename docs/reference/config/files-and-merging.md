@@ -60,10 +60,11 @@ machines.
 The bounded local state file `~/.sase/machine_name` (or `$SASE_HOME/machine_name`) is
 only a selector. It contains one machine name and is deliberately not portable
 configuration; it is not the owner identity and cannot supply a missing username. SASE
-discovers machine overlays by nested `id.machine_name` first, with deprecated top-level
-`machine_name` accepted only as migration input. Foreign machine overlays do not
-contribute runtime settings, Config inventory layers, or config-defined macros. Ordinary
-overlays still participate.
+discovers machine overlays by nested `id.machine_name` first, with top-level
+`machine_name` accepted only as migration input. See
+[Configuration migration notes](../upgrading/configuration.md#machine-identity). Foreign
+machine overlays do not contribute runtime settings, Config inventory layers, or
+config-defined macros. Ordinary overlays still participate.
 
 Only the selected raw machine overlay can own provenance. An `id` value in bundled
 defaults, plugins, `~/.config/sase/sase.yml`, ordinary overlays, or project-local config
@@ -74,12 +75,12 @@ The initializer lists declared machines, suggests a schema-safe hostname when a 
 must be chosen, and requires an explicit valid username unless exactly one existing
 username is clearly confirmed for reuse. It never chooses among conflicting usernames.
 Creation and migration minimally set `id.username` and `id.machine_name` in the same
-overlay, remove its deprecated top-level key, preserve unrelated YAML/comments, and then
-write the selector. With `use_chezmoi: true`, the overlay edit is made in the chezmoi
-source tree. Direct `sase config init` uses the normal commit/push/apply deployment;
-bare `sase init` combines the edit with deferred chezmoi deployment. The initializer
-also adds a hostname guard to the chezmoi source `.chezmoiignore`, staging it in the
-same commit as the new overlay:
+overlay, remove its top-level key, preserve unrelated YAML/comments, and then write the
+selector. With `use_chezmoi: true`, the overlay edit is made in the chezmoi source tree.
+Direct `sase config init` uses the normal commit/push/apply deployment; bare `sase init`
+combines the edit with deferred chezmoi deployment. The initializer also adds a hostname
+guard to the chezmoi source `.chezmoiignore`, staging it in the same commit as the new
+overlay:
 
 ```text
 {{ if ne .chezmoi.hostname "<chezmoi-hostname>" }}
@@ -94,10 +95,10 @@ same hostname guards are required when a machine overlay declares `memory.h1_tit
 `sase memory init` can emit a per-hostname H1 in the chezmoi `AGENTS.md.tmpl` source.
 
 Prompting requires a TTY. `sase config init --check`, bare `sase init --check`, and
-`sase doctor` report missing usernames, legacy migration, invalid values, selector
+`sase doctor` report missing usernames, migration input, invalid values, selector
 mismatches, duplicate overlays, and identity conflicts without writing. Config
-inspection, help, initialization, doctor, and legacy history remain available while
-identity is incomplete. Actual agent process creation, new commit provenance, and
+inspection, help, initialization, doctor, and historical run records remain available
+while identity is incomplete. Actual agent process creation, new commit provenance, and
 agents-sidecar mutations require both identity fields and fail with the actionable
 `sase config init` instruction.
 
@@ -118,10 +119,10 @@ previous:
 3. **`sase.yml`** — user config (`~/.config/sase/sase.yml`); lists **replace** defaults
    (not concatenate)
 4. **Selected `sase_*.yml` overlays** — ordinary overlays plus only the machine overlay
-   whose nested `id.machine_name` (or deprecated top-level fallback) matches
+   whose nested `id.machine_name` (or top-level compatibility fallback) matches
    `~/.sase/machine_name`, sorted alphabetically; lists **concatenate**
 5. **Local `sase/sase.yml`** — project-level config at the detected project root (or the
-   legacy root `sase.yml` fallback); lists **concatenate** (highest priority)
+   root `sase.yml` compatibility fallback); lists **concatenate** (highest priority)
 
 This allows splitting shared configuration across ordinary files (e.g., `sase_work.yml`,
 `sase_personal.yml`) without duplication and keeping machine-specific settings in
@@ -143,37 +144,19 @@ the same scalar key (e.g., `axe.max_hook_runners`), the later layer wins.
 
 The `axe` block is the one exception to plain dictionary merging: after the layers are
 combined, SASE recomposes it from the same layer chain so that keyed routine and job
-entries merge by identity and legacy AXE spellings (see
+entries merge by identity and AXE compatibility aliases (see
 [axe](scheduler-behavior.md#axe)) normalize to one effective shape.
 
 Source: `src/sase/config/core.py`, `src/sase/config/loading.py`
 
 ## Directory Sharding
 
-Older SASE layouts wrote many agent artifacts (chat logs, notifications, workflow state,
-etc.) directly under `~/.sase/<kind>/`. After a few months of heavy use those
-directories can accumulate tens of thousands of files, which slows down filesystem walks
-and makes `ls`-style inspection painful.
+High-volume state writers use a `YYYYMM/` shard inside each managed artifact directory
+(keyed by the current month). Readers merge sharded and unsharded files, so top-level
+files remain visible and both layouts support reads and writes.
 
-Current high-volume writers use a `YYYYMM/` shard inside each managed artifact directory
-(keyed by the current month). Readers transparently merge sharded and non-sharded files,
-so the layout is backwards-compatible - existing unsharded files at the top level are
-still found and the layout is fully read/write compatible across both forms.
-
-Prompt history uses its own monthly JSON shard directory,
-`~/.sase/prompt_history/YYMM.json`, because each shard stores a bounded JSON list rather
-than one file per prompt. Entries whose last-used timestamp cannot be parsed are kept in
-`unknown.json`. The legacy `~/.sase/prompt_history.json` file is migrated into that
-directory on first read or write when the shard directory does not already exist, then
-preserved as a `legacy-imported-<timestamp>.json.bak` backup.
-
-sase's TUI run artifacts also support a day-sharded physical layout under each project's
-artifact root. Use `sase agent artifacts layout status` to inspect flat versus sharded
-`ace-run` directories, `migrate` to move legacy flat timestamp directories into shards
-while writing index aliases, `verify` to check the current or manifest-backed state, and
-`rollback -m <manifest>` to reverse a migration when needed. Migration skips live
-artifact directories with `running.json`, refuses existing targets, and can be previewed
-with `--dry-run`.
+Prompt history and TUI artifact layout migration are described in
+[Local state migration](../upgrading/local-state.md#history-and-artifact-layout-migration).
 
 ## Related
 

@@ -124,8 +124,8 @@ memory:
 For ordinary project roots, `is_sase_managed: true` in that root's own `sase/sase.yml`
 is the authorization switch. A managed project with no title derives
 `<project> - Agent Instructions`; `memory.h1_title` alone does not opt a project in. The
-legacy top-level `amd_h1_title` key has been removed; it is now reported as an
-unsupported key by `sase config layers` instead of being silently ignored.
+`amd_h1_title` is unsupported and `sase config layers` reports it as an invalid key. See
+[Configuration migration notes](../upgrading/configuration.md#managed-instruction-templates).
 
 Home roots are the exception. For the live home root, user config from
 `~/.config/sase/sase.yml` and `~/.config/sase/sase_*.yml` can provide the home
@@ -176,12 +176,12 @@ is empty. A custom `agents_template` must not repeat either section's prose.
 The packaged managed template places `{{ web_sections }}` after the Reference Memory
 block, so `## Memory Webs` renders as the final generated H2 when a root has webs. A
 custom `agents_template` controls its own authored layout instead: SASE does not reorder
-an arbitrary custom template's H2 sections, so a project that keeps its own template in
-the former Core → Memory Webs → Reference order continues to render in that order.
+its H2 sections. Set the order directly in the custom template.
 
-The legacy top-level `amd_agents_template`, `amd_agents_minimal_template`,
-`memory_sase_template`, and `memory_readme_template` keys are deprecated but still read
-as aliases; when both paths appear in one file, the nested `memory.*` form wins.
+The top-level `amd_agents_template`, `amd_agents_minimal_template`,
+`memory_sase_template`, and `memory_readme_template` keys are accepted aliases for their
+nested `memory.*` forms. When both appear in one file, the nested form wins. See
+[Configuration migration notes](../upgrading/configuration.md#managed-instruction-templates).
 
 Every configured path must remain inside the project root. Rendering uses strict
 variables: required placeholders must appear, unknown placeholders are rejected, and the
@@ -215,17 +215,16 @@ is_sase_managed: false # default
 [Generated reference for `is_sase_managed`](core.md#is_sase_managed)
 
 Only the target repository's own checked-in `sase/sase.yml` is consulted for this
-authorization. A legacy root `sase.yml` remains readable only when the canonical file is
-absent. Defaults, user config, and merged overlays cannot opt repositories in globally.
-When false or absent, memory init does not create, refresh, or validate project memory
-and does not create or alter the root `AGENTS.md`; it still propagates every existing
-project `AGENTS.md` to provider files beside it. Explicit `sase repo init` and its
-`sase init repo` alias become successful no-ops before provider and storage work.
-Invalid local YAML or a non-boolean marker fails safely.
+authorization. A root `sase.yml` is a read-only compatibility fallback when the
+canonical file is absent. Defaults, user config, and merged overlays cannot opt
+repositories in globally. When false or absent, memory init does not create, refresh, or
+validate project memory and does not create or alter the root `AGENTS.md`; it still
+propagates every existing project `AGENTS.md` to provider files beside it. Explicit
+`sase repo init` and its `sase init repo` alias become successful no-ops before provider
+and storage work. Invalid local YAML or a non-boolean marker fails safely.
 
-This is a direct migration: `memory.enabled` is retired and does not authorize
-repository management. Existing managed projects must replace it with top-level
-`is_sase_managed: true`.
+`memory.enabled` does not authorize repository management. Use top-level
+`is_sase_managed: true` in the project's own config.
 
 Home and chezmoi-home memory initialization does not use this project-local switch, and
 provider instruction copies for existing project `AGENTS.md` files remain independent of
@@ -246,19 +245,19 @@ id:
 [Generated reference for `id`](core.md#id)
 
 The schema permits partial objects so `sase config init` can diagnose and repair
-interrupted or legacy migrations, but provenance requires both valid fields.
+interrupted config initialization, but provenance requires both valid fields.
 
-## machine_name (deprecated)
+## Top-level `machine_name` compatibility
 
-Top-level `machine_name` remains schema-valid only as read-only migration input for
-legacy overlays:
+Top-level `machine_name` is schema-valid only as read-only migration input for overlays;
+see [Configuration migration notes](../upgrading/configuration.md#machine-identity):
 
 ```yaml
 machine_name: athena
 ```
 
-New writers never emit this form. Run `sase config init` to move it under `id`, add the
-required username, and preserve the rest of the overlay. See
+Configuration writers use `id.machine_name`. Run `sase config init` to move the value
+under `id`, add the required username, and preserve the rest of the overlay. See
 [Owner Identity](files-and-merging.md#owner-identity) for selection, authority, and
 deployment behavior.
 
@@ -285,8 +284,8 @@ Home-level provider instruction files (`CLAUDE.md`, `GEMINI.md`, `QWEN.md`,
 `AGENTS.md`. When no machine overlay declares `memory.h1_title`, those copies stay
 static `.md` files. When a machine overlay does declare a title, `sase memory init`
 writes `AGENTS.md.tmpl` and preferred `*.md.tmpl` shims whose H1 switches on
-`.chezmoi.hostname`, and migrates leftover static copies away. Legacy `*.md.tmpl` shims
-that imported `@{{ .chezmoi.homeDir }}/AGENTS.md` are still recognized and migrated to
+`.chezmoi.hostname`, and migrates leftover static copies away. Existing `*.md.tmpl`
+shims that imported `@{{ .chezmoi.homeDir }}/AGENTS.md` are recognized and migrated to
 full copies.
 
 ```yaml
@@ -301,10 +300,10 @@ Source: `src/sase/config/core.py`
 
 The timezone that governs all SASE wall-clock display and timestamp generation
 (notifications, agent logs, artifact/agent-name timestamps, runtime durations, TUI
-displays, CLI tables, and generated Markdown pages). Columns or labels that previously
-carried a literal `UTC` suffix now render the configured zone abbreviation. When unset,
-SASE uses the host **system timezone**, so machines that don't share our timezone
-assumptions get sensible behavior out of the box.
+displays, CLI tables, and generated Markdown pages). Column and label timezone suffixes
+use the configured zone abbreviation. When unset, SASE uses the host **system
+timezone**, so machines that don't share our timezone assumptions get sensible behavior
+out of the box.
 
 ```yaml
 timezone: "America/New_York" # default: system timezone

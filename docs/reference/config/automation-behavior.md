@@ -31,21 +31,22 @@ default-seeded `research` role derives `<owner>/<project>--research`. Current ma
 initialization also records a `--beads` sidecar at `sase/repos/beads`. Unmigrated GitHub
 projects retain their provider-backed `.sase/sdd/` clone. Materialized layouts record
 metadata in the primary workspace's `.sase/sdd-store.json`. Providerless projects fall
-back to a primary-workspace `.sase/sdd/` store. The retired `sdd.storage` and
+back to a primary-workspace `.sase/sdd/` store. The unsupported `sdd.storage` and
 `sdd.version_controlled` keys are ignored, stripped before validation, and reported by
-`sase doctor` for cleanup. See [SDD Storage](../../contribute/sdd-storage.md) and
-[Beads](../work-units/beads.md).
+`sase doctor` for cleanup. See
+[Configuration migration notes](../upgrading/configuration.md#sdd-storage),
+[SDD Storage](../../contribute/sdd-storage.md), and [Beads](../work-units/beads.md).
 
 The default current layout has a schema-version 3 `sidecar_repos` record: every recorded
 role resolves to its role-specific clone, and bead state lives at the root of `--beads`.
 A record without a beads role remains schema version 2 and resolves bead state to
-`beads/` in `--plans`. Ordinary resolution preserves that compatibility shape. Running
-managed `sase repo init` with the beads role enabled is the adoption step: it prepares
-the dedicated sidecar and writes a schema-version 3 record. A project that disables or
+`beads/` in `--plans`. Ordinary resolution preserves that record shape. Running managed
+`sase repo init` with the beads role enabled is the adoption step: it prepares the
+dedicated sidecar and writes a schema-version 3 record. A project that disables or
 otherwise omits the beads role stays on schema version 2. Initialization prepares
 configured sidecars in its current workspace and re-records stale compatibility metadata
 with the derived repository. Later workspaces clone lazy document roles on demand. The
-legacy single-sidecar shape continues to resolve byte-for-byte as before.
+Single-sidecar records resolve byte-for-byte in their stored shape.
 
 Built-in bare-git projects also auto-create or refresh generated SDD guide files during
 first-use `#git:<project>` initialization (target existing projects with their
@@ -60,8 +61,8 @@ research, and agents, initializes configured sidecars, then refreshes generated 
 and the directory map. On GitHub it derives the remotes as `<owner>/<repo>--<role>` for
 those four roles while honoring optional explicit `repo` pins. It initializes and pushes
 every enabled entry, then maintains the split store record; the agents role is not part
-of the SDD store record. Existing legacy `--sdd` files remain untouched locally and in
-their remote, while normal SDD routing uses the configured sidecars. `--check` previews
+of the SDD store record. Existing `--sdd` files remain untouched locally and in their
+remote, while normal SDD routing uses the configured sidecars. `--check` previews
 provider and generated-file work without writing. Missing or false management markers
 make both forms successful no-ops; invalid local marker configuration fails before
 provider calls or writes.
@@ -171,13 +172,13 @@ stable.
 
 [Generated reference for `external_mirror`](repositories.md#external_mirror)
 
-`external_mirror.exclude_labels` and `external_mirror.pr_authors` are deprecated aliases
-for `external_mirror.issues.filters.label_globs` (folded in as negated globs) and
+`external_mirror.exclude_labels` and `external_mirror.pr_authors` are aliases for
+`external_mirror.issues.filters.label_globs` (folded in as negated globs) and
 `external_mirror.pull_requests.filters.author_globs` (folded in as plain globs),
 respectively. The fold applies only when the modern criterion is empty — a non-empty
-modern criterion always wins, and the legacy key's value is then ignored.
-`sase doctor -C config.external_mirror` flags both a set legacy key and the "set
-alongside a non-empty modern criterion" case.
+modern criterion always wins, and the alias value is then ignored.
+`sase doctor -C config.external_mirror` flags both a set alias and the "set alongside a
+non-empty modern criterion" case.
 
 Records a filter drops are visible rather than silently missing:
 `sase patch sync-external`'s table gets a `Filtered` column, `sase bead sync-external`'s

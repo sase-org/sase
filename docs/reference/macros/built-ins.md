@@ -141,9 +141,7 @@ for the full session model.
 
 ### Scheduled Work Uses Jobs
 
-Scheduled automation is no longer implemented by job-owned macro workflows. The former
-`refresh_docs`, `audit_recent_bugs`, `audit_recent_improvements`, and `fix_just`
-workflows were retired. Axe now runs scripts that may emit structured launch proposals;
+Scheduled automation runs AXE scripts that may emit structured launch proposals;
 shared triggers, guards, checkpoints, dedupe, and target fan-out stay in the runner.
 Proposal prompts may use inline `#macro` templates, but standalone `#!workflow`
 references are rejected. See [Axe](../automation/scheduler-jobs.md#structured-results-and-launch-proposals) for
@@ -186,11 +184,11 @@ Config-based macros follow project and home file sources and precede plugin/pack
 resources. Within config, project `sase/sase.yml` wins over user overlays and base
 config.
 
-Standalone workflows must be defined as YAML files in an `sase/macros/` directory
-(project or home), a compatibility `macros/` directory, a project plugin, or a built-in
-package. Top-level `workflows:` blocks in project `sase/sase.yml`, global `sase.yml`, or
-`sase_*.yml` overlays are no longer supported and will be ignored by the runtime; move
-any such definitions into `sase/macros/<name>.yml` files.
+Standalone workflows are YAML content from the file-backed sources in
+[Macro discovery](discovery.md#discovery-order). Top-level `workflows:` blocks in project
+`sase/sase.yml`, global `sase.yml`, and `sase_*.yml` overlays are ignored by the runtime.
+See [Macro migration notes](../upgrading/macros.md#workflow-configuration) for the
+configuration rule.
 
 ## Local Configuration Files
 
@@ -200,8 +198,7 @@ It is the highest-priority config source in the
 [deep-merge system](../config/files-and-merging.md#deep-merge-system), overriding
 global `sase.yml`, overlay files, plugin configs, and built-in defaults. Individual
 `.md` files in macros directories still take precedence over config-defined macros. A
-root-level `sase.yml` remains an exclusive legacy fallback during the compatibility
-window.
+root-level `sase.yml` is an exclusive read-only fallback during the compatibility window.
 
 ```yaml
 macros:

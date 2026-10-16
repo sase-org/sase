@@ -40,7 +40,8 @@ Review this {{ language }} code for correctness and style.
   `$2`, etc.)
 - `{{ input_name }}` placeholders for inputs with defaults are pre-filled with the
   default value
-- Legacy `{N}` placeholders are also converted
+- Placeholder mode for `{N}` templates is described in
+  [Macro migration notes](../upgrading/macros.md#legacy-placeholders)
 - Macros with complex Jinja2 control flow (`{% %}` or `{# #}`) are skipped
 - User-defined snippets in `ace.snippets` take precedence over macro-derived snippets on
   name collision
@@ -239,8 +240,8 @@ chezmoi deploy is refused when `src/sase/macros/skills/` is dirty, when `HEAD` i
 ancestor of the canonical branch, or when it would move the destination off the source
 commit recorded in the provenance manifest — see
 [Commit Before Deploying](../../init.md#commit-before-deploying). The same manifest is also an
-ownership registry for generated source/live skill-file pairs. When a source is renamed,
-deleted, or no longer targets a provider, a full `sase skill init --force` deployment
+ownership registry for generated source/live skill-file pairs. When a source changes
+name, is deleted, or stops targeting a provider, a full `sase skill init --force` deployment
 tombstones the retired pair, commits the source-side removal, deletes the live target
 immediately before `chezmoi apply --force`, and keeps the tombstone so an interrupted
 cleanup can be retried idempotently. When `use_chezmoi` is enabled, `sase skill init`
@@ -324,8 +325,8 @@ rejected with a load diagnostic rather than silently losing the collision.
 
 Resolution is contextual and first-wins: the selected project's note shadows a same-stem
 home note, and an explicit registered-project selection reads only that project's
-workspace rather than merging in another project's notes. Canonical and legacy memory
-coexistence inside either scope still uses the memory subsystem's existing exclusive
+workspace rather than merging in another project's notes. Memory trees that coexist in
+either scope use the memory subsystem's exclusive
 collision policy. See
 [Memory Order](../upgrading/content-layout.md#memory-order).
 

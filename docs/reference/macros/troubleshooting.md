@@ -24,7 +24,7 @@ sase doctor -C config.macro_input_types
 
 `sase macro list` and `config.macro_definitions` report `skipped: <file>: <error>` lines
 for macro or workflow definitions that could not be loaded. `config.macro_input_types`
-lists unknown type names, the deprecated `string` alias, and enum choice/default issues,
+lists unknown type names, the accepted `string` input alias, and enum choice/default issues,
 keeping the Rust suggestion text in each message. Warnings are `WARN`, not a load
 failure.
 

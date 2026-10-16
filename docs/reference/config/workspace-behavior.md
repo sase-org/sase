@@ -45,9 +45,9 @@ workspace `#10` at `/mnt/sase-workspaces/github.com_org_repo/<project>_10/`. Whe
 process.
 
 Existing adjacent checkouts are not moved automatically by the default. Run
-`sase workspace migrate --to xdg-state` to carry legacy `<primary>_<num>/` directories
-into the managed root, or set `workspace.root: adjacent` explicitly to keep the old
-sibling layout.
+`sase workspace migrate --to xdg-state` to carry existing flat `<primary>_<num>/`
+directories into the managed root, or set `workspace.root: adjacent` explicitly to keep
+the old sibling layout.
 
 `sase repo open <primary-repo> -w NUM -r "<reason>"` is an explicit preparation command
 for a checkout you plan to use outside a normal `sase run` launch. It uses the same root

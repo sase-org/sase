@@ -27,35 +27,35 @@ This page has moved. See [Macro Template Reference](reference/macros/index.md).
 
 <a id="cli-subcommands"></a>
 
-- [Cli subcommands](reference/macros/cli-and-editor.md#cli-subcommands)
+- [Cli subcommands](reference/cli/macro.md#sase-macro)
 
 <a id="sase-macro-expand"></a>
 
-- [Sase macro expand](reference/macros/cli-and-editor.md#sase-macro-expand)
+- [Sase macro expand](reference/cli/macro.md#sase-macro-expand)
 
 <a id="sase-macro-explain"></a>
 
-- [Sase macro explain](reference/macros/cli-and-editor.md#sase-macro-explain)
+- [Sase macro explain](reference/cli/macro.md#sase-macro-explain)
 
 <a id="sase-macro-list"></a>
 
-- [Sase macro list](reference/macros/cli-and-editor.md#sase-macro-list)
+- [Sase macro list](reference/cli/macro.md#sase-macro-list)
 
 <a id="sase-macro-show"></a>
 
-- [Sase macro show](reference/macros/cli-and-editor.md#sase-macro-show)
+- [Sase macro show](reference/cli/macro.md#sase-macro-show)
 
 <a id="sase-macro-graph"></a>
 
-- [Sase macro graph](reference/macros/cli-and-editor.md#sase-macro-graph)
+- [Sase macro graph](reference/cli/macro.md#sase-macro-graph)
 
 <a id="sase-macro-catalog"></a>
 
-- [Sase macro catalog](reference/macros/cli-and-editor.md#sase-macro-catalog)
+- [Sase macro catalog](reference/cli/macro.md#sase-macro-catalog)
 
 <a id="sase-macro-types"></a>
 
-- [Sase macro types](reference/macros/cli-and-editor.md#sase-macro-types)
+- [Sase macro types](reference/cli/macro.md#sase-macro-types)
 
 <a id="editor-lsp"></a>
 
@@ -235,7 +235,7 @@ This page has moved. See [Macro Template Reference](reference/macros/index.md).
 
 <a id="backward-compatibility"></a>
 
-- [Backward compatibility](reference/macros/tags.md#backward-compatibility)
+- [Backward compatibility](reference/upgrading/macros.md#template-and-input-aliases)
 
 <a id="snippet-field"></a>
 

@@ -53,16 +53,16 @@ steps: # Ordered list of steps (required)
 
 ### Fields
 
-| Field         | Required | Description                                                                      |
-| ------------- | -------- | -------------------------------------------------------------------------------- |
-| `description` | No       | One-line human-facing summary for catalogs and other rich macro surfaces.        |
-| `tags`        | No       | Semantic role tags. See [Macro Tags](macros/tags.md#tags) for available tags.    |
-| `hidden`      | No       | Hide the workflow run row from sase's TUI default Agents-tab view.               |
-| `wraps_all`   | No       | Legacy wrapper flag; new workflows should prefer `tags: vcs`.                    |
-| `input`       | No       | Input parameter definitions. See [Input Parameters](#input-parameters).          |
-| `environment` | No       | Environment variables set before any steps run. See [Environment](#environment). |
-| `macros`      | No       | Workflow-local macro definitions available to this workflow's steps.             |
-| `steps`       | Yes      | Ordered list of workflow steps to execute.                                       |
+| Field         | Required | Description                                                                                                                        |
+| ------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `description` | No       | One-line human-facing summary for catalogs and other rich macro surfaces.                                                          |
+| `tags`        | No       | Semantic role tags. See [Macro Tags](macros/tags.md#tags) for available tags.                                                      |
+| `hidden`      | No       | Hide the workflow run row from sase's TUI default Agents-tab view.                                                                 |
+| `wraps_all`   | No       | Adds the `vcs` tag. New workflows should set `tags: vcs`; see [migration aliases](upgrading/macros.md#template-and-input-aliases). |
+| `input`       | No       | Input parameter definitions. See [Input Parameters](#input-parameters).                                                            |
+| `environment` | No       | Environment variables set before any steps run. See [Environment](#environment).                                                   |
+| `macros`      | No       | Workflow-local macro definitions available to this workflow's steps.                                                               |
+| `steps`       | Yes      | Ordered list of workflow steps to execute.                                                                                         |
 
 The workflow's name, as used in `#name` and `#!name` references, is always its file name
 without the extension. There is no top-level `name` field: the loader ignores one, and
@@ -127,10 +127,11 @@ contract.
 
 Plugin-shared enums use `<distribution>@<id>` (for example
 `sase-research-artifacts@audio_edition`). `sase macro types` lists the installed
-catalog. `string` is a deprecated alias of `line`.
+catalog. See [Typed Inputs](macros/arguments.md#typed-inputs) for accepted aliases.
 
 Inputs can also set `description` and, on the last positional input, `repeatable: true`;
-see [Typed Inputs](macros/arguments.md#typed-inputs) for the shared input rules.
+see [Typed Inputs](macros/arguments.md#typed-inputs) for the shared input rules and
+accepted aliases.
 
 ### Default Values
 
@@ -191,8 +192,7 @@ Standalone workflows, which have no `prompt_part` step, cannot be embedded insid
 `agent` prompt. Launch them with `#!workflow_name(args)` at the top level or inside an
 anonymous wrapper prompt such as `sase run '+sase #!sync'`.
 
-> **Note:** The keyword `prompt` is still accepted for backward compatibility, but
-> `agent` is the canonical name.
+> **Note:** `prompt` is accepted as an alias for `agent`.
 
 ### Prompt Part Steps
 
@@ -326,24 +326,13 @@ file extension.
 
 ### Search Paths
 
-Step definitions are resolved from the following `steps/` directories (in priority
-order):
-
-1. `<project>/sase/macros/steps/` (canonical)
-2. `<project>/.macros/steps/` (legacy)
-3. `<project>/macros/steps/` (legacy)
-4. `~/sase/macros/steps/` (canonical)
-5. `~/.macros/steps/` (legacy)
-6. `~/macros/steps/` (legacy)
-7. `~/sase/macros/<project>/steps/` (canonical project-specific home source)
-8. `~/.config/sase/macros/<project>/steps/` (legacy project-specific home source)
-9. A `steps/` directory next to the workflow file itself, when it is not already listed
-10. `<sase-package>/macros/steps/` (built-in)
-
-Both `.yml` and `.yaml` extensions are checked. First match wins. New shared steps are
-written only to canonical project or home directories; the legacy sources remain
-readable during the
-[content-layout compatibility window](upgrading/content-layout.md#compatibility-and-collisions).
+SASE checks the `steps/` subdirectory of each source in the generated
+[macro discovery order](macros/discovery-order.md). It also checks a `steps/` directory
+next to the workflow file before the packaged definitions. Both `.yml` and `.yaml`
+extensions are checked, and the first matching file wins. New shared steps are written
+only to writable project or home sources. Read-only compatibility paths are documented
+in the
+[content-layout upgrade notes](upgrading/content-layout.md#compatibility-and-collisions).
 
 ### Override Behavior
 

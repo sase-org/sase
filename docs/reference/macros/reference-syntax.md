@@ -56,8 +56,8 @@ Reference inline-capable macros inside any prompt with the `#` prefix, including
 markdown-defined macro swarms whose body contains top-level `---` segment separators.
 Use `#!` only for standalone YAML workflows that do not have a `prompt_part` step. The
 marker must appear at the start of the string, after whitespace, or after one of
-`([{"'`. For compatibility, `#!name` is still accepted for macro swarms, but new prompts
-should use `#name`. Each `#name` or `#!name` use is a _macro invocation_; the file or
+`([{"'`. For macro swarms, `#!name` is an accepted compatibility prefix; write `#name`
+in new prompts. Each `#name` or `#!name` use is a _macro invocation_; the file or
 config entry it names is the macro.
 
 | Syntax                        | Description                                                    |
@@ -125,11 +125,11 @@ sase run '#!sync'
 sase run '+sase #!sync'
 ```
 
-During the compatibility window, top-level legacy invocations such as `sase run '#sync'`
-still run but emit a warning that points to `#!sync`. Inline expansion contexts reject
-standalone workflows instead of passing literal `#sync` text to the model. Shell
+Top-level `sase run '#sync'` invocations are accepted with a warning that points to
+`#!sync`; new invocations should use the standalone prefix. Inline expansion contexts
+reject standalone workflows instead of passing literal `#sync` text to the model. Shell
 examples should use single quotes around `#!...` so `!` is not interpreted by
-interactive shells.
+interactive shells. See [Macro migration notes](../upgrading/macros.md#workflow-launch-syntax).
 
 A `#`-shaped token that matches no known macro, workspace ref, or plugin-provided
 reference is **not** an error: it is passed to the agent as literal text. Because a typo
@@ -184,8 +184,8 @@ repository, register a bare repository whose basename resolves to `home`, for ex
 
 Provider-prefixed refs that point at a known project name are preserved as workspace
 launches even if the matching workspace plugin is not loaded in the current process.
-Known projects come from `~/.sase/projects/*/*.sase` (with legacy
-`~/.sase/projects/*/*.gp` accepted as a fallback). A launch such as `#gh:sase #!sync`
+Known projects come from `~/.sase/projects/*/*.sase` (with `~/.sase/projects/*/*.gp`
+accepted as a fallback). A launch such as `#gh:sase #!sync`
 therefore targets the registered `sase` project, allocates a numbered workspace for
 non-wait runs, and lets dispatch surfaces strip the wrapper ref when identifying an
 embedded workflow body.

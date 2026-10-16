@@ -55,8 +55,8 @@ both bodies. Outside macro swarm expansion, an unqualified keyed marker in a lit
 prompt or plain inline macro resolves with its literal id, as if it had been written
 with `!`.
 
-The bare `@` marker remains supported and is not deprecated, but references to a bare
-template keep the historical latest-wins behavior. That is unsafe for macro swarms whose
+The bare `@` marker remains supported, and references to a bare template keep the
+latest-wins behavior. That is unsafe for macro swarms whose
 members can start late, because a later swarm launch can become the latest matching hood
 before a deferred member boots. Use keyed markers in macro swarms whenever several
 segments, waits, clan references, or prose references need the same generated name.
@@ -119,8 +119,8 @@ wait, or let a later successful run release it.
 
 A bare session target makes one exception for retried turns. A monitor or gate member
 that ended unsuccessfully without handing off to a follow-up is ignored once a newer
-member of the same kind exists in the same session generation, so a failed `--mon` or
-`--gate` no longer blocks the session forever after `--mon-0` or `--gate-0` takes over.
+member of the same kind exists in the same session generation. A failed `--mon` or
+`--gate` member does not block the session after `--mon-0` or `--gate-0` takes over.
 This applies to every older failed turn of that kind; the newest turn then counts like
 any other member and must itself succeed. A monitor never replaces a failed gate or vice
 versa, and an exact turn-name wait such as `<session>--mon` still reports that turn's
@@ -130,8 +130,8 @@ own outcome. See
 The repeatable `bead=<bead-id>` keyword adds a closure condition from the waiting
 agent's own project bead store. Every named agent/artifact condition and every bead
 condition must resolve before the wait releases; a missing bead, missing store, or read
-error keeps the agent parked. For example, `%wait(build, bead=sase-87.2)` requires both
-the successful `build` agent and closed bead `sase-87.2`. Multiple `bead=` values
+error keeps the agent parked. For example, `%wait(build, bead=<bead-id>)` requires both
+the successful `build` agent and the named bead to be closed. Multiple `bead=` values
 preserve their authored order and are deduplicated. Bead-only waits do not name an
 agent, so they do not participate in bare-wait rewriting, agent-name templates, or
 cross-project lookup. Once a wait releases, reopening the bead does not re-park the
@@ -159,7 +159,7 @@ Use `for_epic=false` when you only need the agent's own result:
 ```text
 %wait(planner)                                # Agent completion plus its launched epics
 %wait(reviewer, for_epic=false)               # Reviewer completion only
-%wait(build, for_epic=false, bead=sase-87.2)  # Agent completion plus this explicit bead
+%wait(build, for_epic=false, bead=<bead-id>)  # Agent completion plus this explicit bead
 ```
 
 The policy applies to the agent targets in each `%wait` occurrence. Separate occurrences
@@ -198,7 +198,7 @@ rejected because that panel is display-only, and `@job` targets AXE job agents (
 A submitted plan awaiting review is the one exception. A planner that ran
 `sase plan propose` blocks in the approval flow without writing a `done.json`, so its
 planner row shows the `PLAN` status. A `%wait` on that planner row — its canonical
-`<base>--plan` name (or a legacy `<base>.plan` spelling) — treats the submitted plan as
+`<base>--plan` name or the accepted `<base>.plan` spelling — treats the submitted plan as
 done and unblocks while the plan is still in review. This targets the planner row only:
 a `%wait:<base>` on the bare session container stays parked until the whole plan chain
 actually completes, so a submitted plan alone never makes the chain look finished.
@@ -268,9 +268,8 @@ default-weight launch. Four independent claims of weight `0.25` fit in capacity 
 claim of weight `2` does not, so authoring weight greater than an integer capacity is
 rejected. `capacity=0` is rejected at authoring time with a migration message
 recommending `%q:1` for run-alone behavior. Authored `runners=` on `%queue` is rejected
-with a migration message naming `capacity=`. Retired `%wait(runners=...)` guidance
-likewise recommends `%queue(capacity=...)`. Previously serialized `wait_runners` integer
-values still load as the legacy spelling of canonical `queue_capacity`.
+with a migration message naming `capacity=`. `%wait(runners=...)` also recommends
+`%queue(capacity=...)`. Stored `wait_runners` integer values load as `queue_capacity`.
 
 Among waiters that currently fit their own admission limit, the lowest numeric
 `%queue(priority=N)` / `%q(p=N)` starts first, with FIFO ordering among equal
@@ -310,8 +309,7 @@ for safely mixing old admission binaries with new weighted scheduling.
 
 Absolute time waits cannot be combined with duration waits or with each other.
 
-The old `%time:<value>` spelling is no longer accepted; use `#t:<value>` or
-`%wait(time=<value>)`. Every positional `%wait` value is an agent or workflow name,
+Timed waits use `#t:<value>` or `%wait(time=<value>)`. Every positional `%wait` value is an agent or workflow name,
 including time-shaped values such as `%wait:4h` and `%wait:1430`. Timed waits must use
 `%wait(time=<value>)` or `#t:<value>`.
 
@@ -475,8 +473,8 @@ When an agent launched with `%auto:tale` later submits a tale plan with `/sase_p
 `sase plan propose`, sase auto-approves and commits it as an SDD tale in the resolved
 plans root's `<YYYYMM>/` directory and launches the coder follow-up — the same path as
 the TUI Tale action. An epic plan from the same agent parks for review. Use
-`sase repo path plans` instead of assuming whether the root is in-tree, a legacy
-`.sase/sdd/` clone, or the split `--plans` sidecar:
+`sase repo path plans` to resolve the plans root, which can be in-tree, under
+`.sase/sdd/`, or in the split `--plans` sidecar:
 
 ```
 %auto:tale
@@ -513,7 +511,7 @@ The `%hold` directive declares a hold in prompt text, using the same selectors:
 %hold:@nightly                               # tribe (positional @)
 %hold(pending)                               # freeze WAITING/QUEUED agents in scope
 %hold(future)                                # fence launches submitted after the hold
-%hold(hood=sase-s7)                          # hood selector
+%hold(hood=research)                         # hood selector
 %hold(tribe=nightly)                         # tribe selector (keyword form)
 %hold(pending, future, ttl=90m, scope=host)  # widest form, explicit in the text
 ```
@@ -522,7 +520,7 @@ The `%hold` directive declares a hold in prompt text, using the same selectors:
 | ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
 | Name (`planner`)             | An agent, agent session, clan, workflow, or named proc name; role-suffixed names stay exact                                   |
 | Tribe (`@nightly`, `tribe=`) | Agents in that tribe                                                                                                          |
-| Hood (`hood=sase-s7`)        | Agents in that [hood](../../agent_sessions.md), written without a `--role` suffix                                                   |
+| Hood (`hood=research`)       | Agents in that [hood](../../agent_sessions.md), written without a `--role` suffix                                                   |
 | `pending`                    | The agents that are WAITING or QUEUED in scope when the hold is armed; later launches and undispatched procs are not captured |
 | `future`                     | Agents and undispatched procs submitted after the hold is armed                                                               |
 
@@ -579,7 +577,7 @@ The TTL still guarantees progress, so release the hold or kill one side to resol
 sooner. Arming and releasing a hold post `agent_hold` notifications. Automatic release
 notifications cover both a dead armer and TTL expiry and preserve the arm-time capture
 summary and exact expiry boundary. Hold list/show output and the TUI Holds pane show
-that stored summary; legacy holds display `capture not recorded`.
+that stored summary; holds without one display `capture not recorded`.
 `sase doctor -C agent_holds.stale` reports holds whose armer died or whose TTL passed.
 
 ## Related

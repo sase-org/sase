@@ -95,7 +95,7 @@ ace:
           set_level_1: "1" # PR detail: set every section to level 1
           set_level_2: "2"
           set_level_3: "3"
-          cycle_stitches: "c" # `cycle_commits` is still accepted as a legacy alias
+          cycle_stitches: "c" # `cycle_commits` is accepted as an alias
           cycle_hooks: "h"
           agents:
             set_level_1: "1" # session 1-2; clan/agent 1-3; tribe 1-4
@@ -142,7 +142,7 @@ playback keys.
 
 ### `ace.artifacts.stitches`
 
-`ace.artifacts.commits` is a deprecated alias for this block; it still loads and warns.
+`ace.artifacts.commits` is an alias for this block and emits a warning when used.
 
 [Generated reference for `ace.artifacts.stitches`](tui.md#ace-artifacts-stitches)
 

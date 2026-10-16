@@ -231,10 +231,11 @@
 - [TUI](reference/tui/index.md) — Reference pages for the sase TUI Agents tab surfaces.
 - [TUI keymaps](reference/tui/keymaps.md) — Default configurable key bindings for SASE's terminal interface.
 - [Automation migration notes](reference/upgrading/automation.md) — Upgrade notes for scheduler naming, monitor hand-off, and gate contracts.
+- [Configuration migration notes](reference/upgrading/configuration.md) — Migration steps for configuration keys, file hooks, repositories, and SDD storage.
 - [Content layout migration](reference/upgrading/content-layout.md) — Migration steps and compatibility behavior for SASE content paths.
 - [Upgrading](reference/upgrading/index.md) — Upgrade and history notes, organized by area with the newest notes first.
 - [Local state cutover](reference/upgrading/local-state.md) — The temporary offline kit for moving legacy local state into canonical locations.
-- [Macro migration notes](reference/upgrading/macros.md) — Historical notes about renamed macros and legacy placeholders.
+- [Macro migration notes](reference/upgrading/macros.md) — Migration notes for macro names, prompt fields, and launch syntax.
 - [Provider migration notes](reference/upgrading/providers.md) — Historical compatibility notes for provider metadata and model selection.
 - [Bead artifacts](reference/work-units/bead-artifacts.md) — How beads refer to plans, research, and other artifacts.
 - [Bead attachments](reference/work-units/bead-attachments.md) — Attachment storage, visibility, and troubleshooting for bead records.

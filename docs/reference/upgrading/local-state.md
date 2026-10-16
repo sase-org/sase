@@ -124,6 +124,26 @@ continues from the next resumable step. `run` and `resume` accept
 against a SASE home other than the live one, which is how the kit is rehearsed against a
 copy before it is pointed at real state.
 
+## History and artifact layout migration
+
+Prompt history uses monthly JSON shards under `~/.sase/prompt_history/YYMM.json`;
+entries with unparseable timestamps go to `unknown.json`. When that directory does not
+exist, SASE imports `~/.sase/prompt_history.json` on first read or write and preserves
+it as a `legacy-imported-<timestamp>.json.bak` backup.
+
+Run artifacts can be moved from flat timestamp directories to day-sharded directories:
+
+```bash
+sase agent artifacts layout status
+sase agent artifacts layout migrate --dry-run
+sase agent artifacts layout migrate
+sase agent artifacts layout verify
+sase agent artifacts layout rollback -m <manifest>
+```
+
+Migration writes index aliases, skips live directories with `running.json`, and refuses
+existing targets. Use `--dry-run` to preview the move.
+
 ## Related
 
 - [Upgrading](index.md) — upgrade and history notes.

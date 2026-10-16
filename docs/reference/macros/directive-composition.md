@@ -21,9 +21,8 @@ Refactor the parser module to use dataclasses. @
 This is an editor-return syntax, not a runtime directive — it is only recognized in text
 handed back from the external editor. Typing ` @` directly in the prompt bar and
 submitting has no special behavior, and the marker carries no meaning in CLI, mobile, or
-workflow execution. Submitting a leftover `%edit` from an old buffer raises a
-`DirectiveError` pointing here rather than silently launching. (`%e` is no longer an
-`%edit` alias — it is now the `%effort` alias.)
+workflow execution. Submitting `%edit` raises a `DirectiveError` pointing here rather than
+silently launching; `%e` is the `%effort` alias.
 
 When at least one line ends with ` @`, the marker is stripped from every matching line
 and the cleaned text is loaded back into the prompt input bar; the agent is not launched
@@ -41,8 +40,8 @@ SASE's planning workflow is driven by the `/sase_plan` skill together with the
 `sase plan` approval pipeline. An agent drafts a plan and submits it with `/sase_plan`
 (or `sase plan propose`). In an agent-runner context, submission hands the session to a
 processless plan gate turn and ends the planner turn; that turn, not the provider
-process, owns the pending review. In the TUI it shows the authored `TALE` or `EPIC`
-status (or legacy `PLAN`) and settles when the selected branch's commands complete.
+process, owns the pending review. In the TUI the authored `TALE` or `EPIC` plan status
+settles when the selected branch's commands complete.
 Feedback launches a replanner; tale approval launches a coder; epic approval may be
 terminal because its approval command launches epic execution itself. The `%auto:tale`
 and `%auto:epic` modes use the same pipeline but answer the plan decision synchronously
@@ -65,8 +64,8 @@ validates the tale plan it will actually hand off and routes by that plan's size
 archive before their response becomes terminal. The follow-up receives the canonical
 `plan:` reference and resolves it in its own workspace instead of depending on the
 approver's checkout path. If that required publication fails, SASE does not write the
-terminal response, so the approval stays pending and actionable. Legacy tale plans
-without size metadata normalize to `@medium`. The recorded follow-up metadata resolves
+terminal response, so the approval stays pending and actionable. Tale plans without size
+metadata normalize to `@medium`. The recorded follow-up metadata resolves
 the alias to the concrete model the coder actually launches with and keeps the size
 alias as `← @<size>` launch provenance in the coder's `Model:` field.
 
@@ -202,8 +201,8 @@ alternation's branch (`%{sase-%{core | github} | chezmoi}` launches `sase-core`,
 The only way to write a literal `%{` is inside inline code, fenced blocks, or
 `%macros_enabled:false` regions.
 
-The long form `%alt(...)` and the legacy `%(...)` shorthand keep the old rule: they open
-only at a directive-valid position (start of line, or after whitespace, `(`, `[`, `{`,
+The forms `%alt(...)` and `%(...)` open only at a directive-valid position (start of
+line, or after whitespace, `(`, `[`, `{`,
 `"`, `'`, or `:`). That keeps `%(name)s` format strings, `50%(approx)`, and
 `--format=%(refname)` ordinary text.
 
@@ -221,7 +220,7 @@ One ambiguity to know: a literal `%` immediately followed by a Jinja `{%` tag
 inline code instead. Conversely, a `%{`, `%(` or `%alt(` right after a literal `{`
 (`{%{a | b}`) is an alternation, not a Jinja tag. It launches `{a` / `{b`.
 
-The long form `%alt(...)` and the legacy `%(...)` shorthand remain accepted; both use
+The forms `%alt(...)` and `%(...)` are accepted; both use
 parentheses with comma-separated branches:
 
 ```
@@ -299,10 +298,9 @@ Review this code for edge cases.
 ```
 
 This launches two agents with identical prompts, each using a different model. Each
-agent appears as a separate entry in the Agents tab. Comma/paren multi-argument syntax
-(`%m(opus,sonnet)`) and repeated top-level `%model` directives are no longer supported;
-use `%{%m:opus | %m:sonnet}` instead. Colon syntax (`%m:opus`) and single-model
-parentheses (`%m(opus)`) launch a single agent.
+agent appears as a separate entry in the Agents tab. Each branch accepts one model.
+Comma-separated model arguments and repeated top-level `%model` directives are rejected.
+Colon syntax (`%m:opus`) and single-model parentheses (`%m(opus)`) launch a single agent.
 
 When a prompt fans out to multiple models, the spawned agents share a single base name
 and carry a runtime suffix so they can be told apart at a glance. Given

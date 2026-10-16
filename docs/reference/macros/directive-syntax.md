@@ -72,9 +72,9 @@ Directives use the same argument syntax as macro references:
 %wait(agent1, agent2)        # Same, paren form
 %wait(agent=agent1)          # Named form of an ordinary agent wait
 %wait:@review                # Wait for the next completed @review agent or clan
-%wait(bead=sase-87.2)        # Wait for a bead in this project to close
+%wait(bead=<open-bead-id>)        # Wait for a bead in this project to close
 %wait(hood=research)         # Wait for every current member of one hood
-%wait(agent1, bead=sase-87.2, hood=research) # Require every condition
+%wait(agent1, bead=<open-bead-id>, hood=research) # Require every condition
 %wait(planner, for_epic=true)  # Same as %wait(planner); agent waits follow launched epics by default
 %wait(planner, for_epic=false) # Release when planner finishes, even if it launched an epic
 %wait(time=5m)               # Wait for 5 minutes before starting
@@ -101,14 +101,14 @@ Directives use the same argument syntax as macro references:
 %hold:@nightly               # Tribe selector (positional @)
 %hold(pending)               # Freeze the WAITING/QUEUED agents in scope
 %hold(future)                # Fence launches submitted after the hold
-%hold(hood=sase-s7)          # Hood selector
+%hold(hood=research)          # Hood selector
 %hold(tribe=nightly)         # Tribe selector, keyword form
 %hold(pending, future, ttl=90m, scope=host) # Widest form, explicit in the text
 %repeat:3                    # Run the prompt 3 times
 %r:5                         # Same, using alias
 %{#review | #test}           # Brace shorthand: branches split on top-level `|`
 %alt(#review,#test)          # Long form: same two variants, comma-separated
-%(#review,#test)             # Legacy shorthand, still accepted (prefer `%{...}`)
+%(#review,#test)             # Parenthesized shorthand for the same two branches
 %{sec=#review | perf=#test}  # Named branches become child name suffixes
 %{extra instructions}        # Single branch: split into with/without variants
 %auto                        # Auto-resolve plan, epic, and question gates using the default
@@ -256,42 +256,20 @@ joiners inherit the root/generation tab; an explicit `%tab` that differs from th
 inherited tab fails and names `sase agent tab set`. The directive is stripped from the
 model prompt; the raw prompt keeps it.
 
-## Directive Completion Matrix
+## Completion
 
-sase's TUI and the macro LSP use the same Rust directive contract for names, aliases,
-argument syntax, keyword names, fixed values, full-form snippet recipes, and replacement
-ranges. Name completion advertises every enabled user-facing directive, including
-`%final`, the static `%if(should_run=...)` form, and the `%proc` and `%if::` code forms
-with their recipes. Retired `%name` / `%n` and `%tribe` / `%t` forms are not completed.
+The TUI and macro language server share the directive contract used by the parser. The
+generated [directive catalog](directives.md) lists each directive's forms, aliases,
+arguments, and purpose. Completion adds context-sensitive values such as configured
+models, open beads, agent targets, and filesystem paths when those inventories are
+available.
 
-| Directive         | Completed forms                                                                              | Completed argument rows                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| ----------------- | -------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `%model` / `%m`   | `%model:...`, `%model(...)`                                                                  | Model catalog rows, model aliases, provider drill-down rows, and `%model(..., alias=...)` keys from configured model aliases. In an alias keyword value such as `%model(..., medium=...)`, the matching `@medium` self-reference is omitted.                                                                                                                                                                                                                                                                   |
-| `%effort` / `%e`  | `%effort:...`                                                                                | `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`.                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| `%final`          | Bare `%final`, `%final:...`, `%final(...)`                                                   | Configured finalizer instance rows plus `none` when no required finalizers are configured. Removal selectors use `!name`; keywords are not offered.                                                                                                                                                                                                                                                                                                                                                            |
-| `%id` / `%i`      | Bare `%id`, `%id:...`, `%id(...)`                                                            | `bead=`, `clan=`, `session=`, `tribe=` in parenthesized form; open bead IDs for `bead=`, and matching clan, session, or tribe targets for those keyword values.                                                                                                                                                                                                                                                                                                                                                |
-| `%clan` / `%c`    | `%clan:...`, `%clan(...)`                                                                    | `summary=`, `summary_script=`, `tribe=` in parenthesized form; `summary_script=` uses path/executable completion and `tribe=` uses tribe target rows.                                                                                                                                                                                                                                                                                                                                                          |
-| `%wait` / `%w`    | Bare `%wait`, `%wait:...`, `%wait(...)`                                                      | Colon form completes only positional agent/session/clan/tribe targets. Parenthesized form adds `agent=`, `bead=`, `hood=`, `proc=`, `time=`, `unit=`, and `for_epic=` before target rows; `bead=` completes open bead IDs, `hood=` completes current hood names, `time=` suggests `5m` and `1430`, and `for_epic=` suggests `true` and `false`.                                                                                                                                                                |
-| `%queue` / `%q`   | Bare `%q`, `%queue:...`, `%q:...`, `%queue(...)`, `%q(...)`                                  | Colon form completes positional capacity values, suggesting `1`, `100`, and `1.5x` (a multiplier of the effective `max_running_agents` budget). Parenthesized form adds `capacity=`, `priority=`, `p=`, `weight=`, and `w=` before those positional values; `priority=`/`p=` and `weight=`/`w=` are alias pairs, `priority=`/`p=` suggest `10` and `1`, `capacity=` suggests `1` and `1.5x`, and `weight=`/`w=` suggest `0.25`, `1.0`, and `2.0`. Authored `runners=` is a migration error naming `capacity=`. |
-| `%hold`           | Bare `%hold`, `%hold:...`, and `%hold(pending, future)` / `%hold(hood=..., ttl=...)` recipes | Colon and positional forms complete name/`@tribe` targets plus `pending` and `future`. Parenthesized form adds `hood=`, `scope=`, `ttl=`, and `tribe=`; `scope=` suggests `project` and `host`, `ttl=` suggests common durations, and `hood=`/`tribe=` use their target rows.                                                                                                                                                                                                                                  |
-| `%dispatch`       | `%dispatch:...`, `%dispatch(...)`                                                            | Configured remote-machine aliases. No shorthand alias or keyword arguments are supported.                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| `%if`             | `%if(should_run=...)`, `%if::` Bash and Python fence recipes                                 | `should_run=` with `true` and `false` is always available, as are the code-form recipes.                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| `%proc`           | `%proc(...)`, `%proc::`; Bash/Python recipes                                                 | `bash=`, `python=`, `timeout=`, `idle_timeout=`, `cwd=`, `workspace=`, and `label=` are always available.                                                                                                                                                                                                                                                                                                                                                                                                      |
-| `%hide` / `%h`    | Bare flag and plus form                                                                      | No argument rows.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| `%auto` / `%a`    | Bare, plus, and `%auto:...`                                                                  | `plan`, `tale`, `epic`, `manual`, `off`; any other value fails at launch and parenthesized forms are rejected.                                                                                                                                                                                                                                                                                                                                                                                                 |
-| `%repeat` / `%r`  | `%repeat:...`                                                                                | `2`, `3`; other positive integers remain typable.                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| `%alt`            | `%{...}` shorthand, `%alt(...)`, `%alt:...`                                                  | No structured argument rows.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| `%macros_enabled` | `%macros_enabled:...`                                                                        | `false`, `true`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-
-Keyword-name completion omits non-repeatable keywords that are already present and
-keywords that conflict with a selected keyword, but this is only a completion filter:
-manually typed text still reaches the normal directive validator. `%wait:` deliberately
-does not offer `agent=`, `bead=`, `proc=`, `time=`, or `unit=`; structured wait keywords
-are parenthesized only, and `capacity=`/`priority=`/`p=`/`weight=`/`w=` never appear on
-`%wait` at all — those queue-admission keywords belong to `%queue`/`%q` only. If a
-dynamic inventory fails, static directive names, aliases, keyword rows, and fixed values
-still complete while model, agent, bead, or filesystem rows may be absent or stale
-according to the surface.
+Completion filters out non-repeatable keywords already present and keywords that
+conflict with a selected value; manually typed input still goes through normal
+validation. Structured `%wait` keywords are available in parenthesized form, while
+queue-admission fields belong to `%queue`. If a dynamic inventory cannot be read,
+static directive names and values remain available, while dynamic suggestions may be
+missing or stale.
 
 ## Static Conditional Segments
 
@@ -455,9 +433,8 @@ cancel the dependent unit.
 An eligible `%proc` unit dispatches natively once its waits and `%if::` pass, no active
 [agent hold](directive-launch.md#hold-directive) matches it, and any authored queue fields pass the
 runner-capacity check described below: the admission coordinator reserves a `named-proc`
-(lifecycle `named-proc`, origin `prompt-proc`; sase-core builds from before the
-turn/named-proc rename write the legacy lifecycle spelling `proc-shell`, and sase reads
-both) and starts its detached supervisor. The supervisor then acquires an operational
+(lifecycle `named-proc`, origin `prompt-proc`; SASE also reads the `proc-shell` lifecycle
+spelling) and starts its detached supervisor. The supervisor then acquires an operational
 workspace lease when `workspace` is true, materializes the approved source as a private
 `0600` script, executes it by argv — `/bin/bash --noprofile --norc <script>` or the SASE
 interpreter plus that script, never shell interpolation — and releases the lease through
@@ -644,16 +621,11 @@ alias names; it cannot key on `default_model`, `epic_lander_model`,
 `llm_provider` directly instead. The size-specific worker routes use the five built-in
 size aliases directly:
 
-| Route           | Alias    |
-| --------------- | -------- |
-| `xsmall` worker | `xsmall` |
-| `small` worker  | `small`  |
-| `medium` worker | `medium` |
-| `large` worker  | `large`  |
-| `xlarge` worker | `xlarge` |
-
-Legacy tasks without stored size metadata normalize to the `small` route at launch. See
-[Implicit role aliases](../providers/models.md#implicit-role-aliases) for the current shipped defaults.
+Phase and task workers route through the size alias that matches their size. See
+[Role Aliases for Delegated Work](../providers/models.md#role-aliases-for-delegated-work)
+for the routing rules and
+[Implicit role aliases](../providers/models.md#implicit-role-aliases) for shipped
+defaults. Tasks without stored size metadata use the `small` route.
 
 Keys must be known builtin or custom alias names without `@`; values may be concrete
 models, `provider/model` targets, quoted targets, macro references, or another alias

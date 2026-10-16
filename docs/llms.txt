@@ -233,10 +233,11 @@
 - [TUI](https://sase.sh/reference/tui/) — Reference pages for the sase TUI Agents tab surfaces.
 - [TUI keymaps](https://sase.sh/reference/tui/keymaps/) — Default configurable key bindings for SASE's terminal interface.
 - [Automation migration notes](https://sase.sh/reference/upgrading/automation/) — Upgrade notes for scheduler naming, monitor hand-off, and gate contracts.
+- [Configuration migration notes](https://sase.sh/reference/upgrading/configuration/) — Migration steps for configuration keys, file hooks, repositories, and SDD storage.
 - [Content layout migration](https://sase.sh/reference/upgrading/content-layout/) — Migration steps and compatibility behavior for SASE content paths.
 - [Upgrading](https://sase.sh/reference/upgrading/) — Upgrade and history notes, organized by area with the newest notes first.
 - [Local state cutover](https://sase.sh/reference/upgrading/local-state/) — The temporary offline kit for moving legacy local state into canonical locations.
-- [Macro migration notes](https://sase.sh/reference/upgrading/macros/) — Historical notes about renamed macros and legacy placeholders.
+- [Macro migration notes](https://sase.sh/reference/upgrading/macros/) — Migration notes for macro names, prompt fields, and launch syntax.
 - [Provider migration notes](https://sase.sh/reference/upgrading/providers/) — Historical compatibility notes for provider metadata and model selection.
 - [Bead artifacts](https://sase.sh/reference/work-units/bead-artifacts/) — How beads refer to plans, research, and other artifacts.
 - [Bead attachments](https://sase.sh/reference/work-units/bead-attachments/) — Attachment storage, visibility, and troubleshooting for bead records.

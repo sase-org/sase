@@ -43,15 +43,14 @@ reserved `plans`, `beads`, `agents`, `attachments`, and `attachments-private` ro
 role, so an entry never carries a `name` field and a role cannot be declared twice in
 one bucket. Because both buckets are mappings, a later config layer merges into an
 inherited entry per key — a project-local `custom: {research: {disabled: true}}` opts
-out of a global `research` sidecar. The former list form (a sequence of entries each
-carrying `name`) is no longer accepted and is ignored; run `sase doctor` to see which
-bucket each stale entry belongs in.
+out of a global `research` sidecar. A sequence of entries carrying `name` is ignored;
+run `sase doctor` to see which bucket each such entry belongs in.
 
 Sidecar entries use their role key as the primary CLI lookup key. Ordinary roles use
 `sase/repos/<role>` as their workspace clone directory. Their repository defaults to
 `<project>--<role>` in the primary repository's GitHub organization; `repo` can pin a
 bare slug or `owner/repo`. An explicit unpinned entry uses that project-local derivation
-even when a legacy SDD store record names a different repository. Configured sidecars
+even when a persisted SDD store record names a different repository. Configured sidecars
 appear in `sase repo list` even before cloning and can be opened by role name or
 repository slug. Enabled ordinary sidecars that are not auto-cloned also appear by
 repository slug in generated agent instruction files, where their `description` tells
@@ -108,7 +107,7 @@ through `sase repo path beads` or `sase repo open beads -r "<reason>"`.
 The workspace provider owns sidecar transport. GitHub sidecars use canonical SSH origins
 on the primary repository's GitHub host (`git@host:owner/repo.git`, or
 `ssh://git@host:port/owner/repo.git` when a port is configured). Read-only store
-resolution converts a legacy GitHub HTTPS record to that exact SSH form in memory, so
+resolution converts a GitHub HTTPS record to that exact SSH form in memory, so
 inventory, launch-time auto-cloning, and on-demand materialization are safe immediately
 without rewriting the durable record. Matching retained HTTPS clones keep their checkout
 and local state while SASE rewrites `origin` in place. Any HTTP(S) sidecar remote that
@@ -133,9 +132,9 @@ publish the committing hood, while `sase agent sync` publishes every locally
 commit-eligible hood through the stable machine-level clone. See
 [Agent Hood Synchronization](../../agents_sidecar.md) before enabling a public remote.
 
-The deprecated `linked_repos` and `sibling_repos` keys are still accepted as aliases
-during the compatibility window. Canonical `repos.linked` entries take precedence over
-both aliases when the same name is defined.
+`linked_repos` and `sibling_repos` are accepted as aliases for `repos.linked`.
+`repos.linked` takes precedence when the same name is defined. See
+[Configuration migration notes](../upgrading/configuration.md#repository-configuration).
 
 A linked entry may declare `revision_pin`, a pin file relative to the primary checkout
 root that holds that repo's pushed SHA (for example `sase-core-revision.txt`). The path
@@ -194,10 +193,10 @@ an unavailable provider or omits its plugin prefix, the role's reference policy 
 disabled and `sase doctor -C config.repos` reports how to fix it. Authors may omit `use`
 and provide the inline fields in the table instead.
 
-`ref.macro` is retired and invalid. `ref.filters.path_globs` remains a deprecated alias
-that warns and maps to `ref.inventory.globs`; new configuration must use
-`inventory.globs`. The `beads` and `agents` sidecars are entity-backed rather than
-document inventories, so document filters do not apply to them. See
+`ref.macro` is invalid. `ref.filters.path_globs` is accepted as an alias for
+`ref.inventory.globs` and emits a warning; new configuration must use `inventory.globs`.
+The `beads` and `agents` sidecars are entity-backed rather than document inventories, so
+document filters do not apply to them. See
 [Artifact References](../../artifact_references.md) for canonical prompt forms and
 project-context rules.
 
@@ -207,27 +206,17 @@ host project and workspace number. Agent and workflow launch preparation atomica
 removes the numbered checkout's entire `<host_workspace>/sase/repos/` tree. The required
 `plans` sidecar is then cloned directly from the canonical SSH or local remote resolved
 from its recorded metadata; other linked repositories and sidecars remain lazy unless
-configured with `auto_clone: true`. Legacy GitHub HTTPS metadata is normalized before
-the clone command is built, and unresolved HTTP(S) metadata stops launch setup before
-Git executes. The hidden `agents` sidecar is excluded from this clone mapping and always
+configured with `auto_clone: true`. GitHub HTTPS metadata is normalized before the clone
+command is built, and unresolved HTTP(S) metadata stops launch setup before Git
+executes. The hidden `agents` sidecar is excluded from this clone mapping and always
 resolves every registered workspace number to
 `~/.sase/projects/<project_key>/repos/agents`. Agents materialize ordinary lazy entries
 on demand through `/sase_repo`. `sase repo init` manages the tracked `/sase/repos/`
 ignore rule, while SASE also installs the rule in `.git/info/exclude` before
 materialization. SASE passes resolved metadata for all entries and exports
-per-repository paths only for materialized entries:
-
-| Variable                                  | Description                                      |
-| ----------------------------------------- | ------------------------------------------------ |
-| `SASE_LINKED_REPOS_JSON`                  | JSON metadata for all resolved linked repos.     |
-| `SASE_LINKED_REPO_<ENV_NAME>_DIR`         | Workspace-matched directory for a linked repo.   |
-| `SASE_LINKED_REPO_<ENV_NAME>_PRIMARY_DIR` | Primary checkout directory for that linked repo. |
-
-The legacy `SASE_SIBLING_REPOS_JSON` and `SASE_SIBLING_REPO_<ENV_NAME>_*` variables are
-still emitted alongside the canonical ones during the compatibility window.
-
-`<ENV_NAME>` is the uppercased, sanitized repo `name`; duplicates are uniquified with a
-numeric suffix.
+per-repository paths only for materialized entries. See
+[Environment variables](../environment-variables.md#vcs-provider) for the per-repository
+variables and their compatibility aliases.
 
 Source: `src/sase/linked_repos.py`, `src/sase/agent/launch_spawn.py`
 

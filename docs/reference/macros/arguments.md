@@ -157,7 +157,7 @@ the parentheses.
 sase; qualified names belong to plugins.
 
 The same catalog drives every surface: the runtime binder,
-[`sase macro types`](cli-and-editor.md#sase-macro-types) and `sase macro show`, the
+[`sase macro types`](../cli/macro.md#sase-macro-types) and `sase macro show`, the
 [TUI prompt bar](../../ace.md#completion), and the [macro LSP](../../editor.md#lsp-features).
 Completing, validating, and explaining a value follows one rule.
 
@@ -237,8 +237,9 @@ Plugin types use `<distribution>@<id>` (for example
 `sase-research-artifacts@audio_edition`) and resolve to closed enums. See
 [Named plugin input types](#named-plugin-input-types).
 
-`string` is a deprecated alias of `line`. Loaders still accept it and emit an
-`input_type_warning`; new declarations should use `line`. `builtin@<name>` is an
+Use `line` for string values; `string` remains an accepted alias and loaders emit an
+`input_type_warning` when it appears. See [Macro migration notes](../upgrading/macros.md#template-and-input-aliases).
+`builtin@<name>` is an
 accepted alias of any bare builtin; hover, labels, and formatters always show the bare
 form. An unknown type name is a per-macro load error with suggestions (`enmu` suggests
 `enum`); only that macro is skipped.

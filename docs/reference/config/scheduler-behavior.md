@@ -366,7 +366,7 @@ axe:
           description: |-
             Prune stale rowless proc runtime directories
 
-            Removes only canonical proc runtime directories that no longer have a durable proc row, are older than
+            Removes only canonical proc runtime directories without a durable proc row, older than
             the configured proc runtime orphan horizon, and are direct non-symlink children of ~/.sase/procs/runtime.
             The Rust owner rechecks the proc store under its lock before deletion so concurrent reservations are
             preserved. Runtime directories for proc rows actually pruned by retention are deleted immediately by the
@@ -428,17 +428,10 @@ whole string capped at 2000 characters. Violations produce the
 [AXE — Description Grammar](../automation/scheduler-description-grammar.md#description-grammar)
 for the full contract, the authoring style guide, and the YAML literal-block form.
 
-Routines were formerly called lumberjacks and jobs were called chops. The old spellings
-remain accepted, schema-valid input aliases but are marked deprecated: `lumberjacks` for
-`routines`, `chops` for `jobs`, `chop_timeout` for `job_timeout`, `chop_script_dirs` for
-`job_script_dirs`, and `lumberjack_log_max_bytes`,
-`lumberjack_log_temp_max_age_seconds`, `lumberjack_restart_backoff_max_seconds`, and
-`verbose_lumberjack_diagnostics` for their `routine_*` counterparts. New configuration
-should use the canonical keys. `sase config show` prints the effective AXE block with
-the canonical names. Legacy `sase_chop_*` executables still exist beside the
-`sase_job_*` entrypoints. See
-[AXE compatibility aliases](../automation/scheduler.md#compatibility-aliases) for the
-matching CLI, environment, and artifact-reference aliases.
+`sase config show` prints the effective AXE block with canonical names. The
+`sase_chop_*` compatibility executables are shipped beside the `sase_job_*` entrypoints.
+See [AXE compatibility aliases](../automation/scheduler.md#compatibility-aliases) for
+accepted config keys and matching CLI, environment, and artifact-reference aliases.
 
 All jobs are scripts. Exact-name resolution checks `job_script_dirs`, then the running
 interpreter's bin directory, then `$PATH`. Invalid fields, duplicate identities,
@@ -491,15 +484,15 @@ available in the context JSON under `target` and through `SASE_JOB_TARGET_KEY` /
 job fields such as `run_every` and trigger thresholds.
 
 `inhibit_if` accepts keyed `patch`, `agent_hood`, `agent_clan`, and `agent_runners`
-providers. The legacy `changespec` key remains accepted as an alias. The clan provider
-requires a case-sensitive `name_prefix` and checks canonical clan metadata for active
-agents, including waiting members; it never infers clans from dotted names.
-`agent_runners.max` defaults to `0` and inhibits while more than that many participating
-agent lanes are occupied, a participating-lane count distinct from the weighted
-`%queue(capacity=N)` admission budget. Weighted capacity is tracked separately by the
-runner-capacity snapshot and sase's TUI header. A `STARTING` agent has not yet been
-admitted and does not count; an agent parked on a question has yielded its capacity and
-does not count. `trigger` accepts `always`, `git.commits_since`, or `fs`; the git
+providers. The `changespec` key is accepted as a compatibility alias for `change_spec`.
+The clan provider requires a case-sensitive `name_prefix` and checks canonical clan
+metadata for active agents, including waiting members; it never infers clans from dotted
+names. `agent_runners.max` defaults to `0` and inhibits while more than that many
+participating agent lanes are occupied, a participating-lane count distinct from the
+weighted `%queue(capacity=N)` admission budget. Weighted capacity is tracked separately
+by the runner-capacity snapshot and sase's TUI header. A `STARTING` agent has not yet
+been admitted and does not count; an agent parked on a question has yielded its capacity
+and does not count. `trigger` accepts `always`, `git.commits_since`, or `fs`; the git
 provider requires `project` and `threshold`, and its checkpoint policy is
 `on_observation`, `on_action_accepted`, or `on_action_success`. The `fs` provider
 requires `paths` (bare path strings or `{path, glob}` objects, stat'd shallowly — no
@@ -533,8 +526,8 @@ for the result document, proposal fields, lifecycle statuses, and debugging comm
 
 Every job entry must carry a `description` following the
 [description grammar](../automation/scheduler-description-grammar.md#description-grammar).
-Bare-string list entries are no longer valid because they cannot carry one; use map form
-or object-form list entries:
+Bare-string list entries are invalid because they cannot carry a description; use map
+form or object-form list entries:
 
 ```yaml
 jobs:

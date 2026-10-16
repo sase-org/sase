@@ -40,46 +40,21 @@ available, only `agent_meta.autonomy` carries `%auto` state, and a hard provider
 relaunches stranded agents through `sase agent drain` (see `llm_provider.usage_limit`
 and Launch Control's automatic provider drain in `ace.md`).
 
-`agent_decks` and `agent_tabs` are no longer registered. The Agents tab always shows
-[data decks and cards](../../ace.md#agent-data-decks-and-cards) and
-[agent tabs](../../ace.md#agent-tabs). A saved preference for a flag that is no longer
-registered is removed the next time an installing process reconciles
-`feature_flags.json`.
+Data decks and agent tabs are always available; configure them through the
+[Agents tab reference](../../ace.md#agent-data-decks-and-cards), not feature flags. An
+unregistered key in `feature_flags.json` is removed the next time an installing process
+reconciles the file.
 
-The retired family keyword on `%id` is always accepted as `session=`, the `family` and
-`kind` agent-query values are always accepted as `session:` and `kind:session`, and the
-`--next-fork` family value, a gate `"fork": "family"`, and `SASE_AGENT_FAMILY_ATTACH`
-always normalize to their session replacements. The retired shell spellings are always
-accepted as well: `sase gate create --shell`, `--shell-status`, `--shell-stop-status`,
-and the `--next-fork` shell value; a gate spec's `"shell"` block, the `"fork"` key set
-to `"shell"`, and `"continuation_mode": "gate_shell"`; `--shell` on `sase proc list` or
-`sase proc run` (replaced by `--name`); and the retired `gate.shell`
-`.reclaim_grace_seconds` key. Supplying both names for the same option or block is an
-error. Write the session and turn spellings in new prompts and config, and use `--name`
-for proc commands.
+Use `session` and `turn` spellings in new prompts and config, and `--name` for proc list
+and run commands. See
+[Agent launch spellings](../upgrading/macros.md#agent-launch-spellings) for accepted
+compatibility forms.
 
-The retired macro spellings in
-[the macro rename section](../upgrading/macros.md#retired-macro-spellings) are always
-accepted. Supplying a retired spelling in a new command, config key, frontmatter key,
-environment variable, or `sase path` target resolves to its replacement. The retired
-entry-point group is still loaded, a plugin's packaged copy of the retired definition
-directory is still read, and those retired directories stay visible to expansion,
-workflow loading, completion, catalogs, and save choices. Config keys, frontmatter keys,
-and the plugin-disable environment variable are an error when both the retired name and
-the macro name are present. The LSP command environment variable is the exception: a
-non-empty macro value wins and the retired value is ignored. See that section for which
-names those are. The region alias there stays accepted. State files and agent artifact
-filenames already written under the old names stay readable, and new writes use only the
-macro spelling. A default `sase doctor` run includes the config check for those retired
-authored surfaces. It reports non-empty retired definition directories and does not
-report those state files, agent artifact filenames, or that region alias.
+Macro name and field compatibility is described in the
+[macro migration notes](../upgrading/macros.md#renamed-from-xprompts).
 
-When an owner-manifest hood entry still carries an explicit `files` list, readers accept
-a missing list, and a present list may be the current canonical set or the legacy set,
-which is that current set with every `sessions/` path removed and the legacy redirect
-stubs retained. See [Strict v2 layout](../../agents_sidecar.md#strict-v2-layout).
-
-Run `sase flag list` for the live registry with effective and saved state.
+For owner-manifest compatibility rules, see
+[Agent Hood Synchronization](../../agents_sidecar.md#strict-v2-layout).
 
 `%if::` script-admission and `%proc` are always available: parser, completion, and
 launch-plan contract included. Static `%if(should_run=true|false)` segment omission
@@ -117,20 +92,17 @@ reads return no preferences plus a diagnostic, mutations fail with the path and 
 recovery-oriented message, and registered flags still resolve from lower layers.
 
 Valid unknown keys in the machine-state file are tolerated by registry-neutral reads and
-writes, but installing process-wide feature flags for sase's TUI, AXE, or an agent
-runner reconciles that file against the running SASE registry and removes saved entries
-that are no longer registered. sase's TUI defers the disk transaction until the
-initially visible surface is ready, then shows one cleanup toast; AXE and agent runners
-report the same cleanup on stderr. Clean starts do not rewrite the file or emit cleanup
-prose. If another process already removed the stale keys, sase's TUI reports that the
-previously unregistered saved keys are already absent. If cleanup fails or the file
-becomes unusable, SASE preserves the file, keeps the diagnostic, and retries on the next
+writes. Installing processes reconcile the file against the running SASE registry and
+remove unregistered saved entries. The TUI defers cleanup until its initial surface is
+ready and then shows one toast; AXE and agent runners report cleanup on stderr. If no
+unregistered keys are present, the file is left unchanged. If cleanup fails or the file
+becomes unusable, SASE preserves it, keeps the diagnostic, and retries on the next
 startup.
 
-This means downgrading or misspelling a saved flag no longer preserves that saved key
-past the next installing process. A later upgrade falls back to registry/config defaults
-until the choice is saved again. Portable YAML `feature_flags` entries keep the older
-tolerance: unknown config keys are diagnosed and ignored, not rewritten.
+Misspelled and unregistered saved keys are removed during reconciliation. After a
+downgrade, registered flags resolve from registry and config defaults until a choice is
+saved again. Portable YAML `feature_flags` entries are diagnosed and ignored when
+unknown; they are not rewritten.
 
 ### Resolution order
 
@@ -142,7 +114,7 @@ registry default
   < overlay config
   < saved machine preference (SAVED)
   < explicit in-process/test override
-  < SASE_FEATURE_FLAGS transport / legacy env
+  < SASE_FEATURE_FLAGS transport / environment variable
   < root CLI -f/--enable-feature or -F/--disable-feature
 ```
 
