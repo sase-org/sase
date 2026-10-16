@@ -229,6 +229,35 @@ def test_owner_prefixed_names_and_hood_waits_resolve_to_the_same_clan() -> None:
     assert waiter_view.predecessors
 
 
+def test_duplicate_presented_names_keep_both_members_and_wait_edges() -> None:
+    first = _member("duplicates", "first", 1)
+    second = _member("duplicates", "second", 2)
+    waiter = _member(
+        "duplicates",
+        "waiter",
+        3,
+        waits=("shared-presented-name",),
+    )
+    for row in (first, second):
+        row.presented_identity_name = "shared-presented-name"
+        row.presented_agent_name = "shared-presented-name"
+
+    rows = _project(first, second, waiter)
+    summary = _container(rows).clan_waves
+
+    assert summary is not None
+    assert len(summary.members) == 3
+    waiter_view = next(
+        view for view in summary.members if view.identity.endswith(".waiter")
+    )
+    assert len(waiter_view.predecessors) == 2
+    assert {identity.rsplit(":", 1)[-1] for identity in waiter_view.predecessors} == {
+        "duplicates.first",
+        "duplicates.second",
+    }
+    assert _wave(rows, "waiter") == 2
+
+
 def test_unit_wait_union_bead_edges_external_counts_and_retry_slot() -> None:
     root = _member("adapter", "root", 1, phase_bead="bead-root")
     child = _member("adapter", "root--plan", 2, waits=("adapter.blocker--plan",))
@@ -303,14 +332,31 @@ def test_projection_memoizes_layout_but_refolds_state(monkeypatch) -> None:
     def binding(_request):
         nonlocal calls
         calls += 1
+        key = _request["members"][0]["key"]
         return {
-            "waves": [["cache.one"]],
-            "wave_of": {"cache.one": 1},
-            "preds": {"cache.one": []},
-            "external_waits": {"cache.one": 0},
-            "ghosts": [],
+            "layered": False,
+            "numbered_wave_count": 1,
+            "has_seal": False,
+            "waves": [
+                {
+                    "index": 1,
+                    "number": 1,
+                    "seal": False,
+                    "member_keys": [key],
+                    "ghost_names": [],
+                }
+            ],
+            "members": [
+                {
+                    "key": key,
+                    "wave_index": 1,
+                    "rank": 0,
+                    "predecessor_keys": [],
+                    "ghost_predecessors": [],
+                    "external_wait_count": 0,
+                }
+            ],
             "unresolved": [],
-            "seal": [],
         }
 
     monkeypatch.setattr(facade, "require_rust_binding", lambda _name: binding)
