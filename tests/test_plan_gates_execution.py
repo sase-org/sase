@@ -491,7 +491,7 @@ def test_denied_git_credential_refuses_commit_before_acceptance(
     message = str(exc_info.value)
     assert "Permission denied (publickey)" in message
     assert "the gate remains pending" in message
-    assert "docs/init.md" in message
+    assert "docs/reference/agents/service-host.md" in message
     archive.assert_not_called()
 
     # Refused before acceptance: no receipt, no response, no journal of a failed

@@ -316,7 +316,7 @@ def test_capture_service_environment_warns_when_no_agent_and_remote_refuses(
     assert len(captured.warnings) == 1
     assert "no SSH agent" in captured.warnings[0]
     assert "Permission denied (publickey)" in captured.warnings[0]
-    assert "docs/init.md" in captured.warnings[0]
+    assert "docs/reference/agents/service-host.md" in captured.warnings[0]
 
 
 def test_capture_service_environment_ignores_agent_pid_without_usable_socket(

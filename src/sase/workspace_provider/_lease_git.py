@@ -130,7 +130,7 @@ def _with_ssh_agent_hint(detail: str) -> str:
         f"{detail}\n"
         "This is usually a missing or empty SSH agent in the calling process "
         "(check SSH_AUTH_SOCK); when the caller is the service host, give it an "
-        "unattended credential (see docs/init.md). Re-running `sase service "
+        "unattended credential (see docs/reference/agents/service-host.md). Re-running `sase service "
         "init` from a login shell only lasts until that shell's agent dies."
     )
 

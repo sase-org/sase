@@ -56,7 +56,7 @@ the submitted prompt gains `%tab:<name>` (opt out with `%tab:main` or
 replace `%tab`. A launch that lands on another tab toasts its destination
 (`blog-fix → blog`) and lights that tab's arrival dot. Move agents between tabs with
 `sase agent tab list|set|unset` (see
-[Moving agents between tabs](../../agent_sessions.md#moving-agents-between-tabs)) or the `N`
+[Moving agents between tabs](../agents/agent-tribes.md#moving-agents-between-tabs)) or the `N`
 Tribe & Tab modal, which completes known tabs and applies optimistically with rollback;
 rows owned by a remote machine cannot be moved. Filter the roster with the `tab:` query
 field (exact match, or `main` for the default tab).
@@ -253,7 +253,7 @@ requires every member of that generation to have succeeded. A tribe reference fo
 the next-entity rule: the new run waits for the earliest successful entity in that tribe
 launched after its own artifact was created. It does not fork the agents currently
 visible in the selected tribe panel. See
-[Tribe wait and fork targets](../../agent_sessions.md#tribe-wait-and-fork-targets) for the
+[Tribe wait and fork targets](../agents/agent-tribes.md#tribe-wait-and-fork-targets) for the
 full ordering rules.
 
 sase's TUI also tries to carry VCS context into either prefilled prompt. For one

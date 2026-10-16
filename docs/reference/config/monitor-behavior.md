@@ -44,4 +44,4 @@ Source: `src/sase/default_config.yml`, `src/sase/config/_settings_display.py`,
 
 - [Runtime and stored data configuration](runtime.md) — generated monitor keys and
   defaults.
-- [Monitors](../../monitors.md) — monitor lifecycle and operation.
+- [Monitors](../automation/monitors.md) — monitor lifecycle and operation.

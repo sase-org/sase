@@ -35,8 +35,9 @@ Each non-README flat note declares its type in YAML frontmatter:
 The frontmatter values `type: short` and `type: long` are accepted aliases for
 `type: core` and `type: reference` respectively.
 
-Use [initialization](../../init.md#memory-initialization) to create or refresh the
-files. Use [`sase instructions list`](../../init.md#agent-documents) to inspect
+Use [initialization](../agents/memory-initialization.md#memory-initialization-1) to
+create or refresh the files. Use
+[`sase instructions list`](../agents/initialization.md#agent-documents) to inspect
 `AGENTS.md` and provider instruction file status. Initialization always generates the
 core `sase/memory/sase.md` workspace note — workspace naming, linked repositories, and
 the `/sase_final` terminal-action contract. For SASE-managed project repositories it

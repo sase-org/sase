@@ -415,7 +415,7 @@ def test_docs_split_supports_h4_nested_intro_drop_and_finish(tmp_path: Path) -> 
     assert "### Child" in parent
     assert "#### Deep Heading" not in parent
     assert '<a id="deep-heading"></a>' in parent
-    assert "Moved to [Deep Heading](/reference/deep.md#deep-heading-1)." in parent
+    assert "Moved to [Deep Heading](deep.md#deep-heading-1)." in parent
     assert "## Deep Heading" in deep
     assert "### Child Detail {#child-detail}" in deep
     assert "deep-html" in deep
@@ -454,6 +454,38 @@ def test_docs_split_supports_h4_nested_intro_drop_and_finish(tmp_path: Path) -> 
     assert source_move["anchors"]["deep-html"] == "reference/deep.md#deep-html"
     assert source_move["anchors"]["child-detail"] == "reference/deep.md#child-detail"
     assert source_move["anchors"]["contents"] == "reference/index.md#contents"
+
+
+def test_docs_split_handles_nested_first_selection(tmp_path: Path) -> None:
+    splitter = _load("docs_split_first_nested_fixture", TOOLS / "docs_split")
+    _move_fixture(tmp_path)
+    docs = tmp_path / "docs"
+    source = docs / "source.md"
+    source.write_text(
+        "# Source\n\n## Parent\n\nParent facts.\n\n### Child\n\nChild facts.\n",
+        encoding="utf-8",
+    )
+    (docs / "reference").mkdir()
+    for title in ("Parent", "Child"):
+        (docs / "reference" / f"{title.lower()}.md").write_text(
+            f"---\ntitle: {title}\ndescription: {title} facts.\n---\n\n# {title}\n",
+            encoding="utf-8",
+        )
+    mapping = tmp_path / "split.yml"
+    mapping.write_text(
+        "sections:\n  Parent: reference/parent.md\n"
+        "  Parent > Child: reference/child.md\n",
+        encoding="utf-8",
+    )
+
+    splitter.split(source, mapping, root=tmp_path)
+
+    parent = (docs / "reference/parent.md").read_text(encoding="utf-8")
+    child = (docs / "reference/child.md").read_text(encoding="utf-8")
+    assert "Parent facts." in parent
+    assert "Child facts." not in parent
+    assert "Moved to [Child](child.md#child-1)." in parent
+    assert "Child facts." in child
 
 
 def test_docs_split_rewrites_inbound_links_but_skips_generated_sources(

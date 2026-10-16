@@ -160,13 +160,13 @@ Conventional Commit message; `commit` is the only legal repository action. When 
 has an assigned bead (`SASE_BEAD_ID`), each commit decision also carries an explicit
 `bead_action`: `keep` for intermediate work, proposals, and linked or sidecar
 repositories, or `close` only on the primary repository once the whole bead is complete
-and verified (see [Explicit Bead Action](../commit_workflows.md#explicit-bead-action)).
-Typed deferrals can name explicit paths that must not be committed, using
-host-adjudicated reasons such as `foreign_work` or `protected_paths`. Accepted commit
-decisions dispatch through the appropriate stitch workflow. A narrow generated SDD plan
-closeout, where the only enforced change is one markdown file's frontmatter
-`status: wip` becoming `status: done`, is committed directly with a `SASE_TYPE=sdd`
-commit.
+and verified (see
+[Explicit Bead Action](commit-workflow-orchestrator.md#explicit-bead-action)). Typed
+deferrals can name explicit paths that must not be committed, using host-adjudicated
+reasons such as `foreign_work` or `protected_paths`. Accepted commit decisions dispatch
+through the appropriate stitch workflow. A narrow generated SDD plan closeout, where the
+only enforced change is one markdown file's frontmatter `status: wip` becoming
+`status: done`, is committed directly with a `SASE_TYPE=sdd` commit.
 
 When an artifacts directory is available, the host writes generic artifacts such as
 `final_context.json`, `final_submission.json`, `finalizer_baseline.json`, and

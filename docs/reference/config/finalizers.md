@@ -78,11 +78,12 @@ adjudicated reasons `protected_paths`, `foreign_work`, `unsafe_content`, or
 `belongs_to_another_turn`. When the run has an assigned bead (`SASE_BEAD_ID`), the
 primary repository's commit decision also carries a `keep` or `close` bead action, which
 is forwarded to `sase stitch create -B`; see
-[Explicit Bead Action](../../commit_workflows.md#explicit-bead-action). Commit decisions
-dispatch through `sase stitch create` sequentially, preserve protected pre-existing
-dirt, write stitch evidence, stop on the first conflict for repair/resume, and fail
-completion when a rejected deferral or unrepaired dirty state remains. Later mutating
-finalizers can reactivate commit until the controller reaches its bounded fixed point.
+[Explicit Bead Action](../../contribute/commit-workflow-orchestrator.md#explicit-bead-action).
+Commit decisions dispatch through `sase stitch create` sequentially, preserve protected
+pre-existing dirt, write stitch evidence, stop on the first conflict for repair/resume,
+and fail completion when a rejected deferral or unrepaired dirty state remains. Later
+mutating finalizers can reactivate commit until the controller reaches its bounded fixed
+point.
 
 When `$SASE_ARTIFACTS_DIR` is set, new runs write generic finalizer artifacts:
 `finalizer_baseline.json`, `final_context.json`, `final_submission.json`,
@@ -151,8 +152,8 @@ commit_hooks:
 
 Hook output is captured and a bounded stdout/stderr tail is printed on failure; each run
 also leaves per-run evidence files described in
-[Commit Hook Evidence](../../commit_workflows.md#commit-hook-evidence). A failing
-`before` hook aborts before dispatch. A failing `after` hook leaves the commit
+[Commit Hook Evidence](../../contribute/commit-workflow-orchestrator.md#commit-hook-evidence).
+A failing `before` hook aborts before dispatch. A failing `after` hook leaves the commit
 checkpoint in place and returns failure even though the commit may already be pushed;
 fix the command and run `sase stitch create --resume`. The completed after-hook step is
 checkpointed so a normal resume does not rerun it. A crash after the external command
@@ -165,4 +166,4 @@ Source: `src/sase/default_config.yml`, `src/sase/workflows/commit/commit_hooks.p
 ## Related
 
 - [Agents and runners configuration](agents.md) — generated finalizer keys.
-- [Commit workflows](../../commit_workflows.md) — commit behavior.
+- [Commit workflows](../vcs/index.md) — commit behavior.

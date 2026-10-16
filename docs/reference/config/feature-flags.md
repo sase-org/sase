@@ -41,9 +41,9 @@ relaunches stranded agents through `sase agent drain` (see `llm_provider.usage_l
 and Launch Control's automatic provider drain in `ace.md`).
 
 Data decks and agent tabs are always available; configure them through the
-[Agents tab reference](../../ace.md#agent-data-decks-and-cards), not feature flags. An
-unregistered key in `feature_flags.json` is removed the next time an installing process
-reconciles the file.
+[Agents tab reference](../tui/agent-statuses.md#agent-data-decks-and-cards), not feature
+flags. An unregistered key in `feature_flags.json` is removed the next time an
+installing process reconciles the file.
 
 Use `session` and `turn` spellings in new prompts and config, and `--name` for proc list
 and run commands. See
@@ -54,7 +54,7 @@ Macro name and field compatibility is described in the
 [macro migration notes](../upgrading/macros.md#renamed-from-xprompts).
 
 For owner-manifest compatibility rules, see
-[Agent Hood Synchronization](../../agents_sidecar.md#strict-v2-layout).
+[Agent Hood Synchronization](../agents/hood-sync.md#strict-v2-layout).
 
 `%if::` script-admission and `%proc` are always available: parser, completion, and
 launch-plan contract included. Static `%if(should_run=true|false)` segment omission

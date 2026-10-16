@@ -136,7 +136,7 @@ Every other member uses `%id(<id>, clan=<clan>)`, which derives `<clan>.<id>` an
 the newest generation or creates the clan implicitly without a tribe. The join form
 cannot be combined with `%clan`; joining a clan also joins its tribe. A member segment
 may fan out, and identical raw clan templates in one batch resolve to the same
-generation. See [Agent Clans, Sessions, and Tribes](../../agent_sessions.md) for the full
+generation. See [Agent Clans, Sessions, and Tribes](../agents/index.md) for the full
 launch, wait, display, and cleanup contract.
 
 The declaring `%clan` can also attach one launch-time description with `summary=`,
@@ -158,7 +158,7 @@ including epic `SASE_EPIC_PLAN_REF`, `SASE_EPIC_PLAN_SNAPSHOT`, `SASE_EPIC_BEAD_
 variables. The snapshot is an absolute project-scoped best-effort copy that the built-in
 epic summary script uses as a guaranteed-local fallback after the normal checkout
 candidates; the original reference remains authoritative for display and metadata. See
-[Launch-time clan summaries](../../agent_sessions.md#launch-time-clan-summaries) for the
+[Launch-time clan summaries](../agents/agent-clans.md#launch-time-clan-summaries) for the
 complete ordering, execution, and persistence details. Re-creating a clan with a bare
 `%clan(<name>)` or a generation-creating `%id(<id>, clan=<name>)` inherits the
 remembered tribe and re-runs the remembered summary script (falling back to the
@@ -637,7 +637,7 @@ records the map in agent metadata and carries it through its plan/coder follow-u
 An explicit `%id(suffix, session=parent)` attachment inherits the parent's map when its
 prompt supplies no alias keywords; a prompt with its own keywords uses that new map.
 Ordinary nested launches do not inherit the map. This lineage often overlaps an
-[Agent Session](../../agent_sessions.md), but the terms are not interchangeable.
+[Agent Session](../agents/index.md), but the terms are not interchangeable.
 
 At each alias hop a launch-scoped value wins over a machine-wide temporary override and
 the configured or implicit alias value.

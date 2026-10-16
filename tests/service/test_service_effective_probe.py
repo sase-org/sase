@@ -203,6 +203,6 @@ def test_denied_readiness_names_a_missing_agent_and_asks_for_no_recapture(
 
     assert len(warnings) == 1
     assert "no configured IdentityFile was accepted" in warnings[0]
-    assert "docs/init.md" in warnings[0]
+    assert "docs/reference/agents/service-host.md" in warnings[0]
     # Re-running init from a login shell is not a durable remedy.
     assert "re-run" not in warnings[0]

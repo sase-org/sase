@@ -332,8 +332,8 @@ ace:
 
 The threshold drives the `SLOW TOOL CALLS` section of the Agents metadata header and the
 slow markers in the
-[Agents Tab LLM Calls Panel](../../ace.md#agents-tab-llm-calls-panel). A missing,
-negative, or non-integer value falls back to `20`.
+[Agents Tab LLM Calls Panel](../tui/agents-deck-panels.md#agents-tab-llm-calls-panel). A
+missing, negative, or non-integer value falls back to `20`.
 
 ### `ace.updates`
 

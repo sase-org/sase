@@ -91,7 +91,7 @@ lane's multi-line values: at scale position 1 (`z1`, Collapsed), a task or phase
 worker's `Notes`, and a task worker's `+1 Evidence`, collapse to a one-line digest,
 `N lines (zz to show)`; single-line values never fold, and at positions 2-3 the full
 value renders. A selected whole tribe panel adds level 4 for exhaustive detail. These
-keys are configurable; see [Agent Clans, Sessions, and Tribes](../../agent_sessions.md) for
+keys are configurable; see [Agent Clans, Sessions, and Tribes](../agents/index.md) for
 the grouping model.
 
 When sase's TUI knows a planner/author or epic lander's associated plan, the metadata
@@ -247,7 +247,7 @@ backfilled into `agent_meta.json` or `agent_tribes.json`; clearing a user-manage
 returns the agent to this panel. Pressing `N` on a clan row or on any clan member
 instead sets the whole clan generation's recorded tribe, and clearing it writes an
 explicit unset that sticks even when members still carry an epic tribe (see
-[clan records](../../agent_sessions.md)). Every tribe renders as `@<tribe>` with a sase-agent
+[clan records](../agents/index.md)). Every tribe renders as `@<tribe>` with a sase-agent
 count in the panel title. One standalone agent or one sequential session is one sase
 agent, and a rootless clan contributes one sase agent per direct member rather than one
 for its synthetic container. Per-tribe icons, identity colors, and initial expansion are

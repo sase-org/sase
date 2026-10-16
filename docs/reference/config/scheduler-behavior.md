@@ -552,4 +552,4 @@ Source: `src/sase/axe/config.py`, `src/sase/default_config.yml`
 ## Related
 
 - [Scheduler configuration](scheduler.md) — generated scheduler keys and defaults.
-- [Scheduler and service host](../../axe.md) — scheduler operation.
+- [Scheduler and service host](../automation/scheduler.md) — scheduler operation.

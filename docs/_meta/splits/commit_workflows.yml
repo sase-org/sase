@@ -1,0 +1,15 @@
+to: reference/vcs/index.md
+sections:
+  _intro: reference/vcs/commit-workflows.md
+  Overview: reference/vcs/commit-workflows.md
+  How It Works: contribute/commit-workflow-orchestrator.md
+  CLI Inputs and Internal Payload: contribute/commit-workflow-orchestrator.md
+  Result Format: contribute/commit-workflow-orchestrator.md
+  Workflow Details: reference/vcs/commit-workflows.md
+  VCS Provider Abstraction: contribute/commit-workflow-orchestrator.md
+  Run Result: contribute/commit-workflow-orchestrator.md
+  Resume after Conflict: contribute/commit-workflow-orchestrator.md
+  Environment Variables: reference/vcs/commit-workflows.md
+  Commit Finalizer: contribute/commit-workflow-orchestrator.md
+  Diff Storage: contribute/commit-workflow-orchestrator.md
+  Design Principles: contribute/commit-workflow-orchestrator.md

@@ -240,8 +240,8 @@ only where that tool's `args: allow` policy permits them. Every unwrapped-by-pol
 writes exactly one `sase: running unwrapped (<reason>)` line at the top of the monitor
 log, so the log explains itself. `monitor.tool_wrap` (`off | verify | all`, default
 `verify`) changes the policy without a code change: `all` widens wrapping to every
-monitor and `off` disables it; see [Tool runs](../../tool.md) for the environment
-contract and the guarded recipes this pairs with.
+monitor and `off` disables it; see [Tool runs](tools.md) for the environment contract
+and the guarded recipes this pairs with.
 
 ### Checkpoints and outcome policies
 
@@ -356,8 +356,8 @@ the intent was invalidated and handed to a recovery continuation. `needs_attenti
 means a commit receipt is ambiguous, so SASE neither completes nor continues
 automatically; inspect the receipt and finish the change by hand. A monitor that carries
 a host-completion status cannot be resumed with `sase monitor resume`. See
-[Commit Finalizer](../../commit_workflows.md#commit-finalizer) for the declaration side
-of the protocol.
+[Commit Finalizer](../../contribute/commit-workflow-orchestrator.md#commit-finalizer)
+for the declaration side of the protocol.
 
 ### Resolving the implicit agent
 

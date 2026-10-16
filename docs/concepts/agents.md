@@ -54,5 +54,6 @@ person a place to follow progress, inspect results, and decide what should happe
 
 ## Look it up
 
-- [Agent sessions](../agent_sessions.md) — session and grouping details.
-- [Workspaces](../workspace.md) — workspace behavior and provider ownership.
+- [Agent sessions](../reference/agents/index.md) — session and grouping details.
+- [Workspaces](../reference/agents/index.md) — workspace behavior and provider
+  ownership.

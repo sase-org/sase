@@ -459,6 +459,8 @@ def _section_chunks(
     for heading, request, start, end in selected:
         if request.drop:
             continue
+        target = request.target
+        assert target is not None
         chunk_lines: list[tuple[str, int | None]] = []
         index = start
         while index < end:
@@ -485,7 +487,7 @@ def _section_chunks(
                         destination,
                         anchor,
                         title,
-                        target,
+                        source,
                         root_relative=False,
                     ):
                         chunk_lines.append((pointer_line + "\n", None))
@@ -494,8 +496,6 @@ def _section_chunks(
                 continue
             # This line belongs to another selected nested range that began earlier.
             index += 1
-        target = request.target
-        assert target is not None
         chunks.setdefault(target, []).append(
             (request.selector, chunk_lines, heading.level if heading else 1)
         )
@@ -671,7 +671,7 @@ def plan_split(
     # Rewrite moved references with source ids mapped to their target-context anchors.
     warnings: list[str] = []
     target_outputs: dict[str, str] = {}
-    for target, parts in normalized_chunks.items():
+    for target, normalized_parts in normalized_chunks.items():
         existing = target_texts[target]
         rewritten_existing, existing_warn = _rewrite_handwritten(
             existing,
@@ -682,7 +682,7 @@ def plan_split(
         )
         rewritten_parts: list[str] = []
         moved_warn = False
-        for _, part in parts:
+        for _, part in normalized_parts:
             rewritten, part_warn = _rewrite_handwritten(
                 part,
                 origin=source,
@@ -791,7 +791,7 @@ def plan_split(
         )
     else:
         move_data = yaml.safe_load((root / MOVES_PATH).read_text(encoding="utf-8"))
-        existing = next(
+        existing_move = next(
             (
                 item
                 for item in move_data.get("moves", [])
@@ -799,7 +799,11 @@ def plan_split(
             ),
             None,
         )
-        primary = existing.get("to", source) if isinstance(existing, dict) else source
+        primary = (
+            existing_move.get("to", source)
+            if isinstance(existing_move, dict)
+            else source
+        )
     if not (root / "docs" / primary).is_file():
         raise ValueError(f"primary destination docs/{primary} does not exist")
     moves_text = _update_moves_map(

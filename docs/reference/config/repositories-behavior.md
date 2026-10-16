@@ -34,8 +34,8 @@ removes user state. A dirty, detached, diverged, remote-mismatched, or
 not-yet-materialized primary sidecar clone is left untouched and reported rather than
 repaired. Managed projects enable `auto_sync` for the generated `plans`, `beads`, and
 `research` entries; custom roles default to `false` and opt in with the same property.
-See [Ownership Boundary](../../workspace.md#ownership-boundary) for the underlying
-primary/leased distinction and how sync is scheduled.
+See [Ownership Boundary](../../contribute/workspace-provider.md#ownership-boundary) for
+the underlying primary/leased distinction and how sync is scheduled.
 
 `repos.sidecar` is a two-bucket mapping keyed by role: `builtin` holds overrides of the
 reserved `plans`, `beads`, `agents`, `attachments`, and `attachments-private` roles, and
@@ -130,7 +130,7 @@ managed-project entries. `sase repo init` can create and seed the agents remote 
 after its separate default-no consent prompt. Successful agent commit/PR workflows
 publish the committing hood, while `sase agent sync` publishes every locally
 commit-eligible hood through the stable machine-level clone. See
-[Agent Hood Synchronization](../../agents_sidecar.md) before enabling a public remote.
+[Agent Hood Synchronization](../agents/index.md) before enabling a public remote.
 
 `linked_repos` and `sibling_repos` are accepted as aliases for `repos.linked`.
 `repos.linked` takes precedence when the same name is defined. See
@@ -292,9 +292,9 @@ Source: `src/sase/dispatch/config.py`, `src/sase/dispatch/models.py`,
 
 ## vcs_provider
 
-Configures the version control system backend. See [docs/vcs.md](../../vcs.md) for the
-full VCS provider reference including per-command behavior, Git/Mercurial details, and
-troubleshooting.
+Configures the version control system backend. See
+[docs/reference/vcs/providers.md](../vcs/providers.md) for the full VCS provider
+reference including per-command behavior, Git/Mercurial details, and troubleshooting.
 
 GitHub Enterprise host configuration (`github_hosts`) is owned by the `sase-github`
 plugin; see its

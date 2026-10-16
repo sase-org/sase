@@ -75,7 +75,7 @@ then in shared stores picked deterministically by size:
   machine; `repos.sidecar.builtin.attachments-private.disabled: true` prevents sidecar
   setup and hides the role even when a clone already exists. Use `-L/--local-only` for
   an individual attachment that must stay on this machine. See
-  [Repository initialization](../../init.md#repository-initialization).
+  [Repository initialization](../agents/initialization.md#repository-initialization).
 - The optional **rclone large tier** (`bead.attachments.large_store`) takes larger
   objects; see below.
 - `-L/--local-only` keeps an object on this machine only, badged `⚠ only on <machine>`.

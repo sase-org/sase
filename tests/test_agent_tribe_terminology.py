@@ -36,7 +36,10 @@ _TAG_IDENTIFIER_ALLOWLIST = {
 
 _CURRENT_DOCUMENTATION = (
     Path("docs/ace.md"),
-    Path("docs/agent_sessions.md"),
+    Path("docs/reference/agents/agent-clans.md"),
+    Path("docs/reference/agents/agent-sessions.md"),
+    Path("docs/reference/agents/agent-tribes.md"),
+    Path("docs/reference/agents/agent-launches.md"),
     Path("docs/reference/tui/agents-tab.md"),
     Path("docs/reference/tui/agents-tab-modes.md"),
     Path("docs/reference/tui/agents-tab-panels.md"),

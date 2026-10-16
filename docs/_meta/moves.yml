@@ -878,3 +878,187 @@ moves:
       configuration: reference/work-units/plan-execution.md#configuration
       multi-workspace-behavior: reference/work-units/plan-execution.md#multi-workspace-behavior
     title: Spec-Driven Development (SDD)
+  - from: agent_sessions.md
+    to: reference/agents/index.md
+    kind: stub
+    anchors:
+      sequential-agent-sessions: reference/agents/agent-sessions.md#sequential-agent-sessions
+      session-detail-folding: reference/agents/agent-sessions.md#session-detail-folding
+      session-member-detail-folding: reference/agents/agent-sessions.md#session-member-detail-folding
+      per-member-model-lanes: reference/agents/agent-sessions.md#per-member-model-lanes
+      attaching-within-a-multi-agent-prompt: reference/agents/agent-sessions.md#attaching-within-a-multi-agent-prompt
+      sase-agents-sessions-and-commit-provenance: reference/agents/agent-sessions.md#sase-agents-sessions-and-commit-provenance
+      parallel-agent-clans: reference/agents/agent-clans.md#parallel-agent-clans
+      launch-time-clan-summaries: reference/agents/agent-clans.md#launch-time-clan-summaries
+      clan-summary-folding: reference/agents/agent-clans.md#clan-summary-folding
+      epic-bead-work-example: reference/agents/agent-clans.md#epic-bead-work-example
+      agent-tribes: reference/agents/agent-tribes.md#agent-tribes-1
+      moving-agents-between-tabs: reference/agents/agent-tribes.md#moving-agents-between-tabs
+      the-built-in-job-tribe: reference/agents/agent-tribes.md#the-built-in-job-tribe
+      tribe-panel-focus-and-folding: reference/agents/agent-tribes.md#tribe-panel-focus-and-folding
+      tribe-wait-and-fork-targets: reference/agents/agent-tribes.md#tribe-wait-and-fork-targets
+      agent-initiated-session-launches: reference/agents/agent-launches.md#agent-initiated-session-launches
+    title: Agent Clans, Sessions, and Tribes
+  - from: workspace.md
+    to: reference/agents/index.md
+    kind: stub
+    anchors:
+      workspace-directory-layout: reference/agents/workspaces.md#workspace-directory-layout
+      numeric-identity: reference/agents/workspaces.md#numeric-identity
+      root-policy: reference/agents/workspaces.md#root-policy
+      registry: reference/agents/workspaces.md#registry
+      backup-container-and-network-storage-caveats: reference/agents/workspaces.md#backup-container-and-network-storage-caveats
+      sase-repo-cli: reference/agents/workspaces.md#sase-repo-cli
+      sase-workspace-cli: reference/agents/workspaces.md#sase-workspace-cli
+      workspace-maintenance: reference/agents/workspaces.md#workspace-maintenance
+      disabling-plugins: reference/agents/workspaces.md#disabling-plugins
+      plugin-architecture: contribute/workspace-provider.md#plugin-architecture
+      hook-specification: contribute/workspace-provider.md#hook-specification
+      key-data-types: contribute/workspace-provider.md#key-data-types
+      workflowmetadata: contribute/workspace-provider.md#workflowmetadata
+      resolvedref: contribute/workspace-provider.md#resolvedref
+      hook-reference: contribute/workspace-provider.md#hook-reference
+      metadata-and-detection: contribute/workspace-provider.md#metadata-and-detection
+      reference-resolution-and-workflow-setup: contribute/workspace-provider.md#reference-resolution-and-workflow-setup
+      change-submission-and-review: contribute/workspace-provider.md#change-submission-and-review
+      commit-formatting: contribute/workspace-provider.md#commit-formatting
+      repository-onboarding: contribute/workspace-provider.md#repository-onboarding
+      registry-functions: contribute/workspace-provider.md#registry-functions
+      bare-git-reference-auto-initialization: contribute/workspace-provider.md#bare-git-reference-auto-initialization
+      known-project-vcs-fallback: contribute/workspace-provider.md#known-project-vcs-fallback
+      relationship-to-vcs-provider: contribute/workspace-provider.md#relationship-to-vcs-provider
+      ownership-boundary: contribute/workspace-provider.md#ownership-boundary
+      adjacent-compatibility-and-migration: reference/upgrading/workspaces.md#adjacent-compatibility-and-migration
+      post-default-migration-guidance: reference/upgrading/workspaces.md#post-default-migration-guidance
+    title: Workspace Provider Reference
+  - from: agents_sidecar.md
+    to: reference/agents/index.md
+    kind: stub
+    anchors:
+      privacy-and-configuration: reference/agents/hood-sync.md#privacy-and-configuration
+      strict-v2-layout: reference/agents/hood-sync.md#strict-v2-layout
+      prompt-and-artifact-archive: reference/agents/hood-sync.md#prompt-and-artifact-archive
+      browsing-page-anatomy: reference/agents/hood-sync.md#browsing-page-anatomy
+      historical-name-tolerance: reference/agents/hood-sync.md#historical-name-tolerance
+      commands-and-status: reference/agents/hood-sync.md#commands-and-status
+      chats-provenance-versus-publication: reference/agents/hood-sync.md#chats-provenance-versus-publication
+      sases-tui-integration: reference/agents/hood-sync.md#sases-tui-integration
+      recovery: reference/agents/hood-sync.md#recovery
+      scope-and-reconciliation: contribute/agents-sidecar-sync.md#scope-and-reconciliation
+      legacy-v1-limitations: reference/upgrading/agents-sidecar.md#legacy-v1-limitations
+    title: Agent Hood Synchronization
+  - from: init.md
+    to: reference/agents/index.md
+    kind: stub
+    anchors:
+      commands: reference/agents/initialization.md#commands
+      agent-documents: reference/agents/initialization.md#agent-documents
+      repository-initialization: reference/agents/initialization.md#repository-initialization
+      skill-initialization: reference/agents/initialization.md#skill-initialization
+      commit-before-deploying: reference/agents/initialization.md#commit-before-deploying
+      service-host: reference/agents/service-host.md#service-host
+      remote-machines: reference/agents/machine-initialization.md#remote-machines
+      memory-initialization: reference/agents/memory-initialization.md#memory-initialization-1
+      memory-context-list: reference/agents/memory-initialization.md#memory-context-list
+      memory-read-audit-log: reference/agents/memory-initialization.md#memory-read-audit-log
+    title: Initialization
+  - from: vcs.md
+    to: reference/vcs/index.md
+    kind: stub
+    anchors:
+      provider-selection: reference/vcs/providers.md#provider-selection
+      tier-1-environment-variable: reference/vcs/providers.md#tier-1-environment-variable
+      tier-2-configuration-file: reference/vcs/providers.md#tier-2-configuration-file
+      tier-3-auto-detection: reference/vcs/providers.md#tier-3-auto-detection
+      per-command-vcs-usage: reference/vcs/providers.md#per-command-vcs-usage
+      sase-stitch-list: reference/vcs/providers.md#sase-stitch-list
+      sase-stitch-create: reference/vcs/providers.md#sase-stitch-create
+      sase-tui-actions: reference/vcs/providers.md#sase-tui-actions
+      sync-y-key: reference/vcs/providers.md#sync-y-key
+      mail-m-key: reference/vcs/providers.md#mail-m-key
+      show-diff-d-key: reference/vcs/providers.md#show-diff-d-key
+      revert-status-change-to-reverted: reference/vcs/providers.md#revert-status-change-to-reverted
+      restore-status-change-from-reverted-to-wip-draft-or-ready: reference/vcs/providers.md#restore-status-change-from-reverted-to-wip-draft-or-ready
+      archive-status-change-to-archived: reference/vcs/providers.md#archive-status-change-to-archived
+      reword-w-key: reference/vcs/providers.md#reword-w-key
+      sase-axe: reference/vcs/providers.md#sase-axe
+      sase-revert: reference/vcs/providers.md#sase-revert
+      sase-restore: reference/vcs/providers.md#sase-restore
+      git-provider-details: reference/vcs/providers.md#git-provider-details
+      branch-naming: reference/vcs/providers.md#branch-naming
+      branch-management: reference/vcs/providers.md#branch-management
+      pr-integration: reference/vcs/providers.md#pr-integration
+      github-plugin-scope: reference/vcs/providers.md#github-plugin-scope
+      github-enterprise: reference/vcs/providers.md#github-enterprise
+      github-cli-calls: reference/vcs/providers.md#github-cli-calls
+      sync: reference/vcs/providers.md#sync
+      archive: reference/vcs/providers.md#archive
+      diff: reference/vcs/providers.md#diff
+      workspace-info: reference/vcs/providers.md#workspace-info
+      tag-operations: reference/vcs/providers.md#tag-operations
+      mercurial-provider-details: reference/vcs/providers.md#mercurial-provider-details
+      core-commands: reference/vcs/providers.md#core-commands
+      branch-and-workspace-info: reference/vcs/providers.md#branch-and-workspace-info
+      description-management: reference/vcs/providers.md#description-management
+      review-operations: reference/vcs/providers.md#review-operations
+      diff-and-patch: reference/vcs/providers.md#diff-and-patch
+      change-url: reference/vcs/providers.md#change-url
+      description-escaping: reference/vcs/providers.md#description-escaping
+      diff-management: reference/vcs/providers.md#diff-management
+      diff-storage-locations: reference/vcs/providers.md#diff-storage-locations
+      patch-application: reference/vcs/providers.md#patch-application
+      stash-and-clean: reference/vcs/providers.md#stash-and-clean
+      configuration-reference: reference/vcs/providers.md#configuration-reference
+      full-saseyml-example: reference/vcs/providers.md#full-saseyml-example
+      environment-variable: reference/vcs/providers.md#environment-variable
+      cli-flags: reference/vcs/providers.md#cli-flags
+      schema: reference/vcs/providers.md#schema
+      troubleshooting: reference/vcs/providers.md#troubleshooting
+      git-indexlock-contention: reference/vcs/providers.md#git-indexlock-contention
+      numbered-workspace-reports-a-broken-git-object-dependency: reference/vcs/providers.md#numbered-workspace-reports-a-broken-git-object-dependency
+      slow-or-flaky-sidecar-git-transport: reference/vcs/providers.md#slow-or-flaky-sidecar-git-transport
+      no-vcs-provider-found-error: reference/vcs/providers.md#no-vcs-provider-found-error
+      github-gh-cli-not-installed: reference/vcs/providers.md#github-gh-cli-not-installed
+      github-transient-gh-failures: reference/vcs/providers.md#github-transient-gh-failures
+      mercurial-plugin-not-installed: reference/vcs/providers.md#mercurial-plugin-not-installed
+      mercurial-sasehg-commands-not-found: reference/vcs/providers.md#mercurial-sasehg-commands-not-found
+      mercurial-sase_hg_-commands-not-found: reference/vcs/providers.md#mercurial-sase_hg_-commands-not-found
+      auto-detection-picks-wrong-provider-in-nested-repos: reference/vcs/providers.md#auto-detection-picks-wrong-provider-in-nested-repos
+      plugin-architecture: contribute/vcs-provider-api.md#plugin-architecture
+      hook-specification: contribute/vcs-provider-api.md#hook-specification
+      disabling-plugins: contribute/vcs-provider-api.md#disabling-plugins
+      classification-hooks: contribute/vcs-provider-api.md#classification-hooks
+      vcsdetectrepotype: contribute/vcs-provider-api.md#vcsdetectrepotype
+      vcs_detect_repo_type: contribute/vcs-provider-api.md#vcs_detect_repo_type
+      vcsclassifyrepo: contribute/vcs-provider-api.md#vcsclassifyrepo
+      vcs_classify_repo: contribute/vcs-provider-api.md#vcs_classify_repo
+    title: VCS Provider Reference
+  - from: commit_workflows.md
+    to: reference/vcs/index.md
+    kind: stub
+    anchors:
+      overview: reference/vcs/commit-workflows.md#overview
+      workflow-details: reference/vcs/commit-workflows.md#workflow-details
+      commit-commit: reference/vcs/commit-workflows.md#commit-commit
+      propose-propose: reference/vcs/commit-workflows.md#propose-propose
+      pull-request-pr: reference/vcs/commit-workflows.md#pull-request-pr
+      environment-variables: reference/vcs/commit-workflows.md#environment-variables
+      how-it-works: contribute/commit-workflow-orchestrator.md#how-it-works
+      1-agent-makes-code-changes: contribute/commit-workflow-orchestrator.md#1-agent-makes-code-changes
+      2-commit-finalizer-checks-for-uncommitted-work: contribute/commit-workflow-orchestrator.md#2-commit-finalizer-checks-for-uncommitted-work
+      cli-arguments: contribute/commit-workflow-orchestrator.md#cli-arguments
+      type-aliases: contribute/commit-workflow-orchestrator.md#type-aliases
+      3-commitworkflow-orchestrates: contribute/commit-workflow-orchestrator.md#3-commitworkflow-orchestrates
+      commit-hook-evidence: contribute/commit-workflow-orchestrator.md#commit-hook-evidence
+      explicit-bead-action: contribute/commit-workflow-orchestrator.md#explicit-bead-action
+      4-macro-reads-the-result: contribute/commit-workflow-orchestrator.md#4-macro-reads-the-result
+      cli-inputs-and-internal-payload: contribute/commit-workflow-orchestrator.md#cli-inputs-and-internal-payload
+      result-format: contribute/commit-workflow-orchestrator.md#result-format
+      vcs-provider-abstraction: contribute/commit-workflow-orchestrator.md#vcs-provider-abstraction
+      run-result: contribute/commit-workflow-orchestrator.md#run-result
+      resume-after-conflict: contribute/commit-workflow-orchestrator.md#resume-after-conflict
+      commit-finalizer: contribute/commit-workflow-orchestrator.md#commit-finalizer
+      discarded-work-guard: contribute/commit-workflow-orchestrator.md#discarded-work-guard
+      diff-storage: contribute/commit-workflow-orchestrator.md#diff-storage
+      design-principles: contribute/commit-workflow-orchestrator.md#design-principles
+    title: Commit Workflows

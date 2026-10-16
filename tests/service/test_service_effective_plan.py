@@ -130,7 +130,7 @@ def test_durability_warns_for_session_agent_with_denied_fallback(
     assert _MANAGER_SOCK in durable[0]
     assert "login session" in durable[0]
     assert "platform manager" in durable[0]
-    assert "docs/init.md" in durable[0]
+    assert "docs/reference/agents/service-host.md" in durable[0]
     assert durable[0].startswith("captured service environment")
     assert plan.status == "needs_attention"
 

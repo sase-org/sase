@@ -103,7 +103,7 @@ open (draft) ──mark ready──▶ ready (triage) ──launch──▶ in_p
    close the task with verification evidence. A successful `sase stitch create` commit
    or PR from the task worker's primary-repo workspace can close the assigned bead only
    when invoked with `-B close`; intermediate commits use `-B keep` — see
-   [Explicit Bead Action](../../commit_workflows.md#explicit-bead-action).
+   [Explicit Bead Action](../../contribute/commit-workflow-orchestrator.md#explicit-bead-action).
 
 5. Route the worker model. A task's explicit `model` wins. Otherwise a stored size
    selects the corresponding `@xsmall`, `@small`, `@medium`, `@large`, or `@xlarge`

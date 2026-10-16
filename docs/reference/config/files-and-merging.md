@@ -105,8 +105,8 @@ agents-sidecar mutations require both identity fields and fail with the actionab
 There is intentionally no bundled identity default.
 
 Machine hoods also provide stable ownership for the hidden agents sidecar. See
-[Agent Hood Synchronization](../../agents_sidecar.md) for privacy controls, package
-contents, import/publication commands, and recovery.
+[Agent Hood Synchronization](../agents/index.md) for privacy controls, package contents,
+import/publication commands, and recovery.
 
 ## Deep-Merge System
 

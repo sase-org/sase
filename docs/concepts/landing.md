@@ -21,12 +21,13 @@ Commit or proposal ──► Stitches
 ## How it works
 
 After an agent turn finishes, the host's
-[commit finalizer](../commit_workflows.md#commit-finalizer) checks for changes and runs
-the selected workflow. The workflow calls the [VCS provider](../vcs.md), which handles
-operations for the project's version-control system.
+[commit finalizer](../contribute/commit-workflow-orchestrator.md#commit-finalizer)
+checks for changes and runs the selected workflow. The workflow calls the
+[VCS provider](../reference/vcs/index.md), which handles operations for the project's
+version-control system.
 
 A workflow can create a commit, save a proposal, or open a pull request. SASE records
-commit and proposal results as [Stitches](../commit_workflows.md); a pull request
+commit and proposal results as [Stitches](../reference/vcs/index.md); a pull request
 creates a Patch that carries the review state. The agent supplies the result for the
 host to process, while the host owns the finalizer and the VCS operation.
 
@@ -45,7 +46,9 @@ host to process, while the host owns the finalizer and the VCS operation.
 
 ## Look it up
 
-- [Commit workflows](../commit_workflows.md) — workflow behavior and finalizer details.
-- [VCS providers](../vcs.md) — version-control operations and provider boundaries.
+- [Commit workflows](../reference/vcs/index.md) — workflow behavior and finalizer
+  details.
+- [VCS providers](../reference/vcs/index.md) — version-control operations and provider
+  boundaries.
 - [Patch format](../reference/work-units/patches.md) — the review record created for a
   pull request.

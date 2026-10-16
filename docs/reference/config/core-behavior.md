@@ -198,8 +198,8 @@ Home initialization uses convention-based files instead of the project-local pat
 Put `AGENTS.template.md`, `AGENTS.minimal.template.md`, `memory-sase.template.md`, or
 `memory-README.template.md` directly in `~/.config/sase/`; with `use_chezmoi: true`, put
 them in the corresponding source-side `dot_config/sase/` directory. See
-[Memory initialization](../../init.md#memory-initialization) for ownership, preview, and
-deployment behavior.
+[Memory initialization](../agents/memory-initialization.md#memory-initialization-1) for
+ownership, preview, and deployment behavior.
 
 Source: `src/sase/amd/_template.py`, `src/sase/main/init_memory/root_rendering.py`
 

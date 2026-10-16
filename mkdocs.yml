@@ -26,10 +26,14 @@ exclude_docs: |
 # BEGIN GENERATED: docs page moves not_in_nav
 not_in_nav: |
   ace.md
+  agent_sessions.md
+  agents_sidecar.md
   axe.md
   beads.md
+  commit_workflows.md
   configuration.md
   content_layout.md
+  init.md
   instruction_bundles.md
   llms.md
   macros.md
@@ -38,6 +42,8 @@ not_in_nav: |
   rust_backend.md
   sdd.md
   tool.md
+  vcs.md
+  workspace.md
 # END GENERATED: docs page moves not_in_nav
 
 nav:
@@ -95,7 +101,6 @@ nav:
           - Keymaps: reference/tui/keymaps.md
           - SASE Pager: pager.md
       - CLI:
-          - Initialization: init.md
           - Shell completion: completion.md
           - CLI reference: cli.md
           - CLI command groups: reference/cli/index.md
@@ -251,14 +256,29 @@ nav:
           - Patches: reference/work-units/patches.md
           - ProjectSpec: reference/work-units/project-spec.md
       - Agents and workspaces:
-          - Agent sessions: agent_sessions.md
-          - Agent hood synchronization: agents_sidecar.md
-          - Agent attachments: agent_images.md
-          - Agent auto-restart: reference/agent-auto-restart.md
-          - Agent revive log: reference/agent-revive-log.md
-          - Runner slots: reference/runner-slots.md
+          - Agents and workspaces: reference/agents/index.md
+          - Sessions and groups:
+              - Agent clans: reference/agents/agent-clans.md
+              - Agent sessions: reference/agents/agent-sessions.md
+              - Agent tribes: reference/agents/agent-tribes.md
+              - Agent-initiated launches: reference/agents/agent-launches.md
+          - Workspace and initialization:
+              - Workspaces: reference/agents/workspaces.md
+              - Initialization: reference/agents/initialization.md
+              - Service host: reference/agents/service-host.md
+              - Machine initialization: reference/agents/machine-initialization.md
+              - Memory initialization: reference/agents/memory-initialization.md
+          - Shared data and recovery:
+              - Agent hood synchronization: reference/agents/hood-sync.md
+              - Agent attachments: agent_images.md
+              - Agent auto-restart: reference/agent-auto-restart.md
+              - Agent revive log: reference/agent-revive-log.md
+              - Runner slots: reference/runner-slots.md
           - Remote dispatch: remote_dispatch.md
-          - Workspaces: workspace.md
+      - Version control:
+          - Version control: reference/vcs/index.md
+          - VCS providers: reference/vcs/providers.md
+          - Commit workflows: reference/vcs/commit-workflows.md
       - Automation:
           - Overview: reference/automation/index.md
           - Notifications:
@@ -298,7 +318,6 @@ nav:
           - Provider routing: reference/providers/routing.md
           - Provider usage: reference/providers/usage.md
           - Retry and fallback: reference/providers/retry-and-fallback.md
-          - VCS providers: vcs.md
       - Memory:
           - Memory: reference/memory/index.md
           - Memory details: reference/memory/memory.md
@@ -321,6 +340,8 @@ nav:
           - Local state cutover: reference/upgrading/local-state.md
           - Automation migration notes: reference/upgrading/automation.md
           - Provider migration notes: reference/upgrading/providers.md
+          - Agent hood synchronization upgrades: reference/upgrading/agents-sidecar.md
+          - Workspace upgrades: reference/upgrading/workspaces.md
       - Glossary: reference/glossary.md
       - Design decisions: reference/design-decisions.md
   - Contribute:
@@ -338,7 +359,11 @@ nav:
       - Telemetry: contribute/telemetry.md
       - Performance runbook: contribute/perf-runbook.md
       - Mobile MVP runbook: contribute/mobile-mvp-runbook.md
-      - Commit workflows: commit_workflows.md
+      - Agent and VCS internals:
+          - Agent sidecar synchronization: contribute/agents-sidecar-sync.md
+          - Workspace provider: contribute/workspace-provider.md
+          - VCS provider API: contribute/vcs-provider-api.md
+          - Commit workflow orchestrator: contribute/commit-workflow-orchestrator.md
       - SDD storage: contribute/sdd-storage.md
       - Artifacts pane contract: contribute/artifacts-pane-contract.md
       - Artifacts visual grammar: contribute/artifacts-pane-visual-grammar.md

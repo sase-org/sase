@@ -106,7 +106,7 @@ All hooks return `tuple[bool, str | None]` — a success flag and an optional re
 string (commit hash, diff path, or PR URL). The orchestrator stays VCS-agnostic; new VCS
 providers slot in by implementing the three hooks. Provider selection is also pluggable:
 an env var (`SASE_VCS_PROVIDER`), then `sase.yml` `vcs_provider` config, then
-auto-detection. Documented in [`vcs.md`](../../vcs.md).
+auto-detection. Documented in [`vcs.md`](../../reference/vcs/index.md).
 
 ## Resume After Conflict
 
@@ -191,11 +191,11 @@ contribute to the resolver, not which providers exist.
 
 ## What To Read Next
 
-- [Commit workflows](../../commit_workflows.md) — full pipeline, CLI flag table, result
-  schema, resume protocol, environment variables, design principles.
+- [Commit workflows](../../reference/vcs/index.md) — full pipeline, CLI flag table,
+  result schema, resume protocol, environment variables, design principles.
 - [Plugins](../../plugins.md) — entry-point groups, discovery, writing new VCS /
   workspace / LLM / macro / config plugins.
-- [VCS providers](../../vcs.md) — provider selection tiers, per-command VCS usage,
-  provider-specific details.
+- [VCS providers](../../reference/vcs/index.md) — provider selection tiers, per-command
+  VCS usage, provider-specific details.
 - [\[06\] Patches in Practice — Review State Outside the Chat](changespecs-in-practice.md)
   — what the commit/PR flow writes to, and how sase's TUI reviews it.

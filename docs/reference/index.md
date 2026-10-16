@@ -46,14 +46,12 @@ Exact SASE facts; guides teach workflows.
 
 ## Agents and workspaces
 
-- [Agent sessions](../agent_sessions.md) — runs and their turns
-- [Agent hood sync](../agents_sidecar.md) — sharing agents across checkouts
-- [Agent attachments](../agent_images.md) — images agents can see
-- [Agent auto-restart](agent-auto-restart.md) — update-skew recovery, limits
-- [Agent revive log](agent-revive-log.md) — revival audit records
-- [Runner slots](runner-slots.md) — capacity admission, queued agents
-- [Remote dispatch](../remote_dispatch.md) — running agents elsewhere
-- [Workspaces](../workspace.md) — numbered clones agents claim
+- [Agents and workspaces](agents/index.md) — sessions, setup, synchronization, and
+  workspace storage
+
+## Version control
+
+- [Version control](vcs/index.md) — providers and commit workflows
 
 ## Automation
 
@@ -67,7 +65,6 @@ Exact SASE facts; guides teach workflows.
 - [Models and aliases](providers/models.md) — catalog, tiers, reasoning effort, and
   aliases
 - [Provider routing](providers/routing.md) — temporary overrides, disables, and priority
-- [VCS providers](../vcs.md) — git and changer hosting
 
 ## Memory
 

@@ -24,7 +24,12 @@ contracts, and the docs process itself.
 
 ## Contracts and internals
 
-- [Commit workflows](../commit_workflows.md) — How changes land.
+- [Commit workflow orchestrator](commit-workflow-orchestrator.md) — Finalization and
+  workflow internals.
+- [VCS provider API](vcs-provider-api.md) — Provider hooks and classification.
+- [Workspace provider](workspace-provider.md) — Workspace hooks and ownership.
+- [Agent sidecar synchronization](agents-sidecar-sync.md) — Publication and
+  reconciliation internals.
 - [SDD storage](sdd-storage.md) — How work units persist.
 - [Integration APIs](integration-apis.md) — Python helpers for plugins, chat, mobile,
   and editor clients.

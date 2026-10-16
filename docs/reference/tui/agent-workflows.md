@@ -295,7 +295,7 @@ selected at the plan gate.
 ## Launch Approval
 
 Launches requested by a running agent (see
-[Agent-initiated launches](../../agent_sessions.md#agent-initiated-session-launches)) arrive
+[Agent-initiated launches](../agents/agent-launches.md#agent-initiated-session-launches)) arrive
 as priority notifications with a `LaunchApproval` action. Selecting one opens the launch
 approval modal, which renders the request's human-readable preview
 (`launch_preview.md`). Clan slots identify their rootless clan alongside the model,

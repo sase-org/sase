@@ -73,7 +73,7 @@ def preflight_plan_archive_credential(selected_option_ids: Sequence[str]) -> Non
         "archived; the gate remains pending. Give the host an unattended "
         "credential (a passphrase-less `IdentityFile` with `IdentitiesOnly yes` "
         "for `Host github.com`, or a key loaded into the agent the service host "
-        "inherits; see docs/init.md), then answer again.",
+        "inherits; see docs/reference/agents/service-host.md), then answer again.",
     )
 
 

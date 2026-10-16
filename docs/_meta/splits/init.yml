@@ -1,0 +1,12 @@
+to: reference/agents/index.md
+sections:
+  _intro: reference/agents/initialization.md
+  Commands: reference/agents/initialization.md
+  Service host: reference/agents/service-host.md
+  Remote machines: reference/agents/machine-initialization.md
+  Agent Documents: reference/agents/initialization.md
+  Memory Initialization: reference/agents/memory-initialization.md
+  Memory Context List: reference/agents/memory-initialization.md
+  Memory Read Audit Log: reference/agents/memory-initialization.md
+  Repository Initialization: reference/agents/initialization.md
+  Skill Initialization: reference/agents/initialization.md

@@ -277,8 +277,8 @@ A failure before a successful local artifact-sidecar refresh leaves the request 
 for a later mutating `sase agent sync`. The same `--retry-quarantined` and
 `--drop-retired` controls used for agent publication also operate on queued Referenced
 By requests; `--retry-retired` revives retired agent-publication requests only. See
-[Agent Hood Synchronization](agents_sidecar.md#commands-and-status). Once the local
-refresh succeeds, however, the request is no longer in that outbox. A later
+[Agent Hood Synchronization](reference/agents/hood-sync.md#commands-and-status). Once
+the local refresh succeeds, however, the request is no longer in that outbox. A later
 detached-push failure is recorded in the managed SDD sync log and is not retried from
 the Referenced By outbox.
 

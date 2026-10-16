@@ -69,4 +69,4 @@ result.
 ## Next
 
 - [Make and review a change](first-change.md)
-- [Learn about agents and workspaces](../agent_sessions.md)
+- [Learn about agents and workspaces](../reference/agents/index.md)

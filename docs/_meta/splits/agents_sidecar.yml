@@ -1,0 +1,12 @@
+to: reference/agents/index.md
+sections:
+  _intro: reference/agents/hood-sync.md
+  Privacy and configuration: reference/agents/hood-sync.md
+  Strict v2 layout: reference/agents/hood-sync.md
+  Prompt and artifact archive: reference/agents/hood-sync.md
+  Scope and reconciliation: contribute/agents-sidecar-sync.md
+  Browsing page anatomy: reference/agents/hood-sync.md
+  Commands and status: reference/agents/hood-sync.md
+  sase's TUI integration: reference/agents/hood-sync.md
+  Recovery: reference/agents/hood-sync.md
+  Legacy v1 limitations: reference/upgrading/agents-sidecar.md

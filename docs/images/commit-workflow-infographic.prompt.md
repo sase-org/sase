@@ -6,7 +6,7 @@ pdf: false
 
 ## Target
 
-- Doc: `docs/commit_workflows.md`
+- Doc: `docs/contribute/commit-workflow-orchestrator.md`
 - Candidate insertion point: after the `## Overview` workflow table and before
   `## How It Works`
 - Candidate image: `docs/images/commit-workflow-infographic.png`
@@ -18,7 +18,8 @@ pdf: false
 
 Use case: infographic-diagram
 
-Asset type: GitHub Markdown documentation infographic for docs/commit_workflows.md
+Asset type: GitHub Markdown documentation infographic for
+docs/contribute/commit-workflow-orchestrator.md
 
 Primary request: Create a clean 16:9 architecture infographic foundation showing the
 shared Sase commit/propose/pull-request workflow. Use a light neutral background, crisp
@@ -74,10 +75,11 @@ left-to-right and top-to-bottom:
 
 ## Current Status
 
-The checked-in PNG is still not embedded in `docs/commit_workflows.md`. The CLI step in
-the main path is labeled `sase stitch create` (stacked under Commit skill). Other stale
-labels remain (`Stop hook`, `COMMITS`, `ChangeSpec`, `Precommit`) and should be fixed
-before re-embedding.
+The checked-in PNG is still not embedded in
+`docs/contribute/commit-workflow-orchestrator.md`. The CLI step in the main path is
+labeled `sase stitch create` (stacked under Commit skill). Other stale labels remain
+(`Stop hook`, `COMMITS`, `ChangeSpec`, `Precommit`) and should be fixed before
+re-embedding.
 
 ## Required Post-Processing Notes
 

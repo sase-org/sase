@@ -112,7 +112,7 @@ SASE ships two embeddable follow-up prompt workflows for manual session rounds:
 
 Both macros only assemble prompt text; `%i(suffix, session=parent)` is the launch
 directive that attaches the new agent to the session. See
-[Agent Clans, Sessions, and Tribes](../../agent_sessions.md) for the full attachment and
+[Agent Clans, Sessions, and Tribes](../agents/index.md) for the full attachment and
 launch-approval model.
 
 For feedback, pass `parent=` explicitly or combine it with `%i(suffix, session=parent)`
@@ -136,7 +136,7 @@ Literal `#macro` text inside answers is protected so it does not expand accident
 Glossary note: this feature uses the runner's double-dash plan-chain session model —
 agents such as `foo--0`, `foo--plan`, and `foo--code` share the pure session container
 `foo`. Dot-separated names such as `foo.bar` are agent hoods/neighbors in sase's TUI, a
-distinct grouping concept. See [Agent Clans, Sessions, and Tribes](../../agent_sessions.md)
+distinct grouping concept. See [Agent Clans, Sessions, and Tribes](../agents/index.md)
 for the full session model.
 
 ### Scheduled Work Uses Jobs

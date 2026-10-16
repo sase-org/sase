@@ -45,14 +45,11 @@
 ## Reference
 
 - [Agent Attachments and Image Previews](agent_images.md) — Agent Attachments and Image Previews — SASE treats files produced by agents as first-class completion artifacts.
-- [Agent Clans, Sessions, and Tribes](agent_sessions.md) — Agent Clans, Sessions, and Tribes — SASE uses three different kinds of agent grouping.
-- [Agent Hood Synchronization](agents_sidecar.md) — Agent Hood Synchronization — SASE publishes deterministic project-scoped agent-hood snapshots and canonical prompt archives through each managed project's hidden agents sidecar.
 - [Artifact Links](artifact_links.md) — Artifact Links — Artifact links are typed relationships between SASE artifacts.
 - [Artifact References](artifact_references.md) — Artifact References — Artifact references are typed @<kind>:<argument> citations in launch prompts.
 - [CLI Reference](cli.md) — CLI Reference — This page is a command index for the top-level sase CLI.
 - [Shell Completion](completion.md) — Shell Completion — sase completion supports native shell completion for zsh, bash, and fish from the live sase argparse tree, so pressing <TAB> anywhere in the command line offers the right commands, options, static choices, and live values — bead ids with titles, project display names, macro names, and more — with no perceptible latency.
 - [Editor Integration](editor.md) — Editor Integration — SASE exposes two editor-facing surfaces for prompt and macro editing:
-- [Initialization](init.md) — Initialization — SASE initialization commands create or refresh durable files that agents and sidecar tools rely on.
 - [Mobile Gateway](mobile_gateway.md) — Mobile Gateway — The SASE mobile gateway is a workstation-hosted HTTP gateway for paired mobile clients.
 - [SASE Pager](pager.md) — SASE Pager — sase pager opens artifact references, file paths, or stdin in the SASE link-traversing pager.
 - [Plugin System](plugins.md) — Plugin System — Sase uses Python entry points to discover optional functionality installed in the same Python environment as sase.
@@ -60,6 +57,17 @@
 - [Query Language Reference](query_language.md) — Query Language Reference — The Patch query language filters Patches using boolean expressions that combine string matching, property filters, and operational shorthands.
 - [Agent auto-restart](reference/agent-auto-restart.md) — Recovery service for agents interrupted by a live update, and its limits.
 - [Agent revive log](reference/agent-revive-log.md) — Audit records for TUI agent revival, and how to read them.
+- [Agent clans](reference/agents/agent-clans.md) — Look up how parallel agent sessions are grouped and displayed.
+- [Agent-initiated launches](reference/agents/agent-launches.md) — Look up how an agent starts another session or workflow.
+- [Agent sessions](reference/agents/agent-sessions.md) — Look up sequential agent sessions and their shared history.
+- [Agent tribes](reference/agents/agent-tribes.md) — Look up how agents are grouped into persistent tribes.
+- [Agent hood synchronization](reference/agents/hood-sync.md) — Look up shared hood privacy, layouts, publication, browsing, and recovery.
+- [Agents and workspaces](reference/agents/index.md) — Look up agent sessions, initialization, synchronization, and workspace behavior.
+- [Initialization](reference/agents/initialization.md) — Look up project initialization commands and the files they manage.
+- [Machine initialization](reference/agents/machine-initialization.md) — Look up remote machine enrollment through SASE initialization.
+- [Memory initialization](reference/agents/memory-initialization.md) — Look up how SASE initializes, lists, and audits agent memory.
+- [Service host initialization](reference/agents/service-host.md) — Look up how SASE initializes its per-user service host.
+- [Workspaces](reference/agents/workspaces.md) — Look up workspace storage, repository commands, and workspace commands.
 - [Automation](reference/automation/index.md) — Reference pages for SASE notifications, scheduling, monitors, tools, mentors, and sudo requests.
 - [Mentors](reference/automation/mentors.md) — Configure and use automated review mentors for Patches.
 - [Monitor operations](reference/automation/monitor-operations.md) — Inspect, stop, and view monitors in the SASE TUI.
@@ -230,6 +238,7 @@
 - [Agents tab](reference/tui/agents-tab.md) — Tabs, keys, lists, and actions on the sase TUI Agents tab.
 - [TUI](reference/tui/index.md) — Reference pages for the sase TUI Agents tab surfaces.
 - [TUI keymaps](reference/tui/keymaps.md) — Default configurable key bindings for SASE's terminal interface.
+- [Agent hood synchronization upgrades](reference/upgrading/agents-sidecar.md) — Upgrade notes for retired agent hood synchronization formats.
 - [Automation migration notes](reference/upgrading/automation.md) — Upgrade notes for scheduler naming, monitor hand-off, and gate contracts.
 - [Configuration migration notes](reference/upgrading/configuration.md) — Migration steps for configuration keys, file hooks, repositories, and SDD storage.
 - [Content layout migration](reference/upgrading/content-layout.md) — Migration steps and compatibility behavior for SASE content paths.
@@ -238,6 +247,10 @@
 - [Macro migration notes](reference/upgrading/macros.md) — Migration notes for macro names, prompt fields, and launch syntax.
 - [Provider migration notes](reference/upgrading/providers.md) — Historical compatibility notes for provider metadata and model selection.
 - [Work unit migration notes](reference/upgrading/work-units.md) — Compatibility notes for bead, plan, Patch, and ProjectSpec formats.
+- [Workspace upgrades](reference/upgrading/workspaces.md) — Upgrade notes for the managed workspace root and adjacent checkouts.
+- [Commit workflows](reference/vcs/commit-workflows.md) — Look up commit, proposal, and pull request workflow behavior.
+- [Version control](reference/vcs/index.md) — Look up SASE's version control providers, workflows, and repository behavior.
+- [VCS providers](reference/vcs/providers.md) — Look up provider selection, repository operations, and troubleshooting.
 - [Bead artifacts](reference/work-units/bead-artifacts.md) — How beads refer to plans, research, and other artifacts.
 - [Bead attachments](reference/work-units/bead-attachments.md) — Attachment storage, visibility, and troubleshooting for bead records.
 - [Reading beads](reference/work-units/bead-cli-inspection.md) — Commands for adding notes and reading detailed bead records.
@@ -262,16 +275,15 @@
 - [ProjectSpec](reference/work-units/project-spec.md) — The shared project-level file for project metadata and Patch records.
 - [Workflow Specification](reference/workflows.md) — YAML workflow files, step types, inputs, and execution behavior.
 - [Remote Dispatch Runbook](remote_dispatch.md) — Remote Dispatch Runbook — Remote dispatch lets one SASE controller discover, enroll, and operate agents on another machine.
-- [VCS Provider Reference](vcs.md) — VCS Provider Reference — The VCS provider layer is an abstraction that lets sase commands work with both Git and Mercurial repositories.
-- [Workspace Provider Reference](workspace.md) — Workspace Provider Reference — The workspace provider layer is an abstraction that handles workspace-level operations that vary across VCS hosting environments.
 
 ## Contribute
 
-- [Commit Workflows](commit_workflows.md) — Commit Workflows — Sase provides three unified workflows for landing code changes: commit, propose, and pull request.
 - [Acknowledgements](contribute/acknowledgements.md) — People, projects, and research that shaped SASE.
+- [Agent sidecar synchronization internals](contribute/agents-sidecar-sync.md) — Synchronization and reconciliation internals for agent sidecars.
 - [Architecture](contribute/architecture.md) — Architecture internals, runtime flow, state ownership, and provider boundaries inside SASE.
 - [Artifacts pane contract](contribute/artifacts-pane-contract.md) — ArtifactsPaneContract is the host-owned record that decides what a pane can do before widgets, keybindings, or document providers run.
 - [Artifacts pane visual grammar](contribute/artifacts-pane-visual-grammar.md) — Every configured Artifacts pane renders through one shared, contract-driven shell.
+- [Commit workflow orchestrator](contribute/commit-workflow-orchestrator.md) — Contributor internals for commit workflow orchestration and finalization.
 - [Development](contribute/development.md) — This page orients contributors working in the sase repository.
 - [Fakey Testing Provider](contribute/fakey.md) — fakey is a deterministic fake agent CLI bundled with SASE.
 - [Contribute](contribute/index.md) — Contributor guides, internals, contracts, and runbooks for SASE.
@@ -286,6 +298,8 @@
 - [SDD Storage](contribute/sdd-storage.md) — The workspace provider owns SDD placement, while projects select a store beneath it.
 - [Telemetry](contribute/telemetry.md) — SASE records debugging and health metric history locally.
 - [Tool run receipts](contribute/tool-run-receipts.md) — Internal receipt policy and verification details for recorded tool runs.
+- [VCS provider API](contribute/vcs-provider-api.md) — Contributor contract for implementing and selecting VCS providers.
+- [Workspace provider internals](contribute/workspace-provider.md) — Provider APIs, hooks, and ownership rules for workspace implementations.
 - [Writing docs](contribute/writing-docs.md) — The sase.sh documentation contract for humans and agents.
 
 ## Blog
@@ -305,10 +319,14 @@
 ## Compatibility
 
 - [sase's TUI User Guide](ace.md) — sase's TUI User Guide — sase's TUI is the primary TUI for the SASE toolkit.
+- [Agent Clans, Sessions, and Tribes](agent_sessions.md) — This page has moved to its new home.
+- [Agent Hood Synchronization](agents_sidecar.md) — This page has moved to its new home.
 - [Scheduler — Background Automation](axe.md) — This page has moved to its new home.
 - [Bead Issue Tracking](beads.md) — This page has moved to its new home.
+- [Commit Workflows](commit_workflows.md) — This page has moved to its new home.
 - [Configuration Reference](configuration.md) — Configuration Reference — Moved to Configuration files and merging.
 - [Canonical SASE Content Layout](content_layout.md) — This page has moved to its new home.
+- [Initialization](init.md) — This page has moved to its new home.
 - [Instruction Bundles](instruction_bundles.md) — This page has moved to its new home.
 - [LLM Provider Integration](llms.md) — This page has moved to its new home.
 - [Macro Template Reference](macros.md) — This page has moved to its new home.
@@ -317,6 +335,8 @@
 - [Rust Backend (sase_core_rs)](rust_backend.md) — This page has moved to its new home.
 - [Spec-Driven Development (SDD)](sdd.md) — This page has moved to its new home.
 - [Named Tools and ToolRuns](tool.md) — This page has moved to its new home.
+- [VCS Provider Reference](vcs.md) — This page has moved to its new home.
+- [Workspace Provider Reference](workspace.md) — This page has moved to its new home.
 
 ## Moved pages
 
@@ -360,3 +380,9 @@
 | `/project_spec/` | [`/reference/work-units/project-spec/`](reference/work-units/project-spec.md) |
 | `/beads/` | [`/reference/work-units/`](reference/work-units/index.md) |
 | `/sdd/` | [`/reference/work-units/`](reference/work-units/index.md) |
+| `/agent_sessions/` | [`/reference/agents/`](reference/agents/index.md) |
+| `/workspace/` | [`/reference/agents/`](reference/agents/index.md) |
+| `/agents_sidecar/` | [`/reference/agents/`](reference/agents/index.md) |
+| `/init/` | [`/reference/agents/`](reference/agents/index.md) |
+| `/vcs/` | [`/reference/vcs/`](reference/vcs/index.md) |
+| `/commit_workflows/` | [`/reference/vcs/`](reference/vcs/index.md) |

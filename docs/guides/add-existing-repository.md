@@ -65,6 +65,7 @@ point at.
 
 ## Related
 
-- [Initialization](../init.md) — every setup command, flag, and batch mode.
+- [Initialization](../reference/agents/index.md) — every setup command, flag, and batch
+  mode.
 - [Agents, sessions, and workspaces](../concepts/agents.md) — how the project gives
   agents isolated checkouts to work in.

@@ -181,19 +181,19 @@ hands `sase bead work <plan-file> --yes-to-all` to a durable supervisor, because
 launching an epic's phases is itself a long-running command that must outlive the
 approving process.
 
-The preferred form is a [monitor](../../monitors.md) turn under the planner's own agent
-session, labeled `Epic launch · <plan>`. The monitor turn reads `EPIC APPROVED` while
-`sase bead work` runs and uses its configured `EPIC CREATED` label after any terminal
-outcome—even failure, timeout, stop, or loss. Treat the monitor's state, bucket, exit
-code, and output as the result. Only a successful launch attempts to back-fill the epic
-ID; when that metadata lands, the planner row itself moves to `EPIC CREATED`, and
-otherwise it remains `EPIC APPROVED`. No follow-up agent is recorded — `sase bead work`
-launches the phase agents itself — and the monitor takes a zero workspace claim, since
-the launch runs in the project's primary workspace rather than the planner's. If the
-planner's agent session cannot be resolved (a very old artifacts layout, or a wiped
-agent), the launch falls back to an unattributed command proc with the same command and
-label rather than silently dropping the approval. Other monitor-start errors fail the
-approval rather than selecting that fallback.
+The preferred form is a [monitor](../automation/monitors.md) turn under the planner's
+own agent session, labeled `Epic launch · <plan>`. The monitor turn reads
+`EPIC APPROVED` while `sase bead work` runs and uses its configured `EPIC CREATED` label
+after any terminal outcome—even failure, timeout, stop, or loss. Treat the monitor's
+state, bucket, exit code, and output as the result. Only a successful launch attempts to
+back-fill the epic ID; when that metadata lands, the planner row itself moves to
+`EPIC CREATED`, and otherwise it remains `EPIC APPROVED`. No follow-up agent is recorded
+— `sase bead work` launches the phase agents itself — and the monitor takes a zero
+workspace claim, since the launch runs in the project's primary workspace rather than
+the planner's. If the planner's agent session cannot be resolved (a very old artifacts
+layout, or a wiped agent), the launch falls back to an unattributed command proc with
+the same command and label rather than silently dropping the approval. Other
+monitor-start errors fail the approval rather than selecting that fallback.
 
 Either way the launch is durable: it survives the approving process, and normal command
 success or failure emits the epic-completion notification. Inspect a monitor-backed

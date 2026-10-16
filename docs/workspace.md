@@ -1,738 +1,122 @@
+---
+title: Workspace Provider Reference
+description: This page has moved to its new home.
+search:
+  exclude: true
+---
+
+<!-- generated, do not edit; source: docs/_meta/moves.yml -->
+
 # Workspace Provider Reference
 
-The **workspace provider layer** is an abstraction that handles workspace-level
-operations that vary across VCS hosting environments. While the [VCS provider](vcs.md)
-handles low-level version control commands (commit, diff, checkout), the workspace
-provider handles higher-level concerns: workflow type detection, reference resolution
-(for example `#git:repo` or `#gh:org/repo`), change submission, mail preparation, and
-workspace directory management.
-
-A **workspace reference** is a prompt prefix such as `+sase`, `#git:sase`, `#gh:sase`,
-or a ref registered by another workspace provider. It tells SASE which project and
-workspace should be used before the rest of the prompt or workflow runs. The
-`+<project>` [project tag](reference/macros/reference-syntax.md#project-tags) is the
-default spelling for a known project; the `#` forms remain for Patches, `owner/repo`,
-`@agent`, paren forms, and creating new projects.
-
-SASE keeps three related concepts distinct:
-
-- A **project** is a named unit of work with a ProjectSpec at
-  `~/.sase/projects/<name>/<name>.sase`; it is enabled unless explicitly disabled.
-- A **repo** is a primary project repository, a configured sidecar (such as `plans` or
-  `designs`), or a configured linked repo.
-- A **workspace** is a numbered clone of a project's primary repo, tracked in that
-  project's workspace `registry.json`.
-
-Workspace directories are not repos. Linked-repo and sidecar clones materialized inside
-a numbered workspace are repo checkouts, not additional workspaces.
-
-For everyday use, put `+<project>` in the agent's launch prompt and let SASE allocate an
-isolated workspace. The agent opens linked or external repositories through
-`sase repo open` and works in the path it prints. Before its normal final response, the
-root agent uses the `/sase_final` skill to submit a declaration; the host then runs the
-configured finalizers, including committing changes under the default configuration.
-Numbered workspaces are reused. Before evicting leftover linked and external clones,
-SASE attempts to rescue local work to a durable recovery directory; it does not publish
-those clones during eviction, and a failed rescue does not stop eviction. See
-[workspace maintenance](#workspace-maintenance) for recovery and retention details, and
-[Monitors](monitors.md) for running a command from an opened repository.
-
-## Plugin Architecture
-
-Workspace providers are implemented as [pluggy](https://pluggy.readthedocs.io/) plugins,
-following the same pattern as VCS plugins. The core `sase` package bundles the
-**BareGitWorkspacePlugin** for local bare-remote git repositories. Additional backends
-must be installed in the same Python environment as `sase`:
-
-| Package       | Plugin                   | Description                                     |
-| ------------- | ------------------------ | ----------------------------------------------- |
-| `sase` (core) | `BareGitWorkspacePlugin` | Bare-git repos (local filesystem remote)        |
-| `sase-github` | `GitHubWorkspacePlugin`  | GitHub-hosted repos (PR workflows via `gh` CLI) |
-
-Plugins register themselves via the `sase_workspace` entry point group. The plugin
-manager loads all registered plugins and dispatches operations through pluggy hooks.
-Most hooks use `firstresult=True` — the first plugin that returns a non-`None` result
-wins.
-
-### Hook Specification
-
-All workspace operations are defined in `WorkspaceHookSpec`
-(`src/sase/workspace_provider/_hookspec.py`). Each method is prefixed with `ws_` to
-namespace them within the pluggy project.
-
-## Key Data Types
-
-### WorkflowMetadata
-
-Each workspace plugin declares metadata about the workflow type it supports:
-
-| Field                      | Type   | Description                                                            |
-| -------------------------- | ------ | ---------------------------------------------------------------------- |
-| `workflow_type`            | string | Short name used in `#type:ref` prompts (e.g., `"git"`, `"gh"`)         |
-| `ref_pattern`              | string | Regex matching `#type:ref` or `#type(ref)` syntax                      |
-| `display_name`             | string | Human-readable name (e.g., `"Git (bare)"`, `"GitHub"`)                 |
-| `pre_allocated_env_prefix` | string | Env-var prefix for pre-allocated workspace variables                   |
-| `vcs_family`               | string | VCS family (e.g., `"git"`, `"hg"`)                                     |
-| `vcs_provider_name`        | string | Specific VCS provider name (e.g., `"bare_git"`, `"github"`)            |
-| `sdd_storage_policy`       | string | Optional provider SDD policy declaration: `in_tree` or `separate_repo` |
-
-Built-in metadata includes `SASE_GIT` for `#git`. Plugin packages can add prefixes such
-as `SASE_GH`.
-
-SASE treats `sdd_storage_policy` as authoritative. `in_tree` takes effect immediately,
-as it does for the built-in bare-git provider. `separate_repo` requires the provider to
-materialize a sidecar before SDD writes or workflow setup can continue. A positive
-`.sase/sdd-store.json` record preserves that materialized selection for offline use.
-Managed GitHub initialization can record the resolved store as `sidecar_repos`, routing
-every configured role and (in schema 3) beads to role-specific linked clones. Schema-2
-records keep beads under the plans clone. This is a materialized-store layout, not an
-additional provider policy value.
-
-### ResolvedRef
-
-Result of resolving a workspace reference:
-
-| Field                   | Type           | Description                                                                                        |
-| ----------------------- | -------------- | -------------------------------------------------------------------------------------------------- |
-| `project_file`          | string         | Path to the project spec file                                                                      |
-| `project_name`          | string         | Name of the project                                                                                |
-| `primary_workspace_dir` | string         | Path to the primary workspace directory                                                            |
-| `checkout_target`       | string         | Branch or revision to check out                                                                    |
-| `extra`                 | dict[str, str] | Additional plugin-specific data                                                                    |
-| `canonical_ref`         | string \| null | Optional stable ref to persist when the matched prompt ref was a provider-specific locator or path |
-
-For clone-based git workflows, `primary_workspace_dir` is the primary checkout path and
-`get_workspace_directory()` derives numbered sibling workspaces from it. Some provider
-plugins can leave `primary_workspace_dir` empty and resolve numbered workspaces through
-their own helper command.
-
-When `canonical_ref` is set, launch history, replay selections, and prompt MRU entries
-use `#<workflow>:<canonical_ref>` instead of the raw user-entered locator; when it is
-absent, SASE keeps the matched ref. For example, first-use repository paths or GitHub
-owner/repo refs can resolve to a stable SASE project key while still letting the
-provider decide the checkout target. `canonical_ref` does not replace `checkout_target`;
-providers still decide which branch or revision to check out.
-
-## Hook Reference
-
-### Metadata and Detection
-
-| Hook                       | Returns                    | Description                                  |
-| -------------------------- | -------------------------- | -------------------------------------------- |
-| `ws_get_workflow_metadata` | `WorkflowMetadata \| None` | Declare this plugin's workflow type metadata |
-| `ws_detect_workflow_type`  | `str \| None`              | Detect workflow type from a project file     |
-| `ws_get_change_label`      | `str \| None`              | Get the change label (e.g., `"PR"`, `"PR"`)  |
-| `ws_get_workspace_name`    | `str \| None`              | Get the workspace/project name for a CWD     |
-
-`ws_get_workflow_metadata` is the only hook that collects results from **all** plugins
-(not `firstresult`). This allows the registry to build a complete map of all available
-workflow types.
-
-### Reference Resolution and Workflow Setup
-
-| Hook                         | Returns                  | Description                                       |
-| ---------------------------- | ------------------------ | ------------------------------------------------- |
-| `ws_resolve_ref`             | `ResolvedRef \| None`    | Resolve a `#type:ref` reference to workspace info |
-| `ws_setup_workflow`          | `dict[str, str] \| None` | Set up environment variables for a workflow run   |
-| `ws_get_workspace_directory` | `str \| None`            | Get or create a workspace directory for a clone   |
-
-### Change Submission and Review
-
-| Hook                                   | Returns                            | Description                                     |
-| -------------------------------------- | ---------------------------------- | ----------------------------------------------- |
-| `ws_submit`                            | `tuple[bool, str \| None] \| None` | Submit a Patch (merge, push, etc.)              |
-| `ws_prepare_mail`                      | `object \| None`                   | Prepare a change for mailing/review             |
-| `ws_extract_change_identifier`         | `tuple[str, str] \| None`          | Extract identifier from a PR URL                |
-| `ws_supports_reviewer_comments`        | `bool \| None`                     | Check if a PR URL supports reviewer comments    |
-| `ws_generate_reviewer_comments_script` | `str \| None`                      | Generate a script to fetch reviewer comments    |
-| `ws_generate_submitted_check_script`   | `str \| None`                      | Generate a script to check if a PR is submitted |
-
-### Commit Formatting
-
-| Hook                           | Returns        | Description                                               |
-| ------------------------------ | -------------- | --------------------------------------------------------- |
-| `ws_format_commit_description` | `bool \| None` | Format a commit description file (add tags, prefix, etc.) |
-
-### Repository Onboarding
-
-The provider-neutral onboarding flows use additive hooks. Providers return `None` when
-they do not own the requested `workflow_type`; repository creation never clones or
-registers the project, which happens later through the normal reference resolver.
-
-| Hook                            | Returns                       | Description                                                   |
-| ------------------------------- | ----------------------------- | ------------------------------------------------------------- |
-| `ws_parse_repo_ref`             | `ParsedRepoRef \| None`       | Purely normalize a user-entered repository reference          |
-| `ws_list_local_repo_candidates` | `LocalRepoCandidates \| None` | Find bounded local repositories and checkouts                 |
-| `ws_probe_repo`                 | `RepoProbe \| None`           | Read-only observation of availability and repository metadata |
-| `ws_describe_repo_creation`     | `RepoCreationForm \| None`    | Describe provider-specific creation fields                    |
-| `ws_create_repo`                | `RepoCreateResult \| None`    | Create the remote or bare repository only                     |
-
-`ws_parse_repo_ref` must not access the filesystem, network, or subprocesses.
-`ws_list_local_repo_candidates` reads local metadata without subprocesses, and
-`ws_probe_repo` is bounded and non-interactive. Creation forms identify each option by
-its stable `name`; `ws_create_repo` receives those values and returns `created`,
-`exists`, or `failed` without deciding whether to adopt an existing repository.
-
-Register an existing repository with `sase project add REF`. The command previews the
-provider observation and planned local changes before resolving the repository; its
-optional setup step is the human-only marker commit and push. Create a new repository
-with `sase project create REF`; `--check` is available to agents, and apply is
-human-only unless it runs as an approved `/sase_gate` option or
-`SASE_PROJECT_CREATE_BYPASS` holds a reason.
-
-## Registry Functions
-
-The workspace provider package (`sase.workspace_provider`) exports convenience functions
-that call through the plugin manager. These are the primary API for consumers:
-
-| Function                              | Description                                     |
-| ------------------------------------- | ----------------------------------------------- |
-| `clone_external_repo()`               | Clone a repository by provider scheme           |
-| `create_repo()`                       | Create a remote or bare repository              |
-| `create_sdd_remote()`                 | Create the SDD sidecar remote                   |
-| `describe_repo_creation()`            | Describe provider-specific creation fields      |
-| `detect_workflow_type()`              | Detect workflow type for a project file         |
-| `extract_change_identifier()`         | Extract a change identifier from a message      |
-| `format_commit_description()`         | Format a commit description                     |
-| `generate_reviewer_comments_script()` | Generate a reviewer-comments script             |
-| `generate_submitted_check_script()`   | Generate a submitted-check script               |
-| `get_all_workflow_metadata()`         | Get metadata from all registered plugins        |
-| `get_change_label()`                  | Get the change label for a project              |
-| `get_display_name()`                  | Get display name for a workflow type            |
-| `get_display_name_by_vcs()`           | Get display name by VCS provider name           |
-| `get_display_name_by_vcs_family()`    | Get display name by VCS family                  |
-| `get_embedded_vcs_tag_pattern()`      | Get the embedded VCS tag pattern                |
-| `get_external_repo_schemes()`         | Get clone schemes registered by providers       |
-| `get_pre_allocated_env_prefix()`      | Get env-var prefix for a workflow type          |
-| `get_ref_patterns()`                  | Get all registered ref patterns                 |
-| `get_sdd_storage_policy_by_vcs()`     | Get an SDD storage policy declared by VCS       |
-| `get_vcs_tag_pattern()`               | Get the VCS tag pattern for a workflow type     |
-| `get_workflow_names()`                | Get all registered workflow type names          |
-| `get_workspace_directory()`           | Get the directory for a workspace number        |
-| `get_workspace_name()`                | Get workspace/project name for a directory      |
-| `list_local_repo_candidates()`        | List local repositories and checkouts           |
-| `list_ref_namespaces()`               | List owner/namespace candidates                 |
-| `list_repo_candidates()`              | List remote repository candidates               |
-| `materialize_sdd_store()`             | Materialize an SDD sidecar store                |
-| `parse_repo_ref()`                    | Parse a user repository reference               |
-| `peek_ref()`                          | Read-only workspace reference lookup            |
-| `preflight_sdd_sidecar()`             | Preflight an SDD sidecar remote                 |
-| `prepare_mail()`                      | Prepare a change for review                     |
-| `probe_repo()`                        | Observe repository availability and metadata    |
-| `reset_workflow_metadata_caches()`    | Drop cached workflow metadata                   |
-| `resolve_ref()`                       | Resolve a workspace reference                   |
-| `submit_patch()`                      | Submit a Patch                                  |
-| `supports_reviewer_comments()`        | Whether the provider supports reviewer comments |
-
-## Bare-Git Reference Auto-Initialization
-
-The bundled bare-git provider resolves `#git:<ref>` in four modes:
-
-1. A registered bare-git project shorthand, using `~/.sase/projects/<name>/<name>.sase`
-   when it contains `BARE_REPO_DIR` and `WORKSPACE_DIR`.
-2. A Patch name found across registered projects.
-3. A missing project shorthand with no slash, which initializes a new bare-git project
-   using `~/.sase/repos/<name>.git` as the bare repository and `~/projects/git/<name>/`
-   as the primary checkout.
-4. A bare repository path, deriving the project name from the path basename and creating
-   the matching ProjectSpec with that bare path and the default `~/projects/git/<name>/`
-   primary checkout path.
-
-The missing-project shorthand is intended for first use from a macro or prompt bar:
-`#git:new_tool #!workflow` creates the bare-git project on demand.
-
-An existing ProjectSpec is never treated as a missing bare-git project merely because
-`BARE_REPO_DIR` is absent. If the spec belongs to another workspace provider, `#git:`
-fails with a provider-mismatch error and points to the matching VCS tag instead of
-rewriting the project in place. A genuine bare-git project whose checkout still has a
-local-path `origin` can repair a missing `BARE_REPO_DIR` automatically.
-
-The same guard covers names another project already claims. Before a slashless `<ref>`
-that has no ProjectSpec directory of its own is treated as a Patch name or a new
-project, the resolver checks whether an existing project declares it as its
-`PROJECT_NAME` or as an alias. A bare-git owner resolves as that canonical project; any
-other owner fails with the provider-mismatch error, so `#git:<github-alias>` points you
-to the matching tag (such as `#gh:<github-alias>`) instead of creating a stray bare-git
-project. A bare-repository path whose basename is claimed this way resolves the same
-way, and bare-git initialization likewise refuses a name another project claims.
-`sase doctor`'s `project.name_collisions` check warns when a project's `PROJECT_NAME` or
-alias matches another project's directory key, `PROJECT_NAME`, or alias (compared
-case-insensitively, disabled projects included), or claims the reserved `home` ref. The
-VCS-reference history also removes provider-mismatched alias entries.
-
-`#git:home` is special because it is the default for bare prompts. If the `home`
-ProjectSpec is missing, SASE bootstraps a managed empty bare-git project at the default
-`home` paths; an existing non-bare-git `home` project receives the same provider guard
-as any other project. To point a project at an existing bare repository, use
-`#git:<bare-repo-path>`; the path basename becomes the SASE project name, so
-`#git:/path/to/home.git` registers the `home` project.
-
-Bare-git projects use in-tree SDD under `sdd/`. SASE creates or refreshes generated SDD
-guide files during new project initialization, existing bare-repo registration, and
-first `#git` or `sase repo open` materialization. When materialization owns the checkout
-setup, SASE commits and pushes only those generated guide paths with an `Initialize SDD`
-init commit.
-
-## Known-Project VCS Fallback
-
-SASE also recognizes provider-prefixed VCS refs that target registered project names
-even when the corresponding workspace plugin is not available in the current process.
-Known projects are discovered from `~/.sase/projects/*/*.sase` (with legacy
-`~/.sase/projects/*/*.gp` accepted as a fallback) by reading each `WORKSPACE_DIR:`
-entry. For example, if the `sase` project is registered, `+sase #!some/workflow`,
-`#gh:sase #!some/workflow`, and the underscore shorthand `#gh_sase #!some/workflow` are
-treated as VCS workspace launches rather than ordinary macro references.
-
-Known-project fallback is lifecycle-aware. Launch pickers and broad macro/catalog
-discovery include enabled projects only. Legacy `inactive`, `archived`, and `closed`
-values normalize to disabled. An explicitly typed ref to a registered disabled project
-is treated as intent to resume work: launch preparation writes `PROJECT_STATE: enabled`
-before the workspace claim. A checkout cwd or mobile `project` value provides
-prompt-resolution context but is not a workspace ref; a bare prompt without one defaults
-to `#git:home`. Direct workspace claims that bypass launch preparation still fail
-against a disabled ProjectSpec with an enable hint. Use `sase project list --state all`
-to inspect disabled projects and `sase project enable <project>` when you want to make
-that state change separately.
-
-Configured linked repositories use hidden internal `PROJECT_STATE: sibling` backing
-records rather than a project lifecycle state. Agents prepare them through `/sase_repo`.
-In a SASE-launched agent run, the audited open records the repo name and kind in run
-artifacts and the durable repo-open log; sase's TUI uses the artifact record for
-opened-repo context, and the commit finalizer enforces the linked or external repo the
-agent explicitly opened.
-
-Non-wait launches allocate the next available numbered workspace for the project and set
-the VCS update target to the provider default revision. When registered workspace
-metadata provides an env prefix, SASE passes the matching `<PREFIX>_PRE_ALLOCATED`,
-`<PREFIX>_WORKSPACE_NUM`, and `<PREFIX>_WORKSPACE_DIR` values into the child process.
-Launches that start with a wait directive keep workspace number `0` until the dependency
-is ready, then resolve a real workspace during normal runner setup. Before applying the
-current launch context, SASE removes inherited `SASE_*_PRE_ALLOCATED`,
-`SASE_*_WORKSPACE_NUM`, and `SASE_*_WORKSPACE_DIR` variables so nested or follow-up
-launches do not accidentally reuse a stale parent workspace. When a session follow-up's
-composed prompt still carries its `#git:` or `#gh:` ref, SASE then supplies fresh
-pre-allocation variables for the workspace that successor actually received. The VCS
-setup step adopts a numbered claim already owned by its runner instead of allocating a
-second checkout, and rebinds a deferred `#0` runner to the real numbered workspace once
-setup reports it. A pinned session workspace names the planner's workspace directly.
-When it is taken, the launch fails with the occupant named unless
-`SASE_AGENT_PINNED_WORKSPACE_FALLBACK=pool` requests relocation to a pool workspace;
-relocated children record the real workspace they received.
-
-The matching release step is handoff- and identity-aware. It leaves the claim and
-checkout occupant in place when the run has written a pending plan, question, monitor,
-gate, or pipe handoff marker. Otherwise it releases only a matching RUNNING claim whose
-pid still belongs to the calling runner. Claim release and occupant cleanup are checked
-separately: a claim-pid mismatch is a recorded no-op for the claim, and an occupant
-record is cleared only when its pid matches the caller.
-
-## Relationship to VCS Provider
-
-The workspace provider and VCS provider are complementary plugin systems:
-
-| Concern                | VCS Provider                            | Workspace Provider                                |
-| ---------------------- | --------------------------------------- | ------------------------------------------------- |
-| **Scope**              | Low-level VCS commands                  | High-level workspace operations                   |
-| **Examples**           | `git commit`, `git diff`, `hg amend`    | Ref resolution, submit, mail prep, workspace dirs |
-| **Plugin granularity** | One active plugin per detected VCS type | All plugins registered, firstresult dispatch      |
-| **Entry point**        | `sase_vcs`                              | `sase_workspace`                                  |
-| **Hook prefix**        | `vcs_`                                  | `ws_`                                             |
-
-A single plugin package (e.g., `sase-github`) typically provides both a VCS plugin and a
-workspace plugin.
-
-## Ownership Boundary
-
-SASE-initiated host, runner, and scheduled work never mutates the user's primary
-checkout (`#0`, including the legacy `#1` spelling). Automation may read it to resolve
-config, remotes, branches, project identity, and sidecar metadata, but every automated
-write goes through one of these mechanisms instead:
-
-- **Operational workspace leases** (`sase.workspace_provider.lease`) claim a numbered
-  workspace from the unified pool (`#10`+), materialize and prepare its checkout from
-  the configured primary remote, and expose a leased `OperationContext`. The lease is
-  released exactly once on success, failure, timeout, cancellation, or reboot recovery,
-  and acquisition never falls back to the primary checkout. Plan approval, epic
-  launches, task launches, and background bead writers (claim acquisition, periodic
-  reconciliation, external issue mirroring) all acquire a lease — or reuse an already
-  claimed workspace when its store is a separate workspace-local sidecar — rather than
-  resolving a canonical primary store for writing. Checkout preparation makes up to
-  three `git fetch` attempts in total: it retries transient transport failures
-  (connection reset, timeout, DNS) and re-checks an authentication refusal such as
-  `Permission denied (publickey)` once after about 10 seconds, before failing the lease;
-  see [Service host](init.md#service-host).
-- **Reset-and-replay conflict recovery** (`sase.workspace_provider.reset_replay`)
-  recovers a stale rebase, merge conflict, or non-fast-forward publication race by
-  hard-resetting only a live, leased, machine-owned checkout to its verified upstream
-  tip and replaying the idempotent operation from durable inputs. It refuses to touch
-  primary `#0`, an unclaimed checkout, or a user-directed/read-only context; remote
-  unavailability and lock contention are retried or deferred, never reset.
-- **Primary-sidecar auto-sync** (`sase._sidecar_auto_sync`, the `auto_sync` sidecar
-  setting) is the one exception that touches a clone reachable from the primary
-  checkout: it may fetch and fast-forward an already-materialized sidecar clone — not
-  the primary repository itself — and only while that clone is clean, attached, and
-  strictly behind its configured remote. Dirty, detached, diverged, remote-mismatched,
-  or missing clones are left untouched and reported. See
-  [`auto_sync` vs. `auto_clone`](reference/config/repositories-behavior.md#repos) for
-  the config-level distinction; sync runs both from a durable per-project/role hint
-  recorded right after a workspace-sidecar publication and from a scheduled backstop
-  job.
-
-`sase.workspace_provider.ownership.authorize_store_mutation` and the `writable_*`
-helpers are the shared enforcement point close to every store mutation seam, so a new
-background caller cannot bypass the boundary by importing a lower-level commit helper
-directly. Explicit foreground commands the user runs in their own chosen cwd — including
-an agent's own git operations inside its already-claimed workspace — remain unaffected;
-the boundary applies to SASE resolving and writing to _primary_ on the user's behalf.
-
-## Workspace Directory Layout
-
-SASE resolves every workspace through a per-project store rather than by
-string-appending `_<num>` to the primary checkout path. The store assigns workspaces
-stable numeric identities and chooses a physical path according to the configured root
-policy.
-
-### Numeric Identity
-
-| Range     | Meaning                                                                                                                                         |
-| --------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| `#0`      | Primary checkout from ProjectSpec `WORKSPACE_DIR`. Also used as the placeholder for deferred launches.                                          |
-| `#1`–`#9` | Reserved. The allocator never hands these out, but legacy tests and call sites that pass them by hand still work via the compatibility wrapper. |
-| `#10`+    | Claim-allocated numbered workspaces. New agents allocate from this unified pool starting at `#10`.                                              |
-
-Older releases allocated agent workspaces starting at `#1` and special-cased axe at
-`#100`. The current allocator uses one shared pool for every claim source;
-`claim_next_axe_workspace()`, launch executor pre-claims, and `axe` deferred claims all
-start at `#10` unless a caller passes explicit `min_workspace` / `max_workspace` bounds.
-`get_first_available_axe_workspace()` is a read-only selector and is not used to occupy
-a slot.
-
-User-facing checkout suffixes are `<project>_<num>` regardless of root policy. The
-primary checkout retains its `WORKSPACE_DIR` path with no suffix.
-
-### Root Policy
-
-The physical location of managed checkouts is controlled by `workspace.root` (see
-[`docs/reference/config/workspace-behavior.md`](reference/config/workspace-behavior.md#workspace))
-and the `SASE_WORKSPACE_ROOT` environment override:
-
-| Value         | Layout                                                                                                                                                                                                                                 |
-| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `xdg-state`   | Default. Platform state root plus namespace: `$XDG_STATE_HOME/sase/workspaces/<project_key>/<project>_<num>/` on Linux, `~/Library/Application Support/sase/workspaces/...` on macOS, `%LOCALAPPDATA%\sase\workspaces\...` on Windows. |
-| `adjacent`    | Legacy `<primary>_<num>/` siblings of the primary checkout. Explicit opt-in; byte-for-byte compatible with previous releases.                                                                                                          |
-| absolute path | Treat the configured path as the managed-root base and create `<project_key>/<project>_<num>/` checkouts under it.                                                                                                                     |
-
-`SASE_WORKSPACE_ROOT` overrides `workspace.root` for the process and is interpreted as
-an explicit managed root directory, with the project namespace appended underneath it.
-Use an absolute path for predictable behavior. It is the recommended override for
-ephemeral test runs and CI sandboxes.
-
-The `project_key` namespace under managed roots is derived from a single Git remote slug
-when available, otherwise from the primary-path basename plus a short hash so two
-projects with the same basename do not collide. An explicit `workspace.project_key` in
-config wins over the heuristic.
-
-Each managed checkout writes a `.sase/checkout.json` marker recording the project name,
-project key, workspace number, primary workspace path, and the registry path. CWD-based
-project inference (used by `sase bead`, the file panel, and similar callers) reads the
-nearest marker first and only falls back to sibling-pattern scanning for adjacent legacy
-layouts.
-
-Configured linked repositories for a numbered checkout are cloned beneath that host
-checkout at `sase/repos/linked/<linked_repo>`. Before every agent or workflow launch,
-SASE atomically removes the numbered checkout's entire `sase/repos/` tree and deletes it
-in the background. Sidecars configured with `auto_clone: true` (normally `plans`) are
-then cloned directly from their recorded authoritative remotes. Legacy GitHub HTTPS
-records are resolved to canonical SSH before the clone command runs; already-valid SSH
-and local remotes are preserved, while any remaining HTTP(S) metadata fails launch
-preparation before Git executes. The normalization is read-only, so rerunning
-`sase repo init` persists the migrated record but is not required for a safe launch.
-Other linked repositories and ordinary document sidecars remain lazy unless configured
-for automatic cloning and can be materialized on demand through `/sase_repo`. External
-repos are also cloned on demand below `sase/repos/external/projects/` or
-`sase/repos/external/<scheme>/`. SASE protects the whole tree immediately with the
-per-clone `/sase/repos/` exclude rule; run `sase repo init` to add the same rule durably
-to the tracked root `.gitignore`. Use `--check` to report drift, `--diff` to preview it,
-or `--no-commit` to write the rule without the normal project commit/push sequence.
-
-### Registry
-
-For non-adjacent roots SASE maintains a per-project registry alongside the checkouts.
-The registry tracks every workspace the store owns — including primary `#0` — and
-records `checkout_dir`, `materialization`, `role`, `pinned`, `created_at`, and
-`last_used_at`. Registry writes are atomic. `sase workspace repair` is the canonical way
-to reconcile the registry against the filesystem after a manual delete or a partially
-completed migration. Adjacent checkouts keep their legacy sibling behavior and normally
-do not write a persistent registry; `cleanup` and `repair` treat a missing registry as
-"nothing managed here" rather than an error.
-
-### Adjacent Compatibility And Migration
-
-The default `workspace.root` is `xdg-state` for unconfigured installations and projects.
-Existing adjacent `<primary>_<num>/` directories are not moved during ordinary
-resolution; SASE only creates new managed checkouts under the configured root. To carry
-old adjacent checkouts into the managed root, run:
-
-```bash
-sase workspace migrate --to xdg-state [--symlink-transition] [--dry-run]
-sase workspace migrate --finalize [--dry-run]
-```
-
-The first form moves every existing `<primary>_<num>` checkout under the managed root
-and records it in the registry. With `--symlink-transition`, the original
-`<primary>_<num>` path becomes a symlink to the canonical managed checkout so legacy
-tooling that walks `..` for siblings keeps working. Migration refuses to overwrite a
-real directory at the managed destination; pre-existing managed content is reported and
-skipped. `--dry-run` reports the planned actions without touching the filesystem or
-registry.
-
-Once workflows have adapted to the managed paths, `sase workspace migrate --finalize`
-removes the leftover transition symlinks without touching the canonical checkouts.
-
-### Backup, Container, And Network-Storage Caveats
-
-- **Backups.** With `adjacent`, every numbered checkout sits inside the user's normal
-  source tree and gets captured by Borg/Restic/Syncthing/BTRFS snapshots. Managed roots
-  move execution state out of the primary backup surface; if you want crashed-agent
-  working trees included, add `~/.local/state/sase/workspaces/` (or the platform
-  equivalent) to your backup profile explicitly.
-- **BTRFS / ZFS snapshots.** A snapshot of `~/projects` no longer freezes every
-  workspace atomically once the canonical checkouts live elsewhere. Snapshot the state
-  root alongside the source tree if atomicity matters.
-- **NFS / network home directories.** If `$HOME` is on NFS and your source tree is on
-  local SSD, switching to `xdg-state` can move workspaces to slow storage. Set
-  `workspace.root` to an absolute path on the fast volume, or keep `adjacent`.
-- **Containers / devcontainers / Toolbx / Distrobox.** Tools that bind-mount
-  `~/projects` into a container will not see managed checkouts under `~/.local/state`.
-  Either add a second mount for the managed root or keep `workspace.root: adjacent` for
-  the containerized project.
-- **Recursive search performance.** `rg`, `fd`, IDE workspace-wide search and similar
-  tools fan out N times across adjacent siblings. Managed roots avoid this by default.
-
-### Post-Default Migration Guidance
-
-Users and environments that still rely on sibling checkouts should set
-`workspace.root: adjacent` explicitly, either in the project-local `sase/sase.yml` or
-globally in `~/.config/sase/sase.yml`. The managed-root default is intentionally
-non-migrating: it prevents silent moves, but a project with old adjacent clones and no
-explicit config will create new non-primary checkouts under the state root after the
-default change.
-
-Before switching shared CI images, containers, or network-mounted homes to the default,
-confirm the state root is mounted, backed up, and on storage fast enough for agent work.
-Use an absolute `workspace.root` when the platform state directory is not the right
-operational location.
-
-## `sase repo` CLI
-
-Repository commands treat the repo as the object and the workspace as context.
-`sase repo open` accepts a host-project inventory name, another registered SASE project
-name, or an external provider ref such as `gh:owner/repo` (with `owner/repo` as GitHub
-shorthand). Run it from a managed checkout to infer both the host project and workspace,
-or pass `-p/--project` and `-w/--workspace` explicitly. Successful opens print the
-prepared path, write the agent artifact markers used by sase's TUI and the commit
-finalizer, and append the project's durable repo-open audit event. Agents use this
-surface through `/sase_repo` and treat the printed path as authoritative.
-
-Provider refs are resolved against the host project's configured repositories before
-SASE materializes an external checkout. For example, if a configured linked repo's
-GitHub origin is `git@github.com:sase-org/sase-core.git`, then
-`sase repo open gh:sase-org/sase-core` and `sase repo open sase-org/sase-core` reuse
-that configured checkout, so build commands and host commit hooks see the same files. If
-more than one configured repo has the same verified remote, the command reports an
-ambiguity and asks for an explicit configured name or path. If the current workspace
-already contains an external checkout for the same provider identity, the provider alias
-reports a collision naming both checkouts; recover or intentionally select the existing
-checkout before using the alias. Exact configured names remain valid even while such a
-duplicate external checkout exists.
-
-| Command                                                               | Description                                                                              |
-| --------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| `sase repo list [-a] [-p PROJECT] [-w N] [-j]`                        | Show repo kinds and clone status for one workspace; JSON includes the full clone matrix. |
-| `sase repo log [-r REPO] [-a AGENT] [-w N] [-i ID] [-p PROJECT] [-j]` | Summarize or filter durable repo-open events, or inspect one event by ID prefix.         |
-| `sase repo open REPO -r REASON [-w N] [-p PROJECT]`                   | Materialize, prepare, audit, and print an inventory, project, or external repo checkout. |
-
-Bare `sase repo` defaults to `sase repo list`. `sase repo list --all` includes enabled
-and disabled projects at primary workspace context, while `sase repo log` remains
-project-scoped.
-
-## `sase workspace` CLI
-
-The `sase workspace` command surface inspects numbered workspace paths and maintains the
-per-project registry used by non-adjacent roots. All subcommands accept
-`-p/--project NAME` to override the project; without it, the project is inferred from
-the current directory via the nearest managed-checkout marker, the workspace provider
-hook, and finally a scan of `~/.sase/projects/`. With no subcommand, `sase workspace`
-defaults to `sase workspace list` with default options. `sase workspace list --all`
-switches from one inferred/selected project to the shared inventory across enabled and
-disabled projects; `--json` emits the same inventory model as structured data.
-
-| Command                                                                | Description                                                                                                                                                            |
-| ---------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `sase workspace list [-p PROJECT] [-a/--all] [-j/--json]`              | List one project's registry or all registered workspaces. All-project rows include claim/liveness, pin, staleness, checkout presence, and isolated per-project issues. |
-| `sase workspace path NUM`                                              | Print the configured checkout path for `NUM` without cloning or preparing it.                                                                                          |
-| `sase workspace cleanup -s/--stale`                                    | Remove unclaimed managed checkouts older than `workspace.cleanup_ttl_days`. `-n/--dry-run` previews.                                                                   |
-| `sase workspace compact [NUM ...] [-n] [-j]`                           | Safely retrofit unclaimed, clean, registry-owned numbered checkouts to borrow primary Git objects and repack away duplicate private packs.                             |
-| `sase workspace repair [-n]`                                           | Drop missing registry entries, re-materialize live claimed checkouts, repoint stale SASE Git alternates, or dissociate borrowers when sharing is disabled.             |
-| `sase workspace migrate --to xdg-state [-s/--symlink-transition] [-n]` | Move existing `<primary>_<num>` adjacent checkouts under the managed `xdg-state` root and register them. Exits non-zero on skipped refusals.                           |
-| `sase workspace migrate --finalize`                                    | Remove `<primary>_<num>` transition symlinks once workflows have adapted to the managed paths.                                                                         |
-
-The all-project inventory includes disabled projects only when `--all` is explicit. One
-corrupt or unreadable registry is returned as an isolated issue and does not suppress
-rows from other projects. Registry entries whose checkout has been deleted remain
-visible with `exists: false`; preview reconciliation with
-`sase workspace repair -p <project> -n`.
-
-By default, numbered managed Git checkouts share the primary checkout's object database
-through Git alternates. New managed clones are created with the shared object store
-enabled, the primary checkout is protected with local `gc.pruneExpire=never`, and
-borrowers disable automatic Git maintenance that would silently copy objects back into
-private packs. The dependency is explicit: deleting or moving the primary checkout can
-break borrowers until `sase workspace repair` repoints their alternates to the current
-primary object directory. The alternate policy itself (path resolution, SASE-owned
-versus foreign entries, and rewrite plans) is decided by the Rust core; Python runs the
-Git commands under the project lock.
-
-Workspace preparation never rewrites an existing checkout's object dependency. A usable
-alternate is kept as-is, even when it still points at an older primary object directory;
-only `sase workspace repair` repoints it. A broken SASE borrower (for example one whose
-`git status` fails because the borrowed objects are gone) makes preparation fail with a
-pointer to `sase workspace repair`, leaving the checkout and any uncommitted work intact
-instead of deleting and recloning it. This holds whether or not sharing is enabled.
-Preview the fix with `sase workspace repair -n`.
-
-When preparation fails, the error names the workspace, the failing step (`clean`,
-`checkout`, `sync`, `sidecar-protection`, or `agents-sync-guard`), and the underlying
-git or guard message, in the form
-`Failed to prepare workspace <dir> during <step>: <reason>`; `sase workspace open`
-prints that message to stderr. On an agent's first launch attempt, the run log records
-it as `Workspace preparation failed: …` (or
-`Linked repo '<name>' workspace preparation failed: …`), while the error the agent run
-reports omits the step: `Failed to prepare workspace <dir>: <reason>`.
-
-`sase workspace compact -n` previews eligible existing checkouts and reports local
-object bytes without changing Git config or objects. Before/after/reclaimed bytes count
-only exclusively owned object files (`st_nlink == 1`), so objects a checkout shares with
-the primary by hardlink are never reported as reclaimed. Pass one or more workspace
-numbers to restrict the operation to those registered checkouts, and `-j/--json` for a
-per-checkout result object (status, reason, and before/after/reclaimed bytes). Apply
-mode skips the primary, missing or non-Git paths, RUNNING claims, live occupant records,
-dirty checkouts, unexpected alternates, and broken alternates that SASE does not own. It
-repeats those checks under the project lock before writing the SASE-owned alternate
-while preserving foreign alternate entries, runs a local-only repack, and requires
-`git fsck --connectivity-only` to pass before reporting success. `sase disk reap` runs
-this same command (`sase workspace compact --json`, plus `-n` unless `--apply` is given)
-for each enabled project as one of its owner cleanup steps; the hourly `disk_pressure`
-job does not.
-
-Set `workspace.share_git_objects: false` to opt out for future materializations. With
-sharing disabled, `sase workspace repair` safely dissociates existing SASE-managed
-borrowers by first repointing them to the current primary when needed, copying reachable
-objects into a local pack, then removing only the SASE-owned alternate after
-connectivity can be proven. Repair does not claim or overwrite non-SASE alternate
-entries, including files that contain the primary object directory alongside foreign
-entries. With sharing enabled, repair repoints stale or broken SASE-owned alternates,
-leaves unexpected foreign alternates alone, and reports a broken non-SASE alternate as a
-failure. Either way, alternate repair skips checkouts with a live RUNNING claim, a live
-occupant record, or uncommitted changes.
-
-`sase doctor -C workspace.occupancy_conflicts` is the read-only occupancy check. It
-reads every project's RUNNING field and each checkout's occupant record, then reports
-duplicate workspace-number claims, one live pid claiming multiple numbered workspaces, a
-live claim whose occupant names a different live pid, and occupant records with no
-matching claim. Conflicts include the last workspace-claim ledger mutation and caller
-tag when one exists. The check never auto-repairs; use `sase workspace repair -n` to
-preview registry/checkout reconciliation separately.
-
-`path` always resolves `#0` to the primary checkout. For other numbers, it prints the
-configured path without cloning. Use this command when you only need to inspect the
-path.
-
-The hidden legacy `sase workspace open NUM -r REASON` command (superseded by
-`sase repo open`, and omitted from help and the table above) is intentionally more
-forceful. It requires a non-empty `-r/--reason`, records the same repo-open audit event
-as `sase repo open`, materializes the requested checkout, backs up uncommitted local
-changes through the normal workspace-preparation path, cleans it, checks out the active
-VCS provider's default parent revision, runs the provider's workspace sync hook when
-available, and then prints the path. For built-in bare-git projects, it first makes sure
-the primary checkout has generated SDD guide files. `list` and `path` remain read-only
-and do not run SDD initialization. `--clean` is accepted as a compatibility flag for
-this default behavior. Use a claim-range number such as `10` when handing a numbered
-checkout to an external shell, editor, or debugging tool. `#0` is the primary checkout,
-and `#1` through `#9` are reserved compatibility numbers rather than good choices for
-new manual checkouts. For linked-repo work, `-p/--project` is still the project
-selector: pass the configured linked repo name there, then the workspace number as the
-positional argument.
-
-### Workspace maintenance
-
-`cleanup` and `repair` skip workspace `#0` and any workspace number with an active
-claim. `cleanup --include-shares` opts workflow-share checkouts into the same cleanup
-pass.
-
-Preparing a numbered workspace (`#2` and above) for a launch evicts everything under its
-`sase/repos/` directory — the sidecar and linked-repo clones — which would otherwise
-carry stale state into the new run. Leftover state from an earlier run never fails a new
-launch: preparation attempts to publish each sidecar once, then to rescue unpublished
-work to the durable rescue store outside the workspace
-(`~/.sase/projects/<project>/rescue/<YYYYMM>/`, falling back to `~/.sase/rescue/`).
-Linked and external clones use the same rescue store, with a bundle of local-only
-commits and a worktree patch; they are never published during eviction. Rescue is
-best-effort: if it fails, eviction can still discard local work. Tags whose commit is
-already reachable from a remote-tracking branch, such as fetched release tags, count as
-published and are not rescued. Eviction always proceeds. Each rescue pins a
-`refs/sase/recovery/` ref inside the store's own repository, writes a `manifest.json`
-with copy-pasteable restore commands
-(`git fetch <bundle> 'refs/*:refs/sase/rescued/<stamp>/*'`,
-`git apply --index <patch>`), and sends one inbox notification naming the rescue dir.
-Entries older than 30 days (7 days for quarantined whole-clone copies) are reaped. See
-[Publication Verification](reference/work-units/bead-storage.md#publication-verification)
-for the invariant this protects and how to restore rescued commits by hand.
-
-Checkout preparation for the same numbered workspaces (`#2` and above) also heals the
-checkout itself instead of failing on leftover git state. Launches, launch retries, and
-retained linked-repo clones use this path; the primary checkout (`#0`, or the legacy
-`#1`), home mode, and `sase workspace open` keep the fail-closed behavior. The ladder,
-printed to the run log as `Self-heal: ...` lines, is:
-
-1. Rescue first: an interrupted rebase, `am`, merge, cherry-pick, revert, or bisect,
-   unmerged paths, or a detached HEAD holding orphan commits is bundled into the rescue
-   store before anything is touched. A plain dirty worktree needs no rescue entry; the
-   usual clean stash remains its backup.
-2. Abort every in-progress git operation, then clean. If the stash backup itself fails,
-   the worktree is rescued and the checkout is hard-reset and cleaned instead.
-3. Check out the target. A failed checkout is retried with `-f`; for the default branch
-   a still-failing checkout recreates the branch from its remote tip.
-4. When the target is the default branch, fetch, then rebase onto its remote tip (a
-   Patch-branch target skips this step). A fetch failure stays a hard failure. A
-   conflicting rebase is aborted, the local-only commits are pinned under
-   `refs/sase/recovery/` and bundled into the rescue store, and the branch is hard-reset
-   to the remote tip.
-5. Verify the postcondition: no in-progress operations, no unmerged paths, HEAD attached
-   to the expected branch, and a clean worktree.
-
-When in-place healing still fails at the abort, clean, checkout, sync, or verify step
-(fetch and network failures are never eligible), the workspace is re-created once: the
-main checkout and every `sase/repos/<role>` clone are rescued, the checkout is moved
-aside for background deletion, and a fresh one is materialized from the primary (the run
-log says the workspace `could not be repaired in place`). A failing linked-repo clone is
-re-created the same way without touching its parent checkout. When preparation still
-fails — a fetch failure, or a second failure after re-creation — the run ends with the
-`setup_workspace_failed` outcome and the workspace is released rather than held as a
-visible failed run, since the agent never started and anything valuable was rescued.
-
-`migrate --to xdg-state` is opt-in. Existing adjacent checkouts are left in place until
-the command is invoked. With `--symlink-transition` it leaves a `<primary>_<num>`
-symlink at the original adjacent path so legacy tooling that still walks `..` for
-siblings keeps working; the canonical checkout lives under the managed root. Migration
-refuses to overwrite a real directory at the managed destination — pre-existing managed
-content is reported and skipped instead of clobbered. `cleanup --stale` removes both the
-canonical managed checkout and its transition symlink. Once workflows are adapted,
-`migrate --finalize` removes the leftover transition symlinks without touching the
-canonical checkouts.
-
-## Disabling Plugins
-
-The workspace provider registry loads provider entry points directly. It does not
-currently consult the resource-plugin disable switches described in
-[docs/reference/environment-variables.md](reference/environment-variables.md#plugin-system).
+This page has moved. See [Agents and workspaces](reference/agents/index.md).
+
+## Moved sections
+
+<a id="workspace-directory-layout"></a>
+
+- [Workspace directory layout](reference/agents/workspaces.md#workspace-directory-layout)
+
+<a id="numeric-identity"></a>
+
+- [Numeric identity](reference/agents/workspaces.md#numeric-identity)
+
+<a id="root-policy"></a>
+
+- [Root policy](reference/agents/workspaces.md#root-policy)
+
+<a id="registry"></a>
+
+- [Registry](reference/agents/workspaces.md#registry)
+
+<a id="backup-container-and-network-storage-caveats"></a>
+
+- [Backup container and network storage caveats](reference/agents/workspaces.md#backup-container-and-network-storage-caveats)
+
+<a id="sase-repo-cli"></a>
+
+- [Sase repo cli](reference/agents/workspaces.md#sase-repo-cli)
+
+<a id="sase-workspace-cli"></a>
+
+- [Sase workspace cli](reference/agents/workspaces.md#sase-workspace-cli)
+
+<a id="workspace-maintenance"></a>
+
+- [Workspace maintenance](reference/agents/workspaces.md#workspace-maintenance)
+
+<a id="disabling-plugins"></a>
+
+- [Disabling plugins](reference/agents/workspaces.md#disabling-plugins)
+
+<a id="plugin-architecture"></a>
+
+- [Plugin architecture](contribute/workspace-provider.md#plugin-architecture)
+
+<a id="hook-specification"></a>
+
+- [Hook specification](contribute/workspace-provider.md#hook-specification)
+
+<a id="key-data-types"></a>
+
+- [Key data types](contribute/workspace-provider.md#key-data-types)
+
+<a id="workflowmetadata"></a>
+
+- [Workflowmetadata](contribute/workspace-provider.md#workflowmetadata)
+
+<a id="resolvedref"></a>
+
+- [Resolvedref](contribute/workspace-provider.md#resolvedref)
+
+<a id="hook-reference"></a>
+
+- [Hook reference](contribute/workspace-provider.md#hook-reference)
+
+<a id="metadata-and-detection"></a>
+
+- [Metadata and detection](contribute/workspace-provider.md#metadata-and-detection)
+
+<a id="reference-resolution-and-workflow-setup"></a>
+
+- [Reference resolution and workflow setup](contribute/workspace-provider.md#reference-resolution-and-workflow-setup)
+
+<a id="change-submission-and-review"></a>
+
+- [Change submission and review](contribute/workspace-provider.md#change-submission-and-review)
+
+<a id="commit-formatting"></a>
+
+- [Commit formatting](contribute/workspace-provider.md#commit-formatting)
+
+<a id="repository-onboarding"></a>
+
+- [Repository onboarding](contribute/workspace-provider.md#repository-onboarding)
+
+<a id="registry-functions"></a>
+
+- [Registry functions](contribute/workspace-provider.md#registry-functions)
+
+<a id="bare-git-reference-auto-initialization"></a>
+
+- [Bare git reference auto initialization](contribute/workspace-provider.md#bare-git-reference-auto-initialization)
+
+<a id="known-project-vcs-fallback"></a>
+
+- [Known project vcs fallback](contribute/workspace-provider.md#known-project-vcs-fallback)
+
+<a id="relationship-to-vcs-provider"></a>
+
+- [Relationship to vcs provider](contribute/workspace-provider.md#relationship-to-vcs-provider)
+
+<a id="ownership-boundary"></a>
+
+- [Ownership boundary](contribute/workspace-provider.md#ownership-boundary)
+
+<a id="adjacent-compatibility-and-migration"></a>
+
+- [Adjacent compatibility and migration](reference/upgrading/workspaces.md#adjacent-compatibility-and-migration)
+
+<a id="post-default-migration-guidance"></a>
+
+- [Post default migration guidance](reference/upgrading/workspaces.md#post-default-migration-guidance)

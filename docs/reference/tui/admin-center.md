@@ -218,7 +218,7 @@ for Perf data sources and retention.
 Press `7` in Admin Center to inspect recorded command runs, grouped failure signatures,
 and the configured tool catalog. The pane has **Runs**, **Failures**, and **Catalog**
 views, with project filters and links to output and diagnostics. See the
-[Tools tab guide](../../ace.md#tools-tab) and [Named Tools and ToolRuns](../../tool.md).
+[Tools tab guide](../../ace.md#tools-tab) and [Named Tools and ToolRuns](../automation/tools.md).
 
 ### Updates tab
 
@@ -315,7 +315,7 @@ remains SASE/core/plugins-only, pane-wide `A` remains the deliberate action for 
 current agent-CLI inventory, and pane-wide `a` runs a tracked agents-sidecar publication
 sync: it publishes and reconciles this machine's own agent hoods for every enabled
 project and is not part of the comprehensive update. See
-[Agent Hood Synchronization](../../agents_sidecar.md#commands-and-status) for that command's
+[Agent Hood Synchronization](../agents/hood-sync.md#commands-and-status) for that command's
 behavior.
 
 Admin Center mutations **preview first**, and long confirmation panes scroll with

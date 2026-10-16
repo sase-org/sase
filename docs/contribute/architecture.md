@@ -195,7 +195,7 @@ The project-adjacent taxonomy has three non-overlapping roles:
   Linked/sidecar checkouts materialized within it remain repos, not workspaces. By
   default a managed Git workspace borrows the primary checkout's object database through
   Git alternates, so moving or deleting the primary checkout calls for
-  [`sase workspace repair`](../workspace.md#sase-workspace-cli).
+  [`sase workspace repair`](../reference/agents/workspaces.md#sase-workspace-cli).
 
 | State             | Location / Owner                                                               | Use                                                                                                                                                                                            |
 | ----------------- | ------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -247,8 +247,8 @@ workspace strategy:
 | Provider Layer     | What It Owns                                                                                                     | Details                                          |
 | ------------------ | ---------------------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
 | LLM provider       | Agent CLI selection, concrete model mapping, subprocess invocation, retry defaults, usage metadata.              | [LLM providers](../reference/providers/index.md) |
-| VCS provider       | Diff, checkout, commit, amend, proposal/PR dispatch, reword, submit, sync, revert, restore, and review metadata. | [VCS providers](../vcs.md)                       |
-| Workspace provider | Workspace reference resolution, workspace directory allocation, submit/mail preparation, workflow metadata.      | [Workspaces](../workspace.md)                    |
+| VCS provider       | Diff, checkout, commit, amend, proposal/PR dispatch, reword, submit, sync, revert, restore, and review metadata. | [VCS providers](../reference/vcs/index.md)       |
+| Workspace provider | Workspace reference resolution, workspace directory allocation, submit/mail preparation, workflow metadata.      | [Workspaces](../reference/agents/index.md)       |
 | Resource plugins   | Extra macro/workflow files and default configuration.                                                            | [Plugins](../plugins.md)                         |
 | Integration APIs   | Public Python helpers and fixed JSON bridge contracts for sidecar tools.                                         | [Integrations](integration-apis.md)              |
 
@@ -298,8 +298,8 @@ complete operation list and facade map.
 | ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Command discovery                        | [CLI reference](../cli.md)                                                                                                                                                 |
 | Contributor setup and source orientation | [Development](development.md)                                                                                                                                              |
-| Runtime operations                       | [sase's TUI](../ace.md), [Axe](../axe.md), [notifications](../notifications.md)                                                                                            |
-| Durable work records                     | [Patches](../reference/work-units/patches.md), [memory](../reference/memory/memory.md), [SDD](../reference/work-units/plans.md), [beads](../reference/work-units/beads.md) |
+| Runtime operations                       | [sase's TUI](../ace.md), [Axe](../reference/automation/scheduler.md), [notifications](../reference/automation/notifications.md)                                            |
+| Durable work records                     | [Patches](../reference/work-units/patches.md), [memory](../reference/memory/memory.md), [SDD](../reference/work-units/index.md), [beads](../reference/work-units/index.md) |
 | Prompt and workflow execution            | [Macros](../reference/macros/index.md), [workflow spec](../reference/workflows.md)                                                                                         |
-| Extension boundaries                     | [Plugins](../plugins.md), [LLM providers](../reference/providers/index.md), [VCS providers](../vcs.md), [workspaces](../workspace.md)                                      |
+| Extension boundaries                     | [Plugins](../plugins.md), [LLM providers](../reference/providers/index.md), [VCS providers](../reference/vcs/index.md), [workspaces](../reference/agents/index.md)         |
 | Backend boundary                         | [Rust backend](rust-backend.md)                                                                                                                                            |

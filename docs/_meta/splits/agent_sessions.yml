@@ -1,0 +1,7 @@
+to: reference/agents/index.md
+sections:
+  _intro: reference/agents/agent-sessions.md
+  Parallel Agent Clans: reference/agents/agent-clans.md
+  Sequential Agent Sessions: reference/agents/agent-sessions.md
+  Agent Tribes: reference/agents/agent-tribes.md
+  Agent-Initiated Session Launches: reference/agents/agent-launches.md

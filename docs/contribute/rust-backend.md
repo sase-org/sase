@@ -806,7 +806,7 @@ that bead after **every** final verdict, including failures, and requires the `s
 CLI. Success closes it normally; every other verdict requests resolution `canceled` and
 attaches the verdict as a note. `--dry-run` and `--once` suppress closure. Inspect the
 recorded closure outcome separately from the exit code. Agents should hand a long watch
-to [a SASE monitor](../monitors.md).
+to [a SASE monitor](../reference/automation/monitors.md).
 
 For contributors, `tools/release_watch` calls the facade in `tools/_release_watch.py`.
 Argument parsing and GitHub/PyPI reads live in `tools/_release_watch_api.py`; polling

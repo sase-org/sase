@@ -138,14 +138,14 @@ def ssh_agent_readiness_warnings(
         return [
             "the service host's effective environment is refused by the git "
             f"remote: {detail}; git operations against SSH remotes will fail "
-            "with `Permission denied (publickey)`; see docs/init.md for "
+            "with `Permission denied (publickey)`; see docs/reference/agents/service-host.md for "
             "remediation options"
         ]
     return [
         f"captured service environment is refused by the git remote: {detail}; "
         "plan archival, stitch pushes, and any other host-owned git work "
         "against an SSH remote will fail with `Permission denied (publickey)`; "
-        "see docs/init.md to give the host an unattended credential"
+        "see docs/reference/agents/service-host.md to give the host an unattended credential"
     ]
 
 

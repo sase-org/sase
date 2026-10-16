@@ -56,4 +56,4 @@ You have seen the file change and the commit that records it in SASE's demo proj
 
 - [Add an existing repository](../guides/add-existing-repository.md)
 - [Explore how SASE works](../concepts/index.md)
-- [Learn about workspaces](../workspace.md)
+- [Learn about workspaces](../reference/agents/index.md)

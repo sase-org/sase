@@ -10,8 +10,8 @@ Configuration for workspace directory layout and lifecycle.
 ## workspace
 
 Controls how SASE chooses the physical location of managed workspace checkouts. See
-[`docs/workspace.md`](../../workspace.md#workspace-directory-layout) for the
-directory-layout reference and CLI workflows.
+[`docs/reference/agents/workspaces.md`](../agents/workspaces.md#workspace-directory-layout)
+for the directory-layout reference and CLI workflows.
 
 ```yaml
 workspace:
@@ -34,8 +34,8 @@ Platform defaults for the `xdg-state` policy:
 
 Numeric identity is the same on every root policy: `#0` is the primary checkout,
 `#1`–`#9` are reserved, and managed claim workspaces start at `#10`. See
-[`docs/workspace.md`](../../workspace.md#numeric-identity) for the full identity model
-and backup/container/NFS caveats.
+[`docs/reference/agents/workspaces.md`](../agents/workspaces.md#numeric-identity) for
+the full identity model and backup/container/NFS caveats.
 
 For non-adjacent policies, physical checkouts live under
 `<managed-root>/<project_key>/<project>_<num>/`. For example,
@@ -63,4 +63,4 @@ Source: `src/sase/default_config.yml`, `src/sase/workspace_provider/store.py`
 
 - [Repositories and version control configuration](repositories.md) — generated
   workspace keys and defaults.
-- [Workspaces](../../workspace.md) — workspace lifecycle.
+- [Workspaces](../agents/index.md) — workspace lifecycle.

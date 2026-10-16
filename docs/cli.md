@@ -51,8 +51,9 @@ Flag and option details live in the generated
   [sase tmux-agent](reference/cli/tmux-agent.md), [sase run](reference/cli/run.md),
   [sase pager](reference/cli/pager.md)
 
-Workflows: [TUI](ace.md), [Scheduler](axe.md), [Monitors](monitors.md),
-[Prompt history](prompt.md), [VCS](vcs.md), [Notifications](notifications.md),
+Workflows: [TUI](ace.md), [Scheduler](reference/automation/scheduler.md),
+[Monitors](reference/automation/monitors.md), [Prompt history](prompt.md),
+[VCS](reference/vcs/index.md), [Notifications](reference/automation/notifications.md),
 [Macros](reference/macros/index.md).
 
 `sase stitch list --origin ORIGIN` accepts `stitch`, `auto`, or `manual`; repeat the
@@ -285,9 +286,9 @@ exit under `restart: on-failure`, or any exit or spawn failure under `restart: n
 is parked: the host stops relaunching it and it stays `exited` with its last exit until
 `sase service proc start NAME` or `restart NAME` revives it, or its configuration
 changes. A proc that enters a crash loop, or a desired-running proc that is parked,
-raises a `service` [notification](notifications.md) naming the reason, restart count,
-and log path; a parked proc's notification also names the reviving
-`sase service proc start NAME` command.
+raises a `service` [notification](reference/automation/notifications.md) naming the
+reason, restart count, and log path; a parked proc's notification also names the
+reviving `sase service proc start NAME` command.
 
 `sase service proc list` carries the same `Restarts` and `Last exit` columns and
 additionally exposes effective configuration, machine enablement, desired state, runtime
@@ -322,7 +323,7 @@ which creates a home-scoped unit identity. `sase service uninstall` has the same
 plan/check/diff/apply shape; `--force` is also required when uninstalling the
 non-default-home unit. See
 [service configuration](reference/config/runtime-and-storage.md#service) and
-[initialization](init.md#service-host).
+[initialization](reference/agents/service-host.md#service-host).
 
 `sase proc` operates on durable procs: rows in `~/.sase/procs/procs.jsonl` with combined
 output logs under `~/.sase/procs/logs/`. New `sase proc run` submissions always create
@@ -387,10 +388,11 @@ Flag and option details live in the generated
   [sase instructions](reference/cli/instructions.md), [sase repo](reference/cli/repo.md)
 
 Workflows: [Patches](reference/work-units/patches.md),
-[Beads](reference/work-units/beads.md), [SDD](reference/work-units/plans.md),
+[Beads](reference/work-units/index.md), [SDD](reference/work-units/index.md),
 [Goals](reference/work-units/goals.md),
-[Project lifecycle](reference/work-units/project-spec.md), [Initialization](init.md),
-[Remote dispatch](remote_dispatch.md), [Memory](reference/memory/memory.md).
+[Project lifecycle](reference/work-units/project-spec.md),
+[Initialization](reference/agents/index.md), [Remote dispatch](remote_dispatch.md),
+[Memory](reference/memory/memory.md).
 
 Patches are PR-sized review records. SDD stores durable prompt and planning artifacts.
 Beads add git-portable dependency tracking and executable epics on top of those
@@ -603,7 +605,7 @@ Flag and option details live in the generated
 
 - [sase scheduler](reference/cli/scheduler.md), [sase axe](reference/cli/axe.md)
 
-Workflows: [Scheduler](axe.md).
+Workflows: [Scheduler](reference/automation/scheduler.md).
 
 The scheduler runs scheduled hooks, mentors, comment polling, workflow checks, `%wait`
 dependency resolution, cleanup, and error digests. sase's TUI starts the service host
@@ -618,7 +620,7 @@ Flag and option details live in the generated
 
 - [sase monitor](reference/cli/monitor.md), [sase pipe](reference/cli/pipe.md)
 
-Workflows: [Monitors](monitors.md).
+Workflows: [Monitors](reference/automation/monitors.md).
 
 A long command (`just check-full`, a CI wait, a deploy) should run under a monitor
 rather than blocking an agent turn — see the `/sase_monitor` skill. Handing this agent's
@@ -652,7 +654,7 @@ Flag and option details live in the generated
   [sase revert](reference/cli/revert.md), [sase restore](reference/cli/restore.md),
   [sase comments](reference/cli/comments.md)
 
-Workflows: [Commit workflows](commit_workflows.md), [VCS](vcs.md),
+Workflows: [Commit workflows](reference/vcs/index.md), [VCS](reference/vcs/index.md),
 [Mentors](reference/automation/mentors.md).
 
 Delivery commands delegate to the VCS and workspace provider layers, so the same command
@@ -679,7 +681,7 @@ Flag and option details live in the generated
 
 Workflows: [Configuration](reference/config/index.md), [Plugins](plugins.md),
 [Shell completion](completion.md), [Telemetry](contribute/telemetry.md),
-[Workspace](workspace.md), [Mobile gateway](mobile_gateway.md).
+[Workspace](reference/agents/index.md), [Mobile gateway](mobile_gateway.md).
 
 The `sase artifact show`, `read`, `path`, `open`, and `link` commands take logical
 references without a leading `@`, for example

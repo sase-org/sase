@@ -7,22 +7,16 @@
 ceilings:
   ace.md: 64078
   agent_images.md: 5909
-  agent_sessions.md: 7939
-  agents_sidecar.md: 4440
   artifact_links.md: 2424
   artifact_references.md: 2010
   cli.md: 6927
-  commit_workflows.md: 8158
   completion.md: 2970
   configuration.md: 20655
   editor.md: 4280
   index.md: 361
-  init.md: 7264
   mobile_gateway.md: 3396
   pager.md: 3475
   plugins.md: 9474
   prompt.md: 3269
   query_language.md: 2029
   remote_dispatch.md: 2935
-  vcs.md: 5642
-  workspace.md: 6705

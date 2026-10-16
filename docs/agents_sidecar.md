@@ -1,522 +1,58 @@
+---
+title: Agent Hood Synchronization
+description: This page has moved to its new home.
+search:
+  exclude: true
+---
+
+<!-- generated, do not edit; source: docs/_meta/moves.yml -->
+
 # Agent Hood Synchronization
 
-SASE publishes deterministic project-scoped agent-hood snapshots and canonical prompt
-archives through each managed project's hidden `agents` sidecar. The machine-level clone
-lives under `~/.sase/projects/<project-key>/repos/agents`; it is never exposed to
-launched agents or copied into numbered workspaces.
+This page has moved. See [Agents and workspaces](reference/agents/index.md).
 
-## Privacy and configuration
+## Moved sections
 
-One publication includes every locally owned active, waiting, terminal, failed, and
-dismissed run in the committing agent's complete top-level hood. Active prompts can
-therefore appear before a transcript exists; later syncs can refresh the stable run with
-terminal state, commits, or a readable chat. Portable metadata and session/clan
-relationships are included as well. Creating or pushing the sidecar publishes that data
-to everyone who can read the configured remote.
+<a id="privacy-and-configuration"></a>
 
-Before running `sase repo init`, set the intrinsic `agents` sidecar's
-`visibility: private` when that scope must remain restricted. Set `disabled: true` to
-opt out entirely. Synchronization never creates a remote and cannot bypass the explicit
-consent requested by repository initialization.
+- [Privacy and configuration](reference/agents/hood-sync.md#privacy-and-configuration)
 
-Both the initial privacy-forward scaffold and the manifest-derived root browsing index
-display the same static infographic. `sase repo init` owns
-`assets/agents-directory-map.png`: rerunning it creates or repairs the image without
-replacing a populated sidecar's derived `README.md`. Agent synchronization owns only the
-dynamic publication paths.
+<a id="strict-v2-layout"></a>
 
-Every publisher needs a complete selected `id.username` / `id.machine_name` owner
-identity. Local artifacts keep bare semantic names such as `foo.bar--code`; v2 transport
-uses the canonical global name `<username>.<machine_name>.foo.bar--code`. The exact
-owner manifest is the only shared authority file that publisher mutates. Run
-`sase config init` to create or migrate the identity; see
-[owner identity and machine overlays](reference/config/files-and-merging.md#owner-identity).
+- [Strict v2 layout](reference/agents/hood-sync.md#strict-v2-layout)
 
-## Strict v2 layout
+<a id="prompt-and-artifact-archive"></a>
 
-```text
-README.md
-schema.json
-assets/
-  agents-directory-map.png
-users/<username>/README.md
-users/<username>/machines/<machine>/README.md
-users/<username>/machines/<machine>/manifest.json
-users/<username>/machines/<machine>/hoods/<hood>/README.md
-users/<username>/machines/<machine>/hoods/<hood>/snapshot.json
-agents/<global-name>/
-  README.md
-  meta.json
-  state.json
-  prompt.md
-  commits.json
-  chat.md                 # only when readable
-sessions/<global-session>.md
-families/<global-session>.md   # permanent redirect stub for historical footer links
-prompts/<YYYYMM>/<name>.md
-prompts/<YYYYMM>/README.md
-files/objects/sha256/<hex-prefix>/<sha256>
-```
+- [Prompt and artifact archive](reference/agents/hood-sync.md#prompt-and-artifact-archive)
 
-An artifact reference such as `@agent:foo` or `@agent:<username>.<machine>.foo`
-addresses `agents/<global-name>/README.md` in the selected project's agents sidecar.
-Local semantic names are accepted in the current owner's context and canonicalized to
-the durable global name; published prompts, plans, and bead descriptions should prefer
-the global spelling. Agent references do not accept `#L`, `#page=`, or `#t=` fragments.
-If the page has not been published yet, run `sase agent sync` for the project before
-sharing the `@agent:` reference.
+<a id="browsing-page-anatomy"></a>
 
-Owner manifests map each hood to its snapshot digest plus run and session counts. The
-snapshot itself lists every referenced file with its size and SHA-256 digest, so the
-manifest does not need to repeat that file set. Every manifest write (a fresh
-publication or either repair command below) omits the per-hood `files` list, which keeps
-an owner manifest small even for owners with thousands of hoods. Readers always accept a
-missing `files` list. When a list is present, two exact sorted unique sets are accepted.
-The current set names the hood snapshot and hood README, each run's agent README and
-recorded file paths, and, for every session or family container, both
-`sessions/<global>.md` and `families/<global>.md`. Clan containers add no pages. The
-legacy set is that same list with every `sessions/` path removed, so it still includes
-the `families/` redirect stubs. It is a second accepted shape only when the current set
-contains `sessions/` paths. A hood with no session or family container has one set, and
-that set is current. Any other list is a mismatch. A matching list does not skip the
-other checks: a changed snapshot digest or a changed referenced file still fails
-publication. Owner manifests have their own read caps (16 MiB and 16,384 hoods), and a
-write that would exceed them fails before anything lands. SASE versions that predate the
-optional list treat a slim manifest as malformed and skip that owner when they rebuild
-shared indexes, so upgrade every machine that publishes to a shared sidecar.
+- [Browsing page anatomy](reference/agents/hood-sync.md#browsing-page-anatomy)
 
-Snapshot and per-run JSON is strictly versioned, canonically encoded, size/count
-bounded, and content-addressed with SHA-256. Names and paths are validated as single
-components, and every relationship/container batch passes through the Rust identity
-facade before publication. A publication re-reads the referenced files only for the
-hoods it is writing; every other hood still has its snapshot digest and identity
-checked, so a drifted file in one hood does not block publication of another.
+<a id="historical-name-tolerance"></a>
 
-The allowlist excludes PIDs, workspace numbers, credentials, absolute paths, checkout
-paths, and other host-local execution state. A publication is fully built and validated
-before rollback-safe atomic writes begin, so malformed input cannot leave a
-half-rendered hood.
+- [Historical name tolerance](reference/agents/hood-sync.md#historical-name-tolerance)
 
-## Prompt and artifact archive
+<a id="commands-and-status"></a>
 
-The agents sidecar is also the canonical home for prompts published by agent-backed
-commits and approved planner runs. After the primary commit succeeds,
-`sase stitch create` publishes the committing run's prompt to
-`prompts/<YYYYMM>/<name>.md` inline, before returning. Approving a planner's tale or
-epic publishes a separate, plan-named entry before SASE continues with the plan write or
-epic handoff. Plan-backed entries use the plan slug as the filename; entries without a
-plan use the publishing agent's global sase-agent name. Each prompt document has the
-same header-block grammar as plans:
+- [Commands and status](reference/agents/hood-sync.md#commands-and-status)
 
-- `PLAN` links back to the plans sidecar when the run has a plan.
-- `AGENTS` links to the published agent page for the run.
-- `ARTIFACTS` links to the prompt references SASE could make durable.
+<a id="chats-provenance-versus-publication"></a>
 
-The default, primary body depends on how the entry was published:
+- [Chats provenance versus publication](reference/agents/hood-sync.md#chats-provenance-versus-publication)
 
-- A normal commit publication uses `raw_macros.md`: SASE has resolved project and
-  configured macro aliases, but has not expanded the macros. Reusable `#...` references
-  therefore remain visible.
-- An approved planner publication uses the plan snapshot: macros and workflow
-  `prompt_part` content are dry-expanded and prompt directives are removed, without
-  running workflow pre- or post-steps.
+<a id="sases-tui-integration"></a>
 
-In both cases, staged `@...` references in the primary body become durable links when
-possible.
+- [Sases tui integration](reference/agents/hood-sync.md#sases-tui-integration)
 
-Launch-time staging records prompt references in the workspace-local
-`.sase/artifacts/prompt-artifacts.jsonl` manifest. When a prompt archive is published,
-external file bytes are copied from `.sase/artifacts/pool/` into the agents sidecar
-under `files/objects/sha256/<hex-prefix>/<sha256>`. The path is derived from the file's
-SHA-256 digest, so identical bytes publish once and differing bytes do not overwrite
-each other. Clean tracked files inside known repositories are not duplicated; their
-prompt links point to hosted source blobs at the recorded revision. Non-file references
-such as `@agent:`, `@patch:`, and `@stitch:` remain links without copied bytes.
+<a id="recovery"></a>
 
-Objects are committed in the same commit as the prompt that links them. `files/objects`
-is append-only: a pool copy lives in an ephemeral workspace, so a discarded object
-cannot be regenerated, and the cleanup that resets `prompts/` before each publication
-never resets, restores, or deletes under it. Before every `git pull --rebase`,
-publication also sweeps untracked paths under `files/objects` while holding the sidecar
-lock. Each one whose path is canonical (`files/objects/sha256/<xx>/<sha256>`, a regular
-file, prefix matching, and bytes hashing to its name) is committed as
-`chore(agents): publish pending prompt-archive objects`, which also publishes objects
-left behind by an interrupted publication or an older SASE. Committing first lets an
-identical object that another machine already published rebase cleanly. Any other file
-is moved, never deleted, to `<git-dir>/sase-quarantine/objects/<utc-timestamp>/` and
-logged, so it can never wedge the worktree.
+- [Recovery](reference/agents/hood-sync.md#recovery)
 
-Prompt-archive publication is not a separate durable queue. The commit path publishes
-the archive directly, and the outbox request enqueued for that commit's hood also owns
-its prompt: when the archive cannot be written right away — the agents lock is busy, for
-instance — the next drain or full `sase agent sync` regenerates it from the local
-artifact pool inside the same bounded transaction that publishes the hood. A request is
-acknowledged only once both halves reached the sidecar, so a prompt that could not be
-rebuilt keeps its request queued and retryable rather than retiring it.
+<a id="scope-and-reconciliation"></a>
 
-Document back-references are separate. Only after publishing a prompt archive that
-contains a provider-document reference does SASE record a request in
-`~/.sase/projects/<project-key>/referenced-by-outbox.json` and try to update the cited
-artifact sidecar's managed `Referenced By` table. This drain attempt runs before the
-publishing command returns, but it cannot delay or roll back the prompt publication that
-already completed. A request stays queued when the artifact-sidecar pull, update, or
-local commit fails. Once the local refresh succeeds, SASE acknowledges the request; if
-it created a commit, SASE starts that commit's push asynchronously. A later push failure
-is recorded in the managed SDD sync log rather than restored to this outbox. Queued
-requests use the same retry, quarantine, and retired-entry operator controls as hood
-publication. See [Artifact Reference Publication](artifact_references.md#publication)
-for the complete ordering and recovery boundary.
+- [Scope and reconciliation](contribute/agents-sidecar-sync.md#scope-and-reconciliation)
 
-Use `sase agent prompts list` to browse the archive. `sase agent prompts show <prompt>`
-prints the archived Markdown document. `sase agent prompts validate` verifies headers,
-legacy artifact links, and content-addressed `files/objects/` links. It reports missing,
-untracked, and digest-mismatched objects as errors, and tracked objects no prompt links
-as warnings, alongside local manifests and plan cross-links.
-`sase agent prompts migrate` reports historical plans-sidecar prompts by default and
-moves them to this archive only with `--write`.
+<a id="legacy-v1-limitations"></a>
 
-Existing top-level v1 `manifest.json` and `agents/<machine-qualified-name>` bundles are
-left untouched. Sync can still read those records for compatibility, but it no longer
-creates, refreshes, imports, or retires v1 transport data. Historical local imports can
-be swept entirely (every transport, every machine) with
-`sase agent names purge-local-state`.
-
-## Scope and reconciliation
-
-Targeted publication refreshes exactly the committing agent's complete top-level hood.
-Full reconciliation publishes every locally owned project hood with at least one
-primary-repository commit association. Commit-less plan members, active siblings,
-failed/waiting runs, dismissed archives, and structural session/clan containers are
-included when they belong to that hood.
-
-After an agent-backed commit or pull-request operation records its first durable result
-marker, the commit workflow resolves the project's agents target. When that target is
-available, SASE records an outbox request for the exact hood and immediately drains it
-under the bounded agents lock, so the commit does not return until the hood is published
-and pushed (or the request is confirmed queued for retry). A publication that cannot
-even be queued fails the commit with a `sase stitch create --resume` hint; a request
-that survives the immediate drain — because of a transient, hood-specific, or
-repository-wide failure — prints a warning naming the recovery command and is retried by
-a later commit's drain or by an explicit `sase agent sync`. See
-[runtime provenance and publication](commit_workflows.md#cli-inputs-and-internal-payload).
-
-Published runs that are temporarily missing from local inventory are retained. New
-terminal state, commits, prompt data, and chat refresh the same stable run; absence does
-not create an implicit deletion or tombstone. Identical inputs produce byte-identical
-files and a no-op publication.
-
-After each pull/rebase, SASE rebuilds root, user, machine, hood, session, and agent
-Markdown from every validated owner manifest. Index and neighbor pages link a _specific
-run_, so their session member links use stable `member-<role>` anchors; solo links
-target the corresponding agent README. Commit footers are the other case: they identify
-a sase agent rather than a run, so they link the session page with no member anchor (see
-[runtime provenance](commit_workflows.md#cli-inputs-and-internal-payload)). Because
-owners mutate disjoint authority files, a bounded non-fast-forward retry can pull a
-competing owner, recompute the shared views, and converge without overwriting either
-snapshot.
-
-## Browsing page anatomy
-
-Root, user, machine, and hood pages stay focused on indexes. Agent and session pages
-carry the detailed artifact view for one run or lane, and their optional sections keep a
-deterministic order so stable inputs produce byte-identical Markdown.
-
-An agent page uses this anatomy:
-
-- Breadcrumb: root, user, machine, hood, optional session, and the current agent.
-- Summary: bead and epic links when the run is associated with a bead, above model,
-  provider, timing, commit count, and variable count when variables were published.
-  Non-zero counts link to their page sections.
-- Files: links to the published prompt and chat when each file exists.
-- Commits: the run's commit table, when any commits were attributed to the run.
-- Variables: sanitized output variables, when the run published any.
-- Neighbors: related sase agents in the same owner/machine hood, when any exist.
-
-A session page keeps the `Lineage` diagram and accessible member table first, then uses
-the same optional artifact order: `Commits`, `Variables`, and `Neighbors`. Session
-commit and variable tables include the member role so each row can be traced back to a
-member. Session neighbor rows describe the session itself and never list its own
-members, which are already present in the member table.
-
-The session page is the durable home of a session's commits. Because a commit footer
-names the sase agent rather than the member, session commit history is owned by the
-session container itself and is carried in the published snapshot alongside the
-per-member rows. The `Commits` table unions both sources: rows recovered from a member's
-own artifact keep that member's role, and sase-agent-level rows — including commits
-whose member artifact has since been cleaned up — render with a `—` role. Rows are
-deduplicated by SHA with the member-attributed row winning, then sorted and capped like
-every other commit table. Clan containers never accumulate commits this way; only
-sessions do.
-
-When any member is associated with a bead, the session header line also names the
-distinct bead ids across the session's members after `Members:` — one as `Bead: <link>`,
-several as `Beads: <link>, <link>` capped at five with a trailing `… +N more`, and none
-leaves the header line as it is today.
-
-Commit cells link to hosted commit pages only when the project primary repository has a
-recognized GitHub remote. If the primary remote is missing, not GitHub, or cannot be
-read, pages still render the same commit rows with plain short SHAs. The sidecar wire
-does not store commit URL bases.
-
-Bead links resolve similarly, but from two sources with different trust. A bead id
-recorded in the run's metadata is trusted lexically and always renders; it links
-whenever the beads sidecar resolves to a hosted URL and otherwise degrades to a plain
-bead id instead of a broken link. A bead id inferred from the agent's name is a guess
-and only renders once it is confirmed against the local bead store. The sidecar wire
-stores bead ids, not bead page URLs.
-
-Published variables are the sanitized `sase var set KEY=VALUE` values stored in
-`agent_meta.json["output_variables"]`. Variable names must match SASE's output-variable
-identifier rule, while values may be any supported JSON scalar, list, or map. Nested map
-keys are rendered in sorted order and list order is preserved. Table cells show bounded
-inline previews; lists and maps also receive fenced YAML-shaped detail blocks below the
-table. Values still use SASE's shared structural limits, including 8,192 UTF-8 bytes per
-string leaf, depth and node caps, and a 65,536-byte encoded-value cap. They are visible
-to anyone who can read the agents sidecar, so do not use output variables for secrets,
-credentials, private tokens, or other sensitive values.
-
-Neighbor rosters are sase-agent-scoped and owner-scoped. A sequential session is one
-sase agent, and each session member page renders that session's roster. Rows mirror the
-Agents tab's NEIGHBORS grouping: ancestors, descendants, then nearest hood groups, with
-links to solo-agent pages, session pages, and the hood roster when a group is truncated.
-Cross-owner and cross-machine relationships are intentionally excluded.
-
-Compatibility note: snapshots published with `output_variables` metadata require readers
-from this version or newer. Readers that understand the metadata key but predate
-structured values may omit or reject non-string values; older strict v2 readers that do
-not allow the metadata key fail loudly with `AgentsSyncFormatError` until they are
-upgraded.
-
-### Historical-name tolerance
-
-Published history is treated as durable input, even when it contains an agent name that
-current creation-time validation would reject. Read-side identity classification
-therefore interprets `--<role>` as a session role only when it occurs in the final
-dot-separated segment. For example, `4x--epic.f-0` is a solo name in hood `4x`, while
-`fi--code.f0--code` is the `code` member of session `fi--code.f0` in hood `fi`.
-
-Classification of a non-empty, path-safe historical name is best effort and must not
-abort an inventory scan or hood publication. A record that is genuinely unsafe or cannot
-be contained is excluded with its artifact path and reason in the publication
-diagnostics. Historical records that share an old timestamp-derived run ID are assigned
-distinct, deterministic IDs and reported instead of invalidating the hood. Stale session
-metadata is likewise diagnosed and reconciled to the canonical name-derived
-classification. If a linked primary commit for a _solo_ sase agent remains after its
-local artifact has been cleaned up, publication synthesizes a minimal completed run from
-the commit association so its `SASE_AGENT` page does not become a permanent dead link. A
-session is never synthesized into a run: doing so would invent an
-`agents/<session>/README.md` page next to the real session page, so those commits reach
-the sidecar through the session container instead. When a session has commits that no
-published container can carry, the history is reported in the publication diagnostics
-rather than dropped silently. This read tolerance does not relax write validation: newly
-generated solo, session, and clan names must still satisfy the current strict naming
-rules.
-
-## Commands and status
-
-`sase agent sync` has separate mutating publication and read-only status modes.
-
-Run a network publication reconciliation for all enabled projects:
-
-```bash
-sase agent sync
-sase agent sync -p project-alias -p another-project
-```
-
-The repository transaction acquires a bounded lock, fetches and pulls with rebase,
-publishes eligible locally owned hoods, restores deferred prompt archives, rebuilds
-deterministic indexes, commits with the full owner identity, pushes, and drains queued
-Referenced By requests into their artifact sidecars. The commit workflow has a separate
-earlier prompt-archive step: it publishes that archive and drains the resulting
-back-reference requests before it proceeds to agent-hood publication. In both cases, the
-prompt's agents-sidecar publication completes before its back-reference drain begins.
-`sase agent sync` is the explicit recovery command for queued requests a commit could
-not immediately resolve and the full-reconciliation command for hoods with no recent
-commit. A non-fast-forward rejection triggers one pull/recompute/commit/push retry.
-Conflicted rebases are aborted and reported; a failure in one project does not prevent
-the others from running. The Updates pane's `a` action is sase's TUI equivalent for all
-enabled projects.
-
-Use `--json` to audit the complete schema-version-2 result. Each project reports the
-legacy publication counters (`exported`, `export_refreshed`) plus v2 publication counts
-(`hoods_published`, `hoods_refreshed`, `hoods_unchanged`, `agent_sessions_published`,
-`runs_published`), push/commit state, and diagnostics. The default table is compact:
-`V1` is the changed legacy-v1 publication count, and `HOODS` / `RUNS` report v2
-publication totals.
-
-Commit-triggered agent-hood publication uses a durable outbox at
-`~/.sase/projects/<project-key>/agents-publication-outbox.json`, keyed by
-`(global_agent, primary_revision)`. Each request records its attempt count, most recent
-attributable error, and quarantine or retirement state. `publish_committed_agent_hood`
-enqueues the committing hood's request and immediately drains every active request for
-the project under the bounded agents lock, so a healthy commit publishes and pushes
-before it returns. Bead-page rendering and plan-header refresh are separate synchronous
-steps on the commit path. Prompt-archive publication is attempted synchronously too, but
-its retry obligation is covered by the hood request: every drain and full sync rebuilds
-the archives owed by the requests it is about to acknowledge. A prompt archive that
-cannot even be queued fails the commit with a `sase stitch create --resume` hint, the
-same way an unqueueable hood does. A hood-specific preparation failure increments only
-requests for that hood; repository-wide failures such as lock contention, pull failure,
-or push failure remain retryable without consuming unrelated per-item quarantine
-budgets. A repeatable failure that proves the requested hood can never be published
-retires that request after one confirming retry instead of quarantining it. Successful
-requests are acknowledged only after their sidecar work is committed and safely pushed,
-or after the prepared payload is already current.
-
-### Chats provenance versus publication
-
-Chats calls a local transcript `shared` only when its `agents/<global-name>/chat.md`
-path exists in the agents sidecar's committed tree. Dirty or partially prepared worktree
-files do not count. Publication state is a separate dimension. Chats reports the outbox
-disposition alongside provenance: a queued request is pending publication, a quarantined
-request is paused but retryable, and a retired request is terminally unpublishable. A
-chat can therefore be `shared` while a later revision is still queued or quarantined.
-Retired requests remain in the outbox for review until they are explicitly dropped, but
-they are neither pending nor quarantined.
-
-Repeated hood-specific failures are quarantined after a bounded number of attempts.
-Quarantined requests remain in the outbox, appear in sync/status `diagnostics` and
-`quarantine_diagnostics`, and are skipped by ordinary drains. After fixing the reported
-cause, explicitly reset and retry them:
-
-```bash
-sase agent sync --retry-quarantined -p project-alias
-```
-
-Do not delete or hand-edit either publication outbox. `--retry-quarantined` clears the
-quarantine flag for both hood and Referenced By requests and gives them a fresh retry
-budget before running the normal full reconciliation.
-
-Retired agent-publication requests stay stopped until an explicit recovery. After a
-publisher fix that makes previously terminal work publishable, revive that project's
-retired hood requests once with:
-
-```bash
-sase agent sync --retry-retired -p project-alias   # -t
-```
-
-`--retry-retired` requires `--project`, reports the selected count and prior failure
-classes, and may be combined with `--retry-quarantined`. It does not touch the
-Referenced By terminal queue, other projects, or requests that fail again during the
-same command. It is rejected with `--check`, `--drop-retired`, and repair-only modes.
-
-A retired request whose source still cannot be reconstructed should be dropped after
-review, not revived. Drop only retired entries with:
-
-```bash
-sase agent sync --drop-retired -p project-alias
-```
-
-The command reports every removed hood or Referenced By request and its terminal reason,
-then continues the normal full sync for the selected projects. `--drop-retired`,
-`--retry-quarantined`, and `--retry-retired` mutate the outbox and are rejected with
-`--check`.
-
-Two repair modes replace the normal sync for the selected projects. Each runs under the
-same bounded lock and pull/commit/push transaction, touches only the current owner's
-`users/<username>/machines/<machine>/` files, and reports what it changed:
-
-```bash
-sase agent sync --repair-digests -p project-alias   # -g
-sase agent sync --repair-manifest -p project-alias  # -m
-```
-
-- `--repair-digests` handles a published file that was rewritten out of band, such as a
-  hand-edited `chat.md`. It trusts the file on disk and re-signs the stale file
-  references in that hood's snapshot, plus the owner-manifest digest that covers the
-  snapshot. The `state.agent_publication_digest` check in `sase doctor` detects this
-  drift and names the command.
-- `--repair-manifest` restores owner-manifest entries for hood directories that exist on
-  disk but are missing from the manifest. Publication reports such hoods in its
-  diagnostics. Each candidate hood is validated on its own (snapshot identity plus every
-  referenced file's size and digest); a hood that fails is skipped and reported, and
-  existing manifest entries always win. Publication also refuses to start from a missing
-  owner manifest while that owner's hood directories still exist, rather than
-  republishing from an empty manifest.
-
-CLI status checks maintain `~/.sase/agents_sync/status_snapshot.json`:
-
-```bash
-sase agent sync --check
-sase agent sync --check --refresh
-sase agent sync --check --json
-```
-
-Neither check mode imports agent history, publishes local hoods, changes the sidecar
-worktree, commits, or pushes. Without `--refresh`, `--check` does not run Git or scan
-local agent artifacts: it rewrites cached project status with publication outbox
-diagnostics and carries forward previously recorded Git ahead/behind counts. Those
-counts can therefore be absent or stale.
-
-`--check --refresh` fetches remote refs and recomputes ahead and behind counts without
-checking out remote content. `--refresh` is rejected unless `--check` is also present.
-Use `--json` to inspect project state, cached ahead/behind counts, last fetch time,
-errors, details, and publication `quarantine_diagnostics`.
-
-## sase's TUI integration
-
-sase's TUI does not detect, display, preview, or apply incoming agent imports. The
-comprehensive `,U` Update panel covers SASE/core/plugins and providers only.
-
-For an explicit full network publication/reconciliation, open SASE Admin Center's
-Updates pane and press `a` (**Sync agents**). That tracked action covers every enabled
-project, drains retryable agent-hood publication work, continues after project-local
-failures, and refreshes the Agents view when it completes. It is equivalent to unscoped
-`sase agent sync`. All Git, validation, publication, and full-sync work runs outside the
-Textual event loop.
-
-## Recovery
-
-- A busy lock is a benign skip; retry after the active sync finishes.
-- For an agent-hood outbox diagnostic, run `sase agent sync --check --json` and inspect
-  the selected project's `quarantine_diagnostics`. The durable outbox file can also be
-  read to correlate a request's `global_agent`, `primary_revision`, `attempts`, and
-  `last_error`, but it must not be edited manually. Referenced By failures are reported
-  by the mutating `sase agent sync` that tries to drain them; their durable
-  `referenced-by-outbox.json` may likewise be inspected but not edited. If the local
-  Referenced By commit succeeded and its detached push later failed, there is no
-  remaining outbox entry; inspect the managed SDD sync log instead.
-- A missing sidecar reports `not_created`; run `sase repo init` interactively if you
-  intend to publish this scope.
-- A malformed published v2 owner manifest, snapshot, or referenced digest is ignored
-  while deterministic indexes are rebuilt; publication still validates the current
-  owner's authority files before committing.
-- If publication fails because one of your own published files no longer matches its
-  recorded digest, run `sase agent sync --repair-digests -p <project>`. If publication
-  reports on-disk hoods that the owner manifest omits, run
-  `sase agent sync --repair-manifest -p <project>`.
-- A queued agent-hood publication failure leaves the primary commit successful, with a
-  warning naming the recovery command, and a durable retry request under the project's
-  SASE state. Fix credentials/connectivity, then run `sase agent sync -p <project>` for
-  an explicit drain, or make another commit — its inline drain retries every outstanding
-  request for the project, not just its own. Repeating the original commit workflow does
-  not create another primary commit.
-- If an ordinary retry reports a quarantined publication request, fix the item-specific
-  cause and run `sase agent sync --retry-quarantined -p <project>`. For a hood request,
-  rerun `sase agent sync --check --json` afterward and confirm that no
-  `quarantine_diagnostics` entry remains; for a Referenced By request, confirm that the
-  mutating sync reports no remaining referenced-by diagnostic.
-- A post-publication Referenced By failure currently reuses the generic warning that
-  says prompt-archive publication was deferred. In this case that wording is misleading:
-  the prompt archive was already pushed. Inspect the Referenced By diagnostic and outbox
-  rather than republishing the primary commit.
-- If a request is reported as retired after a publisher or validator fix, revive that
-  project's retired hood requests with `sase agent sync --retry-retired -p <project>`
-  (`-t`). Combine `--retry-quarantined` when quarantined work should move in the same
-  pass. If the source truly cannot be reconstructed, review the terminal reason and run
-  `sase agent sync --drop-retired -p <project>`. Retired requests are not reset by
-  `--retry-quarantined` alone.
-- A general push or fetch failure leaves local agent history intact. Fix
-  credentials/connectivity and retry.
-- A rebase conflict is aborted before the command returns. Resolve unexpected state in
-  the hidden clone, then rerun `sase agent sync`.
-
-## Legacy v1 limitations
-
-V1's top-level manifest and `agents/<machine-qualified-name>` files remain in place and
-read-only. A v1 row has no trustworthy username owner, a shared machine token alone is
-never proof of ownership, and v1 cannot reconstruct the complete transactional session
-and relationship state guaranteed by v2. Current sync and status commands do not import
-or retire v1 transport data. Already-imported local legacy history can be purged in full
-(imports of any transport and any machine, plus historical import staging,
-incoming-cache directories, and receipts) with `sase agent names purge-local-state`.
+- [Legacy v1 limitations](reference/upgrading/agents-sidecar.md#legacy-v1-limitations)

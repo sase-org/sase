@@ -251,8 +251,8 @@ Source: `src/sase/ace/config.py`, `src/sase/core/prompt_stash_facade.py`,
 
 Controls whether a multi-card agent data deck renders spread (every card on one
 scrollable page) or paged (one card at a time) on the Agents tab deck panels, under the
-automatic deck view (see [Deck Views](../../ace.md#deck-views)). A fixed deck view
-bypasses these thresholds entirely.
+automatic deck view (see [Deck Views](../tui/agent-statuses.md#deck-views)). A fixed
+deck view bypasses these thresholds entirely.
 
 ```yaml
 ace:
@@ -264,8 +264,8 @@ ace:
 
 Jump to any deck with `p` then its picker letter: `m` Main, `f` Files, `t` Tools, `n`
 FINAL (capitals open it in the other panel). See
-[Agent data decks and cards](../../ace.md#agent-data-decks-and-cards) and
-[Finalizers on the Agents tab](../../ace.md#finalizers-on-the-agents-tab).
+[Agent data decks and cards](../tui/agent-statuses.md#agent-data-decks-and-cards) and
+[Finalizers on the Agents tab](../tui/agent-statuses.md#finalizers-on-the-agents-tab).
 
 <a id="aceagentheader"></a>
 [Generated reference for `ace.agent_decks`](tui.md#ace-agent_decks)

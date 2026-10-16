@@ -300,10 +300,10 @@ def _display_source_path(path: Path, root: Path, home: Path, scope: str) -> str:
         relative = resolved.relative_to(home.resolve())
         return f"~/{relative.as_posix()}/"
     if scope == "home_project":
-        relative = resolved.relative_to(home.resolve()).parts
-        if relative and relative[-1] == "example":
-            relative = (*relative[:-1], "<project>")
-        return f"~/{Path(*relative).as_posix()}/"
+        relative_parts = resolved.relative_to(home.resolve()).parts
+        if relative_parts and relative_parts[-1] == "example":
+            relative_parts = (*relative_parts[:-1], "<project>")
+        return f"~/{Path(*relative_parts).as_posix()}/"
     return f"{resolved.as_posix()}/"
 
 

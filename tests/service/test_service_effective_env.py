@@ -126,7 +126,7 @@ def test_effective_warning_names_the_agent_the_service_would_really_use(
     assert "effective environment is refused by the git remote" in warnings[0]
     assert _MANAGER_SOCK in warnings[0]
     assert "holds no identities" in warnings[0]
-    assert "docs/init.md" in warnings[0]
+    assert "docs/reference/agents/service-host.md" in warnings[0]
 
 
 def test_effective_warning_is_quiet_when_it_matches_the_captured_agent(
@@ -190,4 +190,7 @@ def test_readiness_scopes_word_the_same_failure_differently(
     assert captured[0].startswith("captured service environment is refused")
     assert "effective environment is refused" in effective[0]
     assert "unreachable" in captured[0] and "unreachable" in effective[0]
-    assert "docs/init.md" in captured[0] and "docs/init.md" in effective[0]
+    assert (
+        "docs/reference/agents/service-host.md" in captured[0]
+        and "docs/reference/agents/service-host.md" in effective[0]
+    )

@@ -81,7 +81,7 @@ Reserved suffixes (`plan`, `code`, `epic`, `commit`) select their built-in sessi
 and status labels. Numeric suffixes and `@` are feedback/Q&A rounds; `@` allocates the
 next free suffix. Other alphanumeric suffixes such as `reviewer` or `tester` are
 allowed, preserve that open-set role in `agent_session_role` metadata, and use ordinary
-RUNNING/DONE status labels. See [Agent Clans, Sessions, and Tribes](../../agent_sessions.md)
+RUNNING/DONE status labels. See [Agent Clans, Sessions, and Tribes](../agents/index.md)
 for attachment and agent-initiated launch behavior.
 
 If the parent is still running, the new session member appears immediately as a WAITING
@@ -125,7 +125,7 @@ This applies to every older failed turn of that kind; the newest turn then count
 any other member and must itself succeed. A monitor never replaces a failed gate or vice
 versa, and an exact turn-name wait such as `<session>--mon` still reports that turn's
 own outcome. See
-[Sequential Agent Sessions](../../agent_sessions.md#sequential-agent-sessions).
+[Sequential Agent Sessions](../agents/agent-sessions.md#sequential-agent-sessions).
 
 The repeatable `bead=<bead-id>` keyword adds a closure condition from the waiting
 agent's own project bead store. Every named agent/artifact condition and every bead
@@ -193,7 +193,7 @@ summary in the selected clan; full clan-member replies remain available through 
 included transcript paths rather than being injected automatically. Tribe names use
 letters, digits, underscores, dots, and dashes after the leading `@`. `@default` is
 rejected because that panel is display-only, and `@job` targets AXE job agents (see
-[The built-in job tribe](../../agent_sessions.md#the-built-in-job-tribe)).
+[The built-in job tribe](../agents/agent-tribes.md#the-built-in-job-tribe)).
 
 A submitted plan awaiting review is the one exception. A planner that ran
 `sase plan propose` blocks in the approval flow without writing a `done.json`, so its
@@ -520,7 +520,7 @@ The `%hold` directive declares a hold in prompt text, using the same selectors:
 | ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
 | Name (`planner`)             | An agent, agent session, clan, workflow, or named proc name; role-suffixed names stay exact                                   |
 | Tribe (`@nightly`, `tribe=`) | Agents in that tribe                                                                                                          |
-| Hood (`hood=research`)       | Agents in that [hood](../../agent_sessions.md), written without a `--role` suffix                                                   |
+| Hood (`hood=research`)       | Agents in that [hood](../agents/index.md), written without a `--role` suffix                                                   |
 | `pending`                    | The agents that are WAITING or QUEUED in scope when the hold is armed; later launches and undispatched procs are not captured |
 | `future`                     | Agents and undispatched procs submitted after the hold is armed                                                               |
 

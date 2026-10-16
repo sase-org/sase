@@ -53,5 +53,5 @@ reference explains the result records and recovery details.
 
 ## Related
 
-- [Commit workflows](../commit_workflows.md) — what each landing workflow records.
+- [Commit workflows](../reference/vcs/index.md) — what each landing workflow records.
 - [How changes land](../concepts/landing.md) — how SASE routes work into review.

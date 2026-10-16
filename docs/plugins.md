@@ -779,7 +779,8 @@ The workspace registry (`src/sase/workspace_provider/_registry.py`) creates a si
 provider classes from entry points. This is why all workspace metadata can be listed at
 once while hook dispatch still lets a single plugin handle each operation.
 
-See [docs/workspace.md](workspace.md) for the full workspace provider reference.
+See [Workspace provider internals](contribute/workspace-provider.md) for the full
+workspace provider reference.
 
 ### LLM Plugins (pluggy)
 

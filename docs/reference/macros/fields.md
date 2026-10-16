@@ -239,7 +239,7 @@ land it on the canonical branch before deploying, then run `sase skill init --fo
 chezmoi deploy is refused when `src/sase/macros/skills/` is dirty, when `HEAD` is not an
 ancestor of the canonical branch, or when it would move the destination off the source
 commit recorded in the provenance manifest — see
-[Commit Before Deploying](../../init.md#commit-before-deploying). The same manifest is also an
+[Commit Before Deploying](../agents/initialization.md#commit-before-deploying). The same manifest is also an
 ownership registry for generated source/live skill-file pairs. When a source changes
 name, is deleted, or stops targeting a provider, a full `sase skill init --force` deployment
 tombstones the retired pair, commits the source-side removal, deletes the live target

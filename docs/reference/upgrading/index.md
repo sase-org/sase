@@ -19,6 +19,8 @@ and the newest notes first.
   gate contracts.
 - [Provider migration notes](providers.md) — provider metadata and model-selection
   history.
+- [Workspace upgrades](workspaces.md) — workspace storage migration and compatibility.
+- [Agent hood synchronization upgrades](agents-sidecar.md) — retired hood formats.
 
 ## Related
 

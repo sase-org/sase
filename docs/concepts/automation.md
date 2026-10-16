@@ -49,9 +49,10 @@ visible and preserve human judgment when the work needs it.
 
 ## Look it up
 
-- [Scheduler](../axe.md) — recurring routines and jobs.
+- [Scheduler](../reference/automation/scheduler.md) — recurring routines and jobs.
 - [Mentors](../reference/automation/mentors.md) — automated review of proposed changes.
-- [Notifications and gates](../notifications.md) — approval requests and decisions.
+- [Notifications and gates](../reference/automation/notifications.md) — approval
+  requests and decisions.
 - [Autonomy profiles](../reference/cli/autonomy.md) — supported automatic gate
   decisions.
 - [Glossary](../reference/glossary.md) — scheduler and gate terms.

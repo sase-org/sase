@@ -1,6 +1,6 @@
 ---
 diagram: docs/images/commit-workflow-infographic.png
-embedded_in: docs/commit_workflows.md
+embedded_in: docs/contribute/commit-workflow-orchestrator.md
 phase: critique
 pdf: false
 ---
@@ -20,8 +20,8 @@ The main problems are with the central `CommitWorkflow` band: it omits two stage
 one of the canonical labels in favor of an off-spec synonym, and renders the stages in
 the wrong relative order. The conflict-resume loop is also drawn ambiguously enough that
 a new reader cannot tell which step it re-enters. These are accuracy issues a reader
-checking the diagram against `docs/commit_workflows.md` or the code would notice
-immediately.
+checking the diagram against `docs/contribute/commit-workflow-orchestrator.md` or the
+code would notice immediately.
 
 ## What's actually in the rendered PNG
 
@@ -55,10 +55,11 @@ Reading the committed `commit-workflow-infographic.png` directly:
    the wrong answer.
 3. **The conflict loop's re-entry point is unclear.** The yellow chip sits below the
    band with a small curved arrow, but the arrow does not visibly target a specific
-   stage. From `docs/commit_workflows.md` and `CommitWorkflow.resume()`, resume
-   re-enters at provider `vcs_finalize_commit` (post-dispatch) and then replays the
-   post-dispatch tracking steps. The diagram should show the loop landing between
-   `VCS dispatch` and `Result marker` / `Tracking`, not floating under the whole band.
+   stage. From `docs/contribute/commit-workflow-orchestrator.md` and
+   `CommitWorkflow.resume()`, resume re-enters at provider `vcs_finalize_commit`
+   (post-dispatch) and then replays the post-dispatch tracking steps. The diagram should
+   show the loop landing between `VCS dispatch` and `Result marker` / `Tracking`, not
+   floating under the whole band.
 4. **"Tracking" is one chip but represents several discrete outputs.** A reader sees one
    chip and three output cards and has to guess which card each tracking step writes to.
    Splitting "Tracking" into the actual tracking artifacts (Patch, STITCHES entry,
@@ -73,7 +74,8 @@ Reading the committed `commit-workflow-infographic.png` directly:
 ## Accuracy issues vs. code and doc
 
 Grounding against `src/sase/workflows/commit/workflow.py` (`run` method, lines 104–226)
-and the stage list in `docs/commit_workflows.md` ("3. CommitWorkflow orchestrates"):
+and the stage list in `docs/contribute/commit-workflow-orchestrator.md` ("3.
+CommitWorkflow orchestrates"):
 
 1. **Wrong relative order in the band.** The actual execution order from the code is:
    1. Bead lifecycle (`handle_beads`) — skipped for proposals
@@ -149,6 +151,6 @@ For the next phase (`sase-2s.12 — Regenerate diagram: commit-workflow`):
    arrow noting "checks dirty repos + selects skill" so the finalizer's role as a gate
    is visible at a glance.
 
-These changes bring the diagram back into alignment with both `docs/commit_workflows.md`
-and the actual `CommitWorkflow.run()` implementation, and address the highest-impact
-clarity gaps.
+These changes bring the diagram back into alignment with both
+`docs/contribute/commit-workflow-orchestrator.md` and the actual `CommitWorkflow.run()`
+implementation, and address the highest-impact clarity gaps.

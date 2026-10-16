@@ -113,7 +113,7 @@ synced after a reword, any trailing `KEY=VALUE` metadata lines matching
 `^[A-Z][A-Z0-9_]*=` are automatically stripped. The pattern matches the unprefixed
 spelling and the `SASE_`-prefixed footer tags, such as
 `SASE_AUTOSUBMIT_BEHAVIOR=SYNC_SUBMIT` and `SASE_MARKDOWN=true`, so neither pollutes the
-description. See [commit_workflows.md](../../commit_workflows.md#pull-request-pr) for
+description. See [commit_workflows.md](../vcs/commit-workflows.md#pull-request-pr) for
 details.
 
 **Example:**
@@ -146,8 +146,8 @@ via `-p` does not resolve to an existing Patch.
 
 **Auto-detection:** when creating a new Patch via `sase stitch create`, the `PARENT`
 field is automatically set if the current branch corresponds to an existing Patch. This
-can be overridden with `-p`/`--parent`; see
-[commit_workflows.md](../../commit_workflows.md) for details.
+can be overridden with `-p`/`--parent`; see [commit_workflows.md](../vcs/index.md) for
+details.
 
 **Dependency guidelines:**
 
@@ -198,7 +198,7 @@ should be marked `external`. Absent or unrecognized values normalize to `unknown
 
 **Behavioral consequence:** AXE excludes `external`-origin Patches from candidate
 selection entirely, before query evaluation — SASE automation never acts on them. See
-[AXE](../../axe.md).
+[AXE](../automation/scheduler.md).
 
 **Setting it:** `sase patch set-origin <name> <sase|external|unknown>` (see
 [CLI Reference](../../cli.md#work-tracking-and-planning)), or press `o` on a PR row in

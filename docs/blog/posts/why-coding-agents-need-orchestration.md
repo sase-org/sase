@@ -190,9 +190,10 @@ Here is the SASE loop:
    VCS and notification operations.
 
 The docs that matter most at first are [Macros](../../reference/macros/index.md),
-[SDD](../../reference/work-units/plans.md),
-[Beads](../../reference/work-units/beads.md), [sase's TUI](../../ace.md),
-[AXE](../../axe.md), [VCS providers](../../vcs.md), and [plugins](../../plugins.md).
+[SDD](../../reference/work-units/index.md),
+[Beads](../../reference/work-units/index.md), [sase's TUI](../../ace.md),
+[AXE](../../reference/automation/scheduler.md),
+[VCS providers](../../reference/vcs/index.md), and [plugins](../../plugins.md).
 
 <!--
 FUNNY DIAGRAM BRIEF 1 - place here after "The Fundamental Loop".
@@ -449,8 +450,9 @@ Alt text: "sase's TUI Artifacts Patches view showing a Patch with file deltas, c
 
 ## AXE, Lumberjacks, And Chops
 
-[AXE](../../axe.md) is the background daemon. It runs **lumberjacks**, and lumberjacks
-run **chops**. Yes, the naming theme got away from me. No, I am not apologizing yet.
+[AXE](../../reference/automation/scheduler.md) is the background daemon. It runs
+**lumberjacks**, and lumberjacks run **chops**. Yes, the naming theme got away from me.
+No, I am not apologizing yet.
 
 A lumberjack is a scheduled lane of background work. A chop is one script-only unit of
 work in that lane. Built-in lumberjacks handle things like hook checks, wait checks,

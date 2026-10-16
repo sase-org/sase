@@ -54,18 +54,18 @@ blank (Default) means omission; an explicit value must be at least 1, and `1` ru
 alone. The durable approve result retains that integer so launch argv can emit
 `--capacity N`; tale, reject, and feedback actions never submit it.
 
-The preferred handoff is a [monitor](../../monitors.md) turn under the planner's own
-agent session, labeled `Epic launch · <plan>`. The monitor turn reads `EPIC APPROVED`
-while `sase bead work` runs. After any terminal outcome its configured label is
-`EPIC CREATED`, including when the monitor failed, timed out, was stopped, or was lost;
-the monitor's state, bucket, exit code, and output—not that label—show whether the
-command succeeded. A successful launch separately attempts to back-fill the created epic
-ID; when that metadata lands, the planner row moves to `EPIC CREATED`, and otherwise the
-planner remains `EPIC APPROVED`. No follow-up agent is recorded because `sase bead work`
-launches the phase agents itself. The monitor takes a zero workspace claim rather than
-the planner's, since the launch runs in the primary workspace. When the planner's agent
-session cannot be resolved, the same command is submitted as one deduplicated global
-`detached` proc instead.
+The preferred handoff is a [monitor](../automation/monitors.md) turn under the planner's
+own agent session, labeled `Epic launch · <plan>`. The monitor turn reads
+`EPIC APPROVED` while `sase bead work` runs. After any terminal outcome its configured
+label is `EPIC CREATED`, including when the monitor failed, timed out, was stopped, or
+was lost; the monitor's state, bucket, exit code, and output—not that label—show whether
+the command succeeded. A successful launch separately attempts to back-fill the created
+epic ID; when that metadata lands, the planner row moves to `EPIC CREATED`, and
+otherwise the planner remains `EPIC APPROVED`. No follow-up agent is recorded because
+`sase bead work` launches the phase agents itself. The monitor takes a zero workspace
+claim rather than the planner's, since the launch runs in the primary workspace. When
+the planner's agent session cannot be resolved, the same command is submitted as one
+deduplicated global `detached` proc instead.
 
 Either handoff is durable and unowned by any interactive session: it survives the
 approving process, and normal command success or failure emits the epic-completion

@@ -505,7 +505,7 @@ def _ssh_durability_warnings_inner(
                 f"credential is the SSH agent at {sock}, which belongs to a "
                 f"login session, not the platform manager. After a reboot or "
                 f"logout the host falls back to {fallback_desc}, which the git "
-                f"remote refuses; see docs/init.md to give the host an "
+                f"remote refuses; see docs/reference/agents/service-host.md to give the host an "
                 f"unattended credential"
             )
         else:
@@ -515,7 +515,7 @@ def _ssh_durability_warnings_inner(
                 f"accepted credential is the SSH agent at {sock}, which belongs "
                 f"to a login session, not the platform manager. After a reboot "
                 f"or logout the host falls back to {fallback_desc}, which the "
-                f"git remote refuses; see docs/init.md to give the host an "
+                f"git remote refuses; see docs/reference/agents/service-host.md to give the host an "
                 f"unattended credential"
             )
     return warnings

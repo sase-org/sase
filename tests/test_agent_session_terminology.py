@@ -102,9 +102,9 @@ _STALE_PHRASES = (
 # families/ footer-link stubs (sidecar docs plus the generated configuration
 # flag paragraph), and the unrelated vcs_family example.
 _STALE_PHRASE_ALLOWLIST = {
-    ("docs/agent_sessions.md", "agent families"),
-    ("docs/commit_workflows.md", "families/"),
-    ("docs/agents_sidecar.md", "families/"),
+    ("docs/reference/agents/agent-sessions.md", "agent families"),
+    ("docs/contribute/commit-workflow-orchestrator.md", "families/"),
+    ("docs/reference/agents/hood-sync.md", "families/"),
     # Feature-flag docs for the same families/ redirect-stub legacy set.
     ("docs/reference/config/feature-flags.md", "families/"),
     ("docs/plugins.md", "family="),

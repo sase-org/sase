@@ -1,0 +1,12 @@
+to: reference/vcs/index.md
+sections:
+  _intro: reference/vcs/providers.md
+  Plugin Architecture: contribute/vcs-provider-api.md
+  Provider Selection: reference/vcs/providers.md
+  Per-Command VCS Usage: reference/vcs/providers.md
+  Git Provider Details: reference/vcs/providers.md
+  Mercurial Provider Details: reference/vcs/providers.md
+  Diff Management: reference/vcs/providers.md
+  Configuration Reference: reference/vcs/providers.md
+  Classification Hooks: contribute/vcs-provider-api.md
+  Troubleshooting: reference/vcs/providers.md

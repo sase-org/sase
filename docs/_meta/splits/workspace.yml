@@ -1,0 +1,17 @@
+to: reference/agents/index.md
+sections:
+  _intro: reference/agents/workspaces.md
+  Plugin Architecture: contribute/workspace-provider.md
+  Key Data Types: contribute/workspace-provider.md
+  Hook Reference: contribute/workspace-provider.md
+  Registry Functions: contribute/workspace-provider.md
+  Bare-Git Reference Auto-Initialization: contribute/workspace-provider.md
+  Known-Project VCS Fallback: contribute/workspace-provider.md
+  Relationship to VCS Provider: contribute/workspace-provider.md
+  Ownership Boundary: contribute/workspace-provider.md
+  Workspace Directory Layout: reference/agents/workspaces.md
+  Workspace Directory Layout > Adjacent Compatibility And Migration: reference/upgrading/workspaces.md
+  Workspace Directory Layout > Post-Default Migration Guidance: reference/upgrading/workspaces.md
+  "`sase repo` CLI": reference/agents/workspaces.md
+  "`sase workspace` CLI": reference/agents/workspaces.md
+  Disabling Plugins: reference/agents/workspaces.md

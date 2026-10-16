@@ -132,7 +132,7 @@ that defaults to **Keep running**, and confirming runs the same `stop_monitor` p
 `sase monitor stop`, so no follow-up agent launches. On a settled monitor row, `x`
 behaves like an ordinary dismiss. See
 [Agent Row Glyphs](../tui/agent-row-glyphs.md#agent-row-glyphs-1) and
-[Sequential Agent Sessions](../../agent_sessions.md#sequential-agent-sessions).
+[Sequential Agent Sessions](../agents/agent-sessions.md#sequential-agent-sessions).
 
 A monitor row is also a fork target, active or settled: `F` opens a prompt prefilled
 with `#fork:<id>`, where `<id>` is the monitor's exact durable proc ID (not the reusable

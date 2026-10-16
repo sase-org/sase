@@ -533,11 +533,11 @@ comma-listable, and negatable, and it matches a **prefix** of the full commit id
 accepts `manual`, `automatic` (`auto` alias), `stitch`, `merge`, `patch`, and observed
 `SASE_TYPE` footer values. `merges:hide/show/only` controls merge-commit visibility
 exactly like `sase stitch list`'s `--merges` flag (see
-[VCS Provider Reference](vcs.md#sase-stitch-list)). `project:` is not repeatable,
-comma-listable, or negatable because it selects the repository constellation before
-commits are collected. With no `project:` token, collection spans all projects. It
-accepts a configured project name, ProjectSpec directory key, or alias; committed known
-values are rewritten to the configured project name. On first open, when
+[VCS Provider Reference](reference/vcs/providers.md#sase-stitch-list)). `project:` is
+not repeatable, comma-listable, or negatable because it selects the repository
+constellation before commits are collected. With no `project:` token, collection spans
+all projects. It accepts a configured project name, ProjectSpec directory key, or alias;
+committed known values are rewritten to the configured project name. On first open, when
 `ace.current_project.seed_filters` is on, the shared Artifacts project scope seeds from
 the [current project](#current-project) unless an explicit `project:` / `+name` term
 already selected one. The project picker replaces that token while preserving every
@@ -3233,10 +3233,10 @@ sub-tab list and in the detail panel: nothing for the default `sase` origin (a P
 created through the tracked PR workflow), `external` for a PR SASE adopted but did not
 create, and `origin?` for `unknown` (no evidence either way). The detail panel adds a
 one-line note for `external` Patches, since AXE excludes external-origin Patches from
-its candidate selection entirely (see [AXE](axe.md)). Press `!o` on a PR row (see
-[PR Actions](#pr-actions) above) to open the Mark PR Origin modal and set it explicitly,
-or run `sase patch set-origin <name> <sase|external|unknown>` (see
-[CLI Reference](cli.md#work-tracking-and-planning)). See
+its candidate selection entirely (see [AXE](reference/automation/scheduler.md)). Press
+`!o` on a PR row (see [PR Actions](#pr-actions) above) to open the Mark PR Origin modal
+and set it explicitly, or run `sase patch set-origin <name> <sase|external|unknown>`
+(see [CLI Reference](cli.md#work-tracking-and-planning)). See
 [PR_ORIGIN](reference/work-units/patches.md#pr_origin) and
 [Origin Matching](query_language.md#origin-matching) for the underlying Patch field and
 the `origin:` query property.
@@ -5651,7 +5651,8 @@ A row that is none of these does not navigate.
 ### Monitors on this tab
 
 A `sase monitor start` supervisor is a durable proc like any other, but this tab marks
-it the same way the rest of sase's TUI does. See [Monitors](monitors.md).
+it the same way the rest of sase's TUI does. See
+[Monitors](reference/automation/monitors.md).
 
 - **Orange `⚙`.** Bare monitor rows carry the orange gear between the status icon and
   the label (`● ⚙ just check-full`), matching the Agents tab and the orange chip in the
@@ -5753,8 +5754,9 @@ a deprecated alias.
 The CLI equivalents are `sase proc list`, `sase proc show ID` (`--follow` to stream),
 `sase proc run [--session SESSION|none] -- COMMAND` (`--wait` to stream and inherit the
 exit code), and `sase proc kill ID`. A hidden legacy `--kind` filter remains for
-historical kind rows. Approved epics normally launch as [monitor turns](monitors.md);
-only an unresolvable planner agent session uses an unattributed command proc. See the
+historical kind rows. Approved epics normally launch as
+[monitor turns](reference/automation/monitors.md); only an unresolvable planner agent
+session uses an unattributed command proc. See the
 [CLI reference](cli.md#daily-operation).
 
 ### Filtering procs
@@ -5997,8 +5999,8 @@ equivalent `sase agent-cli` CLI.
 
 The Updates pane still binds `a` to a tracked agents-sidecar publication sync. That
 action publishes and reconciles agent hoods for every enabled project; it is not part of
-the comprehensive update. See [Agent Hood Synchronization](agents_sidecar.md) for
-privacy, publication, status, and recovery behavior.
+the comprehensive update. See [Agent Hood Synchronization](reference/agents/index.md)
+for privacy, publication, status, and recovery behavior.
 
 ## Snippets
 

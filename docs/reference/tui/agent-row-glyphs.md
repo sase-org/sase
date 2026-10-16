@@ -48,7 +48,7 @@ the same hue; failed, timed-out, and lost monitors stay red. Two extra badges ma
 stalled monitor handoff: a red `⚠` replaces the exit-code badge when a terminal
 monitor's supervisor never reported a real exit code, and an amber `⚑` follows the row
 when its `--next` follow-up was dropped or launched degraded — a monitor can finish
-cleanly and still strand its follow-up. See [Monitors](../../monitors.md).
+cleanly and still strand its follow-up. See [Monitors](../automation/monitors.md).
 
 Gate turns use `⋔` and their authored pending/settled labels, such as `GATE`/`GATED`,
 `QUESTION`/`ANSWERED`, or plan-tier statuses. A pending gate has no LLM process and does
@@ -125,7 +125,7 @@ Imported sequential sessions are also folded under one synthetic session-contain
 so members imported without their root still group as one session instead of scattering
 across the panel. Both are presentation over leftover local state; nothing imports new
 rows any more, and `sase agent names purge-local-state` removes the state that produces
-them (see [Agent Hood Synchronization](../../agents_sidecar.md#legacy-v1-limitations)).
+them (see [Agent Hood Synchronization](../upgrading/agents-sidecar.md#legacy-v1-limitations)).
 
 Workflow child rows for `python` and `bash` steps render a leading `❯` glyph plus the
 step name, styled with the matching step-type accent — bash amber, python green —
