@@ -104,6 +104,7 @@ GENERATED_BLOCK_RE = re.compile(
     r"BEGIN GENERATED.*?END GENERATED", re.DOTALL | re.IGNORECASE
 )
 WHOLE_FILE_GENERATED_RE = re.compile(r"generated,?\s+do not edit", re.IGNORECASE)
+GENERATED_STUB_MARKER = "<!-- generated, do not edit; source: docs/_meta/moves.yml -->"
 INLINE_CODE_RE = re.compile(r"`[^`\n]+`")
 WORD_RE = re.compile(r"\S+")
 
@@ -202,6 +203,28 @@ def is_whole_file_generated(text: str) -> bool:
     return bool(WHOLE_FILE_GENERATED_RE.search(text))
 
 
+def is_generated_stub(text: str) -> bool:
+    """Whether the generated move marker occurs in the page's frontmatter/header."""
+    lines = text.splitlines()
+    head: list[str] = []
+    if lines and lines[0].strip() == "---":
+        head.append(lines[0])
+        for line in lines[1:]:
+            head.append(line)
+            if line.strip() == "---":
+                break
+        for line in lines[len(head) :]:
+            if line.lstrip().startswith("# "):
+                break
+            head.append(line)
+    else:
+        for line in lines:
+            if line.lstrip().startswith("# "):
+                break
+            head.append(line)
+    return GENERATED_STUB_MARKER in "\n".join(head)
+
+
 def _is_support_file(rel: str) -> bool:
     return rel.startswith(SUPPORT_PREFIXES)
 
@@ -256,18 +279,25 @@ def _allowed_keys(tier: str | None) -> set[str]:
 
 def check_typing(rel: str, ctx: CheckContext) -> Finding | None:
     """Rule 1: every content page has a type. New root pages fail."""
-    if rel == "index.md":
+    if rel == "index.md" or rel in ctx.legacy_allowlist:
         return None
     if _tier_of(rel) is not None:
         return None
-    if rel in ctx.legacy_allowlist:
-        return None
+    # A generated move stub is a compatibility endpoint, not authored content.
+    # Its text is checked by the generated-page exemption in check_tree.
     return Finding(
         "error",
         f"{rel}: untyped location. Move this page under one of "
         f"{', '.join(d + '/' for d in TYPED_DIRS)}; new root pages fail "
         f"the docs contract (see {WRITING_DOCS}).",
     )
+
+
+def check_typing_for_page(rel: str, ctx: CheckContext, text: str) -> Finding | None:
+    """Typing rule with the generated-stub exception, which needs page content."""
+    if is_generated_stub(text):
+        return None
+    return check_typing(rel, ctx)
 
 
 def check_frontmatter(
@@ -326,6 +356,15 @@ def check_budget(
     tier_totals: dict[str, int],
 ) -> list[Finding]:
     """Rule 3: per-page and per-tier word budgets."""
+    if rel == "index.md":
+        if words > 400:
+            return [
+                Finding(
+                    "error",
+                    f"index.md: homepage is over its 400-word cap (it is {words}).",
+                )
+            ]
+        return []
     if legacy:
         ceiling = ceilings.get(rel)
         if ceiling is not None and words > ceiling:
@@ -521,6 +560,21 @@ def check_tree(ctx: CheckContext) -> list[Finding]:
     findings: list[Finding] = []
     ceilings = load_budgets(ctx.budgets_path)
     tier_totals: dict[str, int] = {}
+    for rel in sorted(ceilings):
+        path = ctx.docs_dir / rel
+        if not path.is_file():
+            findings.append(
+                Finding("error", f"budgets.yml: stale entry for missing page {rel}")
+            )
+            continue
+        try:
+            text = path.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        if is_generated_stub(text):
+            findings.append(
+                Finding("error", f"budgets.yml: stale entry for generated stub {rel}")
+            )
     pages = sorted(ctx.docs_dir.rglob("*.md"))
     for path in pages:
         rel = path.relative_to(ctx.docs_dir).as_posix()
@@ -531,8 +585,8 @@ def check_tree(ctx: CheckContext) -> list[Finding]:
         except OSError:
             continue
         tier = _tier_of(rel)
-        legacy = tier is None and rel in ctx.legacy_allowlist
-        typing = check_typing(rel, ctx)
+        legacy = tier is None and rel in ctx.legacy_allowlist and rel != "index.md"
+        typing = check_typing_for_page(rel, ctx, text)
         if typing is not None:
             findings.append(typing)
             continue
@@ -567,14 +621,21 @@ def check_tree(ctx: CheckContext) -> list[Finding]:
 
 
 def ratchet_ceilings(ctx: CheckContext) -> list[str]:
-    """Lower legacy ceilings toward current sizes; never raise one."""
+    """Lower ceilings and remove entries for missing pages or generated stubs."""
     ceilings = load_budgets(ctx.budgets_path)
     changed: list[str] = []
     for rel in sorted(ceilings):
         path = ctx.docs_dir / rel
         if not path.is_file():
+            del ceilings[rel]
+            changed.append(f"removed stale ceiling: {rel}")
             continue
-        shrunk_to = math.ceil(count_words(path.read_text(encoding="utf-8")) * 1.01)
+        text = path.read_text(encoding="utf-8")
+        if is_generated_stub(text):
+            del ceilings[rel]
+            changed.append(f"removed stale ceiling: {rel}")
+            continue
+        shrunk_to = math.ceil(count_words(text) * 1.01)
         if shrunk_to < ceilings[rel]:
             ceilings[rel] = shrunk_to
             changed.append(f"{rel}: {ceilings[rel]}")

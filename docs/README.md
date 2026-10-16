@@ -3,7 +3,7 @@
 
 ## Home
 
-- [Structured Agentic Software Engineering](index.md) — Structured Agentic Software Engineering — SASE runs Claude Code, Codex, and other agent CLIs in parallel, isolated workspaces, and lets you track, review, and land their work from one terminal UI.
+- [Structured Agentic Software Engineering](index.md) — Run, review, and land work from parallel coding agents in one terminal workspace.
 
 ## Get started
 

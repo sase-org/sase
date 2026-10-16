@@ -1,5 +1,7 @@
 ---
 title: Structured Agentic Software Engineering
+description:
+  Run, review, and land work from parallel coding agents in one terminal workspace.
 hide:
   - navigation
   - toc

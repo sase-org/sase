@@ -19,11 +19,14 @@ class PageMove:
     to_path: str
     kind: str
     anchors: dict[str, str]
+    title: str | None = None
 
 
 def _doc_relative(value: object, *, field: str, source: Path) -> str:
     if not isinstance(value, str) or not value:
-        raise ValueError(f"{source}: move {field} must be a non-empty docs-relative path")
+        raise ValueError(
+            f"{source}: move {field} must be a non-empty docs-relative path"
+        )
     path = PurePosixPath(value)
     if path.is_absolute() or ".." in path.parts or path.suffix.lower() != ".md":
         raise ValueError(f"{source}: move {field} must be a safe .md path: {value!r}")
@@ -57,7 +60,9 @@ def load_moves(root: Path = REPO_ROOT) -> list[PageMove]:
             if not isinstance(old_anchor, str) or not old_anchor:
                 raise ValueError(f"{source}: moves[{index}] has an empty old anchor")
             if not isinstance(target, str) or not target:
-                raise ValueError(f"{source}: moves[{index}] anchor {old_anchor!r} has no target")
+                raise ValueError(
+                    f"{source}: moves[{index}] anchor {old_anchor!r} has no target"
+                )
             target_path, separator, target_anchor = target.partition("#")
             checked_path = _doc_relative(
                 target_path, field=f"anchors.{old_anchor}", source=source
@@ -67,7 +72,14 @@ def load_moves(root: Path = REPO_ROOT) -> list[PageMove]:
             anchors[old_anchor] = (
                 f"{checked_path}#{target_anchor}" if separator else checked_path
             )
-        moves.append(PageMove(from_path, to_path, kind, anchors))
+        title_value = item.get("title")
+        if title_value is not None and (
+            not isinstance(title_value, str) or not title_value.strip()
+        ):
+            raise ValueError(
+                f"{source}: moves[{index}] title must be a non-empty string"
+            )
+        moves.append(PageMove(from_path, to_path, kind, anchors, title_value))
     return moves
 
 

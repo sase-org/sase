@@ -1,25 +1,62 @@
 #!/usr/bin/env python3
-"""Move selected H2/H3 sections to existing docs pages and update move links."""
+"""Split selected H2–H4 sections into docs pages and preserve old anchors."""
 
 from __future__ import annotations
 
 import argparse
 from dataclasses import dataclass
+from importlib.machinery import SourceFileLoader
+import importlib.util
 from pathlib import Path, PurePosixPath
 import posixpath
 import re
 import sys
+from collections.abc import Callable
+from typing import cast
 from urllib.parse import unquote, urlsplit, urlunsplit
 
 import yaml  # type: ignore[import-untyped]
 
-from docs_moves import MOVES_PATH
-
+from docs_moves import MOVES_PATH, load_moves, markdown_link
 
 ROOT = Path(__file__).resolve().parents[1]
+TOOLS_DIR = Path(__file__).resolve().parent
+_CHECK_DOCS_LOADER = SourceFileLoader(
+    "docs_split_check_docs", str(TOOLS_DIR / "check_docs")
+)
+_CHECK_DOCS_SPEC = importlib.util.spec_from_loader(
+    _CHECK_DOCS_LOADER.name, _CHECK_DOCS_LOADER
+)
+if (
+    _CHECK_DOCS_SPEC is None
+):  # pragma: no cover - the source file is part of this checkout.
+    raise ImportError("could not load tools/check_docs")
+_CHECK_DOCS = importlib.util.module_from_spec(_CHECK_DOCS_SPEC)
+sys.modules[_CHECK_DOCS_LOADER.name] = _CHECK_DOCS
+_CHECK_DOCS_LOADER.exec_module(_CHECK_DOCS)
+PAGE_BUDGETS = cast(
+    dict[str, tuple[int | None, int | None, str]], _CHECK_DOCS.PAGE_BUDGETS
+)
+_tier_of = cast(Callable[[str], str | None], _CHECK_DOCS._tier_of)
+count_words = cast(Callable[[str], int], _CHECK_DOCS.count_words)
+
 HEADING_RE = re.compile(r"^\s{0,3}(#{1,6})\s+(.+?)\s*#*\s*$")
 EXPLICIT_ANCHOR_RE = re.compile(r"\s*\{#([^}]+)\}\s*$")
-MARKDOWN_LINK_RE = re.compile(r"(?P<prefix>\]\()(?P<target><[^>]+>|[^)\s]+)")
+INLINE_LINK_RE = re.compile(r"(?P<prefix>\]\()(?P<target><[^>]+>|[^)\s]+)")
+REFERENCE_LINK_RE = re.compile(
+    r"(?P<prefix>^\s*\[[^\]]+\]:\s*)(?P<target><[^>]+>|[^\s]+)", re.MULTILINE
+)
+HTML_LINK_RE = re.compile(
+    r"(?P<prefix>\b(?:href|src)\s*=\s*)"
+    r"(?:(?P<quote>[\"'])(?P<target>.*?)\2|(?P<unquoted>[^\s>]+))",
+    re.IGNORECASE,
+)
+HTML_ID_RE = re.compile(r"\bid\s*=\s*([\"'])(.*?)\1", re.IGNORECASE)
+GENERATED_BLOCK_RE = re.compile(
+    r"<!--\s*BEGIN GENERATED\b.*?<!--\s*END GENERATED\b[^>]*-->",
+    re.IGNORECASE | re.DOTALL,
+)
+GENERATED_FILE_RE = re.compile(r"generated,?\s+do not edit", re.IGNORECASE)
 
 
 @dataclass(frozen=True)
@@ -30,6 +67,25 @@ class Heading:
     path: tuple[str, ...]
     start: int
     end: int
+
+
+@dataclass(frozen=True)
+class Request:
+    selector: str
+    target: str | None = None
+    drop: bool = False
+    anchor_target: tuple[str, str] | None = None
+
+
+@dataclass
+class SplitPlan:
+    source: str
+    writes: dict[Path, str]
+    delete_source: bool
+    moved: list[tuple[str, str]]
+    target_words: dict[str, tuple[int, int | None]]
+    unmapped: list[str]
+    warnings: list[str]
 
 
 def _slugify(value: str) -> str:
@@ -61,28 +117,30 @@ def _headings(lines: list[str]) -> list[Heading]:
         if match:
             raw.append((len(match.group(1)), match.group(2).strip(), index))
 
-    headings: list[Heading] = []
+    result: list[Heading] = []
     parents: dict[int, str] = {}
     slug_counts: dict[str, int] = {}
     for position, (level, title, start) in enumerate(raw):
         for known_level in tuple(parents):
             if known_level >= level:
                 parents.pop(known_level)
-        if level in {2, 3}:
+        if level >= 2:
             parents[level] = title
-        path = tuple(parents[item] for item in sorted(parents) if item in {2, 3})
-        anchor = _slugify(title)
-        count = slug_counts.get(anchor, 0)
-        slug_counts[anchor] = count + 1
-        if count:
-            anchor = f"{anchor}-{count}"
+        path = tuple(parents[item] for item in sorted(parents))
+        slug = _slugify(title)
+        count = slug_counts.get(slug, 0)
+        slug_counts[slug] = count + 1
+        anchor = slug if count == 0 else f"{slug}-{count}"
+        explicit = EXPLICIT_ANCHOR_RE.search(title)
+        if explicit:
+            anchor = explicit.group(1)
         end = len(lines)
         for next_level, _, next_start in raw[position + 1 :]:
             if next_level <= level:
                 end = next_start
                 break
-        headings.append(Heading(level, title, anchor, path, start, end))
-    return headings
+        result.append(Heading(level, title, anchor, path, start, end))
+    return result
 
 
 def _normalize_source(root: Path, value: str | Path) -> str:
@@ -104,56 +162,110 @@ def _normalize_source(root: Path, value: str | Path) -> str:
 
 def _target_path(value: object) -> str:
     if not isinstance(value, str) or not value:
-        raise ValueError("each moved section needs a target docs-relative .md path")
+        raise ValueError("each target must be a non-empty docs-relative .md path")
     path = PurePosixPath(value)
     if path.is_absolute() or ".." in path.parts or path.suffix.lower() != ".md":
         raise ValueError(f"unsafe target docs path: {value!r}")
     return path.as_posix()
 
 
-def _mapping_items(mapping_path: Path) -> list[tuple[str, str]]:
+def _anchor_target(value: object) -> tuple[str, str]:
+    if not isinstance(value, str) or not value:
+        raise ValueError(
+            "anchor_target must be a docs-relative page, optionally with #anchor"
+        )
+    path, separator, anchor = value.partition("#")
+    return _target_path(path), anchor if separator else ""
+
+
+def _mapping_items(mapping_path: Path) -> tuple[list[Request], str | None]:
     payload = yaml.safe_load(mapping_path.read_text(encoding="utf-8"))
     if not isinstance(payload, dict) or not isinstance(payload.get("sections"), dict):
         raise ValueError(f"{mapping_path} must contain a sections mapping")
-    result: list[tuple[str, str]] = []
-    for heading, value in payload["sections"].items():
-        if not isinstance(heading, str) or not heading.strip():
-            raise ValueError(f"{mapping_path} contains an empty section heading")
-        target = value.get("target") if isinstance(value, dict) else value
-        result.append((heading.strip(), _target_path(target)))
+    primary = payload.get("to")
+    if primary is not None:
+        primary = _target_path(primary)
+    result: list[Request] = []
+    for selector, value in payload["sections"].items():
+        if not isinstance(selector, str) or not selector.strip():
+            raise ValueError(f"{mapping_path} contains an empty section selector")
+        selector = selector.strip()
+        if isinstance(value, str):
+            result.append(Request(selector=selector, target=_target_path(value)))
+            continue
+        if not isinstance(value, dict):
+            raise ValueError(
+                f"mapping for {selector!r} must be a target path or mapping"
+            )
+        drop = value.get("drop", False)
+        target_value = value.get("target")
+        anchor_value = value.get("anchor_target")
+        if drop is not True and target_value is None:
+            raise ValueError(f"mapping for {selector!r} needs target or drop: true")
+        if drop is True and target_value is not None:
+            raise ValueError(
+                f"mapping for {selector!r} cannot have both target and drop: true"
+            )
+        if drop not in {True, False}:
+            raise ValueError(f"mapping for {selector!r} has a non-boolean drop value")
+        if not drop and anchor_value is not None:
+            raise ValueError(
+                f"mapping for {selector!r}: anchor_target requires drop: true"
+            )
+        result.append(
+            Request(
+                selector=selector,
+                target=None if drop else _target_path(target_value),
+                drop=drop,
+                anchor_target=_anchor_target(anchor_value)
+                if anchor_value is not None
+                else None,
+            )
+        )
     if not result:
         raise ValueError(f"{mapping_path} contains no sections")
-    return result
+    selectors = [item.selector for item in result]
+    if len(set(selectors)) != len(selectors):
+        raise ValueError(f"{mapping_path} contains duplicate section selectors")
+    return result, primary
+
+
+def _intro_bounds(lines: list[str], headings: list[Heading]) -> tuple[int, int]:
+    title = next((heading for heading in headings if heading.level == 1), None)
+    first_section = next((heading for heading in headings if heading.level == 2), None)
+    start = title.start + 1 if title else 0
+    end = first_section.start if first_section else len(lines)
+    return start, end
 
 
 def _select_sections(
-    headings: list[Heading], requests: list[tuple[str, str]]
-) -> list[tuple[Heading, str]]:
-    selected: list[tuple[Heading, str]] = []
-    for wanted, target in requests:
+    headings: list[Heading], requests: list[Request]
+) -> list[tuple[Heading | None, Request, int, int]]:
+    selected: list[tuple[Heading | None, Request, int, int]] = []
+    for request in requests:
+        if request.selector == "_intro":
+            # Bounds are filled by the caller because the source lines are needed.
+            selected.append((None, request, -1, -1))
+            continue
         exact = [
             heading
             for heading in headings
-            if heading.level in {2, 3}
-            and " > ".join(heading.path) == wanted
+            if heading.level in {2, 3, 4}
+            and " > ".join(heading.path) == request.selector
         ]
-        if not exact and " > " not in wanted:
+        if not exact and " > " not in request.selector:
             exact = [
                 heading
                 for heading in headings
-                if heading.level in {2, 3} and heading.title == wanted
+                if heading.level in {2, 3, 4} and heading.title == request.selector
             ]
         if len(exact) != 1:
             raise ValueError(
-                f"heading {wanted!r} matched {len(exact)} sections; use a unique H2/H3 path"
+                f"heading {request.selector!r} matched {len(exact)} sections; use a unique H2–H4 path"
             )
-        selected.append((exact[0], target))
-    selected.sort(key=lambda item: item[0].start)
-    for (left, _), (right, _) in zip(selected, selected[1:]):
-        if right.start < left.end:
-            raise ValueError(
-                f"selected sections overlap: {left.title!r} contains {right.title!r}"
-            )
+        heading = exact[0]
+        selected.append((heading, request, heading.start, heading.end))
+    selected.sort(key=lambda item: item[2])
     return selected
 
 
@@ -167,21 +279,14 @@ def _resolve_local_target(href: str, origin: str) -> tuple[str, str, str, bool] 
     if root_relative:
         resolved = posixpath.normpath(path.lstrip("/"))
     elif path:
-        resolved = posixpath.normpath(
-            posixpath.join(posixpath.dirname(origin), path)
-        )
+        resolved = posixpath.normpath(posixpath.join(posixpath.dirname(origin), path))
     else:
         resolved = origin
     return resolved, parsed.query, unquote(parsed.fragment), root_relative
 
 
 def _href_for(
-    *,
-    origin: str,
-    target: str,
-    query: str,
-    anchor: str,
-    root_relative: bool,
+    *, origin: str, target: str, query: str, anchor: str, root_relative: bool
 ) -> str:
     if root_relative:
         path = f"/{target}"
@@ -192,6 +297,32 @@ def _href_for(
     return urlunsplit(("", "", path, query, anchor))
 
 
+def _rewrite_href(
+    href: str,
+    *,
+    origin: str,
+    destination: str,
+    source: str,
+    moved_anchors: dict[str, tuple[str, str]],
+) -> str:
+    angle = href.startswith("<") and href.endswith(">")
+    bare = href[1:-1] if angle else href
+    resolved = _resolve_local_target(bare, origin)
+    if resolved is None:
+        return href
+    target_path, query, anchor, root_relative = resolved
+    if target_path == source and anchor in moved_anchors:
+        target_path, anchor = moved_anchors[anchor]
+    new_href = _href_for(
+        origin=destination,
+        target=target_path,
+        query=query,
+        anchor=anchor,
+        root_relative=root_relative,
+    )
+    return f"<{new_href}>" if angle else new_href
+
+
 def _rewrite_links(
     text: str,
     *,
@@ -199,38 +330,207 @@ def _rewrite_links(
     destination: str,
     source: str,
     moved_anchors: dict[str, tuple[str, str]],
-    remap_source_anchors: bool,
 ) -> str:
     def replace(match: re.Match[str]) -> str:
-        raw = match.group("target")
-        angle = raw.startswith("<") and raw.endswith(">")
-        href = raw[1:-1] if angle else raw
-        resolved = _resolve_local_target(href, origin)
-        if resolved is None:
-            return match.group(0)
-        target_path, query, anchor, root_relative = resolved
-        new_path, new_anchor = target_path, anchor
-        if target_path == source and anchor in moved_anchors and remap_source_anchors:
-            new_path, new_anchor = moved_anchors[anchor]
-        elif origin != destination and not root_relative:
-            # The Markdown file moved: keep the same local destination from its new home.
-            pass
-        new_href = _href_for(
-            origin=destination,
-            target=new_path,
-            query=query,
-            anchor=new_anchor,
-            root_relative=root_relative,
+        return match.group("prefix") + _rewrite_href(
+            match.group("target"),
+            origin=origin,
+            destination=destination,
+            source=source,
+            moved_anchors=moved_anchors,
         )
-        return match.group("prefix") + (f"<{new_href}>" if angle else new_href)
 
-    return MARKDOWN_LINK_RE.sub(replace, text)
+    def replace_html(match: re.Match[str]) -> str:
+        quote = match.group("quote") or ""
+        target = match.group("target") or match.group("unquoted")
+        return (
+            match.group("prefix")
+            + quote
+            + _rewrite_href(
+                target,
+                origin=origin,
+                destination=destination,
+                source=source,
+                moved_anchors=moved_anchors,
+            )
+            + quote
+        )
+
+    text = INLINE_LINK_RE.sub(replace, text)
+    text = REFERENCE_LINK_RE.sub(replace, text)
+    return HTML_LINK_RE.sub(replace_html, text)
+
+
+def _rewrite_handwritten(
+    text: str,
+    *,
+    origin: str,
+    destination: str,
+    source: str,
+    moved_anchors: dict[str, tuple[str, str]],
+) -> tuple[str, bool]:
+    """Rewrite authored content and return whether generated content needs review."""
+    if GENERATED_FILE_RE.search(text):
+        rewritten = _rewrite_links(
+            text,
+            origin=origin,
+            destination=destination,
+            source=source,
+            moved_anchors=moved_anchors,
+        )
+        return text, rewritten != text
+    warnings = False
+    result: list[str] = []
+    offset = 0
+    for match in GENERATED_BLOCK_RE.finditer(text):
+        result.append(
+            _rewrite_links(
+                text[offset : match.start()],
+                origin=origin,
+                destination=destination,
+                source=source,
+                moved_anchors=moved_anchors,
+            )
+        )
+        block = match.group(0)
+        rewritten_block = _rewrite_links(
+            block,
+            origin=origin,
+            destination=destination,
+            source=source,
+            moved_anchors=moved_anchors,
+        )
+        warnings = warnings or rewritten_block != block
+        result.append(block)
+        offset = match.end()
+    result.append(
+        _rewrite_links(
+            text[offset:],
+            origin=origin,
+            destination=destination,
+            source=source,
+            moved_anchors=moved_anchors,
+        )
+    )
+    return "".join(result), warnings
+
+
+def _title_for(text: str, path: str) -> str:
+    match = re.search(r"^#\s+(.+?)\s*#*\s*$", text, flags=re.MULTILINE)
+    return (
+        match.group(1).strip() if match else Path(path).stem.replace("-", " ").title()
+    )
+
+
+def _pointer(
+    ids: list[str],
+    target: str,
+    anchor: str,
+    title: str,
+    source: str,
+    *,
+    root_relative: bool = False,
+) -> list[str]:
+    lines: list[str] = []
+    for old_id in ids:
+        lines.append(f'<a id="{old_id}"></a>')
+    link = (
+        f"/{target}" + (f"#{anchor}" if anchor else "")
+        if root_relative
+        else markdown_link(source, target, anchor or None)
+    )
+    lines.append(f"Moved to [{title}]({link}).")
+    return lines
+
+
+def _is_pointer_only(text: str) -> bool:
+    """Ignore generated compatibility pointers when checking a partial source intro."""
+    return all(
+        not line.strip()
+        or re.fullmatch(r'<a\s+id=["\'][^"\']+["\']\s*></a>', line.strip(), re.I)
+        or line.strip().startswith("Moved to [")
+        for line in text.splitlines()
+    )
+
+
+def _has_authored_remainder(text: str) -> bool:
+    """Check for prose outside the title and generated compatibility pointers."""
+    lines = text.splitlines()
+    if lines and lines[0].strip() == "---":
+        end = next(
+            (i for i, line in enumerate(lines[1:], start=1) if line.strip() == "---"),
+            None,
+        )
+        if end is not None:
+            lines = lines[end + 1 :]
+    retained: list[str] = []
+    skipped_title = False
+    for line in lines:
+        stripped = line.strip()
+        if not stripped:
+            continue
+        if not skipped_title and re.match(r"^#\s+", stripped):
+            skipped_title = True
+            continue
+        if re.fullmatch(r'<a\s+id=["\'][^"\']+["\']\s*></a>', stripped, re.I):
+            continue
+        if stripped.startswith("Moved to ["):
+            continue
+        retained.append(line)
+    return bool("".join(retained).strip())
+
+
+def _heading_with_level(line: str, level: int, target_id: str | None) -> str:
+    match = HEADING_RE.match(line)
+    if not match:
+        return line
+    body = EXPLICIT_ANCHOR_RE.sub("", match.group(2)).rstrip()
+    body = re.sub(r"\s+#+\s*$", "", body).rstrip()
+    if target_id is not None:
+        body += f" {{#{target_id}}}"
+    newline = "\n" if line.endswith("\n") else ""
+    return f"{'#' * level} {body}{newline}"
+
+
+def _target_used_ids(text: str) -> tuple[set[str], dict[str, int]]:
+    used: set[str] = set()
+    counts: dict[str, int] = {}
+    lines = text.splitlines(keepends=True)
+    for heading in _headings(lines):
+        base = _slugify(heading.title)
+        counts[base] = counts.get(base, 0) + 1
+        used.add(heading.anchor)
+    used.update(match.group(2) for match in HTML_ID_RE.finditer(text))
+    return used, counts
+
+
+def _unique_anchor(base: str, used: set[str], counts: dict[str, int]) -> str:
+    count = counts.get(base, 0)
+    value = base if count == 0 else f"{base}-{count}"
+    while value in used:
+        count += 1
+        value = f"{base}-{count}"
+    counts[base] = count + 1
+    return value
+
+
+def _replace_html_ids(text: str, replacements: dict[str, str]) -> str:
+    def replace(match: re.Match[str]) -> str:
+        old = match.group(2)
+        if old not in replacements:
+            return match.group(0)
+        return match.group(0).replace(old, replacements[old], 1)
+
+    return HTML_ID_RE.sub(replace, text)
 
 
 def _update_moves_map(
     root: Path,
     source: str,
-    moved: list[tuple[Heading, str]],
+    *,
+    primary_target: str,
+    title: str,
+    anchors: dict[str, tuple[str, str]],
 ) -> str:
     moves_path = root / MOVES_PATH
     payload = yaml.safe_load(moves_path.read_text(encoding="utf-8"))
@@ -238,90 +538,440 @@ def _update_moves_map(
         raise ValueError(f"{moves_path} must contain a moves list")
     records: list[dict[str, object]] = payload["moves"]
     entry = next(
-        (record for record in records if isinstance(record, dict) and record.get("from") == source),
+        (
+            record
+            for record in records
+            if isinstance(record, dict) and record.get("from") == source
+        ),
         None,
     )
     if entry is None:
-        entry = {"from": source, "to": moved[0][1], "kind": "stub", "anchors": {}}
+        entry = {"from": source, "to": primary_target, "kind": "stub", "anchors": {}}
         records.append(entry)
     if entry.get("kind", "stub") != "stub":
         raise ValueError(f"{source} already has a whole-page redirect in {moves_path}")
+    entry["to"] = primary_target
+    entry["title"] = title
+    entry["kind"] = "stub"
     anchors_value = entry.setdefault("anchors", {})
     if not isinstance(anchors_value, dict):
         raise ValueError(f"{moves_path}: anchors for {source} must be a mapping")
-    for heading, target in moved:
-        target_anchor = heading.anchor
-        value = f"{target}#{target_anchor}"
-        old_value = anchors_value.get(heading.anchor)
+    for old_id, (target, target_anchor) in anchors.items():
+        value = f"{target}#{target_anchor}" if target_anchor else target
+        old_value = anchors_value.get(old_id)
         if old_value is not None and old_value != value:
-            raise ValueError(f"{moves_path}: conflicting mapping for #{heading.anchor}")
-        anchors_value[heading.anchor] = value
+            raise ValueError(f"{moves_path}: conflicting mapping for #{old_id}")
+        anchors_value[old_id] = value
     return yaml.safe_dump(payload, sort_keys=False, allow_unicode=True)
 
 
-def split(
+def _request_for_line(
+    line_index: int,
+    selected: list[tuple[Heading | None, Request, int, int]],
+) -> Request | None:
+    matches = [item for item in selected if item[2] <= line_index < item[3]]
+    if not matches:
+        return None
+    return max(matches, key=lambda item: (item[0].level if item[0] else 0, -item[2]))[1]
+
+
+def _request_ids(
+    lines: list[str],
+    headings: list[Heading],
+    selected: list[tuple[Heading | None, Request, int, int]],
+) -> dict[str, list[str]]:
+    heading_at = {heading.start: heading for heading in headings}
+    ids: dict[str, list[str]] = {request.selector: [] for _, request, _, _ in selected}
+    for index, line in enumerate(lines):
+        request = _request_for_line(index, selected)
+        if request is None:
+            continue
+        heading = heading_at.get(index)
+        if heading is not None and heading.level >= 2:
+            ids[request.selector].append(heading.anchor)
+        ids[request.selector].extend(
+            match.group(2) for match in HTML_ID_RE.finditer(line)
+        )
+    for selector in ids:
+        ids[selector] = list(dict.fromkeys(ids[selector]))
+    return ids
+
+
+def _section_chunks(
+    lines: list[str],
+    selected: list[tuple[Heading | None, Request, int, int]],
+    ids: dict[str, list[str]],
+    target_titles: dict[str, str],
+    source: str,
+) -> tuple[
+    dict[str, list[tuple[str, list[tuple[str, int | None]], int]]],
+    dict[int, Request | None],
+]:
+    """Collect each request's text, replacing a nested request with its pointer."""
+    owners = {index: _request_for_line(index, selected) for index in range(len(lines))}
+    chunks: dict[str, list[tuple[str, list[tuple[str, int | None]], int]]] = {}
+    starts = {start: request for _, request, start, _ in selected}
+    ranges = {request.selector: (start, end) for _, request, start, end in selected}
+    for heading, request, start, end in selected:
+        if request.drop:
+            continue
+        chunk_lines: list[tuple[str, int | None]] = []
+        index = start
+        while index < end:
+            owner = owners[index]
+            if owner is request:
+                chunk_lines.append((lines[index], index))
+                index += 1
+                continue
+            child = starts.get(index)
+            if child is not None and child is not request:
+                destination = source
+                anchor = ids[child.selector][0] if ids[child.selector] else ""
+                title_target = child.target
+                if child.drop and child.anchor_target:
+                    destination, anchor = child.anchor_target
+                    title_target = destination
+                if destination is not None and title_target is not None:
+                    title = target_titles.get(
+                        title_target, Path(title_target).stem.title()
+                    )
+                    child_ids = ids[child.selector]
+                    for pointer_line in _pointer(
+                        child_ids,
+                        destination,
+                        anchor,
+                        title,
+                        target,
+                        root_relative=True,
+                    ):
+                        chunk_lines.append((pointer_line + "\n", None))
+                _, child_end = ranges[child.selector]
+                index = child_end
+                continue
+            # This line belongs to another selected nested range that began earlier.
+            index += 1
+        target = request.target
+        assert target is not None
+        chunks.setdefault(target, []).append(
+            (request.selector, chunk_lines, heading.level if heading else 1)
+        )
+    return chunks, owners
+
+
+def _normalize_chunk(
+    chunk: list[tuple[str, int | None]],
+    *,
+    base_level: int,
+    source_headings: dict[int, Heading],
+    target_used: set[str],
+    target_counts: dict[str, int],
+    source: str,
+    target: str,
+    anchors: dict[str, tuple[str, str]],
+    request_ids: list[str],
+) -> str:
+    rendered: list[str] = []
+    for line, source_index in chunk:
+        match = HEADING_RE.match(line)
+        if match and source_index is not None and source_index in source_headings:
+            heading = source_headings[source_index]
+            level = max(2, heading.level - base_level + 2)
+            base_anchor = _slugify(heading.title)
+            natural = _unique_anchor(base_anchor, target_used, target_counts)
+            if heading.anchor not in target_used:
+                target_anchor = heading.anchor
+            else:
+                target_anchor = natural
+            if target_anchor != natural or EXPLICIT_ANCHOR_RE.search(heading.title):
+                line = _heading_with_level(line, level, target_anchor)
+            else:
+                line = _heading_with_level(line, level, None)
+            target_used.add(target_anchor)
+            anchors[heading.anchor] = (target, target_anchor)
+        elif match and source_index is None:
+            # Generated pointers are not expected to contain headings, but keep them valid.
+            line = _heading_with_level(line, max(2, len(match.group(1))), None)
+        rendered.append(line)
+
+    text = "".join(rendered)
+    replacements: dict[str, str] = {}
+    for old_id in request_ids:
+        if old_id in anchors:
+            continue
+        if old_id in target_used:
+            suffix = 1
+            candidate = f"{old_id}-{suffix}"
+            while candidate in target_used:
+                suffix += 1
+                candidate = f"{old_id}-{suffix}"
+            replacements[old_id] = candidate
+            target_used.add(candidate)
+            anchors[old_id] = (target, candidate)
+        else:
+            target_used.add(old_id)
+            anchors[old_id] = (target, old_id)
+    text = _replace_html_ids(text, replacements)
+    return text
+
+
+def plan_split(
     source_value: str | Path,
     mapping_path: str | Path,
     *,
     root: Path = ROOT,
-) -> list[tuple[str, str]]:
+    finish: bool = False,
+) -> SplitPlan:
     source = _normalize_source(root, source_value)
     source_file = root / "docs" / source
+    if not source_file.is_file():
+        raise ValueError(f"source docs/{source} does not exist")
     mapping_file = Path(mapping_path)
     if not mapping_file.is_absolute():
         mapping_file = root / mapping_file
     lines = source_file.read_text(encoding="utf-8").splitlines(keepends=True)
-    requested = _mapping_items(mapping_file)
-    selected = _select_sections(_headings(lines), requested)
-    moved_anchors = {
-        heading.anchor: (target, heading.anchor) for heading, target in selected
+    source_text = "".join(lines)
+    headings = _headings(lines)
+    requests, explicit_primary = _mapping_items(mapping_file)
+    selected = _select_sections(headings, requests)
+    intro_start, intro_end = _intro_bounds(lines, headings)
+    selected = [
+        (heading, request, intro_start, intro_end)
+        if heading is None
+        else (heading, request, start, end)
+        for heading, request, start, end in selected
+    ]
+    for left_index, (left, left_request, left_start, left_end) in enumerate(selected):
+        if left is None:
+            continue
+        for right, right_request, right_start, right_end in selected[left_index + 1 :]:
+            if right is None:
+                continue
+            if left_start < right_end and right_start < left_end:
+                if not (left_start <= right_start and right_end <= left_end):
+                    raise ValueError(
+                        f"overlapping non-nested selections: {left_request.selector!r} and {right_request.selector!r}"
+                    )
+    if any(start < 0 or end < 0 for _, _, start, end in selected):
+        raise ValueError("could not resolve _intro selection")
+    ids = _request_ids(lines, headings, selected)
+    all_targets = {
+        request.target for _, request, _, _ in selected if request.target is not None
     }
-    for _, target in selected:
-        if not (root / "docs" / target).is_file():
+    all_targets.update(
+        request.anchor_target[0]
+        for _, request, _, _ in selected
+        if request.anchor_target is not None
+    )
+    target_texts: dict[str, str] = {}
+    target_titles: dict[str, str] = {}
+    for target in all_targets:
+        target_file = root / "docs" / target
+        if not target_file.is_file():
             raise ValueError(
                 f"target docs/{target} must exist with its frontmatter before splitting"
             )
+        target_texts[target] = target_file.read_text(encoding="utf-8")
+        target_titles[target] = _title_for(target_texts[target], target)
 
-    moved_parts: dict[str, list[str]] = {}
-    remove_ranges: list[tuple[int, int]] = []
-    for heading, target in selected:
-        block = "".join(lines[heading.start : heading.end])
-        block = _rewrite_links(
-            block,
-            origin=source,
-            destination=target,
-            source=source,
-            moved_anchors=moved_anchors,
-            remap_source_anchors=True,
+    chunks, owners = _section_chunks(lines, selected, ids, target_titles, source)
+    source_headings = {heading.start: heading for heading in headings}
+    anchor_map: dict[str, tuple[str, str]] = {}
+    target_used: dict[str, set[str]] = {}
+    target_counts: dict[str, dict[str, int]] = {}
+    target_word_totals: dict[str, tuple[int, int | None]] = {}
+    normalized_chunks: dict[str, list[tuple[str, str]]] = {}
+    for target, parts in chunks.items():
+        target_used[target], target_counts[target] = _target_used_ids(
+            target_texts[target]
         )
-        moved_parts.setdefault(target, []).append(block.strip("\n"))
-        remove_ranges.append((heading.start, heading.end))
+        normalized_chunks[target] = []
+        for selector, chunk, base_level in parts:
+            normalized = _normalize_chunk(
+                chunk,
+                base_level=base_level,
+                source_headings=source_headings,
+                target_used=target_used[target],
+                target_counts=target_counts[target],
+                source=source,
+                target=target,
+                anchors=anchor_map,
+                request_ids=ids[selector],
+            )
+            normalized_chunks[target].append((selector, normalized))
 
-    removed = {index for start, end in remove_ranges for index in range(start, end)}
-    remainder = "".join(line for index, line in enumerate(lines) if index not in removed)
-    remainder = _rewrite_links(
-        remainder,
-        origin=source,
-        destination=source,
-        source=source,
-        moved_anchors=moved_anchors,
-        remap_source_anchors=True,
-    )
+    for _, request, _, _ in selected:
+        if request.drop and request.anchor_target:
+            target, anchor = request.anchor_target
+            for old_id in ids[request.selector]:
+                anchor_map[old_id] = (target, anchor)
 
-    writes: dict[Path, str] = {source_file: remainder}
-    for target, parts in moved_parts.items():
-        target_file = root / "docs" / target
-        existing = target_file.read_text(encoding="utf-8")
-        existing = _rewrite_links(
+    # `_intro` has no heading of its own, but its explicit HTML ids still need routing.
+    for _, request, _, _ in selected:
+        if request.target is not None:
+            target = request.target
+            used, _ = _target_used_ids(target_texts[target])
+            for old_id in ids[request.selector]:
+                if old_id not in anchor_map:
+                    anchor = old_id
+                    if anchor in used:
+                        suffix = 1
+                        while f"{old_id}-{suffix}" in used:
+                            suffix += 1
+                        anchor = f"{old_id}-{suffix}"
+                    anchor_map[old_id] = (target, anchor)
+                    used.add(anchor)
+        elif request.drop and request.anchor_target is None:
+            for old_id in ids[request.selector]:
+                anchor_map.pop(old_id, None)
+
+    # Rewrite moved references with source ids mapped to their target-context anchors.
+    warnings: list[str] = []
+    target_outputs: dict[str, str] = {}
+    for target, parts in normalized_chunks.items():
+        existing = target_texts[target]
+        rewritten_existing, existing_warn = _rewrite_handwritten(
             existing,
             origin=target,
             destination=target,
             source=source,
-            moved_anchors=moved_anchors,
-            remap_source_anchors=True,
+            moved_anchors=anchor_map,
         )
-        separator = "\n" if not existing.endswith("\n\n") else ""
-        writes[target_file] = existing + separator + "\n\n".join(parts).rstrip() + "\n"
+        rewritten_parts: list[str] = []
+        moved_warn = False
+        for _, part in parts:
+            rewritten, part_warn = _rewrite_handwritten(
+                part,
+                origin=source,
+                destination=target,
+                source=source,
+                moved_anchors=anchor_map,
+            )
+            rewritten_parts.append(rewritten.rstrip())
+            moved_warn = moved_warn or part_warn
+        separator = "\n" if not rewritten_existing.endswith("\n\n") else ""
+        combined = (
+            rewritten_existing
+            + separator
+            + "\n\n".join(rewritten_parts).rstrip()
+            + "\n"
+        )
+        if existing_warn or moved_warn:
+            warnings.append(
+                f"docs/{target}: update the renderer for a generated link to docs/{source}"
+            )
+        target_outputs[target] = combined
+        tier = _tier_of(target)
+        cap = PAGE_BUDGETS.get(tier, (None, None, "warning"))[0] if tier else None
+        words = count_words(combined)
+        target_word_totals[target] = (words, cap)
+
+    source_remainder: list[str] = []
+    emitted: set[str] = set()
+    for index, line in enumerate(lines):
+        owner = owners[index]
+        if owner is None:
+            source_remainder.append(line)
+            continue
+        if index not in emitted and any(start == index for _, _, start, _ in selected):
+            request = next(
+                request for _, request, start, _ in selected if start == index
+            )
+            emitted.add(request.selector)
+            destination: str | None = request.target
+            destination_anchor = ""
+            if request.drop and request.anchor_target:
+                destination, destination_anchor = request.anchor_target
+            elif request.target is not None and ids[request.selector]:
+                destination, destination_anchor = anchor_map.get(
+                    ids[request.selector][0], (request.target, "")
+                )
+            if destination is not None:
+                title = target_titles.get(destination, Path(destination).stem.title())
+                section_ids = ids[request.selector]
+                source_remainder.extend(
+                    line_value + "\n"
+                    for line_value in _pointer(
+                        section_ids, destination, destination_anchor, title, source
+                    )
+                )
+        # Selected content is replaced by compact source pointers.
+    source_output = "".join(source_remainder)
+    source_output, generated_warn = _rewrite_handwritten(
+        source_output,
+        origin=source,
+        destination=source,
+        source=source,
+        moved_anchors=anchor_map,
+    )
+    if generated_warn:
+        warnings.append(
+            f"docs/{source}: update its renderer for generated links to moved sections"
+        )
+
+    unmapped: list[str] = []
+    for heading in headings:
+        if heading.level < 2:
+            continue
+        if _request_for_line(heading.start, selected) is None:
+            unmapped.append(" > ".join(heading.path))
+    if intro_end > intro_start and _request_for_line(intro_start, selected) is None:
+        intro_body = "".join(lines[intro_start:intro_end]).strip()
+        if intro_body and not _is_pointer_only(intro_body):
+            unmapped.insert(0, "_intro")
+
+    if finish and unmapped:
+        raise ValueError(
+            "--finish cannot leave hand-written content; unmapped: "
+            + ", ".join(unmapped)
+        )
+    if finish and _has_authored_remainder(source_output):
+        raise ValueError(
+            "--finish cannot leave hand-written content in the source remainder"
+        )
+
+    moved_targets = [request.target for _, request, _, _ in selected if request.target]
+    moved_targets.extend(
+        request.anchor_target[0]
+        for _, request, _, _ in selected
+        if request.anchor_target is not None
+    )
+    if explicit_primary:
+        primary = explicit_primary
+    elif moved_targets:
+        first_target = moved_targets[0]
+        hub = (PurePosixPath(first_target).parent / "index.md").as_posix()
+        primary = (
+            hub
+            if hub != "index.md" and (root / "docs" / hub).is_file()
+            else first_target
+        )
+    else:
+        move_data = yaml.safe_load((root / MOVES_PATH).read_text(encoding="utf-8"))
+        existing = next(
+            (
+                item
+                for item in move_data.get("moves", [])
+                if isinstance(item, dict) and item.get("from") == source
+            ),
+            None,
+        )
+        primary = existing.get("to", source) if isinstance(existing, dict) else source
+    if not (root / "docs" / primary).is_file():
+        raise ValueError(f"primary destination docs/{primary} does not exist")
+    moves_text = _update_moves_map(
+        root,
+        source,
+        primary_target=primary,
+        title=_title_for(source_text, source),
+        anchors=anchor_map,
+    )
+
+    writes: dict[Path, str] = {root / MOVES_PATH: moves_text}
+    if not finish:
+        writes[source_file] = source_output
+    writes.update(
+        {root / "docs" / target: text for target, text in target_outputs.items()}
+    )
 
     docs_root = root / "docs"
     for path in docs_root.rglob("*.md"):
@@ -329,37 +979,118 @@ def split(
             continue
         relative = path.relative_to(docs_root).as_posix()
         text = path.read_text(encoding="utf-8")
-        rewritten = _rewrite_links(
+        if GENERATED_FILE_RE.search(text):
+            rewritten = _rewrite_links(
+                text,
+                origin=relative,
+                destination=relative,
+                source=source,
+                moved_anchors=anchor_map,
+            )
+            if rewritten != text:
+                warnings.append(
+                    f"docs/{relative}: update the renderer for links to docs/{source}"
+                )
+            continue
+        rewritten, generated_warn = _rewrite_handwritten(
             text,
             origin=relative,
             destination=relative,
             source=source,
-            moved_anchors=moved_anchors,
-            remap_source_anchors=True,
+            moved_anchors=anchor_map,
         )
+        if generated_warn:
+            warnings.append(
+                f"docs/{relative}: update the renderer for generated links to docs/{source}"
+            )
         if rewritten != text:
             writes[path] = rewritten
 
-    moves_map = _update_moves_map(root, source, selected)
-    writes[root / MOVES_PATH] = moves_map
-    for path, text in writes.items():
+    if finish:
+        # A finished source is represented by the generated stub on the next render.
+        for path in tuple(writes):
+            if path == source_file:
+                writes.pop(path)
+    moved = [
+        (request.selector, request.target)
+        for _, request, _, _ in selected
+        if request.target is not None
+    ]
+    return SplitPlan(
+        source, writes, finish, moved, target_word_totals, unmapped, warnings
+    )
+
+
+def split(
+    source_value: str | Path,
+    mapping_path: str | Path,
+    *,
+    root: Path = ROOT,
+    finish: bool = False,
+) -> list[tuple[str, str]]:
+    plan = plan_split(source_value, mapping_path, root=root, finish=finish)
+    for path, text in plan.writes.items():
+        path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(text, encoding="utf-8")
-    return [(" > ".join(heading.path), target) for heading, target in selected]
+    if plan.delete_source:
+        (root / "docs" / plan.source).unlink(missing_ok=True)
+    return plan.moved
+
+
+def _print_plan(plan: SplitPlan) -> None:
+    if plan.moved:
+        for selector, target in plan.moved:
+            print(f"Move {selector} → docs/{target}")
+    for target, (words, cap) in sorted(plan.target_words.items()):
+        budget = "unlimited" if cap is None else str(cap)
+        status = "OVER BUDGET" if cap is not None and words > cap else "within budget"
+        print(f"docs/{target}: {words} hand-written words / {budget} — {status}")
+    for selector in plan.unmapped:
+        print(f"Unmapped: {selector}")
+    for warning in plan.warnings:
+        print(f"warning: {warning}", file=sys.stderr)
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("source", help="source Markdown page, relative to docs/ or repo root")
-    parser.add_argument("mapping", help="YAML mapping from H2/H3 headings to target pages")
+    parser.add_argument(
+        "source", help="source Markdown page, relative to docs/ or repo root"
+    )
+    parser.add_argument(
+        "mapping", help="YAML mapping from headings to targets or drops"
+    )
+    parser.add_argument(
+        "-n",
+        "--dry-run",
+        action="store_true",
+        help="report target budgets and unmapped sections without writing",
+    )
+    parser.add_argument(
+        "-f",
+        "--finish",
+        action="store_true",
+        help="remove the source after all authored content has been mapped",
+    )
     args = parser.parse_args(argv)
     try:
-        moved = split(args.source, args.mapping)
+        plan = plan_split(args.source, args.mapping, root=ROOT, finish=args.finish)
+        _print_plan(plan)
+        if args.dry_run:
+            return int(
+                any(
+                    cap is not None and words > cap
+                    for words, cap in plan.target_words.values()
+                )
+            )
+        for path, content in plan.writes.items():
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(content, encoding="utf-8")
+        if plan.delete_source:
+            (ROOT / "docs" / plan.source).unlink(missing_ok=True)
+        return 0
     except (OSError, ValueError, yaml.YAMLError) as exc:
         print(f"[docs_split] {exc}", file=sys.stderr)
         return 1
-    for heading, target in moved:
-        print(f"Moved {heading} → docs/{target}")
-    return 0
 
 
 if __name__ == "__main__":

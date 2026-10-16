@@ -105,6 +105,16 @@ The site builds on any Zensical-compatible host: add no MkDocs `hooks:`, `gen-fi
 plugins beyond search, redirects, blog, rss (and exporter in the PDF config only).
 Generation happens in `tools/` before the build, with `--check` drift detection.
 
+## Splitting and moving pages
+
+Use `tools/docs_split` for section moves and `tools/docs_move` for whole-page moves.
+Keep each split mapping under `docs/_meta/splits/`; it records where every section went
+and makes the split reviewable. A partial split leaves anchor links and a “Moved to”
+pointer in the source so its old URLs keep working. Run `tools/docs_split --dry-run` to
+review target budgets and unmapped sections, then use `--finish` only when the source
+has no authored content left. `just fix` regenerates the compatibility stubs and move
+metadata from `docs/_meta/moves.yml`.
+
 ## Routing table
 
 Match the change to its row before writing:

@@ -39,9 +39,9 @@ def _fixture(root: Path) -> dict[str, Path]:
     tests = root / "tests"
     tests.mkdir(parents=True)
     budgets = docs / "_meta" / "budgets.yml"
-    _write(budgets, "ceilings:\n  index.md: 100\n  legacy.md: 100\n")
+    _write(budgets, "ceilings:\n  legacy.md: 100\n")
     _write(docs / "legacy.md", "# Legacy\n\nSmall page.\n")
-    _write(docs / "index.md", "# Home\n")
+    _write(docs / "index.md", GOOD_FM + "# Home\n")
     mkdocs = root / "mkdocs.yml"
     _write(mkdocs, "plugins:\n  - search\n  - redirects\n")
     mkdocs_pdf = root / "mkdocs-pdf.yml"
@@ -89,6 +89,60 @@ def test_new_root_page_fails_typing(tmp_path: Path) -> None:
     _write(fix["docs"] / "brand-new.md", GOOD_FM + "# New\n")
     (errors := _errors(_check(tool, fix)))
     assert any("brand-new.md" in e and "untyped" in e for e in errors)
+
+
+def test_generated_root_stub_passes_typing(tmp_path: Path) -> None:
+    tool = _load_tool()
+    fix = _fixture(tmp_path)
+    _write(
+        fix["docs"] / "old-page.md",
+        "---\ntitle: Old page\ndescription: Moved.\nsearch:\n  exclude: true\n---\n"
+        "<!-- generated, do not edit; source: docs/_meta/moves.yml -->\n"
+        "# Old page\n\nThis page moved.\n",
+    )
+    assert _errors(_check(tool, fix)) == []
+
+
+def test_homepage_requires_frontmatter_and_has_400_word_cap(tmp_path: Path) -> None:
+    tool = _load_tool()
+    fix = _fixture(tmp_path)
+    _write(fix["docs"] / "index.md", "# Home\n")
+    errors = _errors(_check(tool, fix))
+    assert any(
+        "index.md" in e and "missing frontmatter key 'title'" in e for e in errors
+    )
+    assert any(
+        "index.md" in e and "missing frontmatter key 'description'" in e for e in errors
+    )
+
+    _write(fix["docs"] / "index.md", GOOD_FM + "# Home\n\n" + "word " * 410)
+    errors = _errors(_check(tool, fix))
+    assert any("index.md" in e and "400-word cap" in e for e in errors)
+
+
+def test_stale_budget_entries_are_reported_and_removed(tmp_path: Path) -> None:
+    tool = _load_tool()
+    fix = _fixture(tmp_path)
+    _write(
+        fix["budgets"],
+        "ceilings:\n  legacy.md: 100\n  missing.md: 100\n  moved.md: 100\n",
+    )
+    _write(
+        fix["docs"] / "moved.md",
+        "---\ntitle: Moved\ndescription: Moved.\n---\n"
+        "<!-- generated, do not edit; source: docs/_meta/moves.yml -->\n# Moved\n",
+    )
+    errors = _errors(_check(tool, fix))
+    assert any("stale entry for missing page missing.md" in error for error in errors)
+    assert any("stale entry for generated stub moved.md" in error for error in errors)
+
+    ctx = tool.build_context(fix["docs"], fix["budgets"], fix["mkdocs"], fix["tests"])
+    assert tool.ratchet_ceilings(ctx) == [
+        "legacy.md: 5",
+        "removed stale ceiling: missing.md",
+        "removed stale ceiling: moved.md",
+    ]
+    assert tool.load_budgets(fix["budgets"]) == {"legacy.md": 5}
 
 
 def test_typed_page_passes_typing(tmp_path: Path) -> None:
@@ -278,7 +332,7 @@ def test_ratchet_lowers_but_never_raises(tmp_path: Path) -> None:
     _write(fix["docs"] / "legacy.md", "# L\n\nTiny.\n")
     ctx = tool.build_context(fix["docs"], fix["budgets"], fix["mkdocs"], fix["tests"])
     changed = tool.ratchet_ceilings(ctx)
-    assert changed == ["index.md: 3", "legacy.md: 4"]
+    assert changed == ["legacy.md: 4"]
     assert tool.load_budgets(fix["budgets"])["legacy.md"] == 4
     _write(fix["docs"] / "legacy.md", "# L\n\n" + "word " * 50 + "\n")
     ctx = tool.build_context(fix["docs"], fix["budgets"], fix["mkdocs"], fix["tests"])
