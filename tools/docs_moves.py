@@ -30,7 +30,7 @@ GENERATED_BLOCK_RE = re.compile(
 )
 GENERATED_FILE_RE = re.compile(r"generated,?\s+do not edit", re.IGNORECASE)
 HEADING_RE = re.compile(r"^\s{0,3}(#{1,6})\s+(.+?)\s*#*\s*$")
-EXPLICIT_ANCHOR_RE = re.compile(r"\s*\{#([^}]+)\}\s*$")
+EXPLICIT_ANCHOR_RE = re.compile(r"\s*\{\s*#([^}]+?)\s*\}\s*$")
 
 
 @dataclass(frozen=True)
@@ -136,7 +136,14 @@ def slugify_heading(value: str) -> str:
     if explicit:
         return explicit.group(1)
     title = EXPLICIT_ANCHOR_RE.sub("", value).strip()
-    title = re.sub(r"[`*_~]", "", title)
+    # Keep placeholder words in inline code, e.g. `<id>` in a CLI heading.
+    # Markdown renders the angle brackets as text there, not as an HTML tag.
+    title = re.sub(
+        r"`+([^`]+?)`+",
+        lambda match: match.group(1).replace("<", " ").replace(">", " "),
+        title,
+    )
+    title = re.sub(r"[*_~]", "", title)
     title = re.sub(r"<[^>]+>", "", title)
     title = re.sub(r"[^\w\-\s]", "", title.lower(), flags=re.UNICODE)
     return re.sub(r"\s+", "-", title).strip("-")

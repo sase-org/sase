@@ -264,7 +264,7 @@ the preferred card.
   then durable verbs such as `noted` or `closed`, then `read`, then `viewed`; repeats
   render `×N`). Indented `↳` lines show the bead title when available, then a labeled
   `why:` filing-reason line for created rows (the bead's
-  [creation reason](../../beads.md#creation-reason)), then the standing-close reason and the
+  [creation reason](../work-units/beads.md#creation-reason)), then the standing-close reason and the
   newest audited read reason with explicit `closed:`/`read:` labels; rows with none of
   these omit `↳` lines. `assigned` marks the agent's assigned phase, epic, or
   `sase bead work` bead even when it was never touched (such rows show the
@@ -276,7 +276,7 @@ the preferred card.
   when every contributor to that bead shares one producer, and clan rows include their
   members' beads (de-duplicated and labeled per member). Audited `bead:` reads live here
   and are excluded from `Reads`. The data and glyphs match
-  [`sase bead touched`](../../beads.md#sase-bead-touched-agent). `Reads` is the input side of
+  [`sase bead touched`](../work-units/bead-cli-query.md#sase-bead-touched-agent). `Reads` is the input side of
   the lane: each retained audited `sase artifact read` (including when artifact links
   are disabled) appears newest-first with local time, the canonical reference, the
   recorded reason on a wrapped continuation line, and — on a session row — the compact

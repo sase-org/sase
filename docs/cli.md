@@ -386,8 +386,10 @@ Flag and option details live in the generated
   [sase memory](reference/cli/memory.md),
   [sase instructions](reference/cli/instructions.md), [sase repo](reference/cli/repo.md)
 
-Workflows: [Patches](change_spec.md), [Beads](beads.md), [SDD](sdd.md),
-[Goals](goals.md), [Project lifecycle](project_spec.md), [Initialization](init.md),
+Workflows: [Patches](reference/work-units/patches.md),
+[Beads](reference/work-units/beads.md), [SDD](reference/work-units/plans.md),
+[Goals](reference/work-units/goals.md),
+[Project lifecycle](reference/work-units/project-spec.md), [Initialization](init.md),
 [Remote dispatch](remote_dispatch.md), [Memory](reference/memory/memory.md).
 
 Patches are PR-sized review records. SDD stores durable prompt and planning artifacts.
@@ -402,7 +404,7 @@ another project. Shorthand suffixes stay local, mutating commands reject batches
 span more than one store before writing, and `sase bead create` places a child in the
 store that owns a full parent ID. Commands without a bead selector (`list`, `search`,
 `ready`, `blocked`, and `stats`) keep the current-project scope. See
-[Bead ID Arguments](beads.md#bead-id-arguments).
+[Bead ID Arguments](reference/work-units/beads.md#bead-id-arguments).
 
 `sase project` defaults to `sase project list`, and `sase project list` defaults to
 enabled true projects. `sase project current` prints the current project derived from
@@ -529,8 +531,8 @@ prints the diagnostics and expected schema and leaves the proposal pending for r
 Plans can also declare typed choices and toggles as Plan Decisions. Ordinary approval
 accepts their effective defaults; pass `-D/--decide ID=VALUE` to approve with different
 values, or use `sase gate answer` with `--set decision_<id>=<value>` to override them on
-a pending gate. See [Plan Decisions](sdd.md#plan-decisions) for the grammar,
-memory-consent rules, and current interface limits.
+a pending gate. See [Plan Decisions](reference/work-units/plan-format.md#plan-decisions)
+for the grammar, memory-consent rules, and current interface limits.
 
 `sase plan reject` writes the rejection response first, then uses the same durable
 cleanup path as the TUI no-feedback rejection action when the matching planner row is
@@ -578,9 +580,9 @@ cover the tier, sase prints `%auto:<mode>` does not cover `<tier>` plans; this p
 waits for review instead. In `--json` mode stdout stays one JSON document: the sheet,
 the `%auto` note, and the outside-agent quote-verification note live inside the
 `decisions` envelope while the same human text goes to stderr. See the
-[validation output](sdd.md#plan-frontmatter-schema-and-validation). The removed
-`-t/--tier` option is now invalid command usage. A valid plan exits 0, a validation
-failure exits 1, and invalid command usage exits 2.
+[validation output](reference/work-units/plan-format.md#plan-frontmatter-schema-and-validation).
+The removed `-t/--tier` option is now invalid command usage. A valid plan exits 0, a
+validation failure exits 1, and invalid command usage exits 2.
 
 ### `sase goal`
 
@@ -591,8 +593,8 @@ chips (`↑ unpublished`, `refreshing…`, `⚠ N unreadable`). `-s/--status` fi
 list; `done`, `dropped`, `settled`, and `all` scan history newest-first with `-n`
 defaulting to 20. `-j/--json` emits the wire structs the gateway consumes. `new`,
 `edit`, `drop`, `reopen`, `merge`, and `doctor --repair` are human verbs and refuse
-inside agent runs; `list`, `show`, and `doctor` work everywhere. See [Goals](goals.md)
-for the full tour.
+inside agent runs; `list`, `show`, and `doctor` work everywhere. See
+[Goals](reference/work-units/goals.md) for the full tour.
 
 ## Automation
 

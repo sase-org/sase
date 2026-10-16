@@ -49,17 +49,13 @@
 - [Agent Hood Synchronization](agents_sidecar.md) — Agent Hood Synchronization — SASE publishes deterministic project-scoped agent-hood snapshots and canonical prompt archives through each managed project's hidden agents sidecar.
 - [Artifact Links](artifact_links.md) — Artifact Links — Artifact links are typed relationships between SASE artifacts.
 - [Artifact References](artifact_references.md) — Artifact References — Artifact references are typed @<kind>:<argument> citations in launch prompts.
-- [Bead Issue Tracking](beads.md) — Bead Issue Tracking — Bead is a lightweight, git-native issue tracking system built into sase.
-- [Patch Format Documentation](change_spec.md) — Patch Format Documentation — A Patch is SASE's durable local record for one unit of reviewable work.
 - [CLI Reference](cli.md) — CLI Reference — This page is a command index for the top-level sase CLI.
 - [Shell Completion](completion.md) — Shell Completion — sase completion supports native shell completion for zsh, bash, and fish from the live sase argparse tree, so pressing <TAB> anywhere in the command line offers the right commands, options, static choices, and live values — bead ids with titles, project display names, macro names, and more — with no perceptible latency.
 - [Editor Integration](editor.md) — Editor Integration — SASE exposes two editor-facing surfaces for prompt and macro editing:
-- [Goals](goals.md) — Goals — Goals are durable records of outcomes a person wants: what will be true, how you'll know, and what happened along the way.
 - [Initialization](init.md) — Initialization — SASE initialization commands create or refresh durable files that agents and sidecar tools rely on.
 - [Mobile Gateway](mobile_gateway.md) — Mobile Gateway — The SASE mobile gateway is a workstation-hosted HTTP gateway for paired mobile clients.
 - [SASE Pager](pager.md) — SASE Pager — sase pager opens artifact references, file paths, or stdin in the SASE link-traversing pager.
 - [Plugin System](plugins.md) — Plugin System — Sase uses Python entry points to discover optional functionality installed in the same Python environment as sase.
-- [ProjectSpec Format](project_spec.md) — ProjectSpec Format — A ProjectSpec is SASE's project-level .sase file.
 - [Prompt History and Draft Recovery](prompt.md) — Prompt History and Draft Recovery — Prompts you launch with sase run or from sase's TUI are recorded in prompt history when they are useful to replay.
 - [Query Language Reference](query_language.md) — Query Language Reference — The Patch query language filters Patches using boolean expressions that combine string matching, property filters, and operational shorthands.
 - [Agent auto-restart](reference/agent-auto-restart.md) — Recovery service for agents interrupted by a live update, and its limits.
@@ -239,9 +235,30 @@
 - [Local state cutover](reference/upgrading/local-state.md) — The temporary offline kit for moving legacy local state into canonical locations.
 - [Macro migration notes](reference/upgrading/macros.md) — Historical notes about renamed macros and legacy placeholders.
 - [Provider migration notes](reference/upgrading/providers.md) — Historical compatibility notes for provider metadata and model selection.
+- [Bead artifacts](reference/work-units/bead-artifacts.md) — How beads refer to plans, research, and other artifacts.
+- [Bead attachments](reference/work-units/bead-attachments.md) — Attachment storage, visibility, and troubleshooting for bead records.
+- [Reading beads](reference/work-units/bead-cli-inspection.md) — Commands for adding notes and reading detailed bead records.
+- [Bead CLI queries](reference/work-units/bead-cli-query.md) — Commands for listing, searching, and checking SASE bead records.
+- [Bead CLI records](reference/work-units/bead-cli-records.md) — Commands for creating, updating, closing, and synchronizing bead records.
+- [Bead CLI](reference/work-units/bead-cli.md) — An overview of the commands for reading and managing SASE beads.
+- [Bead lifecycles](reference/work-units/bead-lifecycles.md) — The status transitions for SASE beads, flag beads, and bead claims.
+- [Bead mirroring](reference/work-units/bead-mirroring.md) — How SASE beads can mirror issues from an external tracker.
+- [Bead pages](reference/work-units/bead-pages.md) — The generated pages that present bead records and their relationships.
+- [Bead storage](reference/work-units/bead-storage.md) — The bead store layout, event log, synchronization, and checkout source of truth.
+- [Bead triage](reference/work-units/bead-triage.md) — How bead dependencies, follow-ups, corroboration, and snoozes are handled.
+- [Bead TUI integration](reference/work-units/bead-tui.md) — How SASE's TUI connects bead records with plans and task work.
+- [Starting bead work](reference/work-units/bead-work.md) — How `sase bead work` resolves plans and starts assigned bead work.
+- [Beads](reference/work-units/beads.md) — Bead identities, types, and the data model used to track work in SASE.
+- [Goals](reference/work-units/goals.md) — Durable outcome records and their lifecycle, storage, and freshness.
+- [Work units](reference/work-units/index.md) — Reference pages for SASE's beads, plans, goals, Patches, and ProjectSpec files.
+- [Patches](reference/work-units/patches.md) — The fields, format, and lifecycle of a SASE Patch review record.
+- [Plan commands](reference/work-units/plan-cli.md) — The SASE CLI commands and bead integration for saved plans.
+- [Plan configuration](reference/work-units/plan-execution.md) — Configuration and multi-workspace behavior for SASE plan execution.
+- [Plan format](reference/work-units/plan-format.md) — The fields, validation rules, and decision sections used in SASE plans.
+- [Plans](reference/work-units/plans.md) — Spec-Driven Development storage, artifacts, and plan lifecycle in SASE.
+- [ProjectSpec](reference/work-units/project-spec.md) — The shared project-level file for project metadata and Patch records.
 - [Workflow Specification](reference/workflows.md) — YAML workflow files, step types, inputs, and execution behavior.
 - [Remote Dispatch Runbook](remote_dispatch.md) — Remote Dispatch Runbook — Remote dispatch lets one SASE controller discover, enroll, and operate agents on another machine.
-- [Spec-Driven Development (SDD)](sdd.md) — Spec-Driven Development (SDD) — SDD is sase's system for persisting the intent behind agent work.
 - [VCS Provider Reference](vcs.md) — VCS Provider Reference — The VCS provider layer is an abstraction that lets sase commands work with both Git and Mercurial repositories.
 - [Workspace Provider Reference](workspace.md) — Workspace Provider Reference — The workspace provider layer is an abstraction that handles workspace-level operations that vary across VCS hosting environments.
 
@@ -286,6 +303,7 @@
 
 - [sase's TUI User Guide](ace.md) — sase's TUI User Guide — sase's TUI is the primary TUI for the SASE toolkit.
 - [Scheduler — Background Automation](axe.md) — This page has moved to its new home.
+- [Bead Issue Tracking](beads.md) — This page has moved to its new home.
 - [Configuration Reference](configuration.md) — Configuration Reference — Moved to Configuration files and merging.
 - [Canonical SASE Content Layout](content_layout.md) — This page has moved to its new home.
 - [Instruction Bundles](instruction_bundles.md) — This page has moved to its new home.
@@ -294,6 +312,7 @@
 - [Monitors](monitors.md) — This page has moved to its new home.
 - [Notifications](notifications.md) — This page has moved to its new home.
 - [Rust Backend (sase_core_rs)](rust_backend.md) — This page has moved to its new home.
+- [Spec-Driven Development (SDD)](sdd.md) — This page has moved to its new home.
 - [Named Tools and ToolRuns](tool.md) — This page has moved to its new home.
 
 ## Moved pages
@@ -333,3 +352,8 @@
 | `/sudo/` | [`/reference/automation/sudo/`](reference/automation/sudo.md) |
 | `/macros/` | [`/reference/macros/`](reference/macros/index.md) |
 | `/workflow_spec/` | [`/reference/workflows/`](reference/workflows.md) |
+| `/goals/` | [`/reference/work-units/goals/`](reference/work-units/goals.md) |
+| `/change_spec/` | [`/reference/work-units/patches/`](reference/work-units/patches.md) |
+| `/project_spec/` | [`/reference/work-units/project-spec/`](reference/work-units/project-spec.md) |
+| `/beads/` | [`/reference/work-units/`](reference/work-units/index.md) |
+| `/sdd/` | [`/reference/work-units/`](reference/work-units/index.md) |

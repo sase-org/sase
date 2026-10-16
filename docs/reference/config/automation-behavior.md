@@ -34,7 +34,7 @@ metadata in the primary workspace's `.sase/sdd-store.json`. Providerless project
 back to a primary-workspace `.sase/sdd/` store. The retired `sdd.storage` and
 `sdd.version_controlled` keys are ignored, stripped before validation, and reported by
 `sase doctor` for cleanup. See [SDD Storage](../../contribute/sdd-storage.md) and
-[Beads](../../beads.md).
+[Beads](../work-units/beads.md).
 
 The default current layout has a schema-version 3 `sidecar_repos` record: every recorded
 role resolves to its role-specific clone, and bead state lives at the root of `--beads`.
@@ -104,7 +104,7 @@ See
 for how the `task_triage` fields gate `TaskTriage` notifications,
 [Task Triage Notification](../automation/notification-types.md#task-triage-notification)
 for the post-upgrade dismissal of already-raised sub-threshold gates,
-[Discovered Follow-Up Capture and Triage](../../beads.md#discovered-follow-up-capture-and-triage)
+[Discovered Follow-Up Capture and Triage](../work-units/bead-triage.md#discovered-follow-up-capture-and-triage)
 for the human-facing triage lifecycle.
 
 In Launch Control (`,m`), the `big epic starts at` row shows this effective threshold
@@ -113,8 +113,9 @@ and `r` previews an unset reset against `bead.big_epic_phase_threshold` in the w
 user-base config or its chezmoi source. There is no temporary override for this setting;
 pressing `o` or `x` on the row only reports that Edit/Reset are available.
 
-See [`docs/beads.md`](../../beads.md#sase-bead-work-target) for the current pre-spawn
-checkpoint and publication flow.
+See
+[`docs/reference/work-units/bead-work.md`](../work-units/bead-work.md#sase-bead-work-target)
+for the current pre-spawn checkpoint and publication flow.
 
 Source: `src/sase/default_config.yml`
 
@@ -123,7 +124,8 @@ Source: `src/sase/default_config.yml`
 ## external_mirror
 
 Configuration for the external tracker mirror. See
-[External Issue Mirroring](../../beads.md#external-issue-mirroring) and the
+[External Issue Mirroring](../work-units/bead-mirroring.md#external-issue-mirroring) and
+the
 [`external_mirror` lane](../automation/scheduler-default-routines.md#external_mirror-15-minute-interval)'s
 `external_issue_mirror` and `external_pr_mirror` jobs, the first production use of
 `for_each: {source: projects}` fan-out.
@@ -188,4 +190,4 @@ Source: `src/sase/default_config.yml`
 
 - [Automation and work tracking configuration](automation.md) — generated keys and
   defaults.
-- [Beads](../../beads.md) — task tracking.
+- [Beads](../work-units/beads.md) — task tracking.

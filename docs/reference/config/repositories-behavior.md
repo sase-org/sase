@@ -95,7 +95,7 @@ of sidecar setup with `repos.sidecar.builtin.attachments-private.disabled: true`
 Attachment commands still use an existing local clone even when that role is disabled;
 `-L/--local-only` keeps an individual attachment on this machine. When available, the
 git store takes objects up to `bead.attachments.git_max_bytes`; see
-[Attachments](../../beads.md#attachments).
+[Attachments](../work-units/bead-attachments.md#attachments).
 
 The `beads` role does not default to `auto_clone: true`: the beads sidecar materializes
 on demand, in `sase bead` and in the agent-launch bead claim, instead of during

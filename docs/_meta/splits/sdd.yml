@@ -1,0 +1,12 @@
+to: reference/work-units/index.md
+sections:
+  _intro: reference/work-units/plans.md
+  "Why SDD Exists": reference/work-units/plans.md
+  "Provider-Owned Storage": reference/work-units/plans.md
+  "How SDD Works": reference/work-units/plans.md
+  "Plan Frontmatter Schema and Validation": reference/work-units/plan-format.md
+  "Plan Decisions": reference/work-units/plan-format.md
+  CLI: reference/work-units/plan-cli.md
+  "Bead Integration": reference/work-units/plan-cli.md
+  Configuration: reference/work-units/plan-execution.md
+  "Multi-Workspace Behavior": reference/work-units/plan-execution.md

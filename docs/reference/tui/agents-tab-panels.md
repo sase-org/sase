@@ -137,7 +137,7 @@ For planner/author and lander rows, the lane body contains the complete normaliz
 `Goal` and `Path`, showing the authored `xsmall`/`small`/`medium` chip, or the `medium`
 chip plus a `(default)` marker when the tale's `size` was missing or an over-sized
 legacy `large`/`xlarge` normalized at launch (see
-[Plan Frontmatter Schema and Validation](../../sdd.md#plan-frontmatter-schema-and-validation));
+[Plan Frontmatter Schema and Validation](../work-units/plan-format.md#plan-frontmatter-schema-and-validation));
 epics never show a `Size` row here. The lane header shows the effective user-facing tier
 (`plan`, `tale`, or `epic`) and, for epics, the phase count. The tier records how the
 user approved the plan: `approve` means a plan approved without an SDD commit, `tale`

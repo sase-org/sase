@@ -686,8 +686,8 @@ with copy-pasteable restore commands
 (`git fetch <bundle> 'refs/*:refs/sase/rescued/<stamp>/*'`,
 `git apply --index <patch>`), and sends one inbox notification naming the rescue dir.
 Entries older than 30 days (7 days for quarantined whole-clone copies) are reaped. See
-[Publication Verification](beads.md#publication-verification) for the invariant this
-protects and how to restore rescued commits by hand.
+[Publication Verification](reference/work-units/bead-storage.md#publication-verification)
+for the invariant this protects and how to restore rescued commits by hand.
 
 Checkout preparation for the same numbered workspaces (`#2` and above) also heals the
 checkout itself instead of failing on leftover git state. Launches, launch retries, and

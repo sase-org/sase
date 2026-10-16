@@ -1,0 +1,60 @@
+to: reference/work-units/index.md
+sections:
+  _intro: reference/work-units/beads.md
+  Table of Contents:
+    drop: true
+  Quick Start: reference/work-units/beads.md
+  Bead ID Arguments: reference/work-units/beads.md
+  Data Model: reference/work-units/beads.md
+  Status Lifecycle: reference/work-units/bead-lifecycles.md
+  Flag Bead Lifecycle: reference/work-units/bead-lifecycles.md
+  Bead Claim Lifecycle: reference/work-units/bead-lifecycles.md
+  Standalone Task Workflow: reference/work-units/bead-triage.md
+  Snoozing a Task Bead: reference/work-units/bead-triage.md
+  Task Corroboration (+1): reference/work-units/bead-triage.md
+  Close History: reference/work-units/bead-triage.md
+  Dependencies: reference/work-units/bead-triage.md
+  Discovered Follow-Up Capture and Triage: reference/work-units/bead-triage.md
+  External Issue Mirroring: reference/work-units/bead-mirroring.md
+  Artifact References: reference/work-units/bead-artifacts.md
+  Attachments: reference/work-units/bead-attachments.md
+  Creation Reason: reference/work-units/beads.md
+  Creation Time Presentation: reference/work-units/beads.md
+  Storage: reference/work-units/bead-storage.md
+  Bead Pages: reference/work-units/bead-pages.md
+  CLI Commands: reference/work-units/bead-cli.md
+  '`sase bead apply-status <id> <status>`': reference/work-units/bead-cli-records.md
+  '`sase bead attach <id> <file|->...`': reference/work-units/bead-cli-records.md
+  '`sase bead attachment list [<id>]` / `open` / `path` / `push`': reference/work-units/bead-cli-records.md
+  '`sase bead attachment purge <id> <name> -r WHY` / `sase bead attachment prune`': reference/work-units/bead-cli-records.md
+  '`sase bead blocked`': reference/work-units/bead-cli-query.md
+  '`sase bead +1 <task-id>`': reference/work-units/bead-cli-records.md
+  '`sase bead close <id> [<id2> ...]`': reference/work-units/bead-cli-records.md
+  '`sase bead create`': reference/work-units/bead-cli-records.md
+  '`sase bead dep`': reference/work-units/bead-cli-records.md
+  '`sase bead ref`': reference/work-units/bead-cli-records.md
+  '`sase bead doctor`': reference/work-units/bead-cli-query.md
+  '`sase bead epic-symbols [<id>]`': reference/work-units/bead-cli-query.md
+  '`sase bead history [<id>]`': reference/work-units/bead-cli-inspection.md
+  '`sase bead init`': reference/work-units/bead-cli-records.md
+  '`sase bead list`': reference/work-units/bead-cli-query.md
+  '`sase bead note <id> [<text>]`': reference/work-units/bead-cli-inspection.md
+  '`sase bead onboard`': reference/work-units/bead-cli-records.md
+  '`sase bead open <id>`': reference/work-units/bead-cli-records.md
+  '`sase bead ready`': reference/work-units/bead-cli-query.md
+  '`sase bead resolve-conflicts`': reference/work-units/bead-cli-records.md
+  '`sase bead rm <id> [<id2> ...]`': reference/work-units/bead-cli-records.md
+  '`sase bead search <query>`': reference/work-units/bead-cli-query.md
+  '`sase bead read <id> [<id2> ...]`': reference/work-units/bead-cli-inspection.md
+  '`sase bead show <id> [<id2> ...]`': reference/work-units/bead-cli-inspection.md
+  '`sase bead snooze <id> [<id2> ...]`': reference/work-units/bead-cli-records.md
+  '`sase bead stats`': reference/work-units/bead-cli-query.md
+  '`sase bead sync`': reference/work-units/bead-cli-records.md
+  '`sase bead sync-external`': reference/work-units/bead-cli-records.md
+  '`sase bead task-type`': reference/work-units/bead-cli-query.md
+  '`sase bead touched <agent>`': reference/work-units/bead-cli-query.md
+  '`sase bead update <id> [<id2> ...]`': reference/work-units/bead-cli-records.md
+  '`sase bead work <target> [<target> ...]` { #sase-bead-work-target }': reference/work-units/bead-work.md
+  "Rust Backend": reference/work-units/bead-storage.md
+  "Current Checkout Source Of Truth": reference/work-units/bead-storage.md
+  "sase's TUI Integration { #ace-tui-integration }": reference/work-units/bead-tui.md

@@ -768,3 +768,113 @@ moves:
   - from: workflow_spec.md
     to: reference/workflows.md
     kind: redirect
+  - from: goals.md
+    to: reference/work-units/goals.md
+    kind: redirect
+  - from: change_spec.md
+    to: reference/work-units/patches.md
+    kind: redirect
+  - from: project_spec.md
+    to: reference/work-units/project-spec.md
+    kind: redirect
+  - from: beads.md
+    to: reference/work-units/index.md
+    kind: stub
+    anchors:
+      quick-start: reference/work-units/beads.md#quick-start
+      bead-id-arguments: reference/work-units/beads.md#bead-id-arguments
+      data-model: reference/work-units/beads.md#data-model
+      issue-types: reference/work-units/beads.md#issue-types
+      task-types: reference/work-units/beads.md#task-types
+      per-type-triage-bar: reference/work-units/beads.md#per-type-triage-bar
+      creation-reason: reference/work-units/beads.md#creation-reason
+      creation-time-presentation: reference/work-units/beads.md#creation-time-presentation
+      status-lifecycle: reference/work-units/bead-lifecycles.md#status-lifecycle
+      flag-bead-lifecycle: reference/work-units/bead-lifecycles.md#flag-bead-lifecycle
+      bead-claim-lifecycle: reference/work-units/bead-lifecycles.md#bead-claim-lifecycle
+      standalone-task-workflow: reference/work-units/bead-triage.md#standalone-task-workflow
+      snoozing-a-task-bead: reference/work-units/bead-triage.md#snoozing-a-task-bead
+      task-corroboration-1: reference/work-units/bead-triage.md#task-corroboration-1
+      close-history: reference/work-units/bead-triage.md#close-history
+      dependencies: reference/work-units/bead-triage.md#dependencies
+      discovered-follow-up-capture-and-triage: reference/work-units/bead-triage.md#discovered-follow-up-capture-and-triage
+      external-issue-mirroring: reference/work-units/bead-mirroring.md#external-issue-mirroring
+      artifact-references: reference/work-units/bead-artifacts.md#artifact-references
+      attachments: reference/work-units/bead-attachments.md#attachments
+      storage-tiers-and-privacy: reference/work-units/bead-attachments.md#storage-tiers-and-privacy
+      attachment-visibility: reference/work-units/bead-attachments.md#attachment-visibility
+      from-the-beads-pane: reference/work-units/bead-attachments.md#from-the-beads-pane
+      viewing: reference/work-units/bead-attachments.md#viewing
+      troubleshooting-badges: reference/work-units/bead-attachments.md#troubleshooting-badges
+      mixed-fleet-upgrades: reference/work-units/bead-attachments.md#mixed-fleet-upgrades
+      large-object-store-rclone: reference/work-units/bead-attachments.md#large-object-store-rclone
+      storage: reference/work-units/bead-storage.md#storage
+      directory-structure: reference/work-units/bead-storage.md#directory-structure
+      event-log-compatibility-projections: reference/work-units/bead-storage.md#event-log-compatibility-projections
+      sealed-segments-gated-design: reference/work-units/bead-storage.md#sealed-segments-gated-design
+      sync-mechanism: reference/work-units/bead-storage.md#sync-mechanism
+      publication-verification: reference/work-units/bead-storage.md#publication-verification
+      duplicate-bead-ids: reference/work-units/bead-storage.md#duplicate-bead-ids
+      rust-backend: reference/work-units/bead-storage.md#rust-backend
+      current-checkout-source-of-truth: reference/work-units/bead-storage.md#current-checkout-source-of-truth
+      bead-pages: reference/work-units/bead-pages.md#bead-pages-1
+      cli-commands: reference/work-units/bead-cli.md#cli-commands
+      sase-bead-apply-status-id-status: reference/work-units/bead-cli-records.md#sase-bead-apply-status-id-status
+      sase-bead-attach-id-file: reference/work-units/bead-cli-records.md#sase-bead-attach-id-file
+      sase-bead-attachment-list-id-open-path-push: reference/work-units/bead-cli-records.md#sase-bead-attachment-list-id-open-path-push
+      sase-bead-attachment-purge-id-name--r-why-sase-bead-attachment-prune: reference/work-units/bead-cli-records.md#sase-bead-attachment-purge-id-name--r-why-sase-bead-attachment-prune
+      sase-bead-1-task-id: reference/work-units/bead-cli-records.md#sase-bead-1-task-id
+      sase-bead-close-id-id2: reference/work-units/bead-cli-records.md#sase-bead-close-id-id2
+      sase-bead-create: reference/work-units/bead-cli-records.md#sase-bead-create
+      sase-bead-dep: reference/work-units/bead-cli-records.md#sase-bead-dep
+      sase-bead-ref: reference/work-units/bead-cli-records.md#sase-bead-ref
+      sase-bead-init: reference/work-units/bead-cli-records.md#sase-bead-init
+      sase-bead-onboard: reference/work-units/bead-cli-records.md#sase-bead-onboard
+      sase-bead-open-id: reference/work-units/bead-cli-records.md#sase-bead-open-id
+      sase-bead-resolve-conflicts: reference/work-units/bead-cli-records.md#sase-bead-resolve-conflicts
+      sase-bead-rm-id-id2: reference/work-units/bead-cli-records.md#sase-bead-rm-id-id2
+      sase-bead-snooze-id-id2: reference/work-units/bead-cli-records.md#sase-bead-snooze-id-id2
+      sase-bead-sync: reference/work-units/bead-cli-records.md#sase-bead-sync
+      sase-bead-sync-external: reference/work-units/bead-cli-records.md#sase-bead-sync-external
+      sase-bead-update-id-id2: reference/work-units/bead-cli-records.md#sase-bead-update-id-id2
+      sase-bead-blocked: reference/work-units/bead-cli-query.md#sase-bead-blocked
+      sase-bead-doctor: reference/work-units/bead-cli-query.md#sase-bead-doctor
+      sase-bead-epic-symbols-id: reference/work-units/bead-cli-query.md#sase-bead-epic-symbols-id
+      sase-bead-list: reference/work-units/bead-cli-query.md#sase-bead-list
+      summary-line: reference/work-units/bead-cli-query.md#summary-line
+      sase-bead-ready: reference/work-units/bead-cli-query.md#sase-bead-ready
+      sase-bead-search-query: reference/work-units/bead-cli-query.md#sase-bead-search-query
+      sase-bead-stats: reference/work-units/bead-cli-query.md#sase-bead-stats
+      sase-bead-task-type: reference/work-units/bead-cli-query.md#sase-bead-task-type
+      sase-bead-touched-agent: reference/work-units/bead-cli-query.md#sase-bead-touched-agent
+      sase-bead-history-id: reference/work-units/bead-cli-inspection.md#sase-bead-history-id
+      sase-bead-note-id-text: reference/work-units/bead-cli-inspection.md#sase-bead-note-id-text
+      sase-bead-read-id-id2: reference/work-units/bead-cli-inspection.md#sase-bead-read-id-id2
+      sase-bead-show-id-id2: reference/work-units/bead-cli-inspection.md#sase-bead-show-id-id2
+      sase-bead-work-target: reference/work-units/bead-work.md#sase-bead-work-target
+      ace-tui-integration: reference/work-units/bead-tui.md#ace-tui-integration
+      plan-file-linking: reference/work-units/bead-tui.md#plan-file-linking
+      task-bead-surfaces: reference/work-units/bead-tui.md#task-bead-surfaces
+      plan-approval-flow: reference/work-units/bead-tui.md#plan-approval-flow
+    title: Bead Issue Tracking
+  - from: sdd.md
+    to: reference/work-units/index.md
+    kind: stub
+    anchors:
+      why-sdd-exists: reference/work-units/plans.md#why-sdd-exists
+      provider-owned-storage: reference/work-units/plans.md#provider-owned-storage
+      how-sdd-works: reference/work-units/plans.md#how-sdd-works
+      prompt-archive-publication: reference/work-units/plans.md#prompt-archive-publication
+      artifact-persistence: reference/work-units/plans.md#artifact-persistence
+      qa-sections: reference/work-units/plans.md#qa-sections
+      artifact-links: reference/work-units/plans.md#artifact-links
+      header-block-sections: reference/work-units/plans.md#header-block-sections
+      model-field: reference/work-units/plans.md#model-field
+      committed-plan-validation-cutover: reference/work-units/plans.md#committed-plan-validation-cutover
+      plan-frontmatter-schema-and-validation: reference/work-units/plan-format.md#plan-frontmatter-schema-and-validation
+      plan-decisions: reference/work-units/plan-format.md#plan-decisions
+      cli: reference/work-units/plan-cli.md#cli
+      bead-integration: reference/work-units/plan-cli.md#bead-integration
+      configuration: reference/work-units/plan-execution.md#configuration
+      multi-workspace-behavior: reference/work-units/plan-execution.md#multi-workspace-behavior
+    title: Spec-Driven Development (SDD)

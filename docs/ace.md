@@ -606,14 +606,15 @@ matches a bead id exactly, and bead ids remain free-text searchable as well, so
 `task_type:` accepts catalog slugs plus `untyped` for legacy beads. Status values
 include the five stored states plus the derived `blocked`, `launched`, and `triage`
 states. `due:` accepts `live`, `soon`, or `due` and matches
-[flag beads](beads.md#flag-bead-lifecycle) — the dedicated feature-flag removal tasks —
-by how close they are to their removal thresholds. Other bead types have no due state,
-so a positive `due:` term hides them. `has:` accepts `+1`, `reopened`, `plan`, `bug`,
-`deps`, `notes`, and `triage`. `bug:` matches issue state, reference, relation, or
-project, with completion for `none`, `open`, `closed`, `stale`, `drift`, `mirrored`, and
-`referenced`; `label:` matches cached provider labels. Free text also searches cached
-external issue title, body, URL, and labels alongside the bead id, title, description,
-notes, design, references, and ownership metadata.
+[flag beads](reference/work-units/bead-lifecycles.md#flag-bead-lifecycle) — the
+dedicated feature-flag removal tasks — by how close they are to their removal
+thresholds. Other bead types have no due state, so a positive `due:` term hides them.
+`has:` accepts `+1`, `reopened`, `plan`, `bug`, `deps`, `notes`, and `triage`. `bug:`
+matches issue state, reference, relation, or project, with completion for `none`,
+`open`, `closed`, `stale`, `drift`, `mirrored`, and `referenced`; `label:` matches
+cached provider labels. Free text also searches cached external issue title, body, URL,
+and labels alongside the bead id, title, description, notes, design, references, and
+ownership metadata.
 
 A leading unquoted `-` excludes a match. Stitches can exclude repositories, authors,
 origins, types, commit SHAs, and subject text. Plans can exclude `kind:`, `status:`,
@@ -655,7 +656,7 @@ filter is active.
 `n` collects a standalone task for the selected project. Title, filing reason, size, and
 task type are required. The reason is one or two sentences, at most 2000 characters, and
 is stored separately from the title and description. `Ctrl+S` creates the bead and `Esc`
-cancels. See [Creation Reason](beads.md#creation-reason).
+cancels. See [Creation Reason](reference/work-units/beads.md#creation-reason).
 
 The pane supports the full bead workflow:
 
@@ -687,7 +688,7 @@ single existing file path inserts an attachment reference, and `@@` inserts a li
 Public asks you to confirm on save; policy can still reject the note and return you to
 the editor. The bead detail lists each attachment's `🌐` or `🔒` chip from the stored
 descriptor and leaves availability badges and thumbnails to the attachment viewer. See
-[From the Beads pane](beads.md#from-the-beads-pane).
+[From the Beads pane](reference/work-units/bead-attachments.md#from-the-beads-pane).
 
 When a bead has several issue links, `E`, `% u`, and the `b`-mode `v`, `e`, `s`, and `u`
 actions first open a selector. In `b` prefix mode, press `v` to view the cached body,
@@ -727,10 +728,10 @@ optionally a `+1` target and a reason) that a blind status cycle cannot supply.
 Press `z` on a task bead to open the snooze picker: presets for `4 hours`,
 `Tomorrow morning`, `3 days`, and `1 week`, plus a custom duration field accepting the
 same `"<duration> [+<N>]"` vocabulary as `sase bead snooze` (see
-[Snoozing a Task Bead](beads.md#snoozing-a-task-bead)) and an optional reason field.
-Pressing `z` on an already-snoozed task opens the same modal in re-snooze mode, showing
-the current wake time and offering a cancel-snooze choice. A snoozed row in the list
-shows the `snoozed` status glyph and a dim relative wake time.
+[Snoozing a Task Bead](reference/work-units/bead-triage.md#snoozing-a-task-bead)) and an
+optional reason field. Pressing `z` on an already-snoozed task opens the same modal in
+re-snooze mode, showing the current wake time and offering a cancel-snooze choice. A
+snoozed row in the list shows the `snoozed` status glyph and a dim relative wake time.
 
 When that worker appears on the Agents tab, its bead badge points directly to the task,
 and its **SASE CONTEXT / BEAD** lane shows the task title and description, plus size
@@ -3236,7 +3237,7 @@ its candidate selection entirely (see [AXE](axe.md)). Press `!o` on a PR row (se
 [PR Actions](#pr-actions) above) to open the Mark PR Origin modal and set it explicitly,
 or run `sase patch set-origin <name> <sase|external|unknown>` (see
 [CLI Reference](cli.md#work-tracking-and-planning)). See
-[PR_ORIGIN](change_spec.md#pr_origin) and
+[PR_ORIGIN](reference/work-units/patches.md#pr_origin) and
 [Origin Matching](query_language.md#origin-matching) for the underlying Patch field and
 the `origin:` query property.
 

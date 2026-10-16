@@ -50,7 +50,7 @@ work unit, or review a change without losing the desired outcome.
 
 ## Look it up
 
-- [Goals](../goals.md) — goal records and their lifecycle.
-- [Spec-driven development](../sdd.md) — plans and their storage.
-- [Beads](../beads.md) — work units, dependencies, and execution.
-- [Patch format](../change_spec.md) — review records for changes.
+- [Goals](../reference/work-units/goals.md) — goal records and their lifecycle.
+- [Spec-driven development](../reference/work-units/plans.md) — plans and their storage.
+- [Beads](../reference/work-units/beads.md) — work units, dependencies, and execution.
+- [Patch format](../reference/work-units/patches.md) — review records for changes.

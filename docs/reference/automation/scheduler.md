@@ -73,7 +73,7 @@ The `sase axe` surface remains for the routine/job tree (`sase axe job`,
   cadence, triggers, guards, target fan-out, environment, and dedupe policy.
 
 - **Candidate Patches**: Every cycle (checks, jobs, and the routine job list) first
-  filters out Patches with [`PR_ORIGIN: external`](../../change_spec.md#pr_origin)
+  filters out Patches with [`PR_ORIGIN: external`](../work-units/patches.md#pr_origin)
   before any job evaluates them. Axe never acts on a Patch adopted from a PR it didn't
   create.
 

@@ -877,10 +877,11 @@ currently reproducible node IDs against the committed baseline at
 `tests/reproducible_flake_baseline.txt` and exits non-zero on any node that is not
 already listed there. The failure names each new node and ends with
 `Additions require a filed bead; fix or file the node before landing.` — so the response
-to a red gate is to fix the test or file a [`flake` task bead](../beads.md#task-types)
-and add the node with a comment naming that bead, never to add the node silently. After
-that gate succeeds, `just check-full` runs `just fix-tui-screenshots` so local
-exhaustive verification can refresh screenshot goldens.
+to a red gate is to fix the test or file a
+[`flake` task bead](../reference/work-units/beads.md#task-types) and add the node with a
+comment naming that bead, never to add the node silently. After that gate succeeds,
+`just check-full` runs `just fix-tui-screenshots` so local exhaustive verification can
+refresh screenshot goldens.
 
 The gate deliberately judges a narrower sample than the report:
 

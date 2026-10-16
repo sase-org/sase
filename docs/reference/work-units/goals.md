@@ -1,3 +1,8 @@
+---
+title: "Goals"
+description: "Durable outcome records and their lifecycle, storage, and freshness."
+---
+
 # Goals
 
 Goals are durable records of outcomes a person wants: what will be true, how you'll
@@ -94,3 +99,8 @@ hint instead of guessing.
 Later epics add deterministic agent binding, claims with verification, local drafts, the
 Goals tab, and the attention cutover. The event vocabulary and status machine are
 frozen, so those producers extend the ledger without breaking what exists here.
+
+## Related
+
+- [Work units](index.md)
+- [Plans](plans.md)

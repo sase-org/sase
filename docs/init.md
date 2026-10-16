@@ -721,7 +721,8 @@ the prompt names its PUBLIC visibility and refuses when the beads sidecar is not
 Declining leaves public uploads queued with `⇡ pending upload` until the store exists,
 and `repos.sidecar.builtin.attachments.disabled: true` opts out. Disabling either
 attachments role later hides it even when a clone already exists; use `-L/--local-only`
-for a particular attachment. See [Attachments](beads.md#attachments).
+for a particular attachment. See
+[Attachments](reference/work-units/bead-attachments.md#attachments).
 
 `plans`, `beads`, `agents`, and the default `research` presentation preset receive
 illustrated README guides and directory-map assets. `attachments-private` does not.
@@ -761,8 +762,8 @@ its ignore-rule work is part of repository initialization.
 Built-in bare-git projects keep their provider-owned in-tree SDD layout. For those
 projects, `sase repo init` refreshes the existing generated SDD guides while still
 maintaining the managed sidecar declarations and repository ignore rule. Keep conceptual
-SDD documentation in [docs/sdd.md](sdd.md) and storage-mode details in
-[docs/contribute/sdd-storage.md](contribute/sdd-storage.md).
+SDD documentation in [the plan reference](reference/work-units/plans.md) and
+storage-mode details in [docs/contribute/sdd-storage.md](contribute/sdd-storage.md).
 
 ## Skill Initialization
 

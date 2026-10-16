@@ -443,7 +443,7 @@ means `enabled`.
 
 `sase project set-current` promotes an enabled project to the VCS macro MRU head without
 launching an agent. That is display and filter-seed context, not a lifecycle state; see
-[Current project](project_spec.md#current-project).
+[Current project](reference/work-units/project-spec.md#current-project).
 
 Disabling refuses projects with live `RUNNING` claims or live artifact markers
 (`running.json`, `waiting.json`, or `pending_question.json`) unless `--force` is passed.
@@ -1000,8 +1000,9 @@ With no subcommand, `sase bead` defaults to `sase bead list`. Commands that take
 existing bead IDs route a full ID to the enabled project whose bead store owns it, while
 shorthand suffixes stay in the current project; see
 [CLI Reference](cli.md#work-tracking-and-planning) and
-[Bead ID Arguments](beads.md#bead-id-arguments). The tables below cover the most-used
-subcommands; [Beads](beads.md#cli-commands) documents every subcommand.
+[Bead ID Arguments](reference/work-units/beads.md#bead-id-arguments). The tables below
+cover the most-used subcommands; [Beads](reference/work-units/bead-cli.md#cli-commands)
+documents every subcommand.
 
 | Flag         | Values                                                                                                                                                                                                                                                                     | Default | Description     |
 | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- | --------------- |
@@ -1009,21 +1010,21 @@ subcommands; [Beads](beads.md#cli-commands) documents every subcommand.
 
 #### `sase bead create`
 
-| Flag                          | Values                                         | Default    | Description                                                                                                                                                 |
-| ----------------------------- | ---------------------------------------------- | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `-t, --title`                 | string                                         | (required) | Issue title                                                                                                                                                 |
-| `-w, --reason`                | string                                         | (required) | Why the bead was filed. Trimmed, non-blank, at most 2000 characters. `@<path>` reads the text from a file. See [Creation Reason](beads.md#creation-reason). |
-| `-T, --type`                  | string                                         | (required) | `plan(<file>)`, `plan(<file>,<parent>)`, `phase(<parent_id>)`, or `task(<slug>)`. Feature flags use `sase flag new`                                         |
-| `-f, --field`                 | `k=v`                                          | -          | Task-type field value; repeatable. `@<path>` reads the value from a file                                                                                    |
-| `-d, --description`           | string                                         | -          | Issue description                                                                                                                                           |
-| `-a, --assignee`              | string                                         | -          | Assignee name                                                                                                                                               |
-| `-m, --model`                 | string                                         | -          | Epic land-agent, phase-worker, or task-worker model                                                                                                         |
-| `-R, --ref`                   | artifact reference                             | -          | Artifact reference to attach; repeatable                                                                                                                    |
-| `-z, --size`                  | `xsmall`, `small`, `medium`, `large`, `xlarge` | -          | Phase/task size; required for new task beads and rejected for plan beads. Phases use model and plan-first routing, tasks use model routing only             |
-| `-r, --tier`                  | `plan`, `epic`                                 | -          | Plan-bead tier; invalid for phase and task beads                                                                                                            |
-| `-c, --patch`, `--changespec` | Patch name                                     | -          | Attach Patch metadata to a plan bead; `--changespec` is legacy-compatible                                                                                   |
-| `-b, --bug-id`                | string                                         | -          | Bug ID for the attached Patch; requires `--patch` or `--changespec`                                                                                         |
-| `-x, --external-ref`          | string                                         | -          | Project-qualified external issue identity, e.g. `bug:sase#42`                                                                                               |
+| Flag                          | Values                                         | Default    | Description                                                                                                                                                                      |
+| ----------------------------- | ---------------------------------------------- | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `-t, --title`                 | string                                         | (required) | Issue title                                                                                                                                                                      |
+| `-w, --reason`                | string                                         | (required) | Why the bead was filed. Trimmed, non-blank, at most 2000 characters. `@<path>` reads the text from a file. See [Creation Reason](reference/work-units/beads.md#creation-reason). |
+| `-T, --type`                  | string                                         | (required) | `plan(<file>)`, `plan(<file>,<parent>)`, `phase(<parent_id>)`, or `task(<slug>)`. Feature flags use `sase flag new`                                                              |
+| `-f, --field`                 | `k=v`                                          | -          | Task-type field value; repeatable. `@<path>` reads the value from a file                                                                                                         |
+| `-d, --description`           | string                                         | -          | Issue description                                                                                                                                                                |
+| `-a, --assignee`              | string                                         | -          | Assignee name                                                                                                                                                                    |
+| `-m, --model`                 | string                                         | -          | Epic land-agent, phase-worker, or task-worker model                                                                                                                              |
+| `-R, --ref`                   | artifact reference                             | -          | Artifact reference to attach; repeatable                                                                                                                                         |
+| `-z, --size`                  | `xsmall`, `small`, `medium`, `large`, `xlarge` | -          | Phase/task size; required for new task beads and rejected for plan beads. Phases use model and plan-first routing, tasks use model routing only                                  |
+| `-r, --tier`                  | `plan`, `epic`                                 | -          | Plan-bead tier; invalid for phase and task beads                                                                                                                                 |
+| `-c, --patch`, `--changespec` | Patch name                                     | -          | Attach Patch metadata to a plan bead; `--changespec` is legacy-compatible                                                                                                        |
+| `-b, --bug-id`                | string                                         | -          | Bug ID for the attached Patch; requires `--patch` or `--changespec`                                                                                                              |
+| `-x, --external-ref`          | string                                         | -          | Project-qualified external issue identity, e.g. `bug:sase#42`                                                                                                                    |
 
 #### `sase bead list`
 
@@ -1791,7 +1792,7 @@ with a query and recent without one); `--since`/`--until` accept `YYYY-MM-DD`,
 it no longer accepts `-t/--tier`. `--explain` prints tier-specific authoring guidance
 before human results or adds it to the JSON envelope, while `--quiet` suppresses only
 the successful human summary. See
-[Plan Frontmatter Schema and Validation](sdd.md#plan-frontmatter-schema-and-validation)
+[Plan Frontmatter Schema and Validation](reference/work-units/plan-format.md#plan-frontmatter-schema-and-validation)
 for diagnostics and exit codes.
 
 ### `sase artifact`

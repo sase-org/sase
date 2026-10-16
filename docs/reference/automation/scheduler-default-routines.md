@@ -289,9 +289,9 @@ gate. A flag task bead's due-ness is derived through the one shared `flag_remova
 predicate, never recomputed here.
 
 A ready task bead additionally needs at least its
-[effective `+1` bar](../../beads.md#per-type-triage-bar) of independent `+1` reports
-before it earns a `TaskTriage` gate: its own task type's `triage.min_plus_ones` (`0` for
-`ci`, `feature`, and `memory`; `1` for `bug`; `3` for `flake`), or
+[effective `+1` bar](../work-units/beads.md#per-type-triage-bar) of independent `+1`
+reports before it earns a `TaskTriage` gate: its own task type's `triage.min_plus_ones`
+(`0` for `ci`, `feature`, and `memory`; `1` for `bug`; `3` for `flake`), or
 [`bead.task_triage.min_plus_ones`](../config/automation-behavior.md#bead) when the bead
 is untyped or its type is not registered on this machine. A sub-threshold bead is
 withheld from triage without any change to its stored status — it stays `ready` and
@@ -342,9 +342,10 @@ reconciles it into a `BeadSnooze` gate instead. The line takes the same
 `2026-08-09T09:00:00-04:00`, or `3d +2` — combining the CLI's `-u` duration and `-p` +1
 target into one expression. See
 [TaskTriage notifications](notification-gates.md#command-backed-interaction-gates-1),
-the [snooze workflow](../../beads.md#snoozing-a-task-bead) for what a `BeadSnooze` gate
-then asks, and the [standalone task workflow](../../beads.md#standalone-task-workflow)
-for the human-facing lifecycle.
+the [snooze workflow](../work-units/bead-triage.md#snoozing-a-task-bead) for what a
+`BeadSnooze` gate then asks, and the
+[standalone task workflow](../work-units/bead-triage.md#standalone-task-workflow) for
+the human-facing lifecycle.
 
 The `FlagTriage` gate presents the flag's key, kind, both-branch prose, `remove_when`,
 both removal thresholds, its countdown, and the registry definition's description (or a

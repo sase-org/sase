@@ -47,4 +47,5 @@ host to process, while the host owns the finalizer and the VCS operation.
 
 - [Commit workflows](../commit_workflows.md) — workflow behavior and finalizer details.
 - [VCS providers](../vcs.md) — version-control operations and provider boundaries.
-- [Patch format](../change_spec.md) — the review record created for a pull request.
+- [Patch format](../reference/work-units/patches.md) — the review record created for a
+  pull request.

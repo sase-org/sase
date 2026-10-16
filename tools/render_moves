@@ -62,7 +62,9 @@ def _stub_text(root: Path, move: PageMove) -> str:
             link = markdown_link(
                 from_path, target_path, target_anchor if separator else None
             )
-            label = old_anchor.replace("-", " ").replace("_", " ").capitalize()
+            label = " ".join(
+                old_anchor.replace("-", " ").replace("_", " ").split()
+            ).capitalize()
             if index:
                 lines.append("")
             lines.extend([f'<a id="{old_anchor}"></a>', "", f"- [{label}]({link})"])

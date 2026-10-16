@@ -69,6 +69,8 @@ fails or never starts, see [Unstick a queued agent](unstick-queued-agent.md).
 
 ## Related
 
-- [Spec-driven development](../sdd.md) — plan tiers, storage, and the approval flow.
-- [Beads](../beads.md) — phases, dependencies, and tracking commands.
+- [Spec-driven development](../reference/work-units/plans.md) — plan tiers, storage, and
+  the approval flow.
+- [Beads](../reference/work-units/beads.md) — phases, dependencies, and tracking
+  commands.
 - [Work units](../concepts/work-units.md) — when to use a plan over a goal or a Patch.

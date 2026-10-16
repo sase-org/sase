@@ -8,7 +8,8 @@ silently drops the creation-time call is caught here rather than by
 happenstance elsewhere.
 
 Two surfaces are deliberate, documented exceptions and are intentionally not
-covered by a "shows creation time" assertion here; see ``docs/beads.md`` for
+covered by a "shows creation time" assertion here; see
+``docs/reference/work-units/beads.md`` for
 why:
 
 - The dependency-edge ``added <ts> by <who>`` line in

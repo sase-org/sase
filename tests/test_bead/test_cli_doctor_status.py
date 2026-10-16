@@ -195,7 +195,7 @@ def test_doctor_renders_seal_watch_warn_with_design_pointer() -> None:
     assert lines[0] == (
         "Seal watch hot stream files: WARN "
         "(12,401 hot stream files exceeds 10,000 files; "
-        "see docs/beads.md#sealed-segments-gated-design)"
+        "see docs/reference/work-units/bead-storage.md#sealed-segments-gated-design)"
     )
     assert lines[1].startswith("Seal watch stat sweep: OK (")
 

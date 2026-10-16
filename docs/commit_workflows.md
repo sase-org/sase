@@ -60,7 +60,7 @@ every dirty repository a Conventional Commit message, and the host then runs
 stale, the host spends one recovery turn that asks for `/sase_final` again. A
 plan-launched agent that commits a memory note no accepted memory decision covers still
 gets that commit; the finalizer records a `memory_change_uncovered` warning and does not
-block. See [Plan Decisions](sdd.md#plan-decisions).
+block. See [Plan Decisions](reference/work-units/plan-format.md#plan-decisions).
 
 Before it dispatches declared work, the finalizer commits proven machine-owned changes
 itself. For example, if the only enforced dirty file is a tracked markdown file under
@@ -277,8 +277,8 @@ If the close fails after the commit has landed, the workflow prints
 `Explicit close failed for bead <id>: ...`, exits non-zero, and keeps its checkpoint.
 Fix the bead problem, then run `sase stitch create --resume`; completed steps are
 skipped, so the resume retries only what is left, including the close. See
-[Standalone Task Workflow](beads.md#standalone-task-workflow) for how this fits into the
-broader task-bead lifecycle.
+[Standalone Task Workflow](reference/work-units/bead-triage.md#standalone-task-workflow)
+for how this fits into the broader task-bead lifecycle.
 
 ### 4. Macro reads the result
 
@@ -470,7 +470,8 @@ path, chat path, and plan path (when `SASE_PLAN` is set). Multi-line commit mess
 supported: the first paragraph becomes the note, and subsequent paragraphs (separated by
 a blank line) become an indented body below the note. Empty body lines are stored as a
 dot (`.`) placeholder to preserve structure. See
-[change_spec.md](change_spec.md#stitches) for the full entry format including drawers.
+[change_spec.md](reference/work-units/patches.md#stitches) for the full entry format
+including drawers.
 
 ### Propose (`#propose`)
 
@@ -921,7 +922,7 @@ return points rather than raising it at the commit site, so the agent's own comm
 passes still run first — otherwise a bead problem would strand uncommitted code in the
 workspace. On dirty-after-attempts-exhausted paths, the publication diagnostic is
 appended to the existing error so neither failure is swallowed. See
-[Publication Verification](beads.md#publication-verification).
+[Publication Verification](reference/work-units/bead-storage.md#publication-verification).
 
 Configured linked repos are resolved to host-scoped directories before agent launch. For
 example, an agent in `sase_10` sees a `../sase-core` linked repo at
@@ -1008,7 +1009,8 @@ machine-managed store state, or `kind == "external"` — a repo merely opened vi
 - A clone that is ahead of its configured upstream (a push still pending, not destroyed
   work) is treated as published rather than discarded; genuinely unpublished bead state
   is reported separately through
-  [Publication Verification](beads.md#publication-verification) instead of this guard.
+  [Publication Verification](reference/work-units/bead-storage.md#publication-verification)
+  instead of this guard.
 
 `kind == "main"` and `kind == "sibling"` repos — this agent's own workspace — are never
 exempt; nobody else should be committing there, so an unattributed change there is

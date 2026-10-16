@@ -135,7 +135,7 @@ Whole-document Markdown previews in plan, launch, and custom-gate review modals
 highlight leading YAML frontmatter as YAML and the remaining body as Markdown.
 Highlighting does not alter validation or the reviewed file contents.
 
-Plan Decisions (see [Plan Decisions](../../sdd.md#plan-decisions)) add typed choices and
+Plan Decisions (see [Plan Decisions](../work-units/plan-format.md#plan-decisions)) add typed choices and
 toggles to plan frontmatter. The modal renders them as cards in a Decisions section
 above the verdict: the current card shows its full question, options, and rationale with
 a `▌` focus bar, while the other cards collapse to a header plus a one-line ask preview.

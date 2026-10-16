@@ -37,9 +37,12 @@ Exact SASE facts; guides teach workflows.
 
 ## Work units
 
-- [Patches](../change_spec.md) — local units of change
-- [Beads](../beads.md) — git-native issue tracking
-- [Goals](../goals.md) — durable outcome records
+- [Work units](work-units/index.md) — plans, beads, goals, Patches, and ProjectSpec
+- [Plans](work-units/plans.md) — saved work proposals and decisions
+- [Beads](work-units/beads.md) — git-portable work and dependency records
+- [Patches](work-units/patches.md) — review records for changes
+- [Goals](work-units/goals.md) — durable outcome records
+- [ProjectSpec](work-units/project-spec.md) — project metadata and Patch records
 
 ## Agents and workspaces
 
@@ -85,10 +88,6 @@ Exact SASE facts; guides teach workflows.
 - [Integration APIs](../contribute/integration-apis.md) — building on SASE
 - [Plugins](../plugins.md) — extending SASE
 - [Mobile gateway](../mobile_gateway.md) — driving agents by phone
-
-## File formats
-
-- [ProjectSpec](../project_spec.md) — project file layout, registry
 
 ## Content layout and upgrading
 

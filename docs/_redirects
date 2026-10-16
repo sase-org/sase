@@ -13,9 +13,11 @@
 /architecture/ /contribute/architecture/ 301
 /artifacts_pane_contract/ /contribute/artifacts-pane-contract/ 301
 /artifacts_pane_visual_grammar/ /contribute/artifacts-pane-visual-grammar/ 301
+/change_spec/ /reference/work-units/patches/ 301
 /development/ /contribute/development/ 301
 /fakey/ /contribute/fakey/ 301
 /getting_started/ /start/ 301
+/goals/ /reference/work-units/goals/ 301
 /instruction_inventory/ /instruction_bundles/ 301
 /integrations/ /contribute/integration-apis/ 301
 /memory/ /reference/memory/memory/ 301
@@ -23,6 +25,7 @@
 /mentors/ /reference/automation/mentors/ 301
 /mobile_mvp_runbook/ /contribute/mobile-mvp-runbook/ 301
 /perf_runbook/ /contribute/perf-runbook/ 301
+/project_spec/ /reference/work-units/project-spec/ 301
 /sdd_storage/ /contribute/sdd-storage/ 301
 /sudo/ /reference/automation/sudo/ 301
 /telemetry/ /contribute/telemetry/ 301

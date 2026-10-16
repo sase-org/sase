@@ -1,7 +1,12 @@
+---
+title: "ProjectSpec"
+description: "The shared project-level file for project metadata and Patch records."
+---
+
 # ProjectSpec Format
 
 A ProjectSpec is SASE's project-level `.sase` file. It groups the non-terminal
-[Patches](change_spec.md) for one project and may also store project metadata used by
+[Patches](patches.md) for one project and may also store project metadata used by
 workspace and agent coordination.
 
 ProjectSpec files live under `~/.sase/projects/<project>/<project>.sase`. Terminal
@@ -76,9 +81,9 @@ currently uses these fields:
 - **WORKSPACE_DIR**: Path to the primary checkout (workspace `#0`). Managed numbered
   checkouts are resolved through the per-project workspace store rather than by
   appending `_<num>` to this path; see
-  [`docs/workspace.md`](workspace.md#workspace-directory-layout) for the
+  [`docs/workspace.md`](../../workspace.md#workspace-directory-layout) for the
   directory-layout reference and
-  [`docs/reference/config/workspace-behavior.md`](reference/config/workspace-behavior.md#workspace)
+  [`docs/reference/config/workspace-behavior.md`](../config/workspace-behavior.md#workspace)
   for the `workspace.root` knob.
 - **PROJECT_STATE**: Project lifecycle state. User-facing values are `enabled` and
   `disabled`; `sibling` is reserved for internal linked-repository backing records.
@@ -127,8 +132,8 @@ project expose a primary user-facing name without renaming its project directory
 such as `#gh:bob`, `#gh_bob`, and `#gh(bob)` behave like refs to the `gh_bbugyi200__bob`
 directory-key project.
 
-The same names drive [project tags](reference/macros/reference-syntax.md#project-tags):
-`+bob` (or `+Bob`, an alias such as `+bobby`, or the directory key `+gh_bbugyi200__bob`)
+The same names drive [project tags](../macros/reference-syntax.md#project-tags): `+bob`
+(or `+Bob`, an alias such as `+bobby`, or the directory key `+gh_bbugyi200__bob`)
 expands at launch to `#gh:gh_bbugyi200__bob`, the provider and directory key SASE
 already knows for that project. The tag SASE offers in completion and shows in its TUI
 is `+<PROJECT_NAME>` (or `+<directory key>` when `PROJECT_NAME` is unset), so a project
@@ -282,8 +287,8 @@ first-open value of project filters, and the top row of the `+` project-tag comp
 menu. It never overrides an explicit `project:` / `+name` term, a pick you already made
 this session, project lifecycle state, or what a command targets. `sase project current`
 prints the resolved project, or explains that nothing resolves and exits 0. See
-[sase's TUI: Current project](ace.md#current-project) and
-[`ace.current_project`](reference/config/ace-behavior.md#acecurrentproject).
+[sase's TUI: Current project](../../ace.md#current-project) and
+[`ace.current_project`](../config/ace-behavior.md#acecurrentproject).
 
 ### Project Lifecycle
 
@@ -381,14 +386,14 @@ verified the process is gone.
 
 ## Patch Fields
 
-Each Patch in a ProjectSpec follows the [Patch format](change_spec.md). For hand-written
+Each Patch in a ProjectSpec follows the [Patch format](patches.md). For hand-written
 entries, the normal minimum fields are:
 
 1. **NAME**: Unique Patch identifier. SASE-generated names normally start with
    `<project>_` and end with a numeric uniqueness suffix such as `_1`.
 2. **DESCRIPTION**: A title, a blank line, and a body, all indented by two spaces.
 3. **STATUS**: One of the lifecycle statuses documented in
-   [`change_spec.md`](change_spec.md#status). New manual work typically starts as `WIP`.
+   [`change_spec.md`](patches.md#status). New manual work typically starts as `WIP`.
 
 Common optional fields include:
 
@@ -401,9 +406,9 @@ Common optional fields include:
   marks ambiguous evidence for manual review with `sase patch set-origin`.
 - **BUG**: Bug or issue reference for this Patch.
 - **REFS**: References attached with `sase patch ref`; see
-  [`change_spec.md`](change_spec.md#refs).
+  [`change_spec.md`](patches.md#refs).
 - **STITCHES**, **DELTAS**, **HOOKS**, **COMMENTS**, **MENTORS**, and **TIMESTAMPS**:
-  See [`change_spec.md`](change_spec.md) for details.
+  See [`change_spec.md`](patches.md) for details.
 
 The `external_pr_mirror` job may adopt remote PRs that SASE did not create. Adopted
 Patches get `NAME:`, `DESCRIPTION:`, `PR:`, `PR_ORIGIN:`, and `STATUS:` only. They do
@@ -468,3 +473,8 @@ STATUS: WIP
 - **PR field**: Omit until the PR exists, then set it to the review URL.
 - **No file modification lists**: Keep file lists out of `DESCRIPTION`; SASE records
   file-level deltas separately.
+
+## Related
+
+- [Work units](index.md)
+- [Patches](patches.md)

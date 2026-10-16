@@ -140,7 +140,8 @@ def _large_store_result(project_key: str) -> DiagnosticCheck | None:
         return _warn(
             f"large attachment store {remote} for {project_key} is unusable",
             "the rclone binary is not installed; install rclone and "
-            "configure the large-store remote per docs/beads.md "
+            "configure the large-store remote per "
+            "docs/reference/work-units/bead-attachments.md "
             "(Large-object store).",
         )
     try:

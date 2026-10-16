@@ -200,7 +200,7 @@ Create temporary flags with `sase flag new <key>` rather than editing the regist
 hand. The command creates a task bead of type `flag`, prints the registry entry, and
 gives the both-states test checklist. Kinds are `beta` (default off) and `sunset`
 (default on); the registry default is derived from the kind. See
-[Beads](../../beads.md#flag-bead-lifecycle) for the removal lifecycle.
+[Beads](../work-units/bead-lifecycles.md#flag-bead-lifecycle) for the removal lifecycle.
 
 Source: `src/sase/feature_flags/registry.py`, `src/sase/feature_flags/schema.py`,
 `src/sase/feature_flags/snapshot.py`, `src/sase/feature_flags/state.py`

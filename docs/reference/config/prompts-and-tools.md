@@ -168,8 +168,8 @@ Enforcement is graded by blast radius:
 literal `builtin` or a distribution name. A bare value is a hard error that names the
 correct replacement when the live registry can resolve it.
 
-See [Task Types](../../beads.md#task-types) for how required plugins feed the committed
-`sase/task_types.json` snapshot, and
+See [Task Types](../work-units/beads.md#task-types) for how required plugins feed the
+committed `sase/task_types.json` snapshot, and
 [Required Plugin Notification](../automation/notification-types.md#required-plugin-notification)
 for the human install offer.
 

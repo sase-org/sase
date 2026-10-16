@@ -74,7 +74,8 @@ singleton branches remain **Reject** and **Send Feedback**. Epic plans use
 ### Plan Decisions
 
 A tale or epic plan may declare typed Plan Decisions in `decisions:` frontmatter. Start
-with the [authoring example and CLI review flow](../../sdd.md#plan-decisions) for
+with the
+[authoring example and CLI review flow](../work-units/plan-format.md#plan-decisions) for
 user-facing usage; this section describes the gate protocol. `decision_<id>` fields are
 treated as already collected, so they do not appear as extra inputs. Override a default
 with `sase gate answer` and `--set decision_<id>=...`.

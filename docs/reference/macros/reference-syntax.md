@@ -203,7 +203,7 @@ reference: because an unknown slashless `#git:` name triggers bare-git project
 initialization, `#git:<github-alias>` may create a separate bare-git project named after
 the alias. Use `#gh:<github-alias>` for the registered GitHub project.
 Provider-mismatched entries are pruned from the VCS-reference history. See
-[Project Names and Aliases](../../project_spec.md#project-names-and-aliases) for validation
+[Project Names and Aliases](../work-units/project-spec.md#project-names-and-aliases) for validation
 and management commands.
 
 GitHub `owner/repo` refs use `PROJECT_NAME` after first use. Resolving `#gh:foo-org/foo`
@@ -294,7 +294,7 @@ excluded. A project whose `PROJECT_NAME` does not fit the tag syntax, such as on
 starts with a digit, gets no `+<name>` spelling in completion or display. A typed tag
 can still reach it through a tag-shaped alias or directory key, or you can keep using
 its `#<workflow>:<name>` reference. See
-[Project Names and Aliases](../../project_spec.md#project-names-and-aliases) for how names and
+[Project Names and Aliases](../work-units/project-spec.md#project-names-and-aliases) for how names and
 aliases are kept unique.
 
 **Launch validation.** Tags are checked before anything is spawned, and a failing prompt

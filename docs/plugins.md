@@ -1021,7 +1021,8 @@ class GitHubTaskTypes:
         }
 ```
 
-See [Task Types](beads.md#task-types) for the create grammar and degraded render.
+See [Task Types](reference/work-units/beads.md#task-types) for the create grammar and
+degraded render.
 
 ### Job Script Packages
 

@@ -27,6 +27,7 @@ exclude_docs: |
 not_in_nav: |
   ace.md
   axe.md
+  beads.md
   configuration.md
   content_layout.md
   instruction_bundles.md
@@ -35,6 +36,7 @@ not_in_nav: |
   monitors.md
   notifications.md
   rust_backend.md
+  sdd.md
   tool.md
 # END GENERATED: docs page moves not_in_nav
 
@@ -202,7 +204,6 @@ nav:
                   - Feature flags: reference/config/feature-flags.md
                   - Workspaces: reference/config/workspace-behavior.md
               - Environment variables: reference/environment-variables.md
-          - ProjectSpec: project_spec.md
       - Macros and workflows:
           - Macros: reference/macros/index.md
           - Syntax and references:
@@ -225,10 +226,30 @@ nav:
           - Troubleshooting: reference/macros/troubleshooting.md
           - Workflows: reference/workflows.md
       - Work units:
-          - Spec-driven development: sdd.md
-          - Patches: change_spec.md
-          - Beads: beads.md
-          - Goals: goals.md
+          - Overview: reference/work-units/index.md
+          - Beads:
+              - Beads: reference/work-units/beads.md
+              - Lifecycles: reference/work-units/bead-lifecycles.md
+              - Triage: reference/work-units/bead-triage.md
+              - External mirroring: reference/work-units/bead-mirroring.md
+              - Artifact references: reference/work-units/bead-artifacts.md
+              - Attachments: reference/work-units/bead-attachments.md
+              - Storage: reference/work-units/bead-storage.md
+              - Bead pages: reference/work-units/bead-pages.md
+              - CLI: reference/work-units/bead-cli.md
+              - CLI records: reference/work-units/bead-cli-records.md
+              - CLI queries: reference/work-units/bead-cli-query.md
+              - Reading beads: reference/work-units/bead-cli-inspection.md
+              - Starting bead work: reference/work-units/bead-work.md
+              - TUI integration: reference/work-units/bead-tui.md
+          - Plans:
+              - Plans: reference/work-units/plans.md
+              - Plan format: reference/work-units/plan-format.md
+              - Plan commands: reference/work-units/plan-cli.md
+              - Plan configuration: reference/work-units/plan-execution.md
+          - Goals: reference/work-units/goals.md
+          - Patches: reference/work-units/patches.md
+          - ProjectSpec: reference/work-units/project-spec.md
       - Agents and workspaces:
           - Agent sessions: agent_sessions.md
           - Agent hood synchronization: agents_sidecar.md

@@ -20,8 +20,8 @@ links:
 # [06] Patches in Practice — Review State Outside the Chat
 
 Patches are the durable, reviewable shape of one PR of agent work. They survive the
-chat. The [Patch reference](../../change_spec.md) explains their lifecycle; this post
-shows what review state looks like in practice.
+chat. The [Patch reference](../../reference/work-units/patches.md) explains their
+lifecycle; this post shows what review state looks like in practice.
 
 <!-- more -->
 
@@ -204,8 +204,8 @@ It is recorded atomically by SASE and is not normally edited by hand.
 
 ## What To Read Next
 
-- [Patch format](../../change_spec.md) — every field, every state transition, complete
-  examples.
+- [Patch format](../../reference/work-units/patches.md) — every field, every state
+  transition, complete examples.
 - [Mentors](../../reference/automation/mentors.md) — profile matching criteria,
   execution lifecycle, sase's TUI review modal, apply modes, file-snapshot semantics.
 - [sase's TUI](../../ace.md) — the full keybinding reference for the Artifacts, Agents,

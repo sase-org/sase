@@ -207,8 +207,8 @@ planner's completion notification is held until the launch monitor settles, fold
 launch outcome, and is published once even if more than one settlement path observes the
 result. AXE's `epic_launch_flush` job flushes a held notification whose launch never
 settled after a 90-second grace period, with a resume command. See
-[Plan Approval Flow](../../beads.md#plan-approval-flow) for the approval side of that
-handoff.
+[Plan Approval Flow](../work-units/bead-tui.md#plan-approval-flow) for the approval side
+of that handoff.
 
 The host-owned epic launcher keeps `sase bead work` as the visible logical command. If
 an editable-source update is swapping that checkout when approval arrives, a minimal

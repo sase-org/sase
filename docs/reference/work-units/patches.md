@@ -1,3 +1,8 @@
+---
+title: "Patches"
+description: "The fields, format, and lifecycle of a SASE Patch review record."
+---
+
 # Patch Format Documentation
 
 A **Patch** is SASE's durable local record for one unit of reviewable work. Every PR
@@ -6,7 +11,7 @@ without a PR; in that case the `PR:` field is absent. The `external_pr_mirror` A
 and `sase patch sync-external` command run the same reconciliation path. They list
 remote PRs in every state, discard PRs carrying SASE's tracked-workflow marker, apply
 the case-insensitive
-[`external_mirror.pull_requests.filters`](reference/config/automation-behavior.md#externalmirror)
+[`external_mirror.pull_requests.filters`](../config/automation-behavior.md#externalmirror)
 criteria (author, base ref, head ref, title, state), and adopt the remaining PRs as
 local Patches. Open PRs remain active; merged or closed PRs are archived directly. An
 adopted `external` Patch keeps tracking its PR afterwards: when the PR merges or closes,
@@ -108,7 +113,8 @@ synced after a reword, any trailing `KEY=VALUE` metadata lines matching
 `^[A-Z][A-Z0-9_]*=` are automatically stripped. The pattern matches both the legacy
 unprefixed spelling and the `SASE_`-prefixed footer tags, such as
 `SASE_AUTOSUBMIT_BEHAVIOR=SYNC_SUBMIT` and `SASE_MARKDOWN=true`, so neither pollutes the
-description. See [commit_workflows.md](commit_workflows.md#pull-request-pr) for details.
+description. See [commit_workflows.md](../../commit_workflows.md#pull-request-pr) for
+details.
 
 **Example:**
 
@@ -140,8 +146,8 @@ via `-p` does not resolve to an existing Patch.
 
 **Auto-detection:** when creating a new Patch via `sase stitch create`, the `PARENT`
 field is automatically set if the current branch corresponds to an existing Patch. This
-can be overridden with `-p`/`--parent`; see [commit_workflows.md](commit_workflows.md)
-for details.
+can be overridden with `-p`/`--parent`; see
+[commit_workflows.md](../../commit_workflows.md) for details.
 
 **Dependency guidelines:**
 
@@ -192,11 +198,11 @@ should be marked `external`. Absent or unrecognized values normalize to `unknown
 
 **Behavioral consequence:** AXE excludes `external`-origin Patches from candidate
 selection entirely, before query evaluation — SASE automation never acts on them. See
-[AXE](axe.md).
+[AXE](../../axe.md).
 
 **Setting it:** `sase patch set-origin <name> <sase|external|unknown>` (see
-[CLI Reference](cli.md#work-tracking-and-planning)), or press `o` on a PR row in sase's
-TUI Patches sub-tab (see [PR Origin Chip](ace.md#pr-origin-chip)).
+[CLI Reference](../../cli.md#work-tracking-and-planning)), or press `o` on a PR row in
+sase's TUI Patches sub-tab (see [PR Origin Chip](../../ace.md#pr-origin-chip)).
 
 **Example:**
 
@@ -531,3 +537,8 @@ STITCHES:
 5. Use descriptive `NAME` values.
 6. Update `STATUS` as work progresses.
 7. Use `sase patch ref ...` for artifact references instead of hand-editing `REFS:`.
+
+## Related
+
+- [Work units](index.md)
+- [ProjectSpec](project-spec.md)

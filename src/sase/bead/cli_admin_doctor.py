@@ -244,7 +244,9 @@ def _render_read_model_verify(report: dict[str, Any] | None) -> list[str]:
 
 
 #: Pointer printed with every firing sealed-archive trigger.
-SEAL_WATCH_DESIGN_REF = "docs/beads.md#sealed-segments-gated-design"
+SEAL_WATCH_DESIGN_REF = (
+    "docs/reference/work-units/bead-storage.md#sealed-segments-gated-design"
+)
 
 _SEAL_WATCH_TRIGGER_LABELS = {
     "hot_stream_files": "hot stream files",

@@ -38,8 +38,8 @@ The following events generate notifications:
 
 The five-minute `bead_task_triage` job creates one human-only `TaskTriage` gate for each
 ready task bead that has accumulated at least its
-[effective `+1` bar](../../beads.md#per-type-triage-bar) of independent `+1` reports —
-its task type's own `triage.min_plus_ones`, or
+[effective `+1` bar](../work-units/beads.md#per-type-triage-bar) of independent `+1`
+reports — its task type's own `triage.min_plus_ones`, or
 [`bead.task_triage.min_plus_ones`](../config/automation-behavior.md#bead) for an untyped
 or unregistered type. A sub-threshold task is withheld from triage — it stays stored as
 `ready`, only the gate is withheld — and a `TaskTriage` gate already raised for a task
@@ -70,11 +70,12 @@ only when the bead has notes. The gate offers three branches:
   `resolution=canceled`.
 - **Snooze** collects one required `duration` line containing a wake time with an
   optional `+N` suffix, for example `3d`, `2026-08-09T09:00:00-04:00`, or `3d +2`, the
-  same vocabulary as [`sase bead snooze`](../../beads.md#snoozing-a-task-bead). Feedback
-  is optional here and records **why** the task was deferred. An unparsable value fails
-  the option and leaves the gate pending rather than losing the bead's only triage gate.
-  It defers the bead — the triage gate settles and a `BeadSnooze` wake gate takes its
-  place once the reconciler's next tick runs; see
+  same vocabulary as
+  [`sase bead snooze`](../work-units/bead-triage.md#snoozing-a-task-bead). Feedback is
+  optional here and records **why** the task was deferred. An unparsable value fails the
+  option and leaves the gate pending rather than losing the bead's only triage gate. It
+  defers the bead — the triage gate settles and a `BeadSnooze` wake gate takes its place
+  once the reconciler's next tick runs; see
   [Snoozed Task Notification](#snoozed-task-notification) below.
 
 No decision branch is chosen automatically. While one of `TaskTriage`/`BeadSnooze`

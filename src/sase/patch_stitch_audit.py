@@ -73,7 +73,7 @@ _RETAINED_PUBLIC_MARKERS = (
     "get_workspace_directory_for_changespec",
     "sase_changespecs",
     "/sase_changespecs",
-    "docs/change_spec.md",
+    "docs/reference/work-units/patches.md",
     "changespec-tags",
     "changespecs-in-practice",
 )

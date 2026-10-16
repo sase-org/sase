@@ -149,9 +149,10 @@ The summary reports the free percentage, effective warn threshold, owner and ste
 counts, and how many steps changed or failed.
 
 The `bead_stale_cleanup` job is the other half of the task-bead `+1` bar. Ready task
-beads that never clear their [effective `+1` bar](../../beads.md#per-type-triage-bar)
-stay `ready` (the five-minute `bead_task_triage` job withholds their `TaskTriage` gate)
-and would otherwise accumulate forever. Once at least
+beads that never clear their
+[effective `+1` bar](../work-units/beads.md#per-type-triage-bar) stay `ready` (the
+five-minute `bead_task_triage` job withholds their `TaskTriage` gate) and would
+otherwise accumulate forever. Once at least
 [`bead.task_triage.stale_cleanup_min_beads`](../config/automation-behavior.md#bead) of
 them have sat below that bar for
 [`bead.task_triage.stale_after_days`](../config/automation-behavior.md#bead) days, this

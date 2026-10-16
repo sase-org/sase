@@ -190,7 +190,8 @@ Here is the SASE loop:
    VCS and notification operations.
 
 The docs that matter most at first are [Macros](../../reference/macros/index.md),
-[SDD](../../sdd.md), [Beads](../../beads.md), [sase's TUI](../../ace.md),
+[SDD](../../reference/work-units/plans.md),
+[Beads](../../reference/work-units/beads.md), [sase's TUI](../../ace.md),
 [AXE](../../axe.md), [VCS providers](../../vcs.md), and [plugins](../../plugins.md).
 
 <!--
@@ -331,11 +332,11 @@ unit of work stays inspectable.
 
 ## SDD: Prompts, Tales, Epics, And Beads
 
-SASE's [Spec-Driven Development](../../sdd.md) store is where agent intent becomes
-durable project state. Provider policy places it at `sdd/` for in-tree projects,
-`.sase/sdd/` for providerless local and legacy single-companion projects, or split
-`--plans` and `--research` roots for newly initialized or migrated managed GitHub
-projects.
+SASE's [Spec-Driven Development](../../reference/work-units/plans.md) store is where
+agent intent becomes durable project state. Provider policy places it at `sdd/` for
+in-tree projects, `.sase/sdd/` for providerless local and legacy single-companion
+projects, or split `--plans` and `--research` roots for newly initialized or migrated
+managed GitHub projects.
 
 The core logical roots are:
 

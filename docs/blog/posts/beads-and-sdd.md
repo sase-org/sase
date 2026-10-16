@@ -57,7 +57,7 @@ for offline use.
 `sase plan search -k epic` lists every epic; `sase plan links validate` checks the
 prompt/plan link graph; `sase repo init` materializes provider-owned storage and
 refreshes the generated READMEs and directory-map asset. The reference is in
-[`sdd.md`](../../sdd.md).
+[`sdd.md`](../../reference/work-units/plans.md).
 
 ## Beads Are the Work Unit
 
@@ -176,10 +176,10 @@ synchronize through the clone in the active workspace.
 
 ## What To Read Next
 
-- [Spec-Driven Development](../../sdd.md) — full reference for tales, epics, research,
-  storage modes, bead integration.
-- [Beads](../../beads.md) — every `sase bead` subcommand, the data model, and the
-  current-checkout source-of-truth rule.
+- [Spec-Driven Development](../../reference/work-units/plans.md) — full reference for
+  tales, epics, research, storage modes, bead integration.
+- [Beads](../../reference/work-units/beads.md) — every `sase bead` subcommand, the data
+  model, and the current-checkout source-of-truth rule.
 - [\[05\] Commit Workflows — The Pluggable Path From Diff to PR](commit-workflows-plugins.md)
   — how the work that `sase bead work` schedules eventually lands as commits, proposals,
   or PRs.

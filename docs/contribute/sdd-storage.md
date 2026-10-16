@@ -89,8 +89,9 @@ keeps bead state at its **repository root**—`config.json`, `metadata.json`, an
 directory. In an event store, `issues.jsonl` is a local, gitignored export created on
 demand with `sase bead export`; legacy stores without events still use it as their
 tracked state. The SQLite read model is also local to each clone and rebuildable from
-events. See [bead storage](../beads.md#event-log-compatibility-projections). Kind
-resolution is therefore:
+events. See
+[bead storage](../reference/work-units/bead-storage.md#event-log-compatibility-projections).
+Kind resolution is therefore:
 
 | Kind                  | Resolved path                                                           |
 | --------------------- | ----------------------------------------------------------------------- |
@@ -338,12 +339,12 @@ configuration cannot replay a cached textual conflict resolution over SASE's sem
 bead merge. During a rebase SASE also resolves conflicts it can prove are generated:
 bead event state, artifact-link indexes and managed `## Links` / `## Referenced By`
 blocks, and the `AGENTS` / `COMMITS` rows of a month-sharded plan's generated header
-(see [Artifact Links](../sdd.md#artifact-links)). Any other conflict, including authored
-plan text, is not merged. Ordinary transactional integration restores the pre-rebase
-state after a failed rebase and refuses unsafe or unprovable recovery. A Git command
-that hits its timeout mid-integration gets the same treatment: the in-progress rebase is
-aborted and the rollback to the locked starting state is verified, so a slow remote
-cannot leave the checkout wedged mid-rebase.
+(see [Artifact Links](../reference/work-units/plans.md#artifact-links)). Any other
+conflict, including authored plan text, is not merged. Ordinary transactional
+integration restores the pre-rebase state after a failed rebase and refuses unsafe or
+unprovable recovery. A Git command that hits its timeout mid-integration gets the same
+treatment: the in-progress rebase is aborted and the rollback to the locked starting
+state is verified, so a slow remote cannot leave the checkout wedged mid-rebase.
 
 The background bead sync worker adds one more rollback. Before publishing, it checks
 that its unpublished commits do not drop or rewrite bead events already on the upstream.

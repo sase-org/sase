@@ -55,7 +55,7 @@ class _IndentedSafeDumper(yaml.SafeDumper):
 
 
 HEADING_RE = re.compile(r"^\s{0,3}(#{1,6})\s+(.+?)\s*#*\s*$")
-EXPLICIT_ANCHOR_RE = re.compile(r"\s*\{#([^}]+)\}\s*$")
+EXPLICIT_ANCHOR_RE = re.compile(r"\s*\{\s*#([^}]+?)\s*\}\s*$")
 
 
 @dataclass(frozen=True)
@@ -486,7 +486,7 @@ def _section_chunks(
                         anchor,
                         title,
                         target,
-                        root_relative=True,
+                        root_relative=False,
                     ):
                         chunk_lines.append((pointer_line + "\n", None))
                 _, child_end = ranges[child.selector]
