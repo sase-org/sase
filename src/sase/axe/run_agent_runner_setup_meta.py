@@ -48,6 +48,7 @@ def setup_artifacts_directory(
     project_file: str,
     cl_name: str,
     is_home_mode: bool,
+    launch_submitted_at: str | None = None,
 ) -> tuple[str, str, str]:
     """Compute project name, artifacts paths, and seed ``workflow_state.json``.
 
@@ -79,6 +80,8 @@ def setup_artifacts_directory(
         "process_identity": process_identity_token(pid),
         "appears_as_agent": True,
     }
+    if launch_submitted_at is not None:
+        initial_state["launch_submitted_at"] = launch_submitted_at
     with open(
         os.path.join(artifacts_dir, "workflow_state.json"), "w", encoding="utf-8"
     ) as f:

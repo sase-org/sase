@@ -47,6 +47,7 @@ def _write_direct_typed_launch_bundle(
     safe_inputs: Mapping[str, Any] | None = None,
     unit_dispatch_metadata: Mapping[str, Any] | None = None,
     request_id: str | None = None,
+    launch_submitted_at: str | None = None,
 ) -> tuple[Path, dict[str, Any]]:
     """Atomically persist a coordinator-readable direct typed-launch bundle."""
     digest = str(typed_plan.get("content_digest") or "")
@@ -57,6 +58,10 @@ def _write_direct_typed_launch_bundle(
             "typed launch plan is missing content_digest",
         )
     request_id = request_id or f"launch-{uuid4()}"
+    if launch_submitted_at is None:
+        from sase.agent.launch_submission import capture_launch_submitted_at
+
+        launch_submitted_at = capture_launch_submitted_at()
     payload: dict[str, Any] = {
         "request_id": request_id,
         "source_surface": source_surface,
@@ -67,6 +72,7 @@ def _write_direct_typed_launch_bundle(
         "submitted_prompt": prompt,
         "expanded_prompt": expanded_prompt,
         "safe_inputs": dict(safe_inputs or {}),
+        "launch_submitted_at": launch_submitted_at,
     }
     if unit_dispatch_metadata:
         payload["unit_dispatch_metadata"] = dict(unit_dispatch_metadata)
@@ -100,6 +106,7 @@ def write_typed_launch_bundle(
     safe_inputs: Mapping[str, Any] | None = None,
     unit_dispatch_metadata: Mapping[str, Any] | None = None,
     request_id: str | None = None,
+    launch_submitted_at: str | None = None,
 ) -> tuple[Path, dict[str, Any]]:
     """Persist a durable typed-launch bundle for an already planned request."""
     return _write_direct_typed_launch_bundle(
@@ -113,6 +120,7 @@ def write_typed_launch_bundle(
         safe_inputs=safe_inputs,
         unit_dispatch_metadata=unit_dispatch_metadata,
         request_id=request_id,
+        launch_submitted_at=launch_submitted_at,
     )
 
 
@@ -136,9 +144,11 @@ def dispatch_direct_typed_launch(
     children inherit it ambiently and their runners persist it.
     """
     from sase.agent.launch_admission import dispatch_typed_launch_request
+    from sase.agent.launch_submission import capture_launch_submitted_at
     from sase.core.agent_launch_facade import sanitize_condition_inputs
     from sase.macro.directives import DirectiveError, has_typed_launch_directive
 
+    launch_submitted_at = capture_launch_submitted_at()
     try:
         expanded_prompt = expand_prompt_for_typed_launch(prompt)
     except DirectiveError as exc:
@@ -159,6 +169,7 @@ def dispatch_direct_typed_launch(
         source_surface=source_surface,
         selected_project=selected_project,
         safe_inputs=sanitized,
+        launch_submitted_at=launch_submitted_at,
     )
     cwd_path = Path(cwd).expanduser()
     original_cwd = Path.cwd()

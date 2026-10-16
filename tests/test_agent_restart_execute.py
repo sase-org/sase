@@ -179,6 +179,34 @@ def test_successful_run_wipes_and_launches_once(tmp_path: Path) -> None:
     dismiss.assert_not_called()
 
 
+def test_restart_discards_stale_parent_submission_stamp(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    artifacts = make_restartable_agent(tmp_path)
+    plan = dummy_plan(artifacts)
+    plan.force_reuse_plan.segment_envs[0] = {
+        "SASE_LAUNCH_SUBMITTED_AT": "2026-10-16T11:59:00Z"
+    }
+    captured: dict[str, object] = {}
+
+    def launch(_prompt: object, **kwargs: object) -> list[AgentLaunchResult]:
+        captured.update(kwargs)
+        return [_launch_result()]
+
+    monkeypatch.setenv("SASE_LAUNCH_SUBMITTED_AT", "2026-10-16T11:59:00Z")
+    with (
+        patch("sase.agent.running.kill_named_agent", return_value=successful_kill()),
+        patch("sase.agent.force_reuse_launch.apply_force_reuse_launch"),
+        patch("sase.agent.launch_cwd.launch_agents_from_cwd", side_effect=launch),
+    ):
+        outcome = execute_agent_restart(plan)
+
+    assert outcome.status == "ok"
+    segment_envs = captured["segment_extra_env"]
+    assert segment_envs[0] == {}  # type: ignore[index]
+
+
 def test_launch_uses_prepared_prompt_that_passes_normal_name_preflight(
     tmp_path: Path,
 ) -> None:

@@ -73,6 +73,8 @@ from sase.core.agent_artifact_index_lifecycle import (
 )
 from sase.core.agent_output_variables import set_agent_output_variables
 from sase.core.runner_slots import HOLD_ARMER_WAIT_PRIORITY
+from sase.agent.launch_submission import LEGACY_NO_SUBMISSION_STAMP
+from sase.env_contracts import SASE_LAUNCH_SUBMITTED_AT_ENV
 from sase.llm_provider.gate_intent_guard import find_gate_intent_lost_error
 from sase.telemetry.metrics import AGENT_KILLS
 
@@ -125,6 +127,12 @@ def _build_run_state(argv: list[str]) -> RunnerRunState:
         project_name=project_name,
         artifacts_timestamp=convert_timestamp_to_artifacts_format(args.timestamp),
         artifacts_dir=launch_artifacts_dir(project_name, args.timestamp),
+        launch_submitted_at=(
+            os.environ.get(SASE_LAUNCH_SUBMITTED_AT_ENV)
+            if os.environ.get(SASE_LAUNCH_SUBMITTED_AT_ENV)
+            != LEGACY_NO_SUBMISSION_STAMP
+            else None
+        ),
     )
 
 

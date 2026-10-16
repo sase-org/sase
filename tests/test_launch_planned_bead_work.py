@@ -56,6 +56,10 @@ def test_adapter_passes_one_slot_preplanned_plans(
     _configure_machine(monkeypatch)
     segments, envs, expected = _bead_segments()
     captured: dict[str, Any] = {}
+    monkeypatch.setattr(
+        "sase.agent.launch_submission.capture_launch_submitted_at",
+        lambda: "2026-10-16T12:00:00.900000Z",
+    )
 
     def fake_launch_multi(**kwargs: Any) -> list[object]:
         captured.update(kwargs)
@@ -100,6 +104,7 @@ def test_adapter_passes_one_slot_preplanned_plans(
             assert stamped[key] == value
         assert stamped["SASE_PROMPT_ORIGIN"] == "generated"
         assert stamped["SASE_PROMPT_SOURCE_SURFACE"] == "bead_work"
+        assert stamped["SASE_LAUNCH_SUBMITTED_AT"] == "2026-10-16T12:00:00.900000Z"
     # All segments carry the internal-name bypass env, so reserved agent-session names
     # are permitted.
     assert captured["allow_reserved_agent_session_separator_names"] is True

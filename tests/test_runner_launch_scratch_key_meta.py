@@ -11,7 +11,10 @@ from unittest.mock import patch
 import pytest
 
 from sase.axe import run_agent_markers, run_agent_runner_bootstrap
-from sase.env_contracts import SASE_LAUNCH_SCRATCH_KEY_ENV
+from sase.env_contracts import (
+    SASE_LAUNCH_SCRATCH_KEY_ENV,
+    SASE_LAUNCH_SUBMITTED_AT_ENV,
+)
 from sase.agent.auto_restart.provenance import PROVENANCE_ENV
 
 
@@ -40,6 +43,25 @@ def test_bootstrap_meta_omits_the_key_when_the_launch_set_none(
     monkeypatch.delenv(SASE_LAUNCH_SCRATCH_KEY_ENV, raising=False)
 
     assert "launch_scratch_key" not in _bootstrap_meta(tmp_path)
+
+
+def test_bootstrap_meta_persists_submission_stamp_and_refresh_keeps_it(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    submitted_at = "2026-01-01T12:00:00.900000Z"
+    monkeypatch.setenv(SASE_LAUNCH_SUBMITTED_AT_ENV, submitted_at)
+    initial = _bootstrap_meta(tmp_path)
+    assert initial["launch_submitted_at"] == submitted_at
+
+    monkeypatch.delenv(SASE_LAUNCH_SUBMITTED_AT_ENV)
+    metadata_path = tmp_path / "agent_meta.json"
+    metadata_path.write_text(json.dumps(initial), encoding="utf-8")
+    with patch.object(run_agent_runner_bootstrap, "write_agent_meta") as write:
+        run_agent_runner_bootstrap._write_bootstrap_agent_meta(
+            str(tmp_path), output_path="out.log", refreshed=True
+        )
+
+    assert write.call_args.args[1]["launch_submitted_at"] == submitted_at
 
 
 def test_bootstrap_consumes_auto_restart_provenance_environment(

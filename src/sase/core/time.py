@@ -19,7 +19,7 @@ Two conventions live side by side:
 """
 
 import os
-from datetime import UTC, datetime, tzinfo
+from datetime import datetime, tzinfo
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 # Process-wide cache of the resolved timezone. Runtime behavior is
@@ -117,17 +117,6 @@ def generate_timestamp() -> str:
         Timestamp string like "251227_143052"
     """
     return datetime.now(get_timezone()).strftime("%y%m%d_%H%M%S")
-
-
-def launch_timestamp_to_utc_iso(timestamp: str) -> str | None:
-    """Convert a runner launch timestamp to its UTC RFC 3339 submission time."""
-    try:
-        local = datetime.strptime(timestamp, "%y%m%d_%H%M%S").replace(
-            tzinfo=get_timezone()
-        )
-    except (TypeError, ValueError):
-        return None
-    return local.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def parse_local(value: str | int | float | datetime | None) -> datetime | None:

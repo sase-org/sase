@@ -8,6 +8,7 @@ from sase.agent.env_hygiene import (
 from sase.agent.launch_spawn import _remove_inherited_agent_identity_env
 from sase.agent.launch_spawn import _remove_inherited_executor_ownership_env
 from sase.agent.launch_spawn import _remove_inherited_sase_plan_env
+from sase.agent.launch_spawn import _remove_inherited_launch_submission_env
 
 
 def test_scrub_agent_identity_env_removes_complete_identity_family() -> None:
@@ -153,3 +154,14 @@ def test_launch_spawn_drops_ambient_sase_plan_env() -> None:
         "SASE_PLANNER": "keep",
         "OTHER": "keep",
     }
+
+
+def test_launch_spawn_drops_ambient_submission_stamp() -> None:
+    env = {
+        "SASE_LAUNCH_SUBMITTED_AT": "2026-01-01T12:00:00Z",
+        "OTHER": "keep",
+    }
+
+    _remove_inherited_launch_submission_env(env)
+
+    assert env == {"OTHER": "keep"}

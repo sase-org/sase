@@ -47,7 +47,6 @@ from sase.axe.run_agent_runner_setup import (
 from sase.axe.run_agent_runner_state import RunnerRunState
 from sase.axe.source_skew import preload_post_gate_modules
 from sase.bead.claims import clear_bead_claim_marker
-from sase.core.time import launch_timestamp_to_utc_iso
 from sase.dev_update.code_swap_lock import code_swap_advisory_reader_lock
 from sase.history.multi_agent_prompt import MULTI_AGENT_PROMPT_FILE_ENV
 from sase.sdd.store import SddTransientMaterializationError
@@ -222,7 +221,9 @@ def _promote_bead_claim(
         raise RuntimeError(
             f"Cannot claim bead '{bead_id}' without a resolved agent name"
         )
-    submitted_at = launch_timestamp_to_utc_iso(state.timestamp)
+    submitted_at = bootstrap.agent_meta.get("launch_submitted_at")
+    if not isinstance(submitted_at, str):
+        submitted_at = None
     run_id = state.artifacts_timestamp
     if bootstrap.force_reuse_bead_association is None:
         issue = claim_bead_for_agent_launch(

@@ -87,8 +87,15 @@ def spawn_detached_child(
     have one resolved.
     """
     from sase.agent.launcher import spawn_agent_subprocess
+    from sase.agent.launch_submission import capture_launch_submitted_at
+    from sase.env_contracts import SASE_LAUNCH_SUBMITTED_AT_ENV
     from sase.workflows.utils import get_project_file_path
 
+    extra_env = dict(extra_env or {})
+    extra_env.setdefault(
+        SASE_LAUNCH_SUBMITTED_AT_ENV,
+        capture_launch_submitted_at(),
+    )
     spawn = spawn_fn or spawn_agent_subprocess
     timestamp = reserve_launch_timestamp_batch(1)[0]
     return spawn(

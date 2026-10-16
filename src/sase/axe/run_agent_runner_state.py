@@ -45,6 +45,8 @@ class RunnerRunState:
     project_name: str
     artifacts_timestamp: str
     artifacts_dir: str
+    # RFC 3339 launch-submission instant captured before admission waits.
+    launch_submitted_at: str | None = None
     current_artifacts_dir: str = ""
     # Read by the SIGTERM handler, which needs a destination even before the
     # artifacts directory has been created.

@@ -196,7 +196,8 @@ class TestSpawnDetachedChild:
             spawn_fn=fake_spawn,
         )
 
-        assert captured["extra_env"] == {"SOME_ENV": "1"}
+        assert captured["extra_env"]["SOME_ENV"] == "1"
+        assert isinstance(captured["extra_env"]["SASE_LAUNCH_SUBMITTED_AT"], str)
         assert captured["vcs_ref"] == ("gh", "sase")
         assert captured["update_target"] == "trunk"
         assert captured["is_home_mode"] is True

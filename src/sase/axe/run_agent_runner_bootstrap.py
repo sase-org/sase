@@ -36,6 +36,7 @@ from sase.axe.run_agent_runner_signals import (
 )
 from sase.axe.run_agent_runner_state import RunnerRunState
 from sase.agent.launch_hold import LAUNCH_HOLD_KEY_ENV, arm_bootstrap_hold
+from sase.agent.launch_submission import LEGACY_NO_SUBMISSION_STAMP
 from sase.bead.claims import (
     BeadClaimMarker,
     claim_bead_for_waiting_agent,
@@ -44,7 +45,10 @@ from sase.bead.claims import (
 )
 from sase.agent.force_reuse_bead import ForceReuseBeadAssociation
 from sase.core.process_identity import process_identity_token
-from sase.env_contracts import SASE_LAUNCH_SCRATCH_KEY_ENV
+from sase.env_contracts import (
+    SASE_LAUNCH_SCRATCH_KEY_ENV,
+    SASE_LAUNCH_SUBMITTED_AT_ENV,
+)
 from sase.telemetry import init_telemetry, register_flush_on_exit
 
 
@@ -80,6 +84,10 @@ def _write_bootstrap_agent_meta(
                 agent_meta.update(existing_meta)
         except (FileNotFoundError, json.JSONDecodeError, OSError):
             pass
+
+    submitted_at = os.environ.get(SASE_LAUNCH_SUBMITTED_AT_ENV)
+    if submitted_at is not None and submitted_at != LEGACY_NO_SUBMISSION_STAMP:
+        agent_meta["launch_submitted_at"] = submitted_at
 
     pid = os.getpid()
     agent_meta.update(
@@ -335,6 +343,7 @@ def bootstrap_agent_run(state: RunnerRunState) -> RunnerBootstrap:
         project_file=state.project_file,
         cl_name=state.cl_name,
         is_home_mode=state.is_home_mode,
+        launch_submitted_at=state.launch_submitted_at,
     )
     state.project_name = project_name
     state.artifacts_timestamp = artifacts_timestamp
@@ -349,6 +358,11 @@ def bootstrap_agent_run(state: RunnerRunState) -> RunnerBootstrap:
         output_path=state.output_path,
         refreshed=RUNNER_CODE_REFRESHED_ENV in os.environ,
     )
+    from sase.axe.agent_meta import read_live_agent_meta
+
+    persisted_meta = read_live_agent_meta(artifacts_dir)
+    submitted_at = persisted_meta.get("launch_submitted_at")
+    state.launch_submitted_at = submitted_at if isinstance(submitted_at, str) else None
 
     from sase.axe.runner_lifecycle_phase import mark_lifecycle_phase
 
@@ -405,6 +419,9 @@ def bootstrap_agent_run(state: RunnerRunState) -> RunnerBootstrap:
         agent_meta={**info.meta, "output_path": state.output_path},
         artifacts_dir=state.artifacts_dir,
     )
+    if state.launch_submitted_at is not None:
+        agent_meta["launch_submitted_at"] = state.launch_submitted_at
+        write_agent_meta(state.artifacts_dir, agent_meta)
 
     has_dependency_wait, has_wait = _wait_flags(info)
     # Launch preflight is conservative: a deferred launch can still reach this

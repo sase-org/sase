@@ -127,6 +127,45 @@ def test_claim_helper_records_closed_launch_with_distinct_commit_subject(
     publish.assert_called_once_with(sdd_dir / "beads", bead_id, "worker")
 
 
+def test_force_reuse_closed_bead_attaches_without_changing_prior_assignee(
+    tmp_path: Path,
+) -> None:
+    sdd_dir = tmp_path / ".sase/sdd"
+    bead_id = _seed_store(sdd_dir, beads_dirname="beads")
+    with BeadProject(sdd_dir, beads_dirname="beads") as project:
+        project.update(bead_id, assignee="prior-owner")
+        project.close([bead_id], reason="completed before restart")
+        closed_before = project.show(bead_id)
+    store = SddStore(storage="local", sdd_dir=sdd_dir, repo_root=sdd_dir)
+    commit = MagicMock(return_value=True)
+
+    with (
+        patch("sase.sdd.store.resolve_sdd_store", return_value=store),
+        patch("sase.sdd.files.commit_sdd_store_files", commit),
+        patch("sase.bead.sync.publish_bead_claim"),
+    ):
+        attached = claim_bead_for_agent_launch(
+            agent_name="replacement",
+            bead_id=bead_id,
+            workspace_dir=str(tmp_path),
+            workspace_num=2,
+            artifacts_dir=str(tmp_path / "artifacts"),
+            force_reuse_prior_owner="prior-owner",
+            submitted_at="2999-01-01T00:00:00Z",
+            run_id="260101_000200",
+        )
+
+    assert attached.status is Status.CLOSED
+    assert attached.assignee == closed_before.assignee == "prior-owner"
+    assert attached.closed_at == closed_before.closed_at
+    assert attached.resolution == closed_before.resolution
+    assert attached.notes[-1].author == "replacement"
+    assert attached.notes[-1].text.startswith("CLOSED-BEAD LAUNCH:")
+    assert commit.call_args.args[1] == (
+        f"chore(beads): note closed-bead launch of {bead_id} for replacement"
+    )
+
+
 def test_claim_helper_commits_managed_store_and_rejects_active_reassignment(
     tmp_path: Path,
 ) -> None:

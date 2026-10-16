@@ -65,6 +65,15 @@ def launch_agents_from_cwd_impl(
             provider. Unexpected guard failures are logged and swallowed.
     """
 
+    from sase.agent.launch_submission import stamp_launch_submission
+
+    has_segment_env = segment_extra_env is not None
+    extra_env, segment_extra_env, _submitted_at = stamp_launch_submission(
+        extra_env, segment_extra_env
+    )
+    if not has_segment_env:
+        segment_extra_env = None
+
     from sase.history.prompt_store_mutations import effective_prompt_origin
 
     # Provenance resolves once here and the history writers gate on it, so a

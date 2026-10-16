@@ -608,6 +608,97 @@ def test_claim_for_agent_launch_attaches_only_when_close_predates_submission(
     assert len(unchanged.notes) == 1
 
 
+def test_future_allocated_launch_id_does_not_make_queued_close_attach(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.core.agent_launch_facade import reserve_launch_timestamp_batch
+
+    pytest.importorskip("sase_core_rs")
+    monkeypatch.setenv("HOME", str(tmp_path))
+    allocated = reserve_launch_timestamp_batch(
+        3,
+        base_timestamp="260101_120000",
+    )
+    assert allocated[2] == "260101_120002"
+
+    root = tmp_path / "queued-close"
+    _init_store(root)
+    bead, _ = rust_beads.create(
+        root / "sdd/beads",
+        title="Closed while queued",
+        issue_type=IssueType.PLAN,
+        now="2026-01-01T11:59:00Z",
+    )
+    closed, _ = rust_beads.close(
+        root / "sdd/beads",
+        [bead.id],
+        now="2026-01-01T12:00:01Z",
+    )
+    before = closed[0]
+
+    with pytest.raises(ValueError, match="closed_while_queued:"):
+        rust_beads.claim_for_agent_launch(
+            root / "sdd/beads",
+            bead.id,
+            "worker",
+            now="2026-01-01T12:00:03Z",
+            submitted_at="2026-01-01T12:00:00Z",
+            run_id=allocated[2],
+        )
+
+    with BeadProject(root) as project:
+        after = project.show(bead.id)
+    assert after.status is Status.CLOSED
+    assert after.closed_at == before.closed_at
+    assert after.resolution == before.resolution
+    assert after.close_reason == before.close_reason
+    assert after.close_history == before.close_history
+    assert after.notes == before.notes
+
+
+@pytest.mark.parametrize(
+    ("closed_at", "submitted_at"),
+    [
+        ("2026-01-01T12:00:00.100Z", "2026-01-01T12:00:00.900000Z"),
+        ("2026-01-01T12:00:00Z", "2026-01-01T12:00:00Z"),
+    ],
+    ids=["fractional-before-submission", "equal-times-attach"],
+)
+def test_fractional_and_equal_submission_timestamps_attach(
+    tmp_path: Path,
+    closed_at: str,
+    submitted_at: str,
+) -> None:
+    root = tmp_path / "timestamp-boundary"
+    _init_store(root)
+    bead, _ = rust_beads.create(
+        root / "sdd/beads",
+        title="Timestamp boundary",
+        issue_type=IssueType.PLAN,
+        now="2026-01-01T11:59:00Z",
+    )
+    closed, _ = rust_beads.close(
+        root / "sdd/beads",
+        [bead.id],
+        now=closed_at,
+    )
+
+    attached, _ = rust_beads.claim_for_agent_launch(
+        root / "sdd/beads",
+        bead.id,
+        "worker",
+        now="2026-01-01T12:00:02Z",
+        submitted_at=submitted_at,
+        run_id="260101_120002",
+    )
+
+    assert attached.status is Status.CLOSED
+    assert attached.closed_at == closed[0].closed_at == closed_at
+    assert len(attached.notes) == 1
+    assert attached.notes[0].author == "worker"
+
+
 def test_wait_claim_facade_claims_idempotently_and_releases(tmp_path: Path) -> None:
     root = tmp_path / "rust"
     _init_store(root)

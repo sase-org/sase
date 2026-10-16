@@ -69,6 +69,13 @@ def launch_planned_bead_work_agents(
     if not segments:
         return []
 
+    from sase.agent.launch_submission import stamp_launch_submission
+
+    _launch_env, stamped_segment_env, _submitted_at = stamp_launch_submission(
+        None, segment_extra_env
+    )
+    segment_extra_env = [env or {} for env in stamped_segment_env]
+
     from sase.history.prompt_store_mutations import effective_prompt_origin
 
     effective_origin: PromptOrigin | None = effective_prompt_origin(

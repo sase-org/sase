@@ -81,10 +81,22 @@ def execute_agent_restart(
     emit("name", "ok", f"released '{plan.presented_name}' for reuse")
 
     try:
+        from sase.env_contracts import SASE_LAUNCH_SUBMITTED_AT_ENV
+
+        restart_segment_envs = [
+            None
+            if env is None
+            else {
+                key: value
+                for key, value in env.items()
+                if key != SASE_LAUNCH_SUBMITTED_AT_ENV
+            }
+            for env in plan.force_reuse_plan.segment_envs
+        ]
         with contextlib.chdir(Path.home()):
             results = launch_agents_from_cwd(
                 plan.force_reuse_plan.rewritten_prompt,
-                segment_extra_env=plan.force_reuse_plan.segment_envs,
+                segment_extra_env=restart_segment_envs,
                 origin="generated",
             )
     except Exception as exc:

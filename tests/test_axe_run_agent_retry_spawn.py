@@ -485,6 +485,11 @@ class TestSpawnRetryAgentUsesSharedPrimitive:
             )
 
         monkeypatch.setattr("sase.agent.launcher.spawn_agent_subprocess", fake_spawn)
+        monkeypatch.setenv("SASE_LAUNCH_SUBMITTED_AT", "2026-10-16T11:59:00Z")
+        monkeypatch.setattr(
+            "sase.agent.launch_submission.capture_launch_submitted_at",
+            lambda: "2026-10-16T12:00:00.900000Z",
+        )
 
         result = spawn_retry_agent(
             ctx=ctx,
@@ -505,4 +510,7 @@ class TestSpawnRetryAgentUsesSharedPrimitive:
         assert captured["workflow_name"] == f"ace(run)-{captured['timestamp']}"
         assert captured["retry_transfer_from_pid"] == os.getpid()
         assert captured["extra_env"][ENV_RETRY_OF_TIMESTAMP] == ctx.artifacts_timestamp
+        assert captured["extra_env"]["SASE_LAUNCH_SUBMITTED_AT"] == (
+            "2026-10-16T12:00:00.900000Z"
+        )
         assert result["child_timestamp"] == captured["timestamp"]

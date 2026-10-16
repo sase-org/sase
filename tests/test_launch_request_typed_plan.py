@@ -11,6 +11,7 @@ from sase.agent.launch_admission import dispatch_typed_launch_request
 from sase.agent.launch_request import create_launch_approval_request
 from sase.agent.launch_request_response import dispatch_approved_launch_request
 from sase.agent.launch_types import AgentLaunchResult
+from sase.agent.launch_admission_runtime import dispatch_agent_unit
 from sase.core.agent_launch_facade import plan_typed_launch_units
 from sase.core.agent_launch_wire import agent_launch_wire_to_json_dict
 from tests._launch_admission_helpers import agent_result as _agent_result
@@ -23,12 +24,17 @@ def test_create_request_attaches_typed_plan(
     pytest.importorskip("sase_core_rs")
     monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
     monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(
+        "sase.agent.launch_submission.capture_launch_submitted_at",
+        lambda: "2026-10-16T12:00:00.900000Z",
+    )
     result = create_launch_approval_request(
         {"schema_version": 1, "prompt": "Do work", "reason": "cover flag on"}
     )
     written = json.loads(result.request_path.read_text(encoding="utf-8"))["payload"]
     assert written["typed_plan"]["units"][0]["payload"]["kind"] == "agent"
     assert written["plan_digest"] == written["typed_plan"]["content_digest"]
+    assert written["launch_submitted_at"] == "2026-10-16T12:00:00.900000Z"
     preview = result.preview_path.read_text(encoding="utf-8")
     assert "## Typed launch plan" in preview
     assert written["typed_plan"]["content_digest"][:12] in preview
@@ -50,10 +56,42 @@ def test_typed_plan_preview_renders_holds_section_for_a_held_unit(
     )
     written = json.loads(result.request_path.read_text(encoding="utf-8"))["payload"]
     assert written["typed_plan"]["units"][0]["payload"]["hold"]["pending"] is True
+    assert isinstance(written["launch_submitted_at"], str)
     preview = result.preview_path.read_text(encoding="utf-8")
     assert "## Holds" in preview
     assert "agent `" in preview
     assert "captures " in preview
+
+
+def test_admission_dispatch_forwards_request_submission_stamp(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    plan = plan_typed_launch_units("Do work", selected_project="sase")
+    unit = plan.units[0]
+    stamp = "2026-10-16T12:00:00.900000Z"
+    seen: dict[str, object] = {}
+
+    def fake_launch(
+        _prompt: str,
+        *,
+        extra_env: dict[str, str],
+        origin: object = None,
+    ) -> list[AgentLaunchResult]:
+        seen["extra_env"] = extra_env
+        seen["origin"] = origin
+        return [_agent_result(tmp_path)]
+
+    monkeypatch.setattr("sase.agent.launcher.launch_agents_from_cwd", fake_launch)
+
+    dispatched = dispatch_agent_unit(
+        unit,
+        "fingerprint",
+        launch_submitted_at=stamp,
+    )
+
+    assert dispatched[0] is True
+    assert seen["extra_env"]["SASE_LAUNCH_SUBMITTED_AT"] == stamp  # type: ignore[index]
 
 
 def test_old_request_without_typed_plan_uses_compat_dispatch(
@@ -75,15 +113,24 @@ def test_old_request_without_typed_plan_uses_compat_dispatch(
     )
     seen: dict[str, object] = {}
 
-    def fake_launch(prompt: str, origin: object = None) -> list[AgentLaunchResult]:
+    def fake_launch(
+        prompt: str,
+        *,
+        extra_env: dict[str, str],
+        origin: object = None,
+    ) -> list[AgentLaunchResult]:
         seen["prompt"] = prompt
         seen["cwd"] = Path.cwd()
+        seen["extra_env"] = extra_env
         return [_agent_result(tmp_path)]
 
     monkeypatch.setattr("sase.agent.launcher.launch_agents_from_cwd", fake_launch)
     result = dispatch_approved_launch_request(response_dir)
     assert seen["prompt"] == "Do work"
     assert seen["cwd"] == launch_cwd
+    assert seen["extra_env"]["SASE_LAUNCH_SUBMITTED_AT"] == (
+        "__legacy_no_submission_stamp__"
+    )
     assert result.launched_count == 1
     assert result.summary is None
 

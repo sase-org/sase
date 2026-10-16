@@ -88,6 +88,15 @@ def make_axe_chop_agent_dispatcher(
             unit=unit,
             request_id=request_id,
         )
+        launch_submitted_at = data.get("launch_submitted_at")
+        from sase.agent.launch_submission import LEGACY_NO_SUBMISSION_STAMP
+        from sase.env_contracts import SASE_LAUNCH_SUBMITTED_AT_ENV
+
+        extra_env[SASE_LAUNCH_SUBMITTED_AT_ENV] = (
+            launch_submitted_at
+            if isinstance(launch_submitted_at, str)
+            else LEGACY_NO_SUBMISSION_STAMP
+        )
         launch = launch_agents_from_cwd_fn
         if launch is None:
             from sase.agent import launcher as launcher_mod

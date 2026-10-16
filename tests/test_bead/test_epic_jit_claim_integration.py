@@ -277,10 +277,14 @@ def test_wait_claim_survives_publication_lag_and_holds_until_promotion(
 
 
 @pytest.mark.parametrize("target", ["phase", "epic"])
-def test_closed_rendered_bead_fails_before_model_callback(
+@pytest.mark.parametrize("submission", ["visible", "queued", "legacy"])
+def test_closed_rendered_bead_submission_matrix(
     project_dir: Path,
     target: str,
+    submission: str,
 ) -> None:
+    close_time = "2026-10-16T12:00:01Z"
+    attach_time = "2026-10-16T12:00:02Z"
     epic_id, phase_ids = seed_diamond(project_dir)
     with BeadProject(project_dir) as project:
         plan = build_epic_work_plan_from_beads_dir(project.beads_dir, epic_id)
@@ -296,7 +300,10 @@ def test_closed_rendered_bead_fails_before_model_callback(
     _, directives = extract_prompt_directives(segment)
     assert directives.name is not None
 
-    with BeadProject(project_dir) as project:
+    with (
+        patch("sase.bead.project._now", return_value=close_time),
+        BeadProject(project_dir) as project,
+    ):
         if target == "epic":
             project.close(
                 [target_id],
@@ -306,24 +313,93 @@ def test_closed_rendered_bead_fails_before_model_callback(
             )
         else:
             project.close([target_id])
+        closed_before = project.show(target_id)
     store = SddStore(
         storage="in_tree",
         sdd_dir=project_dir / "sdd",
         repo_root=project_dir,
     )
     model_callbacks: list[str] = []
+    submission_time = {
+        "visible": "2026-10-16T12:00:02Z",
+        "queued": "2026-10-16T12:00:00Z",
+        "legacy": None,
+    }[submission]
+    before_files = {
+        path.relative_to(store.kind_root("beads")): path.read_bytes()
+        for path in store.kind_root("beads").rglob("*")
+        if path.is_file() and path.suffix != ".db"
+    }
 
     with (
+        patch("sase.bead.project._now", return_value=attach_time),
         patch("sase.sdd.store.resolve_sdd_store", return_value=store),
-        pytest.raises(RuntimeError, match=rf"Failed to claim bead '{target_id}'"),
     ):
-        claim_bead_for_agent_launch(
-            agent_name=directives.name,
-            bead_id=target_id,
-            workspace_dir=str(project_dir),
-            workspace_num=0,
-            artifacts_dir=str(project_dir / "artifacts"),
-        )
-        model_callbacks.append(target_id)
+        if submission == "visible":
+            attached = claim_bead_for_agent_launch(
+                agent_name=directives.name,
+                bead_id=target_id,
+                workspace_dir=str(project_dir),
+                workspace_num=0,
+                artifacts_dir=str(project_dir / "artifacts"),
+                submitted_at=submission_time,
+                run_id="260101_120002",
+            )
+            assert attached.status is Status.CLOSED
+            assert attached.resolution is closed_before.resolution
+            assert attached.closed_at == closed_before.closed_at
+            assert attached.close_reason == closed_before.close_reason
+            assert len(attached.notes) == len(closed_before.notes) + 1
+            note = attached.notes[-1]
+            assert note.text.startswith("CLOSED-BEAD LAUNCH:")
+            assert note.author == directives.name
+            model_callbacks.append(target_id)
+        else:
+            error = (
+                "closed_while_queued:"
+                if submission == "queued"
+                else ("closed: cannot claim closed bead")
+            )
+            with pytest.raises(RuntimeError, match=error):
+                claim_bead_for_agent_launch(
+                    agent_name=directives.name,
+                    bead_id=target_id,
+                    workspace_dir=str(project_dir),
+                    workspace_num=0,
+                    artifacts_dir=str(project_dir / "artifacts"),
+                    submitted_at=submission_time,
+                    run_id="260101_120000",
+                )
+        if model_callbacks:
+            model_callbacks.append("model-ran")
 
-    assert model_callbacks == []
+    after_files = {
+        path.relative_to(store.kind_root("beads")): path.read_bytes()
+        for path in store.kind_root("beads").rglob("*")
+        if path.is_file() and path.suffix != ".db"
+    }
+    with BeadProject(project_dir) as project:
+        after = project.show(target_id)
+    assert (
+        after.status,
+        after.resolution,
+        after.close_reason,
+        after.closed_at,
+        after.close_history,
+    ) == (
+        closed_before.status,
+        closed_before.resolution,
+        closed_before.close_reason,
+        closed_before.closed_at,
+        closed_before.close_history,
+    )
+    if submission == "visible":
+        assert model_callbacks == [target_id, "model-ran"]
+        assert len(after.notes) == len(closed_before.notes) + 1
+        assert after.notes[-1].author == directives.name
+        assert after.notes[-1].text.startswith("CLOSED-BEAD LAUNCH:")
+        assert after_files != before_files
+    else:
+        assert model_callbacks == []
+        assert after.notes == closed_before.notes
+        assert after_files == before_files

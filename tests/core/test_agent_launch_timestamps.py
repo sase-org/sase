@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -13,7 +14,7 @@ from sase.core.agent_launch_facade import (
     reserve_launch_timestamp_batch,
     safe_launch_name,
 )
-from sase.core.time import launch_timestamp_to_utc_iso
+from sase.agent.launch_submission import capture_launch_submitted_at
 
 
 def test_allocate_launch_timestamp_batch_uses_rust_unique_seconds() -> None:
@@ -66,7 +67,7 @@ def test_safe_launch_name_matches_launch_path_contract() -> None:
     assert safe_launch_name("feature/test:1") == "feature_test_1"
 
 
-def test_launch_timestamp_to_utc_iso_uses_configured_timezone(
+def test_launch_submission_stamp_is_utc_and_preserves_fractional_precision(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
@@ -74,5 +75,41 @@ def test_launch_timestamp_to_utc_iso_uses_configured_timezone(
         lambda: ZoneInfo("America/New_York"),
     )
 
-    assert launch_timestamp_to_utc_iso("260616_120000") == "2026-06-16T16:00:00Z"
-    assert launch_timestamp_to_utc_iso("not-a-timestamp") is None
+    submitted = capture_launch_submitted_at(
+        now=datetime(
+            2026,
+            6,
+            16,
+            12,
+            0,
+            0,
+            900_000,
+            tzinfo=timezone(timedelta(hours=-5)),
+        )
+    )
+    assert submitted == "2026-06-16T17:00:00.900000Z"
+
+
+def test_launch_submission_fanout_uses_one_stamp_and_ignores_ambient_parent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.agent.launch_submission import stamp_launch_submission
+    from sase.env_contracts import SASE_LAUNCH_SUBMITTED_AT_ENV
+
+    monkeypatch.setenv(SASE_LAUNCH_SUBMITTED_AT_ENV, "2026-01-01T12:00:00Z")
+    monkeypatch.setattr(
+        "sase.agent.launch_submission.capture_launch_submitted_at",
+        lambda: "2026-01-01T12:00:00.900000Z",
+    )
+
+    base, segments, stamp = stamp_launch_submission(
+        None,
+        [{"slot": "one"}, {"slot": "two"}, {"slot": "three"}],
+    )
+
+    assert stamp == "2026-01-01T12:00:00.900000Z"
+    assert base[SASE_LAUNCH_SUBMITTED_AT_ENV] == stamp
+    assert all(
+        env is not None and env[SASE_LAUNCH_SUBMITTED_AT_ENV] == stamp
+        for env in segments
+    )

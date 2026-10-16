@@ -119,6 +119,27 @@ def test_internal_guard_failure_logs_and_launches(
     assert "failed open" in caplog.text
 
 
+def test_generic_cwd_launch_stamps_submission_before_executor_waits(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _isolated_cwd_launch(monkeypatch)
+    execution = MagicMock()
+    execution.results = [_launch_result()]
+    executor = MagicMock(return_value=execution)
+    monkeypatch.setattr("sase.agent.launch_executor.execute_launch_plan", executor)
+    monkeypatch.setattr(
+        "sase.agent.launch_submission.capture_launch_submitted_at",
+        lambda: "2026-10-16T12:00:00.900000Z",
+    )
+    from sase.agent.launcher import launch_agents_from_cwd
+
+    launch_agents_from_cwd("do work")
+
+    assert executor.call_args.kwargs["extra_env"]["SASE_LAUNCH_SUBMITTED_AT"] == (
+        "2026-10-16T12:00:00.900000Z"
+    )
+
+
 def test_launch_units_bundle_launches_exactly_those_units(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

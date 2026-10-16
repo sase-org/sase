@@ -86,6 +86,13 @@ def _remove_inherited_sase_plan_env(env: dict[str, str]) -> None:
     env.pop("SASE_PLAN", None)
 
 
+def _remove_inherited_launch_submission_env(env: dict[str, str]) -> None:
+    """Drop a parent's stamp unless this spawn carries its own request stamp."""
+    from sase.env_contracts import SASE_LAUNCH_SUBMITTED_AT_ENV
+
+    env.pop(SASE_LAUNCH_SUBMITTED_AT_ENV, None)
+
+
 def _remove_inherited_model_alias_overrides(
     env: dict[str, str],
     extra_env: dict[str, str] | None,
@@ -243,9 +250,17 @@ def spawn_agent_subprocess(
         RuntimeError: If workspace claiming/transfer fails (process is
             terminated before the error is raised).
     """
+    # A call that bypasses the higher-level/admission funnels is itself the
+    # launch ingress. Funnel callers already carry the earlier request stamp.
+    from sase.agent.launch_submission import capture_launch_submitted_at
+    from sase.env_contracts import SASE_LAUNCH_SUBMITTED_AT_ENV
+
+    extra_env = dict(extra_env or {})
+    if SASE_LAUNCH_SUBMITTED_AT_ENV not in extra_env:
+        extra_env[SASE_LAUNCH_SUBMITTED_AT_ENV] = capture_launch_submitted_at()
+
     # Provenance default: classifying funnels stamp explicit provenance
-    # into extra_env; every other spawn inherits a valid ambient stamp
-    # (retry continuations) or records generated (fail closed).
+    # into extra_env; every other spawn records generated (fail closed).
     from sase.agent.launch_provenance import fill_launch_provenance_default
 
     extra_env = fill_launch_provenance_default(extra_env)
@@ -385,6 +400,7 @@ def spawn_agent_subprocess(
         _remove_inherited_multi_agent_prompt_env(subprocess_env)
         _remove_inherited_swarm_macros_env(subprocess_env)
         _remove_inherited_sase_plan_env(subprocess_env)
+        _remove_inherited_launch_submission_env(subprocess_env)
         _remove_inherited_model_alias_overrides(subprocess_env, extra_env)
         _remove_inherited_linked_repo_env(subprocess_env)
         managed_scratch_env = _managed_agent_scratch_env(

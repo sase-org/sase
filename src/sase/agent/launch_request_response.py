@@ -174,7 +174,20 @@ def dispatch_approved_launch_request(
             return dispatch_typed_launch_request(response_dir, data)
         from sase.agent import launcher as launcher_mod
 
-        results = launcher_mod.launch_agents_from_cwd(prompt, origin="generated")
+        from sase.agent.launch_submission import LEGACY_NO_SUBMISSION_STAMP
+        from sase.env_contracts import SASE_LAUNCH_SUBMITTED_AT_ENV
+
+        stamp = data.get("launch_submitted_at")
+        extra_env = {
+            SASE_LAUNCH_SUBMITTED_AT_ENV: (
+                stamp if isinstance(stamp, str) else LEGACY_NO_SUBMISSION_STAMP
+            )
+        }
+        results = launcher_mod.launch_agents_from_cwd(
+            prompt,
+            extra_env=extra_env,
+            origin="generated",
+        )
     finally:
         os.chdir(original_cwd)
 

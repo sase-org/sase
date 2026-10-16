@@ -81,6 +81,9 @@ def create_launch_approval_request(
     source_surface: str | None = None,
 ) -> LaunchRequestCreationResult:
     """Build and durably register a neutral LaunchApproval gate."""
+    from sase.agent.launch_submission import capture_launch_submitted_at
+
+    launch_submitted_at = capture_launch_submitted_at()
     normalized = _normalize_request_payload(payload)
     source = source_surface or _default_source_surface()
     prompt = str(normalized["prompt"])
@@ -127,6 +130,7 @@ def create_launch_approval_request(
         "cwd": str(Path.cwd()),
         "prompt": prompt,
     }
+    request["launch_submitted_at"] = launch_submitted_at
     typed_plan = _typed_plan_payload(prompt)
     if typed_plan is not None:
         request["typed_plan"] = typed_plan

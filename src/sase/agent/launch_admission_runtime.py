@@ -103,6 +103,7 @@ def dispatch_agent_unit(
     selected_project: str | None = None,
     source_cwd: str | None = None,
     request_id: str | None = None,
+    launch_submitted_at: str | None = None,
 ) -> DispatchResultWithExtra:
     """Dispatch one eligible agent through the established launch path."""
 
@@ -113,6 +114,15 @@ def dispatch_agent_unit(
         "SASE_LAUNCH_DISPATCH_FINGERPRINT": fingerprint,
         "SASE_LAUNCH_LOGICAL_ID": unit.logical_id,
     }
+    if launch_submitted_at is not None:
+        from sase.env_contracts import SASE_LAUNCH_SUBMITTED_AT_ENV
+
+        extra_env[SASE_LAUNCH_SUBMITTED_AT_ENV] = launch_submitted_at
+    else:
+        from sase.agent.launch_submission import LEGACY_NO_SUBMISSION_STAMP
+        from sase.env_contracts import SASE_LAUNCH_SUBMITTED_AT_ENV
+
+        extra_env[SASE_LAUNCH_SUBMITTED_AT_ENV] = LEGACY_NO_SUBMISSION_STAMP
     from sase.agent.launch_hold import (
         LAUNCH_HOLD_RELEASE_REASON,
         launch_hold_dispatch_env,
@@ -159,6 +169,11 @@ def make_approved_agent_dispatcher(
     selected = data.get("selected_project")
     selected_project = str(selected) if isinstance(selected, str) else None
     request_id = str(data.get("request_id") or "") or None
+    launch_submitted_at = data.get("launch_submitted_at")
+    if not isinstance(launch_submitted_at, str):
+        from sase.agent.launch_submission import LEGACY_NO_SUBMISSION_STAMP
+
+        launch_submitted_at = LEGACY_NO_SUBMISSION_STAMP
     dispatch = data.get("dispatch")
     source_cwd = None
     if isinstance(dispatch, Mapping) and dispatch.get("cwd"):
@@ -174,6 +189,7 @@ def make_approved_agent_dispatcher(
             selected_project=selected_project,
             source_cwd=source_cwd,
             request_id=request_id,
+            launch_submitted_at=launch_submitted_at,
         )
 
     return _dispatch
