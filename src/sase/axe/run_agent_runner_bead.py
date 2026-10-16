@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from sase.bead.model import Issue
+from sase.bead.model import Issue, Status
 
 if TYPE_CHECKING:
     from sase.sdd.store import SddStore
@@ -48,6 +48,8 @@ def claim_bead_for_agent_launch(
     workspace_num: int,
     artifacts_dir: str,
     force_reuse_prior_owner: str | None = None,
+    submitted_at: str | None = None,
+    run_id: str | None = None,
 ) -> Issue:
     """Claim *bead_id* after launch preparation and persist the mutation."""
     try:
@@ -93,7 +95,12 @@ def claim_bead_for_agent_launch(
                                 f"bead '{bead_id}' is already in_progress and "
                                 f"assigned to '{current_issue.assignee}'"
                             )
-                        claimed = project.claim_for_agent_launch(bead_id, agent_name)
+                        claimed = project.claim_for_agent_launch(
+                            bead_id,
+                            agent_name,
+                            submitted_at=submitted_at,
+                            run_id=run_id,
+                        )
                         mutated = project.mutation_changed
 
                 # In-tree bead mutations remain ordinary workspace edits that
@@ -105,7 +112,12 @@ def claim_bead_for_agent_launch(
 
                     committed = commit_sdd_store_files(
                         store,
-                        f"chore(beads): claim {bead_id} for {agent_name}",
+                        (
+                            f"chore(beads): note closed-bead launch of {bead_id} "
+                            f"for {agent_name}"
+                            if claimed.status is Status.CLOSED
+                            else f"chore(beads): claim {bead_id} for {agent_name}"
+                        ),
                         auto_commit_type="beads",
                         paths=[beads_dir],
                         push_after_commit=False,
@@ -143,6 +155,25 @@ def claim_bead_for_agent_launch(
         ) from exc
 
 
+def closed_bead_launch_notice(issue: Issue) -> str:
+    """Explain the runner's closed-bead attachment before the agent prompt."""
+    resolution = issue.resolution.value if issue.resolution is not None else "unknown"
+    closed_at = issue.closed_at or "unknown"
+    return (
+        f"Host notice: bead `{issue.id}` was already closed ({resolution}, "
+        f"{closed_at}) when this run started. This run is attached to it without "
+        "reopening it, and a `CLOSED-BEAD LAUNCH:` note on the bead records the "
+        "relaunch. First check whether the earlier work already landed "
+        f"(`git log --grep {issue.id}` and the bead's notes via `sase bead read "
+        f"{issue.id}`). If it did, verify it and finish without redoing it; closing "
+        f"the bead again is a safe no-op. If the work is genuinely unfinished, run "
+        f"`sase bead open {issue.id}` first and close it yourself with `sase bead "
+        f'close {issue.id} --note "<what you verified>"` when done (the finalizer '
+        "will not close a reopened `open` bead). If the resolution is `canceled` or "
+        "`superseded`, do not redo the work unless this prompt explicitly asks for it."
+    )
+
+
 def _schedule_launch_claim_convergence(workspace_dir: str) -> None:
     """Hint primary-sidecar sync after a published launch claim."""
 
@@ -161,4 +192,4 @@ def _schedule_launch_claim_convergence(workspace_dir: str) -> None:
         schedule_beads_sidecar_convergence(project)
 
 
-__all__ = ["claim_bead_for_agent_launch"]
+__all__ = ["claim_bead_for_agent_launch", "closed_bead_launch_notice"]

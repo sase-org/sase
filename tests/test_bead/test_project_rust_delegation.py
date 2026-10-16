@@ -85,6 +85,8 @@ def test_bead_project_claim_for_agent_launch_delegates_and_refreshes(
             agent_name: str,
             *,
             now: str | None = None,
+            submitted_at: str | None = None,
+            run_id: str | None = None,
         ) -> tuple[Issue, dict[str, Any]]:
             calls.append(
                 {
@@ -92,6 +94,8 @@ def test_bead_project_claim_for_agent_launch_delegates_and_refreshes(
                     "bead_id": bead_id,
                     "agent_name": agent_name,
                     "now": now,
+                    "submitted_at": submitted_at,
+                    "run_id": run_id,
                 }
             )
             return expected, {"operation": "claim_for_agent_launch"}
@@ -111,6 +115,8 @@ def test_bead_project_claim_for_agent_launch_delegates_and_refreshes(
                 "bead_id": "delegated-1",
                 "agent_name": "agent-1",
                 "now": "2026-01-01T00:00:00Z",
+                "submitted_at": None,
+                "run_id": None,
             }
         ]
         assert refreshes == [True]

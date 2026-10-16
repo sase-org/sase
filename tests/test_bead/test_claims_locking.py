@@ -114,8 +114,17 @@ def test_launch_claim_holds_store_lock_from_materialization_through_commit(
         self: BeadProject,
         claimed_bead_id: str,
         agent_name: str,
+        *,
+        submitted_at: str | None = None,
+        run_id: str | None = None,
     ) -> object:
-        result = original_claim(self, claimed_bead_id, agent_name)
+        result = original_claim(
+            self,
+            claimed_bead_id,
+            agent_name,
+            submitted_at=submitted_at,
+            run_id=run_id,
+        )
         materialized.set()
         assert allow_commit.wait(2.0)
         return result

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -12,6 +13,7 @@ from sase.core.agent_launch_facade import (
     reserve_launch_timestamp_batch,
     safe_launch_name,
 )
+from sase.core.time import launch_timestamp_to_utc_iso
 
 
 def test_allocate_launch_timestamp_batch_uses_rust_unique_seconds() -> None:
@@ -62,3 +64,15 @@ def test_launch_timestamp_allocator_tracks_previous_batch(
 
 def test_safe_launch_name_matches_launch_path_contract() -> None:
     assert safe_launch_name("feature/test:1") == "feature_test_1"
+
+
+def test_launch_timestamp_to_utc_iso_uses_configured_timezone(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "sase.core.time.get_timezone",
+        lambda: ZoneInfo("America/New_York"),
+    )
+
+    assert launch_timestamp_to_utc_iso("260616_120000") == "2026-06-16T16:00:00Z"
+    assert launch_timestamp_to_utc_iso("not-a-timestamp") is None

@@ -557,6 +557,57 @@ def test_claim_for_agent_launch_maps_missing_and_preserves_specific_failures(
         rust_beads.claim_for_agent_launch(root / "sdd/beads", epic.id, "  ")
 
 
+def test_claim_for_agent_launch_attaches_only_when_close_predates_submission(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "rust"
+    _init_store(root)
+    bead, _ = rust_beads.create(
+        root / "sdd/beads",
+        title="Closed before launch",
+        issue_type=IssueType.PLAN,
+        now="2026-01-01T00:00:00Z",
+    )
+    closed, _ = rust_beads.close(
+        root / "sdd/beads",
+        [bead.id],
+        now="2026-01-01T00:01:00Z",
+    )
+
+    attached, outcome = rust_beads.claim_for_agent_launch(
+        root / "sdd/beads",
+        bead.id,
+        "agent-1",
+        now="2026-01-01T00:03:00Z",
+        submitted_at="2026-01-01T00:02:00Z",
+        run_id="260101_000200",
+    )
+
+    assert attached.status is Status.CLOSED
+    assert attached.closed_at == closed[0].closed_at
+    assert attached.resolution == closed[0].resolution
+    assert len(attached.notes) == 1
+    assert attached.notes[0].author == "agent-1"
+    assert attached.notes[0].timestamp == "2026-01-01T00:03:00Z"
+    assert attached.notes[0].text.startswith("CLOSED-BEAD LAUNCH:")
+    assert outcome["changed"] is True
+    assert outcome["noted_ids"] == [bead.id]
+
+    with pytest.raises(ValueError, match="closed_while_queued:"):
+        rust_beads.claim_for_agent_launch(
+            root / "sdd/beads",
+            bead.id,
+            "agent-2",
+            now="2026-01-01T00:04:00Z",
+            submitted_at="2026-01-01T00:00:30Z",
+            run_id="260101_000030",
+        )
+    with BeadProject(root) as project:
+        unchanged = project.show(bead.id)
+    assert unchanged.status is Status.CLOSED
+    assert len(unchanged.notes) == 1
+
+
 def test_wait_claim_facade_claims_idempotently_and_releases(tmp_path: Path) -> None:
     root = tmp_path / "rust"
     _init_store(root)

@@ -93,6 +93,40 @@ def test_claim_helper_claims_in_tree_store_and_export_reflects_claim(
     publish.assert_not_called()
 
 
+def test_claim_helper_records_closed_launch_with_distinct_commit_subject(
+    tmp_path: Path,
+) -> None:
+    sdd_dir = tmp_path / ".sase/sdd"
+    bead_id = _seed_store(sdd_dir, beads_dirname="beads")
+    with BeadProject(sdd_dir, beads_dirname="beads") as project:
+        project.close([bead_id], reason="done")
+    store = SddStore(storage="local", sdd_dir=sdd_dir, repo_root=sdd_dir)
+    commit = MagicMock(return_value=True)
+    publish = MagicMock()
+
+    with (
+        patch("sase.sdd.store.resolve_sdd_store", return_value=store),
+        patch("sase.sdd.files.commit_sdd_store_files", commit),
+        patch("sase.bead.sync.publish_bead_claim", publish),
+    ):
+        issue = claim_bead_for_agent_launch(
+            agent_name="worker",
+            bead_id=bead_id,
+            workspace_dir=str(tmp_path),
+            workspace_num=2,
+            artifacts_dir=str(tmp_path / "artifacts"),
+            submitted_at="2999-01-01T00:00:00Z",
+            run_id="260101_000200",
+        )
+
+    assert issue.status is Status.CLOSED
+    assert issue.notes[-1].text.startswith("CLOSED-BEAD LAUNCH:")
+    assert commit.call_args.args[1] == (
+        f"chore(beads): note closed-bead launch of {bead_id} for worker"
+    )
+    publish.assert_called_once_with(sdd_dir / "beads", bead_id, "worker")
+
+
 def test_claim_helper_commits_managed_store_and_rejects_active_reassignment(
     tmp_path: Path,
 ) -> None:
@@ -443,7 +477,13 @@ def test_claim_helper_retries_missing_issue_after_fresh_ensure(
             raise KeyError(f"Issue not found: {bead_id}")
         return MagicMock()
 
-    def claim(bead_id: str, agent_name: str) -> MagicMock:
+    def claim(
+        bead_id: str,
+        agent_name: str,
+        *,
+        submitted_at: str | None = None,
+        run_id: str | None = None,
+    ) -> MagicMock:
         events.append("claim")
         return expected_issue
 

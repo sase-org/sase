@@ -27,7 +27,10 @@ from sase.axe.run_agent_phases import (
     resolve_agent_refs_in_prompt,
     resolve_wait_chat_paths,
 )
-from sase.axe.run_agent_runner_bead import claim_bead_for_agent_launch
+from sase.axe.run_agent_runner_bead import (
+    claim_bead_for_agent_launch,
+    closed_bead_launch_notice,
+)
 from sase.axe.run_agent_runner_bootstrap import RunnerBootstrap
 from sase.axe.run_agent_runner_finalize import classify_exec_success
 from sase.axe.runner_workspace import WorkspacePreparationError
@@ -44,6 +47,7 @@ from sase.axe.run_agent_runner_setup import (
 from sase.axe.run_agent_runner_state import RunnerRunState
 from sase.axe.source_skew import preload_post_gate_modules
 from sase.bead.claims import clear_bead_claim_marker
+from sase.core.time import launch_timestamp_to_utc_iso
 from sase.dev_update.code_swap_lock import code_swap_advisory_reader_lock
 from sase.history.multi_agent_prompt import MULTI_AGENT_PROMPT_FILE_ENV
 from sase.sdd.store import SddTransientMaterializationError
@@ -218,23 +222,38 @@ def _promote_bead_claim(
         raise RuntimeError(
             f"Cannot claim bead '{bead_id}' without a resolved agent name"
         )
+    submitted_at = launch_timestamp_to_utc_iso(state.timestamp)
+    run_id = state.artifacts_timestamp
     if bootstrap.force_reuse_bead_association is None:
-        claim_bead_for_agent_launch(
+        issue = claim_bead_for_agent_launch(
             agent_name=state.agent_name,
             bead_id=bead_id,
             workspace_dir=state.workspace_dir,
             workspace_num=state.workspace_num,
             artifacts_dir=state.artifacts_dir,
+            submitted_at=submitted_at,
+            run_id=run_id,
         )
     else:
-        claim_bead_for_agent_launch(
+        issue = claim_bead_for_agent_launch(
             agent_name=state.agent_name,
             bead_id=bead_id,
             workspace_dir=state.workspace_dir,
             workspace_num=state.workspace_num,
             artifacts_dir=state.artifacts_dir,
             force_reuse_prior_owner=(bootstrap.force_reuse_bead_association.owner_name),
+            submitted_at=submitted_at,
+            run_id=run_id,
         )
+    if issue.status.value == "closed":
+        bootstrap.agent_meta["bead_launch_disposition"] = "closed_attached"
+        bootstrap.agent_meta["bead_launch_prior_closed_at"] = issue.closed_at
+        bootstrap.agent_meta["bead_launch_prior_resolution"] = (
+            issue.resolution.value if issue.resolution is not None else None
+        )
+        notice = closed_bead_launch_notice(issue)
+        if not state.prompt.startswith(notice):
+            state.prompt = f"{notice}\n\n{state.prompt}"
     bootstrap.agent_meta["bead_claim_promoted"] = True
     # The bead-claim promotion must not resurrect auto state an ``A``
     # toggle already stripped from disk.

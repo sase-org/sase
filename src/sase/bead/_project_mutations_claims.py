@@ -24,13 +24,30 @@ class BeadProjectMutationClaimsMixin:
 
         def resolve_id(self, issue_id: str) -> str: ...
 
-    def claim_for_agent_launch(self, bead_id: str, agent_name: str) -> Issue:
-        """Atomically claim one non-closed bead for an agent launch."""
-        issue, _changed = self.claim_for_agent_launch_outcome(bead_id, agent_name)
+    def claim_for_agent_launch(
+        self,
+        bead_id: str,
+        agent_name: str,
+        *,
+        submitted_at: str | None = None,
+        run_id: str | None = None,
+    ) -> Issue:
+        """Atomically claim a bead or attach to one closed before launch submission."""
+        issue, _changed = self.claim_for_agent_launch_outcome(
+            bead_id,
+            agent_name,
+            submitted_at=submitted_at,
+            run_id=run_id,
+        )
         return issue
 
     def claim_for_agent_launch_outcome(
-        self, bead_id: str, agent_name: str
+        self,
+        bead_id: str,
+        agent_name: str,
+        *,
+        submitted_at: str | None = None,
+        run_id: str | None = None,
     ) -> tuple[Issue, bool]:
         """Claim for launch and return whether core persisted a transition."""
         from sase.core import bead_mutation_facade as rust_beads
@@ -41,6 +58,8 @@ class BeadProjectMutationClaimsMixin:
             bead_id,
             agent_name,
             now=self._current_time(),
+            submitted_at=submitted_at,
+            run_id=run_id,
         )
         self._record_mutation_outcome(outcome)
         self._refresh_db_from_jsonl()

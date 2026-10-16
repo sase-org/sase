@@ -18,6 +18,7 @@ from sase.axe import (
 )
 from sase.agent.force_reuse_bead import SASE_AGENT_FORCE_REUSE_BEAD_ENV
 from sase.bead.claims import BEAD_CLAIM_MARKER
+from sase.bead.model import Status
 
 
 def _runner_args(tmp_path: Path) -> SimpleNamespace:
@@ -270,7 +271,10 @@ def _run_runner_with_wait_result(
             patch.object(
                 run_agent_runner_launch,
                 "claim_bead_for_agent_launch",
-                side_effect=lambda **_kwargs: lifecycle_events.append("promote"),
+                side_effect=lambda **_kwargs: (
+                    lifecycle_events.append("promote")
+                    or SimpleNamespace(status=Status.IN_PROGRESS)
+                ),
             )
         )
 

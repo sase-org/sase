@@ -12,6 +12,7 @@ from sase.axe.clan_summary_script import (
     POST_WORKSPACE_PREPARATION_ATTEMPT_LABEL,
 )
 from sase.axe.run_agent_phases import ClanSummaryResolutionRequest
+from sase.bead.model import Status
 from sase.linked_repos import LinkedRepoResolution, _ResolvedLinkedRepo
 
 from tests._axe_run_agent_runner_retry_helpers import (
@@ -194,7 +195,7 @@ class TestDeferredWorkspaceFlow:
             assert kwargs["attempt_label"] == POST_WORKSPACE_PREPARATION_ATTEMPT_LABEL
             events.append("summary")
 
-        def claim_bead(**kwargs: Any) -> None:
+        def claim_bead(**kwargs: Any) -> SimpleNamespace:
             assert_run_started_at()
             assert kwargs == {
                 "agent_name": "test-agent",
@@ -202,8 +203,11 @@ class TestDeferredWorkspaceFlow:
                 "workspace_dir": str(real_ws),
                 "workspace_num": 3,
                 "artifacts_dir": artifacts_dir,
+                "submitted_at": None,
+                "run_id": "20260316_120000",
             }
             events.append("claim-bead")
+            return SimpleNamespace(status=Status.IN_PROGRESS)
 
         def capture_sdd(workspace_dir: str, workspace_num: int) -> None:
             assert workspace_dir == str(real_ws)

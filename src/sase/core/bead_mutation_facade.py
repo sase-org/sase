@@ -254,6 +254,8 @@ def claim_for_agent_launch(
     agent_name: str,
     *,
     now: str | None = None,
+    submitted_at: str | None = None,
+    run_id: str | None = None,
 ) -> tuple[Issue, dict[str, Any]]:
     _guard_bead_store_write(beads_dir, "claim_for_agent_launch")
     binding = require_rust_binding("bead_claim_for_agent_launch")
@@ -263,6 +265,8 @@ def claim_for_agent_launch(
         bead_id,
         agent_name,
         now,
+        submitted_at,
+        run_id,
     )
     return _issue_payload(payload), payload
 
