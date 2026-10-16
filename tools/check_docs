@@ -5,21 +5,22 @@ Rules (see ``docs/contribute/writing-docs.md`` for the human version):
 
 1. Typing: a page outside the root ``index.md``, the six typed directories
    (``start/``, ``guides/``, ``concepts/``, ``reference/``, ``contribute/``,
-   ``blog/``), generated stubs, and the legacy allowlist fails. New root
-   pages fail.
+   ``blog/``), and generated stubs fails. New root pages fail.
 2. Frontmatter: typed pages need ``title`` and a one-line ``description``
    (<= 160 chars, except ``blog/`` which needs presence only). Unknown keys
    fail. ``covers:`` is allowed only under ``reference/``.
-3. Budgets: per-directory caps from the contract table; legacy ceilings live
-   in ``docs/_meta/budgets.yml``. ``--fix`` lowers a ceiling when a page
+3. Budgets: per-directory caps from the contract table; optional page ceilings
+   live in ``docs/_meta/budgets.yml``. ``--fix`` lowers a ceiling when a page
    shrinks and never raises one. Generated whole-file pages and
    ``BEGIN GENERATED`` blocks don't count.
 4. Guide hygiene (``start/``, ``guides/``, ``concepts/`` only): no bead IDs,
    ``src/`` paths, epic/phase labels, or history phrases.
-5. No test pins Guide prose: a test may not read files under ``docs/start/``,
+5. Reference hygiene: hand-written ``reference/`` pages contain no bead IDs
+   or epic/phase labels. Generated pages and blocks are exempt.
+6. No test pins Guide prose: a test may not read files under ``docs/start/``,
    ``docs/guides/``, or ``docs/concepts/``. The only exceptions are the
    tutorial runner and this checker's own tests.
-6. Portability: no ``hooks:`` key and no plugin outside the allowlist in
+7. Portability: no ``hooks:`` key and no plugin outside the allowlist in
    ``mkdocs*.yml``.
 
 Words are counted outside frontmatter, fenced code, HTML comments, and
@@ -136,6 +137,22 @@ HYGIENE_PATTERNS = (
         "Guide pages must not carry history phrases ({hit}). "
         "History goes to the CHANGELOG, decision records, and "
         "reference/upgrading.md.",
+    ),
+)
+
+REFERENCE_HYGIENE_PATTERNS = (
+    (
+        "bead-id",
+        re.compile(r"\bsase-[0-9][A-Za-z0-9]*(?:\.[A-Za-z0-9-]+)*\b"),
+        "Hand-written Reference pages must not name bead IDs ({hit}).",
+    ),
+    (
+        "phase-label",
+        re.compile(
+            r"\b(?:E\d+|(?:epic|phase)\s+sase-[A-Za-z0-9][A-Za-z0-9.-]*)\b",
+            re.IGNORECASE,
+        ),
+        "Hand-written Reference pages must not name epic or phase labels ({hit}).",
     ),
 )
 
@@ -433,6 +450,27 @@ def check_hygiene(rel: str, text: str) -> list[Finding]:
     return findings
 
 
+def check_reference_hygiene(rel: str, text: str) -> list[Finding]:
+    """Rule 5: hand-written Reference pages omit bead and epic/phase labels."""
+    _, body = _parse_frontmatter(text)
+    body = FENCED_CODE_RE.sub("", body)
+    body = GENERATED_BLOCK_RE.sub("", body)
+    body = HTML_COMMENT_RE.sub("", body)
+    body = INLINE_CODE_RE.sub("", body)
+    findings: list[Finding] = []
+    for lineno, line in enumerate(body.splitlines(), start=1):
+        for _kind, pattern, template in REFERENCE_HYGIENE_PATTERNS:
+            match = pattern.search(line)
+            if match:
+                findings.append(
+                    Finding(
+                        "error",
+                        f"{rel}:{lineno}: " + template.format(hit=match.group(0)),
+                    )
+                )
+    return findings
+
+
 def find_test_pins(tests_dir: Path) -> list[Finding]:
     """Rule 5: no test pins Guide prose (except the tutorial runner)."""
     findings: list[Finding] = []
@@ -511,7 +549,7 @@ def check_portability(mkdocs_paths: tuple[Path, ...]) -> list[Finding]:
 
 
 def load_budgets(budgets_path: Path) -> dict[str, int]:
-    """Read legacy ceilings from ``budgets.yml`` (missing file: empty)."""
+    """Read per-page word ceilings from ``budgets.yml`` (missing file: empty)."""
     config = _load_tolerant_yaml(budgets_path)
     ceilings = config.get("ceilings", {})
     if not isinstance(ceilings, dict):
@@ -539,7 +577,7 @@ def build_context(
     mkdocs_paths: tuple[Path, ...],
     tests_dir: Path,
 ) -> CheckContext:
-    """Assemble the allowlist and exclusion inputs for ``check_tree``."""
+    """Assemble page-ceiling and exclusion inputs for ``check_tree``."""
     ceilings = load_budgets(budgets_path)
     globs: list[str] = []
     for path in mkdocs_paths:
@@ -605,6 +643,8 @@ def check_tree(ctx: CheckContext) -> list[Finding]:
         )
         if tier in GUIDE_DIRS:
             findings.extend(check_hygiene(rel, text))
+        elif tier == "reference":
+            findings.extend(check_reference_hygiene(rel, text))
     for tier, (_page_cap, tier_cap, _severity) in PAGE_BUDGETS.items():
         if tier_cap is not None and tier_totals.get(tier, 0) > tier_cap:
             findings.append(
@@ -641,13 +681,13 @@ def ratchet_ceilings(ctx: CheckContext) -> list[str]:
             changed.append(f"{rel}: {ceilings[rel]}")
     if changed:
         lines = [
-            "# Legacy per-page word ceilings for the docs contract.",
+            "# Optional per-page word ceilings for the docs contract.",
             "#",
             "# `tools/check_docs` fails a page that grows past its ceiling.",
             "# `tools/check_docs --fix` (via `just fix`) lowers a ceiling when",
-            "# a page shrinks and never raises one. Ceilings only shrink; the",
-            "# decompose phase empties this allowlist at the epic end.",
-            "ceilings:",
+            "# a page shrinks and never raises one. Missing pages and generated",
+            "# stubs are removed from this list.",
+            "ceilings:" if ceilings else "ceilings: {}",
         ]
         lines.extend(f"  {rel}: {ceilings[rel]}" for rel in sorted(ceilings))
         ctx.budgets_path.parent.mkdir(parents=True, exist_ok=True)
@@ -661,7 +701,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--fix",
         action="store_true",
-        help="lower legacy ceilings that shrank; never raise one",
+        help="lower page ceilings that shrank; never raise one",
     )
     args = parser.parse_args(argv)
     ctx = build_context(

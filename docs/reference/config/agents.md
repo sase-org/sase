@@ -1,7 +1,6 @@
 ---
 title: Agents and runners configuration
 description: Agent launch, completion, capacity, restart, and process-scope settings.
-covers: config
 ---
 
 <!-- generated, do not edit; source: src/sase/config/sase.schema.json and src/sase/default_config.yml (tools/render_config; run just fix to regenerate) -->

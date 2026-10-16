@@ -23,9 +23,8 @@ where it sits declares it:
   process.
 - `blog/` — Dated essays. Drafts stay out of the public site.
 
-Legacy root pages predate the split and are allowlisted with shrinking word ceilings.
-New root pages fail the lint. Never bulk-reflow a legacy page: new Guide content goes in
-new files.
+Only the homepage and generated compatibility stubs live directly under `docs/`. New
+authored pages belong in a typed directory; root content pages fail the lint.
 
 ## The placement test
 
@@ -67,20 +66,18 @@ frontmatter keys fail the lint; `covers:` is allowed only under `reference/`.
 
 Words are counted outside frontmatter, fenced code, HTML comments, and generated blocks:
 
-| Tier                        | Per-page words                     | Tier total |
-| --------------------------- | ---------------------------------- | ---------- |
-| `start/`                    | ≤ 2,500                            | ≤ 10K      |
-| `guides/`                   | target ≤ 1,500, hard ≤ 2,500       | —          |
-| `concepts/`                 | ≤ 3,000                            | ≤ 25K      |
-| Hubs (`*/index.md`)         | ≤ 400                              | —          |
-| `reference/` (hand-written) | ≤ 6,000                            | —          |
-| `contribute/`               | ≤ 8,000 (warning only)             | —          |
-| Legacy root pages           | ceiling = size at lint landing +1% | —          |
+| Tier                        | Per-page words               | Tier total |
+| --------------------------- | ---------------------------- | ---------- |
+| `start/`                    | ≤ 2,500                      | ≤ 10K      |
+| `guides/`                   | target ≤ 1,500, hard ≤ 2,500 | —          |
+| `concepts/`                 | ≤ 3,000                      | ≤ 25K      |
+| Hubs (`*/index.md`)         | ≤ 400                        | —          |
+| `reference/` (hand-written) | ≤ 6,000                      | —          |
+| `contribute/`               | ≤ 8,000 (warning only)       | —          |
 
-Generated pages and blocks are exempt. Legacy ceilings live in `docs/_meta/budgets.yml`
-and only shrink: `just fix` lowers a ceiling when its page shrinks and never raises one.
+Generated pages and blocks are exempt. `docs/_meta/budgets.yml` has no page ceilings.
 Propose a split instead of growing an over-budget page; Guide pages take facts by
-linking the Reference, never by restating it.
+linking the Reference, never by restating them.
 
 ## Guide hygiene
 
@@ -92,7 +89,11 @@ forbidden there:
 - epic or phase labels such as "E3";
 - history phrases ("formerly", "no longer", "legacy", "renamed", "still mentions").
 
-History goes to the CHANGELOG, decision records, and `reference/upgrading.md`.
+History goes to the CHANGELOG, decision records, and `reference/upgrading/index.md`.
+
+Hand-written `reference/` pages must not contain bead IDs or epic or phase labels.
+Generated pages and generated blocks are exempt. History phrases remain allowed in the
+Reference; put migration history in `reference/upgrading/`.
 
 ## Tests and portability
 
@@ -135,7 +136,7 @@ Match the change to its row before writing:
   design-decisions page.
 - **Internals, contracts, or runbooks:** `contribute/`.
 
-Legacy pages may not grow, whatever the row says.
+Pages stay within their tier's budget, whatever the row says.
 
 ## Link compatibility
 

@@ -6,7 +6,7 @@ pdf: false
 
 ## Target
 
-- Document: `docs/architecture.md` / `docs/index.md`
+- Document: `docs/contribute/architecture.md` / `docs/index.md`
 - Image: `docs/images/sase-telegram-integration.png`
 - Alt text: "SASE Telegram integration showing outbound notifications, inbound callbacks
   and commands, bridge files, shared Telegram state, and the separate sase-telegram

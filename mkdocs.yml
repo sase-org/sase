@@ -134,72 +134,76 @@ nav:
       - CLI:
           - CLI command groups: reference/cli/index.md
           - CLI behavior notes: reference/cli-notes.md
-          - sase agent: reference/cli/agent.md
-          - sase agent-cli: reference/cli/agent-cli.md
-          - sase artifact: reference/cli/artifact.md
-          - sase autonomy: reference/cli/autonomy.md
-          - sase axe: reference/cli/axe.md
-          - sase bead: reference/cli/bead.md
-          - sase chat: reference/cli/chat.md
-          - sase comments: reference/cli/comments.md
-          - sase completion: reference/cli/completion.md
-          - sase config: reference/cli/config.md
-          - sase core: reference/cli/core.md
-          - sase disk: reference/cli/disk.md
-          - sase doctor: reference/cli/doctor.md
-          - sase editor: reference/cli/editor.md
-          - sase file: reference/cli/file.md
-          - sase file-history: reference/cli/file-history.md
-          - sase file-hook: reference/cli/file-hook.md
-          - sase final: reference/cli/final.md
-          - sase flag: reference/cli/flag.md
-          - sase gate: reference/cli/gate.md
-          - sase goal: reference/cli/goal.md
-          - sase init: reference/cli/init.md
-          - sase instructions: reference/cli/instructions.md
-          - sase launch: reference/cli/launch.md
-          - sase logs: reference/cli/logs.md
-          - sase lsp: reference/cli/lsp.md
-          - sase machine: reference/cli/machine.md
-          - sase macro: reference/cli/macro.md
-          - sase memory: reference/cli/memory.md
-          - sase migrate: reference/cli/migrate.md
-          - sase mobile: reference/cli/mobile.md
-          - sase monitor: reference/cli/monitor.md
-          - sase notify: reference/cli/notify.md
-          - sase pager: reference/cli/pager.md
-          - sase patch: reference/cli/patch.md
-          - sase path: reference/cli/path.md
-          - sase pipe: reference/cli/pipe.md
-          - sase plan: reference/cli/plan.md
-          - sase plugin: reference/cli/plugin.md
-          - sase proc: reference/cli/proc.md
-          - sase project: reference/cli/project.md
-          - sase prompt: reference/cli/prompt.md
-          - sase questions: reference/cli/questions.md
-          - sase repo: reference/cli/repo.md
-          - sase repro: reference/cli/repro.md
-          - sase restore: reference/cli/restore.md
-          - sase revert: reference/cli/revert.md
-          - sase revive-log: reference/cli/revive-log.md
-          - sase run: reference/cli/run.md
-          - sase scheduler: reference/cli/scheduler.md
-          - sase screenshot: reference/cli/screenshot.md
-          - sase service: reference/cli/service.md
-          - sase skill: reference/cli/skill.md
-          - sase snippet: reference/cli/snippet.md
-          - sase stitch: reference/cli/stitch.md
-          - sase sudo: reference/cli/sudo.md
-          - sase telemetry: reference/cli/telemetry.md
-          - sase tmux-agent: reference/cli/tmux-agent.md
-          - sase tool: reference/cli/tool.md
-          - sase tui: reference/cli/tui.md
-          - sase update: reference/cli/update.md
-          - sase usage: reference/cli/usage.md
-          - sase validate: reference/cli/validate.md
-          - sase var: reference/cli/var.md
-          - sase version: reference/cli/version.md
-          - sase workspace: reference/cli/workspace.md
+          - Commands A–C:
+              - sase agent: reference/cli/agent.md
+              - sase agent-cli: reference/cli/agent-cli.md
+              - sase artifact: reference/cli/artifact.md
+              - sase autonomy: reference/cli/autonomy.md
+              - sase axe: reference/cli/axe.md
+              - sase bead: reference/cli/bead.md
+              - sase chat: reference/cli/chat.md
+              - sase comments: reference/cli/comments.md
+              - sase completion: reference/cli/completion.md
+              - sase config: reference/cli/config.md
+              - sase core: reference/cli/core.md
+          - Commands D–M:
+              - sase disk: reference/cli/disk.md
+              - sase doctor: reference/cli/doctor.md
+              - sase editor: reference/cli/editor.md
+              - sase file: reference/cli/file.md
+              - sase file-history: reference/cli/file-history.md
+              - sase file-hook: reference/cli/file-hook.md
+              - sase final: reference/cli/final.md
+              - sase flag: reference/cli/flag.md
+              - sase gate: reference/cli/gate.md
+              - sase goal: reference/cli/goal.md
+              - sase init: reference/cli/init.md
+              - sase instructions: reference/cli/instructions.md
+              - sase launch: reference/cli/launch.md
+              - sase logs: reference/cli/logs.md
+              - sase lsp: reference/cli/lsp.md
+              - sase machine: reference/cli/machine.md
+              - sase macro: reference/cli/macro.md
+              - sase memory: reference/cli/memory.md
+              - sase migrate: reference/cli/migrate.md
+              - sase mobile: reference/cli/mobile.md
+              - sase monitor: reference/cli/monitor.md
+          - Commands N–S:
+              - sase notify: reference/cli/notify.md
+              - sase pager: reference/cli/pager.md
+              - sase patch: reference/cli/patch.md
+              - sase path: reference/cli/path.md
+              - sase pipe: reference/cli/pipe.md
+              - sase plan: reference/cli/plan.md
+              - sase plugin: reference/cli/plugin.md
+              - sase proc: reference/cli/proc.md
+              - sase project: reference/cli/project.md
+              - sase prompt: reference/cli/prompt.md
+              - sase questions: reference/cli/questions.md
+              - sase repo: reference/cli/repo.md
+              - sase repro: reference/cli/repro.md
+              - sase restore: reference/cli/restore.md
+              - sase revert: reference/cli/revert.md
+              - sase revive-log: reference/cli/revive-log.md
+              - sase run: reference/cli/run.md
+              - sase scheduler: reference/cli/scheduler.md
+              - sase screenshot: reference/cli/screenshot.md
+              - sase service: reference/cli/service.md
+              - sase skill: reference/cli/skill.md
+              - sase snippet: reference/cli/snippet.md
+              - sase stitch: reference/cli/stitch.md
+              - sase sudo: reference/cli/sudo.md
+          - Commands T–Z:
+              - sase telemetry: reference/cli/telemetry.md
+              - sase tmux-agent: reference/cli/tmux-agent.md
+              - sase tool: reference/cli/tool.md
+              - sase tui: reference/cli/tui.md
+              - sase update: reference/cli/update.md
+              - sase usage: reference/cli/usage.md
+              - sase validate: reference/cli/validate.md
+              - sase var: reference/cli/var.md
+              - sase version: reference/cli/version.md
+              - sase workspace: reference/cli/workspace.md
           - Query language: reference/query-language.md
           - Named tools: tool.md
           - Diagnostics and support reports: reference/diagnostics.md
@@ -384,19 +388,19 @@ nav:
       - Design decisions: reference/design-decisions.md
   - Contribute:
       - Contribute: contribute/index.md
-      - Tool run receipts: contribute/tool-run-receipts.md
-      - Prepared monitor completion: contribute/monitor-completion.md
-      - Architecture: contribute/architecture.md
-      - LLM invocation internals: contribute/llm-invocation.md
-      - Instruction bundle internals: contribute/instruction-bundle-internals.md
-      - Writing docs: contribute/writing-docs.md
-      - Reader testing: contribute/reader-testing.md
-      - Development: contribute/development.md
-      - Rust backend: contribute/rust-backend.md
-      - Fakey testing provider: contribute/fakey.md
-      - Telemetry: contribute/telemetry.md
-      - Performance runbook: contribute/perf-runbook.md
-      - Mobile MVP runbook: contribute/mobile-mvp-runbook.md
+      - Build and architecture:
+          - Development: contribute/development.md
+          - Architecture: contribute/architecture.md
+          - Rust backend: contribute/rust-backend.md
+          - Fakey testing provider: contribute/fakey.md
+      - Operations and runtime:
+          - LLM invocation internals: contribute/llm-invocation.md
+          - Instruction bundle internals: contribute/instruction-bundle-internals.md
+          - Tool run receipts: contribute/tool-run-receipts.md
+          - Prepared monitor completion: contribute/monitor-completion.md
+          - Telemetry: contribute/telemetry.md
+          - Performance runbook: contribute/perf-runbook.md
+          - Mobile MVP runbook: contribute/mobile-mvp-runbook.md
       - Agent and VCS internals:
           - Agent sidecar synchronization: contribute/agents-sidecar-sync.md
           - Workspace provider: contribute/workspace-provider.md
@@ -406,10 +410,14 @@ nav:
           - Plugin API: contribute/plugin-api.md
           - Mobile gateway API: contribute/mobile-gateway-api.md
           - Integration APIs: contribute/integration-apis.md
-      - SDD storage: contribute/sdd-storage.md
-      - Artifacts pane contract: contribute/artifacts-pane-contract.md
-      - Artifacts visual grammar: contribute/artifacts-pane-visual-grammar.md
-      - TUI rendering: contribute/tui-rendering.md
+      - UI and storage:
+          - SDD storage: contribute/sdd-storage.md
+          - Artifacts pane contract: contribute/artifacts-pane-contract.md
+          - Artifacts visual grammar: contribute/artifacts-pane-visual-grammar.md
+          - TUI rendering: contribute/tui-rendering.md
+      - Docs process:
+          - Writing docs: contribute/writing-docs.md
+          - Reader testing: contribute/reader-testing.md
       - Acknowledgements: contribute/acknowledgements.md
   - Blog:
       - Blog Home: blog/index.md

@@ -4,8 +4,8 @@ pdf: false
 
 # Critique: `docs/images/sase-rust-core-integration.png`
 
-Reviewed against `docs/architecture.md` (Rust Core Boundary section),
-`docs/rust_backend.md`, `src/sase/core/`, the top-level `Justfile`, and
+Reviewed against `docs/contribute/architecture.md` (Rust Core Boundary section),
+`docs/contribute/rust-backend.md`, `src/sase/core/`, the top-level `Justfile`, and
 `memory/rust_core_backend_boundary.md`. No `sase-rust-core-integration.prompt.md`
 sidecar exists, so original intent is inferred from the embedding-doc claims in
 `sdd/epics/202605/diagram_review.md` and the image itself.
@@ -18,15 +18,15 @@ The file shows three column groups — **Python App Layer**, **Python Façade La
 how SASE Python code reaches Rust-implemented operations.
 
 **Embedding gap (meta-issue):** The plan in `sdd/epics/202605/diagram_review.md` lists
-this image as appearing in `docs/architecture.md` / `docs/index.md`, but
+this image as appearing in `docs/contribute/architecture.md` / `docs/index.md`, but
 `rg "sase-rust-core-integration" docs/` returns zero hits. The architecture page and
-index embed `sase-component-communication.png`, and `docs/rust_backend.md` embeds
-`rust-backend-boundary-infographic.png`. (The stale TUI-tabs infographic was retired
-from the index.) The regen phase should decide whether to (a) wire the regenerated PNG
-into one of those pages (architecture.md's "Rust Core Boundary" section is the natural
-home), or (b) treat it as an orphan we keep for future use. Either way the current state
-is misleading because critiques and regens of an unreferenced image cannot be validated
-by the "embedding doc still renders" check the plan calls for.
+index embed `sase-component-communication.png`, and `docs/contribute/rust-backend.md`
+embeds `rust-backend-boundary-infographic.png`. (The stale TUI-tabs infographic was
+retired from the index.) The regen phase should decide whether to (a) wire the
+regenerated PNG into one of those pages (architecture.md's "Rust Core Boundary" section
+is the natural home), or (b) treat it as an orphan we keep for future use. Either way
+the current state is misleading because critiques and regens of an unreferenced image
+cannot be validated by the "embedding doc still renders" check the plan calls for.
 
 ## Clarity
 
@@ -48,7 +48,7 @@ by the "embedding doc still renders" check the plan calls for.
 
 3. **Bottom-row arrows imply a sequence, but the steps are alternatives.**
    `pip install sase` and `just rust-install` are not sequential — per
-   `docs/rust_backend.md` line 6 and the `Justfile` `_setup` recipe, a normal
+   `docs/contribute/rust-backend.md` line 6 and the `Justfile` `_setup` recipe, a normal
    `pip install sase` (or `uv tool install sase`) pulls a prebuilt `sase-core-rs` wheel
    automatically with no Rust toolchain required. `just rust-install` is the
    source-build alternative for contributors with a checkout of `../sase-core`.
@@ -137,17 +137,17 @@ by the "embedding doc still renders" check the plan calls for.
 
 8. **Wire records are entirely absent.** The current codebase has the shared `wire.py`,
    15 `*_wire.py` modules, and 3 `*_wire_conversion.py` modules. Per
-   `docs/rust_backend.md` they are the **stable** part of the contract. A boundary
-   diagram that omits them misstates what stability means here.
+   `docs/contribute/rust-backend.md` they are the **stable** part of the contract. A
+   boundary diagram that omits them misstates what stability means here.
 
 9. **Python App Layer chips are slightly off-target.** "Patch workflows", "agent scans",
    "status + git helpers" are all real, but the diagram chooses three areas that happen
    to all be Rust-backed, omitting the purely-host areas (TUI rendering, macro
    expansion, workflow orchestration, VCS plugin dispatch). That makes the façade look
    like it sits under _all_ Python work, when in fact most of `sase` (TUI, axe, macro)
-   bypasses it entirely. `docs/rust_backend.md` lines 31–58 enumerate the host-owned
-   surfaces that never cross the boundary; the diagram should at least name them as a
-   sibling box.
+   bypasses it entirely. `docs/contribute/rust-backend.md` lines 31–58 enumerate the
+   host-owned surfaces that never cross the boundary; the diagram should at least name
+   them as a sibling box.
 
 ## Concrete Suggestions for the Regenerated Image
 
@@ -189,9 +189,9 @@ rebalance content so accuracy matches the docs. Specific edits:
   `require_rust_binding` loader, and separately call out that `_setup` rebuilds stale
   wheels before dependency resolution when `../sase-core` is present.
 - **Embedding decision**: regen phase should also resolve where this image is embedded.
-  Recommendation: insert it into `docs/architecture.md` under "Rust Core Boundary"
-  (currently text-only) so the verification check in the plan ("embedding doc still
-  renders the image correctly") becomes meaningful.
+  Recommendation: insert it into `docs/contribute/architecture.md` under "Rust Core
+  Boundary" (currently text-only) so the verification check in the plan ("embedding doc
+  still renders the image correctly") becomes meaningful.
 
 Out of scope for this critique (per phase definition): no edits to the PNG, no prompt
 sidecar creation, no embedding-doc edits. Those belong to the regen phase

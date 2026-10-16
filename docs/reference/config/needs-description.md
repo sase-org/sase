@@ -1,7 +1,6 @@
 ---
 title: Configuration keys needing descriptions
 description: Schema paths that do not yet have a description.
-covers: config
 ---
 
 <!-- generated, do not edit; source: src/sase/config/sase.schema.json and src/sase/default_config.yml (tools/render_config; run just fix to regenerate) -->

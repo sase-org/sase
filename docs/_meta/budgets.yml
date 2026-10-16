@@ -1,10 +1,7 @@
-# Legacy per-page word ceilings for the docs contract.
+# Optional per-page word ceilings for the docs contract.
 #
 # `tools/check_docs` fails a page that grows past its ceiling.
 # `tools/check_docs --fix` (via `just fix`) lowers a ceiling when
-# a page shrinks and never raises one. Ceilings only shrink; the
-# decompose phase empties this allowlist at the epic end.
-ceilings:
-  cli.md: 96
-  configuration.md: 1635
-  index.md: 361
+# a page shrinks and never raises one. Missing pages and generated
+# stubs are removed from this list.
+ceilings: {}

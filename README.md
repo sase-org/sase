@@ -97,9 +97,9 @@ sase tui                                                  # open the interactive
 
 For a first run, use the auto-detected-provider command, or one of the explicit
 Muse/Grok examples for deterministic provider selection. The `+home`
-[project tag](docs/reference/macros/reference-syntax.md#project-tags) targets the
-built-in `home` project, which is bootstrapped automatically, so the first run needs no
-project setup. It expands to the canonical `#git:home` workspace reference. After the
+[project tag](https://sase.sh/reference/macros/reference-syntax/#project-tags) targets
+the built-in `home` project, which is bootstrapped automatically, so the first run needs
+no project setup. It expands to the canonical `#git:home` workspace reference. After the
 run completes, `sase tui` opens the TUI with the completed run visible on the Agents
 tab.
 
@@ -156,8 +156,8 @@ A few guides worth bookmarking:
 ## Development
 
 Development requires [`just`](https://github.com/casey/just). Start with
-[CONTRIBUTING.md](CONTRIBUTING.md), then see [Development](https://sase.sh/development/)
-for the full contributor guide.
+[CONTRIBUTING.md](CONTRIBUTING.md), then see
+[Development](https://sase.sh/contribute/development/) for the full contributor guide.
 
 ```bash
 git clone https://github.com/sase-org/sase
@@ -168,7 +168,7 @@ sase core health
 
 `just install-venv` sets up this checkout's `.venv` for tests and lint — it never
 touches your global `sase` command. See
-[Your `sase` versus this checkout's `.venv`](https://sase.sh/development/#your-sase-versus-this-checkouts-venv)
+[Your `sase` versus this checkout's `.venv`](https://sase.sh/contribute/development/#your-sase-versus-this-checkouts-venv)
 before reaching for `just install` or `just install-dev`.
 
 Run `just check-full` before submitting changes. That exhaustive local lane updates TUI
@@ -184,7 +184,7 @@ sase builds on
 [Steve Yegge's beads](https://github.com/steveyegge/beads),
 [Agentic Software Engineering](https://arxiv.org/abs/2509.06216), and
 [PDL](https://arxiv.org/abs/2410.19135). See the
-[full acknowledgements](docs/contribute/acknowledgements.md).
+[full acknowledgements](https://sase.sh/contribute/acknowledgements/).
 
 ## License
 

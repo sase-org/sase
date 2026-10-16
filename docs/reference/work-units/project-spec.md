@@ -80,7 +80,7 @@ currently uses these fields:
 - **WORKSPACE_DIR**: Path to the primary checkout (workspace `#0`). Managed numbered
   checkouts are resolved through the per-project workspace store rather than by
   appending `_<num>` to this path; see
-  [`docs/workspace.md`](../agents/workspaces.md#workspace-directory-layout) for the
+  [workspace layout](../agents/workspaces.md#workspace-directory-layout) for the
   directory-layout reference and
   [`docs/reference/config/workspace-behavior.md`](../config/workspace-behavior.md#workspace)
   for the `workspace.root` knob.

@@ -176,7 +176,7 @@ version chip to each audited read with a captured blob -- dim `≡ now`, `vK ⟲
 amber `◌ uncommitted at read`, or one `⟲ N of M changed` aggregate for a batch read --
 and leads with an as-launched row: the recorded root bundle
 (`Instructions as launched · NN-<provider>`) when delivery was `explicit`, or
-the workspace `AGENTS.md` snapshot for native, fallback, and pre-E3 runs
+the workspace `AGENTS.md` snapshot for native, fallback, and earlier runs
 (`◌ as launched · not in git` or `snapshot unavailable` when it cannot match a commit).
 Chips load in a later off-thread pass and append at the row end, so they never delay or
 reflow the lane. A `v` hint on a chipped row opens the pager pinned to the version read;

@@ -33,8 +33,8 @@ It supports zsh, bash, and fish, never edits an rc file, and tells you exactly w
 add if the loader lands somewhere your shell does not already scan. A fresh shell asks
 the active `sase` executable for the current cached grammar, so external upgrades are
 picked up without re-exporting a static script. Open a new shell afterward. See the
-[Shell Completion guide](https://sase.sh/completion/) for the full behavior, including
-`sase completion list` and the `sase doctor` checks.
+[Shell Completion guide](https://sase.sh/reference/integrations/completion/) for the
+full behavior, including `sase completion list` and the `sase doctor` checks.
 
 ## What you need before installing
 
@@ -205,11 +205,11 @@ The lists below describe what each command is for.
 | A text editor        | Commit-message editing uses `$EDITOR`, falling back to `nvim`, then `vim`.                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 
 For per-provider install and authentication commands, see
-[Installing & Authenticating Agent Providers](docs/agent_providers.md). SASE can install
-most built-in providers itself with `sase agent-cli install <name>`: the npm-packaged
-CLIs (Claude Code, Codex, OpenCode, Qwen Code, Grok Build) through the exact
-`npm install -g <package>` command, and Muse Code from its HTTPS-fetched install script.
-Preview the plan (command, target, and for Muse the script URL and digest) with
+[Installing & Authenticating Agent Providers](https://sase.sh/reference/providers/agent-clis/).
+SASE can install most built-in providers itself with `sase agent-cli install <name>`:
+the npm-packaged CLIs (Claude Code, Codex, OpenCode, Qwen Code, Grok Build) through the
+exact `npm install -g <package>` command, and Muse Code from its HTTPS-fetched install
+script. Preview the plan (command, target, and for Muse the script URL and digest) with
 `sase agent-cli install <name> --dry-run`, then run it without `--dry-run` and confirm.
 The Antigravity CLI keeps its vendor installation flow.
 

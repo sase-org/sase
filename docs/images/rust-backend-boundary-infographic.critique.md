@@ -1,6 +1,6 @@
 ---
 diagram: rust-backend-boundary-infographic.png
-embedding_doc: docs/rust_backend.md
+embedding_doc: docs/contribute/rust-backend.md
 prompt_sidecar: docs/images/rust-backend-boundary-infographic.prompt.md
 critique_date: 2026-05-10
 pdf: false
@@ -9,15 +9,16 @@ pdf: false
 # Critique: `rust-backend-boundary-infographic.png`
 
 This critique reviews the infographic embedded at the start of the **Architecture**
-section of `docs/rust_backend.md`. The image is a 1600×900 layered diagram with four
-horizontal layers (Python host → `sase.core` facade → `sase_core_rs` PyO3 extension →
-`../sase-core` Rust workspace), an "ownership" right-side panel, a small "Contract loop"
-bottom-right panel, and a set of left-side annotation pills next to each layer.
+section of `docs/contribute/rust-backend.md`. The image is a 1600×900 layered diagram
+with four horizontal layers (Python host → `sase.core` facade → `sase_core_rs` PyO3
+extension → `../sase-core` Rust workspace), an "ownership" right-side panel, a small
+"Contract loop" bottom-right panel, and a set of left-side annotation pills next to each
+layer.
 
 The original prompt is preserved in `rust-backend-boundary-infographic.prompt.md`;
 deterministic ImageMagick labels were composited on top of a no-text background. This
-critique is grounded in the current `docs/rust_backend.md` text and in the Rust-backed
-binding inventory still present in `src/sase/core/`.
+critique is grounded in the current `docs/contribute/rust-backend.md` text and in the
+Rust-backed binding inventory still present in `src/sase/core/`.
 
 ## Summary
 
@@ -85,8 +86,8 @@ width.
 
 ## Accuracy errors against current code
 
-These are checked against `docs/rust_backend.md` (the current state) and the Rust-backed
-binding categories the doc enumerates.
+These are checked against `docs/contribute/rust-backend.md` (the current state) and the
+Rust-backed binding categories the doc enumerates.
 
 1. **Bottom layer omits roughly half the Rust-owned categories.** The doc enumerates
    current Rust-backed operation groups (project parsing; project lifecycle helpers;
@@ -121,7 +122,7 @@ binding categories the doc enumerates.
    None of that appears; "binding probes" floats with no link to `sase core health`.
 5. **Mobile gateway is invisible.** `../sase-core/` ships **two** consumer surfaces from
    the same workspace: the `sase_core_py` PyO3 extension and the `sase_gateway`
-   standalone Rust HTTP server (`docs/rust_backend.md` §Mobile Gateway, plus
+   standalone Rust HTTP server (`docs/contribute/rust-backend.md` §Mobile Gateway, plus
    `docs/reference/integrations/mobile-gateway.md`). The diagram only depicts the PyO3
    path, which is fine _if_ the title is scoped accordingly — but the bottom-layer label
    says "`../sase-core` Rust workspace owns deterministic cores", which is broader than
@@ -215,10 +216,10 @@ its post-processing label script, scoped to the diagram only.
 
 ## Out of scope for this critique
 
-- The PNG, the prompt sidecar, and `docs/rust_backend.md` itself are unchanged by this
-  phase per the epic plan in `sdd/epics/202605/diagram_review.md`. Phase 13
-  (`sase-2s.13`) owns the regenerated image, the updated prompt sidecar if needed, and
-  any related label-composition tooling.
+- The PNG, the prompt sidecar, and `docs/contribute/rust-backend.md` itself are
+  unchanged by this phase per the epic plan in `sdd/epics/202605/diagram_review.md`.
+  Phase 13 (`sase-2s.13`) owns the regenerated image, the updated prompt sidecar if
+  needed, and any related label-composition tooling.
 - Style consistency across all ten infographics in the diagram-review epic is the regen
   phase's concern; this critique only addresses what the rust-backend-boundary diagram
   alone gets right and wrong against its embedding doc.

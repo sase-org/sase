@@ -1,7 +1,6 @@
 ---
 title: TUI configuration
 description: Settings for SASE's terminal interface and its configurable panes.
-covers: config
 ---
 
 <!-- generated, do not edit; source: src/sase/config/sase.schema.json and src/sase/default_config.yml (tools/render_config; run just fix to regenerate) -->

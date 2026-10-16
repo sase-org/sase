@@ -88,7 +88,7 @@ With no subcommand, `sase telemetry` prints a delegation notice and runs
 
 ## Command behavior {#command-behavior-23}
 
-See [docs/telemetry.md](../contribute/telemetry.md) for the full CLI reference including
+See [Telemetry details](../contribute/telemetry.md) for the full CLI reference including
 per-subcommand flags.
 
 ## `sase logs`

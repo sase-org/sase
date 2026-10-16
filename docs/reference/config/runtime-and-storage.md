@@ -234,7 +234,7 @@ Source: `src/sase/default_config.yml`, `src/sase/config/_settings_system.py`,
 ## telemetry
 
 Configures local telemetry recording and retention. See
-[docs/telemetry.md](../../contribute/telemetry.md) for the full telemetry reference,
+[Telemetry details](../../contribute/telemetry.md) for the full telemetry reference,
 including the CLI, metric catalog, local store, and Admin Center tab.
 
 ```yaml

@@ -17,9 +17,8 @@ page with its one-line description.
 - **A CLI flag, config key, keybinding, directive, or model:** regenerate with
   `just fix`. Write no prose unless the generated description is insufficient — then
   improve the source description.
-- **The behavior of an existing feature:** update its Reference page (today, the legacy
-  root page that owns the fact). If a tutorial or guide step is now wrong, fix that step
-  and nothing more.
+- **The behavior of an existing feature:** update its Reference page. If a tutorial or
+  guide step is now wrong, fix that step and nothing more.
 - **A new user-visible capability:** add a Reference entry (a new `reference/` page if
   the nearest one is at its ceiling). If it serves a new user goal, note a "guide
   candidate" `PROPOSED FOLLOW-UP:` instead of appending narrative to a Guide page.
@@ -29,8 +28,8 @@ page with its one-line description.
 
 ## Budget rule
 
-Legacy pages may not grow. Guide pages take facts by linking the Reference, never by
-restating them.
+Pages stay within their tier's budget. Guide pages take facts by linking the Reference,
+never by restating them.
 
 ## Never move pages
 

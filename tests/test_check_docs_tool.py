@@ -280,6 +280,33 @@ def test_hygiene_does_not_apply_to_reference(tmp_path: Path) -> None:
     assert _errors(_check(tool, fix)) == []
 
 
+def test_reference_hygiene_rejects_bead_and_epic_phase_labels(
+    tmp_path: Path,
+) -> None:
+    tool = _load_tool()
+    fix = _fixture(tmp_path)
+    _write(
+        fix["docs"] / "reference" / "thing.md",
+        GOOD_FM + "# D\n\nSee sase-1le.2.3 and phase sase-1le.4 (E5).\n",
+    )
+    errors = _errors(_check(tool, fix))
+    assert any("bead IDs" in error for error in errors)
+    assert any("epic or phase labels" in error for error in errors)
+
+
+def test_reference_hygiene_ignores_generated_blocks(tmp_path: Path) -> None:
+    tool = _load_tool()
+    fix = _fixture(tmp_path)
+    _write(
+        fix["docs"] / "reference" / "thing.md",
+        GOOD_FM
+        + "# D\n\n"
+        + "<!-- BEGIN GENERATED -->\nsase-1le.2; phase sase-1le.4 (E5).\n"
+        + "<!-- END GENERATED -->\n",
+    )
+    assert _errors(_check(tool, fix)) == []
+
+
 def test_test_pin_fails(tmp_path: Path) -> None:
     tool = _load_tool()
     fix = _fixture(tmp_path)

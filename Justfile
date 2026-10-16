@@ -952,13 +952,13 @@ pypi-smoke-clean:
     {{ pypi_smoke_compose }} down -v --rmi all --remove-orphans
 
 # Enforce the sase.sh documentation contract: directory typing, frontmatter,
-# word budgets with a shrinking legacy allowlist, Guide hygiene, test-pin and
-# portability rules (tools/check_docs, run in the format venv).
+# word budgets, Guide and Reference hygiene, test-pin and portability rules
+# (tools/check_docs, run in the format venv).
 docs-lint: _setup-format-tools
     {{ format_venv_bin }}/python tools/check_docs
 
-# Lower legacy docs ceilings that shrank; never raises one. Ceilings only
-# shrink; the decompose phase empties the allowlist at the epic end.
+# Lower docs page ceilings that shrank; never raises one. Remove ceilings for
+# missing pages and generated stubs.
 fix-docs-budgets: _setup-format-tools
     {{ format_venv_bin }}/python tools/check_docs --fix
 

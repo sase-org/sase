@@ -358,9 +358,9 @@
 - [Agent Hood Synchronization](agents_sidecar.md) — This page has moved to its new home.
 - [Scheduler — Background Automation](axe.md) — This page has moved to its new home.
 - [Bead Issue Tracking](beads.md) — This page has moved to its new home.
-- [CLI Reference](cli.md) — CLI Reference — Moved to CLI command groups.
+- [CLI Reference](cli.md) — This page has moved to its new home.
 - [Commit Workflows](commit_workflows.md) — This page has moved to its new home.
-- [Configuration Reference](configuration.md) — Configuration Reference — Moved to Configuration reference.
+- [Configuration Reference](configuration.md) — This page has moved to its new home.
 - [Canonical SASE Content Layout](content_layout.md) — This page has moved to its new home.
 - [Initialization](init.md) — This page has moved to its new home.
 - [Instruction Bundles](instruction_bundles.md) — This page has moved to its new home.

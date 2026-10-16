@@ -411,10 +411,10 @@ moves:
       sase-disk: reference/disk-cleanup.md#sase-disk
       command-behavior-16: reference/disk-cleanup.md#command-behavior-16
       sase-bead: reference/work-units/bead-cli.md#sase-bead
-      sase-bead-create: reference/work-units/bead-cli.md#sase-bead-create-1
-      sase-bead-list: reference/work-units/bead-cli.md#sase-bead-list-1
+      sase-bead-create: reference/work-units/bead-cli.md#sase-bead-create
+      sase-bead-list: reference/work-units/bead-cli.md#sase-bead-list
       sase-bead-search: reference/work-units/bead-cli.md#sase-bead-search
-      sase-bead-task-type: reference/work-units/bead-cli.md#sase-bead-task-type-1
+      sase-bead-task-type: reference/work-units/bead-cli.md#sase-bead-task-type
       sase-bead-epic-symbols: reference/work-units/bead-cli.md#sase-bead-epic-symbols
       sase-bead-read: reference/work-units/bead-cli.md#sase-bead-read
       sase-bead-touched: reference/work-units/bead-cli.md#sase-bead-touched
@@ -424,8 +424,8 @@ moves:
       sase-bead-close: reference/work-units/bead-cli.md#sase-bead-close
       sase-bead-rm: reference/work-units/bead-cli.md#sase-bead-rm
       sase-bead-note: reference/work-units/bead-cli.md#sase-bead-note
-      sase-bead-dep: reference/work-units/bead-cli.md#sase-bead-dep-1
-      sase-bead-sync: reference/work-units/bead-cli.md#sase-bead-sync-1
+      sase-bead-dep: reference/work-units/bead-cli.md#sase-bead-dep
+      sase-bead-sync: reference/work-units/bead-cli.md#sase-bead-sync
       sase-bead-work: reference/work-units/bead-cli.md#sase-bead-work
       command-behavior-18: reference/work-units/bead-cli.md#command-behavior-18
       sdd-repository-and-plan-commands: reference/work-units/plan-cli.md#sdd-repository-and-plan-commands

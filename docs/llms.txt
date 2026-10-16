@@ -360,9 +360,9 @@
 - [Agent Hood Synchronization](https://sase.sh/agents_sidecar/) — This page has moved to its new home.
 - [Scheduler — Background Automation](https://sase.sh/axe/) — This page has moved to its new home.
 - [Bead Issue Tracking](https://sase.sh/beads/) — This page has moved to its new home.
-- [CLI Reference](https://sase.sh/cli/) — CLI Reference — Moved to CLI command groups.
+- [CLI Reference](https://sase.sh/cli/) — This page has moved to its new home.
 - [Commit Workflows](https://sase.sh/commit_workflows/) — This page has moved to its new home.
-- [Configuration Reference](https://sase.sh/configuration/) — Configuration Reference — Moved to Configuration reference.
+- [Configuration Reference](https://sase.sh/configuration/) — This page has moved to its new home.
 - [Canonical SASE Content Layout](https://sase.sh/content_layout/) — This page has moved to its new home.
 - [Initialization](https://sase.sh/init/) — This page has moved to its new home.
 - [Instruction Bundles](https://sase.sh/instruction_bundles/) — This page has moved to its new home.

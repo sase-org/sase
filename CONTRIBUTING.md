@@ -11,12 +11,12 @@ just install-venv
 `just install-venv` sets up this checkout's `.venv` for tests and lint — it never
 touches your global `sase` command. If you are unsure which install command you want,
 read
-[Your `sase` versus this checkout's `.venv`](https://sase.sh/development/#your-sase-versus-this-checkouts-venv)
+[Your `sase` versus this checkout's `.venv`](https://sase.sh/contribute/development/#your-sase-versus-this-checkouts-venv)
 first.
 
 ## Development Workflow
 
-See <https://sase.sh/development/> for the full development workflow.
+See <https://sase.sh/contribute/development/> for the full development workflow.
 
 ```bash
 just fix           # Auto-format code and Markdown, and fix keep-sorted blocks
@@ -73,8 +73,8 @@ External bug reports and questions belong in
 checkout to file those.
 
 If you are already working in this repository through SASE, discovered follow-up is a
-typed [task bead](https://sase.sh/beads/), not something you file with the standalone
-`bd` CLI:
+typed [task bead](https://sase.sh/reference/work-units/beads/), not something you file
+with the standalone `bd` CLI:
 
 ```bash
 sase bead onboard
@@ -86,5 +86,6 @@ sase bead ready                # unblocked task beads awaiting triage
 ```
 
 New task beads require an explicit size, a catalog slug in `-T 'task(<slug>)'`, and
-`-w/--reason` explaining why the bead was filed. See [Beads](https://sase.sh/beads/) for
-snooze, corroboration, and the rest of the lifecycle.
+`-w/--reason` explaining why the bead was filed. See
+[Beads](https://sase.sh/reference/work-units/beads/) for snooze, corroboration, and the
+rest of the lifecycle.

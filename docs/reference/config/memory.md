@@ -2,7 +2,6 @@
 title: Memory and instructions configuration
 description:
   Project memory, generated instruction templates, and their compatibility aliases.
-covers: config
 ---
 
 <!-- generated, do not edit; source: src/sase/config/sase.schema.json and src/sase/default_config.yml (tools/render_config; run just fix to regenerate) -->

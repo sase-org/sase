@@ -1,7 +1,6 @@
 ---
 title: Core and identity configuration
 description: Repository ownership, identity, and machine-wide configuration switches.
-covers: config
 ---
 
 <!-- generated, do not edit; source: src/sase/config/sase.schema.json and src/sase/default_config.yml (tools/render_config; run just fix to regenerate) -->

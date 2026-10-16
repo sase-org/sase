@@ -571,7 +571,6 @@ def _page(
         "---",
         f"title: {title} configuration",
         *_description_frontmatter(description),
-        "covers: config",
         "---",
         "",
         GENERATED_MARKER,
@@ -614,7 +613,6 @@ def _missing_page(entries: list[Entry], family_map: dict[str, str]) -> str:
         "---",
         "title: Configuration keys needing descriptions",
         *_description_frontmatter("Schema paths that do not yet have a description."),
-        "covers: config",
         "---",
         "",
         GENERATED_MARKER,
@@ -671,7 +669,6 @@ def _index(
         *_description_frontmatter(
             "Generated configuration keys, types, defaults, and allowed values."
         ),
-        "covers: config",
         "---",
         "",
         GENERATED_MARKER,

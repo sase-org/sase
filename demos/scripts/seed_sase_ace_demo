@@ -242,7 +242,7 @@ cat >"$workspace/docs/prompt_input_notes.md" <<'MARKDOWN'
 - `@src/nova/parser.py` demonstrates file completion rooted in the fake workspace.
 MARKDOWN
 
-cat >"$workspace/docs/architecture.md" <<'MARKDOWN'
+cat >"$workspace/docs/contribute/architecture.md" <<'MARKDOWN'
 # Nova Architecture
 
 Nova keeps parsing, configuration, and rendering in separate modules so the demo

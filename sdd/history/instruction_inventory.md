@@ -17,9 +17,9 @@ provider shims remain in this repository; explicit delivery suppresses native du
 according to each adapter's capabilities rather than deleting those files.
 
 For channels, fallback behavior, and diagnostic commands, start with
-[Instruction Bundles](../../docs/instruction_bundles.md). The E1–E5 labels and
-dispositions below refer to internal migration phases, not a setup sequence for users or
-proof that files have been removed.
+[Instruction Bundles](../../docs/reference/memory/instruction-bundles.md). The E1–E5
+labels and dispositions below refer to internal migration phases, not a setup sequence
+for users or proof that files have been removed.
 
 Dispositions: `migrate` (replaced by memory-built per-invocation delivery), `projection`
 (generated copy of another committed source), `repo-owned` (hand-written, stays),
@@ -78,5 +78,6 @@ Claude's explicit path excludes exact SASE-owned root and home files. Nested ins
 files are no longer present in this repository after E4 folded those guides into
 reference memory; Codex disables native project-document loading across a managed
 project for explicit invocations. Grok uses `--rules`; Muse uses a prompt prefix. See
-[provider behavior](../../docs/instruction_bundles.md#provider-behavior-at-a-glance) and
-the [Codex fallback limitation](../../docs/llms.md#codex-instruction-delivery).
+[provider behavior](../../docs/reference/memory/instruction-bundles.md#provider-behavior-at-a-glance)
+and the
+[Codex fallback limitation](../../docs/reference/providers/codex.md#codex-instruction-delivery).

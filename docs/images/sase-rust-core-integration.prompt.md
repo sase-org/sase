@@ -8,7 +8,7 @@ source_critique: docs/images/sase-rust-core-integration.critique.md
 
 ## Target
 
-- Target doc: `docs/architecture.md`
+- Target doc: `docs/contribute/architecture.md`
 - Insertion point: under `## Rust Core Boundary`, after the opening paragraph that
   summarizes Rust-backed areas.
 - Intended alt text: Layered diagram showing how SASE Python host code reaches Rust

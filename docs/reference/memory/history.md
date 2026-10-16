@@ -199,7 +199,7 @@ read actually saw, resolved from the read's blob OID: `≡ now`, `vK ⟲ N newer
 `⟲ N of M changed` chip for a batch read. A leading as-launched row opens the
 instruction bundle the agent actually received when the launch was `explicit`
 (`Instructions as launched · NN-<provider>`, with a chip for the delivery channel, size,
-and `bytes match` / `MISMATCH`). Native, fallback, and pre-E3 runs keep the workspace
+and `bytes match` / `MISMATCH`). Native, fallback, and earlier runs keep the workspace
 root `AGENTS.md` snapshot (`◌ as launched · not in git` when its bytes were never
 committed, `snapshot unavailable` when the stored bytes are gone); agents launched
 before evidence capture show no launch row. The row's `v` hint opens the pager pinned to

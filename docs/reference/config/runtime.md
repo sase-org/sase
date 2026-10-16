@@ -2,7 +2,6 @@
 title: Runtime and stored data configuration
 description:
   Process history, service hosting, artifacts, disk use, and reading surfaces.
-covers: config
 ---
 
 <!-- generated, do not edit; source: src/sase/config/sase.schema.json and src/sase/default_config.yml (tools/render_config; run just fix to regenerate) -->

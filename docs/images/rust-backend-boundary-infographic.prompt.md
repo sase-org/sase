@@ -6,7 +6,7 @@ pdf: false
 
 ## Target
 
-- Document: `docs/rust_backend.md`
+- Document: `docs/contribute/rust-backend.md`
 - Insertion point: at the start of `## Architecture`, before the existing ASCII diagram.
 - Final asset: `docs/images/rust-backend-boundary-infographic.png` (1600x900 PNG)
 
@@ -53,7 +53,7 @@ The regenerated diagram addresses the 2026-05-10 critique by:
   between the Python facade and `sase_core_rs`;
 - showing a one-way `Python -> Rust` call arrow labeled as wire-record flow;
 - replacing the left annotation column with the four Python host responsibilities from
-  `docs/rust_backend.md`;
+  `docs/contribute/rust-backend.md`;
 - naming Python-owned facade examples: `parse_project_file`, `evaluate_query*`, and
   `transition_status`;
 - naming concrete `sase core health` probes: `parse_query`, launch schema/fanout, and

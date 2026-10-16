@@ -171,8 +171,8 @@ strand inherits no `type:` of its own and never inlines into `AGENTS.md`.
 - Parent: `AGENTS.md`
 - Description: Read before adding, moving, or editing anything under `docs/`,
   `mkdocs*.yml`, or a sase.sh link in code.
-- Lines: 38
-- Approx. tokens: 373
+- Lines: 37
+- Approx. tokens: 363
 
 ### `sase/memory/generated_skills.md`
 
@@ -293,8 +293,8 @@ strand inherits no `type:` of its own and never inlines into `AGENTS.md`.
 - Core notes: 3
 - Reference notes: 17
 - Web descriptor notes: 3
-- Total lines: 1715
-- Total approx. tokens: 24022
+- Total lines: 1714
+- Total approx. tokens: 24012
 
 ## Commands
 

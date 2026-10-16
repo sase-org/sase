@@ -35,7 +35,7 @@ visual language, and semantic guardrails stay aligned.
 | `docs/reference/workflows.md`                     | `docs/images/workflow-execution-infographic.png`    | After the opening paragraph and before `## Table of Contents`.                                          | The doc immediately becomes a format reference; the diagram should establish the execution model first.                       |
 | `docs/contribute/commit-workflow-orchestrator.md` | `docs/images/commit-workflow-infographic.png`       | Candidate insertion after the `## Overview` table and before `## How It Works`; currently not embedded. | The table defines the three outputs; the diagram should bridge from that summary into orchestration details once regenerated. |
 | `docs/reference/work-units/beads.md`              | `docs/images/bead-epic-work-infographic.png`        | Retired; retained as a historical asset but no longer embedded.                                         | The image predates task beads and the task-only `ready` status, so it no longer represents the current model.                 |
-| `docs/rust_backend.md`                            | `docs/images/rust-backend-boundary-infographic.png` | At the start of `## Architecture`, before the existing ASCII diagram.                                   | The section already owns the Python facade and Rust extension boundary, and the image can summarize ownership before details. |
+| `docs/contribute/rust-backend.md`                 | `docs/images/rust-backend-boundary-infographic.png` | At the start of `## Architecture`, before the existing ASCII diagram.                                   | The section already owns the Python facade and Rust extension boundary, and the image can summarize ownership before details. |
 
 Active sidecar prompts and target doc embeds match the insertion points above except for
 the commit-workflow infographic, whose stale PNG and prompt remain but are intentionally
@@ -101,7 +101,7 @@ Rust-backend image are all 16:9 PNGs.
   `sase bead work` launch.
 - Do not reproduce the full command table inside the image.
 
-### `docs/rust_backend.md`
+### `docs/contribute/rust-backend.md`
 
 - Use a layered boundary model: top-level `sase` Python UI/CLI/TUI/workflow host logic,
   `sase.core` Python facade and wire records, required `sase_core_rs` PyO3 extension,

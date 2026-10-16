@@ -1,7 +1,6 @@
 ---
 title: Prompts and tools configuration
 description: Macros, named tools, plugins, hooks, and mentor selection.
-covers: config
 ---
 
 <!-- generated, do not edit; source: src/sase/config/sase.schema.json and src/sase/default_config.yml (tools/render_config; run just fix to regenerate) -->
