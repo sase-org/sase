@@ -21,11 +21,10 @@ Exact SASE facts; guides teach workflows.
 
 ## TUI
 
-- [TUI](tui/index.md)
-- [sase's TUI](../ace.md)
+- [TUI](tui/index.md) — tabs, prompt, Launch Control, pager, and keys
 - [SASE Admin Center](tui/admin-center.md)
 - [TUI keymaps](tui/keymaps.md)
-- [SASE Pager](../pager.md)
+- [SASE Pager](tui/pager.md)
 
 ## Macros and workflows
 

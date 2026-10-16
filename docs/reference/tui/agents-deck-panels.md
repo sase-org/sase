@@ -80,7 +80,7 @@ The Agents tab surfaces the machine-local ToolRun ledger (see
 [Named Tools and ToolRuns](../../tool.md)) at three zoom levels: a live-only `⚒` chip on the
 owning row, a header chip plus `Tool runs` field on the selection, and the Tools deck's
 `⚒ Runs` card for diagnosis. Project-wide runs live in the Admin Center
-[Tools tab](../../ace.md#tools-tab). `⚒` (U+2692) means ToolRun everywhere — row, header, card,
+[Tools tab](machines-and-tools.md#tools-tab). `⚒` (U+2692) means ToolRun everywhere — row, header, card,
 pane, notification icon, and Procs cell. The old chop/Services link-trail icon moved to
 `⏲` so the two are never confused. Say "tool run" or "ToolRun": never "tool call" for a
 ToolRun.

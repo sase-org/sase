@@ -184,7 +184,7 @@ digest and safe preview, waits, condition result, timeouts, and a bounded live-l
 tail). `x` on a running stand-alone named proc asks for confirmation and then kills it
 and removes its row in one step — the durable cleanup proc stops it through the native
 proc service — and `x` dismisses a finished one with no confirmation. Dismissal only
-clears the Agents-tab row — the proc stays visible in the [Procs pane](../../ace.md#durable-procs)
+clears the Agents-tab row — the proc stays visible in the [Procs pane](procs-tab.md#durable-procs)
 and in `sase proc show`, and a dismissed Agents-tab row does not come back. See
 [Typed launch units](../macros/directive-syntax.md#typed-launch-units) for the directives that create it.
 

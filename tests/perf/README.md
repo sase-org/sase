@@ -293,7 +293,7 @@ end to end.
 Baseline numbers are not committed: shared-host timing is noisy. Later `sase-1es` phases
 rerun the relevant cases and record before/after numbers in their bead notes; the final
 before/after table lives on bead `sase-1es.8`. The performance model is documented in
-`docs/pager.md` ("Performance") with the bench recipe in
+`docs/reference/tui/pager.md` ("Performance") with the bench recipe in
 `docs/contribute/perf-runbook.md` ("Pager bench"). The committed regression gates are
 regular tests: dismissed-view release in `tests/pager/test_view_leak.py`, and the
 strip-cache bound plus the 20k-line `tracemalloc` ceiling in

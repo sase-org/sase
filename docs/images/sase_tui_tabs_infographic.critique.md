@@ -19,12 +19,13 @@ changes, notifications, and automation state." The diagram is reviewed against:
 - The embedding doc (`docs/index.md`) — there is **no
   `sase_tui_tabs_infographic.prompt.md` sidecar** in `docs/images/`, unlike most peer
   infographics. Original intent is inferred from the embedding caption, the diagram
-  title strap, and `docs/ace.md`.
+  title strap, and `docs/reference/tui/tabs-and-panes.md`.
 - The current TUI code: `src/sase/ace/tui/widgets/tab_bar.py` (tab labels and colors),
   `src/sase/ace/tui/app.py` (composition of each tab's panes), and the surrounding
   chrome (`Header`, `TaskIndicator`, `LLMOverrideIndicator`, `NotificationIndicator`,
   `KeybindingFooter`, `Footer`).
-- `docs/ace.md` (canonical user-facing description of the three tabs).
+- `docs/reference/tui/tabs-and-panes.md` (canonical user-facing description of the three
+  tabs).
 
 ## What the diagram currently shows
 
@@ -67,10 +68,10 @@ path: `plan` (clipboard icon) → `launch` (rocket) → `monitor` (graph) → `l
    as `WIP → Draft → Ready → Mailed → Submitted` (per `memory/glossary.md`). Without
    those chips visible, the row is a label without content.
 5. **`review, mail, sync` (PRs row 3) is a grab-bag.** "review" and "mail" are real PR
-   actions (`docs/ace.md` lists `M` to mail, `a` to accept, etc.) but "sync" has no
-   clear referent — it could mean refresh-interval auto-pulls, `fetch` from origin, or
-   the SQLite/JSONL bead sync, none of which is a PRs-tab concept. A new user will
-   guess.
+   actions (`docs/reference/tui/tabs-and-panes.md` lists `M` to mail, `a` to accept,
+   etc.) but "sync" has no clear referent — it could mean refresh-interval auto-pulls,
+   `fetch` from origin, or the SQLite/JSONL bead sync, none of which is a PRs-tab
+   concept. A new user will guess.
 6. **`scheduled work` (AXE row 3) is misleading.** Cron-style routine scheduling lives
    in `sase schedule` / `sase axe schedule` and is not a primary surface inside the AXE
    tab; the AXE tab's right pane is the `AxeDashboard` (daemon health, Lumberjack
@@ -99,7 +100,8 @@ path: `plan` (clipboard icon) → `launch` (rocket) → `monitor` (graph) → `l
 ## Specific accuracy errors against current code
 
 The accuracy bar is whether the diagram matches today's
-`src/sase/ace/tui/widgets/tab_bar.py`, `src/sase/ace/tui/app.py`, and `docs/ace.md`.
+`src/sase/ace/tui/widgets/tab_bar.py`, `src/sase/ace/tui/app.py`, and
+`docs/reference/tui/tabs-and-panes.md`.
 
 1. **Tab labels and ordering are correct.** `_TAB_LABELS` in `tab_bar.py:20-24` declares
    the order `("changespecs","PRs"), ("agents","Agents"), ("axe","AXE")` and the diagram
@@ -110,17 +112,18 @@ The accuracy bar is whether the diagram matches today's
 3. **PRs-tab content row "query, group, fold" understates what is on screen.** The PRs
    view composes `PatchInfoPanel`, `PatchList`, the host-owned **`RelationPanel`**,
    `SearchQueryPanel`, and `PatchDetail`. Ancestor / child / sibling navigation (`<`,
-   `>`, `~` per `docs/ace.md:PRs Tab`) is one of the distinctive features of the tab and
-   is not represented at all in the icon row.
+   `>`, `~` per `docs/reference/tui/tabs-and-panes.md:PRs Tab`) is one of the
+   distinctive features of the tab and is not represented at all in the icon row.
 4. **PRs-tab grouping is named generically.** Code supports three explicit grouping
-   modes — `BY_PROJECT`, `BY_DATE`, `BY_STATUS` — cycled with `o`/`O` (per `docs/ace.md`
-   and the `app.py` grouping logic referenced from the AGENTS.md note in
-   `src/sase/ace/`). The diagram says only "group", losing the named-mode information
-   that would help a reader recognise the screenshots.
+   modes — `BY_PROJECT`, `BY_DATE`, `BY_STATUS` — cycled with `o`/`O` (per
+   `docs/reference/tui/tabs-and-panes.md` and the `app.py` grouping logic referenced
+   from the AGENTS.md note in `src/sase/ace/`). The diagram says only "group", losing
+   the named-mode information that would help a reader recognise the screenshots.
 5. **PRs-tab "review, mail, sync" — `sync` does not correspond to any tab affordance.**
-   No keybinding, no widget, no config option in `docs/ace.md` is named "sync". The
-   closest concept is the `--refresh-interval` flag (auto-refresh of the query result
-   set), but that is global TUI behaviour, not a PRs-specific action.
+   No keybinding, no widget, no config option in `docs/reference/tui/tabs-and-panes.md`
+   is named "sync". The closest concept is the `--refresh-interval` flag (auto-refresh
+   of the query result set), but that is global TUI behaviour, not a PRs-specific
+   action.
 6. **Agents-tab "running + completed runs" is correct,** but the diagram omits the
    `AgentInfoPanel` summary banner at the top (`app.py:253`) and the agent **tree /
    retry chain** structure that `AgentList` renders. The retry chain
@@ -129,7 +132,8 @@ The accuracy bar is whether the diagram matches today's
 7. **Agents-tab "prompts, files, diffs" matches `AgentDetail` panes** (`app.py:258`) —
    accurate. ✓
 8. **Agents-tab "resume, tag, kill" matches real keybindings** (resume, tag, kill are
-   documented in `docs/ace.md`'s Agents-tab section) — accurate. ✓
+   documented in `docs/reference/tui/tabs-and-panes.md`'s Agents-tab section) —
+   accurate. ✓
 9. **AXE-tab "daemon health" maps to the `AxeInfoPanel` banner** (`app.py:266`) —
    accurate. ✓
 10. **AXE-tab "background commands" maps to `BgCmdList`** (`app.py:263`) — accurate. ✓
@@ -139,11 +143,11 @@ The accuracy bar is whether the diagram matches today's
     `sase schedule` and surfaces only summarily. The diagram label suggests a "scheduled
     jobs view" that the tab does not really own.
 12. **The bottom `plan / launch / monitor / land` strip has no UI counterpart.** This is
-    the conceptual lifecycle of an SDD epic / agent run, drawn from `docs/ace.md` (agent
-    phases) and the SDD epic-work flow (`memory/glossary.md`). It is not literally
-    rendered in the TUI; the diagram does not say so. Either it needs an explicit
-    eyebrow/caption ("Agent lifecycle that the three tabs together support") or it
-    should be dropped.
+    the conceptual lifecycle of an SDD epic / agent run, drawn from
+    `docs/reference/tui/tabs-and-panes.md` (agent phases) and the SDD epic-work flow
+    (`memory/glossary.md`). It is not literally rendered in the TUI; the diagram does
+    not say so. Either it needs an explicit eyebrow/caption ("Agent lifecycle that the
+    three tabs together support") or it should be dropped.
 13. **The shared chrome is missing entirely.** `app.py:233-239,268-269` shows that every
     tab is wrapped by `Header`, the top-bar indicator stack, the `KeybindingFooter`, and
     the platform `Footer`. None of these is drawn, which is the most concrete miss

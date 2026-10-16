@@ -47,7 +47,6 @@
 ## Reference
 
 - [CLI Reference](https://sase.sh/cli/) — CLI Reference — This page is a command index for the top-level sase CLI.
-- [SASE Pager](https://sase.sh/pager/) — SASE Pager — sase pager opens artifact references, file paths, or stdin in the SASE link-traversing pager.
 - [Agent Attachments and Image Previews](https://sase.sh/reference/agent-attachments/) — Images and videos agents produce, and how sase's TUI previews them.
 - [Agent auto-restart](https://sase.sh/reference/agent-auto-restart/) — Recovery service for agents interrupted by a live update, and its limits.
 - [Agent revive log](https://sase.sh/reference/agent-revive-log/) — Audit records for TUI agent revival, and how to read them.
@@ -242,17 +241,32 @@
 - [Agents tab search and modes](https://sase.sh/reference/tui/agents-tab-modes/) — Search, leader, bang, and copy modes on the Agents tab.
 - [Agents tab panels](https://sase.sh/reference/tui/agents-tab-panels/) — Clan, session, neighbor, and tribe panels on the Agents tab.
 - [Agents tab](https://sase.sh/reference/tui/agents-tab/) — Tabs, keys, lists, and actions on the sase TUI Agents tab.
-- [TUI](https://sase.sh/reference/tui/) — Reference pages for the sase TUI Agents tab, prompt, and Launch Control surfaces.
+- [Artifacts tab](https://sase.sh/reference/tui/artifacts-tab/) — Artifact links, Patches keybindings, mentor comment stats, and the PR origin chip.
+- [Files and preview](https://sase.sh/reference/tui/files-and-preview/) — The Files pane, Preview reader, and Agents tab Archive in the sase TUI.
+- [Filtering](https://sase.sh/reference/tui/filtering/) — Query filtering on the Agents, Patches, Commits, Beads, and Plans TUI panes.
+- [Finders](https://sase.sh/reference/tui/finders/) — The Jump All modal, jump back, and the Node Finder in the sase TUI.
+- [Global controls](https://sase.sh/reference/tui/global-controls/) — Global keys, custom keymaps, the command palette, the command line, and auto-refresh.
+- [TUI](https://sase.sh/reference/tui/) — Reference pages for the sase TUI tabs, prompt, Launch Control, pager, and global controls.
 - [TUI keymaps](https://sase.sh/reference/tui/keymaps/) — Default configurable key bindings for SASE's terminal interface.
 - [Launch Control overrides](https://sase.sh/reference/tui/launch-control-overrides/) — Temporary overrides, persistent alias edits, and examples in sase TUI Launch Control.
 - [Launch Control](https://sase.sh/reference/tui/launch-control/) — Launch Control keys for usage, effort, capacity, routing, drain, tmux Agent, and alias history.
+- [Launching the TUI](https://sase.sh/reference/tui/launching/) — How to start sase tui, including CLI options, screenshots, and clipboard transports.
+- [Machines, statistics, and tools](https://sase.sh/reference/tui/machines-and-tools/) — Machines, Statistics, and Tools tabs plus the Config Flags pane in the sase TUI.
+- [Notifications modal](https://sase.sh/reference/tui/notifications-modal/) — The notifications modal, snooze scheduling, notification actions, and toasts.
+- [SASE Pager](https://sase.sh/reference/tui/pager/) — Open artifact references, file paths, or stdin in the SASE link-traversing pager.
+- [Procs tab](https://sase.sh/reference/tui/procs-tab/) — The Procs tab layout, status icons, monitors, durable procs, filtering, and keys.
+- [Projects tab](https://sase.sh/reference/tui/projects-tab/) — The Projects tab, adding and initializing projects, and the current-project indicator.
 - [Prompt completion panels](https://sase.sh/reference/tui/prompt-completion-panels/) — Glossary, memory, snippets, repo-name, and spellcheck completion panels in the sase TUI prompt.
 - [Prompt completion](https://sase.sh/reference/tui/prompt-completion/) — Token completion in the sase TUI prompt widget, including next-word prediction.
 - [Prompt input](https://sase.sh/reference/tui/prompt-input/) — Insert mode, alt-brace syntax, macro editing, search, and launch-target picking in the sase TUI prompt widget.
 - [Prompt modes](https://sase.sh/reference/tui/prompt-modes/) — NORMAL and Visual mode keys for the sase TUI prompt input widget.
 - [Prompt stacks](https://sase.sh/reference/tui/prompt-stacks/) — Multi-agent prompt stacks, stash, and trash in the sase TUI prompt widget.
 - [Prompts overlay](https://sase.sh/reference/tui/prompts-overlay/) — History, stash, and trash in the sase TUI Prompts overlay (the prompt-history modal).
+- [Query system](https://sase.sh/reference/tui/query-system/) — Editing, saving, and recalling queries in the sase TUI.
+- [Services tab](https://sase.sh/reference/tui/services-tab/) — Services tab sidebar, description panel, job results, and control keys.
 - [Snippets](https://sase.sh/reference/tui/snippets/) — Prompt snippets, variables, aliases, and the Macro Browser in the sase TUI.
+- [Tabs and panes](https://sase.sh/reference/tui/tabs-and-panes/) — Top-level TUI tabs, Artifacts panes, navigation, copy mode, marks, and Beads.
+- [Updates tab](https://sase.sh/reference/tui/updates-tab/) — The Updates tab for SASE core, plugins, and agent CLI updates from the TUI.
 - [Agent hood synchronization upgrades](https://sase.sh/reference/upgrading/agents-sidecar/) — Upgrade notes for retired agent hood synchronization formats.
 - [Automation migration notes](https://sase.sh/reference/upgrading/automation/) — Upgrade notes for scheduler naming, monitor hand-off, and gate contracts.
 - [Configuration migration notes](https://sase.sh/reference/upgrading/configuration/) — Migration steps for configuration keys, file hooks, repositories, and SDD storage.
@@ -314,6 +328,7 @@
 - [SDD Storage](https://sase.sh/contribute/sdd-storage/) — The workspace provider owns SDD placement, while projects select a store beneath it.
 - [Telemetry](https://sase.sh/contribute/telemetry/) — SASE records debugging and health metric history locally.
 - [Tool run receipts](https://sase.sh/contribute/tool-run-receipts/) — Internal receipt policy and verification details for recorded tool runs.
+- [TUI rendering](https://sase.sh/contribute/tui-rendering/) — Tab bar display, file panel rendering, and the image preview foundation in the sase TUI.
 - [VCS provider API](https://sase.sh/contribute/vcs-provider-api/) — Contributor contract for implementing and selecting VCS providers.
 - [Workspace provider internals](https://sase.sh/contribute/workspace-provider/) — Provider APIs, hooks, and ownership rules for workspace implementations.
 - [Writing docs](https://sase.sh/contribute/writing-docs/) — The sase.sh documentation contract for humans and agents.
@@ -334,7 +349,7 @@
 
 ## Compatibility
 
-- [sase's TUI User Guide](https://sase.sh/ace/) — sase's TUI User Guide — sase's TUI is the primary TUI for the SASE toolkit.
+- [sase's TUI User Guide](https://sase.sh/ace/) — This page has moved to its new home.
 - [Agent Clans, Sessions, and Tribes](https://sase.sh/agent_sessions/) — This page has moved to its new home.
 - [Agent Hood Synchronization](https://sase.sh/agents_sidecar/) — This page has moved to its new home.
 - [Scheduler — Background Automation](https://sase.sh/axe/) — This page has moved to its new home.
@@ -412,3 +427,4 @@
 - https://sase.sh/prompt/ → https://sase.sh/reference/prompt-history/
 - https://sase.sh/artifact_references/ → https://sase.sh/reference/artifact-references/
 - https://sase.sh/artifact_links/ → https://sase.sh/reference/artifact-links/
+- https://sase.sh/pager/ → https://sase.sh/reference/tui/pager/

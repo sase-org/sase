@@ -45,7 +45,6 @@
 ## Reference
 
 - [CLI Reference](cli.md) — CLI Reference — This page is a command index for the top-level sase CLI.
-- [SASE Pager](pager.md) — SASE Pager — sase pager opens artifact references, file paths, or stdin in the SASE link-traversing pager.
 - [Agent Attachments and Image Previews](reference/agent-attachments.md) — Images and videos agents produce, and how sase's TUI previews them.
 - [Agent auto-restart](reference/agent-auto-restart.md) — Recovery service for agents interrupted by a live update, and its limits.
 - [Agent revive log](reference/agent-revive-log.md) — Audit records for TUI agent revival, and how to read them.
@@ -240,17 +239,32 @@
 - [Agents tab search and modes](reference/tui/agents-tab-modes.md) — Search, leader, bang, and copy modes on the Agents tab.
 - [Agents tab panels](reference/tui/agents-tab-panels.md) — Clan, session, neighbor, and tribe panels on the Agents tab.
 - [Agents tab](reference/tui/agents-tab.md) — Tabs, keys, lists, and actions on the sase TUI Agents tab.
-- [TUI](reference/tui/index.md) — Reference pages for the sase TUI Agents tab, prompt, and Launch Control surfaces.
+- [Artifacts tab](reference/tui/artifacts-tab.md) — Artifact links, Patches keybindings, mentor comment stats, and the PR origin chip.
+- [Files and preview](reference/tui/files-and-preview.md) — The Files pane, Preview reader, and Agents tab Archive in the sase TUI.
+- [Filtering](reference/tui/filtering.md) — Query filtering on the Agents, Patches, Commits, Beads, and Plans TUI panes.
+- [Finders](reference/tui/finders.md) — The Jump All modal, jump back, and the Node Finder in the sase TUI.
+- [Global controls](reference/tui/global-controls.md) — Global keys, custom keymaps, the command palette, the command line, and auto-refresh.
+- [TUI](reference/tui/index.md) — Reference pages for the sase TUI tabs, prompt, Launch Control, pager, and global controls.
 - [TUI keymaps](reference/tui/keymaps.md) — Default configurable key bindings for SASE's terminal interface.
 - [Launch Control overrides](reference/tui/launch-control-overrides.md) — Temporary overrides, persistent alias edits, and examples in sase TUI Launch Control.
 - [Launch Control](reference/tui/launch-control.md) — Launch Control keys for usage, effort, capacity, routing, drain, tmux Agent, and alias history.
+- [Launching the TUI](reference/tui/launching.md) — How to start sase tui, including CLI options, screenshots, and clipboard transports.
+- [Machines, statistics, and tools](reference/tui/machines-and-tools.md) — Machines, Statistics, and Tools tabs plus the Config Flags pane in the sase TUI.
+- [Notifications modal](reference/tui/notifications-modal.md) — The notifications modal, snooze scheduling, notification actions, and toasts.
+- [SASE Pager](reference/tui/pager.md) — Open artifact references, file paths, or stdin in the SASE link-traversing pager.
+- [Procs tab](reference/tui/procs-tab.md) — The Procs tab layout, status icons, monitors, durable procs, filtering, and keys.
+- [Projects tab](reference/tui/projects-tab.md) — The Projects tab, adding and initializing projects, and the current-project indicator.
 - [Prompt completion panels](reference/tui/prompt-completion-panels.md) — Glossary, memory, snippets, repo-name, and spellcheck completion panels in the sase TUI prompt.
 - [Prompt completion](reference/tui/prompt-completion.md) — Token completion in the sase TUI prompt widget, including next-word prediction.
 - [Prompt input](reference/tui/prompt-input.md) — Insert mode, alt-brace syntax, macro editing, search, and launch-target picking in the sase TUI prompt widget.
 - [Prompt modes](reference/tui/prompt-modes.md) — NORMAL and Visual mode keys for the sase TUI prompt input widget.
 - [Prompt stacks](reference/tui/prompt-stacks.md) — Multi-agent prompt stacks, stash, and trash in the sase TUI prompt widget.
 - [Prompts overlay](reference/tui/prompts-overlay.md) — History, stash, and trash in the sase TUI Prompts overlay (the prompt-history modal).
+- [Query system](reference/tui/query-system.md) — Editing, saving, and recalling queries in the sase TUI.
+- [Services tab](reference/tui/services-tab.md) — Services tab sidebar, description panel, job results, and control keys.
 - [Snippets](reference/tui/snippets.md) — Prompt snippets, variables, aliases, and the Macro Browser in the sase TUI.
+- [Tabs and panes](reference/tui/tabs-and-panes.md) — Top-level TUI tabs, Artifacts panes, navigation, copy mode, marks, and Beads.
+- [Updates tab](reference/tui/updates-tab.md) — The Updates tab for SASE core, plugins, and agent CLI updates from the TUI.
 - [Agent hood synchronization upgrades](reference/upgrading/agents-sidecar.md) — Upgrade notes for retired agent hood synchronization formats.
 - [Automation migration notes](reference/upgrading/automation.md) — Upgrade notes for scheduler naming, monitor hand-off, and gate contracts.
 - [Configuration migration notes](reference/upgrading/configuration.md) — Migration steps for configuration keys, file hooks, repositories, and SDD storage.
@@ -312,6 +326,7 @@
 - [SDD Storage](contribute/sdd-storage.md) — The workspace provider owns SDD placement, while projects select a store beneath it.
 - [Telemetry](contribute/telemetry.md) — SASE records debugging and health metric history locally.
 - [Tool run receipts](contribute/tool-run-receipts.md) — Internal receipt policy and verification details for recorded tool runs.
+- [TUI rendering](contribute/tui-rendering.md) — Tab bar display, file panel rendering, and the image preview foundation in the sase TUI.
 - [VCS provider API](contribute/vcs-provider-api.md) — Contributor contract for implementing and selecting VCS providers.
 - [Workspace provider internals](contribute/workspace-provider.md) — Provider APIs, hooks, and ownership rules for workspace implementations.
 - [Writing docs](contribute/writing-docs.md) — The sase.sh documentation contract for humans and agents.
@@ -332,7 +347,7 @@
 
 ## Compatibility
 
-- [sase's TUI User Guide](ace.md) — sase's TUI User Guide — sase's TUI is the primary TUI for the SASE toolkit.
+- [sase's TUI User Guide](ace.md) — This page has moved to its new home.
 - [Agent Clans, Sessions, and Tribes](agent_sessions.md) — This page has moved to its new home.
 - [Agent Hood Synchronization](agents_sidecar.md) — This page has moved to its new home.
 - [Scheduler — Background Automation](axe.md) — This page has moved to its new home.
@@ -412,3 +427,4 @@
 | `/prompt/` | [`/reference/prompt-history/`](reference/prompt-history.md) |
 | `/artifact_references/` | [`/reference/artifact-references/`](reference/artifact-references.md) |
 | `/artifact_links/` | [`/reference/artifact-links/`](reference/artifact-links.md) |
+| `/pager/` | [`/reference/tui/pager/`](reference/tui/pager.md) |

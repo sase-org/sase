@@ -63,7 +63,7 @@ source. Enable and disable write a SASE-owned machine-state file under `SASE_HOM
 (normally `~/.sase/feature_flags.json`) and then restart sase's TUI and the service host
 so new processes see the saved value. See [feature_flags](../config/feature-flags.md#featureflags) for
 precedence, corruption behavior, and the CLI equivalent, and the
-[Config Flags pane](../../ace.md#config-flags-pane) for layout, keys, confirmation, and
+[Config Flags pane](machines-and-tools.md#config-flags-pane) for layout, keys, confirmation, and
 self-disable recovery.
 
 - **Browse / inspect** (read-only): a source rail lists each config layer with
@@ -218,7 +218,7 @@ for Perf data sources and retention.
 Press `7` in Admin Center to inspect recorded command runs, grouped failure signatures,
 and the configured tool catalog. The pane has **Runs**, **Failures**, and **Catalog**
 views, with project filters and links to output and diagnostics. See the
-[Tools tab guide](../../ace.md#tools-tab) and [Named Tools and ToolRuns](../automation/tools.md).
+[Tools tab guide](machines-and-tools.md#tools-tab) and [Named Tools and ToolRuns](../automation/tools.md).
 
 ### Updates tab
 

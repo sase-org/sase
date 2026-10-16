@@ -382,7 +382,7 @@ color terminal; `sase prompt show -f markdown` writes them as plain text. Raw an
 output (`sase prompt show`, `sase prompt list --json`, and `sase prompt search -f json`)
 keeps the exact stored text. `sase macro show` accent-colors tags in its highlighted
 body, and `sase project list` and `sase project show` print each project's tag. The
-[SASE Pager](../../pager.md#syntax-highlighting) colors resolved tags in Markdown prose with
+[SASE Pager](../tui/pager.md#syntax-highlighting) colors resolved tags in Markdown prose with
 the same accent styling when the project catalog is already loaded (in practice, inside
 sase's TUI).
 

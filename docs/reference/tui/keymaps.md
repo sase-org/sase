@@ -7,7 +7,7 @@ description: Default configurable key bindings for SASE's terminal interface.
 
 # TUI keymaps
 
-These are the bundled defaults for configurable TUI actions. The key and action labels come from the keymap configuration and the metadata used by the live help surfaces. Fixed widget and text-editor keys are documented with their behavior in the [TUI reference](../../ace.md).
+These are the bundled defaults for configurable TUI actions. The key and action labels come from the keymap configuration and the metadata used by the live help surfaces. Fixed widget and text-editor keys are documented with their behavior in the [TUI reference](index.md).
 
 ## Application
 

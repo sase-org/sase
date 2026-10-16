@@ -6,7 +6,7 @@ description:
 
 # Prompt History and Draft Recovery
 
-Prompts you launch with `sase run` or from [sase's TUI](../ace.md) are recorded in
+Prompts you launch with `sase run` or from [sase's TUI](tui/index.md) are recorded in
 prompt history when they are useful to replay. Normal launch writes skip prompts shorter
 than five words (terse scraps like `y`, `ok`, or `fix the bug` are not worth replaying),
 while recovery paths — and a few launch surfaces that opt in with `allow_short` — can
@@ -264,8 +264,8 @@ sase prompt list -j               # stable JSON for scripts and editor integrati
 The table shows the prompt ID, last-used time, status, character count,
 project/macro/directive hint chips, and a one-line preview — never the full text.
 
-Inside [sase's TUI](../ace.md), the same history is one keystroke away: press `Ctrl+K`
-in the prompt bar (or `,.` from any tab) to open the
+Inside [sase's TUI](tui/index.md), the same history is one keystroke away: press
+`Ctrl+K` in the prompt bar (or `,.` from any tab) to open the
 [Prompts overlay](tui/prompts-overlay.md#prompt-history-modal). Its filter accepts a
 leading `project:<name>` qualifier, and `Ctrl+K` pre-scopes it to the project named by
 the current prompt's workspace reference.

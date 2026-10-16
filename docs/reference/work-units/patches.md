@@ -202,7 +202,8 @@ selection entirely, before query evaluation — SASE automation never acts on th
 
 **Setting it:** `sase patch set-origin <name> <sase|external|unknown>` (see
 [CLI Reference](../../cli.md#work-tracking-and-planning)), or press `o` on a PR row in
-sase's TUI Patches sub-tab (see [PR Origin Chip](../../ace.md#pr-origin-chip)).
+sase's TUI Patches sub-tab (see
+[PR Origin Chip](../tui/artifacts-tab.md#pr-origin-chip)).
 
 **Example:**
 

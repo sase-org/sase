@@ -286,7 +286,7 @@ first-open value of project filters, and the top row of the `+` project-tag comp
 menu. It never overrides an explicit `project:` / `+name` term, a pick you already made
 this session, project lifecycle state, or what a command targets. `sase project current`
 prints the resolved project, or explains that nothing resolves and exits 0. See
-[sase's TUI: Current project](../../ace.md#current-project) and
+[sase's TUI: Current project](../tui/projects-tab.md#current-project) and
 [`ace.current_project`](../config/ace-behavior.md#acecurrentproject).
 
 ### Project Lifecycle

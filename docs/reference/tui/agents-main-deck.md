@@ -65,12 +65,12 @@ The Agents tab Main deck shows structured information about the selected agent a
 [Agent data decks and cards](agent-statuses.md#agent-data-decks-and-cards)):
 
 Pressing `V` on any local Agents-tab row (running or done) opens that same agent's
-metadata full-screen in the [pager](../../pager.md) instead, as a sectioned document —
+metadata full-screen in the [pager](pager.md) instead, as a sectioned document —
 IDENTITY, MODEL, WORKSPACE, TIMELINE, CONTENT, SASE CONTEXT, and BEAD (skipping any that
 would be empty) — with `/` search, `;` goto, `Ctrl+N`/`Ctrl+P` section jumps, and `y`
 copy. `r` inside the pager re-snapshots the agent, which matters for a still-running
 one. The pager also supports split panes (`\` below, `|` beside) — see
-[Split panes](../../pager.md#split-panes). `V` is unavailable for remote fleet rows and when
+[Split panes](pager.md#split-panes). `V` is unavailable for remote fleet rows and when
 no agent is selected; other tabs keep `V` bound to the Agent Run Log modal.
 
 `Ctrl+J` and `Ctrl+K` move to the next / previous card in the focused deck panel

@@ -276,9 +276,9 @@ sase bead show <bead-id> --style rich --color always
 `auto` refuses to page when `TERM` is unset or `dumb`, stdout is redirected,
 `SASE_AGENT` is set, or the output fits the terminal. The `SASE_AGENT` guard prevents
 launched agents with a TTY from blocking on an interactive pager. When output pages,
-`sase bead show --format full` runs the [SASE Pager](../../pager.md) in-process with one
-structured section per bead. Direct output still uses the same flattened bytes, so shell
-pipelines remain plain stdout.
+`sase bead show --format full` runs the [SASE Pager](../tui/pager.md) in-process with
+one structured section per bead. Direct output still uses the same flattened bytes, so
+shell pipelines remain plain stdout.
 
 ```bash
 sase bead show <bead-id> --pager always

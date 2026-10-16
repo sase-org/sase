@@ -54,7 +54,7 @@ default `sase agent search` path uses the catalog profile. The CLI's `in:archive
 uses `agents-archive` against the compiled archive corpus. The live profile includes
 operational fields such as `machine`, `pinned`, `unread`, `needs`, and `source`; the
 archive profile adds `outcome`, `restorable`, `tab`, `clan_tribe`, and archive link
-facets. See [sase's TUI: Archive](../ace.md#archive-agents-tab) and
+facets. See [sase's TUI: Archive](tui/files-and-preview.md#archive-agents-tab) and
 [sase's TUI: Agent Search](tui/agents-tab-modes.md#agent-search).
 
 In the Patches sub-tab, the canonical form of the active query stays visible in a
@@ -65,17 +65,17 @@ your selection. A parse error is reported inline and leaves the visible list on 
 valid query. `Tab` accepts completions for property keys and values, shorthand sigils,
 predicates, and shorthands — and, while the row is empty, saved-query slots. A leading
 `#` saves or deletes a slot without changing the active query; see
-[sase's TUI: Editing Queries](../ace.md#editing-queries).
+[sase's TUI: Editing Queries](tui/query-system.md#editing-queries).
 
 Stitches, Beads, Plans, Files, and document-provider panes use the same idle chrome --
 the committed query stays visible without opening an editor -- but each pane has its own
 query profile and previews against **that pane's** loaded snapshot, not the Patch
 snapshot. `/` still focuses the row (as does the pane-local `f`); the tokens you can
 type are documented per pane in
-[sase's TUI Artifacts](../ace.md#filtering-agent-patches-commits-beads-and-plans). The
-top-level Agents tab hides its filter bar when idle; press `/` or `f` to edit the live
-Agent query there. `,/` searches the selected agent's metadata and does not edit the
-query.
+[sase's TUI Artifacts](tui/filtering.md#filtering-agent-patches-commits-beads-and-plans).
+The top-level Agents tab hides its filter bar when idle; press `/` or `f` to edit the
+live Agent query there. `,/` searches the selected agent's metadata and does not edit
+the query.
 
 ## String Matching
 
@@ -158,8 +158,9 @@ Query panes use one of two dialects, and globs compose with each dialect's own s
   and `OR` instead of `-` and commas. Their bare values must start with a letter, digit,
   or `_` and contain only letters, digits, `_`, `-`, `.`, and `*`, so quote anything
   else, as in `name:"*_fix"` or `model:"*opus*"`. The Agents tab filter's `tab:` field
-  is exact (`main` for rows with no stored tab) and is specified in the ace.md Agent
-  Search table. `tab:` is an Agents field, not a Patch property.
+  is exact (`main` for rows with no stored tab) and is specified in the
+  [Agents tab search](tui/agents-tab-modes.md#agent-search) table. `tab:` is an Agents
+  field, not a Patch property.
 
 In the Patch query language documented on this page, all six property filters are
 exact-match fields, so a `*` in any of them is an anchored whole-value glob: `status:`

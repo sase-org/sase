@@ -67,7 +67,7 @@ field (exact match, or `main` for the default tab).
 | ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `$$` / `$1`-`$9` / `$0`   | Follow the first / numbered artifact link, or open the complete links panel                                                                                      |
 | _(palette)_               | Pick an agent tab from the command palette (`Agents: go to tab…`; same strip gating as `]`/`[`)                                                                  |
-| `` ` ``                   | Jump to entry across all tabs (see [Jump All Modal](../../ace.md#jump-all-modal))                                                                                            |
+| `` ` ``                   | Jump to entry across all tabs (see [Jump All Modal](finders.md#jump-all-modal))                                                                                            |
 | `0`–`9`                   | Jump from a selected clan, agent node, session member, or whole-panel roster to its numbered member or neighbor (live in the jump panel below the detail panels) |
 | `o`, then `p`/`d`/`s`/`m` | Choose grouping mode: Project, Date, Status, or Machine                                                                                                          |
 | `oo`                      | Step the Agents panel layout ladder forward, then close the grouping picker (see [Grouping Modes](agents-tab-grouping.md#grouping-modes))                                              |
@@ -455,7 +455,7 @@ count. These modal-local `l`/`J` accelerators are distinct from the Artifacts Fi
 pane's compatibility-preserving `%L`/`%j` keys. The legacy `y` and `Y` accelerators
 remain available and apply to the same marked set.
 
-`Y` shares one helper with the [Files pane](../../ace.md#files-pane), so both copy the same anchored
+`Y` shares one helper with the [Files pane](files-and-preview.md#files-pane), so both copy the same anchored
 path: the stored path, except that PDF rows yield the live Markdown source they were
 rendered from when the index recorded one. Relative index paths are anchored to the
 producing workspace — including legacy rows whose workspace is discoverable only through

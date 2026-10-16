@@ -51,7 +51,8 @@ Flag and option details live in the generated
   [sase tmux-agent](reference/cli/tmux-agent.md), [sase run](reference/cli/run.md),
   [sase pager](reference/cli/pager.md)
 
-Workflows: [TUI](ace.md), [Scheduler](reference/automation/scheduler.md),
+Workflows: [TUI](reference/tui/index.md),
+[Scheduler](reference/automation/scheduler.md),
 [Monitors](reference/automation/monitors.md),
 [Prompt history](reference/prompt-history.md), [VCS](reference/vcs/index.md),
 [Notifications](reference/automation/notifications.md),
@@ -340,8 +341,8 @@ kind and ownership. Use `sase proc kill REF` to stop any active store-backed pro
 output uses a `procs` array for `list` and a `proc` object for `run`, `show`, and
 `kill`. Retention keeps every pending or running proc plus the newest
 [`procs.history_limit`](reference/config/runtime-and-storage.md#procs) finished ones.
-See the [sase's TUI Procs tab](ace.md#durable-procs) for the full model and the in-TUI
-equivalents.
+See the [sase's TUI Procs tab](reference/tui/procs-tab.md#durable-procs) for the full
+model and the in-TUI equivalents.
 
 `sase proc run -N/--name NAME` and `sase proc list -N/--name NAME` address a proc by a
 **named proc** instead of its id: a bare name is derived beneath the calling sase-agent

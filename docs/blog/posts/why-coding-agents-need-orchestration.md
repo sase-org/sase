@@ -12,7 +12,7 @@ links:
   - Get started: start/index.md
   - Macros: reference/macros/index.md
   - Spec-Driven Development: sdd.md
-  - sase's TUI: ace.md
+  - sase's TUI: reference/tui/index.md
   - View on GitHub: https://github.com/sase-org/sase
 ---
 
@@ -191,7 +191,8 @@ Here is the SASE loop:
 
 The docs that matter most at first are [Macros](../../reference/macros/index.md),
 [SDD](../../reference/work-units/index.md),
-[Beads](../../reference/work-units/index.md), [sase's TUI](../../ace.md),
+[Beads](../../reference/work-units/index.md),
+[sase's TUI](../../reference/tui/index.md),
 [AXE](../../reference/automation/scheduler.md),
 [VCS providers](../../reference/vcs/index.md), and
 [plugins](../../reference/integrations/plugins.md).

@@ -194,10 +194,10 @@ compact summary with the triage footer and exits with the run's mapped code. In 
 Procs tab that proc carries a `tool-run-join:<id>` tag, so `Enter` opens Admin Center →
 Tools focused on the run (`⏎: run`) instead of jumping to the monitor's agent. A monitor
 that owns a reserved run uses `tool-run:<id>` and opens the same way. See
-[Opening a row](../../ace.md#opening-a-row). `stop`, timeout, and a lost joiner converge
-through the detached-run watchdog with the `stop_requested` reason preserved, and
-`sase tool stop RUN` on a joined run stops the active joining monitor (suppressing its
-follow-up) rather than the run's proc.
+[Opening a row](../tui/procs-tab.md#opening-a-row). `stop`, timeout, and a lost joiner
+converge through the detached-run watchdog with the `stop_requested` reason preserved,
+and `sase tool stop RUN` on a joined run stops the active joining monitor (suppressing
+its follow-up) rather than the run's proc.
 
 ### Tool-run wrapping
 

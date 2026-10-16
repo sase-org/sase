@@ -69,7 +69,8 @@ into each pane's default query when no `limit:` is present; `limit:all` is the u
 synonym on every pane, and the shared parser also accepts `limit:0` for the same state.
 `Ctrl+J` (`artifacts_load_more`) raises the cap by one page and `Ctrl+K`
 (`artifacts_unload`) lowers it, never dropping below one page. See
-[sase's TUI Artifacts](../ace.md) for the user-facing keys and coverage badges.
+[sase's TUI Artifacts](../reference/tui/artifacts-tab.md) for the user-facing keys and
+coverage badges.
 
 ## Declarative `ref.pane`
 
@@ -205,8 +206,8 @@ behind after the user moves on.
 `$` link-follow uses the same lens, but reaches it through the host-owned jump engine
 rather than a single rewrite: fold expansion, targeted hydration of a row the pane never
 loaded, one verified context rewrite, then identity and neutral fallbacks. See
-[Link Jumps](../ace.md#link-jumps) for the user-facing behavior, including the toast and
-the context query each artifact kind lands in.
+[Link Jumps](../reference/tui/artifacts-tab.md#link-jumps) for the user-facing behavior,
+including the toast and the context query each artifact kind lands in.
 
 ## Identity field
 

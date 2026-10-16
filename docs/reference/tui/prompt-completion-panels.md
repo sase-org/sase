@@ -185,7 +185,7 @@ project you opened from even when it has none (so `a` can bootstrap it), and one
 scope resolved through the active
 [`use_chezmoi`](../config/core-behavior.md#usechezmoi) mode, always ordered by
 display name with `Home` last. Precedence for the starting scope is the prompt's
-launch-workspace project, then the [current project](../../ace.md#current-project) when it appears
+launch-workspace project, then the [current project](projects-tab.md#current-project) when it appears
 in the ring, then the first ring entry. Switching scopes clears the trail and the filter
 and restores that scope's last-selected note for the life of the panel. `Ctrl+P` opens a
 filterable scope picker showing each scope's display name and note count, for reaching a
@@ -241,7 +241,7 @@ in `?` and in this guide.
 
 Most keys named above are remappable under
 [`ace.keymaps.memory`](../config/ace-keymap-configuration.md#acekeymaps); see
-[Remapping Memory Panel Keys](../../ace.md#remapping-memory-panel-keys). Three sets are fixed and
+[Remapping Memory Panel Keys](global-controls.md#remapping-memory-panel-keys). Three sets are fixed and
 are not part of that scope: `Esc` and `q` (close), the `.` then `1`–`9` link-chip
 shortcuts, and the `↑`/`↓`/`Home`/`End`/`PageUp`/`PageDown` cursor keys the underlying
 list widget supplies alongside the configurable `j`/`k`/`g`/`G`.
@@ -305,7 +305,7 @@ guide.
 
 Most keys named above are remappable under
 [`ace.keymaps.snippets`](../config/ace-keymap-configuration.md#acekeymaps); see
-[Remapping Snippets Panel Keys](../../ace.md#remapping-snippets-panel-keys). Three sets are fixed
+[Remapping Snippets Panel Keys](global-controls.md#remapping-snippets-panel-keys). Three sets are fixed
 and are not part of that scope: `Esc` and `q` (close), the `1`–`9` relation-chip
 shortcuts, and the `↑`/`↓`/`Home`/`End`/`PageUp`/`PageDown` cursor keys the underlying
 list widget supplies alongside the configurable `j`/`k`/`g`/`G`.

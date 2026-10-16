@@ -289,7 +289,7 @@ executes at most once. The owner proc is attributed to a TUI session only when t
 process that submitted it is itself a live registered session. An agent escalation,
 `-d`, and a human shell `-H` leave it unattributed even when another TUI is open; there
 is no fallback to the newest TUI session. Unattributed procs remain visible in the Procs
-tab's **this session** scope. See [Durable Procs](../../ace.md#durable-procs).
+tab's **this session** scope. See [Durable Procs](../tui/procs-tab.md#durable-procs).
 
 ```bash
 sase tool run -H check     # returns at once with a run id; the shell may close
@@ -432,10 +432,11 @@ signatures, and the tool catalog. Stopping a run and starting a catalog tool are
 explicit, confirmed flows; when a hand-off settles, an `OpenToolRun` notification jumps
 back to the run. In the Procs tab, `Enter` on the owner proc or on a monitor that joined
 the run opens Tools focused on that run, unless the row also has a Command Line tag,
-which opens its transcript block first. See [Opening a row](../../ace.md#opening-a-row),
+which opens its transcript block first. See
+[Opening a row](../tui/procs-tab.md#opening-a-row),
 [Agents Tab Tool Runs](../tui/agents-deck-panels.md#agents-tab-tool-runs), and the
-[Tools tab](../../ace.md#tools-tab). The TUI never reconciles: a silent run is shown in
-red and left for its owner (or a backend reconcile) to settle.
+[Tools tab](../tui/machines-and-tools.md#tools-tab). The TUI never reconciles: a silent
+run is shown in red and left for its owner (or a backend reconcile) to settle.
 
 ## Rerunnable harness
 

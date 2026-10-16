@@ -147,8 +147,9 @@ See the [sase-nvim README](https://github.com/sase-org/sase-nvim).
 The **Updates** tab is also the recommended way to keep SASE current. In `sase tui`,
 press `#` to open Admin Center **home**, then `8` to enter Updates. For a faster
 snapshot-only update of SASE, providers, and agents without opening Admin Center, press
-`,U` in sase's TUI to open the [Update panel](https://sase.sh/ace/#updates-tab). Plugin
-install and uninstall still live on this Updates tab (`i` / `x`), not on `,U`.
+`,U` in sase's TUI to open the
+[Update panel](https://sase.sh/reference/tui/updates-tab/). Plugin install and uninstall
+still live on this Updates tab (`i` / `x`), not on `,U`.
 
 - The tab lists every SASE core package, plugin, and supported agent CLI as a row. Its
   **SASE** section shows the installed and latest versions of the `sase` and `sase-core`

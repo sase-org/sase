@@ -38,7 +38,8 @@ run `sase flag disable artifacts_agent_pane_retired` or set
 flag, the typed sudo request workflow (`sase sudo`) and its review modal are always
 available, only `agent_meta.autonomy` carries `%auto` state, and a hard provider disable
 relaunches stranded agents through `sase agent drain` (see `llm_provider.usage_limit`
-and Launch Control's automatic provider drain in `ace.md`).
+and Launch Control's automatic provider drain in
+[Launch Control](../tui/launch-control.md#automatic-provider-drain)).
 
 Data decks and agent tabs are always available; configure them through the
 [Agents tab reference](../tui/agent-statuses.md#agent-data-decks-and-cards), not feature
@@ -181,4 +182,5 @@ Source: `src/sase/feature_flags/registry.py`, `src/sase/feature_flags/schema.py`
 
 - [Integrations and telemetry configuration](integrations.md) — generated feature flag
   keys.
-- [Feature flag reference](../../ace.md#config-flags-pane) — flag controls.
+- [Feature flag reference](../tui/machines-and-tools.md#config-flags-pane) — flag
+  controls.

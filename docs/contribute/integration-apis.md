@@ -275,7 +275,7 @@ the Admin Center Procs query accepts `service` and `svc:<name>`. Rows without th
 read as `service=None`, so existing consumers are unaffected.
 
 The storage model, CLI inspection commands, retention, and sase's TUI rendering are
-documented under [Durable Procs](../ace.md#durable-procs).
+documented under [Durable Procs](../reference/tui/procs-tab.md#durable-procs).
 
 Source: `src/sase/procs/__init__.py`, `src/sase/procs/runner.py`,
 `src/sase/procs/store.py`

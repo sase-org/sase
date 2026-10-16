@@ -62,4 +62,4 @@ back to `auto` so a hand-edited `sase.yml` cannot crash the pager.
 ## Related
 
 - [Runtime and stored data configuration](runtime.md) — generated reading-surface keys.
-- [SASE Pager](../../pager.md) — pager behavior.
+- [SASE Pager](../tui/pager.md) — pager behavior.

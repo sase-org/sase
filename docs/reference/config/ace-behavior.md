@@ -181,7 +181,7 @@ session; it never writes the toggle back to configuration, so this key is the on
 durable setting. Descriptions themselves follow the
 [AXE description grammar](../automation/scheduler-description-grammar.md#description-grammar),
 and the panel's layout, height budget, and overflow row are described in
-[sase's TUI — Description Panel](../../ace.md#description-panel).
+[sase's TUI — Description Panel](../tui/services-tab.md#description-panel).
 
 Because the Services tab claims `d`, the `show_diff` action is active only on the
 Patches sub-tab.

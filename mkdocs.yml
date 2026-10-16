@@ -89,8 +89,13 @@ nav:
       - Reference hub: reference/index.md
       - TUI:
           - TUI hub: reference/tui/index.md
-          - sase's TUI: ace.md
+          - Launching: reference/tui/launching.md
           - SASE Admin Center: reference/tui/admin-center.md
+          - Tabs and panes:
+              - Tabs and panes: reference/tui/tabs-and-panes.md
+              - Filtering: reference/tui/filtering.md
+              - Files and preview: reference/tui/files-and-preview.md
+              - Artifacts tab: reference/tui/artifacts-tab.md
           - Agents tab:
               - Agents tab: reference/tui/agents-tab.md
               - Agents tab search and modes: reference/tui/agents-tab-modes.md
@@ -112,8 +117,19 @@ nav:
           - Launch Control:
               - Launch Control: reference/tui/launch-control.md
               - Launch Control overrides: reference/tui/launch-control-overrides.md
+          - Other tabs:
+              - Services tab: reference/tui/services-tab.md
+              - Procs tab: reference/tui/procs-tab.md
+              - Updates tab: reference/tui/updates-tab.md
+              - Projects tab: reference/tui/projects-tab.md
+              - Machines, statistics, and tools: reference/tui/machines-and-tools.md
+          - Controls:
+              - Query system: reference/tui/query-system.md
+              - Global controls: reference/tui/global-controls.md
+              - Notifications modal: reference/tui/notifications-modal.md
+              - Finders: reference/tui/finders.md
+          - SASE Pager: reference/tui/pager.md
           - Keymaps: reference/tui/keymaps.md
-          - SASE Pager: pager.md
       - CLI:
           - CLI reference: cli.md
           - CLI command groups: reference/cli/index.md
@@ -387,6 +403,7 @@ nav:
       - SDD storage: contribute/sdd-storage.md
       - Artifacts pane contract: contribute/artifacts-pane-contract.md
       - Artifacts visual grammar: contribute/artifacts-pane-visual-grammar.md
+      - TUI rendering: contribute/tui-rendering.md
       - Acknowledgements: contribute/acknowledgements.md
   - Blog:
       - Blog Home: blog/index.md

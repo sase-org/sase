@@ -1,3 +1,7 @@
+---
+title: "SASE Pager"
+description: "Open artifact references, file paths, or stdin in the SASE link-traversing pager."
+---
 # SASE Pager
 
 `sase pager` opens artifact references, file paths, or stdin in the SASE link-traversing
@@ -129,7 +133,7 @@ overrides it. Files that exceed the syntax caps stay fully visible and searchabl
 without highlighting. Unknown types can still be forced with an explicit lexer.
 
 Markdown sections also color resolved
-[`+<project>` tags](reference/macros/reference-syntax.md#project-tags) in top-level
+[`+<project>` tags](../macros/reference-syntax.md#project-tags) in top-level
 prose: a dim `+` and a bold name in the project's accent color, or neutral for
 accent-less projects. Unknown tags stay plain text, and fenced code and frontmatter stay
 tag-free. The overlay reads the already-loaded project catalog and never builds it, so
@@ -178,7 +182,7 @@ highlighting.
 | `+` / `-`                                      | Grow / shrink the focused pane                                                                                                                                                                                                                               |
 | `Ctrl+W <label>`                               | Follow a painted link in the most recently used pane (opens a split when single); `Ctrl+W Ctrl+W` focuses that pane                                                                                                                                          |
 | `?`                                            | Show help                                                                                                                                                                                                                                                    |
-| `(`, `)`, `{`, `}`, `=`, `@`, `[`, `]`         | Memory history time axis: step between versions, jump to first/now, switch read/diff views, open the timeline picker, move by change — the footer names each key's destination (`( v21 · ) now · } now`) — see [Memory History](reference/memory/history.md) |
+| `(`, `)`, `{`, `}`, `=`, `@`, `[`, `]`         | Memory history time axis: step between versions, jump to first/now, switch read/diff views, open the timeline picker, move by change — the footer names each key's destination (`( v21 · ) now · } now`) — see [Memory History](../memory/history.md) |
 
 With link scanning enabled, SASE paints references and file links with case-sensitive
 labels drawn from `0`-`9`, `a`-`z`, and `A`-`Z`. Pager commands reserve `q`, `j`, `k`,
@@ -224,7 +228,7 @@ new pane is a clone of the focused pane — the same document, reading position,
 — and takes focus at a 50/50 ratio. Every other key acts on the focused pane only, and
 only the focused pane paints link label badges (body and time-band letters alike), so a
 label keystroke is never ambiguous. A clone of a memory note also keeps its version and
-view, but each pane then steps its own [history](reference/memory/history.md), so you
+view, but each pane then steps its own [history](../memory/history.md), so you
 can read a past version in one pane against now in the other.
 
 One rule governs the split keys: `\` draws a stacked divider and `|` a side-by-side
@@ -358,3 +362,9 @@ project's name or alias, for example `sase-uk.7` or `bob-cli-5s.1`, as bead link
 documents apply no bare-token rules. Documents without declared prefixes fall back to
 `sase`. The Agents-tab metadata pager uses the `agent` origin so a bead id mentioned in
 its BEAD section links exactly as it would in a bead document.
+
+## Related
+
+- [TUI hub](index.md) — all TUI reference pages.
+- [Files and preview](files-and-preview.md) — Files pane and Preview reader.
+- [sase pager CLI](../cli/pager.md) — generated pager command flags.

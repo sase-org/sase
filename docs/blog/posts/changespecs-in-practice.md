@@ -12,7 +12,7 @@ slug: changespecs-in-practice
 links:
   - Patches: change_spec.md
   - Mentors: mentors.md
-  - sase's TUI: ace.md
+  - sase's TUI: reference/tui/index.md
   - "[05] Commit Workflows — The Pluggable Path From Diff to PR": blog/posts/commit-workflows-plugins.md
   - View on GitHub: https://github.com/sase-org/sase
 ---
@@ -159,8 +159,8 @@ They combine: `!$just presubmit` skips fix-hook hints _and_ skips proposals.
 
 ## Advanced sase's TUI Operations
 
-The Patches sub-tab in [sase's TUI](../../ace.md)'s Artifacts tab is built around Patch
-navigation. The high-leverage moves:
+The Patches sub-tab in [sase's TUI](../../reference/tui/artifacts-tab.md)'s Artifacts
+tab is built around Patch navigation. The high-leverage moves:
 
 - **Grouping (`o` / `O`)** cycles the L0 bucket through `BY_PROJECT`, `BY_DATE`, and
   `BY_STATUS`. Sibling workspaces (`foobar_1` / `foobar_2`) share an L1 banner inside
@@ -178,10 +178,10 @@ navigation. The high-leverage moves:
   accepted comments and proposes (amend), `A` applies accepted comments and commits, `r`
   re-runs a profile, `K` kills the selected running mentor.
 
-The full reference lives in [`ace.md`](../../ace.md). The point is that everything you
-would normally do in a code review — find the change, look at the diff, accept or reject
-mentor comments, apply changes, advance the status — is keystrokes away from the Patch
-record, not from a chat transcript.
+The full reference lives in the [Artifacts tab](../../reference/tui/artifacts-tab.md).
+The point is that everything you would normally do in a code review — find the change,
+look at the diff, accept or reject mentor comments, apply changes, advance the status —
+is keystrokes away from the Patch record, not from a chat transcript.
 
 ## TIMESTAMPS
 
@@ -208,8 +208,8 @@ It is recorded atomically by SASE and is not normally edited by hand.
   transition, complete examples.
 - [Mentors](../../reference/automation/mentors.md) — profile matching criteria,
   execution lifecycle, sase's TUI review modal, apply modes, file-snapshot semantics.
-- [sase's TUI](../../ace.md) — the full keybinding reference for the Artifacts, Agents,
-  and Axe tabs.
+- [sase's TUI](../../reference/tui/index.md) — the full keybinding reference for the
+  Artifacts, Agents, and Axe tabs.
 - [\[07\] Driving SASE From Your Phone — Telegram as the Mobile Control Surface](telegram-mobile-agents.md)
   — turn an existing Telegram chat into a two-way control surface for plans, agents, and
   generated artifacts.

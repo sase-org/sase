@@ -467,7 +467,7 @@ intact. `>` / `<` / `Ctrl+X` always work.
 
 The layout, split ratio, focus, node-rail preference, and each panel's deck, preferred
 card, and deck views persist across restarts in `~/.sase/ace_agents_deck_state.json`.
-See the [key tables](../../ace.md#navigation) for the full deck keymap and
+See the [key tables](artifacts-tab.md#navigation) for the full deck keymap and
 [configuration](../config/ace-prompts.md#aceagentdecks) for the spread setting.
 
 ### Finalizers on the Agents Tab

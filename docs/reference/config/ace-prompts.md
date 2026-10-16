@@ -43,7 +43,7 @@ ace:
 ```
 
 See
-[docs/ace.md — Authoring a snippet from the prompt bar](../tui/snippets.md#authoring-a-snippet-from-the-prompt-bar).
+[Authoring a snippet from the prompt bar](../tui/snippets.md#authoring-a-snippet-from-the-prompt-bar).
 
 Source: `src/sase/macro/snippet_targets.py`
 
@@ -73,11 +73,10 @@ character of the trigger and of the resolved template is uppercased, so
 `foo: "foo bar baz"` also exposes `Foo` → `Foo bar baz`. Already-capitalized,
 digit-leading, and underscore-leading triggers produce no extra entry, and an explicitly
 authored `Foo` is never replaced. These aliases are runtime-only and are never written
-back into config. See
-[docs/ace.md — Capitalized aliases](../tui/snippets.md#capitalized-aliases) for the full
-rule.
+back into config. See [Capitalized aliases](../tui/snippets.md#capitalized-aliases) for
+the full rule.
 
-See [docs/ace.md — Snippets](../tui/snippets.md#snippets-1) for usage details and
+See [Snippets](../tui/snippets.md#snippets-1) for usage details and
 [Macro fields — Snippet CLI](../macros/fields.md#snippet-cli) for `sase snippet list`,
 `show`, `add`, and `delete`.
 
@@ -130,8 +129,8 @@ warm cache holds the prompt-word index off-thread and is rebuilt when history sh
 the shared minimum change, while `Ctrl+D` deletions apply at query time without a
 rebuild. Setting `history_word_count: 0` disables only the history fallback; eligible
 prompt-local words remain available. See the History-word completion bullet in
-`docs/ace.md` for the score meter, reason chip, and legend that `word_ranking_signals`
-controls.
+[Prompt completion](../tui/prompt-completion.md) for the score meter, reason chip, and
+legend that `word_ranking_signals` controls.
 
 Common placeholders are stored at `sase_home()/prompt_placeholders.json` and are learned
 from complete raw `<foobar>` tags outside literal zones in submitted, failed-launch, and

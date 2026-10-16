@@ -141,6 +141,106 @@ moves:
       prompt-history-modal: reference/tui/prompts-overlay.md#prompt-history-modal
       keybindings-1: reference/tui/prompts-overlay.md#keybindings-1
       filtering: reference/tui/prompts-overlay.md#filtering
+      overview: reference/tui/index.md#overview
+      launching: reference/tui/launching.md#launching
+      cli-options: reference/tui/launching.md#cli-options
+      examples: reference/tui/launching.md#examples
+      agent-screenshots: reference/tui/launching.md#agent-screenshots
+      clipboard-transports: reference/tui/launching.md#clipboard-transports
+      tab-system: reference/tui/tabs-and-panes.md#tab-system
+      split-modes-in-artifacts-panes: reference/tui/tabs-and-panes.md#split-modes-in-artifacts-panes
+      pane-description-brief: reference/tui/tabs-and-panes.md#pane-description-brief
+      navigation-in-agent-commits-beads-provider-documents-and-files: reference/tui/tabs-and-panes.md#navigation-in-agent-commits-beads-provider-documents-and-files
+      copy-mode-in-agent-commits-beads-provider-documents-and-files: reference/tui/tabs-and-panes.md#copy-mode-in-agent-commits-beads-provider-documents-and-files
+      marks-in-agent-commits-beads-provider-documents-and-files: reference/tui/tabs-and-panes.md#marks-in-agent-commits-beads-provider-documents-and-files
+      beads-pane: reference/tui/tabs-and-panes.md#beads-pane
+      document-provider-panes: reference/tui/tabs-and-panes.md#document-provider-panes
+      commit-detail-and-linked-plans: reference/tui/tabs-and-panes.md#commit-detail-and-linked-plans
+      epic-phase-sizes-across-plan-surfaces: reference/tui/tabs-and-panes.md#epic-phase-sizes-across-plan-surfaces
+      contextual-artifact-links: reference/tui/artifacts-tab.md#contextual-artifact-links
+      link-jumps: reference/tui/artifacts-tab.md#link-jumps
+      keybindings-artifacts-patches: reference/tui/artifacts-tab.md#keybindings-artifacts-patches
+      navigation: reference/tui/artifacts-tab.md#navigation
+      pr-actions: reference/tui/artifacts-tab.md#pr-actions
+      pr-grouping-and-folding: reference/tui/artifacts-tab.md#pr-grouping-and-folding
+      fold-mode-z-prefix: reference/tui/artifacts-tab.md#fold-mode-z-prefix
+      workflows-and-agents: reference/tui/artifacts-tab.md#workflows-and-agents
+      bang-mode-prefix: reference/tui/artifacts-tab.md#bang-mode-prefix
+      hook-history-modal: reference/tui/artifacts-tab.md#hook-history-modal
+      leader-mode-prefix: reference/tui/artifacts-tab.md#leader-mode-prefix
+      mentor-review-modal: reference/tui/artifacts-tab.md#mentor-review-modal
+      copy-mode-prefix: reference/tui/artifacts-tab.md#copy-mode-prefix
+      mentor-comment-stats-in-pr-list: reference/tui/artifacts-tab.md#mentor-comment-stats-in-pr-list
+      pr-origin-chip: reference/tui/artifacts-tab.md#pr-origin-chip
+      filtering-agent-patches-commits-beads-and-plans: reference/tui/filtering.md#filtering-agent-patches-commits-beads-and-plans
+      archive-agents-tab: reference/tui/files-and-preview.md#archive-agents-tab
+      preview-reader: reference/tui/files-and-preview.md#preview-reader
+      files-pane: reference/tui/files-and-preview.md#files-pane
+      filtering-files: reference/tui/files-and-preview.md#filtering-files
+      keybindings-services-tab: reference/tui/services-tab.md#keybindings-services-tab
+      sidebar-row-taxonomy: reference/tui/services-tab.md#sidebar-row-taxonomy
+      description-panel: reference/tui/services-tab.md#description-panel
+      dynamic-sidebar-width-and-no-wrap-rows: reference/tui/services-tab.md#dynamic-sidebar-width-and-no-wrap-rows
+      controlled-output-highlighting-and-ansi-fallback: reference/tui/services-tab.md#controlled-output-highlighting-and-ansi-fallback
+      job-result-documents: reference/tui/services-tab.md#job-result-documents
+      navigation-2: reference/tui/services-tab.md#navigation-2
+      commands: reference/tui/services-tab.md#commands
+      axe-property-sheet: reference/tui/services-tab.md#axe-property-sheet
+      leader-mode-prefix-2: reference/tui/services-tab.md#leader-mode-prefix-2
+      bang-mode-prefix-2: reference/tui/services-tab.md#bang-mode-prefix-2
+      copy-mode-prefix-2: reference/tui/services-tab.md#copy-mode-prefix-2
+      services-control: reference/tui/services-tab.md#services-control
+      query-system: reference/tui/query-system.md#query-system-1
+      editing-queries: reference/tui/query-system.md#editing-queries
+      saved-queries: reference/tui/query-system.md#saved-queries
+      query-history: reference/tui/query-system.md#query-history
+      config-flags-pane: reference/tui/machines-and-tools.md#config-flags-pane
+      machines-tab: reference/tui/machines-and-tools.md#machines-tab
+      statistics-tab: reference/tui/machines-and-tools.md#statistics-tab
+      tools-tab: reference/tui/machines-and-tools.md#tools-tab
+      models-panel: reference/tui/machines-and-tools.md#models-panel
+      global-keybindings: reference/tui/global-controls.md#global-keybindings
+      quit-restart-menu: reference/tui/global-controls.md#quit-restart-menu
+      command-palette: reference/tui/global-controls.md#command-palette
+      command-line: reference/tui/global-controls.md#command-line
+      custom-keymaps: reference/tui/global-controls.md#custom-keymaps
+      remapping-built-in-keys: reference/tui/global-controls.md#remapping-built-in-keys
+      remapping-statistics-pane-keys: reference/tui/global-controls.md#remapping-statistics-pane-keys
+      remapping-gate-modal-keys: reference/tui/global-controls.md#remapping-gate-modal-keys
+      remapping-memory-panel-keys: reference/tui/global-controls.md#remapping-memory-panel-keys
+      remapping-snippets-panel-keys: reference/tui/global-controls.md#remapping-snippets-panel-keys
+      custom-modes: reference/tui/global-controls.md#custom-modes
+      validation: reference/tui/global-controls.md#validation
+      auto-refresh: reference/tui/global-controls.md#auto-refresh
+      performance-tracing: reference/tui/global-controls.md#performance-tracing
+      projects-tab: reference/tui/projects-tab.md#projects-tab-1
+      add-or-create-a-project: reference/tui/projects-tab.md#add-or-create-a-project
+      initialize-from-the-projects-tab: reference/tui/projects-tab.md#initialize-from-the-projects-tab
+      current-project: reference/tui/projects-tab.md#current-project
+      notifications-modal: reference/tui/notifications-modal.md#notifications-modal-1
+      snooze-reminder-scheduling: reference/tui/notifications-modal.md#snooze-reminder-scheduling
+      notification-actions: reference/tui/notifications-modal.md#notification-actions
+      toast-notifications: reference/tui/notifications-modal.md#toast-notifications
+      jump-all-modal: reference/tui/finders.md#jump-all-modal
+      jump-back: reference/tui/finders.md#jump-back
+      node-finder: reference/tui/finders.md#node-finder
+      tab-bar-display: contribute/tui-rendering.md#tab-bar-display
+      top-bar-indicators: contribute/tui-rendering.md#top-bar-indicators
+      tools-and-background-indicators: contribute/tui-rendering.md#tools-and-background-indicators
+      current-project-indicator: contribute/tui-rendering.md#current-project-indicator
+      runners-modal: contribute/tui-rendering.md#runners-modal
+      file-panel-rendering: contribute/tui-rendering.md#file-panel-rendering
+      image-preview-foundation: contribute/tui-rendering.md#image-preview-foundation
+      procs-tab: reference/tui/procs-tab.md#procs-tab-1
+      durability-and-scope: reference/tui/procs-tab.md#durability-and-scope
+      layout: reference/tui/procs-tab.md#layout
+      opening-a-row: reference/tui/procs-tab.md#opening-a-row
+      proc-status-icons: reference/tui/procs-tab.md#proc-status-icons
+      monitors-on-this-tab: reference/tui/procs-tab.md#monitors-on-this-tab
+      durable-procs: reference/tui/procs-tab.md#durable-procs
+      filtering-procs: reference/tui/procs-tab.md#filtering-procs
+      keybindings-2: reference/tui/procs-tab.md#keybindings-2
+      updates-tab: reference/tui/updates-tab.md#updates-tab-1
     title: sase's TUI User Guide
   - from: configuration.md
     to: reference/config/index.md
@@ -1197,4 +1297,7 @@ moves:
     kind: redirect
   - from: artifact_links.md
     to: reference/artifact-links.md
+    kind: redirect
+  - from: pager.md
+    to: reference/tui/pager.md
     kind: redirect

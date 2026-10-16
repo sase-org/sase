@@ -11,7 +11,7 @@ categories:
   - Plugins
 slug: prompt-widget-and-nvim
 links:
-  - sase's TUI: ace.md
+  - sase's TUI: reference/tui/index.md
   - Macros: reference/macros/index.md
   - Plugins: reference/integrations/plugins.md
   - "[07] Driving SASE From Your Phone — Telegram as the Mobile Control Surface": blog/posts/telegram-mobile-agents.md
@@ -193,4 +193,5 @@ catalog make them the same input system from two different front doors.
   `<C-t>` dispatcher table, LSP configuration, and the YAML schema registration.
 - [Macros reference](../../reference/macros/index.md) — the language the widget and the
   plugin both speak.
-- [sase's TUI guide](../../ace.md) — the rest of the TUI the prompt widget sits inside.
+- [sase's TUI guide](../../reference/tui/index.md) — the rest of the TUI the prompt
+  widget sits inside.

@@ -267,9 +267,9 @@ def test_documented_wait_summary_examples_match_formatter() -> None:
     docs = "\n".join(
         Path(relative).read_text(encoding="utf-8")
         for relative in (
-            "docs/ace.md",
             "docs/reference/tui/agents-tab-grouping.md",
             "docs/reference/tui/agent-statuses.md",
+            "docs/reference/tui/agents-main-deck.md",
         )
     )
     mixed = _format_wait_dependency_status_counts(

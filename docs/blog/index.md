@@ -24,8 +24,8 @@ generated archive below lists only the entries included in the public site.
 
 ## From Reading To Practice
 
-- [Start with sase's TUI](../ace.md) to learn the terminal interface for daily agent
-  work.
+- [Start with sase's TUI](../reference/tui/index.md) to learn the terminal interface for
+  daily agent work.
 - [Read the SDD flow](../reference/work-units/plans.md) to see how Spec-Driven
   Development turns plans and epics into phase work, while standalone task beads capture
   independent follow-ups.

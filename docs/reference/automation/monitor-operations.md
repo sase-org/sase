@@ -87,15 +87,15 @@ glyphs and omits a left-side title — identity is the right-hand `%id`
 shows while running, or an exit-code / timeout badge once terminal. Monitor turns appear
 in the session roster and contribute to the session's total runtime (unlike a gate turn,
 whose window is a human wait and is excluded from that total), but — like workflow steps
-— they are not counted as agents in the [Statistics tab](../../ace.md#statistics-tab) or
-tribe/clan summaries: a session with one agent and one monitor turn is a one-agent
-session that ran one command. A collapsed session or clan container row carries an amber
-`⚙N` badge for its running monitors and a grey `⚙N` badge for its finished ones, so both
-counts are visible without expanding the subtree; the two badges partition the subtree's
-monitors exactly, and a failed, timed-out, or lost monitor counts in the finished (grey)
-lane along with a clean completion. The tribe panel title aggregates both lanes across
-the whole tribe, so a fully collapsed panel still reports running and completed
-monitored work.
+— they are not counted as agents in the
+[Statistics tab](../tui/machines-and-tools.md#statistics-tab) or tribe/clan summaries: a
+session with one agent and one monitor turn is a one-agent session that ran one command.
+A collapsed session or clan container row carries an amber `⚙N` badge for its running
+monitors and a grey `⚙N` badge for its finished ones, so both counts are visible without
+expanding the subtree; the two badges partition the subtree's monitors exactly, and a
+failed, timed-out, or lost monitor counts in the finished (grey) lane along with a clean
+completion. The tribe panel title aggregates both lanes across the whole tribe, so a
+fully collapsed panel still reports running and completed monitored work.
 
 Selecting a monitor row keeps the ordinary agent header and renders a `MONITOR` detail
 section in place of the usual prompt and reply body. It opens with compact `Result`,

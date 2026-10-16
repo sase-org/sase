@@ -191,7 +191,7 @@ subcommand. They do not steal `-f`/`-F` or `-p` from commands such as
 
 Capture a PNG from a real `sase tui` running in tmux. The command launches in the
 detached `sase_ace_agents` session unless `--window` names an existing tmux target. See
-[Agent screenshots](ace.md#agent-screenshots).
+[Agent screenshots](reference/tui/launching.md#agent-screenshots).
 
 | Flag              | Values      | Default             | Description                                                                                                   |
 | ----------------- | ----------- | ------------------- | ------------------------------------------------------------------------------------------------------------- |

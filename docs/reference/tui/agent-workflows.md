@@ -113,7 +113,7 @@ separately.
 When `sase plan propose` writes the plan, it also touches `~/.sase/.ace_refresh_pulse`
 to wake any running TUI immediately — the tier-aware `TALE` or `EPIC` status (or
 fallback `PLAN`) appears without waiting for the next auto-refresh tick. The pulse file
-is consumed by the inotify artifact watcher (see [Auto-Refresh](../../ace.md#auto-refresh)) and is
+is consumed by the inotify artifact watcher (see [Auto-Refresh](global-controls.md#auto-refresh)) and is
 harmless if no TUI is open.
 
 Root plan workflows also surface their tier-aware pending status when a re-proposed plan
@@ -231,7 +231,7 @@ Every enabled built-in profile also chooses the first option for each question. 
 | `q` / `Esc`   | Cancel                                                                  |
 
 The navigation, submit, and input-panel keys are the shared gate-modal keys; see
-[Remapping Gate Modal Keys](../../ace.md#remapping-gate-modal-keys).
+[Remapping Gate Modal Keys](global-controls.md#remapping-gate-modal-keys).
 
 The question modal also supports `y` to copy questions and selected answers.
 

@@ -9,7 +9,7 @@ categories:
 slug: structured-agentic-software-engineering
 image: images/blog/agents_observability_still.png
 links:
-  - sase's TUI: ace.md
+  - sase's TUI: reference/tui/index.md
   - Macros: reference/macros/index.md
   - Initialization: init.md
   - Configuration: configuration.md

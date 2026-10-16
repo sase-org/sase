@@ -1,0 +1,39 @@
+to: reference/tui/index.md
+sections:
+  _intro:
+    drop: true
+  Overview: reference/tui/index.md
+  Launching: reference/tui/launching.md
+  Tab System: reference/tui/tabs-and-panes.md
+  Tab System > Contextual Artifact Links: reference/tui/artifacts-tab.md
+  "Tab System > Filtering Agent, Patches, Commits, Beads, and Plans": reference/tui/filtering.md
+  "Tab System > Archive (Agents Tab)": reference/tui/files-and-preview.md
+  Tab System > Preview Reader: reference/tui/files-and-preview.md
+  Tab System > Files Pane: reference/tui/files-and-preview.md
+  "Keybindings: Artifacts / Patches": reference/tui/artifacts-tab.md
+  "Keybindings: Agents Tab":
+    drop: true
+  "Keybindings: Services Tab": reference/tui/services-tab.md
+  Query System: reference/tui/query-system.md
+  Config Flags pane: reference/tui/machines-and-tools.md
+  Global Keybindings: reference/tui/global-controls.md
+  Command Palette: reference/tui/global-controls.md
+  Command Line: reference/tui/global-controls.md
+  Machines Tab: reference/tui/machines-and-tools.md
+  Projects Tab: reference/tui/projects-tab.md
+  Statistics Tab: reference/tui/machines-and-tools.md
+  Tools Tab: reference/tui/machines-and-tools.md
+  Notifications Modal: reference/tui/notifications-modal.md
+  Notification Actions: reference/tui/notifications-modal.md
+  Jump All Modal: reference/tui/finders.md
+  Node Finder: reference/tui/finders.md
+  Mentor Comment Stats in PR List: reference/tui/artifacts-tab.md
+  PR Origin Chip: reference/tui/artifacts-tab.md
+  Current project: reference/tui/projects-tab.md
+  Tab Bar Display: contribute/tui-rendering.md
+  File Panel Rendering: contribute/tui-rendering.md
+  Image Preview Foundation: contribute/tui-rendering.md
+  Custom Keymaps: reference/tui/global-controls.md
+  Procs Tab: reference/tui/procs-tab.md
+  Updates Tab: reference/tui/updates-tab.md
+  Auto-Refresh: reference/tui/global-controls.md

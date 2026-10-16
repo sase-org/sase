@@ -66,7 +66,7 @@ only the first character of the trigger and of the resolved template is uppercas
 macro-derived `foo` therefore expands as both `foo` and `Foo`, already-capitalized
 triggers produce no extra entry, an explicitly authored `Foo` is never replaced, and
 both spellings can be referenced with `#[foo]` / `#[Foo]`. The aliases are runtime-only.
-See [docs/ace.md — Capitalized aliases](../tui/snippets.md#capitalized-aliases) for the complete
+See [Capitalized aliases](../tui/snippets.md#capitalized-aliases) for the complete
 rule.
 
 Snippets saved from sase's TUI prompt panel become available immediately to all prompt
@@ -82,8 +82,8 @@ snippets. To troubleshoot the raw registry, run:
 printf '{"schema_version":1}\n' | sase editor helper-bridge snippet-catalog
 ```
 
-See [docs/ace.md — Snippets](../tui/snippets.md#snippets-1) for snippet usage in the prompt input
-widget and editor completion, and [docs/ace.md — Snippets panel](../tui/prompt-completion-panels.md#snippets-panel)
+See [Snippets](../tui/snippets.md#snippets-1) for snippet usage in the prompt input
+widget and editor completion, and [Snippets panel](../tui/prompt-completion-panels.md#snippets-panel)
 for sase's TUI browse-and-edit panel (`gT` / `Ctrl+G T`).
 
 ### Snippet CLI

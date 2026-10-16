@@ -1,45 +1,65 @@
 ---
 title: TUI
-description: Reference pages for the sase TUI Agents tab, prompt, and Launch Control surfaces.
+description: Reference pages for the sase TUI tabs, prompt, Launch Control, pager, and global controls.
 ---
 
 # TUI
 
-Reference facts for the sase TUI, one page per surface. Guides teach workflows; these
-pages list exact keys and behavior.
+Reference facts for the sase TUI, one page per surface. Guides teach workflows.
+
+## Overview
+
+sase's TUI is the primary TUI for the SASE toolkit. It provides an interactive interface
+for navigating, managing, and operating on Patches, agents, and machine services.
+
+## Start and layout
+
+- [Launching](launching.md) — start the TUI, screenshots, clipboard.
+- [Tabs and panes](tabs-and-panes.md) — tabs, Artifacts panes, navigation.
+- [Filtering](filtering.md) — Agents, Patches, Commits, Beads, Plans.
+- [Files and preview](files-and-preview.md) — Files, Preview, Archive.
+- [Artifacts tab](artifacts-tab.md) — links, Patches keys, PR chips.
+- [SASE Admin Center](admin-center.md) — Config, Logs, Machines, Procs.
 
 ## Agents tab
 
-- [Agents tab](agents-tab.md) — tabs, keys, lists, and actions.
+- [Agents tab](agents-tab.md) — tabs, keys, lists, actions.
 - [Agents tab search and modes](agents-tab-modes.md) — search and key modes.
-- [Agents tab panels](agents-tab-panels.md) — clan, session, and tribe panels.
-- [Agents tab grouping](agents-tab-grouping.md) — group banners and modes.
-- [Agent row glyphs](agent-row-glyphs.md) — row glyphs, markers, and badges.
-- [Agent statuses](agent-statuses.md) — agent, wait, and completion statuses.
-- [Agents tab main deck](agents-main-deck.md) — main deck, zoom, and node rail.
+- [Agents tab panels](agents-tab-panels.md) — clan, session, tribe.
+- [Agents tab grouping](agents-tab-grouping.md) — banners and modes.
+- [Agent row glyphs](agent-row-glyphs.md) — glyphs, markers, badges.
+- [Agent statuses](agent-statuses.md) — wait and completion.
+- [Agents tab main deck](agents-main-deck.md) — deck, zoom, node rail.
 - [Agents tab LLM calls and tool runs](agents-deck-panels.md) — call and run panels.
-- [Agent workflows](agent-workflows.md) — plans, approvals, holds, and retries.
+- [Agent workflows](agent-workflows.md) — plans, approvals, holds.
 
-## Prompt
+## Prompt and launch
 
-- [Prompt input](prompt-input.md) — insert mode, alt-brace, search, and macro editing.
+- [Prompt input](prompt-input.md) — insert mode, alt-brace, macros.
 - [Prompt modes](prompt-modes.md) — NORMAL and Visual keys.
-- [Prompt stacks](prompt-stacks.md) — multi-agent panes, stash, and trash.
-- [Prompt completion](prompt-completion.md) — token completion and next-word prediction.
-- [Prompt completion panels](prompt-completion-panels.md) — glossary, memory, snippets,
-  repos, and spellcheck.
-- [Prompts overlay](prompts-overlay.md) — History, Stash, and Trash.
-- [Snippets](snippets.md) — snippet expansion and the Macro Browser.
+- [Prompt stacks](prompt-stacks.md) — panes, stash, trash.
+- [Prompt completion](prompt-completion.md) — tokens and next-word prediction.
+- [Prompt completion panels](prompt-completion-panels.md) — glossary, memory, snippets.
+- [Prompts overlay](prompts-overlay.md) — History, Stash, Trash.
+- [Snippets](snippets.md) — expansion and Macro Browser.
+- [Launch Control](launch-control.md) — usage, effort, capacity, routing.
+- [Launch Control overrides](launch-control-overrides.md) — temporary and persistent.
 
-## Launch Control
+## Other tabs and controls
 
-- [Launch Control](launch-control.md) — usage, effort, capacity, routing, drain, and
-  tmux Agent.
-- [Launch Control overrides](launch-control-overrides.md) — temporary overrides and
-  persistent edits.
+- [Services tab](services-tab.md) — sidebar, jobs, keys.
+- [Procs tab](procs-tab.md) — durable procs and monitors.
+- [Updates tab](updates-tab.md) — core, plugins, agent CLIs.
+- [Projects tab](projects-tab.md) — add, initialize, current project.
+- [Machines, statistics, and tools](machines-and-tools.md) — Machines, Statistics, Tools.
+- [Query system](query-system.md) — edit, save, recall.
+- [Global controls](global-controls.md) — keys, palette, command line.
+- [Notifications modal](notifications-modal.md) — modal, snooze, toasts.
+- [Finders](finders.md) — Jump All and Node Finder.
+- [SASE Pager](pager.md) — artifact and file pager.
 
 ## Related
 
-- [sase's TUI](../../ace.md) — the full TUI guide while it is being split.
 - [TUI keymaps](keymaps.md) — generated keymap defaults.
-- [Reference](../index.md) — exact SASE behavior and lookup pages.
+- [TUI rendering](../../contribute/tui-rendering.md) — tab bar and previews.
+- [Reference](../index.md) — lookup pages.
