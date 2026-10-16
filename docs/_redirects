@@ -9,6 +9,7 @@
 # BEGIN GENERATED: docs page moves redirects
 /acknowledgements/ /contribute/acknowledgements/ 301
 /agent_auto_restart/ /reference/agent-auto-restart/ 301
+/agent_providers/ /reference/providers/agent-clis/ 301
 /architecture/ /contribute/architecture/ 301
 /artifacts_pane_contract/ /contribute/artifacts-pane-contract/ 301
 /artifacts_pane_visual_grammar/ /contribute/artifacts-pane-visual-grammar/ 301
@@ -17,6 +18,8 @@
 /getting_started/ /start/ 301
 /instruction_inventory/ /instruction_bundles/ 301
 /integrations/ /contribute/integration-apis/ 301
+/memory/ /reference/memory/memory/ 301
+/memory_history/ /reference/memory/history/ 301
 /mobile_mvp_runbook/ /contribute/mobile-mvp-runbook/ 301
 /perf_runbook/ /contribute/perf-runbook/ 301
 /sdd_storage/ /contribute/sdd-storage/ 301

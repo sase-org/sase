@@ -667,14 +667,14 @@ decision set requires a new proposal. Clients that submit a review revision are 
 checked against the displayed revision; a stale revision fails before execution.
 
 A memory decision is a toggle with `memory: [<selector>, ...]`. Selectors use the
-[memory-read forms](memory.md#audited-reads): a note, a web, or a `web:keyword` strand.
-They must resolve, and separate decisions cannot cover the same resolved memory file.
-Use `default: false` for a proposed memory change the human has not requested and that
-does not correct a false claim. A `default: true` memory decision needs one quote of
-3–300 characters: `requested` from human-authored text, or `corrects` copied verbatim
-from the note's current text, naming a claim that is false or misleading or that the
-plan's own work makes so. Never carry both; `requested` wins when the user asked. Memory
-decisions cannot carry `why` or `choices`.
+[memory-read forms](reference/memory/memory.md#audited-reads): a note, a web, or a
+`web:keyword` strand. They must resolve, and separate decisions cannot cover the same
+resolved memory file. Use `default: false` for a proposed memory change the human has
+not requested and that does not correct a false claim. A `default: true` memory decision
+needs one quote of 3–300 characters: `requested` from human-authored text, or `corrects`
+copied verbatim from the note's current text, naming a claim that is false or misleading
+or that the plan's own work makes so. Never carry both; `requested` wins when the user
+asked. Memory decisions cannot carry `why` or `choices`.
 
 SASE verifies `requested` against the original human-typed launch prompt, human plan
 feedback, or human free-text question answers in the planner's chain. Generated macro

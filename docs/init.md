@@ -410,7 +410,8 @@ inventory shows project, subdirectory, home, and chezmoi-source `AGENTS.md` file
 H1 titles, whether they look managed, core/reference memory reference counts, and nearby
 provider instruction file status. It never writes files; `sase memory init` is the
 command that creates or refreshes these documents. For instruction-surface and
-provider-delivery details, see [Instruction Bundles](instruction_bundles.md).
+provider-delivery details, see
+[Instruction Bundles](reference/memory/instruction-bundles.md).
 
 ## Memory Initialization
 
@@ -463,8 +464,8 @@ the provider instruction files, plus the descriptor's inline `**GLOSSARY TERMS:*
 roster naming every strand keyword and alias, semicolon-separated. Strand bodies never
 inline into `AGENTS.md`; agents fetch a definition on demand with
 `sase memory read glossary:<keyword> -r "<why>"`, passing every keyword needed in one
-command. See [Memory Webs](memory.md#memory-webs) for the full read, browse, and edit
-workflow.
+command. See [Memory Webs](reference/memory/memory.md#memory-webs) for the full read,
+browse, and edit workflow.
 
 For a SASE-managed project, `sase memory init` inlines each core note into
 `## Core Memory` and numbers every heading in the generated document, renders each
@@ -586,7 +587,8 @@ directory. It reports:
 
 The dashboard includes approximate local token estimates for loaded memory context.
 
-For day-to-day read/write operations, including audited reads, see [Memory](memory.md).
+For day-to-day read/write operations, including audited reads, see
+[Memory](reference/memory/memory.md).
 
 ## Memory Read Audit Log
 
@@ -606,7 +608,8 @@ record target/hash pairs. `sase memory log --id <read-id>` shows **Blob OID** an
 present, **Blob OIDs**; older events that lack the fields still load. Agent launch also
 attempts to store the workspace `HEAD` and an instruction-file inventory in
 `agent_meta.json`, without blocking launch on capture failure. See
-[Audited Reads](memory.md#audited-reads) for the hash and snapshot details.
+[Audited Reads](reference/memory/memory.md#audited-reads) for the hash and snapshot
+details.
 
 This audited path is distinct from `#memory/<stem>` macro inclusion: an explicitly
 authored `#memory/<stem>` reference in a prompt expands the same note body at launch

@@ -1,3 +1,9 @@
+---
+title: "Installing and authenticating agent CLIs"
+description:
+  "Provider CLIs that SASE can install, authenticate, inspect, and update safely."
+---
+
 # Installing & Authenticating Agent Providers
 
 SASE normally orchestrates an existing coding-agent CLI; the exception is the bundled
@@ -20,8 +26,8 @@ issue. Vendor docs may list additional installer and account options; the snippe
 intentionally match SASE's doctor hints.
 
 Installed provider CLIs are also launchable interactively with
-[`sase tmux-agent`](ace.md#tmux-agent) (or `t` in Launch Control). Those windows are
-unmanaged agent CLIs, not SASE agents — they do not appear in `sase agent list`.
+[`sase tmux-agent`](../../ace.md#tmux-agent) (or `t` in Launch Control). Those windows
+are unmanaged agent CLIs, not SASE agents — they do not appear in `sase agent list`.
 
 If Launch Control or `sase doctor` reports a provider as disabled, that is routing
 policy, not a missing install. A **hard** disable blocks SASE automatic routing and
@@ -29,8 +35,8 @@ explicit `%model` requests for that provider until expiry or clearing; a **soft*
 disable only steers pools away from it. Usage-limit detection can hard-disable Claude
 for a week and Grok Build for 48 hours automatically. Interactive tmux Agent windows
 still launch a hard-disabled CLI. See
-[Provider routing](ace.md#provider-routing-controls) and
-[Usage-Limit Auto-Disable](llms.md#usage-limit-auto-disable).
+[Provider routing](../../ace.md#provider-routing-controls) and
+[Usage-Limit Auto-Disable](usage.md#usage-limit-auto-disable).
 
 ## Instruction delivery
 
@@ -45,7 +51,7 @@ architecture is recorded as
 [Instructions Are Rendered Per Invocation And Delivered By Adapters](https://github.com/sase-org/sase/blob/master/sase/memory/decisions/instructions-per-invocation.md).
 The manifest alone does not prove that a provider loaded the bundle; use
 [Verifying instruction delivery](#verifying-instruction-delivery). See
-[Delivery](instruction_bundles.md#delivery).
+[Delivery](../../contribute/instruction-bundle-internals.md#delivery).
 
 A **root** is the agent SASE launches; a **native helper** is a subagent started through
 that provider's tools. Explicit delivery combines the shared contract, project memory,
@@ -66,7 +72,7 @@ without an artifacts directory use the adapter's legacy path.
 provider's legacy instruction path. Substitute `claude`, `codex`, `grok`, or `muse` for
 `<provider>`; `sase flag enable <provider>_explicit_instructions` restores explicit
 delivery. A render or delivery failure already falls back per invocation, subject to the
-[Codex fallback limitation](llms.md#codex-instruction-delivery). Codex's allowlist
+[Codex fallback limitation](codex.md#codex-instruction-delivery). Codex's allowlist
 shadow home applies in both flag states.
 
 ## Verifying instruction delivery
@@ -77,8 +83,8 @@ supported. Missing or partial logs can leave delivery unverifiable. The default 
 is the newest 20 runs per provider from the last 7 days (`-n`, maximum 200, and
 `--since` change that). The command reports; it does not gate (exit 0 even when rows
 show bugs). A bad `--since` or `--until` value exits 2. See
-[Instruction Bundles](instruction_bundles.md) for the memory-built bundles behind these
-columns.
+[Instruction Bundles](../memory/instruction-bundles.md) for the memory-built bundles
+behind these columns.
 
 | Column        | Meaning                                                                                            |
 | ------------- | -------------------------------------------------------------------------------------------------- |
@@ -196,12 +202,12 @@ instead (decision `helpers-return-roots-declare`). Mechanical enforcement exists
 where a provider exposes a helper channel. Everything else relies on that contract
 sentence. Limits by provider capability, not hidden:
 
-| Provider  | Helper coverage                                                                                                                                                                                                              |
-| --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Claude    | Helper bundle plus PreToolUse guard (static template on fallback); live probes confirm forked (depth-2) helpers carry `agent_id`, so the guard covers forks. Further details: [Instruction Bundles](instruction_bundles.md). |
-| Codex     | Children inherit the process-level `developer_instructions`. There is no separate helper bundle or mechanical guard; helpers must follow the root-only declaration rule.                                                     |
-| Grok      | Subagents get nothing; sentence only, with the child channel deferred.                                                                                                                                                       |
-| Muse, agy | No helper coverage.                                                                                                                                                                                                          |
+| Provider  | Helper coverage                                                                                                                                                                                                                        |
+| --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Claude    | Helper bundle plus PreToolUse guard (static template on fallback); live probes confirm forked (depth-2) helpers carry `agent_id`, so the guard covers forks. Further details: [Instruction Bundles](../memory/instruction-bundles.md). |
+| Codex     | Children inherit the process-level `developer_instructions`. There is no separate helper bundle or mechanical guard; helpers must follow the root-only declaration rule.                                                               |
+| Grok      | Subagents get nothing; sentence only, with the child channel deferred.                                                                                                                                                                 |
+| Muse, agy | No helper coverage.                                                                                                                                                                                                                    |
 
 ## Claude Code
 
@@ -243,7 +249,7 @@ keeps the guard. Root file failures restore the legacy directive and native disc
 for that invocation. Disabling `claude_explicit_instructions`, or invoking without an
 instruction delivery plan, restores the legacy argv, static helper template, native
 discovery, and auto-memory behavior. Details:
-[Claude Code Integration](llms.md#native-helpers).
+[Claude Code Integration](claude.md#native-helpers).
 
 ## Codex CLI
 
@@ -274,7 +280,7 @@ the flag enabled, it retains foreign global instruction files but omits SASE-own
 copies and native memories. Helpers inherit the root bundle (`inherits_root`). Disabling
 the flag restores the legacy directive, native project discovery, and legacy
 home-instruction paths; the allowlist still applies. See
-[Codex instruction delivery](llms.md#codex-instruction-delivery) for the size limit,
+[Codex instruction delivery](codex.md#codex-instruction-delivery) for the size limit,
 fallback limitation, and shadow-home details.
 
 ## OpenCode
@@ -326,8 +332,8 @@ executable name. Select it with `llm_provider.provider: muse`, `%model:muse/<mod
 `SASE_MUSE_PATH`. Model-alias routing is separate: whichever shipped size aliases
 currently include a Contributor member can select it whenever a `muse` executable is
 available — and the Contributor model trains on its inputs and outputs. See
-[Muse Code Integration](llms.md#muse-code-integration) and the generated
-[shipped size-alias defaults](llms.md#implicit-role-aliases) for how to opt out.
+[Muse Code Integration](muse.md#muse-code-integration) and the generated
+[shipped size-alias defaults](models.md#implicit-role-aliases) for how to opt out.
 
 ### Install
 
@@ -387,10 +393,10 @@ never cost a real model turn on a refresh tick.
 
 The probe runs on the normal background cadence
 (`llm_provider.usage_metrics.refresh_seconds`, or `active_refresh_seconds` while Muse is
-[in active use](reference/config/llm-provider-behavior.md#llmproviderusagemetrics),
-never faster than Muse's 180-second polling floor), costs about three seconds of wall
-clock per refresh, and follows the same eligibility rules as every other provider: Muse
-must be resolvable and either referenced by a model alias or explicitly enabled. The
+[in active use](../config/llm-provider-behavior.md#llmproviderusagemetrics), never
+faster than Muse's 180-second polling floor), costs about three seconds of wall clock
+per refresh, and follows the same eligibility rules as every other provider: Muse must
+be resolvable and either referenced by a model alias or explicitly enabled. The
 user-facing switch is `llm_provider.usage_metrics.providers.muse.enabled`. Inspect the
 result with `sase usage list -p muse`. A host that has not yet reported any usage — for
 example a logged-out one — is shown as no observation rather than as `0%` used.
@@ -403,11 +409,11 @@ xAI's Grok Build CLI (`grok`). Default provider autodetection never selects it, 
 the executable name collides with `grok-dev` (a stale community CLI that also uses
 `~/.grok/`) and with Homebrew's deprecated, unrelated `grok` regex tool. Select the
 provider explicitly with `llm_provider.provider: grok` or `%model:grok/<model>` (see the
-generated [Built-in Model Catalog](llms.md#built-in-model-catalog) for current names);
+generated [Built-in Model Catalog](models.md#built-in-model-catalog) for current names);
 use `SASE_GROK_PATH` when you also need to choose the executable. Model-alias routing is
 separate: whenever a `grok` executable is available, whichever shipped size aliases
 currently target Grok can select it (see the generated
-[shipped size-alias defaults](llms.md#implicit-role-aliases)).
+[shipped size-alias defaults](models.md#implicit-role-aliases)).
 
 Routing availability checks only whether the executable exists; it does not verify that
 the binary is Grok Build. Run `sase doctor` before launching. Its bounded
@@ -447,11 +453,11 @@ per-action approval prompts.
 ### Effort ceiling
 
 Grok models accept only `low`, `medium`, `high`, and `xhigh` for `--effort` (see the
-generated [Built-in Model Catalog](llms.md#built-in-model-catalog) for the current model
-names). `%effort:none`, `%effort:minimal`, and `%effort:max` raise a clean SASE error
-rather than a Grok process crash. The generated
-[shipped size-alias defaults](llms.md#implicit-role-aliases) show the effort each alias
-target carries. A user-configured Codex target that pairs an alias-borne `@max` is
+generated [Built-in Model Catalog](models.md#built-in-model-catalog) for the current
+model names). `%effort:none`, `%effort:minimal`, and `%effort:max` raise a clean SASE
+error rather than a Grok process crash. The generated
+[shipped size-alias defaults](models.md#implicit-role-aliases) show the effort each
+alias target carries. A user-configured Codex target that pairs an alias-borne `@max` is
 best-effort: `max` is logged and skipped and the CLI runs at its own default effort
 instead of erroring.
 
@@ -523,10 +529,10 @@ temp dir rather than `~/.gemini/…`, and auto-update is disabled for the probe 
 
 The probe runs on the normal background cadence
 (`llm_provider.usage_metrics.refresh_seconds`, or `active_refresh_seconds` while agy is
-[in active use](reference/config/llm-provider-behavior.md#llmproviderusagemetrics),
-never faster than its 120-second polling floor), costs about three to five seconds of
-wall clock per refresh, and follows the same eligibility rules as every other provider:
-agy must be resolvable and either referenced by a model alias or explicitly enabled. The
+[in active use](../config/llm-provider-behavior.md#llmproviderusagemetrics), never
+faster than its 120-second polling floor), costs about three to five seconds of wall
+clock per refresh, and follows the same eligibility rules as every other provider: agy
+must be resolvable and either referenced by a model alias or explicitly enabled. The
 Gemini buckets are `model_family`-scoped to `gemini` and the Claude/GPT buckets to `3p`.
 The user-facing switch is `llm_provider.usage_metrics.providers.agy.enabled`. Inspect
 the result with `sase usage list -p agy`.
@@ -552,7 +558,8 @@ For demos and hermetic end-to-end tests, `SASE_LLM_EXEC_PROVIDER=fakey` dispatch
 through fakey while preserving the requested provider/model in display metadata. Run
 artifacts record the dispatched provider as `exec_llm_provider`.
 
-See the [fakey reference](contribute/fakey.md) for scenarios and environment controls.
+See the [fakey reference](../../contribute/fakey.md) for scenarios and environment
+controls.
 
 ## Verify
 
@@ -577,15 +584,15 @@ availability, `sase agent-cli`, and tmux Agent honor every one of these. Agent r
 honor them too, with one current exception: the Claude provider always launches `claude`
 from `PATH`, so keep a working `claude` on `PATH` even when `SASE_CLAUDE_PATH` is set.
 For deeper integration details (model mapping, per-provider environment variables,
-retry/fallback behavior), see the [LLM provider reference](llms.md).
+retry/fallback behavior), see the [LLM provider reference](index.md).
 
 ## Subscription Usage
 
 Subscription usage is a machine-local view of included provider allowance windows — for
 example, the remaining share of a session or weekly plan window, which models share it,
 when that window resets, and when SASE last observed it. It is separate from per-agent
-token usage and from [usage-limit auto-disable](llms.md#usage-limit-auto-disable): a low
-observation does not itself disable routing.
+token usage and from [usage-limit auto-disable](usage.md#usage-limit-auto-disable): a
+low observation does not itself disable routing.
 
 Inspect the cache without provider I/O via `sase usage` / `sase usage list`. Use
 `sase usage refresh` to submit or join bounded durable probes; foreground mode waits and
@@ -599,14 +606,14 @@ sase usage refresh
 
 sase's TUI exposes the same cache from Launch Control: press `u`, or choose **Open
 Providers · Usage** from the command palette. See
-[Providers · Usage](ace.md#providers-usage).
+[Providers · Usage](../../ace.md#providers-usage).
 
 Observations are dated best-effort readings from each provider's own CLI, not guarantees
 of remaining capacity. Periodic collection runs on the scheduler's 60-second `usage`
 routine and probes inline, so it creates no proc rows; user-triggered refreshes still
 submit visible procs. Collection is on by default; opt out with
 `llm_provider.usage_metrics.enabled: false`, or per provider on a host that shares an
-account with another machine. See [Subscription Usage](llms.md#subscription-usage).
+account with another machine. See [Subscription Usage](usage.md#subscription-usage).
 
 ## Inventory and Updates
 
@@ -642,7 +649,7 @@ reason for each CLI and changes nothing.
 
 SASE only automates updates it can identify safely, and it never guesses an update
 command. `sase agent-cli` itself never runs `sudo`; when a manual step needs root, an
-agent must go through a human-reviewed [sudo request](sudo.md) instead:
+agent must go through a human-reviewed [sudo request](../../sudo.md) instead:
 
 | Install method                   | Behavior                                                                                |
 | -------------------------------- | --------------------------------------------------------------------------------------- |
@@ -681,10 +688,16 @@ same bounded history used by sase's TUI, `,U`, and `,E` at
 override that file's maximum size; runs where no command reaches a terminal outcome are
 not recorded.
 
-This command manages the provider CLIs only. Use [`sase update`](cli.md) to upgrade SASE
-itself and its plugins.
+This command manages the provider CLIs only. Use [`sase update`](../../cli.md) to
+upgrade SASE itself and its plugins.
 
 The same inventory is available inside sase's TUI, as the **Agent CLIs** section of the
 SASE Admin Center's Updates tab, which adds marked multi-select updates, inline installs
 for missing CLIs with `*` mark-all, and confirmation previews. See the
-[Updates tab](ace.md#updates-tab) for that surface.
+[Updates tab](../../ace.md#updates-tab) for that surface.
+
+## Related
+
+- [Providers and models](index.md) — provider integrations and model routing.
+- [Instruction bundles](../memory/instruction-bundles.md) — how providers receive
+  instructions.

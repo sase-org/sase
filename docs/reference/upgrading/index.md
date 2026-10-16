@@ -12,6 +12,8 @@ and the newest notes first.
 
 - [Content layout](content-layout.md) — migration and compatibility notes for project
   and home content.
+- [Provider migration notes](providers.md) — provider metadata and model-selection
+  history.
 
 ## Related
 

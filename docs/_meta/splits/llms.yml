@@ -1,0 +1,38 @@
+to: reference/providers/index.md
+sections:
+  _intro: reference/providers/index.md
+  Table of Contents:
+    drop: true
+    anchor_target: reference/providers/index.md
+  Overview: reference/providers/models.md
+  Overview > Source Layout: contribute/llm-invocation.md
+  Provider Architecture: contribute/llm-invocation.md
+  Commit Finalization: contribute/llm-invocation.md
+  Claude Code Integration: reference/providers/claude.md
+  Antigravity (`agy`) Integration: reference/providers/agy.md
+  Codex CLI Integration: reference/providers/codex.md
+  Qwen Code Integration: reference/providers/qwen.md
+  OpenCode Integration: reference/providers/opencode.md
+  Muse Code Integration: reference/providers/muse.md
+  Grok Build Integration: reference/providers/grok.md
+  External Provider Plugins: reference/providers/plugins.md
+  Configuration: reference/providers/configuration.md
+  Per-Prompt Provider Switching: reference/providers/models.md
+  Reasoning Effort: reference/providers/models.md
+  Model Tier System: reference/providers/models.md
+  Role Aliases for Delegated Work: reference/providers/models.md
+  Temporary Model Overrides: reference/providers/routing.md
+  Temporary Provider Disables: reference/providers/routing.md
+  Temporary Provider Priority: reference/providers/routing.md
+  Subscription Usage: reference/providers/usage.md
+  Usage-Limit Auto-Disable: reference/providers/usage.md
+  Environment Variable Reference: reference/environment-variables.md
+  CLI Flags: reference/providers/configuration.md
+  Retry and Fallback: reference/providers/retry-and-fallback.md
+  Legacy Thinking Metadata: reference/upgrading/providers.md
+  Token Usage Tracking: contribute/llm-invocation.md
+  Prompt Preprocessing Pipeline: contribute/llm-invocation.md
+  Subprocess Streaming: contribute/llm-invocation.md
+  Postprocessing: contribute/llm-invocation.md
+  Chat History: contribute/llm-invocation.md
+  Invocation Lifecycle: contribute/llm-invocation.md

@@ -39,7 +39,7 @@ suffixes are supplied by the LLM provider plugins via the `llm_provider_short_na
 (built-in defaults: `cld` for Claude, `cdx` for Codex, `agy` for Antigravity).
 Additional provider plugins can contribute their own short names. Model-name shorthands
 come from the `llm_model_short_aliases` hook (e.g. `fable` for `claude-fable-5`,
-`gpt61sol` for `gpt-6.1-sol`; see [Model Short Aliases](../../llms.md#model-short-aliases))
+`gpt61sol` for `gpt-6.1-sol`; see [Model Short Aliases](../providers/models.md#model-short-aliases))
 and are resolved against the configured model so the suffix stays compact regardless of
 how the model was spelled in the prompt or config. Single-runtime spawns omit the
 suffix.
@@ -277,7 +277,7 @@ launches bead work directly, so those controls are hidden for Epic:
   with an advisory carries a warning-styled `⚠ <label>` suffix on its row (`ⓘ` for
   informational advisories), with the full advisory sentence in the row's secondary text
   — this is where somebody actually chooses a model, so the trade is impossible to miss.
-  See [LLM Providers — Model advisories](../../llms.md#model-advisories). Type to filter by
+  See [LLM Providers — Model advisories](../providers/models.md#model-advisories). Type to filter by
   provider, model id, label, or short alias; use `j`/`k` or arrows to navigate, `Enter`
   to select, `Esc` to clear the filter or cancel, and `'` for jump hints over the
   visible selectable rows. The displayed default resolves to the model the handoff will

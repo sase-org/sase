@@ -1,0 +1,11 @@
+to: reference/memory/instruction-bundles.md
+sections:
+  _intro: reference/memory/instruction-bundles.md
+  Provider behavior at a glance: reference/memory/instruction-bundles.md
+  Inspecting your instructions: reference/memory/instruction-bundles.md
+  Bundle and manifest: contribute/instruction-bundle-internals.md
+  Layers and section ids: contribute/instruction-bundle-internals.md
+  Overlays and facts: contribute/instruction-bundle-internals.md
+  Cache and store: contribute/instruction-bundle-internals.md
+  Delivery: contribute/instruction-bundle-internals.md
+  Previewing bundles: reference/memory/instruction-bundles.md

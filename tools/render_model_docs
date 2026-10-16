@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Render generated model-catalog blocks in docs/llms.md from models.yml.
+"""Render generated model-catalog blocks in provider reference pages.
 
-Every mirrored model table in ``docs/llms.md`` — the shipped size-alias
-defaults, the built-in model catalog, the short-alias list, the provider
-tier-default summary, and each provider section's tier table — is generated
+Every mirrored model table in ``docs/reference/providers/`` — the shipped
+size-alias defaults, the built-in model catalog, the short-alias list, the
+provider tier-default summary, and each provider's tier table — is generated
 from ``src/sase/llm_provider/models.yml`` by this tool. Run ``just fix``
 (``just fmt-docs``) after editing the manifest, and ``just check``
 (``just fmt-docs-check``) verifies every block is current.
@@ -27,8 +27,15 @@ import yaml  # type: ignore[import-untyped]
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-DOCS_PATH = REPO_ROOT / "docs" / "llms.md"
+DOCS_ROOT = REPO_ROOT / "docs"
 MANIFEST_PATH = REPO_ROOT / "src" / "sase" / "llm_provider" / "models.yml"
+
+BLOCK_FILES = {
+    "model-alias-defaults": "reference/providers/models.md",
+    "known-models": "reference/providers/models.md",
+    "model-short-aliases": "reference/providers/models.md",
+    "provider-tier-defaults": "reference/providers/models.md",
+}
 
 # Backwards-compatible alias for the pre-rename manifest path constant.
 DEFAULTS_PATH = MANIFEST_PATH
@@ -243,21 +250,23 @@ def _block_renderers(
     return tuple(blocks)
 
 
-def _replace_generated_block(text: str, marker: str, generated: str) -> str:
+def _replace_generated_block(
+    text: str, marker: str, generated: str, path: Path
+) -> str:
     begin_marker, end_marker = _block_markers(marker)
     begin_count = text.count(begin_marker)
     end_count = text.count(end_marker)
     if begin_count != 1 or end_count != 1:
         raise ValueError(
             "expected exactly one generated block marker pair "
-            f"{marker!r} in {DOCS_PATH}; found {begin_count} begin "
+            f"{marker!r} in {path}; found {begin_count} begin "
             f"marker(s) and {end_count} end marker(s)"
         )
 
     begin_index = text.index(begin_marker)
     end_index = text.index(end_marker)
     if end_index < begin_index:
-        raise ValueError(f"end marker appears before begin marker in {DOCS_PATH}")
+        raise ValueError(f"end marker appears before begin marker in {path}")
 
     return (
         text[: begin_index + len(begin_marker)]
@@ -268,45 +277,69 @@ def _replace_generated_block(text: str, marker: str, generated: str) -> str:
     )
 
 
+def _page_blocks(
+    path: Path, manifest_path: Path | None
+) -> dict[Path, list[tuple[str, Callable[[], str]]]]:
+    blocks = _block_renderers(manifest_path)
+    if path.is_file():
+        # A file path is a single-page override used by renderer unit tests.
+        return {path: list(blocks)}
+
+    pages: dict[Path, list[tuple[str, Callable[[], str]]]] = {}
+    for marker, render in blocks:
+        relative = BLOCK_FILES.get(marker)
+        if relative is None and marker.startswith("model-tiers-"):
+            provider = marker.removeprefix("model-tiers-")
+            relative = f"reference/providers/{provider}.md"
+        if relative is None:
+            raise ValueError(f"no documentation page is configured for block {marker!r}")
+        pages.setdefault(path / relative, []).append((marker, render))
+    return pages
+
+
 def render_docs(
     path: Path | None = None, manifest_path: Path | None = None
 ) -> bool:
-    path = DOCS_PATH if path is None else path
-    text = path.read_text(encoding="utf-8")
-    new_text = text
-    for marker, render in _block_renderers(manifest_path):
-        new_text = _replace_generated_block(new_text, marker, render())
-    if new_text == text:
-        return False
-    path.write_text(new_text, encoding="utf-8")
-    return True
+    docs_path = DOCS_ROOT if path is None else path
+    changed = False
+    for page, blocks in _page_blocks(docs_path, manifest_path).items():
+        text = page.read_text(encoding="utf-8")
+        new_text = text
+        for marker, render in blocks:
+            new_text = _replace_generated_block(new_text, marker, render(), page)
+        if new_text != text:
+            page.write_text(new_text, encoding="utf-8")
+            changed = True
+    return changed
 
 
 def check_docs(
     path: Path | None = None, manifest_path: Path | None = None
 ) -> list[str]:
     """Compare every on-disk block with its in-memory render without writing."""
-    path = DOCS_PATH if path is None else path
-    text = path.read_text(encoding="utf-8")
-    expected = text
-    for marker, render in _block_renderers(manifest_path):
-        expected = _replace_generated_block(expected, marker, render())
-    if expected == text:
-        return []
-    return list(
-        difflib.unified_diff(
-            text.splitlines(),
-            expected.splitlines(),
-            fromfile=str(path),
-            tofile=f"{path} (generated)",
-            lineterm="",
-        )
-    )
+    docs_path = DOCS_ROOT if path is None else path
+    diffs: list[str] = []
+    for page, blocks in _page_blocks(docs_path, manifest_path).items():
+        text = page.read_text(encoding="utf-8")
+        expected = text
+        for marker, render in blocks:
+            expected = _replace_generated_block(expected, marker, render(), page)
+        if expected != text:
+            diffs.extend(
+                difflib.unified_diff(
+                    text.splitlines(),
+                    expected.splitlines(),
+                    fromfile=str(page),
+                    tofile=f"{page} (generated)",
+                    lineterm="",
+                )
+            )
+    return diffs
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description="Render generated model-catalog blocks in docs/llms.md."
+        description="Render generated model-catalog blocks in provider reference pages."
     )
     parser.add_argument(
         "--check",
@@ -319,8 +352,7 @@ def main(argv: list[str] | None = None) -> int:
             diff = check_docs()
             if diff:
                 _error(
-                    "generated model blocks in "
-                    f"{DOCS_PATH} are stale; run `just fix` (or "
+                    "generated provider model blocks are stale; run `just fix` (or "
                     "`just fmt-docs`) to regenerate"
                 )
                 for line in diff:

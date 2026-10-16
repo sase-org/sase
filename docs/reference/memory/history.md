@@ -1,3 +1,9 @@
+---
+title: "Memory History"
+description:
+  "How SASE records and displays changes to memory notes and instruction documents."
+---
+
 # Memory History
 
 Every committed version of every SASE memory note, web, strand, and agent instruction
@@ -172,8 +178,8 @@ and a band tombstone row), never as a body line, so line numbers still match the
 
 ## In the TUI
 
-The ACE [Memory panel](ace.md#memory-panel) card speaks the same vocabulary without
-leaving ACE:
+The ACE [Memory panel](../../ace.md#memory-panel) card speaks the same vocabulary
+without leaving ACE:
 
 - **Card.** A pinned head carries the pager's state pill and a two-row time strip.
   `(`/`)`/`{`/`}` step the card through versions (a violet frame marks the past, and
@@ -270,3 +276,8 @@ sase repo. Gaps are known follow-up work, not regressions to chase here.
 - Optional git maintenance speeds up cold builds:
   `git commit-graph write --changed-paths` and Git ≥ 2.51. SASE only suggests this and
   never runs it automatically.
+
+## Related
+
+- [Memory](index.md) — the memory reference hub.
+- [Memory details](memory.md) — note types and audited reads.

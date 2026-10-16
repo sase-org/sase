@@ -45,9 +45,9 @@ same context for every task.
 
 ## Look it up
 
-- [Memory](../memory.md) — memory types and how to inspect them.
-- [Instruction bundles](../instruction_bundles.md) — how instructions are assembled and
-  delivered.
+- [Memory](../reference/memory/memory.md) — memory types and how to inspect them.
+- [Instruction bundles](../reference/memory/instruction-bundles.md) — how instructions
+  are assembled and delivered.
 - [Glossary](../reference/glossary.md#agent-instruction-file) — agent instructions, core
   memory, and reference memory.
 - [Design decisions](../reference/design-decisions.md#instructions-per-invocation) — why

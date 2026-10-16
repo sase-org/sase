@@ -66,12 +66,12 @@ stream-derived rows from its `streaming-messages-json` output with `runtime: "gr
 `search_replace`, and so on) are mapped onto the same canonical display names Claude
 rows use, and its JSON-encoded `tool_result` envelopes are decoded for exit codes and
 file paths rather than shown raw. See
-[LLM Providers — Claude tool calls](../../llms.md#claude-tool-calls),
-[LLM Providers — Codex tool-call capture](../../llms.md#codex-tool-call-capture),
-[LLM Providers — Qwen tool-call capture](../../llms.md#qwen-tool-call-capture),
-[LLM Providers — Muse tool-call capture](../../llms.md#muse-tool-call-capture),
-[LLM Providers — Antigravity (`agy`) Integration](../../llms.md#antigravity-agy-integration),
-and [LLM Providers — Grok Tool-Call Capture](../../llms.md#grok-tool-call-capture) for
+[LLM Providers — Claude tool calls](../providers/claude.md#claude-tool-calls),
+[LLM Providers — Codex tool-call capture](../providers/codex.md#codex-tool-call-capture),
+[LLM Providers — Qwen tool-call capture](../providers/qwen.md#qwen-tool-call-capture),
+[LLM Providers — Muse tool-call capture](../providers/muse.md#muse-tool-call-capture),
+[LLM Providers — Antigravity (`agy`) Integration](../providers/agy.md#antigravity-agy-integration),
+and [LLM Providers — Grok Tool-Call Capture](../providers/grok.md#grok-tool-call-capture) for
 provider integration details.
 
 ## Agents Tab Tool Runs

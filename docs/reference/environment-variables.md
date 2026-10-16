@@ -15,46 +15,46 @@ Environment variables that configure providers, SDD, plugins, runtime, and works
 
 ### LLM Provider
 
-| Variable                                       | Description                                                                            |
-| ---------------------------------------------- | -------------------------------------------------------------------------------------- |
-| `SASE_MODEL_TIER_OVERRIDE`                     | Force all LLM invocations to a specific tier (`large` or `small`).                     |
-| `SASE_MODEL_SIZE_OVERRIDE`                     | Legacy alias for `SASE_MODEL_TIER_OVERRIDE` (`big` or `little`).                       |
-| `SASE_LLM_EXEC_PROVIDER`                       | Execute through this registered provider while preserving requested model metadata.    |
-| `SASE_LLM_LARGE_ARGS`                          | Extra CLI args appended for `large` tier invocations (any provider).                   |
-| `SASE_LLM_SMALL_ARGS`                          | Extra CLI args appended for `small` tier invocations (any provider).                   |
-| `SASE_CLAUDE_LARGE_ARGS`                       | Claude-specific extra args for `large` tier (fallback if generic unset).               |
-| `SASE_CLAUDE_SMALL_ARGS`                       | Claude-specific extra args for `small` tier (fallback if generic unset).               |
-| `SASE_CLAUDE_MAX_WAIT_CONTINUATIONS`           | Claude [single-turn wait guard](../llms.md#single-turn-wait-guard) cap (default: `2`). |
-| `SASE_CODEX_PATH`                              | Path to the Codex CLI binary (default: PATH lookup, then NVM_BIN/codex).               |
-| `SASE_CODEX_LARGE_ARGS`                        | Codex-specific extra args for `large` tier (fallback if generic unset).                |
-| `SASE_CODEX_SMALL_ARGS`                        | Codex-specific extra args for `small` tier (fallback if generic unset).                |
-| `SASE_CODEX_DISABLE_SHADOW_HOME`               | Set to `1` to launch Codex with the inherited `CODEX_HOME`.                            |
-| `SASE_QWEN_PATH`                               | Path to the Qwen Code CLI binary (default: `qwen`).                                    |
-| `SASE_QWEN_LARGE_ARGS`                         | Qwen-specific extra args for `large` tier (fallback if generic unset).                 |
-| `SASE_QWEN_SMALL_ARGS`                         | Qwen-specific extra args for `small` tier (fallback if generic unset).                 |
-| `SASE_OPENCODE_PATH`                           | Path to the OpenCode CLI binary (default: `opencode`).                                 |
-| `SASE_OPENCODE_LARGE_ARGS`                     | OpenCode-specific extra args for `large` tier (fallback if generic unset).             |
-| `SASE_OPENCODE_SMALL_ARGS`                     | OpenCode-specific extra args for `small` tier (fallback if generic unset).             |
-| `SASE_AGY_PATH`                                | Path to the Antigravity CLI binary (default: `agy`).                                   |
-| `SASE_AGY_PRINT_TIMEOUT`                       | Override the `agy --print-timeout` Go duration (default: `24h`).                       |
-| `SASE_AGY_MAX_NO_PROGRESS_CONTINUATIONS`       | Override the no-progress continuation cap (default: `2`).                              |
-| `SASE_AGY_LARGE_ARGS`                          | Antigravity-specific extra args for `large` tier (fallback if generic unset).          |
-| `SASE_AGY_SMALL_ARGS`                          | Antigravity-specific extra args for `small` tier (fallback if generic unset).          |
-| `SASE_MUSE_PATH`                               | Path to the Muse Code CLI binary (default: `muse`).                                    |
-| `SASE_MUSE_LARGE_ARGS`                         | Muse-specific extra args for `large` tier (fallback if generic unset).                 |
-| `SASE_MUSE_SMALL_ARGS`                         | Muse-specific extra args for `small` tier (fallback if generic unset).                 |
-| `SASE_MUSE_SANDBOX`                            | Set to `on` to keep Muse's sandbox with `--sandbox-network enabled`.                   |
-| `SASE_GROK_PATH`                               | Path to the Grok Build CLI binary (default: `grok`).                                   |
-| `SASE_GROK_LARGE_ARGS`                         | Grok-specific extra args for `large` tier (fallback if generic unset).                 |
-| `SASE_GROK_SMALL_ARGS`                         | Grok-specific extra args for `small` tier (fallback if generic unset).                 |
-| `SASE_CONTINUATION_BUDGET_ENFORCE`             | Set to `1` to apply continuation-budget preflight outside monitor successors.          |
-| `SASE_CONTINUATION_CONTEXT_LIMIT_BYTES`        | Positive context-limit override for continuation preflight (default: `800000`).        |
-| `SASE_CONTINUATION_TRANSPORT_LIMIT_BYTES`      | Optional positive transport-limit override for continuation preflight.                 |
-| `SASE_CONTINUATION_CHECKPOINT_THRESHOLD_BYTES` | Optional positive checkpoint-threshold override.                                       |
-| `SASE_CONTINUATION_INSTRUCTION_RESERVE_BYTES`  | Positive instruction-reserve override (default: `0`).                                  |
-| `SASE_CONTINUATION_TOOL_RESERVE_BYTES`         | Positive tool-context reserve override (default: `0`).                                 |
-| `SASE_CONTINUATION_OUTPUT_RESERVE_BYTES`       | Positive output reserve override (default: `0`).                                       |
-| `SASE_CONTINUATION_REASONING_RESERVE_BYTES`    | Positive reasoning reserve override (default: `0`).                                    |
+| Variable                                       | Description                                                                                     |
+| ---------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `SASE_MODEL_TIER_OVERRIDE`                     | Force all LLM invocations to a specific tier (`large` or `small`).                              |
+| `SASE_MODEL_SIZE_OVERRIDE`                     | Legacy alias for `SASE_MODEL_TIER_OVERRIDE` (`big` or `little`).                                |
+| `SASE_LLM_EXEC_PROVIDER`                       | Execute through this registered provider while preserving requested model metadata.             |
+| `SASE_LLM_LARGE_ARGS`                          | Extra CLI args appended for `large` tier invocations (any provider).                            |
+| `SASE_LLM_SMALL_ARGS`                          | Extra CLI args appended for `small` tier invocations (any provider).                            |
+| `SASE_CLAUDE_LARGE_ARGS`                       | Claude-specific extra args for `large` tier (fallback if generic unset).                        |
+| `SASE_CLAUDE_SMALL_ARGS`                       | Claude-specific extra args for `small` tier (fallback if generic unset).                        |
+| `SASE_CLAUDE_MAX_WAIT_CONTINUATIONS`           | Claude [single-turn wait guard](providers/claude.md#single-turn-wait-guard) cap (default: `2`). |
+| `SASE_CODEX_PATH`                              | Path to the Codex CLI binary (default: PATH lookup, then NVM_BIN/codex).                        |
+| `SASE_CODEX_LARGE_ARGS`                        | Codex-specific extra args for `large` tier (fallback if generic unset).                         |
+| `SASE_CODEX_SMALL_ARGS`                        | Codex-specific extra args for `small` tier (fallback if generic unset).                         |
+| `SASE_CODEX_DISABLE_SHADOW_HOME`               | Set to `1` to launch Codex with the inherited `CODEX_HOME`.                                     |
+| `SASE_QWEN_PATH`                               | Path to the Qwen Code CLI binary (default: `qwen`).                                             |
+| `SASE_QWEN_LARGE_ARGS`                         | Qwen-specific extra args for `large` tier (fallback if generic unset).                          |
+| `SASE_QWEN_SMALL_ARGS`                         | Qwen-specific extra args for `small` tier (fallback if generic unset).                          |
+| `SASE_OPENCODE_PATH`                           | Path to the OpenCode CLI binary (default: `opencode`).                                          |
+| `SASE_OPENCODE_LARGE_ARGS`                     | OpenCode-specific extra args for `large` tier (fallback if generic unset).                      |
+| `SASE_OPENCODE_SMALL_ARGS`                     | OpenCode-specific extra args for `small` tier (fallback if generic unset).                      |
+| `SASE_AGY_PATH`                                | Path to the Antigravity CLI binary (default: `agy`).                                            |
+| `SASE_AGY_PRINT_TIMEOUT`                       | Override the `agy --print-timeout` Go duration (default: `24h`).                                |
+| `SASE_AGY_MAX_NO_PROGRESS_CONTINUATIONS`       | Override the no-progress continuation cap (default: `2`).                                       |
+| `SASE_AGY_LARGE_ARGS`                          | Antigravity-specific extra args for `large` tier (fallback if generic unset).                   |
+| `SASE_AGY_SMALL_ARGS`                          | Antigravity-specific extra args for `small` tier (fallback if generic unset).                   |
+| `SASE_MUSE_PATH`                               | Path to the Muse Code CLI binary (default: `muse`).                                             |
+| `SASE_MUSE_LARGE_ARGS`                         | Muse-specific extra args for `large` tier (fallback if generic unset).                          |
+| `SASE_MUSE_SMALL_ARGS`                         | Muse-specific extra args for `small` tier (fallback if generic unset).                          |
+| `SASE_MUSE_SANDBOX`                            | Set to `on` to keep Muse's sandbox with `--sandbox-network enabled`.                            |
+| `SASE_GROK_PATH`                               | Path to the Grok Build CLI binary (default: `grok`).                                            |
+| `SASE_GROK_LARGE_ARGS`                         | Grok-specific extra args for `large` tier (fallback if generic unset).                          |
+| `SASE_GROK_SMALL_ARGS`                         | Grok-specific extra args for `small` tier (fallback if generic unset).                          |
+| `SASE_CONTINUATION_BUDGET_ENFORCE`             | Set to `1` to apply continuation-budget preflight outside monitor successors.                   |
+| `SASE_CONTINUATION_CONTEXT_LIMIT_BYTES`        | Positive context-limit override for continuation preflight (default: `800000`).                 |
+| `SASE_CONTINUATION_TRANSPORT_LIMIT_BYTES`      | Optional positive transport-limit override for continuation preflight.                          |
+| `SASE_CONTINUATION_CHECKPOINT_THRESHOLD_BYTES` | Optional positive checkpoint-threshold override.                                                |
+| `SASE_CONTINUATION_INSTRUCTION_RESERVE_BYTES`  | Positive instruction-reserve override (default: `0`).                                           |
+| `SASE_CONTINUATION_TOOL_RESERVE_BYTES`         | Positive tool-context reserve override (default: `0`).                                          |
+| `SASE_CONTINUATION_OUTPUT_RESERVE_BYTES`       | Positive output reserve override (default: `0`).                                                |
+| `SASE_CONTINUATION_REASONING_RESERVE_BYTES`    | Positive reasoning reserve override (default: `0`).                                             |
 
 For the per-provider args, the generic `SASE_LLM_*_ARGS` variables are checked first. If
 unset, the provider-specific variable is used as a fallback. Values are split on
@@ -101,16 +101,16 @@ disables it by default; `SASE_MUSE_SANDBOX=on` keeps the sandbox with
 
 Muse's Contributor models carry a **model advisory**: Meta uses their inputs and outputs
 to train and improve Meta's AI models (see the generated
-[Built-in Model Catalog](../llms.md#built-in-model-catalog) for the current names). SASE
-keeps them fully reachable by name and never points a provider tier map at any of them.
-Whichever shipped size aliases currently include a Contributor member route there
-automatically whenever a `muse` executable is available (see the generated
-[shipped size-alias defaults](../llms.md#implicit-role-aliases)); override
+[Built-in Model Catalog](providers/models.md#built-in-model-catalog) for the current
+names). SASE keeps them fully reachable by name and never points a provider tier map at
+any of them. Whichever shipped size aliases currently include a Contributor member route
+there automatically whenever a `muse` executable is available (see the generated
+[shipped size-alias defaults](providers/models.md#implicit-role-aliases)); override
 `llm_provider.model_aliases.builtin.<size>` to opt out. The advisory renders in sase's
 TUI model picker, in `%model` completion detail, and in the resolved model label, and
 `sase doctor -C llm.model_advisory` warns when a configured default or model alias
 resolves to any advisory-flagged model. See
-[LLM Providers — Model advisories](../llms.md#model-advisories).
+[LLM Providers — Model advisories](providers/models.md#model-advisories).
 
 Grok Build uses
 `grok --prompt-file /dev/stdin --output-format streaming-messages-json --permission-mode bypassPermissions --model <model> --cwd <cwd> --session-id <uuid> --no-plan --no-ask-user --no-auto-update --no-leader`
@@ -121,12 +121,12 @@ autodetection. It is reached by explicit selection (see
 [llm_provider.provider](#llm-provider) above) or by the separate model-alias router:
 whichever shipped size aliases currently target Grok can select it whenever a `grok`
 executable is available (see the generated
-[shipped size-alias defaults](../llms.md#implicit-role-aliases)). Routing checks
-executable presence, while `sase doctor` performs the Grok Build identity probe. Grok
-models accept only `low`/`medium`/`high`/`xhigh` for `--effort`; see
-[LLM Providers — Reasoning Effort](../llms.md#reasoning-effort).
+[shipped size-alias defaults](providers/models.md#implicit-role-aliases)). Routing
+checks executable presence, while `sase doctor` performs the Grok Build identity probe.
+Grok models accept only `low`/`medium`/`high`/`xhigh` for `--effort`; see
+[LLM Providers — Reasoning Effort](providers/models.md#reasoning-effort).
 
-### VCS Provider
+### VCS Provider {#vcs-provider-1}
 
 | Variable                          | Description                                                                                                                                                                                                                                                                                                                  |
 | --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -245,7 +245,104 @@ workspace claims.
 | `<PREFIX>_WORKSPACE_DIR` | Pre-allocated workspace directory path.                                    |
 | `SASE_GIT_*`, ...        | Concrete forms for built-in and plugin-provided workspace prefixes.        |
 
+## Environment Variable Reference
+
+Complete reference of environment variables used by the LLM provider layer.
+
+### Generic (Provider-Agnostic)
+
+| Variable                             | Description                                                                                                                                                                                               |
+| ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SASE_LLM_EXEC_PROVIDER`             | Execute through this provider while retaining the requested provider/model metadata                                                                                                                       |
+| `SASE_LLM_LARGE_ARGS`                | Extra CLI args for `large` tier invocations                                                                                                                                                               |
+| `SASE_LLM_SMALL_ARGS`                | Extra CLI args for `small` tier invocations                                                                                                                                                               |
+| `SASE_MODEL_TIER_OVERRIDE`           | Force all invocations to a specific model tier                                                                                                                                                            |
+| `SASE_MODEL_SIZE_OVERRIDE`           | Legacy alias for `SASE_MODEL_TIER_OVERRIDE`                                                                                                                                                               |
+| `SASE_PROVIDER_SYNC_CEILING_SECONDS` | Set by the agent runner around each provider invocation: that harness's hard per-command kill ceiling in seconds (unset when the provider declares none); scrubbed at agent, monitor, and proc boundaries |
+
+`SASE_LLM_EXEC_PROVIDER` must name a registered provider. It changes subprocess dispatch
+and execution-provider retry policy only; agent, step, and chat metadata continue to
+show the provider and model the user requested. Run artifacts record the dispatched
+provider separately as `exec_llm_provider`.
+
+### Claude-Specific
+
+| Variable                             | Description                                                                                          |
+| ------------------------------------ | ---------------------------------------------------------------------------------------------------- |
+| `SASE_CLAUDE_LARGE_ARGS`             | Claude-specific extra args for `large` tier                                                          |
+| `SASE_CLAUDE_SMALL_ARGS`             | Claude-specific extra args for `small` tier                                                          |
+| `SASE_CLAUDE_MAX_WAIT_CONTINUATIONS` | [Single-turn wait guard](providers/claude.md#single-turn-wait-guard) continuation cap (default: `2`) |
+
+### Codex-Specific
+
+| Variable                         | Description                                     |
+| -------------------------------- | ----------------------------------------------- |
+| `SASE_CODEX_PATH`                | Path to the Codex CLI binary                    |
+| `SASE_CODEX_LARGE_ARGS`          | Codex-specific extra args for `large` tier      |
+| `SASE_CODEX_SMALL_ARGS`          | Codex-specific extra args for `small` tier      |
+| `SASE_CODEX_DISABLE_SHADOW_HOME` | Set to `1` to disable the disposable Codex home |
+
+### Qwen-Specific
+
+| Variable               | Description                               |
+| ---------------------- | ----------------------------------------- |
+| `SASE_QWEN_PATH`       | Path to the Qwen Code CLI binary          |
+| `SASE_QWEN_LARGE_ARGS` | Qwen-specific extra args for `large` tier |
+| `SASE_QWEN_SMALL_ARGS` | Qwen-specific extra args for `small` tier |
+
+### Antigravity (`agy`)-Specific
+
+| Variable                                 | Description                                                        |
+| ---------------------------------------- | ------------------------------------------------------------------ |
+| `SASE_AGY_PATH`                          | Path to the Antigravity CLI binary (default: `"agy"`).             |
+| `SASE_AGY_PRINT_TIMEOUT`                 | Override the `agy --print-timeout` Go duration (default: `"24h"`). |
+| `SASE_AGY_MAX_NO_PROGRESS_CONTINUATIONS` | Override the no-progress continuation cap (default: `2`).          |
+| `SASE_AGY_LARGE_ARGS`                    | Antigravity-specific extra args for `large` tier                   |
+| `SASE_AGY_SMALL_ARGS`                    | Antigravity-specific extra args for `small` tier                   |
+
+### OpenCode-Specific
+
+| Variable                   | Description                                   |
+| -------------------------- | --------------------------------------------- |
+| `SASE_OPENCODE_PATH`       | Path to the OpenCode CLI binary               |
+| `SASE_OPENCODE_LARGE_ARGS` | OpenCode-specific extra args for `large` tier |
+| `SASE_OPENCODE_SMALL_ARGS` | OpenCode-specific extra args for `small` tier |
+
+### Muse Code-Specific
+
+| Variable                           | Description                                                                                        |
+| ---------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `SASE_MUSE_PATH`                   | Path to the Muse Code CLI binary (default: `muse` on `PATH`)                                       |
+| `SASE_MUSE_LARGE_ARGS`             | Muse-specific extra args for `large` tier                                                          |
+| `SASE_MUSE_SMALL_ARGS`             | Muse-specific extra args for `small` tier                                                          |
+| `SASE_MUSE_SANDBOX`                | Set to `on` to keep Muse's sandbox with `--sandbox-network enabled`                                |
+| `SASE_MUSE_MAX_WAIT_CONTINUATIONS` | [Stranded-wait guard](providers/muse.md#single-turn-normalization) continuation cap (default: `2`) |
+
+SASE always launches Muse with `MUSE_NO_AUTO_UPDATE=1` so the launcher cannot swap the
+binary mid-run; `sase agent-cli update muse` sets `MUSE_SYNC_UPDATE=1` instead. The two
+must never be set together.
+
+### Grok-Specific
+
+| Variable               | Description                                                   |
+| ---------------------- | ------------------------------------------------------------- |
+| `SASE_GROK_PATH`       | Path to the Grok Build CLI binary (default: `grok` on `PATH`) |
+| `SASE_GROK_LARGE_ARGS` | Grok-specific extra args for `large` tier                     |
+| `SASE_GROK_SMALL_ARGS` | Grok-specific extra args for `small` tier                     |
+
+SASE always launches Grok with `--no-auto-update` so it cannot swap its own binary
+mid-run; `sase agent-cli update grok` runs Grok Build's own `update` subcommand instead.
+
+External provider plugins document their own environment variables in their respective
+repos.
+
+### VCS Provider
+
+| Variable            | Description                                          |
+| ------------------- | ---------------------------------------------------- |
+| `SASE_VCS_PROVIDER` | Override VCS provider (`"git"`, `"hg"`, or `"auto"`) |
+
 ## Related
 
 - [Configuration reference](config/index.md) — generated key paths and defaults.
-- [LLM providers](../llms.md) — provider setup.
+- [Providers and models](providers/index.md) — provider setup.

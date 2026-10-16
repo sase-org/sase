@@ -26,7 +26,7 @@ reviewed, retried, and handed off through stable project artifacts.
 | Workflows    | YAML multi-step execution with agent, bash, python, parallel, loop, and human checkpoint steps.                                                   | [Workflow spec](../workflow_spec.md)                                  |
 | Gates        | Durable, command-backed user decisions and processless session-turn handoffs.                                                                     | [Notifications](../notifications.md#command-backed-interaction-gates) |
 | Patches      | PR-sized review records with lifecycle state, stitches, hooks, comments, mentors, and timestamps.                                                 | [Patches](../change_spec.md)                                          |
-| Memory       | Always-loaded and on-demand context, explicit flat-note macro inclusion, audited reads, and sase's TUI-backed note/strand changes.                | [Memory](../memory.md)                                                |
+| Memory       | Always-loaded and on-demand context, explicit flat-note macro inclusion, audited reads, and sase's TUI-backed note/strand changes.                | [Memory](../reference/memory/memory.md)                               |
 | SDD          | Durable prompt, tale, epic, and research artifacts.                                                                                               | [SDD](../sdd.md)                                                      |
 | Beads        | Git-portable issue/dependency tracking and executable epic launch plans.                                                                          | [Beads](../beads.md)                                                  |
 | Providers    | Pluggable LLM, VCS, workspace, config, and macro boundaries.                                                                                      | [Plugins](../plugins.md)                                              |
@@ -244,13 +244,13 @@ engineering state without depending on one terminal session.
 Provider abstractions keep SASE above any single agent runtime, version-control host, or
 workspace strategy:
 
-| Provider Layer     | What It Owns                                                                                                     | Details                             |
-| ------------------ | ---------------------------------------------------------------------------------------------------------------- | ----------------------------------- |
-| LLM provider       | Agent CLI selection, concrete model mapping, subprocess invocation, retry defaults, usage metadata.              | [LLM providers](../llms.md)         |
-| VCS provider       | Diff, checkout, commit, amend, proposal/PR dispatch, reword, submit, sync, revert, restore, and review metadata. | [VCS providers](../vcs.md)          |
-| Workspace provider | Workspace reference resolution, workspace directory allocation, submit/mail preparation, workflow metadata.      | [Workspaces](../workspace.md)       |
-| Resource plugins   | Extra macro/workflow files and default configuration.                                                            | [Plugins](../plugins.md)            |
-| Integration APIs   | Public Python helpers and fixed JSON bridge contracts for sidecar tools.                                         | [Integrations](integration-apis.md) |
+| Provider Layer     | What It Owns                                                                                                     | Details                                          |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
+| LLM provider       | Agent CLI selection, concrete model mapping, subprocess invocation, retry defaults, usage metadata.              | [LLM providers](../reference/providers/index.md) |
+| VCS provider       | Diff, checkout, commit, amend, proposal/PR dispatch, reword, submit, sync, revert, restore, and review metadata. | [VCS providers](../vcs.md)                       |
+| Workspace provider | Workspace reference resolution, workspace directory allocation, submit/mail preparation, workflow metadata.      | [Workspaces](../workspace.md)                    |
+| Resource plugins   | Extra macro/workflow files and default configuration.                                                            | [Plugins](../plugins.md)                         |
+| Integration APIs   | Public Python helpers and fixed JSON bridge contracts for sidecar tools.                                         | [Integrations](integration-apis.md)              |
 
 Core SASE ships built-in providers for common local use: bundled LLM provider entry
 points, plain-git VCS support, and bare-git workspaces. Optional packages can add hosted
@@ -294,12 +294,12 @@ complete operation list and facade map.
 
 ## Read Next
 
-| Need                                     | Page                                                                                                             |
-| ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| Command discovery                        | [CLI reference](../cli.md)                                                                                       |
-| Contributor setup and source orientation | [Development](development.md)                                                                                    |
-| Runtime operations                       | [sase's TUI](../ace.md), [Axe](../axe.md), [notifications](../notifications.md)                                  |
-| Durable work records                     | [Patches](../change_spec.md), [memory](../memory.md), [SDD](../sdd.md), [beads](../beads.md)                     |
-| Prompt and workflow execution            | [Macros](../macros.md), [workflow spec](../workflow_spec.md)                                                     |
-| Extension boundaries                     | [Plugins](../plugins.md), [LLM providers](../llms.md), [VCS providers](../vcs.md), [workspaces](../workspace.md) |
-| Backend boundary                         | [Rust backend](rust-backend.md)                                                                                  |
+| Need                                     | Page                                                                                                                                  |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| Command discovery                        | [CLI reference](../cli.md)                                                                                                            |
+| Contributor setup and source orientation | [Development](development.md)                                                                                                         |
+| Runtime operations                       | [sase's TUI](../ace.md), [Axe](../axe.md), [notifications](../notifications.md)                                                       |
+| Durable work records                     | [Patches](../change_spec.md), [memory](../reference/memory/memory.md), [SDD](../sdd.md), [beads](../beads.md)                         |
+| Prompt and workflow execution            | [Macros](../macros.md), [workflow spec](../workflow_spec.md)                                                                          |
+| Extension boundaries                     | [Plugins](../plugins.md), [LLM providers](../reference/providers/index.md), [VCS providers](../vcs.md), [workspaces](../workspace.md) |
+| Backend boundary                         | [Rust backend](rust-backend.md)                                                                                                       |

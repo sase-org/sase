@@ -328,19 +328,19 @@ intentionally skips macros that require complex Jinja or composition it cannot m
 exactly; when the helper is available, its response is preferred.
 
 The LSP also consumes the project's `glossary` memory web, authored as strand files
-under `sase/memory/glossary/`; see [Memory Webs](memory.md#memory-webs). A leading VCS
-workflow reference selects the glossary project for the document, otherwise the active
-workspace project is used. Glossary phrases are emitted as standard `type` semantic
-tokens, with the same case-insensitive, code-literal-skipping, longest-match scanner
-sase's TUI uses. A phrase wrapped across one line break is emitted as one semantic token
-per line. Derived plurals of terms and aliases are matched like configured aliases.
-`sase-nvim` underlines those tokens by default through an overridable `SaseGlossaryTerm`
-highlight group. Hover returns Markdown for the canonical term, aliases, project, and
-source context, and go-to-definition targets the glossary strand file's definition
-range. Explicit macro and artifact references keep precedence over glossary matches.
-When the selected project is disabled, unknown, home, unreadable, or has an invalid
-glossary, the server suppresses glossary semantics for that context instead of falling
-back to another project's terms.
+under `sase/memory/glossary/`; see
+[Memory Webs](reference/memory/memory.md#memory-webs). A leading VCS workflow reference
+selects the glossary project for the document, otherwise the active workspace project is
+used. Glossary phrases are emitted as standard `type` semantic tokens, with the same
+case-insensitive, code-literal-skipping, longest-match scanner sase's TUI uses. A phrase
+wrapped across one line break is emitted as one semantic token per line. Derived plurals
+of terms and aliases are matched like configured aliases. `sase-nvim` underlines those
+tokens by default through an overridable `SaseGlossaryTerm` highlight group. Hover
+returns Markdown for the canonical term, aliases, project, and source context, and
+go-to-definition targets the glossary strand file's definition range. Explicit macro and
+artifact references keep precedence over glossary matches. When the selected project is
+disabled, unknown, home, unreadable, or has an invalid glossary, the server suppresses
+glossary semantics for that context instead of falling back to another project's terms.
 
 See the [editor integration guide](editor.md) for setup, feature coverage, helper bridge
 usage, and troubleshooting.
@@ -1041,8 +1041,9 @@ directive would accept _and_ route to a provider without the silent default-prov
 fallback: aliases need `@` (`@large` routes; bare `large` does not), `provider/model` is
 open for unknown model ids and closed for unknown providers, and a trailing `@<level>`
 peels only when `<level>` is one of the seven effort levels. See
-[Macro model inputs](llms.md#macro-model-inputs). `%model:opsu` still parses and still
-falls back at launch; `type: model` rejects that token at bind time with a suggestion.
+[Macro model inputs](reference/providers/models.md#macro-model-inputs). `%model:opsu`
+still parses and still falls back at launch; `type: model` rejects that token at bind
+time with a suggestion.
 
 ### Enum Choices
 
@@ -1711,14 +1712,15 @@ The sudo request workflow behind `sase_sudo` is described under
 
 ## Memory Field
 
-Every valid, flat, non-README [SASE memory note](memory.md) that declares `type: core`
-or `type: reference` frontmatter is automatically a macro — no opt-in field is required.
-A note's filename remains its identity: `sase/memory/sase_beads.md` (or the home
-equivalent) is invoked as `#memory/sase_beads`. Nested files such as
-`sase/memory/assets/**` and `README.md` are never catalog entries. Type-free memory-web
-descriptors are not catalog entries either: their bodies are already loaded through the
-generated `## Memory Webs` instruction section, while strand bodies come from
-`sase memory read <web>:<keyword>` (see [Memory Webs](memory.md#memory-webs)).
+Every valid, flat, non-README [SASE memory note](reference/memory/memory.md) that
+declares `type: core` or `type: reference` frontmatter is automatically a macro — no
+opt-in field is required. A note's filename remains its identity:
+`sase/memory/sase_beads.md` (or the home equivalent) is invoked as `#memory/sase_beads`.
+Nested files such as `sase/memory/assets/**` and `README.md` are never catalog entries.
+Type-free memory-web descriptors are not catalog entries either: their bodies are
+already loaded through the generated `## Memory Webs` instruction section, while strand
+bodies come from `sase memory read <web>:<keyword>` (see
+[Memory Webs](reference/memory/memory.md#memory-webs)).
 
 The `memory/` reference segment is reserved. There is no bare `#sase_beads` alias for
 `#memory/sase_beads`, no `#memory/long/sase_beads` compatibility form, and an ordinary
@@ -1734,8 +1736,9 @@ collision policy. See
 
 Expansion uses the ordinary simple-Markdown-macro rendering path after memory
 frontmatter is stripped: a `#memory/<stem>` reference takes no arguments and does not
-synthesize the `## Children` section that [`sase memory read`](memory.md#audited-reads)
-appends. Macro references already authored in the note body still expand recursively.
+synthesize the `## Children` section that
+[`sase memory read`](reference/memory/memory.md#audited-reads) appends. Macro references
+already authored in the note body still expand recursively.
 
 `#memory/<stem>` is a launch-time, explicitly authored inclusion, not an audited
 agent-side lookup: catalog discovery, previews, and expansion never append
@@ -2436,9 +2439,10 @@ remembered text) when no explicit values are given.
 
 The `%model` directive also supports automatic provider resolution: known model names
 (e.g., `opus`, `o3`, `qwen3.6-plus`, `muse-spark-1.3`) are automatically mapped to their
-provider. See [Per-Prompt Provider Switching](llms.md#per-prompt-provider-switching) for
-the full model-to-provider mapping. sase's TUI and the macro LSP complete `%model:` /
-`%m:` values from the same model catalog used for provider resolution. The inserted
+provider. See
+[Per-Prompt Provider Switching](reference/providers/models.md#per-prompt-provider-switching)
+for the full model-to-provider mapping. sase's TUI and the macro LSP complete `%model:`
+/ `%m:` values from the same model catalog used for provider resolution. The inserted
 value is a canonical model name, a configured alias, or a qualified `provider/model`
 value selected from a provider-scoped menu; provider short aliases are only
 filter/display hints.
@@ -2566,7 +2570,8 @@ size aliases directly:
 | `xlarge` worker | `xlarge` |
 
 Legacy tasks without stored size metadata normalize to the `small` route at launch. See
-[Implicit role aliases](llms.md#implicit-role-aliases) for the current shipped defaults.
+[Implicit role aliases](reference/providers/models.md#implicit-role-aliases) for the
+current shipped defaults.
 
 Keys must be known builtin or custom alias names without `@`; values may be concrete
 models, `provider/model` targets, quoted targets, macro references, or another alias
@@ -2941,7 +2946,9 @@ Audit this module for subtle concurrency bugs.
 The canonical effort vocabulary is `none`, `minimal`, `low`, `medium`, `high`, `xhigh`,
 `max` (ordered least → most). Spelling is validated globally — an unknown level raises a
 `DirectiveError`. _Which_ levels a given provider actually honors is decided per
-provider; see the [provider support matrix](llms.md#reasoning-effort) in the LLM docs.
+provider; see the
+[provider support matrix](reference/providers/models.md#reasoning-effort) in the LLM
+docs.
 
 You can also attach an effort to a `%model` value with a trailing `@<effort>` suffix
 instead of a separate directive:
@@ -2980,7 +2987,8 @@ When no `%effort` (or `@effort`) is given, the agent falls back to the
 `llm_provider.default_effort` config value, and then to the runtime's own default. An
 _explicitly_ requested effort that the chosen provider cannot honor is an error, while a
 config-default effort is best-effort (silently skipped with a warning on providers that
-don't support it). See [Reasoning Effort](llms.md#reasoning-effort) for the resolution
+don't support it). See
+[Reasoning Effort](reference/providers/models.md#reasoning-effort) for the resolution
 precedence and per-provider support.
 
 ### Hide Directive

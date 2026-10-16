@@ -790,15 +790,15 @@ through pluggy dispatch, so the first matching plugin handles a call. The metada
 are called directly on each registered plugin instance by the registry, so each provider
 contributes its own values:
 
-| Area                  | Hooks                                                                                                                              |
-| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| Identity and models   | `llm_provider_name`, `llm_provider_short_name`, `llm_known_model_names`, `llm_model_short_aliases`, `llm_model_advisories`         |
-| Skills                | `llm_skill_template_context`, `llm_skill_deploy_subpath`, `llm_additional_skill_deploy_subpaths`                                   |
-| Detection and display | `llm_cli_status_color`, `llm_autodetect_priority`, `llm_autodetect_cli_name`, `llm_auth_evidence`, `llm_hidden_from_model_pickers` |
-| CLI management        | `llm_install_metadata`, `llm_interactive_cli`, `llm_hidden_from_agent_cli_management`                                              |
-| Failure policy        | `llm_default_retry_config`, `llm_default_usage_limit_config`                                                                       |
-| Instruction delivery  | `llm_instruction_delivery` (see [Delivery](instruction_bundles.md#delivery))                                                       |
-| Subscription usage    | `llm_usage_capabilities`, `llm_usage_probe` (see [Subscription usage extension](llms.md#subscription-usage-extension))             |
+| Area                  | Hooks                                                                                                                                         |
+| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| Identity and models   | `llm_provider_name`, `llm_provider_short_name`, `llm_known_model_names`, `llm_model_short_aliases`, `llm_model_advisories`                    |
+| Skills                | `llm_skill_template_context`, `llm_skill_deploy_subpath`, `llm_additional_skill_deploy_subpaths`                                              |
+| Detection and display | `llm_cli_status_color`, `llm_autodetect_priority`, `llm_autodetect_cli_name`, `llm_auth_evidence`, `llm_hidden_from_model_pickers`            |
+| CLI management        | `llm_install_metadata`, `llm_interactive_cli`, `llm_hidden_from_agent_cli_management`                                                         |
+| Failure policy        | `llm_default_retry_config`, `llm_default_usage_limit_config`                                                                                  |
+| Instruction delivery  | `llm_instruction_delivery` (see [Delivery](contribute/instruction-bundle-internals.md#delivery))                                              |
+| Subscription usage    | `llm_usage_capabilities`, `llm_usage_probe` (see [Subscription usage extension](reference/providers/plugins.md#subscription-usage-extension)) |
 
 `llm_auth_evidence()` lists credential paths and API-key environment variable names
 (never secret values) for `sase doctor`. `llm_hidden_from_model_pickers()` hides a
@@ -809,7 +809,7 @@ keeps the default behavior. All hook method names are prefixed with `llm_`.
 `llm_instruction_delivery()` returns the provider's root and subagent slots; omitting
 it, raising, or returning an invalid mapping resolves to native discovery (legacy) for
 that invocation. The adapter contract for an explicit slot is in
-[Delivery](instruction_bundles.md#adapter-contract).
+[Delivery](contribute/instruction-bundle-internals.md#adapter-contract).
 
 Core Sase ships Claude, Codex, Antigravity (`agy`), Qwen, OpenCode, Meta's Muse Code,
 and xAI's Grok Build providers as built-in entry points. Additional providers belong in
@@ -819,9 +819,10 @@ metadata hooks.
 #### LLM Provider Install Metadata and Advisories
 
 `llm_install_metadata()` describes how a provider's CLI is installed, versioned, and
-updated, and drives [`sase agent-cli`](agent_providers.md#inventory-and-updates). Every
-key is optional and every one defaults to today's behavior, so an existing plugin needs
-no changes.
+updated, and drives
+[`sase agent-cli`](reference/providers/agent-clis.md#inventory-and-updates). Every key
+is optional and every one defaults to today's behavior, so an existing plugin needs no
+changes.
 
 | Key                         | Purpose                                                                                                               |
 | --------------------------- | --------------------------------------------------------------------------------------------------------------------- |
@@ -880,11 +881,11 @@ def llm_model_advisories(self) -> dict[str, dict[str, str]]:
 Omitting the hook means no advisories, and non-conforming values are dropped rather than
 raising, so third-party providers stay compatible. The registry normalizes the map and
 every render site reads from it, so a new advisory needs no new render site. See
-[LLM Providers — Model advisories](llms.md#model-advisories) for where advisories
-surface.
+[LLM Providers — Model advisories](reference/providers/models.md#model-advisories) for
+where advisories surface.
 
-See [docs/llms.md](llms.md) for the full LLM provider reference, including authoring new
-providers with `@hookimpl`.
+See [LLM providers](reference/providers/index.md) for the provider reference, including
+authoring new providers with `@hookimpl`.
 
 ### Macro Plugins
 
@@ -1340,7 +1341,8 @@ The provider implements hooks from `LLMHookSpec` using `@hookimpl`, including
 `llm_known_model_names()`, and `llm_autodetect_priority()`. Optional
 `llm_usage_capabilities()` (static, no I/O) and `llm_usage_probe(context)` collect
 subscription usage; omitting them leaves invoke unchanged. See
-[docs/llms.md](llms.md#external-provider-plugins) for the full provider contract.
+[External provider plugins](reference/providers/plugins.md#external-provider-plugins-1)
+for the full provider contract.
 
 ### Example: Turn-Finalizer Plugin
 

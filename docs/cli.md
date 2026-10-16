@@ -386,7 +386,7 @@ Flag and option details live in the generated
 
 Workflows: [Patches](change_spec.md), [Beads](beads.md), [SDD](sdd.md),
 [Goals](goals.md), [Project lifecycle](project_spec.md), [Initialization](init.md),
-[Remote dispatch](remote_dispatch.md), [Memory](memory.md).
+[Remote dispatch](remote_dispatch.md), [Memory](reference/memory/memory.md).
 
 Patches are PR-sized review records. SDD stores durable prompt and planning artifacts.
 Beads add git-portable dependency tracking and executable epics on top of those
@@ -704,8 +704,8 @@ published `ARTIFACTS` links. Use sase's TUI grouped `@` completion to browse pro
 references, or its contextual **Copy as…** palette to copy a reference or pre-fill a new
 agent prompt from the selected entry. See [Artifact References](artifact_references.md)
 for the handoff workflow and
-[prompt preprocessing](llms.md#prompt-preprocessing-pipeline) for launch-time
-resolution.
+[prompt preprocessing](contribute/llm-invocation.md#prompt-preprocessing-pipeline) for
+launch-time resolution.
 
 Operational commands are intentionally narrow. Helper bridges expose fixed JSON
 operations for editor and mobile clients; they are not general shell or filesystem APIs.

@@ -28,6 +28,8 @@ not_in_nav: |
   ace.md
   configuration.md
   content_layout.md
+  instruction_bundles.md
+  llms.md
   rust_backend.md
 # END GENERATED: docs page moves not_in_nav
 
@@ -207,14 +209,12 @@ nav:
           - Beads: beads.md
           - Goals: goals.md
       - Agents and workspaces:
-          - Agent providers: agent_providers.md
           - Agent sessions: agent_sessions.md
           - Agent hood synchronization: agents_sidecar.md
           - Agent attachments: agent_images.md
           - Agent auto-restart: reference/agent-auto-restart.md
           - Agent revive log: reference/agent-revive-log.md
           - Runner slots: reference/runner-slots.md
-          - Instruction bundles: instruction_bundles.md
           - Mentors: mentors.md
           - Remote dispatch: remote_dispatch.md
           - Workspaces: workspace.md
@@ -224,11 +224,27 @@ nav:
           - Notifications: notifications.md
           - Sudo requests: sudo.md
       - Providers:
-          - LLM providers: llms.md
+          - Providers and models: reference/providers/index.md
+          - Agent CLIs: reference/providers/agent-clis.md
+          - Claude Code: reference/providers/claude.md
+          - Antigravity: reference/providers/agy.md
+          - Codex CLI: reference/providers/codex.md
+          - Qwen Code: reference/providers/qwen.md
+          - OpenCode: reference/providers/opencode.md
+          - Muse Code: reference/providers/muse.md
+          - Grok Build: reference/providers/grok.md
+          - External provider plugins: reference/providers/plugins.md
+          - Provider configuration: reference/providers/configuration.md
+          - Models and aliases: reference/providers/models.md
+          - Provider routing: reference/providers/routing.md
+          - Provider usage: reference/providers/usage.md
+          - Retry and fallback: reference/providers/retry-and-fallback.md
           - VCS providers: vcs.md
       - Memory:
-          - Memory: memory.md
-          - Memory history: memory_history.md
+          - Memory: reference/memory/index.md
+          - Memory details: reference/memory/memory.md
+          - Instruction bundles: reference/memory/instruction-bundles.md
+          - Memory history: reference/memory/history.md
       - Prompts and artifacts:
           - Prompt history: prompt.md
           - Artifact references: artifact_references.md
@@ -243,11 +259,14 @@ nav:
           - Upgrading: reference/upgrading/index.md
           - Content layout migration: reference/upgrading/content-layout.md
           - Local state cutover: reference/upgrading/local-state.md
+          - Provider migration notes: reference/upgrading/providers.md
       - Glossary: reference/glossary.md
       - Design decisions: reference/design-decisions.md
   - Contribute:
       - Contribute: contribute/index.md
       - Architecture: contribute/architecture.md
+      - LLM invocation internals: contribute/llm-invocation.md
+      - Instruction bundle internals: contribute/instruction-bundle-internals.md
       - Writing docs: contribute/writing-docs.md
       - Reader testing: contribute/reader-testing.md
       - Development: contribute/development.md

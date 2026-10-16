@@ -572,7 +572,7 @@ The `usage_refresh` job checks machine-local due and backoff state and probes th
 admitted providers inline in the job process, under a non-proc operation ID, so periodic
 collection creates no proc rows. It does not poll per agent or per project. Collection
 stays gated by `llm_provider.usage_metrics.enabled`; see
-[Subscription usage extension](llms.md#subscription-usage-extension).
+[Subscription usage extension](reference/providers/plugins.md#subscription-usage-extension).
 
 A scheduled tick performs a due-only refresh. A manual run — the Services-tab `r` key or
 `sase axe job run usage_refresh` — performs an explicit refresh instead, still subject

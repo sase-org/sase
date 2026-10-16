@@ -193,7 +193,7 @@ def _populate_tool_calls(artifacts_dir: Path) -> None:
             tool_use_id="call_edit_pending",
             tool_name="Edit",
             recorded_at="2026-05-09T14:01:30+00:00",
-            tool_input_summary={"file_path": "docs/llms.md"},
+            tool_input_summary={"file_path": "docs/reference/providers/models.md"},
         )
     )
     records.append(

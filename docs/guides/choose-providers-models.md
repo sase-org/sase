@@ -17,8 +17,8 @@ bundled `fakey` provider is for tests, not real runs.
 ## 1. Install and authenticate one provider
 
 Each supported provider has an install command, an authentication command, and a link to
-its vendor docs in [Agent providers](../agent_providers.md). SASE can install most
-provider CLIs for you; the page says which one you install yourself.
+its vendor docs in [Agent providers](../reference/providers/agent-clis.md). SASE can
+install most provider CLIs for you; the page says which one you install yourself.
 
 ## 2. Check that SASE can use it
 
@@ -56,12 +56,13 @@ Confirm the new default with `sase doctor -C llm.default`.
 ## If it goes wrong
 
 Re-run the check from step 2 and follow its next step; provider sections in
-[Agent providers](../agent_providers.md) match the doctor hints. For anything else,
-start with [Diagnose problems with sase doctor](diagnose-with-doctor.md).
+[Agent providers](../reference/providers/agent-clis.md) match the doctor hints. For
+anything else, start with [Diagnose problems with sase doctor](diagnose-with-doctor.md).
 
 ## Related
 
-- [Agent providers](../agent_providers.md) — install and authentication per provider.
-- [LLM providers](../llms.md#per-prompt-provider-switching) — aliases, explicit
-  requests, and provider behavior.
+- [Agent providers](../reference/providers/agent-clis.md) — install and authentication
+  per provider.
+- [LLM providers](../reference/providers/models.md#per-prompt-provider-switching) —
+  aliases, explicit requests, and provider behavior.
 - [Providers and models](../concepts/providers.md) — why SASE routes through providers.

@@ -130,7 +130,8 @@ For installation steps, use [Install and set up SASE](../../start/install.md).
 SASE deliberately wraps CLI agents rather than raw model APIs. A SASE provider plugin
 constructs commands for existing agent runtimes: Codex CLI, Claude Code, Antigravity CLI
 (`agy`), Qwen Code, OpenCode, Muse Code, or another provider that implements the same
-boundary. The [LLM provider docs](../../llms.md) describe that layer in detail.
+boundary. The [LLM provider docs](../../reference/providers/index.md) describe that
+layer in detail.
 
 This buys a lot:
 
@@ -678,9 +679,9 @@ Keep it affectionate and clearly respectful of Gas Town/Beads.
 
 Three directions are incomplete but important:
 
-- [Memory](../../memory.md): SASE already has short-term project memory, audited
-  long-term memory reads, and proposal-based writes. The next frontier is better
-  retrieval, staleness handling, trust boundaries, and UI.
+- [Memory](../../reference/memory/memory.md): SASE already has short-term project
+  memory, audited long-term memory reads, and proposal-based writes. The next frontier
+  is better retrieval, staleness handling, trust boundaries, and UI.
 - Mobile: the [mobile gateway](../../mobile_gateway.md) and Android MVP work point
   toward a real mobile SASE client. Telegram covers a lot today, but a purpose-built app
   can expose richer state than chat buttons.

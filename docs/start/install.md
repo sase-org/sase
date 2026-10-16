@@ -51,8 +51,9 @@ sase doctor
 ```
 
 If the doctor reports a missing provider or authentication problem, follow the setup
-steps in [Installing and authenticating agent providers](../agent_providers.md), then
-run the check again.
+steps in
+[Installing and authenticating agent providers](../reference/providers/agent-clis.md),
+then run the check again.
 
 ## 4. Add shell completion (optional)
 

@@ -10,7 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def test_provider_reference_separates_muse_and_grok_selection() -> None:
     text = collapse_whitespace(
-        (ROOT / "docs/agent_providers.md").read_text(encoding="utf-8")
+        (ROOT / "docs/reference/providers/agent-clis.md").read_text(encoding="utf-8")
     )
 
     assert "SASE never auto-detects it" in text

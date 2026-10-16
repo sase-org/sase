@@ -486,7 +486,7 @@ def check_config_model_aliases() -> DiagnosticCheck:
     next_steps = (
         (
             "Migrate the reported `llm_provider` config to model aliases "
-            "(see `docs/llms.md`), then rerun `sase doctor -C config.model_aliases`.",
+            "(see `docs/reference/providers/models.md`), then rerun `sase doctor -C config.model_aliases`.",
         )
         if problems
         else ()

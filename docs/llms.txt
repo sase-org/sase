@@ -47,7 +47,6 @@
 ## Reference
 
 - [Agent Attachments and Image Previews](https://sase.sh/agent_images/) — Agent Attachments and Image Previews — SASE treats files produced by agents as first-class completion artifacts.
-- [Installing & Authenticating Agent Providers](https://sase.sh/agent_providers/) — Installing & Authenticating Agent Providers — SASE normally orchestrates an existing coding-agent CLI; the exception is the bundled fakey testing provider.
 - [Agent Clans, Sessions, and Tribes](https://sase.sh/agent_sessions/) — Agent Clans, Sessions, and Tribes — SASE uses three different kinds of agent grouping.
 - [Agent Hood Synchronization](https://sase.sh/agents_sidecar/) — Agent Hood Synchronization — SASE publishes deterministic project-scoped agent-hood snapshots and canonical prompt archives through each managed project's hidden agents sidecar.
 - [Artifact Links](https://sase.sh/artifact_links/) — Artifact Links — Artifact links are typed relationships between SASE artifacts.
@@ -60,11 +59,7 @@
 - [Editor Integration](https://sase.sh/editor/) — Editor Integration — SASE exposes two editor-facing surfaces for prompt and macro editing:
 - [Goals](https://sase.sh/goals/) — Goals — Goals are durable records of outcomes a person wants: what will be true, how you'll know, and what happened along the way.
 - [Initialization](https://sase.sh/init/) — Initialization — SASE initialization commands create or refresh durable files that agents and sidecar tools rely on.
-- [Instruction Bundles](https://sase.sh/instruction_bundles/) — Instruction Bundles — An instruction bundle collects the project, home, and SASE instructions for one agent invocation.
-- [LLM Provider Integration](https://sase.sh/llms/) — LLM Provider Integration — This document describes the LLM provider abstraction layer in sase.
 - [Macro Template Reference](https://sase.sh/macros/) — Macro Template Reference — Macros are reusable prompt templates with optional typed inputs and Jinja2 support.
-- [Memory](https://sase.sh/memory/) — Memory — SASE memory is durable context that survives individual agent chats.
-- [Memory History](https://sase.sh/memory_history/) — Memory History — Every committed version of every SASE memory note, web, strand, and agent instruction file (AGENTS.md plus its provider shims, project and home) can be browsed quickly and understood at a glance.
 - [Mentors](https://sase.sh/mentors/) — Mentors — Mentors are automated AI code review agents for Patches.
 - [Mobile Gateway](https://sase.sh/mobile_gateway/) — Mobile Gateway — The SASE mobile gateway is a workstation-hosted HTTP gateway for paired mobile clients.
 - [Monitors](https://sase.sh/monitors/) — Monitors — A monitor turn is a real agent session member whose work is one supervised OS command instead of an LLM turn.
@@ -182,6 +177,25 @@
 - [Reference](https://sase.sh/reference/) — Look up exact SASE facts here, generated from code where possible.
 - [Macro directives](https://sase.sh/reference/macros/directives/) — The generated catalog of prompt directives and their syntax.
 - [Macro discovery order](https://sase.sh/reference/macros/discovery-order/) — File-backed macro and workflow locations in lookup order.
+- [Memory History](https://sase.sh/reference/memory/history/) — How SASE records and displays changes to memory notes and instruction documents.
+- [Memory](https://sase.sh/reference/memory/) — Lookup pages for durable memory, instruction bundles, and memory history.
+- [Instruction bundles](https://sase.sh/reference/memory/instruction-bundles/) — How SASE instruction bundles are previewed and how providers report delivery behavior.
+- [Memory](https://sase.sh/reference/memory/memory/) — How SASE stores, composes, audits, and links durable memory context.
+- [Installing and authenticating agent CLIs](https://sase.sh/reference/providers/agent-clis/) — Provider CLIs that SASE can install, authenticate, inspect, and update safely.
+- [Antigravity provider](https://sase.sh/reference/providers/agy/) — Antigravity CLI command construction, model mapping, and provider-specific behavior.
+- [Claude Code provider](https://sase.sh/reference/providers/claude/) — Claude Code command construction, model mapping, and provider-specific behavior.
+- [Codex CLI provider](https://sase.sh/reference/providers/codex/) — Codex command construction, model mapping, planning, and provider-specific behavior.
+- [Provider configuration](https://sase.sh/reference/providers/configuration/) — Configuration fields and command-line options that affect provider invocation.
+- [Grok Build provider](https://sase.sh/reference/providers/grok/) — Grok Build command construction, event streaming, and provider-specific behavior.
+- [Providers and models](https://sase.sh/reference/providers/) — Lookup pages for provider integrations, model selection, routing, and usage.
+- [Models and aliases](https://sase.sh/reference/providers/models/) — Model names, reasoning effort, model tiers, and aliases used for provider routing.
+- [Muse Code provider](https://sase.sh/reference/providers/muse/) — Muse Code command construction, event streaming, and provider-specific behavior.
+- [OpenCode provider](https://sase.sh/reference/providers/opencode/) — OpenCode command construction, model mapping, and provider-specific behavior.
+- [External provider plugins](https://sase.sh/reference/providers/plugins/) — How external plugins extend SASE's LLM provider registry.
+- [Qwen Code provider](https://sase.sh/reference/providers/qwen/) — Qwen Code command construction, authentication, and provider-specific behavior.
+- [Provider retry and fallback](https://sase.sh/reference/providers/retry-and-fallback/) — Retry defaults, fallback behavior, and how provider failures affect invocations.
+- [Provider routing](https://sase.sh/reference/providers/routing/) — Per-prompt selection and temporary provider or model routing controls.
+- [Provider usage](https://sase.sh/reference/providers/usage/) — Subscription usage reporting and automatic provider disabling at usage limits.
 - [Runner slots](https://sase.sh/reference/runner-slots/) — How runner capacity admits queued agents, and what waiting.json records.
 - [SASE Admin Center](https://sase.sh/reference/tui/admin-center/) — Navigation, sections, and editor behavior in the SASE Admin Center.
 - [Agent row glyphs](https://sase.sh/reference/tui/agent-row-glyphs/) — Glyphs, markers, and badges on Agents tab rows.
@@ -198,6 +212,7 @@
 - [Content layout migration](https://sase.sh/reference/upgrading/content-layout/) — Migration steps and compatibility behavior for SASE content paths.
 - [Upgrading](https://sase.sh/reference/upgrading/) — Upgrade and history notes, organized by area with the newest notes first.
 - [Local state cutover](https://sase.sh/reference/upgrading/local-state/) — The temporary offline kit for moving legacy local state into canonical locations.
+- [Provider migration notes](https://sase.sh/reference/upgrading/providers/) — Historical compatibility notes for provider metadata and model selection.
 - [Remote Dispatch Runbook](https://sase.sh/remote_dispatch/) — Remote Dispatch Runbook — Remote dispatch lets one SASE controller discover, enroll, and operate agents on another machine.
 - [Spec-Driven Development (SDD)](https://sase.sh/sdd/) — Spec-Driven Development (SDD) — SDD is sase's system for persisting the intent behind agent work.
 - [Sudo Requests](https://sase.sh/sudo/) — Sudo Requests — SASE sudo requests let an agent ask for reviewed privileged execution without ever asking for, receiving, logging, or proxying a password.
@@ -216,7 +231,9 @@
 - [Development](https://sase.sh/contribute/development/) — This page orients contributors working in the sase repository.
 - [Fakey Testing Provider](https://sase.sh/contribute/fakey/) — fakey is a deterministic fake agent CLI bundled with SASE.
 - [Contribute](https://sase.sh/contribute/) — Contributor guides, internals, contracts, and runbooks for SASE.
+- [Instruction bundle internals](https://sase.sh/contribute/instruction-bundle-internals/) — Manifest, storage, cache, and delivery contracts for generated instruction bundles.
 - [Integration APIs](https://sase.sh/contribute/integration-apis/) — SASE exposes a small set of Python helpers for external plugins, chat clients, mobile clients, and editor integrations.
+- [LLM invocation internals](https://sase.sh/contribute/llm-invocation/) — Internal provider architecture, prompt processing, subprocess handling, and invocation lifecycle.
 - [Mobile MVP Runbook](https://sase.sh/contribute/mobile-mvp-runbook/) — This runbook covers the private Android MVP that connects a phone to a workstation-hosted SASE mobile gateway.
 - [sase tui Performance Runbook](https://sase.sh/contribute/perf-runbook/) — This runbook explains how to capture and compare performance data for sase's TUI, the sase tui terminal user interface.
 - [Reader testing](https://sase.sh/contribute/reader-testing/) — How to run an observed reader round and turn the results into doc changes.
@@ -244,6 +261,8 @@
 - [sase's TUI User Guide](https://sase.sh/ace/) — sase's TUI User Guide — sase's TUI is the primary TUI for the SASE toolkit.
 - [Configuration Reference](https://sase.sh/configuration/) — Configuration Reference — Moved to Configuration files and merging.
 - [Canonical SASE Content Layout](https://sase.sh/content_layout/) — This page has moved to its new home.
+- [Instruction Bundles](https://sase.sh/instruction_bundles/) — This page has moved to its new home.
+- [LLM Provider Integration](https://sase.sh/llms/) — This page has moved to its new home.
 - [Rust Backend (sase_core_rs)](https://sase.sh/rust_backend/) — This page has moved to its new home.
 
 ## Moved pages
@@ -268,3 +287,8 @@
 - https://sase.sh/artifacts_pane_contract/ → https://sase.sh/contribute/artifacts-pane-contract/
 - https://sase.sh/artifacts_pane_visual_grammar/ → https://sase.sh/contribute/artifacts-pane-visual-grammar/
 - https://sase.sh/sdd_storage/ → https://sase.sh/contribute/sdd-storage/
+- https://sase.sh/agent_providers/ → https://sase.sh/reference/providers/agent-clis/
+- https://sase.sh/memory_history/ → https://sase.sh/reference/memory/history/
+- https://sase.sh/llms/ → https://sase.sh/reference/providers/
+- https://sase.sh/instruction_bundles/ → https://sase.sh/reference/memory/instruction-bundles/
+- https://sase.sh/memory/ → https://sase.sh/reference/memory/memory/

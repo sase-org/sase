@@ -753,7 +753,8 @@ back to `~/sase/memory/`. The whole batch is resolved before anything is printed
 logged, so one unknown selector fails the request. `-f/--format` accepts `markdown` (the
 default), `rich`, or `json`. `-d/--depth N` caps link and mention closure recursion
 (unlimited by default); `-d 0` prints only the requested selectors and lists every link
-as a reference. See [Memory](memory.md#audited-reads) for attribution and log details.
+as a reference. See [Memory](reference/memory/memory.md#audited-reads) for attribution
+and log details.
 
 Examples:
 
@@ -1691,7 +1692,7 @@ for redirected output, `NO_COLOR`, or a dumb terminal.
 `--json` and `--plain` are mutually exclusive. Background mode returns after submission
 and renders the receipt instead of the cache. Unknown providers are usage errors.
 Collection requires `llm_provider.usage_metrics.enabled`; see
-[Subscription Usage](llms.md#subscription-usage).
+[Subscription Usage](reference/providers/usage.md#subscription-usage).
 
 ### `sase notify`
 
@@ -1939,8 +1940,8 @@ from the `-Q/--request-path` sidecar and are not meant for direct use.
 `sase agent-cli` inventories the supported coding-agent CLIs, installs the ones whose
 provider declares an install script, and updates the ones whose install method can be
 identified safely. With no subcommand, it defaults to `sase agent-cli list`. See
-[Agent providers](agent_providers.md#inventory-and-updates) for the per-install-method
-update behavior.
+[Agent providers](reference/providers/agent-clis.md#inventory-and-updates) for the
+per-install-method update behavior.
 
 | Subcommand | Flags                                                                                               | Description                                                                                                                                                                                                                                                                                              |
 | ---------- | --------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

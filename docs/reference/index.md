@@ -44,14 +44,12 @@ Exact SASE facts; guides teach workflows.
 
 ## Agents and workspaces
 
-- [Agent providers](../agent_providers.md) — CLIs SASE can drive
 - [Agent sessions](../agent_sessions.md) — runs and their turns
 - [Agent hood sync](../agents_sidecar.md) — sharing agents across checkouts
 - [Agent attachments](../agent_images.md) — images agents can see
 - [Agent auto-restart](agent-auto-restart.md) — update-skew recovery, limits
 - [Agent revive log](agent-revive-log.md) — revival audit records
 - [Runner slots](runner-slots.md) — capacity admission, queued agents
-- [Instruction bundles](../instruction_bundles.md) — generated agent instructions
 - [Mentors](../mentors.md) — automated code review
 - [Remote dispatch](../remote_dispatch.md) — running agents elsewhere
 - [Workspaces](../workspace.md) — numbered clones agents claim
@@ -65,13 +63,19 @@ Exact SASE facts; guides teach workflows.
 
 ## Providers
 
-- [LLM providers](../llms.md) — models, tiers, aliases
+- [Providers and models](providers/index.md) — provider integration and model routing
+- [Agent CLIs](providers/agent-clis.md) — supported CLIs and install management
+- [Models and aliases](providers/models.md) — catalog, tiers, reasoning effort, and
+  aliases
+- [Provider routing](providers/routing.md) — temporary overrides, disables, and priority
 - [VCS providers](../vcs.md) — git and changer hosting
 
 ## Memory
 
-- [Memory](../memory.md) — durable agent context
-- [Memory history](../memory_history.md) — how memory changed
+- [Memory](memory/index.md) — durable agent context and instruction documents
+- [Memory details](memory/memory.md) — memory types, webs, and audited reads
+- [Instruction bundles](memory/instruction-bundles.md) — generated agent instructions
+- [Memory history](memory/history.md) — how memory changed
 
 ## Prompts and artifacts
 

@@ -1,3584 +1,650 @@
+---
+title: LLM Provider Integration
+description: This page has moved to its new home.
+search:
+  exclude: true
+---
+
+<!-- generated, do not edit; source: docs/_meta/moves.yml -->
+
 # LLM Provider Integration
 
-This document describes the LLM provider abstraction layer in sase. The system supports
-pluggable LLM backends (Claude Code, Codex, Antigravity CLI (`agy`), Qwen Code,
-OpenCode, Meta's Muse Code, and xAI's Grok Build are bundled; additional providers can
-ship as external plugins) behind a shared orchestration layer that handles
-preprocessing, invocation, and postprocessing.
-
-> This page documents how SASE _integrates_ each provider. To install and authenticate a
-> provider CLI in the first place, see
-> [Installing & Authenticating Agent Providers](agent_providers.md).
-
-## Table of Contents
-
-- [Overview](#overview)
-- [Provider Architecture](#provider-architecture)
-- [Commit Finalization](#commit-finalization)
-- [Claude Code Integration](#claude-code-integration)
-- [Antigravity (`agy`) Integration](#antigravity-agy-integration)
-- [Codex CLI Integration](#codex-cli-integration)
-- [Qwen Code Integration](#qwen-code-integration)
-- [OpenCode Integration](#opencode-integration)
-- [Muse Code Integration](#muse-code-integration)
-- [Grok Build Integration](#grok-build-integration)
-- [External Provider Plugins](#external-provider-plugins)
-- [Configuration](#configuration)
-- [Per-Prompt Provider Switching](#per-prompt-provider-switching)
-- [Reasoning Effort](#reasoning-effort)
-- [Model Tier System](#model-tier-system)
-- [Role Aliases for Delegated Work](#role-aliases-for-delegated-work)
-- [Temporary Model Overrides](#temporary-model-overrides)
-- [Temporary Provider Disables](#temporary-provider-disables)
-- [Temporary Provider Priority](#temporary-provider-priority)
-- [Subscription Usage](#subscription-usage)
-- [Usage-Limit Auto-Disable](#usage-limit-auto-disable)
-- [Environment Variable Reference](#environment-variable-reference)
-- [CLI Flags](#cli-flags)
-- [Retry and Fallback](#retry-and-fallback)
-- [Token Usage Tracking](#token-usage-tracking)
-- [Prompt Preprocessing Pipeline](#prompt-preprocessing-pipeline)
-- [Subprocess Streaming](#subprocess-streaming)
-- [Postprocessing](#postprocessing)
-- [Chat History](#chat-history)
-- [Invocation Lifecycle](#invocation-lifecycle)
-
-## Overview
-
-The LLM provider layer decouples prompt handling from the underlying LLM backend. All
-providers share a common preprocessing pipeline, subprocess streaming mechanism, and
-postprocessing workflow. The actual LLM invocation is delegated to a pluggable provider
-selected at runtime.
-
-Key design principles:
-
-- **Providers are thin**: They only construct CLI commands and run subprocesses. All
-  preprocessing and postprocessing lives in the shared orchestration layer.
-- **Registry-based selection**: Providers register themselves by name and are resolved
-  via config or explicit override.
-- **Tier-based model selection**: Callers request a "large" or "small" tier; the
-  provider maps it to a concrete model.
-- **Runtime-uniform commit enforcement**: SASE agent runs use a shared commit finalizer
-  instead of provider-specific native stop hooks.
-
-### Source Layout
-
-| File                                                       | Purpose                                                                                                                          |
-| ---------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| `src/sase/llm_provider/__init__.py`                        | Public API exports                                                                                                               |
-| `src/sase/llm_provider/base.py`                            | `LLMProvider` abstract base class                                                                                                |
-| `src/sase/llm_provider/_hookspec.py`                       | Pluggy hook specifications (`LLMHookSpec`)                                                                                       |
-| `src/sase/llm_provider/_plugin_manager.py`                 | Plugin manager wrapping pluggy (`LLMPluginManager`)                                                                              |
-| `src/sase/llm_provider/claude.py`                          | Claude Code provider implementation                                                                                              |
-| `src/sase/llm_provider/codex.py`                           | Codex CLI provider implementation                                                                                                |
-| `src/sase/llm_provider/fakey.py`                           | Bundled deterministic testing provider                                                                                           |
-| `src/sase/llm_provider/agy.py`                             | Antigravity CLI (`agy`) provider implementation                                                                                  |
-| `src/sase/llm_provider/qwen.py`                            | Qwen Code provider implementation                                                                                                |
-| `src/sase/llm_provider/opencode.py`                        | OpenCode provider implementation                                                                                                 |
-| `src/sase/llm_provider/muse.py`                            | Meta Muse Code provider implementation                                                                                           |
-| `src/sase/llm_provider/_subprocess_muse.py`                | Muse `exec --json` JSONL stream parser                                                                                           |
-| `src/sase/llm_provider/_tool_call_muse.py`                 | Muse tool-call record extraction from the event stream                                                                           |
-| `src/sase/llm_provider/_muse_session_usage.py`             | Muse token-usage recovery from the on-disk session log                                                                           |
-| `src/sase/llm_provider/grok.py`                            | xAI Grok Build provider implementation                                                                                           |
-| `src/sase/llm_provider/_subprocess_claude.py`              | Provider-neutral Anthropic-Messages stream reader shared by Claude and Grok                                                      |
-| `src/sase/llm_provider/_tool_call_grok.py`                 | Grok tool-call normalization (native names → canonical display names)                                                            |
-| `src/sase/llm_provider/registry.py`                        | Provider registration and lookup                                                                                                 |
-| `src/sase/llm_provider/_registry_metadata.py`              | Provider metadata normalization and cache fingerprints                                                                           |
-| `src/sase/llm_provider/_registry_plugins.py`               | Plugin discovery/construction via `sase_llm` entry points                                                                        |
-| `src/sase/llm_provider/models.yml`                         | Single bundled source of truth for built-in model catalogs, tier defaults, and shipped size-alias targets/fallbacks/descriptions |
-| `src/sase/llm_provider/model_manifest.py`                  | Lazy cached loader and strict structural validation for `models.yml`                                                             |
-| `src/sase/llm_provider/model_alias_policy.py`              | Model-alias name constants and the size-alias views projected from the manifest                                                  |
-| `src/sase/llm_provider/model_alias_config.py`              | Model-alias config parsing and presentation metadata                                                                             |
-| `src/sase/llm_provider/model_alias_resolution.py`          | Alias/target/effort resolution façade (import/monkeypatch surface)                                                               |
-| `src/sase/llm_provider/model_alias_resolution_types.py`    | Alias-resolution types, normalization, and target availability                                                                   |
-| `src/sase/llm_provider/model_alias_resolution_resolve.py`  | Alias-chain walker and effort/selector provenance                                                                                |
-| `src/sase/llm_provider/model_alias_resolution_selector.py` | Selector member diagnostics and selector-value validation                                                                        |
-| `src/sase/llm_provider/alias_view.py`                      | sase's TUI Launch Control alias-view construction (`build_alias_views()`)                                                        |
-| `src/sase/llm_provider/config.py`                          | Config file reader (`sase.yml`)                                                                                                  |
-| `src/sase/llm_provider/temporary_override.py`              | Primary/worker temporary override state and resolution                                                                           |
-| `src/sase/llm_provider/provider_disable.py`                | Rust-backed temporary provider-disable facade                                                                                    |
-| `src/sase/llm_provider/provider_disable_peek.py`           | Lock-free display peek for active provider disables                                                                              |
-| `src/sase/llm_provider/provider_priority.py`               | Rust-backed temporary provider-priority facade (import/monkeypatch surface)                                                      |
-| `src/sase/llm_provider/provider_priority_types.py`         | Provider-priority wire records, decode/write envelopes, and route keys                                                           |
-| `src/sase/llm_provider/provider_priority_routing.py`       | Routing-context capture and provider availability classification                                                                 |
-| `src/sase/llm_provider/provider_priority_peek.py`          | Lock-free display peek for active provider priority and routing context                                                          |
-| `src/sase/finalizers/controller.py`                        | Provider-neutral finalizer planning and orchestration                                                                            |
-| `src/sase/finalizers/commit.py`                            | Bundled dirty-workspace commit finalizer                                                                                         |
-| `src/sase/llm_provider/types.py`                           | `ModelTier`, `InvokeResult`, `LoggingContext` types                                                                              |
-| `src/sase/llm_provider/_invoke.py`                         | `invoke_agent()` orchestrator                                                                                                    |
-| `src/sase/llm_provider/_subprocess.py`                     | Provider stream-parser compatibility exports                                                                                     |
-| `src/sase/llm_provider/_plan_utils.py`                     | Shared plan utilities                                                                                                            |
-| `src/sase/llm_provider/preprocessing.py`                   | Shared prompt preprocessing pipeline                                                                                             |
-| `src/sase/llm_provider/postprocessing.py`                  | Logging, chat history, audio                                                                                                     |
-| `src/sase/llm_provider/retry_config.py`                    | `ProviderRetryConfig` (per-provider retry defaults)                                                                              |
-
-## Provider Architecture
-
-### Base Class
-
-All providers implement the `LLMProvider` abstract base class:
-
-```python
-class LLMProvider(ABC):
-    @abstractmethod
-    def invoke(
-        self,
-        prompt: str,
-        *,
-        model_tier: ModelTier,
-        suppress_output: bool = False,
-        model_override: str | None = None,
-    ) -> InvokeResult: ...
-```
-
-| Parameter         | Type          | Description                                                       |
-| ----------------- | ------------- | ----------------------------------------------------------------- |
-| `prompt`          | `str`         | Already-preprocessed prompt text                                  |
-| `model_tier`      | `ModelTier`   | `"large"` or `"small"`                                            |
-| `suppress_output` | `bool`        | If `True`, suppress real-time console output                      |
-| `model_override`  | `str \| None` | Concrete model name from `%model`, a temporary override, or retry |
-
-Returns `InvokeResult(content=..., usage=...)`. Providers raise
-`subprocess.CalledProcessError` for failed CLI exits or a provider-specific exception
-for launch/configuration failures.
-
-### Registry
-
-Providers are discovered via `importlib.metadata.entry_points(group="sase_llm")`. The
-built-in providers are packaged the same way as external provider plugins; their entry
-points live in `pyproject.toml`:
-
-```toml
-[project.entry-points."sase_llm"]
-claude = "sase.llm_provider.claude:ClaudeCodeProvider"
-codex  = "sase.llm_provider.codex:CodexProvider"
-fakey = "sase.llm_provider.fakey:FakeyProvider"
-agy = "sase.llm_provider.agy:AgyProvider"
-grok = "sase.llm_provider.grok:GrokProvider"
-muse = "sase.llm_provider.muse:MuseProvider"
-opencode = "sase.llm_provider.opencode:OpenCodeProvider"
-qwen   = "sase.llm_provider.qwen:QwenProvider"
-```
-
-External plugin packages declare additional entries under the same group.
-
-To get a provider instance:
-
-```python
-provider = get_provider()          # Uses default from config
-provider = get_provider("claude")  # Explicit provider name
-```
-
-### Selection Logic
-
-1. If `provider_name` is passed to `invoke_agent()`, use that.
-2. If the prompt has a `%model` directive, resolve explicit `provider/model` syntax
-   first, then known model names from installed plugin metadata.
-3. If no explicit provider/model was supplied, use an active temporary override from
-   `~/.sase/llm_override.json`.
-4. Otherwise, read the `llm_provider.provider` field from `~/.config/sase/sase.yml`.
-5. If no config exists (or provider is empty), auto-detect by walking registered plugins
-   in ascending `llm_autodetect_priority()` order and picking the first whose
-   `llm_autodetect_cli_name()` is on `PATH`. Built-in priorities: `claude=0`,
-   `codex=10`, `qwen=15`, `opencode=18`, `agy=30`. External plugins slot in by declaring
-   their own priority. `agy` autodetects via the `agy` CLI name in the late-fallback
-   slot. A provider that declares no priority never participates in autodetection:
-   `muse` and `grok` deliberately omit one, because `muse` and `grok` are both generic
-   executable names and autodetect only checks `PATH` presence. Model-alias routing is
-   separate: whichever shipped size aliases currently target Grok or Muse can select
-   that provider whenever its executable is available (see
-   [Grok Build Integration](#grok-build-integration),
-   [Muse Code Integration](#muse-code-integration), and the generated
-   [shipped size-alias defaults](#implicit-role-aliases)).
-
-## Commit Finalization
-
-For SASE agent runs, `invoke_agent()` resolves the host-owned `finalizers` plan before
-the provider turn and runs the generic finalizer controller before success
-postprocessing after the provider returns. The bundled `builtin@commit` instance checks
-the active project workspace through the active VCS provider and checks configured
-linked repositories as Git worktrees at their resolved `workspace_dir`. Repositories
-opened through `/sase_repo` are enforced like the main workspace.
-
-Normal turns learn the terminal action from generated agent instructions in
-`sase/memory/sase.md` (inlined into `AGENTS.md`): use `/sase_final` as the last normal
-action. The skill publishes context and exits early when no payload is required. If a
-required declaration is missing or stale after the normal response, the host opens one
-bounded recovery turn that explicitly asks the agent to use `/sase_final`. The submitted
-declaration gives each dirty repository exactly one `commit` decision with a
-Conventional Commit message; `commit` is the only legal repository action. When the run
-has an assigned bead (`SASE_BEAD_ID`), each commit decision also carries an explicit
-`bead_action`: `keep` for intermediate work, proposals, and linked or sidecar
-repositories, or `close` only on the primary repository once the whole bead is complete
-and verified (see [Explicit Bead Action](commit_workflows.md#explicit-bead-action)).
-Typed deferrals can name explicit paths that must not be committed, using
-host-adjudicated reasons such as `foreign_work` or `protected_paths`. Accepted commit
-decisions dispatch through the appropriate stitch workflow. A narrow generated SDD plan
-closeout, where the only enforced change is one markdown file's frontmatter
-`status: wip` becoming `status: done`, is committed directly with a `SASE_TYPE=sdd`
-commit.
-
-When an artifacts directory is available, the host writes generic artifacts such as
-`final_context.json`, `final_submission.json`, `finalizer_baseline.json`, and
-`finalizer_result.json`, plus per-instance files under `finalizers/<instance>/` and
-stitch evidence in `commit_results.json`. If dirty work remains after the configured
-attempt budget, a declaration is stale or refused, a conflict is unresolved, or a
-publication/discarded-work guard fails, the invocation is converted into an
-`LLMInvocationError` rather than being logged as a successful clean run.
-
-The older provider-native commit hook scripts are no longer shipped; SASE-launched agent
-sessions rely on the shared finalizer path.
-
-## Claude Code Integration
-
-The `ClaudeCodeProvider` invokes the `claude` CLI tool.
-
-### Command Construction
-
-```
-claude -p --verbose --model <alias> --output-format stream-json \
-  --dangerously-skip-permissions \
-  --append-system-prompt-file <root bundle> --disallowedTools ScheduleWakeup \
-  --session-id <uuid> [--effort <level>] [extra_args...]
-```
-
-The prompt is written to stdin. Output is streamed as JSON events; SASE extracts
-assistant text and token usage from the stream. A wait-guard continuation (see below)
-replaces `--session-id <uuid>` with `--resume <uuid>` so the nudge lands in the same
-Claude session.
-
-Every cycle also passes `--settings <inline JSON>` carrying a PreToolUse guard on
-`Bash|Skill`, exact-path `claudeMdExcludes` for SASE-owned root and home files, and
-`autoMemoryEnabled: false`, plus `--append-subagent-system-prompt-file <helper bundle>`
-when the installed CLI parses that flag (see "Native helpers" below).
-
-The root and helper files contain their respective compiled bundles and trailing
-invocation markers. They are private temporary files kept across all cycles and removed
-after the call. With `claude_explicit_instructions` disabled or no delivery plan, the
-root flag is `--append-system-prompt <single-turn directive>`, settings contain only the
-helper guard, and the helper uses the packaged static template. A failed root file
-restores that legacy root delivery, including native discovery; a failed helper file
-uses the static template independently.
-
-SASE also sets two Claude Code environment variables on the subprocess unless the caller
-already set them: `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS=1`, and `BASH_MAX_TIMEOUT_MS`
-raised to four hours (`14400000`) so long verification commands can stay in the
-foreground. Commands still need an explicit larger timeout to use that ceiling.
-
-### Single-Turn Wait Guard
-
-A SASE provider turn is one `claude -p` process with no follow-up event loop, so a
-background-task notification or a scheduled wake-up can never reach the model. SASE
-guards against replies that end the turn waiting for one:
-
-- The appended system prompt tells the model that the session is single-turn, that
-  commands must run synchronously in the foreground, and that a command killed by its
-  timeout should be rerun with a larger explicit timeout.
-- The `ScheduleWakeup` tool is disallowed.
-- The stream parser records background task IDs reported by tool results, clears them
-  when a matching `<task-notification>` arrives, and notes any `ScheduleWakeup` call.
-
-After a successful exit, a turn counts as a wait state when it requested a wake-up, or
-when a background task is still outstanding and the tail of the final reply reads like a
-wait ("I'll wait", "will be notified", "still running", and similar). SASE then resumes
-the same session with a nudge to read the task output or rerun the command in the
-foreground and finish. After `SASE_CLAUDE_MAX_WAIT_CONTINUATIONS` continuations (default
-`2`) the run fails with `LLMInvocationError` instead of recording the waiting reply as a
-successful answer.
-
-### Native helpers
-
-Claude native subagents (general-purpose and Explore) inherit the root's environment, so
-without a stopgap they can act as roots: helpers have invoked `sase final` and two
-submissions were even accepted for their parent's turn. Two mechanisms keep helpers in
-their lane:
-
-- **Helper bundle.** The compiled helper instructions (headed
-  `# SASE Helper Instructions`) are passed through the hidden
-  `--append-subagent-system-prompt-file` flag on every invocation cycle, including
-  `--resume` cycles. It reaches Explore and general-purpose helpers but not the root,
-  and tells helpers their parent owns the turn: never run `sase final …` or the
-  root-only skills, never commit, create beads, or launch agents, and return the result
-  to the parent. Live probes confirm both helper types carry `agent_id` and see the
-  helper heading. The packaged static file
-  `src/sase/llm_provider/templates/claude_helper_instructions.md` remains the fallback
-  for a disabled flag, missing delivery plan, or helper render/materialization failure.
-- **PreToolUse guard.** The inline `--settings` JSON installs a stdlib-only hook
-  (`src/sase/llm_provider/_claude_helper_guard.py`, run as
-  `<sys.executable> -I <guard path>`) on `Bash|Skill`. When the hook input carries a
-  non-empty `agent_id` — set only for calls made inside a subagent — the guard denies
-  `sase final context|defer|prepare|submit`, the turn-ending CLI forms the root-only
-  skills run (`sase plan propose`, `sase monitor start`, `sase launch request`,
-  `sase pipe`, `sase gate create|wait`, `sase questions`, `sase run`,
-  `sase sudo request`, `sase stitch create`), and the root-only skills themselves
-  (`sase_final`, `sase_gate`, `sase_git_commit`, `sase_handoff`, `sase_monitor`,
-  `sase_plan`, `sase_questions`, `sase_run`, `sase_sudo`). Read-only forms such as
-  `sase final status` stay allowed. A deny exits 0 with a `SASE helper guard:` reason,
-  which blocks the call even under `--dangerously-skip-permissions` (verified by live
-  probe); every other input, including the root's own calls without `agent_id` and
-  malformed stdin, exits 0 silently.
-
-A cached no-API capability probe decides whether the installed CLI parses the hidden
-flag: `claude -p --append-subagent-system-prompt-file <nonexistent>` reporting "file not
-found" means supported, "unknown option" means unsupported, and anything else is
-unknown. The result is cached by executable path plus mtime and size. When the probe
-does not report support, the adapter omits only the template flag, logs one warning, and
-keeps the guard. `sase doctor -D -C providers.claude_helper_channel` runs the probe
-uncached and reports OK, or ERROR with next steps. Live probes also show that forked
-(nested) helpers carry `agent_id`, so the guard covers them as well.
-
-### Model Mapping
-
-<!-- BEGIN GENERATED: model-tiers-claude -->
-
-| Tier    | Model    |
-| ------- | -------- |
-| `large` | `opus`   |
-| `small` | `sonnet` |
-
-<!-- END GENERATED: model-tiers-claude -->
-
-The tier values above are floating Claude CLI aliases that Claude resolves to its
-current model, so SASE intentionally does not pin them to point version IDs.
-
-### Environment Variables
-
-| Variable                             | Description                                                                                                        |
-| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------ |
-| `SASE_LLM_LARGE_ARGS`                | Extra CLI args for `large` tier (generic, preferred)                                                               |
-| `SASE_LLM_SMALL_ARGS`                | Extra CLI args for `small` tier (generic, preferred)                                                               |
-| `SASE_CLAUDE_LARGE_ARGS`             | Extra CLI args for `large` tier (Claude-specific fallback)                                                         |
-| `SASE_CLAUDE_SMALL_ARGS`             | Extra CLI args for `small` tier (Claude-specific fallback)                                                         |
-| `SASE_CLAUDE_MAX_WAIT_CONTINUATIONS` | Wait-guard continuation cap (default: `2`)                                                                         |
-| `BASH_MAX_TIMEOUT_MS`                | Bash-tool timeout ceiling (default: `14400000` = 4 h); also sets the exported `SASE_PROVIDER_SYNC_CEILING_SECONDS` |
-
-The generic `SASE_LLM_*_ARGS` variables take precedence. Values are split on whitespace
-and appended to the command.
-
-### Timer Display
-
-While waiting for a response, a `provider_timer("Waiting for Claude")` spinner is shown
-(unless `suppress_output` is `True`).
-
-### Claude Tool Calls
-
-To record what tools an agent actually invoked (file reads, edits, bash commands, etc.),
-`ClaudeCodeProvider` parses Claude Code's `stream-json` output as it arrives and appends
-one normalized record per tool call to `$SASE_ARTIFACTS_DIR/tool_calls.jsonl`:
-
-- An `assistant` event carrying `message.content[].tool_use` blocks emits one `pending`
-  `ToolUse` (start) record per block: the tool name and a bounded, redacted summary of
-  its input. Set `SASE_TOOL_LOG_FULL=1` to record the raw input instead.
-- A `user` event carrying `message.content[].tool_result` blocks emits the matching
-  `ToolResult` (end) record: a `success`, `failure`, or `interrupted` status and a
-  length-bounded preview of the response, drawing structured output from the top-level
-  `tool_use_result` envelope when present.
-
-sase's TUI LLM Calls panel reads this same `tool_calls.jsonl` to render the per-agent
-timeline — see
-[Agents Tab LLM Calls Panel](reference/tui/agents-deck-panels.md#agents-tab-llm-calls-panel).
-The reader pairs a `ToolUse` with its `ToolResult` by `tool_use_id` and collapses them
-into one row.
-
-Stream parsing is the only writer for new runs. SASE does **not** install Claude Code
-hooks and does **not** write to the workspace's `.claude/settings.local.json`; earlier
-releases did, through a `sase_claude_tool_hook` console script that no longer ships, and
-new runs never request Claude's `--include-hook-events`.
-
-The `schema_version` field on each row names _which writer produced it_, not how recent
-it is — the numbers are two lineages, not a sequence, so a higher number is not a newer
-format:
-
-| `schema_version` | Written by                         | Still written? |
-| ---------------- | ---------------------------------- | -------------- |
-| `1`, `2`         | The stream parser (`2` is current) | Yes — `2`      |
-| `3`              | The retired Claude tool-call hook  | No             |
-
-The reader accepts all three, so old artifacts stay viewable. In a historical file that
-mixed both writers, a schema-3 hook row wins over a stream row describing the same
-`tool_use_id`, so an old timeline does not double-count one call.
-
-The writer is intentionally non-blocking and best-effort: a malformed event, an
-exception inside normalization, or a missing `SASE_ARTIFACTS_DIR` produces a diagnostic
-line in `$SASE_ARTIFACTS_DIR/tool_calls_writer_errors.jsonl` (or a silent no-op) rather
-than failing the run. A SASE-side bug can never surface to the agent as a tool-call
-failure.
-
-The normalized tool-call artifact is still Python/TUI-owned glue rather than a shared
-`sase-core` contract. Move it into `../sase-core` only if another frontend or
-integration needs to produce or consume exactly the same schema through the Rust
-boundary.
-
-Source: `src/sase/llm_provider/claude.py`, `src/sase/llm_provider/_tool_calls.py`,
-`src/sase/llm_provider/_tool_call_claude.py`,
-`src/sase/llm_provider/_tool_call_common.py`, `src/sase/ace/tui/llm_calls/reader.py`
-
-## Antigravity (`agy`) Integration
-
-The `AgyProvider` invokes Google's Antigravity CLI (`agy`), the replacement for the
-retired consumer Gemini CLI. It is a plain-stdout provider: the current Antigravity CLI
-does not document a machine-readable JSON/stream output mode, so SASE streams plain
-stdout instead of parsing a structured event stream.
-
-### Command Construction
-
-```
-agy --print-timeout <duration> --model <model> --dangerously-skip-permissions --add-dir <workspace> --print <prompt>
-```
-
-The prompt is passed as the value of `--print` (not on stdin) as a single argv element,
-so prompts containing quotes, newlines, or shell metacharacters are never
-shell-interpolated. `--print-timeout` defaults to `24h` (Antigravity's own `5m` default
-is too short for long agentic runs) and is a Go duration string.
-
-SASE pins Antigravity to the agent workspace in two ways: it launches the subprocess
-with `cwd=<workspace>` and passes `--add-dir <workspace>` to the CLI. The workspace is
-resolved from `SASE_ACTIVE_PROJECT_DIR`, then provider project and workspace env vars,
-and finally the current working directory.
-
-Because the current Antigravity CLI does not document a stable stdin or prompt-file
-contract for print mode, SASE cannot fall back to streaming the prompt when that single
-argv element becomes too large for the OS. `AgyProvider` therefore rejects prompts above
-a conservative 120 KiB UTF-8 guard before spawning `agy`, with an error that names the
-upstream argv transport limitation and asks the user to reduce the prompt or use a
-stdin-capable provider.
-
-Before invoking `agy --print`, SASE wraps the user prompt with a compact print-mode
-directive. It tells the model that tool approval has already been granted by
-`--dangerously-skip-permissions`, commands must run synchronously, background tasks
-should not be used because print mode has no event loop for later notifications, and the
-final answer must be written directly to stdout.
-
-### Print-Mode No-Progress Recovery
-
-Antigravity's `run_command` tool can dispatch long-running commands as background tasks.
-In an interactive Antigravity session, the UI can deliver the later completion
-notification and the model can continue. In `agy --print`, SASE starts a single
-non-interactive process and reads stdout; there is no follow-up event loop. Some models
-therefore end the print turn with prose such as "I will wait to be notified" or "please
-approve the command" even though the subprocess exits `0`.
-
-`AgyProvider` treats those replies as no-progress, not success. When the supported
-trajectory extractor is available, SASE first checks the structural diff: zero tool-use
-steps or a final pending/backgrounded `run_command` step triggers recovery. When
-trajectory data is unavailable, a conservative text heuristic catches
-planning-only/waiting replies. SASE then restarts `agy --print` with accumulated context
-and a provider-local continuation nudge that asks the model to run tools synchronously
-and output the final answer. If the reply still makes no progress after the bounded
-continuation budget, `invoke()` raises `LLMInvocationError` so the run fails loudly
-instead of writing a false-success answer.
-
-### Model Mapping
-
-`agy` stable model slugs are used verbatim, matching `agy models` output. The tier
-defaults are:
-
-<!-- BEGIN GENERATED: model-tiers-agy -->
-
-| Tier    | Model                   |
-| ------- | ----------------------- |
-| `large` | `gemini-3.7-flash-high` |
-| `small` | `gemini-3.7-flash-low`  |
-
-<!-- END GENERATED: model-tiers-agy -->
-
-All other `agy models` slugs remain reachable through the model picker, configured
-aliases, and provider/model directives such as `%m:agy/gemini-3.6-flash-high`. Whether a
-shipped size alias currently routes to an Antigravity member is visible in the generated
-[shipped size-alias defaults](#implicit-role-aliases).
-
-Gemini 4 Argon is catalogued as `gemini-4-argon-high`, `gemini-4-argon-medium`, and
-`gemini-4-argon-low`; effort is chosen by the slug variant. Antigravity serves it only
-to Google AI Ultra and eligible Gemini Enterprise accounts, and `agy` fails the run when
-the signed-in account lacks access. For that reason the agy tier defaults stay on Gemini
-Flash, and no shipped size alias routes to Argon.
-
-### Environment Variables
-
-| Variable                                 | Description                                                        |
-| ---------------------------------------- | ------------------------------------------------------------------ |
-| `SASE_AGY_PATH`                          | Path to the Antigravity CLI binary (default: `"agy"`).             |
-| `SASE_AGY_PRINT_TIMEOUT`                 | Override the `agy --print-timeout` Go duration (default: `"24h"`). |
-| `SASE_AGY_MAX_NO_PROGRESS_CONTINUATIONS` | Override the no-progress continuation cap (default: `2`).          |
-| `SASE_AGY_LARGE_ARGS`                    | Extra args for the `large` tier (after `SASE_LLM_LARGE_ARGS`).     |
-| `SASE_AGY_SMALL_ARGS`                    | Extra args for the `small` tier (after `SASE_LLM_SMALL_ARGS`).     |
-
-### Skill Deployment
-
-`sase skill init -p agy` writes generated SASE skills to
-`~/.gemini/antigravity-cli/skills/`, the documented Antigravity global skill path. The
-leading `.gemini` here is an Antigravity-owned path, not a Gemini CLI path.
-
-### Structured Artifacts Parity Gap
-
-The Antigravity CLI exposes no stable machine-readable stdout contract: there is no
-documented `--output-format stream-json` or JSON event mode. Because SASE will not
-scrape Antigravity's human TUI rendering to synthesize artifacts, the `agy` provider
-preserves these invariants:
-
-- **Tool-call timeline** — SASE never invents rows from stdout display glyphs or prose.
-  For explicitly supported Antigravity versions, a guarded best-effort extractor may
-  decode new rows from Antigravity's local trajectory DB and append
-  `source="trajectory"` records to `tool_calls.jsonl`; otherwise sase's TUI
-  [Agents Tab LLM Calls Panel](reference/tui/agents-deck-panels.md#agents-tab-llm-calls-panel)
-  shows nothing for `agy` runs.
-- **Usage accounting** — `InvokeResult.usage` is `None` and no `usage.json` is written;
-  `agy` print mode exposes no stable token counters.
-- **Thinking extraction** — no thinking artifact is produced.
-
-The plain-stdout path still writes `live_reply.md` (and `live_reply_timestamps.jsonl`)
-like every other provider, so the final reply, chat history, and resume support work
-normally. These structured features are fast-follow work gated on a future Antigravity
-machine-readable output/log/conversation contract.
-
-### Timer Display
-
-While waiting for a response, a `Waiting for Antigravity` spinner is shown (unless
-`suppress_output` is `True`).
-
-## Codex CLI Integration
-
-The `CodexProvider` invokes the OpenAI `codex` CLI tool.
-
-### Command Construction
-
-Normal mode:
-
-```
-codex exec --model <model> --dangerously-bypass-approvals-and-sandbox --json --color never --skip-git-repo-check - [extra_args...]
-```
-
-The prompt is written to stdin. Output is streamed as NDJSON events, with assistant text
-extracted from `item.completed` events.
-
-### Codex instruction delivery
-
-When bundle preparation succeeds with `codex_explicit_instructions` enabled (the
-default), SASE adds `-c developer_instructions=<bundle>` to the command. The value
-contains the compiled root instructions and delivery marker, including the single-turn
-directive. The delivered text has a 32 KiB limit; an oversized bundle falls back to the
-legacy single-turn directive instead of being truncated.
-
-For a SASE-managed project, explicit delivery also adds `-c project_doc_max_bytes=0`.
-This disables native project-document loading for the invocation, including nested
-project instructions; it is not a path-by-path exclusion. Unmanaged projects retain
-native project discovery. Native helpers inherit the root's `developer_instructions`;
-there is no separate helper bundle or guard, so the instruction to return results to the
-parent remains essential.
-
-During explicit delivery, SASE collects each thread ID returned by the Codex adapter,
-including fresh threads started after interrupts or handoff recovery, and writes them to
-the invocation manifest when the provider call ends. Legacy and fallback calls do not
-record thread IDs through this path. Use `sase instructions verify -a AGENT` to compare
-observed loads with that manifest; verification can also match sessions by bundle
-markers or timestamps.
-
-Without an active explicit bundle, the command uses the legacy single-turn directive and
-does not override the CLI's project-document loading setting. Shadow-home suppression,
-however, currently follows the feature flag rather than the active delivery result: with
-the flag enabled, fallback runs still omit SASE-owned global instruction copies, the
-`~/AGENTS.md` fallback, and native memories. Disabling `codex_explicit_instructions`
-restores those legacy shadow-home paths as well. This distinction matters when
-diagnosing a render failure or an oversized bundle.
-
-### Model Mapping
-
-<!-- BEGIN GENERATED: model-tiers-codex -->
-
-| Tier    | Model               |
-| ------- | ------------------- |
-| `large` | `gpt-6.1-sol`       |
-| `small` | `codex-mini-latest` |
-
-<!-- END GENERATED: model-tiers-codex -->
-
-### Plan Handling
-
-The Codex provider does not enable Codex CLI's native plan mode. SASE planning flows are
-implemented at the orchestration layer through workflows, macros, and the `sase_plan`
-skill, so provider behavior stays consistent across runtimes.
-
-### Environment Variables
-
-| Variable                         | Description                                                |
-| -------------------------------- | ---------------------------------------------------------- |
-| `SASE_LLM_LARGE_ARGS`            | Extra CLI args for `large` tier (generic, preferred)       |
-| `SASE_LLM_SMALL_ARGS`            | Extra CLI args for `small` tier (generic, preferred)       |
-| `SASE_CODEX_PATH`                | Path to the Codex CLI binary (default: PATH, then NVM_BIN) |
-| `SASE_CODEX_LARGE_ARGS`          | Extra CLI args for `large` tier (Codex-specific fallback)  |
-| `SASE_CODEX_SMALL_ARGS`          | Extra CLI args for `small` tier (Codex-specific fallback)  |
-| `SASE_CODEX_DISABLE_SHADOW_HOME` | Set to `1` to disable the disposable Codex home            |
-
-The generic `SASE_LLM_*_ARGS` variables take precedence over `SASE_CODEX_*_ARGS`.
-
-By default, SASE launches Codex with a per-invocation shadow `CODEX_HOME` under
-`~/.cache/sase/codex_home/`. The shadow home copies `config.toml` and symlinks an
-allow-list of entries for authentication, hooks, skills, plugins, sessions, and caches
-back to the real Codex home. SQLite state is not shared. With explicit instructions
-enabled, native `memories` and SASE-owned global instruction files are omitted; foreign
-global `AGENTS.md` / `AGENTS.override.md` files remain available. With the flag
-disabled, `memories` is shared and `~/AGENTS.md` is linked when no Codex-global file
-wins. Config rewrites remain disposable. The shadow directory is removed after each
-Codex subprocess exits. Set `SASE_CODEX_DISABLE_SHADOW_HOME=1` to pass through the
-inherited environment directly for debugging or emergency compatibility.
-
-### Codex Tool-Call Capture
-
-SASE captures Codex tool calls from the `codex exec --json` NDJSON stream; it does not
-install Codex hooks or mutate user Codex configuration for telemetry. When
-`SASE_ARTIFACTS_DIR` is present, the stream parser appends normalized Codex records to
-`$SASE_ARTIFACTS_DIR/tool_calls.jsonl` for sase's TUI
-[Agents Tab LLM Calls Panel](reference/tui/agents-deck-panels.md#agents-tab-llm-calls-panel).
-
-Current fixture coverage is based on Codex CLI `0.130.0`. For stream items that expose
-both start and completion events (`command_execution`, `file_change`, and named tool
-items), SASE writes `ToolUse` and `ToolResult` rows with `runtime: "codex"` and
-`source: "stream"`. The LLM Calls reader collapses those pairs into one row, preserving
-pending rows while a command is still running and showing result previews,
-failure/interruption status, and duration when the stream exposes enough data to compute
-it.
-
-Older Codex stream shapes that only expose a completed `function_call` item remain
-readable as legacy `FunctionCall` rows. Those records can show the tool name and compact
-input target, but they do not invent response summaries, durations, or failure details
-that Codex did not emit.
-
-Codex tool-call summaries use the same bounded and redacted artifact helpers as the
-other providers. Textual command output (`stdout`, `stderr`, and combined `output`) uses
-a tail-oriented soft character budget: when truncation is needed, the summary marks how
-much was omitted from the beginning and retains at least the final 50 complete logical
-lines. Exceptionally wide trailing lines can therefore make a summary larger than the
-nominal budget. Command input, paths, errors, read/web content, and subagent final
-messages remain head-oriented. Set `SASE_TOOL_LOG_FULL=1` only for explicit debugging
-sessions when raw tool input or output is needed in the local artifact.
-
-### Turn Integrity Check
-
-Codex can exit `0` after a turn that completed without a usable answer. The stream
-parser watches for that case: if Codex reports the task complete, never emitted a
-non-empty final agent message, and a command execution was either killed at teardown
-(`exit_code` `-1`) or started without ever reporting a result, SASE raises an
-`LLMInvocationError` that starts with `Codex turn integrity failure` and names up to
-three of the affected commands. That prefix is one of Codex's provider-supplied retry
-patterns (see [Provider-Supplied Retry Defaults](#provider-supplied-retry-defaults)), so
-the turn is retried with the resume nudge instead of being recorded as an empty success.
-
-### Timer Display
-
-While waiting for a response, a `provider_timer("Waiting for Codex")` spinner is shown
-(unless `suppress_output` is `True`).
-
-## Qwen Code Integration
-
-The `QwenProvider` invokes the `qwen` CLI tool.
-
-### Command Construction
-
-```
-qwen --input-format text --output-format stream-json --yolo --model <model> [extra_args...]
-```
-
-The prompt is written to stdin using Qwen's text input mode. Output is streamed as JSON
-events; SASE extracts assistant text from `assistant` events and falls back to the final
-`result` text when no assistant text is emitted.
-
-### Model Mapping
-
-<!-- BEGIN GENERATED: model-tiers-qwen -->
-
-| Tier    | Model               |
-| ------- | ------------------- |
-| `large` | `qwen3.6-plus`      |
-| `small` | `qwen3-coder-flash` |
-
-<!-- END GENERATED: model-tiers-qwen -->
-
-### Authentication
-
-Configure Qwen Code through its supported auth and settings flow before using it from
-SASE. Qwen OAuth free tier access ended on 2026-04-15; use API keys, Alibaba Cloud
-Coding Plan, OpenRouter, Fireworks, or another Qwen-supported provider instead of
-relying on the discontinued OAuth free tier.
-
-### Environment Variables
-
-| Variable               | Description                                              |
-| ---------------------- | -------------------------------------------------------- |
-| `SASE_LLM_LARGE_ARGS`  | Extra CLI args for `large` tier (generic, preferred)     |
-| `SASE_LLM_SMALL_ARGS`  | Extra CLI args for `small` tier (generic, preferred)     |
-| `SASE_QWEN_PATH`       | Path to the Qwen Code CLI binary (default: `qwen`)       |
-| `SASE_QWEN_LARGE_ARGS` | Extra CLI args for `large` tier (Qwen-specific fallback) |
-| `SASE_QWEN_SMALL_ARGS` | Extra CLI args for `small` tier (Qwen-specific fallback) |
-
-The generic `SASE_LLM_*_ARGS` variables take precedence over `SASE_QWEN_*_ARGS`.
-
-Qwen Code config is left in Qwen's normal locations (`~/.qwen/settings.json` and project
-`.qwen/settings.json`). SASE does not create a shadow Qwen home in the first
-implementation because local Qwen was unavailable during this phase, so no normal
-headless-run config mutation could be verified.
-
-### Qwen Tool-Call Capture
-
-SASE captures Qwen tool calls from the `qwen --output-format stream-json` event stream;
-it does not install Qwen hooks. When `SASE_ARTIFACTS_DIR` is present, the stream parser
-normalizes Qwen's nested `tool_use` and `tool_result` blocks into records appended to
-`$SASE_ARTIFACTS_DIR/tool_calls.jsonl` for sase's TUI
-[Agents Tab LLM Calls Panel](reference/tui/agents-deck-panels.md#agents-tab-llm-calls-panel)
-with `runtime: "qwen"` and `source: "stream"`. Malformed or unsupported tool-shaped
-events emit a diagnostic instead of producing a malformed record. The LLM Calls reader
-collapses each start/result pair into a single row.
-
-### Commit Finalization
-
-SASE-launched Qwen runs use the shared provider-neutral commit finalizer described
-above; active SASE settings do not need repo-local or global Qwen commit-hook
-configuration.
-
-### Timer Display
-
-While waiting for a response, a `provider_timer("Waiting for Qwen")` spinner is shown
-(unless `suppress_output` is `True`).
-
-## OpenCode Integration
-
-The `OpenCodeProvider` invokes the `opencode` CLI tool.
-
-### Command Construction
-
-```
-opencode run --format json --dangerously-skip-permissions --model <provider/model> --dir <cwd> [extra_args...] <prompt>
-```
-
-The prompt is passed as OpenCode's `run [message..]` argument without shell
-interpolation. Output is streamed as JSONL events; SASE extracts assistant text from
-`text` events, captures errors from `error` events, and accumulates token counters from
-`step_finish` events when OpenCode reports them.
-
-### Model Mapping
-
-OpenCode model IDs normally include an upstream provider prefix. Use
-`%model:opencode/<provider/model>` to route a single SASE prompt to a concrete OpenCode
-model.
-
-<!-- BEGIN GENERATED: model-tiers-opencode -->
-
-| Tier    | Model                         |
-| ------- | ----------------------------- |
-| `large` | `anthropic/claude-sonnet-4-5` |
-| `small` | `openai/gpt-5-mini`           |
-
-<!-- END GENERATED: model-tiers-opencode -->
-
-### Authentication and Config
-
-Configure OpenCode through its normal auth and settings flow before using it from SASE.
-OpenCode stores auth under its XDG data directory and reads config from its XDG config
-directory plus project `.opencode` config. Use `opencode models` to inspect the models
-available in your configured OpenCode environment.
-
-SASE deploys OpenCode skills under `~/.config/opencode/skills/`, which OpenCode scans as
-part of its config directory. SASE does not create a shadow OpenCode data/config home in
-this first implementation because OpenCode's normal headless run writes session/database
-state under its XDG data directory while reading auth/config from the standard
-locations.
-
-### Environment Variables
-
-| Variable                   | Description                                                  |
-| -------------------------- | ------------------------------------------------------------ |
-| `SASE_LLM_LARGE_ARGS`      | Extra CLI args for `large` tier (generic, preferred)         |
-| `SASE_LLM_SMALL_ARGS`      | Extra CLI args for `small` tier (generic, preferred)         |
-| `SASE_OPENCODE_PATH`       | Path to the OpenCode CLI binary (default: `opencode`)        |
-| `SASE_OPENCODE_LARGE_ARGS` | Extra CLI args for `large` tier (OpenCode-specific fallback) |
-| `SASE_OPENCODE_SMALL_ARGS` | Extra CLI args for `small` tier (OpenCode-specific fallback) |
-
-The generic `SASE_LLM_*_ARGS` variables take precedence over `SASE_OPENCODE_*_ARGS`.
-
-### Timer Display
-
-While waiting for a response, a `provider_timer("Waiting for OpenCode")` spinner is
-shown (unless `suppress_output` is `True`).
-
-## Muse Code Integration
-
-The `MuseProvider` invokes Meta's Muse Code CLI (`muse`).
-
-### Selection
-
-Muse is **never autodetected**. It publishes `llm_autodetect_cli_name` but deliberately
-no `llm_autodetect_priority`, so it never appears in autodetect candidates: `muse` is a
-generic executable name, and SASE's autodetect only checks whether a binary of that name
-is on `PATH`. Reach Muse with `llm_provider.provider: muse`, `%model:muse/<model>`, or
-by pointing `SASE_MUSE_PATH` at the binary. Separately, whichever shipped size aliases
-currently target Muse can select it whenever a `muse` executable is available; for Muse
-that path lands on a Contributor model, which trains on its inputs and outputs (see
-[Model Mapping](#model-mapping) and the generated
-[shipped size-alias defaults](#implicit-role-aliases)). `provider_cli_available()` still
-uses the CLI name, so `sase doctor` and the `sase agent-cli` inventory see Muse
-normally.
-
-Muse's provider short name is `mus`, which enables `foo.mus` agent naming.
-
-### Command Construction
-
-```
-MUSE_NO_AUTO_UPDATE=1 muse exec --json --workspace <cwd> --model <model> [--reasoning-effort <level>] \
-  --trust-workspace --disable-approval --disable-sandbox \
-  --user-input-auto-resolve --no-foreign-personal-context \
-  [--enable-shell-tool] --session-id <uuid> --prompt-file <tempfile> [extra_args...]
-```
-
-Decisions inside that command:
-
-- **`--prompt-file`, not stdin and not a positional argument.** `muse exec` reserves
-  stdin for `--api-key-stdin`, and SASE prompts routinely exceed comfortable argv
-  limits. The prompt is written to a `0o600` file under SASE's managed temp root and
-  removed as soon as the cycle ends.
-- **`MUSE_NO_AUTO_UPDATE=1`.** The Muse launcher otherwise checks for and swaps in a new
-  binary hourly; a multi-hour agent run must not have its binary replaced mid-flight.
-  Update Muse through [`sase agent-cli update muse`](agent_providers.md#muse-code)
-  instead.
-- **`--session-id` is generated by SASE**, not left to Muse, because it is the handle
-  that locates the session log SASE reads token usage from.
-- **Sandbox off by default.** Under Muse's sandbox, `.git`, `.muse`, and `.agents` are
-  read-only inside the workspace root, which breaks any in-run `sase stitch create` an
-  agent performs through the `sase_git_commit` skill. Disabling it matches what SASE
-  already does for Codex and OpenCode. Approvals must go regardless — a headless run
-  cannot answer them.
-- **No `-w/--worktree` and no `--subagent-worktree-isolation`.** SASE's workspace is the
-  workspace, and subagent isolation is a documented no-op.
-- **`--enable-shell-tool`.** SASE switches Muse to its legacy `shell` tool, which runs
-  every command synchronously (see
-  [Single-turn normalization](#single-turn-normalization)). SASE skips the flag when the
-  resolved extra-args string already carries it: a duplicate boolean flag is a
-  `muse exec` usage error (exit 2). Human interactive sessions (`llm_interactive_cli`)
-  keep Muse's defaults.
-
-Set `SASE_MUSE_SANDBOX=on` for a hardened opt-in: SASE keeps Muse's sandbox and passes
-`--sandbox-network enabled` instead of `--disable-sandbox`. This is containment SASE has
-with no other provider and is genuinely useful for read-only research agents, but
-**in-run commits fail under it** because the sandbox makes `.git` read-only.
-
-### Single-turn normalization
-
-Muse runs every command synchronously inside its turn, and anything that can outlast
-Muse's synchronous ceiling goes to a SASE monitor, chosen before the command starts.
-
-- **Synchronous `shell` tool.** SASE launches `muse exec` with `--enable-shell-tool`:
-  Muse runs every command synchronously in its legacy `shell` tool, which has a hard
-  10-minute kill and no post-turn background wake.
-- **The legacy `shell` tool's 10-minute kill discards all output.** A command still
-  running at 600 seconds is killed and returns only `tool timed out`, so final
-  verification prefers prepared monitor completion and long commands start under
-  `/sase_monitor` (see the directive).
-- **Synchronous-ceiling export.** Around every provider invocation SASE sets
-  `SASE_PROVIDER_SYNC_CEILING_SECONDS=600`, so in-harness tooling can read the kill
-  ceiling instead of guessing it. The variable is scrubbed at every agent, monitor, and
-  proc boundary, so a child never inherits its starter's ceiling. Beside it SASE exports
-  `SASE_PROVIDER_SYNC_SOFT_CEILING_SECONDS` from `tool_runs.soft_ceiling` (unset when
-  none is configured); it kills nothing and names the most time an agent should block on
-  one `sase tool run` before escalating to a monitor.
-- **Single-turn directive.** Every Muse prompt carries a short prefix stating the
-  ceiling and the up-front routing rules: final verification prefers prepared monitor
-  completion (`/sase_final`), commands that can take longer than 10 minutes go to
-  `/sase_monitor` with `--next` before they start, and everything else runs inline, with
-  commands of uncertain length other than `sase tool run` wrapped as
-  `timeout 540 <cmd> > <log> 2>&1; ...` so a slow run still leaves evidence.
-  `sase tool run` is the exception: it returns before the ceiling on its own and is
-  never wrapped in `timeout`; when it escalates, the agent runs the printed
-  `sase monitor start -J ...` join next.
-- **Why managed `bash` is not used.** The managed tool backgrounds long commands and can
-  wake the model after its turn ends. That wake is invisible to SASE: it never appears
-  in the `--json` stream SASE reads, and it dies with the provider process.
-- **Stranded-wait guard.** After a clean exit whose reply still ends by claiming to wait
-  ("I'll wait", "still running", and similar), SASE re-invokes Muse with the accumulated
-  reply plus a nudge to finish in the foreground or hand the long command to
-  `/sase_monitor`, up to `SASE_MUSE_MAX_WAIT_CONTINUATIONS` continuations (default `2`).
-  When the budget is exhausted the run fails with `LLMInvocationError` instead of
-  recording the waiting reply as a successful answer. Each firing is logged to
-  `wait_guard_log.jsonl` in the artifacts directory. The wait-signal pattern lives in
-  the shared `src/sase/llm_provider/_wait_signals.py` module, also used by Claude's wait
-  guard.
-
-### Model Mapping
-
-<!-- BEGIN GENERATED: model-tiers-muse -->
-
-| Tier    | Model             |
-| ------- | ----------------- |
-| `large` | `muse-wonder-1.0` |
-| `small` | `muse-spark-1.3`  |
-
-<!-- END GENERATED: model-tiers-muse -->
-
-| Model                              | Context | In / Cached / Out (per 1M) | Notes                                                                                                                                               |
-| ---------------------------------- | ------- | -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `muse-wonder-1.0`                  | 1M      | $4.00 / $0.20 / $20.00     | Meta's frontier model (preview) for coding and long-running agentic work; Muse Code's catalog default. Every Muse Code plan and the Meta Model API. |
-| `muse-wonder-1.0-contributor`      | 1M      | no published price         | Same capabilities as Wonder. **Meta uses its inputs and outputs to train and improve Meta's AI models.**                                            |
-| `muse-wonder-full-1.0`             | 1M      | subscription only          | Larger Wonder variant. Muse Code Power and Maximum plans only; not served through the Meta Model API.                                               |
-| `muse-wonder-full-1.0-contributor` | 1M      | subscription only          | Same capabilities as Wonder Full. **Meta uses its inputs and outputs to train and improve Meta's AI models.**                                       |
-| `muse-spark-1.3`                   | 1M      | $1.25 / $0.15 / $4.25      | Lower-latency coding-optimized model for agentic workflows.                                                                                         |
-| `muse-spark-1.3-contributor`       | 1M      | $0.10 / $0.002 / $0.20     | Same capabilities as 1.3. **Meta uses its inputs and outputs to train and improve Meta's AI models.** Rate limited; select countries only.          |
-| `muse-spark-1.2`                   | 1M      | $1.25 / $0.15 / $4.25      | Supported prior coding-optimized model.                                                                                                             |
-| `muse-spark-1.2-contributor`       | 1M      | $0.10 / $0.002 / $0.20     | Same capabilities as 1.2. **Meta uses its inputs and outputs to train and improve Meta's AI models.** Rate limited; select countries only.          |
-| `muse-spark-1.1`                   | 1M      | $1.25 / $0.15 / $4.25      | Agentic and multimodal (text, images, video, documents).                                                                                            |
-
-**Neither tier maps to a Contributor model on purpose** (see the generated tier table
-above). A tier mapping is SASE's own default choice of model, and mapping it to the
-Contributor model would silently ship a user's proprietary source into Meta's training
-corpus. Under `large_tier = wonder`, `large` follows Muse Code's Wonder default while
-`small` stays on Spark 1.3.
-
-**The shipped size aliases are a separate route, and they can reach the Contributor
-model.** Whichever shipped size aliases currently include a Contributor member (see the
-generated [Implicit role aliases](#implicit-role-aliases)) route there automatically
-whenever a `muse` executable is available — with no `%model` directive and no config
-change — and Meta then trains on that agent's prompt, repository contents, and tool
-output. To opt out, override the pool with `llm_provider.model_aliases.builtin.<size>`
-using a target that omits the Muse member. `sase doctor -C llm.model_advisory` and the
-[model advisory](#model-advisories) surfaces make the trade visible.
-
-The Contributor models also remain reachable by name: each is a known model name, has a
-short alias, and `%model:muse/<model>` works for either. A Contributor model absent from
-the generated shipped-alias table is only ever reached by typing its name.
-
-### Muse Reasoning Effort
-
-Muse accepts all seven canonical levels, including `max`. Meta documents `max` reasoning
-for the Wonder models and Spark 1.3, including their Contributor variants, but not for
-Spark 1.2. Other combinations are left to Muse Code to validate. Muse's own internal
-default is `high`, so a run with no resolved effort shows blank in SASE while Muse
-actually used `high`; the recorded model identity (below) closes the equivalent gap for
-the model.
-
-### The Event Stream
-
-`muse exec --json` writes pure JSONL to stdout; human diagnostics go to stderr. Every
-line is an envelope carrying `schema_version`, `payload_type`, `payload_schema_version`,
-and `payload`. SASE's parser rules, in priority order:
-
-1. **`run.terminal.completed` → `payload.text` is the authoritative reply.**
-   `payload.terminal` is the outcome and `payload.reason` the detail; SASE parses those
-   fields and never pattern-matches reply text.
-2. **`run.output.delta` updates the live reply as fragments arrive.** It is marked
-   `ephemeral` and carries incremental fragments, split mid-word and mid-inline-code.
-   When a later terminal event carries text, those fragments are the pieces of that
-   text. SASE coalesces the deltas of one run stream (keyed by `command_id`, then
-   `run_stream.id`, otherwise one unkeyed stream) into a single timestamped
-   `live_reply.md` chunk, so the panel shows one divider and intact prose per run. Each
-   delta is appended to that file and flushed as it arrives. When stdout is Rich's Live
-   `FileProxy`, SASE does not flush the proxy after every fragment, so a streamed reply
-   is not split across terminal lines mid-word. The open chunk is flushed to the
-   terminal when that chunk closes: the next run stream, a matching terminal event, or
-   the end of the subprocess read. Any other stdout still flushes each delta. A later
-   run stream is written into `live_reply.md` after a blank line. Deltas are not added
-   on top of `payload.text`. When a terminal event carries text, that text is the
-   returned reply. When no terminal event arrives, or a terminal event arrives with no
-   text, the concatenated deltas are the reply. Only a missing terminal event is
-   recorded as a schema diagnostic.
-3. **A failed, rejected, or cancelled task is not a failed run.** Muse emits
-   `task.lifecycle.rejected` (`reason: "skip_if_running"`) and
-   `task.lifecycle.cancelled` (`reason: "main run completed"`) on runs that exit `0`.
-   Success is gated on `run.terminal.*` plus the exit code; task-level failures are
-   recorded as diagnostics only.
-4. **Unknown payload types and higher schema versions do not raise.** Parse failures
-   surface the observed versions as a stdout-decode diagnostic rather than returning an
-   empty success, and repeated schema diagnostics are capped.
-5. **Exit code 2 is a `muse exec` usage error**, not a run failure, and the raised
-   `CalledProcessError` diagnostics say so, so a bad flag does not read as a model
-   failure.
-
-Every flag and payload-type string lives in one module-level constant block in
-`_subprocess_muse.py`, so a beta rename is a one-line fix.
-
-### Muse Tool-Call Capture
-
-SASE builds tool-call records purely from the stdout stream; it does not wire Muse's
-hook system and does not read Muse state off disk for this. When `SASE_ARTIFACTS_DIR` is
-present, normalized records are appended to `$SASE_ARTIFACTS_DIR/tool_calls.jsonl` with
-`runtime: "muse"` and `source: "stream"` for sase's TUI
-[Agents Tab LLM Calls Panel](reference/tui/agents-deck-panels.md#agents-tab-llm-calls-panel).
-Fixture coverage is keyed to Muse release `0.1.0-R708.1`.
-
-| Event                                             | Carries                                                                   | Use                                                              |
-| ------------------------------------------------- | ------------------------------------------------------------------------- | ---------------------------------------------------------------- |
-| `task.lifecycle.proposed`                         | `task_kind: "tool.<name>"`, `task_id`                                     | Opens a pending call — only for `task_kind` values under `tool.` |
-| `task.lifecycle.scheduled` / `side_effect_intent` | `idempotency_key: "tool:<call_id>"`, `operation`, `policy_decision`       | Binds `task_id` → `call_id`                                      |
-| `task.lifecycle.output`                           | `event.chunk`                                                             | Streamed tool output                                             |
-| `tool.result`                                     | `call_id`, `correlation_facts.{tool_name,outcome}`, optional `edit_facts` | Closes the call with its outcome and result                      |
-
-**Tool arguments are never in the stream.** SASE derives each record's target honestly
-and in this order: `edit_facts.path` when present; for `bash` (or `shell`, when its body
-carries them), the `command` and `description` fields of the result JSON; otherwise a
-truncated preview of the result text. It does not invent arguments Muse did not emit.
-Non-tool tasks (`model.meta.response`, `reminder.agent.plugin:*`) never become tool
-records, and calls still pending at stream end are finalized like every other
-provider's.
-
-**Legacy `shell` tool.** Under `muse exec --enable-shell-tool` (fixture
-`tests/llm_provider/fixtures/muse_exec_shell_tool_R3401.1.jsonl`, keyed to Muse release
-`1.3.0-R3401.1`), tool tasks arrive as `tool.shell` with plain-text results that carry
-no `command` / `description` fields, so their target is honestly the result preview —
-SASE never invents the command. They display as `Bash`. A timed-out `shell` call
-(`correlation_facts.outcome` of `timeout` / `timed_out`, text `tool timed out`) is
-recorded as a `failure`, never a `success`, with the timeout text kept visible in the
-response summary.
-
-### Token Usage and Model Identity
-
-Muse's stdout stream carries **no token counts at all**; the numbers live in the on-disk
-session log. Because SASE passes `--session-id`, that location is deterministic:
-
-```
-$XDG_DATA_HOME/muse/sessions/YYYY/MM/DD/<session-id>/session.jsonl
-```
-
-(`XDG_DATA_HOME` defaults to `~/.local/share`; the date components are globbed rather
-than computed from today's date so a run spanning midnight still resolves.) After the
-subprocess exits, SASE sums `usage` across `runtime.session` events whose
-`payload.event.kind` is `model_completed`, mapping `input_tokens`, `output_tokens`,
-`cache_read_tokens` (falling back to the older `cached_tokens`), and
-`cache_write_tokens` onto SASE's counters. `goal_usage_attribution` events repeat the
-same numbers for the same call and are deliberately ignored — counting both would double
-every run's totals. A missing or unreadable session log is not an error: it degrades to
-zeroed usage plus a diagnostic.
-
-SASE does not shell out to `muse export` for this. It costs a subprocess, `--redacted`
-strips the `call_id`s, and unredacted output contains verbatim encrypted reasoning SASE
-has no reason to retain.
-
-`run.model.configured` carries the model Muse actually configured. SASE records its
-`model_id`, `provider_id`, and the session id into `run_metadata.json`, which closes the
-observability gap where a run with no explicitly resolved model shows blank in SASE
-while Muse used its own default.
-
-### Interrupts and Retries
-
-Muse has no headless resume (`muse resume` is interactive-only), so interrupt handling
-reuses the accumulated-context restart that Qwen, OpenCode, and Codex use: SASE
-reconstructs a continuation prompt and relaunches. The session log is kept for manual
-recovery. Muse retries its model stream internally. When that budget is exhausted on a
-transient model-service failure, it exits 1. Muse's provider-supplied retry defaults
-then re-run the agent in a fresh Muse session, with the workspace preserved and the
-resume nudge prepended.
-
-### Skills and Instruction File
-
-SASE deploys Muse skills under `~/.config/muse/skills/<skill>/SKILL.md`, rendered with
-`provider_name: "Muse Code"`. Without that deploy path Muse picks up SASE's
-Claude-rendered skill copies from `~/.claude/skills/` and reads them as if it were
-Claude Code. Muse reads `AGENTS.md` natively, so there is no `MUSE.md` provider shim.
-
-### Environment Variables
-
-| Variable                           | Description                                                         |
-| ---------------------------------- | ------------------------------------------------------------------- |
-| `SASE_LLM_LARGE_ARGS`              | Extra CLI args for `large` tier (generic, preferred)                |
-| `SASE_LLM_SMALL_ARGS`              | Extra CLI args for `small` tier (generic, preferred)                |
-| `SASE_MUSE_PATH`                   | Path to the Muse Code CLI binary (default: `muse` on `PATH`)        |
-| `SASE_MUSE_LARGE_ARGS`             | Extra CLI args for `large` tier (Muse-specific fallback)            |
-| `SASE_MUSE_SMALL_ARGS`             | Extra CLI args for `small` tier (Muse-specific fallback)            |
-| `SASE_MUSE_SANDBOX`                | Set to `on` to keep Muse's sandbox with `--sandbox-network enabled` |
-| `SASE_MUSE_MAX_WAIT_CONTINUATIONS` | Stranded-wait guard continuation cap (default: `2`)                 |
-
-The generic `SASE_LLM_*_ARGS` variables take precedence over `SASE_MUSE_*_ARGS`.
-
-### Timer Display
-
-While waiting for a response, a `provider_timer("Waiting for Muse Code")` spinner is
-shown (unless `suppress_output` is `True`).
-
-## Grok Build Integration
-
-The `GrokProvider` invokes xAI's Grok Build CLI (`grok`).
-
-### Selection
-
-Grok publishes `llm_autodetect_cli_name` but deliberately no `llm_autodetect_priority`,
-so it never appears in autodetect candidates: `grok` is a generic executable name shared
-with a stale community CLI (`grok-dev`, which also uses `~/.grok/`) and with Homebrew's
-deprecated, unrelated `grok` regex tool. Select the provider with
-`llm_provider.provider: grok` or `%model:grok/<model>` (see the generated
-[Built-in Model Catalog](#built-in-model-catalog) for current names); set
-`SASE_GROK_PATH` when you also need to choose the executable. Separately, whichever
-shipped size aliases currently target Grok can select it whenever a `grok` executable is
-available (see the generated [shipped size-alias defaults](#implicit-role-aliases)).
-Routing checks executable presence only; it does not verify the binary's identity. Run
-`sase doctor` before launching: its `grok --version` probe reports a distinct
-wrong-binary advisory, after which you should point `SASE_GROK_PATH` at the
-`@xai-official/grok` binary.
-
-Grok's provider short name is `grk`, which enables `foo.grk` agent naming.
-
-### Command Construction
-
-```
-grok --prompt-file /dev/stdin --output-format streaming-messages-json \
-  --permission-mode bypassPermissions --model <model> --cwd <cwd> \
-  --session-id <uuid> --no-plan --no-ask-user --no-auto-update --no-leader \
-  --rules <directive[+AGENTS.md]> [--effort <level>] [extra_args...]
-```
-
-The prompt is written to `process.stdin`, exactly as Claude's provider does, so there is
-no temp file to leak or clean up on interrupt and no argv exposure of prompt text.
-Decisions inside that command:
-
-- **`--permission-mode bypassPermissions`, not the undocumented `--yolo`.** No sandbox
-  profile is set, matching what SASE already does for Codex, OpenCode, and Muse.
-- **`--no-auto-update` is not optional.** Without it Grok may replace its own ~166 MB
-  binary mid-run; update it through
-  [`sase agent-cli update grok`](agent_providers.md#grok-build) instead.
-- **`--no-plan` and `--no-ask-user`.** `/sase_plan` owns planning handoffs and
-  `/sase_questions` owns asking, so Grok's native planning and asking are disabled. Both
-  flags are undocumented in `grok --help`, so a parse-probe test pins them.
-- **`--no-leader` is passed explicitly**, even though leader mode is off by default,
-  because it is opt-in via a user's own `[cli] use_leader = true` and SASE runs many
-  agents concurrently against one shared backend socket — explicit beats inherited.
-- **`--session-id` is generated by SASE**, matching Claude's convention.
-- **`--rules` carries the single-turn directive and the project instructions.** Every
-  invocation sends the SASE single-turn directive plus the project root `AGENTS.md` text
-  exactly once in SASE-managed projects (the directive alone elsewhere); the home layer
-  and `CLAUDE.md` are never included. Payloads over 120 KiB raise an actionable error
-  before exec. There is deliberately no `--trust` and no `GROK_CLAUDE_AGENTS_ENABLED`.
-  The directive names Grok's own wait primitives (`block_until_ms`,
-  `get_command_or_subagent_output`, `spawn_subagent` with `background: false`), because
-  `run_terminal_command` backgrounds anything slower than its 30-second default.
-- **Subagents stay enabled.** Subagent usage can set Grok's internal
-  `usage_is_incomplete` flag, which degrades usage telemetry only — SASE treats token
-  counts as telemetry, not as text or tool-call fidelity, so `--no-subagents` is not
-  passed.
-
-### Model Mapping
-
-<!-- BEGIN GENERATED: model-tiers-grok -->
-
-| Tier    | Model      |
-| ------- | ---------- |
-| `large` | `grok-4.7` |
-| `small` | `grok-4.6` |
-
-<!-- END GENERATED: model-tiers-grok -->
-
-The tier table names the current models; the generated
-[shipped size-alias defaults](#implicit-role-aliases) show which size aliases route to
-them.
-
-### Grok Reasoning Effort
-
-Grok models accept only `--effort low|medium|high|xhigh`; `none`, `minimal`, and `max`
-are rejected by the CLI with a nonzero exit. SASE declares exactly the four supported
-levels, so an explicit `%effort:max`/`none`/`minimal` raises a clean
-`LLMInvocationError` instead of a Grok process crash, and a config-derived default at
-one of those levels is logged and skipped. See [Reasoning Effort](#reasoning-effort)
-below — the generated [shipped size-alias defaults](#implicit-role-aliases) show the
-effort each alias target carries, and the best-effort `max`-is-logged-and-skipped caveat
-below applies to a user-configured target that pairs a provider with an alias-borne
-`max` it does not support.
-
-### The Event Stream
-
-Grok shares Claude's generalized Anthropic-Messages stream reader
-(`stream_and_parse_messages_json_output` in `_subprocess_claude.py`), parameterized with
-`runtime="grok"`, the Grok tool-call writer, and a thinking sink — Claude's own behavior
-is unchanged by this generalization. A no-tool turn emits `system`/`init`, one
-`assistant` message whose `message.content[]` holds `thinking` and `text` blocks, and a
-terminal `result`; a tool-using turn adds `assistant` messages with `tool_use` blocks
-and `user` messages with `tool_result` blocks. `result.usage` carries the same four keys
-`initial_usage_totals()` accumulates, plus a nested `server_tool_use` SASE's accumulator
-ignores harmlessly.
-
-Grok's failure frames carry detail in **`errors[]` only** — no top-level `error`,
-`message`, or `result` field. The shared error-detail extraction folds `errors[]` in
-when those are absent:
-
-```python
-detail = event.get("error") or event.get("message") or event.get("result", "")
-if not detail:
-    errors = event.get("errors")
-    if isinstance(errors, list):
-        detail = "\n".join(str(item) for item in errors if item)
-```
-
-This is safe by construction for Claude, which never emits `errors[]` and whose
-`append_error_events` returns early on a success exit, so a success-path `result.result`
-is never mistaken for an error.
-
-Grok's `thinking` content blocks are routed into the same `codex_thinking.jsonl` sidecar
-Codex writes reasoning summaries to (the filename is kept as-is because sase's TUI
-`read_codex_thinking` reads that exact path), so Grok's reasoning renders in sase's TUI
-thinking pane instead of being silently discarded the way non-`text` Claude blocks are.
-
-### Grok Tool-Call Capture
-
-SASE captures Grok tool calls from the `streaming-messages-json` event stream; it does
-not install Grok hooks. When `SASE_ARTIFACTS_DIR` is present, normalized records are
-appended to `$SASE_ARTIFACTS_DIR/tool_calls.jsonl` with `runtime: "grok"` and
-`source: "stream"` for sase's TUI
-[Agents Tab LLM Calls Panel](reference/tui/agents-deck-panels.md#agents-tab-llm-calls-panel).
-Grok's native tool names are mapped onto SASE's canonical display names so the shared
-summarizers in `_tool_call_common.py` produce rich previews instead of falling through
-to a generic `{"input_keys": [...]}` row:
-
-| Grok tool              | Canonical display name |
-| ---------------------- | ---------------------- |
-| `run_terminal_command` | `Bash`                 |
-| `read_file`            | `Read`                 |
-| `write`                | `Write`                |
-| `search_replace`       | `Edit`                 |
-| `grep`                 | `Grep`                 |
-| `list_dir`             | `Glob`                 |
-| `web_fetch`            | `WebFetch`             |
-| `web_search`           | `WebSearch`            |
-| `spawn_subagent`       | `Task`                 |
-| `todo_write`           | `TodoWrite`            |
-
-An unmapped tool name survives under its own name rather than being dropped.
-
-**Result envelope decoding.** Grok's `tool_result` blocks carry `content` as a
-**JSON-encoded string**, not text, decoding to a bespoke tagged shape (for example
-`{"type": "Bash", "output": [...], "output_for_prompt": "exit: 0\n...", "exit_code": 0, ...}`
-for a shell command, or `{"type": "SearchReplace", "EditsApplied": {...}}` for an edit).
-SASE decodes it and prefers `output_for_prompt` / `tool_output_for_prompt` for previews
-— the human-readable projection Grok itself uses — maps `exit_code` through so `Bash`
-rows show exit status, and `absolute_path` through so edit rows show the file. `output`
-is a byte array, not a string, and is never previewed raw. A `content` string that is
-not valid JSON degrades to the existing plain-text preview path rather than raising.
-Grok's `user` messages carry no top-level `tool_use_result` envelope, so the decoded
-`content` is the only structured source; Grok's tool-call ids are
-`call-<uuid>-<n>`-shaped, which pair correctly through the existing id-based logic.
-
-### Token Usage
-
-Grok's `result.usage` carries the same four keys Claude's does (`input_tokens`,
-`output_tokens`, `cache_creation_input_tokens`, `cache_read_input_tokens`), so token
-accounting reuses the same accumulator. Usage is **best-effort**: Grok's
-`streaming-messages-json` output is a projection of its native usage ledger that drops
-the internal "usage incomplete" marker, so subagent turns and interrupted turns can
-under-count or zero out. Text and tool records are unaffected. `total_cost_usd` and a
-per-model `modelUsage` ledger are populated on the OAuth subscription path.
-
-### Interrupts and Retries
-
-Interrupt handling reuses Claude's interrupt/continue loop: `start_interrupt_monitor`
-watches for an interrupt, and a continuation prompt carrying accumulated work is
-relaunched on the same session mechanics as Claude. `GrokProvider` declares
-`llm_default_retry_config()` with xAI-specific `error_patterns` (`"xAI API error"`,
-`"xAI rate limit"`, `"xAI server error"`, `"xAI upstream request failed"`) kept
-deliberately narrow so they cannot collide with Codex's ownership of generic `429` /
-`Too Many Requests` wording; see
-[Provider-Supplied Retry Defaults](#provider-supplied-retry-defaults).
-
-### Skills and Instruction File
-
-`skill_deploy_subpaths()` defaults to `f".{provider}"` with no hook override, so Grok
-skills deploy to `~/.grok/skills/<skill>/SKILL.md`, rendered with
-`provider_name: "Grok"`, `provider_tool_name: "Grok Build"`, and
-`provider_native_ask_tool: "ask_user_question"`. Grok's `[compat.claude]` cells default
-to on, so a Grok run also sees `~/.claude/skills/`; this is benign because a native
-`~/.grok/skills/<name>` shadows a same-named Claude-compat skill entirely, and
-`sase init skills` deploys every SASE skill to every registered provider's subpath, so
-SASE skills are always shadowed by their correctly-rendered Grok copies.
-
-Grok reads `AGENTS.md` natively, so there is no `GROK.md` provider shim — but SASE runs
-Grok in untrusted workspaces, so no native files load and SASE instead delivers the
-complete memory-built root bundle exactly once through `--rules` on explicit-delivery
-runs (see [Command Construction](#command-construction)). The
-`grok_explicit_instructions` sunset flag restores the legacy directive-plus-project
-`AGENTS.md` payload; per-invocation delivery failures also fall back to it. `CLAUDE.md`
-is never sent through that channel.
-
-### Environment Variables
-
-| Variable               | Description                                                   |
-| ---------------------- | ------------------------------------------------------------- |
-| `SASE_LLM_LARGE_ARGS`  | Extra CLI args for `large` tier (generic, preferred)          |
-| `SASE_LLM_SMALL_ARGS`  | Extra CLI args for `small` tier (generic, preferred)          |
-| `SASE_GROK_PATH`       | Path to the Grok Build CLI binary (default: `grok` on `PATH`) |
-| `SASE_GROK_LARGE_ARGS` | Extra CLI args for `large` tier (Grok-specific fallback)      |
-| `SASE_GROK_SMALL_ARGS` | Extra CLI args for `small` tier (Grok-specific fallback)      |
-
-The generic `SASE_LLM_*_ARGS` variables take precedence over `SASE_GROK_*_ARGS`.
-
-### Timer Display
-
-While waiting for a response, a `provider_timer("Waiting for Grok")` spinner is shown
-(unless `suppress_output` is `True`).
-
-## External Provider Plugins
-
-Additional LLM providers are shipped as external packages that declare
-`[project.entry-points."sase_llm"]` in their own `pyproject.toml`. Plugins carry all
-their own metadata (model names, skill deploy path, CLI status color, auto-detect
-priority, retry defaults) via pluggy `@hookimpl` methods — sase core has no
-plugin-specific branching.
-
-External provider packages own their CLI invocation details, model metadata, skill
-deployment path, auto-detect priority, and retry defaults. Install the provider package
-in the same environment as sase to make its `sase_llm` entry point available.
-
-### Subscription usage extension
-
-Subscription-capacity collection is an optional plugin capability. Provider packages
-implement the same hooks; SASE core, the refresh service, CLI, and widgets do not branch
-on provider name.
-
-| Hook                       | I/O           | Cached           | Default when omitted                                 |
-| -------------------------- | ------------- | ---------------- | ---------------------------------------------------- |
-| `llm_usage_capabilities()` | none          | yes, as metadata | unsupported (`probe` and `passive_events` are false) |
-| `llm_usage_probe(context)` | collector I/O | never            | unsupported                                          |
-
-`llm_usage_capabilities()` is static: it must not touch the network, spawn processes, or
-read credential files. The registry may cache it. Live observations from
-`llm_usage_probe` must never enter that cache. Plugins may declare
-`min_probe_interval_seconds` (finite, 60..=86400; out-of-range values are dropped) as
-the fastest automatic re-probe cadence. Shipped floors are claude 300, muse 180, and
-agy/grok/codex 120.
-
-`llm_usage_probe(context)` receives a typed context with schema version, deadline,
-resolved executable, opaque auth-context fingerprint, account generation, and operation
-identity. Return a provider-usage observation mapping that matches the Rust observation
-contract, or `None` if this plugin does not collect usage. Unexpected exceptions are
-caught at the probe-runtime boundary and become sanitized `error` observations. Do not
-put raw stdout/stderr, tokens, emails, account ids, or filesystem secrets in
-diagnostics.
-
-Probes run in isolated killable worker processes. Vendor CLIs are argv-only children of
-those workers. Collectors share the bounded JSON-line transport in
-`sase.llm_provider.usage.transport` and keep JSON-RPC or ACP handshakes in the collector
-module. The transport never services login, token-refresh, tool, or approval requests.
-
-Passive stream events (for example Claude `rate_limit_event`) go through
-`record_passive_usage_observation`, which accepts the same fenced envelope. Persistence
-is owned by the usage store.
-
-Failed probes classify provider pushback before anything else: when the failure evidence
-carries HTTP 429, `rate limit` / `rate-limited`, or `too many requests` — in a JSON-RPC
-or ACP error, the exit code output, or stderr — the collector reports outcome `error`
-with reason `rate_limited` instead of its usual failure reason. A `Retry-After` hint is
-captured into the observation's `retry_after_seconds` field from `retry-after: N`
-headers, `retry after/in N seconds|minutes` prose, or `retry_after` / `retryAfter`
-fields, and honored by refresh backoff. Plugin authors implementing their own collector
-should consult the shared `sase.llm_provider.usage._strategy.detect_rate_limit`
-classifier on every failure path before other classification, and report a missing
-executable as outcome `unsupported` with reason `not_installed`.
-
-Existing plugins that omit these hooks keep invoking normally: `LLMProvider.invoke` and
-`InvokeResult` are unchanged.
-
-Collection is gated by the durable `llm_provider.usage_metrics.enabled` preference.
-Per-provider `llm_provider.usage_metrics.providers.<name>.enabled` overrides collection
-without hard-coding the initial three providers.
-
-`submit_usage_refresh` is the shared durable refresh service for CLI, sase's TUI, the
-scheduler, and limit-event triggers. It coalesces work per provider and account
-generation, joins in-flight probes without dropping other requested providers, and
-bounds automatic retries with cadence-based backoff. Automatic admission passes
-`adaptive=True` with each provider's floor, CLI fingerprint, hot cadence
-(`active_refresh_seconds`, capped at the idle cadence), and `warn_percent`; parked
-providers unpark early when the CLI changes. Providers in active use — a recent agent
-launch or limit-event hint (each good for 15 minutes), or a stored window at or above
-`warn_percent` used — refresh at `max(active_refresh_seconds, floor)` unless live stream
-events already keep their windows fresh. Limit events only mark the provider due — they
-never submit an explicit probe, so the next routine tick picks the provider up subject
-to its floor. The scheduler runs due work inline from the `usage_refresh` job on the
-60-second `usage` routine, probing the admitted batch in-process so periodic collection
-creates no proc rows. sase's TUI requests the same due work after first paint and while
-open, but only when the scheduler does not own collection. A normal TUI tick never
-probes inline.
-
-## Configuration
-
-The LLM provider reads its configuration from `~/.config/sase/sase.yml` under the
-`llm_provider` key.
-
-### Config File
-
-```yaml
-llm_provider:
-  provider: claude # or "codex", "qwen", "opencode", "agy", "muse", "grok", "fakey" (default: auto-detect)
-  default_effort: xhigh # default reasoning effort when a prompt sets none (default: unset)
-  default_model: "@large" # used when a launch has no %model directive (default: @large)
-  epic_lander_model: "@large" # epic land agents below bead.big_epic_phase_threshold (default: @large)
-  big_epic_lander_model: codex/gpt-6.1-sol # epic land agents at/above the threshold (default: @xlarge)
-  model_alias_history_limit: 10 # runs shown per alias in Launch Control history (minimum: 1)
-  # Override examples; shipped size-alias targets are generated below.
-  model_aliases:
-    builtin:
-      xsmall: claude/haiku@minimal | codex/gpt-4.1-mini@low # custom xsmall pool
-      small: claude/haiku | codex/gpt-4.1-mini # custom small pool
-      medium: claude/sonnet@xhigh | codex/gpt-5.5@xhigh
-      large: codex/gpt-6.1-sol@xhigh | claude/opus@xhigh
-      xlarge: claude/sonnet@max # custom maximum-effort target
-    custom:
-      blogger:
-        model: claude/opus
-        description: Agents that draft and edit blog posts.
-        bucket: research
-    buckets:
-      research:
-        description: Aliases used by research agents.
-  usage_limit:
-    enabled: true
-    disable_seconds: 86400
-    notify: true
-    providers:
-      claude:
-        patterns: ["you've hit your usage limit"]
-        exclude_patterns: ["usage limit approaching"]
-        replace_patterns: false
-```
-
-### Config Fields
-
-| Field                                    | Type   | Default     | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| ---------------------------------------- | ------ | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `llm_provider.provider`                  | string | auto-detect | Which registered provider to use. Auto-detects by plugin-declared priority; real built-ins default to claude → codex → qwen → opencode → agy, with fakey last as a testing-only fallback. `muse` and `grok` declare no priority and are never auto-detected; select them explicitly.                                                                                                                                                                                                                                                                                                         |
-| `llm_provider.default_effort`            | string | unset       | Default [reasoning-effort](#reasoning-effort) level applied when a prompt sets no `%effort`/`@effort` and the selected alias carries no effort. One of `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`; unset/invalid imposes no effort.                                                                                                                                                                                                                                                                                                                                          |
-| `llm_provider.model_tier_map`            | dict   | -           | Accepted by the config schema for compatibility. No runtime path currently reads it; setting `large`/`small` here has no effect. Size aliases and `default_model` / lander settings select models.                                                                                                                                                                                                                                                                                                                                                                                           |
-| `llm_provider.default_model`             | string | `@large`    | Model expression used for a launch with no explicit `%model` directive. See [Implicit role aliases](#implicit-role-aliases).                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| `llm_provider.epic_lander_model`         | string | `@large`    | Model expression used by epic land agents whose epic has fewer authored phases than `bead.big_epic_phase_threshold`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| `llm_provider.big_epic_lander_model`     | string | `@xlarge`   | Model expression used by epic land agents whose epic has `bead.big_epic_phase_threshold` or more authored phases.                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| `llm_provider.model_alias_history_limit` | int    | `10`        | Maximum prior runs returned per alias for the Launch Control agent-history panel. Must be at least `1`; malformed runtime values defensively fall back to `10`.                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| `llm_provider.model_aliases.builtin`     | dict   | -           | Builtin size-alias overrides only (`xsmall`, `small`, `medium`, `large`, `xlarge`). Values use the single-target grammar below, a `\|` round-robin pool, a `\|\|` ordered fallback, or a parenthesized `(A \| B) \|\| C` last-resort. Retired names — `default`, `epic_lander`, `big_epic_lander`, `<size>_worker`, `smart`, `smarter`, `smartest`, `cheap`, `cheaper`, `cheapest`, `coder`, `<provider>_coder`, `epic_creator`, `phase_worker`, and `<size>_phase_worker` — are no longer builtin overrides; `sase doctor -C config.model_aliases` reports them and names each replacement. |
-| `llm_provider.model_aliases.custom`      | dict   | -           | User-defined aliases for `%model:@<alias>` / `%m:@<alias>`. Each value is an object with required `model` and `description` fields; `model` accepts the same single-target and selector grammar. Descriptions are shown in completions and Launch Control.                                                                                                                                                                                                                                                                                                                                   |
-| `llm_provider.model_aliases.buckets`     | dict   | -           | Optional display-only sase's TUI Launch Control bucket descriptions.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| `llm_provider.usage_limit`               | dict   | enabled     | Usage-limit classification and automatic temporary provider-disable policy. See [Usage-Limit Auto-Disable](#usage-limit-auto-disable).                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| `llm_provider.usage_metrics`             | dict   | enabled     | Subscription-capacity collection cadence and opt-out. See [Subscription usage extension](#subscription-usage-extension).                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| `llm_provider.continuation_budget`       | dict   | see below   | Byte budget for the continuation preflight that runs before monitor successor prompts reach a provider. See [Continuation Budget Preflight](#continuation-budget-preflight).                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| `llm_provider.retry`                     | dict   | see below   | Per-provider retry and fallback policy. See [Retry and Fallback](#retry-and-fallback).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-
-### Continuation Budget Preflight
-
-A monitor successor (the follow-up agent a [monitor](monitors.md) launches) can carry a
-large replayed history: ancestor prompts and replies, checkpoints, and command evidence.
-Before such a prompt reaches the provider, `invoke_agent()` measures the fully expanded
-prompt against a provider-aware byte budget, after the execution provider and model are
-resolved. The preflight runs for monitor successors (`SASE_MONITOR_CONTINUATION=1`) and
-for any invocation with `SASE_CONTINUATION_BUDGET_ENFORCE=1`; other launches skip it.
-
-The shared `sase-core` planner returns one of three outcomes:
-
-- **fits** — the prompt is sent unchanged.
-- **compact** — SASE drops reducible spans that the prompt renderers explicitly marked
-  (older raw output excerpts, selected diagnostics, and assistant transcript already
-  covered by a checkpoint) and replaces each with a short note that points at the
-  retained evidence. The compacted prompt is re-measured, and it is refused if it still
-  does not fit.
-- **refuse** — the provider is not called. The invocation fails with
-  `Continuation context budget exceeded`, and the recovery guidance asks for an adequate
-  checkpoint or a route with a larger context budget rather than a rerun of the
-  monitored command.
-
-Each decision is written to `continuation_budget_decision.json` in the agent's artifacts
-directory, alongside the projected prompt when compaction changed it.
-
-The budget is configured under `llm_provider.continuation_budget`. Settings layer from
-the shared values, to `providers.<provider>`, to `providers.<provider>.models.<model>`,
-and the `SASE_CONTINUATION_*` environment variables (see
-[LLM provider environment variables](reference/environment-variables.md#llm-provider))
-override all of them:
-
-```yaml
-llm_provider:
-  continuation_budget:
-    context_limit_bytes: 800000 # total budget before reserves
-    estimate_uncertain: true # byte counts are estimates, not provider accounting
-    instruction_reserve_bytes: 0
-    tool_reserve_bytes: 0
-    output_reserve_bytes: 0
-    reasoning_reserve_bytes: 0
-    # checkpoint_threshold_bytes: 400000  # optional
-    providers:
-      agy:
-        transport_limit_bytes: 122880 # agy sends the prompt as one argv element
-        instruction_reserve_bytes: 512
-```
-
-`transport_limit_bytes` caps what the provider transport itself can carry, independent
-of the model's context. The shipped `agy` values mirror the
-[Antigravity prompt-size guard](#antigravity-agy-integration).
-
-## Per-Prompt Provider Switching
-
-The `%model` directive (see [macro directives](macros.md#directives)) can switch both
-the model and the LLM provider for a single prompt. Provider resolution uses configured
-aliases first, then concrete provider/model syntax and known model metadata.
-
-### Configured Model Aliases
-
-Use `llm_provider.model_aliases.custom` to define launch-time aliases for reusable
-prompts. Each custom alias must carry a short description:
-
-```yaml
-llm_provider:
-  model_aliases:
-    custom:
-      fast:
-        model: claude/sonnet
-        description: Quick follow-up agents.
-```
-
-Use `llm_provider.model_aliases.builtin` only to override the five size aliases (see
-below):
-
-```yaml
-llm_provider:
-  model_aliases:
-    builtin:
-      large: "@xlarge"
-      medium: codex/gpt-6.1-sol@xhigh
-```
-
-Then prompts can use the alias with a leading `@`:
-
-```
-%model:@fast
-%{%m:@fast | %m:gpt-6.1-sol}
-```
-
-Agents launched through the `@<alias>` spelling show that launch-time provenance in
-their `Model:` field, for example `Model: CLAUDE(sonnet) ← @fast` or
-`Model: CLAUDE(sonnet) @ high ← @fast`. The chip records the alias named at launch and
-is never re-resolved, so completed agents keep telling the truth after an alias is
-retargeted, overridden, or deleted. Launches without a `%model` directive record
-whichever alias `llm_provider.default_model` currently references the same way —
-`← @large` under the shipped default — and omit the chip entirely when `default_model`
-resolves to a concrete model with no alias reference.
-
-Alias values may point at another alias (for example `@large` or `@medium`), a bare
-known model such as `opus`, an explicit provider/model string such as `claude/opus`, or
-a nested provider-local path such as `opencode/anthropic/claude-sonnet-4-5`. An alias
-reference may carry a trailing effort such as `@large@high`, which overrides the
-referenced alias's effort; an effort on the outer reference still wins. Alias-to-alias
-chains are followed with cycle and depth protection; a cyclic or unresolved reference
-falls back to the raw input rather than crashing a launch. The `@` marker is only
-directive surface syntax: alias keys and macro values stay bare. A bare
-configured/implicit alias raises with a migration hint, and `@` in front of a non-alias
-raises.
-
-An alias value can instead use one of two selector operators, or a parenthesized
-last-resort form that combines them. `A | B` is an availability-filtered round-robin
-pool: each real LLM invocation advances the machine-global cursor in
-`~/.sase/llm_lb.json` exactly once, under a machine-wide lock, immediately before the
-provider is called — never during metadata preparation, a display/marker preview, or a
-doctor/dry-run check, which only peek. The cursor is the next position in that pool's
-weighted cycle (identical to a member index when every weight is 1). Any alias that
-merely delegates to a pool-owning alias (directly or through further aliasing) shares
-that pool-owning alias's cursor rather than keeping one of their own. `A || B` is an
-ordered fallback chain: the first registered provider whose CLI is installed and not
-**hard**-disabled always wins — a **soft**-disabled first candidate still wins, so a
-soft disable never diverts the chain — and resolution never reads or changes the
-round-robin cursor, including during a real launch. `(A | B) || C` is a last-resort
-expression: the parenthesized `|` pool is primary, and the `||` tail is used only when
-every pool member is **unavailable** (CLI missing, unregistered, or **hard**-disabled).
-An all-**soft** pool still rotates among itself and does not divert. Selecting a
-last-resort candidate does not consume the pool cursor. A real soft disable is not the
-same thing as a priority backup: usable primary members without an actual soft disable
-outrank actually soft-disabled members even when the priority provider is only in the
-tail, absent, or unavailable. A queued pool reservation can be invalidated before
-invocation — redemption re-checks the reserved primary member, spends it when an actual
-soft disable now has a usable non-soft primary alternative, and then performs one fresh
-consuming resolution. Priority-only backups stay redeemable, and a healthy tail alone
-does not invalidate a soft primary reservation. Unparenthesized `A | B || C` is still
-rejected. Fallback and last-resort selection are based on the cached CLI-installation
-probe (including `SASE_<PROVIDER>_PATH`) plus a captured active-disable snapshot, not a
-later model or runtime failure; SASE does not relaunch with the next candidate after
-such a failure. If every provider is unavailable, both modes preserve a candidate for
-the ordinary provider lookup to report: fallback (and a last-resort tail) preserves its
-first member, while a pool with no tail preserves its current rotation choice.
-
-A temporary provider priority is a preference layer for `|` pools. When the priority
-provider is an available member, that member is preferred and other usable providers
-remain labeled backups; the selector expression, weights, and cursor are not rewritten.
-Priority does not reorder `||` fallback chains and does not displace direct
-`%model:provider/model` intent. Hard disables and missing CLIs still make a provider
-unavailable, even if it has active priority intent. Priority backups are not actual soft
-disables, so a usable non-soft primary member still outranks an actually soft-disabled
-member when the two would otherwise share the same `sparing` label.
-
-Both selectors accept two or more members using the same single-target grammar,
-including candidate-specific trailing reasoning effort. A load-balanced pool member may
-be prefixed with a positive integer weight and at least one space (`A | 3 B` selects B
-three times as often as A, spreading B's turns through the cycle). Valid weights are
-1–99; weight 1 is the default and is omitted from the canonical spelling. Weights are
-invalid in `||` ordered fallback chains and last-resort tails. Whitespace is trimmed and
-empty members are invalid. Unparenthesized `|` and `||` cannot be mixed in one value. A
-member may follow an ordinary alias chain but cannot reach another pool or fallback,
-including when it sits in a last-resort tail. Selector expressions are config-only:
-`%model` values, launch-scoped alias overrides, and temporary overrides remain single
-targets. sase's TUI Launch Control's persistent Edit path authors selectors directly —
-hand-typed in the custom input or assembled with a guided pool/fallback builder (`w`/`W`
-raise and lower a pool member's weight; `f` adds a last-resort candidate) — while its
-temporary Override path refuses a typed pool or fallback outright, pointing at Edit,
-rather than silently accepting and corrupting it. An override on the alias that owns a
-selector bypasses that expression for the override's lifetime. sase's TUI Launch Control
-shows every member's availability, an aggregate `pool <available>/<total>` chip that
-counts only pool members (not the last-resort tail), and a `→` on the current selection.
-A temporary alias override labels the member list suspended only while its provider is
-available. If its provider is **hard**-disabled, the stored override is paused, the live
-selector target is shown instead, and the override resumes automatically after the
-provider disable is cleared or expires while the override itself is still active. A
-**soft** disable does not pause the override.
-
-To verify pool fairness from real launches, count recorded `llm_provider`/`model` pairs
-for agents whose metadata has a matching `model_alias` value for the alias being audited
-— a no-`%model` launch's `model_alias` records whichever alias
-`llm_provider.default_model` currently references, `@large` under the shipped default.
-Over a full weighted cycle the member counts should match the configured weight ratio
-(an unweighted two-member pool stays within one launch of each other), ignoring periods
-where provider availability caused a member to be skipped.
-
-When the same name appears in both maps, `model_aliases.custom` wins.
-`sase doctor -C config.model_aliases` warns about legacy flat keys in `model_aliases`,
-removed top-level `custom_model_aliases`, custom names under `model_aliases.builtin`,
-builtin names under `model_aliases.custom`, collisions between the two maps, missing
-custom descriptions/models, dangling `@alias` references, empty or mixed selectors, and
-nested selectors. Unavailable selector providers are reported as informational notes;
-for an ordered fallback the note also identifies the current winner. In sase's TUI,
-Launch Control shows descriptions from config; a user alias without one shows the
-`llm_provider.model_aliases.custom.<name>.description` path to fix.
-
-The same alias vocabulary appears in the `%model:` / `%m:` completion menu in sase's TUI
-and in editors through the macro LSP: alias rows sit beneath the concrete model names
-with their kind, resolved `PROVIDER(model)` target, and provenance, and typing `@` right
-after the colon narrows the menu to aliases only. Concrete model rows and provider-scope
-rows for **hard**-disabled providers are omitted, while aliases remain and show their
-current fallback target. **Soft**-disabled providers stay in the menu, annotated `soft`;
-priority providers are annotated `priority`, and providers left behind the active
-priority provider are annotated `backup`. Provider rows such as `claude/` sit at the
-bottom of the broad menu; accepting one opens that provider's scoped model list and
-inserts qualified values such as `claude/opus`. See
-[macro directive syntax](macros.md#syntax) for the row anatomy. The completion menu is
-read-only; sase's TUI Launch Control (`,m`) remains the authoritative place to edit
-alias targets and to set or clear temporary overrides.
-
-There are no built-in Launch Control buckets: the compact five-size-alias contract ships
-no automatic grouping. sase's TUI Launch Control instead shows the three scalar
-[launch model settings](#implicit-role-aliases) (`default model`, `epic lander`,
-`big epic lander`) as their own rows, alongside the five size aliases and any custom
-aliases. Optional `model_aliases.buckets.<name>` metadata still creates a display-only
-bucket for custom aliases: a collapsed bucket summarizes its effective-model mix and
-active overrides, opening it exposes independently editable aliases, and a custom alias
-tagged with `bucket: <name>` coalesces into that bucket.
-
-A bare `%model` token that is _not_ a configured alias, an explicit `provider/model`
-target, or a known provider model silently falls back to the default provider rather
-than erroring. To catch this drift — for example a removed `model_aliases` entry that
-quietly reroutes a `#m_<provider>_*` preset to the default provider — `sase doctor`
-(`-C config.model_macros`) scans configured model presets and warns with
-`<macro> -> <token> does not resolve to a provider; it will fall back to the default provider`.
-The check is provider-neutral and read-only. For retired prompt directive syntax such as
-`%wait(priority=...)`, use `sase doctor -C config.macro_directives`.
-
-### Macro model inputs
-
-A macro input declared with `type: model` (see
-[Supported Types](macros.md#supported-types)) is valid exactly when `%model:<value>`
-would be accepted by the directive parser and would route to a provider without the
-default-provider fallback. Aliases need `@` (`@large` routes; bare `large` does not).
-`provider/model` is open for unknown model ids (`codex/new-model` routes) and closed for
-unknown providers (`cluade/opus` does not). A trailing `@<level>` peels only when
-`<level>` is one of the seven effort levels; any other `@suffix` is rejected unless the
-body before it would route on its own. Validation never moves the alias cursor, never
-checks provider availability, and never changes `%model` fallback: `%model:opsu` still
-parses and still falls back to the default provider at launch.
-
-#### Implicit role aliases
-
-On top of any aliases you configure, SASE always exposes a fixed set of **implicit role
-aliases** that resolve even when you have not defined them: `@xsmall`, `@small`,
-`@medium`, `@large`, and `@xlarge`. Each is a direct selector — a concrete model, an
-`A | B` round-robin pool, an `A || B` ordered fallback, or a parenthesized
-`(A | B) || C` last-resort — with no further alias indirection. Three related scalar
-config fields, `llm_provider.default_model`, `llm_provider.epic_lander_model`, and
-`llm_provider.big_epic_lander_model`, are not aliases themselves, but ship with the same
-kind of automatic, shipped-default target and accept the same model-expression grammar;
-this section covers both. The current shipped size-alias defaults are generated from
-`src/sase/llm_provider/models.yml`:
-
-<!-- BEGIN GENERATED: model-alias-defaults -->
-
-| Alias     | Description                                                                          | Shipped default                                                                                                                   |
-| --------- | ------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
-| `@xsmall` | Extra-small launch alias for lookup, formatting, and tiny edits with obvious checks. | `claude/claude-haiku-5-5@xhigh \| codex/gpt-6-luna@medium \| agy/gemini-3.8-flash-high \| muse/muse-spark-1.3-contributor@medium` |
-| `@small`  | Small launch alias for straightforward task and phase work.                          | `claude/sonnet@high \| codex/gpt-6-luna@high \| grok/grok-4.6@medium \| muse/muse-spark-1.3-contributor@high`                     |
-| `@medium` | Medium launch alias for ordinary implementation work.                                | `claude/sonnet@xhigh \| codex/gpt-6-luna@xhigh \| grok/grok-4.6@high \| muse/muse-spark-1.3-contributor@xhigh`                    |
-| `@large`  | Large launch alias for planning-heavy work and default launches.                     | `claude/opus@high \| codex/gpt-6.1-sol@xhigh \| grok/grok-4.7@xhigh`                                                              |
-| `@xlarge` | Extra-large launch alias for maximum-effort work.                                    | `claude/opus@xhigh \|\| codex/gpt-6.1-sol@xhigh \|\| grok/grok-4.7@xhigh`                                                         |
-
-<!-- END GENERATED: model-alias-defaults -->
-
-Override any of the five size aliases by configuring
-`llm_provider.model_aliases.builtin.<size>` with a matching name (`xsmall`, `small`,
-`medium`, `large`, or `xlarge`). Override the three scalar launch-model settings
-directly under `llm_provider` instead — they are plain config fields, not
-`model_aliases.builtin` entries:
-
-| Field                                | Shipped default | Purpose                                                                                                |
-| ------------------------------------ | --------------- | ------------------------------------------------------------------------------------------------------ |
-| `llm_provider.default_model`         | `@large`        | Used when a launch has no explicit `%model` directive.                                                 |
-| `llm_provider.epic_lander_model`     | `@large`        | Used by epic land agents when the epic has fewer authored phases than `bead.big_epic_phase_threshold`. |
-| `llm_provider.big_epic_lander_model` | `@xlarge`       | Used by epic land agents when the epic has `bead.big_epic_phase_threshold` or more authored phases.    |
-
-An outer effort suffix and an approval-time concrete model remain authoritative over
-either kind of override. Accepted tale follow-ups without an explicit model use the
-validated tale size to choose the matching size alias directly; legacy sizeless tales
-normalize to `@medium`. Threshold-selected epic land agents diverge from the launch
-default entirely: `epic_lander_model` governs below-threshold epics and
-`big_epic_lander_model` governs epics at or above `bead.big_epic_phase_threshold`,
-independent of `default_model` and of each other — see
-[Role Aliases for Delegated Work](#role-aliases-for-delegated-work) for the full
-per-role breakdown. A configured alias value or temporary override still takes
-precedence over a role's shipped target.
-
-```yaml
-llm_provider:
-  default_model: "@large"
-  epic_lander_model: "@large"
-  big_epic_lander_model: codex/gpt-6.1-sol # large epic land agents only
-  model_alias_history_limit: 10
-  model_aliases:
-    builtin:
-      xsmall: claude/haiku@minimal | codex/gpt-4.1-mini@low
-      small: claude/haiku | codex/gpt-4.1-mini
-      medium: codex/o3@xhigh | claude/sonnet@xhigh
-      large: codex/gpt-6.1-sol@xhigh | claude/opus@xhigh
-      xlarge: claude/sonnet@max
-```
-
-Source: `src/sase/llm_provider/models.yml` (built-in model catalogs, tier defaults, and
-shipped size-alias defaults — the single edit point),
-`src/sase/llm_provider/model_launch_settings.py` (the three scalar launch-model
-settings), `src/sase/llm_provider/model_alias_policy.py`
-
-#### Launch-scoped alias overrides
-
-A prompt can override the five size aliases (or a custom alias) for its SASE-created
-launch lineage with keyword arguments on `%model(...)`:
-
-```text
-%model(opus, medium=codex/gpt-6.1-sol)
-%model(medium=claude/sonnet)
-```
-
-The positional value, when present, selects the current agent's model. Without one, the
-current agent starts from `llm_provider.default_model` and resolves through the normal
-alias chain using the map at every hop — so a keyword matching the alias that
-`default_model` currently references (`large=` under the shipped default) changes the
-current launch directly, while a keyword for an unrelated alias normally affects only a
-later delegated launch that routes through that alias. Keyword keys are bare size or
-custom alias names — `llm_provider.default_model`, `epic_lander_model`, and
-`big_epic_lander_model` are config fields, not keys accepted here. Values may be
-concrete model targets or `@other_alias` references. The map is stored in agent metadata
-and inherited by SASE-created plan/coder follow-ups. An explicit
-`%id(suffix, session=parent)` attachment inherits it only when the attached prompt
-supplies no alias keywords. Ordinary nested launches do not inherit it. This is a
-propagation rule, not a change to `sase.yml` or `~/.sase/llm_override.json`.
-
-Launch-scoped values have the highest alias-resolution precedence. They beat
-machine-wide per-alias temporary overrides and configured/implicit aliases at every hop;
-a launch-scoped keyword matching the alias `default_model` references also beats the
-machine-wide temporary override on the `default model` setting. An explicit concrete
-model for the current agent remains concrete, while an explicit alias is resolved
-through this launch map. See
-[Launch-Scoped Model Alias Overrides](macros.md#launch-scoped-model-alias-overrides) for
-syntax and validation rules.
-
-> **Migration note:** `@worker`, `@other`, `@coder`, registered `@<provider>_coder`
-> aliases, `@epic_creator`, `@phase_worker`, and its `<size>_phase_worker` aliases were
-> retired in epic sase-5d — accepted tales route by tale size, and there is no
-> epic-creator role. Epic sase-mf then retired the entire generation that replaced them:
-> `@default`, `@epic_lander`, `@big_epic_lander`, the five `@<size>_worker` aliases, the
-> capability/cost aliases `@smart`, `@smarter`, `@smartest`, `@cheap`, `@cheaper`,
-> `@cheapest`, and the automatic `worker` bucket. Use `llm_provider.default_model`,
-> `epic_lander_model`, and `big_epic_lander_model`, plus the five `@xsmall`...`@xlarge`
-> size aliases, going forward. `sase doctor -C config.model_aliases` flags stale config
-> and names the exact replacement for each retired name.
-
-### Explicit Provider/Model Syntax
-
-Use `provider/model` to specify both explicitly:
-
-```
-%model:codex/o3
-%model:claude/opus
-%model:agy/gemini-3.6-flash-high
-%model:qwen/qwen3.6-plus
-%model:opencode/anthropic/claude-sonnet-4-5
-%model:muse/muse-spark-1.3
-%model:grok/grok-4.7
-%model:fakey/fakey-large
-```
-
-In sase's TUI and macro-aware editors, `%model:` completion includes provider rows such
-as `claude/`, `codex/`, and `opencode/` after concrete models and aliases. Typing or
-accepting a visible provider prefix scopes the menu to that provider, so `%m:claude/`
-offers `claude/opus`, `claude/sonnet`, and the rest of Claude's model catalog while
-`%m:opencode/anthropic/` continues narrowing inside OpenCode's slash-bearing model
-names.
-
-### Automatic Provider Resolution
-
-Known model names are automatically mapped to their provider. The per-provider catalog
-is the generated [Built-in Model Catalog](#built-in-model-catalog) below — consult it
-for the current names rather than any list here.
-
-Each installed plugin contributes its own model names via the `llm_known_model_names()`
-hook.
-
-`fakey` is deliberately hidden from sase's TUI model picker and the `%model` completion
-menu (a provider opts in via the `llm_hidden_from_model_pickers()` hook) since it exists
-only for testing. Routing, resolution, autodetect, and short aliases are unaffected —
-`%model:fakey-large` and the explicit `fakey/fakey-large` syntax above still work, and
-typing either by hand (or via the picker's `Custom...` entry) still selects it.
-
-For unrecognized model names, the prompt falls back to the default provider and a
-warning is logged at invocation time.
-
-Source: `src/sase/llm_provider/registry.py`, `src/sase/llm_provider/_invoke.py`
-
-### Built-in Model Catalog
-
-The bundled manifest catalogues every model each built-in provider knows by name, in
-picker and completion order. This table is generated from
-`src/sase/llm_provider/models.yml`:
-
-<!-- BEGIN GENERATED: known-models -->
-
-| Provider | Known models                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| agy      | `gemini-4-argon-high`, `gemini-4-argon-medium`, `gemini-4-argon-low`, `gemini-3.8-flash-high`, `gemini-3.8-flash-medium`, `gemini-3.8-flash-low`, `gemini-3.7-flash-high`, `gemini-3.7-flash-medium`, `gemini-3.7-flash-low`, `gemini-3.6-flash-high`, `gemini-3.6-flash-medium`, `gemini-3.6-flash-low`, `gemini-3.5-flash-high`, `gemini-3.5-flash-medium`, `gemini-3.5-flash-low`, `gemini-3.1-pro-high`, `gemini-3.1-pro-low`, `claude-sonnet-4-6`, `claude-opus-4-6-thinking`, `gpt-oss-120b-medium` |
-| claude   | `opus`, `sonnet`, `haiku`, `claude-haiku-5-5`, `claude-haiku-4-5`, `claude-fable-5`                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| codex    | `gpt-6-astra`, `gpt-6.1-sol`, `gpt-6-luna`, `gpt-5.6-sol`, `gpt-5.6-terra`, `gpt-5.6-luna`, `gpt-5.5`, `gpt-5.3-codex`, `gpt-5.3-codex-spark`, `codex-mini-latest`, `o3`, `o4-mini`, `gpt-5.4`, `gpt-4.1`, `gpt-4.1-mini`, `gpt-4o`, `gpt-4o-mini`                                                                                                                                                                                                                                                        |
-| grok     | `grok-4.7`, `grok-4.6`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| muse     | `muse-wonder-1.0`, `muse-wonder-1.0-contributor`, `muse-wonder-full-1.0`, `muse-wonder-full-1.0-contributor`, `muse-spark-1.3`, `muse-spark-1.3-contributor`, `muse-spark-1.2`, `muse-spark-1.2-contributor`, `muse-spark-1.1`                                                                                                                                                                                                                                                                            |
-| opencode | `anthropic/claude-sonnet-4-5`, `anthropic/claude-opus-4-5`, `openai/gpt-5`, `openai/gpt-5-mini`, `google/gemini-3-flash-preview`, `qwen/qwen3-coder-plus`                                                                                                                                                                                                                                                                                                                                                 |
-| qwen     | `qwen3.6-plus`, `qwen3-coder-plus`, `qwen3-coder-flash`, `qwen3-max`, `qwen-plus`, `qwen-max`                                                                                                                                                                                                                                                                                                                                                                                                             |
-
-<!-- END GENERATED: known-models -->
-
-### Model Short Aliases
-
-Providers also declare compact display shorthands for long model ids via the
-`llm_model_short_aliases()` hook. These shorthands appear in
-[provider/model agent-name suffixes](reference/tui/agent-workflows.md#providermodel-suffixes)
-on the Agents tab and act as filter terms in the coder model picker. They are
-display-only: `%model` resolution uses known model names and
-[configured model aliases](#configured-model-aliases), not these shorthands. For
-example, `%model:fable` does _not_ select `claude-fable-5` — it falls back to the
-default provider (with a warning) unless you define `fable` as a configured model alias
-yourself.
-
-<!-- BEGIN GENERATED: model-short-aliases -->
-
-| Provider | Shorthands                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| agy      | `gemini-4-argon-high` → `argon4h`, `gemini-4-argon-medium` → `argon4m`, `gemini-4-argon-low` → `argon4l`, `gemini-3.8-flash-high` → `flash38h`, `gemini-3.8-flash-medium` → `flash38m`, `gemini-3.8-flash-low` → `flash38l`, `gemini-3.7-flash-high` → `flash37h`, `gemini-3.7-flash-medium` → `flash37m`, `gemini-3.7-flash-low` → `flash37l`, `gemini-3.6-flash-high` → `flash36h`, `gemini-3.6-flash-medium` → `flash36m`, `gemini-3.6-flash-low` → `flash36l`, `gemini-3.5-flash-high` → `flash35h`, `gemini-3.5-flash-medium` → `flash35m`, `gemini-3.5-flash-low` → `flash35l`, `gemini-3.1-pro-high` → `pro31h`, `gemini-3.1-pro-low` → `pro31l`, `claude-sonnet-4-6` → `sonnet46`, `claude-opus-4-6-thinking` → `opus46t`, `gpt-oss-120b-medium` → `gptoss120m` |
-| claude   | `claude-haiku-5-5` → `haiku55`, `claude-haiku-4-5` → `haiku45`, `claude-fable-5` → `fable`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| codex    | `gpt-6-astra` → `astra`, `gpt-6.1-sol` → `gpt61sol`, `gpt-6-luna` → `gpt6luna`, `codex-mini-latest` → `mini`, `gpt-5.6-sol` → `gpt56sol`, `gpt-5.6-terra` → `gpt56terra`, `gpt-5.6-luna` → `gpt56luna`, `gpt-5.5` → `gpt55`, `gpt-5.4` → `gpt54`, `gpt-5.3-codex-spark` → `gpt53spark`, `gpt-5.3-codex` → `gpt53`, `gpt-4.1` → `gpt41`, `gpt-4.1-mini` → `gpt41m`, `gpt-4o-mini` → `gpt4om`                                                                                                                                                                                                                                                                                                                                                                             |
-| grok     | —                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| muse     | `muse-wonder-1.0` → `wonder10`, `muse-wonder-1.0-contributor` → `wonder10c`, `muse-wonder-full-1.0` → `wonderfull10`, `muse-wonder-full-1.0-contributor` → `wonderfull10c`, `muse-spark-1.3` → `spark13`, `muse-spark-1.3-contributor` → `spark13c`, `muse-spark-1.2` → `spark12`, `muse-spark-1.2-contributor` → `spark12c`, `muse-spark-1.1` → `spark11`                                                                                                                                                                                                                                                                                                                                                                                                              |
-| opencode | `anthropic/claude-sonnet-4-5` → `sonnet45`, `anthropic/claude-opus-4-5` → `opus45`, `openai/gpt-5` → `gpt5`, `openai/gpt-5-mini` → `gpt5m`, `google/gemini-3-flash-preview` → `flash3`, `qwen/qwen3-coder-plus` → `qwen3cp`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| qwen     | `qwen3.6-plus` → `qwen36p`, `qwen3-coder-plus` → `qwen3cp`, `qwen3-coder-flash` → `qwen3cf`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-
-<!-- END GENERATED: model-short-aliases -->
-
-The hidden `fakey` test provider is not part of the shipped manifest; it additionally
-declares `fakey-large` → `fakeyl` and `fakey-small` → `fakeys` for tests.
-
-Source: `src/sase/llm_provider/models.yml` (built-in providers answer the
-`llm_model_short_aliases()` hook from the manifest)
-
-### Model Advisories
-
-A provider can flag individual models with an advisory through the
-[`llm_model_advisories()`](plugins.md#llm-provider-install-metadata-and-advisories) hook
-— a discounted tier that trains on its inputs, a preview model with no stability
-guarantee, and so on. Each advisory is
-`{"severity": "warn"|"info", "label": <short>, "detail": <sentence>}`. Providers that
-omit the hook contribute nothing, so the map is empty on an install with no
-advisory-flagged models.
-
-Advisories render at every point a user meets the model, all reading from the registry
-so no render site hardcodes a model id:
-
-| Surface                                                                     | Rendering                                                      |
-| --------------------------------------------------------------------------- | -------------------------------------------------------------- |
-| [sase's TUI model picker](reference/tui/agent-workflows.md#custom-approval) | `⚠ <label>` suffix on the row, with `detail` as secondary text |
-| `%model` completion detail                                                  | `— ⚠ <label>` appended to the completion description           |
-| [Resolved model label](#model-tier-system)                                  | An inline `⚠` marker for the run's whole life                  |
-| `sase doctor -C llm.model_advisory`                                         | A **warning** naming each configured route that lands on one   |
-
-`⚠` (orange) marks `severity: "warn"`; `ⓘ` (blue) marks `severity: "info"`.
-
-The doctor check resolves the configured default and every configured model alias and
-warns — it never fails — when one routes SASE traffic to an advisory-flagged model.
-Opting in globally is the user's call; doing it without being told is not. For that
-reason, no bundled provider's tier map points at an advisory-flagged model, and a test
-asserts that so a future cost optimization cannot quietly reintroduce the problem. The
-tier map is not the only automatic route, though: whichever shipped size aliases include
-an advisory-flagged member (see the generated
-[shipped size-alias defaults](#implicit-role-aliases)) warn on a stock install,
-whichever member the round-robin cursor currently selects. Override
-`llm_provider.model_aliases.builtin.<size>` to drop the member.
-
-The bundled advisories are the manifest's `advisories` entries (see
-[Muse Code Integration](#muse-code-integration) for the Contributor rationale, and
-[Antigravity (`agy`) Integration](#antigravity-agy-integration) for the informational
-Gemini 4 Argon entitlement advisory). Muse Wonder Full also carries an informational
-advisory because Muse Code offers it only on Power and Maximum plans and Meta does not
-serve it through the Meta Model API.
-
-Source: `model_advisory_map()` / `model_advisory_for()` in
-`src/sase/llm_provider/registry.py`, `src/sase/doctor/checks_providers_advisory.py`
-
-## Reasoning Effort
-
-A prompt can request a reasoning-effort level for its agent, and a config default can
-apply one to every launch. The public surface spells it `effort`; the threaded/stored
-field is named `reasoning_effort` everywhere internally.
-
-### Requesting an Effort
-
-There are five ways an effort reaches a launch, in precedence order:
-
-1. An explicit per-prompt `%effort:<level>` directive, or the `@<level>` suffix on a
-   `%model`/alias reference (`%model:opus@xhigh`, `%model:@large@medium`). See
-   [Effort Directive](macros.md#effort-directive) for the directive syntax and
-   per-branch fan-out (`%{%m:opus@xhigh | %m:sonnet@low}`).
-2. A trailing effort on the selected alias target, temporary model override, or pool
-   member (for example `claude/opus@medium`). An outer alias-reference suffix wins over
-   effort carried by the alias target.
-3. An active machine-wide temporary default-effort override from
-   `~/.sase/llm_effort_override.json`.
-4. The `llm_provider.default_effort` config value, applied when none of the
-   higher-precedence sources sets effort.
-5. Nothing — the provider runs at its own built-in default.
-
-The canonical effort vocabulary, ordered least → most, is `none`, `minimal`, `low`,
-`medium`, `high`, `xhigh`, `max`. Spelling is validated globally; _which_ levels a given
-provider honors is decided per provider (below).
-
-sase's TUI Launch Control shows the launch-effective default in its header
-(`default effort: @ <level>`), or says `provider default` when none is configured. The
-top-bar launch-default pill shows the same launch-effective default as
-`<shortest %model value>[@<effort>]` (for example `grok-4.7@high`, or `codex/o3@high`
-when the bare model name does not unambiguously name its provider), omitting the suffix
-when that value is unset. The pill is toned with the launch default's provider — the
-model in that provider's model hue and the `@<effort>` suffix in a recessive tone from
-the same hue family — while its hover tooltip keeps the unchanged `PROVIDER(model)`
-form. An active temporary value carries an override countdown plus an annotation for the
-underlying configured value. Alias-borne effort appears only on rows that explicitly pin
-or inherit a suffix, beside the provider/model badge; the description strip compares it
-with the current effective default. For pools, each member keeps its own suffix in the
-member list and the row badge reflects the next selected member.
-
-Press `Ctrl+E` in Launch Control for the global default-effort workflow. `e` opens a
-permanent Edit and `o` opens a temporary Override; when an override is active, `x`
-clears it. Both paths use the canonical single-key ladder (`1` `none` through `7`
-`max`). Edit additionally offers `0` Provider default and writes the empty sentinel to
-the user-base `sase.yml` after a source-preserving preview. With `use_chezmoi`, the
-preview names and writes the chezmoi source, applies its home target, and offers the
-standard tracked commit/pull/push flow when that source is dirty in Git.
-
-Temporary Override reuses the full alias duration UI: `15m`, `30m`, `1h`, `2h`, `4h`,
-Until cleared, combined custom durations, and `t` for an exact configured-timezone end.
-The versioned `~/.sase/llm_effort_override.json` record contains `effort`, `created_at`,
-optional `expires_at`, and `source`. Writes are atomically replaced under a bounded
-advisory lock; malformed and expired state self-cleans, with `now >= expires_at`
-considered expired. A permanent edit does not displace an active temporary override, and
-neither kind of change mutates already-running agents.
-
-### Explicit vs. Default Semantics
-
-The distinction between an explicitly requested effort and a config-default effort
-governs what happens on a provider that cannot honor the requested level:
-
-- **Explicit** (`%effort`/`@effort`): an unsupported level raises an error — SASE never
-  silently launches at a different effort than you asked for.
-- **Config-derived** (an alias-target suffix, temporary default override, or
-  `llm_provider.default_effort`): best-effort. Unsupported levels are logged and skipped
-  so shared configuration never breaks an `agy`/`qwen` run.
-
-### Provider Support Matrix
-
-| Provider            | Mechanism                             | Supported levels                   | Rejected           |
-| ------------------- | ------------------------------------- | ---------------------------------- | ------------------ |
-| Claude              | `--effort <level>`                    | low, medium, high, xhigh, max      | none, minimal      |
-| Codex               | `-c model_reasoning_effort="<level>"` | minimal, low, medium, high, xhigh  | none, max          |
-| OpenCode            | `--variant <level>`                   | all (validated by OpenCode/model)  | —                  |
-| Antigravity (`agy`) | none today                            | —                                  | all                |
-| Qwen                | none today                            | —                                  | all                |
-| Muse Code           | `--reasoning-effort <level>`          | all seven (`max` for standard 1.3) | —                  |
-| Grok Build          | `--effort <level>`                    | low, medium, high, xhigh           | none, minimal, max |
-| Fakey               | `--effort <level>`                    | all                                | —                  |
-
-For `agy` and `qwen` (no reasoning-effort mechanism today), every level is
-"unsupported": an explicit effort raises, while a config-default effort is skipped with
-a warning. The effort args are appended alongside the existing
-[`SASE_LLM_*_ARGS` / `SASE_<P>_LARGE_ARGS`](#environment-variable-reference) escape
-hatches, which remain available.
-
-Source: `src/sase/macro/effort.py` (vocabulary + `split_model_effort`),
-`src/sase/llm_provider/config.py` (`resolve_effective_effort`, the temporary-effort
-facade, and the public `default_reasoning_effort` config reader),
-`src/sase/llm_provider/_effort_args.py` (per-provider translation).
-
-## Model Tier System
-
-The model tier system abstracts away specific model names. Callers request either
-`"large"` (most capable) or `"small"` (faster/cheaper), and the provider maps the tier
-to a concrete model.
-
-### Type Definition
-
-```python
-ModelTier = Literal["large", "small"]
-```
-
-### Provider Tier Defaults
-
-Each built-in provider maps the two tiers to one of its catalogued models. This table is
-generated from `src/sase/llm_provider/models.yml`; each provider section above carries
-its own generated tier table with the same values:
-
-<!-- BEGIN GENERATED: provider-tier-defaults -->
-
-| Provider | Large tier                    | Small tier             |
-| -------- | ----------------------------- | ---------------------- |
-| agy      | `gemini-3.7-flash-high`       | `gemini-3.7-flash-low` |
-| claude   | `opus`                        | `sonnet`               |
-| codex    | `gpt-6.1-sol`                 | `codex-mini-latest`    |
-| grok     | `grok-4.7`                    | `grok-4.6`             |
-| muse     | `muse-wonder-1.0`             | `muse-spark-1.3`       |
-| opencode | `anthropic/claude-sonnet-4-5` | `openai/gpt-5-mini`    |
-| qwen     | `qwen3.6-plus`                | `qwen3-coder-flash`    |
-
-<!-- END GENERATED: provider-tier-defaults -->
-
-### Legacy Mapping
-
-The old `"big"`/`"little"` terminology is still supported for backward compatibility:
-
-| Old Value  | New Tier  | Display Label |
-| ---------- | --------- | ------------- |
-| `"big"`    | `"large"` | `BIG`         |
-| `"little"` | `"small"` | `LITTLE`      |
-
-The `model_size` parameter on `invoke_agent()` is deprecated. Use `model_tier` instead.
-
-### Global Override
-
-The model tier can be overridden globally via environment variable or CLI flag. The
-override forces ALL invocations to use the specified tier regardless of what the caller
-requests.
-
-**Resolution order:**
-
-1. `SASE_MODEL_TIER_OVERRIDE` env var (accepts `"large"`, `"small"`, `"big"`,
-   `"little"`)
-2. `SASE_MODEL_SIZE_OVERRIDE` env var (legacy, same values)
-3. `--model-tier` / `--model-size` CLI flag (sets the env var)
-4. Caller's `model_tier` parameter (default: `"large"`)
-
-### Maintaining the Built-in Catalog
-
-A routine built-in model addition, tier change, or size-pool retune is a one-file edit:
-
-```bash
-# 1. Edit the bundled manifest.
-$EDITOR src/sase/llm_provider/models.yml
-# 2. Regenerate the mirrored tables in this document.
-just fix
-# 3. Verify formatting, policy, and tests.
-just check
-```
-
-`just check` (and CI) fails on stale generated content or invalid manifest policy, so a
-forgotten regeneration or a policy breach is caught before landing. The generated
-Markdown is an expected review diff — no hand edits to prose tables are needed.
-
-Three concepts share the manifest but mean different things:
-
-- **Catalog membership** ([Built-in Model Catalog](#built-in-model-catalog)) is what a
-  provider knows by name: picker rows, `%model:provider/model` routing, and completion.
-- **Tier defaults** ([Provider Tier Defaults](#provider-tier-defaults)) are each
-  provider's `"large"`/`"small"` invocation choices.
-- **Pool selection** ([Implicit role aliases](#implicit-role-aliases)) is which catalog
-  members the five shipped size aliases (`@xsmall` … `@xlarge`) route to, at which
-  effort.
-
-## Role Aliases for Delegated Work
-
-Delegated launches do not use a separate "worker lane". Instead, each delegated role
-resolves through a size-specific [implicit role alias](#implicit-role-aliases), or, for
-epic land agents, through one of the two epic-lander launch-model settings:
-
-- **Coder follow-ups** from an accepted tale use the validated tale size to select
-  `@xsmall`, `@small`, `@medium`, `@large`, or `@xlarge` directly. Legacy tale plans
-  without size metadata use `@medium`.
-- **`sase bead work` phase agents** without an explicit per-bead model use the size
-  alias matching their normalized size: `@xsmall`, `@small`, `@medium`, `@large`, or
-  `@xlarge`. See [Implicit role aliases](#implicit-role-aliases) for the current shipped
-  defaults. `xsmall`, `small`, and `medium` phases implement directly; only `large` and
-  `xlarge` phases receive `#plan`. An explicit per-bead model is accepted at every size
-  and always wins without changing the size-based planning policy.
-- **Standalone task-bead workers** use the task's explicit model when set. Otherwise, a
-  stored task size selects the matching size alias above, while a legacy task without
-  size metadata uses `@small`. Like epic phases, `large` and `xlarge` tasks receive an
-  automatic `#plan`; xsmall, small, and medium tasks implement directly. New tasks
-  require an explicit size, and agents use `/sase_new_task` before creation to rule out
-  duplicates and active epic work; the legacy fallback exists only for stored historical
-  records.
-- **Epic land agents** without an explicit land model use
-  `llm_provider.epic_lander_model`, or `llm_provider.big_epic_lander_model` when their
-  authored phase count meets `bead.big_epic_phase_threshold` (default `5`). Both
-  settings resolve independently of `llm_provider.default_model` and of the size
-  aliases, and each ships with its own default (`@large` and `@xlarge` respectively) —
-  see [Implicit role aliases](#implicit-role-aliases).
-
-Validated Epic approvals create beads and launch `sase bead work` directly; there is no
-epic-creator model lane.
-
-Planning agents stay on `llm_provider.default_model` (shipped `@large`) unless their
-prompt explicitly asks for a different model. To send delegated work to a second
-provider, configure the matching size alias under `llm_provider.model_aliases.builtin`,
-or point one of the three scalar launch-model settings at a different target:
-
-```yaml
-llm_provider:
-  provider: claude
-  default_model: "@large"
-  epic_lander_model: "@large"
-  big_epic_lander_model: codex/gpt-6.1-sol # threshold-selected epic landers run on Codex
-  model_aliases:
-    builtin:
-      xsmall: claude/haiku@minimal | codex/gpt-4.1-mini@low
-      small: claude/haiku | codex/gpt-4.1-mini
-      medium: codex/gpt-5.5@xhigh | claude/sonnet@xhigh
-      large: codex/gpt-6.1-sol@xhigh | claude/opus@xhigh
-      xlarge: claude/sonnet@max # xlarge phase/epic maximum-effort target
-```
-
-Xsmall phases/tasks/tale-follow-ups use the `@xsmall` pool, small ones the `@small`
-pool, medium ones `@medium`, large ones `@large`, and xlarge ones the `@xlarge` ordered
-fallback. Sizeless standalone tasks fall back to `@small`; sizeless tale follow-ups fall
-back to `@medium`. Normal epic landers use `llm_provider.epic_lander_model`, and
-threshold-selected epic landers use `llm_provider.big_epic_lander_model`, independent of
-the size aliases and of `llm_provider.default_model`. See
-[Implicit role aliases](#implicit-role-aliases) for the current shipped defaults.
-Explicit `%model` directives, approval-picker model choices, direct alias overrides, and
-per-bead/land model metadata always win over role defaults.
-
-> The previous `llm_provider.worker_models` map, the `~/.sase/llm_worker_override.json`
-> worker temporary override, and the later
-> `@default`/`@epic_lander`/`@big_epic_lander`/`@<size>_worker`/capability-alias
-> generation were all removed (epics sase-5d and sase-mf). See the
-> [migration note](#launch-scoped-alias-overrides) above.
-
-## Temporary Model Overrides
-
-In addition to prompt-level [launch-scoped overrides](#launch-scoped-alias-overrides)
-and the tier-based global override, sase supports **concrete** provider/model overrides
-that act as temporary, time-bound machine-wide overrides of a model alias or
-launch-model setting. sase's TUI `,m` chord opens the
-[**Launch Control**](ace.md#launch-control) for setting, changing, and clearing these
-overrides — for the `default model`, `epic lander`, and `big epic lander` settings, or
-any size/custom alias.
-
-The panel also shows a two-line description for the highlighted alias, launch-model
-setting, or bucket. Builtin aliases have fixed descriptions, custom aliases read
-`llm_provider.model_aliases.custom.<name>.description`, selector aliases list each
-member, its current availability, and the current selection, and each of the three
-scalar launch-model-setting rows shows its configured/shipped target, resolved
-provider/model, and provenance. The title shows the launch-effective default effort and
-current effective `max_running_agents` capacity budget — occupied capacity units against
-the host ceiling, where a serial session still carries one live claim while any of its
-turns is live, including a monitor and its `--next` agent. Active temporary values
-include their remaining time and configured provenance. Non-pool aliases that explicitly
-carry an effort explain its provenance on the second description line.
-
-Overrides are independent **per-alias** for the five size aliases and any custom alias,
-and independent **per-setting** for the three scalar launch-model settings (namespaced
-`setting:default_model`, `setting:epic_lander_model`, and
-`setting:big_epic_lander_model` keys in the override store). An override takes effect
-wherever that alias or setting is resolved. For example, an override on `@medium`
-affects only that size alias, and an override on the `epic lander` setting affects only
-below-threshold epic land agents. An active override on `@xlarge` suspends its fallback
-selection for a single concrete target, just as overrides on `@xsmall`, `@small`,
-`@medium`, and `@large` suspend their independent load-balanced rotations for the
-override's duration. The three launch-model settings do not reference a shared alias, so
-an override on the `default model` setting (`llm_provider.default_model`) does not move
-phase/task/tale routing — which resolves through the size aliases directly — or
-epic-land routing — which resolves through `epic_lander_model`/`big_epic_lander_model`;
-override the size alias, or the specific launch-model setting, to move one of those
-lanes. Machine-wide temporary overrides do not change:
-
-- Already-running agents — they keep whatever provider/model they were launched with.
-- Explicit concrete `%model` prompt targets — they still take precedence. A
-  `%model(...)` alias keyword is a separate, higher-precedence launch-scoped override.
-- An explicit `provider_name=` argument to `invoke_agent()` — it still wins.
-
-Temporary **hard** provider disables can pause, but do not delete, these overrides. If
-an active alias override resolves to a hard-disabled provider, SASE ignores that
-override for live routing and falls through to the alias's configured or implicit
-target. If the disable is cleared or expires before the alias override expires, the
-stored override resumes automatically. A **soft** disable does not pause the override.
-
-An override may carry a canonical reasoning-effort suffix, such as
-`codex/gpt-6.1-sol@medium` or `@large@medium`. The write resolves and snapshots the
-clean provider/model plus `medium`, while preserving the original `raw_model`. That
-effort survives state reloads and shapes the next matching launch. An explicit outer
-reference such as `@large@xhigh` still wins over the stored override effort.
-
-`SASE_MODEL_TIER_OVERRIDE` / `SASE_MODEL_SIZE_OVERRIDE` still force the tier for
-tier-based launches. A concrete temporary override supplies a provider and model
-directly, so it is used only when no explicit model/provider was requested.
-
-### Resolution Order (default provider/model)
-
-When no positional `%model` target and no explicit `provider_name` are present, the
-default is resolved as:
-
-1. A launch-scoped keyword override from `%model(...)` matching the alias that
-   `llm_provider.default_model` currently references (for example `large=...` under the
-   shipped default), when present.
-2. **Active machine-wide `setting:default_model` temporary override** at
-   `~/.sase/llm_override.json` (if not expired and not paused by a provider disable).
-3. `llm_provider.default_model`, configured or the shipped `@large` fallback, resolved
-   through the normal alias/selector chain, otherwise the configured/autodetected
-   provider's requested-tier model if the field is missing or malformed.
-
-For every alias, `resolve_model_alias()` consults the launch-scoped map first, then that
-alias's active machine-wide override, then its configured/implicit value. This order
-applies at every nested alias hop, including whichever alias
-`llm_provider.default_model` references — a namespaced `setting:default_model` temporary
-override wins outright before any of that alias resolution runs (see
-[`resolve_effective_default_provider_model()`](#public-api)). If the referenced alias
-reaches a round-robin pool, the pool advances exactly once per real LLM invocation — the
-runner's top-level metadata preparation only previews the selection (`consume=False`);
-the anonymous workflow's prompt step performs the one authoritative, consuming
-resolution immediately before invoking the provider, and reuses it for the step marker,
-root `agent_meta.json`, and the saved chat's metadata. A no-`%model` launch and an
-explicit `%model:@large` (or any other reference that resolves through the same
-pool-owning alias) advance that same shared cursor. A runner re-exec reuses the stored
-provider/model metadata and does not advance the cursor again.
-
-A concrete temporary override sets both the default provider and a concrete
-`model_override` for the next launch — so the agent metadata (running marker, plan
-review badge, agent rows) reflects the actual model that will run, not just the
-configured default.
-
-## Temporary Provider Disables
-
-sase's TUI Launch Control's `p=Providers` flow can temporarily disable a registered
-provider for new routing without editing `sase.yml` or unregistering the plugin.
-Provider-disable state is machine-wide runtime state in
-`~/.sase/llm_provider_disables.json`, owned by the Rust core and exposed through
-`src/sase/llm_provider/provider_disable.py`. The lock-free `provider_disable_peek.py`
-reader is reserved for high-frequency display and completion paths; launches and writes
-use the authoritative Rust-backed facade.
-
-Every record carries a `source` tag. Launch Control writes `source: "ace"` and displays
-it as a manual disable. Usage-limit detection writes `source: "usage_limit"` and
-displays it as usage-limit automatic. The UI treats the field as an open vocabulary:
-unknown non-empty sources are rendered as readable labels instead of being treated as
-manual disables.
-
-Every disable carries a `mode`: **hard** (today's fail-closed disable) or **soft** (a
-deprioritizing "spare this provider" disable). Hard disables are an availability layer:
-
-| Request                  | Disabled provider present? | Result                                             |
-| ------------------------ | -------------------------- | -------------------------------------------------- |
-| round-robin alias        | one member                 | next available member; cursor advances from winner |
-| ordered fallback         | preferred member           | next available candidate                           |
-| temporary alias override | override target            | override pauses; underlying alias resolves         |
-| direct provider/model    | target provider            | actionable failure; no silent provider change      |
-| every selector member    | all                        | member zero retained for diagnostic; launch fails  |
-| running provider process | disabled after start       | process continues; future resolution changes       |
-
-A **soft** disable never fails a launch; it only deprioritizes the provider:
-
-| Request                  | Soft-disabled provider present? | Result                                                                                                                                                                                                                                                                           |
-| ------------------------ | ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| round-robin alias        | one member                      | that member is spared while another _non-soft_ member can cover, including when the other member is only a priority backup; it rotates in normally once every usable primary member is actually soft. A healthy last-resort tail does not spare or replace a soft primary member |
-| ordered fallback         | first candidate                 | first candidate still wins; a soft disable never diverts an ordered fallback chain                                                                                                                                                                                               |
-| direct provider/model    | target provider                 | launch proceeds on that provider; no failure, no rerouting                                                                                                                                                                                                                       |
-| temporary alias override | override target                 | override stays applied; it is not paused                                                                                                                                                                                                                                         |
-| autodetect               | preferred candidate             | preferred candidates win first; a soft candidate is only picked when no preferred candidate qualifies                                                                                                                                                                            |
-
-`source` and `mode` are independent axes: a manual Launch Control disable may be set to
-either mode, but usage-limit auto-disable (`source: "usage_limit"`) always writes a
-**hard** disable — nothing in routing changes that. Create, flip, and inspect a soft
-disable from sase's TUI Launch Control → Provider Routing (`p` from `,m`); see
-[Provider routing controls](ace.md#provider-routing-controls). A hard disable can
-additionally drain the agents it stranded — relaunching them elsewhere or reporting why
-they cannot move; see [Draining a Disabled Provider](#draining-a-disabled-provider).
-
-Each top-level routing operation captures active disables once and passes that snapshot
-through alias resolution, autodetection, model-picker rows, completion overlays, and the
-final provider dispatch gate. Round-robin pools skip **hard**-disabled members without
-rewriting membership or fingerprints, and spare **soft**-disabled members while another
-member is preferred; re-enabling a provider lets it participate in later rotations
-naturally. Ordered fallbacks choose the first installed member that is not hard-disabled
-(a soft first candidate still wins) and return to a higher-priority provider on the next
-resolution after a hard disable is cleared. When every selector member is hard-disabled
-or otherwise unavailable, SASE preserves the diagnostic candidate rather than silently
-rerouting to a default provider.
-
-Direct intent remains direct. `%model:claude/opus`, a known bare model owned by Claude,
-an explicit `provider_name="claude"`, or `SASE_LLM_EXEC_PROVIDER=claude` fails before
-provider construction while Claude is **hard**-disabled; the error names the provider
-and expiry or says `until cleared`. This proves the request was not silently changed to
-another provider. The same explicit request proceeds while Claude is only
-**soft**-disabled.
-
-The state file is a versioned envelope with one independent record per provider:
-
-```json
-{
-  "version": 2,
-  "disables": {
-    "claude": {
-      "provider": "claude",
-      "created_at": 1777470000.0,
-      "expires_at": 1777473600.0,
-      "source": "ace",
-      "mode": "hard"
-    }
-  }
-}
-```
-
-`expires_at: null` means until cleared. Finite expiries are exclusive:
-`now >= expires_at` removes the record. Authoritative reads self-clean expired or
-malformed per-provider records and delete the file when no active disables remain. A
-malformed envelope/version fails closed to no active disables and is removed.
-
-Manual Launch Control writes are replacements: choosing a new duration for an already
-disabled provider extends, shortens, or changes it to until-cleared. Automatic
-usage-limit writes create only the first active window for a provider; later usage-limit
-detections while that record is active do not extend it or send another notification.
-Clearing the provider early from Launch Control removes either kind of record and lets
-normal routing resume immediately.
-
-Public provider-disable helpers:
-
-| Function                                                                          | Purpose                                                               |
-| --------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
-| `get_active_provider_disables(now=None)`                                          | Read every active disable, keyed by provider.                         |
-| `get_active_provider_disable(provider, now=None)`                                 | Read one active provider disable, or `None`.                          |
-| `disable_provider(provider, duration_seconds, source, mode="hard", now=None)`     | Disable one provider for a duration or until cleared.                 |
-| `disable_provider_until(provider, expires_at, source, mode="hard", now=None)`     | Disable one provider until an exact Unix timestamp.                   |
-| `try_disable_provider(provider, duration_seconds, source, mode="hard", now=None)` | First-writer relative disable; `inserted` is whether this caller won. |
-| `try_disable_provider_until(provider, expires_at, source, mode="hard", now=None)` | First-writer exact-expiry disable; losers leave the record unchanged. |
-| `enable_provider(provider)`                                                       | Clear one provider disable; returns whether it existed.               |
-| `peek_active_provider_disables(now=None)`                                         | Read-only, lock-free display snapshot for TUI/completions.            |
-
-### State File
-
-Override state is keyed by alias under a versioned envelope:
-
-```json
-{
-  "version": 2,
-  "overrides": {
-    "default": {
-      "provider": "opencode",
-      "model": "anthropic/claude-sonnet-4-5",
-      "raw_model": "opencode/anthropic/claude-sonnet-4-5@medium",
-      "effort": "medium",
-      "created_at": 1777470000.0,
-      "expires_at": 1777473600.0,
-      "source": "ace"
-    }
-  }
-}
-```
-
-Each entry under `overrides` has these fields:
-
-| Field        | Type            | Description                                                              |
-| ------------ | --------------- | ------------------------------------------------------------------------ |
-| `provider`   | `str`           | Resolved provider name (e.g. `"claude"`, `"codex"`, `"opencode"`).       |
-| `model`      | `str`           | Concrete model passed to the provider (e.g. `"o3"`, `"opus"`).           |
-| `raw_model`  | `str`           | Original user input (e.g. `"codex/o3"`, `"opencode/anthropic/..."`).     |
-| `effort`     | `str \| None`   | Canonical resolved effort suffix; `null` means no model-specific effort. |
-| `created_at` | `float`         | Unix timestamp when the override was set.                                |
-| `expires_at` | `float \| None` | Unix timestamp when the override expires; `null` means "until cleared".  |
-| `source`     | `str`           | Free-form tag indicating who set the override (e.g. `"ace"`).            |
-
-A legacy **v1** file (a single flat override object with top-level `provider` / `model`
-/ ... keys) is migrated on read into `overrides.default`, so an override set by an older
-build keeps working after upgrade. Existing v2 entries without `effort` remain valid and
-are read as `effort: null`.
-
-Writes are atomic (temp file + `os.replace`). Reads are best-effort self-cleaning:
-expired or unparseable entries are pruned and the file is deleted once no override
-remains, so a forgotten override never lingers past its `expires_at`, even with no TUI
-running.
-
-Relative and exact-expiry writes use the same provider/model resolution and atomic v2
-serialization path. Exact-expiry writes persist the caller's Unix timestamp unchanged
-and reject non-finite or no-longer-future targets. The state schema is unchanged; an
-exact target is represented by the same `expires_at` field.
-
-### Model Resolution
-
-The user-supplied `raw_model` is normalized through the same rules as `%model`:
-
-- `provider/model` selects the provider explicitly (e.g. `codex/o3` or
-  `opencode/anthropic/claude-sonnet-4-5`).
-- A bare known model name infers its provider from plugin metadata (e.g. `sonnet` →
-  claude).
-- An unknown bare model is accepted and runs on the current default provider, matching
-  `%model` behavior.
-- A known trailing effort is split into the entry's `effort` field. Unknown trailing
-  `@token` text remains part of the model identifier, and `@alias@effort` resolves the
-  alias eagerly while retaining the raw reference for display.
-
-### Duration Parsing
-
-Durations accept compact unit suffixes: `15m`, `1h`, `1h30m`, `90m`, `2h15m30s`. Bare
-integers are interpreted as minutes (`45` → 45 minutes). The case-insensitive sentinel
-`until cleared` (or `until_cleared`) means "no expiry — persists until the user clears
-it from the TUI or another sase process clears the state file."
-
-### Public API
-
-The override primitives live in `src/sase/llm_provider/temporary_override.py`. The
-alias/setting-keyed functions are the primary API; the `*_temporary_override` wrappers
-are back-compat shims that operate on the `setting:default_model` launch-model-setting
-key:
-
-| Function                                                | Purpose                                                                                                           |
-| ------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| `get_active_alias_overrides(now=None)`                  | Read every active override, keyed by alias or `setting:<field>` (auto-prunes expired/malformed).                  |
-| `get_active_alias_override(alias, now=None)`            | Read the active override for one alias or setting key, or `None`.                                                 |
-| `set_alias_override(alias, raw, dur, source=)`          | Set/replace one alias/setting's relative/no-expiry override.                                                      |
-| `set_alias_override_until(alias, raw, expiry, source=)` | Set/replace one alias/setting's override with an exact future Unix expiry.                                        |
-| `clear_alias_override(alias)`                           | Remove one alias/setting's override; returns whether an entry was present.                                        |
-| `get_active_temporary_override(now=None)`               | Back-compat wrapper: the active `setting:default_model` override.                                                 |
-| `set_temporary_override(raw, dur, source=)`             | Back-compat wrapper: set the `setting:default_model` override.                                                    |
-| `clear_temporary_override()`                            | Back-compat wrapper: clear the `setting:default_model` override.                                                  |
-| `parse_override_duration(value)`                        | Parse a user-facing duration string into seconds (or `None`).                                                     |
-| `resolve_effective_default_provider_model()`            | Resolve the default launch target: an active `setting:default_model` override, else `llm_provider.default_model`. |
-
-### Examples
-
-- Launch Control (`,m`), highlight `default model`, `o`, pick `codex/o3`, duration `1h`
-  → `~/.sase/llm_override.json` gains a `setting:default_model` entry; new launches with
-  no `%model` default to CODEX(o3) for the next hour.
-- Launch Control, highlight `medium`, `o`, pick `opencode/anthropic/claude-sonnet-4-5`,
-  `Until cleared` → medium phases and tasks without an explicit model inherit that
-  target until cleared.
-- Launch Control, highlight `default model`, `o`, pick `sonnet`, duration `30m` → known
-  bare model; provider resolves to claude via plugin metadata.
-- Launch Control, highlight an alias, `x` → that alias's override is cleared; when the
-  last override is removed the state file is deleted and defaults revert to permanent
-  config / autodetect.
-
-## Temporary Provider Priority
-
-sase's TUI Launch Control's Provider Routing modal can set one machine-wide provider
-priority for new routing. Press `p` on an enabled, installed, user-facing provider row,
-then choose a relative duration, exact local time, or `Until cleared`. Press `c` from
-the same modal to clear the active priority. The modal stays open after writes,
-refreshes rows in place, and keeps selection stable so you can manage priority and
-disables together.
-
-Provider-priority state lives in `~/.sase/llm_provider_priority.json`, owned by the Rust
-core and exposed through `src/sase/llm_provider/provider_priority.py`. Display-only
-paths use the lock-free `provider_priority_peek.py` reader. Authoritative routing
-captures disables and priority together as one `ProviderRoutingContext`, then carries
-that snapshot through alias resolution, autodetection, model-picker rows, completion
-overlays, and the final provider dispatch gate.
-
-The top bar renders priority alone as `CODEX ★ priority 42m`. When disables are also
-active, it compacts to a priority-led count such as `CODEX ★ 42m +1`; hover text lists
-the exact priority and disable details.
-
-Priority is a preference layer, not a disable:
-
-| Request                  | Priority provider present?               | Result                                                                               |
-| ------------------------ | ---------------------------------------- | ------------------------------------------------------------------------------------ |
-| round-robin alias        | available pool member                    | priority provider wins; other usable members stay backups                            |
-| round-robin alias        | only in the tail, absent, or unavailable | usable non-soft primary members still outrank actually soft-disabled primary members |
-| ordered fallback         | any candidate                            | fallback order is unchanged                                                          |
-| direct provider/model    | target provider                          | explicit target still runs directly                                                  |
-| temporary alias override | override target                          | override still bypasses selector routing                                             |
-| missing or hard-disabled | priority provider                        | priority intent remains; routing uses backups until the provider works               |
-
-Writes are optimistic. Launch Control sends the provider facts and the priority record
-seen in its current snapshot. If another process changed priority first, the write
-returns `conflict`, the modal reloads the current state, and the user repeats `p` or `c`
-against that fresh view. If the write commits but the follow-up refresh fails, the toast
-says the routing write succeeded and the modal remains open for retry.
-
-The state file is a versioned envelope with a single optional priority record:
-
-```json
-{
-  "version": 1,
-  "priority": {
-    "version": 1,
-    "provider": "codex",
-    "created_at": 1777470000.0,
-    "expires_at": 1777473600.0,
-    "source": "ace"
-  }
-}
-```
-
-`expires_at: null` means until cleared. Finite expiries are exclusive:
-`now >= expires_at` clears active priority. Malformed, expired, ineligible, or
-non-user-facing priority records do not make an unavailable provider usable.
-
-Public provider-priority helpers:
-
-| Function                                                                                   | Purpose                                                          |
-| ------------------------------------------------------------------------------------------ | ---------------------------------------------------------------- |
-| `get_active_provider_priority(now=None)`                                                   | Read the active priority, self-cleaning stale state.             |
-| `set_provider_priority(provider, duration_seconds, source=, facts=, expected=, now=None)`  | Set or replace priority for a relative duration.                 |
-| `set_provider_priority_until(provider, expires_at, source=, facts=, expected=, now=None)`  | Set or replace priority until an exact Unix timestamp.           |
-| `clear_provider_priority(expected=, now=None)`                                             | Clear priority when live state matches the expected snapshot.    |
-| `capture_provider_routing_context(now=None)`                                               | Capture disables and priority under one routing-state lock.      |
-| `provider_routing_context_from_parts(disables, priority, captured_at=None)`                | Build a context from already decoded records without filesystem. |
-| `resolve_provider_routing_context(routing_context=None, provider_disables=None, now=None)` | Normalize explicit or freshly captured routing inputs.           |
-| `classify_provider_availability(context, facts)`                                           | Classify one provider against a captured routing context.        |
-| `peek_active_provider_priority(now=None)`                                                  | Read-only display snapshot for high-frequency TUI paths.         |
-
-## Subscription Usage
-
-Subscription usage is a machine-local view of provider allowance windows — for example,
-the remaining share of a session or weekly plan window. It is separate from per-agent
-[token usage](#token-usage-tracking) and from
-[usage-limit auto-disable](#usage-limit-auto-disable): collecting a low observation does
-not itself disable routing.
-
-Collection is on by default and controlled by the durable
-`llm_provider.usage_metrics.enabled` preference:
-
-```yaml
-llm_provider:
-  usage_metrics:
-    enabled: true
-    indicator:
-      enabled: true
-      default: { below_remaining_percent: 20 }
-      weekly_all: always
-      providers:
-        muse:
-          windows:
-            session: never
-```
-
-Claude, Codex, Grok, Muse Code, and Antigravity currently ship collectors. Claude can
-also persist fenced rate-limit events from its normal stream; Codex, Grok, Muse, and agy
-are probe-only. Muse's probe is free: it reads the `muse serve` host's usage through an
-`echo`-provider session, so it makes no model call and spends no tokens. Antigravity's
-probe is likewise free: it runs `agy -p /usage` in plan/sandbox print mode
-(`agy >= 1.1.11`), which answers without starting a model turn. Its four windows —
-Gemini weekly and 5-hour plus Claude/GPT weekly and 5-hour — are `model_family` scoped
-to `gemini` and `3p`. Other provider plugins remain fully usable when they do not
-implement usage hooks. Per-provider collection can be disabled with
-`llm_provider.usage_metrics.providers.<name>.enabled: false`; routing-disabled providers
-still collect when otherwise eligible because their reset information remains useful.
-
-sase's TUI compact usage-window indicator has separate display policy under
-`llm_provider.usage_metrics.indicator`. Collection controls whether SASE probes and
-records provider usage; indicator policy only chooses which already-observed windows
-appear in the application header. The default shows every positively classified weekly
-all-model window (including Muse's weekly window) and any other observed window whose
-remaining capacity is strictly below 20%. Claude's observed weekly
-`weekly:claude-fable-5` window has no bundled entry, so the generic threshold governs it
-and the header shows it only when it runs low. Muse's 5-hour `session` window is hidden
-from the header by default (`indicator.providers.muse.windows.session: never`) but
-remains in `sase usage list` and Providers · Usage. Antigravity's `gemini-weekly` window
-is treated as its weekly anchor under `weekly_all` and always shows; its `gemini-5h`,
-`3p-weekly`, and `3p-5h` windows follow the generic 20% threshold. Use `always`,
-`never`, or `{below_remaining_percent: N}` policies. Exact provider window keys are
-stable selectors and can be found in `sase usage list --json` at `windows[].key`;
-shortened labels in the header are not configuration selectors. Set the exact Fable key
-to `always` to restore always-visible behavior, to `never` to hide it even when low, or
-to a threshold of its own. Invalid display overrides are reported and ignored at that
-override while unrelated collection settings and valid provider/window policies keep
-working. Config changes are picked up by the normal sase's TUI usage refresh path even
-when no provider writes a new usage cache file.
-
-Use `sase usage` or `sase usage list` to inspect the cache without provider I/O:
-
-```bash
-sase usage
-sase usage list -p codex --verbose
-sase usage list --json
-```
-
-Use `sase usage refresh` to submit or join bounded durable probe work. Foreground mode
-waits for the operations and then prints the refreshed cache; `--background` returns the
-submission receipt immediately. Provider filters are repeatable. `--plain` provides
-stable line-oriented text, while redirected output also becomes plain automatically.
-
-sase's TUI exposes the same cache from Launch Control: press `u`, or choose **Open
-Providers · Usage** from the command palette. The modal never probes on first paint.
-Press its own `u` to update, close it without cancelling durable work, and reopen to
-reattach. The scheduler runs due refreshes inline on its 60-second `usage` routine.
-sase's TUI independently requests due work after its first paint and then every 60
-seconds while it remains open, but only when the scheduler does not own collection;
-user-triggered refreshes still submit visible procs either way. Per-provider coalescing
-makes concurrent scheduler, sase's TUI, CLI, and limit-event requests join the same live
-probe.
-
-Background refreshes, and `sase usage refresh` without `-p`, only probe eligible
-providers: registered providers that are not hidden from model pickers, ship a probe
-collector, have a resolvable CLI, and are either referenced by the default model, an
-epic-lander model, or a built-in or custom model alias, or explicitly enabled with
-`llm_provider.usage_metrics.providers.<name>.enabled: true`. The CLI check resolves the
-executable the same way the launcher does, so Codex counts as ready when it is found
-through `SASE_CODEX_PATH`, `PATH`, or `$NVM_BIN/codex`.
-
-Each provider summary reports remaining capacity, scope, freshness, and collection
-status. Details show every currently retained allowance window with its reset, age,
-applicability, state, and source; they are current state, not a history of every sample.
-The cache can therefore distinguish no observation, stale data, unsupported collection,
-authentication failure, and a real low-capacity window rather than collapsing them into
-one percentage.
-
-Provider summaries also include collector health when SASE has attempted a probe for the
-provider's current account generation. Collector health describes the probe pipeline,
-not the freshness of cached allowance windows: passive observations can keep windows
-fresh, but they do not reset a broken probe streak. `ok` means the latest probe attempt
-succeeded, `degraded` means one or two consecutive probe failures, and `failing` means
-three or more consecutive failures. A failing collector surfaces with the streak count,
-the first failure time when known, and the last successful probe time when known.
-
-`vendor_drift` is the reason code used when a provider CLI rejects the request shape
-SASE sends, such as an unknown flag, invalid JSON-RPC params, an unsupported method, or
-an ACP method-not-found response. A fallback strategy that recovers from drift records
-an `ok` observation with a bounded diagnostic naming the failed primary strategy and the
-strategy that recovered. Collector health and diagnostics are display and
-troubleshooting signals only; they never disable providers, change routing eligibility,
-or alter round-robin/provider-priority decisions.
-
-Grok's included-allowance billing response may omit `creditUsagePercent` and the legacy
-`used` / `monthlyLimit` amounts after a weekly or monthly reset, leaving a unified
-`currentPeriod` with `isUnifiedBillingUser: true`. SASE treats that verified shape as
-zero used. Ambiguous or invalid billing payloads remain collection errors, and the usage
-store keeps the previous window until a later successful probe. Recover through the
-normal refresh path; do not edit the usage cache by hand:
-
-```bash
-sase usage refresh -p grok --json
-sase usage list -p grok --json
-```
-
-Configuration controls the idle and hot refresh cadences (each at least 60 seconds, with
-the hot cadence capped at the idle one; automatic refreshes never run faster than a
-provider's polling floor) and warning/critical thresholds as percentages used; UI copy
-converts those to percentage left. See
-[`llm_provider.usage_metrics`](reference/config/llm-provider-behavior.md#llmproviderusagemetrics)
-and the [`sase usage` flags](reference/cli/usage.md#sase-usage).
-
-## Usage-Limit Auto-Disable
-
-Usage-limit auto-disable classifies provider errors that mean an account or plan limit
-has been exhausted, then writes a temporary provider disable with
-`source: "usage_limit"`. It uses the same machine-wide state file and Launch Control
-surfaces as manual provider disables, so expiry, self-cleaning, alias routing, direct
-provider failures, and early clearing all follow
-[Temporary Provider Disables](#temporary-provider-disables).
-
-Provider plugins supply conservative built-in patterns through
-`llm_default_usage_limit_config()`. User configuration lives under
-`llm_provider.usage_limit`:
-
-- `enabled` turns classification on or off globally.
-- `disable_seconds` is the 24-hour fallback duration used when no reset hint is honored.
-- `min_disable_seconds` and `max_disable_seconds` clamp only provider-reported reset
-  hints, not the administrator-chosen fallback duration.
-- `honor_reset_hint` allows a provider-reported reset time to choose the expiry, with a
-  small grace buffer of 60 seconds. See [Reset-hint forms](#reset-hint-forms) for what
-  it parses.
-- `notify` controls the notification created for a new automatic disable window.
-- `relaunch` and `relaunch_limit` control whether a hard disable submits a durable drain
-  that relaunches the agents it stranded and how many it moves at most. See
-  [Draining a Disabled Provider](#draining-a-disabled-provider).
-- `providers.<provider>.patterns` adds positive provider-specific substrings.
-- `providers.<provider>.exclude_patterns` adds suppressing substrings for near misses
-  such as "approaching your usage limit".
-- `providers.<provider>.replace_patterns: true` makes the configured `patterns` list a
-  literal replacement for built-ins; `patterns: []` intentionally disables matching for
-  that provider.
-- `providers.<provider>.disable_seconds` and `.honor_reset_hint` override the global
-  duration/reset policy for that provider; `null` inherits the global value. `grok`
-  ships a non-null built-in `disable_seconds` of 48h because Grok Build reports no reset
-  instant and meters usage against a weekly pool.
-
-Detection is provider-scoped. When the failed execution provider is known, SASE tests
-only that provider's usage-limit config; it scans other provider configs only for older
-or ambiguous paths that genuinely lack execution-provider provenance. A positive
-usage-limit match takes precedence over retry for that provider, so the failing attempt
-is not retried against the same disabled provider. A plain transient `429`, transport
-failure, or model-capacity error that does not match the provider's usage-limit patterns
-continues through [Retry and Fallback](#retry-and-fallback).
-
-Automatic writes are first-window only. If any active disable already exists for that
-provider, the detector leaves its source, creation time, and expiry unchanged and does
-not emit another notification. After the record expires or is cleared from Launch
-Control, a later matching failure may create a new window. Fallback may proceed only to
-a different enabled provider; it cannot silently route back to the disabled provider.
-
-### Reset-Hint Forms
-
-When `honor_reset_hint` is on, SASE tries to read an expiry out of the provider's error
-text. Five forms are attempted, in this priority order:
-
-| #   | Form                          | Example                                                                                            |
-| --- | ----------------------------- | -------------------------------------------------------------------------------------------------- |
-| 1   | ISO-ish absolute timestamp    | `resets at 2026-08-18 09:00`                                                                       |
-| 2   | Month-name absolute date      | `resets Aug 18, 2026 9am (America/New_York)`; weekly-limit `resets Aug 22, 8pm (America/New_York)` |
-| 3   | Clock time with explicit zone | `resets at 8pm (UTC)`                                                                              |
-| 4   | Bare clock time               | `resets at 8pm`                                                                                    |
-| 5   | Relative duration             | `try again in 2 hours`                                                                             |
-
-Form 1 accepts an optional `Z`, `UTC`, or `±HH:MM` marker. Forms 1–4 share one keyword
-anchor: `reset`, `resets`, or `try again`, followed by an optional `at`/`on`. Form 5
-needs the keyword to end in `in` (`resets in 90m`, `try again in 2 hours`). A date or
-time must follow the keyword immediately, so incidental prose such as "connection reset
-by peer" cannot match. Claude Code's `seven_day` formatter emits a compact meridiem
-(`8pm`, not `8 pm`) and omits `:00` when minutes are zero.
-
-Parsing commits to the first form whose keyword matches; it does **not** fall through to
-a lower-priority form when that form then fails to resolve. That is why forms 3 and 4
-are listed separately: `resets at 8pm (Not/AZone)` matches form 3, and an unrecognized
-zone name there is treated as a failed parse rather than silently reinterpreted as the
-bare form 4. Once a usage-limit pattern has already matched, if none of those keyword
-forms match, SASE also scans for an unanchored month-name or ISO-ish timestamp so a date
-without `resets`/`try again` can still set the expiry.
-
-Forms carrying no zone marker — form 1 without a marker, form 2 without a parenthesized
-zone, and form 4 — resolve through the configured SASE `timezone:`. Setting that to
-something other than the host's zone will skew those parses.
-
-Any failed or ambiguous parse falls back to `disable_seconds`. Reading a hint is an
-optimization, never a gate: it cannot block or delay the disable.
-
-### Draining a Disabled Provider
-
-A **hard** disable stops new launches from landing on a provider; draining goes further
-and relaunches the agents that provider already stranded — the ones that were
-`STARTING`, `RUNNING`, or `WAITING` on it when the disable landed, plus rows that failed
-on it just before the disable. `sase.agent._drain_selection` selects candidates from one
-`list_all_agents()` snapshot:
-
-- Live rows in `STARTING`, `RUNNING`, or `WAITING` on the disabled provider.
-- `FAILED` rows whose `done.finished_at` is at or after `disable.created_at - 300s` and
-  whose recorded `done.error` matches that provider's own usage-limit pattern through
-  `detect_usage_limit()` — the same matcher that caused the disable in the first place.
-  A manual disable therefore drains a recently-failed row only when the operator
-  disabled the provider because they watched agents fail on it.
-
-Effective provider is `agent_meta.json`'s `exec_llm_provider` when present, else the
-listed `llm_provider` — a row rerouted through `SASE_LLM_EXEC_PROVIDER` is selected by
-what actually ran, not by its display provider.
-
-Each candidate is replanned exactly like `sase agent restart`, then its rewritten
-prompt's route is classified through `plan_launch_units()`: if every launch unit is
-blocked, the agent is **stranded** and reported, never guessed onto a substitute model.
-Otherwise the first unit's resolved candidate — almost always chosen by ordinary alias
-resolution routing around the disabled provider — is the **reroute** destination. A
-prompt pinned to a direct `provider/model` spelling has nowhere else to go and is always
-stranded; only a size or custom alias can reroute.
-
-Never drained, and why:
-
-- **Monitor rows** (`RunningAgentInfo.is_monitor`) supervise a shell command, not
-  provider quota; killing one kills the monitored command instead of freeing anything.
-- **`QUESTION`/`ANSWERED`** rows hold a pending user interaction that a restart would
-  destroy.
-- **The calling agent** — `sase agent drain` run from inside an agent never drains its
-  own caller.
-
-The real cost: like `sase agent restart`, a drain's `execute_agent_restart()` deletes
-the previous run's artifacts before relaunching. Any in-flight progress on a `RUNNING`
-row is lost; the chat transcript under `~/.sase/chats` survives.
-
-The `llm_provider.usage_limit.relaunch` / `relaunch_limit` config fields (above) control
-whether and how much a usage-limit hard disable drains automatically, as does sase's TUI
-Launch Control [automatic provider drain](ace.md#automatic-provider-drain).
-
-`sase agent drain <provider>` is the always-available manual escape hatch: it previews
-with `--dry-run`, refuses a provider with no active hard disable (exit 2 for
-`nothing_to_drain`, except an automatic request records that empty result as a
-successful no-op), and confirms before discarding live progress unless `-y`/`--yes` or
-`-j`/`--json` is given. `-m/--model` is the way to move an agent the plan would
-otherwise report stranded — pointing the whole drain at a reachable model turns every
-moved agent into an ordinary reroute. `-l/--limit` caps how many agents move at once;
-anything dropped by the limit is reported, never silently skipped.
-
-Automatic usage-limit drains send one notification for the disable window. The drain
-notes report completed relaunches, failed replacement moves, and rows left alone; the
-durable proc output has the complete JSON envelope. Inspect a bad drain with
-`sase proc show <proc-id> --all-lines --output-only` and look at each result's `error`,
-`recovery_dir`, and `recovery_prompt` fields.
-
-Restart recovery bundles live under `~/.sase/restarts/<timestamp>-<agent>/`. For a
-failed forced-reuse restart, open the saved `rewritten.md` prompt from that bundle in
-sase's TUI and relaunch through the reviewed launch flow so name reuse, bead context,
-session or clan membership, and scoped authorization are reconstructed. Do not recover
-forced reuse by running a bare `sase run "$(cat rewritten.md)"`; `execution.md` is
-retained for audit of the already-prepared launch text, not as a privileged replay path.
-
-## Environment Variable Reference
-
-Complete reference of environment variables used by the LLM provider layer.
-
-### Generic (Provider-Agnostic)
-
-| Variable                             | Description                                                                                                                                                                                               |
-| ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `SASE_LLM_EXEC_PROVIDER`             | Execute through this provider while retaining the requested provider/model metadata                                                                                                                       |
-| `SASE_LLM_LARGE_ARGS`                | Extra CLI args for `large` tier invocations                                                                                                                                                               |
-| `SASE_LLM_SMALL_ARGS`                | Extra CLI args for `small` tier invocations                                                                                                                                                               |
-| `SASE_MODEL_TIER_OVERRIDE`           | Force all invocations to a specific model tier                                                                                                                                                            |
-| `SASE_MODEL_SIZE_OVERRIDE`           | Legacy alias for `SASE_MODEL_TIER_OVERRIDE`                                                                                                                                                               |
-| `SASE_PROVIDER_SYNC_CEILING_SECONDS` | Set by the agent runner around each provider invocation: that harness's hard per-command kill ceiling in seconds (unset when the provider declares none); scrubbed at agent, monitor, and proc boundaries |
-
-`SASE_LLM_EXEC_PROVIDER` must name a registered provider. It changes subprocess dispatch
-and execution-provider retry policy only; agent, step, and chat metadata continue to
-show the provider and model the user requested. Run artifacts record the dispatched
-provider separately as `exec_llm_provider`.
-
-### Claude-Specific
-
-| Variable                             | Description                                                                       |
-| ------------------------------------ | --------------------------------------------------------------------------------- |
-| `SASE_CLAUDE_LARGE_ARGS`             | Claude-specific extra args for `large` tier                                       |
-| `SASE_CLAUDE_SMALL_ARGS`             | Claude-specific extra args for `small` tier                                       |
-| `SASE_CLAUDE_MAX_WAIT_CONTINUATIONS` | [Single-turn wait guard](#single-turn-wait-guard) continuation cap (default: `2`) |
-
-### Codex-Specific
-
-| Variable                         | Description                                     |
-| -------------------------------- | ----------------------------------------------- |
-| `SASE_CODEX_PATH`                | Path to the Codex CLI binary                    |
-| `SASE_CODEX_LARGE_ARGS`          | Codex-specific extra args for `large` tier      |
-| `SASE_CODEX_SMALL_ARGS`          | Codex-specific extra args for `small` tier      |
-| `SASE_CODEX_DISABLE_SHADOW_HOME` | Set to `1` to disable the disposable Codex home |
-
-### Qwen-Specific
-
-| Variable               | Description                               |
-| ---------------------- | ----------------------------------------- |
-| `SASE_QWEN_PATH`       | Path to the Qwen Code CLI binary          |
-| `SASE_QWEN_LARGE_ARGS` | Qwen-specific extra args for `large` tier |
-| `SASE_QWEN_SMALL_ARGS` | Qwen-specific extra args for `small` tier |
-
-### Antigravity (`agy`)-Specific
-
-| Variable                                 | Description                                                        |
-| ---------------------------------------- | ------------------------------------------------------------------ |
-| `SASE_AGY_PATH`                          | Path to the Antigravity CLI binary (default: `"agy"`).             |
-| `SASE_AGY_PRINT_TIMEOUT`                 | Override the `agy --print-timeout` Go duration (default: `"24h"`). |
-| `SASE_AGY_MAX_NO_PROGRESS_CONTINUATIONS` | Override the no-progress continuation cap (default: `2`).          |
-| `SASE_AGY_LARGE_ARGS`                    | Antigravity-specific extra args for `large` tier                   |
-| `SASE_AGY_SMALL_ARGS`                    | Antigravity-specific extra args for `small` tier                   |
-
-### OpenCode-Specific
-
-| Variable                   | Description                                   |
-| -------------------------- | --------------------------------------------- |
-| `SASE_OPENCODE_PATH`       | Path to the OpenCode CLI binary               |
-| `SASE_OPENCODE_LARGE_ARGS` | OpenCode-specific extra args for `large` tier |
-| `SASE_OPENCODE_SMALL_ARGS` | OpenCode-specific extra args for `small` tier |
-
-### Muse Code-Specific
-
-| Variable                           | Description                                                                       |
-| ---------------------------------- | --------------------------------------------------------------------------------- |
-| `SASE_MUSE_PATH`                   | Path to the Muse Code CLI binary (default: `muse` on `PATH`)                      |
-| `SASE_MUSE_LARGE_ARGS`             | Muse-specific extra args for `large` tier                                         |
-| `SASE_MUSE_SMALL_ARGS`             | Muse-specific extra args for `small` tier                                         |
-| `SASE_MUSE_SANDBOX`                | Set to `on` to keep Muse's sandbox with `--sandbox-network enabled`               |
-| `SASE_MUSE_MAX_WAIT_CONTINUATIONS` | [Stranded-wait guard](#single-turn-normalization) continuation cap (default: `2`) |
-
-SASE always launches Muse with `MUSE_NO_AUTO_UPDATE=1` so the launcher cannot swap the
-binary mid-run; `sase agent-cli update muse` sets `MUSE_SYNC_UPDATE=1` instead. The two
-must never be set together.
-
-### Grok-Specific
-
-| Variable               | Description                                                   |
-| ---------------------- | ------------------------------------------------------------- |
-| `SASE_GROK_PATH`       | Path to the Grok Build CLI binary (default: `grok` on `PATH`) |
-| `SASE_GROK_LARGE_ARGS` | Grok-specific extra args for `large` tier                     |
-| `SASE_GROK_SMALL_ARGS` | Grok-specific extra args for `small` tier                     |
-
-SASE always launches Grok with `--no-auto-update` so it cannot swap its own binary
-mid-run; `sase agent-cli update grok` runs Grok Build's own `update` subcommand instead.
-
-External provider plugins document their own environment variables in their respective
-repos.
-
-### VCS Provider
-
-| Variable            | Description                                          |
-| ------------------- | ---------------------------------------------------- |
-| `SASE_VCS_PROVIDER` | Override VCS provider (`"git"`, `"hg"`, or `"auto"`) |
-
-## CLI Flags
-
-### tui
-
-| Flag                 | Values              | Description                                 |
-| -------------------- | ------------------- | ------------------------------------------- |
-| `-m, --model-tier`   | `large`, `small`    | Override model tier for all LLM invocations |
-| `-M, --model-size`   | `big`, `little`     | Deprecated alias for `--model-tier`         |
-| `-v, --vcs-provider` | `git`, `hg`, `auto` | Override VCS provider                       |
-
-### axe
-
-| Flag                 | Values              | Description           |
-| -------------------- | ------------------- | --------------------- |
-| `-v, --vcs-provider` | `git`, `hg`, `auto` | Override VCS provider |
-
-The `sase tui` command wires `--model-tier` / `--model-size` into the
-`model_tier_override` parameter of the TUI app (`AceApp`). The `--vcs-provider` flag is
-wired to the `SASE_VCS_PROVIDER` environment variable for downstream resolution.
-
-## Retry and Fallback
-
-The LLM provider layer supports per-provider retry and fallback configuration. When an
-agent encounters a retryable error, it can automatically wait and retry, then optionally
-fall back to an alternate model.
-
-### Configuration
-
-Retry behavior is configured per provider under `llm_provider.retry` in `sase.yml`:
-
-```yaml
-llm_provider:
-  retry:
-    claude:
-      max_retries: 3
-      error_patterns:
-        - "API Error: 500"
-      wait_times: [60, 300, 1800]
-      fallback_model: "sonnet"
-```
-
-### Config Fields
-
-| Field                 | Type          | Default | Description                                                                                                                                                                                   |
-| --------------------- | ------------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `max_retries`         | int           | `0`     | Maximum retry attempts. `0` disables retrying.                                                                                                                                                |
-| `error_patterns`      | list[str]     | `[]`    | Case-insensitive substring patterns matched against error output.                                                                                                                             |
-| `wait_times`          | list[int]     | `[30]`  | Per-retry wait times in seconds. Last value reused if list is too short.                                                                                                                      |
-| `fallback_model`      | `str \| null` | `null`  | Alternate model to use after exhausting all retries.                                                                                                                                          |
-| `continuation_prompt` | `str \| null` | `null`  | Text prepended to `state.current_prompt` on every retry (used to nudge the agent).                                                                                                            |
-| `preserve_workspace`  | bool          | `false` | Preserve on-disk edits across legacy in-process retry attempts.                                                                                                                               |
-| `spawn_new_agent`     | bool          | `false` | Opt in to spawn-on-retry: a retryable error spawns a fresh detached child agent (as if `sase run` had been invoked) instead of in-process retry. See [Spawn-on-Retry](#spawn-on-retry) below. |
-
-### Default Configuration
-
-Retry defaults can come from two places: configured policy under `llm_provider.retry`
-and provider-supplied defaults from the `llm_default_retry_config()` hook. The bundled
-`default_config.yml` already provides configured policy for Claude and Codex; user
-config can replace or extend it through the normal config merge.
-
-**Claude:**
-
-- **max_retries**: 3
-- **error_patterns**:
-  `["API Error: 500", "API Error: 529", "Internal server error", "overloaded_error"]`
-- **wait_times**: `[60, 300, 1800]` (1 min, 5 min, 30 min)
-- **fallback_model**: `"sonnet"`
-
-**Codex:**
-
-- **max_retries**: 3
-- **error_patterns**:
-  `["exceeded retry limit", "429 Too Many Requests", "Too Many Requests", "rate limit", "failed to connect to websocket", "Selected model is at capacity"]`
-  — the Codex CLI's own give-up message, terminal rate-limit and model-capacity
-  statuses, and the transient websocket transport error. A bare `403 Forbidden` is
-  deliberately excluded so a persistent auth failure is not retried forever.
-- **wait_times**: `[60, 300, 1800]` (1 min, 5 min, 30 min) — rate limits need a real
-  cool-down
-
-**`sase`** (provider-independent process-version skew):
-
-- **max_retries**: 1
-- **error_patterns**: `["uses a format this process does not understand"]`
-- **wait_times**: `[0]`
-- **preserve_workspace**: `true`
-- **spawn_new_agent**: `true` — the retry runs in a fresh process that inherits the
-  existing workspace, so a version-skew failure late in a run does not discard the
-  agent's work
-
-SASE first checks the agent's own provider policy. When that policy does not match the
-error, it checks every configured `llm_provider.retry` entry in order (then
-built-in-only providers) and uses the first whose patterns match, which is how the
-provider-independent `sase` entry and errors from an inner workflow step on another
-provider are retried.
-
-### Provider-Supplied Retry Defaults
-
-Providers can also declare retry defaults through the `llm_default_retry_config()` hook.
-Claude, Codex, Grok, and Muse declare a recovery entry that is merged with their
-configured policy.
-
-Claude:
-
-- **error patterns**: `"Prompt is too long"`,
-  `"socket connection was closed unexpectedly"`, `"API Error"`, and
-  `"another Claude Code process is refreshing it"` — the last covers transient OAuth
-  refresh-lock contention; expired or revoked logins stay terminal
-- **max_retries**: 3
-- **wait_times**: `[0]` — used only when no config layer supplies `wait_times`; the
-  bundled Claude policy supplies `[60, 300, 1800]`, so that is the out-of-the-box
-  backoff
-- **continuation_prompt**: A short nudge that tells the coder to inspect `git status` /
-  `git diff` before resuming, since prior edits are preserved on disk after a
-  context-limit, socket-close, API-error, or OAuth refresh-contention retry
-- **preserve_workspace**: `true`
-
-Codex:
-
-- **error patterns**: `"exceeded retry limit"`, `"429 Too Many Requests"`,
-  `"Too Many Requests"`, `"rate limit"`, `"failed to connect to websocket"`, and
-  `"Selected model is at capacity"` — the transient transport, rate-limit, and
-  model-capacity failure modes where the Codex CLI exhausts its own internal reconnects
-  or exits non-zero — plus `"Codex turn integrity failure"`, raised by SASE's
-  [turn integrity check](#turn-integrity-check) when a turn ends with no final answer
-- **max_retries**: 3
-- **wait_times**: `[60, 300, 1800]` — the bundled Codex policy supplies the same backoff
-- **continuation_prompt**: The same `git status` / `git diff` resume nudge as Claude
-- **preserve_workspace**: `true`
-
-Grok:
-
-- **error patterns**: `"xAI API error"`, `"xAI rate limit"`, `"xAI server error"`, and
-  `"xAI upstream request failed"` — kept narrow and xAI-specific so they cannot collide
-  with Codex's ownership of generic `429` / `Too Many Requests` wording
-- **max_retries**: 3
-- **wait_times**: `[60, 300, 1800]` (1 min, 5 min, 30 min)
-- **continuation_prompt**: The same `git status` / `git diff` resume nudge as Claude and
-  Codex
-- **preserve_workspace**: `true`
-
-Muse:
-
-- **error patterns**: `"no data is reaching this machine from the model service"` —
-  captured live from the 2026-10-01 `bob-cli-31.4` failure (Muse 1.4.2-R4684.1), Muse's
-  zero-byte chain terminal printed after its own turn retry budget is exhausted;
-  `"model_stream_first_event_timeout"` and `"model_stream_idle_timeout"` — the machine
-  error kinds from that give-up summary's `all [...]` suffix, a second anchor in case a
-  later build rewords the prose; and
-  `"kept failing until the whole turn retry budget was exhausted"` — the sibling give-up
-  prose for the transport, service, router, and stream-ended failure classes, from
-  scanning the shipped binary, not yet observed live
-- **max_retries**: 3
-- **wait_times**: `[60, 300, 1800]` (1 min, 5 min, 30 min)
-- **continuation_prompt**: The same `git status` / `git diff` resume nudge as Claude,
-  Codex, and Grok
-- **preserve_workspace**: `true`
-
-Fakey:
-
-- **error pattern**: `"FAKEY-RETRYABLE"`, the canonical marker emitted by retryable
-  fakey scenarios
-- **max_retries**: 3
-- **wait_times**: `[0]`, keeping deterministic test retries fast
-- **continuation_prompt**: The same resume nudge as Claude and Codex
-- **preserve_workspace**: `true`
-
-These defaults make `@flaky` and other retryable fakey scenarios exercise the retry
-pipeline without user config. A commented `llm_provider.retry.fakey` example in the
-default config shows how to override them.
-
-Configured `llm_provider.retry.<provider>` values are merged on top of provider-supplied
-defaults: explicit falsy values (`max_retries: 0` to opt out entirely,
-`continuation_prompt: ""` to disable the nudge) override the built-in via key-presence
-checks. `error_patterns` is a de-duplicated union of built-in and configured lists.
-
-On every retry attempt the `continuation_prompt` (if non-empty) is idempotently
-prepended to `state.current_prompt` before the next invocation — the prepend is gated on
-a `startswith` check so repeated retries don't stack duplicate nudges. Workspaces are
-preserved across Claude's built-in context-limit, socket-close, and API-error retries
-(no workspace wipe), so on-disk edits remain available to the restarted session.
-
-### Retry Flow
-
-```
-Error detected
-│
-├── Does error match error_patterns? (case-insensitive substring)
-│   ├── No  → fail immediately
-│   └── Yes → retry_count < max_retries?
-│       ├── Yes → wait (wait_times[retry_count]) → retry
-│       └── No  → fallback_model configured and not already using fallback?
-│           ├── Yes → set fallback model override → retry once
-│           └── No  → fail
-```
-
-Wait periods are interruptible — if the agent is killed during a wait, it stops
-immediately.
-
-### TUI Display
-
-sase's TUI Agents tab reflects retry state (see
-[Retry/Fallback Display](reference/tui/agent-workflows.md#retryfallback-display)):
-
-- **RETRYING (Ns)** — Waiting before the next attempt (bold orange, with countdown)
-- **↻N** — Retry count annotation on running agents
-- **▸Model** — Fallback model annotation (e.g., `↻3▸flash`)
-
-### Metadata Tracking
-
-If any retries occurred or a fallback model was used, retry metadata is written to
-`done.json` in the agent's artifacts directory after execution completes (runs that
-succeed on the first attempt omit these fields):
-
-```json
-{
-  "retry_count": 2,
-  "retry_errors": ["An unexpected critical error occurred: ..."],
-  "used_fallback": false
-}
-```
-
-When `used_fallback` is `true`, the metadata also includes the `fallback_model` that
-served the final attempt.
-
-Source: `src/sase/llm_provider/retry_config.py`,
-`src/sase/axe/run_agent_exec_finalize.py`
-
-### Spawn-on-Retry
-
-When `ProviderRetryConfig.spawn_new_agent=True`, a retryable error spawns a fresh
-detached child agent (as if `sase run` had been invoked) instead of running the next
-attempt in-process. The failing parent transfers its workspace claim to the child via
-`transfer_workspace_claim()` and exits with status `FAILED (RETRIED)`. This trades the
-small cost of a fresh process for two benefits:
-
-- The workspace is preserved by design — the child skips `prepare_workspace()` and
-  inherits the parent's in-progress edits via the transferred workspace claim. (Legacy
-  in-process retry runs `prepare_workspace()` between attempts and wipes uncommitted
-  file edits unless `preserve_workspace=True`.)
-- A retry boundary becomes a real process boundary, which is more robust against memory
-  leaks, lingering child processes, and stale interpreter state.
-
-**Linkage fields** (written to both `agent_meta.json` and `done.json` so retry chains
-are queryable from either side):
-
-| Field                        | Meaning                                                                           |
-| ---------------------------- | --------------------------------------------------------------------------------- |
-| `retry_of_timestamp`         | Backward link: the parent agent's run timestamp.                                  |
-| `retried_as_timestamp`       | Forward link: the child agent's run timestamp (written on the parent at handoff). |
-| `retry_chain_root_timestamp` | The root agent's timestamp — stable across the entire chain.                      |
-| `retry_attempt`              | Depth in the chain (1-based).                                                     |
-
-State is carried across the boundary by a `retry_handoff.json` file written to the
-parent's artifacts directory; the child reads it before launch.
-
-**Fallback behavior**: spawn-on-retry is opt-in (default `false`). If spawning fails
-(e.g. workspace transfer fails), the legacy in-process retry runs as a fallback so the
-user is never worse off.
-
-Source: `src/sase/axe/run_agent_retry_spawn.py`, `src/sase/llm_provider/retry_config.py`
-
-## Legacy Thinking Metadata
-
-Older parser helpers can still read provider thinking/reasoning artifacts when a caller
-uses them directly. For Claude extended-thinking events whose `thinking` text is empty
-but whose payload contains an opaque `signature`, those helpers produce an
-encrypted-thinking placeholder instead of hiding the block. When Claude also reports
-`message.usage.output_tokens`, the placeholder includes an approximate output-token
-count so the caller can tell that reasoning occurred even though the raw thought text is
-not available. The Agents tab now uses the LLM Calls panel for provider tool activity
-instead of exposing these thinking helpers as a panel.
-
-## Token Usage Tracking
-
-The LLM provider layer tracks token usage for providers that emit parseable usage
-events. Claude and Qwen usage is read from their stream-json result events. OpenCode
-usage is accumulated from `step_finish` token counters. Muse emits no token counts on
-stdout at all, so its usage is recovered after the process exits from the
-[session log SASE named](#token-usage-and-model-identity) via `--session-id`. Codex
-currently captures assistant text and reasoning summaries but does not emit
-`usage.json`. Grok's `result.usage` uses the same four keys as Claude's, but is
-best-effort: subagent turns and interrupted turns can under-count or zero out because
-the `streaming-messages-json` projection drops Grok's internal "usage incomplete" marker
-— see [Token Usage](#token-usage).
-
-When usage is available, input tokens, output tokens, cache-creation tokens, and
-cache-read tokens are persisted as a `usage.json` artifact in the agent run directory.
-
-### Artifact Format
-
-```json
-{
-  "input_tokens": 12345,
-  "output_tokens": 6789,
-  "cache_creation_input_tokens": 0,
-  "cache_read_input_tokens": 3456
-}
-```
-
-When telemetry is enabled, token counts are recorded as local debugging counters
-(`sase_llm_input_tokens_total`, `sase_llm_output_tokens_total`,
-`sase_llm_cache_read_tokens_total`). See
-[docs/contribute/telemetry.md](contribute/telemetry.md) for the full telemetry
-reference.
-
-Source: `src/sase/llm_provider/_subprocess.py`, `src/sase/llm_provider/types.py`
-
-## Prompt Preprocessing Pipeline
-
-Before any prompt reaches a provider, it passes through the shared preprocessing
-pipeline defined in `preprocessing.py`. The pipeline has an early phase used for macro
-expansion and directive extraction, then a late phase used for command, file, template,
-and formatting work.
-
-### Steps
-
-| Phase | Step                       | Syntax                                     | Description                                              |
-| ----- | -------------------------- | ------------------------------------------ | -------------------------------------------------------- |
-| Early | Optional workflow Jinja2   | `{{ var }}`                                | Render workflow-supplied template context before macro   |
-| Early | macro references           | `#name`                                    | Expand reusable prompt snippets or workflows             |
-| Early | Prompt directives          | `%model`, `%m`, other `%...` directives    | Extract directives after macro expansion                 |
-| Late  | Disabled/fenced protection | `%macros_enabled:false`, fenced code       | Protect regions that should not be rewritten             |
-| Late  | Command substitution       | `$(cmd)`                                   | Execute shell commands and inline their output           |
-| Late  | Artifact references        | `@kind:payload`                            | Expand known artifact kinds into portable semantic prose |
-| Late  | File references            | `@path`                                    | Process, validate, or skip file references               |
-| Late  | Top-level Jinja2           | `{{ var }}`                                | Render remaining top-level Jinja2 templates              |
-| Late  | Prettier formatting        | -                                          | Format with prettier for consistent markdown             |
-| Late  | Comment stripping          | `<!-- ... -->`                             | Remove HTML/markdown comments                            |
-| Late  | Restore protected regions  | fenced code / disabled-region placeholders | Restore protected content after rewrites                 |
-
-### Order Matters
-
-The pipeline runs in strict order. Prompt directives are extracted after macro
-expansion, so directives embedded in macros are honored. Before extraction, segments
-disabled by a static `%if(should_run=false)` are dropped, and a kept segment loses only
-its `%if(...)` line (see
-[Static Conditional Segments](macros.md#static-conditional-segments)). Late-phase
-command substitution and reference processing run with fenced blocks protected, so
-examples inside code fences are not executed or rewritten. Canonical artifact references
-are expanded before ordinary file references: built-in artifact expansions become
-portable semantic prose (for example
-`the 202608/foobar.md file in the plans sidecar repo`) and do not inject `@path` tokens
-that the ordinary file-reference pass would re-parse. Unknown `@kind:` references remain
-unchanged as prose. The retired `#ref/<kind>` renderer syntax is not accepted.
-Inline-code references also remain literal. Explicit custom path-bound document
-providers may still emit path-shaped text; those remain excluded from the subsequent
-`@path` pass.
-
-During the same pass, SASE stages prompt references for later archive publication. File
-references are recorded in the workspace-local `.sase/artifacts/prompt-artifacts.jsonl`
-manifest. Home-directory `@path` references are copied to the readable working-copy tree
-`.sase/artifacts/home/`, external bytes are pooled by digest under
-`.sase/artifacts/pool/`, and clean tracked files in known repositories are recorded as
-VCS-backed rows instead of copied. The committing agent's prompt archive then links
-those rows from the agents sidecar. A captured `@file:<path>` reference expands to a
-workspace-relative `.sase/artifacts/pool/...` path, matching the
-`.sase/artifacts/home/...` convention used by the plain `@path` pass.
-
-### Home Mode
-
-When `is_home_mode=True`, file-reference processing skips copy side effects. This is
-used when the invocation doesn't need workspace-local copies from `@path` references.
-
-### Source Functions
-
-The preprocessing steps delegate to functions from two libraries:
-
-- **`macro`**: `process_macro_references()`, `extract_prompt_directives()`,
-  `is_jinja2_template()`, `render_toplevel_jinja2()`
-- **`artifact_refs`**: `process_artifact_references()`, `validate_artifact_references()`
-- **`file_references`**: `process_command_substitution()`, `process_file_references()`,
-  `validate_file_references()`, `format_with_prettier()`, `strip_html_comments()`
-
-## Subprocess Streaming
-
-Providers use shared helpers in `_subprocess.py` and the `_subprocess_*` modules to
-stream LLM output in real time. Plain text, JSON-line, and provider-specific parsers
-share the same artifact hooks for live replies and usage files.
-
-### Mechanism
-
-1. The provider spawns the CLI tool via `subprocess.Popen`. Providers that consume
-   prompts from stdin set `stdin=PIPE`; OpenCode passes the prompt as the final
-   `opencode run` argument, and Muse passes a `0o600` `--prompt-file` under SASE's
-   managed temp root.
-2. The prompt is supplied using the provider's documented transport, either stdin or an
-   argv message argument.
-3. Stdout and stderr are set to **non-blocking** mode via `os.set_blocking()`.
-4. A `select.select()` loop polls both streams. Plain-text providers wait 0.1 seconds on
-   every poll. JSON-line providers also wait 0.1 seconds, unless stdout records have
-   already been decoded and are waiting. Those records are dispatched before the loop
-   blocks, and stdout is not read again until that backlog is clear. Stderr can still be
-   read on the same turn.
-5. Plain-text providers read complete lines through the text wrapper. JSON-line
-   providers read raw bytes: each read is at most 64 KiB, and one turn takes at most 256
-   KiB from a pipe or 256 stdout records before it polls the process and can read the
-   other pipe. The two pipes alternate which is served first. An incremental UTF-8
-   decoder keeps a character that is split across reads, and undecodable bytes are
-   replaced. Each complete stdout record is dispatched as it is decoded, including when
-   one write contains many lines. A partial trailing line waits for the next read.
-6. After the process exits, a normal shutdown drains whatever is still buffered.
-   Plain-text providers switch the pipes back to blocking and read the remaining lines,
-   including a final line with no newline. JSON-line providers keep the same bounded
-   reads until both pipes reach EOF, then dispatch a final stdout record that has no
-   trailing newline. If the teardown watchdog has already settled the process, reading
-   stops after a short settle. Bytes already read are still dispatched, including a
-   final stdout record with no trailing newline. Bytes still sitting in a pipe that a
-   leaked child holds open can be left unread.
-7. Helpers return stdout/assistant text, stderr diagnostics, return code, and usage data
-   when the provider reports it.
-
-### Live Reply File
-
-When `SASE_ARTIFACTS_DIR` is set, the streaming output is also written in real-time to
-`<SASE_ARTIFACTS_DIR>/live_reply.md`. While the Agents-tab follow is active, the Reply
-card replaces that body from this file and `live_reply_timestamps.jsonl`; see
-[Agents Tab Main Deck](reference/tui/agents-main-deck.md#agents-tab-main-deck-1). The
-file remains available after execution completes.
-
-Providers that support richer streams may write sidecar artifacts. Codex and Grok both
-write reasoning content to `<SASE_ARTIFACTS_DIR>/codex_thinking.jsonl` (the filename is
-shared rather than renamed per provider, since sase's TUI `read_codex_thinking` reads
-that exact path); providers with token counters write `<SASE_ARTIFACTS_DIR>/usage.json`;
-Muse records the model it actually configured and its session id in
-`<SASE_ARTIFACTS_DIR>/run_metadata.json`.
-
-ACE follows reply growth in the Main Reply card for the selected live agent.
-File-watcher events drive the normal update, with a one-second stat-only poll as a
-backstop; reply writes do not reload the Agents roster. The provider's terminal reply
-remains authoritative for the invocation result, while streamed deltas are the visible
-in-progress copy and a salvage source when terminal text is unavailable. Muse controls
-when it emits text: it is usually quiet through tool work, replies tend to arrive near
-the end of generation, and a short answer may arrive as one burst. ACE displays
-available deltas promptly but cannot show text Muse has not emitted. Under Rich's
-interactive provider timer, console output keeps fragments together until a newline;
-plain stdout and agent logs continue flushing fragments as they arrive.
-
-### Output Suppression
-
-When `suppress_output=True`, lines are still captured but not printed to the console.
-This is used for background invocations where the caller only needs the final result.
-
-### Provider Teardown Watchdog
-
-A provider CLI can finish its turn, have its final declaration accepted, and then never
-exit, often because a background process leaked from its tool sandbox keeps a pipe open.
-Every provider that starts the interrupt monitor also starts a completion watchdog
-(`start_completion_watchdog` in `_subprocess_plain.py`). It is a no-op without
-`SASE_ARTIFACTS_DIR`.
-
-Once `<SASE_ARTIFACTS_DIR>/final_submission.json` is written by a declaration accepted
-_after_ the provider started, the watchdog waits a grace period. If the provider is
-still alive when it expires, the watchdog terminates it (SIGTERM, then SIGKILL) and
-reaps its leaked descendants. Descendants are found by walking `ppid` from a snapshot
-taken _before_ the provider is signalled, so a leaked process in its own session or
-process group is still reached. Registered live agents, monitors, and procs, the current
-process, and its ancestors are never signalled, and neither is anything they spawned. If
-the live registry cannot be read, no descendant is signalled at all.
-
-The stall is recorded in `<SASE_ARTIFACTS_DIR>/provider_teardown_stall.json` (provider,
-pid, acceptance time, grace, seconds waited, and the argv of each reaped descendant) and
-as a `[sase] ...` line on stderr. The turn is not reported as failed:
-`stream_json_lines` and `stream_process_output` return the streamed reply with return
-code `0`.
-
-| Variable                               | Default | Effect                                          |
-| -------------------------------------- | ------- | ----------------------------------------------- |
-| `SASE_PROVIDER_TEARDOWN_GRACE_SECONDS` | `120`   | Grace period after acceptance; `0` disables it. |
-
-A provider that wedges _before_ submitting its declaration is not covered.
-
-## Postprocessing
-
-After a provider returns (or raises an error), the orchestration layer runs
-postprocessing steps.
-
-### On Success (`postprocess_success`)
-
-1. **Audio notification**: Plays a sound via `run_bam_command("Agent reply received")`
-   (skipped if `suppress_output`).
-2. **Log to sase.md**: Appends a timestamped entry with the prompt and response to
-   `<artifacts_dir>/sase.md` (if `artifacts_dir` is set).
-3. **Save chat history**: Writes to `~/.sase/chats/` if `workflow` is set. See
-   [Chat History](#chat-history).
-
-### On Error (`postprocess_error`)
-
-1. **Rich error display**: Prints the prompt and error via `print_prompt_and_response()`
-   with an `_ERROR` suffix on the agent type label (skipped if `suppress_output`).
-2. **Log to sase.md**: Same as success, but the response is the error message and the
-   agent type gets an `_ERROR` suffix.
-3. **Save error chat history**: Writes to `~/.sase/chats/` with an `_ERROR` agent
-   suffix.
-
-### sase.md Log Format
-
-Each entry in the log file follows this format:
-
-```markdown
-## <timestamp> - <agent_type> - iteration <N> - tag <workflow_tag>
-
-### PROMPT:
-
-\`\`\` <prompt text> \`\`\`
-
-### RESPONSE:
-
-\`\`\` <response text> \`\`\`
-
----
-```
-
-### Prompt File Saving
-
-Before invocation, the preprocessed prompt is saved to
-`<artifacts_dir>/<agent_type>_prompt.md` (or `<agent_type>_iter_<N>_prompt.md` if an
-iteration number is set). This allows reviewing the exact prompt that was sent.
-
-## Chat History
-
-Chat histories are stored as markdown files in `~/.sase/chats/`.
-
-### File Naming
-
-```
-<branch_or_workspace>-<workflow>-[<agent>-]<timestamp>.md
-```
-
-| Part                  | Source                                   | Example             |
-| --------------------- | ---------------------------------------- | ------------------- |
-| `branch_or_workspace` | Output of `branch_or_workspace_name`     | `my_feature`        |
-| `workflow`            | Workflow name, normalized                | `crs`, `run`        |
-| `agent`               | Agent type (omitted if same as workflow) | `editor`, `planner` |
-| `timestamp`           | `YYmmdd_HHMMSS` format                   | `260214_153042`     |
-
-Dashes and slashes in workflow names are normalized to underscores.
-
-### File Format
-
-```markdown
-# Chat History - <workflow> (<agent>)
-
-**Timestamp** <display_timestamp>
-
-**MODEL** <provider>/<model>
-
-**AGENT** <sase_agent_name>
-
-## Previous Conversation
-
-<previous history if resuming>
-
----
-
-## Prompt
-
-<prompt text>
-
-## Response
-
-<response text>
-```
-
-The `MODEL` and `AGENT` blocks are omitted when the invocation did not provide that
-metadata. `MODEL` can contain just a model name, just a provider name, or both. When
-both provider and model are known, it is rendered as `<provider>/<model>` unless the
-model already includes that prefix.
-
-### Resume Support
-
-Resume uses the `#fork` and `#fork_by_chat` workflows through normal detached `sase run`
-launches. `#fork` resolves an agent name to its artifacts directory, extracts the
-response path from `done.json`, and delegates to `#fork_by_chat`, which loads the chat
-history and prepends it to the new conversation. Use `#fork_by_chat(<path-or-basename>)`
-for direct chat-file-based resumption.
-
-Fork expansion is recursive: if the loaded chat history itself contains `#fork` or
-`#fork_by_chat` references, those are expanded inline as well. Legacy `#resume` and
-`#resume_by_chat` references in old transcripts are still recognized. Cycle detection
-prevents infinite loops when chat histories reference each other.
-
-## Invocation Lifecycle
-
-The `invoke_agent()` function in `_invoke.py` orchestrates the complete lifecycle of an
-LLM invocation. Here is the end-to-end flow:
-
-```
-invoke_agent(prompt, agent_type, model_tier, ...)
-│
-├── 1. Handle deprecated model_size → model_tier mapping
-├── 2. Check SASE_MODEL_TIER_OVERRIDE / SASE_MODEL_SIZE_OVERRIDE env vars
-├── 3. Build LoggingContext from parameters
-│
-├── 4. Preprocess prompt unless skip_preprocessing=True
-│   ├── early phase: optional workflow Jinja2, macro expansion, directive extraction
-│   └── late phase: command substitution, file refs, top-level Jinja2, formatting, comment stripping
-│
-├── 5. Resolve %model / temporary provider-model override
-├── 6. Display decision counts (if not suppressed)
-├── 7. Print prompt via Rich (if not suppressed)
-├── 8. Generate or use provided timestamp
-├── 9. Save prompt to artifacts directory
-│
-├── 10. Get provider from registry and invoke
-│   ├── Run the continuation budget preflight (monitor successors or when enforced)
-│   ├── Build CLI command with flags
-│   ├── Spawn subprocess (Popen)
-│   ├── Supply prompt via provider transport
-│   └── Stream stdout/stderr in real-time
-│
-├── 11. Run commit finalizer for SASE agent runs
-│   ├── Skip when disabled or outside an agent run
-│   ├── Check main workspace and configured Git linked repos
-│   ├── Enforce dirty linked repo clones
-│   ├── Auto-commit exact tracked SDD done-status closeouts
-│   └── Run bounded follow-up provider invocations until enforced repos are clean or failed
-│
-├── 12. Postprocess
-│   ├── Success path:
-│   │   ├── Audio notification
-│   │   ├── Log to sase.md
-│   │   └── Save chat history
-│   └── Error path:
-│       ├── Rich error display
-│       ├── Log error to sase.md
-│       └── Save error chat history
-│
-└── 13. Return AIMessage(content=response), or raise LLMInvocationError on failure
-```
-
-### Parameters
-
-| Parameter             | Type                        | Default    | Description                                       |
-| --------------------- | --------------------------- | ---------- | ------------------------------------------------- |
-| `prompt`              | `str`                       | (required) | Raw prompt to send                                |
-| `agent_type`          | `str`                       | (required) | Agent type label (e.g., `"editor"`)               |
-| `model_tier`          | `ModelTier`                 | `"large"`  | Model tier to use                                 |
-| `model_size`          | `"big" \| "little" \| None` | `None`     | Deprecated, use `model_tier`                      |
-| `iteration`           | `int \| None`               | `None`     | Iteration number for logging                      |
-| `workflow_tag`        | `str \| None`               | `None`     | Workflow tag for logging                          |
-| `artifacts_dir`       | `str \| None`               | `None`     | Directory for sase.md, prompt, and stream files   |
-| `workflow`            | `str \| None`               | `None`     | Workflow name for chat history                    |
-| `suppress_output`     | `bool`                      | `False`    | Suppress console output                           |
-| `timestamp`           | `str \| None`               | `None`     | Shared timestamp (`YYmmdd_HHMMSS`)                |
-| `is_home_mode`        | `bool`                      | `False`    | Skip file copying for `@` references              |
-| `branch_or_workspace` | `str \| None`               | `None`     | Override the chat-history filename prefix         |
-| `decision_counts`     | `dict[str, Any] \| None`    | `None`     | Planning agent decision counts                    |
-| `provider_name`       | `str \| None`               | `None`     | Override provider (default from config)           |
-| `skip_preprocessing`  | `bool`                      | `False`    | Use `prompt` as already-preprocessed input        |
-| `directives`          | `PromptDirectives \| None`  | `None`     | Pre-extracted directives for `skip_preprocessing` |
-
-### Return Value
-
-On success, returns an `AIMessage` (from `langchain_core.messages`) whose `content` is
-the provider response. On provider failure, `invoke_agent()` logs the error and raises
-`LLMInvocationError` with the formatted error text.
+This page has moved. See [Providers and models](reference/providers/index.md).
+
+## Moved sections
+
+<a id="overview"></a>
+
+- [Overview](reference/providers/models.md#overview)
+
+<a id="per-prompt-provider-switching"></a>
+
+- [Per prompt provider switching](reference/providers/models.md#per-prompt-provider-switching)
+
+<a id="configured-model-aliases"></a>
+
+- [Configured model aliases](reference/providers/models.md#configured-model-aliases)
+
+<a id="macro-model-inputs"></a>
+
+- [Macro model inputs](reference/providers/models.md#macro-model-inputs)
+
+<a id="implicit-role-aliases"></a>
+
+- [Implicit role aliases](reference/providers/models.md#implicit-role-aliases)
+
+<a id="launch-scoped-alias-overrides"></a>
+
+- [Launch scoped alias overrides](reference/providers/models.md#launch-scoped-alias-overrides)
+
+<a id="explicit-providermodel-syntax"></a>
+
+- [Explicit providermodel syntax](reference/providers/models.md#explicit-providermodel-syntax)
+
+<a id="automatic-provider-resolution"></a>
+
+- [Automatic provider resolution](reference/providers/models.md#automatic-provider-resolution)
+
+<a id="built-in-model-catalog"></a>
+
+- [Built in model catalog](reference/providers/models.md#built-in-model-catalog)
+
+<a id="model-short-aliases"></a>
+
+- [Model short aliases](reference/providers/models.md#model-short-aliases)
+
+<a id="model-advisories"></a>
+
+- [Model advisories](reference/providers/models.md#model-advisories)
+
+<a id="reasoning-effort"></a>
+
+- [Reasoning effort](reference/providers/models.md#reasoning-effort)
+
+<a id="requesting-an-effort"></a>
+
+- [Requesting an effort](reference/providers/models.md#requesting-an-effort)
+
+<a id="explicit-vs-default-semantics"></a>
+
+- [Explicit vs default semantics](reference/providers/models.md#explicit-vs-default-semantics)
+
+<a id="provider-support-matrix"></a>
+
+- [Provider support matrix](reference/providers/models.md#provider-support-matrix)
+
+<a id="model-tier-system"></a>
+
+- [Model tier system](reference/providers/models.md#model-tier-system)
+
+<a id="type-definition"></a>
+
+- [Type definition](reference/providers/models.md#type-definition)
+
+<a id="provider-tier-defaults"></a>
+
+- [Provider tier defaults](reference/providers/models.md#provider-tier-defaults)
+
+<a id="legacy-mapping"></a>
+
+- [Legacy mapping](reference/providers/models.md#legacy-mapping)
+
+<a id="global-override"></a>
+
+- [Global override](reference/providers/models.md#global-override)
+
+<a id="maintaining-the-built-in-catalog"></a>
+
+- [Maintaining the built in catalog](reference/providers/models.md#maintaining-the-built-in-catalog)
+
+<a id="role-aliases-for-delegated-work"></a>
+
+- [Role aliases for delegated work](reference/providers/models.md#role-aliases-for-delegated-work)
+
+<a id="source-layout"></a>
+
+- [Source layout](contribute/llm-invocation.md#source-layout)
+
+<a id="provider-architecture"></a>
+
+- [Provider architecture](contribute/llm-invocation.md#provider-architecture)
+
+<a id="base-class"></a>
+
+- [Base class](contribute/llm-invocation.md#base-class)
+
+<a id="registry"></a>
+
+- [Registry](contribute/llm-invocation.md#registry)
+
+<a id="selection-logic"></a>
+
+- [Selection logic](contribute/llm-invocation.md#selection-logic)
+
+<a id="commit-finalization"></a>
+
+- [Commit finalization](contribute/llm-invocation.md#commit-finalization)
+
+<a id="token-usage-tracking"></a>
+
+- [Token usage tracking](contribute/llm-invocation.md#token-usage-tracking)
+
+<a id="artifact-format"></a>
+
+- [Artifact format](contribute/llm-invocation.md#artifact-format)
+
+<a id="prompt-preprocessing-pipeline"></a>
+
+- [Prompt preprocessing pipeline](contribute/llm-invocation.md#prompt-preprocessing-pipeline)
+
+<a id="steps"></a>
+
+- [Steps](contribute/llm-invocation.md#steps)
+
+<a id="order-matters"></a>
+
+- [Order matters](contribute/llm-invocation.md#order-matters)
+
+<a id="home-mode"></a>
+
+- [Home mode](contribute/llm-invocation.md#home-mode)
+
+<a id="source-functions"></a>
+
+- [Source functions](contribute/llm-invocation.md#source-functions)
+
+<a id="subprocess-streaming"></a>
+
+- [Subprocess streaming](contribute/llm-invocation.md#subprocess-streaming)
+
+<a id="mechanism"></a>
+
+- [Mechanism](contribute/llm-invocation.md#mechanism)
+
+<a id="live-reply-file"></a>
+
+- [Live reply file](contribute/llm-invocation.md#live-reply-file)
+
+<a id="output-suppression"></a>
+
+- [Output suppression](contribute/llm-invocation.md#output-suppression)
+
+<a id="provider-teardown-watchdog"></a>
+
+- [Provider teardown watchdog](contribute/llm-invocation.md#provider-teardown-watchdog)
+
+<a id="postprocessing"></a>
+
+- [Postprocessing](contribute/llm-invocation.md#postprocessing)
+
+<a id="on-success-postprocesssuccess"></a>
+
+- [On success postprocesssuccess](contribute/llm-invocation.md#on-success-postprocesssuccess)
+
+<a id="on-error-postprocesserror"></a>
+
+- [On error postprocesserror](contribute/llm-invocation.md#on-error-postprocesserror)
+
+<a id="sasemd-log-format"></a>
+
+- [Sasemd log format](contribute/llm-invocation.md#sasemd-log-format)
+
+<a id="prompt-file-saving"></a>
+
+- [Prompt file saving](contribute/llm-invocation.md#prompt-file-saving)
+
+<a id="chat-history"></a>
+
+- [Chat history](contribute/llm-invocation.md#chat-history)
+
+<a id="file-naming"></a>
+
+- [File naming](contribute/llm-invocation.md#file-naming)
+
+<a id="file-format"></a>
+
+- [File format](contribute/llm-invocation.md#file-format)
+
+<a id="resume-support"></a>
+
+- [Resume support](contribute/llm-invocation.md#resume-support)
+
+<a id="invocation-lifecycle"></a>
+
+- [Invocation lifecycle](contribute/llm-invocation.md#invocation-lifecycle)
+
+<a id="parameters"></a>
+
+- [Parameters](contribute/llm-invocation.md#parameters)
+
+<a id="return-value"></a>
+
+- [Return value](contribute/llm-invocation.md#return-value)
+
+<a id="claude-code-integration"></a>
+
+- [Claude code integration](reference/providers/claude.md#claude-code-integration)
+
+<a id="command-construction"></a>
+
+- [Command construction](reference/providers/claude.md#command-construction)
+
+<a id="single-turn-wait-guard"></a>
+
+- [Single turn wait guard](reference/providers/claude.md#single-turn-wait-guard)
+
+<a id="native-helpers"></a>
+
+- [Native helpers](reference/providers/claude.md#native-helpers)
+
+<a id="model-mapping"></a>
+
+- [Model mapping](reference/providers/claude.md#model-mapping)
+
+<a id="environment-variables"></a>
+
+- [Environment variables](reference/providers/claude.md#environment-variables)
+
+<a id="timer-display"></a>
+
+- [Timer display](reference/providers/claude.md#timer-display)
+
+<a id="claude-tool-calls"></a>
+
+- [Claude tool calls](reference/providers/claude.md#claude-tool-calls)
+
+<a id="antigravity-agy-integration"></a>
+
+- [Antigravity agy integration](reference/providers/agy.md#antigravity-agy-integration)
+
+<a id="command-construction-1"></a>
+
+- [Command construction 1](reference/providers/agy.md#command-construction-1)
+
+<a id="print-mode-no-progress-recovery"></a>
+
+- [Print mode no progress recovery](reference/providers/agy.md#print-mode-no-progress-recovery)
+
+<a id="model-mapping-1"></a>
+
+- [Model mapping 1](reference/providers/agy.md#model-mapping-1)
+
+<a id="environment-variables-1"></a>
+
+- [Environment variables 1](reference/providers/agy.md#environment-variables-1)
+
+<a id="skill-deployment"></a>
+
+- [Skill deployment](reference/providers/agy.md#skill-deployment)
+
+<a id="structured-artifacts-parity-gap"></a>
+
+- [Structured artifacts parity gap](reference/providers/agy.md#structured-artifacts-parity-gap)
+
+<a id="timer-display-1"></a>
+
+- [Timer display 1](reference/providers/agy.md#timer-display-1)
+
+<a id="codex-cli-integration"></a>
+
+- [Codex cli integration](reference/providers/codex.md#codex-cli-integration)
+
+<a id="command-construction-2"></a>
+
+- [Command construction 2](reference/providers/codex.md#command-construction-2)
+
+<a id="codex-instruction-delivery"></a>
+
+- [Codex instruction delivery](reference/providers/codex.md#codex-instruction-delivery)
+
+<a id="model-mapping-2"></a>
+
+- [Model mapping 2](reference/providers/codex.md#model-mapping-2)
+
+<a id="plan-handling"></a>
+
+- [Plan handling](reference/providers/codex.md#plan-handling)
+
+<a id="environment-variables-2"></a>
+
+- [Environment variables 2](reference/providers/codex.md#environment-variables-2)
+
+<a id="codex-tool-call-capture"></a>
+
+- [Codex tool call capture](reference/providers/codex.md#codex-tool-call-capture)
+
+<a id="turn-integrity-check"></a>
+
+- [Turn integrity check](reference/providers/codex.md#turn-integrity-check)
+
+<a id="timer-display-2"></a>
+
+- [Timer display 2](reference/providers/codex.md#timer-display-2)
+
+<a id="qwen-code-integration"></a>
+
+- [Qwen code integration](reference/providers/qwen.md#qwen-code-integration)
+
+<a id="command-construction-3"></a>
+
+- [Command construction 3](reference/providers/qwen.md#command-construction-3)
+
+<a id="model-mapping-3"></a>
+
+- [Model mapping 3](reference/providers/qwen.md#model-mapping-3)
+
+<a id="authentication"></a>
+
+- [Authentication](reference/providers/qwen.md#authentication)
+
+<a id="environment-variables-3"></a>
+
+- [Environment variables 3](reference/providers/qwen.md#environment-variables-3)
+
+<a id="qwen-tool-call-capture"></a>
+
+- [Qwen tool call capture](reference/providers/qwen.md#qwen-tool-call-capture)
+
+<a id="commit-finalization-1"></a>
+
+- [Commit finalization 1](reference/providers/qwen.md#commit-finalization-1)
+
+<a id="timer-display-3"></a>
+
+- [Timer display 3](reference/providers/qwen.md#timer-display-3)
+
+<a id="opencode-integration"></a>
+
+- [Opencode integration](reference/providers/opencode.md#opencode-integration)
+
+<a id="command-construction-4"></a>
+
+- [Command construction 4](reference/providers/opencode.md#command-construction-4)
+
+<a id="model-mapping-4"></a>
+
+- [Model mapping 4](reference/providers/opencode.md#model-mapping-4)
+
+<a id="authentication-and-config"></a>
+
+- [Authentication and config](reference/providers/opencode.md#authentication-and-config)
+
+<a id="environment-variables-4"></a>
+
+- [Environment variables 4](reference/providers/opencode.md#environment-variables-4)
+
+<a id="timer-display-4"></a>
+
+- [Timer display 4](reference/providers/opencode.md#timer-display-4)
+
+<a id="muse-code-integration"></a>
+
+- [Muse code integration](reference/providers/muse.md#muse-code-integration)
+
+<a id="selection"></a>
+
+- [Selection](reference/providers/muse.md#selection)
+
+<a id="command-construction-5"></a>
+
+- [Command construction 5](reference/providers/muse.md#command-construction-5)
+
+<a id="single-turn-normalization"></a>
+
+- [Single turn normalization](reference/providers/muse.md#single-turn-normalization)
+
+<a id="model-mapping-5"></a>
+
+- [Model mapping 5](reference/providers/muse.md#model-mapping-5)
+
+<a id="muse-reasoning-effort"></a>
+
+- [Muse reasoning effort](reference/providers/muse.md#muse-reasoning-effort)
+
+<a id="the-event-stream"></a>
+
+- [The event stream](reference/providers/muse.md#the-event-stream)
+
+<a id="muse-tool-call-capture"></a>
+
+- [Muse tool call capture](reference/providers/muse.md#muse-tool-call-capture)
+
+<a id="token-usage-and-model-identity"></a>
+
+- [Token usage and model identity](reference/providers/muse.md#token-usage-and-model-identity)
+
+<a id="interrupts-and-retries"></a>
+
+- [Interrupts and retries](reference/providers/muse.md#interrupts-and-retries)
+
+<a id="skills-and-instruction-file"></a>
+
+- [Skills and instruction file](reference/providers/muse.md#skills-and-instruction-file)
+
+<a id="environment-variables-5"></a>
+
+- [Environment variables 5](reference/providers/muse.md#environment-variables-5)
+
+<a id="timer-display-5"></a>
+
+- [Timer display 5](reference/providers/muse.md#timer-display-5)
+
+<a id="grok-build-integration"></a>
+
+- [Grok build integration](reference/providers/grok.md#grok-build-integration)
+
+<a id="selection-1"></a>
+
+- [Selection 1](reference/providers/grok.md#selection-1)
+
+<a id="command-construction-6"></a>
+
+- [Command construction 6](reference/providers/grok.md#command-construction-6)
+
+<a id="model-mapping-6"></a>
+
+- [Model mapping 6](reference/providers/grok.md#model-mapping-6)
+
+<a id="grok-reasoning-effort"></a>
+
+- [Grok reasoning effort](reference/providers/grok.md#grok-reasoning-effort)
+
+<a id="the-event-stream-1"></a>
+
+- [The event stream 1](reference/providers/grok.md#the-event-stream-1)
+
+<a id="grok-tool-call-capture"></a>
+
+- [Grok tool call capture](reference/providers/grok.md#grok-tool-call-capture)
+
+<a id="token-usage"></a>
+
+- [Token usage](reference/providers/grok.md#token-usage)
+
+<a id="interrupts-and-retries-1"></a>
+
+- [Interrupts and retries 1](reference/providers/grok.md#interrupts-and-retries-1)
+
+<a id="skills-and-instruction-file-1"></a>
+
+- [Skills and instruction file 1](reference/providers/grok.md#skills-and-instruction-file-1)
+
+<a id="environment-variables-6"></a>
+
+- [Environment variables 6](reference/providers/grok.md#environment-variables-6)
+
+<a id="timer-display-6"></a>
+
+- [Timer display 6](reference/providers/grok.md#timer-display-6)
+
+<a id="external-provider-plugins"></a>
+
+- [External provider plugins](reference/providers/plugins.md#external-provider-plugins-1)
+
+<a id="subscription-usage-extension"></a>
+
+- [Subscription usage extension](reference/providers/plugins.md#subscription-usage-extension)
+
+<a id="configuration"></a>
+
+- [Configuration](reference/providers/configuration.md#configuration)
+
+<a id="config-file"></a>
+
+- [Config file](reference/providers/configuration.md#config-file)
+
+<a id="config-fields"></a>
+
+- [Config fields](reference/providers/configuration.md#config-fields)
+
+<a id="continuation-budget-preflight"></a>
+
+- [Continuation budget preflight](reference/providers/configuration.md#continuation-budget-preflight)
+
+<a id="cli-flags"></a>
+
+- [Cli flags](reference/providers/configuration.md#cli-flags)
+
+<a id="tui"></a>
+
+- [Tui](reference/providers/configuration.md#tui)
+
+<a id="axe"></a>
+
+- [Axe](reference/providers/configuration.md#axe)
+
+<a id="temporary-model-overrides"></a>
+
+- [Temporary model overrides](reference/providers/routing.md#temporary-model-overrides)
+
+<a id="resolution-order-default-providermodel"></a>
+
+- [Resolution order default providermodel](reference/providers/routing.md#resolution-order-default-providermodel)
+
+<a id="temporary-provider-disables"></a>
+
+- [Temporary provider disables](reference/providers/routing.md#temporary-provider-disables)
+
+<a id="state-file"></a>
+
+- [State file](reference/providers/routing.md#state-file)
+
+<a id="model-resolution"></a>
+
+- [Model resolution](reference/providers/routing.md#model-resolution)
+
+<a id="duration-parsing"></a>
+
+- [Duration parsing](reference/providers/routing.md#duration-parsing)
+
+<a id="public-api"></a>
+
+- [Public api](reference/providers/routing.md#public-api)
+
+<a id="examples"></a>
+
+- [Examples](reference/providers/routing.md#examples)
+
+<a id="temporary-provider-priority"></a>
+
+- [Temporary provider priority](reference/providers/routing.md#temporary-provider-priority)
+
+<a id="subscription-usage"></a>
+
+- [Subscription usage](reference/providers/usage.md#subscription-usage)
+
+<a id="usage-limit-auto-disable"></a>
+
+- [Usage limit auto disable](reference/providers/usage.md#usage-limit-auto-disable)
+
+<a id="reset-hint-forms"></a>
+
+- [Reset hint forms](reference/providers/usage.md#reset-hint-forms)
+
+<a id="draining-a-disabled-provider"></a>
+
+- [Draining a disabled provider](reference/providers/usage.md#draining-a-disabled-provider)
+
+<a id="environment-variable-reference"></a>
+
+- [Environment variable reference](reference/environment-variables.md#environment-variable-reference)
+
+<a id="generic-provider-agnostic"></a>
+
+- [Generic provider agnostic](reference/environment-variables.md#generic-provider-agnostic)
+
+<a id="claude-specific"></a>
+
+- [Claude specific](reference/environment-variables.md#claude-specific)
+
+<a id="codex-specific"></a>
+
+- [Codex specific](reference/environment-variables.md#codex-specific)
+
+<a id="qwen-specific"></a>
+
+- [Qwen specific](reference/environment-variables.md#qwen-specific)
+
+<a id="antigravity-agy-specific"></a>
+
+- [Antigravity agy specific](reference/environment-variables.md#antigravity-agy-specific)
+
+<a id="opencode-specific"></a>
+
+- [Opencode specific](reference/environment-variables.md#opencode-specific)
+
+<a id="muse-code-specific"></a>
+
+- [Muse code specific](reference/environment-variables.md#muse-code-specific)
+
+<a id="grok-specific"></a>
+
+- [Grok specific](reference/environment-variables.md#grok-specific)
+
+<a id="vcs-provider"></a>
+
+- [Vcs provider](reference/environment-variables.md#vcs-provider-1)
+
+<a id="retry-and-fallback"></a>
+
+- [Retry and fallback](reference/providers/retry-and-fallback.md#retry-and-fallback)
+
+<a id="configuration-1"></a>
+
+- [Configuration 1](reference/providers/retry-and-fallback.md#configuration-1)
+
+<a id="config-fields-1"></a>
+
+- [Config fields 1](reference/providers/retry-and-fallback.md#config-fields-1)
+
+<a id="default-configuration"></a>
+
+- [Default configuration](reference/providers/retry-and-fallback.md#default-configuration)
+
+<a id="provider-supplied-retry-defaults"></a>
+
+- [Provider supplied retry defaults](reference/providers/retry-and-fallback.md#provider-supplied-retry-defaults)
+
+<a id="retry-flow"></a>
+
+- [Retry flow](reference/providers/retry-and-fallback.md#retry-flow)
+
+<a id="tui-display"></a>
+
+- [Tui display](reference/providers/retry-and-fallback.md#tui-display)
+
+<a id="metadata-tracking"></a>
+
+- [Metadata tracking](reference/providers/retry-and-fallback.md#metadata-tracking)
+
+<a id="spawn-on-retry"></a>
+
+- [Spawn on retry](reference/providers/retry-and-fallback.md#spawn-on-retry)
+
+<a id="legacy-thinking-metadata"></a>
+
+- [Legacy thinking metadata](reference/upgrading/providers.md#legacy-thinking-metadata)
+
+<a id="table-of-contents"></a>
+
+- [Table of contents](reference/providers/index.md)

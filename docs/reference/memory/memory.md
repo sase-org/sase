@@ -1,3 +1,8 @@
+---
+title: "Memory"
+description: "How SASE stores, composes, audits, and links durable memory context."
+---
+
 # Memory
 
 SASE memory is durable context that survives individual agent chats. Project notes live
@@ -15,7 +20,7 @@ Each non-README flat note declares its type in YAML frontmatter:
   customizes the generated title. On a chezmoi home source root, machine overlays that
   declare `memory.h1_title` make `sase memory init` emit `AGENTS.md.tmpl` whose H1
   switches on `.chezmoi.hostname` (see
-  [memory.h1_title](reference/config/core-behavior.md#memoryh1title)). The retired
+  [memory.h1_title](../config/core-behavior.md#memoryh1title)). The retired
   `memory.enabled` key no longer authorizes management.
 - **Reference memory** uses `type: reference`. It is reference context, requires
   `description` frontmatter, and can set `parent: sase/memory/<note>.md` to appear under
@@ -30,28 +35,29 @@ Each non-README flat note declares its type in YAML frontmatter:
 The legacy frontmatter values `type: short` and `type: long` are still accepted and mean
 `type: core` and `type: reference` respectively.
 
-Use [initialization](init.md#memory-initialization) to create or refresh the files. Use
-[`sase instructions list`](init.md#agent-documents) to inspect `AGENTS.md` and provider
-instruction file status. Initialization always generates the core `sase/memory/sase.md`
-workspace note — workspace naming, linked repositories, and the `/sase_final`
-terminal-action contract. For SASE-managed project repositories it additionally
-generates the core `sase/memory/task_types.md` catalog note (agent-creatable types,
-their `when_to_use` text, and field names), `sase/memory/sase_artifacts.md` for
-artifact-reference and indexed-file workflows, `sase/memory/sase_beads.md` for bead
-workflows, and `sase/memory/sase_sizes.md` size-scale guidance nested under
-`sase_beads.md` and surfaced through that note's `## Children` section on an audited
-read. The top-level reference notes are listed in the `## Reference Memory` section of
-managed agent instructions. The project-root task-type note and `sase/task_types.json`
-snapshot render from the committed catalog (builtins, `plugins.required` types, and
-`bead.task_types`). Day to day, the usual order is: inspect loaded context with
-`sase memory list`, have agents use `sase memory read` for audited reference reads, have
-agents route every memory write through `/sase_memory_write`.
+Use [initialization](../../init.md#memory-initialization) to create or refresh the
+files. Use [`sase instructions list`](../../init.md#agent-documents) to inspect
+`AGENTS.md` and provider instruction file status. Initialization always generates the
+core `sase/memory/sase.md` workspace note — workspace naming, linked repositories, and
+the `/sase_final` terminal-action contract. For SASE-managed project repositories it
+additionally generates the core `sase/memory/task_types.md` catalog note
+(agent-creatable types, their `when_to_use` text, and field names),
+`sase/memory/sase_artifacts.md` for artifact-reference and indexed-file workflows,
+`sase/memory/sase_beads.md` for bead workflows, and `sase/memory/sase_sizes.md`
+size-scale guidance nested under `sase_beads.md` and surfaced through that note's
+`## Children` section on an audited read. The top-level reference notes are listed in
+the `## Reference Memory` section of managed agent instructions. The project-root
+task-type note and `sase/task_types.json` snapshot render from the committed catalog
+(builtins, `plugins.required` types, and `bead.task_types`). Day to day, the usual order
+is: inspect loaded context with `sase memory list`, have agents use `sase memory read`
+for audited reference reads, have agents route every memory write through
+`/sase_memory_write`.
 
 sase's TUI **Memory panel** is the interactive surface for browsing memory across every
 memory-bearing project plus Home. It can add/edit/delete flat-note metadata and
 add/delete web strands; note bodies, existing strand bodies, and web descriptors open in
 `$EDITOR`. From a prompt, press `gm` or `Ctrl+G m`; see
-[Memory panel](ace.md#memory-panel). It is a human surface only: it never edits
+[Memory panel](../../ace.md#memory-panel). It is a human surface only: it never edits
 `AGENTS.md` or the provider shims directly — only `sase memory init` (run from the
 panel's publish flow, or by hand) does that.
 
@@ -75,8 +81,8 @@ This is explicit, launch-time prompt composition, not an audited lookup: expandi
 `sase memory read` (below) when an already-running agent needs to consult reference
 memory on its own and have that access recorded. It is not a restoration of the retired
 dynamic-memory runtime — there is no keyword matching, prompt scanning, or automatic
-context injection. See [Memory Field](macros.md#memory-field) for the full expansion
-contract and [Memory Order](reference/upgrading/content-layout.md#memory-order) for
+context injection. See [Memory Field](../../macros.md#memory-field) for the full
+expansion contract and [Memory Order](../upgrading/content-layout.md#memory-order) for
 source precedence.
 
 ## Inspect Context
@@ -132,15 +138,15 @@ is required.
 
 Every committed version of every memory note, web, strand, and agent instruction file
 can be browsed in the pager — a time axis over the same files this guide describes. See
-[Memory History](memory_history.md): subjects and versions, the time band, keys (`(`,
-`)`, `=`, `@`, `[`, `]`), the glyph table, the `sase memory history` CLI (with
-`--format json` for agents), what is and is not tracked, and the performance budgets. In
-the Memory panel, `H` opens the selected note, web, or strand in the pager at the card's
-exact version and view; the card itself is time-aware (pinned head with the pager's pill
-and a two-row time strip, `(`/`)`/`{`/`}` stepping, `=` diff, `@` Timeline lens, `C`
-Changes lens with a review watermark, an `INSTRUCTIONS` group, and a recency glance on
-every rail row -- see [Memory panel](ace.md#memory-panel)). Viewing history never writes
-an audited read.
+[Memory History](history.md): subjects and versions, the time band, keys (`(`, `)`, `=`,
+`@`, `[`, `]`), the glyph table, the `sase memory history` CLI (with `--format json` for
+agents), what is and is not tracked, and the performance budgets. In the Memory panel,
+`H` opens the selected note, web, or strand in the pager at the card's exact version and
+view; the card itself is time-aware (pinned head with the pager's pill and a two-row
+time strip, `(`/`)`/`{`/`}` stepping, `=` diff, `@` Timeline lens, `C` Changes lens with
+a review watermark, an `INSTRUCTIONS` group, and a recency glance on every rail row --
+see [Memory panel](../../ace.md#memory-panel)). Viewing history never writes an audited
+read.
 
 ## Audited Reads
 
@@ -208,8 +214,8 @@ strand the batch requested, and `--path` matches any of them — for example
 `--path glossary:stitch` finds a batch that also read other strands. Strands pulled in
 only by link or mention closure count as context, not as requested reads. The same
 per-file counting drives the `SASE CONTEXT` / `MEMORY` lane of the
-[agent Main deck](reference/tui/agents-main-deck.md#agents-tab-main-deck-1), including
-clan aggregates.
+[agent Main deck](../tui/agents-main-deck.md#agents-tab-main-deck-1), including clan
+aggregates.
 
 A numbered `v` hint on a single-note read opens that note. On a batch read, the hint
 opens each requested note or strand file as its own pager section, in the order the read
@@ -218,7 +224,7 @@ context is not opened. When the read can no longer be resolved, the hint pages a
 generated report with the recorded metadata instead. Reads that captured a blob OID
 carry a version chip (`≡ now`, `vK ⟲ N newer`, `◌ uncommitted at read`), and their hint
 opens the pager pinned to the version read (see
-[Memory History](memory_history.md#in-the-tui)).
+[Memory History](history.md#in-the-tui)).
 
 ## Memory Webs
 
@@ -315,10 +321,9 @@ Every audited read requires a non-empty reason via `-r`/`--reason` and agent att
 the same way as [Audited Reads](#audited-reads) above, and the event records the
 requested selectors, every related strand the closure added, the depth limit, and the
 total bytes served. A `glossary:<keyword>` read also appears in the `GLOSSARY` lane of
-the agent Main deck in
-[sase's TUI](reference/tui/agents-main-deck.md#agents-tab-main-deck-1) alongside any
-legacy pre-migration events; selecting that lane's numbered hint pages a generated
-report of the read's output.
+the agent Main deck in [sase's TUI](../tui/agents-main-deck.md#agents-tab-main-deck-1)
+alongside any legacy pre-migration events; selecting that lane's numbered hint pages a
+generated report of the read's output.
 
 `sase memory log --include glossary` folds in audit events recorded under the retired
 pre-web `sase glossary read` command, so historical reads stay visible; that legacy
@@ -327,16 +332,16 @@ exists.
 
 ### Browsing and editing strands
 
-sase's TUI [Memory panel](ace.md#memory-panel) is the browse-and-edit surface for webs
-and strands alongside flat notes: expand a web row to walk its strands, follow the same
-relation chips `read`'s closure walks, and use `a`/`d` to add or delete a strand — `a`
-on a web row opens an add-strand form, `d` on a strand row confirms a delete after
+sase's TUI [Memory panel](../../ace.md#memory-panel) is the browse-and-edit surface for
+webs and strands alongside flat notes: expand a web row to walk its strands, follow the
+same relation chips `read`'s closure walks, and use `a`/`d` to add or delete a strand —
+`a` on a web row opens an add-strand form, `d` on a strand row confirms a delete after
 showing its aliases, body, source path, and reverse mention references. There is no CLI
 write path for strand content. Add/delete uses the panel's tracked mutation engine,
 which validates frontmatter, checks catalog ambiguity and digest conflicts, and updates
 the descriptor roster. To change an existing strand body or web descriptor, press `o` in
 the panel and edit its source in `$EDITOR`. Publish either route through the panel's
-normal `sase memory init` flow described in [Memory panel](ace.md#memory-panel).
+normal `sase memory init` flow described in [Memory panel](../../ace.md#memory-panel).
 
 ### Strand supersession
 
@@ -415,3 +420,9 @@ so a back-link between rendered targets adds no entry. The `json` format carries
 same data as `linked_references` on the note or web-section payload, plus per-note and
 per-node `links` lists distinguishing `inline` from `reference` targets. A unit with no
 reference-rendering links emits no section.
+
+## Related
+
+- [Memory](index.md) — the memory reference hub.
+- [Memory history](history.md) — browse changes to memory records.
+- [Instruction bundles](instruction-bundles.md) — inspect generated instructions.

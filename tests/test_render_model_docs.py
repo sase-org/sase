@@ -122,7 +122,7 @@ aliases:
 def _write_synthetic_tree(tmp_path: Path) -> tuple[Path, Path]:
     manifest = tmp_path / "models.yml"
     manifest.write_text(_synthetic_manifest_text(), encoding="utf-8")
-    docs = tmp_path / "llms.md"
+    docs = tmp_path / "models.md"
     renderer = _load_renderer("render_model_docs_synthetic_markers")
     parts = ["# Models"]
     for marker, _render in renderer._block_renderers(manifest):
@@ -169,7 +169,7 @@ def test_check_reports_stale_block_without_writing(
     assert any(line.startswith(("+", "-")) and "stale" in line for line in diff)
     assert docs.read_text(encoding="utf-8") == before
 
-    monkeypatch.setattr(renderer, "DOCS_PATH", docs)
+    monkeypatch.setattr(renderer, "DOCS_ROOT", docs)
     monkeypatch.setattr(renderer, "MANIFEST_PATH", manifest)
     assert renderer.main(["--check"]) == 1
     assert docs.read_text(encoding="utf-8") == before

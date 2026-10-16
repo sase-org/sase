@@ -354,4 +354,4 @@ Source: `src/sase/default_config.yml`, `src/sase/config/tmux_agent.py`
 ## Related
 
 - [Agents and runners configuration](agents.md) — generated keys and defaults.
-- [Agent providers](../../agent_providers.md) — provider setup.
+- [Agent providers](../providers/agent-clis.md) — provider setup.

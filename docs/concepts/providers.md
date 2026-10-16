@@ -47,9 +47,10 @@ the work without being tied to one vendor's catalog.
 
 ## Look it up
 
-- [Agent providers](../agent_providers.md) — install and authenticate supported
-  providers.
-- [LLM providers](../llms.md) — model selection and provider behavior.
+- [Agent providers](../reference/providers/agent-clis.md) — install and authenticate
+  supported providers.
+- [Providers and models](../reference/providers/index.md) — model selection and provider
+  behavior.
 - [Glossary](../reference/glossary.md#llm-calls) — provider and model terms.
 - [Design decisions](../reference/design-decisions.md#size-alias-effort-ladder) — how
   size aliases route work across providers.

@@ -2338,7 +2338,7 @@ The modal stays responsive, reattaches to an in-flight refresh when reopened, re
 the cache as operations settle, and reports partial failures by provider. `Enter`
 focuses the detail table, `Tab` moves focus, `j`/`k` navigate, and `Esc`/`q` closes.
 Collection requires `llm_provider.usage_metrics.enabled`; see
-[Subscription Usage](llms.md#subscription-usage).
+[Subscription Usage](reference/providers/usage.md#subscription-usage).
 
 On `big epic starts at`, `Enter` and `e` open a focused positive-integer editor, and `r`
 previews a reset. The input accepts an unsigned base-10 whole number with minimum `1`
@@ -2538,11 +2538,11 @@ The disable write returns immediately with the usual "disabled" toast, then a
 `Draining <PROVIDER>` start toast follows. The drain runs as the durable `agent.drain`
 proc (`sase agent drain <provider> --yes --json`) with the shared
 `provider-drain:<provider>` concurrency key the automatic usage-limit path uses (see
-[Draining a Disabled Provider](llms.md#draining-a-disabled-provider)), so it appears in
-the Procs tab and dedups against an automatic drain already in flight for that provider
-rather than running twice. A completion toast summarizes the durable result envelope,
-and the Procs row holds the full JSON envelope. If the TUI exits first, the proc still
-finishes and its result stays in Procs / `sase proc show`.
+[Draining a Disabled Provider](reference/providers/usage.md#draining-a-disabled-provider)),
+so it appears in the Procs tab and dedups against an automatic drain already in flight
+for that provider rather than running twice. A completion toast summarizes the durable
+result envelope, and the Procs row holds the full JSON envelope. If the TUI exits first,
+the proc still finishes and its result stays in Procs / `sase proc show`.
 
 An empty or no-longer-disabled automatic drain records a successful no-op: when the
 drain finds nothing to relaunch (`nothing_to_drain`) or the provider is no longer
@@ -2709,7 +2709,8 @@ Overrides are per-alias and per-launch-setting, and independent:
   alias is resolved. A size-specific phase or task override affects only that alias. An
   override on a selector-valued alias — a `|` load-balanced pool, `||` ordered fallback,
   or parenthesized `(A | B) || C` last-resort, such as the shipped size-alias selectors
-  (see the generated [shipped size-alias defaults](llms.md#implicit-role-aliases)) —
+  (see the generated
+  [shipped size-alias defaults](reference/providers/models.md#implicit-role-aliases)) —
   suspends that alias's own rotation/fallback for a single concrete target until the
   override expires or is cleared.
 - An override on **`epic lander`** or **`big epic lander`** affects only epic land
@@ -2772,13 +2773,13 @@ active.
 
 Delegated launches (plan coder follow-ups and `sase bead work` phase, task, and land
 agents) route directly through the
-[built-in size aliases](llms.md#role-aliases-for-delegated-work) configured under
-`llm_provider.model_aliases.builtin`, plus the `epic lander`/`big epic lander` launch
-settings — there is no more role-alias indirection through a separate
-`default`/`smart`/`cheap`/etc. lane. A phase or task selects `@xsmall`, `@small`,
-`@medium`, `@large`, or `@xlarge` by its normalized size directly; a phase or task
-without size metadata uses the `@small` fallback. Epic land agents without an explicit
-land model use `epic_lander_model` (shipped `@large`) below
+[built-in size aliases](reference/providers/models.md#role-aliases-for-delegated-work)
+configured under `llm_provider.model_aliases.builtin`, plus the
+`epic lander`/`big epic lander` launch settings — there is no more role-alias
+indirection through a separate `default`/`smart`/`cheap`/etc. lane. A phase or task
+selects `@xsmall`, `@small`, `@medium`, `@large`, or `@xlarge` by its normalized size
+directly; a phase or task without size metadata uses the `@small` fallback. Epic land
+agents without an explicit land model use `epic_lander_model` (shipped `@large`) below
 `bead.big_epic_phase_threshold`, or `big_epic_lander_model` (shipped `@xlarge`) at or
 above it. Because `epic lander` and `big epic lander` are configured as raw alias
 references, a temporary override on the alias they reference (`@large` and `@xlarge` by
@@ -2786,8 +2787,9 @@ default) cascades into their effective resolution; overriding `epic lander` or
 `big epic lander` directly takes precedence over that nested reference. A temporary
 override on a selector-valued built-in size alias — any shipped size-alias pool or
 fallback (see the generated
-[shipped size-alias defaults](llms.md#implicit-role-aliases)) — suspends only that
-alias's own rotation/fallback and does not cascade to any other alias or launch setting.
+[shipped size-alias defaults](reference/providers/models.md#implicit-role-aliases)) —
+suspends only that alias's own rotation/fallback and does not cascade to any other alias
+or launch setting.
 
 ### Persistent edits
 
@@ -2850,15 +2852,16 @@ fewer than two pool members or the live validation line reports an error.
   non-default pill appears in the top bar.
 - Highlight `@large`, `e`, pick `claude/opus`, and confirm — only large phases and tasks
   without an explicit model use that target, replacing the shipped pool (see the
-  generated [shipped size-alias defaults](llms.md#implicit-role-aliases)); other-sized
-  phase/task routing is unchanged.
+  generated
+  [shipped size-alias defaults](reference/providers/models.md#implicit-role-aliases));
+  other-sized phase/task routing is unchanged.
 - Highlight `@xlarge`, `e`, pick `claude/opus`, and confirm — xlarge phases and tasks
   use that target directly, and `big epic lander` (left at its shipped `@xlarge`
   reference) inherits the same change.
 - Leave `@xlarge` implicit — xlarge phases, tasks, and threshold-selected epic landers
   (which reference `@xlarge` by default) select the first available member of its
   fallback chain (see the generated
-  [shipped size-alias defaults](llms.md#implicit-role-aliases)).
+  [shipped size-alias defaults](reference/providers/models.md#implicit-role-aliases)).
 - Highlight `@xsmall`, `e`, choose `Custom...`, enter
   `claude/haiku@minimal | codex/gpt-4.1-mini@low`, and confirm — xsmall phases and tasks
   round-robin across installed providers while the panel continues to show the next
@@ -2889,8 +2892,9 @@ fewer than two pool members or the live validation line reports an error.
 - Highlight an alias or launch setting, `x` — clear its temporary override; `r` — unset
   its configured value back to its implicit fallback.
 
-See [docs/llms.md](llms.md#temporary-model-overrides) for the resolution order and
-state-file format.
+See
+[Temporary model overrides](reference/providers/routing.md#temporary-model-overrides)
+for the resolution order and state-file format.
 
 ## Notifications Modal
 
@@ -4205,8 +4209,8 @@ through the tracked proc queue in order:
 - **Apply chezmoi** — offered when the write redirected to a chezmoi source; scoped to
   just the one home target, never a whole-home apply.
 - **`sase memory init`** — offered instead of the two above when you edited a
-  [SASE memory note](memory.md), since it already commits and pushes for you while
-  regenerating `AGENTS.md` and the provider instruction shims.
+  [SASE memory note](reference/memory/memory.md), since it already commits and pushes
+  for you while regenerating `AGENTS.md` and the provider instruction shims.
 - **`sase skill init`** — offered instead of the two above when you edited a canonical
   [skill source](macros.md#skill-field), since it already commits, pushes, and deploys
   the generated skill files for you.
@@ -4695,14 +4699,14 @@ active workspace project when the prompt does not select one.
 
 Project glossary entries are authored as strand files under `sase/memory/glossary/`, one
 term per strand file, described by the `sase/memory/glossary.md` web descriptor; see
-[Memory Webs](memory.md#memory-webs). sase's TUI highlights matched glossary phrases in
-the prompt after the catalog is warm, rendering them bold, underlined, and in a muted
-blue so they read apart from the lavender repo-name highlight — the same "you can
-preview this with `K` or jump to it with `Ctrl+]`" affordance, a different hue. Matching
-skips inline code and fenced code and uses the shared longest-match rules from the macro
-LSP. Loading, validation, and matcher compilation run off the render path and are cached
-per project/source signature. Strand edits, project changes, and watched memory changes
-invalidate the cache.
+[Memory Webs](reference/memory/memory.md#memory-webs). sase's TUI highlights matched
+glossary phrases in the prompt after the catalog is warm, rendering them bold,
+underlined, and in a muted blue so they read apart from the lavender repo-name highlight
+— the same "you can preview this with `K` or jump to it with `Ctrl+]`" affordance, a
+different hue. Matching skips inline code and fenced code and uses the shared
+longest-match rules from the macro LSP. Loading, validation, and matcher compilation run
+off the render path and are cached per project/source signature. Strand edits, project
+changes, and watched memory changes invalidate the cache.
 
 `K` on a glossary phrase opens a compact definition card. The title shows the canonical
 term and discloses the matched phrase only when you opened an alias. The body renders
@@ -4717,10 +4721,10 @@ If the catalog is still loading, sase's TUI schedules a warm and asks you to ret
 rather than falling through to word lookup or an unrelated jump target.
 
 The card's `SEE ALSO` chips are the depth-1 case of the same closure resolver behind
-`sase memory show`/`read glossary:<keyword>` (see [Memory Webs](memory.md#memory-webs)):
-both walk outgoing reference spans from the shared `sase.memory.web.resolution` module,
-so the preview card and the CLI can never disagree about which terms a definition
-references.
+`sase memory show`/`read glossary:<keyword>` (see
+[Memory Webs](reference/memory/memory.md#memory-webs)): both walk outgoing reference
+spans from the shared `sase.memory.web.resolution` module, so the preview card and the
+CLI can never disagree about which terms a definition references.
 
 <a id="memory-panel"></a>
 
@@ -4728,9 +4732,9 @@ references.
 
 The **Memory panel** is the browse-and-edit surface for SASE memory notes, webs, and
 strands -- the Markdown files under a content root's `sase/memory/` (see
-[Memory](memory.md)). From a prompt pane, press `gm` in NORMAL mode or `Ctrl+G m` in
-INSERT or NORMAL. `K` previews one highlighted glossary phrase in place (see
-[Glossary terms](#glossary-terms)); `gG` in NORMAL mode or `Ctrl+G G` in INSERT or
+[Memory](reference/memory/memory.md)). From a prompt pane, press `gm` in NORMAL mode or
+`Ctrl+G m` in INSERT or NORMAL. `K` previews one highlighted glossary phrase in place
+(see [Glossary terms](#glossary-terms)); `gG` in NORMAL mode or `Ctrl+G G` in INSERT or
 NORMAL opens this same panel seeded on the glossary strand under the cursor, or on the
 `glossary` web when the cursor is not on a highlighted term. The which-key hint row
 lists `memory…` on both prefixes. If the cursor sits on a `#memory/<stem>` macro
@@ -4766,14 +4770,15 @@ Two navigation axes stay synchronized:
   `REFERENCED BY` (inbound) instead, when its web sets `link_reference: implicit` — the
   same mention graph `sase memory read`'s depth-limited resolution walks, plus the
   same-web `[[target]]` links the strand bodies author (see
-  [Memory Webs](memory.md#memory-webs) and [Memory Links](memory.md#memory-links)).
-  Numbering is continuous across both rows so `.1`–`.9` is never ambiguous. `Tab` /
-  `Shift+Tab` move a chip cursor, and `l` follows the focused chip -- or chip ① when
-  none is focused. `.` then `1`–`9` jumps straight to a numbered chip. Following pushes
-  the previous note onto a trail bounded at 32 entries and clears an active filter when
-  the target is hidden. `h` or `Backspace` walks back. A non-empty trail renders as
-  `TRAIL  a › b › c` above the footer. On the embedded Admin Center Config sub-tab, bare
-  `1`–`9` remain top-level Admin Center tab selectors.
+  [Memory Webs](reference/memory/memory.md#memory-webs) and
+  [Memory Links](reference/memory/memory.md#memory-links)). Numbering is continuous
+  across both rows so `.1`–`.9` is never ambiguous. `Tab` / `Shift+Tab` move a chip
+  cursor, and `l` follows the focused chip -- or chip ① when none is focused. `.` then
+  `1`–`9` jumps straight to a numbered chip. Following pushes the previous note onto a
+  trail bounded at 32 entries and clears an active filter when the target is hidden. `h`
+  or `Backspace` walks back. A non-empty trail renders as `TRAIL  a › b › c` above the
+  footer. On the embedded Admin Center Config sub-tab, bare `1`–`9` remain top-level
+  Admin Center tab selectors.
 
 `follow_link` ships as `enter,l`, but only `l` currently follows a chip: the note rail
 holds focus and consumes `Enter` for its own selection action. Use `l` or `.1`–`.9`.
@@ -4862,7 +4867,7 @@ and leads with an `AGENTS.md as launched` row resolved from launch evidence
 (`◌ as launched · not in git` or `snapshot unavailable` when it cannot match a commit).
 Chips load in a later off-thread pass and append at the row end, so they never delay or
 reflow the lane. A `v` hint on a chipped row opens the pager pinned to the version read;
-see [Memory History](memory_history.md#in-the-tui).
+see [Memory History](reference/memory/history.md#in-the-tui).
 
 `p` and `P` cycle the scope ring -- every enabled project with a memory root, the
 project you opened from even when it has none (so `a` can bootstrap it), and one `Home`
@@ -4886,17 +4891,18 @@ deleting a note that still has children is refused with an explanation of which 
 must be reparented first, and deleting a `short` note warns that always-loaded agent
 context is being removed. On a web row, `a` opens an add-strand form (keyword, optional
 comma-separated aliases, optional summary, body) with the same live-validation shape,
-against the same mutation engine described in [Memory Webs](memory.md#memory-webs). On a
-strand row, `d` confirms and deletes that strand, showing its relative path, keyword,
-aliases, the first line of its body, and any inbound `Referenced by` strands before
-anything is written; there is no strand edit form -- press `o` to open the strand file
-in `$EDITOR` instead. Every delete leaves a timestamped backup and the success toast
-names it. A generated note (`sase/memory/sase.md` and the project-only `task_types.md` /
-`sase_artifacts.md` / `sase_beads.md` / `sase_sizes.md`) renders its `GENERATED` badge
-and refuses edit or delete with an explanation; `sase/memory/glossary.md` and every
-other web descriptor are ordinary user-owned notes, not generated ones. A concurrent
-external edit is caught as a conflict: the write is refused, the panel toasts, and the
-scope reloads instead of silently overwriting the change.
+against the same mutation engine described in
+[Memory Webs](reference/memory/memory.md#memory-webs). On a strand row, `d` confirms and
+deletes that strand, showing its relative path, keyword, aliases, the first line of its
+body, and any inbound `Referenced by` strands before anything is written; there is no
+strand edit form -- press `o` to open the strand file in `$EDITOR` instead. Every delete
+leaves a timestamped backup and the success toast names it. A generated note
+(`sase/memory/sase.md` and the project-only `task_types.md` / `sase_artifacts.md` /
+`sase_beads.md` / `sase_sizes.md`) renders its `GENERATED` badge and refuses edit or
+delete with an explanation; `sase/memory/glossary.md` and every other web descriptor are
+ordinary user-owned notes, not generated ones. A concurrent external edit is caught as a
+conflict: the write is refused, the panel toasts, and the scope reloads instead of
+silently overwriting the change.
 
 Every successful write marks its scope `UNPUBLISHED`, because the write is not visible
 to agents until `sase memory init` regenerates `AGENTS.md`, the provider shims, and the
@@ -5977,8 +5983,8 @@ with no marks it targets every safely updatable installed CLI. `i` installs
 one tracked proc — or the highlighted row when nothing is marked. See the
 [Updates tab reference](reference/tui/admin-center.md#updates-tab) for the full keymap
 and behavior, [Plugins](plugins.md) for the equivalent `sase plugin` CLI, and
-[Agent providers](agent_providers.md#inventory-and-updates) for the equivalent
-`sase agent-cli` CLI.
+[Agent providers](reference/providers/agent-clis.md#inventory-and-updates) for the
+equivalent `sase agent-cli` CLI.
 
 The Updates pane still binds `a` to a tracked agents-sidecar publication sync. That
 action publishes and reconciles agent hoods for every enabled project; it is not part of

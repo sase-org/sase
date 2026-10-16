@@ -12,8 +12,9 @@ Provider selection, usage limits, retries, and execution budgets.
 ## llm_provider
 
 Configures which LLM backend sase uses and how size aliases map to concrete models. See
-[docs/llms.md](../../llms.md) for the full LLM provider architecture, preprocessing
-pipeline, and invocation lifecycle.
+[Providers and models](../providers/index.md) for provider behavior and
+[LLM invocation internals](../../contribute/llm-invocation.md) for the processing
+pipeline.
 
 ```yaml
 llm_provider:
@@ -24,7 +25,7 @@ llm_provider:
   epic_lander_model: "@large" # epic land agents below bead.big_epic_phase_threshold
   big_epic_lander_model: "@xlarge" # epic land agents at/above that threshold
   model_alias_history_limit: 10 # runs shown per alias in Launch Control history
-  # Override examples; shipped size-alias defaults are generated in docs/llms.md.
+  # Override examples; shipped size-alias defaults are generated in the provider reference.
   model_aliases:
     builtin:
       medium: codex/gpt-6.1-sol # specialize the medium size alias
@@ -77,10 +78,10 @@ task launches route directly to the size alias matching their size metadata; a l
 phase or task with no size metadata routes through `@small`. New tasks require an
 explicit size after `/sase_new_task` has ruled out a semantic duplicate and a causally
 related in-progress epic. See
-[Built-in size aliases](../../llms.md#implicit-role-aliases) for the full
+[Built-in size aliases](../providers/models.md#implicit-role-aliases) for the full
 shipped-defaults table and
-[Role Aliases for Delegated Work](../../llms.md#role-aliases-for-delegated-work) for how
-delegated launches pick a model.
+[Role Aliases for Delegated Work](../providers/models.md#role-aliases-for-delegated-work)
+for how delegated launches pick a model.
 
 Three scalar `llm_provider` fields choose the model for launches that aren't driven by
 phase/task/tale size routing: `default_model` (used when a launch has no explicit
@@ -132,8 +133,9 @@ under the `model_aliases.builtin.epic_creator` key.
 The TUI also supports **temporary**, per-alias session-level provider/model overrides
 (set from [Launch Control](../../ace.md#launch-control), `,m`) that do **not** edit this
 config. They are persisted to `~/.sase/llm_override.json` and expired entries are
-deleted on next read. See [docs/llms.md](../../llms.md#temporary-model-overrides) for
-the resolution order, state-file format, and precedence relative to
+deleted on next read. See
+[Temporary model overrides](../providers/routing.md#temporary-model-overrides) for the
+resolution order, state-file format, and precedence relative to
 `SASE_MODEL_TIER_OVERRIDE`.
 
 The same panel's `p=Providers` flow manages temporary provider disables in
@@ -145,7 +147,7 @@ direct explicit provider/model requests fail with an actionable diagnostic inste
 silently switching providers. A **soft** disable is spared in `|` pools while another
 member can cover, never diverts a `||` fallback, and does not pause overrides or fail
 explicit requests. See
-[Temporary Provider Disables](../../llms.md#temporary-provider-disables).
+[Temporary Provider Disables](../providers/routing.md#temporary-provider-disables).
 
 <a id="llmproviderusagelimit"></a>
 
@@ -188,8 +190,8 @@ Launch Control, with `source: "usage_limit"`. They expire and self-clean like ma
 disables, can be cleared early from Launch Control, and do not unregister or rewrite a
 provider. If a fallback is available, retry/fallback may proceed only to a different
 enabled provider; the disabled provider remains skipped until expiry or clearing. See
-[Usage-Limit Auto-Disable](../../llms.md#usage-limit-auto-disable) for reset-hint
-parsing, notification, and replacement details.
+[Usage-Limit Auto-Disable](../providers/usage.md#usage-limit-auto-disable) for
+reset-hint parsing, notification, and replacement details.
 
 <a id="llmproviderusagemetrics"></a>
 
@@ -207,10 +209,10 @@ Claude, Codex, Grok, Muse Code, and Antigravity ship collectors. Muse's is a fre
 probe against `muse serve` — no model call and no tokens — so it costs only about three
 seconds of wall clock per refresh. To turn it off, set
 `llm_provider.usage_metrics.providers.muse.enabled` to `false`; see
-[Muse Code subscription usage](../../agent_providers.md#muse-subscription-usage).
+[Muse Code subscription usage](../providers/agent-clis.md#muse-subscription-usage).
 Antigravity's is likewise a free local `/usage` probe (`agy >= 1.1.11`, about three to
 five seconds per refresh); see
-[Antigravity subscription usage](../../agent_providers.md#agy-subscription-usage).
+[Antigravity subscription usage](../providers/agent-clis.md#agy-subscription-usage).
 
 Every recorded attempt carries its outcome, failure reason, and any `Retry-After` hint,
 and refresh backoff follows the failure class. `sase usage list -v` shows the
@@ -349,7 +351,7 @@ override at `~/.sase/llm_effort_override.json`. It uses the alias override durat
 exact-time cards, but its state and precedence are independent: explicit prompt effort
 and alias/member effort win, then the temporary effort override, then
 `llm_provider.default_effort`, then the provider default. See
-[Reasoning Effort](../../llms.md#reasoning-effort).
+[Reasoning Effort](../providers/models.md#reasoning-effort).
 
 Its fixed `Ctrl+R` binding manages `max_running_agents`: persistent edits target the
 user-base `sase.yml` (or its chezmoi source), while temporary values live independently
@@ -396,8 +398,8 @@ configuration and never lets the `agy` instruction reserve drop below 512 bytes.
 ### `llm_provider.retry`
 
 Per-provider retry and fallback configuration. See
-[docs/llms.md](../../llms.md#retry-and-fallback) for the full retry flow and TUI
-display.
+[Provider retry and fallback](../providers/retry-and-fallback.md#retry-and-fallback) for
+the full retry flow and TUI display.
 
 ```yaml
 llm_provider:

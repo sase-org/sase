@@ -112,7 +112,7 @@ def check_llm_shipped_model_policy() -> DiagnosticCheck:
             details=tuple(format_policy_violations(violations).splitlines()),
             next_steps=(
                 "Fix src/sase/llm_provider/models.yml, run `just fix` to "
-                "regenerate docs/llms.md, then rerun "
+                "regenerate docs/reference/providers/, then rerun "
                 "`sase doctor -C llm.model_policy`.",
             ),
             data={"violation_count": len(violations)},

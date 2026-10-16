@@ -2,8 +2,8 @@
 # defaults, and size-alias pools. This file is the single edit point for
 # routine built-in model maintenance: adding a model, changing a tier
 # default, or retuning a size-alias pool should require no edits to Python
-# source, tests, examples, or prose (run `just fix` to regenerate
-# `docs/llms.md`, then `just check`).
+# source, tests, examples, or prose (run `just fix` to regenerate the
+# model tables in `docs/reference/providers/`, then `just check`).
 #
 # Layout:
 # - `schema_version`: manifest schema; loaders reject anything else.

@@ -45,7 +45,6 @@
 ## Reference
 
 - [Agent Attachments and Image Previews](agent_images.md) — Agent Attachments and Image Previews — SASE treats files produced by agents as first-class completion artifacts.
-- [Installing & Authenticating Agent Providers](agent_providers.md) — Installing & Authenticating Agent Providers — SASE normally orchestrates an existing coding-agent CLI; the exception is the bundled fakey testing provider.
 - [Agent Clans, Sessions, and Tribes](agent_sessions.md) — Agent Clans, Sessions, and Tribes — SASE uses three different kinds of agent grouping.
 - [Agent Hood Synchronization](agents_sidecar.md) — Agent Hood Synchronization — SASE publishes deterministic project-scoped agent-hood snapshots and canonical prompt archives through each managed project's hidden agents sidecar.
 - [Artifact Links](artifact_links.md) — Artifact Links — Artifact links are typed relationships between SASE artifacts.
@@ -58,11 +57,7 @@
 - [Editor Integration](editor.md) — Editor Integration — SASE exposes two editor-facing surfaces for prompt and macro editing:
 - [Goals](goals.md) — Goals — Goals are durable records of outcomes a person wants: what will be true, how you'll know, and what happened along the way.
 - [Initialization](init.md) — Initialization — SASE initialization commands create or refresh durable files that agents and sidecar tools rely on.
-- [Instruction Bundles](instruction_bundles.md) — Instruction Bundles — An instruction bundle collects the project, home, and SASE instructions for one agent invocation.
-- [LLM Provider Integration](llms.md) — LLM Provider Integration — This document describes the LLM provider abstraction layer in sase.
 - [Macro Template Reference](macros.md) — Macro Template Reference — Macros are reusable prompt templates with optional typed inputs and Jinja2 support.
-- [Memory](memory.md) — Memory — SASE memory is durable context that survives individual agent chats.
-- [Memory History](memory_history.md) — Memory History — Every committed version of every SASE memory note, web, strand, and agent instruction file (AGENTS.md plus its provider shims, project and home) can be browsed quickly and understood at a glance.
 - [Mentors](mentors.md) — Mentors — Mentors are automated AI code review agents for Patches.
 - [Mobile Gateway](mobile_gateway.md) — Mobile Gateway — The SASE mobile gateway is a workstation-hosted HTTP gateway for paired mobile clients.
 - [Monitors](monitors.md) — Monitors — A monitor turn is a real agent session member whose work is one supervised OS command instead of an LLM turn.
@@ -180,6 +175,25 @@
 - [Reference](reference/index.md) — Look up exact SASE facts here, generated from code where possible.
 - [Macro directives](reference/macros/directives.md) — The generated catalog of prompt directives and their syntax.
 - [Macro discovery order](reference/macros/discovery-order.md) — File-backed macro and workflow locations in lookup order.
+- [Memory History](reference/memory/history.md) — How SASE records and displays changes to memory notes and instruction documents.
+- [Memory](reference/memory/index.md) — Lookup pages for durable memory, instruction bundles, and memory history.
+- [Instruction bundles](reference/memory/instruction-bundles.md) — How SASE instruction bundles are previewed and how providers report delivery behavior.
+- [Memory](reference/memory/memory.md) — How SASE stores, composes, audits, and links durable memory context.
+- [Installing and authenticating agent CLIs](reference/providers/agent-clis.md) — Provider CLIs that SASE can install, authenticate, inspect, and update safely.
+- [Antigravity provider](reference/providers/agy.md) — Antigravity CLI command construction, model mapping, and provider-specific behavior.
+- [Claude Code provider](reference/providers/claude.md) — Claude Code command construction, model mapping, and provider-specific behavior.
+- [Codex CLI provider](reference/providers/codex.md) — Codex command construction, model mapping, planning, and provider-specific behavior.
+- [Provider configuration](reference/providers/configuration.md) — Configuration fields and command-line options that affect provider invocation.
+- [Grok Build provider](reference/providers/grok.md) — Grok Build command construction, event streaming, and provider-specific behavior.
+- [Providers and models](reference/providers/index.md) — Lookup pages for provider integrations, model selection, routing, and usage.
+- [Models and aliases](reference/providers/models.md) — Model names, reasoning effort, model tiers, and aliases used for provider routing.
+- [Muse Code provider](reference/providers/muse.md) — Muse Code command construction, event streaming, and provider-specific behavior.
+- [OpenCode provider](reference/providers/opencode.md) — OpenCode command construction, model mapping, and provider-specific behavior.
+- [External provider plugins](reference/providers/plugins.md) — How external plugins extend SASE's LLM provider registry.
+- [Qwen Code provider](reference/providers/qwen.md) — Qwen Code command construction, authentication, and provider-specific behavior.
+- [Provider retry and fallback](reference/providers/retry-and-fallback.md) — Retry defaults, fallback behavior, and how provider failures affect invocations.
+- [Provider routing](reference/providers/routing.md) — Per-prompt selection and temporary provider or model routing controls.
+- [Provider usage](reference/providers/usage.md) — Subscription usage reporting and automatic provider disabling at usage limits.
 - [Runner slots](reference/runner-slots.md) — How runner capacity admits queued agents, and what waiting.json records.
 - [SASE Admin Center](reference/tui/admin-center.md) — Navigation, sections, and editor behavior in the SASE Admin Center.
 - [Agent row glyphs](reference/tui/agent-row-glyphs.md) — Glyphs, markers, and badges on Agents tab rows.
@@ -196,6 +210,7 @@
 - [Content layout migration](reference/upgrading/content-layout.md) — Migration steps and compatibility behavior for SASE content paths.
 - [Upgrading](reference/upgrading/index.md) — Upgrade and history notes, organized by area with the newest notes first.
 - [Local state cutover](reference/upgrading/local-state.md) — The temporary offline kit for moving legacy local state into canonical locations.
+- [Provider migration notes](reference/upgrading/providers.md) — Historical compatibility notes for provider metadata and model selection.
 - [Remote Dispatch Runbook](remote_dispatch.md) — Remote Dispatch Runbook — Remote dispatch lets one SASE controller discover, enroll, and operate agents on another machine.
 - [Spec-Driven Development (SDD)](sdd.md) — Spec-Driven Development (SDD) — SDD is sase's system for persisting the intent behind agent work.
 - [Sudo Requests](sudo.md) — Sudo Requests — SASE sudo requests let an agent ask for reviewed privileged execution without ever asking for, receiving, logging, or proxying a password.
@@ -214,7 +229,9 @@
 - [Development](contribute/development.md) — This page orients contributors working in the sase repository.
 - [Fakey Testing Provider](contribute/fakey.md) — fakey is a deterministic fake agent CLI bundled with SASE.
 - [Contribute](contribute/index.md) — Contributor guides, internals, contracts, and runbooks for SASE.
+- [Instruction bundle internals](contribute/instruction-bundle-internals.md) — Manifest, storage, cache, and delivery contracts for generated instruction bundles.
 - [Integration APIs](contribute/integration-apis.md) — SASE exposes a small set of Python helpers for external plugins, chat clients, mobile clients, and editor integrations.
+- [LLM invocation internals](contribute/llm-invocation.md) — Internal provider architecture, prompt processing, subprocess handling, and invocation lifecycle.
 - [Mobile MVP Runbook](contribute/mobile-mvp-runbook.md) — This runbook covers the private Android MVP that connects a phone to a workstation-hosted SASE mobile gateway.
 - [sase tui Performance Runbook](contribute/perf-runbook.md) — This runbook explains how to capture and compare performance data for sase's TUI, the sase tui terminal user interface.
 - [Reader testing](contribute/reader-testing.md) — How to run an observed reader round and turn the results into doc changes.
@@ -242,6 +259,8 @@
 - [sase's TUI User Guide](ace.md) — sase's TUI User Guide — sase's TUI is the primary TUI for the SASE toolkit.
 - [Configuration Reference](configuration.md) — Configuration Reference — Moved to Configuration files and merging.
 - [Canonical SASE Content Layout](content_layout.md) — This page has moved to its new home.
+- [Instruction Bundles](instruction_bundles.md) — This page has moved to its new home.
+- [LLM Provider Integration](llms.md) — This page has moved to its new home.
 - [Rust Backend (sase_core_rs)](rust_backend.md) — This page has moved to its new home.
 
 ## Moved pages
@@ -268,3 +287,8 @@
 | `/artifacts_pane_contract/` | [`/contribute/artifacts-pane-contract/`](contribute/artifacts-pane-contract.md) |
 | `/artifacts_pane_visual_grammar/` | [`/contribute/artifacts-pane-visual-grammar/`](contribute/artifacts-pane-visual-grammar.md) |
 | `/sdd_storage/` | [`/contribute/sdd-storage/`](contribute/sdd-storage.md) |
+| `/agent_providers/` | [`/reference/providers/agent-clis/`](reference/providers/agent-clis.md) |
+| `/memory_history/` | [`/reference/memory/history/`](reference/memory/history.md) |
+| `/llms/` | [`/reference/providers/`](reference/providers/index.md) |
+| `/instruction_bundles/` | [`/reference/memory/instruction-bundles/`](reference/memory/instruction-bundles.md) |
+| `/memory/` | [`/reference/memory/memory/`](reference/memory/memory.md) |

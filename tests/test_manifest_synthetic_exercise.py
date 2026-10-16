@@ -112,7 +112,7 @@ def test_synthetic_manifest_regenerates_docs_cleanly(tmp_path: Path) -> None:
 
     manifest = tmp_path / "models.yml"
     manifest.write_text(_synthetic_manifest_text(), encoding="utf-8")
-    docs = tmp_path / "llms.md"
+    docs = tmp_path / "models.md"
     _write_stale_docs(renderer, docs, manifest)
 
     assert renderer.render_docs(docs, manifest) is True
