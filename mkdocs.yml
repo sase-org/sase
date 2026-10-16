@@ -137,7 +137,21 @@ nav:
           - Query language: query_language.md
           - Named tools: tool.md
       - Configuration:
-          - Configuration: configuration.md
+          - Configuration files and behavior: configuration.md
+          - Configuration reference:
+              - Overview: reference/config/index.md
+              - Core and identity: reference/config/core.md
+              - Memory and instructions: reference/config/memory.md
+              - TUI: reference/config/tui.md
+              - Scheduler: reference/config/scheduler.md
+              - LLM provider: reference/config/llm-provider.md
+              - Agents and runners: reference/config/agents.md
+              - Repositories and version control: reference/config/repositories.md
+              - Prompts and tools: reference/config/prompts.md
+              - Automation and work tracking: reference/config/automation.md
+              - Runtime and stored data: reference/config/runtime.md
+              - Integrations and telemetry: reference/config/integrations.md
+              - Schema description coverage: reference/config/needs-description.md
           - ProjectSpec: project_spec.md
       - Macros and workflows:
           - Macros: macros.md

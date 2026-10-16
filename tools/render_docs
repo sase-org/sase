@@ -26,6 +26,7 @@ class Source:
 # guards its no-sase-import guarantee with a dedicated test.
 SOURCES = (
     Source("model-catalog", "render_model_docs", False),
+    Source("config-registry", "render_config", False),
     Source("applicability", "render_applicability", False),
     Source("install-command", "render_install_command", False),
     Source("page-moves", "render_moves", False),

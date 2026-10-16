@@ -17,60 +17,7 @@ sections, environment variables, and CLI flags.
   - [Updates tab](#updates-tab)
 - [Deep-Merge System](#deep-merge-system)
 - [Configuration Sections](#configuration-sections)
-  - [memory.h1_title](#memoryh1_title)
-  - [generated templates](#generated-templates)
-  - [is_sase_managed](#is_sase_managed)
-  - [id](#id)
-  - [machine_name (deprecated)](#machine_name-deprecated)
-  - [ace](#ace)
-  - [artifacts](#artifacts)
-  - [artifact_refs](#artifact_refs)
-  - [llm_provider](#llm_provider)
-  - [finalizers](#finalizers)
-  - [commit.message](#commitmessage)
-  - [monitor](#monitor)
-  - [repos](#repos)
-  - [dispatch](#dispatch)
-  - [vcs_provider](#vcs_provider)
-  - [vcs_repo_completion](#vcs_repo_completion)
-  - [vcs_ref_completion](#vcs_ref_completion)
-  - [axe](#axe)
-  - [file_hooks](#file_hooks)
-  - [plugins](#plugins)
-  - [mentor_profiles](#mentor_profiles)
-  - [metahooks](#metahooks)
-  - [macros](#macros)
-  - [macro_aliases](#macro_aliases)
-  - [use_chezmoi](#use_chezmoi)
-  - [commit_hooks](#commit_hooks)
-  - [gate](#gate)
-  - [autonomy](#autonomy)
-  - [max_running_agents](#max_running_agents)
-  - [max_agent_pipe_chain](#max_agent_pipe_chain)
-  - [runner_slots](#runner_slots)
-  - [agent_scope_teardown](#agent_scope_teardown)
-  - [agent_auto_restart](#agent_auto_restart)
-  - [agent hold limits](#agent-hold-limits)
-  - [procs](#procs)
-  - [service](#service)
-  - [disk](#disk)
-  - [managed_tmp](#managed_tmp)
-  - [markdown](#markdown)
-  - [pager](#pager)
-  - [timezone](#timezone)
-  - [chat_install](#chat_install)
-  - [telegram](#telegram)
-  - [tmux_agent](#tmux_agent)
-  - [mobile_gateway](#mobile_gateway)
-  - [sdd](#sdd)
-  - [bead](#bead)
-  - [external_mirror](#external_mirror)
-  - [feature_flags](#feature_flags)
-  - [workspace](#workspace)
-  - [telemetry](#telemetry)
-  - [tool_runs](#tool_runs)
-  - [tools](#tools)
-  - [update](#update)
+- [Generated configuration reference](reference/config/index.md)
 - [Environment Variables](#environment-variables)
 - [CLI Flags](#cli-flags)
 - [Directory Sharding](#directory-sharding)
@@ -579,6 +526,10 @@ Source: `src/sase/config/core.py`, `src/sase/config/loading.py`
 
 ## Configuration Sections
 
+The generated [configuration reference](reference/config/index.md) owns key paths,
+types, defaults, allowed values, and schema descriptions. The sections below retain
+file, merge, and runtime behavior that the schema cannot express.
+
 ### memory.h1_title
 
 Optionally customizes the Markdown H1 title of a generated managed `AGENTS.md`.
@@ -588,9 +539,7 @@ memory:
   h1_title: "Structured Agentic Software Engineering (SASE) - Agent Instructions" # default: null
 ```
 
-| Field             | Type           | Default | Description                                                                             |
-| ----------------- | -------------- | ------- | --------------------------------------------------------------------------------------- |
-| `memory.h1_title` | string \| null | `null`  | H1 title used by the `sase memory init` `AGENTS.md` generator when enabled for a scope. |
+[Generated reference for `memory.h1_title`](reference/config/memory.md#memory-h1_title)
 
 For ordinary project roots, `is_sase_managed: true` in that root's own `sase/sase.yml`
 is the authorization switch. A managed project with no title derives
@@ -683,9 +632,7 @@ Controls whether SASE owns repository resources such as project memory, the root
 is_sase_managed: false # default
 ```
 
-| Field             | Type    | Default | Description                                                              |
-| ----------------- | ------- | ------- | ------------------------------------------------------------------------ |
-| `is_sase_managed` | boolean | `false` | Explicitly authorize SASE to manage resources in the current repository. |
+[Generated reference for `is_sase_managed`](reference/config/core.md#is_sase_managed)
 
 Only the target repository's own checked-in `sase/sase.yml` is consulted for this
 authorization. A legacy root `sase.yml` remains readable only when the canonical file is
@@ -716,10 +663,7 @@ id:
   machine_name: athena
 ```
 
-| Field             | Type   | Default | Description                                                                                           |
-| ----------------- | ------ | ------- | ----------------------------------------------------------------------------------------------------- |
-| `id.username`     | string | none    | Stable per-user identity shared across that user's machines; syntax and reserved names are validated. |
-| `id.machine_name` | string | none    | Per-user machine name matching `^[a-z_]+$` and the local selector.                                    |
+[Generated reference for `id`](reference/config/core.md#id)
 
 The schema permits partial objects so `sase config init` can diagnose and repair
 interrupted or legacy migrations, but provenance requires both valid fields.
@@ -844,31 +788,7 @@ ace:
             shell: "just test"
 ```
 
-| Field                               | Type         | Default   | Description                                                                                                                                                       |
-| ----------------------------------- | ------------ | --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `artifact_file_viewer`              | dict         | see below | mpv-backed terminal video playback settings for the external artifact-file viewer.                                                                                |
-| `artifacts`                         | dict         | see below | Per-pane settings for sase's TUI Artifacts tab.                                                                                                                   |
-| `axe_description_expanded`          | bool         | `true`    | State the Services-tab [description panel](ace.md#description-panel) for service procs, routines, and jobs starts each session in; `d` toggles it in memory.      |
-| `current_project`                   | dict         | see below | Top-bar `+<project>` chip and session seeds for project filters.                                                                                                  |
-| `keymaps`                           | dict         | -         | Configurable keybindings (see below).                                                                                                                             |
-| `notification_indicator_max_counts` | int          | `4`       | Per-tab counts shown in the top-bar notification indicator before the rest collapse into `+N`.                                                                    |
-| `notification_rules`                | list         | `[]`      | Ordered rules for whether a notification toasts, what sound it plays, and whether Telegram may deliver it; see [Delivery Rules](notifications.md#delivery-rules). |
-| `notification_tabs`                 | dict         | see below | Per-tab colors, icons, priorities, and grouping for notification tabs.                                                                                            |
-| `page_size`                         | int          | `100`     | Ctrl+J / Ctrl+K step and the default Artifacts `limit:` value. Must be at least 1. Launch Control alias history uses a fixed 10-run step instead.                 |
-| `prompt_completion`                 | dict         | see below | Live soft-completion settings for sase's TUI prompt input.                                                                                                        |
-| `prompt_inputs`                     | dict         | see below | Prompt input collection settings for raw `<placeholder>` tags and macro-save conversion.                                                                          |
-| `prompt_spellcheck`                 | dict         | see below | Sticky misspelling highlight settings for sase's TUI prompt input.                                                                                                |
-| `prompt_stash`                      | dict         | see below | Stash Trash recovery settings for sase's TUI Prompts overlay.                                                                                                     |
-| `agent_decks`                       | dict         | see below | Agent data deck spread versus paged rendering settings for the Agents tab.                                                                                        |
-| `agent_header`                      | dict         | see below | Collapsed Agents-tab header panel MACRO preview budget.                                                                                                           |
-| `agent_tabs`                        | dict         | see below | Agent tab machine mode and per-tab styling for the Agents tab.                                                                                                    |
-| `prompt_submission`                 | dict         | see below | Plain-Enter submission confirmation settings for sase's TUI prompt input.                                                                                         |
-| `repro_output_dir`                  | str          | `""`      | Base directory for [Agents-tab reproduction bundles](ace.md#agents-tab-reproduction-bundles). Empty means `<SASE_HOME>/repros` (default `~/.sase/repros`).        |
-| `snippet_config_path`               | str          | `""`      | Config file that receives new `ace.snippets` entries written from the prompt bar (see below).                                                                     |
-| `snippets`                          | dict[string] | `{}`      | Trigger-word → template mappings for prompt input snippet expansion.                                                                                              |
-| `tool_calls`                        | dict         | see below | Tool-call presentation settings for sase's TUI Agents tab.                                                                                                        |
-| `tribes`                            | dict         | see below | Per-tribe sase's TUI icons and identity colors, plus Agents-tab panel initial expansion.                                                                          |
-| `updates`                           | dict         | see below | Startup update checks, the top-bar update badge, and the one-shot post-update restart confirmation toast.                                                         |
+[Generated reference for `ace`](reference/config/tui.md#ace)
 
 #### `ace.artifact_file_viewer`
 
@@ -885,12 +805,7 @@ ace:
       extra_mpv_args: []
 ```
 
-| Field                  | Type             | Default   | Description                                                     |
-| ---------------------- | ---------------- | --------- | --------------------------------------------------------------- |
-| `video.audio`          | bool             | `false`   | Start playback unmuted.                                         |
-| `video.loop`           | bool             | `false`   | Loop playback with mpv `--loop-file=inf`.                       |
-| `video.vo`             | str              | `"kitty"` | mpv video output driver, such as `kitty` or `tct`.              |
-| `video.extra_mpv_args` | list[str] or str | `[]`      | Extra mpv arguments appended after SASE's own playback options. |
+[Generated reference for `ace.artifact_file_viewer`](reference/config/tui.md#ace-artifact_file_viewer)
 
 SASE launches mpv with `--no-config`, so put viewer-specific customization here rather
 than in an mpv profile. See [Video Preview](agent_images.md#video-preview) for playback
@@ -898,19 +813,13 @@ keys.
 
 #### `ace.artifacts`
 
-| Field                | Type | Default   | Description                                                                                                                                                                                                                              |
-| -------------------- | ---- | --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `description_mode`   | str  | `summary` | Initial Artifacts pane description mode: `off`, `summary`, or `full`. The configured cycle key changes it in memory for the current session only.                                                                                        |
-| `panes`              | dict | `{}`      | Per-pane description overrides keyed by pane id (`agents`, `stitches`, `patches`, `beads`, `files`, or provider ids such as `ref:plan`). `description` and `description_body` resolve independently and are both optional for each pane. |
-| `relations_expanded` | bool | `false`   | Whether the [Artifacts relation panel](ace.md#navigation-in-agent-commits-beads-provider-documents-and-files) starts expanded; `.` (`toggle_relation_panel`) toggles it in memory for the current session only.                          |
+[Generated reference for `ace.artifacts`](reference/config/tui.md#ace-artifacts)
 
 #### `ace.artifacts.stitches`
 
 `ace.artifacts.commits` is a deprecated alias for this block; it still loads and warns.
 
-| Field           | Type | Default                               | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| --------------- | ---- | ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `default_query` | str  | `sidecar:false merges:hide since:24h` | Initial persistent Stitches query. Supports one configured project name, directory key, or alias in `project:`; startup may add the current registered project. Accepts repeatable/negatable `origin:stitch`, `origin:auto`, or `origin:manual`, plus repeatable/negatable `type:` labels including `manual`, `automatic` (`auto` alias), `stitch`, `merge`, `patch`, and observed `SASE_TYPE` values. `merges:hide`, `merges:show`, or `merges:only` still controls merge visibility. Relative windows re-anchor on refresh; changes apply on next start. |
+[Generated reference for `ace.artifacts.stitches`](reference/config/tui.md#ace-artifacts-stitches)
 
 The Stitches pane validates this value with its live query parser. Invalid runtime
 configuration produces a warning and falls back to the bundled query. An empty
@@ -956,11 +865,7 @@ The current project is derived from the head of the VCS macro MRU store — the 
 you last launched an agent on. `sase project set-current` and the Projects tab perform
 the same MRU promotion without a launch.
 
-| Field               | Type | Default | Description                                                                                                                                                                                                                              |
-| ------------------- | ---- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `indicator`         | bool | `true`  | Show the `+<project>` chip in sase's TUI top bar, right of the default-model indicator. Governs the top-bar chip only; the Admin Center [Projects tab](ace.md#projects-tab) always shows the current project regardless of this setting. |
-| `seed_filters`      | bool | `true`  | Seed project filters that have no value yet. Never overrides an explicit choice or an already-open surface.                                                                                                                              |
-| `seed_agents_query` | bool | `false` | Also seed the active Agents-tab query dialect with the current project's exact `project:` term when no submitted Agents query, including explicit empty, is remembered.                                                                  |
+[Generated reference for `ace.current_project`](reference/config/tui.md#ace-current_project)
 
 `seed_agents_query` is **off by default** on purpose. The Agents tab is the primary
 at-a-glance view, and its structured query is also read by unread-jump candidates and
@@ -981,12 +886,7 @@ are already open.
 configures the reserved `@default` panel. Every configured tribe entry is **required**
 to carry a `description`; the other fields are optional:
 
-| Field                | Type | Default    | Description                                                                                                                                                                                               |
-| -------------------- | ---- | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `icon`               | str  | `""`       | Short glyph on structured identity surfaces that already include an icon. Set `""` to remove an icon inherited from defaults.                                                                             |
-| `color`              | str  | `""`       | `#RRGGBB` foreground for structured tribe icons and names throughout the TUI. Set `""` to restore sase's TUI gold fallback.                                                                               |
-| `initially_expanded` | bool | `true`     | State applied every time the Agents-tab panel comes into existence.                                                                                                                                       |
-| `description`        | str  | _required_ | One-line explanation of the tribe, 1-160 characters. Shown as an unlabeled row beneath the header fields (`Name`/`Status`/`Composition`/`Runtime`/`Fold`) when that tribe's Agents-tab panel is selected. |
+[Generated reference for `ace.tribes`](reference/config/tui.md#ace-tribes)
 
 The bundled defaults use ⌂ in sky blue for `default`, ▲ in lavender-purple for `epic`,
 and † in amber-orange for `job`. They also use ◆ for `pinned` and ◉ for `review`, whose
@@ -1025,12 +925,7 @@ user-facing tab names: the synthetic `hitl`, `errors`, `general`, `snoozed`, and
 tabs (never the internal `__snoozed__` / `__muted__` spellings), a gate-declared panel
 name such as `beads`, or a notification tag.
 
-| Field      | Type | Default | Description                                                                                                                          |
-| ---------- | ---- | ------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| `color`    | str  | `""`    | `#RRGGBB` foreground for that tab's count chip and its tooltip label. Set `""` to restore the built-in default for the tab.          |
-| `icon`     | str  | `""`    | One emoji or display glyph for that tab's chip and tab-strip icon. Set `""` to restore the built-in default for the tab.             |
-| `priority` | int  | inherit | Sort weight for that tab in the panel strip and the indicator; higher sorts earlier. Omit to inherit the default for the tab's kind. |
-| `grouping` | str  | `""`    | Row grouping strategy for the notification modal. `""` uses the built-in default, and `recent` opts out to a flat newest-first list. |
+[Generated reference for `ace.notification_tabs`](reference/config/tui.md#ace-notification_tabs)
 
 Colors resolve by precedence, highest first: this setting, then a color the sending gate
 declared through `presentation.color`, then the built-in default for a tab sase's TUI
@@ -1098,9 +993,7 @@ ace:
     slow_threshold_seconds: 20
 ```
 
-| Field                    | Type | Default | Minimum | Description                                                                          |
-| ------------------------ | ---- | ------- | ------- | ------------------------------------------------------------------------------------ |
-| `slow_threshold_seconds` | int  | `20`    | `0`     | Minimum tool-call duration shown as slow in Agents metadata and tool-call timelines. |
+[Generated reference for `ace.tool_calls`](reference/config/tui.md#ace-tool_calls)
 
 The threshold drives the `SLOW TOOL CALLS` section of the Agents metadata header and the
 slow markers in the [Agents Tab LLM Calls Panel](ace.md#agents-tab-llm-calls-panel). A
@@ -1108,25 +1001,7 @@ missing, negative, or non-integer value falls back to `20`.
 
 #### `ace.updates`
 
-| Field                                   | Type   | Default | Description                                                                                                                       |
-| --------------------------------------- | ------ | ------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| `startup_toast`                         | bool   | `true`  | Show the startup toast when cached status reports SASE, plugin, or supported agent-CLI updates.                                   |
-| `startup_toast_max_commits`             | int    | `20`    | Maximum total incoming commit subjects shown across all repositories in the startup toast.                                        |
-| `post_update_toast`                     | bool   | `true`  | Show a one-shot combined result after an update changes SASE code and restarts sase's TUI.                                        |
-| `post_update_toast_diffstat`            | bool   | `true`  | Show per-repository applied file and line-change statistics when available.                                                       |
-| `post_update_toast_commits`             | bool   | `true`  | Show applied commits grouped by repository when available.                                                                        |
-| `post_update_toast_max_commits`         | int    | `5`     | Maximum applied commit subjects shown per repository; `0` keeps totals but hides subjects.                                        |
-| `agent_cli_history`                     | bool   | `true`  | Show the durable update-history panel beneath the selected Agent CLI row's details.                                               |
-| `agent_cli_history_max_rows`            | int    | `8`     | Maximum rows in the this-CLI view or runs in the all-CLIs view; `0` shows all history loaded for the pane.                        |
-| `indicator`                             | bool   | `true`  | Show the segmented SASE and agent-CLI badge when cached status reports available updates.                                         |
-| `prebuild_rust`                         | bool   | `true`  | Prebuild exact-match editable `sase-core` Rust artifacts in the background; update confirmation falls back on every cache miss.   |
-| `incoming_commits.enabled`              | bool   | `true`  | Fetch and show incoming commit subjects for SASE core and plugin repositories.                                                    |
-| `incoming_commits.max_per_repo`         | int    | `7`     | Maximum incoming commit subjects to show per repository in Updates-tab details.                                                   |
-| `incoming_commits.confirm_max_per_repo` | int    | `250`   | Maximum subjects fetched per repository in update confirmations; larger ranges show an explicit `+N more` marker.                 |
-| `check_interval_minutes`                | number | `10`    | Interval between local cached-snapshot revalidation attempts in a running sase's TUI session.                                     |
-| `check_ttl_minutes`                     | number | `10`    | Minimum age before a startup update check recomputes cached status; this bundled default always wins over the legacy hours key.   |
-| `check_ttl_hours`                       | number | unset   | Deprecated and schema-valid, but currently has no effect in a normal merged config because `check_ttl_minutes` is always present. |
-| `recompute_interval_minutes`            | number | `60`    | Minimum snapshot age before a full SASE/plugin/agent-CLI network recompute; intervening checks only revalidate locally.           |
+[Generated reference for `ace.updates`](reference/config/tui.md#ace-updates)
 
 Set `check_ttl_minutes` to change the startup cache TTL. Although `check_ttl_hours`
 remains accepted for compatibility, sase's TUI resolves the merged `check_ttl_minutes`
@@ -1474,10 +1349,7 @@ Remote retry, stop, and fork reuse the ordinary `agents_retry`, `kill_agent`, an
 `leader_mode`, `bang_mode`) can be reconfigured, and custom modes can be added. Each
 mode has:
 
-| Field    | Type | Description                                                                                           |
-| -------- | ---- | ----------------------------------------------------------------------------------------------------- |
-| `prefix` | str  | The activation key for the mode.                                                                      |
-| `keys`   | dict | Sub-key definitions. For custom modes, each entry needs a `key` field and either `shell` or `action`. |
+[Generated reference for `ace.keymaps`](reference/config/tui.md#ace-keymaps)
 
 The built-in `fold_mode` direct actions are `set_level_1` through `set_level_3` for PR
 details and the nested `agents.set_level_1` through `agents.set_level_4` for Agents
@@ -1574,11 +1446,7 @@ Artifacts tab (any sub-tab); it does not arm on Agents or Services.
 
 Custom mode key fields:
 
-| Field    | Type | Required | Description                            |
-| -------- | ---- | -------- | -------------------------------------- |
-| `key`    | str  | yes      | The sub-key to press after the prefix. |
-| `shell`  | str  | no\*     | Shell command to execute.              |
-| `action` | str  | no\*     | Built-in action name to invoke.        |
+[Generated reference for `ace.keymaps`](reference/config/tui.md#ace-keymaps)
 
 \*Exactly one of `shell` or `action` must be provided.
 
@@ -1692,27 +1560,7 @@ ace:
     next_word_sources: [history]
 ```
 
-| Field                         | Type        | Default     | Description                                                                                                                                                                                                                               |
-| ----------------------------- | ----------- | ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `auto`                        | bool/string | `soft`      | Automatic mode. `soft`, `true`, `on`, `yes`, or `1` enable subtitle suggestions; false/off disables them.                                                                                                                                 |
-| `debounce_ms`                 | int         | `90`        | Delay before computing a live suggestion after text or cursor changes.                                                                                                                                                                    |
-| `auto_file_paths`             | bool        | `false`     | Allow live suggestions to scan file-path candidates. Manual `Ctrl+T` file completion still works when false.                                                                                                                              |
-| `auto_macro_menu`             | bool        | `true`      | Automatically open the macro/skill completion menu while typing matching `#name`, `#!name`, or `/skill` tokens.                                                                                                                           |
-| `auto_directive_menu`         | bool        | `true`      | Automatically open directive completion while typing `%` tokens, fixed values such as `%model:`, `=alias`, and `==model` shortcuts.                                                                                                       |
-| `auto_artifact_menu`          | bool        | `true`      | Automatically open the grouped `@` reference menu from bare `@`, narrowed path/kind queries, or `@kind:` payloads.                                                                                                                        |
-| `auto_jinja_menu`             | bool        | `true`      | Automatically open the Jinja variable completion menu while typing inside a `{{ }}` or `{% %}` tag. Manual `Ctrl+T` still works when off.                                                                                                 |
-| `max_auto_rows`               | int         | `1`         | Reserved row limit for automatic completion modes; current soft mode shows one suggestion.                                                                                                                                                |
-| `history_word_count`          | int         | `10000`     | Maximum unique recent prompt-history words retained for manual completion; `0` disables the history fallback.                                                                                                                             |
-| `common_placeholder_count`    | int         | `100`       | Maximum saved `<placeholder>` tags retained and offered after prompt-local placeholder matches; `0` disables them.                                                                                                                        |
-| `word_min_length`             | int         | `5`         | Shared minimum length for prompt-local and prompt-history word candidates; values below `1` clamp to `1`.                                                                                                                                 |
-| `word_ranking`                | string      | `smart`     | History-word ordering. `smart` ranks by relation, recency, and frequency; `recent` restores plain most-recently-used order.                                                                                                               |
-| `word_ranking_signals`        | bool        | `true`      | Whether smart-ranked history-word rows render the score meter, dominant-reason chip, and panel legend.                                                                                                                                    |
-| `placeholder_ranking`         | string      | `smart`     | Saved-placeholder ordering. `smart` ranks by relation, recency, and frequency; `recent` restores stored count-then-recency order.                                                                                                         |
-| `placeholder_ranking_signals` | bool        | `true`      | Whether smart-ranked saved-placeholder rows render the score meter, dominant-reason chip, and panel legend.                                                                                                                               |
-| `next_word`                   | string      | `auto`      | Next-word prediction mode. `auto` predicts after each typed character and completes the current word while you type it. `chain` arms a ghost or border peek only after word commits and on explicit `Ctrl+T`. `off` disables predictions. |
-| `next_word_max_words`         | int         | `4`         | Maximum words in one ghost or peek; clamped to 1–8. A mid-word continuation counts the completed word toward this cap.                                                                                                                    |
-| `next_word_confidence`        | string      | `balanced`  | Confidence gate for ghost predictions: `cautious`, `balanced`, or `eager`.                                                                                                                                                                |
-| `next_word_sources`           | list        | `[history]` | Prediction corpus sources. Add `archive` to also learn from the pruned cross-machine prompt archive at low weight; history is always kept. Unknown entries are dropped.                                                                   |
+[Generated reference for `ace.prompt_completion`](reference/config/tui.md#ace-prompt_completion)
 
 The minimum applies to the complete candidate, so a shorter typed prefix can still
 complete an eligible word. Prompt-local words below the threshold are skipped before
@@ -1803,10 +1651,7 @@ ace:
     max_remembered_words: 5000
 ```
 
-| Field                  | Type | Default | Description                                                                                                            |
-| ---------------------- | ---- | ------- | ---------------------------------------------------------------------------------------------------------------------- |
-| `highlight`            | bool | `true`  | Whether remembered misspellings are underlined in prompt inputs. `K` still records and clears misspellings when false. |
-| `max_remembered_words` | int  | `5000`  | Maximum words retained in each of the misspelled and accepted-word lists; `0` disables remembering new misspellings.   |
+[Generated reference for `ace.prompt_spellcheck`](reference/config/tui.md#ace-prompt_spellcheck)
 
 Remembered words are stored at `sase_home()/prompt_misspellings.json`, casefolded for
 matching but keeping the first-seen spelling. Pressing `a` in the correction panel
@@ -1832,9 +1677,7 @@ ace:
     trash_limit: 100
 ```
 
-| Field         | Type | Default | Description                                                                                                                                                                                                                                                                      |
-| ------------- | ---- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `trash_limit` | int  | `100`   | Maximum Trash rows kept. An entry-count limit, not a byte quota. `0` disables Trash recovery and permanently discards rows marked for Trash (rows stay recoverable with `sase prompt stash-archive`). Must be an integer >= 0; booleans and malformed values fall back to `100`. |
+[Generated reference for `ace.prompt_stash`](reference/config/tui.md#ace-prompt_stash)
 
 A lowered limit is applied the next time the overlay opens. Over-limit rows are
 permanently deleted, oldest discarded first, and a toast reports how many were deleted.
@@ -1869,11 +1712,7 @@ FINAL (capitals open it in the other panel). See
 [Agent data decks and cards](ace.md#agent-data-decks-and-cards) and
 [Finalizers on the Agents tab](ace.md#finalizers-on-the-agents-tab).
 
-| Field                      | Type   | Default | Description                                                                                                                                                                                                                                                                                                                       |
-| -------------------------- | ------ | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `spread_max_screens`       | number | `1.5`   | A multi-card deck renders spread when its cards fit within this many panel viewport heights ("screens"), and paged otherwise. `0` means always paged. Applies to the automatic deck view only; a fixed view bypasses measurement.                                                                                                 |
-| `block_spread_max_screens` | number | `1.5`   | A card shown alone renders its card blocks spread (all inline) when the card fits within this many panel heights, and paged (one block per page) otherwise. `0` means always one block per page. Applies to the session Reply card's per-turn blocks. Applies to the automatic deck view only; a fixed view bypasses measurement. |
-| `final_tail_delay_seconds` | number | `5.0`   | Seconds a finalizer op must run before its live tail renders in the ⊛ FINAL deck. `0` renders immediately; fast ops go straight from running to done with no tail. Non-numbers, negatives, and booleans fall back to the default.                                                                                                 |
+[Generated reference for `ace.agent_decks`](reference/config/tui.md#ace-agent_decks)
 
 Source: `src/sase/ace/tui/agent_decks_settings.py`
 
@@ -1892,10 +1731,7 @@ ace:
     collapsed_preview_max_rows: 3
 ```
 
-| Field                        | Type    | Default | Description                                                                                                                                                                                                                 |
-| ---------------------------- | ------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `collapsed_max_share`        | number  | `0.35`  | Target share of the detail-column height for the collapsed header (0 to 0.6). Session identity and one or two model rows are counted before prompt preview rows. `0` disables the preview but keeps session models visible. |
-| `collapsed_preview_max_rows` | integer | `3`     | Maximum RAW PROMPT preview rows. The share budget can reduce this to zero when session metadata uses the available height. `d` expands to the full prompt and complete model list.                                          |
+[Generated reference for `ace.agent_header`](reference/config/tui.md#ace-agent_header)
 
 Source: `src/sase/ace/tui/agent_header_settings.py`
 
@@ -1920,11 +1756,7 @@ ace:
         description: "SASE project agents."
 ```
 
-| Field              | Type   | Default  | Description                                                                                                                    |
-| ------------------ | ------ | -------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| `machine_tabs`     | string | `"auto"` | `auto` uses machine tabs when dispatch machines exist, `on` always does, `off` never does. Unknown values fall back to `auto`. |
-| `launch_from_view` | bool   | `true`   | Launch new agents onto the currently visible tab. Non-boolean values fall back to `true`.                                      |
-| `tabs`             | dict   | `{}`     | Per-tab `color`, `icon`, `order` (integer or null), and `description`, keyed by canonical tab name.                            |
+[Generated reference for `ace.agent_tabs`](reference/config/tui.md#ace-agent_tabs)
 
 Source: `src/sase/ace/tui/agent_tabs_settings.py`
 
@@ -1939,9 +1771,7 @@ ace:
     confirm_on_enter: true
 ```
 
-| Field              | Type | Default | Description                                                                                                           |
-| ------------------ | ---- | ------- | --------------------------------------------------------------------------------------------------------------------- |
-| `confirm_on_enter` | bool | `true`  | When true, plain `Enter` opens the submission panel and `Enter` inside that panel confirms its primary launch action. |
+[Generated reference for `ace.prompt_submission`](reference/config/tui.md#ace-prompt_submission)
 
 When enabled, the panel appears for non-empty ordinary single-pane prompts, targeted
 single-pane drafts, and multi-pane prompt stacks. `g<enter>` in NORMAL mode and
@@ -1966,10 +1796,7 @@ ace:
     macro_placeholder_args: true
 ```
 
-| Field                      | Type | Default | Current behavior                                                                                                                                                                           |
-| -------------------------- | ---- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `collect_raw_placeholders` | bool | `true`  | When true, submitting an sase's TUI prompt opens **Fill in this prompt** for each live raw placeholder. When false, raw tags launch unchanged; declared `input:` collection still works.   |
-| `macro_placeholder_args`   | bool | `true`  | When false, `gX`, `gL`, and fresh `gx` extraction keep live raw tags as literal text and mint no placeholder-derived `text` inputs. Jinja-variable input inference for `gL` is unaffected. |
+[Generated reference for `ace.prompt_inputs`](reference/config/tui.md#ace-prompt_inputs)
 
 Raw placeholders in YAML frontmatter, inline code, fenced code, or
 `%macros_enabled:false` regions are never collected. See
@@ -2002,12 +1829,7 @@ artifacts:
     pool_max_bytes: 1073741824
 ```
 
-| Field                                    | Type | Default      | Minimum | Description                                                                                                                  |
-| ---------------------------------------- | ---- | ------------ | ------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| `artifacts.capture.max_stored_per_agent` | int  | `50`         | `1`     | Maximum byte-copying automatic captures per agent run. Reference rows cost no bytes, are uncounted, and uncapped.            |
-| `artifacts.capture.max_history_scan`     | int  | `20`         | `1`     | Durable commits searched per file when looking for one holding its exact content.                                            |
-| `artifacts.capture.max_file_size_bytes`  | int  | `104857600`  | `1`     | Maximum size of one file copied into the workspace-local prompt-artifact pool; larger files are hashed and recorded instead. |
-| `artifacts.capture.pool_max_bytes`       | int  | `1073741824` | `1`     | Workspace-local prompt-artifact pool budget before opportunistic garbage collection removes published terminal-run copies.   |
+[Generated reference for `artifacts`](reference/config/runtime.md#artifacts)
 
 These fields are read fail-open: a missing, non-integer, or out-of-range value falls
 back to the built-in default rather than failing capture. Once `max_stored_per_agent` is
@@ -2037,14 +1859,7 @@ artifacts:
     trash_grace_days: 14
 ```
 
-| Field                                            | Type | Default | Minimum | Description                                                                                                |
-| ------------------------------------------------ | ---- | ------- | ------- | ---------------------------------------------------------------------------------------------------------- |
-| `artifacts.retention.enabled`                    | bool | `false` | -       | Run the artifact-file retention pass after agent finalization. While `false`, retention removes nothing.   |
-| `artifacts.retention.empty_shard_removal_budget` | int  | `2000`  | `1`     | Max empty `ace-run` month/day/run shard directories listed by one `sase artifact prune-runs` preview.      |
-| `artifacts.retention.keep_per_label`             | int  | `3`     | `0`     | Newest automatic captures kept per label; older generations are trashed first. `0` disables the predicate. |
-| `artifacts.retention.keep_recent_run_months`     | int  | `2`     | `1`     | Calendar months of `ace-run` directories kept whole by `sase artifact prune-runs`.                         |
-| `artifacts.retention.max_age_days`               | int  | `90`    | `0`     | Trash automatic captures created more than this many days ago. `0` disables the predicate.                 |
-| `artifacts.retention.trash_grace_days`           | int  | `14`    | `0`     | Days a trashed artifact stays restorable before a purge removes it.                                        |
+[Generated reference for `artifacts`](reference/config/runtime.md#artifacts)
 
 These fields are read fail-open the same way the capture fields are. The pass is bounded
 and defensive: it never fails a run, and it removes nothing that retention's protection
@@ -2093,11 +1908,7 @@ artifact_refs:
         path: /srv/reports
 ```
 
-| Field                                   | Type         | Required | Description                                                 |
-| --------------------------------------- | ------------ | -------- | ----------------------------------------------------------- |
-| `artifact_refs.file.roots[].name`       | string       | yes      | Stable lowercase slug used in published logical identities. |
-| `artifact_refs.file.roots[].path`       | string       | yes      | Absolute or `~/`-rooted allow-list directory.               |
-| `artifact_refs.file.roots[].path_globs` | list[string] | no       | Root-relative POSIX includes and `!`-prefixed exclusions.   |
+[Generated reference for `artifact_refs`](reference/config/runtime.md#artifact_refs)
 
 Root lists concatenate across ordinary config layers. A layer using the global
 list-replacement merge strategy replaces the inherited list instead. When the same
@@ -2145,18 +1956,7 @@ llm_provider:
         description: Writing and editing roles.
 ```
 
-| Field                                    | Type   | Default     | Description                                                                                                                                                                                                                       |
-| ---------------------------------------- | ------ | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `llm_provider.provider`                  | string | auto-detect | Which registered provider to use. Auto-detects by plugin-declared priority; built-ins default to claude → codex → qwen → opencode → agy. `muse` and `grok` declare no priority and are never auto-detected; name them explicitly. |
-| `llm_provider.model_tier_map`            | dict   | -           | Accepted by the config schema for compatibility. No runtime path currently reads it; setting `large`/`small` here has no effect. Size aliases and `default_model` / lander settings select models.                                |
-| `llm_provider.default_model`             | string | `@large`    | Model expression used when a launch has no explicit `%model` directive.                                                                                                                                                           |
-| `llm_provider.epic_lander_model`         | string | `@large`    | Model expression used by epic land agents when the epic has fewer authored phases than `bead.big_epic_phase_threshold`.                                                                                                           |
-| `llm_provider.big_epic_lander_model`     | string | `@xlarge`   | Model expression used by epic land agents when the epic has `bead.big_epic_phase_threshold` or more authored phases.                                                                                                              |
-| `llm_provider.default_effort`            | string | `""`        | Reasoning effort applied when a launch requests none: `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, or `max`. Empty leaves each provider on its own default; unsupported levels are skipped with a warning.                |
-| `llm_provider.model_alias_history_limit` | int    | `10`        | Maximum prior runs returned per alias for the Launch Control agent-history panel. Must be at least `1`; malformed runtime values defensively fall back to `10`.                                                                   |
-| `llm_provider.model_aliases.builtin`     | dict   | -           | Overrides for the five built-in size aliases (`xsmall`, `small`, `medium`, `large`, `xlarge`). Values use the single-target grammar, `\|` round-robin pools, `\|\|` ordered fallbacks, or `(A \| B) \|\| C` last-resort.          |
-| `llm_provider.model_aliases.custom`      | dict   | -           | User-defined aliases usable from `%model:@<alias>` / `%m:@<alias>`. Each requires `model` (single target or selector) and `description`.                                                                                          |
-| `llm_provider.model_aliases.buckets`     | dict   | -           | Optional display-only sase's TUI Launch Control bucket descriptions.                                                                                                                                                              |
+[Generated reference for `llm_provider`](reference/config/llm-provider.md#llm_provider)
 
 Model aliases are resolved when an agent launches, so reusable macros can point at names
 such as `%model:@medium` or `%model:@blogger` while each user's `sase.yml` controls the
@@ -2295,24 +2095,7 @@ llm_provider:
         honor_usage_windows: null
 ```
 
-| Field                                                               | Type      | Default  | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| ------------------------------------------------------------------- | --------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `llm_provider.usage_limit.enabled`                                  | bool      | `true`   | Enable usage-limit classification and automatic provider disables.                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| `llm_provider.usage_limit.disable_seconds`                          | int       | `86400`  | Fallback disable duration in seconds used only when neither a provider reset hint nor a corroborated usage-window reset is available.                                                                                                                                                                                                                                                                                                                                               |
-| `llm_provider.usage_limit.min_disable_seconds`                      | int       | `60`     | Lower bound applied to provider-reported reset-hint and usage-window-derived durations.                                                                                                                                                                                                                                                                                                                                                                                             |
-| `llm_provider.usage_limit.max_disable_seconds`                      | int       | `604800` | Upper bound applied to provider-reported reset-hint and usage-window-derived durations.                                                                                                                                                                                                                                                                                                                                                                                             |
-| `llm_provider.usage_limit.honor_reset_hint`                         | bool      | `true`   | Parse a provider-reported reset time when present: a bare or zoned clock time ("resets at 8pm", "resets 6:38pm (America/New_York)"), an absolute date ("try again at Aug 20th, 2026 6:38 AM", "resets Aug 22, 8pm (America/New_York)", "resets 2026-08-20 06:38 UTC"), or a relative duration ("try again in 2 hours").                                                                                                                                                             |
-| `llm_provider.usage_limit.honor_usage_windows`                      | bool      | `true`   | When no reset hint is found, fall back to a corroborated reset from the collected usage-window data (see [Usage-Limit Auto-Disable](llms.md#usage-limit-auto-disable)) before using the flat `disable_seconds`.                                                                                                                                                                                                                                                                     |
-| `llm_provider.usage_limit.notify`                                   | bool      | `true`   | Send one notification for each newly-created automatic disable window.                                                                                                                                                                                                                                                                                                                                                                                                              |
-| `llm_provider.usage_limit.relaunch`                                 | bool      | `true`   | Submit a durable `sase agent drain` proc when a usage-limit disable hard-disables a provider, relaunching the agents it stranded and folding the report into the `notify` notification.                                                                                                                                                                                                                                                                                             |
-| `llm_provider.usage_limit.relaunch_limit`                           | int       | `20`     | Most agents an automatic drain relaunches (passed as the drain's `--limit`).                                                                                                                                                                                                                                                                                                                                                                                                        |
-| `llm_provider.usage_limit.providers.<provider>`                     | dict      | -        | Provider-specific detection and duration overrides.                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| `llm_provider.usage_limit.providers.<provider>.patterns`            | list[str] | `[]`     | Positive case-insensitive substring patterns. User patterns are additive with provider defaults unless replacement is set.                                                                                                                                                                                                                                                                                                                                                          |
-| `llm_provider.usage_limit.providers.<provider>.exclude_patterns`    | list[str] | `[]`     | Case-insensitive exclusions that suppress otherwise positive matches; exclusions are always additive.                                                                                                                                                                                                                                                                                                                                                                               |
-| `llm_provider.usage_limit.providers.<provider>.replace_patterns`    | bool      | `false`  | When true, the configured `patterns` list literally replaces built-ins; `patterns: []` intentionally disables that detector.                                                                                                                                                                                                                                                                                                                                                        |
-| `llm_provider.usage_limit.providers.<provider>.disable_seconds`     | int/null  | `null`   | Per-provider fallback duration used only when neither a reset hint nor a corroborated usage-window reset is available; `null` inherits `llm_provider.usage_limit.disable_seconds`. `grok` ships a non-null built-in default of `172800` (48h): Grok Build reports no reset instant in any usage-limit message, and paid usage meters against one shared weekly pool, so this now-usually-preempted flat default still matters when the collector has no fresh corroborating window. |
-| `llm_provider.usage_limit.providers.<provider>.honor_reset_hint`    | bool/null | `null`   | Per-provider reset-hint policy; `null` inherits the global value.                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| `llm_provider.usage_limit.providers.<provider>.honor_usage_windows` | bool/null | `null`   | Per-provider usage-window fallback policy; `null` inherits the global value.                                                                                                                                                                                                                                                                                                                                                                                                        |
+[Generated reference for `llm_provider.usage_limit`](reference/config/llm-provider.md#llm_provider-usage_limit)
 
 Automatic disables are written to the same machine-wide provider-disable state used by
 Launch Control, with `source: "usage_limit"`. They expire and self-clean like manual
@@ -2385,19 +2168,7 @@ llm_provider:
         enabled: true
 ```
 
-| Field                                                                 | Type   | Default                         | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| --------------------------------------------------------------------- | ------ | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `llm_provider.usage_metrics.enabled`                                  | bool   | `true`                          | Collect subscription usage. False stops probes, passive writes, scheduled requests, and attention; inspection can still explain the opt-out.                                                                                                                                                                                                                                                                                                                                                                                   |
-| `llm_provider.usage_metrics.refresh_seconds`                          | number | `300`                           | Idle refresh cadence in seconds. Must be finite and at least `60`. The scheduler's `usage` routine ticks every 60 s and probes each provider at `max(refresh_seconds, floor)`; display freshness uses the same max. The TUI header indicator uses the same `max(refresh_seconds, floor)` freshness as `sase usage list` and the Models panel, so a provider polled at its floor never shows as stale or unknown between probes. Explicit refreshes bypass the floor but still respect the 60 s cooldown and any `Retry-After`. |
-| `llm_provider.usage_metrics.active_refresh_seconds`                   | number | `120`                           | Hot refresh cadence in seconds for providers in active use. Must be finite and at least `60`; values above `refresh_seconds` are capped at it. A hot provider probes at `max(active_refresh_seconds, floor)`, so plugin floors still bound hot polling.                                                                                                                                                                                                                                                                        |
-| `llm_provider.usage_metrics.warn_percent`                             | number | `75`                            | Percentage _used_ that classifies a window as low. Must satisfy `0 <= warn_percent < critical_percent <= 100`. UI copy uses percentage left.                                                                                                                                                                                                                                                                                                                                                                                   |
-| `llm_provider.usage_metrics.critical_percent`                         | number | `90`                            | Percentage _used_ that classifies a window as very low.                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| `llm_provider.usage_metrics.indicator.enabled`                        | bool   | `true`                          | Show sase's TUI header usage indicators. False hides display entries while collection and Providers · Usage remain active.                                                                                                                                                                                                                                                                                                                                                                                                     |
-| `llm_provider.usage_metrics.indicator.default`                        | policy | `{below_remaining_percent: 20}` | Fallback display policy for windows that do not match a more specific display override.                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| `llm_provider.usage_metrics.indicator.weekly_all`                     | policy | `always`                        | Display policy for positively classified weekly all-model windows after exact-window and provider defaults.                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| `llm_provider.usage_metrics.indicator.providers.<name>.default`       | policy | inherit                         | Optional display policy for all observed windows from one provider. This map is separate from the sibling collection `providers` map.                                                                                                                                                                                                                                                                                                                                                                                          |
-| `llm_provider.usage_metrics.indicator.providers.<name>.windows.<key>` | policy | inherit; Muse `session` `never` | Exact provider-reported window-key override. Find keys with `sase usage list -p <provider> --json` at `windows[].key`.                                                                                                                                                                                                                                                                                                                                                                                                         |
-| `llm_provider.usage_metrics.providers.<name>.enabled`                 | bool   | inherit                         | Optional per-provider collection override. Keys are registered provider names; the generic schema does not hard-code any provider list.                                                                                                                                                                                                                                                                                                                                                                                        |
+[Generated reference for `llm_provider.usage_metrics`](reference/config/llm-provider.md#llm_provider-usage_metrics)
 
 An indicator policy is exactly one of:
 
@@ -2521,18 +2292,7 @@ llm_provider:
         #   <model-name>: { context_limit_bytes: 400000 }
 ```
 
-| Field                        | Type | Default  | Minimum | Description                                                                               |
-| ---------------------------- | ---- | -------- | ------- | ----------------------------------------------------------------------------------------- |
-| `context_limit_bytes`        | int  | `800000` | `1`     | Provider context budget, in UTF-8 bytes, before reserves are subtracted.                  |
-| `transport_limit_bytes`      | int  | unset    | `1`     | Largest prompt the provider transport can carry safely, such as a single-argv limit.      |
-| `checkpoint_threshold_bytes` | int  | unset    | `1`     | Prompt size at which checkpoint-backed reductions are considered.                         |
-| `instruction_reserve_bytes`  | int  | `0`      | `0`     | Bytes reserved for provider-side system instructions or command framing.                  |
-| `tool_reserve_bytes`         | int  | `0`      | `0`     | Bytes reserved for provider tool definitions or tool-call framing.                        |
-| `output_reserve_bytes`       | int  | `0`      | `0`     | Bytes reserved for the model's response.                                                  |
-| `reasoning_reserve_bytes`    | int  | `0`      | `0`     | Bytes reserved for hidden reasoning or other provider overhead.                           |
-| `estimate_uncertain`         | bool | `true`   | -       | Mark byte estimates as uncertain when exact provider accounting is unavailable.           |
-| `providers.<name>`           | dict | -        | -       | Overrides of any field above for one registered provider.                                 |
-| `providers.<name>.models`    | dict | -        | -       | Overrides keyed by provider-resolved model name, applied on top of that provider's entry. |
+[Generated reference for `llm_provider.continuation_budget`](reference/config/llm-provider.md#llm_provider-continuation_budget)
 
 Each field resolves independently: a matching model entry wins over its provider entry,
 which wins over the shared values, and the matching `SASE_CONTINUATION_*` variable (see
@@ -2563,16 +2323,7 @@ llm_provider:
       spawn_new_agent: false
 ```
 
-| Field                                               | Type | Default | Description                                                            |
-| --------------------------------------------------- | ---- | ------- | ---------------------------------------------------------------------- |
-| `llm_provider.retry.<provider>`                     | dict | -       | Retry config for a specific provider (e.g., `agy`, `claude`, `codex`). |
-| `llm_provider.retry.<provider>.max_retries`         | int  | `0`     | Maximum retry attempts. `0` disables retrying.                         |
-| `llm_provider.retry.<provider>.error_patterns`      | list | `[]`    | Case-insensitive substring patterns matched against error output.      |
-| `llm_provider.retry.<provider>.wait_times`          | list | `[30]`  | Per-retry wait times in seconds. Last value reused if list is shorter. |
-| `llm_provider.retry.<provider>.fallback_model`      | str  | `null`  | Alternate model to use after exhausting all retries.                   |
-| `llm_provider.retry.<provider>.continuation_prompt` | str  | `null`  | Prompt text prepended when continuing after a retryable failure.       |
-| `llm_provider.retry.<provider>.preserve_workspace`  | bool | `false` | Preserve on-disk edits across legacy in-process retry attempts.        |
-| `llm_provider.retry.<provider>.spawn_new_agent`     | bool | `false` | Retry by launching a fresh detached agent that inherits the workspace. |
+[Generated reference for `llm_provider.retry`](reference/config/llm-provider.md#llm_provider-retry)
 
 Configured retry policy is merged with provider-supplied retry defaults when a provider
 declares them. For list fields such as `error_patterns`, built-in patterns are kept and
@@ -2682,10 +2433,7 @@ commit:
       [build, chore, ci, deps, docs, feat, fix, perf, refactor, revert, style, test]
 ```
 
-| Field                                         | Type | Default            | Description                                                                            |
-| --------------------------------------------- | ---- | ------------------ | -------------------------------------------------------------------------------------- |
-| `commit.message.require_conventional_subject` | bool | `true`             | Reject a `sase stitch create` message whose subject line is not a Conventional Commit. |
-| `commit.message.allowed_types`                | list | the 12 types above | Commit types this project accepts. A configured list **replaces** the built-in set.    |
+[Generated reference for `commit.message`](reference/config/repositories.md#commit-message)
 
 The subject must match `<type>[(<scope>)][!]: <description>`. The scope is optional, one
 or more spaces may follow the colon, and no length or capitalization rule is applied to
@@ -2724,13 +2472,7 @@ monitor:
     raw_tail_lines: 200
 ```
 
-| Field                                                | Type                      | Default  | Minimum | Description                                                                                                                       |
-| ---------------------------------------------------- | ------------------------- | -------- | ------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| `monitor.tool_wrap`                                  | `off`, `verify`, or `all` | `verify` | -       | Which monitors run inside `sase tool run`: `verify` wraps only `-p verify` monitors, `all` wraps every monitor, `off` wraps none. |
-| `monitor.evidence_limits.selected_diagnostics_bytes` | int                       | `8192`   | `1`     | UTF-8 bytes of selected failed-stage diagnostics eligible for embedding.                                                          |
-| `monitor.evidence_limits.fallback_tail_bytes`        | int                       | `4096`   | `1`     | UTF-8 bytes of fallback raw tail when diagnostics are unavailable.                                                                |
-| `monitor.evidence_limits.total_raw_excerpt_bytes`    | int                       | `12288`  | `1`     | Aggregate raw-evidence byte cap for one continuation prompt.                                                                      |
-| `monitor.evidence_limits.raw_tail_lines`             | int                       | `200`    | `1`     | Retained-output lines considered when selecting raw-tail evidence.                                                                |
+[Generated reference for `monitor`](reference/config/runtime.md#monitor)
 
 `selected_diagnostics_bytes` and `fallback_tail_bytes` must each be no larger than
 `total_raw_excerpt_bytes`. The runtime falls back to all four packaged defaults if that
@@ -2915,32 +2657,7 @@ repos:
             globs: ["reports/**/*.md", "!drafts/**"]
 ```
 
-| Field                                         | Type           | Default                                                            | Description                                                                                                                                                                                                                                                                                              |
-| --------------------------------------------- | -------------- | ------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `github_orgs`                                 | string or list | -                                                                  | GitHub user/org namespaces available to provider completion and PR workflows.                                                                                                                                                                                                                            |
-| `default_linked_repos`                        | boolean        | `true`                                                             | Inject managed-project `--plans`, `--beads`, and hidden `--agents`, `--attachments`, and `--attachments-private` sidecars.                                                                                                                                                                               |
-| `repos.linked[].auto_clone`                   | boolean        | `false`                                                            | Materialize and prepare the repository automatically before each agent launch.                                                                                                                                                                                                                           |
-| `repos.linked[].name`                         | string         | required                                                           | Stable alias used in generated environment variable names and memory summaries.                                                                                                                                                                                                                          |
-| `repos.linked[].path`                         | string         | required                                                           | Primary checkout path. Relative paths resolve from the project's primary workspace.                                                                                                                                                                                                                      |
-| `repos.linked[].description`                  | string         | required                                                           | Human-readable purpose used when generating agent memory for the linked repository.                                                                                                                                                                                                                      |
-| `repos.linked[].revision_pin`                 | string         | -                                                                  | Pin file relative to the primary checkout root holding this repo's pushed SHA. The commit finalizer commits the pinned sibling first and writes its SHA into the pin file before the primary commit. The path must stay inside the checkout, including through symlinks.                                 |
-| `repos.sidecar.builtin.<role>`                | object         | -                                                                  | Override for a reserved role; the key must be `plans`, `beads`, `agents`, `attachments`, or `attachments-private`.                                                                                                                                                                                       |
-| `repos.sidecar.custom.<role>`                 | object         | -                                                                  | User-declared document sidecar; the key is the role and must not be a reserved one (`plans`, `beads`, `agents`, `attachments`, `attachments-private`).                                                                                                                                                   |
-| `repos.sidecar.*.<role>.repo`                 | string         | derived                                                            | Optional bare slug or `owner/repo` pin.                                                                                                                                                                                                                                                                  |
-| `repos.sidecar.*.<role>.description`          | string         | -                                                                  | Purpose shown in inventory; required in generated instructions for lazy entries.                                                                                                                                                                                                                         |
-| `repos.sidecar.*.<role>.auto_clone`           | boolean        | `false`                                                            | Materialize before agent launch; intrinsically ignored for the hidden `agents` and `attachments-private` roles.                                                                                                                                                                                          |
-| `repos.sidecar.*.<role>.auto_sync`            | boolean        | `false`                                                            | Fetch/fast-forward the primary clone when clean; intrinsically ignored for the hidden `agents` and `attachments-private` roles.                                                                                                                                                                          |
-| `repos.sidecar.*.<role>.visibility`           | public/private | `public`                                                           | Requested visibility for remote creation; default `public`, forced to `private` when the primary repository is private or its visibility cannot be verified. Project-local `private` overrides the `agents` default. `attachments` resolves to `public` and `attachments-private` resolves to `private`. |
-| `repos.sidecar.*.<role>.disabled`             | boolean        | `false`                                                            | Disable the entry and suppress matching implicit sidecars, including `agents`.                                                                                                                                                                                                                           |
-| `repos.sidecar.*.<role>.ref.use`              | string         | role/provider dependent                                            | Installed artifact-reference provider, qualified `<plugin>@<id>`, to use as the base policy.                                                                                                                                                                                                             |
-| `repos.sidecar.*.<role>.ref.kind`             | string         | role name (`plan` for `plans`)                                     | Prompt kind exposed as `@<kind>:<path>`.                                                                                                                                                                                                                                                                 |
-| `repos.sidecar.*.<role>.ref.icon`             | string         | role/provider dependent                                            | Artifacts tab mark shown beside the pane label.                                                                                                                                                                                                                                                          |
-| `repos.sidecar.*.<role>.ref.expansion_format` | string         | `the {repo_relative_path} file in the {sidecar_role} sidecar repo` | Provider expansion format; see [Expansion](artifact_references.md#expansion).                                                                                                                                                                                                                            |
-| `repos.sidecar.*.<role>.ref.properties`       | object         | `{}`                                                               | Typed metadata fields extracted by the provider.                                                                                                                                                                                                                                                         |
-| `repos.sidecar.*.<role>.ref.detail`           | object         | `{}`                                                               | Metadata fields shown by completion and detail surfaces.                                                                                                                                                                                                                                                 |
-| `repos.sidecar.*.<role>.ref.identity`         | object         | `{}`                                                               | Optional provider identity rule.                                                                                                                                                                                                                                                                         |
-| `repos.sidecar.*.<role>.ref.inventory.globs`  | list[string]   | `["**/*.md"]` for document sidecars                                | Repo-relative POSIX includes and `!` exclusions.                                                                                                                                                                                                                                                         |
-| `repos.sidecar.*.<role>.ref.publication`      | object         | VCS permalink / Markdown references                                | Publication link and reverse-reference policy.                                                                                                                                                                                                                                                           |
+[Generated reference for `repos`](reference/config/repositories.md#repos)
 
 Every enabled document sidecar exposes one compact `@<kind>:<path>` reference. Plans use
 the built-in `plan` provider, and `sase repo init` records `ref: {use: builtin@plan}`.
@@ -3044,23 +2761,7 @@ dispatch:
   remote_hosts: []
 ```
 
-| Field                                                | Type         | Default             | Description                                                                                                           |
-| ---------------------------------------------------- | ------------ | ------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| `dispatch.providers.<ref>.enabled`                   | bool         | provider-defined    | Enable one provider for explicit dispatch operations. Built-in HTTPS and tailnet providers ship enabled.              |
-| `dispatch.machines`                                  | map          | `{}`                | Viewer-local enrolled aliases. Prefer `sase machine init`, `add`, `repair`, `rename`, and `remove` over hand edits.   |
-| `dispatch.discovery.enabled_providers`               | list[string] | `[builtin@tailnet]` | Provider refs queried by explicit discovery.                                                                          |
-| `dispatch.request_timeout_seconds`                   | number       | `5`                 | Positive default deadline for fleet gateway calls.                                                                    |
-| `dispatch.status_cache_seconds`                      | number       | `60`                | Freshness window reserved for dispatch status caches.                                                                 |
-| `dispatch.federation_worker.enabled`                 | bool         | `true`              | Allow the local worker to start when enrolled machines exist.                                                         |
-| `dispatch.federation_worker.command`                 | string       | `""`                | Worker argv override, parsed without a shell; empty discovers the packaged or linked-development worker.              |
-| `dispatch.federation_worker.sase_home`               | string       | `""`                | State root passed to the worker; empty uses the runtime default.                                                      |
-| `dispatch.federation_worker.run_root`                | string       | `""`                | Host-local runtime directory; empty derives it from SASE home and host identity.                                      |
-| `dispatch.federation_worker.socket_path`             | string       | `""`                | Unix-socket override; empty derives it from the runtime directory.                                                    |
-| `dispatch.federation_worker.idle_timeout_seconds`    | number       | `300`               | Positive idle time before an unused worker may exit.                                                                  |
-| `dispatch.federation_worker.startup_timeout_seconds` | number       | `5`                 | Positive deadline for a newly spawned worker to answer IPC health.                                                    |
-| `dispatch.federation_worker.request_timeout_seconds` | number       | `5`                 | Positive default deadline for worker facade calls.                                                                    |
-| `dispatch.federation_worker.max_frame_bytes`         | int          | `1048576`           | Maximum IPC request or response frame size; minimum 128 bytes.                                                        |
-| `dispatch.remote_hosts`                              | list         | `[]`                | Deprecated legacy host list. When non-empty, federation uses it instead of `dispatch.machines`; do not mix the forms. |
+[Generated reference for `dispatch`](reference/config/repositories.md#dispatch)
 
 Machine aliases are 1–64 characters, must start with an ASCII letter or digit, and may
 otherwise contain ASCII letters, digits, `_`, `.`, and `-`. Each machine record stores a
@@ -3100,13 +2801,7 @@ vcs_provider:
   use_project_pr_prefix: false # prepend [<project>] to PR titles (default: false)
 ```
 
-| Field                                | Type              | Default  | Description                                                                                                   |
-| ------------------------------------ | ----------------- | -------- | ------------------------------------------------------------------------------------------------------------- |
-| `vcs_provider.provider`              | string            | `"auto"` | VCS provider: `"git"`, `"hg"`, or `"auto"` for directory detection.                                           |
-| `vcs_provider.workspace_root`        | string            | -        | Legacy VCS helper workspace root. New numbered-checkout layout is configured by `workspace.root` below.       |
-| `vcs_provider.default_hooks`         | list[string]      | -        | Hook commands added to new Patches. Replaces built-in defaults.                                               |
-| `vcs_provider.pr_tags`               | dict[string, str] | `{}`     | Key-value tags appended as `SASE_TAG=VALUE` lines to PR commit messages (keys are rendered `SASE_`-prefixed). |
-| `vcs_provider.use_project_pr_prefix` | bool              | `false`  | Prepend `[<project>] ` to PR titles / PR descriptions (see below).                                            |
+[Generated reference for `vcs_provider`](reference/config/repositories.md#vcs_provider)
 
 When `default_hooks` is not set, plugins may provide their own defaults via
 `default_config.yml` (for example, Mercurial-specific hooks from a provider plugin). The
@@ -3130,11 +2825,7 @@ vcs_repo_completion:
   max_repos: 200
 ```
 
-| Field                                   | Type | Default | Description                                                                                 |
-| --------------------------------------- | ---- | ------- | ------------------------------------------------------------------------------------------- |
-| `vcs_repo_completion.enabled`           | bool | `true`  | Enable sase's TUI and helper-bridge repository completion for registered VCS workflow refs. |
-| `vcs_repo_completion.cache_ttl_seconds` | int  | `600`   | Freshness window for the shared on-disk repository candidate cache, in seconds.             |
-| `vcs_repo_completion.max_repos`         | int  | `200`   | Maximum repository candidates kept from a provider response and returned to completion UIs. |
+[Generated reference for `vcs_repo_completion`](reference/config/repositories.md#vcs_repo_completion)
 
 When disabled, sase's TUI does not detect repository-completion triggers, and the editor
 helper bridge returns an empty catalog. Repository candidates are listed through
@@ -3154,9 +2845,7 @@ vcs_ref_completion:
   enabled: true
 ```
 
-| Field                        | Type | Default | Description                                                                  |
-| ---------------------------- | ---- | ------- | ---------------------------------------------------------------------------- |
-| `vcs_ref_completion.enabled` | bool | `true`  | Enable sase's TUI and macro LSP completion at the root of VCS workflow refs. |
+[Generated reference for `vcs_ref_completion`](reference/config/repositories.md#vcs_ref_completion)
 
 When disabled, sase's TUI does not detect VCS ref-root completion triggers and the
 materialized macro LSP VCS catalog omits namespace rows. Project and Patch candidates
@@ -3567,46 +3256,15 @@ axe:
 
 **Top-level fields:**
 
-| Field                                 | Type         | Default    | Description                                                               |
-| ------------------------------------- | ------------ | ---------- | ------------------------------------------------------------------------- |
-| `max_hook_runners`                    | int          | `3`        | Maximum concurrent hook runners (non-`$` hooks) across all Patches.       |
-| `max_agent_runners`                   | int          | `3`        | Maximum concurrent agent runners (agents and mentors) across all Patches. |
-| `zombie_timeout_seconds`              | int          | `7200`     | Seconds after which a running hook or workflow is flagged as a zombie.    |
-| `query`                               | string       | `""`       | Query string for filtering Patches (empty = all).                         |
-| `job_script_dirs`                     | list[string] | `[]`       | Additional directories to search for external job scripts.                |
-| `routine_log_max_bytes`               | int          | `52428800` | Maximum bytes retained for each bounded routine log.                      |
-| `routine_log_temp_max_age_seconds`    | int          | `300`      | Minimum age before orphaned log-rotation temp files are removed.          |
-| `routine_restart_backoff_max_seconds` | int          | `60`       | Maximum delay between retries for a crashing routine.                     |
-| `verbose_routine_diagnostics`         | bool         | `false`    | Include verbose diagnostics in job script context JSON.                   |
-| `routines`                            | dict         | -          | Mapping of routine name -> config (see below).                            |
+[Generated reference for `axe`](reference/config/scheduler.md#axe)
 
 **Routine fields** (per entry under `routines`):
 
-| Field          | Type                    | Required | Default | Description                                                                                                 |
-| -------------- | ----------------------- | -------- | ------- | ----------------------------------------------------------------------------------------------------------- |
-| `description`  | string                  | yes      | -       | Summary line, blank line, optional body describing the lane's cadence and work.                             |
-| `interval`     | int                     | no       | `1`     | Seconds between job polling cycles.                                                                         |
-| `job_timeout`  | string                  | no       | -       | Positive compound duration limit, such as `"90s"`, `"1h30m"`, or `"1d"`.                                    |
-| `wait_runners` | int                     | no       | -       | Per-launch capacity budget for proposed lane agents, emitted as `%queue(capacity=N)`; must be at least `1`. |
-| `env`          | dict[string, env-value] | no       | `{}`    | Environment inherited by every job in this routine.                                                         |
-| `jobs`         | list[object] or map     | no       | `[]`    | Composable job definitions (see below).                                                                     |
+[Generated reference for `axe`](reference/config/scheduler.md#axe)
 
 **Job fields** (per entry under `jobs`):
 
-| Field         | Type                    | Required  | Default  | Description                                                                                                     |
-| ------------- | ----------------------- | --------- | -------- | --------------------------------------------------------------------------------------------------------------- |
-| `name`        | string                  | list only | -        | Stable identity; map form uses the entry key.                                                                   |
-| `script`      | string                  | no        | `name`   | Exact executable name; no prefix is added automatically.                                                        |
-| `enabled`     | boolean                 | no        | `true`   | Soft-disable a keyed entry while retaining inherited fields.                                                    |
-| `description` | string                  | yes       | -        | Summary line, blank line, optional body describing what the job does.                                           |
-| `run_every`   | string                  | no        | -        | Positive compound cadence such as `"60m"`, `"1h30m"`, or `"1d"`.                                                |
-| `timeout`     | string                  | no        | -        | Per-job duration limit. Overrides routine `job_timeout`.                                                        |
-| `env`         | dict[string, env-value] | no        | `{}`     | Literal values or `{env:}`, `{file:}`, `{pass:}` references.                                                    |
-| `inhibit_if`  | list or map             | no        | -        | `patch` / `agent_hood` / `agent_clan` / `agent_runners` guards before dispatch; `changespec` is a legacy alias. |
-| `trigger`     | string or map           | no        | `always` | `always`, `git.commits_since`, or `fs` scheduled-run trigger.                                                   |
-| `once_per`    | string or object        | no        | -        | Bounded per-proposal dedupe-key template.                                                                       |
-| `for_each`    | list or source          | no        | -        | Literal targets or the filtered `projects` source.                                                              |
-| `vars`        | object                  | no        | `{}`     | Non-secret values copied to the job context.                                                                    |
+[Generated reference for `axe`](reference/config/scheduler.md#axe)
 
 Both `description` fields use one grammar: a non-blank summary line of at most 100
 characters, then — if anything follows — a blank line, then a free-form body, with the
@@ -3771,14 +3429,7 @@ file_hooks:
 
 Hook fields:
 
-| Field         | Type     | Required | Default           | Description                                                                                                                            |
-| ------------- | -------- | -------- | ----------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| `use`         | string   | no       | -                 | Installed `sase_file_hooks` provider, qualified `<plugin>@<id>`, whose template supplies base fields.                                  |
-| `name`        | string   | yes\*    | provider ID       | Unique lowercase slug shown in notifications and `sase file-hook list`.                                                                |
-| `description` | string   | no       | provider          | Human-readable purpose for the hook.                                                                                                   |
-| `command`     | string   | yes\*    | provider          | Shell command; the matched absolute file path is appended as its final arg. It also receives `SASE_FILE_HOOK_PROJECT` (see Execution). |
-| `filters`     | object   | no       | `{}` / provider   | Event-selection criteria. Omitted or empty means unrestricted.                                                                         |
-| `timeout`     | duration | no       | `120s` / provider | Per-run integer duration with an `ms`, `s`, `m`, or `h` suffix.                                                                        |
+[Generated reference for `file_hooks`](reference/config/prompts.md#file_hooks)
 
 Without `use`, `name` and `command` are required. With `use`, SASE deep-merges the local
 entry over the installed provider's template, defaults `name` to the provider ID, and
@@ -3792,15 +3443,7 @@ machine-specific command or destination in user configuration.
 
 Filter fields under `filters`:
 
-| Field                      | Type         | Required | Default        | Description                                                                                             |
-| -------------------------- | ------------ | -------- | -------------- | ------------------------------------------------------------------------------------------------------- |
-| `filters.projects`         | list[string] | no       | all projects   | User-facing project names.                                                                              |
-| `filters.sidecars`         | list[string] | no       | all repos      | Sidecar role names such as `research`, `plans`, or `beads`.                                             |
-| `filters.path_globs`       | list[string] | no       | all files      | Repo-relative POSIX globs; `!` prefixes a veto exclusion.                                               |
-| `filters.agent_name_globs` | list[string] | no       | all agents     | SASE agent-name globs matched against the agent that produced the event; `!` prefixes a veto exclusion. |
-| `filters.ops`              | list[string] | no       | all operations | Any subset of `ADD`, `MODIFY`, and `REMOVE`.                                                            |
-| `filters.causes`           | list[string] | no       | none           | Non-user event causes to accept in addition to ordinary user commits; currently `artifact_links`.       |
-| `filters.producers`        | list[string] | no       | all producers  | Any subset of `artifact`, `commit`, `sdd`, `finalizer`, and `dispatch`.                                 |
+[Generated reference for `file_hooks`](reference/config/prompts.md#file_hooks)
 
 Matching semantics:
 
@@ -3894,9 +3537,7 @@ plugins:
     - sase-research-artifacts>=0.2
 ```
 
-| Field              | Type     | Default | Description                                                                                        |
-| ------------------ | -------- | ------- | -------------------------------------------------------------------------------------------------- |
-| `plugins.required` | string[] | `[]`    | PEP 508 requirement strings checked against installed distributions. Duplicate names are an error. |
+[Generated reference for `plugins`](reference/config/prompts.md#plugins)
 
 Every non-`builtin` `<plugin>@` prefix used anywhere in this project config — artifact
 references, file hooks, and `bead.task_types[].use` — must name a distribution listed
@@ -3957,33 +3598,18 @@ mentor_profiles:
 
 **Profile fields:**
 
-| Field                | Type         | Required | Description                                                                   |
-| -------------------- | ------------ | -------- | ----------------------------------------------------------------------------- |
-| `profile_name`       | string       | yes      | Unique name identifying this profile.                                         |
-| `mentors`            | list         | yes      | List of mentor definitions (see below).                                       |
-| `file_globs`         | list[string] | no\*     | Glob patterns matched against changed file paths.                             |
-| `diff_regexes`       | list[string] | no\*     | Regex patterns matched against the diff content.                              |
-| `amend_note_regexes` | list[string] | no\*     | Regex patterns matched against commit/amend notes.                            |
-| `first_commit`       | bool         | no       | If true, match only on the first commit of a Patch.                           |
-| `projects`           | list[string] | no       | Only match Patches in these projects. Auto-set for local `sase.yml` profiles. |
+[Generated reference for `mentor_profiles`](reference/config/prompts.md#mentor_profiles)
 
 \*At least one of `file_globs`, `diff_regexes`, `amend_note_regexes`, or `first_commit`
 must be provided per profile.
 
 **Mentor fields:**
 
-| Field         | Type         | Required | Description                                                 |
-| ------------- | ------------ | -------- | ----------------------------------------------------------- |
-| `mentor_name` | string       | yes      | Unique name identifying this mentor within its profile.     |
-| `role`        | string       | yes      | Role or persona for the mentor (e.g., "Security reviewer"). |
-| `focus_areas` | list[object] | yes      | List of review focus areas (see below).                     |
+[Generated reference for `mentor_profiles`](reference/config/prompts.md#mentor_profiles)
 
 **Focus area fields:**
 
-| Field         | Type   | Required | Description                                           |
-| ------------- | ------ | -------- | ----------------------------------------------------- |
-| `focus_name`  | string | yes      | Short name for this focus area (e.g., "correctness"). |
-| `description` | string | yes      | Description of what this focus area reviews.          |
+[Generated reference for `mentor_profiles`](reference/config/prompts.md#mentor_profiles)
 
 Mentors run automatically on Patches with Ready or Mailed status when their matching
 criteria are met. Mentor comments are structured JSON with severity levels (error,
@@ -4009,11 +3635,7 @@ metahooks:
     output_regex: "FLAKY"
 ```
 
-| Field          | Type   | Required | Description                                            |
-| -------------- | ------ | -------- | ------------------------------------------------------ |
-| `name`         | string | yes      | Unique identifier for this metahook.                   |
-| `hook_command` | string | yes      | Substring matched against the executed hook command.   |
-| `output_regex` | string | yes      | Regex pattern matched against hook output (multiline). |
+[Generated reference for `metahooks`](reference/config/prompts.md#metahooks)
 
 Source: `src/sase/config/metahook.py`
 
@@ -4075,9 +3697,7 @@ macro_aliases:
   gh_foo: "gh:foo/bar" # #gh_foo → #gh:foo/bar
 ```
 
-| Field           | Type         | Default                   | Description                                                  |
-| --------------- | ------------ | ------------------------- | ------------------------------------------------------------ |
-| `macro_aliases` | dict[string] | `{c: commit, p: propose}` | Mapping of alias name → target. Applied as text substitution |
+[Generated reference for `macro_aliases`](reference/config/prompts.md#macro_aliases)
 
 The built-in defaults provide `#c` as a shorthand for `#commit` and `#p` for `#propose`.
 Additional aliases can be added in user config files.
@@ -4117,9 +3737,7 @@ full copies.
 use_chezmoi: true # default: false
 ```
 
-| Field         | Type | Default | Description                                                         |
-| ------------- | ---- | ------- | ------------------------------------------------------------------- |
-| `use_chezmoi` | bool | `false` | Write home-managed SASE files through the chezmoi source directory. |
+[Generated reference for `use_chezmoi`](reference/config/core.md#use_chezmoi)
 
 Source: `src/sase/config/core.py`
 
@@ -4141,10 +3759,7 @@ commit_hooks:
   after: "chezmoi update -a --force" # default: ""
 ```
 
-| Field                 | Type   | Default | Description                                                                |
-| --------------------- | ------ | ------- | -------------------------------------------------------------------------- |
-| `commit_hooks.before` | string | `""`    | Command before diff capture and VCS dispatch. Empty means disabled.        |
-| `commit_hooks.after`  | string | `""`    | Command after a commit/PR dispatch and push succeed. Empty means disabled. |
+[Generated reference for `commit_hooks`](reference/config/repositories.md#commit_hooks)
 
 Hook output is captured and a bounded stdout/stderr tail is printed on failure; each run
 also leaves per-run evidence files described in
@@ -4172,9 +3787,7 @@ gate:
     reclaim_grace_seconds: 3600
 ```
 
-| Field                             | Type | Default | Minimum | Description                                                                                 |
-| --------------------------------- | ---- | ------- | ------- | ------------------------------------------------------------------------------------------- |
-| `gate.turn.reclaim_grace_seconds` | int  | `3600`  | `0`     | Seconds after a turn gate's deadline before reclaim force-settles the pending turn as lost. |
+[Generated reference for `gate`](reference/config/automation.md#gate)
 
 Within the grace window, reclaim cancels an expired gate and settles its turn as a
 normal `timeout`; once the window has passed, a still-pending turn settles as `lost`
@@ -4218,10 +3831,7 @@ An unknown profile name logs a warning and falls back to `standard`; missing, em
 non-string role values also use `standard`. Check `sase autonomy list` after editing the
 setting to see the effective profiles and their sources.
 
-| Field                       | Type   | Default    | Description                                                                               |
-| --------------------------- | ------ | ---------- | ----------------------------------------------------------------------------------------- |
-| `autonomy.roles.epic_phase` | string | `standard` | Autonomy profile for epic phase agents launched by `sase bead work` / epic plan approval. |
-| `autonomy.roles.epic_land`  | string | `standard` | Autonomy profile for epic land agents.                                                    |
+[Generated reference for `autonomy`](reference/config/agents.md#autonomy)
 
 Source: `src/sase/default_config.yml`, `src/sase/autonomy/roles.py`
 
@@ -4245,9 +3855,7 @@ runners continue to use their separate `axe.max_*_runners` limits.
 max_running_agents: 10
 ```
 
-| Field                | Type | Default | Minimum | Description                                              |
-| -------------------- | ---- | ------- | ------- | -------------------------------------------------------- |
-| `max_running_agents` | int  | `10`    | `1`     | Configured runner-capacity units available on this host. |
+[Generated reference for `max_running_agents`](reference/config/agents.md#max_running_agents)
 
 The effective cap is an active machine-wide temporary override first and this merged
 configured value second. In Launch Control, fixed `Ctrl+R` opens **Runner Capacity**:
@@ -4287,9 +3895,7 @@ can finish the work itself instead of handing it on.
 max_agent_pipe_chain: 8
 ```
 
-| Field                  | Type | Default | Minimum | Description                                          |
-| ---------------------- | ---- | ------- | ------- | ---------------------------------------------------- |
-| `max_agent_pipe_chain` | int  | `8`     | `1`     | Maximum `sase pipe` hops in one agent session chain. |
+[Generated reference for `max_agent_pipe_chain`](reference/config/agents.md#max_agent_pipe_chain)
 
 This is a configuration field rather than a feature flag: the number is one users choose
 permanently to stop a self-piping chain from running away. A missing or malformed value
@@ -4320,10 +3926,7 @@ runner_slots:
   deference_max_seconds: 60
 ```
 
-| Field                                     | Type | Default | Minimum | Description                                                          |
-| ----------------------------------------- | ---- | ------- | ------- | -------------------------------------------------------------------- |
-| `runner_slots.deference_seconds_per_step` | int  | `3`     | `0`     | Seconds of deference added per priority step worse than the default. |
-| `runner_slots.deference_max_seconds`      | int  | `60`    | `0`     | Upper bound on the deference window regardless of priority.          |
+[Generated reference for `runner_slots`](reference/config/agents.md#runner_slots)
 
 The window is `min((priority - 10) * deference_seconds_per_step, deference_max_seconds)`
 seconds. With the defaults, `priority=20` defers for up to 30s and any priority at or
@@ -4371,12 +3974,7 @@ agent_scope_teardown:
     - '^ssh: .*\[mux\]$'
 ```
 
-| Field                                               | Type     | Default                                                | Description                                                            |
-| --------------------------------------------------- | -------- | ------------------------------------------------------ | ---------------------------------------------------------------------- |
-| `agent_scope_teardown.enabled`                      | bool     | `true`                                                 | Sweep the runner's own scope at exit and between successor turns.      |
-| `agent_scope_teardown.term_grace_seconds`           | number   | `3`                                                    | Grace between SIGTERM and SIGKILL when sweeping leaked processes.      |
-| `agent_scope_teardown.reaper_min_scope_age_seconds` | number   | `120`                                                  | Minimum scope age before the orphaned-scope reaper may sweep it.       |
-| `agent_scope_teardown.spare_process_patterns`       | string[] | ssh-agent, gpg-agent, tmux server, ssh mux (see above) | Regex list (`re.search` over comm or cmdline) never killed by a sweep. |
+[Generated reference for `agent_scope_teardown`](reference/config/agents.md#agent_scope_teardown)
 
 This is a config field, not a feature flag: users may permanently disable it or extend
 the spare list, and the sweep is on by default. An invalid spare pattern is logged and
@@ -4403,14 +4001,7 @@ agent_auto_restart:
   storm_max_per_30m: 20
 ```
 
-| Field                       | Type   | Default | Description                                                                                                                 |
-| --------------------------- | ------ | ------- | --------------------------------------------------------------------------------------------------------------------------- |
-| `enabled`                   | bool   | `true`  | Allow the healer to act. While disabled, the scheduler resurfaces pending failures and does not claim their ledger records. |
-| `quiescence_seconds`        | number | `30`    | Required period of code quiet before relaunch; an active code-swap writer lock also prevents relaunch.                      |
-| `max_defer_seconds`         | number | `1800`  | Maximum age of a deferred claim before it is declined.                                                                      |
-| `pending_resurface_seconds` | number | `600`   | Age at which an unclaimed pending recovery is surfaced with a scheduler hint.                                               |
-| `storm_max_per_episode`     | int    | `12`    | Maximum automatic launches for one update episode before recovery pauses.                                                   |
-| `storm_max_per_30m`         | int    | `20`    | Maximum automatic launches in a rolling 30-minute window before recovery pauses.                                            |
+[Generated reference for `agent_auto_restart`](reference/config/agents.md#agent_auto_restart)
 
 All fields are under `agent_auto_restart`. Numeric values are non-negative numbers of
 seconds or integer counts, not duration strings; malformed values use their defaults.
@@ -4431,11 +4022,7 @@ agent_hold_max_ttl: 12h
 agent_hold_confirm_capture_threshold: 10
 ```
 
-| Field                                  | Type   | Default | Description                                                                                              |
-| -------------------------------------- | ------ | ------- | -------------------------------------------------------------------------------------------------------- |
-| `agent_hold_default_ttl`               | string | `2h`    | TTL for a hold armed without an explicit TTL. Bare seconds or a number suffixed with `s`, `m`, or `h`.   |
-| `agent_hold_max_ttl`                   | string | `12h`   | Largest TTL a hold may request. `sase agent hold create` / `run` reject a larger `-T/--ttl`.             |
-| `agent_hold_confirm_capture_threshold` | int    | `10`    | Frozen `pending` capture size above which a launch surface may ask for confirmation of the hold preview. |
+[Generated reference for `agent_hold_default_ttl`](reference/config/agents.md#agent_hold_default_ttl)
 
 The launch preview lists each `%hold` with its scope and a TTL resolved against these
 values, showing both the default and the cap. sase's TUI and an interactive `sase run`
@@ -4474,12 +4061,7 @@ procs:
   runtime_orphan_max_removals: 2000
 ```
 
-| Field                                  | Type | Default  | Minimum | Description                                                                                    |
-| -------------------------------------- | ---- | -------- | ------- | ---------------------------------------------------------------------------------------------- |
-| `procs.history_limit`                  | int  | `100`    | `1`     | Number of finished procs to preserve.                                                          |
-| `procs.runtime_orphan_horizon_seconds` | int  | `259200` | `0`     | Age before the hourly proc runtime owner may remove rowless runtime directories.               |
-| `procs.runtime_orphan_max_removals`    | int  | `2000`   | `1`     | Maximum historical rowless proc runtime directories removed in one pass.                       |
-| `tasks.history_limit`                  | int  | `100`    | `1`     | Deprecated alias for `procs.history_limit`; use `procs.*` for proc runtime retention settings. |
+[Generated reference for `procs`](reference/config/runtime.md#procs)
 
 The top-level `tasks` block is still schema-valid, and `sase config layers` and
 `sase doctor` flag it for migration. In practice the legacy key has no effect in a
@@ -4523,21 +4105,7 @@ wanted. Builtin launchers must use the entry's own reserved name. A custom entry
 supplies exactly one `command`: a string runs through `sh -c`, while a string array runs
 directly as argv.
 
-| Field                                     | Type                               | Default      | Description                                                                                                                                                                                                                                |
-| ----------------------------------------- | ---------------------------------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `service.procs.<name>.description`        | string                             | -            | Summary line, then a blank line and an optional body ([grammar](axe.md#description-grammar)); shown in the Services-tab description panel and `sase service proc show`. A missing blank separator is tolerated: the body starts at line 2. |
-| `service.procs.<name>.enabled`            | bool                               | `true`       | Desired machine state. Plugin entries and the builtin `gateway` default to `false`; a saved machine override can replace it.                                                                                                               |
-| `service.procs.<name>.mode`               | `daemon`                           | `daemon`     | Config entries are daemons. Oneshots are transient submissions from `sase service proc run`.                                                                                                                                               |
-| `service.procs.<name>.command`            | string or non-empty string array   | -            | Shell command or exact argv. Mutually exclusive with `builtin`.                                                                                                                                                                            |
-| `service.procs.<name>.builtin`            | `scheduler` or `gateway`           | -            | Reserved packaged launcher. Mutually exclusive with `command` and must equal the entry name.                                                                                                                                               |
-| `service.procs.<name>.cwd`                | string                             | inherited    | Working directory for the child.                                                                                                                                                                                                           |
-| `service.procs.<name>.env`                | string map                         | `{}`         | Extra environment. `${NAME}` expands a captured variable at launch; `$$` is a literal dollar sign.                                                                                                                                         |
-| `service.procs.<name>.restart`            | `always`, `on-failure`, or `never` | `on-failure` | Restart policy.                                                                                                                                                                                                                            |
-| `service.procs.<name>.success_exit_codes` | integer array                      | `[]`         | Additional `0`-`255` exit codes treated as clean; zero is always clean.                                                                                                                                                                    |
-| `service.procs.<name>.stop_signal`        | common signal name                 | `SIGTERM`    | Graceful stop signal, with or without the `SIG` prefix.                                                                                                                                                                                    |
-| `service.procs.<name>.stop_timeout`       | seconds, `> 0` and `<= 3600`       | `10`         | Grace period before SIGKILL.                                                                                                                                                                                                               |
-| `service.procs.<name>.after`              | name array                         | `[]`         | Start ordering only. Unknown names warn and are dropped; a cycle makes every entry in it unavailable.                                                                                                                                      |
-| `service.procs.<name>.log_max_bytes`      | integer, at least `4096`           | `2097152`    | Maximum retained bytes in the rotated proc output log.                                                                                                                                                                                     |
+[Generated reference for `service`](reference/config/runtime.md#service)
 
 A bare `command` array's first element (for example `sase_job_tg_inbound`) is looked up
 on `PATH` first and then in the bin directory of the interpreter running the host. The
@@ -4598,11 +4166,7 @@ disk:
     top_owner_min_bytes: 1073741824
 ```
 
-| Field                               | Type   | Default      | Range   | Description                                                      |
-| ----------------------------------- | ------ | ------------ | ------- | ---------------------------------------------------------------- |
-| `disk.pressure.warn_free_percent`   | number | `5.0`        | `0-100` | Warn when filesystem free space falls below this percentage.     |
-| `disk.pressure.error_free_percent`  | number | `1.0`        | `0-100` | Error when filesystem free space falls below this percentage.    |
-| `disk.pressure.top_owner_min_bytes` | int    | `1073741824` | `>= 0`  | Minimum unowned row size named directly in pressure diagnostics. |
+[Generated reference for `disk`](reference/config/runtime.md#disk)
 
 `sase doctor` still honors its absolute floors of 3 GiB for WARN and 1 GiB for ERROR;
 the effective threshold is the larger of the absolute and proportional values. Use
@@ -4691,23 +4255,7 @@ managed_tmp:
   agent_cargo_incremental: false
 ```
 
-| Field                                                 | Type | Default       | Minimum | Description                                                                                                                                                      |
-| ----------------------------------------------------- | ---- | ------------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `managed_tmp.horizons.command_scratch_seconds`        | int  | `43200`       | `0`     | Age horizon for scratch whose reader is the command that wrote it (editors, wrappers).                                                                           |
-| `managed_tmp.horizons.handoff_seconds`                | int  | `259200`      | `0`     | Age horizon for files handed to a child process that may re-read them mid-run.                                                                                   |
-| `managed_tmp.horizons.build_scratch_seconds`          | int  | `86400`       | `0`     | Age horizon for Cargo and other build scratch created for one launched agent (non-procfs fallback; the dead-launch backstop reaps unheld launch scratch sooner). |
-| `managed_tmp.horizons.run_artifact_seconds`           | int  | `1209600`     | `0`     | Age horizon for run artifacts sase's TUI Agents tab reads back long after the run finished.                                                                      |
-| `managed_tmp.max_removals`                            | int  | `2000`        | `1`     | Removal budget for one reaper invocation, so a long-neglected root converges over passes.                                                                        |
-| `managed_tmp.dead_launch.enabled`                     | bool | `true`        |         | Run the dead-launch backstop pass over launch-keyed scratch no live process holds.                                                                               |
-| `managed_tmp.dead_launch.grace_seconds`               | int  | `7200`        | `0`     | Quiet age before scratch no live process holds may be reaped by the backstop (and by liveness-aware pressure).                                                   |
-| `managed_tmp.pressure.max_bytes`                      | int  | `17179869184` | `0`     | Managed-root size that triggers pressure pruning of aged build scratch. `0` disables it.                                                                         |
-| `managed_tmp.pressure.target_bytes`                   | int  | `8589934592`  | `0`     | Managed-root size the pressure pass tries to return to.                                                                                                          |
-| `managed_tmp.pressure.min_available_bytes`            | int  | `34359738368` | `0`     | Filesystem free-space floor that also triggers pressure pruning. `0` disables it.                                                                                |
-| `managed_tmp.pressure.recovery_available_bytes`       | int  | `51539607552` | `0`     | Filesystem free-space target used after crossing the low-space floor.                                                                                            |
-| `managed_tmp.pressure.min_age_seconds`                | int  | `43200`       | `0`     | Minimum age before pressure can prune a large scratch entry.                                                                                                     |
-| `managed_tmp.pressure.low_free_space_min_age_seconds` | int  | `3600`        | `0`     | Emergency minimum age used instead when the free-space floor is breached, if lower than base.                                                                    |
-| `managed_tmp.pressure.min_entry_bytes`                | int  | `67108864`    | `0`     | Small entries below this size do not participate in pressure pruning.                                                                                            |
-| `managed_tmp.agent_cargo_incremental`                 | bool | `false`       |         | Incremental Cargo check/clippy for launched agents. Only hosts with the splitting rustc wrapper (athena) should set this true.                                   |
+[Generated reference for `managed_tmp`](reference/config/runtime.md#managed_tmp)
 
 Source: `src/sase/default_config.yml`, `src/sase/config/_settings_system.py`,
 `src/sase/core/managed_tmp_reaper.py`
@@ -4730,9 +4278,7 @@ markdown:
   print_width: 88
 ```
 
-| Field                  | Type | Default | Minimum | Description                                          |
-| ---------------------- | ---- | ------- | ------- | ---------------------------------------------------- |
-| `markdown.print_width` | int  | `88`    | `20`    | Column width SASE wraps generated Markdown prose at. |
+[Generated reference for `markdown`](reference/config/runtime.md#markdown)
 
 The minimum of `20` is the floor below which SASE's display wrapper stops wrapping
 entirely, so a smaller value would silently do nothing.
@@ -4759,9 +4305,7 @@ pager:
   syntax: auto
 ```
 
-| Field          | Type              | Default | Description                                                                                                                  |
-| -------------- | ----------------- | ------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| `pager.syntax` | `auto` or `never` | `auto`  | `auto` detects language from filename, trusted Markdown/diff, shebang, or stdin diff. `never` keeps unhighlighted rendering. |
+[Generated reference for `pager`](reference/config/runtime.md#pager)
 
 CLI `--syntax` overrides this field. `--syntax none` and `--color never` disable the
 added layer for the rest of the session, including followed targets. Unknown values fail
@@ -4781,9 +4325,7 @@ assumptions get sensible behavior out of the box.
 timezone: "America/New_York" # default: system timezone
 ```
 
-| Field      | Type   | Default           | Description                                                                        |
-| ---------- | ------ | ----------------- | ---------------------------------------------------------------------------------- |
-| `timezone` | string | _system timezone_ | IANA timezone name governing all SASE wall-clock display and timestamp generation. |
+[Generated reference for `timezone`](reference/config/core.md#timezone)
 
 ### chat_install
 
@@ -4799,10 +4341,7 @@ chat_install:
   restart_attempts: 3
 ```
 
-| Field                           | Type | Default | Description                                                                                                                     |
-| ------------------------------- | ---- | ------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| `chat_install.timeout_seconds`  | int  | `900`   | Maximum runtime for `sase update --json` before returning exit code `124`.                                                      |
-| `chat_install.restart_attempts` | int  | `3`     | Number of scheduler readiness polls after requesting its service proc start when the scheduler is not running after the update. |
+[Generated reference for `chat_install`](reference/config/integrations.md#chat_install)
 
 Only one chat update worker may run at a time; a lock under
 `~/.sase/chat_install/install.lock` rejects concurrent starts. Worker output is written
@@ -4832,12 +4371,7 @@ telegram:
       timeout: 60s
 ```
 
-| Field                                  | Type   | Default   | Description                                                                    |
-| -------------------------------------- | ------ | --------- | ------------------------------------------------------------------------------ |
-| `telegram.commands.<name>.description` | string | required  | Slash-menu description, from 1 to 256 characters.                              |
-| `telegram.commands.<name>.run`         | string | required  | Executable plus fixed arguments, parsed as an argument vector without a shell. |
-| `telegram.commands.<name>.output`      | string | `message` | Deliver Markdown stdout as a `message` or rendered `pdf`.                      |
-| `telegram.commands.<name>.timeout`     | string | `60s`     | Integer duration ending in `s`, `m`, or `h`.                                   |
+[Generated reference for `telegram`](reference/config/integrations.md#telegram)
 
 Command names must contain 1–32 lowercase letters, digits, or underscores. The built-in
 names `bead`, `beads`, `changes`, `fork`, `kill`, `list`, `update`, and `macros` are
@@ -4885,20 +4419,7 @@ tmux_agent:
       bypass_permissions: true # omit to inherit the global default
 ```
 
-| Field                                            | Type    | Default | Description                                                                                             |
-| ------------------------------------------------ | ------- | ------- | ------------------------------------------------------------------------------------------------------- |
-| `tmux_agent.window_name`                         | string  | `"ai"`  | Base tmux window name. First window is this name; later ones get a numeric suffix (`ai2`, `ai3`).       |
-| `tmux_agent.bypass_permissions`                  | bool    | `true`  | Pass each agent CLI's approval-bypass flags. The resolved command always shows whether bypass is on.    |
-| `tmux_agent.effort`                              | string  | `""`    | Effort applied to launches. `""` follows `llm_provider.default_effort`; `"off"` passes no effort flags. |
-| `tmux_agent.clear_screen`                        | bool    | `true`  | Run `clear` in the new window before starting the CLI.                                                  |
-| `tmux_agent.after_close_command`                 | string  | `""`    | Extra shell command run after an agent CLI window closes, alongside SASE's own window renumbering.      |
-| `tmux_agent.providers.<name>.enabled`            | bool    | `true`  | `false` hides the provider from both the tmux menu and sase's TUI panel.                                |
-| `tmux_agent.providers.<name>.key`                | string  | `""`    | Override the single-key menu shortcut. Must be exactly one printable non-whitespace character.          |
-| `tmux_agent.providers.<name>.model`              | string  | `""`    | Pin a model (substituted into the provider's `model_args`).                                             |
-| `tmux_agent.providers.<name>.effort`             | string  | `""`    | Per-provider effort; `""` inherits the global `tmux_agent.effort`; `"off"` disables effort flags.       |
-| `tmux_agent.providers.<name>.args`               | list    | `[]`    | Extra CLI args appended verbatim after the resolved launch argv.                                        |
-| `tmux_agent.providers.<name>.env`                | mapping | `{}`    | Environment variables for the new tmux window; user values win over the provider descriptor.            |
-| `tmux_agent.providers.<name>.bypass_permissions` | bool    | inherit | Omit to inherit `tmux_agent.bypass_permissions`. `false` launches without bypass args.                  |
+[Generated reference for `tmux_agent`](reference/config/agents.md#tmux_agent)
 
 `effort` accepts `""`, `"off"`, `"none"`, `"minimal"`, `"low"`, `"medium"`, `"high"`,
 `"xhigh"`, and `"max"`. A config-default effort is best-effort: a provider that cannot
@@ -4959,23 +4480,7 @@ mobile_gateway:
   startup_timeout_seconds: 10
 ```
 
-| Field                                     | Type   | Default       | Description                                                                   |
-| ----------------------------------------- | ------ | ------------- | ----------------------------------------------------------------------------- |
-| `mobile_gateway.bind_address`             | string | `"127.0.0.1"` | Host address to bind. Non-loopback values require explicit opt-in.            |
-| `mobile_gateway.port`                     | int    | `7629`        | Gateway HTTP port.                                                            |
-| `mobile_gateway.state_dir`                | string | `""`          | SASE state root for gateway storage. Empty uses the Rust gateway default.     |
-| `mobile_gateway.allow_non_loopback`       | bool   | `false`       | Allow LAN or tailnet binds after explicit user opt-in.                        |
-| `mobile_gateway.command`                  | string | `""`          | Gateway binary command override, parsed without a shell.                      |
-| `mobile_gateway.agent_bridge_command`     | string | `""`          | Agent bridge command override passed to the gateway; empty uses its default.  |
-| `mobile_gateway.helper_bridge_command`    | string | `""`          | Helper bridge command override passed to the gateway; empty uses its default. |
-| `mobile_gateway.push_provider`            | string | `"disabled"`  | Push provider: `disabled`, `test`, or `fcm`.                                  |
-| `mobile_gateway.fcm_project_id`           | string | `""`          | Firebase project ID for FCM HTTP v1.                                          |
-| `mobile_gateway.fcm_service_account_json` | string | `""`          | Local service-account JSON path. Do not commit this file.                     |
-| `mobile_gateway.fcm_credential_env`       | string | `""`          | Env var containing an FCM bearer token or service-account JSON.               |
-| `mobile_gateway.fcm_dry_run`              | bool   | `false`       | Ask FCM to validate messages without delivering them.                         |
-| `mobile_gateway.push_timeout_seconds`     | float  | `5`           | Timeout per push provider HTTP attempt.                                       |
-| `mobile_gateway.push_retry_limit`         | int    | `1`           | Retry attempts for best-effort push delivery.                                 |
-| `mobile_gateway.startup_timeout_seconds`  | float  | `10`          | Seconds to wait for gateway readiness before exiting.                         |
+[Generated reference for `mobile_gateway`](reference/config/integrations.md#mobile_gateway)
 
 Push payloads are hint-only and must not contain bearer tokens, pairing codes, prompt
 bodies, response text, attachment contents, attachment tokens, or host paths. Only
@@ -5000,12 +4505,7 @@ sdd:
   push_after_commit: async
 ```
 
-| Field                          | Type        | Default      | Description                                                                                                                                                                                                                                                                                                                             |
-| ------------------------------ | ----------- | ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `sdd.bead_refresh.mode`        | string      | `background` | Sidecar bead-store freshness: `background` launches a TTL-gated managed sync after commands, `blocking` pulls before commands, and `off` disables remote refresh, including the live-bead-waiter hint the `sidecar_auto_sync` job marks and the equivalent hint in the runner's bead-wait fallback. Local dependency rechecks continue. |
-| `sdd.bead_refresh.ttl_seconds` | float       | `120`        | Minimum age of the last successful remote integration before another background worker is launched.                                                                                                                                                                                                                                     |
-| `sdd.repo.name`                | string      | `""`         | Optional sidecar repo override for providers that support `separate_repo`; accepts `name` or `owner/name`. For GitHub, empty checks only `<owner>/<repo>--sdd`; set `sdd.repo.name` to use another repo such as `sdd` or `owner/sdd`.                                                                                                   |
-| `sdd.push_after_commit`        | bool or str | `async`      | Controls `git push` after SDD commits in sidecar repositories: `async`, `true`, or `false`. Local commits are preserved.                                                                                                                                                                                                                |
+[Generated reference for `sdd`](reference/config/automation.md#sdd)
 
 The workspace provider owns storage selection. Built-in bare-git projects store SDD
 under `sdd/`. Managed GitHub projects use a `--plans` sidecar cloned at
@@ -5075,23 +4575,7 @@ bead:
   push_after_commit: true # compatibility field; current bead-work launches do not consult it
 ```
 
-| Field                                          | Type        | Default       | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| ---------------------------------------------- | ----------- | ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --- |
-| `bead.big_epic_phase_threshold`                | int         | `5`           | Minimum total authored phase count that selects `llm_provider.big_epic_lander_model` for an epic without an explicit land model. Must be at least `1`; malformed runtime values defensively fall back to `5`.                                                                                                                                                                                                                                                                                                                                                                                                          |
-| `bead.attachments.sensitive_patterns`          | list[str]   | `[]`          | Extra glob patterns treated as sensitive by the bead note attachment authoring service, additive with the built-in policy. A note that references a matching path fails unless `-S/--allow-sensitive` is passed. Malformed values fail open to `[]`.                                                                                                                                                                                                                                                                                                                                                                   |
-| `bead.attachments.git_max_bytes`               | int         | `52428800`    | Largest single attachment the git tier accepts, in bytes (50 MiB). Missing, malformed, or above 95 MiB fails open to the default.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| `bead.attachments.public_max_bytes`            | int         | `26214400`    | Largest attachment the public tier accepts, in bytes (25 MiB). Anything larger stays on the private tiers. Missing, malformed, or above 95 MiB fails open to the default.                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| `bead.attachments.require_upload`              | bool        | `false`       | When true, attachment bytes upload before the bead event is written; any upload failure aborts with nothing written and nothing queued. Malformed values fail open to `false`.                                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| `bead.attachments.auto_fetch_max_bytes`        | int         | `26214400`    | Largest single attachment fetched automatically by `read`/`show`, in bytes (25 MiB). Missing or malformed values fail open to the default. `-d`/`--download` lifts the cap for one invocation; `attachment path` always fetches.                                                                                                                                                                                                                                                                                                                                                                                       |
-| `bead.attachments.background_upload_min_bytes` | int         | `67108864`    | Objects at or above this size upload in the background (64 MiB) through a detached drain worker. Missing or malformed values fail open to the default. `require_upload: true` stays synchronous instead.                                                                                                                                                                                                                                                                                                                                                                                                               |
-| `bead.attachments.large_store`                 | object/null | `null`        | Optional rclone large-object tier for objects above `git_max_bytes`: `{remote: "<rclone remote:path>", max_bytes: 2147483648}` (default cap 2 GiB). Null disables the tier. Missing, malformed, or remote-less values fail open to `null`.                                                                                                                                                                                                                                                                                                                                                                             |     |
-| `bead.attachments.local_cache_max_bytes`       | int         | `10737418240` | Local attachment cache budget in bytes (10 GiB). `sase bead attachment prune` evicts cached objects confirmed present in a shared store, oldest views first, to fit under this budget. Missing or malformed values fail open to the default.                                                                                                                                                                                                                                                                                                                                                                           |     |
-| `bead.show.images`                             | string      | `auto`        | Image previews for `sase bead show`: `auto`, `cells`, `kitty`, or `never`. `read`, JSON, and piped `show` never draw. Malformed values fail open to `auto`.                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| `bead.task_triage.min_plus_ones`               | int         | `1`           | Fallback `+1` bar, applied only to untyped legacy beads and to types that declare no `triage.min_plus_ones` of their own. A typed bead uses its own spec bar instead, which is why this default does not describe most task beads: `flake` ships as `3`, `bug` ships as `1`, and `ci`, `feature`, and `memory` ship as `0`. See [Task Types](beads.md#task-types) for how a bead resolves its bar. Must be at least `0`. Suppression withholds only the gate — a sub-threshold bead stays stored as `ready`, and a gate already raised for a bead that falls below the bar is canceled and its notification dismissed. |
-| `bead.task_types`                              | list        | `[]`          | Project catalog entries. `{use: <plugin>@<slug>, ...}` deep-merges sibling keys onto an installed type; a full spec without `use:` defines a new slug and may not shadow a builtin.                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| `bead.task_triage.stale_after_days`            | int         | `7`           | Days after creation at which a still-sub-threshold ready task bead is considered stale and eligible for the `bead_stale_cleanup` gate. Must be at least `1`.                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| `bead.task_triage.stale_cleanup_min_beads`     | int         | `10`          | Stale beads required across all enabled projects before `bead_stale_cleanup` raises its gate; below this count the job does nothing. Must be at least `1`.                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| `bead.push_after_commit`                       | bool or str | `true`        | Retained in the accepted configuration shape, but the current `sase bead work` path does not read it. Without `--no-push`, bead-ID launches synchronously run managed sync even for an in-tree Git store; a remote-backed detached store additionally requires an actual pre-spawn push.                                                                                                                                                                                                                                                                                                                               |
+[Generated reference for `bead`](reference/config/automation.md#bead)
 
 Below the threshold, an epic land agent uses `llm_provider.epic_lander_model`. At or
 above it, it uses `llm_provider.big_epic_lander_model` instead. An explicit land model
@@ -5161,17 +4645,7 @@ filter on rather than author or title: release automation can author as a human 
 on some repos, and PR titles are user-configurable, but the release branch name is
 stable.
 
-| Field                                                  | Type        | Default                                                                           | Description                                                  |
-| ------------------------------------------------------ | ----------- | --------------------------------------------------------------------------------- | ------------------------------------------------------------ |
-| `external_mirror.issues.filters.author_globs`          | list of str | `[]`                                                                              | Issue author globs, including `!`-prefixed exclusions.       |
-| `external_mirror.issues.filters.label_globs`           | list of str | `[]`                                                                              | Issue label globs, matched against every label on the issue. |
-| `external_mirror.issues.filters.title_globs`           | list of str | `[]`                                                                              | Issue title globs.                                           |
-| `external_mirror.issues.filters.states`                | list of str | `[]`                                                                              | Issue states (`open`/`closed`) accepted for mirroring.       |
-| `external_mirror.pull_requests.filters.author_globs`   | list of str | `[]`                                                                              | Remote PR author globs.                                      |
-| `external_mirror.pull_requests.filters.base_ref_globs` | list of str | `[]`                                                                              | Remote PR base-ref globs.                                    |
-| `external_mirror.pull_requests.filters.head_ref_globs` | list of str | `["!release-please--*", "!release-please/*", "!release-plz-*", "!release-plz/*"]` | Remote PR head-ref globs.                                    |
-| `external_mirror.pull_requests.filters.title_globs`    | list of str | `[]`                                                                              | Remote PR title globs.                                       |
-| `external_mirror.pull_requests.filters.states`         | list of str | `[]`                                                                              | Remote PR states (`open`/`closed`) accepted for adoption.    |
+[Generated reference for `external_mirror`](reference/config/repositories.md#external_mirror)
 
 `external_mirror.exclude_labels` and `external_mirror.pr_authors` are deprecated aliases
 for `external_mirror.issues.filters.label_globs` (folded in as negated globs) and
@@ -5398,13 +4872,7 @@ workspace:
   held_claim_ttl_days: 14 # age threshold for releasing pinned dead workspace claims
 ```
 
-| Field                           | Type   | Default       | Description                                                                                                                                                                                                                                    |
-| ------------------------------- | ------ | ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `workspace.root`                | string | `"xdg-state"` | Root policy. `"xdg-state"` uses the platform state dir; `"adjacent"` keeps the legacy `<primary>_<num>/` layout as an explicit opt-in; an absolute path is used as the managed-root base. `SASE_WORKSPACE_ROOT` overrides this base directory. |
-| `workspace.project_key`         | string | `""`          | Override the per-project namespace under managed roots. Empty derives a stable key from a single git remote slug or the primary-path basename plus a short hash.                                                                               |
-| `workspace.share_git_objects`   | bool   | `true`        | Borrow the primary checkout's Git object database for numbered managed clones. Disable for standalone clones; `sase workspace repair` dissociates existing SASE-managed borrowers while preserving non-SASE alternate entries.                 |
-| `workspace.cleanup_ttl_days`    | int    | `14`          | Minimum age (in days) of an unclaimed managed checkout before `sase workspace cleanup --stale` will remove it.                                                                                                                                 |
-| `workspace.held_claim_ttl_days` | int    | `14`          | Minimum age (in days) of a pinned dead-PID workspace claim before the stale sweep releases it. Artifacts are kept so the failed run stays dismissible in sase's TUI; only the workspace hold is dropped. `0` disables age-based release.       |
+[Generated reference for `workspace`](reference/config/repositories.md#workspace)
 
 Platform defaults for the `xdg-state` policy:
 
@@ -5464,19 +4932,7 @@ telemetry:
     p95_latency_critical: 600.0
 ```
 
-| Field                                              | Type  | Default    | Description                                      |
-| -------------------------------------------------- | ----- | ---------- | ------------------------------------------------ |
-| `telemetry.enabled`                                | bool  | `true`     | Enable or disable local telemetry recording.     |
-| `telemetry.flush_interval_seconds`                 | float | `15`       | Flush interval for long-lived processes.         |
-| `telemetry.retention.raw_seconds`                  | int   | `172800`   | Retain raw samples for 48 hours.                 |
-| `telemetry.retention.rollup_5m_seconds`            | int   | `2592000`  | Retain five-minute rollups for 30 days.          |
-| `telemetry.retention.rollup_1h_seconds`            | int   | `31536000` | Retain hourly rollups for one year.              |
-| `telemetry.health_thresholds.error_rate_warn`      | float | `10.0`     | Error rate % threshold for WARN health status.   |
-| `telemetry.health_thresholds.error_rate_critical`  | float | `25.0`     | Error rate % threshold for CRITICAL status.      |
-| `telemetry.health_thresholds.retry_rate_warn`      | float | `10.0`     | Retry rate % threshold for WARN health status.   |
-| `telemetry.health_thresholds.retry_rate_critical`  | float | `25.0`     | Retry rate % threshold for CRITICAL status.      |
-| `telemetry.health_thresholds.p95_latency_warn`     | float | `300.0`    | P95 latency threshold (seconds) for WARN status. |
-| `telemetry.health_thresholds.p95_latency_critical` | float | `600.0`    | P95 latency threshold (seconds) for CRITICAL.    |
+[Generated reference for `telemetry`](reference/config/integrations.md#telemetry)
 
 The legacy `telemetry.prometheus` block (`url`, `pushgateway_url`, `exposition_port`) is
 still schema-valid for compatibility but is ignored.
@@ -5503,16 +4959,7 @@ tool_runs:
     providers: {}
 ```
 
-| Field                                     | Type   | Default      | Minimum | Description                                                                             |
-| ----------------------------------------- | ------ | ------------ | ------- | --------------------------------------------------------------------------------------- |
-| `tool_runs.summary_days`                  | int    | `180`        | `1`     | Days to retain run/attempt/lifecycle summaries after settlement.                        |
-| `tool_runs.detail_days`                   | int    | `60`         | `1`     | Days to retain stage/sample events and projections. Must be `<= summary_days`.          |
-| `tool_runs.log_days`                      | int    | `14`         | `1`     | Days to retain output and event files after settlement. Must be `<= detail_days`.       |
-| `tool_runs.log_max_bytes`                 | int    | `2147483648` | `1`     | Aggregate retained-log target in bytes (2 GiB).                                         |
-| `tool_runs.run_log_max_bytes`             | int    | `268435456`  | `1`     | Per-run retained-log cap in bytes (256 MiB).                                            |
-| `tool_runs.event_max_bytes`               | int    | `16777216`   | `1`     | Per-run event-file cap in bytes (16 MiB).                                               |
-| `tool_runs.soft_ceiling.default`          | string | `""`         | —       | Default soft-ceiling duration (`90s`, `20m`, `1h`); empty means none.                   |
-| `tool_runs.soft_ceiling.providers.<name>` | string | `""`         | —       | Per-provider soft-ceiling duration keyed by registered provider name; empty means none. |
+[Generated reference for `tool_runs`](reference/config/runtime.md#tool_runs)
 
 `tool_runs.soft_ceiling` is the most time an agent should block on one `sase tool run`
 before escalating to a monitor; it kills nothing; the effective budget is the smaller of
@@ -5547,17 +4994,7 @@ tools:
         python: [python, --version]
 ```
 
-| Field                                | Type                             | Default              | Description                                                                                                             |
-| ------------------------------------ | -------------------------------- | -------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| `tools.<name>.argv`                  | string array                     | required             | Exact argv run at the project root. Not expanded for shell syntax or environment variables.                             |
-| `tools.<name>.description`           | string                           | `""`                 | Human-readable purpose shown by `sase tool list`.                                                                       |
-| `tools.<name>.stages`                | `run_silent` \| `none`           | `none`               | Whether `run_silent` stage producers attach to this tool.                                                               |
-| `tools.<name>.inputs`                | string array                     | `[]`                 | Repository-relative glob patterns observed as fingerprint inputs.                                                       |
-| `tools.<name>.env`                   | string array                     | `[]`                 | Allow-listed environment variable names observed as fingerprint inputs.                                                 |
-| `tools.<name>.args`                  | `allow` \| `deny`                | `deny`               | Whether extra arguments after `--` may be appended to argv.                                                             |
-| `tools.<name>.duration_class`        | `short` \| `long` \| `unbounded` | `short` (when unset) | Duration-class floor for inline-vs-monitor routing. Validated by the Rust core and excluded from the definition digest. |
-| `tools.<name>.fingerprint.repos`     | string array                     | `[]`                 | Configured repository identities; empty means the current repository.                                                   |
-| `tools.<name>.fingerprint.toolchain` | map of argv arrays               | `{}`                 | Bounded toolchain probes.                                                                                               |
+[Generated reference for `tools`](reference/config/prompts.md#tools)
 
 `sase tool list` reports LAST (newest native result for this project and definition) and
 TYPICAL (median duration of up to 30 normally exited native runs in 30 days). Missing
@@ -5578,9 +5015,7 @@ update:
   dev_root: "~/projects/github"
 ```
 
-| Field             | Type | Default             | Description                                                                                               |
-| ----------------- | ---- | ------------------- | --------------------------------------------------------------------------------------------------------- |
-| `update.dev_root` | str  | `~/projects/github` | Base directory for dev-mode editable checkouts, materialized owner-nested as `<dev_root>/<owner>/<repo>`. |
+[Generated reference for `update`](reference/config/runtime.md#update)
 
 Source: `src/sase/default_config.yml`, `src/sase/mode_switch/repos.py`
 

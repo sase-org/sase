@@ -23,8 +23,9 @@ sase init --check
 
 ## 1. Set the default model
 
-Launches without an explicit request use `llm_provider.default_model` (`@large` unless
-changed). Set it when most of your work wants a different level:
+Launches without an explicit request use
+[`llm_provider.default_model`](../reference/config/llm-provider.md#llm_provider-default_model)
+(`@large` unless changed). Set it when most of your work wants a different level:
 
 ```yaml
 llm_provider:
@@ -36,8 +37,9 @@ how to check provider readiness.
 
 ## 2. Keep automatic recovery on
 
-Agents interrupted by a live update restart automatically while `enabled` is true. Leave
-it on unless you are debugging the recovery itself:
+Agents interrupted by a live update restart automatically while
+[`agent_auto_restart.enabled`](../reference/config/agents.md#agent_auto_restart-enabled)
+is true. Leave it on unless you are debugging the recovery itself:
 
 ```yaml
 agent_auto_restart:
@@ -46,12 +48,12 @@ agent_auto_restart:
 
 ## 3. Size the runner capacity
 
-The `max_running_agents` value caps how many agents run at once (default `10`). Raise it
-on a large machine, lower it when agents compete with other work:
+[`max_running_agents`](../reference/config/agents.md#max_running_agents) caps how many
+agents run at once (default `10`). Raise it on a large machine, lower it when agents
+compete with other work:
 
 ```yaml
-runner_slots:
-  max_running_agents: 10
+max_running_agents: 10
 ```
 
 Lowering the cap never kills running agents; new work simply waits until capacity frees
@@ -77,6 +79,8 @@ two confirmation commands. For failures outside configuration, start with
 
 ## Related
 
-- [Configuration](../configuration.md#config-file-location) — file layout, merge order,
-  and every setting with its default.
+- [Configuration keys](../reference/config/index.md) — every key, type, default, and
+  allowed value.
+- [Configuration files and behavior](../configuration.md#config-file-location) — file
+  layout and merge order.
 - [sase doctor](../reference/cli/doctor.md) — the diagnostic command and its checks.

@@ -17,7 +17,10 @@ it names the thing so tutorials and guides can link to the facts.
 
 ## Configuration
 
-- [Configuration](../configuration.md) — every setting and default
+- [Configuration keys](config/index.md) — generated key paths, types, defaults, and
+  allowed values
+- [Configuration files and behavior](../configuration.md#config-file-location) — file
+  layout, merge order, and runtime details
 
 ## TUI
 

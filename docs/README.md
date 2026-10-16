@@ -140,6 +140,19 @@
 - [sase var](reference/cli/var.md) — Inspect historical output variables, retrieve a snapshot or selector values, or set variables on the current SASE agent run.
 - [sase version](reference/cli/version.md) — Show the exact SASE host, Rust core, and plugin packages used by this process.
 - [sase workspace](reference/cli/workspace.md) — Inspect and manage managed workspace checkouts
+- [Agents and runners configuration](reference/config/agents.md) — Agent launch, completion, capacity, restart, and process-scope settings.
+- [Automation and work tracking configuration](reference/config/automation.md) — Beads, goals, gates, SDD, and related automation policy.
+- [Core and identity configuration](reference/config/core.md) — Repository ownership, identity, and machine-wide configuration switches.
+- [Configuration reference](reference/config/index.md) — Generated configuration keys, types, defaults, and allowed values.
+- [Integrations and telemetry configuration](reference/config/integrations.md) — Chat, mobile access, and local telemetry settings.
+- [LLM provider configuration](reference/config/llm-provider.md) — Provider selection, model defaults, and model execution policy.
+- [Memory and instructions configuration](reference/config/memory.md) — Project memory, generated instruction templates, and their compatibility aliases.
+- [Configuration keys needing descriptions](reference/config/needs-description.md) — Schema paths that do not yet have a description.
+- [Prompts and tools configuration](reference/config/prompts.md) — Macros, named tools, plugins, hooks, and mentor selection.
+- [Repositories and version control configuration](reference/config/repositories.md) — Repository relationships, VCS providers, dispatch, commits, and workspace configuration.
+- [Runtime and stored data configuration](reference/config/runtime.md) — Process history, service hosting, artifacts, disk use, and reading surfaces.
+- [Scheduler configuration](reference/config/scheduler.md) — AXE scheduler routines, jobs, and execution limits.
+- [TUI configuration](reference/config/tui.md) — Settings for SASE's terminal interface and its configurable panes.
 - [Design decisions](reference/design-decisions.md) — Why SASE works this way, generated from the decisions memory web.
 - [Glossary](reference/glossary.md) — Every SASE term, generated from the glossary memory web.
 - [Reference](reference/index.md) — Look up exact SASE facts here, generated from code where possible.

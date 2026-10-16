@@ -142,6 +142,19 @@
 - [sase var](https://sase.sh/reference/cli/var/) — Inspect historical output variables, retrieve a snapshot or selector values, or set variables on the current SASE agent run.
 - [sase version](https://sase.sh/reference/cli/version/) — Show the exact SASE host, Rust core, and plugin packages used by this process.
 - [sase workspace](https://sase.sh/reference/cli/workspace/) — Inspect and manage managed workspace checkouts
+- [Agents and runners configuration](https://sase.sh/reference/config/agents/) — Agent launch, completion, capacity, restart, and process-scope settings.
+- [Automation and work tracking configuration](https://sase.sh/reference/config/automation/) — Beads, goals, gates, SDD, and related automation policy.
+- [Core and identity configuration](https://sase.sh/reference/config/core/) — Repository ownership, identity, and machine-wide configuration switches.
+- [Configuration reference](https://sase.sh/reference/config/) — Generated configuration keys, types, defaults, and allowed values.
+- [Integrations and telemetry configuration](https://sase.sh/reference/config/integrations/) — Chat, mobile access, and local telemetry settings.
+- [LLM provider configuration](https://sase.sh/reference/config/llm-provider/) — Provider selection, model defaults, and model execution policy.
+- [Memory and instructions configuration](https://sase.sh/reference/config/memory/) — Project memory, generated instruction templates, and their compatibility aliases.
+- [Configuration keys needing descriptions](https://sase.sh/reference/config/needs-description/) — Schema paths that do not yet have a description.
+- [Prompts and tools configuration](https://sase.sh/reference/config/prompts/) — Macros, named tools, plugins, hooks, and mentor selection.
+- [Repositories and version control configuration](https://sase.sh/reference/config/repositories/) — Repository relationships, VCS providers, dispatch, commits, and workspace configuration.
+- [Runtime and stored data configuration](https://sase.sh/reference/config/runtime/) — Process history, service hosting, artifacts, disk use, and reading surfaces.
+- [Scheduler configuration](https://sase.sh/reference/config/scheduler/) — AXE scheduler routines, jobs, and execution limits.
+- [TUI configuration](https://sase.sh/reference/config/tui/) — Settings for SASE's terminal interface and its configurable panes.
 - [Design decisions](https://sase.sh/reference/design-decisions/) — Why SASE works this way, generated from the decisions memory web.
 - [Glossary](https://sase.sh/reference/glossary/) — Every SASE term, generated from the glossary memory web.
 - [Reference](https://sase.sh/reference/) — Look up exact SASE facts here, generated from code where possible.

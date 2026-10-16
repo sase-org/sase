@@ -483,7 +483,7 @@ fmt-md: _setup-prettier
     @printf "\n---------- Formatting Markdown with prettier... ----------\n"
     {{ prettier_bin }} --write "**/*.md"
 
-# Renderer registry sources: tools/render_model_docs,
+# Renderer registry sources: tools/render_model_docs, tools/render_config,
 # tools/render_applicability, tools/render_install_command, tools/render_moves,
 # and tools/render_docs_map.
 # Shared modules: tools/docs_moves.py and tools/docs_render_utils.py.

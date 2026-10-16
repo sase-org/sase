@@ -1168,6 +1168,7 @@
       "properties": {
         "roots": {
           "type": "array",
+          "description": "Allow-listed filesystem roots for absolute or home-relative @file prompt references.",
           "items": { "$ref": "#/definitions/artifactRefsFileRoot" }
         }
       }
@@ -5013,6 +5014,7 @@
           "properties": {
             "mode": {
               "type": "string",
+              "description": "Selects remote sidecar bead-store refresh behavior: background starts a TTL-gated sync after commands, blocking pulls before commands, and off disables command-triggered refresh.",
               "enum": [
                 "background",
                 "blocking",
@@ -5022,6 +5024,7 @@
             },
             "ttl_seconds": {
               "type": "number",
+              "description": "Minimum age in seconds since the last successful remote integration before another background refresh worker is launched.",
               "minimum": 0,
               "default": 120
             }
@@ -5399,6 +5402,7 @@
     },
     "runner_slots": {
       "type": "object",
+      "description": "Priority-based deference for runner-slot waiters, bounded by a maximum delay.",
       "additionalProperties": false,
       "properties": {
         "deference_seconds_per_step": {
@@ -5417,6 +5421,7 @@
     },
     "agent_scope_teardown": {
       "type": "object",
+      "description": "Sweeps leaked processes from agent-owned scopes at runner exit and reaps abandoned scopes.",
       "additionalProperties": false,
       "properties": {
         "enabled": {
@@ -5446,6 +5451,7 @@
     },
     "agent_auto_restart": {
       "type": "object",
+      "description": "Controls recovery of agents interrupted by a live update, including quiescence, retry, and storm limits.",
       "additionalProperties": false,
       "properties": {
         "enabled": {
@@ -5505,6 +5511,7 @@
     },
     "procs": {
       "type": "object",
+      "description": "Retention limits for finished proc records and their orphaned runtime directories.",
       "additionalProperties": false,
       "properties": {
         "history_limit": {
@@ -5731,10 +5738,12 @@
     },
     "artifacts": {
       "type": "object",
+      "description": "Bounds automatic artifact capture and controls the opt-in retention policy for stored artifact data.",
       "additionalProperties": false,
       "properties": {
         "capture": {
           "type": "object",
+          "description": "Limits copied bytes and history scanning for artifacts captured automatically at agent finalization.",
           "additionalProperties": false,
           "properties": {
             "max_stored_per_agent": {
@@ -5765,6 +5774,7 @@
         },
         "retention": {
           "type": "object",
+          "description": "Policy for pruning and trashing captured artifact data after agent finalization.",
           "additionalProperties": false,
           "properties": {
             "enabled": {

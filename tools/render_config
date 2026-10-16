@@ -1,0 +1,742 @@
+#!/usr/bin/env python3
+"""Render configuration reference pages from the config schema and defaults."""
+
+from __future__ import annotations
+
+import argparse
+import difflib
+import html
+import json
+import re
+import sys
+import textwrap
+from pathlib import Path
+from typing import Any
+
+import yaml
+
+
+ROOT = Path(__file__).resolve().parents[1]
+SCHEMA_PATH = ROOT / "src" / "sase" / "config" / "sase.schema.json"
+DEFAULTS_PATH = ROOT / "src" / "sase" / "default_config.yml"
+OUTPUT_DIR = ROOT / "docs" / "reference" / "config"
+INDEX_PATH = OUTPUT_DIR / "index.md"
+MISSING_PATH = OUTPUT_DIR / "needs-description.md"
+
+GENERATED_MARKER = (
+    "<!-- generated, do not edit; source: src/sase/config/sase.schema.json and "
+    "src/sase/default_config.yml (tools/render_config; run just fix to regenerate) -->"
+)
+
+# Keep the large, regularly used families on their own pages and group the
+# smaller top-level settings by the kind of work they configure.
+FAMILIES: dict[str, tuple[str, str, tuple[str, ...]]] = {
+    "core": (
+        "Core and identity",
+        "Repository ownership, identity, and machine-wide configuration switches.",
+        (
+            "default_linked_repos",
+            "github_orgs",
+            "id",
+            "is_sase_managed",
+            "machine_name",
+            "timezone",
+            "use_chezmoi",
+        ),
+    ),
+    "memory": (
+        "Memory and instructions",
+        "Project memory, generated instruction templates, and their compatibility aliases.",
+        (
+            "amd_agents_template",
+            "amd_agents_minimal_template",
+            "memory",
+            "memory_readme_template",
+            "memory_sase_template",
+        ),
+    ),
+    "tui": (
+        "TUI",
+        "Settings for SASE's terminal interface and its configurable panes.",
+        ("ace",),
+    ),
+    "scheduler": (
+        "Scheduler",
+        "AXE scheduler routines, jobs, and execution limits.",
+        ("axe",),
+    ),
+    "llm-provider": (
+        "LLM provider",
+        "Provider selection, model defaults, and model execution policy.",
+        ("llm_provider",),
+    ),
+    "agents": (
+        "Agents and runners",
+        "Agent launch, completion, capacity, restart, and process-scope settings.",
+        (
+            "agent_auto_restart",
+            "agent_hold_confirm_capture_threshold",
+            "agent_hold_default_ttl",
+            "agent_hold_max_ttl",
+            "agent_scope_teardown",
+            "autonomy",
+            "finalizers",
+            "max_agent_pipe_chain",
+            "max_running_agents",
+            "runner_slots",
+            "tmux_agent",
+        ),
+    ),
+    "repositories": (
+        "Repositories and version control",
+        "Repository relationships, VCS providers, dispatch, commits, and workspace configuration.",
+        (
+            "commit",
+            "commit_hooks",
+            "dispatch",
+            "external_mirror",
+            "linked_repos",
+            "repos",
+            "sibling_repos",
+            "vcs_provider",
+            "vcs_ref_completion",
+            "vcs_repo_completion",
+            "workspace",
+        ),
+    ),
+    "prompts": (
+        "Prompts and tools",
+        "Macros, named tools, plugins, hooks, and mentor selection.",
+        (
+            "file_hooks",
+            "macro_aliases",
+            "macros",
+            "mentor_profiles",
+            "metahooks",
+            "plugins",
+            "tools",
+        ),
+    ),
+    "automation": (
+        "Automation and work tracking",
+        "Beads, goals, gates, SDD, and related automation policy.",
+        ("bead", "gate", "goals", "sdd"),
+    ),
+    "runtime": (
+        "Runtime and stored data",
+        "Process history, service hosting, artifacts, disk use, and reading surfaces.",
+        (
+            "artifacts",
+            "artifact_refs",
+            "disk",
+            "managed_tmp",
+            "markdown",
+            "monitor",
+            "pager",
+            "procs",
+            "service",
+            "tasks",
+            "tool_runs",
+            "update",
+        ),
+    ),
+    "integrations": (
+        "Integrations and telemetry",
+        "Chat, mobile access, and local telemetry settings.",
+        ("chat_install", "feature_flags", "mobile_gateway", "telegram", "telemetry"),
+    ),
+}
+
+
+class Entry:
+    def __init__(self, path: str, sources: tuple[dict[str, Any], ...]) -> None:
+        self.path = path
+        self.sources = sources
+
+
+def _load_json(path: Path) -> dict[str, Any]:
+    value = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(value, dict):
+        raise ValueError(f"{path} must contain a JSON object")
+    return value
+
+
+def _resolve_ref(
+    schema: Any,
+    root: dict[str, Any],
+    ref_stack: frozenset[str] = frozenset(),
+) -> Any:
+    if not isinstance(schema, dict) or "$ref" not in schema:
+        return schema
+    ref = schema["$ref"]
+    if not isinstance(ref, str) or not ref.startswith("#/"):
+        raise ValueError(f"unsupported config schema reference: {ref!r}")
+    if ref in ref_stack:
+        # Recursive schemas still have useful local constraints and descriptions.
+        return {key: value for key, value in schema.items() if key != "$ref"}
+    target: Any = root
+    for token in ref[2:].split("/"):
+        token = token.replace("~1", "/").replace("~0", "~")
+        if not isinstance(target, dict) or token not in target:
+            raise ValueError(f"cannot resolve config schema reference {ref!r}")
+        target = target[token]
+    target = _resolve_ref(target, root, ref_stack | {ref})
+    if not isinstance(target, dict):
+        return target
+    merged = dict(target)
+    merged.update({key: value for key, value in schema.items() if key != "$ref"})
+    return merged
+
+
+def _variants(schema: Any, root: dict[str, Any]) -> list[dict[str, Any]]:
+    """Return a node and its union branches, resolving local references."""
+    resolved = _resolve_ref(schema, root)
+    if not isinstance(resolved, dict):
+        return []
+    result = [resolved]
+    for keyword in ("oneOf", "anyOf"):
+        alternatives = resolved.get(keyword, [])
+        if isinstance(alternatives, list):
+            for alternative in alternatives:
+                result.extend(_variants(alternative, root))
+    return result
+
+
+def _schema_entries(schema: dict[str, Any]) -> list[Entry]:
+    root_properties = schema.get("properties")
+    if not isinstance(root_properties, dict):
+        raise ValueError("config schema has no root properties mapping")
+
+    entries: list[Entry] = []
+
+    def visit(candidates: list[Any], path: str, depth: int = 0) -> None:
+        if depth > 40:
+            raise ValueError(f"config schema is nested too deeply at {path}")
+        sources: list[dict[str, Any]] = []
+        for candidate in candidates:
+            sources.extend(_variants(candidate, schema))
+        if not sources:
+            return
+        entries.append(Entry(path=path, sources=tuple(sources)))
+
+        properties: dict[str, list[Any]] = {}
+        item_schemas: list[Any] = []
+        map_schemas: list[Any] = []
+        for source in sources:
+            for name, child in source.get("properties", {}).items():
+                properties.setdefault(name, []).append(child)
+            items = source.get("items")
+            if isinstance(items, dict):
+                item_schemas.append(items)
+            elif isinstance(items, list):
+                item_schemas.extend(item for item in items if isinstance(item, dict))
+            additional = source.get("additionalProperties")
+            if isinstance(additional, dict):
+                map_schemas.append(additional)
+            for child in source.get("patternProperties", {}).values():
+                if isinstance(child, dict):
+                    map_schemas.append(child)
+
+        for name, children in properties.items():
+            visit(children, f"{path}.{name}", depth + 1)
+        if item_schemas:
+            visit(item_schemas, f"{path}[]", depth + 1)
+        if map_schemas:
+            visit(map_schemas, f"{path}.<key>", depth + 1)
+
+    for name, node in root_properties.items():
+        visit([node], name)
+    return entries
+
+
+def _family_map() -> dict[str, str]:
+    mapping: dict[str, str] = {}
+    for family, (_, _, names) in FAMILIES.items():
+        for name in names:
+            if name in mapping:
+                raise ValueError(f"config key {name!r} appears in more than one family")
+            mapping[name] = family
+    return mapping
+
+
+def _check_families(root_properties: dict[str, Any]) -> dict[str, str]:
+    mapping = _family_map()
+    missing = sorted(set(root_properties) - set(mapping))
+    stale = sorted(set(mapping) - set(root_properties))
+    if missing or stale:
+        details = []
+        if missing:
+            details.append("unassigned schema keys: " + ", ".join(missing))
+        if stale:
+            details.append("family keys missing from schema: " + ", ".join(stale))
+        raise ValueError("; ".join(details))
+    return mapping
+
+
+def _json_value(value: Any) -> str:
+    if isinstance(value, str):
+        return json.dumps(value, ensure_ascii=False)
+    if value is None:
+        return "null"
+    if value is True:
+        return "true"
+    if value is False:
+        return "false"
+    return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+
+
+def _description(sources: tuple[dict[str, Any], ...]) -> str:
+    for source in sources:
+        description = source.get("description")
+        if isinstance(description, str) and description.strip():
+            return " ".join(description.split())
+    return ""
+
+
+def _types(sources: tuple[dict[str, Any], ...]) -> str:
+    values: list[str] = []
+    for source in sources:
+        declared = source.get("type")
+        if isinstance(declared, str):
+            candidates = [declared]
+        elif isinstance(declared, list):
+            candidates = [str(value) for value in declared]
+        else:
+            candidates = []
+        if not candidates and source.get("properties"):
+            candidates = ["object"]
+        if not candidates and isinstance(source.get("items"), (dict, list)):
+            candidates = ["array"]
+        for candidate in candidates:
+            if candidate not in values:
+                values.append(candidate)
+    return " | ".join(values) if values else "any"
+
+
+def _allowed_values(sources: tuple[dict[str, Any], ...]) -> str:
+    values: list[Any] = []
+    seen: set[str] = set()
+    for source in sources:
+        declared = source.get("enum")
+        if isinstance(declared, list):
+            candidates = declared
+        elif "const" in source:
+            candidates = [source["const"]]
+        else:
+            candidates = []
+        for value in candidates:
+            marker = json.dumps(value, ensure_ascii=False, sort_keys=True)
+            if marker not in seen:
+                seen.add(marker)
+                values.append(value)
+    if not values:
+        return "—"
+    return ", ".join(f"`{_json_value(value)}`" for value in values)
+
+
+def _default_from_config(path: str, defaults: dict[str, Any]) -> Any:
+    if "[]" in path or "<key>" in path:
+        return _UNSET
+    value: Any = defaults
+    for part in path.split("."):
+        if not isinstance(value, dict) or part not in value:
+            return _UNSET
+        value = value[part]
+    return value
+
+
+class _Unset:
+    pass
+
+
+_UNSET = _Unset()
+
+
+def _default(entry: Entry, defaults: dict[str, Any]) -> Any:
+    for source in entry.sources:
+        if "default" in source:
+            return source["default"]
+    return _default_from_config(entry.path, defaults)
+
+
+def _format_default(value: Any) -> str:
+    if value is _UNSET:
+        return "not set"
+    if isinstance(value, dict):
+        if not value:
+            return "`{}`"
+        keys = list(value)
+        if len(keys) <= 4:
+            shown = ", ".join(f"`{key}`" for key in keys)
+            return f"{{{shown}}} (values below)"
+        return f"{{…}} ({len(keys)} keys; values below)"
+    if isinstance(value, list):
+        if not value:
+            return "`[]`"
+        if all(not isinstance(item, (dict, list)) for item in value):
+            rendered = _json_value(value)
+            if len(rendered) <= 120:
+                return f"`{rendered}`"
+        return f"[…] ({len(value)} entries)"
+    return f"`{_json_value(value)}`"
+
+
+def _cell(text: str) -> str:
+    return " ".join(text.split()).replace("|", r"\|")
+
+
+def _description_cell(text: str) -> str:
+    parts = text.split("`")
+    for index in range(0, len(parts), 2):
+        plain = html.escape(parts[index], quote=False)
+        plain = re.sub(r"(?<!\\)\\\*", r"\\*", plain)
+        plain = re.sub(r"(?<![A-Za-z0-9])_|_(?![A-Za-z0-9])", r"\\_", plain)
+        plain = re.sub(r"(?<!\\)\*", r"\\*", plain)
+        parts[index] = plain
+    return _cell("`".join(parts))
+
+
+def _anchor(path: str) -> str:
+    normalized = path.replace("[]", "-item").replace("<key>", "key")
+    normalized = re.sub(r"[^a-zA-Z0-9_-]+", "-", normalized)
+    return normalized.strip("-").lower()
+
+
+def _family_for(path: str, family_map: dict[str, str]) -> str:
+    return family_map[_root_key(path)]
+
+
+def _root_key(path: str) -> str:
+    return path.split(".", 1)[0].removesuffix("[]")
+
+
+def _prose(text: str) -> list[str]:
+    return textwrap.fill(
+        text,
+        width=88,
+        break_long_words=False,
+        break_on_hyphens=False,
+    ).splitlines()
+
+
+def _description_frontmatter(description: str) -> list[str]:
+    line = f"description: {description}"
+    if len(line) <= 88:
+        return [line]
+    return [
+        "description:",
+        *textwrap.fill(
+            description,
+            width=86,
+            initial_indent="  ",
+            subsequent_indent="  ",
+            break_long_words=False,
+            break_on_hyphens=False,
+        ).splitlines(),
+    ]
+
+
+def _markdown_table(headers: tuple[str, ...], rows: list[tuple[str, ...]]) -> list[str]:
+    all_rows = [headers, *rows]
+    widths = tuple(
+        max(len(row[index]) for row in all_rows) for index in range(len(headers))
+    )
+    lines = [
+        "| "
+        + " | ".join(cell.ljust(width) for cell, width in zip(headers, widths))
+        + " |",
+        "| " + " | ".join("-" * width for width in widths) + " |",
+    ]
+    for row in rows:
+        lines.append(
+            "| "
+            + " | ".join(cell.ljust(width) for cell, width in zip(row, widths))
+            + " |"
+        )
+    return lines
+
+
+def _table(entries: list[Entry], defaults: dict[str, Any]) -> list[str]:
+    rows: list[tuple[str, ...]] = []
+    for entry in entries:
+        key = f'<a id="{_anchor(entry.path)}"></a>`{entry.path}`'
+        rows.append(
+            (
+                key,
+                _cell(_types(entry.sources)),
+                _cell(_format_default(_default(entry, defaults))),
+                _cell(_allowed_values(entry.sources)),
+                _description_cell(_description(entry.sources) or "—"),
+            )
+        )
+    return _markdown_table(
+        ("Config key", "Type", "Default", "Allowed values", "Description"), rows
+    )
+
+
+def _page(
+    family: str,
+    entries: list[Entry],
+    defaults: dict[str, Any],
+) -> str:
+    title, description, root_keys = FAMILIES[family]
+    lines = [
+        "---",
+        f"title: {title} configuration",
+        *_description_frontmatter(description),
+        "covers: config",
+        "---",
+        "",
+        GENERATED_MARKER,
+        "",
+        f"# {title} configuration",
+        "",
+    ]
+    lines.extend(_prose(description))
+    lines.append("")
+    lines.extend(
+        _prose(
+            "Defaults come from the schema when declared, otherwise from the bundled "
+            "YAML. An object with listed children is expanded below; `{…}` and "
+            "`[…]` summarize compound defaults. A dash means the schema has no finite "
+            "allowed-value list."
+        )
+    )
+    lines.append("")
+    for root_key in root_keys:
+        group = [entry for entry in entries if _root_key(entry.path) == root_key]
+        if not group:
+            continue
+        lines.extend((f"## `{root_key}`", ""))
+        lines.extend(_table(group, defaults))
+        lines.append("")
+    lines.extend(
+        (
+            "## Related",
+            "",
+            "- [Configuration reference](index.md) — all key families.",
+            "",
+        )
+    )
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def _missing_page(entries: list[Entry], family_map: dict[str, str]) -> str:
+    missing = [entry for entry in entries if not _description(entry.sources)]
+    lines = [
+        "---",
+        "title: Configuration keys needing descriptions",
+        *_description_frontmatter("Schema paths that do not yet have a description."),
+        "covers: config",
+        "---",
+        "",
+        GENERATED_MARKER,
+        "",
+        "# Configuration keys needing descriptions",
+        "",
+    ]
+    lines.extend(
+        _prose(
+            "This generated report lists schema paths without a non-empty "
+            "`description`. Add lasting explanations to `sase.schema.json`; "
+            "generated pages will pick them up."
+        )
+    )
+    lines.append("")
+    if not missing:
+        lines.extend(("All rendered configuration paths have descriptions.", ""))
+    else:
+        lines.extend((f"{len(missing)} schema paths need descriptions.", ""))
+        rows: list[tuple[str, ...]] = []
+        for entry in missing:
+            family = _family_for(entry.path, family_map)
+            family_title = FAMILIES[family][0]
+            family_link = f"[{family_title}]({family}.md#{_anchor(entry.path)})"
+            rows.append(
+                (
+                    f'<a id="{_anchor(entry.path)}"></a>`{entry.path}`',
+                    _cell(_types(entry.sources)),
+                    family_link,
+                )
+            )
+        lines.extend(_markdown_table(("Config key", "Type", "Family"), rows))
+        lines.append("")
+    lines.extend(
+        (
+            "## Related",
+            "",
+            "- [Configuration reference](index.md) — all key families.",
+            "",
+        )
+    )
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def _index(
+    entries: list[Entry],
+    defaults: dict[str, Any],
+    family_map: dict[str, str],
+) -> str:
+    missing_count = sum(not _description(entry.sources) for entry in entries)
+    lines = [
+        "---",
+        "title: Configuration reference",
+        *_description_frontmatter(
+            "Generated configuration keys, types, defaults, and allowed values."
+        ),
+        "covers: config",
+        "---",
+        "",
+        GENERATED_MARKER,
+        "",
+        "# Configuration reference",
+        "",
+    ]
+    lines.extend(
+        _prose(
+            "Exact configuration keys generated from the schema and bundled defaults."
+        )
+    )
+    lines.extend(("", "## Key families", ""))
+    family_rows: list[tuple[str, ...]] = []
+    for family, (title, summary, root_keys) in FAMILIES.items():
+        count = sum(_root_key(entry.path) in root_keys for entry in entries)
+        family_rows.append((f"[{title}]({family}.md)", summary, str(count)))
+    lines.extend(_markdown_table(("Family", "Contents", "Schema paths"), family_rows))
+    lines.extend(
+        (
+            "",
+            "## Top-level keys",
+            "",
+        )
+    )
+    lines.extend(
+        _prose(
+            "Each link opens its generated entry; nested fields appear on the same "
+            "family page."
+        )
+    )
+    lines.append("")
+    top_rows: list[tuple[str, ...]] = []
+    root_entries = [
+        entry for entry in entries if "." not in entry.path and "[]" not in entry.path
+    ]
+    for entry in sorted(root_entries, key=lambda item: item.path.lower()):
+        family = family_map[entry.path]
+        title = FAMILIES[family][0]
+        link = f"[{entry.path}]({family}.md#{_anchor(entry.path)})"
+        top_rows.append(
+            (
+                link,
+                _cell(_format_default(_default(entry, defaults))),
+                _cell(_description(entry.sources) or "—"),
+                title,
+            )
+        )
+    lines.extend(
+        _markdown_table(("Config key", "Default", "Description", "Family"), top_rows)
+    )
+    lines.extend(
+        (
+            "",
+            "## Description coverage",
+            "",
+        )
+    )
+    lines.extend(
+        _prose(
+            f"[{missing_count} schema paths need descriptions](needs-description.md). "
+            "Descriptions are maintained in `src/sase/config/sase.schema.json`."
+        )
+    )
+    lines.extend(("", "## Related", ""))
+    lines.extend(
+        (
+            "- [Configure the essentials](../../guides/configure-essentials.md) — common setup",
+            "  values.",
+            "- [Configuration file and merge behavior](../../configuration.md#config-file-location) —",
+            "  files and layer precedence.",
+        )
+    )
+    lines.append("")
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def generated_outputs(root: Path = ROOT) -> dict[Path, str]:
+    schema_path = root / SCHEMA_PATH.relative_to(ROOT)
+    defaults_path = root / DEFAULTS_PATH.relative_to(ROOT)
+    output_dir = root / OUTPUT_DIR.relative_to(ROOT)
+    schema = _load_json(schema_path)
+    defaults = yaml.safe_load(defaults_path.read_text(encoding="utf-8"))
+    if not isinstance(defaults, dict):
+        raise ValueError(f"{defaults_path} must contain a YAML mapping")
+    root_properties = schema.get("properties")
+    if not isinstance(root_properties, dict):
+        raise ValueError(f"{schema_path} has no root properties mapping")
+    family_map = _check_families(root_properties)
+    entries = _schema_entries(schema)
+    outputs: dict[Path, str] = {}
+    for family in FAMILIES:
+        family_entries = [
+            entry for entry in entries if _family_for(entry.path, family_map) == family
+        ]
+        outputs[output_dir / f"{family}.md"] = _page(family, family_entries, defaults)
+    outputs[MISSING_PATH if root == ROOT else root / MISSING_PATH.relative_to(ROOT)] = (
+        _missing_page(entries, family_map)
+    )
+    outputs[INDEX_PATH if root == ROOT else root / INDEX_PATH.relative_to(ROOT)] = (
+        _index(entries, defaults, family_map)
+    )
+    return outputs
+
+
+def render(root: Path = ROOT) -> None:
+    for path, content in generated_outputs(root).items():
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content, encoding="utf-8")
+
+
+def check(root: Path = ROOT) -> list[str]:
+    failures: list[str] = []
+    for path, expected in generated_outputs(root).items():
+        try:
+            actual = path.read_text(encoding="utf-8")
+        except OSError:
+            failures.append(f"{path.relative_to(root)} is not generated")
+            continue
+        if actual != expected:
+            failures.extend(
+                difflib.unified_diff(
+                    actual.splitlines(),
+                    expected.splitlines(),
+                    fromfile=str(path.relative_to(root)),
+                    tofile=f"{path.relative_to(root)} (generated)",
+                    lineterm="",
+                )
+            )
+    return failures
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--check", action="store_true", help="check without writing")
+    args = parser.parse_args(argv)
+    try:
+        if args.check:
+            failures = check()
+            for failure in failures:
+                print(failure)
+            if failures:
+                print("[render_config] drift detected: run just fix", file=sys.stderr)
+                return 1
+            print("[render_config] ok")
+            return 0
+        render()
+    except (OSError, ValueError, json.JSONDecodeError, yaml.YAMLError) as exc:
+        print(f"[render_config] {exc}", file=sys.stderr)
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
