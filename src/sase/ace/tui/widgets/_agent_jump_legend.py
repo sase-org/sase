@@ -30,26 +30,41 @@ def jump_legend_border_accent(jump_map: MemberJumpMap) -> str:
     return _NEUTRAL_ACCENT
 
 
-def jump_legend_title(jump_map: MemberJumpMap, *, prefix: str | None = None) -> Text:
+def jump_legend_title(
+    jump_map: MemberJumpMap,
+    *,
+    prefix: str | None = None,
+    width: int | None = None,
+) -> Text:
     """Return the color-legend border title for a jump map."""
-    title = Text()
-    title.append("JUMP", style=_JUMP_TITLE_STYLE)
     if prefix is not None:
+        title = Text("JUMP", style=_JUMP_TITLE_STYLE)
         title.append(" · ", style=_DIM_STYLE)
         title.append(f"{prefix}▁", style=_JUMP_TITLE_STYLE)
         return title
-    offset = 0
-    for section in jump_map.sections:
-        targets = jump_map.targets[offset : offset + section.numbered_count]
-        offset += section.numbered_count
-        if not targets:
-            continue
-        first = targets[0].number
-        last = targets[-1].number
-        number_range = first if first == last else f"{first}–{last}"
-        title.append(" · ", style=_DIM_STYLE)
-        title.append(section.title, style=f"bold {section.accent}")
-        title.append(f" {number_range}", style=_DIM_STYLE)
+
+    def build(*, include_suffixes: bool) -> Text:
+        title = Text("JUMP", style=_JUMP_TITLE_STYLE)
+        offset = 0
+        for section in jump_map.sections:
+            targets = jump_map.targets[offset : offset + section.numbered_count]
+            offset += section.numbered_count
+            if not targets:
+                continue
+            first = targets[0].number
+            last = targets[-1].number
+            number_range = first if first == last else f"{first}–{last}"
+            title.append(" · ", style=_DIM_STYLE)
+            title.append(section.title, style=f"bold {section.accent}")
+            title.append(f" {number_range}", style=_DIM_STYLE)
+            if include_suffixes and section.title_suffix:
+                title.append(" · ", style=_DIM_STYLE)
+                title.append(section.title_suffix, style=_DIM_STYLE)
+        return title
+
+    title = build(include_suffixes=True)
+    if width is not None and cell_len(title.plain) > max(0, width):
+        title = build(include_suffixes=False)
     return title
 
 
@@ -183,6 +198,7 @@ def _grid_fits(cells: list[Text], columns: int, width: int) -> bool:
     """Return whether a row-major grid of ``cells`` fits ``width``."""
     if columns <= 0:
         return False
+    columns = min(columns, len(cells))
     col_widths = _column_widths(cells, columns)
     return sum(col_widths) + 2 * (columns - 1) <= width
 
@@ -224,9 +240,13 @@ class JumpLegendRenderable:
         for target in self._jump_map.targets:
             parts.append(
                 f"{target.number}={target.label}@{target.status_bucket}/{target.role}"
+                f"#{target.legend_group or ''}"
             )
         for section in self._jump_map.sections:
-            parts.append(f"{section.title}:{section.accent}:{section.numbered_count}")
+            parts.append(
+                f"{section.title}:{section.accent}:{section.numbered_count}"
+                f"#{section.title_suffix or ''}"
+            )
         return "|".join(parts)
 
     @property
@@ -314,7 +334,8 @@ class JumpLegendRenderable:
             columns = _largest_collapsed_columns(targets, labels, jump_map, width)
             if columns is None:
                 continue
-            shown = _collapsed_shown_count(count, columns)
+            selection = _collapsed_selection_for_columns(jump_map, columns)
+            shown = len(selection)
             if (
                 best is None
                 or shown > best[0]
@@ -336,40 +357,77 @@ class JumpLegendRenderable:
             clamped.truncate(max(1, width))
             return [clamped]
         _shown, budget, columns, labels = best
-        slots = min(count, 2 * columns)
-        overflow = count > 2 * columns
-        cells: list[Text] = []
-        shown_targets = slots - 1 if overflow else slots
-        selection = _collapsed_selection(jump_map, shown_targets)
-        for index in selection:
-            target = targets[index]
-            cells.append(
-                _build_cell(
-                    target.number,
-                    _target_accent(jump_map, index),
-                    labels[index],
-                    bucket=target.status_bucket,
-                    dismissed=target.role == "dismissed",
-                    show_archive_hint=False,
-                )
-            )
-        if overflow:
-            remaining = count - shown_targets
-            cells.append(
-                _overflow_cell(
-                    remaining,
-                    _hidden_in_flight_count(jump_map, set(selection)),
-                )
-            )
+        selection = _collapsed_selection_for_columns(jump_map, columns)
+        cells = _collapsed_cells(jump_map, labels, selection)
         return _render_grid(cells, columns)
 
 
-def _collapsed_shown_count(count: int, columns: int) -> int:
-    """Return how many targets a collapsed grid shows at ``columns``."""
-    slots = min(count, 2 * columns)
-    if count > 2 * columns:
-        return slots - 1
-    return slots
+def _selection_divider_count(
+    jump_map: MemberJumpMap,
+    selection: list[int],
+) -> int:
+    """Return the divider-cell count between selected clan wave groups."""
+    dividers = 0
+    previous_group: str | None = None
+    for index in selection:
+        group = jump_map.targets[index].legend_group
+        if previous_group is not None and group is not None and group != previous_group:
+            dividers += 1
+        previous_group = group
+    return dividers
+
+
+def _collapsed_selection_for_columns(
+    jump_map: MemberJumpMap,
+    columns: int,
+) -> list[int]:
+    """Fit the most targets into two rows, reserving cells for dividers and overflow."""
+    count = len(jump_map.targets)
+    capacity = 2 * columns
+    for shown in range(count, 0, -1):
+        selection = _collapsed_selection(jump_map, shown)
+        overflow_cells = int(shown < count)
+        required = (
+            shown + _selection_divider_count(jump_map, selection) + overflow_cells
+        )
+        if required <= capacity:
+            return selection
+    return [_first_fallback_index(jump_map)]
+
+
+def _collapsed_cells(
+    jump_map: MemberJumpMap,
+    labels: list[str],
+    selection: list[int],
+) -> list[Text]:
+    """Build selected target cells with wave dividers and the overflow chip."""
+    cells: list[Text] = []
+    previous_group: str | None = None
+    for index in selection:
+        target = jump_map.targets[index]
+        group = target.legend_group
+        if previous_group is not None and group is not None and group != previous_group:
+            cells.append(Text("┊", style=_DIM_STYLE))
+        cells.append(
+            _build_cell(
+                target.number,
+                _target_accent(jump_map, index),
+                labels[index],
+                bucket=target.status_bucket,
+                dismissed=target.role == "dismissed",
+                show_archive_hint=False,
+            )
+        )
+        previous_group = group
+    hidden = len(jump_map.targets) - len(selection)
+    if hidden > 0:
+        cells.append(
+            _overflow_cell(
+                hidden,
+                _hidden_in_flight_count(jump_map, set(selection)),
+            )
+        )
+    return cells
 
 
 def _largest_collapsed_columns(
@@ -380,34 +438,11 @@ def _largest_collapsed_columns(
 ) -> int | None:
     """Return the largest collapsed column count fitting ``width``."""
     count = len(targets)
-    max_columns = min(count, max(1, width // 8))
-    typed_targets = jump_map.targets
+    max_columns = min(2 * count - 1, max(1, width // 3))
     for columns in range(max_columns, 0, -1):
-        slots = min(count, 2 * columns)
-        overflow = count > 2 * columns
-        shown = slots - 1 if overflow else slots
-        selection = _collapsed_selection(jump_map, shown)
-        cells: list[Text] = []
-        for index in selection:
-            target = typed_targets[index]
-            cells.append(
-                _build_cell(
-                    target.number,
-                    _target_accent(jump_map, index),
-                    labels[index],
-                    bucket=target.status_bucket,
-                    dismissed=target.role == "dismissed",
-                    show_archive_hint=False,
-                )
-            )
-        if overflow:
-            cells.append(
-                _overflow_cell(
-                    count - shown,
-                    _hidden_in_flight_count(jump_map, set(selection)),
-                )
-            )
-        if _grid_fits(cells, columns, width):
+        selection = _collapsed_selection_for_columns(jump_map, columns)
+        cells = _collapsed_cells(jump_map, labels, selection)
+        if len(cells) <= 2 * columns and _grid_fits(cells, columns, width):
             return columns
     return None
 

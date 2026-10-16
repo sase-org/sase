@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from copy import copy
+from dataclasses import replace
 from datetime import datetime
 
 from sase.agent.status_buckets import (
@@ -12,6 +14,7 @@ from sase.agent.status_buckets import (
 )
 
 from ...models._agent_clan import clan_members
+from ...models._agent_clan_waves import clan_wave_identity_key
 from ...models._agent_clan_sections import ClanMemberDigest
 from ...models.agent import Agent, AgentType, compute_row_runtime
 from ...models.agent_session_members import (
@@ -23,6 +26,80 @@ from ._member_roster import MemberRosterChild, MemberRosterEntry
 CLAN_NEIGHBORS_SECTION_ID = "clan-neighbors"
 CLAN_NEIGHBORS_ROSTER_TITLE = "CLAN NEIGHBORS"
 CLAN_NEIGHBORS_IDENTITY_COLOR = "#00D7AF"
+
+
+def _predecessor_summary(
+    predecessor_identities: tuple[str, ...],
+    *,
+    entries_by_identity: dict[str, MemberRosterEntry],
+    wave_by_identity: Mapping[str, object],
+) -> str:
+    """Describe the members or waves that precede one roster group."""
+    if not predecessor_identities:
+        return "no dependencies"
+    if len(predecessor_identities) <= 3:
+        labels = [
+            entries_by_identity[identity].label
+            for identity in predecessor_identities
+            if identity in entries_by_identity
+        ]
+        return "after " + " ".join(labels) if labels else "no dependencies"
+
+    predecessor_waves = sorted(
+        {
+            wave_index
+            for identity in predecessor_identities
+            if (member := wave_by_identity.get(identity)) is not None
+            and (wave_index := getattr(member, "wave_index", None)) is not None
+        }
+    )
+    if len(predecessor_waves) == 1:
+        return f"after wave {predecessor_waves[0]}"
+    if predecessor_waves:
+        if predecessor_waves == list(
+            range(predecessor_waves[0], predecessor_waves[-1] + 1)
+        ):
+            return f"after waves {predecessor_waves[0]}–{predecessor_waves[-1]}"
+        return "after waves " + ", ".join(map(str, predecessor_waves))
+    return "after every member"
+
+
+def _layered_group_labels(
+    agent: Agent,
+    entries: tuple[MemberRosterEntry, ...],
+) -> tuple[dict[tuple[AgentType, str, str | None], str], str | None]:
+    """Return JUMP group labels and the optional layered-clan title suffix."""
+    summary = agent.clan_waves
+    if summary is None or not summary.layered:
+        return {}, None
+
+    entries_by_agent_identity = {entry.identity: entry for entry in entries}
+    entries_by_identity = {
+        clan_wave_identity_key(member): entries_by_agent_identity[member.identity]
+        for member in clan_members(agent)
+        if member.identity in entries_by_agent_identity
+    }
+    wave_by_identity = {member.identity: member for member in summary.members}
+    group_by_identity: dict[tuple[AgentType, str, str | None], str] = {}
+    for wave in summary.waves:
+        if wave.kind == "seal":
+            label = "land · after every phase"
+        elif wave.kind == "unresolved":
+            label = "unresolved · wait cycle"
+        else:
+            label = f"wave {wave.number} · " + _predecessor_summary(
+                wave.predecessor_identities,
+                entries_by_identity=entries_by_identity,
+                wave_by_identity=wave_by_identity,
+            )
+        for identity in wave.member_identities:
+            if identity in entries_by_identity:
+                group_by_identity[entries_by_identity[identity].identity] = label
+
+    title_suffix = f"{summary.numbered_wave_count} WAVES"
+    if summary.has_seal:
+        title_suffix += " + LAND"
+    return group_by_identity, title_suffix
 
 
 def ordered_clan_members(agent: Agent) -> tuple[Agent, ...]:
@@ -256,7 +333,20 @@ def clan_roster_entries(
                 children=roster_children,
             )
         )
-    return tuple(entries)
+    roster_entries = tuple(entries)
+    group_labels, _title_suffix = _layered_group_labels(agent, roster_entries)
+    if not group_labels:
+        return roster_entries
+    return tuple(
+        replace(entry, group_label=group_labels.get(entry.identity))
+        for entry in roster_entries
+    )
+
+
+def clan_roster_title_suffix(agent: Agent) -> str | None:
+    """Return the layered-clan wave count for the collapsed JUMP title."""
+    _groups, title_suffix = _layered_group_labels(agent, ())
+    return title_suffix
 
 
 def clan_neighbor_roster_entries(

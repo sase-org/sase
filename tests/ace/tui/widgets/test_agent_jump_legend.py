@@ -36,6 +36,7 @@ def _entries(
     *,
     dismissed: frozenset[str] = frozenset(),
     statuses: dict[str, str] | None = None,
+    groups: dict[str, str] | None = None,
 ) -> tuple[MemberRosterEntry, ...]:
     return tuple(
         MemberRosterEntry(
@@ -48,6 +49,7 @@ def _entries(
             duration="1m",
             is_dismissed=label in dismissed,
             target_role="dismissed" if label in dismissed else None,
+            group_label=(groups or {}).get(label),
         )
         for label in labels
     )
@@ -60,15 +62,23 @@ def _single_section_map(
     title: str = "NEIGHBORS",
     dismissed: frozenset[str] = frozenset(),
     statuses: dict[str, str] | None = None,
+    groups: dict[str, str] | None = None,
+    title_suffix: str | None = None,
 ) -> MemberJumpMap:
     return append_member_roster(
         Text(),
         container_identity=_LANE_IDENTITY,
-        entries=_entries(labels, dismissed=dismissed, statuses=statuses),
+        entries=_entries(
+            labels,
+            dismissed=dismissed,
+            statuses=statuses,
+            groups=groups,
+        ),
         title=title,
         accent=accent,
         panel_level=FoldLevel.COLLAPSED,
         numbering=MemberJumpNumbering(total=len(labels)),
+        title_suffix=title_suffix,
     )
 
 
@@ -226,6 +236,87 @@ def test_title_ranges() -> None:
     assert narrowed.plain == "JUMP · 1▁"
 
 
+def test_layered_title_suffix_is_dropped_before_base_title() -> None:
+    jump_map = _single_section_map(["only"], title_suffix="5 WAVES + LAND")
+    full = jump_legend_title(jump_map)
+    base = jump_legend_title(jump_map, width=cell_len("JUMP · NEIGHBORS 0"))
+
+    assert full.plain == "JUMP · NEIGHBORS 0 · 5 WAVES + LAND"
+    assert base.plain == "JUMP · NEIGHBORS 0"
+
+
+def test_collapsed_legend_divides_wave_groups_and_counts_divider_cells() -> None:
+    labels = [f"member-{index}" for index in range(20)]
+    groups = {label: f"wave {index // 2 + 1}" for index, label in enumerate(labels)}
+    statuses = dict.fromkeys(labels, "DONE")
+    statuses.update(
+        {"member-0": "RUNNING", "member-2": "RUNNING", "member-4": "RUNNING"}
+    )
+    jump_map = _single_section_map(labels, groups=groups, statuses=statuses)
+    renderable = JumpLegendRenderable(jump_map, mode="collapsed")
+
+    for width in WIDTHS:
+        lines = renderable._lines_for_width(width)  # noqa: SLF001
+        assert 1 <= len(lines) <= 2
+        assert all(cell_len(line.plain) <= width for line in lines)
+        text = "\n".join(line.plain for line in lines)
+        shown = _shown_numbers(
+            [line.plain.replace("┊", " ") for line in lines],
+            [target.number for target in jump_map.targets],
+        )
+        if width >= 48:
+            assert "┊" in text
+        if len(shown) < len(jump_map.targets):
+            overflow = next(
+                token
+                for line in lines
+                for token in line.plain.split()
+                if token.startswith("+")
+            )
+            assert len(shown) + int(overflow[1:]) == len(jump_map.targets)
+
+    ungrouped = JumpLegendRenderable(
+        _single_section_map(labels, statuses=statuses), mode="collapsed"
+    )
+    grouped_shown = _shown_numbers(
+        [line.plain.replace("┊", " ") for line in renderable._lines_for_width(64)],  # noqa: SLF001
+        [target.number for target in jump_map.targets],
+    )
+    ungrouped_shown = _shown_numbers(
+        _render_lines(ungrouped, 64),
+        [target.number for target in jump_map.targets],
+    )
+    assert len(grouped_shown) < len(ungrouped_shown)
+
+
+def test_collapsed_legend_does_not_divide_unrelated_roster_sections() -> None:
+    first = append_member_roster(
+        Text(),
+        container_identity=_LANE_IDENTITY,
+        entries=_entries(["a", "b"], groups={"a": "wave 1", "b": "wave 2"}),
+        title="CLAN MEMBERS",
+        accent="#00D7AF",
+        panel_level=FoldLevel.COLLAPSED,
+        numbering=MemberJumpNumbering(total=3),
+    )
+    neighbors = append_member_roster(
+        Text(),
+        container_identity=_LANE_IDENTITY,
+        entries=_entries(["neighbor"]),
+        title="CLAN NEIGHBORS",
+        accent="#00D7AF",
+        panel_level=FoldLevel.COLLAPSED,
+        numbering=MemberJumpNumbering(total=3),
+    )
+    jump_map = merged_member_jump_map(_LANE_IDENTITY, first, neighbors)
+    line = JumpLegendRenderable(jump_map, mode="collapsed")._lines_for_width(  # noqa: SLF001
+        120
+    )[0]
+
+    assert line.plain.count("┊") == 1
+    assert line.plain.index("┊") < line.plain.index("neighbor")
+
+
 def test_border_accent_and_digest() -> None:
     two = _two_section_map()
     assert jump_legend_border_accent(two) == "#00AFFF"
@@ -239,6 +330,15 @@ def test_border_accent_and_digest() -> None:
     assert renderable_content_digest(first) != renderable_content_digest(
         JumpLegendRenderable(two, mode="1")
     )
+    ungrouped = JumpLegendRenderable(_single_section_map(["a", "b"]))
+    grouped = JumpLegendRenderable(
+        _single_section_map(["a", "b"], groups={"a": "wave 1", "b": "wave 2"})
+    )
+    suffixed = JumpLegendRenderable(
+        _single_section_map(["a", "b"], title_suffix="2 WAVES")
+    )
+    assert renderable_content_digest(ungrouped) != renderable_content_digest(grouped)
+    assert renderable_content_digest(ungrouped) != renderable_content_digest(suffixed)
 
 
 def test_truncation_keeps_tail_distinct() -> None:

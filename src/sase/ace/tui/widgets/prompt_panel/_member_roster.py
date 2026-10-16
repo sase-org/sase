@@ -163,6 +163,7 @@ class _MemberJumpSection:
     title: str
     accent: str
     numbered_count: int = 0
+    title_suffix: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -175,6 +176,7 @@ class _MemberJumpTarget:
     role: MemberJumpRole = "member"
     label: str = ""
     status_bucket: str | None = None
+    legend_group: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -208,6 +210,7 @@ def append_member_roster(
     target_role: MemberJumpRole = "member",
     entry_cursor: bool = False,
     heading_suffix: Text | None = None,
+    title_suffix: str | None = None,
 ) -> MemberJumpMap:
     """Append a numbered roster and return the jump map rendered from it."""
     ordered_entries = tuple(entries)
@@ -266,6 +269,7 @@ def append_member_roster(
                 label=entry.label,
                 status_bucket=entry.effective_bucket
                 or status_bucket_for_values(entry.status),
+                legend_group=entry.group_label,
             )
         )
         rendered_count += 1
@@ -283,6 +287,7 @@ def append_member_roster(
         title=title,
         accent=accent,
         numbered_count=rendered_count,
+        title_suffix=title_suffix,
     )
     return MemberJumpMap(
         container_identity=container_identity,

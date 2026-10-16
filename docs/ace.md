@@ -1480,12 +1480,11 @@ in the Archive instead of jumping. If the roster or the neighbor relationship ch
 since the panel was drawn, the jump is cancelled with a warning rather than landing
 somewhere stale.
 
-In-flight targets, whose glyph is `▶` (running) or `◐` (starting), are lit: their number
-chip runs into a softly tinted pill holding the bold name and glyph. This appears in the
-collapsed legend, the narrowed candidates, and the expanded roster alike. When the
-collapsed legend cannot show every target, it fills its slots with in-flight targets
-first (still in number order), then the lowest remaining numbers. The `+N` overflow
-count gains a lit `▶M` when `M` in-flight targets remain hidden behind `.`.
+Lit `▶`/`◐` targets get a softly tinted number/name/glyph pill in collapsed, narrowed,
+and expanded views; `+N` counts hidden targets, with `▶M` for hidden in-flight ones.
+Layered clan legends add dim, cell-counted `┊` dividers between shown wave groups and an
+`N WAVES` or `N WAVES + LAND` suffix, dropped first when tight. Expanded `CLAN MEMBERS`
+entries label wave, land, and unresolved groups with their dependencies.
 
 ### Agent Actions
 

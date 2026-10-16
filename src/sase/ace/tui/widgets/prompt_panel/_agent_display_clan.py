@@ -29,6 +29,7 @@ from ._agent_display_clan_roster import (
     CLAN_NEIGHBORS_SECTION_ID,
     clan_neighbor_roster_entries,
     clan_roster_entries,
+    clan_roster_title_suffix,
     agent_session_children,
     agent_session_rows,
     ordered_clan_members,
@@ -225,6 +226,7 @@ def build_clan_detail_text(
         section_fold_overrides=overrides,
         fold_scale=CLAN_FOLD_SCALE,
         numbering=document_numbering,
+        title_suffix=clan_roster_title_suffix(agent),
     )
     neighbors_map = None
     if neighbor_entries:

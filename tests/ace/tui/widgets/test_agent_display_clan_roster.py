@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 
 from sase.ace.tui.models._agent_tree import project_clan_tree
+from sase.ace.tui.models.fold_state import FoldLevel
 from sase.ace.tui.widgets.prompt_panel._agent_display_clan import (
     build_clan_detail_text,
 )
@@ -174,6 +175,7 @@ def test_layered_clan_roster_numbers_match_agent_tree_wave_order() -> None:
     jump_maps = []
     detail = build_clan_detail_text(
         container,
+        fold_level=FoldLevel.EXPANDED,
         member_jump_map_publisher=jump_maps.append,
     )
 
@@ -188,3 +190,85 @@ def test_layered_clan_roster_numbers_match_agent_tree_wave_order() -> None:
     assert [target.member_identity for target in jump_maps[0].targets] == [
         member.identity for member in roster
     ]
+
+
+def test_layered_clan_roster_labels_wave_groups_and_dependencies() -> None:
+    prerequisite = make_clan_agent(
+        "research.prerequisite",
+        status="DONE",
+        start=datetime(2026, 7, 17, 12, 0, 0),
+        stop=datetime(2026, 7, 17, 12, 1, 0),
+    )
+    peer = make_clan_agent(
+        "research.peer",
+        status="DONE",
+        start=datetime(2026, 7, 17, 12, 2, 0),
+        stop=datetime(2026, 7, 17, 12, 3, 0),
+    )
+    dependent = make_clan_agent(
+        "research.dependent",
+        status="WAITING",
+        start=datetime(2026, 7, 17, 12, 4, 0),
+    )
+    dependent.waiting_for = ["research.prerequisite"]
+    container = project_clan_tree([dependent, peer, prerequisite])[0]
+    jump_maps = []
+
+    detail = build_clan_detail_text(
+        container,
+        fold_level=FoldLevel.EXPANDED,
+        member_jump_map_publisher=jump_maps.append,
+    )
+
+    assert "wave 1 · no dependencies" in detail.plain
+    assert "wave 2 · after .prerequisite" in detail.plain
+    assert [target.legend_group for target in jump_maps[0].targets] == [
+        "wave 1 · no dependencies",
+        "wave 1 · no dependencies",
+        "wave 2 · after .prerequisite",
+    ]
+    assert jump_maps[0].sections[0].title_suffix == "2 WAVES"
+
+
+def test_layered_clan_seal_and_cycle_roster_labels() -> None:
+    phase = make_clan_agent(
+        "research.phase",
+        status="DONE",
+        start=datetime(2026, 7, 17, 12, 0, 0),
+        stop=datetime(2026, 7, 17, 12, 1, 0),
+    )
+    phase.phase_bead_id = "sase-phase"
+    land = make_clan_agent(
+        "research.land",
+        status="WAITING",
+        start=datetime(2026, 7, 17, 12, 2, 0),
+    )
+    land.epic_bead_id = "sase-epic"
+    land.waiting_for = ["research.phase"]
+    container = project_clan_tree([phase, land])[0]
+    jump_maps = []
+    detail = build_clan_detail_text(
+        container,
+        fold_level=FoldLevel.EXPANDED,
+        member_jump_map_publisher=jump_maps.append,
+    )
+
+    assert "land · after every phase" in detail.plain
+    assert jump_maps[0].sections[0].title_suffix == "1 WAVES + LAND"
+
+    first = make_clan_agent(
+        "research.first",
+        status="WAITING",
+        start=datetime(2026, 7, 17, 12, 0, 0),
+    )
+    second = make_clan_agent(
+        "research.second",
+        status="WAITING",
+        start=datetime(2026, 7, 17, 12, 1, 0),
+    )
+    first.waiting_for = ["research.second"]
+    second.waiting_for = ["research.first"]
+    cycle = project_clan_tree([first, second])[0]
+    cycle_detail = build_clan_detail_text(cycle, fold_level=FoldLevel.EXPANDED)
+
+    assert "unresolved · wait cycle" in cycle_detail.plain

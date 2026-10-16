@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from rich.cells import cell_len
 from textual.app import ComposeResult
 from textual.color import Color
 from textual.containers import VerticalScroll
@@ -84,7 +85,14 @@ class AgentJumpPanel(VerticalScroll):
 
     def _apply_chrome(self, jump_map: MemberJumpMap, subtitle: str) -> None:
         """Update the border title, subtitle, and dimmed accent border."""
-        self.border_title = jump_legend_title(jump_map, prefix=self._pending_prefix)
+        title_width = None
+        if self.size.width > 0:
+            title_width = max(0, self.size.width - cell_len(subtitle) - 4)
+        self.border_title = jump_legend_title(
+            jump_map,
+            prefix=self._pending_prefix,
+            width=title_width,
+        )
         self.border_subtitle = subtitle
         accent = jump_legend_border_accent(jump_map)
         if self._last_accent != accent:
@@ -97,6 +105,14 @@ class AgentJumpPanel(VerticalScroll):
                     self.styles.border = ("round", accent)
                 except Exception:
                     pass
+
+    def on_resize(self, _event: object) -> None:
+        """Re-evaluate optional title suffixes after the panel gets its width."""
+        jump_map = self._jump_map
+        if jump_map is not None:
+            self._apply_chrome(
+                jump_map, self._subtitle_for(narrowed=self._pending_prefix is not None)
+            )
 
     def show_jump_map(
         self, jump_map: MemberJumpMap | None, roster: Text | None = None

@@ -109,6 +109,50 @@ def _in_flight_mix_clan_agents() -> list[Agent]:
     ]
 
 
+def _layered_jump_clan_agents() -> list[Agent]:
+    """Layered clan with a seal for divider and title suffix snapshots."""
+    generation = "20260723090000"
+    start = datetime(2026, 7, 23, 9, 0, 0)
+    members = (
+        ("root", "DONE", ()),
+        ("peer", "RUNNING", ()),
+        ("build", "RUNNING", ("visual-wave-clan.root",)),
+        ("test", "WAITING", ("visual-wave-clan.build",)),
+        ("docs", "DONE", ("visual-wave-clan.test",)),
+    )
+    agents = [
+        Agent(
+            agent_type=AgentType.RUNNING,
+            cl_name=f"visual-wave-clan-{suffix}",
+            project_file="/workspace/sase/visual_project.sase",
+            status=status,
+            start_time=start.replace(minute=index),
+            stop_time=start.replace(minute=index + 1) if status == "DONE" else None,
+            raw_suffix=f"2026072309{index:02d}00-{suffix}",
+            agent_name=f"visual-wave-clan.{suffix}",
+            agent_clan="visual-wave-clan",
+            agent_clan_generation=generation,
+            phase_bead_id=f"sase-visual.{index}",
+            waiting_for=list(waits),
+        )
+        for index, (suffix, status, waits) in enumerate(members)
+    ]
+    land = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="visual-wave-clan-land",
+        project_file="/workspace/sase/visual_project.sase",
+        status="WAITING",
+        start_time=start.replace(minute=5),
+        raw_suffix="20260723090500-land",
+        agent_name="visual-wave-clan.land",
+        agent_clan="visual-wave-clan",
+        agent_clan_generation=generation,
+        epic_bead_id="sase-visual-epic",
+        waiting_for=["visual-wave-clan.docs"],
+    )
+    return [*agents, land]
+
+
 def _collapsed_shown_numbers(
     jump_map: MemberJumpMap, width: int
 ) -> tuple[list[str], str]:
@@ -120,6 +164,7 @@ def _collapsed_shown_numbers(
     numbers = [target.number for target in jump_map.targets]
     shown: list[str] = []
     for line in texts:
+        line = line.replace("┊", " ")
         for cell in line.split("  "):
             first = cell.strip().split(" ", 1)[0].removeprefix("⊘").strip()
             if first in numbers and first not in shown:
@@ -127,7 +172,9 @@ def _collapsed_shown_numbers(
     return shown, texts[-1]
 
 
-async def _open_agents_on_jump_roster(page: AcePage) -> AgentDetail:
+async def _open_agents_on_jump_roster(
+    page: AcePage, *, zoom_deck: bool = False
+) -> AgentDetail:
     await wait_for_startup(page)
     await page.press("shift+tab")
     await page.expect_state("tab", "agents")
@@ -138,6 +185,9 @@ async def _open_agents_on_jump_roster(page: AcePage) -> AgentDetail:
         lambda: detail.jump_panel_toggle_available(),
         description="jump panel available",
     )
+    if zoom_deck:
+        await page.press("Z")
+        await wait_for_visual_idle(page)
     await wait_for_svg_contains(page, "JUMP")
     await wait_for_visual_idle(page)
     return detail
@@ -193,6 +243,38 @@ async def test_jump_panel_collapsed_two_digit_overflow_png_snapshot(
             page,
             "agents_jump_panel_collapsed_two_digit_overflow_120x40",
             title="ACE agents jump panel collapsed two-digit overflow",
+        )
+
+
+@pytest.mark.parametrize("width", (60, 80, 120))
+async def test_jump_panel_layered_wave_dividers_png_snapshot(
+    width: int,
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pin_agents_visual_now(monkeypatch, datetime(2026, 7, 23, 9, 30, 0))
+    patch_startup_loaders(monkeypatch, agents=_layered_jump_clan_agents())
+
+    async with AcePage(
+        query='"visual"',
+        size=(width, 40),
+        patches=patches(),
+    ) as page:
+        detail = await _open_agents_on_jump_roster(page, zoom_deck=width < 120)
+        panel = detail.query_one("#agent-jump-panel", AgentJumpPanel)
+        jump_map = panel._jump_map  # noqa: SLF001
+        assert jump_map is not None
+        assert jump_map.sections[0].title_suffix == "4 WAVES + LAND"
+        legend = JumpLegendRenderable(jump_map, mode="collapsed")
+        lines = legend._lines_for_width(max(1, panel.size.width - 2))  # noqa: SLF001
+        assert 1 <= len(lines) <= 2
+        assert any("┊" in line.plain for line in lines)
+        assert_page_svg_contains(page, "┊")
+
+        ace_png_visual.assert_page_png(
+            page,
+            f"agents_jump_panel_layered_wave_dividers_{width}x40",
+            title=f"ACE agents layered-clan JUMP panel at {width} columns",
         )
 
 
