@@ -8,19 +8,14 @@ from tests.main.init_skills_handler_helpers import collapse_whitespace
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def test_getting_started_muse_grok_wording_separates_provider_selection() -> None:
+def test_provider_reference_separates_muse_and_grok_selection() -> None:
     text = collapse_whitespace(
-        (ROOT / "docs/getting_started.md").read_text(encoding="utf-8")
+        (ROOT / "docs/agent_providers.md").read_text(encoding="utf-8")
     )
 
-    assert "never auto-detects `muse` or `grok` from PATH" in text
-    assert (
-        "Both can still be reached automatically through whichever shipped size "
-        "aliases currently target them"
-    ) in text
-    assert "llm_provider.model_aliases.builtin.<size>" in text
-    assert "last `@xlarge` fallback" not in text
-    assert "explicit-only and never auto-detected" not in text
+    assert "SASE never auto-detects it" in text
+    assert "Model-alias routing is separate" in text
+    assert "Default provider autodetection never selects it" in text
 
 
 def test_macro_model_comments_avoid_overloaded_explicit_only_wording() -> None:

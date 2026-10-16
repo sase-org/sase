@@ -12,7 +12,7 @@ search:
 SASE keeps project work organized around durable records, so agents can work in separate
 checkouts and their progress can be followed beyond one chat.
 
-![Diagram of the seven core SASE nouns and their relationships](../images/sase-concepts-model.svg)
+![Diagram of the seven core SASE nouns and their relationships](../images/core-nouns-model.svg)
 
 ## The seven nouns
 

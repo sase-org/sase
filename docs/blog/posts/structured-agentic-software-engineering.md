@@ -393,7 +393,7 @@ sase tui
 
 That is enough to see the loop: a prompt becomes an agent record, the record appears in
 the CLI and sase's TUI, and the transcript and artifacts survive the terminal window
-that launched it. For the guided path, use [Getting Started](../../getting_started.md).
+that launched it. For the guided path, use [Get started](../../start/index.md).
 
 ## What's Next
 

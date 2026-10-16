@@ -7,9 +7,10 @@
 
 ## Get started
 
-- [Shell Completion](completion.md) — Shell Completion — sase completion supports native shell completion for zsh, bash, and fish from the live sase argparse tree, so pressing <TAB> anywhere in the command line offers the right commands, options, static choices, and live values — bead ids with titles, project display names, macro names, and more — with no perceptible latency.
-- [Getting Started: Your First 15 Minutes](getting_started.md) — A hands-on tour: install SASE, check provider readiness, launch a safe first agent run, find and reuse its artifacts, and pick up the vocabulary you'll keep bumping into in about 15 minutes.
-- [Initialization](init.md) — Initialization — SASE initialization commands create or refresh durable files that agents and sidecar tools rely on.
+- [Make and review a change](start/first-change.md) — Ask an agent for one small edit in SASE's demo workspace and inspect the resulting diff.
+- [Run your first agent](start/first-run.md) — Launch a read-only request in SASE's demo workspace and inspect the result.
+- [Get started](start/index.md) — Set up SASE, run an agent in its demo workspace, and review your first change.
+- [Install and set up SASE](start/install.md) — Install SASE, confirm the command works, and check that an agent provider is ready.
 
 ## Guides
 
@@ -41,10 +42,12 @@
 - [Bead Issue Tracking](beads.md) — Bead Issue Tracking — Bead is a lightweight, git-native issue tracking system built into sase.
 - [Patch Format Documentation](change_spec.md) — Patch Format Documentation — A Patch is SASE's durable local record for one unit of reviewable work.
 - [CLI Reference](cli.md) — CLI Reference — This page is a command index for the top-level sase CLI.
+- [Shell Completion](completion.md) — Shell Completion — sase completion supports native shell completion for zsh, bash, and fish from the live sase argparse tree, so pressing <TAB> anywhere in the command line offers the right commands, options, static choices, and live values — bead ids with titles, project display names, macro names, and more — with no perceptible latency.
 - [Configuration Reference](configuration.md) — Configuration Reference — This document is the central reference for all sase configuration: config files, YAML sections, environment variables, and CLI flags.
 - [Canonical SASE Content Layout](content_layout.md) — Canonical SASE Content Layout — SASE-owned project and home content lives under a visible sase/ namespace.
 - [Editor Integration](editor.md) — Editor Integration — SASE exposes two editor-facing surfaces for prompt and macro editing:
 - [Goals](goals.md) — Goals — Goals are durable records of outcomes a person wants: what will be true, how you'll know, and what happened along the way.
+- [Initialization](init.md) — Initialization — SASE initialization commands create or refresh durable files that agents and sidecar tools rely on.
 - [Instruction Bundles](instruction_bundles.md) — Instruction Bundles — An instruction bundle collects the project, home, and SASE instructions for one agent invocation.
 - [Integration APIs](integrations.md) — Integration APIs — SASE exposes a small set of Python helpers for external plugins, chat clients, mobile clients, and editor integrations.
 - [LLM Provider Integration](llms.md) — LLM Provider Integration — This document describes the LLM provider abstraction layer in sase.
@@ -160,9 +163,8 @@
 - [SASE Blog](blog/index.md) — Essays on structured agentic software engineering and the SASE launch post.
 - [[03] AXE — The Background Daemon That Keeps Agent Work Moving](blog/posts/axe-background-daemon.md) — Agents shouldn't poll. AXE is the background daemon that does the polling for them so the engineering workflow keeps moving while individual agents finish, fail, or wait.
 - [[04] Beads and SDD — Planning Multi-Agent Work That Actually Lands](blog/posts/beads-and-sdd.md) — Orchestration only matters if you can split work into pieces with a real ordering. Beads and Spec-Driven Development are how SASE files that work and schedules it.
-- [[06] Patches in Practice — Review State Outside the Chat](blog/posts/changespecs-in-practice.md) — Patches are the durable, reviewable shape of one PR of agent work. They survive the chat. Getting Started names them; this post lives inside them.
+- [[06] Patches in Practice — Review State Outside the Chat](blog/posts/changespecs-in-practice.md) — Patches are durable, reviewable records for PR-sized agent work. This post shows how their review state works in practice.
 - [[05] Commit Workflows — The Pluggable Path From Diff to PR](blog/posts/commit-workflows-plugins.md) — Every agent eventually has to land code somewhere. SASE's commit workflows are the small, runtime-uniform layer that turns a diff into a commit, a proposal, or a pull request without the agent caring which VCS is underneath.
-- [[01] Hello, SASE — Your First 15 Minutes Orchestrating Coding Agents](blog/posts/hello-sase-your-first-15-minutes.md) — A hands-on tour: install SASE, check provider readiness, launch a safe first agent run, find the agent record, and pick up the vocabulary you'll keep bumping into — in about 15 minutes.
 - [[02] Macros in Depth — From One File to Full Workflows](blog/posts/macros-in-depth.md) — Macros up close: when a single Markdown file is the right shape, when typed inputs and directives are enough, and when the job really does want a YAML workflow.
 - [[08] Where You Type — The Prompt Input Widget and sase-nvim](blog/posts/prompt-widget-and-nvim.md) — Where the operator actually types: a multiline Textual TextArea with completion, history, snippets, and a Vim mode in the TUI — and sase-nvim, the Neovim plugin that gives the same prompt language a richer editor.
 - [SASE: Structured Agentic Software Engineering](blog/posts/structured-agentic-software-engineering.md) — From a tmux full of coding agents to an operating layer around them: agent CLIs, Macros, sase's TUI Agents tab, and a practical install path for SASE.
@@ -176,3 +178,4 @@
 | --- | --- |
 | `/instruction_inventory/` | [`/instruction_bundles/`](instruction_bundles.md) |
 | `/architecture/` | [`/contribute/architecture/`](contribute/architecture.md) |
+| `/getting_started/` | [`/start/`](start/index.md) |

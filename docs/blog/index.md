@@ -16,9 +16,8 @@ Start with
 the launch post: why SASE wraps agent CLIs, how Macros work, what sase's TUI Agents tab
 changes, and how to install the tool.
 
-If you want the practical path first, use
-[Getting Started: Your First 15 Minutes](../getting_started.md): install, provider
-readiness, a safe first run, and the first visible agent record.
+If you want the practical path first, follow [Get started](../start/index.md): install
+SASE, run an agent in its demo workspace, and review a small change.
 
 More posts are in the repository as drafts and will be published over time. The
 generated archive below lists only the entries included in the public site.

@@ -25,8 +25,8 @@ agents finish, fail, or wait.
 
 <!-- more -->
 
-[Getting Started](../../getting_started.md) names AXE as the third tab in sase's TUI;
-this post explains what is actually running behind that tab.
+[Run your first agent](../../start/first-run.md) opens sase's TUI to inspect a run; this
+post explains the service host working behind the interface.
 
 ## The Architecture in One Paragraph
 

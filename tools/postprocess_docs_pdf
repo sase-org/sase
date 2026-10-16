@@ -118,7 +118,6 @@ def _is_handbook_source(source_path: str) -> bool:
     """Return whether a MkDocs source belongs in the curated handbook."""
     if source_path in {
         "index.md",
-        "getting_started.md",
         "blog/posts/structured-agentic-software-engineering.md",
     }:
         return True

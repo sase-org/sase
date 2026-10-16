@@ -1,12 +1,13 @@
 /blog /blog/ 301
 /macro/ /macros/ 301
 /patch/ /change_spec/ 301
-/blog/posts/hello-sase-your-first-15-minutes/ /getting_started/ 301
+/blog/posts/hello-sase-your-first-15-minutes/ /start/ 301
 /blog/posts/why-coding-agents-need-orchestration/ /blog/posts/structured-agentic-software-engineering/ 301
 /series/agentic-software-engineering/ /blog/posts/structured-agentic-software-engineering/ 301
 /xprompt/ /macros/ 301
 
 # BEGIN GENERATED: docs page moves redirects
 /architecture/ /contribute/architecture/ 301
+/getting_started/ /start/ 301
 /instruction_inventory/ /instruction_bundles/ 301
 # END GENERATED: docs page moves redirects

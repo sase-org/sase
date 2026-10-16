@@ -9,7 +9,7 @@ categories:
   - Agentic Software Engineering
 slug: why-coding-agents-need-orchestration
 links:
-  - Getting Started: getting_started.md
+  - Get started: start/index.md
   - Macros: macros.md
   - Spec-Driven Development: sdd.md
   - sase's TUI: ace.md
@@ -38,9 +38,9 @@ instead of raw model APIs.
 
 <!-- more -->
 
-If you want to install first and read philosophy later, jump to
-[Getting Started](../../getting_started.md). That page is the practical quickstart. This
-one explains what the pieces are and why they exist.
+If you want to install first and read philosophy later, follow
+[Get started](../../start/). Those pages install SASE, run an agent, and review a small
+change. This one explains what the pieces are and why they exist.
 
 One notation note before we start:
 
@@ -117,7 +117,7 @@ uv tool install sase --with sase-github --with sase-telegram
 ```
 
 If you are replacing an existing `uv tool` install, add `--force` to the same command.
-The quickstart has the fuller walkthrough: [Getting Started](../../getting_started.md).
+For installation steps, use [Install and set up SASE](../../start/install.md).
 
 > **Friction note:** Plugin installation is improving, but it is still a little too easy
 > to install `sase` correctly and forget that `sase-github` also needs an authenticated
@@ -710,4 +710,4 @@ Not the model. Not the IDE. Not the VCS host. The layer that lets those pieces c
 without making a human keep the entire system in short-term memory and twelve terminal
 tabs.
 
-The practical on-ramp is [Getting Started](../../getting_started.md).
+The practical on-ramp is [Get started](../../start/).

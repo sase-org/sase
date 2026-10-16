@@ -12,7 +12,7 @@ slug: macros-in-depth
 links:
   - Macros: macros.md
   - Workflow Specification: workflow_spec.md
-  - Getting Started: getting_started.md
+  - Get started: start/index.md
   - View on GitHub: https://github.com/sase-org/sase
 ---
 
@@ -23,11 +23,10 @@ what's underneath that tag and when to stop there instead of reaching for a work
 
 <!-- more -->
 
-[Getting Started](../../getting_started.md) shows how to turn a one-off prompt into a
-reusable `#docstring`. That is the smallest Macro: one Markdown file in `sase/macros/`,
-invoked by name. This post zooms in. We will walk from that one-file Macro up through
-typed inputs, directives, and multi-agent fan-out, and only at the end show why YAML
-workflows exist — because most of the time you do not need one.
+The [Macro reference](../../macros.md) shows how a one-file prompt becomes a reusable
+`#tag`. This post zooms in. We will walk from that one-file Macro up through typed
+inputs, directives, and multi-agent fan-out, and only at the end show why YAML workflows
+exist — because most of the time you do not need one.
 
 ## The Smallest Macro Is a Markdown File
 

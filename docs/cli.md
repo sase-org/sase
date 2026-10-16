@@ -700,8 +700,7 @@ catalog of every reference kind and it does not browse the agents-sidecar prompt
 archive. Use `sase agent prompts list/show/validate` for archived prompts and their
 published `ARTIFACTS` links. Use sase's TUI grouped `@` completion to browse prompt
 references, or its contextual **Copy as…** palette to copy a reference or pre-fill a new
-agent prompt from the selected entry. See
-[Getting Started](getting_started.md#step-6-hand-off-existing-work-with-artifact-references)
+agent prompt from the selected entry. See [Artifact References](artifact_references.md)
 for the handoff workflow and
 [prompt preprocessing](llms.md#prompt-preprocessing-pipeline) for launch-time
 resolution.

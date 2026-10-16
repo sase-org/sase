@@ -16,7 +16,7 @@ LAUNCH_ESSAY = "blog/posts/structured-agentic-software-engineering.md"
 
 
 def _is_handbook_source(source_path: str) -> bool:
-    return source_path in {"index.md", "getting_started.md", LAUNCH_ESSAY} or (
+    return source_path in {"index.md", LAUNCH_ESSAY} or (
         source_path.startswith(HANDBOOK_ROOTS)
     )
 

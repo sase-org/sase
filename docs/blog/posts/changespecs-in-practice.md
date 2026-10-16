@@ -3,8 +3,8 @@ title: "[06] Patches in Practice — Review State Outside the Chat"
 date: 2026-05-20
 draft: true
 description: >-
-  Patches are the durable, reviewable shape of one PR of agent work. They survive the
-  chat. Getting Started names them; this post lives inside them.
+  Patches are durable, reviewable records for PR-sized agent work. This post shows how
+  their review state works in practice.
 categories:
   - Agentic Software Engineering
   - Review
@@ -20,8 +20,8 @@ links:
 # [06] Patches in Practice — Review State Outside the Chat
 
 Patches are the durable, reviewable shape of one PR of agent work. They survive the
-chat. [Getting Started](../../getting_started.md) names them; this post lives inside
-them.
+chat. The [Patch reference](../../change_spec.md) explains their lifecycle; this post
+shows what review state looks like in practice.
 
 <!-- more -->
 

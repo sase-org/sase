@@ -36,7 +36,7 @@ INSTALL_COMMAND = 'uv tool install "sase>=0.18"'
 # copy-pasteable fence. Dated blog posts and prose mentions of the install
 # method ("a normal `uv tool install sase` user") are intentionally excluded.
 DOCUMENTED_COMMAND_FILES = (
-    "docs/getting_started.md",
+    "docs/index.md",
     "README.md",
     "INSTALL.md",
     "docs/plugins.md",
@@ -160,9 +160,7 @@ def check_installed(sase_exe: str | None = None) -> str:
     try:
         payload = json.loads(proc.stdout)
     except json.JSONDecodeError as exc:
-        raise SystemExit(
-            f"[render_applicability] `sase version -j` is not JSON: {exc}"
-        )
+        raise SystemExit(f"[render_applicability] `sase version -j` is not JSON: {exc}")
     packages = {
         str(record.get("name", "")): record
         for record in payload.get("packages", [])
@@ -174,20 +172,15 @@ def check_installed(sase_exe: str | None = None) -> str:
             "[render_applicability] `sase version -j` reports no `sase` package"
         )
     installed = str(
-        record.get("distribution_version")
-        or record.get("display_version")
-        or ""
+        record.get("distribution_version") or record.get("display_version") or ""
     )
     if not installed:
-        raise SystemExit(
-            "[render_applicability] `sase version -j` reports no version"
-        )
+        raise SystemExit("[render_applicability] `sase version -j` reports no version")
     try:
         ok = _parse_version(installed) >= _parse_version(INSTALL_FLOOR)
     except ValueError:
         raise SystemExit(
-            "[render_applicability] cannot parse installed version "
-            f"{installed!r}"
+            f"[render_applicability] cannot parse installed version {installed!r}"
         )
     if not ok:
         raise SystemExit(

@@ -42,7 +42,7 @@ person a place to follow progress, inspect results, and decide what should happe
 
 ## Do it
 
-- [Get started with SASE](../getting_started.md) — run and inspect a first agent task.
+- [Get started with SASE](../start/index.md) — run and inspect a first agent task.
 
 ## Look it up
 

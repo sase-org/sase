@@ -17,7 +17,11 @@ from types import ModuleType
 import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
+TOOLS = ROOT / "tools"
+if str(TOOLS) not in sys.path:
+    sys.path.insert(0, str(TOOLS))
 TOOL_PATH = ROOT / "tools" / "render_applicability"
+INSTALL_RENDERER_PATH = ROOT / "tools" / "render_install_command"
 RENDER_DOCS_PATH = ROOT / "tools" / "render_docs"
 MKDOCS_CONFIG = ROOT / "mkdocs.yml"
 PDF_CONFIG = ROOT / "mkdocs-pdf.yml"
@@ -31,6 +35,16 @@ def _load_tool(name: str = "render_applicability_test") -> ModuleType:
     spec = importlib.util.spec_from_loader(name, loader)
     assert spec is not None
     module = importlib.util.module_from_spec(spec)
+    loader.exec_module(module)
+    return module
+
+
+def _load_install_renderer() -> ModuleType:
+    loader = SourceFileLoader("render_install_command_test", str(INSTALL_RENDERER_PATH))
+    spec = importlib.util.spec_from_loader("render_install_command_test", loader)
+    assert spec is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
     loader.exec_module(module)
     return module
 
@@ -99,6 +113,28 @@ def test_smoke_workflow_reads_the_single_sourced_command() -> None:
     assert "--strict" not in run_steps
 
 
+def test_install_command_is_generated_in_start_and_homepage(tmp_path: Path) -> None:
+    tool = _load_tool()
+    renderer = _load_install_renderer()
+    install_page = tmp_path.joinpath("docs", "start", "install.md")
+    install_page.parent.mkdir(parents=True)
+    install_page.write_text("## 1. Install SASE\n", encoding="utf-8")
+    homepage = tmp_path.joinpath("docs", "index.md")
+    homepage.write_text('    <div class="sase-actions">\n', encoding="utf-8")
+
+    renderer.render(tmp_path)
+
+    for path in (install_page, homepage):
+        text = path.read_text(encoding="utf-8")
+        assert "<!-- BEGIN GENERATED: install-command -->" in text
+        assert tool.INSTALL_COMMAND in text
+        assert "<!-- END GENERATED: install-command -->" in text
+    assert "tutorial-test: skip installs the published package from PyPI" in (
+        install_page.read_text(encoding="utf-8")
+    )
+    assert renderer.check(tmp_path) == []
+
+
 def test_fmt_docs_recipes_cover_applicability() -> None:
     recipe = JUSTFILE.read_text(encoding="utf-8")
     assert "python tools/render_docs --format-only" in recipe
@@ -112,6 +148,12 @@ def test_fmt_docs_recipes_cover_applicability() -> None:
     assert any(
         source.name == "applicability"
         and source.script == "render_applicability"
+        and not source.needs_sase
+        for source in module.SOURCES
+    )
+    assert any(
+        source.name == "install-command"
+        and source.script == "render_install_command"
         and not source.needs_sase
         for source in module.SOURCES
     )

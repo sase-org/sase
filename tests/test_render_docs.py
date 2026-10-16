@@ -31,6 +31,7 @@ def test_registry_wraps_existing_and_new_renderers() -> None:
     assert {source.script for source in runner.SOURCES} >= {
         "render_model_docs",
         "render_applicability",
+        "render_install_command",
         "render_moves",
         "render_docs_map",
         "render_glossary",

@@ -18,8 +18,12 @@ hide:
       changes, resumable runs, and automation that can move across model and version-control providers.
     </p>
 
+<!-- BEGIN GENERATED: install-command -->
+<p class="sase-install-command">Install with <code>uv tool install "sase>=0.18"</code></p>
+<!-- END GENERATED: install-command -->
+
     <div class="sase-actions">
-      <a class="md-button" href="getting_started/">Getting Started</a>
+      <a class="md-button" href="start/">Get started</a>
       <a class="md-button" href="/downloads/sase-handbook.pdf">Download PDF</a>
       <a class="md-button" href="https://github.com/sase-org/sase">View on GitHub</a>
       <a class="md-button" href="blog/posts/structured-agentic-software-engineering/">Launch Post</a>

@@ -27,6 +27,7 @@ class Source:
 SOURCES = (
     Source("model-catalog", "render_model_docs", False),
     Source("applicability", "render_applicability", False),
+    Source("install-command", "render_install_command", False),
     Source("page-moves", "render_moves", False),
     Source("docs-map", "render_docs_map", False),
     Source("glossary", "render_glossary", False),

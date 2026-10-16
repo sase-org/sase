@@ -1,0 +1,105 @@
+#!/usr/bin/env python3
+"""Render the documented install command into the homepage and install tutorial."""
+
+from __future__ import annotations
+
+import argparse
+import difflib
+import importlib.util
+from importlib.machinery import SourceFileLoader
+from pathlib import Path
+import sys
+
+from docs_render_utils import replace_generated_block
+
+
+ROOT = Path(__file__).resolve().parents[1]
+_APPLICABILITY_PATH = ROOT / "tools" / "render_applicability"
+_APPLICABILITY_LOADER = SourceFileLoader(
+    "sase_install_command_applicability", str(_APPLICABILITY_PATH)
+)
+_APPLICABILITY_SPEC = importlib.util.spec_from_loader(
+    "sase_install_command_applicability", _APPLICABILITY_LOADER
+)
+if _APPLICABILITY_SPEC is None:
+    raise RuntimeError(f"cannot load install command from {_APPLICABILITY_PATH}")
+_APPLICABILITY = importlib.util.module_from_spec(_APPLICABILITY_SPEC)
+_APPLICABILITY_LOADER.exec_module(_APPLICABILITY)
+INSTALL_COMMAND = _APPLICABILITY.INSTALL_COMMAND
+
+BLOCKS = {
+    "docs/start/install.md": (
+        "<!-- tutorial-test: skip installs the published package from PyPI -->\n\n"
+        f"```bash\n{INSTALL_COMMAND}\n```\n\n",
+        r"^## 1\. Install SASE$",
+    ),
+    "docs/index.md": (
+        f'<p class="sase-install-command">Install with <code>{INSTALL_COMMAND}</code></p>',
+        r'^    <div class="sase-actions">',
+    ),
+}
+
+
+def _outputs(root: Path = ROOT) -> dict[Path, str]:
+    outputs: dict[Path, str] = {}
+    for relative, (body, insert_before) in BLOCKS.items():
+        path = root / relative
+        source = path.read_text(encoding="utf-8")
+        rendered = replace_generated_block(
+            source,
+            "install-command",
+            body,
+            insert_before=insert_before,
+        )
+        if relative == "docs/start/install.md":
+            end = "<!-- END GENERATED: install-command -->"
+            rendered = rendered.replace(f"```\n{end}", f"```\n\n{end}")
+        outputs[path] = rendered
+    return outputs
+
+
+def render(root: Path = ROOT) -> None:
+    for path, content in _outputs(root).items():
+        path.write_text(content.rstrip() + "\n", encoding="utf-8")
+
+
+def check(root: Path = ROOT) -> list[str]:
+    failures: list[str] = []
+    try:
+        outputs = _outputs(root)
+    except (OSError, ValueError) as exc:
+        return [f"cannot render documented install command: {exc}"]
+    for path, expected in outputs.items():
+        actual = path.read_text(encoding="utf-8")
+        if actual != expected:
+            failures.extend(
+                difflib.unified_diff(
+                    actual.splitlines(),
+                    expected.splitlines(),
+                    fromfile=str(path.relative_to(root)),
+                    tofile=f"{path.relative_to(root)} (generated)",
+                    lineterm="",
+                )
+            )
+    return failures
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--check", action="store_true", help="check without writing")
+    args = parser.parse_args(argv)
+    try:
+        if args.check:
+            failures = check()
+            for failure in failures:
+                print(failure, file=sys.stderr)
+            return 1 if failures else 0
+        render()
+    except (OSError, ValueError) as exc:
+        print(f"[render_install_command] {exc}", file=sys.stderr)
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

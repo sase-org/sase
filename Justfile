@@ -484,7 +484,8 @@ fmt-md: _setup-prettier
     {{ prettier_bin }} --write "**/*.md"
 
 # Renderer registry sources: tools/render_model_docs,
-# tools/render_applicability, tools/render_moves, and tools/render_docs_map.
+# tools/render_applicability, tools/render_install_command, tools/render_moves,
+# and tools/render_docs_map.
 # Shared modules: tools/docs_moves.py and tools/docs_render_utils.py.
 # Section-move operator: tools/docs_split.
 # Render generated Markdown blocks

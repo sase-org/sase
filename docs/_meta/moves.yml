@@ -4,4 +4,6 @@ moves:
     kind: redirect
   - from: architecture.md
     to: contribute/architecture.md
+  - from: getting_started.md
+    to: start/index.md
     kind: redirect

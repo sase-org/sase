@@ -43,7 +43,7 @@ work unit, or review a change without losing the desired outcome.
 
 ## Do it
 
-- [Get started with SASE](../getting_started.md) — see work records in a first project
+- [Get started with SASE](../start/index.md) — see work records in a first project
   workflow.
 
 ## Look it up
