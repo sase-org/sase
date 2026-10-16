@@ -324,6 +324,33 @@ def test_wave_states_fold_current_rows_and_retried_failures_are_handled() -> Non
     )
 
 
+def test_wave_state_folds_anchors_only_and_done_with_ghost_is_done() -> None:
+    anchor = _member("anchors", "member", 1, status="DONE")
+    failed_turn = _member("anchors", "member--plan", 2, status="FAILED")
+    failed_turn.agent_clan = None
+    failed_turn.agent_clan_generation = None
+    failed_turn.parent_timestamp = anchor.raw_suffix
+    rows = _project(anchor, failed_turn)
+    summary = _container(rows).clan_waves
+    assert summary is not None
+    assert summary.waves[0].state == "done"
+
+    first = _member("ghostdone", "first", 1, status="DONE")
+    second = _member(
+        "ghostdone",
+        "second",
+        2,
+        status="DONE",
+        waits=("ghostdone.first", "ghostdone.dismissed"),
+    )
+    ghost_rows = _project(first, second)
+    ghost_summary = _container(ghost_rows).clan_waves
+    assert ghost_summary is not None
+    first_wave = next(wave for wave in ghost_summary.waves if wave.number == 1)
+    assert first_wave.state == "done"
+    assert first_wave.ghost_names
+
+
 def test_projection_memoizes_layout_but_refolds_state(monkeypatch) -> None:
     from sase.core import agent_clan_waves as facade
 

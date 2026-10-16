@@ -370,9 +370,19 @@ def test_layered_clan_waves_follow_all_three_fold_levels() -> None:
     assert rendered[FoldLevel.COLLAPSED].index("WAVES") < rendered[
         FoldLevel.COLLAPSED
     ].index("CLAN MEMBERS")
-    assert "\n   1 " not in rendered[FoldLevel.COLLAPSED]
+    assert "\n   1 " in rendered[FoldLevel.COLLAPSED]
+    assert "\n   2 " in rendered[FoldLevel.COLLAPSED]
+    collapsed_ladder = tuple(
+        line
+        for line in rendered[FoldLevel.COLLAPSED].splitlines()
+        if line.startswith("   1 ") or line.startswith("   2 ")
+    )
+    assert collapsed_ladder
+    assert all("no dependencies" not in line for line in collapsed_ladder)
+    assert all("after .first" not in line for line in collapsed_ladder)
     assert "no dependencies" in rendered[FoldLevel.EXPANDED]
     assert "after .first" in rendered[FoldLevel.EXPANDED]
+    assert "waits on .first ▶" not in rendered[FoldLevel.EXPANDED]
     assert "waits on .first ▶" in rendered[FoldLevel.FULLY_EXPANDED]
 
 

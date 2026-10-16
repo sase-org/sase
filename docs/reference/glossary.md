@@ -14,7 +14,7 @@ Terms are sorted A–Z and each anchor matches its memory slug.
 ## Agent Clan {#agent-clan}
 
 An agent clan is a named, rootless container for related agents whose members may run in
-parallel or in clan waves derived from their `%wait` edges ([clan-wave](#clan-wave)).
+parallel or in clan waves derived from their `%wait` edges ([Clan Wave](#clan-wave)).
 Every member is named inside the clan's hood (`<clan>.<suffix>`) and declares
 `%clan:<clan>`; the clan name is reserved and is never itself an agent.
 
@@ -179,9 +179,7 @@ and never binds one), and the special `@file`; artifact repos add document kinds
 Plugin. Every ref expands to prompt text, is recorded against the agent that used it,
 and publishes as a `[@kind:arg][N]` link.
 
-## clan-wave {#clan-wave}
-
-# Clan Wave
+## Clan Wave {#clan-wave}
 
 A clan wave is a dependency layer of direct members in one generation of an agent clan.
 A member is in wave 1 when none of its declared waits resolves to another member in the
@@ -189,7 +187,7 @@ same generation. Otherwise it follows one plus the highest wave of the members i
 on. A wave is a layer, not a barrier, so later waves may start while earlier work is
 still running. An epic land member may form an unnumbered `∎` seal stage when it alone
 makes up the final layer and another layer exists. The Agents tab shows waves only for
-clans with two or more layers.
+layered clans: clans with two or more layers, or with any member caught in a wait cycle.
 
 ## Core Memory {#core-memory}
 

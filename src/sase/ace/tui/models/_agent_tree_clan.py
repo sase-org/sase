@@ -365,6 +365,7 @@ def project_clan_tree(agents: list[Agent]) -> list[Agent]:
         if agent.is_clan_container and agent.agent_clan
     }
     real_agents = [agent for agent in agents if not agent.is_clan_container]
+    old_slot_by_id = {id(agent): agent.clan_wave_slot for agent in real_agents}
     for agent in real_agents:
         _reset_tree_projection(agent)
 
@@ -410,6 +411,29 @@ def project_clan_tree(agents: list[Agent]) -> list[Agent]:
         for unit in units:
             if unit:
                 unit[0].clan_wave_slot = wave_slots.get(clan_wave_identity_key(unit[0]))
+        # Fleet rows are reused across refreshes and mutated in place, so a
+        # slot change (for example a wave dimming when a local member
+        # finishes) would also mutate the previous roster's objects and hide
+        # from the identity diff. Publish fresh row objects for reused rows
+        # whose slot changed, leaving the previous objects intact.
+        from copy import copy as _shallow_copy_row
+
+        for unit in units:
+            if not unit:
+                continue
+            anchor = unit[0]
+            old_slot = old_slot_by_id.get(id(anchor))
+            if old_slot is not None and old_slot != anchor.clan_wave_slot:
+                fresh = _shallow_copy_row(anchor)
+                unit[0] = fresh
+                try:
+                    container.runtime_children = [
+                        fresh if child is anchor else child
+                        for child in container.runtime_children
+                    ]
+                except (AttributeError, TypeError):
+                    pass
+                anchor.clan_wave_slot = old_slot
         containers[clan_key] = container
         rows_by_clan[clan_key] = _sort_clan_member_units(
             units,

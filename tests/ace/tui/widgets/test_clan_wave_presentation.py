@@ -3,7 +3,10 @@ from sase.ace.tui.models._agent_clan_waves import (
     _ClanWaveState,
     _ClanWaveView,
 )
-from sase.ace.tui.widgets._clan_wave_presentation import format_clan_wave_pips
+from sase.ace.tui.widgets._clan_wave_presentation import (
+    format_clan_wave_pips,
+    format_wave_after_phrase,
+)
 
 
 def _wave(number: int | None, state: _ClanWaveState, *, kind: str = "number"):
@@ -73,3 +76,62 @@ def test_clan_wave_pips_are_absent_for_flat_clans() -> None:
     )
 
     assert format_clan_wave_pips(summary).plain == ""
+
+
+def test_after_phrase_is_shared_between_ladder_and_roster() -> None:
+    assert (
+        format_wave_after_phrase(
+            kind="number", predecessor_labels=(), predecessor_waves=()
+        )
+        == "no dependencies"
+    )
+    assert (
+        format_wave_after_phrase(
+            kind="number",
+            predecessor_labels=(".a", ".b"),
+            predecessor_waves=(1, 1),
+        )
+        == "after .a .b"
+    )
+    assert (
+        format_wave_after_phrase(
+            kind="number",
+            predecessor_labels=(".a", ".b", ".c", ".d"),
+            predecessor_waves=(1, 1, 1, 1),
+        )
+        == "after wave 1"
+    )
+    assert (
+        format_wave_after_phrase(
+            kind="number",
+            predecessor_labels=(".a", ".b", ".c", ".d"),
+            predecessor_waves=(1, 2, 3, 4),
+        )
+        == "after waves 1–4"
+    )
+    assert (
+        format_wave_after_phrase(
+            kind="number",
+            predecessor_labels=(".a", ".b", ".c", ".d"),
+            predecessor_waves=(1, 1, 1, 3),
+        )
+        == "after waves 1, 3"
+    )
+    assert (
+        format_wave_after_phrase(
+            kind="seal", predecessor_labels=(), predecessor_waves=(), is_epic_seal=True
+        )
+        == "after every phase"
+    )
+    assert (
+        format_wave_after_phrase(
+            kind="seal", predecessor_labels=(), predecessor_waves=()
+        )
+        == "after every member"
+    )
+    assert (
+        format_wave_after_phrase(
+            kind="unresolved", predecessor_labels=(".a",), predecessor_waves=(1,)
+        )
+        == "wait cycle"
+    )

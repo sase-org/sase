@@ -254,7 +254,7 @@ def test_layered_clan_seal_and_cycle_roster_labels() -> None:
     )
 
     assert "land · after every phase" in detail.plain
-    assert jump_maps[0].sections[0].title_suffix == "1 WAVES + LAND"
+    assert jump_maps[0].sections[0].title_suffix == "1 WAVE + LAND"
 
     first = make_clan_agent(
         "research.first",
@@ -270,5 +270,12 @@ def test_layered_clan_seal_and_cycle_roster_labels() -> None:
     second.waiting_for = ["research.first"]
     cycle = project_clan_tree([first, second])[0]
     cycle_detail = build_clan_detail_text(cycle, fold_level=FoldLevel.EXPANDED)
+    cycle_maps: list = []
+    build_clan_detail_text(
+        cycle,
+        fold_level=FoldLevel.EXPANDED,
+        member_jump_map_publisher=cycle_maps.append,
+    )
 
     assert "unresolved · wait cycle" in cycle_detail.plain
+    assert cycle_maps[0].sections[0].title_suffix is None

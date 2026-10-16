@@ -269,7 +269,7 @@ block); Agent Data Deck (deck); Agent Hood (hood, agent neighborhood); Agent Ins
 File (agents.md file); Agent Neighbor; Agent Node; Agent Relation Jump Target (agent
 jump target); Agent Tab (agents sub-tab, agents sub-tabs); Agent Tribe; Agent Turn;
 Artifact; Artifact Markdown File (artifact md file, artifact md); Artifact Reference
-(ref); clan-wave; Core Memory (core memory); Current Project; Deck Panel (deck layout);
+(ref); Clan Wave; Core Memory (core memory); Current Project; Deck Panel (deck layout);
 Failure Signature; Feature Flag; Flag Bead (flag bead); Gate Turn; Goal (⌖); Job (Chop);
 LLM Calls; Machine Tab; Macro (xprompt); Macro Invocation (smack, macro reference, macro
 ref); Macro Memory (memory file, sase memory); Macro Part; Macro Swarm; Macro Workflow;

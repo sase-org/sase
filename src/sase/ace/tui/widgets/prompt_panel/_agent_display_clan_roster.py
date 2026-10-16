@@ -21,6 +21,7 @@ from ...models.agent_session_members import (
     agent_session_lane_status_entries,
     agent_session_member_status_buckets,
 )
+from .._clan_wave_presentation import format_wave_after_phrase
 from ._member_roster import MemberRosterChild, MemberRosterEntry
 
 CLAN_NEIGHBORS_SECTION_ID = "clan-neighbors"
@@ -33,35 +34,27 @@ def _predecessor_summary(
     *,
     entries_by_identity: dict[str, MemberRosterEntry],
     wave_by_identity: Mapping[str, object],
+    kind: str = "number",
+    is_epic_seal: bool = False,
 ) -> str:
     """Describe the members or waves that precede one roster group."""
-    if not predecessor_identities:
-        return "no dependencies"
-    if len(predecessor_identities) <= 3:
-        labels = [
-            entries_by_identity[identity].label
-            for identity in predecessor_identities
-            if identity in entries_by_identity
-        ]
-        return "after " + " ".join(labels) if labels else "no dependencies"
-
-    predecessor_waves = sorted(
-        {
-            wave_index
-            for identity in predecessor_identities
-            if (member := wave_by_identity.get(identity)) is not None
-            and (wave_index := getattr(member, "wave_index", None)) is not None
-        }
+    labels = tuple(
+        entries_by_identity[identity].label
+        for identity in predecessor_identities
+        if identity in entries_by_identity
     )
-    if len(predecessor_waves) == 1:
-        return f"after wave {predecessor_waves[0]}"
-    if predecessor_waves:
-        if predecessor_waves == list(
-            range(predecessor_waves[0], predecessor_waves[-1] + 1)
-        ):
-            return f"after waves {predecessor_waves[0]}–{predecessor_waves[-1]}"
-        return "after waves " + ", ".join(map(str, predecessor_waves))
-    return "after every member"
+    predecessor_waves = tuple(
+        wave_index
+        for identity in predecessor_identities
+        if (member := wave_by_identity.get(identity)) is not None
+        and (wave_index := getattr(member, "wave_index", None)) is not None
+    )
+    return format_wave_after_phrase(
+        kind=kind,
+        predecessor_labels=labels,
+        predecessor_waves=predecessor_waves,
+        is_epic_seal=is_epic_seal,
+    )
 
 
 def _layered_group_labels(
@@ -80,10 +73,25 @@ def _layered_group_labels(
         if member.identity in entries_by_agent_identity
     }
     wave_by_identity = {member.identity: member for member in summary.members}
+    member_rows = {
+        clan_wave_identity_key(member): member for member in clan_members(agent)
+    }
     group_by_identity: dict[tuple[AgentType, str, str | None], str] = {}
     for wave in summary.waves:
         if wave.kind == "seal":
-            label = "land · after every phase"
+            epic_land = any(
+                (row := member_rows.get(identity)) is not None
+                and row.epic_bead_id
+                and not row.phase_bead_id
+                for identity in wave.member_identities
+            )
+            phrase = format_wave_after_phrase(
+                kind="seal",
+                predecessor_labels=(),
+                predecessor_waves=(),
+                is_epic_seal=epic_land,
+            )
+            label = f"land · {phrase}"
         elif wave.kind == "unresolved":
             label = "unresolved · wait cycle"
         else:
@@ -96,7 +104,10 @@ def _layered_group_labels(
             if identity in entries_by_identity:
                 group_by_identity[entries_by_identity[identity].identity] = label
 
-    title_suffix = f"{summary.numbered_wave_count} WAVES"
+    if summary.numbered_wave_count == 0:
+        return group_by_identity, None
+    wave_noun = "WAVE" if summary.numbered_wave_count == 1 else "WAVES"
+    title_suffix = f"{summary.numbered_wave_count} {wave_noun}"
     if summary.has_seal:
         title_suffix += " + LAND"
     return group_by_identity, title_suffix

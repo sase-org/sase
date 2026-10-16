@@ -137,6 +137,32 @@ def test_session_descendant_keeps_a_lane_for_later_same_wave_members() -> None:
     assert prefix.plain.startswith("   │ └─ ")
 
 
+def test_workflow_step_children_prefer_non_child_suffix_match() -> None:
+    parent = _member("research", "workflow", 1)
+    first_step = _member("research", "workflow-step-a", 2, parent=parent)
+    second_step = _member("research", "workflow-step-b", 3, parent=parent)
+    # Workflow steps share their parent's suffix; the suffix map must prefer
+    # the non-child row so steps resolve to their parent, not a sibling step.
+    first_step.raw_suffix = parent.raw_suffix
+    second_step.raw_suffix = parent.raw_suffix
+    peer = _member("research", "peer", 4)
+    later = _member("research", "later", 5, waits=("research.peer",))
+    rows = _projected(parent, first_step, second_step, peer, later)
+    step_indices = [
+        index
+        for index, row in enumerate(rows)
+        if row is first_step or row is second_step
+    ]
+
+    assert step_indices
+    gutters = build_clan_wave_gutters(rows, range(1, len(rows)))
+    for step_index in step_indices:
+        assert rows[step_index].tree_depth == 2
+        assert gutters[step_index].lane is True
+        prefix = _render_prefix(rows[step_index], step_index, gutters[step_index])
+        assert prefix.plain.startswith("   │ ")
+
+
 def test_wave_labels_above_99_use_an_ellipsis() -> None:
     container = Agent(
         agent_type=AgentType.RUNNING,

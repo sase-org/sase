@@ -323,8 +323,11 @@ def _wave_state(
     ghost_names: tuple[str, ...],
     status_buckets: dict[int, str] | None,
 ) -> tuple[_ClanWaveState, bool]:
+    # Fold over each member's anchor row only, matching the clan container's
+    # direct-member aggregate. Session turns and other descendants never
+    # contribute, so a Done anchor with a failed earlier turn stays Done.
     rows = [
-        row for identity in identities for row in rows_by_identity.get(identity, ())
+        unit[0] for identity in identities if (unit := rows_by_identity.get(identity))
     ]
     if not rows:
         return (
@@ -348,14 +351,12 @@ def _wave_state(
         for row, bucket in zip(rows, buckets, strict=True)
     ):
         return _ClanWaveState.IN_FLIGHT, unfinished
-    if all(bucket == "Done" for bucket in buckets) and not ghost_names:
+    if all(bucket == "Done" for bucket in buckets):
         return _ClanWaveState.DONE, False
-    if all(bucket in {"Waiting", "Done"} for bucket in buckets) and all(
-        bucket == "Waiting" for bucket in buckets
-    ):
+    if all(bucket == "Waiting" for bucket in buckets):
         return _ClanWaveState.NOT_STARTED, True
-    # This also covers a Done/Waiting mix and loaded Done members beside a ghost:
-    # neither shape is complete, while the loaded work remains actionable.
+    # A Done/Waiting mix is still in flight; loaded Done members beside a
+    # ghost are complete, which the all-Done branch above already covers.
     return _ClanWaveState.IN_FLIGHT, unfinished
 
 

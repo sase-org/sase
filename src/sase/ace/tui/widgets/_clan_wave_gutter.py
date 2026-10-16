@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from collections.abc import Iterable
 
 from ..models._agent_clan_waves import ClanWaveSlot
+from ..models._agent_tree_clan import _rows_by_suffix
 from ..models.agent import Agent
 
 ClanKey = tuple[str, str | None]
@@ -95,7 +96,7 @@ def build_clan_wave_gutters(
     if not layered_clans:
         return {}
 
-    rows_by_suffix = {agent.raw_suffix: agent for agent in agents if agent.raw_suffix}
+    rows_by_suffix = _rows_by_suffix(agents)
     ordered_indices = [index for index in visible_order if 0 <= index < len(agents)]
     visible_anchors: list[tuple[int, Agent, ClanWaveSlot, WaveKey]] = []
     for index in ordered_indices:

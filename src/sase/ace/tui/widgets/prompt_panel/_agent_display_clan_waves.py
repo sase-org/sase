@@ -20,6 +20,7 @@ from .._clan_wave_presentation import (
     WAVE_UNRESOLVED_STYLE,
     append_clan_wave_state_pip,
     format_clan_wave_pips,
+    format_wave_after_phrase,
 )
 from ._agent_display_clan_sections_common import append_fold_heading
 from ._member_in_flight import append_member_status_cell
@@ -136,8 +137,15 @@ def _member_label(member: Agent, clan_name: str) -> str:
 
 def _heading_summary(summary: ClanWaveSummary) -> Text:
     result = Text()
+    if summary.numbered_wave_count == 0:
+        result.append("wait cycle", style="dim")
+        result.append(" · ", style="dim")
+        result.append(_heading_phrase(summary), style="dim")
+        return result
     if summary.has_seal:
         result.append(f"{summary.numbered_wave_count} + land", style="dim")
+    elif summary.numbered_wave_count == 1:
+        result.append("1 wave", style="dim")
     else:
         result.append(f"{summary.numbered_wave_count} waves", style="dim")
     result.append(" · ", style="dim")
@@ -154,14 +162,25 @@ def _after_summary(
     *,
     clan_name: str,
 ) -> str:
-    if wave.kind == "seal":
+    if wave.kind == "unresolved":
+        result = format_wave_after_phrase(
+            kind=wave.kind,
+            predecessor_labels=(),
+            predecessor_waves=(),
+        )
+    elif wave.kind == "seal":
         epic_land = any(
             (member := member_rows.get(identity)) is not None
             and member.epic_bead_id
             and not member.phase_bead_id
             for identity in wave.member_identities
         )
-        result = "after every phase" if epic_land else "after every member"
+        result = format_wave_after_phrase(
+            kind=wave.kind,
+            predecessor_labels=(),
+            predecessor_waves=(),
+            is_epic_seal=epic_land,
+        )
     else:
         predecessors = tuple(
             identity
@@ -173,23 +192,16 @@ def _after_summary(
             for item in predecessors
             if item in member_rows
         )
-        if len(labels) <= 3:
-            result = f"after {' '.join(labels)}" if labels else "no dependencies"
-        else:
-            predecessor_wave_indices: set[int] = set()
-            for identity in predecessors:
-                wave_index = member_views[identity].wave_index
-                if wave_index is not None:
-                    predecessor_wave_indices.add(wave_index)
-            predecessor_waves = sorted(predecessor_wave_indices)
-            if len(predecessor_waves) == 1:
-                result = f"after wave {predecessor_waves[0]}"
-            elif predecessor_waves and predecessor_waves == list(
-                range(predecessor_waves[0], predecessor_waves[-1] + 1)
-            ):
-                result = f"after waves {predecessor_waves[0]}–{predecessor_waves[-1]}"
-            else:
-                result = f"after {len(labels)} members"
+        predecessor_waves = tuple(
+            wave_index
+            for identity in predecessors
+            if (wave_index := member_views[identity].wave_index) is not None
+        )
+        result = format_wave_after_phrase(
+            kind=wave.kind,
+            predecessor_labels=labels,
+            predecessor_waves=predecessor_waves,
+        )
 
     wave_members = tuple(
         member_views[identity]
@@ -305,8 +317,6 @@ def append_clan_waves_section(
         count=None,
         summary=_heading_summary(summary),
     )
-    if level == FoldLevel.COLLAPSED:
-        return
 
     member_views = {member.identity: member for member in summary.members}
     member_rows = {
@@ -335,6 +345,11 @@ def append_clan_waves_section(
                 ),
             )
         )
+    if level == FoldLevel.COLLAPSED:
+        for _row_wave, line, _after in rows:
+            text.append_text(line)
+            text.append("\n")
+        return
     row_width = max((cell_len(line.plain) for _wave, line, _after in rows), default=0)
     for row_wave, line, after in rows:
         text.append_text(line)

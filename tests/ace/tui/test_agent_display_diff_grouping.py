@@ -133,6 +133,62 @@ def test_layered_clan_status_change_patches_and_dims_finished_wave(
     assert str(style_at(prompt, prompt.plain.index("1"))) == "dim #5FAFFF"
 
 
+def test_mixed_local_fleet_wave_completion_repaints_label_without_rebuild(
+    monkeypatch: Any,
+) -> None:
+    from sase.ace.tui.actions.agents._display_diff import build_agent_display_diff
+
+    fleet = _agent("research.fleet", tribe=None, suffix="fleet", status="DONE")
+    fleet.agent_clan = "research"
+    fleet.agent_clan_generation = "20260718120000"
+    fleet.fleet_origin_alias = "apollo"
+    local = _agent("research.local", tribe=None, suffix="local", status="RUNNING")
+    local.agent_clan = "research"
+    local.agent_clan_generation = "20260718120000"
+    waiter = _agent("research.waiter", tribe=None, suffix="waiter", status="WAITING")
+    waiter.agent_clan = "research"
+    waiter.agent_clan_generation = "20260718120000"
+    waiter.waiting_for = ["research.local"]
+
+    previous_agents = project_clan_tree([fleet, local, waiter])
+    prev_fleet = next(
+        agent for agent in previous_agents if agent.agent_name == "research.fleet"
+    )
+    assert prev_fleet.clan_wave_slot is not None
+    assert prev_fleet.clan_wave_slot.open is True
+
+    local.status = "DONE"
+    next_agents = project_clan_tree([fleet, local, waiter])
+    next_fleet = next(
+        agent for agent in next_agents if agent.agent_name == "research.fleet"
+    )
+
+    assert next_fleet is not prev_fleet
+    assert prev_fleet.clan_wave_slot is not None
+    assert prev_fleet.clan_wave_slot.open is True
+    assert next_fleet.clan_wave_slot is not None
+    assert next_fleet.clan_wave_slot.open is False
+
+    diff = build_agent_display_diff(previous_agents, next_agents)
+    assert not diff.has_collection_changes
+    assert diff.changed_same_position
+
+    app = _DisplayDiffApp(previous_agents, monkeypatch)
+    app._agents_refresh_trace_records.clear()
+    app._agents = next_agents
+    app._refresh_agents_display_after_finalize(
+        previous_agents=previous_agents,
+        defer_detail=True,
+    )
+
+    assert app.full_rebuilds == 0
+    assert not any(
+        record.fallback_reason == "clan_member_order_change"
+        for record in app._agents_refresh_trace_records
+    )
+    assert "row_patch" in _display_costs(app)
+
+
 def test_by_status_badge_only_change_patches_in_place(monkeypatch: Any) -> None:
     # Regression: a deferred live-hint pencil on a redirected Plan row used to
     # wait for the next full rebuild because BY_STATUS vetoed every row patch.

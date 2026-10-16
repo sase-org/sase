@@ -153,6 +153,68 @@ def test_fully_expanded_ladder_names_each_live_predecessor() -> None:
     assert ".second  waits on .first ▶" in detail
 
 
+def test_ladder_singular_and_zero_wave_wording() -> None:
+    _container, detail = _render(
+        [
+            _member("phase", "DONE", 0, phase_bead="sase-demo.1"),
+            _member(
+                "land",
+                "WAITING",
+                1,
+                waits=("research.phase",),
+                epic_bead="sase-demo",
+            ),
+        ],
+        FoldLevel.COLLAPSED,
+    )
+
+    assert "1 + land" in detail
+    assert "1 waves" not in detail
+    assert "1 WAVES" not in detail
+
+    solo = _member("solo", "DONE", 0)
+    cyc_first = _member("cyc1", "WAITING", 1, waits=("research.cyc2",))
+    cyc_second = _member("cyc2", "WAITING", 2, waits=("research.cyc1",))
+    _mixed, mixed_detail = _render([solo, cyc_first, cyc_second], FoldLevel.COLLAPSED)
+
+    assert "1 wave ·" in mixed_detail
+    assert "1 waves" not in mixed_detail
+
+    first = _member("first", "WAITING", 0, waits=("research.second",))
+    second = _member("second", "WAITING", 1, waits=("research.first",))
+    _cycle, cycle_detail = _render([first, second], FoldLevel.COLLAPSED)
+
+    assert "0 waves" not in cycle_detail
+    assert "·  ·" not in cycle_detail
+    assert "wait cycle" in cycle_detail
+
+
+def test_ladder_non_contiguous_predecessors_share_roster_phrase() -> None:
+    members = [
+        _member("one", "DONE", 0),
+        _member("two", "DONE", 1),
+        _member("extra", "DONE", 2),
+        _member("three", "DONE", 3, waits=("research.one",)),
+        _member("four", "DONE", 4, waits=("research.three",)),
+        _member(
+            "five",
+            "WAITING",
+            5,
+            waits=(
+                "research.one",
+                "research.two",
+                "research.extra",
+                "research.four",
+            ),
+        ),
+    ]
+    _container, detail = _render(members, FoldLevel.EXPANDED)
+
+    # More than three predecessors compress to waves, never to a member count.
+    assert "after 4 members" not in detail
+    assert "after waves 1, 3" in detail
+
+
 def test_hint_cache_key_tracks_wave_and_member_render_signatures() -> None:
     container = project_clan_tree(
         [

@@ -75,6 +75,38 @@ def wave_connector_style(*, is_selected: bool) -> str:
     return f"bold {WAVE_NUMBER_COLOR}" if is_selected else WAVE_NUMBER_COLOR
 
 
+def format_wave_after_phrase(
+    *,
+    kind: str,
+    predecessor_labels: tuple[str, ...],
+    predecessor_waves: tuple[int, ...],
+    is_epic_seal: bool = False,
+) -> str:
+    """Return the shared ``after`` phrase for one wave or seal stage.
+
+    The ladder and the roster share this helper so the same wave reads the
+    same way on both surfaces. ``predecessor_labels`` holds the predecessor
+    member labels in display order; ``predecessor_waves`` holds the sorted
+    unique wave indices those predecessors sit in.
+    """
+    if kind == "unresolved":
+        return "wait cycle"
+    if kind == "seal":
+        return "after every phase" if is_epic_seal else "after every member"
+    if not predecessor_labels:
+        return "no dependencies"
+    if len(predecessor_labels) <= 3:
+        return f"after {' '.join(predecessor_labels)}"
+    waves = tuple(sorted(set(predecessor_waves)))
+    if len(waves) == 1:
+        return f"after wave {waves[0]}"
+    if waves and waves == tuple(range(waves[0], waves[-1] + 1)):
+        return f"after waves {waves[0]}–{waves[-1]}"
+    if waves:
+        return "after waves " + ", ".join(map(str, waves))
+    return "after every member"
+
+
 __all__ = [
     "WAVE_BRACE_GLYPHS",
     "WAVE_GUTTER_WIDTH",
@@ -85,5 +117,6 @@ __all__ = [
     "WAVE_UNRESOLVED_STYLE",
     "append_clan_wave_state_pip",
     "format_clan_wave_pips",
+    "format_wave_after_phrase",
     "wave_connector_style",
 ]
