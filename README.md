@@ -182,7 +182,7 @@ sase builds on
 [Steve Yegge's beads](https://github.com/steveyegge/beads),
 [Agentic Software Engineering](https://arxiv.org/abs/2509.06216), and
 [PDL](https://arxiv.org/abs/2410.19135). See the
-[full acknowledgements](docs/acknowledgements.md).
+[full acknowledgements](docs/contribute/acknowledgements.md).
 
 ## License
 

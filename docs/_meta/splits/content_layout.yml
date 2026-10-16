@@ -1,0 +1,9 @@
+to: reference/upgrading/index.md
+sections:
+  _intro: reference/content-layout.md
+  Paths That Did Not Move: reference/content-layout.md
+  Migrating A Project: reference/upgrading/content-layout.md
+  Compatibility And Collisions: reference/upgrading/content-layout.md
+  Macro Compatibility Order: reference/upgrading/content-layout.md
+  Skill Order: reference/content-layout.md
+  Memory Order: reference/upgrading/content-layout.md

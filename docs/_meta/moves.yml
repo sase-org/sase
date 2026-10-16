@@ -16,3 +16,17 @@ moves:
   - from: troubleshooting/agent-revival.md
     to: reference/agent-revive-log.md
     kind: redirect
+  - from: acknowledgements.md
+    to: contribute/acknowledgements.md
+    kind: redirect
+  - from: content_layout.md
+    to: reference/upgrading/index.md
+    kind: stub
+    anchors:
+      paths-that-did-not-move: reference/content-layout.md#paths-that-did-not-move
+      skill-order: reference/content-layout.md#skill-order
+      migrating-a-project: reference/upgrading/content-layout.md#migrating-a-project
+      compatibility-and-collisions: reference/upgrading/content-layout.md#compatibility-and-collisions
+      macro-compatibility-order: reference/upgrading/content-layout.md#macro-compatibility-order
+      memory-order: reference/upgrading/content-layout.md#memory-order
+    title: Canonical SASE Content Layout

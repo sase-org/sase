@@ -6,7 +6,6 @@
 # decompose phase empties this allowlist at the epic end.
 ceilings:
   ace.md: 99572
-  acknowledgements.md: 973
   agent_images.md: 5909
   agent_providers.md: 5060
   agent_sessions.md: 7939
@@ -22,7 +21,6 @@ ceilings:
   commit_workflows.md: 8158
   completion.md: 2970
   configuration.md: 54820
-  content_layout.md: 782
   development.md: 12346
   editor.md: 4280
   fakey.md: 773

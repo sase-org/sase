@@ -232,8 +232,8 @@ owner-safe passes early when free space runs low. See
 [axe housekeeping](../axe.md#housekeeping-1-hour-interval).
 
 The canonical project/home namespace and legacy read boundary are documented in
-[Canonical SASE Content Layout](../content_layout.md). Global config, `.sase` runtime
-state, package resources, and plugin resources deliberately remain outside that
+[Canonical SASE Content Layout](../reference/content-layout.md). Global config, `.sase`
+runtime state, package resources, and plugin resources deliberately remain outside that
 namespace.
 
 This model lets sase's TUI, CLI commands, axe, and future frontends read the same

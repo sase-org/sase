@@ -49,6 +49,137 @@ def _move_fixture(root: Path) -> None:
     )
 
 
+def _docs_move_fixture(root: Path, source: str = "acknowledgements.md") -> None:
+    _move_fixture(root)
+    (root / "docs/contribute").mkdir(parents=True)
+    (root / "docs/_meta/budgets.yml").write_text(
+        f"ceilings:\n  {source}: 12\n  other.md: 20\n", encoding="utf-8"
+    )
+    (root / "mkdocs.yml").write_text(
+        "site_name: Fixture\nnav:\n  - Home: index.md\n"
+        f"  - Acknowledgements: {source}\n",
+        encoding="utf-8",
+    )
+
+
+def test_docs_move_rewrites_links_frontmatter_nav_budgets_and_redirect(
+    tmp_path: Path,
+) -> None:
+    mover = _load("docs_move_fixture", TOOLS / "docs_move")
+    renderer = _load("render_moves_whole_move_fixture", TOOLS / "render_moves")
+    _docs_move_fixture(tmp_path)
+    docs = tmp_path / "docs"
+    source = docs / "acknowledgements.md"
+    source.write_text(
+        "# Acknowledgements\n\n"
+        "## Projects\n\n"
+        "[Relative](other.md#thing) [Self](acknowledgements.md#projects)\n",
+        encoding="utf-8",
+    )
+    (docs / "other.md").write_text('# Other\n\n<a id="thing"></a>\n', encoding="utf-8")
+    (docs / "links.md").write_text(
+        "# Links\n\n[Inline](acknowledgements.md#projects) [Reference]\n"
+        "[Reference]: acknowledgements.md#projects\n"
+        "<a href='acknowledgements.md#projects'>HTML</a>\n"
+        '<img src="acknowledgements.md#projects">\n',
+        encoding="utf-8",
+    )
+    (docs / "index.md").write_text(
+        '# Home\n\n<a href="acknowledgements/">Thanks</a>\n'
+        '<a href="guides/">Guides</a>\n',
+        encoding="utf-8",
+    )
+    (docs / "contribute/index.md").write_text(
+        "# Contribute\n\n[Thanks](../acknowledgements/)\n", encoding="utf-8"
+    )
+    generated = docs / "generated.md"
+    generated.write_text(
+        "<!-- Generated, do not edit. -->\n[Generated](acknowledgements.md#projects)\n",
+        encoding="utf-8",
+    )
+
+    warnings = mover.move_page(
+        "acknowledgements.md",
+        "contribute/acknowledgements.md",
+        title="Acknowledgements",
+        description="People and projects that shaped SASE.",
+        root=tmp_path,
+    )
+
+    destination = docs / "contribute/acknowledgements.md"
+    moved = destination.read_text(encoding="utf-8")
+    assert not source.exists()
+    assert 'title: "Acknowledgements"' in moved
+    assert 'description: "People and projects that shaped SASE."' in moved
+    assert "[Relative](../other.md#thing)" in moved
+    assert "[Self](#projects)" in moved
+    links = (docs / "links.md").read_text(encoding="utf-8")
+    assert "contribute/acknowledgements.md#projects" in links
+    assert "<a href='contribute/acknowledgements.md#projects'>" in links
+    assert 'src="contribute/acknowledgements.md#projects"' in links
+    home = (docs / "index.md").read_text(encoding="utf-8")
+    assert 'href="contribute/acknowledgements/"' in home
+    assert 'href="guides/"' in home
+    section_home = (docs / "contribute/index.md").read_text(encoding="utf-8")
+    assert "[Thanks](acknowledgements/)" in section_home
+    assert "acknowledgements.md#projects" in generated.read_text(encoding="utf-8")
+    assert any("generated.md" in warning for warning in warnings)
+    assert "Acknowledgements: contribute/acknowledgements.md" in (
+        tmp_path / "mkdocs.yml"
+    ).read_text(encoding="utf-8")
+    budgets = (docs / "_meta/budgets.yml").read_text(encoding="utf-8")
+    assert "acknowledgements.md" not in budgets
+    assert "other.md: 20" in budgets
+    moves = yaml.safe_load((docs / "_meta/moves.yml").read_text(encoding="utf-8"))
+    move = next(
+        item for item in moves["moves"] if item["from"] == "acknowledgements.md"
+    )
+    assert move["to"] == "contribute/acknowledgements.md"
+    assert move["kind"] == "redirect"
+
+    renderer.render(tmp_path)
+    assert "/acknowledgements/ /contribute/acknowledgements/ 301" in (
+        docs / "_redirects"
+    ).read_text(encoding="utf-8")
+
+
+def test_docs_move_stub_records_all_heading_and_html_anchors(tmp_path: Path) -> None:
+    mover = _load("docs_move_stub_fixture", TOOLS / "docs_move")
+    renderer = _load("render_moves_stub_fixture", TOOLS / "render_moves")
+    _docs_move_fixture(tmp_path, "source.md")
+    docs = tmp_path / "docs"
+    (docs / "source.md").write_text(
+        "# Source page\n\n## Repeated\n\n### Repeated\n\n"
+        '#### Named heading {#named-heading}\n\n<a id="html-anchor"></a>\n',
+        encoding="utf-8",
+    )
+
+    mover.move_page(
+        "source.md",
+        "reference/source.md",
+        title="Source page",
+        description="Moved reference page.",
+        stub=True,
+        root=tmp_path,
+    )
+    moves = yaml.safe_load((docs / "_meta/moves.yml").read_text(encoding="utf-8"))
+    move = next(item for item in moves["moves"] if item["from"] == "source.md")
+    assert move["kind"] == "stub"
+    assert move["title"] == "Source page"
+    assert move["anchors"] == {
+        "source-page": "reference/source.md#source-page",
+        "repeated": "reference/source.md#repeated",
+        "repeated-1": "reference/source.md#repeated-1",
+        "named-heading": "reference/source.md#named-heading",
+        "html-anchor": "reference/source.md#html-anchor",
+    }
+
+    renderer.render(tmp_path)
+    stub = (docs / "source.md").read_text(encoding="utf-8")
+    for anchor in move["anchors"]:
+        assert f'<a id="{anchor}"></a>' in stub
+
+
 def test_moves_renderer_preserves_manual_redirects_and_generates_stubs(
     tmp_path: Path,
 ) -> None:
@@ -81,6 +212,7 @@ def test_moves_renderer_preserves_manual_redirects_and_generates_stubs(
     assert "/manual/ /guide/ 301" in redirects
     assert "/instruction_inventory/ /instruction_bundles/ 301" in redirects
     stub = (tmp_path / "docs/old_reference.md").read_text(encoding="utf-8")
+    assert "This page has moved. See [New Reference](reference/new.md)." in stub
     assert '<a id="old-heading"></a>' in stub
     assert "reference/new.md#new-heading" in stub
     assert "search:" in stub and "exclude: true" in stub
@@ -145,6 +277,11 @@ def test_docs_split_moves_sections_rewrites_links_and_preserves_anchor_urls(
 
     moves = yaml.safe_load(
         (tmp_path / "docs/_meta/moves.yml").read_text(encoding="utf-8")
+    )
+    assert (
+        (tmp_path / "docs/_meta/moves.yml")
+        .read_text(encoding="utf-8")
+        .startswith("moves:\n  - from:")
     )
     split_move = next(item for item in moves["moves"] if item["from"] == "source.md")
     assert split_move["anchors"] == {
@@ -307,6 +444,7 @@ def test_docs_split_supports_h4_nested_intro_drop_and_finish(tmp_path: Path) -> 
     stub = source.read_text(encoding="utf-8")
     assert "Stable source" not in stub  # The source title was stored before deletion.
     assert "# Source" in stub
+    assert "See [Reference](reference/index.md)." in stub
     assert "search:" in stub and "exclude: true" in stub
     moves = yaml.safe_load((docs / "_meta/moves.yml").read_text(encoding="utf-8"))
     source_move = next(item for item in moves["moves"] if item["from"] == "source.md")

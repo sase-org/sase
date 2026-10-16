@@ -24,7 +24,8 @@ exclude_docs: |
   README.md
 
 # BEGIN GENERATED: docs page moves not_in_nav
-not_in_nav: ""
+not_in_nav: |
+  content_layout.md
 # END GENERATED: docs page moves not_in_nav
 
 nav:
@@ -202,8 +203,10 @@ nav:
           - Integration APIs: integrations.md
           - Plugins: plugins.md
           - Mobile gateway: mobile_gateway.md
-      - Migration:
-          - Content layout migration: content_layout.md
+      - Content layout: reference/content-layout.md
+      - Upgrading:
+          - Upgrading: reference/upgrading/index.md
+          - Content layout migration: reference/upgrading/content-layout.md
       - Glossary: reference/glossary.md
       - Design decisions: reference/design-decisions.md
   - Contribute:
@@ -221,7 +224,7 @@ nav:
       - SDD storage: sdd_storage.md
       - Artifacts pane contract: artifacts_pane_contract.md
       - Artifacts visual grammar: artifacts_pane_visual_grammar.md
-      - Acknowledgements: acknowledgements.md
+      - Acknowledgements: contribute/acknowledgements.md
   - Blog:
       - Blog Home: blog/index.md
 

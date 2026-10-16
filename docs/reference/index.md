@@ -5,8 +5,7 @@ description: Look up exact SASE facts here, generated from code where possible.
 
 # Reference
 
-Exact flags, keys, defaults, and behaviors. Reference names each thing; guides teach the
-workflows.
+Exact SASE facts and behaviors; guides teach workflows.
 
 ## CLI
 
@@ -89,9 +88,10 @@ workflows.
 
 - [ProjectSpec](../project_spec.md) — project file layout, registry
 
-## Migration
+## Content layout and upgrading
 
-- [Content layout migration](../content_layout.md) — the 2026 docs move
+- [Content layout](content-layout.md) — canonical paths
+- [Upgrading](upgrading/index.md) — upgrade notes
 
 ## Glossary and decisions
 

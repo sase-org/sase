@@ -34,6 +34,7 @@ def _stub_text(root: Path, move: PageMove) -> str:
     from_path = move.from_path
     to_path = move.to_path
     title = move.title or _title_for(root, from_path)
+    destination_title = _title_for(root, to_path)
     destination = markdown_link(from_path, to_path)
     lines = [
         "---",
@@ -47,20 +48,26 @@ def _stub_text(root: Path, move: PageMove) -> str:
             allow_unicode=True,
         ).rstrip(),
         "---",
+        "",
         STUB_MARKER,
+        "",
         f"# {title}",
         "",
-        f"This page has moved. See [{Path(to_path).stem.replace('-', ' ').title()}]({destination}).",
+        f"This page has moved. See [{destination_title}]({destination}).",
     ]
     if move.anchors:
         lines.extend(["", "## Moved sections", ""])
-        for old_anchor, target in move.anchors.items():
+        for index, (old_anchor, target) in enumerate(move.anchors.items()):
             target_path, separator, target_anchor = target.partition("#")
             link = markdown_link(
                 from_path, target_path, target_anchor if separator else None
             )
             label = old_anchor.replace("-", " ").replace("_", " ").capitalize()
-            lines.extend([f'<a id="{old_anchor}"></a>', f"- [{label}]({link})"])
+            if index == 0:
+                lines.extend([f'<a id="{old_anchor}"></a>', ""])
+            else:
+                lines.append(f'  <a id="{old_anchor}"></a>')
+            lines.append(f"- [{label}]({link})")
     return "\n".join(lines) + "\n"
 
 

@@ -39,10 +39,10 @@ names, `.` / `..`, or names containing `/` or `\`, so the create-overlay flow ca
 escape the user config directory. A project-local `sase/sase.yml` at the detected
 project root usually takes highest priority. A root-level `sase.yml` remains an
 exclusive read fallback during the
-[layout compatibility window](content_layout.md#compatibility-and-collisions); if both
-files exist, SASE reports a collision instead of merging them. sase's TUI deliberately
-disables project-local config loading for its own process so opening `sase tui` inside a
-repo does not inherit that repo's agent-run settings. See
+[layout compatibility window](reference/upgrading/content-layout.md#compatibility-and-collisions);
+if both files exist, SASE reports a collision instead of merging them. sase's TUI
+deliberately disables project-local config loading for its own process so opening
+`sase tui` inside a repo does not inherit that repo's agent-run settings. See
 [Deep-Merge System](#deep-merge-system) below.
 
 ## Owner Identity

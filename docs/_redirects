@@ -7,6 +7,7 @@
 /xprompt/ /macros/ 301
 
 # BEGIN GENERATED: docs page moves redirects
+/acknowledgements/ /contribute/acknowledgements/ 301
 /agent_auto_restart/ /reference/agent-auto-restart/ 301
 /architecture/ /contribute/architecture/ 301
 /getting_started/ /start/ 301

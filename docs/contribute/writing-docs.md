@@ -112,8 +112,12 @@ Keep each split mapping under `docs/_meta/splits/`; it records where every secti
 and makes the split reviewable. A partial split leaves anchor links and a “Moved to”
 pointer in the source so its old URLs keep working. Run `tools/docs_split --dry-run` to
 review target budgets and unmapped sections, then use `--finish` only when the source
-has no authored content left. `just fix` regenerates the compatibility stubs and move
-metadata from `docs/_meta/moves.yml`.
+has no authored content left. Move a whole page with
+`tools/docs_move <source> <target> [--title <title>] [--description <description>]`; the
+paths are relative to `docs/`. The title and description flags are required when the
+source has no frontmatter values. Add `--stub` to preserve the old URL with
+heading-anchor links instead of a redirect. `just fix` regenerates compatibility stubs,
+redirects, and move metadata from `docs/_meta/moves.yml`.
 
 ## Routing table
 

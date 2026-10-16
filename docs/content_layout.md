@@ -1,151 +1,28 @@
+---
+title: Canonical SASE Content Layout
+description: This page has moved to its new home.
+search:
+  exclude: true
+---
+
+<!-- generated, do not edit; source: docs/_meta/moves.yml -->
+
 # Canonical SASE Content Layout
 
-SASE-owned project and home content lives under a visible `sase/` namespace. The layout
-keeps source-controlled configuration, reusable prompts, memory, and workspace-scoped
-repository checkouts together without moving global configuration or runtime state.
+This page has moved. See [Upgrading](reference/upgrading/index.md).
 
-| Scope                          | Canonical path            |
-| ------------------------------ | ------------------------- |
-| Project configuration          | `<project>/sase/sase.yml` |
-| Project macros and workflows   | `<project>/sase/macros/`  |
-| Project skills                 | `<project>/sase/skills/`  |
-| Project memory                 | `<project>/sase/memory/`  |
-| Workspace repository checkouts | `<project>/sase/repos/`   |
-| Home macros and workflows      | `~/sase/macros/`          |
-| Home skills                    | `~/sase/skills/`          |
-| Home memory                    | `~/sase/memory/`          |
+## Moved sections
 
-The root `AGENTS.md` and provider instruction files remain at the project or home root
-because agent providers discover them there. Their generated memory references use
-`sase/memory/...`.
+<a id="paths-that-did-not-move"></a>
 
-## Paths That Did Not Move
-
-The namespace migration is intentionally narrow:
-
-- Global configuration remains `~/.config/sase/sase.yml`, with overlays at
-  `~/.config/sase/sase_*.yml`.
-- Runtime state remains under `~/.sase/` and the platform workspace state root.
-- Package resources remain under `src/sase/macros/`, `src/sase/default_macros/`,
-  `src/sase/macros/skills/`, `src/sase/skills/`, and `src/sase/memory/`. The
-  `src/sase/skills/` package contains Python helpers for `sase skill`; bundled skill
-  Markdown lives under `src/sase/macros/skills/`.
-- Plugin macro resources remain in each plugin's package-level `macros/` directory, and
-  skills in a sibling `skills/` resource directory.
-- SDD storage remains provider-owned; split sidecars are checked out under
-  `sase/repos/`.
-
-When `use_chezmoi: true`, the managed sources for home macros, skills, and memory are
-`home/sase/macros/`, `home/sase/skills/`, and `home/sase/memory/`. The global config
-source remains `home/dot_config/sase/sase.yml`.
-
-## Migrating A Project
-
-Move source files without changing their contents:
-
-```text
-Before                         After
-./sase.yml                  -> ./sase/sase.yml
-./.macros/ or ./macros/ -> ./sase/macros/
-./memory/                   -> ./sase/memory/
-```
-
-Then run the read-only checks before applying generated changes:
-
-```bash
-sase doctor
-sase init --check --diff
-sase memory init --check --diff
-```
-
-`sase memory init` can plan and apply a safe legacy-memory move while regenerating
-`AGENTS.md`, provider copies, and `sase/memory/README.md`. `sase repo init` can plan the
-project-config move. Both commands refuse unsafe split state; use their check and diff
-modes first when the old and new locations may coexist. Move macro directories
-explicitly so the source-control rename remains reviewable.
-
-For a chezmoi-managed home, make the corresponding source-tree moves and apply them
-through chezmoi:
-
-```text
-home/dot_macros/ -> home/sase/macros/
-home/memory/       -> home/sase/memory/
-```
-
-Do not move `home/dot_config/sase/`, provider skill targets, or other dotfiles as part
-of this migration.
-
-## Compatibility And Collisions
-
-All normal creation, save, edit, initialization, and proposal-approval flows write only
-canonical paths.
-
-- A legacy-only project config (`<project>/sase.yml`) remains readable. If the canonical
-  and legacy config both exist, SASE reports a collision instead of merging them.
-- A legacy-only project or home memory tree remains readable to migration and
-  instruction tooling. Non-identical canonical and legacy trees are an error. Identical
-  trees can be deduplicated by memory initialization.
-- Legacy project macro directories (`.macros/`, `macros/`), legacy home directories
-  (`~/.macros/`, `~/macros/`), and `~/.config/sase/macros/<project>/` remain
-  read-compatible. Macros use first-wins resolution: the canonical source wins and a
-  lower-priority duplicate is shadowed rather than merged.
-
-The compatibility window opened with the 0.10 release line and is still active. No
-removal release is assigned. Legacy reads will not be removed without a separately
-announced deprecation and updated migration guidance; new content should nevertheless be
-moved now because every writer already targets the canonical layout.
-
-## Macro Compatibility Order
-
-The complete first-wins order is:
-
-1. `<project>/sase/macros/`
-2. `<project>/.macros/` (legacy)
-3. `<project>/macros/` (legacy)
-4. `~/sase/macros/`
-5. `~/.macros/` (legacy)
-6. `~/macros/` (legacy)
-7. `~/sase/macros/<project>/`
-8. `~/.config/sase/macros/<project>/` (legacy)
-9. Project `sase/sase.yml`, with root `sase.yml` as an exclusive legacy fallback
-10. User overlays `~/.config/sase/sase_*.yml` in reverse lexical winner order
-11. User base config `~/.config/sase/sase.yml`
-12. Plugin config, then package default config
-13. Plugin macro resources
-14. Package `default_macros/`, then package `macros/`
-
-Markdown macros, YAML workflows, and shared `steps/` follow the same filesystem order
-where the source supports that format. See [Macros](macros.md#discovery-order) and the
-[workflow specification](workflow_spec.md#search-paths) for format-specific details.
-
-## Skill Order
-
-Skills have their own first-wins order and no legacy paths — a skill source outside a
-canonical `skills/` directory is rejected rather than read:
-
-1. `<project>/sase/skills/`
-2. `~/sase/skills/`
-3. `~/sase/skills/<project>/`
-4. Plugin `skills/` resources
-5. Package `src/sase/macros/skills/`
-
-Scopes 1 and 3 namespace the macro reference with the project, so a source named `foo`
-is expanded as `#<project>/skill/foo` there and `#skill/foo` elsewhere. The provider
-skill name stays `foo` in every scope. See [Skill Field](macros.md#skill-field) for the
-full contract.
-
-## Memory Order
-
-Memory has its own first-wins order, shared by the memory-note reader and the
-`#memory/<stem>` macro catalog:
-
-1. `<project>/sase/memory/`
-2. `~/sase/memory/`
-
-Each scope's canonical and legacy (`<project>/memory/`, `~/memory/`) trees remain
-exclusive: a non-identical legacy tree next to its canonical counterpart is a collision
-that blocks reads instead of merging them. There is no project-specific home memory
-scope and no plugin or package memory source. A selected project's notes shadow
-same-stem home notes rather than aggregating with them. See
-[Memory Field](macros.md#memory-field) for the reference-naming contract and
-[Memory](memory.md) for note types, memory webs, and the audited-read workflow.
+- [Paths that did not move](reference/content-layout.md#paths-that-did-not-move)
+  <a id="skill-order"></a>
+- [Skill order](reference/content-layout.md#skill-order)
+  <a id="migrating-a-project"></a>
+- [Migrating a project](reference/upgrading/content-layout.md#migrating-a-project)
+  <a id="compatibility-and-collisions"></a>
+- [Compatibility and collisions](reference/upgrading/content-layout.md#compatibility-and-collisions)
+  <a id="macro-compatibility-order"></a>
+- [Macro compatibility order](reference/upgrading/content-layout.md#macro-compatibility-order)
+  <a id="memory-order"></a>
+- [Memory order](reference/upgrading/content-layout.md#memory-order)

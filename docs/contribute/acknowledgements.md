@@ -1,4 +1,11 @@
+---
+title: "Acknowledgements"
+description: "People, projects, and research that shaped SASE."
+---
+
 # Acknowledgements
+
+This page credits the ideas and projects that influenced SASE.
 
 ## Boris' Method
 
@@ -99,14 +106,18 @@ This project was heavily influenced by two research papers:
   directly informed the naming and design of the `ace` TUI and `axe` daemon,
   respectively.
 
-  ![Visual overview of the SASE paper](images/sase_paper.png){ width="800" }
+  ![Visual overview of the SASE paper](../images/sase_paper.png){ width="800" }
 
 - **[PDL: A Declarative Prompt Programming Language](https://arxiv.org/abs/2410.19135)**
   (Vaziri et al., 2024) -- PDL's approach to declarative, YAML-based prompt programming
   influenced the design of macro workflows, sase's YAML-defined multi-step pipelines for
   orchestrating LLM calls and tool execution.
 
-  ![Visual overview of the PDL paper](images/pdl_paper.png){ width="800" }
+  ![Visual overview of the PDL paper](../images/pdl_paper.png){ width="800" }
 
 <sub>Images generated with [Nano Banana](https://notebooklm.google.com/) (Google's
 NotebookLM) via Gemini.</sub>
+
+## Related
+
+- [Contribute](index.md) — Contributor material, contracts, and runbooks.

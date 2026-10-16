@@ -38,4 +38,4 @@ contracts, and the docs process itself.
 
 ## Thanks
 
-- [Acknowledgements](../acknowledgements.md) — Everyone who built SASE.
+- [Acknowledgements](acknowledgements.md) — Everyone who built SASE.

@@ -337,7 +337,7 @@ order):
 Both `.yml` and `.yaml` extensions are checked. First match wins. New shared steps are
 written only to canonical project or home directories; the legacy sources remain
 readable during the
-[content-layout compatibility window](content_layout.md#compatibility-and-collisions).
+[content-layout compatibility window](reference/upgrading/content-layout.md#compatibility-and-collisions).
 
 ### Override Behavior
 

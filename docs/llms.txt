@@ -59,7 +59,6 @@
 - [CLI Reference](https://sase.sh/cli/) — CLI Reference — This page is a command index for the top-level sase CLI.
 - [Shell Completion](https://sase.sh/completion/) — Shell Completion — sase completion supports native shell completion for zsh, bash, and fish from the live sase argparse tree, so pressing <TAB> anywhere in the command line offers the right commands, options, static choices, and live values — bead ids with titles, project display names, macro names, and more — with no perceptible latency.
 - [Configuration Reference](https://sase.sh/configuration/) — Configuration Reference — This document is the central reference for all sase configuration: config files, YAML sections, environment variables, and CLI flags.
-- [Canonical SASE Content Layout](https://sase.sh/content_layout/) — Canonical SASE Content Layout — SASE-owned project and home content lives under a visible sase/ namespace.
 - [Editor Integration](https://sase.sh/editor/) — Editor Integration — SASE exposes two editor-facing surfaces for prompt and macro editing:
 - [Goals](https://sase.sh/goals/) — Goals — Goals are durable records of outcomes a person wants: what will be true, how you'll know, and what happened along the way.
 - [Initialization](https://sase.sh/init/) — Initialization — SASE initialization commands create or refresh durable files that agents and sidecar tools rely on.
@@ -160,6 +159,7 @@
 - [Runtime and stored data configuration](https://sase.sh/reference/config/runtime/) — Process history, service hosting, artifacts, disk use, and reading surfaces.
 - [Scheduler configuration](https://sase.sh/reference/config/scheduler/) — AXE scheduler routines, jobs, and execution limits.
 - [TUI configuration](https://sase.sh/reference/config/tui/) — Settings for SASE's terminal interface and its configurable panes.
+- [Content layout](https://sase.sh/reference/content-layout/) — Canonical paths for project and home SASE content.
 - [Design decisions](https://sase.sh/reference/design-decisions/) — Why SASE works this way, generated from the decisions memory web.
 - [Glossary](https://sase.sh/reference/glossary/) — Every SASE term, generated from the glossary memory web.
 - [Reference](https://sase.sh/reference/) — Look up exact SASE facts here, generated from code where possible.
@@ -167,6 +167,8 @@
 - [Macro discovery order](https://sase.sh/reference/macros/discovery-order/) — File-backed macro and workflow locations in lookup order.
 - [Runner slots](https://sase.sh/reference/runner-slots/) — How runner capacity admits queued agents, and what waiting.json records.
 - [TUI keymaps](https://sase.sh/reference/tui/keymaps/) — Default configurable key bindings for SASE's terminal interface.
+- [Content layout migration](https://sase.sh/reference/upgrading/content-layout/) — Migration steps and compatibility behavior for SASE content paths.
+- [Upgrading](https://sase.sh/reference/upgrading/) — Upgrade and history notes, organized by area with the newest notes first.
 - [Remote Dispatch Runbook](https://sase.sh/remote_dispatch/) — Remote Dispatch Runbook — Remote dispatch lets one SASE controller discover, enroll, and operate agents on another machine.
 - [Spec-Driven Development (SDD)](https://sase.sh/sdd/) — Spec-Driven Development (SDD) — SDD is sase's system for persisting the intent behind agent work.
 - [Sudo Requests](https://sase.sh/sudo/) — Sudo Requests — SASE sudo requests let an agent ask for reviewed privileged execution without ever asking for, receiving, logging, or proxying a password.
@@ -177,10 +179,10 @@
 
 ## Contribute
 
-- [Acknowledgements](https://sase.sh/acknowledgements/) — Acknowledgements — Before sase existed, Boris Cherny -- the inventor of Claude Code -- pioneered a practical workflow for parallel agentic development: five git checkouts, each in its own tmux tab, each running Claude Code in plan mode.
 - [Artifacts pane contract](https://sase.sh/artifacts_pane_contract/) — Artifacts pane contract — ArtifactsPaneContract is the host-owned record that decides what a pane can do before widgets, keybindings, or document providers run.
 - [Artifacts pane visual grammar](https://sase.sh/artifacts_pane_visual_grammar/) — Artifacts pane visual grammar — Every configured Artifacts pane — Commits, Patches, Beads, Files, every document provider, and a degraded provider that failed to load — renders through one shared, contract-driven shell.
 - [Commit Workflows](https://sase.sh/commit_workflows/) — Commit Workflows — Sase provides three unified workflows for landing code changes: commit, propose, and pull request.
+- [Acknowledgements](https://sase.sh/contribute/acknowledgements/) — People, projects, and research that shaped SASE.
 - [Architecture](https://sase.sh/contribute/architecture/) — Architecture internals, runtime flow, state ownership, and provider boundaries inside SASE.
 - [Contribute](https://sase.sh/contribute/) — Contributor guides, internals, contracts, and runbooks for SASE.
 - [Reader testing](https://sase.sh/contribute/reader-testing/) — How to run an observed reader round and turn the results into doc changes.
@@ -207,6 +209,10 @@
 - [[09] What's Next — Shared Memory, Mobile, and the Web Surface](https://sase.sh/blog/posts/whats-next-memory-mobile-web/) — SASE today is the orchestration layer. The next horizon is shared memory across agents, a mobile control surface, and a web frontend that doesn't require a terminal.
 - [[00] The Missing Operating Layer for Coding Agents](https://sase.sh/blog/posts/why-coding-agents-need-orchestration/) — SASE's first principles: Macros, SDD, Beads, sase's TUI, AXE, plugins, and the durable operating layer around coding-agent CLIs.
 
+## Compatibility
+
+- [Canonical SASE Content Layout](https://sase.sh/content_layout/) — This page has moved to its new home.
+
 ## Moved pages
 
 - https://sase.sh/instruction_inventory/ → https://sase.sh/instruction_bundles/
@@ -215,3 +221,5 @@
 - https://sase.sh/agent_auto_restart/ → https://sase.sh/reference/agent-auto-restart/
 - https://sase.sh/troubleshooting/runner-slots/ → https://sase.sh/reference/runner-slots/
 - https://sase.sh/troubleshooting/agent-revival/ → https://sase.sh/reference/agent-revive-log/
+- https://sase.sh/acknowledgements/ → https://sase.sh/contribute/acknowledgements/
+- https://sase.sh/content_layout/ → https://sase.sh/reference/upgrading/

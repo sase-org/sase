@@ -362,8 +362,9 @@ listed in the generated reference cannot define a skill.
 
 Memory notes are also discovered separately, from canonical (and legacy-compatible)
 `sase/memory/` directories only, and take `memory/`-namespaced reference names. See
-[Memory Field](#memory-field) and [Memory Order](content_layout.md#memory-order); the
-file sources listed in the generated reference cannot define a memory macro.
+[Memory Field](#memory-field) and
+[Memory Order](reference/upgrading/content-layout.md#memory-order); the file sources
+listed in the generated reference cannot define a memory macro.
 
 Each directory-based source can contain individual `.md` files and, where supported,
 `.yml` or `.yaml` workflows plus a `steps/` directory. Project config is exclusive: if
@@ -371,8 +372,9 @@ the canonical and legacy project config locations both exist, SASE reports a col
 instead of merging them. File directories are first-wins, so a canonical definition
 shadows a same-named legacy definition. All save, create, copy-on-edit, export, and
 workflow-editor destinations use writable canonical sources; legacy sources are
-displayed only for migration. See [Canonical SASE Content Layout](content_layout.md) for
-before/after paths and the compatibility timeline.
+displayed only for migration. See
+[Canonical SASE Content Layout](reference/content-layout.md) for before/after paths and
+the compatibility timeline.
 
 For file-based macros, the macro name defaults to the filename stem (e.g.,
 `summarize.md` defines the macro `summarize`). The name can be overridden via the `name`
@@ -1727,7 +1729,8 @@ Resolution is contextual and first-wins: the selected project's note shadows a s
 home note, and an explicit registered-project selection reads only that project's
 workspace rather than merging in another project's notes. Canonical and legacy memory
 coexistence inside either scope still uses the memory subsystem's existing exclusive
-collision policy. See [Memory Order](content_layout.md#memory-order).
+collision policy. See
+[Memory Order](reference/upgrading/content-layout.md#memory-order).
 
 Expansion uses the ordinary simple-Markdown-macro rendering path after memory
 frontmatter is stripped: a `#memory/<stem>` reference takes no arguments and does not
@@ -1749,7 +1752,7 @@ pushes for you — see
 [Editing an Existing Macro from the TUI](ace.md#editing-an-existing-macro-from-the-tui).
 With `use_chezmoi` enabled, the write itself redirects to the chezmoi source rather than
 the applied copy under `~/sase/memory/`; see
-[Paths That Did Not Move](content_layout.md#paths-that-did-not-move).
+[Paths That Did Not Move](reference/content-layout.md#paths-that-did-not-move).
 
 Source: `src/sase/macro/loader_memory.py`, `src/sase/content_layout.py`.
 

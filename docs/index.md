@@ -154,7 +154,7 @@ sase tui
     &middot;
     <a href="/downloads/sase-handbook.pdf">Handbook (PDF)</a>
     &middot;
-    <a href="acknowledgements/">Acknowledgements</a>
+    <a href="contribute/acknowledgements/">Acknowledgements</a>
   </p>
 </section>
 

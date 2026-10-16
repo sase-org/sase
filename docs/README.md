@@ -57,7 +57,6 @@
 - [CLI Reference](cli.md) — CLI Reference — This page is a command index for the top-level sase CLI.
 - [Shell Completion](completion.md) — Shell Completion — sase completion supports native shell completion for zsh, bash, and fish from the live sase argparse tree, so pressing <TAB> anywhere in the command line offers the right commands, options, static choices, and live values — bead ids with titles, project display names, macro names, and more — with no perceptible latency.
 - [Configuration Reference](configuration.md) — Configuration Reference — This document is the central reference for all sase configuration: config files, YAML sections, environment variables, and CLI flags.
-- [Canonical SASE Content Layout](content_layout.md) — Canonical SASE Content Layout — SASE-owned project and home content lives under a visible sase/ namespace.
 - [Editor Integration](editor.md) — Editor Integration — SASE exposes two editor-facing surfaces for prompt and macro editing:
 - [Goals](goals.md) — Goals — Goals are durable records of outcomes a person wants: what will be true, how you'll know, and what happened along the way.
 - [Initialization](init.md) — Initialization — SASE initialization commands create or refresh durable files that agents and sidecar tools rely on.
@@ -158,6 +157,7 @@
 - [Runtime and stored data configuration](reference/config/runtime.md) — Process history, service hosting, artifacts, disk use, and reading surfaces.
 - [Scheduler configuration](reference/config/scheduler.md) — AXE scheduler routines, jobs, and execution limits.
 - [TUI configuration](reference/config/tui.md) — Settings for SASE's terminal interface and its configurable panes.
+- [Content layout](reference/content-layout.md) — Canonical paths for project and home SASE content.
 - [Design decisions](reference/design-decisions.md) — Why SASE works this way, generated from the decisions memory web.
 - [Glossary](reference/glossary.md) — Every SASE term, generated from the glossary memory web.
 - [Reference](reference/index.md) — Look up exact SASE facts here, generated from code where possible.
@@ -165,6 +165,8 @@
 - [Macro discovery order](reference/macros/discovery-order.md) — File-backed macro and workflow locations in lookup order.
 - [Runner slots](reference/runner-slots.md) — How runner capacity admits queued agents, and what waiting.json records.
 - [TUI keymaps](reference/tui/keymaps.md) — Default configurable key bindings for SASE's terminal interface.
+- [Content layout migration](reference/upgrading/content-layout.md) — Migration steps and compatibility behavior for SASE content paths.
+- [Upgrading](reference/upgrading/index.md) — Upgrade and history notes, organized by area with the newest notes first.
 - [Remote Dispatch Runbook](remote_dispatch.md) — Remote Dispatch Runbook — Remote dispatch lets one SASE controller discover, enroll, and operate agents on another machine.
 - [Spec-Driven Development (SDD)](sdd.md) — Spec-Driven Development (SDD) — SDD is sase's system for persisting the intent behind agent work.
 - [Sudo Requests](sudo.md) — Sudo Requests — SASE sudo requests let an agent ask for reviewed privileged execution without ever asking for, receiving, logging, or proxying a password.
@@ -175,10 +177,10 @@
 
 ## Contribute
 
-- [Acknowledgements](acknowledgements.md) — Acknowledgements — Before sase existed, Boris Cherny -- the inventor of Claude Code -- pioneered a practical workflow for parallel agentic development: five git checkouts, each in its own tmux tab, each running Claude Code in plan mode.
 - [Artifacts pane contract](artifacts_pane_contract.md) — Artifacts pane contract — ArtifactsPaneContract is the host-owned record that decides what a pane can do before widgets, keybindings, or document providers run.
 - [Artifacts pane visual grammar](artifacts_pane_visual_grammar.md) — Artifacts pane visual grammar — Every configured Artifacts pane — Commits, Patches, Beads, Files, every document provider, and a degraded provider that failed to load — renders through one shared, contract-driven shell.
 - [Commit Workflows](commit_workflows.md) — Commit Workflows — Sase provides three unified workflows for landing code changes: commit, propose, and pull request.
+- [Acknowledgements](contribute/acknowledgements.md) — People, projects, and research that shaped SASE.
 - [Architecture](contribute/architecture.md) — Architecture internals, runtime flow, state ownership, and provider boundaries inside SASE.
 - [Contribute](contribute/index.md) — Contributor guides, internals, contracts, and runbooks for SASE.
 - [Reader testing](contribute/reader-testing.md) — How to run an observed reader round and turn the results into doc changes.
@@ -205,6 +207,10 @@
 - [[09] What's Next — Shared Memory, Mobile, and the Web Surface](blog/posts/whats-next-memory-mobile-web.md) — SASE today is the orchestration layer. The next horizon is shared memory across agents, a mobile control surface, and a web frontend that doesn't require a terminal.
 - [[00] The Missing Operating Layer for Coding Agents](blog/posts/why-coding-agents-need-orchestration.md) — SASE's first principles: Macros, SDD, Beads, sase's TUI, AXE, plugins, and the durable operating layer around coding-agent CLIs.
 
+## Compatibility
+
+- [Canonical SASE Content Layout](content_layout.md) — This page has moved to its new home.
+
 ## Moved pages
 
 | Old path | New home |
@@ -215,3 +221,5 @@
 | `/agent_auto_restart/` | [`/reference/agent-auto-restart/`](reference/agent-auto-restart.md) |
 | `/troubleshooting/runner-slots/` | [`/reference/runner-slots/`](reference/runner-slots.md) |
 | `/troubleshooting/agent-revival/` | [`/reference/agent-revive-log/`](reference/agent-revive-log.md) |
+| `/acknowledgements/` | [`/contribute/acknowledgements/`](contribute/acknowledgements.md) |
+| `/content_layout/` | [`/reference/upgrading/`](reference/upgrading/index.md) |
