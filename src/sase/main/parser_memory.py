@@ -163,7 +163,7 @@ def register_memory_parser(subparsers: argparse._SubParsersAction) -> None:
             "Memory or instruction selectors: a flat note name (tui.md), a "
             "repo-relative path (sase/memory/tui.md), a bare web name "
             "(glossary), a web:keyword strand reference (glossary:stitch), an "
-            "instruction path (AGENTS.md, CLAUDE.md, src/sase/ace/AGENTS.md, "
+            "instruction path (AGENTS.md, CLAUDE.md, subdir/AGENTS.md, "
             "~/AGENTS.md), or a historical name (build_and_run.md). With no "
             "selector, shows the changes feed."
         ),

@@ -70,6 +70,8 @@ can't discover.
 - Cross-repo consumer -> URI pragma, e.g.
   `# symvision: https://github.com/sase-org/sase-telegram.git`. Only for real external
   consumers, never as a broad whitelist.
+- The former public API whitelist file is obsolete. Do not recreate it or point
+  Symvision pragmas at it.
 - `--exclude-decorator <name>` excludes every def carrying that decorator (matched by
   simple name) -- use it for a whole decorator-marked family (e.g. `@hook`) instead of
   per-symbol pragmas.

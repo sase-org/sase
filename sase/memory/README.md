@@ -133,6 +133,14 @@ strand inherits no `type:` of its own and never inlines into `AGENTS.md`.
 - Lines: 34
 - Approx. tokens: 310
 
+### `sase/memory/ace.md`
+
+- Type: `reference`
+- Parent: `AGENTS.md`
+- Description: Read before changing anything under `src/sase/ace/`.
+- Lines: 56
+- Approx. tokens: 567
+
 ### `sase/memory/cli_rules.md`
 
 - Type: `reference`
@@ -140,6 +148,14 @@ strand inherits no `type:` of its own and never inlines into `AGENTS.md`.
 - Description: Read anytime new CLI subcommands or options are added.
 - Lines: 42
 - Approx. tokens: 518
+
+### `sase/memory/demos.md`
+
+- Type: `reference`
+- Parent: `AGENTS.md`
+- Description: Read before editing VHS tapes under `demos/tapes/`.
+- Lines: 12
+- Approx. tokens: 78
 
 ### `sase/memory/dispatch.md`
 
@@ -232,8 +248,16 @@ strand inherits no `type:` of its own and never inlines into `AGENTS.md`.
 - Parent: `AGENTS.md`
 - Description: Read before fixing Symvision lint failures, including unused symbols,
   private misuse, pragmas, and epic whitelists.
-- Lines: 107
-- Approx. tokens: 1282
+- Lines: 109
+- Approx. tokens: 1309
+
+### `sase/memory/tools.md`
+
+- Type: `reference`
+- Parent: `AGENTS.md`
+- Description: Read before changing, adding, or vendoring anything under `tools/`.
+- Lines: 41
+- Approx. tokens: 505
 
 ### `sase/memory/tui.md`
 
@@ -265,12 +289,12 @@ strand inherits no `type:` of its own and never inlines into `AGENTS.md`.
 
 ## Statistics
 
-- Total notes: 20
+- Total notes: 23
 - Core notes: 3
-- Reference notes: 14
+- Reference notes: 17
 - Web descriptor notes: 3
-- Total lines: 1599
-- Total approx. tokens: 22736
+- Total lines: 1710
+- Total approx. tokens: 23913
 
 ## Commands
 

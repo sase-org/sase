@@ -63,8 +63,8 @@ def _instruction_display_for_subject_id(subject_id: str) -> str:
     """Return the rail name for an instructions wire subject id.
 
     ``instructions:project:sase/.`` becomes ``AGENTS.md`` and
-    ``instructions:project:sase/src/sase/ace`` becomes
-    ``src/sase/ace/AGENTS.md`` (mirrors the kit/CLI short display).
+    ``instructions:project:sase/subdir`` becomes
+    ``subdir/AGENTS.md`` (mirrors the kit/CLI short display).
     Never raises.
     """
     try:
@@ -112,7 +112,7 @@ def instruction_subjects(subjects: Any) -> tuple[InstructionSubject, ...]:
             paths = _subject_paths(row)
             # The wire ``display_name`` is the bare file name for every
             # row, so the rail names rows by directory from the primary
-            # path (``AGENTS.md``, ``src/sase/ace/AGENTS.md``, …).
+            # path (``AGENTS.md``, ``subdir/AGENTS.md``, …).
             primary = paths[0] if paths else ""
             display = primary or _instruction_display_for_subject_id(subject_id)
             try:

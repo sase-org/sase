@@ -3,7 +3,7 @@
   "root": {
     "aliases": [],
     "default_child": null,
-    "description_digest": "ed68d8137b8d3020",
+    "description_digest": "dab13e738b433817",
     "hidden": false,
     "mutex_groups": [],
     "name": "sase",

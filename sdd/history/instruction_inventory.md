@@ -40,14 +40,17 @@ files stay committed until E4 (project) and E5 (home).
 | actstat           | root `AGENTS.md` + 4 shims                                                | 5                       | `migrate`   | E5               |
 | job               | root `AGENTS.md` + 4 shims                                                | 5                       | `migrate`   | E5               |
 
-Sase nested scopes (15 more files) are split below: each scope's `AGENTS.md` is
-hand-written, with 4 byte-identical shims projected beside it by `sase memory init`.
+Sase nested scopes were 15 more files at the E3 inventory: each scope's `AGENTS.md` was
+hand-written, with 4 byte-identical shims projected beside it by `sase memory init`. E4
+(`nested_guides = fold`) moved those guides into `sase/memory/tools.md`,
+`sase/memory/ace.md`, and `sase/memory/demos.md`, and deleted the nested instruction
+files.
 
-| Project              | Paths                 | Files | Disposition                                  | Owning epic                   |
-| -------------------- | --------------------- | ----- | -------------------------------------------- | ----------------------------- |
-| sase `demos/tapes/`  | `AGENTS.md` + 4 shims | 5     | `AGENTS.md` `repo-owned`; shims `projection` | E2 (bundle migration decides) |
-| sase `src/sase/ace/` | `AGENTS.md` + 4 shims | 5     | `AGENTS.md` `repo-owned`; shims `projection` | E2 (bundle migration decides) |
-| sase `tools/`        | `AGENTS.md` + 4 shims | 5     | `AGENTS.md` `repo-owned`; shims `projection` | E2 (bundle migration decides) |
+| Project              | Paths                              | Files | Disposition                  | Owning epic      |
+| -------------------- | ---------------------------------- | ----- | ---------------------------- | ---------------- |
+| sase `demos/tapes/`  | folded into `sase/memory/demos.md` | 0     | folded into reference memory | E4 nested-guides |
+| sase `src/sase/ace/` | folded into `sase/memory/ace.md`   | 0     | folded into reference memory | E4 nested-guides |
+| sase `tools/`        | folded into `sase/memory/tools.md` | 0     | folded into reference memory | E4 nested-guides |
 
 ## Hand-written (historical inventory)
 
@@ -71,9 +74,9 @@ none tracked — only `README.md`. Nothing to migrate there.
 | ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------- | ----------- |
 | Codex shadow-home `AGENTS.md` | Per-run allowlist `$CODEX_HOME`; SQLite state is never linked (`sase-11s`). With `codex_explicit_instructions` disabled, `~/AGENTS.md` is linked when no global file wins (`_codex_home.py`). With the flag enabled, SASE-owned global copies and that fallback are omitted. | `done` (E3); fallback limitation documented | E3          |
 
-Claude's explicit path excludes exact SASE-owned root and home files while leaving
-nested guides discoverable. Codex disables native project-document loading across a
-managed project for explicit invocations. Grok uses `--rules`; Muse uses a prompt
-prefix. See
+Claude's explicit path excludes exact SASE-owned root and home files. Nested instruction
+files are no longer present in this repository after E4 folded those guides into
+reference memory; Codex disables native project-document loading across a managed
+project for explicit invocations. Grok uses `--rules`; Muse uses a prompt prefix. See
 [provider behavior](../../docs/instruction_bundles.md#provider-behavior-at-a-glance) and
 the [Codex fallback limitation](../../docs/llms.md#codex-instruction-delivery).
