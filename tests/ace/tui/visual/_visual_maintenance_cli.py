@@ -54,7 +54,11 @@ _CAPTURE_PLUGIN_ALIASES = frozenset(
 )
 _MARKER_FLAGS = frozenset({"-m", "--markers"})
 WORKERS_ENV_VAR = "SASE_PYTEST_WORKERS"
+RECAPTURE_BUDGET_ENV = "SASE_VISUAL_RECAPTURE_BUDGET_SECONDS"
 _AUTO_WORKER_VALUES = frozenset({"auto", "logical"})
+_OWNED_SWITCHES = frozenset({"-c", "--check", "-h", "--help"})
+_OWNED_VALUE_LONG = "--recapture-budget-seconds"
+_OWNED_VALUE_SHORT = "-b"
 _HELP_EPILOG = f"""
 Update mode applies every golden it can prove and exits 0 with status
 clean, applied, or partial. Status partial means some nodes or goldens
@@ -62,7 +66,8 @@ were skipped (failed tests, unstable captures, concurrent edits, or
 skipped stale removal); those goldens were left unchanged and are not
 known to be current — read the WARNING block or the manifest skipped list.
 Check mode never writes; it recaptures first-pass failures serially
-and exits 1 on drift that reproduces.
+and exits 1 on drift that reproduces, or {EXIT_FAILURE} when a node still
+fails its test or the run is incomplete.
 
 Exit codes:
   {EXIT_SUCCESS}  check is clean, or an update finished (clean, applied, or partial)
@@ -71,7 +76,8 @@ Exit codes:
      with nothing executed), environment refusal (CI update, renderer,
      platform), unfinished-journal conflict, or lock-wait timeout
   {EXIT_FAILURE}  no usable capture inventory after retry, apply failure
-     after rollback, or interrupt
+     after rollback, an interrupt, or, in check mode, a persistent test
+     failure, incomplete inventory, or protocol error
 
 `just` may normalize a non-zero child code to 1. Automation that needs the
 distinction should read the run manifest or invoke this tool directly.
@@ -105,6 +111,10 @@ def parse_command(
     validate_pytest_args(pytest_args)
     validate_pytest_args(env_args, origin="PYTEST_ADDOPTS")
     scope, reasons = resolve_scope(pytest_args, env_args)
+    budget = _resolve_recapture_budget(
+        namespace.recapture_budget_seconds,
+        environ=env,
+    )
     return MaintenanceRequest(
         check=bool(namespace.check),
         pytest_args=tuple(pytest_args),
@@ -112,6 +122,7 @@ def parse_command(
         scope_reasons=reasons,
         argv=tuple(raw),
         workers=workers,
+        recapture_budget_seconds=budget,
     )
 
 
@@ -129,12 +140,25 @@ def build_parser() -> argparse.ArgumentParser:
         usage="%(prog)s [-c/--check] [--] [pytest-selector ...]",
     )
     parser.add_argument(
+        "-b",
+        "--recapture-budget-seconds",
+        type=int,
+        default=None,
+        metavar="SECONDS",
+        help=(
+            "Stop check-mode recapture after SECONDS of recapture-phase "
+            "wall time; remaining nodes keep their first-pass outcome. "
+            f"Overrides {RECAPTURE_BUDGET_ENV}. Unset means unlimited."
+        ),
+    )
+    parser.add_argument(
         "-c",
         "--check",
         action="store_true",
         help=(
             "Compare the complete inventory without writing goldens. "
-            "Exit 1 when any required change exists."
+            "Exit 1 when any required change exists; exit 3 on a persistent "
+            "test failure or incomplete run."
         ),
     )
     return parser
@@ -147,12 +171,60 @@ def split_owned_args(argv: Sequence[str]) -> tuple[list[str], list[str]]:
         index = values.index("--")
         return values[:index], values[index + 1 :]
     owned, rest = [], []
-    for arg in values:
-        if arg in {"-c", "--check", "-h", "--help"}:
+    index = 0
+    while index < len(values):
+        arg = values[index]
+        if arg in _OWNED_SWITCHES:
             owned.append(arg)
+            index += 1
+            continue
+        if arg == _OWNED_VALUE_LONG or arg.startswith(f"{_OWNED_VALUE_LONG}="):
+            owned.append(arg)
+            if arg == _OWNED_VALUE_LONG and index + 1 < len(values):
+                owned.append(values[index + 1])
+                index += 2
+                continue
+            index += 1
+            continue
+        if arg == _OWNED_VALUE_SHORT or (
+            arg.startswith(_OWNED_VALUE_SHORT) and len(arg) > 2
+        ):
+            owned.append(arg)
+            if arg == _OWNED_VALUE_SHORT and index + 1 < len(values):
+                owned.append(values[index + 1])
+                index += 2
+                continue
+            index += 1
             continue
         rest.append(arg)
+        index += 1
     return owned, rest
+
+
+def _resolve_recapture_budget(
+    cli_value: int | None,
+    *,
+    environ: Mapping[str, str],
+) -> int | None:
+    """Return the recapture wall-clock budget in seconds, or None if unlimited."""
+    if cli_value is not None:
+        if cli_value < 0:
+            raise UsageError(
+                "--recapture-budget-seconds must be a non-negative integer"
+            )
+        return cli_value
+    raw = environ.get(RECAPTURE_BUDGET_ENV, "").strip()
+    if not raw:
+        return None
+    try:
+        budget = int(raw)
+    except ValueError:
+        raise UsageError(f"{RECAPTURE_BUDGET_ENV}={raw!r} is not an integer") from None
+    if budget < 0:
+        raise UsageError(
+            f"{RECAPTURE_BUDGET_ENV} must be a non-negative integer, not {budget}"
+        )
+    return budget
 
 
 def sys_argv(argv: Sequence[str] | None) -> Sequence[str]:

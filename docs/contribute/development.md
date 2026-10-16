@@ -1016,16 +1016,20 @@ warning instead of an error; check mode treats it as an execution failure (exit 
 `SASE_PYTEST_WORKERS=N` for the governed runner rather than reaching pytest (`-n auto`
 and `-n logical` fall back to the governed default); `-n` inside `PYTEST_ADDOPTS` is a
 usage error. Pass `--check` to inventory without writing goldens; it recaptures
-first-pass failures serially (workers=1, up to two attempts, skipped above 25 nodes),
-reports retry-only passes as `unstable`, and exits 1 on drift that reproduces. Arguments
-after `--` are pytest selectors (paths, node IDs, `-k`). Targeted runs apply only
-captured changes and never prune unvisited files. A requested full run applies creates
-and updates, but stale removal needs complete evidence — every collected node trusted
-(skipped and xfailed nodes excepted), no capture protocol errors, and trusted captures
-from each root that has goldens; otherwise pruning is skipped with a warning, the run
-reports no stale entries, and the status is `partial`. When another run in the same
-checkout holds the maintenance lock, the runner prints a waiting notice and waits
-(bounded, 2 hours) instead of refusing at once; timing out exits 2.
+first-pass failures serially (workers=1, up to two attempts, skipped above 25 nodes or
+when the recapture wall-clock budget is exhausted), reports retry-only passes as
+`unstable`, exits 1 on drift that reproduces, and exits 3 when a node still fails its
+test or the inventory is incomplete. Bound recapture with `--recapture-budget-seconds` /
+`-b` or `SASE_VISUAL_RECAPTURE_BUDGET_SECONDS`; CI passes 600 seconds so the 45-minute
+`visual-test` job still finishes after a ~30.5 minute first pass. Arguments after `--`
+are pytest selectors (paths, node IDs, `-k`). Targeted runs apply only captured changes
+and never prune unvisited files. A requested full run applies creates and updates, but
+stale removal needs complete evidence — every collected node trusted (skipped and
+xfailed nodes excepted), no capture protocol errors, and trusted captures from each root
+that has goldens; otherwise pruning is skipped with a warning, the run reports no stale
+entries, and the status is `partial`. When another run in the same checkout holds the
+maintenance lock, the runner prints a waiting notice and waits (bounded, 2 hours)
+instead of refusing at once; timing out exits 2.
 
 ```bash
 just fix-tui-screenshots
@@ -1054,33 +1058,35 @@ ToolRun procs (an agent's escalated or `-d` `sase tool run`) do not inherit
 same way. `--sase-update-visual-snapshots` is retired; pytest rejects it with the
 replacement command.
 
-Every update run (`clean`, `applied`, or `partial`) and check-mode drift retain a
-reviewable report under a unique run directory in `.pytest_cache/sase-visual/runs/`,
-alongside the logs and candidates of every pass (`capture.log`, `capture-retry.log`,
-`recover-N.log`, `verify*.log`). `.pytest_cache/sase-visual/latest-report.json` points
-at the current run only. At the end of every run, while still holding the maintenance
-lock, old run directories are pruned: the run `latest-report.json` points at, the
-current run, any run with an unfinished (`planned` or `applying`) or unreadable apply
-journal, the 10 most recent runs, and any run with a file modified in the last 24 hours
-survive, and the rest are deleted. The manifest records `warnings`, `skipped` (each with
-a reason such as `test_failed`, `unstable`, `owner_mismatch`, or `concurrent_edit`, plus
-evidence paths), `unstable` (check-mode nodes that passed only on recapture),
-`attempts`, and `pruning_skipped_reason`. The HTML report and `summary.md` list
-`unstable` nodes in an Unstable table and end with a "Not updated" section for skips.
-Inspect every creation and removal, then each update group (representative plus
-members), then the "Not updated" list — generation is not approval, and a skipped golden
-is not known to be current. After an interrupted apply, the next update invocation may
-restore the recorded baseline when hashes still match; if the journal conflicts with the
-current goldens, update mode refuses with exit 2. A check invocation never performs
-recovery writes and fails with exit 3 while an unfinished journal exists.
+Every update run (`clean`, `applied`, or `partial`) and every check-mode result
+(`clean`, `drift`, or `failed`) retain a reviewable report under a unique run directory
+in `.pytest_cache/sase-visual/runs/`, alongside the logs and candidates of every pass
+(`capture.log`, `capture-retry.log`, `recover-N.log`, `verify*.log`).
+`.pytest_cache/sase-visual/latest-report.json` points at the current run only. At the
+end of every run, while still holding the maintenance lock, old run directories are
+pruned: the run `latest-report.json` points at, the current run, any run with an
+unfinished (`planned` or `applying`) or unreadable apply journal, the 10 most recent
+runs, and any run with a file modified in the last 24 hours survive, and the rest are
+deleted. The manifest records `warnings`, `skipped` (each with a reason such as
+`test_failed`, `unstable`, `owner_mismatch`, or `concurrent_edit`, plus evidence paths),
+`unstable` (check-mode nodes that passed only on recapture), `attempts`, and
+`pruning_skipped_reason`. The HTML report and `summary.md` list `unstable` nodes in an
+Unstable table and end with a "Not updated" section for skips. Inspect every creation
+and removal, then each update group (representative plus members), then the "Not
+updated" list — generation is not approval, and a skipped golden is not known to be
+current. After an interrupted apply, the next update invocation may restore the recorded
+baseline when hashes still match; if the journal conflicts with the current goldens,
+update mode refuses with exit 2. A check invocation never performs recovery writes and
+fails with exit 3 while an unfinished journal exists.
 
 `just` may normalize a non-zero child code to 1. Automation that needs the distinction
 between drift (1), usage/environment refusal (2: bad arguments, a pytest usage error,
 CI/platform/renderer refusal, an update-mode journal conflict, or a lock-wait timeout),
 and execution/application failure (3: no usable inventory after the capture retry, an
 apply failure after rollback, an interrupt, or, in check mode, a failed, empty, or
-incomplete capture or an unfinished journal) should read the run manifest or invoke
-`tools/fix_tui_screenshots` directly (`--help` prints the same contract).
+incomplete capture, a persistent test failure after recapture, or an unfinished journal)
+should read the run manifest or invoke `tools/fix_tui_screenshots` directly (`--help`
+prints the same contract).
 
 Committed goldens are canonical to the pinned renderer. Rasterization goes through resvg
 (`resvg_py==0.3.3`), a pure-Rust SVG renderer that carries its own font database
@@ -1146,7 +1152,8 @@ change:
    bundled fonts changed, update their SHA-256 hashes too; the Python and platform
    fields are diagnostic only.
 4. On Linux, run `just fix-tui-screenshots`, inspect the report, then run
-   `just fix-tui-screenshots --check` and require an unchanged golden tree.
+   `just fix-tui-screenshots --check` and require an unchanged golden tree and no
+   `unstable` entries.
 5. Review the complete PNG diff for unexpected content or layout changes and commit the
    pins, `uv.lock`, fingerprint, and regenerated goldens together.
 

@@ -162,6 +162,7 @@ class AttemptScript:
     failed: tuple[str, ...] = ()
     errored: tuple[str, ...] = ()
     unexecuted: tuple[str, ...] = ()
+    skipped: tuple[str, ...] = ()
     incomplete: bool = False
     no_inventory: bool = False
     session_exitstatus: int | None = None
@@ -275,7 +276,7 @@ class FakeRunner:
             node_ids = [arg for arg in pytest_args if "::" in arg]
             if node_ids:
                 selected = [item for item in selected if item.node_id in node_ids]
-        excluded = set(script.errored) | set(script.unexecuted)
+        excluded = set(script.errored) | set(script.unexecuted) | set(script.skipped)
         roots = VisualCaptureRoots(ace=ace_root, pager=pager_root)
         session = VisualCaptureSession(
             capture_dir=capture_dir,
@@ -315,6 +316,8 @@ class FakeRunner:
             collected = tuple(sorted(set(executed))) or (ACE_NODE,)
         if script.unexecuted:
             collected = tuple(sorted(set(collected) | set(script.unexecuted)))
+        if script.skipped:
+            collected = tuple(sorted(set(collected) | set(script.skipped)))
         exitstatus = (
             script.session_exitstatus
             if script.session_exitstatus is not None
@@ -329,7 +332,7 @@ class FakeRunner:
                 exitstatus=exitstatus,
                 collected_node_ids=collected,
                 executed_node_ids=tuple(executed),
-                skipped_node_ids=(),
+                skipped_node_ids=tuple(script.skipped),
                 xfailed_node_ids=(),
                 xpassed_node_ids=(),
                 failed_node_ids=tuple(script.failed),

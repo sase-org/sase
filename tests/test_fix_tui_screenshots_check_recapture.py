@@ -24,10 +24,14 @@ from tests.ace.tui.visual._visual_maintenance import (
     EXIT_SUCCESS,
     main,
 )
+from tests.ace.tui.visual._visual_maintenance_cli import RECAPTURE_BUDGET_ENV
 from tests.ace.tui.visual._visual_maintenance_verify import (
     CHECK_RECAPTURE_NODE_LIMIT,
     FIRST_ATTEMPT_DIFFS_DIRNAME,
 )
+
+SKIP_NODE = "tests/ace/tui/visual/test_c.py::test_c"
+UNINVENTORIED_NODE = "tests/ace/tui/visual/test_d.py::test_d"
 
 
 def _manifest(repo: Path) -> dict[object, object]:
@@ -207,3 +211,109 @@ def test_check_over_cap_pytest_failures_exit_failure(tmp_path: Path) -> None:
     assert manifest["status"] == "failed"
     assert manifest["exit_code"] == EXIT_FAILURE
     assert any("exceed the" in error for error in manifest["errors"])
+
+
+def test_check_persistent_test_failure_exits_failure(tmp_path: Path) -> None:
+    red = make_png(1, 1, (255, 0, 0, 255))
+    red, ace, runner = _pair(tmp_path, candidate=red)
+    runner.attempts = [AttemptScript(exit_code=1, failed=(ACE_NODE,))]
+    runner.verify_attempts = [
+        AttemptScript(exit_code=1, failed=(ACE_NODE,)),
+        AttemptScript(exit_code=1, failed=(ACE_NODE,)),
+    ]
+    assert (
+        main(["--check"], repo_root=tmp_path, hooks=silent_hooks(runner), environ={})
+        == EXIT_FAILURE
+    )
+    assert ace.read_bytes() == red
+    assert len(runner.calls) == 3
+    manifest = _manifest(tmp_path)
+    assert manifest["status"] == "failed"
+    assert manifest["exit_code"] == EXIT_FAILURE
+    assert any(ACE_NODE in str(error) for error in manifest["errors"])
+    assert manifest["counts"]["updated"] == 0
+    assert manifest["counts"]["created"] == 0
+    assert manifest["unstable"] == []
+
+
+def test_check_recovered_node_does_not_hide_skipped_node(tmp_path: Path) -> None:
+    red, ace, runner = _pair(tmp_path, candidate=make_png(1, 1, (0, 0, 255, 255)))
+    runner.attempts = [
+        AttemptScript(exit_code=1, failed=(ACE_NODE,), skipped=(SKIP_NODE,))
+    ]
+    runner.verify_attempts = [AttemptScript(exit_code=0, pngs={ACE_NODE: red})]
+    assert (
+        main(["--check"], repo_root=tmp_path, hooks=silent_hooks(runner), environ={})
+        == EXIT_FAILURE
+    )
+    assert ace.read_bytes() == red
+    manifest = _manifest(tmp_path)
+    assert manifest["status"] == "failed"
+    assert manifest["exit_code"] == EXIT_FAILURE
+    assert any("skipped_node:" in str(error) for error in manifest["errors"])
+    unstable = manifest["unstable"]
+    assert len(unstable) == 1
+    assert unstable[0]["node_id"] == ACE_NODE
+
+
+def test_check_recovered_node_does_not_hide_uninventoried_node(
+    tmp_path: Path,
+) -> None:
+    red, ace, runner = _pair(tmp_path, candidate=make_png(1, 1, (0, 0, 255, 255)))
+    runner.attempts = [
+        AttemptScript(exit_code=1, failed=(ACE_NODE,), unexecuted=(UNINVENTORIED_NODE,))
+    ]
+    runner.verify_attempts = [AttemptScript(exit_code=0, pngs={ACE_NODE: red})]
+    assert (
+        main(["--check"], repo_root=tmp_path, hooks=silent_hooks(runner), environ={})
+        == EXIT_FAILURE
+    )
+    assert ace.read_bytes() == red
+    manifest = _manifest(tmp_path)
+    assert manifest["status"] == "failed"
+    assert manifest["exit_code"] == EXIT_FAILURE
+    assert any(
+        UNINVENTORIED_NODE in str(error) or "unaccounted_node:" in str(error)
+        for error in manifest["errors"]
+    )
+
+
+def test_check_budget_exhaustion_keeps_first_pass_and_writes_manifest(
+    tmp_path: Path,
+) -> None:
+    red, ace, runner = _pair(tmp_path, candidate=make_png(1, 1, (0, 0, 255, 255)))
+    runner.verify_attempts = [AttemptScript(exit_code=0, pngs={ACE_NODE: red})]
+    assert (
+        main(
+            ["--check", "--recapture-budget-seconds", "0"],
+            repo_root=tmp_path,
+            hooks=silent_hooks(runner),
+            environ={},
+        )
+        == EXIT_DRIFT
+    )
+    assert ace.read_bytes() == red
+    assert len(runner.calls) == 1
+    assert all("-verify" not in str(call["run_id"]) for call in runner.calls)
+    manifest = _manifest(tmp_path)
+    assert manifest["status"] == "drift"
+    assert manifest["exit_code"] == EXIT_DRIFT
+    assert manifest["recapture_budget_seconds"] == 0
+    assert any("budget exhausted" in str(warning) for warning in manifest["warnings"])
+    assert (tmp_path / ".pytest_cache/sase-visual/runs").is_dir()
+    assert _manifest(tmp_path)["status"] == "drift"
+
+
+def test_check_budget_env_zero_skips_recapture(tmp_path: Path) -> None:
+    red, ace, runner = _pair(tmp_path, candidate=make_png(1, 1, (0, 0, 255, 255)))
+    assert (
+        main(
+            ["--check"],
+            repo_root=tmp_path,
+            hooks=silent_hooks(runner),
+            environ={RECAPTURE_BUDGET_ENV: "0"},
+        )
+        == EXIT_DRIFT
+    )
+    assert ace.read_bytes() == red
+    assert len(runner.calls) == 1

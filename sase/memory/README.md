@@ -261,7 +261,7 @@ strand inherits no `type:` of its own and never inlines into `AGENTS.md`.
 - Description: Read before using or changing `sase screenshot`, live TUI SVG export, or
   TUI PNG visual snapshot capture.
 - Lines: 107
-- Approx. tokens: 1576
+- Approx. tokens: 1591
 
 ## Statistics
 
@@ -269,8 +269,8 @@ strand inherits no `type:` of its own and never inlines into `AGENTS.md`.
 - Core notes: 3
 - Reference notes: 14
 - Web descriptor notes: 3
-- Total lines: 1597
-- Total approx. tokens: 22672
+- Total lines: 1599
+- Total approx. tokens: 22736
 
 ## Commands
 

@@ -104,6 +104,7 @@ class MaintenanceHooks:
     renderer_identity: Callable[[], dict[str, Any]] | None = None
     lock_timeout_seconds: float | None = None
     lock_poll_interval_seconds: float | None = None
+    monotonic: Callable[[], float] | None = None
 
 
 @dataclass(frozen=True)
@@ -116,6 +117,7 @@ class MaintenanceRequest:
     scope_reasons: tuple[str, ...]
     argv: tuple[str, ...]
     workers: int | None = None
+    recapture_budget_seconds: int | None = None
 
 
 @dataclass(frozen=True)

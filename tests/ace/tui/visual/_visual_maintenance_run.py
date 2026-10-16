@@ -53,6 +53,9 @@ from tests.ace.tui.visual._visual_maintenance_manifest import (
 from tests.ace.tui.visual._visual_maintenance_salvage import (
     run_update as run_update,
 )
+from tests.ace.tui.visual._visual_maintenance_trust import (
+    derive_node_trust,
+)
 from tests.ace.tui.visual._visual_maintenance_types import (
     EXIT_DRIFT,
     EXIT_FAILURE,
@@ -74,6 +77,7 @@ from tests.ace.tui.visual._visual_maintenance_types import (
 )
 from tests.ace.tui.visual._visual_maintenance_verify import (
     CHECK_RECAPTURE_NODE_LIMIT,
+    check_mode_strict_errors,
     first_pass_failed_nodes,
     run_check_recapture,
     write_first_attempt_diffs,
@@ -310,6 +314,7 @@ def _run_locked_check(
             capture_dir=capture_dir,
         )
         preserve_expected_bytes(run_dir, changes, repo_root)
+        _trusted, recover = derive_node_trust(inventory)
         failed_nodes = first_pass_failed_nodes(inventory, changes)
         if not failed_nodes:
             if child_exit != 0:
@@ -344,6 +349,8 @@ def _run_locked_check(
         }
         if diffs_dir is not None:
             extra["first_attempt_diffs_dir"] = posix_relative(diffs_dir, repo_root)
+        if request.recapture_budget_seconds is not None:
+            extra["recapture_budget_seconds"] = request.recapture_budget_seconds
         warnings: tuple[str, ...] = ()
         unstable: tuple[SkippedRecord, ...] = ()
         errors: tuple[str, ...] = tuple(inventory.errors)
@@ -369,6 +376,8 @@ def _run_locked_check(
                 baseline=baseline,
                 failed_nodes=failed_nodes,
                 first_pass_changes=changes,
+                first_pass_recover=recover,
+                budget_seconds=request.recapture_budget_seconds,
             )
             logs.update(recapture.logs)
             attempts.extend(recapture.attempts)
@@ -378,7 +387,24 @@ def _run_locked_check(
             warnings = recapture.warnings
             if recapture.first_attempt_diffs_dir:
                 extra["first_attempt_diffs_dir"] = recapture.first_attempt_diffs_dir
-            if recapture.remaining_failed or has_actionable_changes(changes):
+            recovered = tuple(
+                record.node_id for record in recapture.unstable if record.node_id
+            )
+            strict_errors = check_mode_strict_errors(
+                inventory,
+                recovered=recovered,
+            )
+            failure_ids = recapture.execution_failed
+            error_items = list(strict_errors)
+            for node_id in failure_ids:
+                marker = f"failed_node:{node_id}"
+                if marker not in error_items:
+                    error_items.append(marker)
+            if failure_ids or strict_errors:
+                status = STATUS_FAILED
+                exit_code = EXIT_FAILURE
+                errors = tuple(error_items)
+            elif has_actionable_changes(changes):
                 status = STATUS_DRIFT
                 exit_code = EXIT_DRIFT
             else:

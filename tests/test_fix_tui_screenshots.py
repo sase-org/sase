@@ -32,6 +32,7 @@ from tests._legacy_visual_update import (
     LEGACY_VISUAL_UPDATE_OPTION,
     reject_legacy_visual_update_option,
 )
+from tests.ace.tui.visual._visual_maintenance_cli import RECAPTURE_BUDGET_ENV
 from tests.ace.tui.visual._visual_maintenance_run import _default_is_ci
 from tests.ace.tui.visual._visual_maintenance import (
     EXIT_DRIFT,
@@ -88,6 +89,8 @@ def test_help_lists_sorted_check_flag_and_exit_codes(
     assert exc_info.value.code == 0
     output = capsys.readouterr().out
     assert "-c, --check" in output
+    assert "-b, --recapture-budget-seconds" in output
+    assert output.index("-b, --recapture-budget-seconds") < output.index("-c, --check")
     assert "Exit codes:" in output
     assert str(EXIT_SUCCESS) in output
     assert "1  check mode" in output or "1  check" in output
@@ -108,6 +111,28 @@ def test_check_short_alias_and_double_dash_selectors() -> None:
         "-k",
         "example",
     )
+    assert request.recapture_budget_seconds is None
+
+
+def test_recapture_budget_cli_overrides_env() -> None:
+    request = parse_command(
+        ["--check", "-b", "12"],
+        environ={RECAPTURE_BUDGET_ENV: "99"},
+    )
+    assert request.check is True
+    assert request.recapture_budget_seconds == 12
+
+
+def test_recapture_budget_env_is_used_when_cli_omitted() -> None:
+    request = parse_command(["--check"], environ={RECAPTURE_BUDGET_ENV: "45"})
+    assert request.recapture_budget_seconds == 45
+
+
+def test_recapture_budget_rejects_negative() -> None:
+    with pytest.raises(UsageError, match="non-negative"):
+        parse_command(["--check", "--recapture-budget-seconds", "-1"])
+    with pytest.raises(UsageError, match="non-negative"):
+        parse_command(["--check"], environ={RECAPTURE_BUDGET_ENV: "-3"})
 
 
 def test_full_scope_without_selectors() -> None:
@@ -245,7 +270,7 @@ def test_workers_request_reaches_runner(tmp_path: Path) -> None:
     assert runner.calls[0]["pytest_args"] == ()
 
 
-def test_parser_only_exposes_check_and_help() -> None:
+def test_parser_only_exposes_check_help_and_budget() -> None:
     parser = build_parser()
     option_strings = [
         flag
@@ -253,9 +278,10 @@ def test_parser_only_exposes_check_and_help() -> None:
         for flag in action.option_strings
         if flag.startswith("--")
     ]
-    assert option_strings == ["--help", "--check"] or set(option_strings) == {
+    assert set(option_strings) == {
         "--help",
         "--check",
+        "--recapture-budget-seconds",
     }
 
 

@@ -493,6 +493,14 @@ def test_visual_suite_runs_only_in_dedicated_job() -> None:
         step.get("run", "") for step in jobs["visual-test"]["steps"] if "run" in step
     ]
     assert any(run == "just fix-tui-screenshots --check" for run in visual_runs)
+    check_step = next(
+        step
+        for step in jobs["visual-test"]["steps"]
+        if step.get("run") == "just fix-tui-screenshots --check"
+    )
+    assert (
+        check_step.get("env", {}).get("SASE_VISUAL_RECAPTURE_BUDGET_SECONDS") == "600"
+    )
     assert all("just test-visual" not in run for run in visual_runs)
     assert all("just check-full" not in run for run in visual_runs)
     assert all("just fix-tui-screenshots\n" not in run for run in visual_runs)

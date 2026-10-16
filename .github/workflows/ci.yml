@@ -195,6 +195,12 @@ jobs:
           python-version: '3.12'
           install-recipe: install-venv-visual
       - name: Check TUI screenshots
+        env:
+          # Full CI 38944787812 visual-test "Check TUI screenshots" ran 30m7s
+          # (first pass, no recapture) at SHA 6a26d90945. The job timeout is
+          # 45 minutes. 600s of recapture budget leaves headroom after a
+          # 33-minute worst first pass, checkout/install, and report upload.
+          SASE_VISUAL_RECAPTURE_BUDGET_SECONDS: "600"
         run: just fix-tui-screenshots --check
       - name: Locate visual report
         if: always()

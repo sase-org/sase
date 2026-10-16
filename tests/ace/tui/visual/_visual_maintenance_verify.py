@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Callable, Iterator, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
+import time
 
 from tests.ace.tui.visual._png_diff_comparison import diff_pngs
 from tests.ace.tui.visual._visual_capture import InventoryReport, load_inventory
@@ -136,47 +137,56 @@ def run_verify_agreement(
     mismatch: dict[str, SkippedRecord] = {}
     seen_unexpected: set[str] = set()
     verify_dir_first: Path | None = None
-    for attempt_index in range(1, MAX_VERIFY_ATTEMPTS + 1):
+
+    def _undecided_owners() -> Sequence[str]:
         undecided = [
             state
             for state in goldens.values()
             if state.decided_hash is None and state.path not in mismatch
         ]
         if not undecided:
-            break
-        owners = sorted({state.owner for state in undecided if state.owner})
-        if not owners:
-            for state in undecided:
-                if state.path not in skipped_paths:
-                    skipped_paths.add(state.path)
-                    skipped.append(
-                        SkippedRecord(
-                            kind=SKIP_KIND_GOLDEN,
-                            node_id=state.owner,
-                            path=state.path,
-                            reason=REASON_VERIFY_FAILED,
-                            detail=("no owner node to re-verify; left untouched"),
-                            evidence=tuple(logs[value] for value in sorted(logs)),
-                            attempts=len(attempts),
-                        )
+            return ()
+        owners = tuple(sorted({state.owner for state in undecided if state.owner}))
+        if owners:
+            return owners
+        for state in undecided:
+            if state.path not in skipped_paths:
+                skipped_paths.add(state.path)
+                skipped.append(
+                    SkippedRecord(
+                        kind=SKIP_KIND_GOLDEN,
+                        node_id=state.owner,
+                        path=state.path,
+                        reason=REASON_VERIFY_FAILED,
+                        detail=("no owner node to re-verify; left untouched"),
+                        evidence=tuple(logs[value] for value in sorted(logs)),
+                        attempts=len(attempts),
                     )
-            break
-        workers = None if attempt_index == 1 else 1
-        attempt, attempt_dir, inventory = _run_one_verify_attempt(
-            hooks=hooks,
-            repo_root=repo_root,
-            run_id=run_id,
-            run_dir=run_dir,
-            attempt_index=attempt_index,
-            owners=owners,
-            workers=workers,
-        )
+                )
+        return ()
+
+    driver = _AttemptDriver(
+        hooks=hooks,
+        repo_root=repo_root,
+        run_id=run_id,
+        run_dir=run_dir,
+        max_attempts=MAX_VERIFY_ATTEMPTS,
+        workers_for_attempt=lambda index: None if index == 1 else 1,
+    )
+    for _attempt_index, attempt, attempt_dir, inventory in driver.run_while(
+        _undecided_owners
+    ):
         logs[attempt.label] = attempt.log
         attempts.append(attempt)
         if verify_dir_first is None:
             verify_dir_first = attempt_dir
         if inventory is None:
             continue
+        undecided = [
+            state
+            for state in goldens.values()
+            if state.decided_hash is None and state.path not in mismatch
+        ]
         trusted, _ = derive_node_trust(inventory)
         by_path: dict[str, list[CaptureRecord]] = {}
         for record in inventory.captures:
@@ -418,10 +428,50 @@ def _run_one_verify_attempt(
 
 
 @dataclass
+class _AttemptDriver:
+    """Shared serial verify-attempt loop for update-mode and check-mode."""
+
+    hooks: MaintenanceHooks
+    repo_root: Path
+    run_id: str
+    run_dir: Path
+    max_attempts: int
+    workers_for_attempt: Callable[[int], int | None]
+    deadline: float | None = None
+    clock: Callable[[], float] = time.monotonic
+    budget_exhausted: bool = False
+
+    def run_while(
+        self,
+        owners_fn: Callable[[], Sequence[str]],
+    ) -> Iterator[tuple[int, AttemptRecord, Path, InventoryReport | None]]:
+        """Yield pytest recapture attempts until owners empty, max, or budget."""
+        for attempt_index in range(1, self.max_attempts + 1):
+            owners = list(owners_fn())
+            if not owners:
+                return
+            if self.deadline is not None and self.clock() >= self.deadline:
+                self.budget_exhausted = True
+                return
+            workers = self.workers_for_attempt(attempt_index)
+            attempt, attempt_dir, inventory = _run_one_verify_attempt(
+                hooks=self.hooks,
+                repo_root=self.repo_root,
+                run_id=self.run_id,
+                run_dir=self.run_dir,
+                attempt_index=attempt_index,
+                owners=owners,
+                workers=workers,
+            )
+            yield attempt_index, attempt, attempt_dir, inventory
+
+
+@dataclass
 class CheckRecaptureResult:
     """Outcome of check-mode serial recapture of first-pass failures."""
 
     remaining_failed: tuple[str, ...]
+    execution_failed: tuple[str, ...]
     unstable: tuple[SkippedRecord, ...]
     remaining_changes: tuple[ChangeRecord, ...]
     attempts: tuple[AttemptRecord, ...]
@@ -429,6 +479,7 @@ class CheckRecaptureResult:
     warnings: tuple[str, ...]
     verify_dir: Path | None
     first_attempt_diffs_dir: str | None
+    budget_exhausted: bool = False
 
 
 def first_pass_failed_nodes(
@@ -500,13 +551,16 @@ def run_check_recapture(
     baseline: GoldenBaseline,
     failed_nodes: Sequence[str],
     first_pass_changes: Sequence[ChangeRecord],
+    first_pass_recover: Sequence[str] = (),
+    budget_seconds: int | None = None,
 ) -> CheckRecaptureResult:
     """Re-run first-pass failures serially until they match goldens or attempts end.
 
     A node is resolved only when one attempt both trusts the node (test
     passed) and classifies every capture as unchanged (exact golden match).
     Resolved nodes are reported as ``unstable``. Check mode never writes
-    goldens.
+    goldens. Persistent test failures (never trusted on recapture, or
+    first-pass recover when recapture never ran) are ``execution_failed``.
     """
     remaining = set(failed_nodes)
     unstable: list[SkippedRecord] = []
@@ -514,19 +568,26 @@ def run_check_recapture(
     logs: dict[str, str] = {}
     warnings: list[str] = []
     verify_dir_first: Path | None = None
-    for attempt_index in range(1, MAX_CHECK_RECAPTURE_ATTEMPTS + 1):
-        if not remaining:
-            break
-        owners = sorted(remaining)
-        attempt, attempt_dir, inventory = _run_one_verify_attempt(
-            hooks=hooks,
-            repo_root=repo_root,
-            run_id=run_id,
-            run_dir=run_dir,
-            attempt_index=attempt_index,
-            owners=owners,
-            workers=1,
-        )
+    last_trusted: dict[str, bool] = {}
+    clock = hooks.monotonic if hooks.monotonic is not None else time.monotonic
+    deadline = None if budget_seconds is None else clock() + budget_seconds
+
+    def _remaining_owners() -> Sequence[str]:
+        return tuple(sorted(remaining))
+
+    driver = _AttemptDriver(
+        hooks=hooks,
+        repo_root=repo_root,
+        run_id=run_id,
+        run_dir=run_dir,
+        max_attempts=MAX_CHECK_RECAPTURE_ATTEMPTS,
+        workers_for_attempt=lambda _index: 1,
+        deadline=deadline,
+        clock=clock,
+    )
+    for attempt_index, attempt, attempt_dir, inventory in driver.run_while(
+        _remaining_owners
+    ):
         logs[attempt.label] = attempt.log
         attempts.append(attempt)
         if verify_dir_first is None:
@@ -538,7 +599,9 @@ def run_check_recapture(
         for record in inventory.captures:
             by_node.setdefault(record.node_id, []).append(record)
         newly_passed: list[str] = []
+        owners = sorted(remaining)
         for node_id in owners:
+            last_trusted[node_id] = node_id in trusted
             if node_id not in trusted:
                 continue
             records = by_node.get(node_id, [])
@@ -570,16 +633,32 @@ def run_check_recapture(
                 )
             )
         remaining -= set(newly_passed)
+    if driver.budget_exhausted and remaining:
+        warnings.append(
+            "recapture budget exhausted; remaining nodes keep their first-pass outcome"
+        )
     resolved = {record.node_id for record in unstable}
     remaining_changes = tuple(
         item
         for item in first_pass_changes
         if item.node_id not in resolved or item.kind not in {KIND_CREATED, KIND_UPDATED}
     )
+    recover = set(first_pass_recover)
+    if attempts:
+        execution_failed = tuple(
+            sorted(
+                node_id for node_id in remaining if not last_trusted.get(node_id, False)
+            )
+        )
+    else:
+        execution_failed = tuple(
+            sorted(node_id for node_id in remaining if node_id in recover)
+        )
     diffs_dir = run_dir / FIRST_ATTEMPT_DIFFS_DIRNAME
     diffs_rel = posix_relative(diffs_dir, repo_root) if diffs_dir.is_dir() else None
     return CheckRecaptureResult(
         remaining_failed=tuple(sorted(remaining)),
+        execution_failed=execution_failed,
         unstable=tuple(unstable),
         remaining_changes=remaining_changes,
         attempts=tuple(attempts),
@@ -587,7 +666,43 @@ def run_check_recapture(
         warnings=tuple(warnings),
         verify_dir=verify_dir_first,
         first_attempt_diffs_dir=diffs_rel,
+        budget_exhausted=driver.budget_exhausted,
     )
+
+
+_STRICT_INCOMPLETE_PREFIXES = (
+    "skipped_node:",
+    "xfailed_node:",
+    "xpassed_node:",
+    "deselected_visual_node:",
+    "visual_root_unexecuted:",
+    "incomplete_worker:",
+    "lost_worker:",
+    "missing_worker:",
+)
+
+
+def check_mode_strict_errors(
+    inventory: InventoryReport,
+    *,
+    recovered: Sequence[str],
+) -> tuple[str, ...]:
+    """Return first-pass incompleteness recapture cannot hide.
+
+    Recovered pytest failures are ignored. Skips, lost workers, missing
+    roots, and protocol errors still fail the check run.
+    """
+    recovered_nodes = set(recovered)
+    errors = list(inventory.errors)
+    for reason in inventory.reasons:
+        if reason.startswith(_STRICT_INCOMPLETE_PREFIXES):
+            errors.append(reason)
+            continue
+        if reason.startswith("unaccounted_node:"):
+            node_id = reason.split(":", 1)[1]
+            if node_id not in recovered_nodes:
+                errors.append(reason)
+    return tuple(errors)
 
 
 def _diff_slug(value: str) -> str:
