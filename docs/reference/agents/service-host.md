@@ -186,7 +186,7 @@ and macOS LaunchAgents. See
 [service configuration](../config/runtime-and-storage.md#service) for entry fields and
 layering.
 
-## `sase service`
+## `sase service` {#sase-service-1}
 
 The service host supervises machine-level daemon procs independently of the TUI that
 started them. Bare `sase service` is read-only and delegates to `sase service status`;
