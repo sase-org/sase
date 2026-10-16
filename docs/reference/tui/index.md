@@ -1,6 +1,6 @@
 ---
 title: TUI
-description: Reference pages for the sase TUI Agents tab surfaces.
+description: Reference pages for the sase TUI Agents tab, prompt, and Launch Control surfaces.
 ---
 
 # TUI
@@ -19,6 +19,24 @@ pages list exact keys and behavior.
 - [Agents tab main deck](agents-main-deck.md) — main deck, zoom, and node rail.
 - [Agents tab LLM calls and tool runs](agents-deck-panels.md) — call and run panels.
 - [Agent workflows](agent-workflows.md) — plans, approvals, holds, and retries.
+
+## Prompt
+
+- [Prompt input](prompt-input.md) — insert mode, alt-brace, search, and macro editing.
+- [Prompt modes](prompt-modes.md) — NORMAL and Visual keys.
+- [Prompt stacks](prompt-stacks.md) — multi-agent panes, stash, and trash.
+- [Prompt completion](prompt-completion.md) — token completion and next-word prediction.
+- [Prompt completion panels](prompt-completion-panels.md) — glossary, memory, snippets,
+  repos, and spellcheck.
+- [Prompts overlay](prompts-overlay.md) — History, Stash, and Trash.
+- [Snippets](snippets.md) — snippet expansion and the Macro Browser.
+
+## Launch Control
+
+- [Launch Control](launch-control.md) — usage, effort, capacity, routing, drain, and
+  tmux Agent.
+- [Launch Control overrides](launch-control-overrides.md) — temporary overrides and
+  persistent edits.
 
 ## Related
 

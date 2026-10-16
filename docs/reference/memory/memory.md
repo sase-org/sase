@@ -58,9 +58,9 @@ sase's TUI **Memory panel** is the interactive surface for browsing memory acros
 memory-bearing project plus Home. It can add/edit/delete flat-note metadata and
 add/delete web strands; note bodies, existing strand bodies, and web descriptors open in
 `$EDITOR`. From a prompt, press `gm` or `Ctrl+G m`; see
-[Memory panel](../../ace.md#memory-panel). It is a human surface only: it never edits
-`AGENTS.md` or the provider shims directly — only `sase memory init` (run from the
-panel's publish flow, or by hand) does that.
+[Memory panel](../tui/prompt-completion-panels.md#memory-panel). It is a human surface
+only: it never edits `AGENTS.md` or the provider shims directly — only
+`sase memory init` (run from the panel's publish flow, or by hand) does that.
 
 ## Macro Inclusion
 
@@ -146,8 +146,8 @@ agents), what is and is not tracked, and the performance budgets. In the Memory 
 view; the card itself is time-aware (pinned head with the pager's pill and a two-row
 time strip, `(`/`)`/`{`/`}` stepping, `=` diff, `@` Timeline lens, `C` Changes lens with
 a review watermark, an `INSTRUCTIONS` group, and a recency glance on every rail row --
-see [Memory panel](../../ace.md#memory-panel)). Viewing history never writes an audited
-read.
+see [Memory panel](../tui/prompt-completion-panels.md#memory-panel)). Viewing history
+never writes an audited read.
 
 ## Audited Reads
 
@@ -330,16 +330,17 @@ under `sase.memory`; the package has no `sase.glossary` module.
 
 ### Browsing and editing strands
 
-sase's TUI [Memory panel](../../ace.md#memory-panel) is the browse-and-edit surface for
-webs and strands alongside flat notes: expand a web row to walk its strands, follow the
-same relation chips `read`'s closure walks, and use `a`/`d` to add or delete a strand —
-`a` on a web row opens an add-strand form, `d` on a strand row confirms a delete after
-showing its aliases, body, source path, and reverse mention references. There is no CLI
-write path for strand content. Add/delete uses the panel's tracked mutation engine,
-which validates frontmatter, checks catalog ambiguity and digest conflicts, and updates
-the descriptor roster. To change an existing strand body or web descriptor, press `o` in
-the panel and edit its source in `$EDITOR`. Publish either route through the panel's
-normal `sase memory init` flow described in [Memory panel](../../ace.md#memory-panel).
+sase's TUI [Memory panel](../tui/prompt-completion-panels.md#memory-panel) is the
+browse-and-edit surface for webs and strands alongside flat notes: expand a web row to
+walk its strands, follow the same relation chips `read`'s closure walks, and use `a`/`d`
+to add or delete a strand — `a` on a web row opens an add-strand form, `d` on a strand
+row confirms a delete after showing its aliases, body, source path, and reverse mention
+references. There is no CLI write path for strand content. Add/delete uses the panel's
+tracked mutation engine, which validates frontmatter, checks catalog ambiguity and
+digest conflicts, and updates the descriptor roster. To change an existing strand body
+or web descriptor, press `o` in the panel and edit its source in `$EDITOR`. Publish
+either route through the panel's normal `sase memory init` flow described in
+[Memory panel](../tui/prompt-completion-panels.md#memory-panel).
 
 ### Strand supersession
 

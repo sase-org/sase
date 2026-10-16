@@ -240,8 +240,17 @@
 - [Agents tab search and modes](reference/tui/agents-tab-modes.md) — Search, leader, bang, and copy modes on the Agents tab.
 - [Agents tab panels](reference/tui/agents-tab-panels.md) — Clan, session, neighbor, and tribe panels on the Agents tab.
 - [Agents tab](reference/tui/agents-tab.md) — Tabs, keys, lists, and actions on the sase TUI Agents tab.
-- [TUI](reference/tui/index.md) — Reference pages for the sase TUI Agents tab surfaces.
+- [TUI](reference/tui/index.md) — Reference pages for the sase TUI Agents tab, prompt, and Launch Control surfaces.
 - [TUI keymaps](reference/tui/keymaps.md) — Default configurable key bindings for SASE's terminal interface.
+- [Launch Control overrides](reference/tui/launch-control-overrides.md) — Temporary overrides, persistent alias edits, and examples in sase TUI Launch Control.
+- [Launch Control](reference/tui/launch-control.md) — Launch Control keys for usage, effort, capacity, routing, drain, tmux Agent, and alias history.
+- [Prompt completion panels](reference/tui/prompt-completion-panels.md) — Glossary, memory, snippets, repo-name, and spellcheck completion panels in the sase TUI prompt.
+- [Prompt completion](reference/tui/prompt-completion.md) — Token completion in the sase TUI prompt widget, including next-word prediction.
+- [Prompt input](reference/tui/prompt-input.md) — Insert mode, alt-brace syntax, macro editing, search, and launch-target picking in the sase TUI prompt widget.
+- [Prompt modes](reference/tui/prompt-modes.md) — NORMAL and Visual mode keys for the sase TUI prompt input widget.
+- [Prompt stacks](reference/tui/prompt-stacks.md) — Multi-agent prompt stacks, stash, and trash in the sase TUI prompt widget.
+- [Prompts overlay](reference/tui/prompts-overlay.md) — History, stash, and trash in the sase TUI Prompts overlay (the prompt-history modal).
+- [Snippets](reference/tui/snippets.md) — Prompt snippets, variables, aliases, and the Macro Browser in the sase TUI.
 - [Agent hood synchronization upgrades](reference/upgrading/agents-sidecar.md) — Upgrade notes for retired agent hood synchronization formats.
 - [Automation migration notes](reference/upgrading/automation.md) — Upgrade notes for scheduler naming, monitor hand-off, and gate contracts.
 - [Configuration migration notes](reference/upgrading/configuration.md) — Migration steps for configuration keys, file hooks, repositories, and SDD storage.

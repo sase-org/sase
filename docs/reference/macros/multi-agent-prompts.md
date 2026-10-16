@@ -270,7 +270,7 @@ action; use `g<enter>` or `Ctrl+G Enter` to launch the selected pane directly, o
 `Ctrl+S` to stash the active pane. Inside the `Enter` submit chooser, `a` or `Ctrl+S`
 submits all panes top-to-bottom. Set `ace.prompt_submission.confirm_on_enter: false` to
 make plain `Enter` submit the active pane immediately, including in a stack. See the
-[sase's TUI prompt-stack guide](../../ace.md#prompt-stacks) for the editing keybindings and
+[sase's TUI prompt-stack guide](../tui/prompt-stacks.md#prompt-stacks-1) for the editing keybindings and
 the default active-pane behavior.
 
 ### Rules

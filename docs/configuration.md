@@ -212,7 +212,7 @@ detached `sase_ace_agents` session unless `--window` names an existing tmux targ
 
 Launch an interactive agent CLI in a new tmux window. There are no subcommands — in
 particular no `list` child — so a bare `sase tmux-agent` paints the tmux menu instead of
-delegating. See [tmux Agent](ace.md#tmux-agent).
+delegating. See [tmux Agent](reference/tui/launch-control.md#tmux-agent).
 
 | Flag            | Values                                                            | Default                        | Description                                                               |
 | --------------- | ----------------------------------------------------------------- | ------------------------------ | ------------------------------------------------------------------------- |

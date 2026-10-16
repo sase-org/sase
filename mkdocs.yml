@@ -91,15 +91,27 @@ nav:
           - TUI hub: reference/tui/index.md
           - sase's TUI: ace.md
           - SASE Admin Center: reference/tui/admin-center.md
-          - Agents tab: reference/tui/agents-tab.md
-          - Agents tab search and modes: reference/tui/agents-tab-modes.md
-          - Agents tab panels: reference/tui/agents-tab-panels.md
-          - Agents tab grouping: reference/tui/agents-tab-grouping.md
-          - Agent row glyphs: reference/tui/agent-row-glyphs.md
-          - Agent statuses: reference/tui/agent-statuses.md
-          - Agents tab main deck: reference/tui/agents-main-deck.md
-          - Agents tab LLM calls and tool runs: reference/tui/agents-deck-panels.md
-          - Agent workflows: reference/tui/agent-workflows.md
+          - Agents tab:
+              - Agents tab: reference/tui/agents-tab.md
+              - Agents tab search and modes: reference/tui/agents-tab-modes.md
+              - Agents tab panels: reference/tui/agents-tab-panels.md
+              - Agents tab grouping: reference/tui/agents-tab-grouping.md
+              - Agent row glyphs: reference/tui/agent-row-glyphs.md
+              - Agent statuses: reference/tui/agent-statuses.md
+              - Agents tab main deck: reference/tui/agents-main-deck.md
+              - Agents tab LLM calls and tool runs: reference/tui/agents-deck-panels.md
+              - Agent workflows: reference/tui/agent-workflows.md
+          - Prompt:
+              - Prompt input: reference/tui/prompt-input.md
+              - Prompt modes: reference/tui/prompt-modes.md
+              - Prompt stacks: reference/tui/prompt-stacks.md
+              - Prompt completion: reference/tui/prompt-completion.md
+              - Prompt completion panels: reference/tui/prompt-completion-panels.md
+              - Prompts overlay: reference/tui/prompts-overlay.md
+              - Snippets: reference/tui/snippets.md
+          - Launch Control:
+              - Launch Control: reference/tui/launch-control.md
+              - Launch Control overrides: reference/tui/launch-control-overrides.md
           - Keymaps: reference/tui/keymaps.md
           - SASE Pager: pager.md
       - CLI:

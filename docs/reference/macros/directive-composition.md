@@ -31,7 +31,7 @@ multi-agent `---` segment separators (outside fenced blocks and leading YAML
 frontmatter) split sase's TUI prompt stack into one editable pane per agent segment, and
 any leading macro frontmatter is lifted into the prompt properties panel above the top
 pane. Because the strip runs before this parsing, a marked separator line such as
-`--- @` becomes a real `---` separator. See [Prompt Stacks](../../ace.md#prompt-stacks) in the
+`--- @` becomes a real `---` separator. See [Prompt Stacks](../tui/prompt-stacks.md#prompt-stacks-1) in the
 sase's TUI docs for the full review flow.
 
 ## Plan Approval and Coder Follow-up {#plan-directive}

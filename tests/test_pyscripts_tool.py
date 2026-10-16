@@ -126,3 +126,40 @@ def test_markdown_only_directory_is_not_placement_target(
     tool = _load_tool()
     assert tool._validate(repo) == []
     assert tool.main([str(repo)]) == 0
+
+
+def test_mkdocs_site_tools_html_is_ignored(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+    subprocess.run(["git", "config", "user.name", "Test"], cwd=repo, check=True)
+    subprocess.run(
+        ["git", "config", "user.email", "test@example.com"],
+        cwd=repo,
+        check=True,
+    )
+
+    tools_dir = repo / "tools"
+    tools_dir.mkdir()
+    (tools_dir / "my_script.py").write_text(
+        "#!/usr/bin/env python3\nprint('hello')\n",
+        encoding="utf-8",
+    )
+    (repo / "caller.py").write_text(
+        "# references my_script.py\n",
+        encoding="utf-8",
+    )
+
+    subprocess.run(["git", "add", "."], cwd=repo, check=True)
+    subprocess.run(["git", "commit", "-qm", "initial"], cwd=repo, check=True)
+
+    site_tools = repo / "site" / "reference" / "automation" / "tools"
+    site_tools.mkdir(parents=True)
+    (site_tools / "index.html").write_text(
+        "<html></html>\n",
+        encoding="utf-8",
+    )
+
+    tool = _load_tool()
+    assert tool._validate(repo) == []
+    assert tool.main([str(repo)]) == 0

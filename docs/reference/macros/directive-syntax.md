@@ -181,7 +181,7 @@ Typing `@` right after the colon (`%m:@`) narrows the menu to aliases only; a ba
 partial such as `me` still matches `@medium` through its bare name, but always after the
 model rows. sase's TUI menu reflects active temporary alias overrides, while the LSP's
 catalog is a launch-time snapshot that does not — restart the LSP to pick up config
-changes, and use sase's TUI [Launch Control](../../ace.md#launch-control) (`,m`) to inspect
+changes, and use sase's TUI [Launch Control](../tui/launch-control.md#launch-control-1) (`,m`) to inspect
 live override state.
 
 <a id="equals-model-shortcuts"></a>
@@ -556,7 +556,7 @@ launch-time meaning.
 The LSP reads the launcher-materialized catalog snapshot, so restart the editor session
 after alias or provider config changes. sase's TUI live prompt bar can additionally
 overlay temporary alias overrides for `=alias`; see sase's TUI
-[model shortcut](../../ace.md#prompt-input-widget) and the
+[model shortcut](../tui/prompt-input.md#prompt-input-widget) and the
 [editor integration](../integrations/editor.md#equals-model-shortcuts) notes.
 
 Provider rows such as `claude/` and `opencode/` are listed after model and alias rows in

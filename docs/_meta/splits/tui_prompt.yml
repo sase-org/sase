@@ -1,0 +1,19 @@
+to: reference/tui/index.md
+sections:
+  Prompt Input Widget: reference/tui/prompt-input.md
+  Prompt Input Widget > Prompt Stacks: reference/tui/prompt-stacks.md
+  Prompt Input Widget > Completion: reference/tui/prompt-completion.md
+  Prompt Input Widget > Completion > Glossary terms: reference/tui/prompt-completion-panels.md
+  Prompt Input Widget > Completion > Memory panel: reference/tui/prompt-completion-panels.md
+  Prompt Input Widget > Completion > Snippets panel: reference/tui/prompt-completion-panels.md
+  Prompt Input Widget > Completion > Repo names: reference/tui/prompt-completion-panels.md
+  Prompt Input Widget > Completion > Word definitions & spellcheck: reference/tui/prompt-completion-panels.md
+  Prompt Input Widget > NORMAL Mode: reference/tui/prompt-modes.md
+  Prompt Input Widget > Visual Mode: reference/tui/prompt-modes.md
+  "Prompts Overlay { #prompt-history-modal }": reference/tui/prompts-overlay.md
+  Snippets: reference/tui/snippets.md
+  Macro Browser: reference/tui/snippets.md
+  "Launch Control {#launch-control}": reference/tui/launch-control.md
+  "Launch Control {#launch-control} > Temporary overrides": reference/tui/launch-control-overrides.md
+  "Launch Control {#launch-control} > Persistent edits": reference/tui/launch-control-overrides.md
+  "Launch Control {#launch-control} > Examples": reference/tui/launch-control-overrides.md

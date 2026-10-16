@@ -152,8 +152,9 @@ with `in Trash: restore it from the Trash view instead`. When the same id was ar
 more than once, `show` and `restore` use the newest copy. Older copies remain in
 `list -j`. `-n` changes how many rows are printed. `-q` and `-r` search the newest
 100,000 archive rows, then print up to that limit. `-q` does not match the id, project,
-or reason. See [Stash and Trash in the TUI](../ace.md#prompt-stacks) for the keys and
-[Trash limits](config/ace-prompts.md#acepromptstash) for retention settings.
+or reason. See [Stash and Trash in the TUI](tui/prompt-stacks.md#prompt-stacks-1) for
+the keys and [Trash limits](config/ace-prompts.md#acepromptstash) for retention
+settings.
 
 ## Search
 
@@ -265,9 +266,9 @@ project/macro/directive hint chips, and a one-line preview — never the full te
 
 Inside [sase's TUI](../ace.md), the same history is one keystroke away: press `Ctrl+K`
 in the prompt bar (or `,.` from any tab) to open the
-[Prompts overlay](../ace.md#prompt-history-modal). Its filter accepts a leading
-`project:<name>` qualifier, and `Ctrl+K` pre-scopes it to the project named by the
-current prompt's workspace reference.
+[Prompts overlay](tui/prompts-overlay.md#prompt-history-modal). Its filter accepts a
+leading `project:<name>` qualifier, and `Ctrl+K` pre-scopes it to the project named by
+the current prompt's workspace reference.
 
 ### Print raw prompt text
 
@@ -401,8 +402,8 @@ overwrites an existing macro file unless you pass `--force`.
 SASE's TUI prompt bar also saves drafts with `gX` or `Ctrl+G X`; the save panel starts
 in macro mode, and `Ctrl+X` switches to snippet mode. A stack saves its non-empty panes
 as one `---`-separated macro; snippet mode saves only the active pane. See
-[Prompt Stacks](../ace.md#prompt-stacks) and
-[Creating Macros](../ace.md#creating-macros) for the other keybindings and save
+[Prompt Stacks](tui/prompt-stacks.md#prompt-stacks-1) and
+[Creating Macros](tui/snippets.md#creating-macros) for the other keybindings and save
 locations.
 
 ### Export a prompt to a file

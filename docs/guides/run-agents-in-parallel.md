@@ -42,10 +42,11 @@ results before combining changes that touch the same area.
 
 If one task needs another agent's result first, launch it after that result is ready and
 [hand the result to the follow-up agent](hand-a-result-to-another-agent.md). For prompt
-stack controls, see [SASE's TUI](../ace.md#prompt-stacks).
+stack controls, see [SASE's TUI](../reference/tui/prompt-stacks.md#prompt-stacks-1).
 
 ## Related
 
 - [Agents, sessions, and workspaces](../concepts/agents.md) — how parallel runs stay
   isolated.
-- [Prompt stacks](../ace.md#prompt-stacks) — the prompt stack keybindings and behavior.
+- [Prompt stacks](../reference/tui/prompt-stacks.md#prompt-stacks-1) — the prompt stack
+  keybindings and behavior.

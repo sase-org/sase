@@ -14,9 +14,10 @@ In addition to prompt-level
 [launch-scoped overrides](models.md#launch-scoped-alias-overrides) and the tier-based
 global override, sase supports **concrete** provider/model overrides that act as
 temporary, time-bound machine-wide overrides of a model alias or launch-model setting.
-sase's TUI `,m` chord opens the [**Launch Control**](../../ace.md#launch-control) for
-setting, changing, and clearing these overrides — for the `default model`,
-`epic lander`, and `big epic lander` settings, or any size/custom alias.
+sase's TUI `,m` chord opens the
+[**Launch Control**](../tui/launch-control.md#launch-control-1) for setting, changing,
+and clearing these overrides — for the `default model`, `epic lander`, and
+`big epic lander` settings, or any size/custom alias.
 
 The panel also shows a two-line description for the highlighted alias, launch-model
 setting, or bucket. Builtin aliases have fixed descriptions, custom aliases read
@@ -143,9 +144,9 @@ A **soft** disable never fails a launch; it only deprioritizes the provider:
 either mode, but usage-limit auto-disable (`source: "usage_limit"`) always writes a
 **hard** disable — nothing in routing changes that. Create, flip, and inspect a soft
 disable from sase's TUI Launch Control → Provider Routing (`p` from `,m`); see
-[Provider routing controls](../../ace.md#provider-routing-controls). A hard disable can
-additionally drain the agents it stranded — relaunching them elsewhere or reporting why
-they cannot move; see
+[Provider routing controls](../tui/launch-control.md#provider-routing-controls). A hard
+disable can additionally drain the agents it stranded — relaunching them elsewhere or
+reporting why they cannot move; see
 [Draining a Disabled Provider](usage.md#draining-a-disabled-provider).
 
 Each top-level routing operation captures active disables once and passes that snapshot

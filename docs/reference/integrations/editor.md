@@ -156,7 +156,8 @@ completion also works while the caret is in a valid equals token.
 
 `ace.prompt_completion.auto_directive_menu` remains a setting for the prompt bar in
 sase's TUI and does not govern an editor client's trigger policy. The TUI prompt input
-uses these same shortcuts; see [Prompt Input](../../ace.md#prompt-input-widget) and
+uses these same shortcuts; see
+[Prompt Input](../tui/prompt-input.md#prompt-input-widget) and
 [Equals model shortcuts](../macros/directive-syntax.md#equals-model-shortcuts).
 
 Artifact assistance is local-only. Before a `:` appears, `@` completion withholds local
@@ -422,4 +423,5 @@ remaining outer stops.
   Python helper facade.
 - [Configuration](../cli/editor.md#sase-editor) for CLI flag and environment-variable
   reference.
-- [sase's TUI snippets](../../ace.md#snippets) for the in-TUI prompt widget behavior.
+- [sase's TUI snippets](../tui/snippets.md#snippets-1) for the in-TUI prompt widget
+  behavior.

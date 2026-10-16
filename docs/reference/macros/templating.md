@@ -108,7 +108,7 @@ be nonempty, contain no leading or trailing whitespace, and be at most 100 chara
 Raw placeholders are highlighted in prompt panes, the prompt-stash, trash, and
 pinned-stash previews, and the agent panel's raw-prompt header. They participate in
 placeholder completion and feed the saved common-placeholder history described in
-[sase's TUI completion](../../ace.md#completion). Repeated tags with the same exact,
+[sase's TUI completion](../tui/prompt-completion.md#completion). Repeated tags with the same exact,
 case-sensitive inner text are one logical placeholder. Tags inside inline code, fenced
 code blocks, or `%macros_enabled:false` regions stay literal and are excluded from
 highlighting, completion history, launch-time collection, and conversion.

@@ -34,6 +34,8 @@ _EXCLUDE_DIRS = frozenset(
         ".mypy_cache",
         ".tox",
         ".eggs",
+        # MkDocs pretty-URLs turn docs/.../tools.md into site/.../tools/index.html.
+        "site",
     }
 )
 

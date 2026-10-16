@@ -96,7 +96,7 @@ single worker prompt without changing the bead or agent registry. A real launch:
 A launch that can only run on a **hard**-disabled provider is refused with a
 provider-and-expiry diagnostic before any runner starts — the same fail-closed guard
 `sase run` and sase's TUI use. A **soft** disable does not refuse the launch. See
-[Provider routing](../../ace.md#provider-routing-controls).
+[Provider routing](../tui/launch-control.md#provider-routing-controls).
 
 The `TaskTriage` gate's default Launch branch submits this command as an unattributed
 proc with `--yes-to-all`; optional gate feedback is appended to the worker prompt.

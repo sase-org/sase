@@ -284,9 +284,9 @@ Source: `src/sase/default_config.yml`, `src/sase/config/_settings_runner.py`,
 
 ## tmux_agent {#tmux_agent}
 
-Configuration for [tmux Agent](../../ace.md#tmux-agent): Launch Control's `t` binding
-and `sase tmux-agent`. Both surfaces share this block. A bad value is dropped with a
-warning rather than making the tmux key binding fail.
+Configuration for [tmux Agent](../tui/launch-control.md#tmux-agent): Launch Control's
+`t` binding and `sase tmux-agent`. Both surfaces share this block. A bad value is
+dropped with a warning rather than making the tmux key binding fail.
 
 ```yaml
 tmux_agent:

@@ -66,7 +66,7 @@ only the first character of the trigger and of the resolved template is uppercas
 macro-derived `foo` therefore expands as both `foo` and `Foo`, already-capitalized
 triggers produce no extra entry, an explicitly authored `Foo` is never replaced, and
 both spellings can be referenced with `#[foo]` / `#[Foo]`. The aliases are runtime-only.
-See [docs/ace.md — Capitalized aliases](../../ace.md#capitalized-aliases) for the complete
+See [docs/ace.md — Capitalized aliases](../tui/snippets.md#capitalized-aliases) for the complete
 rule.
 
 Snippets saved from sase's TUI prompt panel become available immediately to all prompt
@@ -82,8 +82,8 @@ snippets. To troubleshoot the raw registry, run:
 printf '{"schema_version":1}\n' | sase editor helper-bridge snippet-catalog
 ```
 
-See [docs/ace.md — Snippets](../../ace.md#snippets) for snippet usage in the prompt input
-widget and editor completion, and [docs/ace.md — Snippets panel](../../ace.md#snippets-panel)
+See [docs/ace.md — Snippets](../tui/snippets.md#snippets-1) for snippet usage in the prompt input
+widget and editor completion, and [docs/ace.md — Snippets panel](../tui/prompt-completion-panels.md#snippets-panel)
 for sase's TUI browse-and-edit panel (`gT` / `Ctrl+G T`).
 
 ### Snippet CLI
@@ -253,7 +253,7 @@ for a later full deployment. Do not edit deployed `SKILL.md` files directly.
 Editing an existing skill source from sase's TUI targets it like any other macro
 definition, and saving it offers `sase skill init` in place of a bare commit/push, since
 that command already commits, pushes, and deploys for you — see
-[Editing an Existing Macro from the TUI](../../ace.md#editing-an-existing-macro-from-the-tui).
+[Editing an Existing Macro from the TUI](../tui/prompt-input.md#editing-an-existing-macro-from-the-tui).
 
 Provider plugins declare where generated skills should be written. A source can target
 multiple providers, and a provider can have multiple filesystem targets. Built-in
@@ -347,7 +347,7 @@ Editing an existing note from sase's TUI targets it like any other macro definit
 saving it offers `sase memory init` in place of a bare commit/push, since that command
 already regenerates `AGENTS.md` and the provider instruction shims and commits and
 pushes for you — see
-[Editing an Existing Macro from the TUI](../../ace.md#editing-an-existing-macro-from-the-tui).
+[Editing an Existing Macro from the TUI](../tui/prompt-input.md#editing-an-existing-macro-from-the-tui).
 With `use_chezmoi` enabled, the write itself redirects to the chezmoi source rather than
 the applied copy under `~/sase/memory/`; see
 [Paths That Did Not Move](../content-layout.md#paths-that-did-not-move).

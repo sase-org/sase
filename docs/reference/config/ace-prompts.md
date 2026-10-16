@@ -13,7 +13,8 @@ Prompt completion, snippets, prompt history, and agent deck settings.
 
 Names the config file that receives new `ace.snippets` entries written from the prompt
 bar — the `gt` / `Ctrl+G t` snippet target pane, the `gX` / `Ctrl+G X` save panel's
-snippet mode, and the [Snippets panel](../../ace.md#snippets-panel) add form all default
+snippet mode, and the
+[Snippets panel](../tui/prompt-completion-panels.md#snippets-panel) add form all default
 to it.
 
 An empty string (the default) resolves to the user's `sase.yml` — the chezmoi source
@@ -42,7 +43,7 @@ ace:
 ```
 
 See
-[docs/ace.md — Authoring a snippet from the prompt bar](../../ace.md#authoring-a-snippet-from-the-prompt-bar).
+[docs/ace.md — Authoring a snippet from the prompt bar](../tui/snippets.md#authoring-a-snippet-from-the-prompt-bar).
 
 Source: `src/sase/macro/snippet_targets.py`
 
@@ -73,9 +74,10 @@ character of the trigger and of the resolved template is uppercased, so
 digit-leading, and underscore-leading triggers produce no extra entry, and an explicitly
 authored `Foo` is never replaced. These aliases are runtime-only and are never written
 back into config. See
-[docs/ace.md — Capitalized aliases](../../ace.md#capitalized-aliases) for the full rule.
+[docs/ace.md — Capitalized aliases](../tui/snippets.md#capitalized-aliases) for the full
+rule.
 
-See [docs/ace.md — Snippets](../../ace.md#snippets) for usage details and
+See [docs/ace.md — Snippets](../tui/snippets.md#snippets-1) for usage details and
 [Macro fields — Snippet CLI](../macros/fields.md#snippet-cli) for `sase snippet list`,
 `show`, `add`, and `delete`.
 
@@ -222,8 +224,8 @@ Source: `src/sase/history/prompt_misspellings.py`, `src/sase/core/word_lookup.py
 ## `ace.prompt_stash`
 
 Controls Stash Trash recovery in sase's TUI Prompts overlay (see
-[Prompts Overlay](../../ace.md#prompt-history-modal)). Trash recovers only drafts
-deliberately discarded from Stash, up to the configured row limit.
+[Prompts Overlay](../tui/prompts-overlay.md#prompt-history-modal)). Trash recovers only
+drafts deliberately discarded from Stash, up to the configured row limit.
 
 ```yaml
 ace:
@@ -239,10 +241,10 @@ The Trash list in that same window still shows the rows from before the deletion
 `Enter` on one of those already-deleted rows does not bring it back. The Trash view then
 repaints from the store, so every already-deleted row disappears. Close the overlay and
 open it again to see the rows that remain without pressing `Enter`. See
-[Prompts Overlay](../../ace.md#prompt-history-modal) for the toast text and the failure
-case. Trash requires the current stash core binding: restart old TUI processes before
-the new behavior takes effect, since mixed-version operation is unsupported.
-<a id="aceagentdecks"></a>
+[Prompts Overlay](../tui/prompts-overlay.md#prompt-history-modal) for the toast text and
+the failure case. Trash requires the current stash core binding: restart old TUI
+processes before the new behavior takes effect, since mixed-version operation is
+unsupported. <a id="aceagentdecks"></a>
 
 Source: `src/sase/ace/config.py`, `src/sase/core/prompt_stash_facade.py`,
 `src/sase/ace/tui/actions/agent_workflow/_prompt_bar_stash_restore.py`

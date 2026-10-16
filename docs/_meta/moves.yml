@@ -91,6 +91,56 @@ moves:
       to-diagnose-the-runs-card: reference/tui/agents-deck-panels.md#to-diagnose-the-runs-card
       links-from-llm-calls-slow-tools-and-context-cards: reference/tui/agents-deck-panels.md#links-from-llm-calls-slow-tools-and-context-cards
       stopping-a-run-and-running-a-tool: reference/tui/agents-deck-panels.md#stopping-a-run-and-running-a-tool
+      launch-control: reference/tui/launch-control.md#launch-control-1
+      providers-usage: reference/tui/launch-control.md#providers-usage
+      default-effort-controls: reference/tui/launch-control.md#default-effort-controls
+      runner-capacity-controls: reference/tui/launch-control.md#runner-capacity-controls
+      provider-routing-controls: reference/tui/launch-control.md#provider-routing-controls
+      disabled-provider-launch-panel: reference/tui/launch-control.md#disabled-provider-launch-panel
+      automatic-provider-drain: reference/tui/launch-control.md#automatic-provider-drain
+      tmux-agent: reference/tui/launch-control.md#tmux-agent
+      alias-history: reference/tui/launch-control.md#alias-history
+      temporary-overrides: reference/tui/launch-control-overrides.md#temporary-overrides
+      persistent-edits: reference/tui/launch-control-overrides.md#persistent-edits
+      examples-1: reference/tui/launch-control-overrides.md#examples-1
+      macro-browser: reference/tui/snippets.md#macro-browser
+      keybindings: reference/tui/snippets.md#keybindings
+      editing-macros: reference/tui/snippets.md#editing-macros
+      creating-macros: reference/tui/snippets.md#creating-macros
+      snippets: reference/tui/snippets.md#snippets-1
+      usage: reference/tui/snippets.md#usage
+      snippet-variables: reference/tui/snippets.md#snippet-variables
+      capitalized-aliases: reference/tui/snippets.md#capitalized-aliases
+      save-location-picker: reference/tui/snippets.md#save-location-picker
+      existing-definition-finder: reference/tui/snippets.md#existing-definition-finder
+      authoring-a-snippet-from-the-prompt-bar: reference/tui/snippets.md#authoring-a-snippet-from-the-prompt-bar
+      macro-picker: reference/tui/snippets.md#macro-picker
+      prompt-input-widget: reference/tui/prompt-input.md#prompt-input-widget
+      cursor-readout: reference/tui/prompt-input.md#cursor-readout
+      prompt-search: reference/tui/prompt-input.md#prompt-search
+      insert-mode-default: reference/tui/prompt-input.md#insert-mode-default
+      raw-placeholder-inputs: reference/tui/prompt-input.md#raw-placeholder-inputs
+      launch-target-picker: reference/tui/prompt-input.md#launch-target-picker
+      editing-an-existing-macro-from-the-tui: reference/tui/prompt-input.md#editing-an-existing-macro-from-the-tui
+      alt-brace-syntax: reference/tui/prompt-input.md#alt-brace-syntax
+      prompt-stacks: reference/tui/prompt-stacks.md#prompt-stacks-1
+      completion: reference/tui/prompt-completion.md#completion
+      next-word-prediction: reference/tui/prompt-completion.md#next-word-prediction
+      glossary-terms: reference/tui/prompt-completion-panels.md#glossary-terms
+      memory-panel: reference/tui/prompt-completion-panels.md#memory-panel
+      snippets-panel: reference/tui/prompt-completion-panels.md#snippets-panel
+      repo-names: reference/tui/prompt-completion-panels.md#repo-names
+      word-definitions-spellcheck: reference/tui/prompt-completion-panels.md#word-definitions-spellcheck
+      normal-mode: reference/tui/prompt-modes.md#normal-mode
+      motions: reference/tui/prompt-modes.md#motions
+      operators: reference/tui/prompt-modes.md#operators
+      text-objects: reference/tui/prompt-modes.md#text-objects
+      operator-search: reference/tui/prompt-modes.md#operator-search
+      other-commands: reference/tui/prompt-modes.md#other-commands
+      visual-mode: reference/tui/prompt-modes.md#visual-mode
+      prompt-history-modal: reference/tui/prompts-overlay.md#prompt-history-modal
+      keybindings-1: reference/tui/prompts-overlay.md#keybindings-1
+      filtering: reference/tui/prompts-overlay.md#filtering
     title: sase's TUI User Guide
   - from: configuration.md
     to: reference/config/index.md

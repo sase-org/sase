@@ -113,9 +113,9 @@ There is no built-in `epic_creator` model alias. `sase doctor` reports a leftove
 alias names and current replacements.
 
 The TUI also supports **temporary**, per-alias session-level provider/model overrides
-(set from [Launch Control](../../ace.md#launch-control), `,m`) that do **not** edit this
-config. They are persisted to `~/.sase/llm_override.json` and expired entries are
-deleted on next read. See
+(set from [Launch Control](../tui/launch-control.md#launch-control-1), `,m`) that do
+**not** edit this config. They are persisted to `~/.sase/llm_override.json` and expired
+entries are deleted on next read. See
 [Temporary model overrides](../providers/routing.md#temporary-model-overrides) for the
 resolution order, state-file format, and precedence relative to
 `SASE_MODEL_TIER_OVERRIDE`.

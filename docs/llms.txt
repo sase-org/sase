@@ -242,8 +242,17 @@
 - [Agents tab search and modes](https://sase.sh/reference/tui/agents-tab-modes/) — Search, leader, bang, and copy modes on the Agents tab.
 - [Agents tab panels](https://sase.sh/reference/tui/agents-tab-panels/) — Clan, session, neighbor, and tribe panels on the Agents tab.
 - [Agents tab](https://sase.sh/reference/tui/agents-tab/) — Tabs, keys, lists, and actions on the sase TUI Agents tab.
-- [TUI](https://sase.sh/reference/tui/) — Reference pages for the sase TUI Agents tab surfaces.
+- [TUI](https://sase.sh/reference/tui/) — Reference pages for the sase TUI Agents tab, prompt, and Launch Control surfaces.
 - [TUI keymaps](https://sase.sh/reference/tui/keymaps/) — Default configurable key bindings for SASE's terminal interface.
+- [Launch Control overrides](https://sase.sh/reference/tui/launch-control-overrides/) — Temporary overrides, persistent alias edits, and examples in sase TUI Launch Control.
+- [Launch Control](https://sase.sh/reference/tui/launch-control/) — Launch Control keys for usage, effort, capacity, routing, drain, tmux Agent, and alias history.
+- [Prompt completion panels](https://sase.sh/reference/tui/prompt-completion-panels/) — Glossary, memory, snippets, repo-name, and spellcheck completion panels in the sase TUI prompt.
+- [Prompt completion](https://sase.sh/reference/tui/prompt-completion/) — Token completion in the sase TUI prompt widget, including next-word prediction.
+- [Prompt input](https://sase.sh/reference/tui/prompt-input/) — Insert mode, alt-brace syntax, macro editing, search, and launch-target picking in the sase TUI prompt widget.
+- [Prompt modes](https://sase.sh/reference/tui/prompt-modes/) — NORMAL and Visual mode keys for the sase TUI prompt input widget.
+- [Prompt stacks](https://sase.sh/reference/tui/prompt-stacks/) — Multi-agent prompt stacks, stash, and trash in the sase TUI prompt widget.
+- [Prompts overlay](https://sase.sh/reference/tui/prompts-overlay/) — History, stash, and trash in the sase TUI Prompts overlay (the prompt-history modal).
+- [Snippets](https://sase.sh/reference/tui/snippets/) — Prompt snippets, variables, aliases, and the Macro Browser in the sase TUI.
 - [Agent hood synchronization upgrades](https://sase.sh/reference/upgrading/agents-sidecar/) — Upgrade notes for retired agent hood synchronization formats.
 - [Automation migration notes](https://sase.sh/reference/upgrading/automation/) — Upgrade notes for scheduler naming, monitor hand-off, and gate contracts.
 - [Configuration migration notes](https://sase.sh/reference/upgrading/configuration/) — Migration steps for configuration keys, file hooks, repositories, and SDD storage.

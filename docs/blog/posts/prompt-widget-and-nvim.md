@@ -187,8 +187,8 @@ catalog make them the same input system from two different front doors.
 
 ## What To Read Next
 
-- [Prompt input widget reference](../../ace.md#prompt-input-widget) — the full keymap
-  table, completion semantics, and the snippet expansion grammar.
+- [Prompt input widget reference](../../reference/tui/prompt-input.md#prompt-input-widget)
+  — the full keymap table, completion semantics, and the snippet expansion grammar.
 - [sase-nvim on GitHub](https://github.com/sase-org/sase-nvim) — installation, the full
   `<C-t>` dispatcher table, LSP configuration, and the YAML schema registration.
 - [Macros reference](../../reference/macros/index.md) — the language the widget and the

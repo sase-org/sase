@@ -130,9 +130,10 @@ no changes.
 | `install_dir_env`           | Environment variable that overrides `install_dir`.                                                                    |
 
 `llm_interactive_cli()` describes how the provider's CLI is launched in a terminal by
-[tmux Agent](../ace.md#tmux-agent). All keys are optional so third-party providers stay
-compatible. Omitting the hook entirely means "launchable as the bare CLI name with no
-extra flags", so a new provider is usable the moment it declares a CLI.
+[tmux Agent](../reference/tui/launch-control.md#tmux-agent). All keys are optional so
+third-party providers stay compatible. Omitting the hook entirely means "launchable as
+the bare CLI name with no extra flags", so a new provider is usable the moment it
+declares a CLI.
 
 | Key           | Purpose                                                                                                          |
 | ------------- | ---------------------------------------------------------------------------------------------------------------- |

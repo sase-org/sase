@@ -108,7 +108,7 @@ edit uses the chezmoi source repository. When `use_chezmoi` is enabled, a succes
 push is followed by a full `chezmoi apply`. Each failure stops the sequence at that
 step, without undoing the written config change. Skipping the offer—or editing a file
 outside git—also leaves the successful write in place. The
-[Launch Control](../../ace.md#persistent-edits) uses the same workflow for persistent alias
+[Launch Control](launch-control-overrides.md#persistent-edits) uses the same workflow for persistent alias
 edits, while its fixed `Ctrl+E` binding previews and writes
 `llm_provider.default_effort` specifically to the user-base layer. `Ctrl+E` is local to
 Launch Control modal (including bucket rows), not a configurable leader-key entry.

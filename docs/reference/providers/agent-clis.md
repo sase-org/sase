@@ -26,8 +26,9 @@ issue. Vendor docs may list additional installer and account options; the snippe
 intentionally match SASE's doctor hints.
 
 Installed provider CLIs are also launchable interactively with
-[`sase tmux-agent`](../../ace.md#tmux-agent) (or `t` in Launch Control). Those windows
-are unmanaged agent CLIs, not SASE agents — they do not appear in `sase agent list`.
+[`sase tmux-agent`](../tui/launch-control.md#tmux-agent) (or `t` in Launch Control).
+Those windows are unmanaged agent CLIs, not SASE agents — they do not appear in
+`sase agent list`.
 
 If Launch Control or `sase doctor` reports a provider as disabled, that is routing
 policy, not a missing install. A **hard** disable blocks SASE automatic routing and
@@ -35,7 +36,7 @@ explicit `%model` requests for that provider until expiry or clearing; a **soft*
 disable only steers pools away from it. Usage-limit detection can hard-disable Claude
 for a week and Grok Build for 48 hours automatically. Interactive tmux Agent windows
 still launch a hard-disabled CLI. See
-[Provider routing](../../ace.md#provider-routing-controls) and
+[Provider routing](../tui/launch-control.md#provider-routing-controls) and
 [Usage-Limit Auto-Disable](usage.md#usage-limit-auto-disable).
 
 ## Instruction delivery
@@ -606,7 +607,7 @@ sase usage refresh
 
 sase's TUI exposes the same cache from Launch Control: press `u`, or choose **Open
 Providers · Usage** from the command palette. See
-[Providers · Usage](../../ace.md#providers-usage).
+[Providers · Usage](../tui/launch-control.md#providers-usage).
 
 Observations are dated best-effort readings from each provider's own CLI, not guarantees
 of remaining capacity. Periodic collection runs on the scheduler's 60-second `usage`

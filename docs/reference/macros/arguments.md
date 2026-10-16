@@ -85,8 +85,8 @@ accepting a `bool`, `path`, or `agent` input opens that input's value menu next.
 TUI and `sase macro show` color argument keys and values by type and underline unknown,
 repeated, or mistyped keywords; the macro LSP reports the same argument spans as
 [semantic tokens](../integrations/editor.md#semantic-token-legend). See
-[sase's TUI completion](../../ace.md#completion) and the
-[Prompt Input Widget](../../ace.md#prompt-input-widget).
+[sase's TUI completion](../tui/prompt-completion.md#completion) and the
+[Prompt Input Widget](../tui/prompt-input.md#prompt-input-widget).
 
 Compact input signatures use the shared type label: closed sets of up to four values
 show their canonical values, larger sets show the named type and count, and domain
@@ -158,7 +158,7 @@ sase; qualified names belong to plugins.
 
 The same catalog drives every surface: the runtime binder,
 [`sase macro types`](../cli/macro.md#sase-macro-types) and `sase macro show`, the
-[TUI prompt bar](../../ace.md#completion), and the [macro LSP](../integrations/editor.md#lsp-features).
+[TUI prompt bar](../tui/prompt-completion.md#completion), and the [macro LSP](../integrations/editor.md#lsp-features).
 Completing, validating, and explaining a value follows one rule.
 
 ```yaml

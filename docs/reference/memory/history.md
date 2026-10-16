@@ -178,8 +178,8 @@ and a band tombstone row), never as a body line, so line numbers still match the
 
 ## In the TUI
 
-The ACE [Memory panel](../../ace.md#memory-panel) card speaks the same vocabulary
-without leaving ACE:
+The ACE [Memory panel](../tui/prompt-completion-panels.md#memory-panel) card speaks the
+same vocabulary without leaving ACE:
 
 - **Card.** A pinned head carries the pager's state pill and a two-row time strip.
   `(`/`)`/`{`/`}` step the card through versions (a violet frame marks the past, and

@@ -46,7 +46,7 @@ an unlaunched prompt.
 
 - [Prompt history](../reference/prompt-history.md) — shell commands and prompt-history
   fields.
-- [Prompts overlay](../ace.md#prompt-history-modal) — TUI History keybindings and
-  filters.
+- [Prompts overlay](../reference/tui/prompts-overlay.md#prompt-history-modal) — TUI
+  History keybindings and filters.
 - [Prompts, macros, and workflows](../concepts/prompts.md) — how prompts fit with
   reusable macros.

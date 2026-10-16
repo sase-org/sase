@@ -265,7 +265,8 @@ row is lost; the chat transcript under `~/.sase/chats` survives.
 
 The `llm_provider.usage_limit.relaunch` / `relaunch_limit` config fields (above) control
 whether and how much a usage-limit hard disable drains automatically, as does sase's TUI
-Launch Control [automatic provider drain](../../ace.md#automatic-provider-drain).
+Launch Control
+[automatic provider drain](../tui/launch-control.md#automatic-provider-drain).
 
 `sase agent drain <provider>` is the always-available manual escape hatch: it previews
 with `--dry-run`, refuses a provider with no active hard disable (exit 2 for
