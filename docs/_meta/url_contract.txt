@@ -51,6 +51,9 @@ https://sase.sh/plugins/
 https://sase.sh/project_spec/
 https://sase.sh/prompt/
 https://sase.sh/query_language/
+https://sase.sh/reference/
+https://sase.sh/reference/design-decisions/
+https://sase.sh/reference/glossary/
 https://sase.sh/remote_dispatch/
 https://sase.sh/rust_backend/
 https://sase.sh/sdd/

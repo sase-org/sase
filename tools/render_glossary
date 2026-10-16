@@ -1,0 +1,187 @@
+#!/usr/bin/env python3
+"""Render the glossary page and tooltip abbreviations from the glossary web.
+
+Phase sase-1le.8 (glossary) owns this module. It reads
+``sase/memory/glossary/*.md`` strands directly — that is tooling, not an
+agent read — and renders two generated artifacts:
+
+- ``docs/reference/glossary.md``: every term, its aliases, and its
+  definition, with anchors named after term slugs. Agent-internal
+  cross-reference syntax becomes plain links.
+- ``docs/_includes/abbreviations.md``: ``abbr`` definitions for the core
+  terms so hovering them in Guide text shows the one-line definition.
+
+Run ``just fix`` (``just fmt-docs``) after editing the web; ``just check``
+(``just fmt-docs-check``) verifies both files are current. This tool stays
+YAML-only on purpose: it must run in the narrow formatter venv, which does
+not install ``sase``.
+"""
+
+from __future__ import annotations
+
+import argparse
+import difflib
+import sys
+from pathlib import Path
+
+
+if __name__ == "__main__" and __package__ is None:
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from docs_webs import (  # noqa: E402
+    DECISIONS_DIR,
+    GLOSSARY_DIR,
+    Webs,
+    first_sentence,
+    rewrite_refs,
+)
+
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+GLOSSARY_OUTPUT = REPO_ROOT / "docs" / "reference" / "glossary.md"
+ABBREVIATIONS_OUTPUT = REPO_ROOT / "docs" / "_includes" / "abbreviations.md"
+
+GLOSSARY_TITLE = "Glossary"
+GLOSSARY_DESCRIPTION = "Every SASE term, generated from the glossary memory web."
+
+#: (abbreviation, glossary slug for its one-line definition, explicit text).
+#: A slug of None means the abbreviation has no glossary strand, so the
+#: explicit text is the definition. Keep this list to the plan's core terms:
+#: the seven nouns plus Patch, bead, plan, epic, macro, gate, monitor, and
+#: stitch.
+ABBR_TERMS: tuple[tuple[str, str | None, str | None], ...] = (
+    ("project", "sase-project", None),
+    ("workspace", "sase-workspace", None),
+    ("agent", "sase-agent", None),
+    ("prompt", None, "A prompt is the text SASE hands to a provider to start an agent turn."),
+    ("macro", None, "A macro is a reusable prompt triggered with #name in agent prompts."),
+    ("Patch", "patch", None),
+    ("bead", None, "A bead is one tracked work item in SASE's git-native issue tracker."),
+    ("plan", None, "A plan is a persisted, approved artifact recording the intent behind agent work."),
+    ("TUI", None, "The TUI is SASE's terminal interface for running agents and reviewing results."),
+    ("epic", None, "An epic is an executable multi-phase plan run with sase bead work."),
+    ("gate", "sase-gate", None),
+    ("monitor", "sase-monitor", None),
+    ("stitch", "stitch", None),
+)
+
+
+def render_glossary_text(webs: Webs) -> str:
+    """Render the full glossary page from the loaded memory webs."""
+    lines = [
+        "---",
+        f"title: {GLOSSARY_TITLE}",
+        f"description: {GLOSSARY_DESCRIPTION}",
+        "---",
+        "",
+        "<!-- generated, do not edit; source: sase/memory/glossary/*.md "
+        "(tools/render_glossary; run just fix to regenerate) -->",
+        "",
+        "# Glossary",
+        "",
+        "SASE's shared vocabulary, generated from the "
+        "[glossary memory web](https://github.com/sase-org/sase/tree/master/sase/memory/glossary). "
+        "Terms are sorted A–Z and each anchor matches its memory slug.",
+        "",
+    ]
+    for strand in sorted(
+        webs.glossary.values(), key=lambda item: (item.keyword.lower(), item.slug)
+    ):
+        lines.append(f"## {strand.keyword} {{#{strand.slug}}}")
+        lines.append("")
+        if strand.aliases:
+            lines.append(f"*Also known as: {', '.join(strand.aliases)}.*")
+            lines.append("")
+        body = rewrite_refs(
+            strand.body,
+            page="glossary",
+            glossary=webs.glossary,
+            decisions=webs.decisions,
+        )
+        lines.append(body.rstrip())
+        lines.append("")
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def render_abbreviations_text(webs: Webs) -> str:
+    """Render ``abbr`` definitions for the core tooltip terms."""
+    lines = [
+        "<!-- generated, do not edit; source: sase/memory/glossary/*.md "
+        "(tools/render_glossary ABBR_TERMS; run just fix to regenerate) -->",
+    ]
+    for term, slug, explicit in ABBR_TERMS:
+        if explicit is not None:
+            definition = explicit
+        elif slug is not None and slug in webs.glossary:
+            definition = first_sentence(webs.glossary[slug].body)
+        else:
+            raise ValueError(f"abbreviation {term!r} has no definition source")
+        if not definition:
+            raise ValueError(f"abbreviation {term!r} has an empty definition")
+        lines.append(f"*[{term}]: {definition}")
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def generated_outputs(root: Path = REPO_ROOT) -> dict[Path, str]:
+    """Return every file this source owns, loaded from ``root``'s webs."""
+    webs = Webs.load(
+        glossary_dir=root / GLOSSARY_DIR.relative_to(REPO_ROOT),
+        decisions_dir=root / DECISIONS_DIR.relative_to(REPO_ROOT),
+    )
+    return {
+        root / GLOSSARY_OUTPUT.relative_to(REPO_ROOT): render_glossary_text(webs),
+        root / ABBREVIATIONS_OUTPUT.relative_to(REPO_ROOT): render_abbreviations_text(
+            webs
+        ),
+    }
+
+
+def render(root: Path = REPO_ROOT) -> None:
+    """Write every artifact this source owns."""
+    for path, content in generated_outputs(root).items():
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content, encoding="utf-8")
+
+
+def check(root: Path = REPO_ROOT) -> list[str]:
+    """Diff every owned artifact without writing; return failure lines."""
+    failures: list[str] = []
+    for path, expected in generated_outputs(root).items():
+        try:
+            actual = path.read_text(encoding="utf-8")
+        except OSError:
+            failures.append(f"{path.relative_to(root)} is not generated")
+            continue
+        if actual != expected:
+            failures.extend(
+                difflib.unified_diff(
+                    actual.splitlines(),
+                    expected.splitlines(),
+                    fromfile=str(path.relative_to(root)),
+                    tofile=f"{path.relative_to(root)} (generated)",
+                    lineterm="",
+                )
+            )
+    return failures
+
+
+def main(argv: list[str] | None = None) -> int:
+    """Entry point: ``tools/render_glossary [--check]`` from the repo root."""
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--check", action="store_true", help="check without writing")
+    args = parser.parse_args(argv)
+    if args.check:
+        failures = check()
+        for failure in failures:
+            print(failure)
+        if failures:
+            print("[render_glossary] drift detected: run just fix", file=sys.stderr)
+            return 1
+        print("[render_glossary] ok")
+        return 0
+    render()
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

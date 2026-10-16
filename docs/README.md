@@ -54,6 +54,9 @@
 - [ProjectSpec Format](project_spec.md) — ProjectSpec Format — A ProjectSpec is SASE's project-level .sase file.
 - [Prompt History and Draft Recovery](prompt.md) — Prompt History and Draft Recovery — Prompts you launch with sase run or from sase's TUI are recorded in prompt history when they are useful to replay.
 - [Query Language Reference](query_language.md) — Query Language Reference — The Patch query language filters Patches using boolean expressions that combine string matching, property filters, and operational shorthands.
+- [Design decisions](reference/design-decisions.md) — Why SASE works this way, generated from the decisions memory web.
+- [Glossary](reference/glossary.md) — Every SASE term, generated from the glossary memory web.
+- [Reference](reference/index.md) — Look up exact SASE facts here, generated from code where possible.
 - [Remote Dispatch Runbook](remote_dispatch.md) — Remote Dispatch Runbook — Remote dispatch lets one SASE controller discover, enroll, and operate agents on another machine.
 - [Sudo Requests](sudo.md) — Sudo Requests — SASE sudo requests let an agent ask for reviewed privileged execution without ever asking for, receiving, logging, or proxying a password.
 - [Named Tools and ToolRuns](tool.md) — Named Tools and ToolRuns — A named tool is a project-declared command (check, test, ...) that sase tool run executes exactly as declared and records as a ToolRun: who ran it, when, with what result, how long each stage took, and what the repository and host looked like before and after.

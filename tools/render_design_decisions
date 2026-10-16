@@ -1,0 +1,204 @@
+#!/usr/bin/env python3
+"""Render the design-decisions roster from the decisions memory web.
+
+Phase sase-1le.8 (glossary) owns this module. It reads
+``sase/memory/decisions/*.md`` records directly — that is tooling, not an
+agent read — and renders ``docs/reference/design-decisions.md``: a roster
+with each record's claim, status (including superseded marks), and a link
+to the full record on GitHub. Concept pages link here for "why".
+
+Run ``just fix`` (``just fmt-docs``) after editing the web; ``just check``
+(``just fmt-docs-check``) verifies the page is current. This tool stays
+YAML-only on purpose: it must run in the narrow formatter venv, which does
+not install ``sase``.
+"""
+
+from __future__ import annotations
+
+import argparse
+import difflib
+import re
+import sys
+from pathlib import Path
+
+
+if __name__ == "__main__" and __package__ is None:
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from docs_webs import (  # noqa: E402
+    DECISIONS_DIR,
+    GLOSSARY_DIR,
+    Strand,
+    Webs,
+    github_url,
+    rewrite_refs,
+)
+
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+OUTPUT = REPO_ROOT / "docs" / "reference" / "design-decisions.md"
+
+TITLE = "Design decisions"
+DESCRIPTION = "Why SASE works this way, generated from the decisions memory web."
+
+CLAIM_RE = re.compile(r"^\*\*Claim\.\*\*\s*(.*?)(?=^\*\*\S|\Z)", re.MULTILINE | re.DOTALL)
+
+
+def claim_text(strand: Strand) -> str:
+    """Return the record's claim section, falling back to its summary."""
+    match = CLAIM_RE.search(strand.body)
+    if match and match.group(1).strip():
+        return match.group(1).strip() + "\n"
+    if strand.summary:
+        return strand.summary.strip() + "\n"
+    return ""
+
+
+def _short_slug(ref: str) -> str:
+    """Reduce a ``superseded_by`` entry to its bare slug for display."""
+    ref = ref.strip().strip("[]")
+    for prefix in ("decisions/", "decisions:"):
+        if ref.startswith(prefix):
+            return ref[len(prefix) :]
+    return ref.rsplit("/", 1)[-1]
+
+
+def status_line(strand: Strand, webs: Webs) -> str:
+    """Render the record's status, decided date, and supersession links."""
+    parts: list[str] = []
+    if strand.status:
+        parts.append(f"Status: {strand.status}")
+    if strand.decided:
+        parts.append(f"Decided: {strand.decided}")
+    links: list[str] = []
+    for ref in strand.superseded_by:
+        slug = _short_slug(ref)
+        if slug in webs.decisions:
+            links.append(f"[{webs.decisions[slug].keyword}](#{slug})")
+        else:
+            links.append(slug)
+    if links:
+        parts.append(f"Superseded by: {', '.join(links)}")
+    if not parts:
+        return ""
+    return f"*{' · '.join(parts)}.*\n\n"
+
+
+def render_text(webs: Webs) -> str:
+    """Render the full design-decisions roster from the loaded webs."""
+    lines = [
+        "---",
+        f"title: {TITLE}",
+        f"description: {DESCRIPTION}",
+        "---",
+        "",
+        "<!-- generated, do not edit; source: sase/memory/decisions/*.md "
+        "(tools/render_design_decisions; run just fix to regenerate) -->",
+        "",
+        "# Design decisions",
+        "",
+        "Why SASE works this way, generated from the "
+        "[decisions memory web](https://github.com/sase-org/sase/tree/master/sase/memory/decisions). "
+        "Each record states its claim, what it costs, and what would reopen it. "
+        "Records are sorted A–Z and each anchor matches its memory slug.",
+        "",
+    ]
+    for strand in sorted(
+        webs.decisions.values(), key=lambda item: (item.keyword.lower(), item.slug)
+    ):
+        lines.append(f"## {strand.keyword} {{#{strand.slug}}}")
+        lines.append("")
+        status = status_line(strand, webs)
+        if status:
+            lines.append(status.rstrip())
+            lines.append("")
+        if strand.aliases:
+            lines.append(f"*Also known as: {', '.join(strand.aliases)}.*")
+            lines.append("")
+        if strand.summary:
+            summary = rewrite_refs(
+                strand.summary.strip() + "\n",
+                page="design-decisions",
+                glossary=webs.glossary,
+                decisions=webs.decisions,
+            )
+            lines.append(summary.rstrip())
+            lines.append("")
+        claim = claim_text(strand)
+        if claim and claim.strip() != strand.summary.strip():
+            claim = rewrite_refs(
+                "**Claim.** " + claim
+                if not claim.lstrip().startswith("**Claim.**")
+                else claim,
+                page="design-decisions",
+                glossary=webs.glossary,
+                decisions=webs.decisions,
+            )
+            lines.append(claim.rstrip())
+            lines.append("")
+        lines.append(f"[Read the full record on GitHub.]({github_url('decisions', strand.slug)})")
+        lines.append("")
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def generated_outputs(root: Path = REPO_ROOT) -> dict[Path, str]:
+    """Return every file this source owns, loaded from ``root``'s webs."""
+    webs = Webs.load(
+        glossary_dir=root / GLOSSARY_DIR.relative_to(REPO_ROOT),
+        decisions_dir=root / DECISIONS_DIR.relative_to(REPO_ROOT),
+    )
+    return {root / OUTPUT.relative_to(REPO_ROOT): render_text(webs)}
+
+
+def render(root: Path = REPO_ROOT) -> None:
+    """Write every artifact this source owns."""
+    for path, content in generated_outputs(root).items():
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content, encoding="utf-8")
+
+
+def check(root: Path = REPO_ROOT) -> list[str]:
+    """Diff every owned artifact without writing; return failure lines."""
+    failures: list[str] = []
+    for path, expected in generated_outputs(root).items():
+        try:
+            actual = path.read_text(encoding="utf-8")
+        except OSError:
+            failures.append(f"{path.relative_to(root)} is not generated")
+            continue
+        if actual != expected:
+            failures.extend(
+                difflib.unified_diff(
+                    actual.splitlines(),
+                    expected.splitlines(),
+                    fromfile=str(path.relative_to(root)),
+                    tofile=f"{path.relative_to(root)} (generated)",
+                    lineterm="",
+                )
+            )
+    return failures
+
+
+def main(argv: list[str] | None = None) -> int:
+    """Entry point: ``tools/render_design_decisions [--check]`` from the repo root."""
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--check", action="store_true", help="check without writing")
+    args = parser.parse_args(argv)
+    if args.check:
+        failures = check()
+        for failure in failures:
+            print(failure)
+        if failures:
+            print(
+                "[render_design_decisions] drift detected: run just fix",
+                file=sys.stderr,
+            )
+            return 1
+        print("[render_design_decisions] ok")
+        return 0
+    render()
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

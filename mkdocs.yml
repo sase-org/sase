@@ -42,6 +42,7 @@ nav:
       - How SASE works: architecture.md
       - Spec-driven development: sdd.md
   - Reference:
+      - Reference hub: reference/index.md
       - TUI:
           - sase's TUI: ace.md
           - SASE Pager: pager.md
@@ -90,6 +91,8 @@ nav:
           - Mobile gateway: mobile_gateway.md
       - Migration:
           - Content layout migration: content_layout.md
+      - Glossary: reference/glossary.md
+      - Design decisions: reference/design-decisions.md
   - Contribute:
       - Contribute: contribute/index.md
       - Writing docs: contribute/writing-docs.md
@@ -174,6 +177,7 @@ plugins:
       image: https://sase.sh/images/sase_social_card.png
 
 markdown_extensions:
+  - abbr
   - admonition
   - attr_list
   - md_in_html
@@ -182,3 +186,6 @@ markdown_extensions:
       permalink: true
   - pymdownx.details
   - pymdownx.superfences
+  - pymdownx.snippets:
+      auto_append:
+        - docs/_includes/abbreviations.md

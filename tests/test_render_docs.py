@@ -33,6 +33,8 @@ def test_registry_wraps_existing_and_new_renderers() -> None:
         "render_applicability",
         "render_moves",
         "render_docs_map",
+        "render_glossary",
+        "render_design_decisions",
     }
 
 

@@ -29,6 +29,8 @@ SOURCES = (
     Source("applicability", "render_applicability", False),
     Source("page-moves", "render_moves", False),
     Source("docs-map", "render_docs_map", False),
+    Source("glossary", "render_glossary", False),
+    Source("design-decisions", "render_design_decisions", False),
 )
 
 
