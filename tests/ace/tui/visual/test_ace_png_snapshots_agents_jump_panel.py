@@ -268,8 +268,19 @@ async def test_jump_panel_layered_wave_dividers_png_snapshot(
         legend = JumpLegendRenderable(jump_map, mode="collapsed")
         lines = legend._lines_for_width(max(1, panel.size.width - 2))  # noqa: SLF001
         assert 1 <= len(lines) <= 2
-        assert any("┊" in line.plain for line in lines)
-        assert_page_svg_contains(page, "┊")
+        legend_text = "\n".join(line.plain for line in lines)
+        if width == 120:
+            # In the narrow split panel, the true two-row fit shows three
+            # targets. The selected targets share the first row's wave, and
+            # the next boundary falls beside the overflow chip, so no divider
+            # belongs in this layout.
+            assert all(f"{number} " in legend_text for number in ("0", "1", "2"))
+            assert "+3" in legend_text
+            assert "┊" not in legend_text
+            assert "┊" not in page.export_svg(title="wide layered clan divider check")
+        else:
+            assert any("┊" in line.plain for line in lines)
+            assert_page_svg_contains(page, "┊")
 
         ace_png_visual.assert_page_png(
             page,

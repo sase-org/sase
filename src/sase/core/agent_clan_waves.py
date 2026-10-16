@@ -42,7 +42,7 @@ class ClanWaveRequestWire:
 
 
 @dataclass(frozen=True)
-class ClanWaveWire:
+class _ClanWaveWire:
     """One numbered layer or the optional seal layer."""
 
     index: int
@@ -53,7 +53,7 @@ class ClanWaveWire:
 
 
 @dataclass(frozen=True)
-class ClanWaveMemberPlacementWire:
+class _ClanWaveMemberPlacementWire:
     """Final display placement and dependency detail for one member."""
 
     key: str
@@ -71,8 +71,8 @@ class ClanWavesWire:
     layered: bool = False
     numbered_wave_count: int = 0
     has_seal: bool = False
-    waves: tuple[ClanWaveWire, ...] = ()
-    members: tuple[ClanWaveMemberPlacementWire, ...] = ()
+    waves: tuple[_ClanWaveWire, ...] = ()
+    members: tuple[_ClanWaveMemberPlacementWire, ...] = ()
     unresolved: tuple[str, ...] = ()
 
 
@@ -117,7 +117,7 @@ def _project_clan_waves_uncached(request: ClanWaveRequestWire) -> ClanWavesWire:
     if not isinstance(waves_value, (list, tuple)):
         waves_value = ()
     waves = tuple(
-        ClanWaveWire(
+        _ClanWaveWire(
             index=_int_or_none(item.get("index")) or 0,
             number=_int_or_none(item.get("number")),
             seal=item.get("seal") is True,
@@ -132,7 +132,7 @@ def _project_clan_waves_uncached(request: ClanWaveRequestWire) -> ClanWavesWire:
     if not isinstance(members_value, (list, tuple)):
         members_value = ()
     members = tuple(
-        ClanWaveMemberPlacementWire(
+        _ClanWaveMemberPlacementWire(
             key=item["key"],
             wave_index=_int_or_none(item.get("wave_index")),
             rank=_int_or_none(item.get("rank")) or 0,
@@ -167,10 +167,8 @@ def project_clan_waves(request: ClanWaveRequestWire) -> ClanWavesWire:
 
 
 __all__ = [
-    "ClanWaveMemberPlacementWire",
     "ClanWaveMemberWire",
     "ClanWaveRequestWire",
-    "ClanWaveWire",
     "ClanWavesWire",
     "project_clan_waves",
 ]

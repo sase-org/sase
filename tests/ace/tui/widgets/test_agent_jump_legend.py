@@ -300,7 +300,7 @@ def test_collapsed_legend_divides_wave_groups_between_same_row_neighbors() -> No
         _render_lines(ungrouped, 64),
         [target.number for target in jump_map.targets],
     )
-    assert len(grouped_shown) < len(ungrouped_shown)
+    assert len(grouped_shown) == len(ungrouped_shown)
 
 
 def test_collapsed_legend_group_labels_alone_draw_no_dividers() -> None:
@@ -355,6 +355,59 @@ def test_collapsed_group_boundary_on_row_break_draws_no_divider() -> None:
         first, second = text.split("\n")
         if "a1" in first and "b0" in second:
             assert "┊" not in text
+
+
+@pytest.mark.parametrize("width", [16, 18, 20, 24])
+def test_grouped_targets_show_when_boundary_falls_at_row_break(width: int) -> None:
+    """A wave boundary at the row break consumes no rendered separator width."""
+    labels = ["a0", "a1", "b0", "b1"]
+    jump_map = _single_section_map(
+        labels,
+        legend_groups={
+            "a0": "wave 1",
+            "a1": "wave 1",
+            "b0": "wave 2",
+            "b1": "wave 2",
+        },
+    )
+
+    lines = _render_lines(JumpLegendRenderable(jump_map, mode="collapsed"), width)
+
+    assert len(lines) == 2
+    assert all(cell_len(line) <= width for line in lines)
+    assert _shown_numbers(lines, [target.number for target in jump_map.targets]) == [
+        "0",
+        "1",
+        "2",
+        "3",
+    ]
+    assert all(not line.startswith("+") for line in lines)
+    assert all("┊" not in line for line in lines)
+
+
+def test_grouped_overflow_fits_real_separator_and_overflow_cell() -> None:
+    """Same-row dividers use separator width, while overflow remains a real cell."""
+    labels = ["a0", "b0", "b1", "c0", "c1", "d0"]
+    legend_groups = {
+        "a0": "wave 1",
+        "b0": "wave 2",
+        "b1": "wave 2",
+        "c0": "wave 3",
+        "c1": "wave 3",
+        "d0": "wave 4",
+    }
+    jump_map = _single_section_map(labels, legend_groups=legend_groups)
+
+    lines = _render_lines(JumpLegendRenderable(jump_map, mode="collapsed"), 18)
+
+    assert len(lines) == 2
+    assert all(cell_len(line) <= 18 for line in lines)
+    assert "┊" in lines[0]
+    assert "+3 ▶3" in lines[-1]
+    assert not lines[-1].rstrip().endswith("┊")
+    visible_tokens = {token for line in lines for token in line.split()}
+    shown = sum(target.number in visible_tokens for target in jump_map.targets)
+    assert shown + int(lines[-1].split()[-2][1:]) == len(jump_map.targets)
 
 
 def test_collapsed_legend_does_not_divide_unrelated_roster_sections() -> None:
@@ -623,7 +676,7 @@ def test_collapsed_no_group_selection_is_single_closed_form_call(
 def test_collapsed_grouped_selection_search_stays_bounded(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A grouped map re-tries at most divider-count-plus-overflow times."""
+    """Grouped selection does one visible-capacity selection per column candidate."""
     labels = [f"member-{index:03d}" for index in range(20)]
     legend_groups = {
         label: f"wave {index // 2 + 1}" for index, label in enumerate(labels)
@@ -637,10 +690,11 @@ def test_collapsed_grouped_selection_search_stays_bounded(
         return real(target_map, shown)
 
     monkeypatch.setattr(legend_module, "_collapsed_selection", _counting)
-    group_count = len(set(legend_groups.values()))
     for columns in (1, 2, 3, 5, 8, 12):
         calls.clear()
         legend_module._collapsed_selection_for_columns(  # noqa: SLF001
             jump_map, columns
         )
-        assert len(calls) <= group_count + 2
+        slots = min(len(labels), 2 * columns)
+        expected = slots - 1 if len(labels) > 2 * columns else slots
+        assert calls == [expected]

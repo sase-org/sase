@@ -24,7 +24,7 @@ def _reset_tree_projection(agent: Agent) -> None:
     agent.clan_wave_slot = None
 
 
-def _rows_by_suffix(rows: Iterable[Agent]) -> dict[str, Agent]:
+def rows_by_suffix(rows: Iterable[Agent]) -> dict[str, Agent]:
     """Index rows by ``raw_suffix``, preferring a non-child on collision."""
     lookup: dict[str, Agent] = {}
     for row in rows:
@@ -298,7 +298,7 @@ def _clan_member_units(rows: list[Agent], fold_key: str) -> list[list[Agent]]:
     """Build direct-member subtrees before applying any presentation order."""
     units: list[list[Agent]] = []
     unit_by_parent_key: dict[str, list[Agent]] = {}
-    row_by_suffix = _rows_by_suffix(rows)
+    row_by_suffix = rows_by_suffix(rows)
 
     # Create every direct-member unit first so descendants remain attached
     # even when a compatibility payload does not place them after the anchor.
@@ -369,7 +369,7 @@ def project_clan_tree(agents: list[Agent]) -> list[Agent]:
     for agent in real_agents:
         _reset_tree_projection(agent)
 
-    parent_by_suffix = _rows_by_suffix(real_agents)
+    parent_by_suffix = rows_by_suffix(real_agents)
     row_clans: dict[int, ClanKey] = {}
     for agent in real_agents:
         clan = _clan_for_row(agent, parent_by_suffix)

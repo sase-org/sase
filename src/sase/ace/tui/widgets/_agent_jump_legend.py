@@ -375,21 +375,6 @@ def _has_legend_groups(jump_map: MemberJumpMap) -> bool:
     return any(target.legend_group is not None for target in jump_map.targets)
 
 
-def _selection_divider_count(
-    jump_map: MemberJumpMap,
-    selection: list[int],
-) -> int:
-    """Return the wave-group boundary count inside ``selection``."""
-    dividers = 0
-    previous_group: str | None = None
-    for index in selection:
-        group = jump_map.targets[index].legend_group
-        if previous_group is not None and group is not None and group != previous_group:
-            dividers += 1
-        previous_group = group
-    return dividers
-
-
 def _collapsed_shown_count(count: int, columns: int) -> int:
     """Return how many targets a collapsed grid shows at ``columns``."""
     slots = min(count, 2 * columns)
@@ -402,21 +387,16 @@ def _collapsed_selection_for_columns(
     jump_map: MemberJumpMap,
     columns: int,
 ) -> list[int]:
-    """Fit the most targets into two rows, reserving cells for dividers and overflow."""
+    """Select targets for two rows, reserving a cell only for real overflow."""
     count = len(jump_map.targets)
-    capacity = 2 * columns
     if not _has_legend_groups(jump_map):
         return _collapsed_selection(jump_map, _collapsed_shown_count(count, columns))
-    start = min(count, capacity)
-    for shown in range(start, 0, -1):
-        selection = _collapsed_selection(jump_map, shown)
-        overflow_cells = int(shown < count)
-        required = (
-            shown + _selection_divider_count(jump_map, selection) + overflow_cells
-        )
-        if required <= capacity:
-            return selection
-    return [_first_fallback_index(jump_map)]
+    # Dividers are rendered in the separator between neighboring cells. They
+    # take width only when both targets share a row, so they never reduce the
+    # number of target slots or columns. The grid fitter accounts for that
+    # actual separator width after the selected cells and any overflow chip
+    # have been built.
+    return _collapsed_selection(jump_map, _collapsed_shown_count(count, columns))
 
 
 def _collapsed_cells(
