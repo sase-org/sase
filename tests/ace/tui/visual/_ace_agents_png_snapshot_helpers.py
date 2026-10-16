@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime
 from xml.etree import ElementTree
 
@@ -104,9 +105,11 @@ async def show_reply_card(page: AcePage, panel_index: int = 0) -> AgentDetail:
         description="Main deck shows the Reply card",
     )
     await wait_for_visual_idle(page)
-    await wait_for_state(
+    await _wait_main_card_visibly_applied(
         page,
-        lambda: _main_card_header_visible(page, detail, panel_index, "reply"),
+        detail,
+        panel_index,
+        "reply",
         description="visible Main header selects Reply 2/2",
     )
     return detail
@@ -170,6 +173,134 @@ def _selected_agent_matches_detail(page: AcePage, detail: AgentDetail) -> bool:
         )
     except Exception:
         return False
+
+
+def _main_card_selection_state(
+    detail: AgentDetail, panel_index: int
+) -> tuple[bool, str | None, str | None, bool]:
+    """Return cheap spread-selection facts without exporting a frame.
+
+    Returns ``(ready_to_cycle, view_active, stored_active, scroll_in_flight)``.
+    Exporting an SVG every poll starves the pump it is waiting on, so callers
+    gate the painted-header proof on these facts first.
+    """
+    try:
+        panel = detail.deck_area.panel(panel_index)
+    except Exception:
+        return False, None, None, True
+    try:
+        ready = bool(_main_view_ready_to_cycle(detail, panel_index))
+    except Exception:
+        ready = False
+    try:
+        view_active = panel.main_view.active_card_id
+    except Exception:
+        view_active = None
+    try:
+        stored_active = panel._main_active_card
+    except Exception:
+        stored_active = None
+    try:
+        in_flight = panel.main_view._spread_pending_card is not None
+    except Exception:
+        in_flight = True
+    return ready, view_active, stored_active, in_flight
+
+
+def _redrive_main_card_selection(
+    detail: AgentDetail, panel_index: int, card_id: str
+) -> bool:
+    """Re-issue the spread scroll to ``card_id`` after a background steal.
+
+    A same-subject Main re-delivery can clamp the scroll offset while no
+    navigation is in flight; the scroll watcher then derives the top card and
+    overwrites the stored selection even though the view still shows the
+    selected card. Re-issuing the generation-guarded scroll restores the
+    user's selection the way a repeated keypress would. Returns whether a
+    scroll was (re-)scheduled.
+    """
+    try:
+        panel = detail.deck_area.panel(panel_index)
+    except Exception:
+        return False
+    try:
+        return panel.main_view.scroll_to_card(card_id) is not None
+    except Exception:
+        return False
+
+
+def _main_card_diagnostics(
+    detail: AgentDetail, panel_index: int, *, redrives: int
+) -> str:
+    """Describe spread landing state for a failed Main-card readiness wait."""
+    try:
+        panel = detail.deck_area.panel(panel_index)
+        view = panel.main_view
+        scroll = view._scroll_container()
+        width = view._spread_content_width()
+        rows = view.card_anchor_rows(width=width) if width > 0 else None
+        return (
+            f"main_active={getattr(panel, '_main_active_card', None)!r}; "
+            f"view_active={view.active_card_id!r}; "
+            f"spread_active={view.spread_active_card()!r}; "
+            f"pending={getattr(view, '_spread_pending_card', None)!r}; "
+            f"scroll_y={getattr(scroll, 'scroll_y', None)!r}; "
+            f"max_scroll_y={getattr(scroll, 'max_scroll_y', None)!r}; "
+            f"anchor_rows={rows!r}; "
+            f"anchor_generation={getattr(view, '_section_anchor_generation', None)!r}/"
+            f"{getattr(view, '_section_generation', None)!r}; "
+            f"redrives={redrives}"
+        )
+    except Exception as exc:
+        return f"unavailable ({exc!r}); redrives={redrives}"
+
+
+async def _wait_main_card_visibly_applied(
+    page: AcePage,
+    detail: AgentDetail,
+    panel_index: int,
+    card_id: str,
+    *,
+    description: str,
+    timeout: float = 15.0,
+) -> None:
+    """Wait until the Main view's painted header shows ``card_id`` selected.
+
+    The cheap semantic facts (applied generation, view selection, stored
+    selection) gate the painted-header proof so a slow frame export cannot
+    starve the pump under load. When those facts settle on a different card
+    with no navigation in flight — a background re-delivery stole the
+    selection — the scroll is re-driven instead of waiting out a state that
+    will never arrive. The total budget is unchanged; exhaustion still fails
+    with the spread-landing diagnostics.
+    """
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + timeout
+    redrives = 0
+    while True:
+        ready, view_active, stored_active, in_flight = _main_card_selection_state(
+            detail, panel_index
+        )
+        settled = (
+            ready
+            and view_active == card_id
+            and stored_active == card_id
+            and not in_flight
+        )
+        if settled and _main_card_header_visible(page, detail, panel_index, card_id):
+            return
+        if loop.time() >= deadline:
+            state = _main_card_diagnostics(detail, panel_index, redrives=redrives)
+            raise AssertionError(
+                f"Timed out after {timeout:.2f}s waiting for {description}; "
+                f"Main card diagnostics: {state}"
+            )
+        if not in_flight and (view_active != card_id or stored_active != card_id):
+            if _redrive_main_card_selection(detail, panel_index, card_id):
+                redrives += 1
+        await page.pause(0)
+        # Poll cheap semantic facts; the painted-header export runs on match.
+        await asyncio.sleep(0.01)  # sase-test-wait: poll spread selection state
 
 
 def _active_main_chrome_card(detail: AgentDetail, panel_index: int) -> str | None:
@@ -272,34 +403,13 @@ async def select_navigable_main_card(
     # the card selection semantic in that layout, and require a painted header
     # only when Textual has actually laid out space for the view.
     if panel.main_view.region.width > 0 and panel.main_view.region.height > 0:
-        try:
-            await wait_for_state(
-                page,
-                lambda: (
-                    _main_view_ready_to_cycle(detail, panel_index)
-                    and detail.deck_area.panel(panel_index).active_main_card()
-                    == card_id
-                    and _main_card_header_visible(page, detail, panel_index, card_id)
-                ),
-                description=f"Main view visibly applies the selected {card_id} card",
-            )
-        except AssertionError as exc:
-            view = panel.main_view
-            scroll = view._scroll_container()
-            width = view._spread_content_width()
-            rows = view.card_anchor_rows(width=width) if width > 0 else None
-            state = (
-                f"main_active={getattr(panel, '_main_active_card', None)!r}; "
-                f"view_active={view.active_card_id!r}; "
-                f"spread_active={view.spread_active_card()!r}; "
-                f"pending={getattr(view, '_spread_pending_card', None)!r}; "
-                f"scroll_y={getattr(scroll, 'scroll_y', None)!r}; "
-                f"max_scroll_y={getattr(scroll, 'max_scroll_y', None)!r}; "
-                f"anchor_rows={rows!r}; "
-                f"anchor_generation={getattr(view, '_section_anchor_generation', None)!r}/"
-                f"{getattr(view, '_section_generation', None)!r}"
-            )
-            raise AssertionError(f"{exc}\nMain card diagnostics: {state}") from exc
+        await _wait_main_card_visibly_applied(
+            page,
+            detail,
+            panel_index,
+            card_id,
+            description=f"Main view visibly applies the selected {card_id} card",
+        )
     await wait_for_visual_idle(page)
     focused = detail.deck_area.focused_panel()
     assert focused.deck is DeckId.MAIN
