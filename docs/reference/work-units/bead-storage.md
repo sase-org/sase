@@ -26,10 +26,10 @@ sdd/beads/
   beads.db              # Mutation flock (gitignored; never a cache)
 ```
 
-Providerless local storage and legacy single-sidecar storage use `.sase/sdd/beads/` with
-the same structure. Local storage uses the primary workspace; every sidecar layout uses
-the active workspace clone and records provider/remote metadata in the primary
-workspace's `.sase/sdd-store.json`.
+Providerless local storage and single-sidecar storage use `.sase/sdd/beads/` with the
+same structure. Local storage uses the primary workspace; every sidecar layout uses the
+active workspace clone and records provider/remote metadata in the primary workspace's
+`.sase/sdd-store.json`.
 
 Split sidecar storage puts bead state in its own `<owner>/<repo>--beads` repository,
 materialized on demand and checked out at `<workspace>/sase/repos/beads`. That
@@ -43,7 +43,7 @@ See [SDD Storage](../../contribute/sdd-storage.md) for the record format and the
 adoption transaction that performs the move.
 
 Isolating bead state this way gives it its own git history, its own cooperative write
-lock, and its own repository-health preflight, so hot bead writes no longer serialize
+lock, and its own repository-health preflight, so hot bead writes avoid serializing
 behind plan writes and a wedged bead rebase cannot block plan commits or epic approval.
 
 Normal bead commands read and write one store for the active checkout. The exception is
@@ -55,8 +55,8 @@ primary workspace's `.sase/sdd/beads/` store. Sidecar-policy commands first mate
 the provider store, then route to the active workspace clone so an agent in workspace
 `#N` writes its matching `.sase/sdd/` checkout, its `sase/repos/beads/` clone, or its
 `sase/repos/plans/beads/` directory. If the event store is absent, reads fall back to
-legacy `issues.jsonl`. Numbered sibling workspaces and legacy stores are not merged into
-normal `sase bead` reads.
+`issues.jsonl`. Numbered sibling workspaces and stores from other layouts are not merged
+into normal `sase bead` reads.
 
 `sase bead` clones the beads sidecar on demand. When the store record names one and
 `sase/repos/beads` is missing or its origin does not match the recorded remote, the
@@ -75,10 +75,10 @@ cache.
 - **Writes** append canonical Rust events. Event stores never rewrite `issues.jsonl` on
   the per-mutation path; `sase bead export -o <path>` regenerates it on demand (default:
   the store's `issues.jsonl`), and `sase bead doctor --fix-projection` regenerates the
-  local untracked copy. Legacy stores without `events/` keep writing the tracked
-  projection. `beads.db` is touched only as the cooperative write lock.
+  local untracked copy. Stores without `events/` keep writing the tracked projection.
+  `beads.db` is touched only as the cooperative write lock.
 - **Reads** prefer `events/manifest.json` plus `events/streams/*.jsonl`, falling back to
-  legacy `issues.jsonl` only when no event store is present.
+  `issues.jsonl` only when no event store is present.
 - **Read model.** Hot reads are served from a versioned SQLite read model under the
   clone's git dir (`<git-dir>/sase/bead-read-model/<key>.sqlite`, WAL). A constant-cost
   freshness token (streams-directory `mtime`/`inode` plus manifest and config
@@ -111,7 +111,7 @@ cache.
   record from the event's own metadata, so concurrent note appends merge as separate
   records instead of replacing each other. `sase bead note --edit`/`--remove` record
   their own events and stamp an `edited_at`/`edited_by` marker rather than mutating the
-  original record in place; a retraction stays visible in `sase bead history`. Legacy
+  original record in place; a retraction stays visible in `sase bead history`. The
   `issue_updated { notes }` events (written before this log existed) remain immutable
   whole-field replacements in the stream; on replay their blob is parsed back into
   individually timestamped and attributed records instead of one opaque string.
@@ -149,9 +149,9 @@ clones cannot fix, and parity proving itself becoming infeasible.
 ### Sync Mechanism
 
 `sase bead sync` stages the bead state in the owning git repo, including `events/**` and
-`config.json` (`issues.jsonl` is git-ignored and never staged). For legacy stores
-without `events/` it first regenerates the tracked projection. The export contains one
-JSON object per line, sorted by issue ID for clean diffs; regenerate it any time with
+`config.json` (`issues.jsonl` is git-ignored and never staged). For stores without
+`events/` it first regenerates the tracked projection. The export contains one JSON
+object per line, sorted by issue ID for clean diffs; regenerate it any time with
 `sase bead export`.
 
 When both stores exist, the event store wins. Manual edits to `issues.jsonl` do not
@@ -278,7 +278,7 @@ Cross-project helper surfaces, such as mobile/editor bead pickers, may inspect o
 canonical store per known project. So may CLI commands, which fall back to those stores
 for a full bead ID after a local miss (see
 [Bead ID Arguments](beads.md#bead-id-arguments)). None of them merge numbered sibling
-workspaces or legacy bead stores for the same project.
+workspaces or stores from other layouts for the same project.
 
 ## Related
 

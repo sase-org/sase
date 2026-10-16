@@ -36,7 +36,7 @@ title drift. The
 [`external_mirror.issues.filters`](../config/automation-behavior.md#externalmirror)
 surface (empty by default) excludes tracker issues from mirroring by author, label,
 title, or state; filters gate creation only, so clearing one re-examines the issues it
-previously dropped without deleting a bead that already exists.
+dropped without deleting a bead that already exists.
 
 ## Related
 

@@ -30,7 +30,7 @@ Every tale and epic requires these authored fields:
 Tales additionally require `size: xsmall | small | medium`. A tale is work one follow-up
 agent implements directly, so `large` and `xlarge` are invalid tale sizes and belong in
 an epic plan instead. Authoring validation rejects a missing or over-sized tale `size`,
-while launch validation normalizes both to `medium` with a warning so legacy tales still
+while launch validation normalizes both to `medium` with a warning so existing tales
 launch.
 
 SASE-managed `create_time`, `status`, `bead`, `bead_id`, `proposed_by`, and `project`
@@ -41,12 +41,14 @@ and review stamps are written by SASE. A proposal may carry the transient `links
 authoring inlet: a list of typed artifact relationships that `sase plan propose`
 validates, persists, and removes before archiving; see
 [Authoring links in a proposed plan](../../artifact_links.md#authoring-links-in-a-proposed-plan).
-Historical plans with a deprecated `prompt` or `parent` property remain valid, but both
-are intentionally omitted from canonical schema and authoring output because new links
-use the Markdown header block; `parent` additionally reports a deprecation warning
-pointing at the `PARENT` bullet. Epics may also carry the SASE-managed `parent_bead`
-field. Other unknown fields are errors. A plan must start with valid, closed YAML
-frontmatter and contain a non-empty Markdown body.
+Plans with a `prompt` or `parent` property remain valid, but both are intentionally
+omitted from canonical schema and authoring output because new links use the Markdown
+header block; `parent` additionally reports a deprecation warning pointing at the
+`PARENT` bullet. See the
+[plan-frontmatter migration note](../upgrading/work-units.md#plan-frontmatter). Epics
+may also carry the SASE-managed `parent_bead` field. Other unknown fields are errors. A
+plan must start with valid, closed YAML frontmatter and contain a non-empty Markdown
+body.
 
 Epics additionally require an ordered, non-empty `phases` list. Optional `patch`
 (`changespec` is also accepted) and integer `bug_id` metadata may be supplied; `bug_id`

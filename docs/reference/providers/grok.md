@@ -16,9 +16,8 @@ The `GrokProvider` invokes xAI's Grok Build CLI (`grok`).
 
 Grok publishes `llm_autodetect_cli_name` but deliberately no `llm_autodetect_priority`,
 so it never appears in autodetect candidates: `grok` is a generic executable name shared
-with a stale community CLI (`grok-dev`, which also uses `~/.grok/`) and with Homebrew's
-deprecated, unrelated `grok` regex tool. Select the provider with
-`llm_provider.provider: grok` or `%model:grok/<model>` (see the generated
+with a stale community CLI (`grok-dev`, which also uses `~/.grok/`). Select the provider
+with `llm_provider.provider: grok` or `%model:grok/<model>` (see the generated
 [Built-in Model Catalog](models.md#built-in-model-catalog) for current names); set
 `SASE_GROK_PATH` when you also need to choose the executable. Separately, whichever
 shipped size aliases currently target Grok can select it whenever a `grok` executable is
@@ -204,9 +203,9 @@ Grok reads `AGENTS.md` natively, so there is no `GROK.md` provider shim — but 
 Grok in untrusted workspaces, so no native files load and SASE instead delivers the
 complete memory-built root bundle exactly once through `--rules` on explicit-delivery
 runs (see [Command Construction](claude.md#command-construction)). The
-`grok_explicit_instructions` sunset flag restores the legacy directive-plus-project
-`AGENTS.md` payload; per-invocation delivery failures also fall back to it. `CLAUDE.md`
-is never sent through that channel.
+`grok_explicit_instructions` sunset flag restores the directive-plus-project `AGENTS.md`
+payload; per-invocation delivery failures also fall back to it. `CLAUDE.md` is never
+sent through that channel.
 
 ### Environment Variables {#environment-variables-6}
 

@@ -305,7 +305,7 @@ moves:
       model-tier-system: reference/providers/models.md#model-tier-system
       type-definition: reference/providers/models.md#type-definition
       provider-tier-defaults: reference/providers/models.md#provider-tier-defaults
-      legacy-mapping: reference/providers/models.md#legacy-mapping
+      legacy-mapping: reference/upgrading/providers.md#model-selection-names
       global-override: reference/providers/models.md#global-override
       maintaining-the-built-in-catalog: reference/providers/models.md#maintaining-the-built-in-catalog
       role-aliases-for-delegated-work: reference/providers/models.md#role-aliases-for-delegated-work
@@ -406,12 +406,12 @@ moves:
       external-provider-plugins: reference/providers/plugins.md#external-provider-plugins-1
       subscription-usage-extension: reference/providers/plugins.md#subscription-usage-extension
       configuration: reference/providers/configuration.md#configuration
-      config-file: reference/providers/configuration.md#config-file
-      config-fields: reference/providers/configuration.md#config-fields
+      config-file: reference/providers/configuration.md#configuration
+      config-fields: reference/config/llm-provider.md
       continuation-budget-preflight: reference/providers/configuration.md#continuation-budget-preflight
-      cli-flags: reference/providers/configuration.md#cli-flags
-      tui: reference/providers/configuration.md#tui
-      axe: reference/providers/configuration.md#axe
+      cli-flags: reference/providers/configuration.md#command-line-options
+      tui: reference/cli/tui.md
+      axe: reference/cli/axe.md
       temporary-model-overrides: reference/providers/routing.md#temporary-model-overrides
       resolution-order-default-providermodel: reference/providers/routing.md#resolution-order-default-providermodel
       temporary-provider-disables: reference/providers/routing.md#temporary-provider-disables
@@ -437,7 +437,7 @@ moves:
       vcs-provider: reference/environment-variables.md#vcs-provider
       retry-and-fallback: reference/providers/retry-and-fallback.md#retry-and-fallback
       configuration-1: reference/providers/retry-and-fallback.md#configuration-1
-      config-fields-1: reference/providers/retry-and-fallback.md#config-fields-1
+      config-fields-1: reference/config/llm-provider.md#llm_provider-retry
       default-configuration: reference/providers/retry-and-fallback.md#default-configuration
       provider-supplied-retry-defaults: reference/providers/retry-and-fallback.md#provider-supplied-retry-defaults
       retry-flow: reference/providers/retry-and-fallback.md#retry-flow

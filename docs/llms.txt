@@ -239,6 +239,7 @@
 - [Local state cutover](https://sase.sh/reference/upgrading/local-state/) — The temporary offline kit for moving legacy local state into canonical locations.
 - [Macro migration notes](https://sase.sh/reference/upgrading/macros/) — Migration notes for macro names, prompt fields, and launch syntax.
 - [Provider migration notes](https://sase.sh/reference/upgrading/providers/) — Historical compatibility notes for provider metadata and model selection.
+- [Work unit migration notes](https://sase.sh/reference/upgrading/work-units/) — Compatibility notes for bead, plan, Patch, and ProjectSpec formats.
 - [Bead artifacts](https://sase.sh/reference/work-units/bead-artifacts/) — How beads refer to plans, research, and other artifacts.
 - [Bead attachments](https://sase.sh/reference/work-units/bead-attachments/) — Attachment storage, visibility, and troubleshooting for bead records.
 - [Reading beads](https://sase.sh/reference/work-units/bead-cli-inspection/) — Commands for adding notes and reading detailed bead records.
@@ -252,7 +253,7 @@
 - [Bead triage](https://sase.sh/reference/work-units/bead-triage/) — How bead dependencies, follow-ups, corroboration, and snoozes are handled.
 - [Bead TUI integration](https://sase.sh/reference/work-units/bead-tui/) — How SASE's TUI connects bead records with plans and task work.
 - [Starting bead work](https://sase.sh/reference/work-units/bead-work/) — How `sase bead work` resolves plans and starts assigned bead work.
-- [Beads](https://sase.sh/reference/work-units/beads/) — Bead identities, types, and the data model used to track work in SASE.
+- [Beads](https://sase.sh/reference/work-units/beads/) — Bead identities, types, and the data model for work in SASE.
 - [Goals](https://sase.sh/reference/work-units/goals/) — Durable outcome records and their lifecycle, storage, and freshness.
 - [Work units](https://sase.sh/reference/work-units/) — Reference pages for SASE's beads, plans, goals, Patches, and ProjectSpec files.
 - [Patches](https://sase.sh/reference/work-units/patches/) — The fields, format, and lifecycle of a SASE Patch review record.

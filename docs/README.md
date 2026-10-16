@@ -237,6 +237,7 @@
 - [Local state cutover](reference/upgrading/local-state.md) — The temporary offline kit for moving legacy local state into canonical locations.
 - [Macro migration notes](reference/upgrading/macros.md) — Migration notes for macro names, prompt fields, and launch syntax.
 - [Provider migration notes](reference/upgrading/providers.md) — Historical compatibility notes for provider metadata and model selection.
+- [Work unit migration notes](reference/upgrading/work-units.md) — Compatibility notes for bead, plan, Patch, and ProjectSpec formats.
 - [Bead artifacts](reference/work-units/bead-artifacts.md) — How beads refer to plans, research, and other artifacts.
 - [Bead attachments](reference/work-units/bead-attachments.md) — Attachment storage, visibility, and troubleshooting for bead records.
 - [Reading beads](reference/work-units/bead-cli-inspection.md) — Commands for adding notes and reading detailed bead records.
@@ -250,7 +251,7 @@
 - [Bead triage](reference/work-units/bead-triage.md) — How bead dependencies, follow-ups, corroboration, and snoozes are handled.
 - [Bead TUI integration](reference/work-units/bead-tui.md) — How SASE's TUI connects bead records with plans and task work.
 - [Starting bead work](reference/work-units/bead-work.md) — How `sase bead work` resolves plans and starts assigned bead work.
-- [Beads](reference/work-units/beads.md) — Bead identities, types, and the data model used to track work in SASE.
+- [Beads](reference/work-units/beads.md) — Bead identities, types, and the data model for work in SASE.
 - [Goals](reference/work-units/goals.md) — Durable outcome records and their lifecycle, storage, and freshness.
 - [Work units](reference/work-units/index.md) — Reference pages for SASE's beads, plans, goals, Patches, and ProjectSpec files.
 - [Patches](reference/work-units/patches.md) — The fields, format, and lifecycle of a SASE Patch review record.

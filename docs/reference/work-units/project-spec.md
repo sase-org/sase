@@ -11,10 +11,9 @@ workspace and agent coordination.
 
 ProjectSpec files live under `~/.sase/projects/<project>/<project>.sase`. Terminal
 Patches are moved to the adjacent archive file,
-`~/.sase/projects/<project>/<project>-archive.sase`. Legacy `.gp` files from earlier
-releases remain readable as a fallback; the `sase patch migrate-extension` command
-renames them to the canonical `.sase` extension. That migration changes only the
-ProjectSpec filenames; it does not rewrite Patch blocks or alter review state.
+`~/.sase/projects/<project>/<project>-archive.sase`. Files with the `.gp` extension
+remain readable; see the
+[ProjectSpec migration note](../upgrading/work-units.md#projectspec-extension).
 
 ## Format
 
@@ -87,7 +86,7 @@ currently uses these fields:
   for the `workspace.root` knob.
 - **PROJECT_STATE**: Project lifecycle state. User-facing values are `enabled` and
   `disabled`; `sibling` is reserved for internal linked-repository backing records.
-  Missing `PROJECT_STATE` means `enabled`. Legacy `active` normalizes to enabled, while
+  Missing `PROJECT_STATE` means `enabled`. `active` normalizes to enabled, while
   `inactive`, `archived`, and `closed` normalize to disabled.
 - **PROJECT_NAME**: Optional user-facing project name. The storage key remains the
   directory name `~/.sase/projects/<project>/`; `PROJECT_NAME` is surfaced in project
@@ -95,7 +94,7 @@ currently uses these fields:
   `project:` queries (including the `+project` shorthand) also use this configured name
   exactly and case-insensitively, falling back to the directory key only when
   `PROJECT_NAME` is missing or invalid. Long-running processes (`sase tui`, axe,
-  `sase agents wait`) pick up projects created or renamed by other processes on their
+  `sase agents wait`) pick up projects created or changed by other processes on their
   next refresh. The directory key and ProjectSpec filename are never shown as a
   project's name; they appear only as labeled identity fields in project-admin output
   and in machine-readable (JSON) output.
@@ -163,7 +162,7 @@ friendly refs should not persist in `submitted_macros.md`, `raw_macros.md`,
 metadata keep using the directory key, while display surfaces prefer `PROJECT_NAME` when
 present. Display-only helpers also humanize filename-safe project stems in some
 artifact, retry, and mobile-facing labels when they can map the stem back to a
-ProjectSpec display name; the underlying files are not renamed.
+ProjectSpec display name; the underlying file names stay fixed.
 
 Patch `project:` queries use `PROJECT_NAME` as their sole project identity when it is
 configured; the directory key is not an additional query alias. `PROJECT_ALIASES` remain
@@ -292,8 +291,8 @@ prints the resolved project, or explains that nothing resolves and exits 0. See
 
 ### Project Lifecycle
 
-Project lifecycle state controls whether a project appears in the default lists used to
-start new work or browse current work. It is project-level metadata; it does not delete
+Project lifecycle state controls whether a project appears in the default lists for
+starting work or browsing current work. It is project-level metadata; it does not delete
 project files. Do not confuse it with Patch status (`WIP` through `Submitted` or
 `Archived`), an agent or workspace being active, or the `is_sase_managed` configuration
 marker that authorizes generated project files.
@@ -304,10 +303,9 @@ marker that authorizes generated project files.
 | `disabled` | Dormant, historical, or finished project. Hidden from default launch and discovery lists.         |
 | `sibling`  | Internal linked-repository backing marker. It is not a third user-facing project lifecycle state. |
 
-Legacy `PROJECT_STATE: active` files normalize to enabled. Legacy `inactive`,
-`archived`, and `closed` files normalize to disabled. Normal user workflows should use
-`sase project enable` and `sase project disable`; `sibling` is reserved for SASE's
-linked-repository bookkeeping.
+`PROJECT_STATE: active` normalizes to enabled. `inactive`, `archived`, and `closed`
+normalize to disabled. Normal user workflows should use `sase project enable` and
+`sase project disable`; `sibling` is reserved for SASE's linked-repository bookkeeping.
 
 Broad project discovery is enabled-only. That includes launch and completion pickers,
 `sase patch search`, project-local macro catalogs, broad mobile helper catalogs, and
@@ -330,8 +328,8 @@ Use `sase project list --state all` to inspect disabled projects and sibling rec
 and `sase project show <project>` to see state, workspace, launchability, and warnings.
 Run `sase project enable <project>` before a direct workspace claim, or use an explicit
 known-project VCS ref when automatic re-enablement is intended. The `enable`, `disable`,
-and `set-state` forms update the ProjectSpec under the normal ProjectSpec lock.
-Deprecated `activate`, `deactivate`, `archive`, and `close` aliases remain accepted for
+and `set-state` forms update the ProjectSpec under the normal ProjectSpec lock. The
+`activate`, `deactivate`, `archive`, and `close` aliases remain accepted for
 compatibility. Disabling refuses projects with live `RUNNING` claims or active artifact
 markers unless `--force` is passed. The system-managed `home` project cannot be mutated
 through this command.
@@ -400,7 +398,7 @@ Common optional fields include:
 - **PARENT**: The `NAME` of a parent Patch that must land first. Omit it when there is
   no dependency.
 - **PR**: URL for the created review, omitted until the PR exists. New files write
-  `PR:`; legacy `CL:` fields remain readable during the compatibility window.
+  `PR:`; `CL:` fields remain readable during the compatibility window.
 - **PR_ORIGIN**: Tri-state origin for the PR URL. `sase` means SASE's tracked PR
   workflow created it, `external` means it was adopted from the remote, and `unknown`
   marks ambiguous evidence for manual review with `sase patch set-origin`.

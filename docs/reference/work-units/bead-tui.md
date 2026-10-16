@@ -16,10 +16,10 @@ When creating a plan bead with `--type plan(PATH)`, the file path is stored in t
 
 For SDD-generated epics, `PATH` should be the shared plan reference emitted by the plan
 approval flow: `sdd/plans/...` in in-tree mode, `.sase/sdd/plans/...` in local and
-legacy separate-repo modes, or `<YYYYMM>/...` in the split `--plans` repository. SASE
-resolves those references against the effective SDD root when launching bead work. For
-manual commands and prompts, `SASE_SDD_PLANS_DIR` or `sase repo path plans` is less
-ambiguous than guessing which relative prefix applies.
+separate-repo modes, or `<YYYYMM>/...` in the split `--plans` repository. SASE resolves
+those references against the effective SDD root when launching bead work. For manual
+commands and prompts, `SASE_SDD_PLANS_DIR` or `sase repo path plans` is less ambiguous
+than guessing which relative prefix applies.
 
 ### Task Bead Surfaces
 

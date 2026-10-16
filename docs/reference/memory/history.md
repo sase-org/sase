@@ -77,7 +77,7 @@ exactly the last content so line numbers still match the file.
 
 ```text
  ▤ sase/memory/gotchas.md  [⟲ PAST · v24 of 25]  1mo ago                                   100% · ⌘ 1.7Kc · md
- ⇧ promoted reference → core · § Default Keymap Config · +31w −4w      sase-1au.5 · athena.… · 1a2b3c4
+ ⇧ promoted reference → core · § Default Keymap Config · +31w −4w      sase-<bead-id> · <agent> · <commit>
  ▁▁▃▁▂▁▇▁▁▂▅▁▁▃▁▂▁▁▅▁▂▁▃▁▆▂▁▃▁▂▁▅▁█▁▂▏▁▂ → now   Sep 22 2026 14:03 · v24 · 1 newer · ⇡2 on origin/master
 ```
 
@@ -221,7 +221,7 @@ sase memory history -m                     # mark the shown scopes reviewed
 
 Selectors accept flat names, repo-relative paths, bare web names, `web:keyword` strands
 (with alias lookup), instruction paths (`AGENTS.md`, `CLAUDE.md`, `~/AGENTS.md`, …), and
-historical names (`build_and_run.md` resolves to the renamed subject, with a notice).
+older names (`build_and_run.md` resolves to its current subject and displays a notice).
 Options: `-a/--all`, `-A/--at REV` (`v7`, `~2`, SHA prefix, `blob:OID`, or date),
 `-d/--diff`, `-f/--format {json,pager,text}` (pager on a TTY, else text),
 `-l/--limit N`, `-m/--mark-reviewed` (feed mode only; an error with selectors),

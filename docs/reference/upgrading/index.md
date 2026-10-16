@@ -11,6 +11,8 @@ and the newest notes first.
 ## Areas
 
 - [Configuration migration notes](configuration.md) — key and data-shape migrations.
+- [Work unit migration notes](work-units.md) — ProjectSpec extensions, plan metadata,
+  Patch headers, and bead-note recovery.
 - [Content layout](content-layout.md) — migration and compatibility notes for project
   and home content.
 - [Automation migration notes](automation.md) — scheduler naming, monitor hand-off, and

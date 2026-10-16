@@ -161,13 +161,13 @@ Over a full weighted cycle the member counts should match the configured weight 
 where provider availability caused a member to be skipped.
 
 When the same name appears in both maps, `model_aliases.custom` wins.
-`sase doctor -C config.model_aliases` warns about legacy flat keys in `model_aliases`,
-removed top-level `custom_model_aliases`, custom names under `model_aliases.builtin`,
-builtin names under `model_aliases.custom`, collisions between the two maps, missing
-custom descriptions/models, dangling `@alias` references, empty or mixed selectors, and
-nested selectors. Unavailable selector providers are reported as informational notes;
-for an ordered fallback the note also identifies the current winner. In sase's TUI,
-Launch Control shows descriptions from config; a user alias without one shows the
+`sase doctor -C config.model_aliases` warns about flat keys in `model_aliases`, removed
+top-level `custom_model_aliases`, custom names under `model_aliases.builtin`, builtin
+names under `model_aliases.custom`, collisions between the two maps, missing custom
+descriptions/models, dangling `@alias` references, empty or mixed selectors, and nested
+selectors. Unavailable selector providers are reported as informational notes; for an
+ordered fallback the note also identifies the current winner. In sase's TUI, Launch
+Control shows descriptions from config; a user alias without one shows the
 `llm_provider.model_aliases.custom.<name>.description` path to fix.
 
 The same alias vocabulary appears in the `%model:` / `%m:` completion menu in sase's TUI
@@ -246,16 +246,13 @@ Override any of the five size aliases by configuring
 directly under `llm_provider` instead — they are plain config fields, not
 `model_aliases.builtin` entries:
 
-| Field                                | Shipped default | Purpose                                                                                                |
-| ------------------------------------ | --------------- | ------------------------------------------------------------------------------------------------------ |
-| `llm_provider.default_model`         | `@large`        | Used when a launch has no explicit `%model` directive.                                                 |
-| `llm_provider.epic_lander_model`     | `@large`        | Used by epic land agents when the epic has fewer authored phases than `bead.big_epic_phase_threshold`. |
-| `llm_provider.big_epic_lander_model` | `@xlarge`       | Used by epic land agents when the epic has `bead.big_epic_phase_threshold` or more authored phases.    |
+The generated [provider configuration reference](../config/llm-provider.md) lists these
+fields and their shipped defaults.
 
 An outer effort suffix and an approval-time concrete model remain authoritative over
 either kind of override. Accepted tale follow-ups without an explicit model use the
-validated tale size to choose the matching size alias directly; legacy sizeless tales
-normalize to `@medium`. Threshold-selected epic land agents diverge from the launch
+validated tale size to choose the matching size alias directly; tales without stored
+size normalize to `@medium`. Threshold-selected epic land agents diverge from the launch
 default entirely: `epic_lander_model` governs below-threshold epics and
 `big_epic_lander_model` governs epics at or above `bead.big_epic_phase_threshold`,
 independent of `default_model` and of each other — see
@@ -316,16 +313,8 @@ through this launch map. See
 [Launch-Scoped Model Alias Overrides](../macros/directive-syntax.md#launch-scoped-model-alias-overrides)
 for syntax and validation rules.
 
-> **Migration note:** `@worker`, `@other`, `@coder`, registered `@<provider>_coder`
-> aliases, `@epic_creator`, `@phase_worker`, and its `<size>_phase_worker` aliases were
-> retired in epic sase-5d — accepted tales route by tale size, and there is no
-> epic-creator role. Epic sase-mf then retired the entire generation that replaced them:
-> `@default`, `@epic_lander`, `@big_epic_lander`, the five `@<size>_worker` aliases, the
-> capability/cost aliases `@smart`, `@smarter`, `@smartest`, `@cheap`, `@cheaper`,
-> `@cheapest`, and the automatic `worker` bucket. Use `llm_provider.default_model`,
-> `epic_lander_model`, and `big_epic_lander_model`, plus the five `@xsmall`...`@xlarge`
-> size aliases, going forward. `sase doctor -C config.model_aliases` flags stale config
-> and names the exact replacement for each retired name.
+For migration from older role aliases, see the
+[provider migration notes](../upgrading/providers.md#model-selection-names).
 
 ### Explicit Provider/Model Syntax
 
@@ -588,17 +577,6 @@ its own generated tier table with the same values:
 
 <!-- END GENERATED: provider-tier-defaults -->
 
-### Legacy Mapping
-
-The old `"big"`/`"little"` terminology is still supported for backward compatibility:
-
-| Old Value  | New Tier  | Display Label |
-| ---------- | --------- | ------------- |
-| `"big"`    | `"large"` | `BIG`         |
-| `"little"` | `"small"` | `LITTLE`      |
-
-The `model_size` parameter on `invoke_agent()` is deprecated. Use `model_tier` instead.
-
 ### Global Override
 
 The model tier can be overridden globally via environment variable or CLI flag. The
@@ -609,7 +587,7 @@ requests.
 
 1. `SASE_MODEL_TIER_OVERRIDE` env var (accepts `"large"`, `"small"`, `"big"`,
    `"little"`)
-2. `SASE_MODEL_SIZE_OVERRIDE` env var (legacy, same values)
+2. `SASE_MODEL_SIZE_OVERRIDE` env var (same values)
 3. `--model-tier` / `--model-size` CLI flag (sets the env var)
 4. Caller's `model_tier` parameter (default: `"large"`)
 
@@ -647,8 +625,8 @@ resolves through a size-specific [implicit role alias](#implicit-role-aliases), 
 epic land agents, through one of the two epic-lander launch-model settings:
 
 - **Coder follow-ups** from an accepted tale use the validated tale size to select
-  `@xsmall`, `@small`, `@medium`, `@large`, or `@xlarge` directly. Legacy tale plans
-  without size metadata use `@medium`.
+  `@xsmall`, `@small`, `@medium`, `@large`, or `@xlarge` directly. Tale plans without
+  size metadata use `@medium`.
 - **`sase bead work` phase agents** without an explicit per-bead model use the size
   alias matching their normalized size: `@xsmall`, `@small`, `@medium`, `@large`, or
   `@xlarge`. See [Implicit role aliases](#implicit-role-aliases) for the current shipped
@@ -656,12 +634,12 @@ epic land agents, through one of the two epic-lander launch-model settings:
   `xlarge` phases receive `#plan`. An explicit per-bead model is accepted at every size
   and always wins without changing the size-based planning policy.
 - **Standalone task-bead workers** use the task's explicit model when set. Otherwise, a
-  stored task size selects the matching size alias above, while a legacy task without
-  size metadata uses `@small`. Like epic phases, `large` and `xlarge` tasks receive an
+  stored task size selects the matching size alias above, while a task without size
+  metadata uses `@small`. Like epic phases, `large` and `xlarge` tasks receive an
   automatic `#plan`; xsmall, small, and medium tasks implement directly. New tasks
   require an explicit size, and agents use `/sase_new_task` before creation to rule out
-  duplicates and active epic work; the legacy fallback exists only for stored historical
-  records.
+  duplicates and active epic work; the fallback applies to records without a stored
+  size.
 - **Epic land agents** without an explicit land model use
   `llm_provider.epic_lander_model`, or `llm_provider.big_epic_lander_model` when their
   authored phase count meets `bead.big_epic_phase_threshold` (default `5`). Both
@@ -702,11 +680,8 @@ the size aliases and of `llm_provider.default_model`. See
 Explicit `%model` directives, approval-picker model choices, direct alias overrides, and
 per-bead/land model metadata always win over role defaults.
 
-> The previous `llm_provider.worker_models` map, the `~/.sase/llm_worker_override.json`
-> worker temporary override, and the later
-> `@default`/`@epic_lander`/`@big_epic_lander`/`@<size>_worker`/capability-alias
-> generation were all removed (epics sase-5d and sase-mf). See the
-> [migration note](#launch-scoped-alias-overrides) above.
+For retired worker and capability aliases, see the
+[provider migration notes](../upgrading/providers.md#model-selection-names).
 
 ## Related
 

@@ -27,14 +27,15 @@ epic handoff uses the bead command group:
 | `sase bead work TARGET [TARGET ...]` | Validate, archive, link, and launch epic plans or bead targets in order; `-n/--dry-run` previews without mutation |
 
 The link subcommands accept `-p/--path`, which may point at an SDD root or a project
-root. Bare `sase plan links` defaults to `sase plan links list`. Validation no longer
-checks that a plan has a paired prompt file or that a `PROMPT` bullet's target exists —
+root. Bare `sase plan links` defaults to `sase plan links list`. Validation does not
+check that a plan has a paired prompt file or that a `PROMPT` bullet's target exists —
 prompts live in the agents-sidecar archive and are validated separately by
 `sase agent prompts validate`. `sase plan links validate` only checks a plan's own
 metadata and `PROMPT` bullet: frontmatter parses, `tier` is valid, the header block
 parses in its canonical form (`header-invalid` otherwise), `PARENT` resolves to a real
 plan file, and the `PROMPT` bullet (when present) uses the correct link kind and
-canonical placement; these are all errors unless explicitly allowlisted for legacy data.
+canonical placement; these are all errors unless explicitly allowlisted for existing
+data.
 
 The `PARENT` check is scoped to what the current workspace owns. Plans are published to
 the store asynchronously, so a phase plan can land before the epic plan its `PARENT`
@@ -120,7 +121,7 @@ remedy instead of silently creating a second epic.
 For smaller plans, commit messages include a `SASE_PLAN=<path>` tag pointing back to the
 plan file. The path is relative to the repository that owns the plan:
 `sdd/plans/<YYYYMM>/<name>.md` for in-tree storage and `plans/<YYYYMM>/<name>.md` for
-local or legacy separate-repo stores. In a split `--plans` repository, it is
+local or separate-repo stores. In a split `--plans` repository, it is
 `<YYYYMM>/<name>.md`. Agents can also build paths from the kind-specific root, for
 example `$SASE_SDD_PLANS_DIR/{YYYYMM}/{name}.md`.
 

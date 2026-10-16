@@ -1,6 +1,6 @@
 ---
 title: Beads
-description: Bead identities, types, and the data model used to track work in SASE.
+description: Bead identities, types, and the data model for work in SASE.
 ---
 
 # Beads
@@ -72,7 +72,7 @@ sase bead doctor --fix-issue-prefix                     # Reset a leaked Project
 sase bead doctor --fix-projection                       # Repair issues.jsonl from canonical events
 sase bead work "$PLANS_ROOT/202605/epic.md" --dry-run   # Preview bead creation and launch waves
 sase bead work "$PLANS_ROOT/202605/epic.md" --yes       # Create, link, and launch an epic plan
-sase bead work "$PLANS_ROOT/202605/epic.md" --wait 'sase-s7.2,bead=sase-64.3' --yes
+sase bead work "$PLANS_ROOT/202605/epic.md" --wait 'bead=<phase-id>,bead=<bead-id>' --yes
 sase bead work epic-a epic-b -c 3 --yes                 # Capacity 3 for every new phase and land agent
 sase bead work "$PLANS_ROOT/202605/epic.md" -C feature_epic --yes
 sase bead work beads-001                                # Launch agents for an epic plan bead
@@ -121,8 +121,8 @@ Every bead operand is resolved before anything is written. A batch that spans mo
 one store, including a local shorthand next to another project's full ID, fails with
 `multiple stores match the requested bead targets` before any event is recorded. For
 example, `sase bead close bob-cli-1e --note done` can be run from another enabled
-project, while `sase bead update bob-cli-1e sase-2 -s ready` is refused if those IDs
-belong to different stores. A full ID that no readable store holds reports
+project, while `sase bead update project-a-1 project-b-2 -s ready` is refused if those
+IDs belong to different stores. A full ID that no readable store holds reports
 `issue not found: <id>`, and an ID that exists in more than one enabled project's store
 is reported as ambiguous with the candidate projects. If the likely owner (by name,
 alias, or stored prefix) has no materialized or readable store on this machine, the
@@ -193,9 +193,9 @@ sase bead create --title "Epic" --type "plan(${SASE_SDD_PLANS_DIR}/202605/epic.m
 
 `task_type` is an orthogonal flavor of discovered work. It is valid only on a task bead
 and is distinct from the bead's issue type (`plan`, `phase`, `task`). New tasks require
-a catalog slug; existing untyped legacy tasks stay readable and render as a dim
-`untyped` chip. Feature-flag removal beads are task beads of type `flag`; list them with
-`-T flag`, not `--type flag`.
+a catalog slug; existing untyped tasks stay readable and render as a dim `untyped` chip.
+Feature-flag removal beads are task beads of type `flag`; list them with `-T flag`, not
+`--type flag`.
 
 ```bash
 sase bead create -T 'task(flake)' -t "Fix flaky retry" -z medium \
@@ -204,7 +204,7 @@ sase bead create -T 'task(flake)' -t "Fix flaky retry" -z medium \
 sase bead task-type                  # agent-creatable catalog
 sase bead task-type show flake       # fields, template, triage, provenance
 sase bead list --task-type flake
-sase bead list --task-type untyped   # legacy beads with no type
+sase bead list --task-type untyped   # beads with no type
 sase bead list -T flag               # feature-flag removal beads
 ```
 
@@ -260,8 +260,8 @@ type needs before it earns a `TaskTriage` gate. A bead resolves its bar one of t
   is the fallback. It ships as `1`.
 
 Those two defaults differ on purpose, so do not read the spec default of `0` as "the
-default bar is zero": a legacy untyped bead needs one `+1` out of the box, while a typed
-`ci` bead needs none. `sase bead task-type show <slug>` prints the effective bar under
+default bar is zero": an untyped bead needs one `+1` out of the box, while a typed `ci`
+bead needs none. `sase bead task-type show <slug>` prints the effective bar under
 `TRIAGE`.
 
 <a id="status-lifecycle"></a> Moved to

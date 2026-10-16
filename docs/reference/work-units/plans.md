@@ -58,7 +58,7 @@ the concrete layout:
   its dedicated `--beads` clone; a schema-2 compatibility record keeps `beads/` under
   `--plans`. Initialization prepares configured sidecars in its current workspace; later
   workspaces clone the beads sidecar and lazy document roles on demand instead of during
-  workspace preparation. Monthly directories live directly at document roots; legacy
+  workspace preparation. Monthly directories live directly at document roots;
   single-root layouts remain readable for compatibility.
 
 Use `sase repo path plans` or `sase repo path beads` to print those resolved roots, or
@@ -139,17 +139,17 @@ When an epic is proposed from a bead-work phase agent, SASE records that phase's
 the managed `parent_bead`; an epic proposed by the land agent records the current epic's
 ID instead. An agent working a task bead records that task's ID, so a proposed epic
 becomes a child of the task. Approving the proposal creates a child epic under that
-bead, so a proposal from `sase-5.2` becomes `sase-5.2.1`, while the next child proposed
-by the `sase-5` land agent becomes `sase-5.4` after phases `.1` through `.3`, and a
-task-worker proposal from `sase-iq` becomes `sase-iq.1`. Agents with no bead association
-at all continue to create top-level epics.
+bead, so a proposal from `<phase-bead-id>` becomes `<phase-bead-id>.1`, while a child
+proposed by a land agent becomes the next numbered child after the authored phases, and
+a task-worker proposal becomes `<task-bead-id>.1`. Agents with no bead association at
+all continue to create top-level epics.
 
 When `sase plan propose` submits a plan for approval, it touches the project's
 `~/.sase/projects/<project>/artifacts/.ace_refresh_pulse` so any running sase's TUI
 flips the agent into the tier-aware `TALE` or `EPIC` pending-review status immediately
-rather than waiting for the next auto-refresh tick. Legacy or unreadable-tier plans use
-the `PLAN` fallback. The pulse file is consumed by the inotify-based artifact watcher
-and is harmless when no TUI is open.
+rather than waiting for the next auto-refresh tick. Plans with a missing or unreadable
+tier use the `PLAN` fallback. The pulse file is consumed by the inotify-based artifact
+watcher and is harmless when no TUI is open.
 
 `sase plan propose` formats the plan with prettier and re-validates the formatted copy
 before archiving it. If formatting would change the plan's validity or its decision
@@ -242,10 +242,9 @@ Multi-round Q&A is rendered as a single merged `### Questions and Answers` secti
 monotonic `Q1..QN` numbering across all rounds (a second round of questions continues at
 the next free number rather than restarting at `Q1`). The section is wrapped in exactly
 one `%macros_enabled` pair regardless of round count, and follow-up writes strip any
-prior Q&A block (including legacy duplicate blocks from older runs) before re-emitting
-the merged section. When a round carries a global note the "last non-empty wins" rule
-applies — a later round's note replaces the earlier one, but an empty later note
-preserves the earlier value.
+existing Q&A blocks (including duplicates) before re-emitting the merged section. When a
+round carries a global note the "last non-empty wins" rule applies — a later round's
+note replaces the earlier one, but an empty later note preserves the earlier value.
 
 ### Artifact Links
 
@@ -263,17 +262,11 @@ goal: Demonstrate the plan-side layout.
 size: small
 ---
 
-- **PROMPT:**
-  [prompts/202605/example.md](https://github.com/sase-org/sase--agents/blob/main/prompts/202605/example.md)
-- **PARENT:**
-  [202605/parent_epic.md](https://github.com/sase-org/sase--plans/blob/main/202605/parent_epic.md)
-- **BEAD:**
-  [sase-ai.8](https://github.com/sase-org/sase--beads/blob/main/pages/sase-ai/sase-ai.8.md)
-- **AGENTS:**
-  - [bbugyi200.athena.sase-8k.6](https://github.com/sase-org/sase--agents/blob/main/agents/bbugyi200.athena.sase-8k.6/README.md)
-- **COMMITS:**
-  - [699456a](https://github.com/sase-org/sase/commit/699456a521e25e0aaa38f4e289db38e71a6488a6)
-    — fix(macro): canonicalize workflow project identity
+- **PROMPT:** `<prompt-path>`
+- **PARENT:** `<parent-plan-path>`
+- **BEAD:** `<bead-page-url>`
+- **AGENTS:** `<agent-log-url>`
+- **COMMITS:** `<commit-url>`
 
 # Plan: Example
 ```
@@ -285,15 +278,11 @@ The prompt names its plan:
 create_time: 2026-07-21 12:00:00
 ---
 
-- **PLAN:**
-  [202605/example.md](https://github.com/sase-org/sase--plans/blob/main/202605/example.md)
-- **AGENTS:**
-  - [bbugyi200.athena.sase-8k.6](https://github.com/sase-org/sase--agents/blob/main/agents/bbugyi200.athena.sase-8k.6/README.md)
-- **ARTIFACTS:**
-  - [diagram.png](../../../../artifacts/202605/ab12cd34ef56-diagram.png)
+- **PLAN:** `<plan-path>`
+- **AGENTS:** `<agent-log-url>`
+- **ARTIFACTS:** `<artifact-path>`
 
-Original prompt text with
-[@~/Downloads/diagram.png](../../../../artifacts/202605/ab12cd34ef56-diagram.png).
+Original prompt text may refer to a local artifact with `@~/Downloads/diagram.png`.
 ```
 
 When YAML frontmatter exists, its opening `---` remains at byte zero. The header block
@@ -388,24 +377,21 @@ modify/delete conflict is never merged; it is left to SASE's normal conflict han
 which for sidecar integration restores the pre-rebase state (see
 [SDD Storage](../../contribute/sdd-storage.md#concurrency-and-recovery)).
 
-A plan's parent is recorded in the `PARENT` bullet. The historical `parent:` frontmatter
-property is deprecated: it remains accepted so already-committed plans still validate,
-but it emits a deprecation warning and `sase plan links refresh --write` migrates it
-into a `PARENT` bullet. Plans whose `parent:` value does not resolve to a real plan file
-are reported rather than dropped.
+A plan's parent is recorded in the `PARENT` bullet. The `parent:` frontmatter property
+remains accepted for existing committed plans, with a deprecation warning;
+`sase plan links refresh --write` moves it into a `PARENT` bullet. Plans whose `parent:`
+value does not resolve to a real plan file are reported rather than dropped.
 
-Historical `plan:` and `prompt:` frontmatter values remain readable in both their
-original plain-path form and their later inline-Markdown form. Ordinary reads, search,
-validation, initialization, and upgrades do not rewrite them. A canonical bullet plus a
-redundant legacy property is tolerated when both resolve to the same physical target;
-conflicting, malformed, duplicate, wrong-kind, unsafe, or nonexistent-target links are
-reported rather than guessed. Run `sase plan links repair` to preview missing or stale
-bullets and both legacy encodings, then run `sase plan links repair --write` to install
-canonical bullets and remove only the corresponding legacy property. Repair preserves
-unrelated frontmatter and body content and is idempotent.
+`plan:` and `prompt:` values in plain-path or inline-Markdown form remain readable.
+Ordinary reads, search, validation, and initialization do not rewrite them. A canonical
+bullet and matching property may coexist; conflicting, malformed, duplicate, wrong-kind,
+unsafe, or unresolved links are reported rather than guessed. Run
+`sase plan links repair --write` to install canonical bullets and remove matching
+properties. See the
+[plan-frontmatter migration note](../upgrading/work-units.md#plan-frontmatter).
 
 `sase plan links validate` checks a tale or epic's own `PROMPT` bullet is well-formed;
-it no longer checks that a matching prompt file exists, since prompts live in the
+it does not check that a matching prompt file exists, since prompts live in the
 agents-sidecar archive rather than the plans tree. Research notes are durable SDD
 context, but they are not part of the prompt-plan link validator.
 
@@ -481,7 +467,7 @@ or commit a plan, and CI runs `just validate-committed-plans` against the checke
 plans sidecar. The sweep reports diagnostics for every plan in one run and fails if any
 error is present.
 
-Month directories before `202608` retain the legacy compatibility check: each direct
+For month directories before `202608`, the compatibility check requires: each direct
 `YYYYMM/*.md` plan must declare a valid `tier: tale|epic`, but historical plans do not
 need `goal` or structured epic phases. Exported or historical nested prompt snapshots
 and historical root-level scratch files are not part of the committed-plan sweep.

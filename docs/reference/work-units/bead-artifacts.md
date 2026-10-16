@@ -20,7 +20,7 @@ Reference entries are stored without the prompt-time `@` sigil:
 ```bash
 research:202607/artifact_capture_and_retention/artifact_capture_and_retention.md
 file:default:0123456789abcdef01234567
-bead:sase-b7
+bead:<bead-id>
 ```
 
 Write commands parse and normalize references before storing them, deduplicate repeated

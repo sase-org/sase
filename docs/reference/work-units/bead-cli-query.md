@@ -17,15 +17,15 @@ no blocked bead has a stored size.
 
 Run health checks on the beads database. Checks for:
 
-- Missing `config.json`, event store, legacy projection, or compatibility cache
+- Missing `config.json`, event store, compatibility projection, or compatibility cache
 - Projection drift between canonical events and `issues.jsonl`
 - Redundant close events, including how many landed in the recent diagnostic window
 - Invalid events or unreduced orphan phase records
 - Uncommitted bead-state changes
 - Orphan children (phase or nested-plan beads whose parent is missing)
 - Plan-archive sidecar drift: bead-linked plans missing from the sidecar, orphaned
-  legacy plan-link indexes, and canonical plans found only in local plan roots
-- Legacy or unresolved `design` plan references
+  compatibility plan-link indexes, and canonical plans found only in local plan roots
+- Old-format or unresolved `design` plan references
 - Issue prefix leaked as the project's ProjectSpec directory key instead of its
   `PROJECT_NAME` (reported; automatically repaired before the next top-level bead is
   minted, or repair on demand with `sase bead doctor --fix-issue-prefix`)
@@ -75,27 +75,20 @@ requires the commit to be published. Missing, conflicting, or invalid source con
 reported as unrecoverable and is never fabricated. Use `--yes` only after reviewing the
 same preview in automation.
 
-| Flag                     | Description                                                                         |
-| ------------------------ | ----------------------------------------------------------------------------------- |
-| `-A, --fix-plan-archive` | Backfill recoverable missing canonical plans into the plans sidecar                 |
-| `-F, --fix-design-refs`  | Repair recoverable legacy design references after confirmation                      |
-| `-I, --fix-issue-prefix` | Repair a leaked ProjectSpec-key issue prefix to the project name after confirmation |
-| `-P, --fix-projection`   | Rewrite `issues.jsonl` from canonical event streams after confirmation              |
-| `-y, --yes`              | Apply the requested doctor repair without an interactive confirmation               |
+See the generated [`sase bead` CLI reference](../cli/bead.md#sase-bead-doctor) for this
+command's options.
 
 ## `sase bead epic-symbols [<id>]`
 
 List `--epic-symbol` whitelist entries from the working tree's Justfile (for a full ID
 owned by another enabled project, that project's primary-workspace Justfile). With no
 ID, every entry is printed. With an ID, only entries keyed to that bead or a descendant
-suffix (`sase-64` matches `sase-64` and `sase-64.2`) are shown. Land and phase agents
-should run this before closing: leftover entries go stale the instant the bead closes,
-and `sase bead close` refuses while any remain.
+suffix (`<bead-id>` matches `<bead-id>` and `<bead-id>.2`) are shown. Land and phase
+agents should run this before closing: leftover entries go stale the instant the bead
+closes, and `sase bead close` refuses while any remain.
 
-| Flag           | Description                                                |
-| -------------- | ---------------------------------------------------------- |
-| `-c, --color`  | Color output: `auto`, `always`, or `never` (default: auto) |
-| `-f, --format` | `compact` (default) or `json`                              |
+See the generated [`sase bead` CLI reference](../cli/bead.md#sase-bead-epic-symbols) for
+this command's options.
 
 ## `sase bead list`
 
@@ -113,10 +106,13 @@ the ID:
 ```
 
 ```
-▸   ◐    sase-bv · Attribute beads to the agent that created them  ⧖ 1d
-◆ ≈ ◐  S sase-bt · Fix xdist flake in artifact modal copy shortcut  ⧖ 1d
-↳   ◐  M sase-bv.3 · Record the creator on every bead creation path ← sase-bv  ⧖ 1d
+▸   ◐    <bead-id> · Attribute beads to the agent that created them  ⧖ 1d
+◆ ≈ ◐  S <bead-id> · Fix xdist flake in artifact modal copy shortcut  ⧖ 1d
+↳   ◐  M <bead-id>.3 · Record the creator on every bead creation path ← <bead-id>  ⧖ 1d
 ```
+
+See the generated [`sase bead` CLI reference](../cli/bead.md#sase-bead-list) for this
+command's options.
 
 The fixed first column is the bead type. The second column is the task-type glyph for
 task beads (`≈` flake, `⨯` bug, `·` untyped, and so on) and is blank-padded for non-task
@@ -171,18 +167,6 @@ matching accents, counts stay plain, and the hidden clause is dim. `--format jso
 not print the prose line; its envelope carries the same printed-row counts in `by_type`
 and `by_status`, including zero buckets for every known type and status.
 
-| Flag              | Values                                                                | Description                                                                           |
-| ----------------- | --------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
-| `-c, --color`     | `auto`, `always`, `never`                                             | Color mode for compact output                                                         |
-| `-f, --format`    | `compact`, `json`, `full`                                             | Output format; defaults to `compact`                                                  |
-| `-n, --limit`     | integer                                                               | Maximum beads to print; closed listings default to the newest 20, `0` means unlimited |
-| `-S, --since`     | `DATE`                                                                | Only beads created at or after `DATE`                                                 |
-| `-s, --status`    | `all`, `open`, `claimed`, `ready`, `snoozed`, `in_progress`, `closed` | Filter by status (repeatable)                                                         |
-| `-T, --task-type` | catalog slug or `untyped`                                             | Filter by task type (repeatable); `untyped` selects legacy beads                      |
-| `-r, --tier`      | `plan`, `epic`                                                        | Filter by plan-bead tier                                                              |
-| `-t, --type`      | `plan`, `phase`, `task`                                               | Filter by issue type (repeatable). Flag beads are tasks; use `-T flag`                |
-| `-u, --until`     | `DATE`                                                                | Only beads created at or before `DATE`                                                |
-
 Active (`open`/`claimed`/`ready`/`snoozed`/`in_progress`) listings are unlimited by
 default. Whenever the final status scope includes `closed` and `--limit` is omitted,
 only the newest 20 beads print; pass `--limit 0` for the full closed history. When
@@ -231,23 +215,15 @@ list for each result.
 
 ```bash
 sase bead search auth
-sase bead search '^sase-g' --regex
+sase bead search '^work-' --regex
 sase bead search auth --format json
 sase bead search auth --format full --limit 3
 sase bead search auth --status open --type phase
 sase bead search auth --type plan --tier epic
 ```
 
-| Flag              | Values                                                         | Description                                                            |
-| ----------------- | -------------------------------------------------------------- | ---------------------------------------------------------------------- |
-| `-c, --color`     | `auto`, `always`, `never`                                      | Color mode for compact output                                          |
-| `-f, --format`    | `compact`, `json`, `full`                                      | Output format; defaults to `compact`                                   |
-| `-n, --limit`     | non-negative integer                                           | Maximum results; omitted or `0` means unlimited                        |
-| `-e, --regex`     | flag                                                           | Interpret the query as a regular expression                            |
-| `-s, --status`    | `open`, `claimed`, `ready`, `snoozed`, `in_progress`, `closed` | Filter by status (repeatable)                                          |
-| `-T, --task-type` | catalog slug or `untyped`                                      | Filter by task type (repeatable); `untyped` selects legacy             |
-| `-r, --tier`      | `plan`, `epic`                                                 | Filter by plan-bead tier (repeatable)                                  |
-| `-t, --type`      | `plan`, `phase`, `task`                                        | Filter by issue type (repeatable). Flag beads are tasks; use `-T flag` |
+See the generated [`sase bead` CLI reference](../cli/bead.md#sase-bead-search) for this
+command's options.
 
 ## `sase bead stats`
 
@@ -275,38 +251,33 @@ passed. `show <slug>` prints the label, `when_to_use`, every field with type,
 requirement, role, help, and validators, the body template, the triage threshold, and
 provenance. Reads are not audited.
 
-| Subcommand | Flag         | Description                                             |
-| ---------- | ------------ | ------------------------------------------------------- |
-| `list`     | `-a, --all`  | Include agent-uncreatable types                         |
-| `list`     | `-j, --json` | Machine-readable catalog                                |
-| `show`     | `-j, --json` | Machine-readable spec, fields, template, and provenance |
+See the generated [`sase bead` CLI reference](../cli/bead.md#sase-bead-task-type) for
+this command's options.
 
 ## `sase bead touched <agent>`
 
 List the beads one agent touched, newest touch first, one row per bead with verb chips,
-title, and relative age. Durable index rows merge with the legacy, no-longer-written
-`sase bead show` view log (`viewed`) and audited `bead:` reads (`read`), matching the
-Agents-tab `Beads:` sub-section row for row for touched beads. `read` comes from
-`sase bead read` / `sase artifact read bead:` with reasons; agents are now refused at
-`show`, so `viewed` rows predate that guard. Automation running inside agents
-(symvision, flag checks, commit hooks) sets `SASE_BEAD_SKIP_VIEW_LOG=1` and bypasses the
-guard. The CLI lists touched beads only; the panel also marks assigned but untouched
-beads `own`. A bead with read reasons prints one extra indented line with the newest
-reason (`  ↳ <reason>`); JSON rows carry `read_reasons`.
+title, and relative age. Durable index rows merge with `viewed` entries from the
+`sase bead show` view log (which is neither written nor synced) and audited `bead:`
+reads (`read`), matching the Agents-tab `Beads:` sub-section row for row for touched
+beads. `read` comes from `sase bead read` / `sase artifact read bead:` with reasons;
+agents are now refused at `show`, so `viewed` rows predate that guard. Automation
+running inside agents (symvision, flag checks, commit hooks) sets
+`SASE_BEAD_SKIP_VIEW_LOG=1` and bypasses the guard. The CLI lists touched beads only;
+the panel also marks assigned but untouched beads `own`. A bead with read reasons prints
+one extra indented line with the newest reason (`  ↳ <reason>`); JSON rows carry
+`read_reasons`.
 
 ```bash
-sase bead touched bbugyi200.athena.0oa
+sase bead touched <agent-name>
 sase bead touched 0oa -l 10
 sase bead touched 0oa -v noted -v closed
 sase bead touched 0oa -v viewed
 sase bead touched 0oa -v read -j
 ```
 
-| Flag              | Description                                            |
-| ----------------- | ------------------------------------------------------ |
-| `-j, --json`      | Machine-readable rows with `actors` and `read_reasons` |
-| `-l, --limit N`   | Maximum beads to print; `0` means unlimited            |
-| `-v, --verb VERB` | Only show beads with this verb (repeatable)            |
+See the generated [`sase bead` CLI reference](../cli/bead.md#sase-bead-touched) for this
+command's options.
 
 When the agent has no touched beads, or none match the `-v` filter, the command prints
 `No beads touched by <agent>.` (`-j` prints an empty `touches` list instead).

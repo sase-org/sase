@@ -109,8 +109,8 @@ outer effort suffix remains authoritative.
 
 There is no built-in `epic_creator` model alias. `sase doctor` reports a leftover
 `model_aliases.builtin.epic_creator` setting so it can be removed. See
-[Provider migration notes](../upgrading/providers.md#model-aliases) for removed alias
-names and current replacements.
+[Provider migration notes](../upgrading/providers.md#model-selection-names) for removed
+alias names and current replacements.
 
 The TUI also supports **temporary**, per-alias session-level provider/model overrides
 (set from [Launch Control](../../ace.md#launch-control), `,m`) that do **not** edit this

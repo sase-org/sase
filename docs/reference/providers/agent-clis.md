@@ -46,7 +46,7 @@ render a memory-built bundle and v2 manifest into `<artifacts>/instructions/`.
 Successful preparation exports `SASE_INSTRUCTIONS_FILE` for that call, then restores it.
 Claude, Codex, Grok, and Muse deliver the root bundle through explicit adapter channels
 by default, suppressing SASE-owned native instruction files according to each adapter's
-capabilities. Per-provider feature flags select explicit or legacy delivery. The
+capabilities. Per-provider feature flags select explicit or native delivery. The
 architecture is recorded as
 [Instructions Are Rendered Per Invocation And Delivered By Adapters](https://github.com/sase-org/sase/blob/master/sase/memory/decisions/instructions-per-invocation.md).
 The manifest alone does not prove that a provider loaded the bundle; use
@@ -56,7 +56,7 @@ The manifest alone does not prove that a provider loaded the bundle; use
 A **root** is the agent SASE launches; a **native helper** is a subagent started through
 that provider's tools. Explicit delivery combines the shared contract, project memory,
 and home memory in one bundle and suppresses native duplicates as shown below. Calls
-without an artifacts directory use the adapter's legacy path.
+without an artifacts directory use the provider's native instruction path.
 
 | Provider            | Root channel (flag on)                                             | Subagent                                                                 | Native suppression (flag on)                                                                | Flag                           |
 | ------------------- | ------------------------------------------------------------------ | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------- | ------------------------------ |
@@ -69,7 +69,7 @@ without an artifacts directory use the adapter's legacy path.
 ### Rollback
 
 `sase flag disable <provider>_explicit_instructions` on each execution host selects that
-provider's legacy instruction path. Substitute `claude`, `codex`, `grok`, or `muse` for
+provider's native instruction path. Substitute `claude`, `codex`, `grok`, or `muse` for
 `<provider>`; `sase flag enable <provider>_explicit_instructions` restores explicit
 delivery. A render or delivery failure already falls back per invocation, subject to the
 [Codex fallback limitation](codex.md#codex-instruction-delivery). Codex's allowlist
@@ -86,18 +86,18 @@ show bugs). A bad `--since` or `--until` value exits 2. See
 [Instruction Bundles](../memory/instruction-bundles.md) for the memory-built bundles
 behind these columns.
 
-| Column        | Meaning                                                                                            |
-| ------------- | -------------------------------------------------------------------------------------------------- |
-| `manifest`    | Observed sessions with a recorded manifest for the same provider (`k/N`; agy counts runs).         |
-| `bundle`      | Count of markers for the matched manifest invocation (`—` for legacy, `◌` when unobservable).      |
-| `delivery`    | `explicit`, `legacy:<reason>`, or `shadow` for the matched manifest.                               |
-| `contract`    | Occurrences of `SASE Final Declaration` across native and explicit sources.                        |
-| `home`        | Whether the home layer was loaded through either channel.                                          |
-| `project`     | Whether the project layer was loaded through either channel.                                       |
-| `directive`   | Whether the provider's single-turn directive appeared in either channel.                           |
-| `native-full` | Contract occurrences in native sources only.                                                       |
-| `foreign`     | Claude's exact auto-memory fingerprint, Codex foreign global AGENTS.md, or Grok memory state.      |
-| `helpers`     | Helper type, template, final attempts, accepted declarations, helper marker, and root-marker leak. |
+| Column        | Meaning                                                                                             |
+| ------------- | --------------------------------------------------------------------------------------------------- |
+| `manifest`    | Observed sessions with a recorded manifest for the same provider (`k/N`; agy counts runs).          |
+| `bundle`      | Count of markers for the matched manifest invocation (`—` when unavailable, `◌` when unobservable). |
+| `delivery`    | `explicit`, `legacy:<reason>`, or `shadow` for the matched manifest.                                |
+| `contract`    | Occurrences of `SASE Final Declaration` across native and explicit sources.                         |
+| `home`        | Whether the home layer was loaded through either channel.                                           |
+| `project`     | Whether the project layer was loaded through either channel.                                        |
+| `directive`   | Whether the provider's single-turn directive appeared in either channel.                            |
+| `native-full` | Contract occurrences in native sources only.                                                        |
+| `foreign`     | Claude's exact auto-memory fingerprint, Codex foreign global AGENTS.md, or Grok memory state.       |
+| `helpers`     | Helper type, template, final attempts, accepted declarations, helper marker, and root-marker leak.  |
 
 A session first matches a manifest by its bundle marker's invocation id. A session that
 carries another invocation's marker never falls through to session id or time. Otherwise
@@ -135,7 +135,7 @@ stays native even when it is also represented in run-context records.
 
 `sase doctor -D -C instructions` runs the deep checks. `instructions.delivery` applies
 the explicit contract (bundle 1×, contract 1×, project ✓, directive ✓, native-full 0,
-and home ✓ when present in the manifest) while retaining legacy expectations for
+and home ✓ when present in the manifest) while retaining compatibility expectations for
 providers with no observed explicit sessions. `instructions.conformance` WARNs on
 missing or duplicate root markers, missing helper markers, root markers leaking into
 Claude helpers, and unexpected delivery fallbacks. `instructions.helpers` WARNs on
@@ -156,8 +156,8 @@ or `--until` value exits 2.
 
 Delivery mode is `explicit` when the ordinary root manifest has
 `delivery.status: explicit`, `legacy` for `inherits_native` or `shadow`, and `none` for
-pre-E2 runs. The table subtitle prints each provider's first explicit `rendered_at`; the
-soak watch starts there.
+runs without a manifest. The table subtitle prints each provider's first explicit
+`rendered_at`; the soak watch starts there.
 
 Classes, first match wins. Handoffs are recognized from host records first:
 
@@ -245,10 +245,10 @@ Native subagents inherit the root's environment, so the helper bundle
 root-only operations (`sase final …`, turn-ending commands, root-only skills); forked
 helpers carry `agent_id` and are covered too. Helper render or file failures use the
 packaged static helper template. An unsupported helper channel omits the helper file and
-keeps the guard. Root file failures restore the legacy directive and native discovery
-for that invocation. Disabling `claude_explicit_instructions`, or invoking without an
-instruction delivery plan, restores the legacy argv, static helper template, native
-discovery, and auto-memory behavior. Details:
+keeps the guard. Root file failures restore the single-turn directive and native
+discovery for that invocation. Disabling `claude_explicit_instructions`, or invoking
+without an instruction delivery plan, restores the native argv, static helper template,
+native discovery, and auto-memory behavior. Details:
 [Claude Code Integration](claude.md#native-helpers).
 
 ## Codex CLI
@@ -278,7 +278,7 @@ invocation. The per-run shadow `$CODEX_HOME` uses an allowlist: `config.toml` is
 `sessions/` stays linked, and SQLite state and `history.jsonl` are never linked. With
 the flag enabled, it retains foreign global instruction files but omits SASE-owned
 copies and native memories. Helpers inherit the root bundle (`inherits_root`). Disabling
-the flag restores the legacy directive, native project discovery, and legacy
+the flag restores the single-turn directive, native project discovery, and
 home-instruction paths; the allowlist still applies. See
 [Codex instruction delivery](codex.md#codex-instruction-delivery) for the size limit,
 fallback limitation, and shadow-home details.
@@ -376,10 +376,10 @@ stranded-wait continuations reuse the same prefixed prompt, keeping one bundle a
 `SASE Final Declaration` contract occurrence per cycle. `--no-foreign-personal-context`
 remains enabled.
 
-If explicit delivery is disabled, Muse keeps today's single-turn directive prompt prefix
-and `--trust-workspace`. A failed explicit prefix falls back to that legacy path for the
-invocation. Set `muse_explicit_instructions` off to force legacy delivery during the
-seven-day soak.
+If explicit delivery is disabled, Muse keeps its single-turn directive prompt prefix and
+`--trust-workspace`. A failed explicit prefix falls back to that native instruction path
+for the invocation. Set `muse_explicit_instructions` off to use native delivery during
+the seven-day soak.
 
 ### Subscription usage { #muse-subscription-usage }
 
@@ -407,10 +407,10 @@ Canonical docs: <https://developer.meta.com/ai/resources/blog/build-with-muse-co
 
 xAI's Grok Build CLI (`grok`). Default provider autodetection never selects it, because
 the executable name collides with `grok-dev` (a stale community CLI that also uses
-`~/.grok/`) and with Homebrew's deprecated, unrelated `grok` regex tool. Select the
-provider explicitly with `llm_provider.provider: grok` or `%model:grok/<model>` (see the
-generated [Built-in Model Catalog](models.md#built-in-model-catalog) for current names);
-use `SASE_GROK_PATH` when you also need to choose the executable. Model-alias routing is
+`~/.grok/`). Select the provider explicitly with `llm_provider.provider: grok` or
+`%model:grok/<model>` (see the generated
+[Built-in Model Catalog](models.md#built-in-model-catalog) for current names); use
+`SASE_GROK_PATH` when you also need to choose the executable. Model-alias routing is
 separate: whenever a `grok` executable is available, whichever shipped size aliases
 currently target Grok can select it (see the generated
 [shipped size-alias defaults](models.md#implicit-role-aliases)).
@@ -479,11 +479,11 @@ The adapter records Grok's `--session-id` for each cycle and sets `GROK_MEMORY=0
 that process. The subagent slot is `none`.
 
 The 120 KiB argv limit applies to the delivered bundle. If it cannot be sent, that
-invocation falls back atomically to the legacy `--rules` payload: the SASE single-turn
+invocation falls back atomically to the native `--rules` payload: the SASE single-turn
 directive (opening with `SASE single-turn instructions for Grok:`), followed by the
 project root `AGENTS.md` text in SASE-managed projects (the directive alone elsewhere).
-The legacy path leaves Grok's memory-v2 setting unchanged. Set
-`grok_explicit_instructions` off to use that legacy path for every invocation.
+This fallback leaves Grok's memory-v2 setting unchanged. Set
+`grok_explicit_instructions` off to use that native payload for every invocation.
 
 ### Privacy
 

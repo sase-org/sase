@@ -21,7 +21,7 @@ Each non-README flat note declares its type in YAML frontmatter:
   declare `memory.h1_title` make `sase memory init` emit `AGENTS.md.tmpl` whose H1
   switches on `.chezmoi.hostname` (see
   [memory.h1_title](../config/core-behavior.md#memoryh1title)). The retired
-  `memory.enabled` key no longer authorizes management.
+  `memory.enabled` key does not authorize management.
 - **Reference memory** uses `type: reference`. It is reference context, requires
   `description` frontmatter, and can set `parent: sase/memory/<note>.md` to appear under
   another reference note's `## Children` section. A reference note description may be a
@@ -32,7 +32,7 @@ Each non-README flat note declares its type in YAML frontmatter:
 - **Audited memory operations** live under the project state directory and record agent
   reads.
 
-The legacy frontmatter values `type: short` and `type: long` are still accepted and mean
+The frontmatter values `type: short` and `type: long` are accepted aliases for
 `type: core` and `type: reference` respectively.
 
 Use [initialization](../../init.md#memory-initialization) to create or refresh the
@@ -220,11 +220,10 @@ aggregates.
 A numbered `v` hint on a single-note read opens that note. On a batch read, the hint
 opens each requested note or strand file as its own pager section, in the order the read
 printed them. `@` opens them in `$EDITOR` and `%` copies their paths. Link or mention
-context is not opened. When the read can no longer be resolved, the hint pages a
-generated report with the recorded metadata instead. Reads that captured a blob OID
-carry a version chip (`≡ now`, `vK ⟲ N newer`, `◌ uncommitted at read`), and their hint
-opens the pager pinned to the version read (see
-[Memory History](history.md#in-the-tui)).
+context is not opened. When the read cannot be resolved, the hint pages a generated
+report with the recorded metadata instead. Reads that captured a blob OID carry a
+version chip (`≡ now`, `vK ⟲ N newer`, `◌ uncommitted at read`), and their hint opens
+the pager pinned to the version read (see [Memory History](history.md#in-the-tui)).
 
 ## Memory Webs
 
@@ -260,10 +259,9 @@ sase memory web show glossary -b -f json
 ```
 
 `sase memory web list` prints every discovered web: slug, scope (`project`/`home`),
-strand count, and description. It no longer reports a rendering type, in either the
-table or the `json` format. Its current one-line `--help` description still mentions a
-core/reference rendering field; that help text is stale. `-f/--format` selects `table`
-(the default), `names`, or `json`.
+strand count, and description. The table and `json` formats omit a rendering type. Its
+one-line `--help` description mentions a core/reference rendering field; that help text
+is stale. `-f/--format` selects `table` (the default), `names`, or `json`.
 
 `sase memory web show WEB [PATTERN]` prints one web's filterable strand _index_ —
 keyword, slug, aliases, mention-reference count, and a one-line summary — never a
@@ -322,13 +320,12 @@ the same way as [Audited Reads](#audited-reads) above, and the event records the
 requested selectors, every related strand the closure added, the depth limit, and the
 total bytes served. A `glossary:<keyword>` read also appears in the `GLOSSARY` lane of
 the agent Main deck in [sase's TUI](../tui/agents-main-deck.md#agents-tab-main-deck-1)
-alongside any legacy pre-migration events; selecting that lane's numbered hint pages a
-generated report of the read's output.
+alongside events created before the migration; selecting that lane's numbered hint pages
+a generated report of the read's output.
 
 `sase memory log --include glossary` folds in audit events recorded under the retired
-pre-web `sase glossary read` command, so historical reads stay visible; that legacy
-parsing lives under `sase.memory`, not a `sase.glossary` package, which no longer
-exists.
+pre-web `sase glossary read` command, so historical reads stay visible. Its parser lives
+under `sase.memory`; the package has no `sase.glossary` module.
 
 ### Browsing and editing strands
 
@@ -387,9 +384,9 @@ their body are detected and rendered:
   regardless of the strategy; `[[target]]` defers to `link_rendering`.
 
 A strand's own frontmatter overrides its web descriptor's, which overrides the built-in
-default; a flat note uses its own frontmatter or the default. The legacy web-descriptor
-key `closure: mentions` is still accepted as an alias for `link_reference: implicit`,
-and `closure: none` for `link_reference: none`; declaring both `closure:` and
+default; a flat note uses its own frontmatter or the default. The web-descriptor key
+`closure: mentions` is still accepted as an alias for `link_reference: implicit`, and
+`closure: none` for `link_reference: none`; declaring both `closure:` and
 `link_reference:` on one descriptor is a validation error.
 
 Author a link as `[[target]]` or `![[target]]` in the note body (never in frontmatter),

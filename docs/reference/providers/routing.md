@@ -241,10 +241,10 @@ Each entry under `overrides` has these fields:
 | `expires_at` | `float \| None` | Unix timestamp when the override expires; `null` means "until cleared".  |
 | `source`     | `str`           | Free-form tag indicating who set the override (e.g. `"ace"`).            |
 
-A legacy **v1** file (a single flat override object with top-level `provider` / `model`
-/ ... keys) is migrated on read into `overrides.default`, so an override set by an older
-build keeps working after upgrade. Existing v2 entries without `effort` remain valid and
-are read as `effort: null`.
+Version 1 files (a single flat override object with top-level `provider` / `model` / ...
+keys) are migrated on read into `overrides.default`. Existing version 2 entries without
+`effort` remain valid and are read as `effort: null`. See the
+[provider override migration note](../upgrading/providers.md#provider-override-files).
 
 Writes are atomic (temp file + `os.replace`). Reads are best-effort self-cleaning:
 expired or unparseable entries are pruned and the file is deleted once no override

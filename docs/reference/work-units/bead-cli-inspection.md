@@ -17,27 +17,22 @@ later updates replaced. JSON emits one envelope with `issue_id`, `schema_version
 instead of rendering as an empty change row.
 
 `--lost-notes` is a historical repair for stores that predate the append-only note log:
-it reports notes snapshots whose nonblank text no longer appears in the current notes,
-the pattern only the old whole-field `sase bead update --notes` replacement could
-produce. Since notes are structured, append-only records now — appending, editing, and
-retracting each keep their own event and never overwrite another record's bytes — new
-data cannot lose a note this way; the check exists to find and fix damage already done
-to older stores. With no positional ID it scans the whole store; with an ID it checks
-only that bead. Findings are sorted by bead ID. Add `--restore` to preview
-provenance-tagged appends, prompt once, and restore every finding through the same
-atomic append mutation used by `sase bead note`. Restoration is idempotent: restored
-text is retained by later append snapshots, so a second scan reports nothing.
-Non-interactive restoration declines safely unless `--yes` is supplied, and `--restore`
-without `--lost-notes` is a usage error.
+it reports notes snapshots whose nonblank text is absent from the current notes, the
+pattern only the old whole-field `sase bead update --notes` replacement could produce.
+Since notes are structured, append-only records now — appending, editing, and retracting
+each keep their own event and never overwrite another record's bytes — new data cannot
+lose a note this way; the check exists to find and fix damage already done to older
+stores. With no positional ID it scans the whole store; with an ID it checks only that
+bead. Findings are sorted by bead ID. Add `--restore` to preview provenance-tagged
+appends, prompt once, and restore every finding through the same atomic append mutation
+used by `sase bead note`. Restoration is idempotent: restored text is retained by later
+append snapshots, so a second scan reports nothing. Non-interactive restoration declines
+safely unless `--yes` is supplied, and `--restore` without `--lost-notes` is a usage
+error. See the
+[bead note recovery migration note](../upgrading/work-units.md#bead-note-recovery).
 
-| Flag               | Values                    | Description                                                    |
-| ------------------ | ------------------------- | -------------------------------------------------------------- |
-| `-F, --field`      | field name                | Restrict to events changing the field; repeatable              |
-| `-f, --format`     | `compact`, `full`, `json` | Output format; defaults to `compact`                           |
-| `-n, --limit`      | non-negative integer      | Newest entries to print; omitted or `0` is unlimited           |
-| `-l, --lost-notes` | boolean                   | Report beads whose current notes dropped an earlier revision   |
-| `-R, --restore`    | boolean                   | With `--lost-notes`, re-append findings after one confirmation |
-| `-y, --yes`        | boolean                   | With `--restore`, skip the confirmation prompt                 |
+See the generated [`sase bead` CLI reference](../cli/bead.md#sase-bead-history) for this
+command's options.
 
 ## `sase bead note <id> [<text>]`
 
@@ -60,16 +55,11 @@ rendered log drops it, but `sase bead history` still replays the original. `--ed
 reject an out-of-range ordinal without writing, and are mutually exclusive; `--edit`
 requires `text`, `--remove` forbids it.
 
-For the flattened text projection every legacy consumer expects (search indexes, bead
-pages, `--field notes`), see `notes_text` under
-[`sase bead show`](#sase-bead-show-id-id2).
+For the flattened text projection used by search indexes, bead pages, and
+`--field notes`, see `notes_text` under [`sase bead show`](#sase-bead-show-id-id2).
 
-| Flag                    | Description                                                                            |
-| ----------------------- | -------------------------------------------------------------------------------------- |
-| `-a, --author`          | Author recorded on a new entry; defaults to current agent, then store owner            |
-| `-S, --allow-sensitive` | Attach files from sensitive paths                                                      |
-| `-e, --edit`            | Rewrite note `#N` (mutually exclusive with `--remove`); `N` is the ordinal from `show` |
-| `-x, --remove`          | Retract note `#N` (mutually exclusive with `--edit`); `sase bead history` keeps it     |
+See the generated [`sase bead` CLI reference](../cli/bead.md#sase-bead-note) for this
+command's options.
 
 ## `sase bead read <id> [<id2> ...]`
 
@@ -78,8 +68,8 @@ Read one or more beads with output identical to
 this command; `show` is the unaudited human command.
 
 ```bash
-sase bead read sase-64 -r "Need the epic scope"
-sase bead read sase-64 sase-65 -r "Need both designs" --format json
+sase bead read <bead-id> -r "Need the epic scope"
+sase bead read <bead-id> <another-bead-id> -r "Need both designs" --format json
 ```
 
 `-r/--reason` is required and must be non-empty. Before printing, the command appends
@@ -117,21 +107,21 @@ Automation running inside agents (symvision, flag checks, commit hooks) sets
 written to `~/.sase/projects/<project>/bead_views.jsonl` before this guard still surface
 as the weaker `viewed` verb in
 [`sase bead touched`](bead-cli-query.md#sase-bead-touched-agent) and the Agents-tab
-`Beads:` rows; the log is no longer written and is not synced, so another machine's
-agent views are not visible here. Use [`sase bead read`](#sase-bead-read-id-id2) when
-the consultation should be audited.
+`Beads:` rows; the log is neither written nor synced, so another machine's agent views
+are not visible here. Use [`sase bead read`](#sase-bead-read-id-id2) when the
+consultation should be audited.
 
 An ID ending in `..` expands to that bead plus its direct children in one argv token:
-`sase bead show sase-tt..` is exactly
-`sase bead show sase-tt sase-tt.1 sase-tt.2 ... sase-tt.8`. Expansion is not recursive —
-only the target's direct children (phase beads and child epics, one level) are included,
-sorted by the integer suffix after the final dot when it parses as digits, with any
-unnumbered children kept after those in the order the store returned. A target with no
-children is not an error; it renders alone. Expansion happens before the existing
-positional dedup, so `sase bead show tt.3 tt..` renders `sase-tt.3`, then `sase-tt`,
-then its remaining children — `sase-tt.3` is not repeated. A malformed token such as
-`..` or `tt...` reports
-`Error: invalid ID expansion: '<token>' (expected <epic-id>.., for example sase-tt..)`
+`sase bead show <epic-id>..` is exactly
+`sase bead show <epic-id> <epic-id>.1 <epic-id>.2 ... <epic-id>.8`. Expansion is not
+recursive — only the target's direct children (phase beads and child epics, one level)
+are included, sorted by the integer suffix after the final dot when it parses as digits,
+with any unnumbered children kept after those in the order the store returned. A target
+with no children is not an error; it renders alone. Expansion happens before the
+existing positional dedup, so `sase bead show tt.3 tt..` renders `<epic-id>.3`, then
+`<epic-id>`, then its remaining children — `<epic-id>.3` is not repeated. A malformed
+token such as `..` or `tt...` reports
+`Error: invalid ID expansion: '<token>' (expected <epic-id>.., for example <epic-id>..)`
 and exits 1. A stem that does not resolve reports `Error: issue not found: <stem>` and
 exits 1, the same as any other missing ID, while beads that did resolve still print.
 
@@ -188,12 +178,12 @@ email without a link. `sase bead list --format full` and
 `sase bead search --format full` share the same `CREATED BY` block but never resolve or
 print the hosted-agent link — only `sase bead show` does. Compact `sase bead list`/
 `sase bead search` rows never show the creator at all. Closed beads include their
-resolution, close reason, and close timestamp; legacy closures without a resolution show
+resolution, close reason, and close timestamp; closures without a resolution show
 `(unrecorded)`. Phase and task detail views always print a size: they use the stored
-value when present and `small (default)` when it is absent. Legacy sizeless task
-launches use the same `@small` fallback. Any bead's children are grouped as phases (with
-status and size) and child epics (with tier and status), including child epics owned by
-a phase bead. Nested beads show their complete lineage back to the root plan. A
+value when present and `small (default)` when it is absent. Task launches without a
+stored size use the same `@small` fallback. Any bead's children are grouped as phases
+(with status and size) and child epics (with tier and status), including child epics
+owned by a phase bead. Nested beads show their complete lineage back to the root plan. A
 `claimed` bead also prints `Claimed by: <assignee> (agent has not started working yet)`.
 A task bead of type `flag` additionally prints a `FLAG` section with the registry key,
 both `remove_by` thresholds, and derived due state, plus the typed body block for the
@@ -206,8 +196,7 @@ reductions earlier versions performed. Combined with a narrowed CLI parser (only
 repo-inventory lookups (the creator-URL and artifact-reference-context resolvers no
 longer each re-probe `git remote` and re-merge sidecar config from scratch), this keeps
 `sase bead show` fast regardless of store size or how many other beads reference the
-target — including beads with `refs`, which previously paid the repo-inventory cost
-twice.
+target — including beads with `refs`, without paying the repo-inventory cost twice.
 
 Typed artifact relationships appear after parent/children/dependency blocks and before
 description and notes. They are not scheduling edges: `DEPENDS ON` and `BLOCKS` stay
@@ -222,24 +211,24 @@ stay symmetric.
 LINKS (2)
   → implements · plan:202608/link-aware-bead-show.md
     Lands the approved CLI design.
-    manual · added 2026-08-22T14:10:00Z by alice.athena.worker
-  ↔ related · bead:sase-a1
+    manual · added 2026-08-22T14:10:00Z by <agent-name>
+  ↔ related · bead:<bead-id>
     Shares the same rendering contract.
-    migrated · added 2026-08-20T09:00:00Z by alice
+    migrated · added 2026-08-20T09:00:00Z by <agent-name>
 
 REFERENCED BY (1)
-  ← cited-by · agent:alice.athena.reviewer
-    Prompt citation of bead:sase-b2.
-    prompt citation · 3 uses · added 2026-08-22T15:00:00Z by alice.athena.reviewer
+  ← cited-by · agent:<agent-name>
+    Prompt citation of bead:<bead-id>.
+    prompt citation · 3 uses · added 2026-08-22T15:00:00Z by <agent-name>
 ```
 
 `LINKS` holds `manual`, `migrated`, and any other non-automatic origin. `REFERENCED BY`
 holds `prompt_ref` and `read` origins with friendly labels (`prompt citation`,
-`audited read`) and accumulated use counts. Unknown legacy origin values print as raw
-labels. Identity and provenance rows stay atomic; link reasons wrap with the same
-`--wrap` budget as description prose. Missing optional sidecars mean there are no
-external rows. A present but malformed or unsupported link index fails loudly and prints
-a hint to rerun with `--no-links`. Stored `issue.refs` remain a separate `REFS` section.
+`audited read`) and accumulated use counts. Unknown origin values print as raw labels.
+Identity and provenance rows stay atomic; link reasons wrap with the same `--wrap`
+budget as description prose. Missing optional sidecars mean there are no external rows.
+A present but malformed or unsupported link index fails loudly and prints a hint to
+rerun with `--no-links`. Stored `issue.refs` remain a separate `REFS` section.
 
 `full` is the default detail block. `compact` prints the same single row as
 `sase bead list` and never expands artifact links. `json` emits a single-bead envelope
@@ -274,27 +263,15 @@ any styled output reproduces the exact `plain` bytes, so piping to a non-TTY (as
 agent does) is unaffected. `--color` decides **whether** ANSI may be emitted; `--style`
 decides **how much** styling to apply once that gate is open:
 
-| `--style` | Meaning                                                                                                                 |
-| --------- | ----------------------------------------------------------------------------------------------------------------------- |
-| `auto`    | Resolve to `rich` when color is enabled, else `plain`. Default.                                                         |
-| `plain`   | No ANSI at all, regardless of `--color`.                                                                                |
-| `rich`    | Semantic palette plus markdown/code syntax highlighting inside `CREATION REASON`, `DESCRIPTION`, `NOTES`, and evidence. |
-
 `--style` has no effect on `--format json`, which is never styled. For
 `--format compact`, `plain` forces no ANSI while `auto`/`rich` enable the compact row's
 semantic colors when the color gate is open.
 
 ```bash
-sase bead show sase-64 --style rich --color always
+sase bead show <bead-id> --style rich --color always
 ```
 
 `-p/--pager` controls paging for long terminal output:
-
-| `--pager` | Meaning                                                                         |
-| --------- | ------------------------------------------------------------------------------- |
-| `auto`    | Default. Page only on a real terminal when output is taller than the terminal.  |
-| `always`  | Page on a real terminal whenever the SASE pager can run, even when output fits. |
-| `never`   | Write directly to stdout.                                                       |
 
 `auto` refuses to page when `TERM` is unset or `dumb`, stdout is redirected,
 `SASE_AGENT` is set, or the output fits the terminal. The `SASE_AGENT` guard prevents
@@ -304,7 +281,7 @@ structured section per bead. Direct output still uses the same flattened bytes, 
 pipelines remain plain stdout.
 
 ```bash
-sase bead show sase-64 --pager always
+sase bead show <bead-id> --pager always
 ```
 
 `CREATION REASON`, `DESCRIPTION`, `NOTES`, and task `+1 EVIDENCE` notes wrap at the
@@ -321,18 +298,11 @@ non-whitespace tokens. Fenced code blocks, indented code, tables, tab-bearing li
 structured relationship rows, plan paths, refs, and the title row are left unwrapped.
 
 ```bash
-sase bead show sase-64 --wrap auto
+sase bead show <bead-id> --wrap auto
 ```
 
-| Flag             | Values                             | Description                                                                  |
-| ---------------- | ---------------------------------- | ---------------------------------------------------------------------------- |
-| `-c, --color`    | `auto`, `always`, `never`          | Color mode; now applies to `--format full` too                               |
-| `-f, --format`   | `compact`, `json`, `full`          | Output format; defaults to `full`                                            |
-| `-N, --no-links` | flag                               | Skip artifact-link resolution; omit LINKS, REFERENCED BY, and JSON link data |
-| `-p, --pager`    | `auto`, `always`, `never`          | Page long terminal output; defaults to `auto`                                |
-| `-P, --project`  | project key, name, or alias        | Resolve every ID against one enabled project's bead store                    |
-| `-s, --style`    | `auto`, `plain`, `rich`            | Styling level for `--format full`; defaults to `auto`                        |
-| `-w, --wrap`     | integer >= 20, `auto`, `none`, `0` | Prose wrap width for full output; defaults to `markdown.print_width` (`88`)  |
+See the generated [`sase bead` CLI reference](../cli/bead.md#sase-bead-show) for this
+command's options.
 
 ## Related
 

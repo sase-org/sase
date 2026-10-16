@@ -22,11 +22,11 @@ delivery** here. For root invocations with an artifacts directory, successful bu
 preparation records the bundle and manifest under `instructions/` and exposes
 `SASE_INSTRUCTIONS_FILE` for the duration of the provider call, then restores its
 previous value. Calls without an artifacts directory skip bundle preparation and use the
-adapter's legacy path. The architecture is recorded as
+provider's native instruction path. The architecture is recorded as
 [Instructions Are Rendered Per Invocation And Delivered By Adapters](https://github.com/sase-org/sase/blob/master/sase/memory/decisions/instructions-per-invocation.md).
 Rendering a bundle does not prove the provider loaded it: use `sase instructions verify`
 to inspect observed delivery. If bundle preparation or transport fails, SASE attempts
-legacy delivery and records the fallback; see
+native delivery and records the fallback; see
 [Delivery](../../contribute/instruction-bundle-internals.md#delivery) and
 [Fallback and notifications](../../contribute/instruction-bundle-internals.md#fallback-and-notifications).
 
@@ -46,7 +46,7 @@ See also
 The four explicit adapters have default-enabled flags named
 `claude_explicit_instructions`, `codex_explicit_instructions`,
 `grok_explicit_instructions`, and `muse_explicit_instructions`. Disabling one restores
-that provider's legacy delivery. This applies to SASE-managed invocations; a separately
+that provider's native delivery. This applies to SASE-managed invocations; a separately
 opened interactive provider CLI uses its own discovery behavior. Provider-specific
 details, including which native files remain visible, are in
 [Agent Providers](../providers/agent-clis.md) and
@@ -101,15 +101,14 @@ is repeatable and accepts comma-separated pairs; `mode=interactive|export` impli
 the normalized manifest with `delivery.status: preview`. `-N/--no-cache` bypasses the
 cache (`cache: bypass`). `-s/--sections` prints a Rich table of id, layer, status or
 reason, lifecycle, bytes, `tokens_est`, and source. `-p/--parity` additionally checks
-the bundle against the legacy root and home `AGENTS.md` files: every legacy core,
-reference, and web path must map to an included or shadowed bundle section (the legacy
-`sase.md` maps to the `pkg.sase.*` sections), every legacy repository name must appear
-in `pkg.sase.repos`, and exactly one included section must contain the
-`SASE Final Declaration` marker. The parity table goes to stderr and the exit code is 1
-on any gap; extra bundle sections (for example `pkg.provider.*`) are reported as
-additions, not failures. The default output is raw bundle Markdown on stdout plus one
-summary line on stderr (sha256 and `common_digest` prefixes, section count, bytes,
-`tokens_est`, cache, and milliseconds).
+the bundle against the root and home `AGENTS.md` files: every core, reference, and web
+path must map to an included or shadowed bundle section (`sase.md` maps to the
+`pkg.sase.*` sections), every repository name must appear in `pkg.sase.repos`, and
+exactly one included section must contain the `SASE Final Declaration` marker. The
+parity table goes to stderr and the exit code is 1 on any gap; extra bundle sections
+(for example `pkg.provider.*`) are reported as additions, not failures. The default
+output is raw bundle Markdown on stdout plus one summary line on stderr (sha256 and
+`common_digest` prefixes, section count, bytes, `tokens_est`, cache, and milliseconds).
 
 ## Related
 

@@ -29,17 +29,8 @@ llm_provider:
       fallback_model: "sonnet"
 ```
 
-### Config Fields {#config-fields-1}
-
-| Field                 | Type          | Default | Description                                                                                                                                                                                   |
-| --------------------- | ------------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `max_retries`         | int           | `0`     | Maximum retry attempts. `0` disables retrying.                                                                                                                                                |
-| `error_patterns`      | list[str]     | `[]`    | Case-insensitive substring patterns matched against error output.                                                                                                                             |
-| `wait_times`          | list[int]     | `[30]`  | Per-retry wait times in seconds. Last value reused if list is too short.                                                                                                                      |
-| `fallback_model`      | `str \| null` | `null`  | Alternate model to use after exhausting all retries.                                                                                                                                          |
-| `continuation_prompt` | `str \| null` | `null`  | Text prepended to `state.current_prompt` on every retry (used to nudge the agent).                                                                                                            |
-| `preserve_workspace`  | bool          | `false` | Preserve on-disk edits across legacy in-process retry attempts.                                                                                                                               |
-| `spawn_new_agent`     | bool          | `false` | Opt in to spawn-on-retry: a retryable error spawns a fresh detached child agent (as if `sase run` had been invoked) instead of in-process retry. See [Spawn-on-Retry](#spawn-on-retry) below. |
+Retry configuration fields and defaults are listed in the generated
+[`llm_provider.retry` reference](../config/llm-provider.md#llm_provider-retry).
 
 ### Default Configuration
 
@@ -225,9 +216,9 @@ attempt in-process. The failing parent transfers its workspace claim to the chil
 small cost of a fresh process for two benefits:
 
 - The workspace is preserved by design — the child skips `prepare_workspace()` and
-  inherits the parent's in-progress edits via the transferred workspace claim. (Legacy
-  in-process retry runs `prepare_workspace()` between attempts and wipes uncommitted
-  file edits unless `preserve_workspace=True`.)
+  inherits the parent's in-progress edits via the transferred workspace claim. An
+  in-process retry runs `prepare_workspace()` between attempts and can remove
+  uncommitted file edits unless `preserve_workspace=True`.
 - A retry boundary becomes a real process boundary, which is more robust against memory
   leaks, lingering child processes, and stale interpreter state.
 
@@ -245,8 +236,8 @@ State is carried across the boundary by a `retry_handoff.json` file written to t
 parent's artifacts directory; the child reads it before launch.
 
 **Fallback behavior**: spawn-on-retry is opt-in (default `false`). If spawning fails
-(e.g. workspace transfer fails), the legacy in-process retry runs as a fallback so the
-user is never worse off.
+(e.g. workspace transfer fails), the in-process retry runs as a fallback so the user is
+never worse off.
 
 Source: `src/sase/axe/run_agent_retry_spawn.py`, `src/sase/llm_provider/retry_config.py`
 

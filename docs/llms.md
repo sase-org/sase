@@ -87,7 +87,7 @@ This page has moved. See [Providers and models](reference/providers/index.md).
 
 <a id="legacy-mapping"></a>
 
-- [Legacy mapping](reference/providers/models.md#legacy-mapping)
+- [Legacy mapping](reference/upgrading/providers.md#model-selection-names)
 
 <a id="global-override"></a>
 
@@ -491,11 +491,11 @@ This page has moved. See [Providers and models](reference/providers/index.md).
 
 <a id="config-file"></a>
 
-- [Config file](reference/providers/configuration.md#config-file)
+- [Config file](reference/providers/configuration.md#configuration)
 
 <a id="config-fields"></a>
 
-- [Config fields](reference/providers/configuration.md#config-fields)
+- [Config fields](reference/config/llm-provider.md)
 
 <a id="continuation-budget-preflight"></a>
 
@@ -503,15 +503,15 @@ This page has moved. See [Providers and models](reference/providers/index.md).
 
 <a id="cli-flags"></a>
 
-- [Cli flags](reference/providers/configuration.md#cli-flags)
+- [Cli flags](reference/providers/configuration.md#command-line-options)
 
 <a id="tui"></a>
 
-- [Tui](reference/providers/configuration.md#tui)
+- [Tui](reference/cli/tui.md)
 
 <a id="axe"></a>
 
-- [Axe](reference/providers/configuration.md#axe)
+- [Axe](reference/cli/axe.md)
 
 <a id="temporary-model-overrides"></a>
 
@@ -615,7 +615,7 @@ This page has moved. See [Providers and models](reference/providers/index.md).
 
 <a id="config-fields-1"></a>
 
-- [Config fields 1](reference/providers/retry-and-fallback.md#config-fields-1)
+- [Config fields 1](reference/config/llm-provider.md#llm_provider-retry)
 
 <a id="default-configuration"></a>
 

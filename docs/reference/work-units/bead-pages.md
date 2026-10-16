@@ -14,7 +14,7 @@ in the `--beads` repository under `pages/<root>/`, where `<root>` is the bead ID
 before the first dot. The root bead renders as `pages/<root>/README.md`; descendants
 render as `pages/<root>/<bead-id>.md`.
 
-An artifact reference such as `@bead:sase-9z` addresses that generated page directly.
+An artifact reference such as `@bead:<bead-id>` addresses that generated page directly.
 The payload is the exact bead ID, with no prefix-less shorthand and no `#L`, `#page=`,
 or `#t=` fragment support. Addressing is lexical and offline: SASE derives the page path
 from the ID without reading `issues.jsonl`, then reports the page missing if it has not

@@ -63,10 +63,10 @@ TIMESTAMPS:
   <TIMESTAMP_ENTRIES>
 ```
 
-The parser also accepts legacy `COMMITS:` sections and legacy `## ChangeSpec` block
-headers. New Patches and newly created sections use `STITCHES:`. When SASE edits an
-older Patch for an unrelated reason, it preserves the existing section header instead of
-rewriting the whole block.
+The parser also accepts `COMMITS:` sections and `## ChangeSpec` block headers. New
+Patches and newly created sections use `STITCHES:`. When SASE edits a Patch for an
+unrelated reason, it preserves the existing section header instead of rewriting the
+whole block. See the [Patch migration note](../upgrading/work-units.md#patch-fields).
 
 **Important:** when outputting multiple Patches, separate each one with **two blank
 lines**.
@@ -110,8 +110,8 @@ A comprehensive description of what the PR-sized change does and why.
 
 **PR tag stripping:** when a Patch is created from a PR workflow or its description is
 synced after a reword, any trailing `KEY=VALUE` metadata lines matching
-`^[A-Z][A-Z0-9_]*=` are automatically stripped. The pattern matches both the legacy
-unprefixed spelling and the `SASE_`-prefixed footer tags, such as
+`^[A-Z][A-Z0-9_]*=` are automatically stripped. The pattern matches the unprefixed
+spelling and the `SASE_`-prefixed footer tags, such as
 `SASE_AUTOSUBMIT_BEHAVIOR=SYNC_SUBMIT` and `SASE_MARKDOWN=true`, so neither pollutes the
 description. See [commit_workflows.md](../../commit_workflows.md#pull-request-pr) for
 details.
@@ -169,8 +169,8 @@ PARENT: my_project_add_config_parser
 The PR identifier, usually a PR URL. `PR:` is optional because a Patch can exist before
 or without a PR.
 
-Legacy `CL:` fields are still accepted during the compatibility window and are rewritten
-as `PR:` when touched.
+`CL:` fields are accepted during the compatibility window and are rewritten as `PR:`
+when touched. See the [Patch migration note](../upgrading/work-units.md#patch-fields).
 
 **Values:**
 
@@ -265,7 +265,7 @@ sigil.
 REFS:
   research:202607/artifact_capture_and_retention/artifact_capture_and_retention.md
   file:default:0123456789abcdef01234567
-  bead:sase-b7
+  bead:<bead-id>
 ```
 
 Canonical kinds include `file:`, `stitch:`, `patch:`, `agent:`, `bead:`, and configured
@@ -338,9 +338,9 @@ The `CHAT` drawer's duration is calculated from the chat filename timestamp to t
 commit time. The `PLAN` drawer is emitted when `SASE_PLAN` is set during the commit
 workflow.
 
-Legacy `COMMITS:` sections are parsed as stitches. "Commit" remains the correct term for
-real Git or Mercurial commits, SHAs, VCS logs, commit statistics, the
-`sase stitch create` command, and the act of committing.
+`COMMITS:` sections are parsed as stitches. "Commit" remains the correct term for real
+Git or Mercurial commits, SHAs, VCS logs, commit statistics, the `sase stitch create`
+command, and the act of committing.
 
 ### TIMESTAMPS
 
@@ -414,7 +414,7 @@ proceeds.
 
 **Manual refresh:** run `sase patch sync-deltas --patch <name>` to recompute `DELTAS`
 for a single Patch from the current VCS state. Optional `-p`/`--project-file` and
-`-w`/`--workspace-dir` flags override the inferred defaults. The legacy
+`-w`/`--workspace-dir` flags override the inferred defaults. The
 `sase changespec sync-deltas -c <name>` spelling remains accepted.
 
 In sase's TUI, `DELTAS` renders with colored glyphs. The section has two semantic fold
@@ -473,7 +473,7 @@ MENTORS:
 ```
 
 The entry ID matches a stitch such as `(1)` or `(2a)`. Profile names may include
-progress counts; legacy entries without counts still parse.
+progress counts; entries without counts parse.
 
 ## Complete Examples
 

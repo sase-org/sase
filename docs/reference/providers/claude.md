@@ -36,7 +36,7 @@ invocation markers. They are private temporary files kept across all cycles and 
 after the call. With `claude_explicit_instructions` disabled or no delivery plan, the
 root flag is `--append-system-prompt <single-turn directive>`, settings contain only the
 helper guard, and the helper uses the packaged static template. A failed root file
-restores that legacy root delivery, including native discovery; a failed helper file
+restores the default root delivery, including native discovery; a failed helper file
 uses the static template independently.
 
 SASE also sets two Claude Code environment variables on the subprocess unless the caller
@@ -161,8 +161,8 @@ into one row.
 
 Stream parsing is the only writer for new runs. SASE does **not** install Claude Code
 hooks and does **not** write to the workspace's `.claude/settings.local.json`; earlier
-releases did, through a `sase_claude_tool_hook` console script that no longer ships, and
-new runs never request Claude's `--include-hook-events`.
+releases did, through the `sase_claude_tool_hook` console script, and new runs never
+request Claude's `--include-hook-events`.
 
 The `schema_version` field on each row names _which writer produced it_, not how recent
 it is — the numbers are two lineages, not a sequence, so a higher number is not a newer

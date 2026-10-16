@@ -55,12 +55,11 @@ Decisions inside that command:
   cannot answer them.
 - **No `-w/--worktree` and no `--subagent-worktree-isolation`.** SASE's workspace is the
   workspace, and subagent isolation is a documented no-op.
-- **`--enable-shell-tool`.** SASE switches Muse to its legacy `shell` tool, which runs
-  every command synchronously (see
-  [Single-turn normalization](#single-turn-normalization)). SASE skips the flag when the
-  resolved extra-args string already carries it: a duplicate boolean flag is a
-  `muse exec` usage error (exit 2). Human interactive sessions (`llm_interactive_cli`)
-  keep Muse's defaults.
+- **`--enable-shell-tool`.** SASE switches Muse to its `shell` tool, which runs every
+  command synchronously (see [Single-turn normalization](#single-turn-normalization)).
+  SASE skips the flag when the resolved extra-args string already carries it: a
+  duplicate boolean flag is a `muse exec` usage error (exit 2). Human interactive
+  sessions (`llm_interactive_cli`) keep Muse's defaults.
 
 Set `SASE_MUSE_SANDBOX=on` for a hardened opt-in: SASE keeps Muse's sandbox and passes
 `--sandbox-network enabled` instead of `--disable-sandbox`. This is containment SASE has
@@ -73,12 +72,12 @@ Muse runs every command synchronously inside its turn, and anything that can out
 Muse's synchronous ceiling goes to a SASE monitor, chosen before the command starts.
 
 - **Synchronous `shell` tool.** SASE launches `muse exec` with `--enable-shell-tool`:
-  Muse runs every command synchronously in its legacy `shell` tool, which has a hard
-  10-minute kill and no post-turn background wake.
-- **The legacy `shell` tool's 10-minute kill discards all output.** A command still
-  running at 600 seconds is killed and returns only `tool timed out`, so final
-  verification prefers prepared monitor completion and long commands start under
-  `/sase_monitor` (see the directive).
+  Muse runs every command synchronously in its `shell` tool, which has a hard 10-minute
+  kill and no post-turn background wake.
+- **The `shell` tool's 10-minute kill discards all output.** A command still running at
+  600 seconds is killed and returns only `tool timed out`, so final verification prefers
+  prepared monitor completion and long commands start under `/sase_monitor` (see the
+  directive).
 - **Synchronous-ceiling export.** Around every provider invocation SASE sets
   `SASE_PROVIDER_SYNC_CEILING_SECONDS=600`, so in-harness tooling can read the kill
   ceiling instead of guessing it. The variable is scrubbed at every agent, monitor, and
@@ -224,7 +223,7 @@ Non-tool tasks (`model.meta.response`, `reminder.agent.plugin:*`) never become t
 records, and calls still pending at stream end are finalized like every other
 provider's.
 
-**Legacy `shell` tool.** Under `muse exec --enable-shell-tool` (fixture
+**`shell` tool.** Under `muse exec --enable-shell-tool` (fixture
 `tests/llm_provider/fixtures/muse_exec_shell_tool_R3401.1.jsonl`, keyed to Muse release
 `1.3.0-R3401.1`), tool tasks arrive as `tool.shell` with plain-text results that carry
 no `command` / `description` fields, so their target is honestly the result preview —

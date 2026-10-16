@@ -85,7 +85,7 @@ single worker prompt without changing the bead or agent registry. A real launch:
 1. Force-reuses the task ID as the deterministic agent name after showing or confirming
    any destructive cleanup.
 2. Selects the bead's stored model or its size-derived phase-worker alias; missing
-   legacy size normalizes to small.
+   missing size defaults to small.
 3. Renders one VCS-aware prompt ending in `#bd/work_task:<task-id>`, plus `#plan` for
    large/xlarge tasks.
 4. Sets `status=in_progress` and `assignee=<task-id>` in one checkpoint commit,
@@ -115,8 +115,8 @@ Plan-file mode is the canonical epic-approval entry point. It:
 6. Invokes the existing bead-ID launch path.
 
 A missing phase description becomes a deterministic pointer to the plan and phase ID. A
-linked `bead_id` that no longer exists fails with instructions to remove the stale link
-or restore the bead store. Failures before the launch checkpoint is committed remove the
+linked `bead_id` that is missing fails with instructions to remove the stale link or
+restore the bead store. Failures before the launch checkpoint is committed remove the
 newly-created epic and children and restore the plan link. A publication failure after
 the checkpoint preserves the linked, preassigned epic as the safe retry point even
 though no runner spawned. If dispatch fails with no runner spawned, plan-file mode
@@ -130,11 +130,11 @@ When an epic-tier plan is proposed from bead work, `sase plan propose` automatic
 stamps `parent_bead` from the phase agent's `SASE_PHASE_BEAD_ID`, from the land agent's
 `SASE_EPIC_BEAD_ID`, or from the task worker's `SASE_BEAD_ID`. Plan-file mode resolves
 that bead and creates the new epic beneath it, yielding recursive IDs such as
-`beads-001.2.1` or `sase-iq.1`; an unresolved parent fails with a remedy instead of
-silently creating a top-level epic. A task bead that spawned a child epic cannot be
-closed until that child epic closes. `--parent <bead-id>` overrides the authored
-association, while `--parent top-level` explicitly creates an unparented epic. The
-override applies only to plan-file targets.
+`beads-001.2.1` or `<parent-bead-id>.1`; an unresolved parent fails with a remedy
+instead of silently creating a top-level epic. A task bead that spawned a child epic
+cannot be closed until that child epic closes. `--parent <bead-id>` overrides the
+authored association, while `--parent top-level` explicitly creates an unparented epic.
+The override applies only to plan-file targets.
 
 `--dry-run` plan-file mode validates and resolves the stores, previews the archive
 destination, parented epic ID, authored beads, routed models, and dependency waves, and
@@ -154,10 +154,10 @@ Once an epic bead exists, the shared launch path:
    therefore do not launch a duplicate phase agent.
 2. On a confirmed launch, force-reuses the deterministic bead-work names —
    `<epic_id>.<N>` (for each open phase), `<epic_id>.land` (for the land agent), and the
-   legacy `<epic_id>` land-agent name. It wipes any prior owner of those names that is a
-   completed, failed, dismissed, or planned reservation, or a live worker still waiting
-   to start (waiting owners are stopped). A live owner that is already running is
-   preserved: its slot is not relaunched. This also covers owners that hold the name
+   additional `<epic_id>` land-agent name. It wipes any prior owner of those names that
+   is a completed, failed, dismissed, or planned reservation, or a live worker still
+   waiting to start (waiting owners are stopped). A live owner that is already running
+   is preserved: its slot is not relaunched. This also covers owners that hold the name
    only as a `workflow_name`. If the forced-reuse cleanup cannot complete (a wipe fails
    or a name is still reserved afterward), the command aborts before mutating any bead
    state. A waiting phase, land, or task worker is not considered reusable merely
@@ -214,8 +214,8 @@ Once an epic bead exists, the shared launch path:
    and `%model:@xlarge`. Each size alias resolves directly to its configured target —
    there is no intermediate hop through a second alias. A stored phase `model` always
    wins over the size-derived alias without changing whether the phase receives `#plan`,
-   and a missing legacy size behaves as `small`. The land agent emits `%model:<value>`
-   when the epic plan bead has a stored `model`. Without one, it emits the configured
+   and a missing size behaves as `small`. The land agent emits `%model:<value>` when the
+   epic plan bead has a stored `model`. Without one, it emits the configured
    `llm_provider.epic_lander_model` (shipped default `@large`) below
    `bead.big_epic_phase_threshold` and the configured
    `llm_provider.big_epic_lander_model` (shipped default `@xlarge`) at or above the
@@ -263,18 +263,8 @@ skip that delegated phase. The land agent now genuinely requires every phase bea
 close; if a phase crashes before closure, retry or close that phase explicitly rather
 than expecting landing to sweep it up.
 
-| Flag                  | Description                                                                                                                                   |
-| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| `-a, --artifacts-dir` | Planner artifacts directory to back-fill after an approved epic launch; plan-file targets only                                                |
-| `-c, --capacity`      | Epic-only per-launch capacity budget (at least 1); a heavier macro weight floors the segment; omit for default queue behavior; `1` runs alone |
-| `-C, --cl-name`       | Patch name for the approved epic completion notification; plan-file targets only                                                              |
-| `-n, --dry-run`       | Preview the epic graph or task prompt, model routing, and cleanup without mutation                                                            |
-| `-j, --json`          | Print one machine-readable result object; also implies `--yes-to-all`                                                                         |
-| `-P, --no-push`       | Skip checkpoint synchronization; a remote-backed detached store stops before spawning                                                         |
-| `-p, --parent`        | Override a plan file's `parent_bead`; use `top-level` for an unparented epic; plan-file targets only                                          |
-| `-y, --yes`           | Skip only the launch confirmation prompt                                                                                                      |
-| `-w, --wait`          | Comma-separated agent names and `bead=<id>` entries the launched epic phases wait for; plan-file targets and epic beads                       |
-| `-Y, --yes-to-all`    | Skip both the destructive-cleanup and launch confirmation prompts                                                                             |
+See the generated [`sase bead` CLI reference](../cli/bead.md#sase-bead-work) for this
+command's options.
 
 Progress, timing, and admission are separate from the dependency schedule. Kahn waves
 and `%w` waits decide _order_; they do not wait for an LLM or a runner slot merely to
@@ -304,8 +294,8 @@ approved and launched as child epics beneath the phase or land bead. Setting the
 `tale` makes nested epic plans park for human review, without a human-in-the-loop
 checkpoint between dependency waves.
 
-When the epic plan bead is attached to Patch metadata (`--patch`, legacy `--changespec`,
-or `--bug-id`), `sase bead work` preserves the current project's VCS context in the
+When the epic plan bead is attached to Patch metadata (`--patch`, `--changespec`, or
+`--bug-id`), `sase bead work` preserves the current project's VCS context in the
 generated prompt. The first phase segment targets the project reference and adds a `#pr`
 reference for the Patch, while later phase and land segments target the Patch ref
 directly. For non-Patch epics launched from a known SASE workspace, each segment is

@@ -29,7 +29,7 @@ When bundle preparation succeeds with `codex_explicit_instructions` enabled (the
 default), SASE adds `-c developer_instructions=<bundle>` to the command. The value
 contains the compiled root instructions and delivery marker, including the single-turn
 directive. The delivered text has a 32 KiB limit; an oversized bundle falls back to the
-legacy single-turn directive instead of being truncated.
+single-turn directive instead of being truncated.
 
 For a SASE-managed project, explicit delivery also adds `-c project_doc_max_bytes=0`.
 This disables native project-document loading for the invocation, including nested
@@ -40,18 +40,18 @@ parent remains essential.
 
 During explicit delivery, SASE collects each thread ID returned by the Codex adapter,
 including fresh threads started after interrupts or handoff recovery, and writes them to
-the invocation manifest when the provider call ends. Legacy and fallback calls do not
-record thread IDs through this path. Use `sase instructions verify -a AGENT` to compare
-observed loads with that manifest; verification can also match sessions by bundle
-markers or timestamps.
+the invocation manifest when the provider call ends. Fallback calls do not record thread
+IDs through this path. Use `sase instructions verify -a AGENT` to compare observed loads
+with that manifest; verification can also match sessions by bundle markers or
+timestamps.
 
-Without an active explicit bundle, the command uses the legacy single-turn directive and
-does not override the CLI's project-document loading setting. Shadow-home suppression,
+Without an active explicit bundle, the command uses the single-turn directive and does
+not override the CLI's project-document loading setting. Shadow-home suppression,
 however, currently follows the feature flag rather than the active delivery result: with
 the flag enabled, fallback runs still omit SASE-owned global instruction copies, the
 `~/AGENTS.md` fallback, and native memories. Disabling `codex_explicit_instructions`
-restores those legacy shadow-home paths as well. This distinction matters when
-diagnosing a render failure or an oversized bundle.
+restores those shadow-home paths as well. This distinction matters when diagnosing a
+render failure or an oversized bundle.
 
 ### Model Mapping {#model-mapping-2}
 
@@ -111,9 +111,9 @@ failure/interruption status, and duration when the stream exposes enough data to
 it.
 
 Older Codex stream shapes that only expose a completed `function_call` item remain
-readable as legacy `FunctionCall` rows. Those records can show the tool name and compact
-input target, but they do not invent response summaries, durations, or failure details
-that Codex did not emit.
+readable as `FunctionCall` rows. Those records can show the tool name and compact input
+target, but they do not invent response summaries, durations, or failure details that
+Codex did not emit.
 
 Codex tool-call summaries use the same bounded and redacted artifact helpers as the
 other providers. Textual command output (`stdout`, `stderr`, and combined `output`) uses

@@ -120,8 +120,8 @@ strategy that recovered. Collector health and diagnostics are display and
 troubleshooting signals only; they never disable providers, change routing eligibility,
 or alter round-robin/provider-priority decisions.
 
-Grok's included-allowance billing response may omit `creditUsagePercent` and the legacy
-`used` / `monthlyLimit` amounts after a weekly or monthly reset, leaving a unified
+Grok's included-allowance billing response may omit `creditUsagePercent` and the `used`
+/ `monthlyLimit` amounts after a weekly or monthly reset, leaving a unified
 `currentPeriod` with `isUnifiedBillingUser: true`. SASE treats that verified shape as
 zero used. Ambiguous or invalid billing payloads remain collection errors, and the usage
 store keeps the previous window until a later successful probe. Recover through the

@@ -14,10 +14,8 @@ proc-friendly form of `sase bead update <id> --status <status>`: the full or sho
 ID routes like any other existing-bead operand, and when the command runs as a durable
 proc it writes its typed result to the proc's result sidecar.
 
-| Flag                 | Description                                                                         |
-| -------------------- | ----------------------------------------------------------------------------------- |
-| `-Q, --request-path` | Versioned operation request sidecar; defaults to `$SASE_PROC_REQUEST_PATH` when set |
-| `-R, --result-path`  | Typed result sidecar; defaults to `$SASE_PROC_RESULT_PATH` when set                 |
+See the generated [`sase bead` CLI reference](../cli/bead.md#sase-bead-apply-status) for
+this command's options.
 
 ## `sase bead attach <id> <file|->...` {#sase-bead-attach-id-file}
 
@@ -26,21 +24,17 @@ bytes on every machine, even after the file is gone. Use `-` to read one attachm
 stdin (with `-N/--name`).
 
 ```bash
-sase bead attach sase-ab ./shot.png
-sase bead attach sase-ab -n "Crash trace" ./trace.json
-sase bead attach sase-ab -N trace.json - < /tmp/trace.json
-sase bead attach sase-ab ./a.png ./b.png
+sase bead attach <bead-id> ./shot.png
+sase bead attach <bead-id> -n "Crash trace" ./trace.json
+sase bead attach <bead-id> -N trace.json - < /tmp/trace.json
+sase bead attach <bead-id> ./a.png ./b.png
 ```
 
 The stored note is the prose (when present), a blank line, and the `@attachment:<name>`
 tokens.
 
-| Flag                    | Description                                                                                  |
-| ----------------------- | -------------------------------------------------------------------------------------------- |
-| `-a, --author`          | Author recorded on the entry (default: current agent, else store owner)                      |
-| `-n, --note TEXT`       | Optional prose stored above the attachment tokens; `@<path>` references inside it attach too |
-| `-N, --name NAME`       | Attachment name; valid only with one file, and required when the file is `-` (stdin)         |
-| `-S, --allow-sensitive` | Attach files from sensitive paths                                                            |
+See the generated [`sase bead` CLI reference](../cli/bead.md#sase-bead-attach) for this
+command's options.
 
 ## `sase bead attachment list [<id>]` / `open` / `path` / `push`
 
@@ -50,9 +44,9 @@ the absolute local view path for one attachment. With no child subcommand,
 open and path fetch from the shared store when needed, even above the auto-fetch cap.
 
 ```bash
-sase bead attachment list sase-ab
-sase bead attachment list sase-ab --json
-sase bead attachment path sase-ab shot.png
+sase bead attachment list <bead-id>
+sase bead attachment list <bead-id> --json
+sase bead attachment path <bead-id> shot.png
 ```
 
 `list` text output shows one descriptor per attachment plus the cached view path or an
@@ -64,14 +58,13 @@ needed (with no name, it opens the only available attachment or lists candidates
 without authoring notes.
 
 ```bash
-sase bead attachment open sase-ab shot.png
+sase bead attachment open <bead-id> shot.png
 sase bead attachment push
-sase bead attachment push sase-ab
+sase bead attachment push <bead-id>
 ```
 
-| Subcommand | Flag         | Description                           |
-| ---------- | ------------ | ------------------------------------- |
-| `list`     | `-j, --json` | Emit machine-readable attachment data |
+See the generated [`sase bead` CLI reference](../cli/bead.md#sase-bead-attachment-list)
+for this command's options.
 
 ## `sase bead attachment purge <id> <name> -r WHY` / `sase bead attachment prune` {#sase-bead-attachment-purge-id-name--r-why-sase-bead-attachment-prune}
 
@@ -89,7 +82,7 @@ orphans older than 7 days; `sase bead doctor --fix-attachments` removes orphans,
 re-drains the outbox, and quarantines corrupt objects.
 
 ```bash
-sase bead attachment purge sase-ab shot.png -r 'contains a secret' -y
+sase bead attachment purge <bead-id> shot.png -r 'contains a secret' -y
 sase bead attachment prune
 sase bead attachment prune -y
 sase bead doctor --fix-attachments
@@ -104,7 +97,7 @@ creator does not count, and repeat reporters are unchanged no-ops. New evidence 
 `open` tasks to `ready` atomically. Closed tasks promote only when the report's
 `observed_since` window starts strictly after the current close, archiving close
 metadata into close history and clearing the assignee; missing provenance preserves the
-legacy reopen behavior. Stale post-close evidence is recorded with `observed_since`,
+default reopen behavior. Stale post-close evidence is recorded with `observed_since`,
 shown with the post-close evidence marker and `+1 after close` badge, and leaves the
 close standing. `--verified-after-close` asserts that the defect was reproduced on a
 tree already containing the close and uses the current instant as the observation-window
@@ -133,11 +126,11 @@ a note-only mutation. If the repeat close supplies an explicit `--resolution` or
 writing and points at `sase bead open` or `sase bead note` as the appropriate remedy.
 
 For an epic plan bead, `--phases` (`-p`) closes phase beads by their numeric bead-ID
-suffix: for example, `sase bead close sase-at -p 1-3,5` closes `sase-at.1`, `sase-at.2`,
-`sase-at.3`, and `sase-at.5`. The epic target itself may be full or shorthand. The
-option accepts comma-separated numbers and inclusive ranges, may be repeated, and
-requires exactly one epic ID. It never closes the epic itself. A plan-tier, untiered, or
-phase target is rejected without writing to the store.
+suffix: for example, `sase bead close <epic-id> -p 1-3,5` closes `<epic-id>.1`,
+`<epic-id>.2`, `<epic-id>.3`, and `<epic-id>.5`. The epic target itself may be full or
+shorthand. The option accepts comma-separated numbers and inclusive ranges, may be
+repeated, and requires exactly one epic ID. It never closes the epic itself. A
+plan-tier, untiered, or phase target is rejected without writing to the store.
 
 `--force` is the explicit exception for canceling or superseding an unfinished tree. It
 requires a non-empty reason and an explicit `canceled` or `superseded` resolution;
@@ -181,36 +174,16 @@ mutation into a failure instead of a false success. Use `--no-push` to keep the 
 local while batching bead mutations, then publish the batch with a later
 `sase bead sync`.
 
-| Flag                    | Description                                                                                                      |
-| ----------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| `-f, --force`           | Sweep unfinished descendants; requires a reason and `canceled` or `superseded`                                   |
-| `-P, --no-push`         | Commit the close locally but skip the post-commit push                                                           |
-| `-n, --note`            | Append this attributed note to each listed issue before closing it. A value of `@<path>` is read from that file. |
-| `-S, --allow-sensitive` | Attach files from sensitive paths                                                                                |
-| `-p, --phases`          | Close numbered phases of one epic; accepts comma-separated numbers and ranges                                    |
-| `-r, --reason`          | Optional close reason text; required with `--force`. A value of `@<path>` is read from that file.                |
-| `-R, --resolution`      | `canceled`, `done`, or `superseded`; real closes default to `done`; repeat closes compare only when supplied     |
+See the generated [`sase bead` CLI reference](../cli/bead.md#sase-bead-close) for this
+command's options.
 
 ## `sase bead create`
 
 Create a new issue. Every create requires `-w/--reason`; see
 [Creation Reason](beads.md#creation-reason).
 
-| Flag                           | Required             | Description                                                                                                                                                                                                                                                         |
-| ------------------------------ | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `-t, --title`                  | yes                  | Issue title                                                                                                                                                                                                                                                         |
-| `-w, --reason`                 | yes                  | Why this bead was filed. Trimmed, non-blank, at most 2000 characters. `@<path>` reads it from that file. Distinct from the title and from `-d/--description`.                                                                                                       |
-| `-T, --type`                   | yes                  | Bead type: `task(<slug>)`, `plan(<file>)`, `plan(<file>,<parent>)`, or `phase(<parent_id>)`; parent IDs may be full or shorthand. New tasks require a catalog slug; list them with `sase bead task-type`. Feature flags use `sase flag new`, not this grammar.      |
-| `-f, --field`                  | no                   | Task-type field value as `k=v` (repeatable). A value of `@<path>` is read from that file. Valid only with `-T 'task(<slug>)'`                                                                                                                                       |
-| `-d, --description`            | no                   | Issue description; `@<path>` reads it from that file and `@@` escapes a literal leading `@`                                                                                                                                                                         |
-| `-a, --assignee`               | no                   | Assignee name                                                                                                                                                                                                                                                       |
-| `-x, --external-ref`           | no                   | Project-qualified external issue identity, e.g. `bug:sase#42`; accepts a bare number, `#N`, `<project>#N`, `bug:<project>#N`, or a `github.com/<owner>/<repo>/issues\|pull/<n>` URL, and normalizes to `bug:<project-key>#<issue-id>`. Must be unique across beads. |
-| `-r, --tier`                   | no                   | Plan-bead tier: `plan` or `epic`                                                                                                                                                                                                                                    |
-| `-c, --patch` / `--changespec` | no                   | Attach a Patch name to a plan bead; `--changespec` is legacy-compatible                                                                                                                                                                                             |
-| `-b, --bug-id`                 | no                   | Bug ID for the attached Patch; requires `--patch` or `--changespec`                                                                                                                                                                                                 |
-| `-m, --model`                  | no                   | Model used when this bead is launched. Provider-qualified (e.g. `codex/gpt-6.1-sol`) or a configured local alias (e.g. `#pro`). On epic plan beads this becomes the land-agent model; on phase/task beads it is the worker model.                                   |
-| `-R, --ref`                    | no                   | Artifact reference to attach to the bead; repeatable and stored canonically                                                                                                                                                                                         |
-| `-z, --size`                   | task: yes; phase: no | Phase/task size: `xsmall`, `small`, `medium`, `large`, or `xlarge`. It controls model routing and whether large/xlarge work receives a plan-first handoff. Legacy sizeless tasks remain readable.                                                                   |
+See the generated [`sase bead` CLI reference](../cli/bead.md#sase-bead-create) for this
+command's options.
 
 Patch metadata is valid only on plan beads. It is used by the epic-approval and
 `sase bead work` flows to keep plan beads linked to the Patch they are intended to
@@ -268,18 +241,8 @@ Tree output marks graph states explicitly:
 all-or-nothing mutation. The command records `dependency_removed` events and then
 reports whether the source bead is ready or still blocked.
 
-| Subcommand | Flag              | Values                                     | Description                                      |
-| ---------- | ----------------- | ------------------------------------------ | ------------------------------------------------ |
-| `list`     | `-c, --color`     | `auto`, `always`, `never`                  | Color mode for text output                       |
-| `list`     | `-d, --direction` | `both`, `in`, `out`                        | Edges to show; defaults to `both`                |
-| `list`     | `-f, --format`    | `compact`, `full`, `json`                  | Output format; defaults to `compact`             |
-| `list`     | `-n, --limit`     | non-negative integer                       | Maximum root beads to print; `0` means unlimited |
-| `list`     | `-s, --status`    | `open`, `claimed`, `in_progress`, `closed` | Filter by endpoint/status root (repeatable)      |
-| `tree`     | `-c, --color`     | `auto`, `always`, `never`                  | Color mode for text output                       |
-| `tree`     | `-d, --direction` | `both`, `in`, `out`                        | Direction to walk; defaults to `out`             |
-| `tree`     | `-f, --format`    | `compact`, `full`, `json`                  | Output format; defaults to `compact`             |
-| `tree`     | `-L, --levels`    | non-negative integer                       | Maximum levels to descend; `0` means unlimited   |
-| `tree`     | `-s, --status`    | `open`, `claimed`, `in_progress`, `closed` | Filter by bead status (repeatable)               |
+See the generated [`sase bead` CLI reference](../cli/bead.md#sase-bead-dep) for this
+command's options.
 
 ## `sase bead ref`
 
@@ -306,17 +269,15 @@ The optional bead ID scopes the listing to one bead; without it, the command lis
 in the current store that carry references. Add `--json` for a stable machine-readable
 response.
 
-| Subcommand | Flag            | Description                                      |
-| ---------- | --------------- | ------------------------------------------------ |
-| `list`     | `-j, --json`    | Emit machine-readable reference data             |
-| `list`     | `-r, --resolve` | Resolve references against the current workspace |
+See the generated [`sase bead` CLI reference](../cli/bead.md#sase-bead-ref) for this
+command's options.
 
 ## `sase bead init`
 
 Initialize the bead store for the current project. In effective in-tree SDD mode this is
-`sdd/beads/`; local and legacy separate-repo modes use `.sase/sdd/beads/`. Split sidecar
-mode uses the root of the `--beads` repository once the store record names that sidecar,
-and `beads/` in the `--plans` repository until then.
+`sdd/beads/`; local and separate-repo modes use `.sase/sdd/beads/`. Split sidecar mode
+uses the root of the `--beads` repository once the store record names that sidecar, and
+`beads/` in the `--plans` repository until then.
 
 A newly initialized store's default `issue_prefix` is the project's `PROJECT_NAME`
 display name (falling back to the internal ProjectSpec key, then the git remote's repo
@@ -362,12 +323,8 @@ Defer one or more `open` or `ready` task beads. See
 Multiple IDs apply the same wake time, `+1` target, and reason atomically, matching
 `sase bead update`'s batch semantics.
 
-| Flag                    | Description                                                                                                             |
-| ----------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| `-u, --until TIME`      | Wake time: a duration (`30m`, `2h`, `1h30m`, `3d`) or absolute ISO-8601 timestamp; required unless `--cancel`           |
-| `-p, --plus-ones COUNT` | Also wake when this many additional `+1` reports arrive                                                                 |
-| `-r, --reason TEXT`     | Why this task is being deferred; embedded in the note this snooze appends. A value of `@<path>` is read from that file. |
-| `-c, --cancel`          | Wake these beads now, returning them to `ready`                                                                         |
+See the generated [`sase bead` CLI reference](../cli/bead.md#sase-bead-snooze) for this
+command's options.
 
 ## `sase bead sync`
 
@@ -375,9 +332,8 @@ Regenerate the compatibility projection from the canonical event store and stage
 state in git. It does not create a commit; the staged event/projection files are
 included in the next normal project or SDD commit.
 
-| Flag           | Description                                   |
-| -------------- | --------------------------------------------- |
-| `-s, --status` | Check whether bead state has unstaged changes |
+See the generated [`sase bead` CLI reference](../cli/bead.md#sase-bead-sync) for this
+command's options.
 
 ## `sase bead sync-external`
 
@@ -385,11 +341,8 @@ Run one external tracker mirror pass — the same reconciliation path the
 `external_issue_mirror` AXE job runs every fifteen minutes. See
 [External Issue Mirroring](bead-mirroring.md#external-issue-mirroring).
 
-| Flag            | Description                                                                   |
-| --------------- | ----------------------------------------------------------------------------- |
-| `-f, --full`    | Force a full repair scan instead of the steady-state short-circuit            |
-| `-n, --dry-run` | Show exact planned creations and status transitions without mutating anything |
-| `-p, --project` | Only mirror one project by display name, alias, or canonical key              |
+See the generated [`sase bead` CLI reference](../cli/bead.md#sase-bead-sync-external)
+for this command's options.
 
 ## `sase bead update <id> [<id2> ...]`
 
@@ -400,34 +353,21 @@ field value leaves every named bead untouched. Duplicate IDs, including a shorth
 alongside its resolved full form, collapse to a single update. A single-ID invocation is
 unaffected — same syntax, output line, and commit message as before.
 
-| Flag                       | Description                                                                                                                                                  |
-| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `-s, --status`             | Change status                                                                                                                                                |
-| `-t, --title`              | Change title                                                                                                                                                 |
-| `-d, --description`        | Change description                                                                                                                                           |
-| `-n, --note`               | Append this attributed note to each listed issue. A value of `@<path>` is read from that file.                                                               |
-| `-S, --allow-sensitive`    | Attach files from sensitive paths                                                                                                                            |
-| `-D, --design`             | Change plan path                                                                                                                                             |
-| `-a, --assignee`           | Change assignee                                                                                                                                              |
-| `-x, --external-ref`       | Set the external issue identity (mutually exclusive with `-X`); see [`sase bead create`](#sase-bead-create) for accepted forms. Must be unique across beads. |
-| `-X, --clear-external-ref` | Clear the external issue identity (mutually exclusive with `-x`)                                                                                             |
-| `-r, --tier`               | Change plan tier                                                                                                                                             |
-| `-m, --model`              | Change the launch model. Pass an empty string to clear.                                                                                                      |
-| `-b, --remove-by`          | Extend one `flag` task bead's removal thresholds as `<YYYY-MM-DD>/<release>`. Takes exactly one flag-typed task bead ID.                                     |
-| `-z, --size`               | Change a phase or task bead's `xsmall`, `small`, `medium`, `large`, or `xlarge` size.                                                                        |
+See the generated [`sase bead` CLI reference](../cli/bead.md#sase-bead-update) for this
+command's options.
 
 `task_type` is immutable: `sase bead update` has no `--task-type`. An attempt is
 rejected with a message pointing at close-and-recreate. The filing reason is immutable
 the same way: update has no flag for it. See
 [Creation Reason](beads.md#creation-reason).
 
-`sase bead update --notes` was removed: it used to replace the whole note field,
-destroying every earlier note. Notes are append-only now, and `--note` appends the same
-attributed record to every named bead inside the same mutation — a batch form of
-`sase bead note`. `--notes` still parses (hidden from `--help`) so passing it exits
-non-zero with a message pointing at `sase bead note` (single bead) or
-`sase bead update --note` (batch) instead of failing as an unrecognized argument. Use
-`sase bead note --edit`/`--remove` to correct or retract an individual record.
+`sase bead update --notes` is rejected because it can replace the whole note field and
+delete earlier notes. Notes are append-only, and `--note` appends the same attributed
+record to every named bead inside the same mutation — a batch form of `sase bead note`.
+`--notes` still parses (hidden from `--help`) so passing it exits non-zero with a
+message pointing at `sase bead note` (single bead) or `sase bead update --note` (batch)
+instead of failing as an unrecognized argument. Use `sase bead note --edit`/`--remove`
+to correct or retract an individual record.
 
 Beads whose requested fields already hold the requested values are quiet no-ops: they
 are reported as `Unchanged`, excluded from the commit, and an all-no-op batch writes

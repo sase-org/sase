@@ -25,7 +25,7 @@ open (draft) ──mark ready──▶ ready (triage) ──launch──▶ in_p
      -w "The new parser has shipped and the old path is still imported" \
      -d "Verify callers and remove the old path." \
      -z medium -f location=src/compat.py -f repro='old path still imported'
-   sase bead note <task-id> "Found while landing sase-123"
+   sase bead note <task-id> "Found while landing the current change"
    sase bead dep add <task-id> <blocking-bead-id>
    ```
 
@@ -107,8 +107,8 @@ open (draft) ──mark ready──▶ ready (triage) ──launch──▶ in_p
 
 5. Route the worker model. A task's explicit `model` wins. Otherwise a stored size
    selects the corresponding `@xsmall`, `@small`, `@medium`, `@large`, or `@xlarge`
-   alias directly; a legacy task without size metadata uses `@small`. As with epic
-   phases, `large` and `xlarge` task prompts add `#plan`, while smaller tasks implement
+   alias directly; a task without stored size uses `@small`. As with epic phases,
+   `large` and `xlarge` task prompts add `#plan`, while smaller tasks implement
    directly.
 
 ## Snoozing a Task Bead
@@ -170,7 +170,7 @@ a snoozed task is still live work the user chose to defer, not a black hole.
 `sase bead list --status snoozed` / `sase bead search --status snoozed` filter to just
 those beads.
 
-Beads-pane query property values also accept `*` wildcards: `id:sase-16n.*` lists an
+Beads-pane query property values also accept `*` wildcards: `id:<epic-id>.*` lists an
 epic's phases (see [Wildcards](../../query_language.md#wildcards)). `sase bead search`
 is not a property query: its argument stays a literal substring (or `--regex` pattern).
 
@@ -196,7 +196,7 @@ Adding new evidence to an `open` draft atomically promotes it to `ready`. A clos
 reopens and promotes only when the reporter's observation window starts strictly after
 the current close. SASE CLI callers derive that window from the current agent's
 `agent_meta.json` `run_started_at`; human callers and `--verified-after-close` use the
-current instant. Non-CLI callers that omit `observed_since` preserve the legacy
+current instant. Non-CLI callers that omit `observed_since` preserve the default
 closed-task reopen behavior.
 
 If the report was already in flight before the close, the evidence is still recorded but
@@ -231,9 +231,9 @@ Each record captures one undone close:
 A record is created whenever a closed bead leaves `closed`: a qualifying fresh
 `sase bead +1` on a closed task (`plus_one`), `sase bead open` (`open`),
 `sase bead update --status` moving a bead away from `closed` (`update`), and an epic
-work preclaim relaunching a previously-closed phase or epic (`epic_preclaim`). Stale
-post-close `+1` evidence is retained on the still-closed task and does not archive the
-current close into history. Reopening a bead that was never closed adds no record. A
+work preclaim relaunching a phase or epic whose status is closed (`epic_preclaim`).
+Stale post-close `+1` evidence is retained on the still-closed task and does not archive
+the current close into history. Reopening a bead that was never closed adds no record. A
 bead closed, reopened, and closed again accumulates one record per undone close;
 `sase bead show` renders them newest first.
 
@@ -244,10 +244,9 @@ bead's creator rather than the acting agent, which is a separate, known defect.
 Recording a `reopened_by` from those paths would confidently print the wrong name, so it
 is left unpopulated there instead.
 
-Because the canonical event log already recorded every close and reopen, existing stores
-recover close reasons that a reopen previously destroyed **automatically**, the next
-time their events are reduced (for example, on the next mutation, or with
-`sase bead doctor --fix-projection`) — no backfill script is needed.
+Because the canonical event log records every close and reopen, the reducer
+automatically recovers close reasons lost during a reopen (for example, on the next
+mutation or with `sase bead doctor --fix-projection`) — no backfill script is needed.
 
 Every surface that shows a bead's status also shows its reopen history:
 
@@ -305,7 +304,7 @@ all in-progress epic plans before allowing a new task:
 ```bash
 sase bead create -T 'task(flake)' -t "Fix flaky integration test" \
   -w "The retry test flakes under parallel pytest" \
-  -d "Discovered while landing sase-xy." \
+  -d "Found while working on the current change." \
   --size small -f node_id=tests/retry.py::test_retry -f evidence='failed then passed'
 sase bead update <task-id> -s ready
 ```
