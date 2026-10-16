@@ -127,7 +127,13 @@ def test_default_artifacts_template_renders_canonical_long_note() -> None:
 
 def test_plus_one_close_boundary_guidance_stays_current() -> None:
     generated = _generated_project_note("sase/memory/sase_beads.md")
-    docs = Path("docs/reference/work-units/beads.md").read_text(encoding="utf-8")
+    docs = " ".join(
+        Path(path).read_text(encoding="utf-8")
+        for path in (
+            "docs/reference/work-units/bead-cli-records.md",
+            "docs/reference/work-units/bead-triage.md",
+        )
+    )
     generated_flat = " ".join(generated.split())
     docs_flat = " ".join(docs.split())
 

@@ -91,7 +91,7 @@ def test_checked_in_plugins_required_docs_use_batch_wording() -> None:
     )
     for relpath in (
         "src/sase/default_config.yml",
-        "docs/reference/config/prompts-and-tools.md",
+        "docs/reference/config/scheduler-behavior.md",
         "docs/reference/automation/scheduler-default-routines.md",
         "docs/reference/automation/notification-types.md",
     ):
@@ -105,7 +105,7 @@ def test_checked_in_plugins_required_docs_use_batch_wording() -> None:
     )
     for relpath in (
         "src/sase/default_config.yml",
-        "docs/reference/config/prompts-and-tools.md",
+        "docs/reference/config/scheduler-behavior.md",
         "docs/reference/automation/scheduler-default-routines.md",
         "docs/reference/automation/notification-types.md",
     ):

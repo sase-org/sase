@@ -54,6 +54,23 @@ _MACRO_DOCS_ALLOWLIST: set[tuple[str, str]] = {
     ("docs/_meta/url_contract.txt", "https://sase.sh/xprompt/"),
     ("docs/_redirects", "/xprompt/ /macros/ 301"),
     (
+        "docs/_meta/moves.yml",
+        "renamed-from-xprompts: reference/upgrading/macros.md#renamed-from-xprompts",
+    ),
+    (
+        "docs/_meta/splits/macros.yml",
+        "Renamed from xprompts: reference/upgrading/macros.md",
+    ),
+    ("docs/macros.md", '<a id="renamed-from-xprompts"></a>'),
+    (
+        "docs/macros.md",
+        "- [Renamed from xprompts](reference/upgrading/macros.md#renamed-from-xprompts)",
+    ),
+    (
+        "docs/reference/config/feature-flags.md",
+        "[macro migration notes](../upgrading/macros.md#renamed-from-xprompts).",
+    ),
+    (
         "docs/blog/posts/structured-agentic-software-engineering.md",
         "> Note: SASE xprompts have been renamed to macros since this post was published.",
     ),
@@ -183,6 +200,10 @@ _MACRO_DOCS_ALLOWLIST: set[tuple[str, str]] = {
 _MACRO_DOCS_REASONS: dict[str, str] = {
     "docs/_meta/url_contract.txt": "frozen URL contract keeps the redirected public route resolvable",
     "docs/_redirects": "hosting redirect keeps the retired page URL working",
+    "docs/_meta/moves.yml": "generated move map preserves the renamed-from-xprompts anchor",
+    "docs/_meta/splits/macros.yml": "split metadata preserves the legacy migration section anchor",
+    "docs/macros.md": "legacy stub preserves the renamed-from-xprompts anchor",
+    "docs/reference/config/feature-flags.md": "feature-flag reference links to the macro migration section",
     "docs/blog/posts/structured-agentic-software-engineering.md": "published-post rename note required by docs-memory",
     "docs/reference/upgrading/macros.md": "the 'Renamed from xprompts' docs section is the docs allowlist",
     "mkdocs-pdf.yml": "mkdocs redirect keeps the retired page URL working",

@@ -76,6 +76,19 @@ class Request:
     anchor_target: tuple[str, str] | None = None
 
 
+@dataclass(frozen=True)
+class _GeneratedPointer:
+    ids: tuple[str, ...]
+    target: str
+    anchor: str
+    title: str
+    origin: str
+
+
+_ChunkLine = tuple[str, int | None, _GeneratedPointer | None]
+_NormalizedLine = tuple[str, _GeneratedPointer | None]
+
+
 @dataclass
 class SplitPlan:
     source: str
@@ -448,12 +461,12 @@ def _section_chunks(
     target_titles: dict[str, str],
     source: str,
 ) -> tuple[
-    dict[str, list[tuple[str, list[tuple[str, int | None]], int]]],
+    dict[str, list[tuple[str, list[_ChunkLine], int]]],
     dict[int, Request | None],
 ]:
     """Collect each request's text, replacing a nested request with its pointer."""
     owners = {index: _request_for_line(index, selected) for index in range(len(lines))}
-    chunks: dict[str, list[tuple[str, list[tuple[str, int | None]], int]]] = {}
+    chunks: dict[str, list[tuple[str, list[_ChunkLine], int]]] = {}
     starts = {start: request for _, request, start, _ in selected}
     ranges = {request.selector: (start, end) for _, request, start, end in selected}
     for heading, request, start, end in selected:
@@ -461,17 +474,17 @@ def _section_chunks(
             continue
         target = request.target
         assert target is not None
-        chunk_lines: list[tuple[str, int | None]] = []
+        chunk_lines: list[_ChunkLine] = []
         index = start
         while index < end:
             owner = owners[index]
             if owner is request:
-                chunk_lines.append((lines[index], index))
+                chunk_lines.append((lines[index], index, None))
                 index += 1
                 continue
             child = starts.get(index)
             if child is not None and child is not request:
-                destination = source
+                destination = child.target
                 anchor = ids[child.selector][0] if ids[child.selector] else ""
                 title_target = child.target
                 if child.drop and child.anchor_target:
@@ -481,16 +494,19 @@ def _section_chunks(
                     title = target_titles.get(
                         title_target, Path(title_target).stem.title()
                     )
-                    child_ids = ids[child.selector]
-                    for pointer_line in _pointer(
-                        child_ids,
-                        destination,
-                        anchor,
-                        title,
-                        source,
-                        root_relative=False,
-                    ):
-                        chunk_lines.append((pointer_line + "\n", None))
+                    chunk_lines.append(
+                        (
+                            "",
+                            None,
+                            _GeneratedPointer(
+                                ids=tuple(ids[child.selector]),
+                                target=destination,
+                                anchor=anchor,
+                                title=title,
+                                origin=target,
+                            ),
+                        )
+                    )
                 _, child_end = ranges[child.selector]
                 index = child_end
                 continue
@@ -503,7 +519,7 @@ def _section_chunks(
 
 
 def _normalize_chunk(
-    chunk: list[tuple[str, int | None]],
+    chunk: list[_ChunkLine],
     *,
     base_level: int,
     source_headings: dict[int, Heading],
@@ -513,9 +529,12 @@ def _normalize_chunk(
     target: str,
     anchors: dict[str, tuple[str, str]],
     request_ids: list[str],
-) -> str:
-    rendered: list[str] = []
-    for line, source_index in chunk:
+) -> list[_NormalizedLine]:
+    rendered: list[_NormalizedLine] = []
+    for line, source_index, pointer in chunk:
+        if pointer is not None:
+            rendered.append(("", pointer))
+            continue
         match = HEADING_RE.match(line)
         if match and source_index is not None and source_index in source_headings:
             heading = source_headings[source_index]
@@ -535,9 +554,9 @@ def _normalize_chunk(
         elif match and source_index is None:
             # Generated pointers are not expected to contain headings, but keep them valid.
             line = _heading_with_level(line, max(2, len(match.group(1))), None)
-        rendered.append(line)
+        rendered.append((line, None))
 
-    text = "".join(rendered)
+    text = "".join(line for line, pointer in rendered if pointer is None)
     replacements: dict[str, str] = {}
     for old_id in request_ids:
         if old_id in anchors:
@@ -554,8 +573,27 @@ def _normalize_chunk(
         else:
             target_used.add(old_id)
             anchors[old_id] = (target, old_id)
-    text = _replace_html_ids(text, replacements)
-    return text
+    normalized: list[_NormalizedLine] = []
+    for line, pointer in rendered:
+        if pointer is not None:
+            normalized.append(
+                (
+                    "",
+                    _GeneratedPointer(
+                        ids=tuple(
+                            replacements.get(old_id, old_id)
+                            for old_id in pointer.ids
+                        ),
+                        target=pointer.target,
+                        anchor=pointer.anchor,
+                        title=pointer.title,
+                        origin=pointer.origin,
+                    ),
+                )
+            )
+        else:
+            normalized.append((_replace_html_ids(line, replacements), None))
+    return normalized
 
 
 def plan_split(
@@ -623,7 +661,7 @@ def plan_split(
     target_used: dict[str, set[str]] = {}
     target_counts: dict[str, dict[str, int]] = {}
     target_word_totals: dict[str, tuple[int, int | None]] = {}
-    normalized_chunks: dict[str, list[tuple[str, str]]] = {}
+    normalized_chunks: dict[str, list[tuple[str, list[_NormalizedLine]]]] = {}
     for target, parts in chunks.items():
         target_used[target], target_counts[target] = _target_used_ids(
             target_texts[target]
@@ -683,15 +721,47 @@ def plan_split(
         rewritten_parts: list[str] = []
         moved_warn = False
         for _, part in normalized_parts:
-            rewritten, part_warn = _rewrite_handwritten(
-                part,
-                origin=source,
-                destination=target,
-                source=source,
-                moved_anchors=anchor_map,
-            )
-            rewritten_parts.append(rewritten.rstrip())
-            moved_warn = moved_warn or part_warn
+            source_lines: list[str] = []
+            for line, pointer in part:
+                if pointer is None:
+                    source_lines.append(line)
+                    continue
+                if source_lines:
+                    rewritten, part_warn = _rewrite_handwritten(
+                        "".join(source_lines),
+                        origin=source,
+                        destination=target,
+                        source=source,
+                        moved_anchors=anchor_map,
+                    )
+                    rewritten_parts.append(rewritten.rstrip())
+                    moved_warn = moved_warn or part_warn
+                    source_lines.clear()
+                pointer_target_path, anchor = anchor_map.get(
+                    pointer.anchor, (pointer.target, pointer.anchor)
+                )
+                rewritten_parts.append(
+                    "\n".join(
+                        _pointer(
+                            list(pointer.ids),
+                            pointer_target_path,
+                            anchor,
+                            pointer.title,
+                            pointer.origin,
+                            root_relative=False,
+                        )
+                    )
+                )
+            if source_lines:
+                rewritten, part_warn = _rewrite_handwritten(
+                    "".join(source_lines),
+                    origin=source,
+                    destination=target,
+                    source=source,
+                    moved_anchors=anchor_map,
+                )
+                rewritten_parts.append(rewritten.rstrip())
+                moved_warn = moved_warn or part_warn
         separator = "\n" if not rewritten_existing.endswith("\n\n") else ""
         combined = (
             rewritten_existing

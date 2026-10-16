@@ -489,17 +489,18 @@ def test_docs_split_supports_h4_nested_intro_drop_and_finish(tmp_path: Path) -> 
     assert source_move["anchors"]["contents"] == "reference/index.md#contents"
 
 
-def test_docs_split_handles_nested_first_selection(tmp_path: Path) -> None:
+def test_docs_split_nested_pointers_use_their_own_targets(tmp_path: Path) -> None:
     splitter = _load("docs_split_first_nested_fixture", TOOLS / "docs_split")
     _move_fixture(tmp_path)
     docs = tmp_path / "docs"
     source = docs / "source.md"
     source.write_text(
-        "# Source\n\n## Parent\n\nParent facts.\n\n### Child\n\nChild facts.\n",
+        "# Source\n\n## Parent\n\nParent facts.\n\n### Child\n\n"
+        "Child facts.\n\n#### Grandchild\n\nGrandchild facts.\n",
         encoding="utf-8",
     )
     (docs / "reference").mkdir()
-    for title in ("Parent", "Child"):
+    for title in ("Parent", "Child", "Grandchild"):
         (docs / "reference" / f"{title.lower()}.md").write_text(
             f"---\ntitle: {title}\ndescription: {title} facts.\n---\n\n# {title}\n",
             encoding="utf-8",
@@ -507,7 +508,8 @@ def test_docs_split_handles_nested_first_selection(tmp_path: Path) -> None:
     mapping = tmp_path / "split.yml"
     mapping.write_text(
         "sections:\n  Parent: reference/parent.md\n"
-        "  Parent > Child: reference/child.md\n",
+        "  Parent > Child: reference/child.md\n"
+        "  Parent > Child > Grandchild: reference/grandchild.md\n",
         encoding="utf-8",
     )
 
@@ -515,10 +517,14 @@ def test_docs_split_handles_nested_first_selection(tmp_path: Path) -> None:
 
     parent = (docs / "reference/parent.md").read_text(encoding="utf-8")
     child = (docs / "reference/child.md").read_text(encoding="utf-8")
+    grandchild = (docs / "reference/grandchild.md").read_text(encoding="utf-8")
     assert "Parent facts." in parent
     assert "Child facts." not in parent
     assert "Moved to [Child](child.md#child-1)." in parent
     assert "Child facts." in child
+    assert "Grandchild facts." not in child
+    assert "Moved to [Grandchild](grandchild.md#grandchild-1)." in child
+    assert "Grandchild facts." in grandchild
 
 
 def test_docs_split_rewrites_inbound_links_but_skips_generated_sources(

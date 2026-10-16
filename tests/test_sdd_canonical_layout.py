@@ -43,7 +43,7 @@ def test_active_sources_and_docs_use_only_canonical_plan_paths() -> None:
         path
         for path in (_ROOT / "docs").rglob("*.md")
         if "images" not in path.relative_to(_ROOT / "docs").parts
-        and path.name != "perf_runbook.md"
+        and path != _ROOT / "docs/contribute/perf-runbook.md"
     ]
 
     assert _matches([*operational_sources, *current_docs]) == []
