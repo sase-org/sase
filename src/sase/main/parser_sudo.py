@@ -5,7 +5,7 @@ from __future__ import annotations
 import argparse
 
 
-SUDO_DOCS_URL = "https://sase.sh/sudo/"
+SUDO_DOCS_URL = "https://sase.sh/concepts/automation/"
 
 
 def register_sudo_parser(subparsers: argparse._SubParsersAction) -> None:

@@ -24,9 +24,9 @@ from ._onboarding_common import (
 
 _ACCENT = "#FF5F5F"
 _DOCS_URL = "https://sase.sh"
-_AXE_DOCS_URL = "https://sase.sh/axe/"
-_WORKFLOW_SPEC_DOCS_URL = "https://sase.sh/workflow_spec/"
-_MENTORS_DOCS_URL = "https://sase.sh/mentors/"
+_AXE_DOCS_URL = "https://sase.sh/concepts/automation/"
+_WORKFLOW_SPEC_DOCS_URL = "https://sase.sh/concepts/prompts/"
+_MENTORS_DOCS_URL = "https://sase.sh/concepts/automation/"
 
 
 class AxeOnboarding(VerticalScroll):
@@ -231,19 +231,19 @@ class AxeOnboarding(VerticalScroll):
         append_doc_link(
             text,
             _AXE_DOCS_URL,
-            "the full Services guide: service procs, routines, jobs & configuration.",
+            "how recurring work and human checkpoints fit together.",
             accent=_ACCENT,
         )
         append_doc_link(
             text,
             _WORKFLOW_SPEC_DOCS_URL,
-            "author the workflows that hooks & jobs launch.",
+            "how prompts grow into macros and workflows.",
             accent=_ACCENT,
         )
         append_doc_link(
             text,
             _MENTORS_DOCS_URL,
-            "automated review mentors the scheduler keeps running.",
+            "how mentor reviews keep automated feedback reviewable.",
             accent=_ACCENT,
         )
         app = registry.app

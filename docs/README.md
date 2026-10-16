@@ -3,7 +3,7 @@
 
 ## Home
 
-- [Structured Agentic Software Engineering](index.md) — Structured Agentic Software Engineering — SASE coordinates coding-agent work through a Python CLI and TUI backed by a required Rust core: durable plans, tracked handoffs, reviewable changes, resumable runs, and automation that can move across model and version-control providers.
+- [Structured Agentic Software Engineering](index.md) — Structured Agentic Software Engineering — SASE runs Claude Code, Codex, and other agent CLIs in parallel, isolated workspaces, and lets you track, review, and land their work from one terminal UI.
 
 ## Get started
 
@@ -160,6 +160,7 @@
 - [Commit Workflows](commit_workflows.md) — Commit Workflows — Sase provides three unified workflows for landing code changes: commit, propose, and pull request.
 - [Architecture](contribute/architecture.md) — Architecture internals, runtime flow, state ownership, and provider boundaries inside SASE.
 - [Contribute](contribute/index.md) — Contributor guides, internals, contracts, and runbooks for SASE.
+- [Reader testing](contribute/reader-testing.md) — How to run an observed reader round and turn the results into doc changes.
 - [Writing docs](contribute/writing-docs.md) — The sase.sh documentation contract for humans and agents.
 - [Development](development.md) — Development — This page orients contributors working in the sase repository.
 - [Fakey Testing Provider](fakey.md) — Fakey Testing Provider — fakey is a deterministic fake agent CLI bundled with SASE.

@@ -33,6 +33,8 @@ contracts, and the docs process itself.
 
 - [Writing docs](writing-docs.md) — The documentation contract for humans and agents:
   tiers, templates, budgets, and routing.
+- [Reader testing](reader-testing.md) — Observed reader rounds and how label changes are
+  proposed.
 
 ## Thanks
 

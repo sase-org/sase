@@ -102,9 +102,10 @@ canonical `#git:home` workspace reference. After the run completes, `sase tui` o
 TUI with the completed run visible on the Agents tab.
 
 If `sase doctor` reports a missing provider, install and authenticate it, then run the
-check again; see [Agent Providers](https://sase.sh/agent_providers/). For full
+check again; see
+[Choose providers and models](https://sase.sh/guides/choose-providers-models/). For full
 installation details use [INSTALL.md](INSTALL.md), or follow
-[Getting Started](https://sase.sh/getting_started/) for the guided path.
+[Get started](https://sase.sh/start/) for the guided path.
 
 ## Works with your agents
 
@@ -120,35 +121,30 @@ installation details use [INSTALL.md](INSTALL.md), or follow
 
 ## Learn more
 
-**The complete documentation lives at [sase.sh](https://sase.sh/).**
+**The complete documentation lives at [sase.sh](https://sase.sh/).** New here? Start
+with [Run your first agent](https://sase.sh/start/first-run/) (about 15 minutes), then
+pick the door that matches your goal:
 
-- [Getting Started](https://sase.sh/getting_started/) — the guided beginner path
-- [Instruction Bundles](https://sase.sh/instruction_bundles/) — inspect intended agent
-  context and verify what providers loaded
-- [sase's TUI](https://sase.sh/ace/) — the interactive control surface
-- [Prompts overlay](https://sase.sh/ace/#prompt-history-modal) — past launches, saved
-  drafts, and drafts discarded from Stash
-- [Prompt history and draft recovery](https://sase.sh/prompt/) — replay submitted
-  prompts and recover drafts that left Stash
-- [Goals](https://sase.sh/goals/) — track outcomes across agent runs
-- [Named Tools and ToolRuns](https://sase.sh/tool/) — run a declared command or an
-  ad-hoc argv and keep the result, output, and diagnostics
-- [Macros](https://sase.sh/macros/) — reusable prompts and multi-step workflows
-- [Autonomy profiles](https://sase.sh/macros/#auto-directive) — choose which plan and
-  question checkpoints resolve automatically and inspect the recorded decisions
-- [Agent auto-restart](https://sase.sh/reference/agent-auto-restart/) — update-skew
-  recovery, evidence, and current limits
-- [Patches](https://sase.sh/change_spec/) — tracked PR-sized units of work
-- [Scheduler and Service Host](https://sase.sh/axe/) — scheduled and background agent
-  work
-- [Spec-Driven Development](https://sase.sh/sdd/) — plans, epics, and beads
-- [Plan Decisions](https://sase.sh/sdd/#plan-decisions) — review choices, defaults, and
-  memory-consent checks
-- [Plugins](https://sase.sh/plugins/) — GitHub, Telegram, editor, and provider
-  integrations, plus commands a plugin can mount on `sase`
-- [CLI Reference](https://sase.sh/cli/) — command index and links to detailed guides
-- [Shell Completion](https://sase.sh/completion/) — `<TAB>` completion for zsh, bash,
-  and fish
+- [Learn — Get started](https://sase.sh/start/) — install SASE, run a first agent, and
+  review a first change
+- [Do — Guides](https://sase.sh/guides/) — goal-titled how-tos for setup, daily work,
+  and fixing problems
+- [Understand — Concepts](https://sase.sh/concepts/) — how agents, work units, and
+  landing fit together
+- [Look up — Reference](https://sase.sh/reference/) — CLI, configuration, keymaps, and
+  glossary
+
+A few guides worth bookmarking:
+
+- [Add an existing repository](https://sase.sh/guides/add-existing-repository/) — work
+  in a repository you already have
+- [Choose providers and models](https://sase.sh/guides/choose-providers-models/) — ready
+  one provider and pick the model agents use
+- [Diagnose problems with sase doctor](https://sase.sh/guides/diagnose-with-doctor/) —
+  run the read-only checks first
+- [Recover an interrupted agent](https://sase.sh/guides/recover-interrupted-agent/) —
+  restart, resume, or revive a broken run
+
 - [Blog](https://sase.sh/blog/) — announcements and deep dives
 - [The SASE Handbook (PDF)](https://sase.sh/downloads/sase-handbook.pdf) — the
   Guide-tier handbook and launch essay in one document

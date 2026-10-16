@@ -11,271 +11,149 @@ hide:
   <div class="sase-hero__copy">
     <p class="sase-kicker">SASE</p>
 
-    <h1>Structured Agentic Software Engineering</h1>
+    <h1>Run a team of coding agents. Keep every change reviewable.</h1>
 
     <p class="sase-lede">
-      SASE coordinates coding-agent work through a Python CLI and TUI backed by a required Rust core: durable plans, tracked handoffs, reviewable
-      changes, resumable runs, and automation that can move across model and version-control providers.
+      SASE runs Claude Code, Codex, and other agent CLIs in parallel,
+      isolated workspaces, and lets you track, review, and land their work from one
+      terminal UI.
     </p>
+
+    <p class="sase-pill">Alpha &middot; Linux &amp; macOS &middot; needs one authenticated agent CLI</p>
 
 <!-- BEGIN GENERATED: install-command -->
 <p class="sase-install-command">Install with <code>uv tool install "sase>=0.18"</code></p>
 <!-- END GENERATED: install-command -->
 
+```bash
+uv tool install "sase>=0.18"
+sase doctor
+sase tui
+```
+
     <div class="sase-actions">
-      <a class="md-button" href="start/">Get started</a>
-      <a class="md-button" href="/downloads/sase-handbook.pdf">Download PDF</a>
-      <a class="md-button" href="https://github.com/sase-org/sase">View on GitHub</a>
-      <a class="md-button" href="blog/posts/structured-agentic-software-engineering/">Launch Post</a>
+      <a class="md-button md-button--primary" href="start/first-run/">Run your first agent (15 min)</a>
+      <a class="md-button" href="concepts/">How SASE works</a>
     </div>
 
   </div>
 
   <figure class="sase-hero__visual">
-    <img src="images/sase_overview.png" alt="One developer using SASE to run parallel coding agents in isolated workspaces with tracked, reviewable results">
+    <video controls preload="none" poster="images/blog/sase_ace_multi_model_fanout_still.png" aria-label="One GitHub prompt fans out to three live Claude, Codex, and Antigravity agents in isolated workspaces, supervised from sase's TUI">
+      <source src="videos/sase_ace_multi_model_fanout.mp4" type="video/mp4" />
+      One prompt fans out to parallel agents in isolated workspaces, supervised from
+      sase's TUI.
+    </video>
+    <figcaption>One prompt, three live agents, three models — supervised from one terminal UI.</figcaption>
   </figure>
 </section>
 
-<section class="sase-section sase-section--tight">
-  <p class="sase-section__eyebrow">Why SASE exists</p>
-
-  <h2>One prompt is not an engineering system</h2>
-
-  <p>
-    A single coding-agent run can produce a patch. Real projects also need a place to store intent, pass work between
-    agents, order dependencies, track review state, retry failed runs, run background automation, and record what
-    happened. SASE provides that coordination layer without tying the workflow to one model provider or one terminal app.
-  </p>
-</section>
-
 <section class="sase-section">
-  <p class="sase-section__eyebrow">Start by role</p>
+  <p class="sase-section__eyebrow">What SASE gives you</p>
 
-  <h2>Pick the surface that matches your work</h2>
+  <h2>One place to run agents and land their work</h2>
 
   <div class="sase-card-grid sase-card-grid--four">
   <article class="sase-card">
-  <h3>I am setting up a repo</h3>
+  <h3>Parallel, isolated runs</h3>
 
   <p>
-    Run <code>sase init</code> to check and apply owner identity, optional remote-machine enrollment, agent memory,
-    sidecar repositories, the optional native service-host unit, and generated skill files before handing work to agents.
+    Each agent works in its own workspace, so parallel runs never clash.
   </p>
 
-<a href="init/">Open initialization</a>
+<a href="concepts/agents/">How agents run</a>
 
   </article>
 
   <article class="sase-card">
-  <h3>I want a TUI for agent work</h3>
+  <h3>Supervise from one TUI</h3>
 
   <p>
-    Use sase's TUI to navigate Patches, live and archived agents, notifications, and automation
-    state from one terminal interface.
+    Follow prompts, status, diffs, and results from one terminal interface.
   </p>
-
-<a href="ace/">Open sase's TUI guide</a>
-
-  </article>
-
-  <article class="sase-card">
-  <h3>I want durable work units</h3>
-
-  <p>
-    Use Patches for PR-sized review state and Beads for plan, epic, phase, and standalone task work that can drive
-    single- or multi-agent execution.
-  </p>
-
-<a href="sdd/">Learn the SDD flow</a>
-
-  </article>
-
-  <article class="sase-card">
-  <h3>I want to track an outcome</h3>
-
-  <p>
-    Create a Goal for the result you want and cite it in a prompt as <code>@goal:&lt;id&gt;</code>. Creating, reshaping, and settling it are human actions. Agents can read and cite it. Its status and timeline stay across runs.
-  </p>
-
-<a href="goals/">Open Goals</a>
-
-  </article>
-
-  <article class="sase-card">
-  <h3>I need shared agent memory</h3>
-
-  <p>
-    Use instruction memory loaded through AGENTS.md and audited reference reads. sase's TUI Memory panel edits flat-note metadata, adds and deletes memory-web strands, and opens history for a note, web, or strand. Note bodies, existing strand bodies, and web descriptors open in the editor.
-  </p>
-
-<a href="memory/">Open memory</a>
-
-  </article>
-
-  <article class="sase-card">
-  <h3>I want reusable agent workflows</h3>
-
-  <p>
-    Use Macros for reusable prompt templates and workflow specs for repeatable multi-step automation.
-  </p>
-
-<a href="macros/">Build with Macros</a>
-
-  </article>
-
-  <article class="sase-card">
-  <h3>I want implementation context</h3>
-
-  <p>
-    Use the architecture overview, command index, and development guide to understand the CLI surface, source layout,
-    provider boundaries, and docs workflow.
-  </p>
-
-<a href="contribute/architecture/">Read the architecture map</a>
-
-  </article>
-
-  <article class="sase-card">
-  <h3>I want editor completions</h3>
-
-  <p>
-    Use the macro LSP and editor helper bridge for prompt completion, snippets, hover, diagnostics, and
-    jump-to-definition.
-  </p>
-
-<a href="editor/">Open editor integration</a>
-
-  </article>
-  </div>
-</section>
-
-<section class="sase-section sase-split">
-  <div>
-  <p class="sase-section__eyebrow">Core primitives</p>
-
-  <h2>The coordination model</h2>
-
-  <p>
-    SASE keeps the work state outside the chat transcript. Goals, plans, Patches, beads, agent artifacts, and workflow
-    records let agents be scheduled, resumed, reviewed, retried, or handed off without relying on one session's context
-    window.
-  </p>
-  </div>
-
-  <div class="sase-primitive-list">
-  <ul>
-    <li><strong>ProjectSpecs and Patches</strong> track project lifecycle, PR-sized work, commits, review state, comments, mentors, and lifecycle transitions.</li>
-    <li><strong>Beads</strong> provide git-native issue tracking for plans, executable epics, phase dependencies, and agent handoff.</li>
-    <li><strong>Goals</strong> record outcomes a person creates and settles, with a status and a timeline, independently of beads and plans. Agents can read and cite them.</li>
-    <li><strong>Macros</strong> turn prompt templates into reusable workflows with reference expansion and typed inputs.</li>
-    <li><strong>sase's TUI</strong> is the interactive control surface for daily work.</li>
-    <li><strong>Scheduler and Service Host</strong> run background hooks, mentors, maintenance jobs, and scheduled workflows.</li>
-    <li><strong>Autonomy profiles</strong> select which plan and question checkpoints resolve automatically. <a href="macros/#auto-directive">Learn about <code>%auto</code></a> before enabling it.</li>
-    <li><strong>Provider and workspace abstractions</strong> route agent launches, VCS operations, and workspace setup through plugin-backed boundaries.</li>
-  </ul>
-  </div>
-</section>
-
-<section class="sase-section">
-  <p class="sase-section__eyebrow">How the pieces connect</p>
-
-  <h2>Designed around real agent handoffs</h2>
-
-  <div class="sase-image-grid">
-  <figure>
-    <img src="images/sase-component-communication.png" alt="SASE component communication diagram">
-    <figcaption>Component boundaries keep TUI, daemon, workflow, and provider concerns explicit.</figcaption>
-  </figure>
-  </div>
-</section>
-
-<section class="sase-section">
-  <p class="sase-section__eyebrow">Next clicks</p>
-
-  <h2>Move from overview to practice</h2>
-
-  <div class="sase-card-grid sase-card-grid--four">
-  <article class="sase-card sase-card--compact">
-  <h3>Find a command</h3>
-
-  <p>Use the CLI index to route from a command to its detailed owner page.</p>
-
-<a href="cli/">Open the CLI reference</a>
-
-  </article>
-
-  <article class="sase-card sase-card--compact">
-  <h3>Recover an interrupted agent</h3>
-
-  <p>Inspect update-skew recovery, its one-restart limit, and cases that need manual action.</p>
-
-<a href="reference/agent-auto-restart/">Open agent auto-restart</a>
-
-  </article>
-
-  <article class="sase-card sase-card--compact">
-  <h3>Understand the system</h3>
-
-  <p>See how CLI, sase's TUI, axe, workflows, providers, and the Rust core fit together.</p>
 
 <a href="concepts/">How SASE works</a>
 
   </article>
 
-  <article class="sase-card sase-card--compact">
-  <h3>Contribute locally</h3>
+  <article class="sase-card">
+  <h3>Durable, reviewable work</h3>
 
-  <p>Review setup, verification commands, source layout, and docs deployment.</p>
+  <p>
+    Outcomes, plans, and changes stay recorded and reviewable across runs.
+  </p>
 
-<a href="development/">Open development</a>
-
-  </article>
-
-  <article class="sase-card sase-card--compact">
-  <h3>Read the launch essay</h3>
-
-  <p>Why coding agents need orchestration above individual provider CLIs.</p>
-
-<a href="blog/posts/structured-agentic-software-engineering/">Read the essay</a>
+<a href="concepts/work-units/">How work is tracked</a>
 
   </article>
 
-  <article class="sase-card sase-card--compact">
-  <h3>Start with sase's TUI</h3>
+  <article class="sase-card">
+  <h3>Reusable prompts and automation</h3>
 
-  <p>Learn the terminal interface for day-to-day SASE work.</p>
+  <p>
+    Turn repeated instructions into macros and let scheduled work run itself.
+  </p>
 
-<a href="ace/">Open sase's TUI</a>
-
-  </article>
-
-  <article class="sase-card sase-card--compact">
-  <h3>Open the blog</h3>
-
-  <p>Read launch posts and longer essays as they publish.</p>
-
-<a href="blog/">Open the blog</a>
-
-  </article>
-
-  <article class="sase-card sase-card--compact">
-  <h3>Download the handbook</h3>
-
-  <p>Read the Guide-tier handbook offline, with the launch essay included.</p>
-
-<a href="/downloads/sase-handbook.pdf">Download PDF</a>
-
-  </article>
-
-  <article class="sase-card sase-card--compact">
-  <h3>View the code</h3>
-
-  <p>Inspect the implementation, issues, and project direction.</p>
-
-<a href="https://github.com/sase-org/sase">Open GitHub</a>
+<a href="concepts/prompts/">How prompts grow</a>
 
   </article>
   </div>
+</section>
+
+<section class="sase-section">
+  <p class="sase-section__eyebrow">How these docs are organized</p>
+
+  <h2>Pick the door that matches your goal</h2>
+
+  <div class="sase-card-grid sase-card-grid--four">
+  <article class="sase-card">
+  <h3>Learn</h3>
+
+  <p>Walk the path from install to first landed change.</p>
+
+<a href="start/">Get started</a>
+
+  </article>
+
+  <article class="sase-card">
+  <h3>Do</h3>
+
+  <p>Solve one goal at a time, from setup to recovery.</p>
+
+<a href="guides/">Guides</a>
+
+  </article>
+
+  <article class="sase-card">
+  <h3>Understand</h3>
+
+  <p>Learn the ideas behind agents, work units, and landing.</p>
+
+<a href="concepts/">Concepts</a>
+
+  </article>
+
+  <article class="sase-card">
+  <h3>Look up</h3>
+
+  <p>Find a flag, key, keybinding, or term when you need it.</p>
+
+<a href="reference/">Reference</a>
+
+  </article>
+  </div>
+</section>
+
+<section class="sase-section sase-footer-row">
+  <p>
+    <a href="blog/posts/structured-agentic-software-engineering/">Launch essay</a>
+    &middot;
+    <a href="blog/">Blog</a>
+    &middot;
+    <a href="/downloads/sase-handbook.pdf">Handbook (PDF)</a>
+    &middot;
+    <a href="acknowledgements/">Acknowledgements</a>
+  </p>
 </section>
 
 </div>

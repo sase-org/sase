@@ -22,8 +22,8 @@ def test_agent_onboarding_content_includes_tabs_and_docs_link() -> None:
     assert "Agents" in rendered
     assert "Services" in rendered
     assert "https://sase.sh" in rendered
-    assert "https://sase.sh/ace/" in rendered
-    assert "https://sase.sh/macros/" in rendered
+    assert "https://sase.sh/concepts/agents/" in rendered
+    assert "https://sase.sh/concepts/prompts/" in rendered
     assert "tools, and artifact files" in rendered
 
 

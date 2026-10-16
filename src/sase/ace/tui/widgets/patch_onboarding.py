@@ -26,9 +26,9 @@ from ._onboarding_common import (
 )
 
 _ACCENT = "#00D7AF"
-_PATCH_DOCS_URL = "https://sase.sh/change_spec/"  # docs/change_spec.md
-_VCS_DOCS_URL = "https://sase.sh/vcs/"
-_PLUGINS_DOCS_URL = "https://sase.sh/plugins/"
+_PATCH_DOCS_URL = "https://sase.sh/concepts/work-units/"
+_VCS_DOCS_URL = "https://sase.sh/concepts/landing/"
+_PLUGINS_DOCS_URL = "https://sase.sh/concepts/landing/"
 _LIFECYCLE: tuple[str, ...] = ("WIP", "Draft", "Ready", "Mailed", "Submitted")
 _ARTIFACT_DESCRIPTIONS: dict[ArtifactsSubTab, str] = {
     "agents": "Browse durable agent runs and open their artifacts.",
@@ -264,19 +264,19 @@ class PatchOnboarding(VerticalScroll):
         append_doc_link(
             text,
             _PATCH_DOCS_URL,
-            "Patch anatomy & lifecycle.",
+            "how Patches carry reviewable changes.",
             accent=_ACCENT,
         )
         append_doc_link(
             text,
             _VCS_DOCS_URL,
-            "sase's pluggable VCS system.",
+            "how changes land through version control.",
             accent=_ACCENT,
         )
         append_doc_link(
             text,
             _PLUGINS_DOCS_URL,
-            "sase-github & other PR integrations.",
+            "how pull requests become reviewable Patches.",
             accent=_ACCENT,
         )
         app = registry.app

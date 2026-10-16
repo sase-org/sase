@@ -187,6 +187,7 @@ nav:
       - Contribute: contribute/index.md
       - Architecture: contribute/architecture.md
       - Writing docs: contribute/writing-docs.md
+      - Reader testing: contribute/reader-testing.md
       - Development: development.md
       - Rust backend: rust_backend.md
       - Fakey testing provider: fakey.md

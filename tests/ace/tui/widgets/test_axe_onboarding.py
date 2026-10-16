@@ -36,9 +36,8 @@ def test_axe_onboarding_content_describes_axe_jobs_bgcmds_and_docs() -> None:
     assert "restart the selected service proc or run the selected job now" in rendered
     assert "re-run a finished command" in rendered
     assert "https://sase.sh" in rendered
-    assert "https://sase.sh/axe/" in rendered
-    assert "https://sase.sh/workflow_spec/" in rendered
-    assert "https://sase.sh/mentors/" in rendered
+    assert "https://sase.sh/concepts/automation/" in rendered
+    assert "https://sase.sh/concepts/prompts/" in rendered
     assert "?" in rendered
     assert ",?" not in rendered
 

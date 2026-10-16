@@ -213,20 +213,17 @@ body {
 
 .md-typeset .sase-hero,
 .md-typeset .sase-card,
-.md-typeset .sase-primitive-list,
-.md-typeset .sase-image-grid img {
+.md-typeset .sase-hero__visual video {
   box-shadow: none !important;
 }
 
 .md-typeset .sase-actions,
-.md-typeset .sase-card-grid,
-.md-typeset .sase-split,
-.md-typeset .sase-image-grid {
+.md-typeset .sase-card-grid {
   display: block !important;
 }
 
 .md-typeset .sase-card,
-.md-typeset .sase-image-grid figure {
+.md-typeset .sase-hero__visual {
   margin: 0 0 0.75rem;
   page-break-inside: avoid;
 }

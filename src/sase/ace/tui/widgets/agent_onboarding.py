@@ -23,8 +23,8 @@ from ._onboarding_common import (
 )
 
 _DOCS_URL = "https://sase.sh"
-_ACE_DOCS_URL = "https://sase.sh/ace/"
-_MACRO_DOCS_URL = "https://sase.sh/macros/"
+_ACE_DOCS_URL = "https://sase.sh/concepts/agents/"
+_MACRO_DOCS_URL = "https://sase.sh/concepts/prompts/"
 _AGENTS_ACCENT = "#87D7FF"
 _UPDATES_ACCENT = "#AF87FF"
 
@@ -340,13 +340,13 @@ class AgentOnboarding(VerticalScroll):
         append_doc_link(
             text,
             _ACE_DOCS_URL,
-            "the full guide to sase's TUI, tab by tab.",
+            "how agents, sessions, and workspaces fit together.",
             accent=_AGENTS_ACCENT,
         )
         append_doc_link(
             text,
             _MACRO_DOCS_URL,
-            "supercharge prompts with #macros.",
+            "reuse instructions with macros and workflows.",
             accent=_AGENTS_ACCENT,
         )
         append_keycap(text, key_display_name(app.show_help))
