@@ -34,6 +34,7 @@ from ._agent_tree import (
     tree_parent_lookup,
 )
 from .agent import Agent, AgentType, compute_row_runtime
+from ._agent_clan_waves import ClanWaveSummary
 from .agent_session_members import (
     concrete_agent_session_member_rows,
     is_sequential_agent_session_container,
@@ -115,6 +116,7 @@ class _TribeUnitSnapshot:
     is_marked: bool
     is_unread: bool
     tab_chip: tuple[str, str] | None = None
+    clan_waves: ClanWaveSummary | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -438,6 +440,7 @@ def _unit_snapshot(
         or (unit.identity in marked_ids),
         is_unread=unit.identity in unread_ids,
         tab_chip=tab_chip,
+        clan_waves=unit.clan_waves if unit.is_clan_container else None,
     )
 
 

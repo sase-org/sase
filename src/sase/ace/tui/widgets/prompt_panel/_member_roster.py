@@ -131,6 +131,7 @@ class MemberRosterEntry:
     is_entry_target: bool = False
     owner_badge: str | None = None
     tab_chip: tuple[str, str] | None = None
+    wave_pips: Text | None = None
 
 
 @dataclass(slots=True)
@@ -442,6 +443,7 @@ def _append_numbered_entry(
         is_dismissed=entry.is_dismissed,
         owner_badge=entry.owner_badge,
         tab_chip=entry.tab_chip,
+        wave_pips=entry.wave_pips,
         pill_tint=pill_tint,
     )
     append_fold_anchor(text, line, section_id=anchor_id)
@@ -493,6 +495,7 @@ def _append_member_fields(
     is_dismissed: bool,
     owner_badge: str | None = None,
     tab_chip: tuple[str, str] | None = None,
+    wave_pips: Text | None = None,
     pill_tint: str | None = None,
 ) -> None:
     bucket = effective_bucket or status_bucket_for_values(status)
@@ -541,6 +544,9 @@ def _append_member_fields(
         if chip.cell_len:
             text.append(" ")
             text.append_text(chip)
+    if wave_pips:
+        text.append(" ")
+        text.append_text(wave_pips)
     rendered_annotations = (
         (*annotations, "dismissed") if is_dismissed else tuple(annotations)
     )

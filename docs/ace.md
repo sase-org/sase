@@ -2471,6 +2471,13 @@ Done, with Starting sharing Running's rank and launch recency ordering members i
 same bucket. A session row moves as one unit with its follow-ups and workflow steps,
 preserving their adjacency and internal order.
 
+Layered clan rows add compact wave-state pips immediately after the count chip (and any
+unknown-wait marker): `✗` failed, `▲` needs you, `◐` in flight, `●` done, `○` not
+started, and `·` dismissed-only. A final epic land seal adds a separate `∎` pip with the
+seal stage's state. Above twelve numbered waves, the strip becomes the worst state and
+completed-wave fraction, such as `◐ 8/14 ∎`. Tribe Summary clan rows and both forms of
+the compact clan identity header use the same pips; the 19-cell rail stays unchanged.
+
 Clan rows aggregate member status using the same operational precedence: human-input
 questions, pending plan review, failure, and running/starting states outrank queued
 work; `QUEUED` then outranks `WAITING`, followed by an all-done result. Consequently, a

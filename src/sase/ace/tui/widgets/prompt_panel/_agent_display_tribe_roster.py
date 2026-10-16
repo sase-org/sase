@@ -5,6 +5,7 @@ from __future__ import annotations
 from rich.text import Text
 
 from ...models.agent_tribe_summary import AgentTribeSummarySnapshot
+from .._clan_wave_presentation import format_clan_wave_pips
 from ._agent_display_tribe_common import FIELD_LABEL_STYLE, TRIBE_IDENTITY_COLOR
 from ._member_roster import (
     MEMBER_ENTRY_CURSOR_GLYPH,
@@ -66,6 +67,7 @@ def tribe_roster_entries(
                     and unit.identity == snapshot.entry_target.unit_identity
                 ),
                 tab_chip=unit.tab_chip,
+                wave_pips=format_clan_wave_pips(unit.clan_waves),
             )
         )
     return tuple(entries)

@@ -135,6 +135,9 @@ def reference_sections(km: KeymapRegistry) -> Sections:
                 ("1 ╭ ├ ╰", "Wave order; braces group peers"),
                 ("∎ ─", "Final epic seal stage"),
                 ("? ─", "Cycle or unresolved wait"),
+                ("✗ ▲ ◐", "Failed / needs you / active"),
+                ("● ○ ·", "Done / waiting / ghost only"),
+                ("◐ 8/14 ∎", "Compact over 12 waves + seal"),
             ],
         ),
         (

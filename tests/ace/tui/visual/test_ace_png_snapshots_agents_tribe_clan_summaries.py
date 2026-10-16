@@ -68,6 +68,7 @@ def _literal_clan_agents() -> list[Agent]:
         agent_name="visual-literal.joiner",
         agent_clan="visual-literal-clan",
         agent_clan_generation=generation,
+        waiting_for=["visual-literal.declarer"],
         tribe="epic",
         model="gpt-5",
     )

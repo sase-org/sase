@@ -254,6 +254,7 @@ def agent_hint_render_cache_key(
             member_states,
             agent.agent_clan,
             agent.agent_clan_generation,
+            agent.clan_waves,
             snapshot.revision if snapshot is not None else 0,
         )
         source_digest = _digest_parts(agent.clan_summary)

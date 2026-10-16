@@ -37,6 +37,7 @@ from ._agent_list_render_agent_prefix import (
     tribe_style,
 )
 from ._clan_wave_gutter import ClanWaveGutter
+from ._clan_wave_presentation import format_clan_wave_pips
 from ._agent_list_render_agent_status import append_agent_row_status
 from ._agent_list_render_cache import (
     AgentRenderCache,
@@ -239,6 +240,10 @@ def format_agent_option(
                 f"{WAIT_UNKNOWN_GLYPH}{clan_unknown_wait_count}",
                 style=WAIT_UNKNOWN_GLYPH_STYLE,
             )
+        wave_pips = format_clan_wave_pips(agent.clan_waves)
+        if wave_pips:
+            text.append(" ")
+            text.append_text(wave_pips)
 
     is_container_row = agent.is_clan_container or is_sequential_agent_session_container(
         agent

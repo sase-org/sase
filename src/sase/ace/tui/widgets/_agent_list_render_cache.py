@@ -341,6 +341,7 @@ def agent_render_key(
         agent.tree_parent_key,
         agent.tree_depth,
         clan_wave_gutter,
+        agent.clan_waves if agent.is_clan_container else None,
         agent.clan_tribes,
         agent.agent_name,
         agent.presented_agent_name,
