@@ -1482,9 +1482,10 @@ somewhere stale.
 
 Lit `▶`/`◐` targets get a softly tinted number/name/glyph pill in collapsed, narrowed,
 and expanded views; `+N` counts hidden targets, with `▶M` for hidden in-flight ones.
-Layered clan legends add dim, cell-counted `┊` dividers between shown wave groups and an
-`N WAVES` or `N WAVES + LAND` suffix, dropped first when tight. Expanded `CLAN MEMBERS`
-entries label wave, land, and unresolved groups with their dependencies.
+Layered clan legends add dim `┊` dividers between same-row neighbors from different wave
+groups, never at a row edge, and an `N WAVES` or `N WAVES + LAND` suffix, dropped first
+when tight. Expanded `CLAN MEMBERS` entries label wave, land, and unresolved groups with
+their dependencies.
 
 ### Agent Actions
 

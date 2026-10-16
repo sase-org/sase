@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from rich.cells import cell_len
 from textual.app import ComposeResult
 from textual.color import Color
 from textual.containers import VerticalScroll
@@ -87,7 +86,9 @@ class AgentJumpPanel(VerticalScroll):
         """Update the border title, subtitle, and dimmed accent border."""
         title_width = None
         if self.size.width > 0:
-            title_width = max(0, self.size.width - cell_len(subtitle) - 4)
+            # The subtitle lives in the bottom border, so only the border
+            # chrome comes out of the top-border title budget.
+            title_width = max(0, self.size.width - 4)
         self.border_title = jump_legend_title(
             jump_map,
             prefix=self._pending_prefix,

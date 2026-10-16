@@ -9,7 +9,7 @@ byte-identical to the prior render.
 from collections import OrderedDict
 from collections.abc import Collection, Mapping
 from datetime import datetime
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from rich.text import Text
 from textual.widgets.option_list import Option
@@ -32,7 +32,6 @@ from ..models.agent_session_members import (
 from ..models.agent_groups import GroupingMode, GroupRow
 from ..models.agent_time import row_runtime_or_wait_ticks, wait_display_agent
 from ..models.tribe_display import TRIBE_IDENTITY_FALLBACK_COLOR
-from ._clan_wave_gutter import ClanWaveGutter
 from sase.ace.tui.tool_runs.attribution import (
     row_identity_from_agent,
     select_live_runs,
@@ -41,6 +40,9 @@ from sase.ace.tui.tool_runs.row_chip import tool_run_chip_token
 from sase.ace.tui.tool_runs.snapshot import get_snapshot, tool_runs_disabled_reason
 from sase.core.time import local_now
 from ._agent_list_helpers import ordered_row_providers
+
+if TYPE_CHECKING:
+    from ._clan_wave_gutter import ClanWaveGutter
 
 _AGENT_CACHE_MAX = 512
 _BANNER_CACHE_MAX = 128
@@ -261,7 +263,7 @@ def agent_render_key(
     show_machine_chip: bool = False,
     tab_chip: tuple[str, str] | None = None,
     clan_projects: tuple[str, ...] | None = None,
-    clan_wave_gutter: ClanWaveGutter | None = None,
+    clan_wave_gutter: "ClanWaveGutter | None" = None,
 ) -> tuple[Any, ...]:
     """Build the cache key for a single agent row.
 

@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 from sase.agent.status_buckets import (
     agent_status_bucket,
@@ -34,7 +34,6 @@ from ._agent_tree import (
     tree_parent_lookup,
 )
 from .agent import Agent, AgentType, compute_row_runtime
-from ._agent_clan_waves import ClanWaveSummary
 from .agent_session_members import (
     concrete_agent_session_member_rows,
     is_sequential_agent_session_container,
@@ -43,6 +42,9 @@ from .agent_session_members import (
 from .agent_nodes import is_agents_tab_agent_node
 from .agent_panels import PanelKey, agent_panel_label
 from . import agent_time
+
+if TYPE_CHECKING:
+    from ._agent_clan_waves import ClanWaveSummary
 
 
 type AgentIdentity = tuple[AgentType, str, str | None]

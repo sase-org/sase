@@ -34,7 +34,6 @@ from ._agent_display_clan_roster import (
     agent_session_rows,
     ordered_clan_members,
 )
-from ._agent_display_clan_waves import append_clan_waves_section
 from ._agent_clan_summary_text import clan_summary_text
 from ._agent_display_clan_sections import (
     append_context_section,
@@ -192,6 +191,10 @@ def build_clan_detail_text(
             now=now,
         )
         body = text
+
+    # Deferred so the clan-wave modules stay off the TUI startup import path;
+    # after first use this is only a ``sys.modules`` hit.
+    from ._agent_display_clan_waves import append_clan_waves_section
 
     append_clan_waves_section(
         body,

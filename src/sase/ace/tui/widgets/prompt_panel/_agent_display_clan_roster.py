@@ -14,14 +14,12 @@ from sase.agent.status_buckets import (
 )
 
 from ...models._agent_clan import clan_members
-from ...models._agent_clan_waves import clan_wave_identity_key
 from ...models._agent_clan_sections import ClanMemberDigest
 from ...models.agent import Agent, AgentType, compute_row_runtime
 from ...models.agent_session_members import (
     agent_session_lane_status_entries,
     agent_session_member_status_buckets,
 )
-from .._clan_wave_presentation import format_wave_after_phrase
 from ._member_roster import MemberRosterChild, MemberRosterEntry
 
 CLAN_NEIGHBORS_SECTION_ID = "clan-neighbors"
@@ -38,6 +36,10 @@ def _predecessor_summary(
     is_epic_seal: bool = False,
 ) -> str:
     """Describe the members or waves that precede one roster group."""
+    # Deferred so the clan-wave modules stay off the TUI startup import path;
+    # after first use this is only a ``sys.modules`` hit.
+    from .._clan_wave_presentation import format_wave_after_phrase
+
     labels = tuple(
         entries_by_identity[identity].label
         for identity in predecessor_identities
@@ -62,6 +64,11 @@ def _layered_group_labels(
     entries: tuple[MemberRosterEntry, ...],
 ) -> tuple[dict[tuple[AgentType, str, str | None], str], str | None]:
     """Return JUMP group labels and the optional layered-clan title suffix."""
+    # Deferred so the clan-wave modules stay off the TUI startup import path;
+    # after first use this is only a ``sys.modules`` hit.
+    from ...models._agent_clan_waves import clan_wave_identity_key
+    from .._clan_wave_presentation import format_wave_after_phrase
+
     summary = agent.clan_waves
     if summary is None or not summary.layered:
         return {}, None
@@ -349,7 +356,11 @@ def clan_roster_entries(
     if not group_labels:
         return roster_entries
     return tuple(
-        replace(entry, group_label=group_labels.get(entry.identity))
+        replace(
+            entry,
+            group_label=group_labels.get(entry.identity),
+            legend_group=group_labels.get(entry.identity),
+        )
         for entry in roster_entries
     )
 

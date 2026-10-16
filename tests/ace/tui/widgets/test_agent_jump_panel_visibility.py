@@ -5,12 +5,18 @@ from __future__ import annotations
 from datetime import datetime
 from pathlib import Path
 
+from rich.cells import cell_len
 from rich.text import Text
+from textual.app import App, ComposeResult
 
 from sase.ace.tui.models._agent_tree import project_clan_tree
+from sase.ace.tui.models.agent import AgentType
 from sase.ace.tui.models.fold_state import FoldLevel
+from sase.ace.tui.widgets._agent_jump_legend import jump_legend_title
 from sase.ace.tui.widgets.agent_detail import AgentDetail
+from sase.ace.tui.widgets.agent_jump_panel import AgentJumpPanel
 from sase.ace.tui.widgets.prompt_panel._member_roster import (
+    MemberJumpMap,
     MemberJumpNumbering,
     MemberRosterEntry,
     append_member_roster,
@@ -191,3 +197,69 @@ async def test_hint_document_hides_panel_and_back(tmp_path: Path) -> None:
         await _show_agent(detail, root, pilot)
         assert not panel.has_class("hidden")
         assert detail.jump_panel_toggle_available() is True
+
+
+class _BareJumpApp(App[None]):
+    def compose(self) -> ComposeResult:
+        yield AgentJumpPanel()
+
+
+def _suffixed_map() -> MemberJumpMap:
+    identity = (AgentType.RUNNING, "lane", None)
+    entries = tuple(
+        MemberRosterEntry(
+            identity=(AgentType.RUNNING, label, None),
+            presented_name=label,
+            label=label,
+            kind="agent",
+            status="RUNNING",
+            model="m",
+            duration="1m",
+        )
+        for label in ("root", "peer", "build", "test", "docs", "land")
+    )
+    return append_member_roster(
+        Text(),
+        container_identity=identity,
+        entries=entries,
+        title="CLAN MEMBERS",
+        accent="#00D7AF",
+        panel_level=FoldLevel.COLLAPSED,
+        numbering=MemberJumpNumbering(total=len(entries)),
+        title_suffix="4 WAVES + LAND",
+    )
+
+
+async def test_border_title_budget_ignores_bottom_subtitle() -> None:
+    """The bottom-border subtitle must not shrink the top-border title budget."""
+    jump_map = _suffixed_map()
+    full = jump_legend_title(jump_map).plain
+    base = jump_legend_title(jump_map, width=cell_len("JUMP")).plain
+    subtitle = "▴ . more"
+    assert "4 WAVES + LAND" in full
+    assert "4 WAVES + LAND" not in base
+    # Width where only the old subtitle subtraction would drop the suffix.
+    width = cell_len(full) + 4
+    assert cell_len(full) > width - cell_len(subtitle) - 4
+    app = _BareJumpApp()
+    async with app.run_test(size=(width, 24)):
+        panel = app.query_one(AgentJumpPanel)
+        assert panel.size.width == width
+        panel._apply_chrome(jump_map, subtitle)  # noqa: SLF001
+        assert "4 WAVES + LAND" in str(panel.border_title)
+
+
+async def test_border_title_drops_suffix_first_when_genuinely_tight() -> None:
+    jump_map = _suffixed_map()
+    full = jump_legend_title(jump_map).plain
+    base = jump_legend_title(jump_map, width=cell_len("JUMP")).plain
+    width = cell_len(base) + 4
+    assert cell_len(full) > width
+    app = _BareJumpApp()
+    async with app.run_test(size=(width, 24)):
+        panel = app.query_one(AgentJumpPanel)
+        assert panel.size.width == width
+        panel._apply_chrome(jump_map, "▴ . more")  # noqa: SLF001
+        title = str(panel.border_title)
+        assert "4 WAVES + LAND" not in title
+        assert "CLAN MEMBERS" in title

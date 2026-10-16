@@ -359,14 +359,27 @@ class JumpLegendRenderable:
         _shown, budget, columns, labels = best
         selection = _collapsed_selection_for_columns(jump_map, columns)
         cells = _collapsed_cells(jump_map, labels, selection)
-        return _render_grid(cells, columns)
+        dividers = _collapsed_divider_gaps(jump_map, selection, columns=columns)
+        return _render_collapsed_grid(cells, columns, dividers)
+
+
+_NORMAL_CELL_GAP = "  "
+_DIVIDER_CELL_GAP = " ┊ "
+
+_DIVIDER_GAP_WIDTH = 3
+_NORMAL_GAP_WIDTH = 2
+
+
+def _has_legend_groups(jump_map: MemberJumpMap) -> bool:
+    """Return whether any target carries a layered-clan wave group."""
+    return any(target.legend_group is not None for target in jump_map.targets)
 
 
 def _selection_divider_count(
     jump_map: MemberJumpMap,
     selection: list[int],
 ) -> int:
-    """Return the divider-cell count between selected clan wave groups."""
+    """Return the wave-group boundary count inside ``selection``."""
     dividers = 0
     previous_group: str | None = None
     for index in selection:
@@ -377,6 +390,14 @@ def _selection_divider_count(
     return dividers
 
 
+def _collapsed_shown_count(count: int, columns: int) -> int:
+    """Return how many targets a collapsed grid shows at ``columns``."""
+    slots = min(count, 2 * columns)
+    if count > 2 * columns:
+        return slots - 1
+    return slots
+
+
 def _collapsed_selection_for_columns(
     jump_map: MemberJumpMap,
     columns: int,
@@ -384,7 +405,10 @@ def _collapsed_selection_for_columns(
     """Fit the most targets into two rows, reserving cells for dividers and overflow."""
     count = len(jump_map.targets)
     capacity = 2 * columns
-    for shown in range(count, 0, -1):
+    if not _has_legend_groups(jump_map):
+        return _collapsed_selection(jump_map, _collapsed_shown_count(count, columns))
+    start = min(count, capacity)
+    for shown in range(start, 0, -1):
         selection = _collapsed_selection(jump_map, shown)
         overflow_cells = int(shown < count)
         required = (
@@ -400,14 +424,10 @@ def _collapsed_cells(
     labels: list[str],
     selection: list[int],
 ) -> list[Text]:
-    """Build selected target cells with wave dividers and the overflow chip."""
+    """Build the selected target cells plus the overflow chip."""
     cells: list[Text] = []
-    previous_group: str | None = None
     for index in selection:
         target = jump_map.targets[index]
-        group = target.legend_group
-        if previous_group is not None and group is not None and group != previous_group:
-            cells.append(Text("┊", style=_DIM_STYLE))
         cells.append(
             _build_cell(
                 target.number,
@@ -418,7 +438,6 @@ def _collapsed_cells(
                 show_archive_hint=False,
             )
         )
-        previous_group = group
     hidden = len(jump_map.targets) - len(selection)
     if hidden > 0:
         cells.append(
@@ -430,6 +449,87 @@ def _collapsed_cells(
     return cells
 
 
+def _collapsed_divider_gaps(
+    jump_map: MemberJumpMap,
+    selection: list[int],
+    *,
+    columns: int,
+) -> set[int]:
+    """Return the cell-gap positions holding a ``┊`` divider.
+
+    Gap ``pos`` sits between ``cells[pos]`` and ``cells[pos + 1]``. A divider
+    is drawn only between two shown target cells that sit next to each other
+    on the same rendered row and differ in wave group: never first or last on
+    a row, never across a row break, and never beside the overflow chip.
+    """
+    gaps: set[int] = set()
+    if columns <= 0:
+        return gaps
+    target_count = len(selection)
+    for pos in range(target_count - 1):
+        if (pos + 1) % columns == 0:
+            continue
+        left = jump_map.targets[selection[pos]].legend_group
+        right = jump_map.targets[selection[pos + 1]].legend_group
+        if left is not None and right is not None and left != right:
+            gaps.add(pos)
+    return gaps
+
+
+def _render_collapsed_grid(
+    cells: list[Text],
+    columns: int,
+    dividers: set[int],
+) -> list[Text]:
+    """Render a row-major grid folding each divider into a cell separator."""
+    if not cells:
+        return []
+    columns = max(1, min(columns, len(cells)))
+    col_widths = _column_widths(cells, columns)
+    lines: list[Text] = []
+    for start in range(0, len(cells), columns):
+        row = cells[start : start + columns]
+        line = Text()
+        for column, cell in enumerate(row):
+            pos = start + column
+            if column > 0:
+                if pos - 1 in dividers:
+                    line.append(_DIVIDER_CELL_GAP, style=_DIM_STYLE)
+                else:
+                    line.append(_NORMAL_CELL_GAP)
+            line.append_text(cell)
+            if column < len(row) - 1:
+                padding = col_widths[column] - cell_len(cell.plain)
+                if padding > 0:
+                    line.append(" " * padding)
+        lines.append(line)
+    return lines
+
+
+def _collapsed_grid_fits(
+    cells: list[Text],
+    dividers: set[int],
+    columns: int,
+    width: int,
+) -> bool:
+    """Return whether the divider-aware collapsed grid fits ``width``."""
+    if columns <= 0:
+        return False
+    if not cells:
+        return True
+    columns = min(columns, len(cells))
+    col_widths = _column_widths(cells, columns)
+    for start in range(0, len(cells), columns):
+        row_len = min(columns, len(cells) - start)
+        row_width = sum(col_widths[:row_len])
+        for column in range(row_len - 1):
+            pos = start + column
+            row_width += _DIVIDER_GAP_WIDTH if pos in dividers else _NORMAL_GAP_WIDTH
+        if row_width > width:
+            return False
+    return True
+
+
 def _largest_collapsed_columns(
     targets: tuple[object, ...],
     labels: list[str],
@@ -438,11 +538,14 @@ def _largest_collapsed_columns(
 ) -> int | None:
     """Return the largest collapsed column count fitting ``width``."""
     count = len(targets)
-    max_columns = min(2 * count - 1, max(1, width // 3))
+    max_columns = min(count, max(1, width // 8))
     for columns in range(max_columns, 0, -1):
         selection = _collapsed_selection_for_columns(jump_map, columns)
         cells = _collapsed_cells(jump_map, labels, selection)
-        if len(cells) <= 2 * columns and _grid_fits(cells, columns, width):
+        dividers = _collapsed_divider_gaps(jump_map, selection, columns=columns)
+        if len(cells) <= 2 * columns and _collapsed_grid_fits(
+            cells, dividers, columns, width
+        ):
             return columns
     return None
 

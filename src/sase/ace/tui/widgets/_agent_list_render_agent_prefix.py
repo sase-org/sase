@@ -5,6 +5,7 @@ precede the status parenthetical in :func:`format_agent_option`.
 """
 
 from collections.abc import Mapping
+from typing import TYPE_CHECKING
 
 from rich.text import Text
 
@@ -19,15 +20,10 @@ from ..models.tribe_display import (
 from ..provider_styles import provider_emoji_badge
 from ._agent_list_helpers import ordered_row_providers
 from ._agent_list_render_layout import render_tier_gutter
-from ._clan_wave_gutter import ClanWaveGutter
-from ._clan_wave_presentation import (
-    WAVE_LANE_GLYPH,
-    WAVE_NUMBER_DONE_STYLE,
-    WAVE_NUMBER_OPEN_STYLE,
-    WAVE_UNRESOLVED_STYLE,
-    wave_connector_style,
-)
 from ._clan_project_label import append_clan_project_label
+
+if TYPE_CHECKING:
+    from ._clan_wave_gutter import ClanWaveGutter
 from ._agent_list_render_rail import (
     gate_glyph_style as _gate_glyph_style,
     monitor_glyph_style as _monitor_glyph_style,
@@ -101,13 +97,17 @@ def _append_tree_indent(
     depth: int,
     *,
     is_selected: bool,
-    wave_gutter: ClanWaveGutter | None = None,
+    wave_gutter: "ClanWaveGutter | None" = None,
 ) -> None:
     """Append a depth-aware branch using the existing child-row footprint.
 
     Leading spacing, each ancestor guide, and the terminal branch are
     separate spans so a connector keeps the color of the level it represents.
     """
+    # Deferred so the clan-wave modules stay off the TUI startup import path;
+    # after first use this is only a ``sys.modules`` hit.
+    from ._clan_wave_presentation import WAVE_LANE_GLYPH, wave_connector_style
+
     if depth <= 0:
         return
     if depth == 1 and wave_gutter is not None and wave_gutter.bracket is not None:
@@ -176,7 +176,7 @@ def append_agent_row_prefix(
     show_machine_chip: bool = False,
     tab_chip: tuple[str, str] | None = None,
     clan_projects: tuple[str, ...] = (),
-    clan_wave_gutter: ClanWaveGutter | None = None,
+    clan_wave_gutter: "ClanWaveGutter | None" = None,
 ) -> Text:
     """Build the left-side chrome that precedes the status parenthetical."""
     text = render_tier_gutter(tier_styles)
@@ -329,7 +329,15 @@ def append_agent_row_prefix(
     return text
 
 
-def _wave_label_style(gutter: ClanWaveGutter) -> str:
+def _wave_label_style(gutter: "ClanWaveGutter") -> str:
+    # Deferred so the clan-wave modules stay off the TUI startup import path;
+    # after first use this is only a ``sys.modules`` hit.
+    from ._clan_wave_presentation import (
+        WAVE_NUMBER_DONE_STYLE,
+        WAVE_NUMBER_OPEN_STYLE,
+        WAVE_UNRESOLVED_STYLE,
+    )
+
     if gutter.label_kind == "unresolved":
         return WAVE_UNRESOLVED_STYLE
     return WAVE_NUMBER_OPEN_STYLE if gutter.open else WAVE_NUMBER_DONE_STYLE

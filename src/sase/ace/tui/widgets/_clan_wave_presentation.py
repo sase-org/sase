@@ -1,12 +1,18 @@
 """Shared glyph and style vocabulary for clan-wave list chrome."""
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 from rich.text import Text
 
-from ..models._agent_clan_waves import ClanWaveSummary
 from ._agent_list_styling import TREE_DEPTH_COLORS
 from ._agent_list_render_rail import RAIL_FAILED_STYLE
 from ..models.agent_status import RUNNING_COLOR
 from ..agent_count_chip import AGENT_COUNT_CHIP_NEUTRAL_STYLE
+
+if TYPE_CHECKING:
+    from ..models._agent_clan_waves import ClanWaveSummary
 
 WAVE_NUMBER_COLOR = TREE_DEPTH_COLORS[0]
 WAVE_NUMBER_OPEN_STYLE = f"bold {WAVE_NUMBER_COLOR}"

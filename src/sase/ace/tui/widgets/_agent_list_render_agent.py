@@ -8,6 +8,7 @@ Leading chrome and the status parenthetical live in
 
 from collections.abc import Collection, Mapping
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 from rich.text import Text
 
@@ -36,8 +37,6 @@ from ._agent_list_render_agent_prefix import (
     append_agent_row_prefix,
     tribe_style,
 )
-from ._clan_wave_gutter import ClanWaveGutter
-from ._clan_wave_presentation import format_clan_wave_pips
 from ._agent_list_render_agent_status import append_agent_row_status
 from ._agent_list_render_cache import (
     AgentRenderCache,
@@ -46,6 +45,9 @@ from ._agent_list_render_cache import (
 )
 from ._agent_list_render_layout import build_runtime_suffix
 from ._owner_badge import append_owner_badge
+
+if TYPE_CHECKING:
+    from ._clan_wave_gutter import ClanWaveGutter
 from ._agent_list_styling import (
     _AGENT_NAME_ANNOTATION_STYLE,
     _BEAD_LINKED_AGENT_GLYPH,
@@ -164,9 +166,13 @@ def format_agent_option(
     show_machine_chip: bool = False,
     tab_chip: tuple[str, str] | None = None,
     clan_projects: tuple[str, ...] | None = None,
-    clan_wave_gutter: ClanWaveGutter | None = None,
+    clan_wave_gutter: "ClanWaveGutter | None" = None,
 ) -> tuple[Text, Text, str]:
     """Build ``(left_text, suffix_text, option_id)`` parts for an agent row."""
+    # Deferred so the clan-wave modules stay off the TUI startup import path;
+    # after first use this is only a ``sys.modules`` hit.
+    from ._clan_wave_presentation import format_clan_wave_pips
+
     tribe_label = _inline_tribe_label(tribe_label)
     visible_clan_projects = (
         clan_project_labels(agent)
@@ -382,7 +388,7 @@ def cached_format_agent_option(
     unread_agent_ids: Collection[tuple[AgentType, str, str | None]] = (),
     show_machine_chip: bool = False,
     tab_chip: tuple[str, str] | None = None,
-    clan_wave_gutter: ClanWaveGutter | None = None,
+    clan_wave_gutter: "ClanWaveGutter | None" = None,
 ) -> tuple[Text, Text, str]:
     """Memoized wrapper for :func:`format_agent_option`.
 

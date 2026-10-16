@@ -19,7 +19,6 @@ from ..models.agent_groups import (
 )
 from ..models.group_fold import GroupFoldView, group_fold_snapshot
 from ._agent_list_build_analysis import compute_tier_styles, visible_agent_indices
-from ._clan_wave_gutter import build_clan_wave_gutters
 from ._agent_list_build_rows import (
     agent_row_context,
     build_row_inputs,
@@ -203,6 +202,10 @@ def try_insert_rows(
         for entry in tree
         if entry.agent_idx is not None and entry.agent_idx in visible
     ]
+    # Deferred so the clan-wave modules stay off the TUI startup import path;
+    # after first use this is only a ``sys.modules`` hit.
+    from ._clan_wave_gutter import build_clan_wave_gutters
+
     wave_gutters = build_clan_wave_gutters(agents, visible_order)
     inputs = build_row_inputs(
         widget,

@@ -5,7 +5,6 @@ from __future__ import annotations
 from rich.text import Text
 
 from ...models.agent_tribe_summary import AgentTribeSummarySnapshot
-from .._clan_wave_presentation import format_clan_wave_pips
 from ._agent_display_tribe_common import FIELD_LABEL_STYLE, TRIBE_IDENTITY_COLOR
 from ._member_roster import (
     MEMBER_ENTRY_CURSOR_GLYPH,
@@ -19,6 +18,10 @@ from ._member_roster import (
 def tribe_roster_entries(
     snapshot: AgentTribeSummarySnapshot,
 ) -> tuple[MemberRosterEntry, ...]:
+    # Deferred so the clan-wave modules stay off the TUI startup import path;
+    # after first use this is only a ``sys.modules`` hit.
+    from .._clan_wave_presentation import format_clan_wave_pips
+
     entries: list[MemberRosterEntry] = []
     for unit in snapshot.units:
         counts = unit.status_counts

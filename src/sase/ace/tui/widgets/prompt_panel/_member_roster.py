@@ -126,6 +126,7 @@ class MemberRosterEntry:
     is_marked: bool = False
     is_unread: bool = False
     group_label: str | None = None
+    legend_group: str | None = None
     is_dismissed: bool = False
     target_role: MemberJumpRole | None = None
     is_entry_target: bool = False
@@ -269,7 +270,7 @@ def append_member_roster(
                 label=entry.label,
                 status_bucket=entry.effective_bucket
                 or status_bucket_for_values(entry.status),
-                legend_group=entry.group_label,
+                legend_group=entry.legend_group,
             )
         )
         rendered_count += 1
