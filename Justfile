@@ -595,6 +595,14 @@ test-slow *args: _setup (_header "test-slow")
     @printf "\n---------- Running slow pytest subset... ----------\n"
     @SASE_JUST_INVOCATION_DIR="{{ invocation_directory() }}" {{ venv_bin }}/python tools/run_pytest slow "$@"
 
+# Run the Get started tutorial suite against fakey in a temporary HOME.
+# Slow by design: the `slow` marker keeps it out of `just test`, and the
+# scheduled Full CI lane (the tutorial-tests job in ci.yml) runs this recipe.
+[positional-arguments]
+test-tutorials *args: _setup (_header "test-tutorials")
+    @printf "\n---------- Running tutorial tests (fakey, temporary HOME)... ----------\n"
+    @SASE_JUST_INVOCATION_DIR="{{ invocation_directory() }}" {{ venv_bin }}/python -m pytest tests/test_tutorials.py -m "not visual" "$@"
+
 # Capture, compare, and apply ACE and pager TUI screenshot goldens.
 # Update mode salvages per node and per golden: failed nodes are retried
 # (bounded), trusted captures are applied, and the rest are skipped with

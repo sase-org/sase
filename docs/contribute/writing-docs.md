@@ -155,6 +155,31 @@ Verify with `sase tool run check`. Once the links phase lands, `just docs-check`
 runs the strict build and URL contract. Never run `just check-full` unless explicitly
 told to.
 
+## Testing the tutorials
+
+Every shell block in `start/` is a tutorial step by default. The tutorial runner
+(`tests/test_tutorials.py`, `just test-tutorials`) executes the unskipped blocks in
+order in a fresh temporary `HOME` against `fakey` — the default model is pinned to
+`fakey-large` through test configuration, never by editing the page text. It asserts
+exit codes and `expect` markers, then waits for each launched run to succeed, and
+reports the failing page, step number, and block text. The runner is slow by design: it
+stays out of the fast lanes behind the `slow` marker and runs in the scheduled Full CI
+lane.
+
+Mark a block that needs a human on the line before its fence:
+
+- `<!-- tutorial-test: skip <reason> -->` skips the block (interactive `sase tui`,
+  published-package installs, reader-owned provider auth, shell startup changes).
+- `<!-- tutorial-test: expect "<substring>" -->` asserts the substring appears in the
+  block's combined output.
+
+`fakey` cannot cover authentication or provider routing, so an occasional real-provider
+walkthrough still matters. After touching `start/`, auth, or launch, Bryan walks both
+tutorials with a real provider:
+
+- [ ] install, first run, and first change complete against the real provider;
+- [ ] any step that behaved differently under `fakey` is noted on the work item.
+
 ## Related
 
 - [Contribute](index.md) — The contributor hub this page belongs to.
