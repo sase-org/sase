@@ -420,7 +420,7 @@ page. The footer shows a `(/)` blocks entry and the help modal a matching
 (tmux + kitty included) they arrive as plain `Ctrl+J` / `Ctrl+K` and would cycle cards,
 not blocks. If your terminal delivers them distinctly, bind them yourself as a personal
 override of `prev_card_block` / `next_card_block` (see
-[configuration](../../configuration.md#aceagent_decks) and the keymap settings).
+[configuration](../config/ace-prompts.md#aceagentdecks) and the keymap settings).
 
 `\` opens a second panel below the first (stacked) and `|` opens one to its right (side
 by side); the new panel takes focus and shows the next deck with content, or a duplicate
@@ -468,7 +468,7 @@ intact. `>` / `<` / `Ctrl+X` always work.
 The layout, split ratio, focus, node-rail preference, and each panel's deck, preferred
 card, and deck views persist across restarts in `~/.sase/ace_agents_deck_state.json`.
 See the [key tables](../../ace.md#navigation) for the full deck keymap and
-[configuration](../../configuration.md#aceagent_decks) for the spread setting.
+[configuration](../config/ace-prompts.md#aceagentdecks) for the spread setting.
 
 ### Finalizers on the Agents Tab
 

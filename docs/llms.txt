@@ -57,7 +57,6 @@
 - [Patch Format Documentation](https://sase.sh/change_spec/) — Patch Format Documentation — A Patch is SASE's durable local record for one unit of reviewable work.
 - [CLI Reference](https://sase.sh/cli/) — CLI Reference — This page is a command index for the top-level sase CLI.
 - [Shell Completion](https://sase.sh/completion/) — Shell Completion — sase completion supports native shell completion for zsh, bash, and fish from the live sase argparse tree, so pressing <TAB> anywhere in the command line offers the right commands, options, static choices, and live values — bead ids with titles, project display names, macro names, and more — with no perceptible latency.
-- [Configuration Reference](https://sase.sh/configuration/) — Configuration Reference — This document is the central reference for all sase configuration: config files, YAML sections, environment variables, and CLI flags.
 - [Editor Integration](https://sase.sh/editor/) — Editor Integration — SASE exposes two editor-facing surfaces for prompt and macro editing:
 - [Goals](https://sase.sh/goals/) — Goals — Goals are durable records of outcomes a person wants: what will be true, how you'll know, and what happened along the way.
 - [Initialization](https://sase.sh/init/) — Initialization — SASE initialization commands create or refresh durable files that agents and sidecar tools rely on.
@@ -145,26 +144,47 @@
 - [sase var](https://sase.sh/reference/cli/var/) — Inspect historical output variables, retrieve a snapshot or selector values, or set variables on the current SASE agent run.
 - [sase version](https://sase.sh/reference/cli/version/) — Show the exact SASE host, Rust core, and plugin packages used by this process.
 - [sase workspace](https://sase.sh/reference/cli/workspace/) — Inspect and manage managed workspace checkouts
+- [ACE configuration behavior](https://sase.sh/reference/config/ace-behavior/) — Behavior settings for the SASE Admin Center and other TUI surfaces.
+- [ACE keymap configuration](https://sase.sh/reference/config/ace-keymap-configuration/) — Configuration behavior for SASE Admin Center and TUI keymaps.
+- [ACE prompt configuration](https://sase.sh/reference/config/ace-prompts/) — Prompt completion, snippets, prompt history, and agent deck settings.
+- [Agent and runner configuration](https://sase.sh/reference/config/agents-and-runners/) — Configuration for agent admission, runner capacity, and lifecycle behavior.
 - [Agents and runners configuration](https://sase.sh/reference/config/agents/) — Agent launch, completion, capacity, restart, and process-scope settings.
+- [Artifact configuration](https://sase.sh/reference/config/artifacts/) — Configuration behavior for agent artifacts and artifact references.
+- [Automation configuration behavior](https://sase.sh/reference/config/automation-behavior/) — Configuration for SDD, beads, and external issue mirroring.
 - [Automation and work tracking configuration](https://sase.sh/reference/config/automation/) — Beads, goals, gates, SDD, and related automation policy.
+- [Core configuration behavior](https://sase.sh/reference/config/core-behavior/) — Runtime behavior for core identity, managed instructions, and machine settings.
 - [Core and identity configuration](https://sase.sh/reference/config/core/) — Repository ownership, identity, and machine-wide configuration switches.
+- [Display and reading configuration](https://sase.sh/reference/config/display-and-reading/) — Configuration for Markdown rendering, paging, and reading surfaces.
+- [Feature flag configuration](https://sase.sh/reference/config/feature-flags/) — Configuration and persisted state for SASE feature flags.
+- [Configuration files and merging](https://sase.sh/reference/config/files-and-merging/) — Configuration file locations, owner identity, merge precedence, and storage layout.
+- [Finalizer configuration](https://sase.sh/reference/config/finalizers/) — Configuration for commit hooks and post-run finalizers.
 - [Configuration reference](https://sase.sh/reference/config/) — Generated configuration keys, types, defaults, and allowed values.
+- [Integration configuration behavior](https://sase.sh/reference/config/integrations-behavior/) — Configuration behavior for chat and mobile integrations.
 - [Integrations and telemetry configuration](https://sase.sh/reference/config/integrations/) — Chat, mobile access, and local telemetry settings.
+- [LLM provider behavior configuration](https://sase.sh/reference/config/llm-provider-behavior/) — Provider selection, usage limits, retries, and execution budgets.
 - [LLM provider configuration](https://sase.sh/reference/config/llm-provider/) — Provider selection, model defaults, and model execution policy.
 - [Memory and instructions configuration](https://sase.sh/reference/config/memory/) — Project memory, generated instruction templates, and their compatibility aliases.
+- [Monitor configuration](https://sase.sh/reference/config/monitor-behavior/) — Settings for monitor execution, wrappers, and continuation.
 - [Configuration keys needing descriptions](https://sase.sh/reference/config/needs-description/) — Schema paths that do not yet have a description.
+- [Prompt and tool configuration](https://sase.sh/reference/config/prompts-and-tools/) — Configuration for hooks, plugins, mentors, macros, and named tools.
 - [Prompts and tools configuration](https://sase.sh/reference/config/prompts/) — Macros, named tools, plugins, hooks, and mentor selection.
+- [Repository configuration behavior](https://sase.sh/reference/config/repositories-behavior/) — Repository lists, dispatch, VCS selection, and completion settings.
 - [Repositories and version control configuration](https://sase.sh/reference/config/repositories/) — Repository relationships, VCS providers, dispatch, commits, and workspace configuration.
+- [Runtime and storage configuration](https://sase.sh/reference/config/runtime-and-storage/) — Configuration for processes, services, local storage, and telemetry.
 - [Runtime and stored data configuration](https://sase.sh/reference/config/runtime/) — Process history, service hosting, artifacts, disk use, and reading surfaces.
+- [Scheduler configuration behavior](https://sase.sh/reference/config/scheduler-behavior/) — AXE scheduler settings and their runtime behavior.
 - [Scheduler configuration](https://sase.sh/reference/config/scheduler/) — AXE scheduler routines, jobs, and execution limits.
 - [TUI configuration](https://sase.sh/reference/config/tui/) — Settings for SASE's terminal interface and its configurable panes.
+- [Workspace configuration behavior](https://sase.sh/reference/config/workspace-behavior/) — Configuration for workspace directory layout and lifecycle.
 - [Content layout](https://sase.sh/reference/content-layout/) — Canonical paths for project and home SASE content.
 - [Design decisions](https://sase.sh/reference/design-decisions/) — Why SASE works this way, generated from the decisions memory web.
+- [Environment variables](https://sase.sh/reference/environment-variables/) — Environment variables that configure providers, SDD, plugins, runtime, and workspaces.
 - [Glossary](https://sase.sh/reference/glossary/) — Every SASE term, generated from the glossary memory web.
 - [Reference](https://sase.sh/reference/) — Look up exact SASE facts here, generated from code where possible.
 - [Macro directives](https://sase.sh/reference/macros/directives/) — The generated catalog of prompt directives and their syntax.
 - [Macro discovery order](https://sase.sh/reference/macros/discovery-order/) — File-backed macro and workflow locations in lookup order.
 - [Runner slots](https://sase.sh/reference/runner-slots/) — How runner capacity admits queued agents, and what waiting.json records.
+- [SASE Admin Center](https://sase.sh/reference/tui/admin-center/) — Navigation, sections, and editor behavior in the SASE Admin Center.
 - [Agent row glyphs](https://sase.sh/reference/tui/agent-row-glyphs/) — Glyphs, markers, and badges on Agents tab rows.
 - [Agent statuses](https://sase.sh/reference/tui/agent-statuses/) — Agent, wait, and completion statuses on the Agents tab.
 - [Agent workflows](https://sase.sh/reference/tui/agent-workflows/) — Plan workflows, approvals, holds, and retries on the Agents tab.
@@ -178,6 +198,7 @@
 - [TUI keymaps](https://sase.sh/reference/tui/keymaps/) — Default configurable key bindings for SASE's terminal interface.
 - [Content layout migration](https://sase.sh/reference/upgrading/content-layout/) — Migration steps and compatibility behavior for SASE content paths.
 - [Upgrading](https://sase.sh/reference/upgrading/) — Upgrade and history notes, organized by area with the newest notes first.
+- [Local state cutover](https://sase.sh/reference/upgrading/local-state/) — The temporary offline kit for moving legacy local state into canonical locations.
 - [Remote Dispatch Runbook](https://sase.sh/remote_dispatch/) — Remote Dispatch Runbook — Remote dispatch lets one SASE controller discover, enroll, and operate agents on another machine.
 - [Spec-Driven Development (SDD)](https://sase.sh/sdd/) — Spec-Driven Development (SDD) — SDD is sase's system for persisting the intent behind agent work.
 - [Sudo Requests](https://sase.sh/sudo/) — Sudo Requests — SASE sudo requests let an agent ask for reviewed privileged execution without ever asking for, receiving, logging, or proxying a password.
@@ -221,6 +242,7 @@
 ## Compatibility
 
 - [sase's TUI User Guide](https://sase.sh/ace/) — sase's TUI User Guide — sase's TUI is the primary TUI for the SASE toolkit.
+- [Configuration Reference](https://sase.sh/configuration/) — Configuration Reference — Moved to Configuration files and merging.
 - [Canonical SASE Content Layout](https://sase.sh/content_layout/) — This page has moved to its new home.
 
 ## Moved pages
@@ -234,3 +256,4 @@
 - https://sase.sh/acknowledgements/ → https://sase.sh/contribute/acknowledgements/
 - https://sase.sh/content_layout/ → https://sase.sh/reference/upgrading/
 - https://sase.sh/ace/ → https://sase.sh/reference/tui/
+- https://sase.sh/configuration/ → https://sase.sh/reference/config/

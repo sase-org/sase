@@ -77,7 +77,8 @@ currently uses these fields:
   checkouts are resolved through the per-project workspace store rather than by
   appending `_<num>` to this path; see
   [`docs/workspace.md`](workspace.md#workspace-directory-layout) for the
-  directory-layout reference and [`docs/configuration.md`](configuration.md#workspace)
+  directory-layout reference and
+  [`docs/reference/config/workspace-behavior.md`](reference/config/workspace-behavior.md#workspace)
   for the `workspace.root` knob.
 - **PROJECT_STATE**: Project lifecycle state. User-facing values are `enabled` and
   `disabled`; `sibling` is reserved for internal linked-repository backing records.
@@ -282,7 +283,7 @@ menu. It never overrides an explicit `project:` / `+name` term, a pick you alrea
 this session, project lifecycle state, or what a command targets. `sase project current`
 prints the resolved project, or explains that nothing resolves and exits 0. See
 [sase's TUI: Current project](ace.md#current-project) and
-[`ace.current_project`](configuration.md#acecurrent_project).
+[`ace.current_project`](reference/config/ace-behavior.md#acecurrentproject).
 
 ### Project Lifecycle
 

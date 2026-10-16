@@ -29,7 +29,7 @@ a `tools:` key in those layers is diagnosed and ignored. Malformed entries are e
 (exit `2`) that name the entry and field, and nothing is spawned. Argv is never expanded
 for shell syntax or environment variables; write `[sh, -c, ...]` when a shell is wanted.
 Named tools run at the project root, ad-hoc commands at the invocation directory. See
-the [field reference](configuration.md#sase-tool).
+the [field reference](reference/cli/tool.md#sase-tool).
 
 `tool_runs:` (retention and log caps) is separate operational policy and follows
 ordinary config precedence.

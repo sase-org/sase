@@ -23,7 +23,7 @@ from sase.tmux_agent.window import next_window_name, renumber_plan
 
 _PROVIDERS = ("claude", "codex", "agy", "qwen", "opencode", "grok", "muse")
 
-# Documented parity recipe from the epic plan / docs/configuration.md.
+# Documented parity recipe from the epic plan / docs/reference/config/agents-and-runners.md.
 _PARITY_CONFIG = TmuxAgentConfig(
     effort="max",
     providers={

@@ -645,8 +645,8 @@ without a progress heartbeat) and `SASE_TEST_GATE_MAX_HOLD` (default 4 hours, ev
 heartbeats continue) reclaim a wedged grant so one sleeping `tools/run_pytest` cannot
 keep a third of the host pool overnight. `SASE_PYTEST_WORKER_FLOOR` and
 `SASE_PYTEST_WORKER_CEILING` tune automatic grants; invalid or inconsistent values fail
-before pytest starts. See [Configuration](configuration.md#general) for the complete
-contract.
+before pytest starts. See [Configuration](reference/environment-variables.md#general)
+for the complete contract.
 
 Test selectors are normalized from the directory where `just` was invoked, so this works
 the same from the repository root or a subdirectory:

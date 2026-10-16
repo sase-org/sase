@@ -33,7 +33,7 @@ The root `sase` command accepts leading global options before the subcommand:
 off for that invocation and its children, and `-p/--print-command` prints a
 shell-quoted, copyable `sase ...` header to stderr before running the command. The
 printed invocation omits only the root print switch. See the
-[configuration reference](configuration.md#feature_flags).
+[configuration reference](reference/config/feature-flags.md#featureflags).
 
 ## Daily Operation
 
@@ -121,7 +121,7 @@ eligible agent once per lineage. Use `list` for pending claims, `list -a` for th
 ledger, `show TARGET` for one record's evidence, and `scan` for read-only historical
 classification. `run NAME`, `run -a DIR`, or `run -p` invokes the healer; `resume`
 clears a storm pause. The configuration switch is
-[`agent_auto_restart.enabled`](configuration.md#agent_auto_restart).
+[`agent_auto_restart.enabled`](reference/config/agents-and-runners.md#agentautorestart).
 
 A bare invocation delegates to `list`. `run --dry-run` can write recovery state for
 existing stale claims, and a successful `run -j` exit does not guarantee a relaunch. See
@@ -226,9 +226,9 @@ checkout or agent) or `host`. `-T/--ttl` accepts bare seconds or a single-unit d
 such as `90s`, `45m`, or `2h` (compound values like `1h30m` are accepted only by
 `%hold(ttl=...)`, not by `-T`); it defaults to `agent_hold_default_ttl` (`2h`) and may
 not exceed `agent_hold_max_ttl` (`12h`); see
-[agent hold limits](configuration.md#agent-hold-limits). Arming, releasing, and TTL
-expiry post notifications; the expiry notice includes the exact boundary. sase's TUI
-Admin Center lists and releases active holds.
+[agent hold limits](reference/config/agents-and-runners.md#agent-hold-limits). Arming,
+releasing, and TTL expiry post notifications; the expiry notice includes the exact
+boundary. sase's TUI Admin Center lists and releases active holds.
 
 Each armer owns one hold. Inside an agent run the armer is that agent (`agent:<name>`),
 and the hold is dropped once the agent's session settles. From a plain shell the armer
@@ -318,7 +318,8 @@ unit and redacted captured-environment diff, and `--yes` applies. Linux uses a s
 user service and macOS uses a LaunchAgent. A non-default `SASE_HOME` requires `--force`,
 which creates a home-scoped unit identity. `sase service uninstall` has the same
 plan/check/diff/apply shape; `--force` is also required when uninstalling the
-non-default-home unit. See [service configuration](configuration.md#service) and
+non-default-home unit. See
+[service configuration](reference/config/runtime-and-storage.md#service) and
 [initialization](init.md#service-host).
 
 `sase proc` operates on durable procs: rows in `~/.sase/procs/procs.jsonl` with combined
@@ -334,8 +335,8 @@ TUI restarts and runs with no TUI open. The compact list markers are `⌘` for `
 kind and ownership. Use `sase proc kill REF` to stop any active store-backed proc. JSON
 output uses a `procs` array for `list` and a `proc` object for `run`, `show`, and
 `kill`. Retention keeps every pending or running proc plus the newest
-[`procs.history_limit`](configuration.md#procs) finished ones. See the
-[sase's TUI Procs tab](ace.md#durable-procs) for the full model and the in-TUI
+[`procs.history_limit`](reference/config/runtime-and-storage.md#procs) finished ones.
+See the [sase's TUI Procs tab](ace.md#durable-procs) for the full model and the in-TUI
 equivalents.
 
 `sase proc run -N/--name NAME` and `sase proc list -N/--name NAME` address a proc by a
@@ -671,7 +672,7 @@ Flag and option details live in the generated
   [sase tool](reference/cli/tool.md), [sase disk](reference/cli/disk.md),
   [sase workspace](reference/cli/workspace.md), [sase mobile](reference/cli/mobile.md)
 
-Workflows: [Configuration](configuration.md), [Plugins](plugins.md),
+Workflows: [Configuration](reference/config/index.md), [Plugins](plugins.md),
 [Shell completion](completion.md), [Telemetry](telemetry.md), [Workspace](workspace.md),
 [Mobile gateway](mobile_gateway.md).
 

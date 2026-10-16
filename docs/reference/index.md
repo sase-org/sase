@@ -17,15 +17,16 @@ Exact SASE facts; guides teach workflows.
 ## Configuration
 
 - [Configuration keys](config/index.md) — generated key paths, types, defaults
-- [Configuration files and behavior](../configuration.md#config-file-location) — file
-  layout, merge order, runtime details
+- [Configuration files and behavior](config/files-and-merging.md#config-file-location) —
+  file layout, merge order, runtime details
 
 ## TUI
 
-- [TUI](tui/index.md) — Agents tab
-- [sase's TUI](../ace.md) — tabs, pickers, panes
-- [TUI keymaps](tui/keymaps.md) — keymap defaults
-- [SASE Pager](../pager.md) — paging output
+- [TUI](tui/index.md)
+- [sase's TUI](../ace.md)
+- [SASE Admin Center](tui/admin-center.md)
+- [TUI keymaps](tui/keymaps.md)
+- [SASE Pager](../pager.md)
 
 ## Macros and workflows
 

@@ -48,7 +48,7 @@ the custom selector read `on <tab>` (for example `on sase`), `across all tabs` o
 the all-tabs scope, and a marked cleanup that spans tabs adds an
 `N of M marked agents are on other tabs` line. Marks themselves stay global. Tab
 styling, ordering, and machine-mode behavior live under `ace.agent_tabs` (see
-`docs/configuration.md`).
+`docs/reference/config/ace-prompts.md#aceagenttabs`).
 
 Launching from a named tab inherits it: the prompt bar shows a `tab: <name>` chip and
 the submitted prompt gains `%tab:<name>` (opt out with `%tab:main` or
@@ -211,7 +211,7 @@ was open toasts `That action is no longer available` instead of acting.
 
 The retired `,n` leader chord is replaced by `Enter`. The direct Patch jump survives as
 the `jump_to_agent_patch` command, unbound by default; see
-[`ace.keymaps`](../../configuration.md#acekeymaps).
+[`ace.keymaps`](../config/ace-keymap-configuration.md#acekeymaps).
 
 ## Forking Agents and Groups
 
@@ -298,7 +298,7 @@ If usage metrics are disabled or no providers are eligible, the usage row stays 
 but unavailable: pressing `u` explains why and leaves the panel open so you can pick
 something else.
 
-See [feature flags](../../configuration.md#feature_flags).
+See [feature flags](../config/feature-flags.md#featureflags).
 
 The dismissed projection that hides agents from the visible inbox is rebuilt from the
 in-memory dismissed set _unioned with every dismissed-bundle summary_. Reviving an agent

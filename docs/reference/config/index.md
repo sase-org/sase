@@ -98,6 +98,34 @@ Each link opens its generated entry; nested fields appear on the same family pag
 | [vcs_repo_completion](repositories.md#vcs_repo_completion)                             | {`enabled`, `cache_ttl_seconds`, `max_repos`} (values below)                                               | Repository-name completion inside VCS workflow refs such as #gh:owner/.                                                                                                                                                                                                                                | Repositories and version control |
 | [workspace](repositories.md#workspace)                                                 | {…} (5 keys; values below)                                                                                 | Workspace directory layout policy (Phase 1+: sase-3p WorkspaceStore).                                                                                                                                                                                                                                  | Repositories and version control |
 
+## Behavior pages
+
+These pages describe configuration behavior that schema values alone cannot express. The
+generated family pages remain the source for key paths, types, defaults, and allowed
+values.
+
+| Subject                                           | Behavior                                                                |
+| ------------------------------------------------- | ----------------------------------------------------------------------- |
+| [Files and merging](files-and-merging.md)         | File locations, owner identity, merge precedence, and directory layout. |
+| [Core behavior](core-behavior.md)                 | Identity, generated instructions, and machine-wide settings.            |
+| [ACE behavior](ace-behavior.md)                   | Behavior settings for SASE's terminal interface.                        |
+| [ACE keymaps](ace-keymap-configuration.md)        | Configurable keymaps for Admin Center and other TUI surfaces.           |
+| [ACE prompts](ace-prompts.md)                     | Prompt completion, snippets, history, and agent decks.                  |
+| [Artifacts](artifacts.md)                         | Agent artifacts and artifact references.                                |
+| [LLM provider behavior](llm-provider-behavior.md) | Provider selection, usage limits, retries, and execution budgets.       |
+| [Finalizers](finalizers.md)                       | Commit hooks and post-run finalizers.                                   |
+| [Monitor behavior](monitor-behavior.md)           | Monitor wrappers and continuation settings.                             |
+| [Repositories](repositories-behavior.md)          | Repository lists, dispatch, VCS, and completion settings.               |
+| [Scheduler behavior](scheduler-behavior.md)       | AXE scheduler settings and runtime behavior.                            |
+| [Prompts and tools](prompts-and-tools.md)         | Hooks, plugins, mentors, macros, and named tools.                       |
+| [Agents and runners](agents-and-runners.md)       | Agent admission, capacity, and lifecycle behavior.                      |
+| [Runtime and storage](runtime-and-storage.md)     | Processes, services, local storage, and telemetry.                      |
+| [Display and reading](display-and-reading.md)     | Markdown rendering, paging, and reading surfaces.                       |
+| [Integrations](integrations-behavior.md)          | Chat and mobile integration settings.                                   |
+| [Automation](automation-behavior.md)              | SDD, beads, and external issue mirroring.                               |
+| [Feature flags](feature-flags.md)                 | Feature flag behavior and persisted state.                              |
+| [Workspaces](workspace-behavior.md)               | Workspace directory layout and lifecycle.                               |
+
 ## Description coverage
 
 [670 schema paths need descriptions](needs-description.md). Descriptions are maintained
@@ -107,5 +135,5 @@ in `src/sase/config/sase.schema.json`.
 
 - [Configure the essentials](../../guides/configure-essentials.md) — common setup
   values.
-- [Configuration file and merge behavior](../../configuration.md#config-file-location) —
+- [Configuration file and merge behavior](files-and-merging.md#config-file-location) —
   files and layer precedence.

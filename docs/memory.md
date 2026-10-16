@@ -15,8 +15,8 @@ Each non-README flat note declares its type in YAML frontmatter:
   customizes the generated title. On a chezmoi home source root, machine overlays that
   declare `memory.h1_title` make `sase memory init` emit `AGENTS.md.tmpl` whose H1
   switches on `.chezmoi.hostname` (see
-  [memory.h1_title](configuration.md#memoryh1_title)). The retired `memory.enabled` key
-  no longer authorizes management.
+  [memory.h1_title](reference/config/core-behavior.md#memoryh1title)). The retired
+  `memory.enabled` key no longer authorizes management.
 - **Reference memory** uses `type: reference`. It is reference context, requires
   `description` frontmatter, and can set `parent: sase/memory/<note>.md` to appear under
   another reference note's `## Children` section. A reference note description may be a

@@ -158,8 +158,8 @@ never shifts, as dismiss, mute, and snooze actions collapse the tabs down to one
 **Every notification belongs to exactly one tab** — the Rust core decides which one by a
 fixed precedence, so the panel, the top-bar indicator, and the mobile snapshot always
 agree; see [Tags](#tags) below for that precedence in full. Tabs then sort by
-[priority](configuration.md#acenotification_tabs) descending, with the core's order as
-the tiebreak at equal priority. The tabs, at their default priorities:
+[priority](reference/config/ace-behavior.md#acenotificationtabs) descending, with the
+core's order as the tiebreak at equal priority. The tabs, at their default priorities:
 
 | Tab       | Icon | Priority | Contents                                                                                                                                                                                                                                                                                                                                                                                                      |
 | --------- | ---- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -363,9 +363,9 @@ left-to-right order, so the badge and the panel always agree on what each count 
   a count, the Snoozed chip drops out of the badge entirely — it does not compete for
   the limited chip budget — but the snoozed count still appears in the tooltip.
 - **Overflow** — at most
-  [`ace.notification_indicator_max_counts`](configuration.md#acenotification_tabs) chips
-  (4 by default), taken in panel order; any remaining tabs collapse into one trailing
-  dim `+K` chip, joined by the same single space. Every suppressed tab is still
+  [`ace.notification_indicator_max_counts`](reference/config/ace-behavior.md#acenotificationtabs)
+  chips (4 by default), taken in panel order; any remaining tabs collapse into one
+  trailing dim `+K` chip, joined by the same single space. Every suppressed tab is still
   described in the tooltip.
 
 The chip budget is display-only. It does not limit the notification modal dataset, tab
@@ -616,10 +616,11 @@ The five-minute `bead_task_triage` job creates one human-only `TaskTriage` gate 
 ready task bead that has accumulated at least its
 [effective `+1` bar](beads.md#per-type-triage-bar) of independent `+1` reports — its
 task type's own `triage.min_plus_ones`, or
-[`bead.task_triage.min_plus_ones`](configuration.md#bead) for an untyped or unregistered
-type. A sub-threshold task is withheld from triage — it stays stored as `ready`, only
-the gate is withheld — and a `TaskTriage` gate already raised for a task that later
-falls below the bar is canceled and its notification dismissed on the job's next tick.
+[`bead.task_triage.min_plus_ones`](reference/config/automation-behavior.md#bead) for an
+untyped or unregistered type. A sub-threshold task is withheld from triage — it stays
+stored as `ready`, only the gate is withheld — and a `TaskTriage` gate already raised
+for a task that later falls below the bar is canceled and its notification dismissed on
+the job's next tick.
 
 After upgrading, gates already raised for beads below the new bar are canceled and their
 notifications dismissed automatically on the first `checks`-lane tick. Run
@@ -724,17 +725,18 @@ The gate offers four branches:
 ### Stale Task Cleanup Notification
 
 The hourly `bead_stale_cleanup` job raises one human-only `BeadStaleCleanup` gate once
-at least [`bead.task_triage.stale_cleanup_min_beads`](configuration.md#bead) ready task
-beads have sat below the `+1` bar for
-[`bead.task_triage.stale_after_days`](configuration.md#bead) days. The notification
-lands in the `Beads` panel with `bead`, `task`, and `stale` tags. Its preview lists the
-offered roster (at most 50 beads, oldest first) and names how many additional stale
-beads were omitted when the backlog is larger. Each offered bead is a close/keep control
-defaulting to close; the single **Close selected** branch closes the reviewer-selected
-subset as `canceled`. Selecting nothing fails the command and leaves the gate pending.
-The job keeps at most one of these gates at a time and cancels it when the backlog drops
-below the bar. Run `sase axe job run bead_stale_cleanup` to raise or refresh that gate
-without waiting for the next hourly housekeeping tick.
+at least
+[`bead.task_triage.stale_cleanup_min_beads`](reference/config/automation-behavior.md#bead)
+ready task beads have sat below the `+1` bar for
+[`bead.task_triage.stale_after_days`](reference/config/automation-behavior.md#bead)
+days. The notification lands in the `Beads` panel with `bead`, `task`, and `stale` tags.
+Its preview lists the offered roster (at most 50 beads, oldest first) and names how many
+additional stale beads were omitted when the backlog is larger. Each offered bead is a
+close/keep control defaulting to close; the single **Close selected** branch closes the
+reviewer-selected subset as `canceled`. Selecting nothing fails the command and leaves
+the gate pending. The job keeps at most one of these gates at a time and cancels it when
+the backlog drops below the bar. Run `sase axe job run bead_stale_cleanup` to raise or
+refresh that gate without waiting for the next hourly housekeeping tick.
 
 ### Required Plugin Notification
 
@@ -1080,8 +1082,8 @@ sorts as a panel tab.
 Every tab renders with a color, so a brand-new tag tab is never colorless. The color
 resolves by precedence, highest first:
 
-1. [`ace.notification_tabs.<tab>.color`](configuration.md#acenotification_tabs), when
-   non-empty
+1. [`ace.notification_tabs.<tab>.color`](reference/config/ace-behavior.md#acenotificationtabs),
+   when non-empty
 2. the color a sender declared on a notification in that tab
 3. the built-in default for a tab sase's TUI ships knowing about (`hitl`, `errors`,
    `beads`, `general`, `snoozed`, `muted`)
@@ -1106,8 +1108,8 @@ Every tab renders with an icon, so the top-bar indicator's chips and the modal's
 strip are self-identifying instead of relying on color alone. The icon resolves by
 precedence, highest first:
 
-1. [`ace.notification_tabs.<tab>.icon`](configuration.md#acenotification_tabs), when
-   non-empty
+1. [`ace.notification_tabs.<tab>.icon`](reference/config/ace-behavior.md#acenotificationtabs),
+   when non-empty
 2. the icon a sender declared on a notification in that tab
 3. the built-in default for a tab sase's TUI ships knowing about (`hitl`, `errors`,
    `beads`, `general`, `snoozed`, `muted`)
@@ -1442,7 +1444,7 @@ To create a local test notification with a persistent PNG attachment for sase's 
 modal image-preview checks, run `tools/test_image_notification` from the repository
 root.
 
-See [`docs/configuration.md`](configuration.md#sase-notify) for the full CLI reference.
+See [`sase notify`](reference/cli/notify.md#sase-notify) for the full CLI reference.
 
 ## Command-backed interaction gates
 
@@ -1724,11 +1726,11 @@ queue never delays the decision itself.
 The hourly `gate_turn_reclaim` housekeeping job settles pending turns whose gates were
 already answered, cancelled, or removed. It also times out gates past their own
 `gate_timeout_seconds` deadline, and it marks a turn lost once
-[`gate.turn.reclaim_grace_seconds`](configuration.md#gate) (one hour by default) has
-passed after that deadline. Reclaim skips a turn whose gate creation is still running
-(its session's gate-creation lock is held), so an `%auto` gate that is still executing
-its selected commands is never marked lost; a turn whose creator died before recording a
-bundle is still settled lost on a later pass.
+[`gate.turn.reclaim_grace_seconds`](reference/config/agents-and-runners.md#gate) (one
+hour by default) has passed after that deadline. Reclaim skips a turn whose gate
+creation is still running (its session's gate-creation lock is held), so an `%auto` gate
+that is still executing its selected commands is never marked lost; a turn whose creator
+died before recording a bundle is still settled lost on a later pass.
 
 Agent-side gate creation also writes a per-process intent marker before slow setup work
 starts. A clean creation error or the normal runner handoff clears it. If the provider
@@ -1764,7 +1766,8 @@ spec's `"shell"` block, the `"fork"` key set to `"shell"`, and
 `"continuation_mode": "gate_shell"`; and `--shell` on `sase proc list` or
 `sase proc run` (where `--name` replaces it). Use the turn spellings for gates and
 `--name` for proc commands. Stored records still read. Supplying both names for the same
-option or block is an error. See [feature_flags](configuration.md#feature_flags).
+option or block is an error. See
+[feature_flags](reference/config/feature-flags.md#featureflags).
 
 Branch policy in the specification may override or suppress that default. A turn block
 without an explicit `continuation_mode` records the derived `gate_turn` mode; pairing a

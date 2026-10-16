@@ -4330,7 +4330,7 @@
         },
         "continuation_budget": {
           "type": "object",
-          "description": "Continuation preflight budget settings for monitor successor prompts. Environment variables documented in docs/configuration.md override these values.",
+          "description": "Continuation preflight budget settings for monitor successor prompts. Environment variables documented in docs/reference/environment-variables.md override these values.",
           "additionalProperties": false,
           "properties": {
             "context_limit_bytes": {

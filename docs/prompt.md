@@ -162,7 +162,7 @@ more than once, `show` and `restore` use the newest copy. Older copies remain in
 `list -j`. `-n` changes how many rows are printed. `-q` and `-r` search the newest
 100,000 archive rows, then print up to that limit. `-q` does not match the id, project,
 or reason. See [Stash and Trash in the TUI](ace.md#prompt-stacks) for the keys and
-[Trash limits](configuration.md#aceprompt_stash) for retention settings.
+[Trash limits](reference/config/ace-prompts.md#acepromptstash) for retention settings.
 
 ## Search
 

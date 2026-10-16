@@ -152,7 +152,7 @@ exit and again between in-process successor turns (so one turn's leaked loop can
 through the next turn), with a periodic reaper backstop for scopes whose runner died
 without cleaning up. Shared user daemons — ssh-agent, gpg-agent, ssh ControlMaster, and
 the tmux server — are never killed. See `agent_scope_teardown` in
-`docs/configuration.md`.
+`docs/reference/config/index.md`.
 
 ## Agent, Monitor, and Gate Turns
 
@@ -228,7 +228,7 @@ with `--apply`, delegates cleanup to them: the managed-temp reaper, proc runtime
 agent artifact-run retention, and workspace Git object compaction. Unowned Cargo-shaped
 strays are reported but never deleted. The hourly axe `disk_pressure` job runs the
 owner-safe passes early when free space runs low. See
-[`sase disk`](../configuration.md#sase-disk) and
+[`sase disk`](../reference/cli/disk.md#sase-disk) and
 [axe housekeeping](../axe.md#housekeeping-1-hour-interval).
 
 The canonical project/home namespace and legacy read boundary are documented in

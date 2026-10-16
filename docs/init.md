@@ -453,7 +453,7 @@ root-relative paths in `sase/sase.yml`. The generated project-only reference not
 only for SASE-managed project repositories and never for home or chezmoi-home roots.
 Home roots use convention-based template files in the SASE user-config directory (or its
 chezmoi source counterpart). Template variables and validation rules are listed in the
-[generated templates configuration](configuration.md#generated-templates).
+[generated templates configuration](reference/config/core-behavior.md#generated-templates).
 
 `sase/memory/glossary.md` is not a generated note — it is a user-owned memory-web
 descriptor, exactly like any other `sase/memory/<web>.md` file, with the project's terms
@@ -824,7 +824,7 @@ warning. This keeps an unrelated read-only check from either failing for drift o
 land can clear or triggering a mutating deploy as a side effect. Writing plans
 (interactive onboarding and direct deploys) are unaffected, as is the deploy-side
 integrity refusal. `sase validate` surfaces these warnings in its own `Warnings:` block;
-see [`sase validate`](configuration.md#sase-validate).
+see [`sase validate`](reference/cli/validate.md#sase-validate).
 
 `--allow-dirty` overrides the source-integrity guard and `--force` overrides the
 manifest guard. Both are deliberate escape hatches that can revert other agents'

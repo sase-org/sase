@@ -209,20 +209,20 @@ uv tool install "sase>=0.18" --with sase-github
 ```
 
 The recommended way to add a plugin to an existing managed install is the
-[**Updates** tab of the SASE Admin Center](configuration.md#updates-tab): press `#`
-inside `sase tui`, switch to the **Updates** tab, highlight the plugin, and press `i` to
-install. To install several plugins from sase's TUI, mark installable rows with `I` /
-`Space`, then press `i` once; sase's TUI previews one combined `uv` operation before
-changing the environment. A single-plugin preview offers both an explicit git variant
-and the default-source variant; when public PyPI definitively lacks the distribution the
-default variant already resolves to git automatically, so no redundant duplicate variant
-is offered. Otherwise press `g` in the confirmation modal to switch to the git variant
-before confirming. Install confirmations show the exact `uv` command and selected
-source; a batch preview also lists every included or skipped plugin, each with its own
-resolved source. Use `Ctrl+D` / `Ctrl+U` when a preview overflows. Install previews do
-not fetch incoming commit subjects—the repository-grouped commit pane is available on
-update confirmations when sase's TUI has an installed commit range to compare. The
-equivalent CLI for one plugin is `sase plugin install github`.
+[**Updates** tab of the SASE Admin Center](reference/tui/admin-center.md#updates-tab):
+press `#` inside `sase tui`, switch to the **Updates** tab, highlight the plugin, and
+press `i` to install. To install several plugins from sase's TUI, mark installable rows
+with `I` / `Space`, then press `i` once; sase's TUI previews one combined `uv` operation
+before changing the environment. A single-plugin preview offers both an explicit git
+variant and the default-source variant; when public PyPI definitively lacks the
+distribution the default variant already resolves to git automatically, so no redundant
+duplicate variant is offered. Otherwise press `g` in the confirmation modal to switch to
+the git variant before confirming. Install confirmations show the exact `uv` command and
+selected source; a batch preview also lists every included or skipped plugin, each with
+its own resolved source. Use `Ctrl+D` / `Ctrl+U` when a preview overflows. Install
+previews do not fetch incoming commit subjects—the repository-grouped commit pane is
+available on update confirmations when sase's TUI has an installed commit range to
+compare. The equivalent CLI for one plugin is `sase plugin install github`.
 
 ## Plugin Catalog (`sase plugin list` / `sase plugin show`)
 
@@ -233,7 +233,7 @@ listing purely by gaining or losing the topic, with no code change.
 
 > The same browse / install / update / uninstall operations are available interactively
 > in the
-> [**Updates** tab of the `sase tui` SASE Admin Center modal](configuration.md#updates-tab)
+> [**Updates** tab of the `sase tui` SASE Admin Center modal](reference/tui/admin-center.md#updates-tab)
 > (`#`), which reuses this catalog and these renderers for CLI parity and adds a SASE
 > Core panel for `sase update`.
 
@@ -913,8 +913,8 @@ development.
 Plugin packages can provide default configuration by declaring a `sase_config` entry
 point. The referenced module's package must contain a `default_config.yml` file. Plugin
 configs are merged between the bundled package defaults and the user's `sase.yml`. See
-the [Deep-Merge System](configuration.md#deep-merge-system) for details on the merge
-chain.
+the [Deep-Merge System](reference/config/files-and-merging.md#deep-merge-system) for
+details on the merge chain.
 
 ### Service Procs
 
@@ -922,7 +922,8 @@ A plugin declares a service proc through its `sase_config` layer: add a
 `service.procs.<name>` entry to the package's `default_config.yml` with a `command` (or
 exact argv array), a `description`, and the usual proc fields (`cwd`, `env`, `restart`,
 `stop_signal`, `stop_timeout`, `after`, `log_max_bytes`). See
-[service configuration](configuration.md#service) for the full field contract.
+[service configuration](reference/config/runtime-and-storage.md#service) for the full
+field contract.
 
 Plugin-shipped entries default to `enabled: false`, so installing a plugin never starts
 work on a machine by itself. A machine opts in through its machine overlay, or at
@@ -987,7 +988,8 @@ reads degrade: `sase bead show` prints the raw fields under a
 `(not installed on this machine)` header, and create names the package plus
 `sase plugin install`.
 
-List the providing distribution in [`plugins.required`](configuration.md#plugins) so
+List the providing distribution in
+[`plugins.required`](reference/config/prompts-and-tools.md#plugins) so
 `sase memory init` can snapshot the type into `sase/task_types.json`. Optional plugins
 that contribute types stay live-only and do not change generated `AGENTS.md`.
 
@@ -1178,8 +1180,8 @@ my_sase_plugin/
 ```
 
 Plugin configs are merged using the
-[deep-merge system](configuration.md#deep-merge-system). User config in `sase.yml` takes
-precedence over plugin defaults.
+[deep-merge system](reference/config/files-and-merging.md#deep-merge-system). User
+config in `sase.yml` takes precedence over plugin defaults.
 
 ### Example: Declarative Artifact Providers
 

@@ -91,8 +91,8 @@ The hooks are organized into several groups:
 
 The VCS provider registry loads provider entry points directly. It does not currently
 consult the resource-plugin disable switches described in
-[docs/configuration.md](configuration.md#plugin-system). Use `SASE_VCS_PROVIDER` or
-`vcs_provider.provider` to force a provider selection.
+[docs/reference/environment-variables.md](reference/environment-variables.md#plugin-system).
+Use `SASE_VCS_PROVIDER` or `vcs_provider.provider` to force a provider selection.
 
 ## Provider Selection
 

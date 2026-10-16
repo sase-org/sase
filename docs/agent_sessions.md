@@ -204,7 +204,8 @@ The retired family keyword on `%id` is always accepted as `session=`. The retire
 `"fork": "family"`, and the `SASE_AGENT_FAMILY_ATTACH` environment variable are always
 accepted as their session replacements. New prompts should use the session spellings. A
 record that was already stored still reads. The retired family keyword and `session=`
-together are an error. See [feature_flags](configuration.md#feature_flags).
+together are an error. See
+[feature_flags](reference/config/feature-flags.md#featureflags).
 
 The clan name is permanently reserved as a container name and cannot also belong to an
 agent. Each member must be named `<clan>.<suffix>`; launch planning rejects an

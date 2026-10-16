@@ -91,7 +91,7 @@ def test_checked_in_plugins_required_docs_use_batch_wording() -> None:
     )
     for relpath in (
         "src/sase/default_config.yml",
-        "docs/configuration.md",
+        "docs/reference/config/prompts-and-tools.md",
         "docs/axe.md",
         "docs/notifications.md",
     ):
@@ -105,7 +105,7 @@ def test_checked_in_plugins_required_docs_use_batch_wording() -> None:
     )
     for relpath in (
         "src/sase/default_config.yml",
-        "docs/configuration.md",
+        "docs/reference/config/prompts-and-tools.md",
         "docs/axe.md",
         "docs/notifications.md",
     ):

@@ -67,7 +67,7 @@ Calls text: type to jump to matches, `Ctrl+R` reverses the search direction, `En
 keeps the matches (`Esc` or `Ctrl+C` cancels), `n` / `N` move between them, `y` / `Y`
 yank the current match or selection / its whole line, and `Esc` or `q` closes a
 committed search. The filter bar uses the same **structured Boolean Agent dialect** as
-the Archive view (`in:archive`) and [`sase agent search`](../../configuration.md#sase-agent),
+the Archive view (`in:archive`) and [`sase agent search`](../cli/agent.md#sase-agent-search),
 evaluated against the live `agents-live` profile. Bare words match an agent's `cl_name`,
 `display_name`, `agent_name`, and `status`, plus its **macro, live reply/response, chat
 transcript, and prior attempt replies** through the `text` corpus. When

@@ -59,7 +59,7 @@ class TestParseResetHint:
         assert hint is None
 
     def test_documented_resets_at_example_now_parses(self) -> None:
-        # docs/configuration.md's example for honor_reset_hint; broadening the
+        # docs/reference/config/llm-provider-behavior.md's example for honor_reset_hint; broadening the
         # anchor to accept "at"/"on" is what makes this finally true.
         with patch("sase.core.time.get_timezone", return_value=ZoneInfo("UTC")):
             expires_at, hint = parse_reset_hint("resets at 8pm", now=1755302400.0)

@@ -154,8 +154,8 @@ an ID.
 Deployments can add their own slash-menu commands under `telegram.commands` in SASE
 configuration. Each entry declares a description, an executable with fixed arguments,
 message-or-PDF delivery, and a timeout; commands run without a shell. See
-[Custom Telegram commands](../../configuration.md#telegram) for the schema and doctor
-check.
+[Custom Telegram commands](../../reference/config/integrations-behavior.md#telegram) for
+the schema and doctor check.
 
 `/update` is the operationally interesting built-in. It detaches the shared chat update
 worker and runs `sase update --json` through the same managed-versus-dev update planner

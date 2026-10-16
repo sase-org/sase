@@ -654,14 +654,15 @@ raw-tail lines.
 ## Runner slots
 
 A monitor is not a way to free runner capacity. The session keeps its one weighted claim
-against [`max_running_agents`](configuration.md#max_running_agents) for the monitor's
-whole lifetime, and the monitor inherits the starter's queue weight. The starter's
-runner process exits at handoff, but occupancy stays continuous: the monitor member
-counts as soon as it has a recorded supervisor pid. An ordinary follow-up carries that
-weight forward in its `%queue(...)` prefix and, as a serial session member, continues
-the session's claim. A fire-and-forget monitor (an outcome policy with no continuation)
-still holds the claim until the command settles. In-process successors such as
-`sase pipe` keep the same session's claim as well; they never become a second occupant.
+against [`max_running_agents`](reference/config/agents-and-runners.md#maxrunningagents)
+for the monitor's whole lifetime, and the monitor inherits the starter's queue weight.
+The starter's runner process exits at handoff, but occupancy stays continuous: the
+monitor member counts as soon as it has a recorded supervisor pid. An ordinary follow-up
+carries that weight forward in its `%queue(...)` prefix and, as a serial session member,
+continues the session's claim. A fire-and-forget monitor (an outcome policy with no
+continuation) still holds the claim until the command settles. In-process successors
+such as `sase pipe` keep the same session's claim as well; they never become a second
+occupant.
 
 The host-owned monitor that launches an approved epic is the exception: it records an
 explicit zero queue weight and consumes no capacity, because the phase agents it

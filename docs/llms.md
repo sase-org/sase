@@ -1475,8 +1475,8 @@ directory, alongside the projected prompt when compaction changed it.
 The budget is configured under `llm_provider.continuation_budget`. Settings layer from
 the shared values, to `providers.<provider>`, to `providers.<provider>.models.<model>`,
 and the `SASE_CONTINUATION_*` environment variables (see
-[LLM provider environment variables](configuration.md#llm-provider)) override all of
-them:
+[LLM provider environment variables](reference/environment-variables.md#llm-provider))
+override all of them:
 
 ```yaml
 llm_provider:
@@ -2676,8 +2676,8 @@ Configuration controls the idle and hot refresh cadences (each at least 60 secon
 the hot cadence capped at the idle one; automatic refreshes never run faster than a
 provider's polling floor) and warning/critical thresholds as percentages used; UI copy
 converts those to percentage left. See
-[`llm_provider.usage_metrics`](configuration.md#llm_providerusage_metrics) and the
-[`sase usage` flags](configuration.md#sase-usage).
+[`llm_provider.usage_metrics`](reference/config/llm-provider-behavior.md#llmproviderusagemetrics)
+and the [`sase usage` flags](reference/cli/usage.md#sase-usage).
 
 ## Usage-Limit Auto-Disable
 

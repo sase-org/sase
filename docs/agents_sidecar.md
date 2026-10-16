@@ -30,7 +30,7 @@ identity. Local artifacts keep bare semantic names such as `foo.bar--code`; v2 t
 uses the canonical global name `<username>.<machine_name>.foo.bar--code`. The exact
 owner manifest is the only shared authority file that publisher mutates. Run
 `sase config init` to create or migrate the identity; see
-[owner identity and machine overlays](configuration.md#owner-identity).
+[owner identity and machine overlays](reference/config/files-and-merging.md#owner-identity).
 
 ## Strict v2 layout
 

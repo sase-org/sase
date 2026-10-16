@@ -37,7 +37,7 @@ def check_config_tribes() -> DiagnosticCheck:
     next_steps = (
         (
             "Add a one-line `description` to each reported tribe under "
-            "~/.config/sase/sase.yml (see docs/configuration.md#acetribes).",
+            "~/.config/sase/sase.yml (see docs/reference/config/ace-behavior.md#acetribes).",
         )
         if problems
         else ()

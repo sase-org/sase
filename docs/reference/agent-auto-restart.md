@@ -169,9 +169,9 @@ failures instead of submitting healer work, so that scheduler path does not spen
 lineage's restart. A manual `run` during a storm pause can still claim or decline a
 record; clear the pause with `resume` before requesting recovery.
 
-See the [configuration reference](../configuration.md#agent_auto_restart) for field
-types and defaults. `resume` clears a storm pause; it does not turn a disabled setting
-back on or reset a lineage's record.
+See the [configuration reference](config/agents-and-runners.md#agentautorestart) for
+field types and defaults. `resume` clears a storm pause; it does not turn a disabled
+setting back on or reset a lineage's record.
 
 ## Notifications
 

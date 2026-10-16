@@ -505,8 +505,9 @@ The worker sequence is:
 statuses: `already_running`, `launched`, or `launch_failed`.
 `read_chat_install_status()` returns `running`, `succeeded`, `failed`, or `not_found`.
 Worker logs live under `~/.sase/chat_install/logs/`. Configuration fields are documented
-in [`docs/configuration.md`](configuration.md#chat_install). The API, config key, and
-state paths keep the `chat_install` name for compatibility, but chat integrations should
-present this workflow to users as an update.
+in
+[`docs/reference/config/integrations-behavior.md`](reference/config/integrations-behavior.md#chatinstall).
+The API, config key, and state paths keep the `chat_install` name for compatibility, but
+chat integrations should present this workflow to users as an update.
 
 Source: `src/sase/integrations/chat_install.py`

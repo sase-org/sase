@@ -387,13 +387,13 @@ never cost a real model turn on a refresh tick.
 
 The probe runs on the normal background cadence
 (`llm_provider.usage_metrics.refresh_seconds`, or `active_refresh_seconds` while Muse is
-[in active use](configuration.md#llm_providerusage_metrics), never faster than Muse's
-180-second polling floor), costs about three seconds of wall clock per refresh, and
-follows the same eligibility rules as every other provider: Muse must be resolvable and
-either referenced by a model alias or explicitly enabled. The user-facing switch is
-`llm_provider.usage_metrics.providers.muse.enabled`. Inspect the result with
-`sase usage list -p muse`. A host that has not yet reported any usage — for example a
-logged-out one — is shown as no observation rather than as `0%` used.
+[in active use](reference/config/llm-provider-behavior.md#llmproviderusagemetrics),
+never faster than Muse's 180-second polling floor), costs about three seconds of wall
+clock per refresh, and follows the same eligibility rules as every other provider: Muse
+must be resolvable and either referenced by a model alias or explicitly enabled. The
+user-facing switch is `llm_provider.usage_metrics.providers.muse.enabled`. Inspect the
+result with `sase usage list -p muse`. A host that has not yet reported any usage — for
+example a logged-out one — is shown as no observation rather than as `0%` used.
 
 Canonical docs: <https://developer.meta.com/ai/resources/blog/build-with-muse-code/>
 
@@ -523,13 +523,13 @@ temp dir rather than `~/.gemini/…`, and auto-update is disabled for the probe 
 
 The probe runs on the normal background cadence
 (`llm_provider.usage_metrics.refresh_seconds`, or `active_refresh_seconds` while agy is
-[in active use](configuration.md#llm_providerusage_metrics), never faster than its
-120-second polling floor), costs about three to five seconds of wall clock per refresh,
-and follows the same eligibility rules as every other provider: agy must be resolvable
-and either referenced by a model alias or explicitly enabled. The Gemini buckets are
-`model_family`-scoped to `gemini` and the Claude/GPT buckets to `3p`. The user-facing
-switch is `llm_provider.usage_metrics.providers.agy.enabled`. Inspect the result with
-`sase usage list -p agy`.
+[in active use](reference/config/llm-provider-behavior.md#llmproviderusagemetrics),
+never faster than its 120-second polling floor), costs about three to five seconds of
+wall clock per refresh, and follows the same eligibility rules as every other provider:
+agy must be resolvable and either referenced by a model alias or explicitly enabled. The
+Gemini buckets are `model_family`-scoped to `gemini` and the Claude/GPT buckets to `3p`.
+The user-facing switch is `llm_provider.usage_metrics.providers.agy.enabled`. Inspect
+the result with `sase usage list -p agy`.
 
 Canonical docs: <https://antigravity.google/docs/cli-install>
 

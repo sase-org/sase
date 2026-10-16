@@ -55,7 +55,6 @@
 - [Patch Format Documentation](change_spec.md) — Patch Format Documentation — A Patch is SASE's durable local record for one unit of reviewable work.
 - [CLI Reference](cli.md) — CLI Reference — This page is a command index for the top-level sase CLI.
 - [Shell Completion](completion.md) — Shell Completion — sase completion supports native shell completion for zsh, bash, and fish from the live sase argparse tree, so pressing <TAB> anywhere in the command line offers the right commands, options, static choices, and live values — bead ids with titles, project display names, macro names, and more — with no perceptible latency.
-- [Configuration Reference](configuration.md) — Configuration Reference — This document is the central reference for all sase configuration: config files, YAML sections, environment variables, and CLI flags.
 - [Editor Integration](editor.md) — Editor Integration — SASE exposes two editor-facing surfaces for prompt and macro editing:
 - [Goals](goals.md) — Goals — Goals are durable records of outcomes a person wants: what will be true, how you'll know, and what happened along the way.
 - [Initialization](init.md) — Initialization — SASE initialization commands create or refresh durable files that agents and sidecar tools rely on.
@@ -143,26 +142,47 @@
 - [sase var](reference/cli/var.md) — Inspect historical output variables, retrieve a snapshot or selector values, or set variables on the current SASE agent run.
 - [sase version](reference/cli/version.md) — Show the exact SASE host, Rust core, and plugin packages used by this process.
 - [sase workspace](reference/cli/workspace.md) — Inspect and manage managed workspace checkouts
+- [ACE configuration behavior](reference/config/ace-behavior.md) — Behavior settings for the SASE Admin Center and other TUI surfaces.
+- [ACE keymap configuration](reference/config/ace-keymap-configuration.md) — Configuration behavior for SASE Admin Center and TUI keymaps.
+- [ACE prompt configuration](reference/config/ace-prompts.md) — Prompt completion, snippets, prompt history, and agent deck settings.
+- [Agent and runner configuration](reference/config/agents-and-runners.md) — Configuration for agent admission, runner capacity, and lifecycle behavior.
 - [Agents and runners configuration](reference/config/agents.md) — Agent launch, completion, capacity, restart, and process-scope settings.
+- [Artifact configuration](reference/config/artifacts.md) — Configuration behavior for agent artifacts and artifact references.
+- [Automation configuration behavior](reference/config/automation-behavior.md) — Configuration for SDD, beads, and external issue mirroring.
 - [Automation and work tracking configuration](reference/config/automation.md) — Beads, goals, gates, SDD, and related automation policy.
+- [Core configuration behavior](reference/config/core-behavior.md) — Runtime behavior for core identity, managed instructions, and machine settings.
 - [Core and identity configuration](reference/config/core.md) — Repository ownership, identity, and machine-wide configuration switches.
+- [Display and reading configuration](reference/config/display-and-reading.md) — Configuration for Markdown rendering, paging, and reading surfaces.
+- [Feature flag configuration](reference/config/feature-flags.md) — Configuration and persisted state for SASE feature flags.
+- [Configuration files and merging](reference/config/files-and-merging.md) — Configuration file locations, owner identity, merge precedence, and storage layout.
+- [Finalizer configuration](reference/config/finalizers.md) — Configuration for commit hooks and post-run finalizers.
 - [Configuration reference](reference/config/index.md) — Generated configuration keys, types, defaults, and allowed values.
+- [Integration configuration behavior](reference/config/integrations-behavior.md) — Configuration behavior for chat and mobile integrations.
 - [Integrations and telemetry configuration](reference/config/integrations.md) — Chat, mobile access, and local telemetry settings.
+- [LLM provider behavior configuration](reference/config/llm-provider-behavior.md) — Provider selection, usage limits, retries, and execution budgets.
 - [LLM provider configuration](reference/config/llm-provider.md) — Provider selection, model defaults, and model execution policy.
 - [Memory and instructions configuration](reference/config/memory.md) — Project memory, generated instruction templates, and their compatibility aliases.
+- [Monitor configuration](reference/config/monitor-behavior.md) — Settings for monitor execution, wrappers, and continuation.
 - [Configuration keys needing descriptions](reference/config/needs-description.md) — Schema paths that do not yet have a description.
+- [Prompt and tool configuration](reference/config/prompts-and-tools.md) — Configuration for hooks, plugins, mentors, macros, and named tools.
 - [Prompts and tools configuration](reference/config/prompts.md) — Macros, named tools, plugins, hooks, and mentor selection.
+- [Repository configuration behavior](reference/config/repositories-behavior.md) — Repository lists, dispatch, VCS selection, and completion settings.
 - [Repositories and version control configuration](reference/config/repositories.md) — Repository relationships, VCS providers, dispatch, commits, and workspace configuration.
+- [Runtime and storage configuration](reference/config/runtime-and-storage.md) — Configuration for processes, services, local storage, and telemetry.
 - [Runtime and stored data configuration](reference/config/runtime.md) — Process history, service hosting, artifacts, disk use, and reading surfaces.
+- [Scheduler configuration behavior](reference/config/scheduler-behavior.md) — AXE scheduler settings and their runtime behavior.
 - [Scheduler configuration](reference/config/scheduler.md) — AXE scheduler routines, jobs, and execution limits.
 - [TUI configuration](reference/config/tui.md) — Settings for SASE's terminal interface and its configurable panes.
+- [Workspace configuration behavior](reference/config/workspace-behavior.md) — Configuration for workspace directory layout and lifecycle.
 - [Content layout](reference/content-layout.md) — Canonical paths for project and home SASE content.
 - [Design decisions](reference/design-decisions.md) — Why SASE works this way, generated from the decisions memory web.
+- [Environment variables](reference/environment-variables.md) — Environment variables that configure providers, SDD, plugins, runtime, and workspaces.
 - [Glossary](reference/glossary.md) — Every SASE term, generated from the glossary memory web.
 - [Reference](reference/index.md) — Look up exact SASE facts here, generated from code where possible.
 - [Macro directives](reference/macros/directives.md) — The generated catalog of prompt directives and their syntax.
 - [Macro discovery order](reference/macros/discovery-order.md) — File-backed macro and workflow locations in lookup order.
 - [Runner slots](reference/runner-slots.md) — How runner capacity admits queued agents, and what waiting.json records.
+- [SASE Admin Center](reference/tui/admin-center.md) — Navigation, sections, and editor behavior in the SASE Admin Center.
 - [Agent row glyphs](reference/tui/agent-row-glyphs.md) — Glyphs, markers, and badges on Agents tab rows.
 - [Agent statuses](reference/tui/agent-statuses.md) — Agent, wait, and completion statuses on the Agents tab.
 - [Agent workflows](reference/tui/agent-workflows.md) — Plan workflows, approvals, holds, and retries on the Agents tab.
@@ -176,6 +196,7 @@
 - [TUI keymaps](reference/tui/keymaps.md) — Default configurable key bindings for SASE's terminal interface.
 - [Content layout migration](reference/upgrading/content-layout.md) — Migration steps and compatibility behavior for SASE content paths.
 - [Upgrading](reference/upgrading/index.md) — Upgrade and history notes, organized by area with the newest notes first.
+- [Local state cutover](reference/upgrading/local-state.md) — The temporary offline kit for moving legacy local state into canonical locations.
 - [Remote Dispatch Runbook](remote_dispatch.md) — Remote Dispatch Runbook — Remote dispatch lets one SASE controller discover, enroll, and operate agents on another machine.
 - [Spec-Driven Development (SDD)](sdd.md) — Spec-Driven Development (SDD) — SDD is sase's system for persisting the intent behind agent work.
 - [Sudo Requests](sudo.md) — Sudo Requests — SASE sudo requests let an agent ask for reviewed privileged execution without ever asking for, receiving, logging, or proxying a password.
@@ -219,6 +240,7 @@
 ## Compatibility
 
 - [sase's TUI User Guide](ace.md) — sase's TUI User Guide — sase's TUI is the primary TUI for the SASE toolkit.
+- [Configuration Reference](configuration.md) — Configuration Reference — Moved to Configuration files and merging.
 - [Canonical SASE Content Layout](content_layout.md) — This page has moved to its new home.
 
 ## Moved pages
@@ -234,3 +256,4 @@
 | `/acknowledgements/` | [`/contribute/acknowledgements/`](contribute/acknowledgements.md) |
 | `/content_layout/` | [`/reference/upgrading/`](reference/upgrading/index.md) |
 | `/ace/` | [`/reference/tui/`](reference/tui/index.md) |
+| `/configuration/` | [`/reference/config/`](reference/config/index.md) |

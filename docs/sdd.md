@@ -852,7 +852,7 @@ Storage selection is not configurable. The workspace provider owns it. Retired
 `sdd.storage` and `sdd.version_controlled` keys are ignored and reported by
 `sase doctor` for cleanup.
 
-See [`configuration.md`](configuration.md) for the full configuration reference and
+See the [configuration reference](reference/config/index.md) for configuration keys and
 [SDD Storage](sdd_storage.md) for mode behavior.
 
 ## Multi-Workspace Behavior

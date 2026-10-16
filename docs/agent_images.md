@@ -203,8 +203,9 @@ Finalization prints one summary line beside the other `[artifacts]` output:
 it is, remaining `store` candidates become `skip` with reason `capture_cap`. Reference
 rows cost no bytes, are not counted, and are never capped. `declared` counts
 auto-discovered candidates omitted because the agent already registered their source
-with `sase artifact create`. See [`configuration.md`](configuration.md#artifacts) for
-the `artifacts.capture` block.
+with `sase artifact create`. See
+[`configuration.md`](reference/config/artifacts.md#artifacts) for the
+`artifacts.capture` block.
 
 ### The record fields
 
@@ -510,7 +511,7 @@ purges trash entries past the grace period, printing one `[artifacts] retention:
 with rows trashed, bytes reclaimed, and entries purged. The pass is wrapped defensively
 and never fails a run; when a protection source is unavailable it prints
 `[artifacts] retention skipped:` and touches nothing. See
-[configuration](configuration.md#artifacts) for the fields.
+[configuration](reference/config/artifacts.md#artifacts) for the fields.
 
 Sources:
 

@@ -112,10 +112,11 @@ inventories degrade independently.
 ### Feature flags
 
 The `sase lsp` wrapper snapshots the launch-related
-[feature flags](configuration.md#feature_flags) when it starts the server and passes
-them to the Rust process, so completion matches what a launch from the same machine
-would accept. The `%queue` capacity budget needs no flag: capacity help always describes
-this launch's runner-capacity budget, and `%q:` suggests `1`, `100`, and `1.5x`.
+[feature flags](reference/config/feature-flags.md#featureflags) when it starts the
+server and passes them to the Rust process, so completion matches what a launch from the
+same machine would accept. The `%queue` capacity budget needs no flag: capacity help
+always describes this launch's runner-capacity budget, and `%q:` suggests `1`, `100`,
+and `1.5x`.
 
 The server reads these values once, so restart the LSP session after changing a flag.
 
@@ -413,6 +414,6 @@ remaining outer stops.
 - [Macro reference](macros.md) for macro syntax, discovery order, typed inputs,
   snippets, and workflows.
 - [Integration APIs](integrations.md#editor-helper-bridge) for the Python helper facade.
-- [Configuration](configuration.md#sase-editor) for CLI flag and environment-variable
-  reference.
+- [Configuration](reference/cli/editor.md#sase-editor) for CLI flag and
+  environment-variable reference.
 - [sase's TUI snippets](ace.md#snippets) for the in-TUI prompt widget behavior.

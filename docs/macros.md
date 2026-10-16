@@ -1941,10 +1941,11 @@ any such definitions into `sase/macros/<name>.yml` files.
 You can define project-specific macros in `sase/sase.yml` at the detected project root.
 This is a full SASE config file that can override any configuration, including macros.
 It is the highest-priority config source in the
-[deep-merge system](configuration.md#deep-merge-system), overriding global `sase.yml`,
-overlay files, plugin configs, and built-in defaults. Individual `.md` files in macros
-directories still take precedence over config-defined macros. A root-level `sase.yml`
-remains an exclusive legacy fallback during the compatibility window.
+[deep-merge system](reference/config/files-and-merging.md#deep-merge-system), overriding
+global `sase.yml`, overlay files, plugin configs, and built-in defaults. Individual
+`.md` files in macros directories still take precedence over config-defined macros. A
+root-level `sase.yml` remains an exclusive legacy fallback during the compatibility
+window.
 
 ```yaml
 macros:
@@ -2862,9 +2863,10 @@ priorities. That sort only compares waiters already parked when capacity frees, 
 waiter whose priority is numerically worse than the `10` default additionally holds back
 for a bounded deference window. Default- and better-priority waiters (`priority=10` or
 lower) never defer. The window is `min((priority - 10) * 3, 60)` seconds by default and
-is configurable through [`runner_slots`](configuration.md#runner_slots). Deference is
-not priority aging or preemption, and a steady stream of fitting higher-priority
-arrivals can still starve lower-priority work.
+is configurable through
+[`runner_slots`](reference/config/agents-and-runners.md#runnerslots). Deference is not
+priority aging or preemption, and a steady stream of fitting higher-priority arrivals
+can still starve lower-priority work.
 
 A standalone agent owns one claim of its effective weight. A live serial session shares
 one claim across its agent, monitor, and serial successor turns; serial continuations
@@ -3085,7 +3087,8 @@ exits), or when its TTL expires. A broken hold store fails open: admission ignor
 rather than stranding a waiter. The [`sase agent hold`](cli.md#sase-agent-hold) commands
 arm, list, show, and release holds, and `sase agent hold run -- COMMAND` holds matching
 work only while one command runs. The **Holds** pane in sase's TUI
-[Config tab](configuration.md#config-tab) lists active holds and releases one.
+[Config tab](reference/tui/admin-center.md#config-tab) lists active holds and releases
+one.
 
 The `%hold` directive declares a hold in prompt text, using the same selectors:
 
@@ -3112,7 +3115,8 @@ The `%hold` directive declares a hold in prompt text, using the same selectors:
 covers every project on the machine. `ttl=` accepts durations such as `90s`, `45m`, or
 `1h30m` (the `sase agent hold -T` flag takes only single-unit values); without it the
 hold uses `agent_hold_default_ttl` (`2h`), and no hold may outlive `agent_hold_max_ttl`
-(`12h`). See [agent hold limits](configuration.md#agent-hold-limits).
+(`12h`). See
+[agent hold limits](reference/config/agents-and-runners.md#agent-hold-limits).
 
 `%hold` may appear more than once; every occurrence is unioned. `hood=` and `tribe=` may
 repeat; `ttl=` and `scope=` may each appear at most once per launch unit. Positional
@@ -3598,8 +3602,9 @@ portion with the target string before any macro resolution occurs. This is parti
 useful when the target contains characters (like `:`) that must be present in the raw
 text for other processing logic — such as VCS directory-switching — to work correctly.
 
-See [Configuration Reference: macro_aliases](configuration.md#macro_aliases) for the
-full field specification.
+See
+[Configuration Reference: macro_aliases](reference/config/prompts-and-tools.md#macroaliases)
+for the full field specification.
 
 ## Recursive Expansion
 

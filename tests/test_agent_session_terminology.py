@@ -106,7 +106,7 @@ _STALE_PHRASE_ALLOWLIST = {
     ("docs/commit_workflows.md", "families/"),
     ("docs/agents_sidecar.md", "families/"),
     # Feature-flag docs for the same families/ redirect-stub legacy set.
-    ("docs/configuration.md", "families/"),
+    ("docs/reference/config/feature-flags.md", "families/"),
     ("docs/plugins.md", "family="),
     ("sase/memory/glossary/sase-agent-session.md", "agent family"),
 }

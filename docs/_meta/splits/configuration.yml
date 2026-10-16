@@ -1,0 +1,77 @@
+to: reference/config/index.md
+sections:
+  _intro: reference/config/files-and-merging.md
+  Table of Contents:
+    drop: true
+  Config File Location: reference/config/files-and-merging.md
+  Owner Identity: reference/config/files-and-merging.md
+  Deep-Merge System: reference/config/files-and-merging.md
+  Directory Sharding: reference/config/files-and-merging.md
+  Configuration Sections: reference/config/core-behavior.md
+  Configuration Sections > memory.h1_title: reference/config/core-behavior.md
+  Configuration Sections > generated templates: reference/config/core-behavior.md
+  Configuration Sections > is_sase_managed: reference/config/core-behavior.md
+  Configuration Sections > id: reference/config/core-behavior.md
+  Configuration Sections > machine_name (deprecated): reference/config/core-behavior.md
+  Configuration Sections > use_chezmoi: reference/config/core-behavior.md
+  Configuration Sections > timezone: reference/config/core-behavior.md
+  Configuration Sections > ace: reference/config/ace-behavior.md
+  Configuration Sections > ace > `ace.keymaps`: reference/config/ace-keymap-configuration.md
+  Configuration Sections > ace > `ace.snippet_config_path`: reference/config/ace-prompts.md
+  Configuration Sections > ace > `ace.snippets`: reference/config/ace-prompts.md
+  Configuration Sections > ace > `ace.prompt_completion`: reference/config/ace-prompts.md
+  Configuration Sections > ace > `ace.prompt_spellcheck`: reference/config/ace-prompts.md
+  Configuration Sections > ace > `ace.prompt_stash`: reference/config/ace-prompts.md
+  Configuration Sections > ace > `ace.agent_decks`: reference/config/ace-prompts.md
+  Configuration Sections > ace > `ace.agent_header`: reference/config/ace-prompts.md
+  Configuration Sections > ace > `ace.agent_tabs`: reference/config/ace-prompts.md
+  Configuration Sections > ace > `ace.prompt_submission`: reference/config/ace-prompts.md
+  Configuration Sections > ace > `ace.prompt_inputs`: reference/config/ace-prompts.md
+  Configuration Sections > artifacts: reference/config/artifacts.md
+  Configuration Sections > artifact_refs: reference/config/artifacts.md
+  Configuration Sections > llm_provider: reference/config/llm-provider-behavior.md
+  Configuration Sections > finalizers: reference/config/finalizers.md
+  Configuration Sections > commit_hooks: reference/config/finalizers.md
+  Configuration Sections > monitor: reference/config/monitor-behavior.md
+  Configuration Sections > repos: reference/config/repositories-behavior.md
+  Configuration Sections > dispatch: reference/config/repositories-behavior.md
+  Configuration Sections > vcs_provider: reference/config/repositories-behavior.md
+  Configuration Sections > vcs_repo_completion: reference/config/repositories-behavior.md
+  Configuration Sections > vcs_ref_completion: reference/config/repositories-behavior.md
+  Configuration Sections > axe: reference/config/scheduler-behavior.md
+  Configuration Sections > file_hooks: reference/config/prompts-and-tools.md
+  Configuration Sections > plugins: reference/config/prompts-and-tools.md
+  Configuration Sections > mentor_profiles: reference/config/prompts-and-tools.md
+  Configuration Sections > metahooks: reference/config/prompts-and-tools.md
+  Configuration Sections > macros: reference/config/prompts-and-tools.md
+  Configuration Sections > macro_aliases: reference/config/prompts-and-tools.md
+  Configuration Sections > tools: reference/config/prompts-and-tools.md
+  Configuration Sections > gate: reference/config/agents-and-runners.md
+  Configuration Sections > autonomy: reference/config/agents-and-runners.md
+  Configuration Sections > max_running_agents: reference/config/agents-and-runners.md
+  Configuration Sections > max_agent_pipe_chain: reference/config/agents-and-runners.md
+  Configuration Sections > runner_slots: reference/config/agents-and-runners.md
+  Configuration Sections > agent_scope_teardown: reference/config/agents-and-runners.md
+  Configuration Sections > agent_auto_restart: reference/config/agents-and-runners.md
+  Configuration Sections > agent hold limits: reference/config/agents-and-runners.md
+  Configuration Sections > tmux_agent {#tmux_agent}: reference/config/agents-and-runners.md
+  Configuration Sections > procs: reference/config/runtime-and-storage.md
+  Configuration Sections > service: reference/config/runtime-and-storage.md
+  Configuration Sections > disk: reference/config/runtime-and-storage.md
+  Configuration Sections > managed_tmp: reference/config/runtime-and-storage.md
+  Configuration Sections > telemetry: reference/config/runtime-and-storage.md
+  Configuration Sections > tool_runs: reference/config/runtime-and-storage.md
+  Configuration Sections > update: reference/config/runtime-and-storage.md
+  Configuration Sections > markdown: reference/config/display-and-reading.md
+  Configuration Sections > pager: reference/config/display-and-reading.md
+  Configuration Sections > chat_install: reference/config/integrations-behavior.md
+  Configuration Sections > telegram: reference/config/integrations-behavior.md
+  Configuration Sections > mobile_gateway: reference/config/integrations-behavior.md
+  Configuration Sections > sdd: reference/config/automation-behavior.md
+  Configuration Sections > bead: reference/config/automation-behavior.md
+  Configuration Sections > external_mirror: reference/config/automation-behavior.md
+  Configuration Sections > feature_flags: reference/config/feature-flags.md
+  Configuration Sections > workspace: reference/config/workspace-behavior.md
+  SASE Admin Center (interactive editor): reference/tui/admin-center.md
+  Environment Variables: reference/environment-variables.md
+  Local State Cutover: reference/upgrading/local-state.md

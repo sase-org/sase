@@ -373,9 +373,10 @@ write goes through one of these mechanisms instead:
   the primary repository itself — and only while that clone is clean, attached, and
   strictly behind its configured remote. Dirty, detached, diverged, remote-mismatched,
   or missing clones are left untouched and reported. See
-  [`auto_sync` vs. `auto_clone`](configuration.md#repos) for the config-level
-  distinction; sync runs both from a durable per-project/role hint recorded right after
-  a workspace-sidecar publication and from a scheduled backstop job.
+  [`auto_sync` vs. `auto_clone`](reference/config/repositories-behavior.md#repos) for
+  the config-level distinction; sync runs both from a durable per-project/role hint
+  recorded right after a workspace-sidecar publication and from a scheduled backstop
+  job.
 
 `sase.workspace_provider.ownership.authorize_store_mutation` and the `writable_*`
 helpers are the shared enforcement point close to every store mutation seam, so a new
@@ -412,8 +413,8 @@ primary checkout retains its `WORKSPACE_DIR` path with no suffix.
 ### Root Policy
 
 The physical location of managed checkouts is controlled by `workspace.root` (see
-[`docs/configuration.md`](configuration.md#workspace)) and the `SASE_WORKSPACE_ROOT`
-environment override:
+[`docs/reference/config/workspace-behavior.md`](reference/config/workspace-behavior.md#workspace))
+and the `SASE_WORKSPACE_ROOT` environment override:
 
 | Value         | Layout                                                                                                                                                                                                                                 |
 | ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -734,4 +735,4 @@ canonical checkouts.
 
 The workspace provider registry loads provider entry points directly. It does not
 currently consult the resource-plugin disable switches described in
-[docs/configuration.md](configuration.md#plugin-system).
+[docs/reference/environment-variables.md](reference/environment-variables.md#plugin-system).

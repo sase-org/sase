@@ -81,6 +81,6 @@ two confirmation commands. For failures outside configuration, start with
 
 - [Configuration keys](../reference/config/index.md) — every key, type, default, and
   allowed value.
-- [Configuration files and behavior](../configuration.md#config-file-location) — file
-  layout and merge order.
+- [Configuration files and behavior](../reference/config/files-and-merging.md#config-file-location)
+  — file layout and merge order.
 - [sase doctor](../reference/cli/doctor.md) — the diagnostic command and its checks.

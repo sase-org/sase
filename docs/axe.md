@@ -463,13 +463,14 @@ A ready task bead additionally needs at least its
 [effective `+1` bar](beads.md#per-type-triage-bar) of independent `+1` reports before it
 earns a `TaskTriage` gate: its own task type's `triage.min_plus_ones` (`0` for `ci`,
 `feature`, and `memory`; `1` for `bug`; `3` for `flake`), or
-[`bead.task_triage.min_plus_ones`](configuration.md#bead) when the bead is untyped or
-its type is not registered on this machine. A sub-threshold bead is withheld from triage
-without any change to its stored status — it stays `ready` and stays visible to
-`sase bead list`, `sase bead ready`, sase's TUI Beads panel, and its bead page — and a
-`TaskTriage` gate already raised for a bead that later falls below the bar is canceled
-(reason `task_bead_below_plus_one_threshold`) and its notification dismissed on the
-job's next tick. Snoozed beads and `flag` task beads are never subject to this bar.
+[`bead.task_triage.min_plus_ones`](reference/config/automation-behavior.md#bead) when
+the bead is untyped or its type is not registered on this machine. A sub-threshold bead
+is withheld from triage without any change to its stored status — it stays `ready` and
+stays visible to `sase bead list`, `sase bead ready`, sase's TUI Beads panel, and its
+bead page — and a `TaskTriage` gate already raised for a bead that later falls below the
+bar is canceled (reason `task_bead_below_plus_one_threshold`) and its notification
+dismissed on the job's next tick. Snoozed beads and `flag` task beads are never subject
+to this bar.
 
 A still-pending gate is skipped on later ticks, preventing repeated notifications. If a
 bead leaves its gateable status or type through a launch, close, extension, or manual
@@ -552,7 +553,7 @@ runner died without sweeping (SIGKILL, OOM, or crash). It scans `sase-agent-*` s
 under the user manager and terminates leaked processes in scopes with no live runner,
 using the same spare-process selection rule as the runner-exit sweep: scopes holding a
 live runner or a `systemd-run` pre-exec window, scopes younger than
-[`agent_scope_teardown.reaper_min_scope_age_seconds`](configuration.md#agent_scope_teardown),
+[`agent_scope_teardown.reaper_min_scope_age_seconds`](reference/config/agents-and-runners.md#agentscopeteardown),
 and scopes whose every member is a spared shared daemon (`ssh-agent`, `gpg-agent`, tmux
 server, ssh ControlMaster) are left untouched. It keeps the default `always` trigger
 because process death leaves no filesystem event to watch. To spot leaks by hand, run
@@ -618,12 +619,14 @@ there is no safe status target. Once a transition is recorded in durable
 therefore narrows to unreconciled cases: guard-skipped mirrored links, referenced-only
 links, and title drift.
 
-The [`external_mirror.issues.filters`](configuration.md#external_mirror) surface (empty
-by default) excludes tracker issues from mirroring by author, label, title, or state; a
-non-empty filter means the bead list is no longer a strict superset of the issue list.
-Filters gate creation only — clearing a filter re-examines the issues it previously
-dropped, but a filter never deletes a bead that already exists. Records a filter drops
-count toward `sase bead sync-external`'s `filtered=<n>` per-project summary.
+The
+[`external_mirror.issues.filters`](reference/config/automation-behavior.md#externalmirror)
+surface (empty by default) excludes tracker issues from mirroring by author, label,
+title, or state; a non-empty filter means the bead list is no longer a strict superset
+of the issue list. Filters gate creation only — clearing a filter re-examines the issues
+it previously dropped, but a filter never deletes a bead that already exists. Records a
+filter drops count toward `sase bead sync-external`'s `filtered=<n>` per-project
+summary.
 
 Two machines reconciling stale copies of a hosted bead sidecar can independently import
 the same issue before either has seen the other's copy. The local partial-unique index
@@ -702,44 +705,45 @@ directories under those managed buckets, so shell scratch and Cargo targets no l
 fall back to host-global `/tmp`. Launched agents also get line-tables-only debug info
 for the dev and test Cargo profiles, which keeps per-launch targets small. They get
 `CARGO_INCREMENTAL=0` by default, or `CARGO_INCREMENTAL=1` when
-[`managed_tmp.agent_cargo_incremental`](configuration.md#managed_tmp) is enabled (athena
-only, where the splitting rustc wrapper runs metadata-only units incrementally direct
-and strips incremental from codegen units before sccache). A runner also removes its own
-launch-assigned `agent-tmp/` and `cargo-targets/` children at exit when they still match
-its exported `TMPDIR` and `CARGO_TARGET_DIR` and it can prove, through procfs, that no
-live process still references either tree (by environment or working directory). That
-removal goes through the same Rust reaper as the hourly pass. Monitor/gate handoffs
-leave cleanup to the reaper: a follow-up turn mints a fresh scratch key from
-`launch_spawn._managed_agent_scratch_env`, so the handoff outcome skips runner-exit
-cleanup and the old key goes quiet. The hourly pass then runs a dead-launch backstop
-over the launch-keyed buckets (`agent-tmp/`, `cargo-targets/`, legacy `build-targets/`):
-entries whose newest descendant write predates `managed_tmp.dead_launch.grace_seconds`
-(2 hours by default) and that the batch procfs observer reports as held by no live
-process are removed largest-first within the removal budget. Held and
-incomplete-observation entries are preserved and counted (`dead_launch_preserved_live`,
-`dead_launch_preserved_incomplete`), and hosts without readable procfs report
-`dead_launch_observer: unobservable` and leave the age horizons as the fallback. A
-zombie or dead process has already released its address space and cwd, so it is never
-counted as a holder or as an incomplete observation.
+[`managed_tmp.agent_cargo_incremental`](reference/config/runtime-and-storage.md#managedtmp)
+is enabled (athena only, where the splitting rustc wrapper runs metadata-only units
+incrementally direct and strips incremental from codegen units before sccache). A runner
+also removes its own launch-assigned `agent-tmp/` and `cargo-targets/` children at exit
+when they still match its exported `TMPDIR` and `CARGO_TARGET_DIR` and it can prove,
+through procfs, that no live process still references either tree (by environment or
+working directory). That removal goes through the same Rust reaper as the hourly pass.
+Monitor/gate handoffs leave cleanup to the reaper: a follow-up turn mints a fresh
+scratch key from `launch_spawn._managed_agent_scratch_env`, so the handoff outcome skips
+runner-exit cleanup and the old key goes quiet. The hourly pass then runs a dead-launch
+backstop over the launch-keyed buckets (`agent-tmp/`, `cargo-targets/`, legacy
+`build-targets/`): entries whose newest descendant write predates
+`managed_tmp.dead_launch.grace_seconds` (2 hours by default) and that the batch procfs
+observer reports as held by no live process are removed largest-first within the removal
+budget. Held and incomplete-observation entries are preserved and counted
+(`dead_launch_preserved_live`, `dead_launch_preserved_incomplete`), and hosts without
+readable procfs report `dead_launch_observer: unobservable` and leave the age horizons
+as the fallback. A zombie or dead process has already released its address space and
+cwd, so it is never counted as a holder or as an incomplete observation.
 
 Each run removes at most 2,000 entries by default so a long-neglected root converges
 over several passes instead of stalling one. The reaper also runs a pressure pass when
 the managed root grows beyond 16 GiB by default, or when the filesystem holding it falls
 below SASE's shared disk-pressure warn threshold: the larger of 3 GiB and
-[`disk.pressure.warn_free_percent`](configuration.md#disk) (5% by default) of that
-filesystem. Under pressure, aged entries of at least 64 MiB in regenerable build-output
-buckets (`cargo-targets/`, plus the legacy `build-targets/`), and cargo/core
-target-shaped top-level residue, are removed largest-first until the root is estimated
-below 8 GiB, available space is estimated back above that same warn threshold, or the
-removal budget is reached. Pressure pruning is liveness-aware while the procfs observer
-is available: a held entry is never removed, an entry whose liveness is incomplete is
-preserved, and an unheld entry needs only the dead-launch grace rather than the pressure
-minimum age. Pressure pruning otherwise waits 12 hours, but once the free-space floor is
-breached it uses the lower configured low-space age, 1 hour by default, without
-weakening the fresh-descendant check. The horizons, removal budget, root-size limits,
-pressure ages, and minimum pressure entry size are configurable under `managed_tmp` in
-`sase.yml`; see [Configuration](configuration.md#managed_tmp). The housekeeping job,
-`disk_pressure`, and `sase disk reap` all derive the free-space floor and recovery
+[`disk.pressure.warn_free_percent`](reference/config/runtime-and-storage.md#disk) (5% by
+default) of that filesystem. Under pressure, aged entries of at least 64 MiB in
+regenerable build-output buckets (`cargo-targets/`, plus the legacy `build-targets/`),
+and cargo/core target-shaped top-level residue, are removed largest-first until the root
+is estimated below 8 GiB, available space is estimated back above that same warn
+threshold, or the removal budget is reached. Pressure pruning is liveness-aware while
+the procfs observer is available: a held entry is never removed, an entry whose liveness
+is incomplete is preserved, and an unheld entry needs only the dead-launch grace rather
+than the pressure minimum age. Pressure pruning otherwise waits 12 hours, but once the
+free-space floor is breached it uses the lower configured low-space age, 1 hour by
+default, without weakening the fresh-descendant check. The horizons, removal budget,
+root-size limits, pressure ages, and minimum pressure entry size are configurable under
+`managed_tmp` in `sase.yml`; see
+[Configuration](reference/config/runtime-and-storage.md#managedtmp). The housekeeping
+job, `disk_pressure`, and `sase disk reap` all derive the free-space floor and recovery
 target from the `disk.pressure` policy rather than from
 `managed_tmp.pressure.min_available_bytes` and `recovery_available_bytes`. Generic agent
 scratch, handoff buckets, artifact buckets, unknown buckets, symlinks, and build trees
@@ -772,7 +776,8 @@ The summary reports `scanned`, `selected`, `removed`, `skipped`, `errors`,
 The `disk_pressure` job measures the filesystems that hold the managed temp root and
 `~/.sase` (once per distinct filesystem) and classifies them through the Rust
 disk-pressure policy: a filesystem is under pressure when its free space falls below the
-larger of 3 GiB and [`disk.pressure.warn_free_percent`](configuration.md#disk) of its
+larger of 3 GiB and
+[`disk.pressure.warn_free_percent`](reference/config/runtime-and-storage.md#disk) of its
 size. With no pressure, the job exits with reason `space_ok` without scanning the disk
 footprint. Under pressure, it logs the largest owners from `sase disk list` and, when
 any qualify, sends a notification naming them; when the inventory's `unattributed` row
@@ -793,19 +798,20 @@ The `bead_stale_cleanup` job is the other half of the task-bead `+1` bar. Ready 
 beads that never clear their [effective `+1` bar](beads.md#per-type-triage-bar) stay
 `ready` (the five-minute `bead_task_triage` job withholds their `TaskTriage` gate) and
 would otherwise accumulate forever. Once at least
-[`bead.task_triage.stale_cleanup_min_beads`](configuration.md#bead) of them have sat
-below that bar for [`bead.task_triage.stale_after_days`](configuration.md#bead) days,
-this hourly pass raises one human-only `BeadStaleCleanup` gate for the whole backlog —
-one gate across every enabled project, not one per project. The offered roster is capped
-at 50 beads, oldest first, with a `(project, bead_id)` tie-break; any remainder is named
-in the preview as `omitted_count` and is offered on a later tick. Lane state holds the
-pending request, a generation counter, and a fingerprint over the offered roster plus
-the three thresholds (not the pinned `stale_as_of` date), so an unchanged roster leaves
-the pending gate alone and a changed roster replaces it. When the backlog drops below
-the bar the pending gate is canceled. A project whose store cannot be read is skipped
-and cannot cancel a healthy pending gate, because the true roster is then unknown. Run
-`sase axe job run bead_stale_cleanup` to raise or refresh that gate without waiting for
-the hour.
+[`bead.task_triage.stale_cleanup_min_beads`](reference/config/automation-behavior.md#bead)
+of them have sat below that bar for
+[`bead.task_triage.stale_after_days`](reference/config/automation-behavior.md#bead)
+days, this hourly pass raises one human-only `BeadStaleCleanup` gate for the whole
+backlog — one gate across every enabled project, not one per project. The offered roster
+is capped at 50 beads, oldest first, with a `(project, bead_id)` tie-break; any
+remainder is named in the preview as `omitted_count` and is offered on a later tick.
+Lane state holds the pending request, a generation counter, and a fingerprint over the
+offered roster plus the three thresholds (not the pinned `stale_as_of` date), so an
+unchanged roster leaves the pending gate alone and a changed roster replaces it. When
+the backlog drops below the bar the pending gate is canceled. A project whose store
+cannot be read is skipped and cannot cancel a healthy pending gate, because the true
+roster is then unknown. Run `sase axe job run bead_stale_cleanup` to raise or refresh
+that gate without waiting for the hour.
 
 The `gate_turn_reclaim` job is the backstop for
 [gate turns](notifications.md#gate-turns-and-continuation). It scans gate-turn session
@@ -848,8 +854,9 @@ closed before any run directory, empty shard, or artifact-index row is removed.
 
 ## Configuration
 
-Axe is configured in `sase.yml` under the `axe:` section. See
-[`docs/configuration.md`](configuration.md) for the full configuration reference.
+Axe is configured in `sase.yml` under the `axe:` section. See the
+[AXE configuration behavior](reference/config/scheduler-behavior.md) and generated
+[scheduler configuration keys](reference/config/scheduler.md).
 
 ### Global Settings
 
@@ -1410,15 +1417,15 @@ window covers incremental passes; the cursor advances only after a clean pass, a
 daily full scan ignores it so missed repairs are eventually found.
 
 `unmirrored` counts fetched PRs dropped by
-[`external_mirror.pull_requests.filters`](configuration.md#external_mirror), which ships
-with head-ref exclusions for release-please and release-plz PRs so those never become
-Patches; every other criterion is empty by default, adopting every other PR SASE did not
-create. Dropped records never reach the checkpoint, so a filter change (clearing,
-narrowing, or widening one) forces the next pass to go full and re-examine them. Filters
-gate creation only — a PR a filter now excludes keeps whatever Patch it already has. The
-last pass's `unmirrored` count per project is also written to a lane-independent
-document that feeds the CLI's `Filtered` column and the Patches pane's `· M remote-only`
-banner chip.
+[`external_mirror.pull_requests.filters`](reference/config/automation-behavior.md#externalmirror),
+which ships with head-ref exclusions for release-please and release-plz PRs so those
+never become Patches; every other criterion is empty by default, adopting every other PR
+SASE did not create. Dropped records never reach the checkpoint, so a filter change
+(clearing, narrowing, or widening one) forces the next pass to go full and re-examine
+them. Filters gate creation only — a PR a filter now excludes keeps whatever Patch it
+already has. The last pass's `unmirrored` count per project is also written to a
+lane-independent document that feeds the CLI's `Filtered` column and the Patches pane's
+`· M remote-only` banner chip.
 
 Open draft PRs become `Draft` Patches, open non-draft PRs become `Mailed`, and merged or
 closed PRs are appended directly to the archive ProjectSpec as `Submitted` or

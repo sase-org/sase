@@ -211,7 +211,8 @@ a commit that never happened. Merge, revert, and fixup subjects are exempt; empt
 messages are rejected. The failure is recorded on the `commit_failed` run-log event with
 `reason="invalid_message"`, and `sase stitch create` preserves the `-M` message file so
 the same command can be re-run after the subject is rewritten. Configure the gate
-through `commit.message` (see [Configuration](configuration.md#commitmessage)).
+through `commit.message` (see
+[Configuration](reference/config/finalizers.md#commitmessage)).
 
 For PRs, the subject is validated exactly as the agent authored it.
 `vcs_provider.use_project_pr_prefix: true` prepends a `[project] ` prefix to the PR
@@ -544,7 +545,8 @@ provider-specific metadata (e.g., Google PR tags) without manual entry. `AGENT` 
 rather than static config. Note that the rendered keys carry the `SASE_` prefix (e.g. a
 configured `MARKDOWN` tag is written as `SASE_MARKDOWN=`), so external tooling that
 consumes these tags must accept the prefixed names. See
-[configuration.md](configuration.md#vcs_provider) for the config format.
+[configuration.md](reference/environment-variables.md#vcs-provider) for the config
+format.
 
 **PR tag stripping:** When PR tags are present in the commit description (trailing lines
 matching `^[A-Z][A-Z0-9_]*=`), they are automatically stripped before writing the

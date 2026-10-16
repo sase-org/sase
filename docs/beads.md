@@ -246,7 +246,7 @@ writes the committed catalog to `sase/task_types.json` and generates the short
 `sase/memory/task_types.md` note from it for SASE-managed project repositories only, so
 generated agent instructions stay a function of committed files rather than whichever
 optional plugins happen to be installed. See
-[Required plugins](configuration.md#plugins) and
+[Required plugins](reference/config/prompts-and-tools.md#plugins) and
 [Task-type plugins](plugins.md#task-type-plugins).
 
 Suppress a builtin for a project or the whole machine with `use: <plugin>@<slug>` plus
@@ -274,8 +274,9 @@ it earns a `TaskTriage` gate. A bead resolves its bar one of two ways:
   independent reproduction before it interrupts anyone, and `ci`, `feature`, and
   `memory` ship `0`.
 - **Untyped, or typed with a slug this machine does not have registered** — the
-  configured [`bead.task_triage.min_plus_ones`](configuration.md#bead) is the fallback.
-  It ships as `1`.
+  configured
+  [`bead.task_triage.min_plus_ones`](reference/config/automation-behavior.md#bead) is
+  the fallback. It ships as `1`.
 
 Those two defaults differ on purpose, so do not read the spec default of `0` as "the
 default bar is zero": a legacy untyped bead needs one `+1` out of the box, while a typed
@@ -472,20 +473,22 @@ open (draft) ──mark ready──▶ ready (triage) ──launch──▶ in_p
    status is `ready` and that has accumulated at least its
    [effective `+1` bar](#per-type-triage-bar) — its task type's own
    `triage.min_plus_ones` (`0` for `ci`, `feature`, and `memory`; `1` for `bug`; `3` for
-   `flake`), or [`bead.task_triage.min_plus_ones`](configuration.md#bead) for an untyped
-   or unregistered type. A sub-threshold task is withheld from triage — it stays stored
-   as `ready` and stays visible to `sase bead ready` and this triage guide's other
-   commands, only the gate is withheld — and a `TaskTriage` gate already raised for a
-   task that later falls below the bar is canceled and its notification dismissed. This
-   scan currently does not apply the dependency filter used by `sase bead ready`, so a
-   blocked ready task can still receive a gate. The reviewed preview contains the task's
-   title, description, and notes. **Launch** accepts optional feedback and submits one
-   global unattributed proc that runs `sase bead work <task-id> --yes-to-all`; **Close**
-   requires feedback and closes the bead with `resolution=canceled` and that feedback as
-   the reason. The detached launch survives sase's TUI, CLI, Telegram, or mobile client
-   exit and appears in `sase proc list` and sase's TUI Procs tab. **Snooze** requires a
-   wake time, accepts an optional `+N` wake threshold and reason, and defers the task
-   until either condition is met.
+   `flake`), or
+   [`bead.task_triage.min_plus_ones`](reference/config/automation-behavior.md#bead) for
+   an untyped or unregistered type. A sub-threshold task is withheld from triage — it
+   stays stored as `ready` and stays visible to `sase bead ready` and this triage
+   guide's other commands, only the gate is withheld — and a `TaskTriage` gate already
+   raised for a task that later falls below the bar is canceled and its notification
+   dismissed. This scan currently does not apply the dependency filter used by
+   `sase bead ready`, so a blocked ready task can still receive a gate. The reviewed
+   preview contains the task's title, description, and notes. **Launch** accepts
+   optional feedback and submits one global unattributed proc that runs
+   `sase bead work <task-id> --yes-to-all`; **Close** requires feedback and closes the
+   bead with `resolution=canceled` and that feedback as the reason. The detached launch
+   survives sase's TUI, CLI, Telegram, or mobile client exit and appears in
+   `sase proc list` and sase's TUI Procs tab. **Snooze** requires a wake time, accepts
+   an optional `+N` wake threshold and reason, and defers the task until either
+   condition is met.
 
    Only one pending gate is kept per task. If the task leaves stored status `ready`, AXE
    cancels the pending gate. If a request is answered, canceled, or missing while the
@@ -748,25 +751,27 @@ dependencies are drafted. Marking it `ready` proposes it to the project owner. T
 `bead_task_triage` job scans enabled projects every five minutes and raises one
 human-only `TaskTriage` gate per ready task bead that has accumulated at least its
 [effective `+1` bar](#per-type-triage-bar) — its task type's own `triage.min_plus_ones`,
-or [`bead.task_triage.min_plus_ones`](configuration.md#bead) for an untyped or
-unregistered type. A sub-threshold task is withheld from triage without any change to
-its stored status, and a gate already raised for a task that later falls below the bar
-is canceled and its notification dismissed. The compact `[bead] <bead-id> — <title>`
-notification lands in the `Beads` panel. Every gate whose subject is a typed task bead
-also carries a type chip (glyph + slug) and a second note with the compact typed facts
-line. The Markdown preview's metadata block includes a **Task type** fact such as
-`**Task type:** ≈ flake` next to **Size** and **References**. The filing agent travels
-with the gate into its Markdown preview when that attribution is known. The job records
-pending gates in lane state so later ticks do not repeat the notification, cancels a
-pending gate if the bead leaves `ready` or falls below the `+1` bar, defers re-gating
-while that task bead's detached launch is still in flight, and uses a new deterministic
-generation if the same task becomes ready again or its pending gate needs a
-presentation-contract refresh.
+or [`bead.task_triage.min_plus_ones`](reference/config/automation-behavior.md#bead) for
+an untyped or unregistered type. A sub-threshold task is withheld from triage without
+any change to its stored status, and a gate already raised for a task that later falls
+below the bar is canceled and its notification dismissed. The compact
+`[bead] <bead-id> — <title>` notification lands in the `Beads` panel. Every gate whose
+subject is a typed task bead also carries a type chip (glyph + slug) and a second note
+with the compact typed facts line. The Markdown preview's metadata block includes a
+**Task type** fact such as `**Task type:** ≈ flake` next to **Size** and **References**.
+The filing agent travels with the gate into its Markdown preview when that attribution
+is known. The job records pending gates in lane state so later ticks do not repeat the
+notification, cancels a pending gate if the bead leaves `ready` or falls below the `+1`
+bar, defers re-gating while that task bead's detached launch is still in flight, and
+uses a new deterministic generation if the same task becomes ready again or its pending
+gate needs a presentation-contract refresh.
 
 The hourly `bead_stale_cleanup` job is the other half of that bar. Sub-threshold ready
 task beads stay `ready` and stay visible here; they are not closed automatically. Once
-at least [`bead.task_triage.stale_cleanup_min_beads`](configuration.md#bead) of them
-have been below the bar for [`bead.task_triage.stale_after_days`](configuration.md#bead)
+at least
+[`bead.task_triage.stale_cleanup_min_beads`](reference/config/automation-behavior.md#bead)
+of them have been below the bar for
+[`bead.task_triage.stale_after_days`](reference/config/automation-behavior.md#bead)
 days, one `BeadStaleCleanup` gate offers the oldest 50 (naming any remainder) so the
 reviewer can close a selected subset as `canceled`. The job keeps a single pending gate
 and cancels it when the backlog drops below the bar. See
@@ -814,7 +819,8 @@ status when the bead is reference-only, claimed or in progress, has unclosed
 descendants, or already matches the upstream state. Disappearances are also note-only
 because there is no safe status target. After this reconciliation, the Beads pane's
 drift badge means the link is still unreconciled: guard-skipped, reference-only, or
-title drift. The [`external_mirror.issues.filters`](configuration.md#external_mirror)
+title drift. The
+[`external_mirror.issues.filters`](reference/config/automation-behavior.md#externalmirror)
 surface (empty by default) excludes tracker issues from mirroring by author, label,
 title, or state; filters gate creation only, so clearing one re-examines the issues it
 previously dropped without deleting a bead that already exists.
@@ -2803,16 +2809,16 @@ Once an epic bead exists, the shared launch path:
    any other alias. Builtin size aliases can be configured under
    `llm_provider.model_aliases.builtin`. Every phase and land segment carries the
    `%auto` line for its `autonomy.roles` profile (see
-   [configuration.md#autonomy](configuration.md#autonomy)). The default is `standard`:
-   submitted tale plans are approved and archived, and submitted epic plans are approved
-   and launched as child epics beneath the phase or land bead. Setting the role to
-   `tale` makes nested epic plans park for human review. An agent may author a tale or
-   an epic as needed; the plan's authored `tier` selects the corresponding follow-up
-   path. The land agent prefers a tale for remaining work that one agent can finish.
-   Because nothing resumes the landing after a tale's coder finishes, the land agent
-   triages follow-ups first and writes the epic's closeout into the tale as its final
-   step, while a child epic instead hands the resumed landing to its own land agent
-   through `parent_bead`.
+   [configuration.md#autonomy](reference/config/agents-and-runners.md#autonomy)). The
+   default is `standard`: submitted tale plans are approved and archived, and submitted
+   epic plans are approved and launched as child epics beneath the phase or land bead.
+   Setting the role to `tale` makes nested epic plans park for human review. An agent
+   may author a tale or an epic as needed; the plan's authored `tier` selects the
+   corresponding follow-up path. The land agent prefers a tale for remaining work that
+   one agent can finish. Because nothing resumes the landing after a tale's coder
+   finishes, the land agent triages follow-ups first and writes the epic's closeout into
+   the tale as its final step, while a child epic instead hands the resumed landing to
+   its own land agent through `parent_bead`.
 7. Before spawning any runner, batch-preassigns every scheduled phase bead to its
    rendered worker and the epic bead to `<epic_id>.land`, setting all of them to
    `in_progress`. It commits readiness, assignments, and the complete graph as one
@@ -2828,18 +2834,18 @@ Once an epic bead exists, the shared launch path:
 
 When a phase agent authors an epic-tier implementation plan, every phase and land
 segment carries the `%auto` line for its `autonomy.roles` profile (see
-[configuration.md#autonomy](configuration.md#autonomy)). The default is `standard`:
-submitted tale plans are approved and archived, and submitted epic plans are approved
-and launched as child epics beneath the phase or land bead. Setting the role to `tale`
-makes nested epic plans park for human review. Once approved, the child epic is created
-beneath the phase and the phase remains open while delegated work runs. A planner whose
-phase already holds an earlier agent's unfinished increment authors a child epic whose
-phases each fit one coding agent instead of another single-agent tale. Landing the child
-epic triggers the upward close cascade described above, which closes the phase and lets
-its bead-gated dependents proceed. Until then, parent-epic retries skip that delegated
-phase. The land agent now genuinely requires every phase bead to close; if a phase
-crashes before closure, retry or close that phase explicitly rather than expecting
-landing to sweep it up.
+[configuration.md#autonomy](reference/config/agents-and-runners.md#autonomy)). The
+default is `standard`: submitted tale plans are approved and archived, and submitted
+epic plans are approved and launched as child epics beneath the phase or land bead.
+Setting the role to `tale` makes nested epic plans park for human review. Once approved,
+the child epic is created beneath the phase and the phase remains open while delegated
+work runs. A planner whose phase already holds an earlier agent's unfinished increment
+authors a child epic whose phases each fit one coding agent instead of another
+single-agent tale. Landing the child epic triggers the upward close cascade described
+above, which closes the phase and lets its bead-gated dependents proceed. Until then,
+parent-epic retries skip that delegated phase. The land agent now genuinely requires
+every phase bead to close; if a phase crashes before closure, retry or close that phase
+explicitly rather than expecting landing to sweep it up.
 
 | Flag                  | Description                                                                                                                                   |
 | --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -2876,11 +2882,11 @@ The work macros are resolved by `MacroTag` (tag-based lookup), so a project-loca
 user-defined `work_phase_bead`, `work_task_bead`, or `land_epic` macro overrides the
 built-in. For epic-tier work, every phase and land segment carries the `%auto` line for
 its `autonomy.roles` profile (see
-[configuration.md#autonomy](configuration.md#autonomy)). The default is `standard`:
-submitted tale plans are approved and archived, and submitted epic plans are approved
-and launched as child epics beneath the phase or land bead. Setting the role to `tale`
-makes nested epic plans park for human review, without a human-in-the-loop checkpoint
-between dependency waves.
+[configuration.md#autonomy](reference/config/agents-and-runners.md#autonomy)). The
+default is `standard`: submitted tale plans are approved and archived, and submitted
+epic plans are approved and launched as child epics beneath the phase or land bead.
+Setting the role to `tale` makes nested epic plans park for human review, without a
+human-in-the-loop checkpoint between dependency waves.
 
 When the epic plan bead is attached to Patch metadata (`--patch`, legacy `--changespec`,
 or `--bug-id`), `sase bead work` preserves the current project's VCS context in the

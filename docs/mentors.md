@@ -24,7 +24,8 @@ The lifecycle is:
 Mentors are configured through `mentor_profiles` in `sase.yml`. SASE loads merged
 config, so user-level profiles from `~/.config/sase/sase.yml` and project-local profiles
 from `sase/sase.yml` can both contribute profiles. See
-[`docs/configuration.md`](configuration.md#mentor_profiles) for the field reference.
+[`docs/reference/config/prompts-and-tools.md`](reference/config/prompts-and-tools.md#mentorprofiles)
+for the field reference.
 
 A profile defines when it should run. Each profile contains one or more mentors, and
 each mentor has a role plus focus areas that constrain what it should review.

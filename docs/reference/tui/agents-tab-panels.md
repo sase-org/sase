@@ -251,7 +251,7 @@ explicit unset that sticks even when members still carry an epic tribe (see
 count in the panel title. One standalone agent or one sequential session is one sase
 agent, and a rootless clan contributes one sase agent per direct member rather than one
 for its synthetic container. Per-tribe icons, identity colors, and initial expansion are
-configurable through [`ace.tribes`](../../configuration.md#acetribes); the special `default`
+configurable through [`ace.tribes`](../config/ace-behavior.md#acetribes); the special `default`
 entry styles the reserved panel. Agents launched by AXE jobs land in the built-in `@job`
 panel. SASE still stores that tribe under its legacy name `chop`, but `@job` wait and
 fork targets, `tribe:job` filters, and an `ace.tribes.job` entry all address it (an
@@ -291,7 +291,7 @@ A selected tribe panel's `TRIBE` identity fields (`Name`, `Status`, `Composition
 Main deck; collapsed, it shows the tribe name, status, and counts on one row and the
 composition, runtime, and fold on the next. The scrolling Main deck opens with an
 unlabeled description row only when the tribe has a configured
-[`description`](../../configuration.md#acetribes). That row is set off by a blank line and
+[`description`](../config/ace-behavior.md#acetribes). That row is set off by a blank line and
 wrapped at a fixed 80-cell measure (no hanging indent — there is no label to indent
 past). A tribe with no configured description renders no row there at all, including
 unconfigured ad-hoc tribes with no `ace.tribes` entry. To find configured tribes that

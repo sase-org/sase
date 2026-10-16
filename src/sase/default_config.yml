@@ -1782,7 +1782,7 @@ llm_provider:
   #       description: "Writing and editing roles."
   # Continuation-budget preflight for monitor successors. Provider/model
   # entries can override the shared values below; env vars documented in
-  # docs/configuration.md remain highest precedence for local experiments.
+  # docs/reference/environment-variables.md remain highest precedence for local experiments.
   continuation_budget:
     context_limit_bytes: 800000
     estimate_uncertain: true

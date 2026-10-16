@@ -320,8 +320,8 @@ cycles it the same way. An unconfigured document-provider pane shows, in `full` 
 only, a dim italic hint naming both places its description can be configured:
 `ref.pane.description` in the sidecar's ref config, or
 `ace.artifacts.panes."<pane_id>".description` in `sase.yml`. See
-[`ace.artifacts`](configuration.md#aceartifacts) for the config surface and
-[Artifacts pane visual grammar](artifacts_pane_visual_grammar.md#pane-brief) for the
+[`ace.artifacts`](reference/config/ace-behavior.md#aceartifacts) for the config surface
+and [Artifacts pane visual grammar](artifacts_pane_visual_grammar.md#pane-brief) for the
 full rendering rules.
 
 ### Navigation in Agent, Commits, Beads, Provider Documents, and Files
@@ -473,16 +473,16 @@ with OR semantics. Free-text terms must all match. Press `Tab` to accept the hig
 key or value completion.
 
 Agent uses the same persistent query row and the Boolean profile dialect shared with
-[`sase agent search`](configuration.md#sase-agent). It accepts `AND`, `OR`, `NOT`, and
-parentheses, plus free text over agent names and metadata. Its fields cover identity and
-lineage (`name`, `kind`, `session`, `clan`, `tribe`, `role`, `workflow`, `parent`,
-`project`), execution (`state`, `status`, `provider`, `model`, `attempt`), lifecycle
-booleans (`hidden`, `dismissed`, `revivable`, `attention`, `retry`), archive links
-(`linked`, `relation`, `artifact`), start/finish bounds (`since`, `until`, `after`,
-`before`), and runtime bounds (`min`, `max`). Date bounds accept `Nh` / `Nd` / `Nw` /
-`Nm`, `today`, and `YYYY-MM-DD`, where `Nm` means months; runtime bounds accept seconds
-or `Ns` / `Nm` / `Nh` / `Nd`, where `Nm` means minutes. There are no sigils or macros.
-For example, `state:dismissed AND revivable:true`,
+[`sase agent search`](reference/cli/agent.md#sase-agent-search). It accepts `AND`, `OR`,
+`NOT`, and parentheses, plus free text over agent names and metadata. Its fields cover
+identity and lineage (`name`, `kind`, `session`, `clan`, `tribe`, `role`, `workflow`,
+`parent`, `project`), execution (`state`, `status`, `provider`, `model`, `attempt`),
+lifecycle booleans (`hidden`, `dismissed`, `revivable`, `attention`, `retry`), archive
+links (`linked`, `relation`, `artifact`), start/finish bounds (`since`, `until`,
+`after`, `before`), and runtime bounds (`min`, `max`). Date bounds accept `Nh` / `Nd` /
+`Nw` / `Nm`, `today`, and `YYYY-MM-DD`, where `Nm` means months; runtime bounds accept
+seconds or `Ns` / `Nm` / `Nh` / `Nd`, where `Nm` means minutes. There are no sigils or
+macros. For example, `state:dismissed AND revivable:true`,
 `provider:codex AND status:FAILED AND since:7d`, and `linked:true AND relation:read` are
 valid queries.
 
@@ -745,10 +745,11 @@ shows its retained content in the decks (Main, Files, Tools, FINAL, Record) with
 restoring it, marking it read, or starting another run.
 
 The Archive's committed query always contains `in:archive`, shown as a chip, so `^`
-history, saved slots, and [`sase agent search`](configuration.md#sase-agent) all agree
-on what is on screen. Each view parks its own query, selection, folds, and deck state,
-and `,a` always returns each view exactly as left. Pane-era saved slots and history were
-migrated once to free `agents-live` slots with `in:archive` prepended.
+history, saved slots, and
+[`sase agent search`](reference/cli/agent.md#sase-agent-search) all agree on what is on
+screen. Each view parks its own query, selection, folds, and deck state, and `,a` always
+returns each view exactly as left. Pane-era saved slots and history were migrated once
+to free `agents-live` slots with `in:archive` prepended.
 
 Day banners group the list by default; `o` switches grouping between day, project,
 outcome, and model. `j` / `k` move across rows, banners, containers, and `⋮ more` rows,
@@ -976,13 +977,14 @@ provenance.
 
 These are the default keymap values; the Files-pane actions retain their `files_*`
 configuration names and are remappable under
-[`ace.keymaps.app`](configuration.md#acekeymaps) as `files_next`, `files_prev`,
-`files_view_selected`, `files_open_viewer`, `files_open_external`, `files_open_agent`,
-`files_filters`, `files_cycle_kind`, and `files_copy_path`. `y`/`R` are the shared
-`artifacts_copy_reference`/`refresh` actions every Artifacts pane binds. `Ctrl+J` /
-`Ctrl+K` are the shared `artifacts_load_more`/`artifacts_unload` actions. Version
-cycling uses the old nested-files sub-tab keys. The pane also shares the navigation and
-jump keys described in
+[`ace.keymaps.app`](reference/config/ace-keymap-configuration.md#acekeymaps) as
+`files_next`, `files_prev`, `files_view_selected`, `files_open_viewer`,
+`files_open_external`, `files_open_agent`, `files_filters`, `files_cycle_kind`, and
+`files_copy_path`. `y`/`R` are the shared `artifacts_copy_reference`/`refresh` actions
+every Artifacts pane binds. `Ctrl+J` / `Ctrl+K` are the shared
+`artifacts_load_more`/`artifacts_unload` actions. Version cycling uses the old
+nested-files sub-tab keys. The pane also shares the navigation and jump keys described
+in
 [Navigation in Agent, Commits, Beads, Provider Documents, and Files](#navigation-in-agent-commits-beads-provider-documents-and-files).
 
 `Y` copies the anchored stored path, except that PDF rows deliberately yield the live
@@ -1642,8 +1644,8 @@ running. Durable operations started from this TUI still finish their result hand
 first, within the same 60-second wait. A restart failure does not roll back the saved
 preference.
 
-See [feature flags](configuration.md#feature_flags) for precedence, the state file, and
-the CLI contract.
+See [feature flags](reference/config/feature-flags.md#featureflags) for precedence, the
+state file, and the CLI contract.
 
 ## Global Keybindings
 
@@ -1934,7 +1936,8 @@ line instead of starting a write. `n` and `s` are inactive while the project fil
 focused, and `s` stays inactive until a filter is hiding a project the wizard just
 added. `p` and `Esc`-to-clear-project apply on the Repos and Workspaces sub-tabs;
 lifecycle keys such as `a`, `d`, `c`, `i`, and `n` do not. All of these keys are
-configurable under [`ace.keymaps.projects`](configuration.md#acekeymaps).
+configurable under
+[`ace.keymaps.projects`](reference/config/ace-keymap-configuration.md#acekeymaps).
 
 ### Add or create a project
 
@@ -2299,7 +2302,7 @@ icons, middle dots, provider gaps, and outer padding keep their normal surfaces;
 non-zero window's name and rejected marker do too. Structural punctuation is neutral,
 normal weight in both themes. Which windows appear, and at what remaining percentage, is
 fully configurable through
-[`llm_provider.usage_metrics.indicator`](configuration.md#llm_providerusage_metrics).
+[`llm_provider.usage_metrics.indicator`](reference/config/llm-provider-behavior.md#llmproviderusagemetrics).
 
 Stale or unknown-age numeric observations render with neutral text and disclose their
 freshness in the tooltip instead of adding a visible marker. `<1%` remains a low but
@@ -2591,9 +2594,10 @@ applied invisibly.
 A successful launch notifies `Opened tmux window: <name> · <display name>` and dismisses
 back to Launch Control. A failure notifies with an error and leaves the panel open.
 
-See [`sase tmux-agent`](cli.md) and the [`tmux_agent`](configuration.md#tmux_agent)
-config block for the CLI surface, the drop-in tmux binding, and the documented parity
-recipe against the script this feature replaces.
+See [`sase tmux-agent`](cli.md) and the
+[`tmux_agent`](reference/config/agents-and-runners.md#tmux_agent) config block for the
+CLI surface, the drop-in tmux binding, and the documented parity recipe against the
+script this feature replaces.
 
 ### Alias History
 
@@ -3273,7 +3277,8 @@ only if there is no remembered Agents query; a remembered empty query restores t
 unfiltered view and suppresses the seed. One line of config turns seeding on.
 
 Inspect the resolved project from the CLI with `sase project current`. See
-[`ace.current_project`](configuration.md#acecurrent_project) for the three fields.
+[`ace.current_project`](reference/config/ace-behavior.md#acecurrentproject) for the
+three fields.
 
 ## Tab Bar Display
 
@@ -3541,11 +3546,12 @@ ace:
 ```
 
 These bindings dispatch only while the panel is open. The full action list and defaults
-are in the [`ace.keymaps` configuration reference](configuration.md#acekeymaps). `.`
-(`full_stop`) is reserved for the fixed `.` then `1`–`9` numbered-chip prefix; a config
-that assigns it to a Memory action is warned and reverted to that action's default. `>`
-(`greater_than_sign`) remains a valid configurable key and is the default for
-`toggle_body_filter`.
+are in the
+[`ace.keymaps` configuration reference](reference/config/ace-keymap-configuration.md#acekeymaps).
+`.` (`full_stop`) is reserved for the fixed `.` then `1`–`9` numbered-chip prefix; a
+config that assigns it to a Memory action is warned and reverted to that action's
+default. `>` (`greater_than_sign`) remains a valid configurable key and is the default
+for `toggle_body_filter`.
 
 The retired Glossary panel's bindings folded into these Memory panel actions:
 `add_note`/`delete_note` branch on the selected row (a web row adds a strand, a strand
@@ -3574,7 +3580,8 @@ ace:
 ```
 
 These bindings dispatch only while the panel is open. The full action list and defaults
-are in the [`ace.keymaps` configuration reference](configuration.md#acekeymaps).
+are in the
+[`ace.keymaps` configuration reference](reference/config/ace-keymap-configuration.md#acekeymaps).
 
 ### Custom Modes
 
@@ -3617,8 +3624,9 @@ The keymap loader validates all configuration:
   `vertical_line`, …); the raw glyphs `+`, `-`, `$`, `_`, `\`, and `|` are also
   accepted, and key hints display the glyph
 
-See [`docs/configuration.md`](configuration.md) for the full `ace.keymaps` configuration
-reference.
+See the
+[ACE keymap configuration](reference/config/ace-keymap-configuration.md#acekeymaps) for
+the full `ace.keymaps` reference.
 
 ## Prompt Input Widget
 
@@ -4856,14 +4864,14 @@ see [Memory History](memory_history.md#in-the-tui).
 
 `p` and `P` cycle the scope ring -- every enabled project with a memory root, the
 project you opened from even when it has none (so `a` can bootstrap it), and one `Home`
-scope resolved through the active [`use_chezmoi`](configuration.md#use_chezmoi) mode,
-always ordered by display name with `Home` last. Precedence for the starting scope is
-the prompt's launch-workspace project, then the [current project](#current-project) when
-it appears in the ring, then the first ring entry. Switching scopes clears the trail and
-the filter and restores that scope's last-selected note for the life of the panel.
-`Ctrl+P` opens a filterable scope picker showing each scope's display name and note
-count, for reaching a scope with many registered projects without cycling through all of
-them.
+scope resolved through the active
+[`use_chezmoi`](reference/config/core-behavior.md#usechezmoi) mode, always ordered by
+display name with `Home` last. Precedence for the starting scope is the prompt's
+launch-workspace project, then the [current project](#current-project) when it appears
+in the ring, then the first ring entry. Switching scopes clears the trail and the filter
+and restores that scope's last-selected note for the life of the panel. `Ctrl+P` opens a
+filterable scope picker showing each scope's display name and note count, for reaching a
+scope with many registered projects without cycling through all of them.
 
 `a` and `d` branch on the selected row. On an ordinary note row, `a` opens an add form
 (stem, type, parent, and description) with live validation; the parent list offers
@@ -4913,7 +4921,7 @@ note is selected, and publish when the scope is unpublished. Always-available ke
 in `?` and in this guide.
 
 Most keys named above are remappable under
-[`ace.keymaps.memory`](configuration.md#acekeymaps); see
+[`ace.keymaps.memory`](reference/config/ace-keymap-configuration.md#acekeymaps); see
 [Remapping Memory Panel Keys](#remapping-memory-panel-keys). Three sets are fixed and
 are not part of that scope: `Esc` and `q` (close), the `.` then `1`–`9` link-chip
 shortcuts, and the `↑`/`↓`/`Home`/`End`/`PageUp`/`PageDown` cursor keys the underlying
@@ -4979,7 +4987,7 @@ project, and back when a trail exists. Always-available keys live in `?` and in 
 guide.
 
 Most keys named above are remappable under
-[`ace.keymaps.snippets`](configuration.md#acekeymaps); see
+[`ace.keymaps.snippets`](reference/config/ace-keymap-configuration.md#acekeymaps); see
 [Remapping Snippets Panel Keys](#remapping-snippets-panel-keys). Three sets are fixed
 and are not part of that scope: `Esc` and `q` (close), the `1`–`9` relation-chip
 shortcuts, and the `↑`/`↓`/`Home`/`End`/`PageUp`/`PageDown` cursor keys the underlying
@@ -5066,8 +5074,8 @@ stays flagged in lowercase (`bugyi`). Hyphenated words cannot be added with `d` 
 that explicitly rather than pretending the add worked. A `K` press on a
 now-correctly-spelled remembered word clears its squiggle automatically. The remembered
 words are stored at `sase_home()/prompt_misspellings.json`; see
-[`ace.prompt_spellcheck`](configuration.md#aceprompt_spellcheck) to disable the
-highlight or change how many words are retained.
+[`ace.prompt_spellcheck`](reference/config/ace-prompts.md#acepromptspellcheck) to
+disable the highlight or change how many words are retained.
 
 sase's TUI also computes a non-disruptive live suggestion after a short debounce while
 the prompt input is in INSERT mode. The suggestion appears in the prompt bar subtitle as
@@ -5570,9 +5578,9 @@ ordinary unattributed proc renders a dim `—`; a historical detached proc carri
 Store reads happen on a worker thread and are revalidated by store mtime about once a
 second, so the tab never stats, reads, or locks the store from a render or keystroke
 path. Retention is governed by `procs.history_limit` (see
-[configuration](configuration.md#procs)): finished rows and their logs age out
-oldest-first, and running procs are never pruned. Because the store owns that retention,
-`d` / `D` do not dismiss rows; they only explain the retention policy.
+[configuration](reference/config/runtime-and-storage.md#procs)): finished rows and their
+logs age out oldest-first, and running procs are never pruned. Because the store owns
+that retention, `d` / `D` do not dismiss rows; they only explain the retention policy.
 
 The top-bar `bg:` group's blue chip counts this session's active background procs plus
 **every active unattributed proc globally**, including an approved epic that had to use
@@ -5718,11 +5726,12 @@ hand-offs. `sase proc run --session none` creates an unattributed command row.
 and widens to every session with `--all`. Rows from a session that has since exited
 render dim with a `†` marker.
 
-**Retention.** [`procs.history_limit`](configuration.md#procs) caps how many _finished_
-procs are kept; pending and running work is never pruned for being old. Lowering the
-limit removes the oldest finished rows and their log files. Finished procs tagged
-`command-line` (TUI Command Line submissions) keep a separate bucket of 50 beside this
-limit. The legacy `tasks.history_limit` key is still honored as a deprecated alias.
+**Retention.** [`procs.history_limit`](reference/config/runtime-and-storage.md#procs)
+caps how many _finished_ procs are kept; pending and running work is never pruned for
+being old. Lowering the limit removes the oldest finished rows and their log files.
+Finished procs tagged `command-line` (TUI Command Line submissions) keep a separate
+bucket of 50 beside this limit. The legacy `tasks.history_limit` key is still honored as
+a deprecated alias.
 
 The CLI equivalents are `sase proc list`, `sase proc show ID` (`--follow` to stream),
 `sase proc run [--session SESSION|none] -- COMMAND` (`--wait` to stream and inherit the
@@ -5964,8 +5973,8 @@ pane-wide agent-CLI action: it updates marked agent CLIs from anywhere in the pa
 with no marks it targets every safely updatable installed CLI. `i` installs
 `Space`/`I`-marked plugins and agent CLIs together — agent CLIs first, then plugins, in
 one tracked proc — or the highlighted row when nothing is marked. See the
-[Updates tab reference](configuration.md#updates-tab) for the full keymap and behavior,
-[Plugins](plugins.md) for the equivalent `sase plugin` CLI, and
+[Updates tab reference](reference/tui/admin-center.md#updates-tab) for the full keymap
+and behavior, [Plugins](plugins.md) for the equivalent `sase plugin` CLI, and
 [Agent providers](agent_providers.md#inventory-and-updates) for the equivalent
 `sase agent-cli` CLI.
 
@@ -6097,10 +6106,10 @@ by source and sorted alphabetically by trigger; snippet completions elsewhere ar
 in trigger order, too, for stable display. As soon as sase's TUI reports the snippet as
 created or saved, it is available to every prompt input already open in the current TUI;
 no prompt remount or restart is needed. When
-[`ace.snippet_config_path`](configuration.md#acesnippet_config_path) is configured, this
-panel's row list always offers it, pre-selected, as a synthetic destination row — even
-when it points outside the standard discovered locations — and shows why if it falls
-back to a discovered location instead (for example
+[`ace.snippet_config_path`](reference/config/ace-prompts.md#acesnippetconfigpath) is
+configured, this panel's row list always offers it, pre-selected, as a synthetic
+destination row — even when it points outside the standard discovered locations — and
+shows why if it falls back to a discovered location instead (for example
 `configured path unusable: read-only`).
 
 When `use_chezmoi` is enabled, the save panel writes the chezmoi source file first.

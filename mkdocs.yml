@@ -26,6 +26,7 @@ exclude_docs: |
 # BEGIN GENERATED: docs page moves not_in_nav
 not_in_nav: |
   ace.md
+  configuration.md
   content_layout.md
 # END GENERATED: docs page moves not_in_nav
 
@@ -71,6 +72,7 @@ nav:
       - TUI:
           - TUI hub: reference/tui/index.md
           - sase's TUI: ace.md
+          - SASE Admin Center: reference/tui/admin-center.md
           - Agents tab: reference/tui/agents-tab.md
           - Agents tab search and modes: reference/tui/agents-tab-modes.md
           - Agents tab panels: reference/tui/agents-tab-panels.md
@@ -171,6 +173,27 @@ nav:
               - Runtime and stored data: reference/config/runtime.md
               - Integrations and telemetry: reference/config/integrations.md
               - Schema description coverage: reference/config/needs-description.md
+              - Behavior pages:
+                  - Files and merging: reference/config/files-and-merging.md
+                  - Core behavior: reference/config/core-behavior.md
+                  - ACE behavior: reference/config/ace-behavior.md
+                  - ACE keymaps: reference/config/ace-keymap-configuration.md
+                  - ACE prompts: reference/config/ace-prompts.md
+                  - Artifacts: reference/config/artifacts.md
+                  - LLM provider behavior: reference/config/llm-provider-behavior.md
+                  - Finalizers: reference/config/finalizers.md
+                  - Monitor behavior: reference/config/monitor-behavior.md
+                  - Repositories: reference/config/repositories-behavior.md
+                  - Scheduler behavior: reference/config/scheduler-behavior.md
+                  - Prompts and tools: reference/config/prompts-and-tools.md
+                  - Agents and runners: reference/config/agents-and-runners.md
+                  - Runtime and storage: reference/config/runtime-and-storage.md
+                  - Display and reading: reference/config/display-and-reading.md
+                  - Integrations: reference/config/integrations-behavior.md
+                  - Automation: reference/config/automation-behavior.md
+                  - Feature flags: reference/config/feature-flags.md
+                  - Workspaces: reference/config/workspace-behavior.md
+              - Environment variables: reference/environment-variables.md
           - ProjectSpec: project_spec.md
       - Macros and workflows:
           - Macros: macros.md
@@ -218,6 +241,7 @@ nav:
       - Upgrading:
           - Upgrading: reference/upgrading/index.md
           - Content layout migration: reference/upgrading/content-layout.md
+          - Local state cutover: reference/upgrading/local-state.md
       - Glossary: reference/glossary.md
       - Design decisions: reference/design-decisions.md
   - Contribute:

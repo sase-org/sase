@@ -65,8 +65,8 @@ diagnosing a wait that looks longer than the queue explains:
 - **Default and better priorities are unaffected.** `priority=10` or lower claims on the
   first eligible poll, with no window and no marker churn.
 - **The window is bounded and priority-scaled**, `min((priority - 10) * 3, 60)` seconds
-  with the default [`runner_slots`](../configuration.md#runner_slots) settings — 30s at
-  `priority=20`, capped at 60s from `priority=30` up.
+  with the default [`runner_slots`](config/agents-and-runners.md#runnerslots) settings —
+  30s at `priority=20`, capped at 60s from `priority=30` up.
 - **It exits early and resets.** The waiter defers only while some live, unstarted agent
   that has not yet parked holds a better priority; on the first poll where no such agent
   remains it claims immediately. The window measures _continuous_ eligibility, so losing
@@ -170,7 +170,7 @@ To find and clear the hold, follow
 [Unstick a queued agent](../guides/unstick-queued-agent.md). A hold ends by itself when
 its armer ends or its TTL expires; `sase doctor -C agent_holds.stale` reports and prunes
 holds whose armer died or whose TTL passed. The **Holds** pane in sase's TUI
-[Config tab](../configuration.md#config-tab) shows the same holds.
+[Config tab](tui/admin-center.md#config-tab) shows the same holds.
 
 If a held agent and the agent that armed the hold are waiting on each other, SASE posts
 a `Hold deadlock` notification. The TTL still guarantees that the pair eventually moves;
