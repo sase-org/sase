@@ -2,11 +2,10 @@
 keyword: Agent Clan
 ---
 
-An agent clan is a named, rootless container for related agents. Membership does not
-guarantee parallel execution or create waits; `%wait` edges between members of one
-generation form derived [[glossary:clan-wave]]s. Every member is named inside the clan's
-hood (`<clan>.<suffix>`) and declares `%clan:<clan>`; the clan name is reserved and is
-never itself an agent.
+An agent clan is a named, rootless container for related agents whose members may run in
+parallel or in clan waves derived from their `%wait` edges ([[glossary:clan-wave]]).
+Every member is named inside the clan's hood (`<clan>.<suffix>`) and declares
+`%clan:<clan>`; the clan name is reserved and is never itself an agent.
 
 An agent clan node's status aggregates its member agent nodes, except that a clan with
 exactly one running member (`STARTING` included) shows exactly that node's status — its
