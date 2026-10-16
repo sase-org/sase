@@ -116,9 +116,9 @@ color, macro/directive chips, and a first-line prompt preview. The preview panel
 the full prompt, with `+<project>` tags in their project accent colors, and timestamp
 metadata. History writes use a sidecar lock plus atomic tempfile replacement of monthly
 shard files under `~/.sase/prompt_history/`, so concurrent agent launches do not
-truncate prompt history. A legacy `~/.sase/prompt_history.json` store is migrated into
-shards before normal reads and writes when the shard directory has not already been
-created.
+truncate prompt history. See
+[TUI migration notes](../upgrading/tui.md#prompt-history-store) for the older
+single-file store.
 
 ## Related
 
@@ -126,3 +126,4 @@ created.
 - [Prompt input](prompt-input.md) — insert mode, alt-brace, search, and macro editing.
 - [Prompt stacks](prompt-stacks.md) — multi-agent panes, stash, and trash.
 - [Find and replay a prompt](../../guides/find-and-replay-prompt.md) — History workflow.
+- [TUI migration notes](../upgrading/tui.md) — prompt-history store.

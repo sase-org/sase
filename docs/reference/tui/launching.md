@@ -17,9 +17,9 @@ sase tui [QUERY] [options]
 Run `sase tui` from an interactive terminal. It opens on the Agents tab and starts the
 service host (pass `-x` to skip that). Press `?` on any tab for the keymap and a short
 guide, `:` for the [Command Line](global-controls.md#command-line), `;` for the
-[Command Palette](global-controls.md#command-palette), and `q` to quit. The command was previously
-`sase ace`, which no longer exists; the TUI's settings still live under the `ace:`
-section of `sase.yml` (for example `ace.keymaps` and `ace.page_size`).
+[Command Palette](global-controls.md#command-palette), and `q` to quit. Settings live
+under the `ace:` section of `sase.yml` (for example `ace.keymaps` and `ace.page_size`).
+See [TUI migration notes](../upgrading/tui.md#command-name-sase-tui).
 
 If no Patches query is provided, sase's TUI loads the last used Patches query, then the
 first saved Patches query, then falls back to `!!!` for error suffixes. The top-level
@@ -27,19 +27,10 @@ Agents tab restores its own last submitted Agents query after startup.
 
 ### CLI Options
 
-| Option                                     | Description                                                                                                                                                  |
-| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `QUERY` (positional)                       | Query string for filtering Patches                                                                                                                           |
-| `-m`, `--model-tier`                       | Override model tier for all LLM providers (`large` or `small`)                                                                                               |
-| `-M`, `--model-size`                       | Deprecated alias for `--model-tier` (`big` or `little`)                                                                                                      |
-| `-p`, `--profile [PATH]`                   | Profile the TUI session with pyinstrument; optional output path                                                                                              |
-| `-r`, `--refresh-interval`                 | Auto-refresh interval in seconds (default: 10, 0 to disable)                                                                                                 |
-| `-s`, `--sanity-refresh-interval`          | Full sanity-refresh interval in seconds (default: 300); see [Auto-Refresh](global-controls.md#auto-refresh)                                                                    |
-| `-x`, `--no-service`, `--no-axe`           | Disable auto-starting the service host on startup                                                                                                            |
-| `-v`, `--vcs-provider`                     | Override VCS provider (`git`, `hg`, or `auto`)                                                                                                               |
-| `-R`, `--restart-service`, `--restart-axe` | Restart an already-running service host on startup (no-op if it is not running)                                                                              |
-| `-t`, `--tab`                              | Tab to focus on startup (`agents` by default, `artifacts`, or `services`; `axe` is a compatibility alias, and `changespecs` and `patches` alias `artifacts`) |
-| `-T`, `--tmux`                             | Launch sase's TUI in a new tmux window and print the target for external control                                                                             |
+Flags, defaults, and aliases are listed on the generated [`sase tui`](../cli/tui.md)
+page. See [TUI migration notes](../upgrading/tui.md#model-size-and-tab-aliases) for
+`--model-size` and `--tab` aliases. Auto-refresh intervals are described under
+[Auto-Refresh](global-controls.md#auto-refresh).
 
 When profiling is enabled, sase's TUI writes text output to `PATH`. If `PATH` is
 omitted, it uses the managed temp tree:
@@ -63,7 +54,8 @@ TUI exits and tries to copy that shortened path to the system clipboard (`pbcopy
 
 ### Agent Screenshots
 
-Use `sase screenshot` when you need a PNG of the real TUI state an agent would see. The
+Use `sase screenshot` when you need a PNG of the real TUI state an agent would see.
+Flags are listed on the generated [`sase screenshot`](../cli/screenshot.md) page. The
 command starts `sase tui` in the detached `sase_ace_agents` tmux session at `120x40`,
 waits for the screen to paint, sends optional tmux keys, asks the live app to export
 SVG, then rasterizes that SVG with the same bundled-font renderer used by the golden PNG
@@ -114,17 +106,15 @@ verifiable subprocess result. OSC 52 payloads above the terminal-safe size limit
 skipped. If neither transport works, sase's TUI opens the generated text in a read-only
 fallback view so it can still be selected and recovered.
 
+<a id="sase-screenshot"></a>
+Moved to [sase screenshot](../cli/screenshot.md#sase-screenshot).
+<a id="cli-options-1"></a>
+Moved to [sase screenshot](../cli/screenshot.md#sase-screenshot).
+
 ## Related
 
 - [TUI hub](index.md) — all TUI reference pages.
 - [Global controls](global-controls.md) — command palette, command line, auto-refresh.
 - [TUI keymaps](keymaps.md) — generated keymap defaults.
-
-## `sase screenshot`
-
-Capture a PNG from a real `sase tui` running in tmux. The command launches in the
-detached `sase_ace_agents` session unless `--window` names an existing tmux target. See
-[Agent screenshots](#agent-screenshots).
-
-<a id="cli-options-1"></a>
-Moved to [sase screenshot](launching.md#sase-screenshot).
+- [`sase tui`](../cli/tui.md) — generated TUI command flags.
+- [TUI migration notes](../upgrading/tui.md) — command name and aliases.

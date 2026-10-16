@@ -10,6 +10,8 @@ and the newest notes first.
 
 ## Areas
 
+- [TUI migration notes](tui.md) — command name, aliases, query tokens, and stored
+  layouts.
 - [Configuration migration notes](configuration.md) — key and data-shape migrations.
 - [Work unit migration notes](work-units.md) — ProjectSpec extensions, plan metadata,
   Patch headers, and bead-note recovery.

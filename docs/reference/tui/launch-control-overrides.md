@@ -24,7 +24,7 @@ labeled `backup`. Alias rows remain visible and show their current live fallback
 Free-form explicit input is validated before submission and reports the same
 disabled-provider diagnostic as a launch. In `Edit`, `Custom...` additionally accepts a
 typed `|` pool or `||` fallback expression and opens prefilled with the alias's current
-value, so changing one member of an existing selector no longer means retyping the whole
+value, so changing one member of an existing selector does not mean retyping the whole
 expression; `Edit` also offers a guided `Pool / fallback...` row next to `Custom...`
 that builds a selector from the picker without typing `|` by hand (see
 [Persistent edits](#persistent-edits) below). In `Override`, a typed pool or fallback is

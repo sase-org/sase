@@ -115,21 +115,10 @@ Boolean operators: juxtaposition is implicit `AND`; explicit `AND`, `OR`, and `N
 case-insensitive; prefix a quoted string with `c` for case-sensitive matching, as in
 `c"FAILED"`.
 
-Legacy token migration:
-
-| Legacy (`agent_query`)                                                                                                            | Unified (`agents-live`)                    |
-| --------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
-| `type:workflow` / `type:run` / `type:running`                                                                                     | `kind:workflow` / `kind:agent`             |
-| `age>2h`, `age>=2h`                                                                                                               | `until:2h` (started at or before 2h ago)   |
-| `age<5m`, `age:5m`                                                                                                                | `since:5m` (started at or after 5m ago)    |
-| `status:foo` (substring)                                                                                                          | `status:FOO` (enum, completion-assisted)   |
-| `project:foo` (substring)                                                                                                         | `project:foo` (exact; completion-assisted) |
-| `tribe:` (bare, "any tribe")                                                                                                      | no direct equivalent; OR explicit tribes   |
-| everything else (`cl:`, `machine:`, `pinned:`, `needs:input`, `source:axe`, `text:`, booleans, `AND`/`OR`/`NOT`, parens, quoting) | unchanged spelling                         |
-
 Parse failures are non-fatal: the filter bar renders the error inline and keeps the last
-good result. When the bad token is a known legacy spelling such as `age>2h` or
-`type:run`, the error appends the unified replacement hint.
+good result. When the bad token is a known older spelling such as `age>2h` or
+`type:run`, the error appends the unified replacement hint. See
+[TUI migration notes](../upgrading/tui.md#agent-query-tokens).
 
 A committed query also decides how much agent history is loaded. When the persistent
 artifact index can answer every term exactly — `cl:`, `model:`, `provider:`, `project:`,
@@ -281,3 +270,4 @@ which case the target wins.
 
 - [TUI hub](index.md) — all Agents tab reference pages.
 - [Agents tab](agents-tab.md) — tabs, keys, lists, and actions.
+- [TUI migration notes](../upgrading/tui.md) — older agent query tokens.

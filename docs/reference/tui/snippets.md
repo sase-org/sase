@@ -18,7 +18,7 @@ Markdown macros with leading YAML frontmatter render the frontmatter and body wi
 respective syntax styles.
 
 Macros are grouped by source (project `sase/macros/`, home `~/sase/macros/`,
-project-specific home, config `sase.yml`, plugins, built-in, plus labeled legacy
+project-specific home, config `sase.yml`, plugins, built-in, plus labeled
 compatibility sources). Workflow macros (multi-step YAML) are marked with a gear icon;
 standalone workflows are displayed with the `#!name` insertion syntax. Project-local
 macros defined in each project's `sase.yml` file are also included, even though the
@@ -73,8 +73,10 @@ a scoped chezmoi apply, or `sase memory init` / `sase skill init`).
 Press `Ctrl+O` to start the guided creation flow:
 
 1. **Location modal** — Choose where to save the new macro (project `sase/macros/`, home
-   `~/sase/macros/`, project `sase/sase.yml`, or a global config file). Legacy sources
-   remain browseable but are never new-write destinations. Press `Ctrl+G` to open the
+   `~/sase/macros/`, project `sase/sase.yml`, or a global config file). Compatibility
+   sources remain browseable but are never new-write destinations. See
+   [TUI migration notes](../upgrading/tui.md#prompt-stack-restore-and-macro-sources).
+   Press `Ctrl+G` to open the
    selected config file in `$EDITOR` instead of proceeding with creation.
 2. **Filename modal** — Enter a filename (`.md` for prompt parts, `.yml` for workflows).
    Workflow files are pre-filled with a YAML template containing the workflow scaffold.
@@ -386,3 +388,4 @@ access to macro references rather than expanding static templates.
 - [Prompt input](prompt-input.md) — insert mode, alt-brace, search, and macro editing.
 - [Prompt completion panels](prompt-completion-panels.md) — glossary, memory, snippets, repos, and spellcheck.
 - [Macros](../macros/index.md) — reusable prompts and directives.
+- [TUI migration notes](../upgrading/tui.md) — compatibility macro sources.

@@ -41,7 +41,7 @@ For retry chains and planner-to-coder follow-up sessions, the panel aggregates
 `tool_calls.jsonl` from related artifact directories so the selected logical agent shows
 one ordered tool timeline. Discovery uses the persistent artifact index when it is
 available; if the index is missing or stale, sase's TUI falls back to direct lineage
-pointers plus a bounded scan of nearby legacy sibling artifacts.
+pointers plus a bounded scan of nearby sibling artifacts.
 
 Records are produced by writers that share one normalized on-disk format. Claude uses
 the SASE tool-call hook collector as the preferred source and keeps its stream-derived

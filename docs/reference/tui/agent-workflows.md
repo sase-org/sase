@@ -16,7 +16,7 @@ Prompts with no `%id` directive, or with a bare `%id`, use the plain auto-name t
 names such as `0`, then `1`.
 
 An explicit `%id` value containing exactly one marker is an agent-name template. The
-legacy marker is bare `@`, so the first allocation for `%id:@.cld` becomes `0.cld`,
+`@` marker is bare, so the first allocation for `%id:@.cld` becomes `0.cld`,
 `%id:build-@` becomes `build-0`, and `%id:research.@.final` becomes `research.0.final`.
 Keyed markers such as `%id:research.{@1}.final` are preferred for macro swarms: SASE
 resolves every matching key in `%id`, `%clan`, `clan=`, waits, fork/resume references,
@@ -53,9 +53,8 @@ their stored names.
 
 The durable registry lives at `~/.sase/agent_name_registry.json` and is rebuilt from
 visible artifacts plus dismissed bundles when missing or stale. Use
-`sase agent names migrate-auto` to run the historical auto-name migration that moves
-older generated names into the permanent namespace; pass `--force` to rerun after the
-migration marker is present or `--json` for machine-readable output.
+`sase agent names migrate-auto` to move older generated names into the permanent
+namespace; see [TUI migration notes](../upgrading/tui.md#auto-name-migration).
 
 ### Per-Step Naming for Multi-Agent Workflows
 
@@ -77,8 +76,8 @@ row displays that bare container name, while expanded concrete member rows keep 
 exact suffixed names (`a--0`, `a--plan`, `a--code`, and so on). New plan-session
 metadata stores double-dash `role_suffix` values (`--plan`, `--2`, `--code`, ...).
 sase's TUI still canonicalizes older dotted suffixes (`.plan`, `.2`, `.code`, etc.) and
-legacy single-dash suffixes (`-plan`, `-2`, `-code`, etc.) when reading legacy
-artifacts.
+single-dash suffixes (`-plan`, `-2`, `-code`, etc.) when reading older artifacts. See
+[TUI migration notes](../upgrading/tui.md#session-member-suffixes).
 
 ## Plan Workflows
 
@@ -118,7 +117,7 @@ harmless if no TUI is open.
 
 Root plan workflows also surface their tier-aware pending status when a re-proposed plan
 is still awaiting review. Plan and feedback timestamps from feedback-round children
-(`--2`, `--3`, ...; legacy `-2`, `.2`, etc.) propagate onto the root entry, and whenever
+(`--2`, `--3`, ...; also `-2`, `.2`, etc.) propagate onto the root entry, and whenever
 the root's latest plan timestamp is newer than its latest feedback timestamp the
 override engine restores `TALE`, `EPIC`, or fallback `PLAN` over a `RUNNING` or `DONE`
 label. This applies only to root plan workflows that have not yet spawned a terminal
@@ -128,8 +127,7 @@ moves on to `PLAN APPROVED` (or the matching follow-up status) instead.
 The Plan Review modal title shows a provider-themed `PROVIDER(model)` badge between the
 "Plan Review" label and the plan filename — orange for Claude, lime for Codex,
 Antigravity indigo (`#6E5DE7`) for agy, neutral muted for other providers. The badge is
-omitted when provider/model metadata is absent, leaving the legacy title shape
-unchanged.
+omitted when provider/model metadata is absent.
 
 Whole-document Markdown previews in plan, launch, and custom-gate review modals
 highlight leading YAML frontmatter as YAML and the remaining body as Markdown.
@@ -242,7 +240,7 @@ approval outcome directly: Approve, Tale, or Epic. These choices map to the same
 response protocol used by external approval transports: Approve runs the coder without
 asking the runner to commit an SDD plan, while Tale and Epic commit the plan under the
 matching tier in the resolved SDD plans root's `<YYYYMM>/` directory. The root may be
-in-tree, a legacy `.sase/sdd/` clone, or the split `--plans` sidecar;
+in-tree, a `.sase/sdd/` clone, or the split `--plans` sidecar;
 `sase repo path plans` prints it.
 
 | Key          | Action                        |
@@ -282,12 +280,12 @@ launches bead work directly, so those controls are hidden for Epic:
   to select, `Esc` to clear the filter or cancel, and `'` for jump hints over the
   visible selectable rows. The displayed default resolves to the model the handoff will
   actually use: for Approve and Tale, the validated tale size selects the corresponding
-  `@<size>` alias directly, with legacy sizeless tales using `@medium`. Selecting a
+  `@<size>` alias directly, with sizeless tales using `@medium`. Selecting a
   specific model and then re-opening the picker and choosing "Follow-up default" resets
   the follow-up back to that role default (distinct from pressing `Esc`, which keeps the
   current selection).
 
-The custom approval dialog no longer exposes separate commit/run switches because the
+The custom approval dialog does not expose separate commit/run switches because the
 selected outcome determines the commit location and follow-up behavior. Additional
 session members are launched explicitly with `%i(suffix, session=parent)`; they are not
 selected at the plan gate.
@@ -301,7 +299,8 @@ approval modal, which renders the request's human-readable preview
 (`launch_preview.md`). Clan slots identify their rootless clan alongside the model,
 kind, and planned member name. Press `a` to approve, `r` to reject, and `q` or `Esc` to
 cancel. sase's TUI resolves the same hash-verified command bundle used by mobile and
-remote callbacks, while retaining legacy launch-request fallback. The CLI equivalents
+remote callbacks, while retaining the older launch-request fallback (see
+[TUI migration notes](../upgrading/tui.md#hitl-and-launch-request-fallbacks)). The CLI equivalents
 are `sase launch approve <selector>` and `sase launch reject <selector>`. From inside an
 agent, `sase launch request` creates a `LAUNCH` gate turn and ends the requesting turn;
 the process does not wait for the response. By default, approval, rejection, timeout, or
@@ -318,7 +317,7 @@ that needs the terminal gate result can then run
 
 An agent hold is a durable reverse wait: while it is active, matching `WAITING` or
 `QUEUED` agents, later launches, and undispatched procs are kept from starting. Holds
-are armed with [`sase agent hold`](../agents/agent-holds.md#sase-agent-hold) or the
+are armed with [`sase agent hold`](../cli/agent.md#sase-agent-hold) or the
 [`%hold` directive](../macros/directive-launch.md#hold-directive). sase's TUI shows holds in three places:
 
 - **Agents tab rows.** A `QUEUED` row parked by a hold appends `held by <armer>` after
@@ -389,26 +388,15 @@ Press `D` to collapse the view to the current attempt only; press `D` again to
 re-expand. The binding only appears in the keybinding footer when the selected agent has
 one or more prior attempts.
 
+<a id="sase-repro"></a>
+Moved to [sase repro](../cli/repro.md#sase-repro).
+<a id="cli-options-17"></a>
+Moved to [sase repro](../cli/repro.md#sase-repro).
+<a id="command-behavior-11"></a>
+Moved to [Agents Tab Reproduction Bundles](agents-tab.md#agents-tab-reproduction-bundles).
+
 ## Related
 
 - [TUI hub](index.md) — all Agents tab reference pages.
 - [Agent statuses](agent-statuses.md) — agent, wait, and completion statuses.
-
-## `sase repro`
-
-`sase repro` captures and replays debugging bundles for narrow, reproducible TUI bug
-classes. The current target is the Agents-tab loader/apply sequence used to diagnose row
-disappearance, reappearance, and duplicate workflow parents; see
-[Agents Tab Reproduction Bundles](agents-tab.md#agents-tab-reproduction-bundles).
-All of its options are long-only.
-
-<a id="cli-options-17"></a>
-Moved to [sase repro](agent-workflows.md#sase-repro).
-
-<a id="command-behavior-11"></a>
-Moved to [Agent workflows](agent-workflows.md#command-behavior-11).
-
-## Command behavior {#command-behavior-11}
-Use the in-TUI `,B` capture when a transient row-list bug has just happened in a live
-sase's TUI session. The CLI capture path is out-of-band: it loads current filesystem
-state and cannot reconstruct refreshes that already passed through the running TUI.
+- [TUI migration notes](../upgrading/tui.md) — suffixes, auto-names, and launch fallbacks.

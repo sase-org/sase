@@ -6,7 +6,8 @@ description: Tabs, keys, lists, and actions on the sase TUI Agents tab.
 # Agents tab
 
 This page lists the Agents tab keybindings: tabs, navigation, actions, forking, refresh,
-the wait modal, artifacts, and reproduction bundles.
+the wait modal, artifacts, and reproduction bundles. Default configurable actions are
+listed in the generated [TUI keymaps reference](keymaps.md).
 
 ## Agent Tabs
 
@@ -104,8 +105,8 @@ row owns no sase agent, so it has no `NEIGHBORS` rows to follow the roster. Docu
 with at most ten numbered rows use `0`–`9`; larger documents number the first 100 rows
 with two-key values `00`–`99` and show any remaining entries as an unnumbered count.
 Every live numbered target lives in the sticky jump panel below the deck panels, so the
-digit answers stay on screen while the deck body scrolls. The deck body no longer
-contains these roster sections. After the first digit of a two-key jump, the panel
+digit answers stay on screen while the deck body scrolls. The deck body does not
+contain these roster sections. After the first digit of a two-key jump, the panel
 narrows to the matching candidates; press `Esc` to cancel or any non-digit key to cancel
 and continue with that key's normal action. A successful jump expands only the target's
 ancestor chain, switches tribe panels when needed, and participates in the normal
@@ -209,9 +210,10 @@ on the primary), `j`/`k` or `Up`/`Down` move, `Esc`/`q` cancel, mouse click sele
 other printable keys are swallowed. A choice whose target disappeared while the chooser
 was open toasts `That action is no longer available` instead of acting.
 
-The retired `,n` leader chord is replaced by `Enter`. The direct Patch jump survives as
-the `jump_to_agent_patch` command, unbound by default; see
-[`ace.keymaps`](../config/ace-keymap-configuration.md#acekeymaps).
+`Enter` opens the action chooser. The direct Patch jump survives as the
+`jump_to_agent_patch` command, unbound by default; see
+[`ace.keymaps`](../config/ace-keymap-configuration.md#acekeymaps) and
+[TUI migration notes](../upgrading/tui.md#keymap-moves).
 
 ## Forking Agents and Groups
 
@@ -452,7 +454,7 @@ With marks, the palette copies rows in visible order: references and paths are
 newline-separated, links form a Markdown list, metadata is a JSON array, and Markdown
 contents use bounded fenced sections. Unavailable rows are skipped with an explicit
 count. These modal-local `l`/`J` accelerators are distinct from the Artifacts Files
-pane's compatibility-preserving `%L`/`%j` keys. The legacy `y` and `Y` accelerators
+pane's compatibility-preserving `%L`/`%j` keys. The `y` and `Y` accelerators
 remain available and apply to the same marked set.
 
 `Y` shares one helper with the [Files pane](files-and-preview.md#files-pane), so both copy the same anchored
@@ -544,3 +546,5 @@ not write a new bundle every refresh while the same violation remains active.
 - [TUI hub](index.md) — all Agents tab reference pages.
 - [Agents tab search and modes](agents-tab-modes.md) — search and key modes.
 - [Agents tab panels](agents-tab-panels.md) — clan, session, and tribe panels.
+- [TUI keymaps](keymaps.md) — generated keymap defaults.
+- [TUI migration notes](../upgrading/tui.md) — keymap moves.

@@ -100,9 +100,10 @@ without also recording the draft as cancelled history. If the active pane is emp
 in their current order as one bundled stash row and dismisses the bar. `gS` opens an
 update flow for an existing pinned stash and overwrites the chosen row with the current
 non-empty panes. Manual and restart stashes remember the active pane and its cursor, and
-restore focuses that pane in INSERT mode at the same logical line and column. Legacy
+restore focuses that pane in INSERT mode at the same logical line and column. Older
 rows and failed-launch recovery rows have no saved position, so they still restore to
-the last pane at end of text. `gX` and `Ctrl+G X` open one save screen containing the
+the last pane at end of text. See
+[TUI migration notes](../upgrading/tui.md#prompt-stack-restore-and-macro-sources). `gX` and `Ctrl+G X` open one save screen containing the
 name, storage location, resolved path, and a live preview when the name collides. Inside
 that screen, `Ctrl+X` switches between macro and snippet mode. `Ctrl+T` remains manual
 completion in the prompt input and does not toggle this save screen. A successful

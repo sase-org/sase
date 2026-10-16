@@ -228,3 +228,4 @@ three fields.
 - [TUI hub](index.md) — all TUI reference pages.
 - [SASE Admin Center](admin-center.md) — Config, Logs, Machines, Procs.
 - [Machines, statistics, and tools](machines-and-tools.md) — Machines, Statistics, Tools.
+- [TUI keymaps](keymaps.md) — generated keymap defaults.

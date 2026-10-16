@@ -153,7 +153,7 @@ the preferred card.
   `GATE TURN`, `MONITOR TURN`, `NAMED PROC`, or, for a selected whole tribe panel,
   `TRIBE` — and the border subtitle shows what `d` will do (`▾ d more` / `▴ d less`,
   naming the configured `toggle_agent_header` key). The panel is hidden only for "No
-  agent selected". `AGENT MACRO` no longer renders in the scrolling body and is not a
+  agent selected". `AGENT MACRO` does not render in the scrolling body and is not a
   `Ctrl+J`/`Ctrl+K` stop; `,/` still finds the user's words through `AGENT PROMPT`. A
   clan's collapsed rows mirror the tribe layout: name, status, and count chip on row 1;
   tribes, member totals, runtime, and the fold chip on row 2. Collapsed/expanded state
@@ -238,10 +238,10 @@ the preferred card.
   `SKILLS`, then `WORKSPACES`, with absent lanes omitted once they resolve and
   still-resolving lanes holding their slot with a dim `resolving…` row.
 - **SASE CONTEXT / GLOSSARY**: Shown directly after `MEMORY` whenever the selected agent
-  or session has at least one audited event under the retired, pre-web
-  `sase glossary read` command's legacy log. Current
-  `sase memory read glossary:<keyword>` reads are not legacy events, so they surface in
-  the `MEMORY` lane like any other memory read; this lane is purely historical (see
+  or session has at least one audited event under the retired `sase glossary read`
+  command. Current `sase memory read glossary:<keyword>` reads surface in the `MEMORY`
+  lane like any other memory read; this lane is the older glossary log (see
+  [TUI migration notes](../upgrading/tui.md#glossary-lane-and-sasesaseyml) and
   [Memory Webs](../memory/memory.md#memory-webs)). That lane's hints open the requested memory
   files (see [Audited Reads](../memory/memory.md#audited-reads)). The lane header counts reads and
   distinct requested terms, adding the agent count for a multi-agent session. Each row
@@ -250,8 +250,7 @@ the preferred card.
   recorded reason on its own indented line. A numbered hint pages a generated report of
   that read's output — the reproduced command line, recorded metadata, and the resolved
   term closure. `@` opens the report and `%` copies its path; the report names the
-  recorded `sase/sase.yml` source, since that legacy format predates the strand
-  migration. Loading, attribution, and the mtime/size snapshot cache mirror `MEMORY`'s
+  recorded source path. Loading, attribution, and the mtime/size snapshot cache mirror `MEMORY`'s
   reference implementation; the lane is skipped rather than rendered empty when there
   are no reads to show.
 - **SASE CONTEXT / ARTIFACTS**: The plan-adjacent lane groups `Beads`, `Reads`,
@@ -393,12 +392,14 @@ the preferred card.
   gate-turn member renders as a lifecycle-colored `⋔ GATE` divider with its decision,
   kind, state, deadline, reason, request identity, branch policy, follow-up disposition,
   and captured command output. Its phase remains in the consolidated session reply after
-  settlement, including terminal branches that intentionally launch no successor. Legacy
-  dotted and single-dash suffixes render the same way.
+  settlement, including terminal branches that intentionally launch no successor. Older
+  dotted and single-dash suffixes render the same way (see
+  [TUI migration notes](../upgrading/tui.md#session-member-suffixes)).
 - **WORKFLOW VARIABLES**: macro workflow output variables from step outputs with
   additional `meta_*` keys are grouped under a dedicated header. The special routing
   keys `meta_project`, `meta_patch`, and `meta_workspace` are promoted into the normal
-  header fields; `meta_changespec` remains accepted as a legacy alias for `meta_patch`.
+  header fields; `meta_changespec` remains accepted as an alias for `meta_patch` (see
+  [TUI migration notes](../upgrading/tui.md#config-and-keymap-aliases)).
   Other metadata keys are title-cased and shown in this section.
 - **PROMPT**: For agents launched from a multi-agent (`---`-separated) prompt, the
   final, planner, and question transcripts include a `PROMPT:` row linking the saved

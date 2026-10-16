@@ -380,7 +380,7 @@ distinct from the bold blue glossary underline and the bold lavender repo-name
 underline, which mark a definable project term or repo rather than a spelling issue. The
 correction panel offers two ways to stop fighting a word, at two different scopes. Press
 `a` to accept a word for SASE only: it is recorded in `prompt_misspellings.json`, `K` on
-it no longer opens the panel, but `aspell` itself -- and every other consumer of it on
+it does not open the panel, but `aspell` itself -- and every other consumer of it on
 the machine -- still rejects the word. Press `d` to add the word to your `aspell`
 personal dictionary instead (usually `~/.aspell.en.pws`, though `aspell` configuration
 can relocate it), so it stops being flagged everywhere on the machine, not just in

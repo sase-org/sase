@@ -279,6 +279,7 @@
 - [Local state cutover](https://sase.sh/reference/upgrading/local-state/) — The temporary offline kit for moving legacy local state into canonical locations.
 - [Macro migration notes](https://sase.sh/reference/upgrading/macros/) — Migration notes for macro names, prompt fields, and launch syntax.
 - [Provider migration notes](https://sase.sh/reference/upgrading/providers/) — Historical compatibility notes for VCS commands, provider metadata, and model selection.
+- [TUI migration notes](https://sase.sh/reference/upgrading/tui/) — Upgrade notes for sase tui command names, aliases, query tokens, and stored layouts.
 - [Work unit migration notes](https://sase.sh/reference/upgrading/work-units/) — Compatibility notes for bead, plan, Patch, and ProjectSpec formats.
 - [Workspace upgrades](https://sase.sh/reference/upgrading/workspaces/) — Upgrade notes for the managed workspace root and adjacent checkouts.
 - [Commit workflows](https://sase.sh/reference/vcs/commit-workflows/) — Look up commit, proposal, and pull request workflow behavior.

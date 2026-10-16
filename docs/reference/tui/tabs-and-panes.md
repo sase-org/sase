@@ -18,7 +18,7 @@ expansion, tabstops, list indent) and never switch tabs.
 | Tab           | Description                                                                                                                                                                                                                                                                                                                                                                              |
 | ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Agents**    | View running and completed agents, their files and prompts                                                                                                                                                                                                                                                                                                                               |
-| **Artifacts** | Browse Commits, Patches, Beads, configured document providers, and Files. Agent history lives in the Agents tab Archive (`,a`); the Artifacts ▸ Agent sub-tab is retired (restore it with `sase flag disable artifacts_agent_pane_retired`). See the [Artifacts pane contract](../../contribute/artifacts-pane-contract.md) and [visual grammar](../../contribute/artifacts-pane-visual-grammar.md). |
+| **Artifacts** | Browse Commits, Patches, Beads, configured document providers, and Files. Agent history lives in the Agents tab Archive (`,a`); the Artifacts ▸ Agent sub-tab is off by default (`sase flag disable artifacts_agent_pane_retired` restores it). See [TUI migration notes](../upgrading/tui.md#artifacts-agent-pane), the [Artifacts pane contract](../../contribute/artifacts-pane-contract.md), and [visual grammar](../../contribute/artifacts-pane-visual-grammar.md). |
 | **Services**  | Monitor the service host, configured service procs, scheduler work, and background commands                                                                                                                                                                                                                                                                                              |
 
 Agents is the first tab and the startup default. Each tab has contextual help: press `?`
@@ -113,8 +113,8 @@ for the full rendering rules.
 
 ### Navigation in Agent, Commits, Beads, Provider Documents, and Files
 
-The Agent pane is retired by default (`artifacts_agent_pane_retired`) and shows only
-with the opt-out. The non-Patches panes share fast navigation over their selectable
+The Agent pane is off by default (`artifacts_agent_pane_retired`) and shows only
+with the opt-out. See [TUI migration notes](../upgrading/tui.md#artifacts-agent-pane). The non-Patches panes share fast navigation over their selectable
 left-panel entries. Commits and Files skip day headings; Agent, Beads, and provider
 document panes skip group, section, and empty-state rows as applicable. Movement clamps
 at the first or last entry and silently does nothing when a list is empty.

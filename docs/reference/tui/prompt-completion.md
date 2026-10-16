@@ -317,8 +317,9 @@ token under the cursor:
   second `Ctrl+T` accepts the highlighted row. `Ctrl+D` deletes the highlighted word
   instantly, without rebuilding the index, and records it in
   `~/.sase/prompt_word_deletions.json`, so future history derivations continue to filter
-  it out; remove that file to reset all history-word deletions. The former
-  `history_word_min_length` configuration key has been replaced by `word_min_length`.
+  it out; remove that file to reset all history-word deletions. See
+  [TUI migration notes](../upgrading/tui.md#keymap-moves) for the older
+  `history_word_min_length` key.
 
   By default (`ace.prompt_completion.word_ranking: smart`) rows are ranked by a weighted
   composite of three signals rather than plain recency: how strongly a word relates to

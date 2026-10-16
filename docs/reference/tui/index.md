@@ -62,4 +62,5 @@ for navigating, managing, and operating on Patches, agents, and machine services
 
 - [TUI keymaps](keymaps.md) — generated keymap defaults.
 - [TUI rendering](../../contribute/tui-rendering.md) — tab bar and previews.
+- [TUI migration notes](../upgrading/tui.md) — command name, aliases, and stored layouts.
 - [Reference](../index.md) — lookup pages.

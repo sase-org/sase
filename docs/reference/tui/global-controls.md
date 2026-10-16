@@ -240,9 +240,9 @@ ace:
 Agents deck search is independent: remap
 `ace.keymaps.modes.leader_mode.keys.search_forward` to change the subkey after the
 configured leader prefix. Structured query editing on every query-capable surface,
-including Agents, is `ace.keymaps.app.edit_query`. Stale `app.search_forward` and
-`leader_mode.keys.edit_query` overrides are ignored with a warning pointing at those
-replacements.
+including Agents, is `ace.keymaps.app.edit_query`. Stale `app.search_forward` and `leader_mode.keys.edit_query` overrides are ignored
+with a warning pointing at those replacements. See
+[TUI migration notes](../upgrading/tui.md#config-and-keymap-aliases).
 
 ### Remapping Statistics Pane Keys
 
@@ -321,8 +321,8 @@ panel keys, and repeats the defaults for `toggle_option` and `submit_primary`.
 declared fields, including an optional note that would otherwise skip the panel.
 `next_input` and `previous_input` (defaults `tab` and `shift+tab`) walk the panel's
 fields and buttons; they are inactive on the gate modal itself. Confirming the panel
-submits the branch; cancelling it returns to the gate without answering. The retired
-`activate_control` setting is accepted as a deprecated alias for `submit_primary`.
+submits the branch; cancelling it returns to the gate without answering. The `activate_control` setting is accepted as an alias for `submit_primary`. See
+[TUI migration notes](../upgrading/tui.md#config-and-keymap-aliases).
 
 ### Remapping Memory Panel Keys
 
@@ -354,13 +354,11 @@ config that assigns it to a Memory action is warned and reverted to that action'
 default. `>` (`greater_than_sign`) remains a valid configurable key and is the default
 for `toggle_body_filter`.
 
-The retired Glossary panel's bindings folded into these Memory panel actions:
 `add_note`/`delete_note` branch on the selected row (a web row adds a strand, a strand
 row deletes one), and `next_link`/`prev_link`/`follow_link` follow a glossary strand's
-mention-relation chips the same way they follow a note's `PARENT`/`CHILDREN` chips.
-`ace.keymaps.glossary` is still accepted in config for one release, but it is inert: no
-defaults ship for it and it builds no bindings. `sase doctor` warns when a loaded config
-layer sets it explicitly and points at `ace.keymaps.memory` instead.
+mention-relation chips the same way they follow a note's `PARENT`/`CHILDREN` chips. See
+[TUI migration notes](../upgrading/tui.md#keymap-moves) for the older
+`ace.keymaps.glossary` key.
 
 ### Remapping Snippets Panel Keys
 
@@ -470,3 +468,4 @@ catalog, benchmark harness, and per-phase performance targets.
 - [TUI hub](index.md) — all TUI reference pages.
 - [Launching](launching.md) — start the TUI and CLI options.
 - [TUI keymaps](keymaps.md) — generated keymap defaults.
+- [TUI migration notes](../upgrading/tui.md) — keymap aliases and Memory-panel keys.

@@ -77,7 +77,7 @@ capabilities; use `revivable:true` when the goal is to find rows sase's TUI can 
 
 `revivable:true` now means all of "dismissed", "backed by a readable top-level bundle",
 and `durably_revivable`, so the saved query the `w` action seeds
-(`state:dismissed AND revivable:true`) no longer lists rows whose archive cannot
+(`state:dismissed AND revivable:true`) does not list rows whose archive cannot
 actually be restored. The Archive Record Lifecycle card shows **Viewable**,
 **Restorable**, and **Restartable** lines, plus a **Missing** line naming any unmet
 requirement, and Archive restore of a row that lacks one is refused up front with
@@ -107,8 +107,9 @@ on the next press.
 
 The bundled initial query is `sidecar:false merges:hide since:24h`; sase's TUI injects
 `limit:<ace.page_size>` (default `limit:100`) when that string has no `limit:` token. It
-is configurable with `ace.artifacts.stitches.default_query`
-(`ace.artifacts.commits.default_query` is a deprecated alias), and changes take effect
+is configurable with `ace.artifacts.stitches.default_query` (see
+[TUI migration notes](../upgrading/tui.md#config-and-keymap-aliases) for the older
+`commits` key), and changes take effect
 the next time sase's TUI starts. An explicit `project:` in sase's TUI query or in the
 configured default query wins over the current-project seed. An empty parsed query
 includes sidecar repositories; at sase's TUI startup the async Artifacts seed can add a
@@ -205,3 +206,4 @@ literal word in a commit subject; quote it (`"sidecar"`) to search for the word.
 - [TUI hub](index.md) — all TUI reference pages.
 - [Tabs and panes](tabs-and-panes.md) — tab system and Artifacts panes.
 - [Query system](query-system.md) — editing, saving, and recalling queries.
+- [TUI migration notes](../upgrading/tui.md) — stitches default-query alias.

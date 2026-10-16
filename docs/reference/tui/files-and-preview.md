@@ -6,10 +6,13 @@ description: The Files pane, Preview reader, and Agents tab Archive in the sase 
 # Files and preview
 
 This page lists the Files pane, Preview reader, and Agents tab Archive in the sase TUI.
+Default configurable actions are listed in the generated
+[TUI keymaps reference](keymaps.md).
 
 ## Archive (Agents Tab)
 
-Artifacts → Agent is retired: agent history lives in the Agents tab's **Archive** view.
+Agent history lives in the Agents tab's **Archive** view. See
+[TUI migration notes](../upgrading/tui.md#artifacts-agent-pane).
 Press `,a` to toggle between the Inbox and the Archive; the tab label reads `Agents ◷`
 while the Archive is active. The Inbox holds undismissed agents, including completed
 runs; dismissing an agent moves it to this machine's Archive. Selecting an archived run
@@ -144,10 +147,10 @@ viewer. `y`, `/`, and `o` warn instead of acting on image previews.
 ## Files Pane
 
 Files browses the artifact-file index that backs
-[`sase artifact list`](../cli/artifact.md#sase-artifact-list). The
-pane is one of the four fixed Artifacts views: Commits, Patches, Beads, and Files. The
-Agent pane is retired by default (`artifacts_agent_pane_retired`) and shows only with
-the opt-out. Configured document-provider panes appear between Beads and Files in the
+[`sase artifact list`](../cli/artifact.md#sase-artifact-list). The pane is one of the four
+fixed Artifacts views: Commits, Patches, Beads, and Files. The Agent pane is off by
+default (`artifacts_agent_pane_retired`) and shows only with the opt-out. See
+[TUI migration notes](../upgrading/tui.md#artifacts-agent-pane). Configured document-provider panes appear between Beads and Files in the
 runtime tab strip. Rows are grouped by logical file identity, so repeated captures of
 `@file:~/bob/gtd.md` or repeated `sase artifact create` rows for the same logical
 artifact appear as one selectable row with versions.
@@ -252,3 +255,5 @@ and names the key that focuses the query row.
 - [TUI hub](index.md) — all TUI reference pages.
 - [Tabs and panes](tabs-and-panes.md) — tab system and Artifacts panes.
 - [SASE Pager](pager.md) — artifact and file pager.
+- [TUI keymaps](keymaps.md) — generated keymap defaults.
+- [TUI migration notes](../upgrading/tui.md) — Archive and Agent-pane moves.

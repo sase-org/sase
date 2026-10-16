@@ -64,10 +64,11 @@ pending start/restart request, and output tail, plus the host config error when 
 set. The description sits in the sticky [description panel](#description-panel) above
 it.
 
-The canonical tab id is `services` (`axe` is still accepted as a legacy alias, for
-example `sase tui -t axe`). Configuration keys such as `ace.axe_description_expanded`
-and many internal row names keep the historical `axe` spelling, which is why the
-detailed scheduler reference below still uses “Axe.”
+The canonical tab id is `services` (`axe` is still accepted as an alias, for
+example `sase tui -t axe`; see
+[TUI migration notes](../upgrading/tui.md#model-size-and-tab-aliases)). Configuration
+keys such as `ace.axe_description_expanded` and many internal row names keep the `axe`
+spelling, which is why the detailed scheduler reference below still uses “Axe.”
 
 ### Sidebar Row Taxonomy
 
@@ -153,7 +154,7 @@ dropped, and `e` opens the AXE entry editor, whose first field is the full descr
 in a multi-line text area.
 
 Because `d` belongs to the Services tab, `show_diff` is scoped to the Patches sub-tab.
-Pressing `d` outside Patches no longer opens a diff for an unrelated Patch.
+Pressing `d` outside Patches does not open a diff for an unrelated Patch.
 
 ### Dynamic Sidebar Width and No-Wrap Rows
 

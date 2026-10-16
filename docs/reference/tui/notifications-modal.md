@@ -105,8 +105,9 @@ produce a warning instead of silently doing nothing.
 Custom gates and neutral HITL gates execute through the shared hash-verifying gate
 executor. sase's TUI schedules the terminal command and each selected add-on through the
 tracked proc queue, streams live stdout/stderr to the proc, shows each command as a
-reporter phase, and refreshes the inbox when the proc completes. Legacy HITL bundles
-retain the direct response-file fallback.
+reporter phase, and refreshes the inbox when the proc completes. Older HITL bundles
+retain the direct response-file fallback; see
+[TUI migration notes](../upgrading/tui.md#hitl-and-launch-request-fallbacks).
 
 ### Toast Notifications
 
@@ -144,3 +145,4 @@ agents (no `agent_name`) keep the prior format.
 - [TUI hub](index.md) — all TUI reference pages.
 - [Notifications](../automation/notifications.md) — notification types, tags, and CLI.
 - [Global controls](global-controls.md) — keys, palette, command line, refresh.
+- [TUI migration notes](../upgrading/tui.md) — HITL response-file fallback.

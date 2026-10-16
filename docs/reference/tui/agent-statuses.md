@@ -225,10 +225,9 @@ per-agent success, per-agent failure). Read them back with `sase revive-log` —
 #### Legacy Dismissed-Name Prefix
 
 Current dismiss and revive operations preserve stored agent names, per-agent tribes, and
-top-level/workflow-child identity. Older dismissed bundles may still contain
-`YYmmdd.<base>` names from the previous dismissal model, and sase's TUI keeps
-compatibility helpers for reading those bundles. Bare `%wait` (no target) intentionally
-skips legacy dismissal-prefixed candidates so it anchors on a live, visible agent.
+top-level/workflow-child identity. Bare `%wait` (no target) skips dismissal-prefixed
+candidates so it anchors on a live, visible agent. See
+[TUI migration notes](../upgrading/tui.md#dismissed-name-prefix).
 
 ### Agents Deck Picker
 
@@ -248,8 +247,9 @@ The picker heading names the focused panel (`deck panel` single, `top` / `bottom
 glyph, count, and whether it is already showing (or shown in the other split panel), and
 the palette offers the same jumps as
 `Show <Main|Files|Tools|FINAL|RECORD> deck in focused panel` plus
-`Show last deck in focused panel`. The old detail-view picker is retired: the Agents tab
-now always shows [agent data decks and cards](#agent-data-decks-and-cards). The
+`Show last deck in focused panel`. The Agents tab always shows
+[agent data decks and cards](#agent-data-decks-and-cards); see
+[TUI migration notes](../upgrading/tui.md#keymap-moves). The
 in-picker deck letters are fixed and not configurable. `p` keeps its unrelated Artifacts
 project-scope meaning on the Artifacts tab.
 
@@ -534,11 +534,12 @@ Reply.
 run view the FINAL deck renders — reconciling the sealed plan, progress journal,
 operation records, steps, and typed evidence — and prints it pretty (colored, default)
 or as JSON (`-f json`). With `-d/--artifacts-dir` it reads finalizer artifacts directly.
-Inside a SASE turn it defaults to the calling agent. See the
-[CLI docs](../vcs/commit-workflows.md#review-and-delivery).
+Inside a SASE turn it defaults to the calling agent. See the generated
+[`sase final`](../cli/final.md) page.
 
 ## Related
 
 - [TUI hub](index.md) — all Agents tab reference pages.
 - [Agents tab main deck](agents-main-deck.md) — main deck, zoom, and node rail.
 - [Agent workflows](agent-workflows.md) — plans, approvals, holds, and retries.
+- [TUI migration notes](../upgrading/tui.md) — dismissed-name prefix and keymap moves.

@@ -43,7 +43,7 @@ current meaning: blue plus tool plus green plus orange equals the running count.
 read from the store carry a colored session chip (`ace·sase#14 4f2a`) that matches the
 one `sase proc list` prints; a session that has since exited renders dim with a `†`. An
 ordinary unattributed proc renders a dim `—`; a historical detached proc carries a cyan
-`◆ detached` marker that makes the legacy row kind explicit.
+`◆ detached` marker that makes the detached row kind explicit.
 
 Store reads happen on a worker thread and are revalidated by store mtime about once a
 second, so the tab never stats, reads, or locks the store from a render or keystroke
@@ -163,12 +163,12 @@ example `acme--mon`) is its own named proc.
 | ---------- | --------------------------------------------------------- | ------------------------------------------------------------------- |
 | `tui`      | Work run and mirrored by sase's TUI                       | sase's TUI process; scoped to its session                           |
 | `command`  | `sase proc run` or `sase.procs.submit_proc()`             | The proc supervisor; attributed to one session or left unattributed |
-| `detached` | Historical rows from retired CLI/API detached submissions | The legacy proc supervisor; global because no session owns the row  |
+| `detached` | Historical rows from retired CLI/API detached submissions | The detached proc supervisor; global because no session owns the row |
 
 The programmatic submission API is `sase.procs.submit_proc()`. Pass `session_id=None`
-when no interactive session should own the row; it still writes a `command` proc. The
-legacy `sase.procs.submit_detached_proc()` wrapper remains for old callers but now
-records the same unattributed command row. The public `read_procs()` and
+when no interactive session should own the row; it still writes a `command` proc. See
+[TUI migration notes](../upgrading/tui.md#detached-procs) for the older detached
+wrapper. The public `read_procs()` and
 `filter_procs()` helpers accept `kind=` as either one kind or a collection, including
 `detached` when a caller needs historical rows. A `command` or historical `detached` row
 that remains `pending` without a supervisor PID for 60 seconds is reconciled to `error`;
@@ -201,16 +201,16 @@ render dim with a `†` marker.
 caps how many _finished_ procs are kept; pending and running work is never pruned for
 being old. Lowering the limit removes the oldest finished rows and their log files.
 Finished procs tagged `command-line` (TUI Command Line submissions) keep a separate
-bucket of 50 beside this limit. The legacy `tasks.history_limit` key is still honored as
-a deprecated alias.
+bucket of 50 beside this limit. See
+[TUI migration notes](../upgrading/tui.md#config-and-keymap-aliases) for the older
+`tasks.history_limit` key.
 
 The CLI equivalents are `sase proc list`, `sase proc show ID` (`--follow` to stream),
 `sase proc run [--session SESSION|none] -- COMMAND` (`--wait` to stream and inherit the
-exit code), and `sase proc kill ID`. A hidden legacy `--kind` filter remains for
-historical kind rows. Approved epics normally launch as
+exit code), and `sase proc kill ID`. A hidden `--kind` filter remains for
+historical kind rows; see [TUI migration notes](../upgrading/tui.md#detached-procs). Approved epics normally launch as
 [monitor turns](../automation/monitors.md); only an unresolvable planner agent
-session uses an unattributed command proc. See the
-[CLI reference](../agents/agent-launches.md#daily-operation).
+session uses an unattributed command proc. See the generated [`sase proc`](../cli/proc.md) page.
 
 ### Filtering procs
 
@@ -280,6 +280,9 @@ press clears the filter and removes the bar.
 
 ### Keybindings {#keybindings-2}
 
+Default configurable actions are listed in the generated
+[TUI keymaps reference](keymaps.md). This page keeps Procs-tab behavior details.
+
 | Key                 | Action                                             |
 | ------------------- | -------------------------------------------------- |
 | `j` / `k`           | Navigate proc list                                 |
@@ -305,7 +308,7 @@ finished rows age out according to `procs.history_limit`.
 `K` opens a danger confirmation only for a store-backed row that sase's TUI still
 considers active. The backend stops command/named-proc records, including monitor
 supervisors. It refuses a TUI-owned record because only its owning sase's TUI session
-may stop it, and a legacy record whose supervisor has died is reconciled to `error`
+may stop it, and a `detached` record whose supervisor has died is reconciled to `error`
 rather than killed. Other ineligible rows explain why: a finished proc reports
 `Proc already finished`, a proc still being submitted reports
 `Proc is still submitting — try again in a moment`, and a session-local row with no
@@ -316,3 +319,5 @@ durable record reports that it cannot be killed from the Procs tab.
 - [TUI hub](index.md) — all TUI reference pages.
 - [SASE Admin Center](admin-center.md) — Config, Logs, Machines, Procs.
 - [Services tab](services-tab.md) — sidebar, jobs, and control keys.
+- [TUI keymaps](keymaps.md) — generated keymap defaults.
+- [TUI migration notes](../upgrading/tui.md) — detached procs and history-limit alias.

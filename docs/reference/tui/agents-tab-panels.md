@@ -255,9 +255,10 @@ agent, and a rootless clan contributes one sase agent per direct member rather t
 for its synthetic container. Per-tribe icons, identity colors, and initial expansion are
 configurable through [`ace.tribes`](../config/ace-behavior.md#acetribes); the special `default`
 entry styles the reserved panel. Agents launched by AXE jobs land in the built-in `@job`
-panel. SASE still stores that tribe under its legacy name `chop`, but `@job` wait and
+panel. SASE still stores that tribe under the name `chop`, but `@job` wait and
 fork targets, `tribe:job` filters, and an `ace.tribes.job` entry all address it (an
-explicit `ace.tribes.chop` entry still wins for styling). A manual panel fold lasts for
+explicit `ace.tribes.chop` entry still wins for styling). See
+[Automation migration notes](../upgrading/automation.md#scheduler-routine-and-job-names). A manual panel fold lasts for
 that panel's current lifetime, and the configured initial state is applied again when
 the panel appears after a restart or after the tribe disappears and returns. Once a
 panel has shown rows under the current Agents query, it stays mounted for the session
@@ -373,7 +374,7 @@ the folds its own last sweep in that panel closed, restoring each structural fol
 level it held before (a fully expanded agent node comes back fully expanded, not merely
 expanded). The restore is filtered at press time to folds that are still live in that
 panel and still collapsed, so it is forgiving of folds the user re-expanded by hand or
-owners that disappeared, and it never resurrects a fold that no longer exists. Each
+owners that disappeared, and it never resurrects a fold that does not exist. Each
 panel remembers at most one sweep; a fresh sweep replaces that panel's record, and a
 panel that stops being live drops it. While a restore is armed, the panel marks every
 fold `-` would re-expand with a gold `▿` on the owner row and `▿N` in the panel title;

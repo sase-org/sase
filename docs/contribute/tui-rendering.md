@@ -107,7 +107,7 @@ truecolor when the terminal advertises it and 256-color approximations otherwise
 Generated images are already attached to successful agent completion notifications and
 recorded in `done.json` as `image_paths`. The Agents tab file panel and notification
 modal route supported raster image attachments through this preview layer before
-attempting text decoding. See [`agent_images.md`](../reference/agent-attachments.md) for
+attempting text decoding. See [Agent attachments](../reference/agent-attachments.md) for
 supported image extensions, guardrails, and current preview behavior.
 
 ## Related
@@ -116,3 +116,4 @@ supported image extensions, guardrails, and current preview behavior.
 - [Artifacts visual grammar](artifacts-pane-visual-grammar.md) — pane visuals.
 - [Agent attachments](../reference/agent-attachments.md) — image attachments and
   preview.
+- [TUI keymaps](../reference/tui/keymaps.md) — generated keymap defaults.

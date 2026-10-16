@@ -6,7 +6,8 @@ description: Launch Control keys for usage, effort, capacity, routing, drain, tm
 # Launch Control
 
 This page lists Launch Control keys for usage, effort, capacity, routing, drain, tmux
-Agent, and alias history.
+Agent, and alias history. Default configurable actions are listed in the generated
+[TUI keymaps reference](keymaps.md).
 
 ## Launch Control {#launch-control-1}
 
@@ -17,9 +18,9 @@ interactive agent CLI in a new tmux window. The top level has three visible sect
 visible sections are separated by exactly one non-selectable blank row; there is no
 leading, trailing, or doubled spacer.
 
-Data rows use the grid `ownership gutter | name | value/model | state`. The former row
-kind column is gone: labels such as `launch`, `setting`, `role`, `user`, and `bucket` do
-not appear as their own column. User-owned aliases and buckets still have the tan `▌`
+Data rows use the grid `ownership gutter | name | value/model | state`. Labels such as
+`launch`, `setting`, `role`, `user`, and `bucket` do not appear as their own column.
+See [TUI migration notes](../upgrading/tui.md#keymap-moves). User-owned aliases and buckets still have the tan `▌`
 ownership gutter, misplaced built-in aliases keep a gold `!` marker in the name cell,
 and collapsed buckets put `▸` directly before the bucket name.
 
@@ -182,7 +183,7 @@ only in the tooltip. A bare `?` in the countdown position means the provider nev
 reported a reset time. `!` marks a vendor-rejected window that still shows remaining
 capacity. An exact `0%` window never shows it, because the inverted red run already
 signals exhaustion, so every provider's exhausted window looks the same whether or not
-its vendor reports a rejection. Collector failures no longer add a header warning glyph;
+its vendor reports a rejection. Collector failures do not add a header warning glyph;
 selected failing windows keep collector-failure prose in the tooltip, and model picker
 hints keep their own separate `⚠ usage failing` identity.
 
@@ -413,7 +414,7 @@ result envelope, and the Procs row holds the full JSON envelope. If the TUI exit
 the proc still finishes and its result stays in Procs / `sase proc show`.
 
 An empty or no-longer-disabled automatic drain records a successful no-op: when the
-drain finds nothing to relaunch (`nothing_to_drain`) or the provider is no longer
+drain finds nothing to relaunch (`nothing_to_drain`) or the provider is not
 hard-disabled by the time the proc plans (`not_disabled`, `soft_disabled`), the proc
 succeeds with exit 0 and the completion toast says nothing was drained.
 
@@ -538,6 +539,12 @@ Moved to [Launch Control overrides](launch-control-overrides.md#temporary-overri
 Moved to [Launch Control overrides](launch-control-overrides.md#persistent-edits).
 <a id="examples-1"></a>
 Moved to [Launch Control overrides](launch-control-overrides.md#examples-1).
+<a id="sase-tmux-agent"></a>
+Moved to [sase tmux-agent](../cli/tmux-agent.md#sase-tmux-agent).
+<a id="cli-options-2"></a>
+Moved to [sase tmux-agent](../cli/tmux-agent.md#sase-tmux-agent).
+<a id="command-behavior"></a>
+Moved to [sase tmux-agent](../cli/tmux-agent.md).
 
 ## Related
 
@@ -545,20 +552,5 @@ Moved to [Launch Control overrides](launch-control-overrides.md#examples-1).
 - [Launch Control overrides](launch-control-overrides.md) — temporary overrides and persistent edits.
 - [Provider routing](../providers/routing.md) — temporary overrides, disables, and priority.
 - [Models and aliases](../providers/models.md) — catalog, tiers, and aliases.
-
-## `sase tmux-agent`
-
-Launch an interactive agent CLI in a new tmux window. There are no subcommands — in
-particular no `list` child — so a bare `sase tmux-agent` paints the tmux menu instead of
-delegating. See [tmux Agent](#tmux-agent).
-
-<a id="cli-options-2"></a>
-Moved to [sase tmux-agent](launch-control.md#sase-tmux-agent).
-
-<a id="command-behavior"></a>
-Moved to [Launch Control](launch-control.md#command-behavior).
-
-## Command behavior
-`--renumber` is an internal hook invoked when an agent CLI window exits and is omitted
-from help. Outside tmux with no `--list`/`--dry-run`/`--json`, the command exits 2,
-explains that a tmux session is required, and still prints the catalog.
+- [TUI keymaps](keymaps.md) — generated keymap defaults.
+- [TUI migration notes](../upgrading/tui.md) — Launch Control row layout.

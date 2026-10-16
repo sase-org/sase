@@ -19,19 +19,7 @@ git show --stat | sase pager -t "git show"
 sase bead show sase-uk.7
 ```
 
-```text
-sase pager [-c auto|always|never] [-l auto|never] [-p] [-s ALIAS] [-t TITLE] [-w WIDTH] [REF|PATH ...]
-```
-
-| Option         | Purpose                                                                                                |
-| -------------- | ------------------------------------------------------------------------------------------------------ |
-| `REF\|PATH`    | Artifact reference or file path. Omit it, or pass `-` by itself, to read stdin.                        |
-| `-c, --color`  | Color output mode: `auto`, `always`, or `never`. `never` also disables syntax highlighting.            |
-| `-l, --links`  | Link scanning mode: `auto` or `never`. `never` opens the app without painted link labels.              |
-| `-p, --plain`  | Write plain text without starting the Textual pager.                                                   |
-| `-s, --syntax` | Highlighting language: `auto`, `none`, or a Pygments alias. Invalid aliases fail before stdin is read. |
-| `-t, --title`  | Title for stdin input.                                                                                 |
-| `-w, --wrap`   | Prose wrap width; accepts an integer, `auto`, `none`, or `0`.                                          |
+Flags and defaults are listed on the generated [`sase pager`](../cli/pager.md) page.
 
 ## CLI Paging
 
@@ -39,7 +27,7 @@ sase pager [-c auto|always|never] [-l auto|never] [-p] [-s ALIAS] [-t TITLE] [-w
 writes directly, `auto` pages only on a real terminal when output is taller than the
 terminal and `SASE_AGENT` is unset, and `always` pages whenever the terminal can host
 the Textual app. Paging runs the SASE pager in-process and passes the structured
-document directly; SASE no longer shells out to `$PAGER` or `less` for this path.
+document directly. See [TUI migration notes](../upgrading/tui.md#in-process-pager).
 
 One input creates one section. Multiple references or paths create a section for each
 input in command-line order; `-` cannot be combined with other inputs. Plain output
@@ -368,3 +356,4 @@ its BEAD section links exactly as it would in a bead document.
 - [TUI hub](index.md) — all TUI reference pages.
 - [Files and preview](files-and-preview.md) — Files pane and Preview reader.
 - [sase pager CLI](../cli/pager.md) — generated pager command flags.
+- [TUI migration notes](../upgrading/tui.md) — in-process pager.
