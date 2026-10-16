@@ -12,6 +12,10 @@ Use macros when you want to:
 - Parameterize prompts with typed, validated arguments.
 - Compose prompts from smaller building blocks using `#name(args)` syntax.
 
+For steps to turn a useful one-off prompt into a reusable macro, see
+[Reuse a prompt with macros](guides/reuse-prompt-with-macros.md). This page documents
+macro syntax, inputs, and expansion behavior.
+
 ![SASE macro inputs flowing through workspace dispatch, first-wins discovery, iterative expansion, and directive
 extraction into runtime outcomes](images/macro-resolution-infographic.png)
 

@@ -5,6 +5,9 @@ and **pull request**. All three share the same commit CLI command
 (`sase stitch create`), the same `CommitWorkflow` orchestrator, and the same VCS
 provider abstraction, but differ in what they produce and how they track the result.
 
+For steps to inspect an agent's work and complete a review, see
+[Review and land a change](guides/review-and-land-change.md).
+
 ## Overview
 
 | Workflow    | Macro      | Method                | What it produces             | Tracking       |

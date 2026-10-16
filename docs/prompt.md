@@ -256,6 +256,9 @@ canonical-archive macro links, the local copy collapses into the archive hit, an
 
 ### Find a recent prompt
 
+For the TUI workflow, see
+[Find and replay an old prompt](guides/find-and-replay-prompt.md).
+
 `list` defaults to the 20 most recent non-cancelled prompts, newest first. Narrow it
 with a case-insensitive substring filter:
 
@@ -394,8 +397,8 @@ sase prompt prune --generated --legacy --yes      # back up, then remove
 
 ### Save a prompt as a reusable macro
 
-Bridge a useful one-off prompt into a durable [macro](macros.md) so you can trigger it
-with `#name`:
+For the TUI workflow, see
+[Reuse a prompt with macros](guides/reuse-prompt-with-macros.md).
 
 ```bash
 sase prompt save ph_8f3a9c0d12ab -n fix-auth-review -t review
@@ -408,21 +411,11 @@ sase prompt save ph_8f3a9c0d12ab -p bob   # namespace under ~/sase/macros/bob/
 With no `--name`, `save` derives a deterministic slug from the prompt preview. It never
 overwrites an existing macro file unless you pass `--force`.
 
-For drafts that have not been submitted to prompt history yet, sase's TUI prompt bar can
-save directly to macro storage. Use `gX` in prompt NORMAL mode, or use `Ctrl+G X` in
-INSERT or NORMAL mode. The unified save panel starts in macro mode; press `Ctrl+X` there
-to switch to snippet mode and choose which config file should hold the new
-`ace.snippets` entry. Prompt-input `Ctrl+T` remains completion. If the prompt bar
-contains a stack, sase's TUI saves the non-empty panes as one `---`-separated macro
-body, while snippet mode saves only the active pane. When you want to author, retarget,
-or edit exactly one simple macro in a focused prompt pane, use `gx`, `Ctrl+G x`, or
-`Ctrl+G Ctrl+X` — press `e` in the location picker to fuzzy-find an existing definition.
-When you already know you're authoring a snippet trigger,
-`gt`/`Ctrl+G t`/`Ctrl+G Ctrl+T` opens a faster, dedicated snippet pane instead of this
-general save panel — it starts on a location picker, then the trigger-name panel — see
-[Authoring a snippet from the prompt bar](ace.md#authoring-a-snippet-from-the-prompt-bar).
-To browse or edit the composed catalog, `gT`/`Ctrl+G T` opens the
-[Snippets panel](ace.md#snippets-panel); the lowercase and uppercase chords coexist.
+SASE's TUI prompt bar also saves drafts with `gX` or `Ctrl+G X`; the save panel starts
+in macro mode, and `Ctrl+X` switches to snippet mode. A stack saves its non-empty panes
+as one `---`-separated macro; snippet mode saves only the active pane. See
+[Prompt Stacks](ace.md#prompt-stacks) and [Creating Macros](ace.md#creating-macros) for
+the other keybindings and save locations.
 
 ### Export a prompt to a file
 

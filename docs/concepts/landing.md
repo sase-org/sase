@@ -38,8 +38,8 @@ host to process, while the host owns the finalizer and the VCS operation.
 
 ## Do it
 
-- [Review and land a change](../commit_workflows.md) — understand the available commit
-  workflows.
+- [Review and land a change](../guides/review-and-land-change.md) — inspect an agent's
+  result and complete its review.
 - [Get automated code review](../guides/get-automated-code-review.md) — review each
   change automatically before it lands.
 

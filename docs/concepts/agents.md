@@ -42,6 +42,10 @@ person a place to follow progress, inspect results, and decide what should happe
 
 ## Do it
 
+- [Run agents in parallel](../guides/run-agents-in-parallel.md) — split independent
+  tasks across isolated workspaces.
+- [Hand a result to another agent](../guides/hand-a-result-to-another-agent.md) — give a
+  follow-up run the context it needs.
 - [Get started with SASE](../start/index.md) — run and inspect a first agent task.
 - [Recover an interrupted agent](../guides/recover-interrupted-agent.md) — restart,
   resume, or revive a broken run.

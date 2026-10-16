@@ -6,9 +6,9 @@ command substitution, using the project context for that prompt segment. Each su
 reference expands to prompt text, records a per-agent use row, and can publish as a
 numbered Markdown reference link.
 
-References name artifacts. Typed [Artifact Links](artifact_links.md) record why two
-artifacts are related and render on the artifact markdown file; prompt references record
-that an agent consumed an artifact in launch context.
+Prompt references record consumed artifacts; [Artifact Links](artifact_links.md) record
+relationships. For a follow-up workflow, see
+[Hand a result to another agent](guides/hand-a-result-to-another-agent.md).
 
 ## Prompt Grammar
 

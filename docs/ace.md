@@ -7126,7 +7126,8 @@ the start stays prompt-level metadata, and `---` lines inside fenced code blocks
 left alone. A `#name` macro swarm invocation stays a single pane and expands only when
 it is launched. During live editing, typed `---` lines stay literal text; add prompt
 panes with `g-` in prompt NORMAL mode. The detailed multi-agent parsing rules live in
-the [Macro reference](macros.md#multi-agent-prompts).
+the [Macro reference](macros.md#multi-agent-prompts). For steps to split and follow
+independent tasks, see [Run agents in parallel](guides/run-agents-in-parallel.md).
 
 ### Cursor Readout
 
@@ -8911,6 +8912,9 @@ on the Stash list or on History closes the overlay, and `q` closes when focus is
 a text input. Each tab keeps its highlight, scroll, filter, loaded pages, preview
 position, and staged marks across switches, the Stash tab remembers its last view, and
 History loads lazily on first activation so opening Stash performs no history disk I/O.
+
+For a goal-based workflow to search and replay an old prompt, see
+[Find and replay an old prompt](guides/find-and-replay-prompt.md).
 
 Press `Ctrl+K` from the prompt input to open the overlay on the History tab. That
 shortcut is available when the current prompt is a single logical line; that line's

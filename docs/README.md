@@ -18,10 +18,15 @@
 - [Choose providers and models](guides/choose-providers-models.md) — Install a provider CLI, check authentication, and pick the model agents use.
 - [Configure the essentials](guides/configure-essentials.md) — Set the handful of configuration values most setups change, and find the rest.
 - [Diagnose problems with sase doctor](guides/diagnose-with-doctor.md) — Run the read-only diagnostic checks and act on what they report.
+- [Find and replay an old prompt](guides/find-and-replay-prompt.md) — Search prompt history, inspect a past prompt, and launch it again safely.
 - [Get automated code review](guides/get-automated-code-review.md) — Review each change automatically and apply the findings you accept.
-- [Guides](guides/index.md) — Goal-titled how-to guides for setup, automation, and fixing problems.
+- [Hand a result to another agent](guides/hand-a-result-to-another-agent.md) — Give a follow-up agent a transcript or specific artifact as task context.
+- [Guides](guides/index.md) — Goal-titled how-to guides for setup, planning, daily work, and fixing problems.
 - [Plan a multi-agent change](guides/plan-multi-agent-change.md) — Turn a large change into a reviewed plan whose phases agents work through.
 - [Recover an interrupted agent](guides/recover-interrupted-agent.md) — Check whether an interrupted agent restarts itself, retry it, or revive it.
+- [Reuse a prompt with macros](guides/reuse-prompt-with-macros.md) — Save a useful prompt as a named macro and use it in later agent runs.
+- [Review and land a change](guides/review-and-land-change.md) — Inspect an agent's result and choose whether to commit, propose, or open a pull request.
+- [Run agents in parallel](guides/run-agents-in-parallel.md) — Split independent work across agents and follow each run from the Agents tab.
 - [Schedule recurring work](guides/schedule-recurring-work.md) — Run a check on a schedule with the scheduler and confirm each run.
 - [Set up shell completion and your editor](guides/setup-completion-editor.md) — Complete sase commands with TAB and edit prompts with language assistance.
 - [Unstick a queued agent](guides/unstick-queued-agent.md) — Tell capacity waits apart from holds and clear whichever blocks the agent.

@@ -12,7 +12,7 @@ ceilings:
   agent_sessions.md: 7939
   agents_sidecar.md: 4440
   artifact_links.md: 2424
-  artifact_references.md: 2022
+  artifact_references.md: 2010
   artifacts_pane_contract.md: 1613
   artifacts_pane_visual_grammar.md: 2673
   axe.md: 15924
@@ -44,7 +44,7 @@ ceilings:
   perf_runbook.md: 11060
   plugins.md: 9474
   project_spec.md: 3146
-  prompt.md: 3402
+  prompt.md: 3269
   query_language.md: 2029
   remote_dispatch.md: 2935
   rust_backend.md: 11094

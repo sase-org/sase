@@ -45,6 +45,12 @@ nav:
           - Plan a multi-agent change: guides/plan-multi-agent-change.md
           - Schedule recurring work: guides/schedule-recurring-work.md
           - Get automated code review: guides/get-automated-code-review.md
+      - Daily work:
+          - Run agents in parallel: guides/run-agents-in-parallel.md
+          - Review and land a change: guides/review-and-land-change.md
+          - Hand a result to another agent: guides/hand-a-result-to-another-agent.md
+          - Reuse a prompt with macros: guides/reuse-prompt-with-macros.md
+          - Find and replay an old prompt: guides/find-and-replay-prompt.md
       - Fix problems:
           - Diagnose problems with sase doctor: guides/diagnose-with-doctor.md
           - Unstick a queued agent: guides/unstick-queued-agent.md

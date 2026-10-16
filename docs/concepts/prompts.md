@@ -43,6 +43,10 @@ and a workflow when several steps need to run together.
 ## Do it
 
 - [Get started with SASE](../start/index.md) — launch a first agent with a task prompt.
+- [Reuse a prompt with macros](../guides/reuse-prompt-with-macros.md) — keep useful
+  instructions for later runs.
+- [Find and replay an old prompt](../guides/find-and-replay-prompt.md) — search and
+  reuse prompt history.
 
 ## Look it up
 
