@@ -258,7 +258,7 @@ def _register_cancel_parser(gate_subparsers: argparse._SubParsersAction) -> None
         formatter_class=argparse.RawDescriptionHelpFormatter,
         description=(
             "Cancel a pending gate by kind/request id, or cancel a pending gate "
-            "shell by id (or unique id prefix), member agent name, or owning "
+            "turn by id (or unique id prefix), member agent name, or owning "
             "agent name. No follow-up agent is launched, even when one was "
             "recorded, unless the gate had already been answered concurrently "
             "-- that settles as answered instead."

@@ -27,6 +27,7 @@ from __future__ import annotations
 import argparse
 import difflib
 import sys
+from collections.abc import Sequence
 from pathlib import Path
 
 
@@ -187,7 +188,9 @@ def _group_has_list_default(parser: argparse.ArgumentParser) -> bool:
     return any(name == "list" for name, _, _ in _visible_subcommands(parser))
 
 
-def _format_grid(headers: tuple[str, ...], rows: list[tuple[str, ...]]) -> list[str]:
+def _format_grid(
+    headers: tuple[str, ...], rows: Sequence[tuple[str, ...]]
+) -> list[str]:
     all_rows = [headers, *rows]
     widths = tuple(max(len(row[i]) for row in all_rows) for i in range(len(headers)))
     lines = [
@@ -231,11 +234,11 @@ def _render_node(
     if options:
         lines.append("Options:")
         lines.append("")
-        rows = [
+        option_rows = [
             (_option_label(a), _cell(_describe_option(a)), _format_default(a))
             for a in options
         ]
-        lines.extend(_format_grid(("Option", "Description", "Default"), rows))
+        lines.extend(_format_grid(("Option", "Description", "Default"), option_rows))
         lines.append("")
     positionals = [
         a
@@ -248,18 +251,18 @@ def _render_node(
     if positionals:
         lines.append("Arguments:")
         lines.append("")
-        rows = [(f"`{a.dest}`", _cell(a.help)) for a in positionals]
-        lines.extend(_format_grid(("Argument", "Description"), rows))
+        arg_rows = [(f"`{a.dest}`", _cell(a.help)) for a in positionals]
+        lines.extend(_format_grid(("Argument", "Description"), arg_rows))
         lines.append("")
     subs = _visible_subcommands(parser)
     if subs:
         lines.append("Subcommands:")
         lines.append("")
-        rows = []
+        sub_rows = []
         for name, child, help_text in subs:
             summary = _clean(help_text) or _first_sentence(child.description) or "—"
-            rows.append((f"`{prog} {name}`", _cell(summary)))
-        lines.extend(_format_grid(("Subcommand", "Summary"), rows))
+            sub_rows.append((f"`{prog} {name}`", _cell(summary)))
+        lines.extend(_format_grid(("Subcommand", "Summary"), sub_rows))
         lines.append("")
         for name, child, _help_text in subs:
             heading = "#" * min(level, 6) + f" `{prog} {name}`"
@@ -270,7 +273,9 @@ def _render_node(
 
 def _canonical_groups(
     parser: argparse.ArgumentParser,
-) -> tuple[dict[str, argparse.ArgumentParser], dict[str, str], dict[str, str]]:
+) -> tuple[
+    dict[str, argparse.ArgumentParser], dict[str, str], dict[str, list[str]]
+]:
     """Return (canonical parsers, top help by name, alias note by canonical)."""
     sub = _subparsers(parser)
     if not sub:

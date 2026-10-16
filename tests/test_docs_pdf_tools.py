@@ -46,7 +46,10 @@ def test_pdf_check_recipe_keeps_strict_mkdocs_export() -> None:
     end = recipe.index("docs-deploy-artifact-check:", start)
     body = recipe[start:end]
 
-    assert "mkdocs build --strict -f mkdocs-pdf.yml" in body
+    # Curated handbook design (pdf_scope = curate): the recipe builds a
+    # generated config holding only handbook pages, strictly.
+    assert "curate_docs_pdf_nav" in body
+    assert "mkdocs build --strict" in body
     assert "pillow" in body
 
 

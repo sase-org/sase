@@ -30,6 +30,7 @@ from docs_webs import (  # noqa: E402
     GLOSSARY_DIR,
     Strand,
     Webs,
+    format_with_prettier,
     github_url,
     rewrite_refs,
 )
@@ -147,7 +148,8 @@ def generated_outputs(root: Path = REPO_ROOT) -> dict[Path, str]:
         glossary_dir=root / GLOSSARY_DIR.relative_to(REPO_ROOT),
         decisions_dir=root / DECISIONS_DIR.relative_to(REPO_ROOT),
     )
-    return {root / OUTPUT.relative_to(REPO_ROOT): render_text(webs)}
+    rel = OUTPUT.relative_to(REPO_ROOT).as_posix()
+    return {root / OUTPUT.relative_to(REPO_ROOT): format_with_prettier(render_text(webs), rel)}
 
 
 def render(root: Path = REPO_ROOT) -> None:

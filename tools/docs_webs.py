@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import datetime
 import re
+import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -223,6 +224,39 @@ def github_url(web: str, slug: str) -> str:
         "https://github.com/sase-org/sase/blob/master/sase/memory/"
         f"{web}/{slug}.md"
     )
+
+
+def format_with_prettier(text: str, repo_relative: str) -> str:
+    """Format generated Markdown through the repo's Prettier.
+
+    Phase sase-1le.20.1 gates owns this helper: ``just fix`` runs the
+    renderers before Prettier's ``fmt-md`` pass, so renderer output that
+    Prettier would rewrite (``*...*`` emphasis, unwrapped prose) shows up
+    as ``fmt-docs-check`` drift. Piping through the same Prettier binary
+    ``just fmt`` uses makes the renderers emit stable output by
+    construction. ``repo_relative`` is the output path relative to the
+    repo root: it pins Prettier's config and parser inference to the real
+    file even when callers render into a fixture root. When the binary is
+    unavailable, return the text unchanged.
+    """
+    prettier = REPO_ROOT / "node_modules" / ".bin" / "prettier"
+    if not prettier.is_file():
+        return text
+    try:
+        proc = subprocess.run(
+            [str(prettier), "--stdin-filepath", repo_relative],
+            input=text,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=120,
+            cwd=str(REPO_ROOT),
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return text
+    if proc.returncode != 0:
+        return text
+    return proc.stdout
 
 
 @dataclass

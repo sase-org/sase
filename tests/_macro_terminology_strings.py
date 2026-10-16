@@ -122,6 +122,7 @@ _MACRO_SRC_STRING_REASONS: dict[str, str] = {
 
 _MACRO_OTHER_STRING_REASONS: dict[str, str] = {
     "tools/validate_sase_core_rs": "pinned-core still emits package:xprompts/skills alongside package:macros/skills",
+    "tools/render_keymap_macro_reference": "directive catalog renders the recorded xprompts_enabled legacy alias the contract still accepts",
 }
 
 _MACRO_TEST_STRING_REASON_DEFAULT = "legacy-input evidence for the both-states compatibility matrix: writers are canonical and the suite is green, so surviving hits are reader inputs, stored fixtures, or deferred-surface pins"
@@ -198,6 +199,18 @@ _MACRO_RESOURCE_ALLOWLIST: set[tuple[str, str]] = {
     (
         "tools/validate_sase_core_rs",
         '"package_skills": "package:xprompts/skills",',
+    ),
+    (
+        "tools/render_keymap_macro_reference",
+        '"xprompts_enabled": (',
+    ),
+    (
+        "tools/render_keymap_macro_reference",
+        '"xprompts_enabled",',
+    ),
+    (
+        "tools/render_keymap_macro_reference",
+        '"spelling here; `%xprompts_enabled` remains accepted for old prompts.",',
     ),
 }
 

@@ -116,6 +116,17 @@ _STALE_PHRASE_ALLOWLIST = {
     ("sase/memory/glossary/named-proc.md", "proc shell"),
 }
 
+# Whole-file generated pages whose sources are already guarded: the glossary
+# roster renders the allowlisted bridge clauses above, and the
+# design-decisions roster renders the immutable decision records skipped
+# below. Their wording is scanned where it lives, not where it renders.
+_GENERATED_DOCS_EXEMPT = frozenset(
+    {
+        Path("docs/reference/glossary.md"),
+        Path("docs/reference/design-decisions.md"),
+    }
+)
+
 _STALE_PHRASE_SCOPES = (
     Path("docs"),
     Path("src/sase/macros"),
@@ -258,6 +269,8 @@ def test_current_docs_skills_and_memory_avoid_stale_shell_phrases() -> None:
             # Accepted decision records are immutable history and keep the
             # old word on purpose (bridged by the Gate Turn strand).
             if relative.parts[:3] == ("sase", "memory", "decisions"):
+                continue
+            if relative in _GENERATED_DOCS_EXEMPT:
                 continue
             content = path.read_text(encoding="utf-8")
             for phrase in _STALE_PHRASES:

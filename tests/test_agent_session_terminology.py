@@ -111,6 +111,11 @@ _STALE_PHRASE_ALLOWLIST = {
     ("sase/memory/glossary/sase-agent-session.md", "agent family"),
 }
 
+# Whole-file generated pages whose sources are already guarded: the glossary
+# roster renders the allowlisted formerly-called clause above. Its wording is
+# scanned where it lives, not where it renders.
+_GENERATED_DOCS_EXEMPT = frozenset({Path("docs/reference/glossary.md")})
+
 _STALE_PHRASE_SCOPES = (
     Path("docs"),
     Path("src/sase/macros"),
@@ -142,6 +147,8 @@ def test_current_docs_skills_and_memory_avoid_stale_family_phrases() -> None:
     for scope in _STALE_PHRASE_SCOPES:
         for path in sorted((_ROOT / scope).rglob("*.md")):
             relative = path.relative_to(_ROOT)
+            if relative in _GENERATED_DOCS_EXEMPT:
+                continue
             content = path.read_text(encoding="utf-8")
             for phrase in _STALE_PHRASES:
                 if (

@@ -5,33 +5,32 @@ description: Look up exact SASE facts here, generated from code where possible.
 
 # Reference
 
-Look up exact flags, keys, defaults, and behaviors here. Reference teaches no workflow;
-it names the thing so tutorials and guides can link to the facts.
+Exact flags, keys, defaults, and behaviors. Reference names each thing; guides teach the
+workflows.
 
 ## CLI
 
 - [CLI reference](../cli.md) — command index and routing
-- [CLI command groups](cli/index.md) — generated flags, options, and subcommands
+- [CLI command groups](cli/index.md) — generated flags and subcommands
 - [Query language](../query_language.md) — filtering runs and beads
 - [Named tools](../tool.md) — declaring and running tools
 
 ## Configuration
 
-- [Configuration keys](config/index.md) — generated key paths, types, defaults, and
-  allowed values
+- [Configuration keys](config/index.md) — generated key paths, types, defaults
 - [Configuration files and behavior](../configuration.md#config-file-location) — file
-  layout, merge order, and runtime details
+  layout, merge order, runtime details
 
 ## TUI
 
 - [sase's TUI](../ace.md) — tabs, pickers, panes
-- [TUI keymaps](tui/keymaps.md) — generated defaults for configurable actions
+- [TUI keymaps](tui/keymaps.md) — generated keymap defaults
 - [SASE Pager](../pager.md) — paging long output
 
 ## Macros and workflows
 
 - [Macros](../macros.md) — reusable prompts and directives
-- [Directive catalog](macros/directives.md) — generated syntax and argument contract
+- [Directive catalog](macros/directives.md) — generated syntax and arguments
 - [Macro discovery order](macros/discovery-order.md) — file-backed definitions by
   priority
 - [Workflows](../workflow_spec.md) — multi-agent workflow files
@@ -48,9 +47,9 @@ it names the thing so tutorials and guides can link to the facts.
 - [Agent sessions](../agent_sessions.md) — runs and their turns
 - [Agent hood sync](../agents_sidecar.md) — sharing agents across checkouts
 - [Agent attachments](../agent_images.md) — images agents can see
-- [Agent auto-restart](agent-auto-restart.md) — update-skew recovery and limits
+- [Agent auto-restart](agent-auto-restart.md) — update-skew recovery, limits
 - [Agent revive log](agent-revive-log.md) — revival audit records
-- [Runner slots](runner-slots.md) — capacity admission and queued agents
+- [Runner slots](runner-slots.md) — capacity admission, queued agents
 - [Instruction bundles](../instruction_bundles.md) — generated agent instructions
 - [Mentors](../mentors.md) — automated code review
 - [Remote dispatch](../remote_dispatch.md) — running agents elsewhere
@@ -81,14 +80,14 @@ it names the thing so tutorials and guides can link to the facts.
 
 ## Integrations
 
-- [Editor integration](../editor.md) — Neovim and completion support
+- [Editor integration](../editor.md) — Neovim, completion support
 - [Integration APIs](../integrations.md) — building on SASE
 - [Plugins](../plugins.md) — extending SASE
 - [Mobile gateway](../mobile_gateway.md) — driving agents by phone
 
 ## File formats
 
-- [ProjectSpec](../project_spec.md) — project file layout and registry
+- [ProjectSpec](../project_spec.md) — project file layout, registry
 
 ## Migration
 

@@ -4,14 +4,18 @@ from __future__ import annotations
 
 import importlib.util
 import re
+import subprocess
+import sys
 from importlib.machinery import SourceFileLoader
 from pathlib import Path
 from types import ModuleType
 
 from PIL import Image
+import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 TOOL_PATH = ROOT / "tools" / "render_social_card"
+CURATE_TOOL = ROOT / "tools" / "curate_docs_pdf_nav"
 TEMPLATE_PATH = ROOT / "docs" / "overrides" / "main.html"
 MKDOCS_PATH = ROOT / "mkdocs.yml"
 MKDOCS_PDF_PATH = ROOT / "mkdocs-pdf.yml"
@@ -64,7 +68,33 @@ def test_default_social_image_meets_linkedin_card_spec() -> None:
 
 def test_rss_plugin_images_use_the_default_social_image() -> None:
     relative = _default_image_path()
-    for config in (MKDOCS_PATH, MKDOCS_PDF_PATH):
-        urls = RSS_IMAGE_RE.findall(config.read_text(encoding="utf-8"))
-        assert urls, f"rss image missing from {config.name}"
-        assert all(url.endswith(relative) for url in urls), urls
+    urls = RSS_IMAGE_RE.findall(MKDOCS_PATH.read_text(encoding="utf-8"))
+    assert urls, "rss image missing from mkdocs.yml"
+    assert all(url.endswith(relative) for url in urls), urls
+
+
+def test_pdf_rss_image_flows_through_the_curated_inherit_chain(
+    tmp_path: Path,
+) -> None:
+    """The curated PDF build inherits its RSS image instead of repeating it.
+
+    ``mkdocs-pdf.yml`` carries no RSS block by design (pdf_scope = curate):
+    MkDocs config inheritance pulls the feed, including its image, from
+    ``mkdocs.yml``. This guards the chain so the PDF feed keeps the default
+    social image without pinning the old duplicated block.
+    """
+    pdf_text = MKDOCS_PDF_PATH.read_text(encoding="utf-8")
+    assert re.search(r"^INHERIT:\s*mkdocs\.yml\s*$", pdf_text, re.MULTILINE), (
+        "mkdocs-pdf.yml must inherit mkdocs.yml for the RSS image"
+    )
+    out = tmp_path / "mkdocs-pdf.curated.yml"
+    proc = subprocess.run(
+        [sys.executable, str(CURATE_TOOL), "--output", str(out)],
+        capture_output=True,
+        text=True,
+        timeout=120,
+        cwd=str(ROOT),
+    )
+    assert proc.returncode == 0, proc.stderr
+    generated = yaml.safe_load(out.read_text(encoding="utf-8"))
+    assert generated.get("INHERIT") == "mkdocs-pdf.yml"

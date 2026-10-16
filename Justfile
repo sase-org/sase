@@ -488,8 +488,9 @@ fmt-md: _setup-prettier
 # and tools/render_docs_map.
 # Shared modules: tools/docs_moves.py and tools/docs_render_utils.py.
 # Section-move operator: tools/docs_split.
-# Render generated Markdown blocks
-fmt-docs: _setup-format-tools
+# Render generated Markdown blocks. The glossary and design-decision renderers
+# pipe through the repo Prettier, so it must exist before rendering.
+fmt-docs: _setup-format-tools _setup-prettier
     @printf "\n---------- Rendering generated docs... ----------\n"
     {{ format_venv_bin }}/python tools/render_docs --format-only
 
@@ -512,7 +513,7 @@ lint-keep-sorted: _setup-keep-sorted
 fmt-check: (_header "fmt-check") fmt-py-check fmt-md-check fmt-docs-check docs-gen-check
 
 # Check generated Markdown blocks are current (CI mode, no writes)
-fmt-docs-check: _setup-format-tools
+fmt-docs-check: _setup-format-tools _setup-prettier
     @printf "\n---------- Checking generated docs... ----------\n"
     {{ format_venv_bin }}/python tools/render_docs --format-only --check
 

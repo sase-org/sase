@@ -93,7 +93,7 @@ Options:
 usage: sase gate cancel [-h] [-i REQUEST_ID] [-j] [-k KIND] [-r TEXT] [ID]
 ```
 
-Cancel a pending gate by kind/request id, or cancel a pending gate shell by id (or unique id prefix), member agent name, or owning agent name. No follow-up agent is launched, even when one was recorded, unless the gate had already been answered concurrently -- that settles as answered instead.
+Cancel a pending gate by kind/request id, or cancel a pending gate turn by id (or unique id prefix), member agent name, or owning agent name. No follow-up agent is launched, even when one was recorded, unless the gate had already been answered concurrently -- that settles as answered instead.
 
 Options:
 

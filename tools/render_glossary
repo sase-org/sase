@@ -33,6 +33,7 @@ from docs_webs import (  # noqa: E402
     GLOSSARY_DIR,
     Webs,
     first_sentence,
+    format_with_prettier,
     rewrite_refs,
 )
 
@@ -128,10 +129,14 @@ def generated_outputs(root: Path = REPO_ROOT) -> dict[Path, str]:
         glossary_dir=root / GLOSSARY_DIR.relative_to(REPO_ROOT),
         decisions_dir=root / DECISIONS_DIR.relative_to(REPO_ROOT),
     )
+    glossary_rel = GLOSSARY_OUTPUT.relative_to(REPO_ROOT).as_posix()
+    abbreviations_rel = ABBREVIATIONS_OUTPUT.relative_to(REPO_ROOT).as_posix()
     return {
-        root / GLOSSARY_OUTPUT.relative_to(REPO_ROOT): render_glossary_text(webs),
-        root / ABBREVIATIONS_OUTPUT.relative_to(REPO_ROOT): render_abbreviations_text(
-            webs
+        root / GLOSSARY_OUTPUT.relative_to(REPO_ROOT): format_with_prettier(
+            render_glossary_text(webs), glossary_rel
+        ),
+        root / ABBREVIATIONS_OUTPUT.relative_to(REPO_ROOT): format_with_prettier(
+            render_abbreviations_text(webs), abbreviations_rel
         ),
     }
 
