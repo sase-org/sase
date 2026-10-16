@@ -118,7 +118,7 @@ def append_agent_memory_reads_section(
     *chips* maps read-event ids to their resolved version chips and
     *version_pins* to single-target pager pins; both append at the row
     end without reflowing the lane. *launch_row* renders first as the
-    ``AGENTS.md as launched`` row.
+    as-launched instruction row.
     """
     if not events and launch_row is None:
         if show_empty:
@@ -141,7 +141,10 @@ def append_agent_memory_reads_section(
     if distinct_agents > 1:
         details += f" · {count_phrase(distinct_agents, 'agent')}"
     if launch_row is not None:
-        details += " · AGENTS.md as launched"
+        if getattr(launch_row, "kind", "snapshot") == "bundle":
+            details += " · Instructions as launched"
+        else:
+            details += " · AGENTS.md as launched"
     append_context_lane_header(
         text,
         "MEMORY",
@@ -203,7 +206,7 @@ def _append_launch_row(
     hint_state: HeaderHintState | None,
     launch_pin: MemoryVersionPin | None,
 ) -> None:
-    """Append the ``AGENTS.md as launched`` row with its version chip."""
+    """Append the as-launched instruction row with its version chip."""
     from ._agent_context_common import COLOR_TIMESTAMP
 
     hint_label = None

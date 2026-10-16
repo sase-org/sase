@@ -75,3 +75,7 @@ class AgentStateCoreFields:
 
     # Additional file paths (plans, etc.) for multi-file panel display
     extra_files: list[str] = field(default_factory=list)
+
+    # Recorded instruction-bundle paths for the Files deck (root then helper).
+    # Done loaders fill this; running agents use the worker-filled cache.
+    instruction_bundle_files: list[str] = field(default_factory=list)

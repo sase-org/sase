@@ -33,6 +33,10 @@ def _dispatch_file_view(
             if path not in seen:
                 seen.add(path)
                 retained.append(path)
+        for path in list(getattr(agent, "instruction_bundle_files", None) or ()):
+            if path not in seen:
+                seen.add(path)
+                retained.append(path)
         if retained:
             file_panel.set_file_list(retained, start_index=0)
             return True
@@ -43,6 +47,11 @@ def _dispatch_file_view(
         )
         return True
     if agent_commit_diffs(agent):
+        file_panel.update_display(
+            agent, stale_threshold_seconds=stale_threshold_seconds
+        )
+        return True
+    if getattr(agent, "instruction_bundle_files", None):
         file_panel.update_display(
             agent, stale_threshold_seconds=stale_threshold_seconds
         )

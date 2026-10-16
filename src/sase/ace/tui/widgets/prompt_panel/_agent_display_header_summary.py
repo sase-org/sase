@@ -241,6 +241,9 @@ def _build_detail_header_summary_impl(
     artifact_reads: tuple[ArtifactReadDisplayEvent, ...] = ()
     bead_touch_entries: tuple[BeadTouchEntry, ...] = ()
     if "artifacts" in lanes:
+        from ..file_panel._instruction_bundles import (
+            compute_instruction_bundle_files,
+        )
         from ..file_panel._linked_deltas import get_cached_linked_delta_groups
         from ._artifact_files import (
             artifact_file_paths as resolve_artifact_file_paths,
@@ -254,6 +257,9 @@ def _build_detail_header_summary_impl(
             linked_delta_groups = get_cached_linked_delta_groups(agent)
             if not linked_delta_groups:
                 linked_delta_groups = agent_commit_linked_delta_groups(agent)
+
+        with tui_trace(f"{DETAIL_HEADER_TRACE_SPAN_PREFIX}.instruction_bundles"):
+            compute_instruction_bundle_files(agent)
 
         with tui_trace(f"{DETAIL_HEADER_TRACE_SPAN_PREFIX}.artifact_file_paths"):
             resolved_artifact_file_paths = resolve_artifact_file_paths(agent)

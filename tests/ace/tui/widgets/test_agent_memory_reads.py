@@ -680,3 +680,28 @@ def test_launch_row_alone_renders_without_reads() -> None:
 
     assert "AGENTS.md as launched" in text.plain
     assert "◌ as launched · not in git" in text.plain
+
+
+def test_explicit_launch_row_header_says_instructions_as_launched() -> None:
+    from sase.ace.tui.widgets.prompt_panel._agent_memory_versions import (
+        MemoryLaunchRow,
+        MemoryVersionChip,
+    )
+
+    launch = MemoryLaunchRow(
+        display="Instructions as launched · 00-claude",
+        chip=MemoryVersionChip(
+            "claude.append_system_prompt_file · 128 · bytes match", "dim"
+        ),
+        blob_oid=None,
+        ordinal=None,
+        kind="bundle",
+        snapshot_path="/tmp/00-claude.md",
+        logical_filename="00-claude.md",
+    )
+    text = Text()
+    append_agent_memory_reads_section(text, events=(), launch_row=launch)
+    assert "Instructions as launched" in text.plain
+    assert "AGENTS.md as launched" not in text.plain
+    assert "00-claude" in text.plain
+    assert "bytes match" in text.plain

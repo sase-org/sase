@@ -223,7 +223,17 @@ def test_dispatch_and_helpers() -> None:
 
     fake = _FakePanel()
     assert _dispatch_file_view(fake, agent) is True  # type: ignore[arg-type]
+    assert fake.calls == ["set"]
     assert load_deck_file_view(fake, agent, attempt_number=1) is False  # type: ignore[arg-type]
+
+    bundled = _agent(
+        status="DONE",
+        extra_files=["/tmp/plan.md"],
+    )
+    bundled.instruction_bundle_files = ["/tmp/art/instructions/00-claude.md"]
+    bundle_panel = _FakePanel()
+    assert _dispatch_file_view(bundle_panel, bundled) is True  # type: ignore[arg-type]
+    assert bundle_panel.calls == ["update"]
 
 
 async def test_cycle_focused_deck_card_sticks_preferred(tmp_path: Path) -> None:

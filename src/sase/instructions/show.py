@@ -2,90 +2,22 @@
 
 from __future__ import annotations
 
-import hashlib
 import json
 import sys
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from sase.instructions.manifests import RunManifest, read_run_manifests
+from sase.instructions.manifests import (
+    BundleIntegrity,
+    RunManifest,
+    check_bundle_integrity,
+    read_run_manifests,
+)
 from sase.instructions.run_index import (
     UnknownAgentError,
     enumerate_runs,
     read_json_object,
 )
-
-
-@dataclass(frozen=True)
-class _Integrity:
-    """Result of comparing stored bundle bytes to the manifest digest."""
-
-    label: str
-    data: bytes | None
-    source: str
-    expected_sha: str
-    actual_sha: str | None
-
-    @property
-    def ok(self) -> bool:
-        return self.label == "bytes match"
-
-
-def _sha256_bytes(data: bytes) -> str:
-    return hashlib.sha256(data).hexdigest()
-
-
-def _read_bytes(path: Path) -> bytes | None:
-    try:
-        return path.read_bytes()
-    except OSError:
-        return None
-
-
-def _check_bundle_integrity(entry: RunManifest) -> _Integrity:
-    """Sha256 the run copy, falling back to ``bundle.store_path``."""
-    expected = ""
-    store_path: str | None = None
-    payload = entry.manifest if isinstance(entry.manifest, dict) else entry.raw
-    if isinstance(payload, dict):
-        bundle = payload.get("bundle")
-        if isinstance(bundle, dict):
-            raw_sha = bundle.get("sha256")
-            if isinstance(raw_sha, str):
-                expected = raw_sha
-            raw_store = bundle.get("store_path")
-            if isinstance(raw_store, str) and raw_store:
-                store_path = raw_store
-    data: bytes | None = None
-    source = "missing"
-    if entry.bundle_path is not None:
-        data = _read_bytes(entry.bundle_path)
-        if data is not None:
-            source = "run"
-    if data is None and store_path:
-        data = _read_bytes(Path(store_path).expanduser())
-        if data is not None:
-            source = "store"
-    if data is None:
-        return _Integrity(
-            label="missing",
-            data=None,
-            source=source,
-            expected_sha=expected,
-            actual_sha=None,
-        )
-    actual = _sha256_bytes(data)
-    label = "bytes match" if expected and actual == expected else "MISMATCH"
-    if not expected:
-        label = "MISMATCH"
-    return _Integrity(
-        label=label,
-        data=data,
-        source=source,
-        expected_sha=expected,
-        actual_sha=actual,
-    )
 
 
 def _payload(entry: RunManifest) -> dict[str, Any] | None:
@@ -159,7 +91,7 @@ def _actor(entry: RunManifest) -> str:
     return "native_helper" if entry.is_helper else "sase_root"
 
 
-def _format_list_row(entry: RunManifest, integrity: _Integrity) -> str:
+def _format_list_row(entry: RunManifest, integrity: BundleIntegrity) -> str:
     """One compact inventory row for ``show -l``."""
     payload = _payload(entry)
     status, channel, attempt = _delivery_fields(payload)
@@ -172,7 +104,7 @@ def _format_list_row(entry: RunManifest, integrity: _Integrity) -> str:
     )
 
 
-def _list_row_dict(entry: RunManifest, integrity: _Integrity) -> dict[str, Any]:
+def _list_row_dict(entry: RunManifest, integrity: BundleIntegrity) -> dict[str, Any]:
     """JSON object for one ``show -l -j`` row."""
     payload = _payload(entry)
     status, channel, attempt = _delivery_fields(payload)
@@ -223,7 +155,7 @@ def _pick_entry(
     return matches[0] if matches else None
 
 
-def _summary_line(entry: RunManifest, integrity: _Integrity, *, agent: str) -> str:
+def _summary_line(entry: RunManifest, integrity: BundleIntegrity, *, agent: str) -> str:
     sha, _common, size, _tokens = _bundle_fields(_payload(entry))
     shown = (integrity.actual_sha or sha or "")[:12]
     role = "helper" if entry.is_helper else "root"
@@ -275,7 +207,7 @@ def run_instructions_show(args: Any) -> int:
         )
         return 2
     if want_list:
-        rows = [(entry, _check_bundle_integrity(entry)) for entry in entries]
+        rows = [(entry, check_bundle_integrity(entry)) for entry in entries]
         if want_json:
             print(
                 json.dumps(
@@ -308,7 +240,7 @@ def run_instructions_show(args: Any) -> int:
             file=sys.stderr,
         )
         return 2
-    integrity = _check_bundle_integrity(chosen)
+    integrity = check_bundle_integrity(chosen)
     print(_summary_line(chosen, integrity, agent=agent), file=sys.stderr)
     payload = _payload(chosen)
     if want_json:

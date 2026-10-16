@@ -326,6 +326,46 @@ def test_desired_file_list_orders_primary_linked_then_extra_files() -> None:
     assert default_value == _LIVE_DIFF_SENTINEL
 
 
+def test_desired_file_list_appends_instruction_bundle_files() -> None:
+    """Recorded bundles are static pages after extra_files, not extra_files."""
+    from sase.ace.tui.widgets.file_panel._file_list import desired_file_pages
+
+    agent = _make_agent(extra_files=["/tmp/plan.md"])
+    agent.instruction_bundle_files = [
+        "/tmp/art/instructions/00-claude.md",
+        "/tmp/art/instructions/00-claude.helper.md",
+    ]
+    pages, _default = desired_file_pages(agent)
+    assert pages[-2:] == agent.instruction_bundle_files
+    assert "/tmp/plan.md" in pages
+    assert pages.index("/tmp/plan.md") < pages.index(agent.instruction_bundle_files[0])
+
+
+def test_instruction_bundle_pages_use_cache_when_field_empty() -> None:
+    """Running agents read the worker cache; paint never lists the disk."""
+    from sase.ace.tui.widgets.file_panel._file_list import desired_file_pages
+    from sase.ace.tui.widgets.file_panel._instruction_bundles import (
+        clear_instruction_bundle_cache,
+        instruction_bundle_pages,
+    )
+    from sase.ace.tui.widgets.file_panel import _instruction_bundles as bundles
+
+    agent = _make_agent()
+    clear_instruction_bundle_cache()
+    cached = (
+        "/tmp/art/instructions/00-codex.md",
+        "/tmp/art/instructions/00-codex.helper.md",
+    )
+    with bundles._bundle_cache_lock:
+        bundles._bundle_cache[agent.identity] = cached
+    try:
+        assert instruction_bundle_pages(agent) == list(cached)
+        pages, _default = desired_file_pages(agent)
+        assert pages[-2:] == list(cached)
+    finally:
+        clear_instruction_bundle_cache(agent)
+
+
 def test_desired_file_list_plan_default_is_value_based_with_linked_pages() -> None:
     """Plan-chain agents default to the plan path even after linked diff slots."""
     panel = _make_panel()

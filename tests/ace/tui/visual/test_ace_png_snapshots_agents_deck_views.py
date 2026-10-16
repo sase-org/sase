@@ -24,6 +24,7 @@ from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patch_startup_loaders,
     wait_for_startup,
     wait_for_state,
+    wait_for_svg_contains,
     wait_for_visual_idle,
 )
 from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
@@ -142,6 +143,27 @@ def _files_agent(tmp_path: Path, *, lines_per_file: int = 200) -> Agent:
         encoding="utf-8",
     )
     root.extra_files = [str(first), str(second)]
+    return root
+
+
+def _bundle_files_agent(tmp_path: Path) -> Agent:
+    """Build a session agent whose Files deck lists recorded instruction bundles."""
+    root = _view_turn(
+        tmp_path, "viewbundles", "plan", "--plan", 10, plan_chain_root=True
+    )
+    instructions = tmp_path / "artifacts" / "instructions"
+    instructions.mkdir(parents=True, exist_ok=True)
+    root_bundle = instructions / "00-claude.md"
+    helper_bundle = instructions / "00-claude.helper.md"
+    root_bundle.write_text(
+        "# Root bundle\n\nYou are a SASE agent. Follow the recorded instructions.\n",
+        encoding="utf-8",
+    )
+    helper_bundle.write_text(
+        "# Helper bundle\n\nReturn your result to the parent agent.\n",
+        encoding="utf-8",
+    )
+    root.instruction_bundle_files = [str(root_bundle), str(helper_bundle)]
     return root
 
 
@@ -390,6 +412,37 @@ async def test_agents_deck_view_files_fixed_spread_png_snapshot(
             page,
             "agents_deck_view_files_fixed_spread_160x40",
             title="ACE agents deck view Files fixed spread",
+        )
+
+
+async def test_agents_deck_view_files_instruction_bundles_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    patch_startup_loaders(monkeypatch, agents=[_bundle_files_agent(tmp_path)])
+    async with AcePage(query='"visual"', size=(160, 40), patches=patches()) as page:
+        await _goto_agents(page, 1)
+        detail = page.app.query_one("#agent-detail-panel", AgentDetail)
+        detail.show_deck(0, DeckId.FILES)
+        panel = detail.deck_area.panel(0)
+        await wait_for_state(page, detail.is_file_visible, description="Files deck")
+        await wait_for_state(
+            page,
+            lambda: "00-claude.md" in (panel.file_view.current_source_label() or ""),
+            description="Files deck shows the root bundle",
+        )
+        assert (
+            panel.file_view.source_label_for_slot(panel.file_view._file_list[0]).tag
+            == "bundle"
+        )
+        await wait_for_svg_contains(page, "00-claude.md")
+        await wait_for_svg_contains(page, "You are a SASE agent")
+        await wait_for_visual_idle(page)
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_deck_view_files_instruction_bundles_160x40",
+            title="ACE agents deck Files instruction bundles",
         )
 
 

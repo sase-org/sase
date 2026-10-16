@@ -102,6 +102,8 @@ def _merge_agent_fields(target: Agent, source: Agent) -> None:
         target.diff_path = source.diff_path
     if not target.extra_files and source.extra_files:
         target.extra_files = source.extra_files
+    if not target.instruction_bundle_files and source.instruction_bundle_files:
+        target.instruction_bundle_files = source.instruction_bundle_files
     if target.artifacts_dir is None and source.artifacts_dir is not None:
         target.artifacts_dir = source.artifacts_dir
     if not target.waiting_for and source.waiting_for:
@@ -435,6 +437,8 @@ def dedup_running_vs_workflow(agents: list[Agent]) -> list[Agent]:
                 matched.error_traceback = agent.error_traceback
             if not matched.extra_files and agent.extra_files:
                 matched.extra_files = agent.extra_files
+            if not matched.instruction_bundle_files and agent.instruction_bundle_files:
+                matched.instruction_bundle_files = agent.instruction_bundle_files
             if matched.step_output is None and agent.step_output is not None:
                 matched.step_output = agent.step_output
             elif matched.step_output is not None and agent.step_output is not None:

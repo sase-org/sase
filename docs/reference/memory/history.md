@@ -196,13 +196,19 @@ same vocabulary without leaving ACE:
 In the Agents tab, the `SASE CONTEXT` / `MEMORY` lane shows which version each audited
 read actually saw, resolved from the read's blob OID: `≡ now`, `vK ⟲ N newer`,
 `◌ uncommitted at read` when the blob matches no committed version, and one
-`⟲ N of M changed` chip for a batch read. A leading `AGENTS.md as launched` row resolves
-the workspace's root `AGENTS.md` from launch evidence (`◌ as launched · not in git` when
-its bytes were never committed, `snapshot unavailable` when the stored bytes are gone);
-agents launched before evidence capture show no launch row. The row's `v` hint opens the
-pager pinned to that version (or the stored snapshot as a read-only document), and the
-batch read report lists each target's version read. Reads that predate blob capture get
-no chip.
+`⟲ N of M changed` chip for a batch read. A leading as-launched row opens the
+instruction bundle the agent actually received when the launch was `explicit`
+(`Instructions as launched · NN-<provider>`, with a chip for the delivery channel, size,
+and `bytes match` / `MISMATCH`). Native, fallback, and pre-E3 runs keep the workspace
+root `AGENTS.md` snapshot (`◌ as launched · not in git` when its bytes were never
+committed, `snapshot unavailable` when the stored bytes are gone); agents launched
+before evidence capture show no launch row. The row's `v` hint opens the pager pinned to
+that version, the recorded bundle, or the stored snapshot as a read-only document, and
+the batch read report lists each target's version read. Reads that predate blob capture
+get no chip. The Agents-tab Files deck appends the same root and helper bundles as
+static pages. Inspect them from the CLI with `sase instructions render`,
+`sase instructions show NAME`, `sase instructions verify -a NAME`, and
+`sase instructions readout`.
 
 ## CLI
 

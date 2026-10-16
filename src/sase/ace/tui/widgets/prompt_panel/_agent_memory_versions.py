@@ -2,15 +2,18 @@
 
 The hint system carries :class:`MemoryVersionPin` entries (one per hint
 number) so a row whose chip resolved to a committed version opens the
-pager pinned to the version read, and the launch row opens ``AGENTS.md``
-at the launch version (or its not-in-git snapshot).
+pager pinned to the version read, and the launch row opens the recorded
+root bundle for explicit runs or ``AGENTS.md`` at the launch version (or
+its not-in-git snapshot) for native, fallback, and pre-E3 runs.
 
 Each audited memory read carries the blob OID the agent actually saw
 (``MemoryReadEvent.blob_oid`` for a single note, ``included_blob_oids``
 pairs for a batch). Resolving each blob through
 ``AceMemoryHistory.version_for_blob`` tells whether that version is still
-current. The launch row resolves the workspace's root ``AGENTS.md`` from
-the run's launch evidence (``agent_meta.json``) instead of from time.
+current. The launch row prefers the recorded root bundle when the launch
+manifest's delivery is ``explicit``; otherwise it resolves the workspace
+root ``AGENTS.md`` from launch evidence (``agent_meta.json``) instead of
+from time.
 
 All I/O runs on the caller's (worker) thread; every failure omits its
 chip or row rather than raising.
@@ -47,13 +50,21 @@ class MemoryVersionChip:
 
 @dataclass(frozen=True)
 class MemoryLaunchRow:
-    """The resolved ``AGENTS.md as launched`` row."""
+    """The resolved as-launched instruction row.
+
+    ``kind="bundle"`` is the recorded root bundle for an explicit run.
+    ``kind="snapshot"`` is the workspace ``AGENTS.md`` snapshot used for
+    native, fallback, and pre-E3 runs.
+    """
 
     display: str
     chip: MemoryVersionChip | None
     blob_oid: str | None
     ordinal: int | None
     unavailable: bool = False
+    kind: str = "snapshot"
+    snapshot_path: str | None = None
+    logical_filename: str | None = None
 
 
 @dataclass(frozen=True)
@@ -73,6 +84,7 @@ class MemoryVersionPin:
     title: str
     snapshot_path: str | None = None
     snapshot_title: str | None = None
+    logical_filename: str | None = None
 
 
 def _chip_for_result(
@@ -263,14 +275,14 @@ def resolve_launch_row(
     history: Any,
     service: Any,
 ) -> MemoryLaunchRow | None:
-    """Resolve the ``AGENTS.md as launched`` row for *agent*.
+    """Resolve the as-launched instruction row for *agent*.
 
-    Uses the run's ``instruction_snapshot`` entry for the workspace root
-    ``AGENTS.md``, falling back to ``workspace_head``. Returns ``None``
-    when the agent predates evidence capture or no scope resolves: those
-    agents show no launch row. A snapshot whose bytes match no committed
-    blob yields the not-in-git row; gone snapshot bytes yield the
-    unavailable row.
+    Explicit runs open the recorded root bundle. Native, fallback, and
+    pre-E3 runs keep the workspace root ``AGENTS.md`` snapshot (or
+    ``workspace_head``). Returns ``None`` when the agent predates evidence
+    capture or no scope resolves: those agents show no launch row. A
+    snapshot whose bytes match no committed blob yields the not-in-git
+    row; gone snapshot bytes yield the unavailable row.
     """
     workspace_dir = getattr(agent, "workspace_dir", None)
     if not workspace_dir:
@@ -279,6 +291,9 @@ def resolve_launch_row(
         scope = service.project_scope(Path(str(workspace_dir)))
     except Exception:
         return None
+    bundle_row = _launch_row_from_bundle(agent)
+    if bundle_row is not None:
+        return bundle_row
     evidence = _read_launch_evidence(agent)
     snapshots = evidence.get("instruction_snapshot", ())
     if not isinstance(snapshots, (list, tuple)):
@@ -290,6 +305,58 @@ def resolve_launch_row(
     if isinstance(head, str) and head.strip():
         return _launch_row_from_head(head.strip(), scope=scope, service=service)
     return None
+
+
+def _launch_row_from_bundle(agent: Any) -> MemoryLaunchRow | None:
+    """Build the launch row from the recorded root bundle, if explicit."""
+    try:
+        artifacts_dir = agent.get_artifacts_dir()
+    except Exception:
+        return None
+    if not artifacts_dir:
+        return None
+    try:
+        from sase.instructions.manifests import (
+            LaunchRootBundle,
+            bundle_size,
+            delivery_channel,
+            launch_root_bundle,
+        )
+
+        located = launch_root_bundle(artifacts_dir)
+    except Exception:
+        return None
+    if not isinstance(located, LaunchRootBundle) or not located.is_explicit:
+        return None
+    entry = located.entry
+    bundle_path = entry.bundle_path
+    if bundle_path is None:
+        return None
+    filename = bundle_path.name
+    display = f"Instructions as launched · {filename.removesuffix('.md')}"
+    channel = delivery_channel(entry) or "—"
+    size = bundle_size(entry)
+    if size <= 0 and located.integrity.data is not None:
+        size = len(located.integrity.data)
+    size_text = f"{size:,}" if size else "0"
+    integrity_label = located.integrity.label
+    chip_text = f"{channel} · {size_text} · {integrity_label}"
+    if integrity_label == "bytes match":
+        style = CHIP_NOW_STYLE
+    elif integrity_label == "MISMATCH":
+        style = CHIP_UNCOMMITTED_STYLE
+    else:
+        style = CHIP_UNAVAILABLE_STYLE
+    return MemoryLaunchRow(
+        display=display,
+        chip=MemoryVersionChip(chip_text, style),
+        blob_oid=None,
+        ordinal=None,
+        unavailable=integrity_label == "missing",
+        kind="bundle",
+        snapshot_path=str(bundle_path),
+        logical_filename=filename,
+    )
 
 
 def _root_agents_entry(snapshots: Any, workspace_dir: Path) -> dict[str, Any] | None:

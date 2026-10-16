@@ -46,6 +46,42 @@ def test_done_loader_adds_image_paths_to_extra_files(tmp_path: Path) -> None:
         str(duplicate),
         str(video),
     ]
+    assert agent.instruction_bundle_files == []
+
+
+def test_done_loader_adds_instruction_bundle_files(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setattr(
+        "sase.core.instruction_manifest.normalize_instruction_manifest",
+        lambda payload: payload,
+    )
+    from tests.instructions.fixture_shadow import write_helper_shadow, write_shadow_run
+
+    artifact_dir = tmp_path / "20260430120100"
+    artifact_dir.mkdir()
+    (artifact_dir / "done.json").write_text(
+        json.dumps(
+            {
+                "cl_name": "feature",
+                "project_file": "/tmp/project.sase",
+                "outcome": "completed",
+            }
+        ),
+        encoding="utf-8",
+    )
+    _artifacts, root, _bundle = write_shadow_run(
+        tmp_path, provider="claude", artifacts_dir=artifact_dir
+    )
+    write_helper_shadow(
+        artifact_dir,
+        provider="claude",
+        parent_invocation_id=str(root["delivery"]["invocation_id"]),
+    )
+
+    agent = _load_done_agent_for_dir(artifact_dir, "ace-run", {}, {})
+
+    assert agent is not None
+    names = [Path(path).name for path in agent.instruction_bundle_files]
+    assert names == ["00-claude.md", "00-claude.helper.md"]
 
 
 def test_snapshot_done_loader_adds_image_paths_to_extra_files(tmp_path: Path) -> None:

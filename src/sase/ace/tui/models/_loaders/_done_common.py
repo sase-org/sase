@@ -111,6 +111,18 @@ def enrich_missing_commit_metadata(
             step_output["meta_commit_cwd"] = commit_cwd
 
 
+def done_instruction_bundle_files(artifact_dir: str | Path | None) -> list[str]:
+    """Return recorded instruction-bundle paths for a completed agent."""
+    if artifact_dir is None:
+        return []
+    try:
+        from sase.instructions.manifests import run_bundle_paths
+
+        return list(run_bundle_paths(artifact_dir))
+    except Exception:
+        return []
+
+
 def done_extra_files(
     plan_path: str | None,
     markdown_pdf_paths: object,

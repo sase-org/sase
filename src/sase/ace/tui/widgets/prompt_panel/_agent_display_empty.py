@@ -38,6 +38,9 @@ class AgentDisplayEmptyMixin:
             cancel_tribe_worker()
         clear_detail_header_summary_cache(self)
         clear_agent_hint_render_cache(self)
+        from ..file_panel._instruction_bundles import clear_instruction_bundle_cache
+
+        clear_instruction_bundle_cache()
         # Cardless on purpose: deck-panel-core delegates show_empty in deck mode.
         text = Text("No agent selected", style="dim italic")
         self.update(text)  # type: ignore[attr-defined]

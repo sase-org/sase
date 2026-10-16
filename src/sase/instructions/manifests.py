@@ -7,10 +7,16 @@ sequence then root-before-helper. Missing and corrupt files are
 tolerated and flagged on the record instead of raising, so the
 scoreboard can report coverage over partial runs. Manifests validate
 through the Rust-backed adapter and may be v1 or v2 documents.
+
+:func:`launch_root_bundle` is the public locator for the recorded root
+bundle a TUI launch row should open: the lowest-sequence non-helper
+manifest that still has a bundle path, plus its delivery status and
+integrity check.
 """
 
 from __future__ import annotations
 
+import hashlib
 import json
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -34,6 +40,34 @@ class RunManifest:
     actor: str = ""
     parent_invocation_id: str | None = None
     raw: dict[str, Any] | None = None
+
+
+@dataclass(frozen=True)
+class BundleIntegrity:
+    """Result of comparing stored bundle bytes to the manifest digest."""
+
+    label: str
+    data: bytes | None
+    source: str
+    expected_sha: str
+    actual_sha: str | None
+
+    @property
+    def ok(self) -> bool:
+        return self.label == "bytes match"
+
+
+@dataclass(frozen=True)
+class LaunchRootBundle:
+    """Lowest-sequence non-helper recorded bundle for one run."""
+
+    entry: RunManifest
+    delivery_status: str
+    integrity: BundleIntegrity
+
+    @property
+    def is_explicit(self) -> bool:
+        return self.delivery_status == "explicit"
 
 
 def _read_json(path: Path) -> tuple[Any | None, str | None]:
@@ -175,4 +209,145 @@ def read_run_manifests(artifacts_dir: str | Path) -> list[RunManifest]:
     return records
 
 
-__all__ = ["RunManifest", "read_run_manifests"]
+def _payload(entry: RunManifest) -> dict[str, Any] | None:
+    if isinstance(entry.manifest, dict):
+        return entry.manifest
+    if isinstance(entry.raw, dict):
+        return entry.raw
+    return None
+
+
+def _delivery_status(entry: RunManifest) -> str:
+    """Return the recorded delivery status, or ``""`` when absent."""
+    payload = _payload(entry)
+    if not isinstance(payload, dict):
+        return ""
+    delivery = payload.get("delivery")
+    if not isinstance(delivery, dict):
+        return ""
+    raw = delivery.get("status")
+    return raw if isinstance(raw, str) else ""
+
+
+def delivery_channel(entry: RunManifest) -> str:
+    """Return the recorded delivery channel, or ``""`` when absent."""
+    payload = _payload(entry)
+    if not isinstance(payload, dict):
+        return ""
+    delivery = payload.get("delivery")
+    if not isinstance(delivery, dict):
+        return ""
+    raw = delivery.get("channel")
+    return raw if isinstance(raw, str) else ""
+
+
+def bundle_size(entry: RunManifest) -> int:
+    """Return the recorded bundle byte count, or ``0`` when absent."""
+    payload = _payload(entry)
+    if not isinstance(payload, dict):
+        return 0
+    bundle = payload.get("bundle")
+    if not isinstance(bundle, dict):
+        return 0
+    raw = bundle.get("bytes")
+    return raw if isinstance(raw, int) else 0
+
+
+def _sha256_bytes(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
+
+
+def _read_bytes(path: Path) -> bytes | None:
+    try:
+        return path.read_bytes()
+    except OSError:
+        return None
+
+
+def check_bundle_integrity(entry: RunManifest) -> BundleIntegrity:
+    """Sha256 the run copy, falling back to ``bundle.store_path``."""
+    expected = ""
+    store_path: str | None = None
+    payload = _payload(entry)
+    if isinstance(payload, dict):
+        bundle = payload.get("bundle")
+        if isinstance(bundle, dict):
+            raw_sha = bundle.get("sha256")
+            if isinstance(raw_sha, str):
+                expected = raw_sha
+            raw_store = bundle.get("store_path")
+            if isinstance(raw_store, str) and raw_store:
+                store_path = raw_store
+    data: bytes | None = None
+    source = "missing"
+    if entry.bundle_path is not None:
+        data = _read_bytes(entry.bundle_path)
+        if data is not None:
+            source = "run"
+    if data is None and store_path:
+        data = _read_bytes(Path(store_path).expanduser())
+        if data is not None:
+            source = "store"
+    if data is None:
+        return BundleIntegrity(
+            label="missing",
+            data=None,
+            source=source,
+            expected_sha=expected,
+            actual_sha=None,
+        )
+    actual = _sha256_bytes(data)
+    label = "bytes match" if expected and actual == expected else "MISMATCH"
+    if not expected:
+        label = "MISMATCH"
+    return BundleIntegrity(
+        label=label,
+        data=data,
+        source=source,
+        expected_sha=expected,
+        actual_sha=actual,
+    )
+
+
+def run_bundle_paths(artifacts_dir: str | Path) -> tuple[str, ...]:
+    """Return root-then-helper bundle paths under ``<artifacts>/instructions/``."""
+    return tuple(
+        str(entry.bundle_path)
+        for entry in read_run_manifests(artifacts_dir)
+        if entry.bundle_path is not None
+    )
+
+
+def launch_root_bundle(artifacts_dir: str | Path) -> LaunchRootBundle | None:
+    """Return the lowest-sequence non-helper recorded bundle, if any.
+
+    Helpers are skipped. A root record without a bundle path is skipped so
+    a later root that still has bytes can win. Integrity is always
+    computed for the chosen record.
+    """
+    candidates = [
+        entry
+        for entry in read_run_manifests(artifacts_dir)
+        if not entry.is_helper and entry.bundle_path is not None
+    ]
+    if not candidates:
+        return None
+    chosen = min(candidates, key=lambda entry: entry.seq)
+    return LaunchRootBundle(
+        entry=chosen,
+        delivery_status=_delivery_status(chosen),
+        integrity=check_bundle_integrity(chosen),
+    )
+
+
+__all__ = [
+    "BundleIntegrity",
+    "LaunchRootBundle",
+    "RunManifest",
+    "bundle_size",
+    "check_bundle_integrity",
+    "delivery_channel",
+    "launch_root_bundle",
+    "read_run_manifests",
+    "run_bundle_paths",
+]

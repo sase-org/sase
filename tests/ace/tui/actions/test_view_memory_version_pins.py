@@ -37,6 +37,22 @@ def test_snapshot_section_reads_stored_bytes(tmp_path: Path) -> None:
     assert section is not None
     assert section.title == "AGENTS.md as launched · not in git"
     assert "# agents v1" in section.body
+    assert section.raw_source is not None
+
+
+def test_snapshot_section_uses_logical_filename_for_bundle(tmp_path: Path) -> None:
+    snapshot = tmp_path / "00-claude.md"
+    snapshot.write_text("# bundle\n", encoding="utf-8")
+
+    section = _snapshot_section(
+        str(snapshot),
+        "Instructions as launched · 00-claude",
+        "Instructions as launched · 00-claude",
+        logical_filename="00-claude.md",
+    )
+
+    assert section is not None
+    assert section.title == "Instructions as launched · 00-claude"
 
 
 def test_snapshot_section_missing_bytes_is_none(tmp_path: Path) -> None:

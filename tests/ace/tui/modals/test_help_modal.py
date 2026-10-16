@@ -78,6 +78,12 @@ def test_help_modal_refresh_for_tab_rebuilds_sections() -> None:
     assert "Neighbors modal" not in agents_left
     assert "Cycle foldable section/member" in agents_right
     assert "Inherit MEMBERS then panel" in agents_right
+    agents_combined = agents_left + agents_right
+    assert "sase instructions" in agents_combined
+    assert "Preview this project's bundle" in agents_combined
+    assert "Print a named agent's bundle" in agents_combined
+    assert "Diff one run against loads" in agents_combined
+    assert "Handoff-aware miss report" in agents_combined
 
 
 async def test_help_digits_do_not_load_saved_queries(monkeypatch) -> None:

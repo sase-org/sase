@@ -144,4 +144,13 @@ def reference_sections(km: KeymapRegistry) -> Sections:
             "Node Rail",
             [(glyph.plain, meaning) for glyph, meaning in RAIL_LEGEND],
         ),
+        (
+            "sase instructions",
+            [
+                ("render", "Preview this project's bundle"),
+                ("show NAME", "Print a named agent's bundle"),
+                ("verify -a NAME", "Diff one run against loads"),
+                ("readout", "Handoff-aware miss report"),
+            ],
+        ),
     ]

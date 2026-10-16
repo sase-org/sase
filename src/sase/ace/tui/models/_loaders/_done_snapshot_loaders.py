@@ -17,6 +17,7 @@ from sase.monitor_status import (
 
 from ._done_common import (
     done_extra_files,
+    done_instruction_bundle_files,
     enrich_agent_revert_state,
     enrich_missing_commit_metadata,
 )
@@ -135,6 +136,7 @@ def build_done_agent_from_record(
         done.image_paths,
         done.video_paths,
     )
+    instruction_bundle_files = done_instruction_bundle_files(record.artifact_dir)
 
     agent = Agent(
         agent_type=AgentType.RUNNING,
@@ -148,6 +150,7 @@ def build_done_agent_from_record(
         response_path=done.response_path,
         diff_path=done.diff_path,
         extra_files=extra_files,
+        instruction_bundle_files=instruction_bundle_files,
         plan_path=done.plan_path,
         archived_plan_path=done.plan_path,
         step_output=done.step_output,

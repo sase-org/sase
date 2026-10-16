@@ -63,6 +63,9 @@ def desired_file_pages(agent: Agent) -> tuple[list[str], str | None]:
 
     extra_files = list(agent.extra_files)
     pages.extend(extra_files)
+    from ._instruction_bundles import instruction_bundle_pages
+
+    pages.extend(instruction_bundle_pages(agent))
 
     default_value = pages[0] if pages else None
     if (
@@ -425,6 +428,8 @@ class FilePanelFileListMixin:
             )
         expanded = os.path.expanduser(slot)
         label = os.path.basename(expanded) or expanded
+        if "/instructions/" in expanded.replace("\\", "/") and label.endswith(".md"):
+            return _FileSourceLabel(tag="bundle", label=label)
         return _FileSourceLabel(tag="file", label=label)
 
     def file_source_labels(self) -> tuple[_FileSourceLabel, ...]:

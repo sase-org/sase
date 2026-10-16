@@ -59,7 +59,12 @@ def memory_version_pin_sections(
             snapshot_title = str(
                 getattr(pin, "snapshot_title", None) or f"{title} · not in git"
             )
-            section = _snapshot_section(snapshot_path, snapshot_title, title)
+            section = _snapshot_section(
+                snapshot_path,
+                snapshot_title,
+                title,
+                logical_filename=getattr(pin, "logical_filename", None),
+            )
             if section is None:
                 failures.append(f"{title}: snapshot unavailable")
                 continue
@@ -103,7 +108,11 @@ def memory_version_pin_sections(
 
 
 def _snapshot_section(
-    snapshot_path: Any, snapshot_title: str, title: str
+    snapshot_path: Any,
+    snapshot_title: str,
+    title: str,
+    *,
+    logical_filename: str | None = None,
 ) -> Any | None:
     """Return a read-only pager section for stored snapshot bytes."""
     if not snapshot_path:
@@ -111,7 +120,8 @@ def _snapshot_section(
     try:
         from pathlib import Path as _Path
 
-        body = _Path(str(snapshot_path)).read_text(encoding="utf-8")
+        path = _Path(str(snapshot_path))
+        body = path.read_text(encoding="utf-8")
     except OSError:
         return None
     try:
@@ -119,6 +129,10 @@ def _snapshot_section(
         from sase.pager.syntax_policy import classify_source
     except Exception:
         return None
+    filename = str(logical_filename or "").strip()
+    if not filename:
+        name = path.name
+        filename = name if name.endswith(".md") else "AGENTS.md"
     return PagerSection(
         identity=f"memory-launch-snapshot:{title}",
         title=snapshot_title,
@@ -126,7 +140,7 @@ def _snapshot_section(
         body=body,
         subject_ref=str(snapshot_path),
         raw_source=classify_source(
-            category="raw_file", logical_filename="AGENTS.md", source=body
+            category="raw_file", logical_filename=filename, source=body
         ),
         origin=PagerOrigin.FILE,
     )

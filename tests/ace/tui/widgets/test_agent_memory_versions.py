@@ -317,6 +317,131 @@ def test_launch_row_snapshot_gone_is_unavailable(tmp_path: Path, monkeypatch) ->
     assert row.unavailable
 
 
+def _write_explicit_bundle(
+    artifacts: Path, *, provider: str = "claude", tamper: bool = False
+) -> Path:
+    from tests.instructions.fixture_shadow import write_shadow_run
+
+    artifacts_dir, _root, _bundle = write_shadow_run(
+        artifacts.parent, provider=provider, artifacts_dir=artifacts
+    )
+    manifest_path = artifacts_dir / "instructions" / f"00-{provider}.json"
+    payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+    payload["delivery"]["status"] = "explicit"
+    payload["delivery"]["channel"] = "claude.append_system_prompt_file"
+    manifest_path.write_text(
+        json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
+    bundle_path = artifacts_dir / "instructions" / f"00-{provider}.md"
+    if tamper:
+        bundle_path.write_text(
+            bundle_path.read_text(encoding="utf-8") + "tamper\n", encoding="utf-8"
+        )
+    return bundle_path
+
+
+def test_launch_row_explicit_bundle(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setattr(
+        "sase.core.instruction_manifest.normalize_instruction_manifest",
+        lambda payload: payload,
+    )
+    history = _History({}, service=_Service())
+    agent = _agent(
+        tmp_path, workspace_dir=str(tmp_path), meta={"workspace_head": "f" * 40}
+    )
+    artifacts = Path(agent.get_artifacts_dir())
+    bundle_path = _write_explicit_bundle(artifacts)
+    row = resolve_launch_row(agent, history=history, service=history.service)
+    assert row is not None
+    assert row.kind == "bundle"
+    assert row.display == "Instructions as launched · 00-claude"
+    assert row.chip is not None
+    assert "claude.append_system_prompt_file" in row.chip.text
+    assert "bytes match" in row.chip.text
+    assert row.snapshot_path == str(bundle_path)
+    assert row.logical_filename == "00-claude.md"
+    assert history.calls == []
+
+
+def test_launch_row_explicit_mismatch(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setattr(
+        "sase.core.instruction_manifest.normalize_instruction_manifest",
+        lambda payload: payload,
+    )
+    history = _History({}, service=_Service())
+    agent = _agent(tmp_path, workspace_dir=str(tmp_path), meta={})
+    artifacts = Path(agent.get_artifacts_dir())
+    _write_explicit_bundle(artifacts, tamper=True)
+    row = resolve_launch_row(agent, history=history, service=history.service)
+    assert row is not None
+    assert row.kind == "bundle"
+    assert row.chip is not None
+    assert "MISMATCH" in row.chip.text
+    assert row.chip.style == "#FFAF00"
+
+
+def test_launch_row_fallback_keeps_agents_snapshot(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setattr(
+        "sase.core.instruction_manifest.normalize_instruction_manifest",
+        lambda payload: payload,
+    )
+    from tests.instructions.fixture_shadow import write_shadow_run
+
+    history = _History({"oid": _result(258, now_matches=True)}, service=_Service())
+    agent = _agent(
+        tmp_path,
+        workspace_dir=str(tmp_path),
+        meta={
+            "instruction_snapshot": [
+                {
+                    "path": str(tmp_path / "AGENTS.md"),
+                    "repo": "project",
+                    "blob_oid": "oid",
+                    "tracked": True,
+                }
+            ]
+        },
+    )
+    artifacts = Path(agent.get_artifacts_dir())
+    write_shadow_run(tmp_path, provider="agy", artifacts_dir=artifacts)
+    manifest_path = artifacts / "instructions" / "00-agy.json"
+    payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+    payload["delivery"]["status"] = "inherits_native"
+    manifest_path.write_text(
+        json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
+    row = resolve_launch_row(agent, history=history, service=history.service)
+    assert row is not None
+    assert row.kind == "snapshot"
+    assert row.display == "AGENTS.md"
+    assert row.chip is not None
+    assert row.chip.text == "≡ now"
+
+
+def test_launch_row_pre_e3_keeps_agents_snapshot(tmp_path: Path) -> None:
+    history = _History({"oid": _result(12, newer_count=1)}, service=_Service())
+    agent = _agent(
+        tmp_path,
+        workspace_dir=str(tmp_path),
+        meta={
+            "instruction_snapshot": [
+                {
+                    "path": str(tmp_path / "AGENTS.md"),
+                    "repo": "project",
+                    "blob_oid": "oid",
+                    "tracked": True,
+                }
+            ]
+        },
+    )
+    row = resolve_launch_row(agent, history=history, service=history.service)
+    assert row is not None
+    assert row.kind == "snapshot"
+    assert row.display == "AGENTS.md"
+    assert row.chip is not None
+    assert row.chip.text == "v12 ⟲ 1 newer since launch"
+
+
 def test_launch_row_missing_for_agent_without_evidence(tmp_path: Path) -> None:
     history = _History({}, service=_Service())
     agent = _agent(tmp_path, workspace_dir=str(tmp_path), meta=None)

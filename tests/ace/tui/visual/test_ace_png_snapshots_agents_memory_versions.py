@@ -226,6 +226,161 @@ async def test_agents_memory_version_chips_png_snapshot(
         ace_png_visual.assert_page_png(page, snapshot_name, title=title)
 
 
+def _install_explicit_bundle_row(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, *, mismatch: bool = False
+) -> None:
+    """Fake an explicit launch-bundle row so the visual path does no disk I/O."""
+    from sase.ace.tui.widgets.prompt_panel._agent_memory_versions import (
+        CHIP_NOW_STYLE,
+        CHIP_UNCOMMITTED_STYLE,
+        MemoryLaunchRow,
+        MemoryVersionChip,
+    )
+
+    _install_fakes(monkeypatch, tmp_path)
+    bundle = tmp_path / "instructions" / "00-claude.md"
+    bundle.parent.mkdir(parents=True, exist_ok=True)
+    bundle.write_text("# explicit root bundle\n", encoding="utf-8")
+    integrity = "MISMATCH" if mismatch else "bytes match"
+    style = CHIP_UNCOMMITTED_STYLE if mismatch else CHIP_NOW_STYLE
+    row = MemoryLaunchRow(
+        display="Instructions as launched · 00-claude",
+        chip=MemoryVersionChip(
+            f"claude.append_system_prompt_file · 128 · {integrity}",
+            style,
+        ),
+        blob_oid=None,
+        ordinal=None,
+        kind="bundle",
+        snapshot_path=str(bundle),
+        logical_filename="00-claude.md",
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.widgets.prompt_panel._agent_memory_versions._launch_row_from_bundle",
+        lambda _agent: row,
+    )
+
+
+@pytest.mark.parametrize(
+    ("theme", "snapshot_name", "title"),
+    [
+        (
+            "textual-dark",
+            "agents_memory_launch_bundle_dark_120x40",
+            "ACE agents MEMORY lane explicit launch bundle dark theme",
+        ),
+        (
+            "textual-light",
+            "agents_memory_launch_bundle_light_120x40",
+            "ACE agents MEMORY lane explicit launch bundle light theme",
+        ),
+    ],
+)
+async def test_agents_memory_launch_bundle_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    theme: str,
+    snapshot_name: str,
+    title: str,
+) -> None:
+    agent = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="visual-bridge",
+        project_file="/workspace/sase/visual_project.sase",
+        status="RUNNING",
+        start_time=datetime(2026, 9, 28, 10, 0, 0),
+        raw_suffix="20260928100000",
+        agent_name="visual.bridge.agent",
+        step_type="bash",
+        workspace_dir=str(tmp_path),
+        llm_provider="claude",
+        model="opus",
+    )
+    _install_explicit_bundle_row(monkeypatch, tmp_path)
+    patch_startup_loaders(monkeypatch, agents=[agent], memory_reads=_reads())
+
+    async with AcePage(query='"visual-bridge"', patches=patches()) as page:
+        await wait_for_startup(page)
+        page.app.theme = theme
+        await page.press("shift+tab")
+        await page.expect_state("tab", "agents")
+        await page.expect_state("agent_count", 1)
+        await choose_agent_metadata_view(page)
+        panel = page.app.query_one("#agent-prompt-panel", AgentPromptPanel)
+        await page.wait_for(
+            lambda _state: (
+                "Instructions as launched" in (renderable_to_text(panel.content) or "")
+            )
+        )
+        await page.press("Z")
+        await page.expect_no_modal()
+        detail = page.app.query_one("#agent-detail-panel", AgentDetail)
+        assert detail.is_deck_zoomed is True
+        metadata = renderable_to_text(panel.content) or ""
+        assert "SASE CONTEXT" in metadata
+        assert "Instructions as launched" in metadata
+        assert "00-claude" in metadata
+        assert "bytes match" in metadata
+        assert "AGENTS.md as launched" not in metadata
+        summary = _latest_memory_summary(panel, agent)
+        assert summary is not None
+        assert summary.memory_launch_row is not None
+        assert summary.memory_launch_row.kind == "bundle"
+        await wait_for_svg_contains(page, "Instructions as launched")
+        await wait_for_svg_contains(page, "bytes match")
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(page, snapshot_name, title=title)
+
+
+async def test_agents_memory_launch_bundle_mismatch_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    agent = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="visual-bridge",
+        project_file="/workspace/sase/visual_project.sase",
+        status="RUNNING",
+        start_time=datetime(2026, 9, 28, 10, 0, 0),
+        raw_suffix="20260928100000",
+        agent_name="visual.bridge.agent",
+        step_type="bash",
+        workspace_dir=str(tmp_path),
+        llm_provider="claude",
+        model="opus",
+    )
+    _install_explicit_bundle_row(monkeypatch, tmp_path, mismatch=True)
+    patch_startup_loaders(monkeypatch, agents=[agent], memory_reads=_reads())
+
+    async with AcePage(query='"visual-bridge"', patches=patches()) as page:
+        await wait_for_startup(page)
+        page.app.theme = "textual-dark"
+        await page.press("shift+tab")
+        await page.expect_state("tab", "agents")
+        await page.expect_state("agent_count", 1)
+        await choose_agent_metadata_view(page)
+        panel = page.app.query_one("#agent-prompt-panel", AgentPromptPanel)
+        await page.wait_for(
+            lambda _state: "MISMATCH" in (renderable_to_text(panel.content) or "")
+        )
+        await page.press("Z")
+        await page.expect_no_modal()
+        metadata = renderable_to_text(panel.content) or ""
+        assert "Instructions as launched" in metadata
+        assert "MISMATCH" in metadata
+        await wait_for_svg_contains(page, "MISMATCH")
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_memory_launch_bundle_mismatch_dark_120x40",
+            title="ACE agents MEMORY lane explicit launch bundle MISMATCH",
+        )
+
+
 def _latest_memory_summary(
     panel: AgentPromptPanel, agent: Agent
 ) -> DetailHeaderSummary | None:

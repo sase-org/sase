@@ -150,6 +150,24 @@ def _launch_pin_for_row(row: Any, agent: Any, *, service: Any) -> Any | None:
         return None
     repo_root = str(getattr(scope, "repo_root", "") or "")
     scope_key = str(getattr(scope, "scope_key", "") or "")
+    if getattr(row, "kind", "snapshot") == "bundle":
+        snapshot = getattr(row, "snapshot_path", None)
+        if not snapshot:
+            return None
+        filename = str(
+            getattr(row, "logical_filename", None) or _Path(str(snapshot)).name
+        )
+        title = str(getattr(row, "display", "") or filename)
+        return MemoryVersionPin(
+            scope_key=scope_key,
+            repo_root=repo_root,
+            subject=filename,
+            revision="snapshot",
+            title=title,
+            snapshot_path=str(snapshot),
+            snapshot_title=title,
+            logical_filename=filename,
+        )
     blob = getattr(row, "blob_oid", None)
     ordinal = getattr(row, "ordinal", None)
     if ordinal:
