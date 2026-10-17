@@ -44,6 +44,7 @@ def _validation(phases: tuple[ValidatedPlanPhase, ...]) -> PlanValidationResult:
         bead=None,
         parent=None,
         proposed_by=None,
+        proposed_with=None,
     )
     return PlanValidationResult(schema_version=3, ok=True, diagnostics=(), plan=plan)
 

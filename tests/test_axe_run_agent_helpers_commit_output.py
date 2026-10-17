@@ -28,7 +28,7 @@ def test_extract_step_output_preserves_multiline_commit_result_message(
         json.dumps(
             {
                 "message": full_message,
-                "result": "abc123",
+                "result": "abcdef1",
                 "changespec_name": "sase-full-message",
                 "cwd": "/workspace/sase-core_7",
             }
@@ -39,7 +39,7 @@ def test_extract_step_output_preserves_multiline_commit_result_message(
 
     assert step_output is not None
     assert step_output["meta_commit_message"] == full_message
-    assert step_output["meta_new_commit"] == "abc123"
+    assert step_output["meta_new_commit"] == "abcdef1"
     assert step_output["meta_commit_cwd"] == "/workspace/sase-core_7"
     assert step_output["meta_patch"] == "sase-full-message"
     assert step_output["meta_changespec"] == "sase-full-message"
@@ -59,7 +59,7 @@ def test_extract_step_output_reads_committed_at_from_single_commit_result(
         json.dumps(
             {
                 "message": "fix: linked",
-                "result": "def456",
+                "result": "def4567",
                 "cwd": "/workspace/sase-core_7",
                 "committed_at": 1_700_000_000,
             }
@@ -90,7 +90,7 @@ def test_extract_step_output_drops_invalid_committed_at_on_single_commit_result(
         json.dumps(
             {
                 "message": "fix: linked",
-                "result": "def456",
+                "result": "def4567",
                 "cwd": "/workspace/sase-core_7",
                 "committed_at": committed_at,
             }
@@ -122,7 +122,7 @@ def test_extract_step_output_surfaces_commit_results_list(
         json.dumps(
             {
                 "message": "fix: linked",
-                "result": "def456",
+                "result": "def4567",
                 "cwd": "/workspace/sase-core_7",
                 "diff_path": "/tmp/linked.diff",
             }
@@ -133,7 +133,7 @@ def test_extract_step_output_surfaces_commit_results_list(
             [
                 {
                     "message": "fix: primary",
-                    "result": "abc123",
+                    "result": "abcdef1",
                     "cwd": "/workspace/sase_7",
                     "patch_name": "sase-primary",
                     "diff_path": "/tmp/primary.diff",
@@ -141,7 +141,7 @@ def test_extract_step_output_surfaces_commit_results_list(
                 },
                 {
                     "message": "fix: linked",
-                    "result": "def456",
+                    "result": "def4567",
                     "cwd": "/workspace/sase-core_7",
                     "repo_name": "sase-core",
                     "commit_changespec_name": "sase-linked",
@@ -150,7 +150,7 @@ def test_extract_step_output_surfaces_commit_results_list(
                 },
                 {
                     "message": "chore: unattributed",
-                    "result": "789abc",
+                    "result": "789abc0",
                     "cwd": "/workspace/tools_7",
                 },
             ]
@@ -162,12 +162,12 @@ def test_extract_step_output_surfaces_commit_results_list(
     assert step_output is not None
     assert step_output["result"] == "ok"
     assert step_output["meta_commit_message"] == "fix: linked"
-    assert step_output["meta_new_commit"] == "def456"
+    assert step_output["meta_new_commit"] == "def4567"
     assert step_output["meta_commit_cwd"] == "/workspace/sase-core_7"
     assert step_output["meta_commits"] == [
         {
             "message": "fix: primary",
-            "sha": "abc123",
+            "sha": "abcdef1",
             "cwd": "/workspace/sase_7",
             "patch_name": "sase-primary",
             "changespec_name": "sase-primary",
@@ -175,7 +175,7 @@ def test_extract_step_output_surfaces_commit_results_list(
         },
         {
             "message": "fix: linked",
-            "sha": "def456",
+            "sha": "def4567",
             "cwd": "/workspace/sase-core_7",
             "repo_name": "sase-core",
             "patch_name": "sase-linked",
@@ -184,7 +184,7 @@ def test_extract_step_output_surfaces_commit_results_list(
         },
         {
             "message": "chore: unattributed",
-            "sha": "789abc",
+            "sha": "789abc0",
             "cwd": "/workspace/tools_7",
         },
     ]
@@ -202,7 +202,7 @@ def test_extract_step_output_surfaces_committed_at_in_commits_list(
     (tmp_path / "workflow_state.json").write_text(json.dumps(state_data))
     (tmp_path / "commit_result.json").write_text(
         json.dumps(
-            {"message": "fix: linked", "result": "def456", "cwd": "/workspace-core"}
+            {"message": "fix: linked", "result": "def4567", "cwd": "/workspace-core"}
         )
     )
     (tmp_path / "commit_results.json").write_text(
@@ -210,13 +210,13 @@ def test_extract_step_output_surfaces_committed_at_in_commits_list(
             [
                 {
                     "message": "fix: primary",
-                    "result": "abc123",
+                    "result": "abcdef1",
                     "cwd": "/workspace-primary",
                     "committed_at": 1_700_000_000,
                 },
                 {
                     "message": "fix: linked",
-                    "result": "def456",
+                    "result": "def4567",
                     "cwd": "/workspace-core",
                     "committed_at": "not-a-number",
                 },
@@ -229,6 +229,83 @@ def test_extract_step_output_surfaces_committed_at_in_commits_list(
     assert step_output is not None
     assert step_output["meta_commits"][0]["committed_at"] == "1700000000"
     assert "committed_at" not in step_output["meta_commits"][1]
+
+
+def test_create_pull_request_projects_commit_sha_and_preserves_result_metadata(
+    tmp_path: Path,
+) -> None:
+    state_data = {
+        "workflow_name": "test",
+        "status": "completed",
+        "steps": [{"name": "step1", "status": "completed", "output": {}}],
+    }
+    sha = "a" * 40
+    pr_url = "https://github.com/acme/project/pull/12"
+    (tmp_path / "workflow_state.json").write_text(json.dumps(state_data))
+    (tmp_path / "commit_result.json").write_text(
+        json.dumps(
+            {
+                "method": "create_pull_request",
+                "run_id": "run-12",
+                "result": pr_url,
+                "commit_sha": sha,
+                "message": "feat: add change",
+            }
+        )
+    )
+    (tmp_path / "commit_results.json").write_text(
+        json.dumps(
+            [
+                {
+                    "method": "create_pull_request",
+                    "run_id": "run-12",
+                    "result": pr_url,
+                    "commit_sha": sha,
+                    "message": "feat: add change",
+                },
+                {
+                    "method": "create_pull_request",
+                    "run_id": "run-13",
+                    "result": "https://github.com/acme/project/pull/13",
+                },
+            ]
+        )
+    )
+
+    step_output, _diff_path = extract_step_output_and_diff_path(str(tmp_path))
+
+    assert step_output is not None
+    assert step_output["meta_new_commit"] == sha
+    assert step_output["meta_commits"][0] == {
+        "message": "feat: add change",
+        "sha": sha,
+        "commit_sha": sha,
+        "method": "create_pull_request",
+        "run_id": "run-12",
+    }
+    assert step_output["meta_commits"][1] == {
+        "method": "create_pull_request",
+        "run_id": "run-13",
+    }
+    assert pr_url not in str(step_output["meta_commits"])
+
+
+def test_create_pull_request_without_commit_sha_does_not_project_pr_url(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "commit_result.json").write_text(
+        json.dumps(
+            {
+                "method": "create_pull_request",
+                "result": "https://github.com/acme/project/pull/12",
+            }
+        )
+    )
+
+    step_output, _diff_path = extract_step_output_and_diff_path(str(tmp_path))
+
+    # A PR URL alone is not commit metadata and must not create a commit record.
+    assert step_output is None
 
 
 def test_extract_step_output_prefers_commit_result_message_over_workflow_subject(
@@ -251,7 +328,7 @@ def test_extract_step_output_prefers_commit_result_message_over_workflow_subject
     full_message = "feat: add report\n\nThis is the full commit body."
     (tmp_path / "workflow_state.json").write_text(json.dumps(state_data))
     (tmp_path / "commit_result.json").write_text(
-        json.dumps({"message": full_message, "result": "abc123"})
+        json.dumps({"message": full_message, "result": "abcdef1"})
     )
 
     step_output, _diff_path = extract_step_output_and_diff_path(str(tmp_path))

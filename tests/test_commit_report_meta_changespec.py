@@ -46,7 +46,7 @@ class TestCommitReportMetaPatch:
     def test_emits_patch_from_patch_name(self) -> None:
         result = _run_report_python(
             {
-                "result": "abc123",
+                "result": "abcdef1",
                 "message": "fix: bug",
                 "patch_name": "proj_feat_1",
                 "changespec_name": "legacy-name",
@@ -55,12 +55,12 @@ class TestCommitReportMetaPatch:
         )
         assert result["meta_patch"] == "proj_feat_1"
         assert "meta_changespec" not in result
-        assert result["meta_new_commit"] == "abc123"
+        assert result["meta_new_commit"] == "abcdef1"
 
     def test_falls_back_to_changespec_name(self) -> None:
         result = _run_report_python(
             {
-                "result": "abc123",
+                "result": "abcdef1",
                 "message": "fix: bug",
                 "changespec_name": "proj_feat_1",
                 "name": "feat-branch",
@@ -72,7 +72,7 @@ class TestCommitReportMetaPatch:
     def test_falls_back_to_name_when_no_patch_fields(self) -> None:
         result = _run_report_python(
             {
-                "result": "abc123",
+                "result": "abcdef1",
                 "message": "fix: bug",
                 "changespec_name": None,
                 "name": "feat-branch",
@@ -83,7 +83,7 @@ class TestCommitReportMetaPatch:
     def test_no_meta_patch_when_all_empty(self) -> None:
         result = _run_report_python(
             {
-                "result": "abc123",
+                "result": "abcdef1",
                 "message": "fix: bug",
                 "changespec_name": None,
                 "name": None,
@@ -97,7 +97,7 @@ class TestCommitReportMetaPatch:
         msg = "feat: add feature\n\nThis is the body.\nWith multiple lines."
         result = _run_report_python(
             {
-                "result": "abc123",
+                "result": "abcdef1",
                 "message": msg,
             }
         )
@@ -110,7 +110,7 @@ class TestCommitReportDiffPath:
     def test_emits_diff_path_when_present(self) -> None:
         result = _run_report_python(
             {
-                "result": "abc123",
+                "result": "abcdef1",
                 "message": "fix: bug",
                 "diff_path": "/tmp/artifacts/commit_diff.diff",
             }
@@ -120,7 +120,7 @@ class TestCommitReportDiffPath:
     def test_no_diff_path_when_absent(self) -> None:
         result = _run_report_python(
             {
-                "result": "abc123",
+                "result": "abcdef1",
                 "message": "fix: bug",
             }
         )
@@ -129,7 +129,7 @@ class TestCommitReportDiffPath:
     def test_no_diff_path_when_empty(self) -> None:
         result = _run_report_python(
             {
-                "result": "abc123",
+                "result": "abcdef1",
                 "message": "fix: bug",
                 "diff_path": "",
             }

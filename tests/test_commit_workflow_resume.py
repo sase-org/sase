@@ -368,7 +368,8 @@ def test_resume_restamps_footer_dropped_during_conflict_resolution(
         "fix: bug\n\n"
         "SASE_BEAD=sase-ai.2\n"
         "SASE_TYPE=stitch\n"
-        "SASE_AGENT=bbugyi200.athena.sase-ai.2"
+        "SASE_AGENT=bbugyi200.athena.sase-ai.2\n"
+        "SASE_MODEL=claude/opus"
     )
     # Conflict resolution re-authored the body to match reality and, along
     # with the stale paragraph, dropped the whole footer — but the subject
@@ -404,6 +405,7 @@ def test_resume_restamps_footer_dropped_during_conflict_resolution(
     assert "SASE_BEAD=sase-ai.2" in amended_message
     assert "SASE_TYPE=stitch" in amended_message
     assert "SASE_AGENT=bbugyi200.athena.sase-ai.2" in amended_message
+    assert "SASE_MODEL=claude/opus" in amended_message
     assert "Updated to match upstream reality." in amended_message
     assert provider.amend.call_args.kwargs.get("no_upload") is True
     assert not (artifacts_dir / "commit_state.json").exists()

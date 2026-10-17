@@ -163,6 +163,36 @@ def discover_agent_runtime(
     return None
 
 
+def resolve_turn_model_label(artifacts_dir: str | None = None) -> str | None:
+    """Resolve the producing turn's provider/model label without inventing it."""
+    fallback_model = _clean_value(os.environ.get("SASE_MODEL_OVERRIDE"))
+    if fallback_model is not None:
+        try:
+            from sase.llm_provider.registry import resolve_model_provider
+
+            provider, model = resolve_model_provider(fallback_model, consume=False)
+        except Exception:  # noqa: BLE001 - missing provider metadata means unknown.
+            return None
+    else:
+        meta_dir = _clean_value(artifacts_dir) or _clean_value(
+            os.environ.get("SASE_ARTIFACTS_DIR")
+        )
+        meta = _agent_meta_from_dir(meta_dir)
+        if meta is None:
+            return None
+        provider = meta.get("llm_provider")
+        model = meta.get("model")
+
+    if not isinstance(provider, str) or not (provider := provider.strip()):
+        return None
+    if not isinstance(model, str) or not (model := model.strip()):
+        return None
+
+    from sase.history.chat_storage import format_metadata_model
+
+    return format_metadata_model(provider, model)
+
+
 def resolve_observation_window_start(env: Mapping[str, str] | None = None) -> str:
     """Resolve the caller's observation-window start for a task ``+1``.
 
@@ -265,5 +295,6 @@ __all__ = [
     "require_agent_identity",
     "resolve_audit_identity",
     "resolve_local_agent_name",
+    "resolve_turn_model_label",
     "resolve_observation_window_start",
 ]

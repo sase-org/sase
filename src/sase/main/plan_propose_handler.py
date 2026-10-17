@@ -319,9 +319,12 @@ def handle_plan_propose_command(plan_file: str) -> NoReturn:
     active_bead = phase_bead or epic_bead or agent_bead
     stamps: dict[str, str] = {}
     from sase.bead.attribution import acting_agent_name
+    from sase.agent.identity import resolve_turn_model_label
 
     if proposed_by := acting_agent_name():
         stamps["proposed_by"] = proposed_by
+    if proposed_with := resolve_turn_model_label(artifacts_dir):
+        stamps["proposed_with"] = proposed_with
     from sase.sdd.plan_project import plan_project_for_artifacts_dir
 
     if project := plan_project_for_artifacts_dir(artifacts_dir):

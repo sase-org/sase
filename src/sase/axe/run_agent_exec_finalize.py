@@ -7,6 +7,7 @@ helper imports remain available here for compatibility with existing callers.
 from __future__ import annotations
 
 import json
+import logging
 import os
 import sys
 from typing import Any
@@ -52,6 +53,7 @@ _ORIGINAL_EXTRACT_STEP_OUTPUT_AND_DIFF_PATH = extract_step_output_and_diff_path
 _ORIGINAL_FORMAT_EXTRA_SECTIONS = format_extra_sections
 _ORIGINAL_IS_WORKFLOW_NOOP = is_workflow_noop
 _ORIGINAL_SAVE_CHAT_HISTORY = save_chat_history
+_LOGGER = logging.getLogger(__name__)
 
 
 def _compat_attr(name: str, current: Any, original: Any) -> Any:
@@ -181,6 +183,11 @@ def finalize_loop(
     mark_lifecycle_phase(ctx.artifacts_dir, "finalizing")
     RetryState.delete_from(ctx.artifacts_dir)
     fallback_model_override = os.environ.get("SASE_MODEL_OVERRIDE")
+    fallback_model_label = None
+    if fallback_model_override:
+        from sase.agent.identity import resolve_turn_model_label
+
+        fallback_model_label = resolve_turn_model_label(state.current_artifacts_dir)
     if "SASE_MODEL_OVERRIDE" in os.environ:
         del os.environ["SASE_MODEL_OVERRIDE"]
 
@@ -193,6 +200,28 @@ def finalize_loop(
         tracker,
         fallback_model_override,
     )
+    if fallback_model_label and metadata_model and metadata_llm_provider:
+        from sase.axe.run_agent_helpers_artifacts import update_meta_fields
+
+        written_artifact_dirs: set[str] = set()
+        for artifacts_dir in (state.current_artifacts_dir, ctx.artifacts_dir):
+            if not artifacts_dir or artifacts_dir in written_artifact_dirs:
+                continue
+            written_artifact_dirs.add(artifacts_dir)
+            try:
+                update_meta_fields(
+                    artifacts_dir,
+                    {
+                        "llm_provider": metadata_llm_provider,
+                        "model": metadata_model,
+                    },
+                )
+            except Exception:  # noqa: BLE001 - finalize model provenance best-effort.
+                _LOGGER.warning(
+                    "could not persist fallback model metadata for %s",
+                    artifacts_dir,
+                    exc_info=True,
+                )
     execution_llm_provider = _final_execution_provider(state)
     if state.loop_outcome in SHELL_HANDOFF_OUTCOMES:
         done_agent_name = (

@@ -320,6 +320,12 @@ def test_finalize_loop_uses_retry_fallback_model_for_transcript_metadata(
     ctx = make_exec_ctx(tmp_path, is_home_mode=False)
     ctx.agent_model = "primary-model"
     ctx.agent_llm_provider = "claude"
+    Path(ctx.artifacts_dir, "agent_meta.json").write_text(
+        json.dumps(
+            {"name": "agent", "llm_provider": "claude", "model": "primary-model"}
+        ),
+        encoding="utf-8",
+    )
     state = LoopState(
         current_prompt="prompt",
         current_role_suffix="",
@@ -364,3 +370,6 @@ def test_finalize_loop_uses_retry_fallback_model_for_transcript_metadata(
     assert captured["metadata_model"] == "o3"
     assert captured["metadata_llm_provider"] == "codex"
     assert "SASE_MODEL_OVERRIDE" not in os.environ
+    final_meta = json.loads(Path(ctx.artifacts_dir, "agent_meta.json").read_text())
+    assert final_meta["model"] == "o3"
+    assert final_meta["llm_provider"] == "codex"

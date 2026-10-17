@@ -14,6 +14,7 @@ from sase.workflows.commit.runtime_tags import (
     LinkedCommitTagValue,
     PRODUCED_RUNTIME_COMMIT_TAG_KEYS,
     RUNTIME_COMMIT_TAG_KEYS,
+    RUN_OWNED_COMMIT_TAG_KEYS,
     STALE_RUNTIME_COMMIT_TAG_KEYS,
     _resolve_runtime_commit_tags,
     apply_runtime_commit_tags,
@@ -22,6 +23,7 @@ from sase.workflows.commit.runtime_tags import (
     apply_auto_commit_type_tag,
     filter_runtime_owned_tags,
     parse_trailing_commit_tags,
+    run_owned_commit_tags,
     resolve_local_agent_name,
     update_trailing_commit_tags,
 )
@@ -37,6 +39,8 @@ def _clean_runtime_env(monkeypatch: pytest.MonkeyPatch) -> None:
     for name in (
         "SASE_AGENT_NAME",
         "SASE_ARTIFACTS_DIR",
+        "SASE_MODEL_OVERRIDE",
+        "SASE_AGENT_LLM_PROVIDER",
         "SASE_PLAN",
         "SASE_BUG_ID",
         "HOSTNAME",
@@ -58,9 +62,49 @@ def test_runtime_tags_use_sase_agent_name(
 
 
 def test_produced_and_stale_runtime_tag_keys_are_deliberately_separate() -> None:
-    assert PRODUCED_RUNTIME_COMMIT_TAG_KEYS == {"AGENT"}
-    assert STALE_RUNTIME_COMMIT_TAG_KEYS == {"AGENT", "MACHINE"}
+    assert PRODUCED_RUNTIME_COMMIT_TAG_KEYS == {"AGENT", "MODEL"}
+    assert STALE_RUNTIME_COMMIT_TAG_KEYS == {"AGENT", "MACHINE", "MODEL"}
+    assert RUN_OWNED_COMMIT_TAG_KEYS == {"AGENT", "MODEL", "TYPE", "BEAD"}
     assert RUNTIME_COMMIT_TAG_KEYS == STALE_RUNTIME_COMMIT_TAG_KEYS
+
+
+def test_runtime_tags_stamp_the_producing_turn_model(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    (tmp_path / "agent_meta.json").write_text(
+        json.dumps(
+            {"name": "agent-current", "llm_provider": "claude", "model": "opus"}
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(tmp_path))
+    monkeypatch.setenv("SASE_AGENT_NAME", "agent-current")
+    monkeypatch.setenv("SASE_AGENT_LLM_PROVIDER", "runner-default")
+
+    assert _resolve_runtime_commit_tags() == {
+        "AGENT": "alice.machine_a.agent-current",
+        "MODEL": "claude/opus",
+    }
+
+
+def test_runtime_tags_stamp_fallback_retry_model(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    (tmp_path / "agent_meta.json").write_text(
+        json.dumps(
+            {"name": "agent-current", "llm_provider": "claude", "model": "opus"}
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(tmp_path))
+    monkeypatch.setenv("SASE_AGENT_NAME", "agent-current")
+    monkeypatch.setenv("SASE_MODEL_OVERRIDE", "quick")
+    with patch(
+        "sase.llm_provider.registry.resolve_model_provider",
+        return_value=("codex", "o3"),
+    ) as resolve_model_provider:
+        assert _resolve_runtime_commit_tags()["MODEL"] == "codex/o3"
+    resolve_model_provider.assert_called_once_with("quick", consume=False)
 
 
 def test_runtime_tags_prefer_configured_machine_and_qualify_legacy_agent(
@@ -290,9 +334,17 @@ def test_auto_commit_tags_with_runtime_type_only_without_agent_identity(
 
 def test_auto_commit_without_agent_removes_stale_machine() -> None:
     assert apply_auto_commit_tags_with_runtime(
-        "Fix bug\n\nSASE_MACHINE=legacy-host",
+        "Fix bug\n\nSASE_MACHINE=legacy-host\nSASE_MODEL=legacy/model",
         "sdd",
     ) == ("Fix bug\n\nSASE_TYPE=sdd")
+
+
+def test_runtime_commit_tags_remove_inherited_model_without_agent() -> None:
+    payload = {"message": "Fix bug\n\nSASE_MODEL=legacy/model"}
+
+    apply_runtime_commit_tags(payload)
+
+    assert payload["message"] == "Fix bug"
 
 
 def test_auto_commit_tags_with_runtime_adds_agent_when_name_set(
@@ -551,6 +603,7 @@ def test_filter_runtime_owned_tags() -> None:
             "TEAM": "infra",
             "BEAD": "sase-ai.2",
             "AGENT": "old",
+            "MODEL": "old/model",
             "MACHINE": "old",
         }
     ) == {"TEAM": "infra", "BEAD": "sase-ai.2"}
@@ -559,7 +612,12 @@ def test_filter_runtime_owned_tags() -> None:
 def test_filter_runtime_owned_tags_handles_prefixed_keys() -> None:
     """Runtime-owned keys are filtered in either spelling."""
     assert filter_runtime_owned_tags(
-        {"SASE_TEAM": "infra", "SASE_AGENT": "old", "SASE_MACHINE": "old"}
+        {
+            "SASE_TEAM": "infra",
+            "SASE_AGENT": "old",
+            "SASE_MODEL": "old/model",
+            "SASE_MACHINE": "old",
+        }
     ) == {"SASE_TEAM": "infra"}
 
 
@@ -652,11 +710,13 @@ def test_create_pull_request_tags_override_inherited_runtime_tags(
     assert "TEAM=infra" in message
     assert "REVIEW=true" in message
     assert "AGENT=alice.machine_current.agent-current" in message
+    assert "MODEL=test/m1" in message
     assert "MACHINE=" not in message
     assert "agent-parent" not in message
     assert "machine-parent" not in message
     assert "machine-config" not in message
     assert "AGENT=alice.machine_current.agent-current" in payload["_pr_body"]
+    assert "MODEL=test/m1" in payload["_pr_body"]
     assert "MACHINE=" not in payload["_pr_body"]
 
 
@@ -664,10 +724,10 @@ def test_create_proposal_does_not_add_runtime_tags(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     provider = _make_provider()
-    payload = {"message": "chore: propose change"}
+    payload = {"message": "chore: propose change\n\nSASE_MODEL=legacy/model"}
     monkeypatch.setenv("SASE_AGENT_NAME", "agent-a")
 
     assert _run_workflow(payload, "create_proposal", provider) == RunResult.OK
 
     provider.create_proposal.assert_called_once_with(payload, ANY)
-    assert payload["message"] == "chore: propose change"
+    assert payload["message"] == "chore: propose change\n\nSASE_MODEL=legacy/model"

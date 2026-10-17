@@ -143,7 +143,7 @@ Detect parent PR   (auto-set PARENT from current branch's Patch)          [PR on
     |
 PR metadata        (append PR tags and project prefix)                    [PR only]
     |
-Runtime tags       (append/update linked global SASE_AGENT= provenance)   [commit/PR only]
+Runtime tags       (append/update SASE_AGENT= and SASE_MODEL= provenance) [commit/PR only]
     |
 PR body            (build body with final tags and agent footer)          [PR only]
     |
@@ -329,10 +329,16 @@ session and the agent README for a solo agent — with no `#member-<role>` fragm
 fallback path (no owner, no project, unresolvable or non-hosted sidecar) still emits the
 sase-agent label unlinked. `AGENT` comes from `SASE_AGENT_NAME`, falling back to
 `SASE_ARTIFACTS_DIR/agent_meta.json` — the concrete turn name is resolved first only so
-its sase agent can be derived — and it is omitted for manual non-agent commits. New
-commits never produce `SASE_MACHINE`, while cleanup still removes inherited `AGENT` and
-historical `MACHINE` values. `create_proposal` does not get runtime commit tags because
-it saves a diff instead of creating a VCS commit.
+its sase agent can be derived — and it is omitted for manual non-agent commits. The
+`SASE_MODEL=<provider>/<model>` tag uses the active fallback retry model when
+`SASE_MODEL_OVERRIDE` is set; otherwise it reads `llm_provider` and `model` from the
+producing turn's `agent_meta.json`. When a fallback retry completes, the runner writes
+the resolved fallback provider/model back to that turn's metadata before clearing the
+override, so the later host-owned commit finalizer still has the producing model. The
+tag is omitted when either value is unknown and never uses the execution harness as the
+model provider. New commits never produce `SASE_MACHINE`, while cleanup still removes
+inherited `AGENT`, `MODEL`, and historical `MACHINE` values. `create_proposal` does not
+get runtime commit tags because it saves a diff instead of creating a VCS commit.
 
 After an agent-backed primary operation and its first durable result marker, the
 workflow first refreshes the committed bead's generated page lineage when the message
@@ -346,12 +352,12 @@ failures occur before that durability guarantee, so they can instead skip public
 require `sase stitch create --resume`.
 
 **Footer tag prefix:** All SASE-authored commit footer tags (`TYPE`, `BEAD`, `AGENT`,
-`PLAN`, `BUG`, and any configured or inherited PR tag keys) are written with a `SASE_`
-prefix — for example `SASE_TYPE=sdd` and `SASE_AGENT=<name>`. Readers
-(agent-commit/revert discovery, parent-PR tag inheritance, Patch description stripping)
-still accept historical `MACHINE` tags and the unprefixed spelling, so commit history is
-not rewritten and old commits remain readable. External consumers should accept both
-historical and `SASE_`-prefixed spellings.
+`MODEL`, `PLAN`, `BUG`, and any configured or inherited PR tag keys) are written with a
+`SASE_` prefix — for example `SASE_TYPE=sdd`, `SASE_AGENT=<name>`, and
+`SASE_MODEL=claude/opus`. Readers (agent-commit/revert discovery, parent-PR tag
+inheritance, Patch description stripping) still accept historical `MACHINE` tags and the
+unprefixed spelling, so commit history is not rewritten and old commits remain readable.
+External consumers should accept both historical and `SASE_`-prefixed spellings.
 
 **Commit origin invariant:** Every commit SASE creates carries a `SASE_TYPE=` footer
 tag. Commits created through the tracked workflow carry `SASE_TYPE=stitch`; automatic
@@ -392,14 +398,16 @@ Internal fields added by `CommitWorkflow`:
 ## Result Format
 
 When `SASE_ARTIFACTS_DIR` is set, post-dispatch tracking writes `commit_result.json`
-after the applicable after hook succeeds. A representative final marker for a commit is:
+after the applicable after hook succeeds. A representative final marker for a pull
+request is:
 
 ```json
 {
-  "method": "create_commit",
+  "method": "create_pull_request",
   "run_id": "260809_123456",
   "cwd": "/path/to/repository",
-  "result": "abc123",
+  "result": "https://github.com/acme/project/pull/12",
+  "commit_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
   "message": "fix: handle empty input",
   "name": "",
   "bead_id": "sase-abcd",
@@ -409,6 +417,11 @@ after the applicable after hook succeeds. A representative final marker for a co
   "diff_path": "/path/to/pre-dispatch.diff"
 }
 ```
+
+For `create_pull_request`, `result` is the PR URL; for `create_proposal`, it is the
+saved diff path. Consumers use `commit_sha` for the finalized commit when present. The
+workflow's `sha` projection otherwise accepts only a 7–40 character hexadecimal `result`
+or `commit_result`, so URLs and paths are never treated as commit IDs.
 
 `repo_name` appears only when the dispatch directory is a linked, external, or SDD
 sidecar repository rather than the agent's primary checkout. `committed_at` appears only
@@ -499,13 +512,13 @@ SASE_ARTIFACTS_DIR/commit_state.json              # preferred, when running unde
    If it doesn't, abort with `FAILED`; the user is expected to re-run
    `sase stitch create` from scratch rather than resume into a foreign commit.
 5. If dispatch was not already completed, re-stamp `HEAD`'s `SASE_*` provenance footer
-   (`SASE_AGENT`, `SASE_TYPE`, `SASE_BEAD`) when it is missing or stale compared to the
-   checkpointed payload, then call the provider's `vcs_finalize_commit` hook to replay
-   idempotent post-commit work (bead amend, push with retry), then checkpoint dispatch
-   completion. See [Discarded-Work Guard](#discarded-work-guard) below for why this
-   restamp matters: manual conflict resolution can rewrite the message body and drop the
-   footer even when the subject survives unchanged, and an unattributed commit is what
-   the discarded-work guard reads as a discard.
+   (`SASE_AGENT`, `SASE_MODEL`, `SASE_TYPE`, `SASE_BEAD`) when it is missing or stale
+   compared to the checkpointed payload, then call the provider's `vcs_finalize_commit`
+   hook to replay idempotent post-commit work (bead amend, push with retry), then
+   checkpoint dispatch completion. See [Discarded-Work Guard](#discarded-work-guard)
+   below for why this restamp matters: manual conflict resolution can rewrite the
+   message body and drop the footer even when the subject survives unchanged, and an
+   unattributed commit is what the discarded-work guard reads as a discard.
 6. Run `commit_hooks.after` for commit/PR workflows unless its completion is already
    checkpointed.
 7. Re-run the tracking steps (STITCHES entry append, Patch creation) and any

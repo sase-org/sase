@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -181,3 +182,40 @@ def test_resolve_audit_identity_does_not_widen_agent_only_gates(
     assert identity.discover_agent_identity(env) is None
     with pytest.raises(identity.AgentIdentityError):
         identity.require_agent_identity(env)
+
+
+def test_resolve_turn_model_label_uses_turn_metadata(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    (tmp_path / "agent_meta.json").write_text(
+        json.dumps({"llm_provider": "claude", "model": "opus"}),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(tmp_path))
+    monkeypatch.delenv("SASE_MODEL_OVERRIDE", raising=False)
+
+    assert identity.resolve_turn_model_label() == "claude/opus"
+
+
+def test_resolve_turn_model_label_needs_provider_and_model(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    (tmp_path / "agent_meta.json").write_text(
+        json.dumps({"llm_provider": "claude"}),
+        encoding="utf-8",
+    )
+
+    assert identity.resolve_turn_model_label(str(tmp_path)) is None
+
+
+def test_resolve_turn_model_label_uses_fallback_without_consuming_it(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_MODEL_OVERRIDE", "quick")
+    with patch(
+        "sase.llm_provider.registry.resolve_model_provider",
+        return_value=("codex", "o3"),
+    ) as resolve_model_provider:
+        assert identity.resolve_turn_model_label() == "codex/o3"
+
+    resolve_model_provider.assert_called_once_with("quick", consume=False)

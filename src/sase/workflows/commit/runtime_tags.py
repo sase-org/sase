@@ -13,15 +13,15 @@ from sase.core.commit_footer_facade import (
     update_commit_footer,
 )
 
-PRODUCED_RUNTIME_COMMIT_TAG_KEYS = frozenset({"AGENT"})
-STALE_RUNTIME_COMMIT_TAG_KEYS = frozenset({"AGENT", "MACHINE"})
+PRODUCED_RUNTIME_COMMIT_TAG_KEYS = frozenset({"AGENT", "MODEL"})
+STALE_RUNTIME_COMMIT_TAG_KEYS = frozenset({"AGENT", "MACHINE", "MODEL"})
 # Compatibility name for callers that use this set specifically for cleanup.
 RUNTIME_COMMIT_TAG_KEYS = STALE_RUNTIME_COMMIT_TAG_KEYS
 #: Footer tags a resumed commit must carry for the discarded-work guard
 #: (``AGENT``) and downstream bead/origin tooling (``TYPE``, ``BEAD``) to
 #: attribute the commit correctly. Re-stamped onto ``HEAD`` during
 #: ``sase stitch create --resume`` when conflict resolution dropped them.
-RUN_OWNED_COMMIT_TAG_KEYS = frozenset({"AGENT", "TYPE", "BEAD"})
+RUN_OWNED_COMMIT_TAG_KEYS = frozenset({"AGENT", "MODEL", "TYPE", "BEAD"})
 WORKSPACE_ENV_NUM_KEYS = (
     "SASE_AGENT_WORKSPACE_NUM",
     "SASE_GIT_WORKSPACE_NUM",
@@ -56,12 +56,18 @@ def _resolve_runtime_commit_tags() -> dict[str, CommitTagValue]:
     local_name = resolve_local_agent_name()
     if not local_name:
         return {}
+    from sase.agent.identity import resolve_turn_model_label
     from sase.agents_sync.links import resolve_agent_commit_tag
     from sase.config import require_agent_owner_identity
     from sase.core.agent_identity_facade import AgentIdentitySnapshot
 
     identity = AgentIdentitySnapshot(require_agent_owner_identity())
-    return {"AGENT": resolve_agent_commit_tag(local_name, identity=identity)}
+    tags: dict[str, CommitTagValue] = {
+        "AGENT": resolve_agent_commit_tag(local_name, identity=identity)
+    }
+    if model := resolve_turn_model_label():
+        tags["MODEL"] = model
+    return tags
 
 
 def resolve_local_agent_name() -> str | None:

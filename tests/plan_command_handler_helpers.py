@@ -85,7 +85,7 @@ def assert_archived_associations(
     archived = Path(marker["plan_file"])
     archived_content = archived.read_text(encoding="utf-8")
     frontmatter, _body, _had_frontmatter = parse_frontmatter(archived_content)
-    for field in ("bead", "parent_bead", "proposed_by"):
+    for field in ("bead", "parent_bead", "proposed_by", "proposed_with"):
         if field in expected_fields:
             assert frontmatter[field] == expected_fields[field]
         else:

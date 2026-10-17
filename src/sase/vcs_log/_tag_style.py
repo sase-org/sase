@@ -29,9 +29,10 @@ _KEY_LABEL_STYLE = "dim"
 _KEY_PRIORITY = {
     "TYPE": 0,
     "AGENT": 1,
-    "MACHINE": 2,
-    "PLAN": 3,
-    "BUG": 4,
+    "MODEL": 2,
+    "MACHINE": 3,
+    "PLAN": 4,
+    "BUG": 5,
 }
 
 

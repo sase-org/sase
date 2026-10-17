@@ -114,6 +114,7 @@ def test_facade_rehydrates_valid_tale_and_ordered_schema() -> None:
         "decided_via",
         "bead",
         "proposed_by",
+        "proposed_with",
         "project",
         "parent",
         "bead_id",
@@ -130,6 +131,20 @@ def test_facade_accepts_canonical_direct_tale_sizes(size: str) -> None:
     assert result.ok
     assert result.plan is not None
     assert result.plan.size == size
+
+
+def test_facade_rehydrates_proposed_model_attribution() -> None:
+    result = validate_plan(
+        VALID_TALE.replace(
+            "goal: Ship strict plan validation\n",
+            "goal: Ship strict plan validation\nproposed_with: claude/opus\n",
+        ),
+        "tale",
+    )
+
+    assert result.ok
+    assert result.plan is not None
+    assert result.plan.proposed_with == "claude/opus"
 
 
 @pytest.mark.parametrize("size", ["large", "xlarge"])

@@ -23,6 +23,7 @@ from tests.plan_command_handler_helpers import (
 @pytest.fixture(autouse=True)
 def _clear_bead_work_association_env(monkeypatch: pytest.MonkeyPatch) -> None:
     clear_bead_work_association_env(monkeypatch)
+    monkeypatch.delenv("SASE_MODEL_OVERRIDE", raising=False)
 
 
 @pytest.mark.parametrize(
@@ -55,8 +56,15 @@ def test_plan_command_stamps_proposer_before_formatting(
     sase_home = tmp_path / ".sase"
     redirect_sase_home(monkeypatch, sase_home)
     artifacts_dir = _make_artifacts_dir(sase_home)
+    (artifacts_dir / "agent_meta.json").write_text(
+        json.dumps({"llm_provider": "claude", "model": "opus"}),
+        encoding="utf-8",
+    )
     plan_file = tmp_path / "proposed.md"
-    plan_file.write_text(content, encoding="utf-8")
+    plan_file.write_text(
+        content.replace("goal:", "proposed_with: old-provider/old-model\ngoal:", 1),
+        encoding="utf-8",
+    )
     monkeypatch.setenv("SASE_AGENT", "1")
     monkeypatch.setenv("SASE_AGENT_NAME", "q8--plan")
     monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(artifacts_dir))
@@ -82,13 +90,18 @@ def test_plan_command_stamps_proposer_before_formatting(
         assert _invoke_plan(plan_file) == 0
 
     proposer = globalize_owned_agent_name("q8--plan")
-    expected_fields = {**expected_association, "proposed_by": proposer}
+    expected_fields = {
+        **expected_association,
+        "proposed_by": proposer,
+        "proposed_with": "claude/opus",
+    }
     _assert_archived_associations(artifacts_dir, content, expected_fields)
     assert len(formatted_inputs) == 2
     stamped_frontmatter, _body, _had_frontmatter = parse_frontmatter(
         formatted_inputs[0]
     )
     assert stamped_frontmatter["proposed_by"] == proposer
+    assert stamped_frontmatter["proposed_with"] == "claude/opus"
     marker = json.loads(
         (artifacts_dir / ".sase_plan_pending").read_text(encoding="utf-8")
     )

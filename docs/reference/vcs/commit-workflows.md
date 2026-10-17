@@ -79,7 +79,8 @@ parking work-in-progress changes that aren't ready to land.
 
 **Tracking:** Appends a proposal STITCHES entry to the project file. Bead lifecycle and
 plan handling are skipped because proposals don't represent landed changes. Runtime
-`AGENT` and `MACHINE` commit tags are also skipped because no VCS commit is created.
+`AGENT`, `MODEL`, and `MACHINE` commit tags are also skipped because no VCS commit is
+created.
 
 ### Pull Request (`#pr`)
 
@@ -127,18 +128,23 @@ when reading descriptions back.
 Patch), PR tags from the parent PR's body are automatically inherited. Parent tags are
 read in either spelling — `TAG=` or `SASE_TAG=` — so inheritance works across the
 migration. The merge order is: parent PR tags (lowest priority) -> config `pr_tags` ->
-`BUG` tag (highest priority), followed by runtime-owned `AGENT` and `MACHINE` tags.
-Inherited or configured `AGENT` and `MACHINE` values are ignored so child PRs do not
-retain stale parent runtime provenance.
+`BUG` tag (highest priority), followed by runtime-owned `AGENT` and `MODEL` tags.
+Inherited or configured `AGENT`, `MODEL`, and `MACHINE` values are ignored so child PRs
+do not retain stale parent runtime provenance.
 
 **PR tags:** Any key-value pairs configured in `vcs_provider.pr_tags` are appended as
 `SASE_TAG=VALUE` lines to the commit message before building the PR body. This supports
-provider-specific metadata (e.g., Google PR tags) without manual entry. `AGENT` and
-`MACHINE` are reserved for runtime provenance and are owned by the commit workflow
-rather than static config. Note that the rendered keys carry the `SASE_` prefix (e.g. a
-configured `MARKDOWN` tag is written as `SASE_MARKDOWN=`), so external tooling that
-consumes these tags must accept the prefixed names. See
+provider-specific metadata (e.g., Google PR tags) without manual entry. `AGENT`,
+`MODEL`, and `MACHINE` are reserved for runtime provenance and are owned by the commit
+workflow rather than static config. Note that the rendered keys carry the `SASE_` prefix
+(e.g. a configured `MARKDOWN` tag is written as `SASE_MARKDOWN=`), so external tooling
+that consumes these tags must accept the prefixed names. See
 [Environment variables](../environment-variables.md#vcs-provider) for the config format.
+
+Agent-backed commits and pull requests also carry `SASE_AGENT=` and, when the producing
+turn's model is known, `SASE_MODEL=<provider>/<model>`. During a fallback retry, the
+fallback model supplies the `SASE_MODEL` value. Manual commits omit both tags; proposals
+omit them because they do not create commits.
 
 **PR tag stripping:** When PR tags are present in the commit description (trailing lines
 matching `^[A-Z][A-Z0-9_]*=`), they are automatically stripped before writing the
@@ -163,6 +169,7 @@ covers variables specific to commit workflows.
 | `SASE_COMMIT_METHOD_ALLOW_OVERRIDE` | Allow `-t/--type` to override a conflicting `SASE_COMMIT_METHOD`                                                                                                                        |
 | `SASE_ARTIFACTS_DIR`                | Directory for `commit_result.json` and other artifacts                                                                                                                                  |
 | `SASE_AGENT_NAME`                   | Agent name used for `SASE_AGENT=` runtime commit provenance                                                                                                                             |
+| `SASE_MODEL_OVERRIDE`               | Active fallback model used for `SASE_MODEL=` provenance when present                                                                                                                    |
 | `SASE_PLAN`                         | Plan source for storage/staging, status update, and the storage-relative `SASE_PLAN=` commit tag; ignored once the plan is done or archived, and not inherited by nested agent launches |
 | `SASE_AGENT_PROJECT_FILE`           | Project file for Patch/STITCHES tracking                                                                                                                                                |
 | `SASE_AGENT_CL_NAME`                | PR name used for proposal diff naming                                                                                                                                                   |

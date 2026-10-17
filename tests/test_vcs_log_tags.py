@@ -143,6 +143,7 @@ def test_tag_style_ordering_and_known_chip_styles() -> None:
             ("EXTRA", "value"),
             ("BUG", "412"),
             ("MACHINE", "athena"),
+            ("MODEL", "claude/opus"),
             ("AGENT", "worker-1"),
             ("TYPE", "sdd"),
         )
@@ -150,10 +151,12 @@ def test_tag_style_ordering_and_known_chip_styles() -> None:
 
     assert (
         text.plain
-        == "◆ sdd · @worker-1 · machine athena · plan sdd/plans/foo.md · #412 · extra value"
+        == "◆ sdd · @worker-1 · model claude/opus · machine athena · plan sdd/plans/foo.md · #412 · extra value"
     )
     assert _styles_covering(text, "@") == ["#FFD700"]
     assert _styles_covering(text, "worker-1") == ["#FFD700"]
+    assert _styles_covering(text, "model") == ["dim"]
+    assert _styles_covering(text, "claude/opus") == []
     assert _styles_covering(text, "#") == ["#FF8787"]
     assert _styles_covering(text, "412") == ["#FF8787"]
     assert _styles_covering(text, "machine") == ["#8A8A8A"]

@@ -4,9 +4,12 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from typing import Any
 
 from sase.ace.tui.models._loaders._diff_path import diff_path_from_step_output
+
+_COMMIT_SHA_RE = re.compile(r"[0-9a-fA-F]{7,40}\Z")
 
 
 def is_workflow_noop(artifacts_dir: str) -> bool:
@@ -43,6 +46,15 @@ def _committed_at_text(value: Any) -> str | None:
     return None
 
 
+def _commit_sha(*values: Any) -> str | None:
+    """Return the first commit hash, ignoring URLs and other result values."""
+    for value in values:
+        candidate = _text(value)
+        if candidate is not None and _COMMIT_SHA_RE.fullmatch(candidate):
+            return candidate
+    return None
+
+
 def read_commit_result_metadata(artifacts_dir: str | None) -> dict[str, str]:
     """Read commit_result.json and return workflow metadata fields."""
     if not artifacts_dir:
@@ -61,8 +73,12 @@ def read_commit_result_metadata(artifacts_dir: str | None) -> dict[str, str]:
     metadata: dict[str, str] = {}
     if message := _text(commit_result.get("message")):
         metadata["meta_commit_message"] = message
-    if result := _text(commit_result.get("result")):
-        metadata["meta_new_commit"] = result
+    if sha := _commit_sha(
+        commit_result.get("commit_sha"),
+        commit_result.get("result"),
+        commit_result.get("commit_result"),
+    ):
+        metadata["meta_new_commit"] = sha
     if cwd := _text(commit_result.get("cwd")):
         metadata["meta_commit_cwd"] = cwd
     if patch := (
@@ -85,8 +101,16 @@ def _commit_result_list_record(item: dict[str, Any]) -> dict[str, str] | None:
     record: dict[str, str] = {}
     if message := _text(item.get("message")):
         record["message"] = message
-    if sha := (_text(item.get("result")) or _text(item.get("commit_result"))):
+    if sha := _commit_sha(
+        item.get("commit_sha"), item.get("result"), item.get("commit_result")
+    ):
         record["sha"] = sha
+    if commit_sha := _text(item.get("commit_sha")):
+        record["commit_sha"] = commit_sha
+    if method := _text(item.get("method")):
+        record["method"] = method
+    if run_id := _text(item.get("run_id")):
+        record["run_id"] = run_id
     if cwd := _text(item.get("cwd")):
         record["cwd"] = cwd
     if repo_name := _text(item.get("repo_name")):
