@@ -71,6 +71,16 @@ def launch_or_record_followup(
         agent_session=str(agent_session_value(meta) or ""),
         expected_suffix=(policy.suffix if policy is not None else None),
         recorded_agent=str(meta.get("gate_followup_agent") or "") or None,
+        gate_kind=str(meta.get("gate_kind") or "") or None,
+        gate_timestamp=Path(artifacts_dir).name,
+        exclude_agents={
+            name
+            for name in (
+                meta.get("gate_creator_agent"),
+                meta.get("name"),
+            )
+            if isinstance(name, str) and name
+        },
     )
     decision = classify_gate_handoff(
         meta,

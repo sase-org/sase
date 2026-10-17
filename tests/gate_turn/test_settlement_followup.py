@@ -8,6 +8,10 @@ from typing import Any
 
 import pytest
 
+from sase.agent.launch_types import AgentLaunchResult
+from sase.core.paths import sase_projects_dir
+import sase.gate_turn.followup as followup_module
+import sase.gate_turn.handoff as handoff_module
 import sase.gate_turn.settlement as settlement_module
 from sase.gate_turn.claims import GATE_WORKSPACE_CLAIM_WORKFLOW
 from sase.gate_turn.settlement import settle_gate_turn
@@ -26,6 +30,7 @@ from tests.gate_turn._settlement_followup_helpers import (
     make_gate_turn_member,
     sandbox_home,
 )
+from tests.monitor._fixtures import record_from_disk
 from tests.plan_validation_helpers import VALID_TALE_PLAN
 
 __all__ = ["sandbox_home"]
@@ -305,6 +310,74 @@ def test_tale_approve_commit_settlement_launches_coder_followup(
     assert meta["gate_accent"] == "#00D7D7"
     assert meta["gate_followup_outcome"] == "launched"
     assert meta["gate_followup_agent"] == "lane--1"
+
+
+def test_suffixless_gate_spawns_after_ignoring_completed_code_creator(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request_id = "suffixless-stale-creator"
+    gate = create_gate(gate_spec(request_id, turn=DEFAULT_TURN))
+    artifacts_dir = make_gate_turn_member(
+        request_id,
+        gate.bundle_path,
+        turn=DEFAULT_TURN,
+        creator_agent="lane--code",
+    )
+    execute_gate_selection(gate.bundle_path, ["cleanup"], {}, source="test")
+    record = read_gate_turn_marker("proj", artifacts_dir)
+    assert record is not None
+
+    creator_timestamp = "20260812120000"
+    creator_dir = (
+        sase_projects_dir()
+        / "proj"
+        / "artifacts"
+        / "ace-run"
+        / creator_timestamp[:6]
+        / creator_timestamp[6:8]
+        / creator_timestamp
+    )
+    creator_dir.mkdir(parents=True)
+    (creator_dir / "agent_meta.json").write_text(
+        json.dumps({"name": "lane--code", "agent_session": "lane"}),
+        encoding="utf-8",
+    )
+    (creator_dir / "done.json").write_text("{}", encoding="utf-8")
+    creator = record_from_disk(creator_dir)
+    gate_member = record_from_disk(artifacts_dir)
+    monkeypatch.setattr(
+        handoff_module,
+        "_agent_session_records",
+        lambda project_name, agent_session: [creator, gate_member],
+    )
+
+    spawned: list[dict[str, Any]] = []
+
+    def spawn_successor(**kwargs: Any) -> AgentLaunchResult:
+        spawned.append(kwargs)
+        return AgentLaunchResult(
+            pid=999999,
+            workspace_num=int(kwargs["workspace_num"]),
+            workspace_dir=str(kwargs["workspace_dir"]),
+            output_path="/tmp/successor-output.txt",
+            agent_name="lane--0",
+        )
+
+    monkeypatch.setattr(
+        followup_module,
+        "spawn_turn_agent_session_successor",
+        spawn_successor,
+    )
+
+    settle_gate_turn(record, gate_state="answered", reason="gate answered")
+
+    assert len(spawned) == 1
+    assert spawned[0]["agent_session"] == "lane"
+    assert spawned[0]["suffix"] is None
+    meta = json.loads((Path(artifacts_dir) / "agent_meta.json").read_text())
+    assert meta["gate_followup_outcome"] == "launched"
+    assert meta["gate_followup_agent"] == "lane--0"
+    assert meta["gate_followup_agent"] != "lane--code"
 
 
 def test_preparation_exception_persists_failure_without_placeholder_launch(

@@ -511,6 +511,11 @@ def _diagnose_one(
             agent_session=live.lane,
             expected_suffix=live.next_suffix,
             recorded_agent=live.followup_agent,
+            gate_kind=live.kind,
+            gate_timestamp=live.timestamp,
+            exclude_agents={
+                name for name in (live.creator_agent, live.member_agent_name) if name
+            },
             agent_session_records=agent_session_records,
         )
         decision = classify_gate_handoff(

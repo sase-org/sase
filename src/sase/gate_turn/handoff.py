@@ -6,10 +6,11 @@ import json
 import logging
 import os
 import time
-from collections.abc import Mapping, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from pathlib import Path
 from typing import Any, Literal
 
+from sase.agent.names import match_agent_name_template
 from sase.ace.hooks.processes import is_process_running
 from sase.core.agent_scan_facade import (
     default_agent_artifact_index_path,
@@ -175,6 +176,9 @@ def collect_successor_evidence(
     agent_session: str,
     expected_suffix: str | None,
     recorded_agent: str | None,
+    gate_kind: str | None = None,
+    gate_timestamp: str | None = None,
+    exclude_agents: Collection[str] = (),
     agent_session_records: Sequence[AgentArtifactRecordWire] | None = None,
 ) -> dict[str, Any]:
     """Inspect agent-session attachment/launch evidence without starting a provider.
@@ -182,13 +186,25 @@ def collect_successor_evidence(
     A caller that already read the artifact index passes ``agent_session_records``;
     otherwise the agent session's members are queried from the index.
     """
-    suffix = expected_suffix or PLAN_CHAIN_CODER_SUFFIX
+    suffix = _resolve_successor_suffix(expected_suffix, gate_kind)
+    excluded = {name for name in exclude_agents if name}
+    anchor_timestamp = (
+        gate_timestamp if _is_artifact_timestamp(gate_timestamp) else None
+    )
     if agent_session_records is None:
         agent_session_records = _agent_session_records(project_name, agent_session)
     matches: list[tuple[str, bool, bool]] = []
     for record in agent_session_records:
         name = _record_name(record)
-        if not name or not name.endswith(suffix):
+        if not name or name in excluded:
+            continue
+        if (
+            anchor_timestamp is not None
+            and _is_artifact_timestamp(record.timestamp)
+            and record.timestamp <= anchor_timestamp
+        ):
+            continue
+        if not _name_matches_successor_suffix(name, suffix):
             continue
         running = record.running is not None
         completed = record.done is not None
@@ -212,7 +228,8 @@ def collect_successor_evidence(
         return {
             "agent_session_name": agent_session,
             "expected_suffix": suffix,
-            "attached_agent": recorded_agent,
+            "attached_agent": None,
+            "launch_receipt": recorded_agent,
             "running": False,
             "completed": False,
             "ambiguous": False,
@@ -227,6 +244,40 @@ def collect_successor_evidence(
         "completed": completed,
         "ambiguous": False,
     }
+
+
+def _resolve_successor_suffix(
+    expected_suffix: str | None,
+    gate_kind: str | None,
+) -> str:
+    """Return the suffix pattern allocated by this gate's follow-up policy."""
+    if expected_suffix:
+        return expected_suffix
+    if gate_kind in {"plan", "epic_plan"}:
+        return PLAN_CHAIN_CODER_SUFFIX
+    return "--@"
+
+
+def _is_artifact_timestamp(value: object) -> bool:
+    return (
+        isinstance(value, str)
+        and len(value) == 14
+        and value.isascii()
+        and value.isdigit()
+    )
+
+
+def _name_matches_successor_suffix(name: str, suffix: str) -> bool:
+    """Match a literal suffix or a numeric auto-name template on the last segment."""
+    separator = name.rfind("--")
+    final_segment = name[separator:] if separator >= 0 else name
+    if "@" not in suffix:
+        return final_segment == suffix
+    try:
+        token = match_agent_name_template(suffix, final_segment)
+    except ValueError:
+        return False
+    return token is not None and token.isascii() and token.isdigit()
 
 
 def apply_decision(

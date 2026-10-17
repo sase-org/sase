@@ -54,6 +54,7 @@ def _settled_gate(
         lane=lane,
         gate_id=f"gate-{timestamp}",
         gate_state="answered",
+        kind="plan",
     )
     if not changed_after_snapshot:
         an_hour_ago = time.time() - 3600

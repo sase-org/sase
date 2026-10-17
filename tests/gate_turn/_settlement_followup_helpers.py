@@ -89,6 +89,7 @@ def make_gate_turn_member(
     gate_kind: str = "custom",
     label: str = "Reclaim disk space",
     workspace_num: int | None = None,
+    creator_agent: str = "lane--0",
 ) -> str:
     """Build the gate-turn member from the *same* turn block as the bundle.
 
@@ -102,7 +103,7 @@ def make_gate_turn_member(
         allow_branch_subsets=subset_branches_allowed(gate_kind),
     )
     base_meta: dict[str, Any] = {
-        "name": "lane--0",
+        "name": creator_agent,
         "agent_session": "lane",
         "model": "gpt-5",
     }
@@ -119,7 +120,7 @@ def make_gate_turn_member(
         gate_kind=gate_kind,
         label=label,
         reason="wait for reviewer",
-        creator_agent="lane--0",
+        creator_agent=creator_agent,
         timeout_seconds=86400.0,
         request_fingerprint=None,
         turn=parsed_turn,
