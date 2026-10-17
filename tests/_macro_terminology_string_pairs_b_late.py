@@ -157,7 +157,7 @@ STRING_PAIRS: set[tuple[str, str]] = {
         '"\\n---\\n\\nturn two\\n\\n---\\n\\n%xprompts_enabled:true"',
     ),
     ("tests/test_mobile_agent_kill_retry.py", '"raw_xprompt.md"'),
-    ("tests/test_mobile_gateway.py", '"xprompt-catalog"'),
+    ("tests/_test_mobile_gateway_parser.py", '"xprompt-catalog"'),
     ("tests/test_mobile_helper_bridge_smoke.py", '"xprompt"'),
     ("tests/test_mobile_helper_bridge_smoke.py", '"xprompt-catalog"'),
     ("tests/test_mobile_helper_bridge_smoke.py", '"xprompts/mobile.md"'),
