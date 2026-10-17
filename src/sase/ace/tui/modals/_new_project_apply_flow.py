@@ -255,14 +255,13 @@ class NewProjectApplyMixin(MixinBase):
         if self._state.stage != "progress":
             return
         self._progress_result = result
-        if result.status in {"ok", "partial"}:
-            if result.status == "ok":
-                spawn_pump_free_task(
-                    self,
-                    self._record_ok_preferences(),
-                    name="new-project-record-owner",
-                    registry_attr=MODAL_TASKS,
-                )
+        if result.status == "ok":
+            spawn_pump_free_task(
+                self,
+                self._record_ok_preferences(),
+                name="new-project-record-owner",
+                registry_attr=MODAL_TASKS,
+            )
             if _next_argv_requests_init(result.next_argv):
                 self._start_init_handoff(result)
                 return
@@ -338,9 +337,17 @@ class NewProjectApplyMixin(MixinBase):
             and submission.operation == "project.create"
             and create_setup_incomplete(view)
         )
+        registered_but_incomplete = (
+            not created_but_incomplete
+            and self._progress_result is not None
+            and self._progress_result.status == "partial"
+        )
         failed = self.query_one(NewProjectFailed)
         failed.show_failure(
-            view, message=message, created_but_incomplete=created_but_incomplete
+            view,
+            message=message,
+            created_but_incomplete=created_but_incomplete,
+            registered_but_incomplete=registered_but_incomplete,
         )
         failed.focus()
 

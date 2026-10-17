@@ -254,6 +254,42 @@ async def test_ok_with_init_handoff_then_cancelled_copy(
         )
 
 
+async def test_partial_with_init_goes_failed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    inits: list[Any] = []
+
+    def fake_init(host: Any, scope: Any) -> Any:
+        inits.append(scope)
+        return None
+
+    monkeypatch.setattr(
+        "sase.ace.tui.modals._new_project_apply_flow.run_project_init",
+        fake_init,
+    )
+    app, modal, _ = await _open_review(monkeypatch)
+    async with app.run_test(size=(120, 40)) as pilot:
+        app.push_screen(modal)
+        await pilot.pause()
+        _select_suggested(modal)
+        await pilot.pause()
+        await _confirm_review(pilot, modal)
+        modal._on_progress_result(
+            _result(
+                "partial",
+                next_argv=("sase", "init", "-p", "gh_sase-org__new"),
+                message="the provider did not report a usable default branch",
+            )
+        )
+        await pilot.pause()
+        assert modal._state.stage == "failed"
+        assert inits == []
+        failed = modal.query_one(NewProjectFailed)
+        body = failed.query_one("#new-project-failed-message").render().plain
+        assert "setup incomplete" in body
+        assert "Project registered; setup incomplete" in body
+
+
 async def test_failed_keeps_checklist_and_t_strips_json(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

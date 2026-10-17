@@ -16,6 +16,7 @@ from .new_project_rendering import clean_source_text
 
 
 _CREATED_INCOMPLETE_NOTICE = "Repository created; setup incomplete"
+_REGISTERED_INCOMPLETE_NOTICE = "Project registered; setup incomplete"
 
 
 def create_setup_incomplete(view: ProgressView) -> bool:
@@ -55,6 +56,7 @@ class NewProjectFailed(Vertical):
         self._view = ProgressView()
         self._message = ""
         self._created_incomplete = False
+        self._registered_incomplete = False
 
     def compose(self) -> ComposeResult:
         with VerticalScroll(id="new-project-failed-scroll"):
@@ -72,11 +74,13 @@ class NewProjectFailed(Vertical):
         *,
         message: str = "",
         created_but_incomplete: bool = False,
+        registered_but_incomplete: bool = False,
     ) -> None:
         """Paint the kept checklist and the terminal result message."""
         self._view = view
         self._message = message
         self._created_incomplete = created_but_incomplete
+        self._registered_incomplete = registered_but_incomplete
         if self.is_mounted:
             self._paint()
 
@@ -95,6 +99,10 @@ class NewProjectFailed(Vertical):
         block = Text()
         if self._created_incomplete:
             block.append(_CREATED_INCOMPLETE_NOTICE, style="#FFAF5F")
+            if message:
+                block.append("\n")
+        elif self._registered_incomplete:
+            block.append(_REGISTERED_INCOMPLETE_NOTICE, style="#FFAF5F")
             if message:
                 block.append("\n")
         if message:

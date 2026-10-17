@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
+import subprocess
 from typing import Any
 
 import pytest
@@ -63,6 +65,27 @@ def _bare_git_create_home(
         "sase.project_onboarding._apply_run.detect_actor", lambda **_kwargs: "human"
     )
     return home, sase_home
+
+
+def _git_dir(git_dir: Path, *args: str) -> str:
+    env = dict(os.environ)
+    env.update(
+        {
+            "GIT_AUTHOR_NAME": "Onboarding Test",
+            "GIT_AUTHOR_EMAIL": "onboarding@example.test",
+            "GIT_COMMITTER_NAME": "Onboarding Test",
+            "GIT_COMMITTER_EMAIL": "onboarding@example.test",
+            "GIT_TERMINAL_PROMPT": "0",
+        }
+    )
+    result = subprocess.run(
+        ["git", "--git-dir", str(git_dir), *args],
+        capture_output=True,
+        text=True,
+        check=True,
+        env=env,
+    )
+    return result.stdout.strip()
 
 
 def test_bare_git_create_end_to_end(
@@ -175,3 +198,35 @@ def test_bare_git_create_resumes_after_checkout_failure_with_custom_bare_dir(
     assert resumed_journal["remote"]["created_at"] == first_created_at
     assert list(tmp_path.rglob("tools.git")) == [custom_bare]
     assert (home / "projects" / "git" / "tools" / ".git").exists()
+
+
+def test_bare_git_create_with_setup_pushes_marker_commit(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    home, sase_home = _bare_git_create_home(tmp_path, monkeypatch)
+    monkeypatch.setenv("GIT_AUTHOR_NAME", "Onboarding Test")
+    monkeypatch.setenv("GIT_AUTHOR_EMAIL", "onboarding@example.test")
+    monkeypatch.setenv("GIT_COMMITTER_NAME", "Onboarding Test")
+    monkeypatch.setenv("GIT_COMMITTER_EMAIL", "onboarding@example.test")
+    args = make_create_args(["git:tools", "--yes", "--json"])
+    assert add_cli.handle_create(args) == 0
+    events = [
+        json.loads(line)
+        for line in capsys.readouterr().out.splitlines()
+        if line.strip()
+    ]
+    results = [event for event in events if event.get("event") == "result"]
+    assert results
+    assert results[-1]["status"] == "ok"
+    bare = sase_home / "repos" / "tools.git"
+    head = _git_dir(bare, "symbolic-ref", "--short", "HEAD")
+    commit = _git_dir(bare, "rev-parse", head)
+    assert _git_dir(bare, "log", "-1", "--format=%s", commit) == (
+        "chore: mark repository as SASE-managed"
+    )
+    assert _git_dir(
+        bare, "diff-tree", "--root", "--no-commit-id", "--name-only", "-r", commit
+    ).splitlines() == ["sase/sase.yml"]
+    assert "is_sase_managed: true" in _git_dir(bare, "show", f"{commit}:sase/sase.yml")

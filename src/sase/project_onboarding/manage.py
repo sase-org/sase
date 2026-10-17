@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-import hashlib
 from pathlib import Path
 import subprocess
 from typing import Any
@@ -13,17 +12,26 @@ from sase.config import set_key
 from sase.project_management import enable_sase_management, project_management_status
 from sase.project_onboarding.discovery import identity_for_origin, resolve_git_dir
 from sase.project_onboarding.journal import lookup_journal, update_management
-from sase.workspace_provider.utils import non_interactive_git_env
-from sase.noninteractive_subprocess import run_noninteractive
+from sase.project_onboarding.manage_git import (
+    CONFIG_RELATIVE as _CONFIG_RELATIVE,
+    GIT_TIMEOUT_SECONDS as _GIT_TIMEOUT_SECONDS,
+    ManagementError,
+    PUSH_TIMEOUT_SECONDS as _PUSH_TIMEOUT_SECONDS,
+    align_unborn_head as _align_unborn_head,
+    born_head as _born_head,
+    choose_empty_origin_branch as _choose_empty_origin_branch,
+    ensure_upstream as _ensure_upstream,
+    failure_message as _failure_message,
+    normalize_branch as _normalize_branch,
+    read_config as _read_config,
+    remote_heads as _remote_heads,
+    remote_oid as _remote_oid,
+    run_git as _run_git,
+    sha256 as _sha256,
+    should_manage_empty_origin as _should_manage_empty_origin,
+)
 
-_CONFIG_RELATIVE = Path("sase") / "sase.yml"
 _MANAGEMENT_COMMIT_MESSAGE = "chore: mark repository as SASE-managed"
-_GIT_TIMEOUT_SECONDS = 30.0
-_PUSH_TIMEOUT_SECONDS = 60.0
-
-
-class ManagementError(RuntimeError):
-    """The management effect could not safely reach its postcondition."""
 
 
 def manage_repository(
@@ -72,12 +80,23 @@ def manage_repository(
     config_path = checkout / _CONFIG_RELATIVE
     management = journal.get("management")
     state = dict(management) if isinstance(management, dict) else {}
+    expected_identity = identity_key.casefold()
+    _verify_origin(checkout, workflow_type, expected_identity)
+    if _should_manage_empty_origin(checkout, remote, state):
+        return _manage_empty_origin(
+            checkout,
+            config_path,
+            remote,
+            state,
+            journal_key=journal_key,
+            intent_fingerprint=intent_fingerprint,
+            display=display,
+        )
 
     branch = _normalize_branch(str(remote.get("default_branch") or ""))
     if not branch:
         raise ManagementError("the provider did not report a usable default branch")
     _verify_branch(checkout, branch)
-    expected_identity = identity_key.casefold()
     _verify_origin(checkout, workflow_type, expected_identity)
 
     head = _git_output(checkout, "rev-parse", "HEAD", action="read checkout HEAD")
@@ -110,84 +129,13 @@ def manage_repository(
             "reconcile them before retrying setup"
         )
 
-    current_bytes = _read_config(config_path)
-    current_hash = _sha256(current_bytes)
-    try:
-        current_text = current_bytes.decode("utf-8")
-    except UnicodeDecodeError as exc:
-        raise ManagementError("sase/sase.yml is not valid UTF-8") from exc
-    try:
-        expected_bytes = set_key(current_text, ("is_sase_managed",), True).encode(
-            "utf-8"
-        )
-    except Exception as exc:
-        raise ManagementError(f"could not prepare sase/sase.yml: {exc}") from exc
-    expected_hash = _sha256(expected_bytes)
-    baseline_hash = str(state.get("baseline_config_hash") or "")
-    stored_expected_hash = str(state.get("expected_config_hash") or "")
-    if stored_expected_hash:
-        if expected_hash != stored_expected_hash:
-            raise ManagementError(
-                "sase/sase.yml changed after the recorded marker write; "
-                "preserve the edit and resolve it before retrying"
-            )
-        baseline_hash = baseline_hash or current_hash
-        if current_hash not in {baseline_hash, stored_expected_hash}:
-            raise ManagementError(
-                "sase/sase.yml no longer matches the recorded recovery bytes"
-            )
-        expected_hash = stored_expected_hash
-    else:
-        if _path_is_dirty(checkout):
-            raise ManagementError(
-                "sase/sase.yml has local edits; commit or stash them, then retry"
-            )
-        baseline_hash = current_hash
-        _write_evidence(
-            journal_key,
-            intent_fingerprint,
-            display,
-            stage="prepared",
-            baseline_config_hash=baseline_hash,
-            expected_config_hash=expected_hash,
-            current_config_hash=current_hash,
-            marker_write_stage="prepared",
-        )
-
-    # A prior response may have been lost after the file write. Exact expected
-    # bytes are sufficient to advance; anything else is treated as user work.
-    if current_hash != expected_hash:
-        if current_hash != baseline_hash:
-            raise ManagementError(
-                "sase/sase.yml has edits outside this onboarding marker"
-            )
-        _write_evidence(
-            journal_key,
-            intent_fingerprint,
-            display,
-            stage="write_started",
-            marker_write_stage="write_started",
-        )
-        marker_update = enable_sase_management(config_path)
-        current_bytes = _read_config(config_path)
-        current_hash = _sha256(current_bytes)
-        if current_hash != expected_hash:
-            detail = f": {marker_update.error}" if marker_update.error else ""
-            raise ManagementError("failed to write the expected SASE marker" + detail)
-    else:
-        current_bytes = _read_config(config_path)
-        current_hash = _sha256(current_bytes)
-
-    if not project_management_status(config_path).is_sase_managed:
-        raise ManagementError("the local SASE management marker is not valid")
-    _write_evidence(
-        journal_key,
-        intent_fingerprint,
-        display,
-        stage="marker_written",
-        marker_written=True,
-        marker_write_stage="written",
-        current_config_hash=current_hash,
+    expected_hash, baseline_hash, _current_hash = _prepare_and_write_marker(
+        checkout,
+        config_path,
+        state,
+        journal_key=journal_key,
+        intent_fingerprint=intent_fingerprint,
+        display=display,
     )
 
     # A config that was already committed and identical to origin needs no
@@ -377,6 +325,275 @@ def manage_repository(
     return _success(commit_id, changed=True)
 
 
+def _manage_empty_origin(
+    checkout: Path,
+    config_path: Path,
+    remote: Mapping[str, Any],
+    state: Mapping[str, Any],
+    *,
+    journal_key: str,
+    intent_fingerprint: str,
+    display: str,
+) -> dict[str, Any]:
+    branch = _choose_empty_origin_branch(checkout, remote, state)
+    _align_unborn_head(checkout, branch)
+    expected_hash, _baseline_hash, _current_hash = _prepare_and_write_marker(
+        checkout,
+        config_path,
+        state,
+        journal_key=journal_key,
+        intent_fingerprint=intent_fingerprint,
+        display=display,
+    )
+    head = _born_head(checkout)
+    if head and not _valid_expected_commit(
+        checkout, head, "", expected_hash, _MANAGEMENT_COMMIT_MESSAGE
+    ):
+        raise ManagementError(
+            "the checkout already has local commits but origin is empty; "
+            "push or remove them, then retry setup"
+        )
+    if str(state.get("commit_content_hash") or expected_hash) != expected_hash:
+        raise ManagementError("the recorded marker commit content does not match")
+    _write_evidence(
+        journal_key,
+        intent_fingerprint,
+        display,
+        stage="prepared",
+        root_commit=True,
+        commit_branch=branch,
+        commit_parent="",
+        commit_content_hash=expected_hash,
+        commit_message=_MANAGEMENT_COMMIT_MESSAGE,
+    )
+    prior_commit = str(state.get("commit_id") or "")
+    commit_id = _find_expected_commit(
+        checkout,
+        "",
+        expected_hash,
+        str(state.get("commit_message") or _MANAGEMENT_COMMIT_MESSAGE),
+        prior_commit,
+    )
+    if not commit_id:
+        if _born_head(checkout):
+            raise ManagementError(
+                "the checkout branch changed before the marker commit; "
+                "no replacement commit was created"
+            )
+        if _remote_heads(checkout):
+            raise ManagementError(
+                "origin received commits while setup was creating the first commit; "
+                "the local marker commit is preserved, and nothing was pushed"
+            )
+        _stage_config(checkout, config_path, expected_hash)
+        if _remote_heads(checkout):
+            raise ManagementError(
+                "origin received commits while setup was creating the first commit; "
+                "the local marker commit is preserved, and nothing was pushed"
+            )
+        _write_evidence(
+            journal_key,
+            intent_fingerprint,
+            display,
+            stage="commit_started",
+        )
+        result = _run_git(
+            checkout,
+            "commit",
+            "--only",
+            "-m",
+            _MANAGEMENT_COMMIT_MESSAGE,
+            "--",
+            str(_CONFIG_RELATIVE),
+            timeout=_GIT_TIMEOUT_SECONDS,
+        )
+        if result.returncode != 0:
+            commit_id = _find_expected_commit(
+                checkout,
+                "",
+                expected_hash,
+                _MANAGEMENT_COMMIT_MESSAGE,
+                "",
+            )
+            if not commit_id:
+                raise ManagementError(
+                    _failure_message("commit SASE management marker", result)
+                )
+        else:
+            commit_id = _git_output(
+                checkout, "rev-parse", "HEAD", action="read marker commit"
+            )
+            if not _valid_expected_commit(
+                checkout,
+                commit_id,
+                "",
+                expected_hash,
+                _MANAGEMENT_COMMIT_MESSAGE,
+            ):
+                raise ManagementError(
+                    "Git created a commit that does not contain only the expected marker"
+                )
+        _write_evidence(
+            journal_key,
+            intent_fingerprint,
+            display,
+            stage="committed",
+            commit_id=commit_id,
+        )
+    else:
+        _write_evidence(
+            journal_key,
+            intent_fingerprint,
+            display,
+            stage="committed",
+            commit_id=commit_id,
+        )
+
+    heads = _remote_heads(checkout)
+    branch_ref = f"refs/heads/{branch}"
+    if heads.get(branch_ref) == commit_id:
+        _write_evidence(
+            journal_key,
+            intent_fingerprint,
+            display,
+            stage="push_verified",
+            push_expected_oid=commit_id,
+            push_verified=True,
+            pushed=True,
+        )
+        _ensure_upstream(checkout, branch)
+        return _success(commit_id, changed=True)
+    if heads:
+        raise ManagementError(
+            "origin received commits while setup was creating the first commit; "
+            "the local marker commit is preserved, and nothing was pushed"
+        )
+
+    _write_evidence(
+        journal_key,
+        intent_fingerprint,
+        display,
+        stage="push_started",
+        push_expected_oid=commit_id,
+    )
+    result = _run_git(
+        checkout,
+        "push",
+        "origin",
+        f"{commit_id}:refs/heads/{branch}",
+        timeout=_PUSH_TIMEOUT_SECONDS,
+    )
+    verified_oid = _remote_heads(checkout).get(branch_ref, "")
+    if verified_oid != commit_id:
+        reason = _failure_message("push SASE management marker", result)
+        raise ManagementError(
+            f"{reason}. The local marker commit is preserved. A protected default "
+            "branch may require a pull request or a human to run `sase init -M`."
+        )
+    _write_evidence(
+        journal_key,
+        intent_fingerprint,
+        display,
+        stage="push_verified",
+        push_expected_oid=commit_id,
+        push_verified=True,
+        pushed=True,
+    )
+    _ensure_upstream(checkout, branch)
+    return _success(commit_id, changed=True)
+
+
+def _prepare_and_write_marker(
+    checkout: Path,
+    config_path: Path,
+    state: Mapping[str, Any],
+    *,
+    journal_key: str,
+    intent_fingerprint: str,
+    display: str,
+) -> tuple[str, str, str]:
+    current_bytes = _read_config(config_path)
+    current_hash = _sha256(current_bytes)
+    try:
+        current_text = current_bytes.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise ManagementError("sase/sase.yml is not valid UTF-8") from exc
+    try:
+        expected_bytes = set_key(current_text, ("is_sase_managed",), True).encode(
+            "utf-8"
+        )
+    except Exception as exc:
+        raise ManagementError(f"could not prepare sase/sase.yml: {exc}") from exc
+    expected_hash = _sha256(expected_bytes)
+    baseline_hash = str(state.get("baseline_config_hash") or "")
+    stored_expected_hash = str(state.get("expected_config_hash") or "")
+    if stored_expected_hash:
+        if expected_hash != stored_expected_hash:
+            raise ManagementError(
+                "sase/sase.yml changed after the recorded marker write; "
+                "preserve the edit and resolve it before retrying"
+            )
+        baseline_hash = baseline_hash or current_hash
+        if current_hash not in {baseline_hash, stored_expected_hash}:
+            raise ManagementError(
+                "sase/sase.yml no longer matches the recorded recovery bytes"
+            )
+        expected_hash = stored_expected_hash
+    else:
+        if _path_is_dirty(checkout):
+            raise ManagementError(
+                "sase/sase.yml has local edits; commit or stash them, then retry"
+            )
+        baseline_hash = current_hash
+        _write_evidence(
+            journal_key,
+            intent_fingerprint,
+            display,
+            stage="prepared",
+            baseline_config_hash=baseline_hash,
+            expected_config_hash=expected_hash,
+            current_config_hash=current_hash,
+            marker_write_stage="prepared",
+        )
+
+    # A prior response may have been lost after the file write. Exact expected
+    # bytes are sufficient to advance; anything else is treated as user work.
+    if current_hash != expected_hash:
+        if current_hash != baseline_hash:
+            raise ManagementError(
+                "sase/sase.yml has edits outside this onboarding marker"
+            )
+        _write_evidence(
+            journal_key,
+            intent_fingerprint,
+            display,
+            stage="write_started",
+            marker_write_stage="write_started",
+        )
+        marker_update = enable_sase_management(config_path)
+        current_bytes = _read_config(config_path)
+        current_hash = _sha256(current_bytes)
+        if current_hash != expected_hash:
+            detail = f": {marker_update.error}" if marker_update.error else ""
+            raise ManagementError("failed to write the expected SASE marker" + detail)
+    else:
+        current_bytes = _read_config(config_path)
+        current_hash = _sha256(current_bytes)
+
+    if not project_management_status(config_path).is_sase_managed:
+        raise ManagementError("the local SASE management marker is not valid")
+    _write_evidence(
+        journal_key,
+        intent_fingerprint,
+        display,
+        stage="marker_written",
+        marker_written=True,
+        marker_write_stage="written",
+        current_config_hash=current_hash,
+    )
+    return expected_hash, baseline_hash, current_hash
+
+
 def _write_evidence(
     identity_key: str,
     fingerprint: str,
@@ -476,6 +693,7 @@ def _valid_expected_commit(
     paths = _run_git(
         checkout,
         "diff-tree",
+        "--root",
         "--no-commit-id",
         "--name-only",
         "-r",
@@ -546,35 +764,6 @@ def _origin_identity(workflow_type: str, origin: str) -> str:
     return identity_for_origin(origin)
 
 
-def _remote_oid(checkout: Path, branch: str) -> str:
-    result = _run_git(
-        checkout,
-        "ls-remote",
-        "--heads",
-        "origin",
-        f"refs/heads/{branch}",
-        timeout=_PUSH_TIMEOUT_SECONDS,
-    )
-    if result.returncode != 0:
-        raise ManagementError(_failure_message("verify origin default branch", result))
-    rows = [line.split() for line in result.stdout.splitlines() if line.strip()]
-    if len(rows) != 1 or len(rows[0]) != 2 or rows[0][1] != f"refs/heads/{branch}":
-        raise ManagementError(f"origin has no unique refs/heads/{branch} branch")
-    return rows[0][0]
-
-
-def _normalize_branch(branch: str) -> str:
-    normalized = branch.strip()
-    if normalized.startswith("refs/heads/"):
-        normalized = normalized.removeprefix("refs/heads/")
-    elif normalized.startswith("origin/"):
-        normalized = normalized.removeprefix("origin/")
-    if not normalized:
-        return ""
-    checked = _run_git(Path.cwd(), "check-ref-format", f"refs/heads/{normalized}")
-    return normalized if checked.returncode == 0 else ""
-
-
 def _path_is_dirty(checkout: Path) -> bool:
     result = _run_git(
         checkout,
@@ -588,19 +777,6 @@ def _path_is_dirty(checkout: Path) -> bool:
     if result.returncode != 0:
         raise ManagementError(_failure_message("inspect SASE config status", result))
     return bool(result.stdout.strip())
-
-
-def _read_config(path: Path) -> bytes:
-    try:
-        return path.read_bytes()
-    except FileNotFoundError:
-        return b""
-    except OSError as exc:
-        raise ManagementError(f"could not read {path}: {exc}") from exc
-
-
-def _sha256(content: bytes) -> str:
-    return hashlib.sha256(content).hexdigest()
 
 
 def _git_output(checkout: Path, *args: str, action: str) -> str:
@@ -617,35 +793,6 @@ def _run_checked(
     if result.returncode != 0:
         raise ManagementError(_failure_message(label, result))
     return result
-
-
-def _run_git(
-    checkout: Path,
-    *args: str,
-    timeout: float = _GIT_TIMEOUT_SECONDS,
-) -> subprocess.CompletedProcess[str]:
-    env = non_interactive_git_env()
-    env["GH_PROMPT_DISABLED"] = "1"
-    env["GIT_TERMINAL_PROMPT"] = "0"
-    try:
-        return run_noninteractive(
-            ["git", *args],
-            cwd=checkout,
-            env=env,
-            timeout=timeout,
-        )
-    except subprocess.TimeoutExpired as exc:
-        raise ManagementError(
-            f"git {' '.join(args)} timed out after {timeout:g}s"
-        ) from exc
-    except OSError as exc:
-        raise ManagementError(f"could not run git {' '.join(args)}: {exc}") from exc
-
-
-def _failure_message(action: str, result: subprocess.CompletedProcess[str]) -> str:
-    detail = (result.stderr or result.stdout or "").strip()
-    suffix = f": {detail}" if detail else ""
-    return f"failed to {action} (exit {result.returncode}){suffix}"
 
 
 def _success(commit_id: str, *, changed: bool) -> dict[str, Any]:
