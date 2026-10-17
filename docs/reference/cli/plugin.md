@@ -38,8 +38,8 @@ Subcommands:
 ## `sase plugin install`
 
 ```text
-usage: sase plugin install [-h] [-g] [-j] [-n] [-r] [-Q PATH] [-R PATH]
-                           <plugin>
+usage: sase plugin install [-h] <plugin> [-g] [-j] [-n] [-r] [-Q PATH]
+                           [-R PATH]
 ```
 
 Install a SASE plugin into the *same* uv tool environment as sase, so its entry points are discovered the next time sase runs. The <plugin> name is resolved through the GitHub catalog (`github` -> `sase-github`); a raw requirement, git URL, or local path is passed through verbatim. By default the plugin is installed from its published distribution; it falls back to the plugin's git repository automatically only when public PyPI definitively has no such distribution (a 404). An unreachable or slow index is never treated as absence, so a transient outage still resolves from the index. Pass `-g|--git` to force the repository install regardless of index state. This only works when sase was installed via `uv tool install sase` (the canonical install path). When run from a pip/pipx install or a dev checkout's virtualenv, it fails fast with an actionable message instead of touching your environment. uv's `--with` set is reconstructed from sase's uv receipt, so existing plugins and editable/dev installs are preserved. Use `-n|--dry-run` to preview the exact uv command and resulting plugin set without changing anything. A successful install that changes packages restarts the scheduler so background automation loads the new plugin code.
@@ -84,7 +84,7 @@ Options:
 ## `sase plugin show`
 
 ```text
-usage: sase plugin show [-h] [-j] [-o] [-r] <plugin_name>
+usage: sase plugin show [-h] <plugin_name> [-j] [-o] [-r]
 ```
 
 Show a detailed view of one SASE plugin: description, installed status and entry points, latest available version, repository, homepage, topics, stars, last update, and license. Community plugins lead with a prominent third-party warning. <plugin_name> matches the short name (`github`), the repo (`sase-github`), or the full name (`sase-org/sase-github`); an unknown name prints `did you mean…?` suggestions and exits non-zero. Use `-o|--offline` to render from caches only.
@@ -107,7 +107,7 @@ Arguments:
 ## `sase plugin uninstall`
 
 ```text
-usage: sase plugin uninstall [-h] [-j] [-n] [-r] [-Q PATH] [-R PATH] <plugin>
+usage: sase plugin uninstall [-h] <plugin> [-j] [-n] [-r] [-Q PATH] [-R PATH]
 ```
 
 Uninstall a SASE plugin from the *same* uv tool environment as sase, so its entry points are no longer discovered the next time sase runs. The <plugin> name is resolved straight from sase's uv receipt (`github` -> `sase-github`, repo and `owner/repo` full names also work), so an installed plugin — even a community one absent from the catalog — resolves without a network fetch. Like `sase plugin install`, this only works when sase was installed via `uv tool install sase`. It reconstructs uv's `--with` set from sase's receipt with the target omitted, so sase core and every other plugin are preserved; editable/dev installs are kept too. When run from a pip/pipx install or a dev checkout's virtualenv, it fails fast with an actionable message instead of touching your environment. Uninstalling a plugin that is not installed is a no-op success. Use `-n|--dry-run` to preview the exact uv command and resulting plugin set without changing anything. A successful uninstall that changes packages restarts the scheduler so background automation unloads the removed plugin code.
@@ -132,8 +132,8 @@ Arguments:
 ## `sase plugin update`
 
 ```text
-usage: sase plugin update [-h] [-a] [-j] [-n] [-r] [-Q PATH] [-R PATH]
-                          [<plugin>]
+usage: sase plugin update [-h] [<plugin>] [-a] [-j] [-n] [-r] [-Q PATH]
+                          [-R PATH]
 ```
 
 Upgrade a single installed SASE plugin to its latest version while leaving sase core and every other plugin pinned. Pass `-a|--all` to upgrade every installed plugin in one shot (still leaving sase core pinned). To upgrade sase core together with all plugins, use `sase update` instead. Like `sase plugin install`, this only works when sase was installed via `uv tool install sase`, reconstructs uv's `--with` set from sase's receipt (preserving editable/dev installs), and fails fast with an actionable message otherwise. A plugin that is not installed yields a hint to run `sase plugin install <plugin>` instead. Use `-n|--dry-run` to preview the exact uv command without changing anything. A successful update that changes packages restarts the scheduler so background automation loads the updated plugin code.

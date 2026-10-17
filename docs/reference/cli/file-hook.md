@@ -12,7 +12,7 @@ Inspect configured per-file repository hooks
 Reference for `sase file-hook`. Run `sase file-hook --help` for the exact output on this checkout.
 
 ```text
-usage: sase file-hook [-h] <subcommand> ...
+usage: sase file-hook [-h] {exec-batch,history,list,show} ...
 ```
 
 Inspect non-gating commands configured under `file_hooks` and the producer audit history for matching, dispatch, and pre-run failures. With no subcommand, `sase file-hook` defaults to `sase file-hook list`.
@@ -80,7 +80,7 @@ Options:
 ## `sase file-hook show`
 
 ```text
-usage: sase file-hook show [-h] [-j] audit_id
+usage: sase file-hook show [-h] audit_id [-j]
 ```
 
 Print one producer audit by exact id or unique prefix so an operator can tell whether an event was unmatched, dispatched, or failed before a hook command ran.

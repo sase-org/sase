@@ -38,8 +38,8 @@ Subcommands:
 ## `sase snippet add`
 
 ```text
-usage: sase snippet add [-h] [-n] [-F] [-f {json,rich}] [-p REF] [-t PATH]
-                        TRIGGER TEMPLATE
+usage: sase snippet add [-h] TRIGGER TEMPLATE [-n] [-F] [-f {json,rich}]
+                        [-p REF] [-t PATH]
 ```
 
 Insert TRIGGER with TEMPLATE into the resolved `ace.snippet_config_path` (or `-t/--target`). Refuses to overwrite or shadow an existing definition unless `-F/--force` is given, and names the source that currently wins. `-n/--dry-run` validates and plans the write without touching the destination.
@@ -65,7 +65,7 @@ Arguments:
 ## `sase snippet delete`
 
 ```text
-usage: sase snippet delete [-h] [-a] [-n] [-f {json,rich}] [-p REF] TRIGGER
+usage: sase snippet delete [-h] TRIGGER [-a] [-n] [-f {json,rich}] [-p REF]
 ```
 
 Remove the winning writable `ace.snippets` contribution for TRIGGER after exact, alias, then unique-prefix lookup. Refuses to pretend a read-only, plugin, or macro-derived entry was deleted and points at its source instead. Prints the restore command and any newly revealed definition. `-a/--all` removes every writable config-layer contribution.
@@ -89,7 +89,7 @@ Arguments:
 ## `sase snippet list`
 
 ```text
-usage: sase snippet list [-h] [-d] [-f {json,names,table}] [-p REF] [PATTERN]
+usage: sase snippet list [-h] [PATTERN] [-d] [-f {json,names,table}] [-p REF]
 ```
 
 List each effective explicit trigger once, optionally filtered by a case-insensitive substring match against triggers and generated aliases. `-d/--definitions` extends matching into raw and composed bodies. Generated aliases are metadata, not extra rows.
@@ -112,7 +112,7 @@ Arguments:
 ## `sase snippet show`
 
 ```text
-usage: sase snippet show [-h] [-f {json,markdown,rich}] [-p REF] TRIGGER
+usage: sase snippet show [-h] TRIGGER [-f {json,markdown,rich}] [-p REF]
 ```
 
 Resolve TRIGGER through exact, alias, then unique-prefix lookup and print the raw template, composed expansion, source stack, aliases, calls, backlinks, and diagnostics. Macro-derived entries are viewable and linkable but are source-edited.

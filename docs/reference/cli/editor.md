@@ -12,7 +12,7 @@ Run editor integration helpers
 Reference for `sase editor`. Run `sase editor --help` for the exact output on this checkout.
 
 ```text
-usage: sase editor [-h] {helper-bridge} ...
+usage: sase editor [-h]
 ```
 
 Options:

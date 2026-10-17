@@ -91,7 +91,7 @@ Options:
 ## `sase instructions show`
 
 ```text
-usage: sase instructions show [-h] [-H] [-j] [-l] [-n NN] [-s] NAME
+usage: sase instructions show [-h] NAME [-H] [-j] [-l] [-n NN] [-s]
 ```
 
 Print a named agent's archived instruction bundle and check that the stored bytes match the manifest sha256. Dismissed agents resolve the same way as `sase agent show`. The default output is the bundle Markdown on stdout plus one summary line on stderr.

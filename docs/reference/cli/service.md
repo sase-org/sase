@@ -151,7 +151,7 @@ Options:
 ### `sase service proc logs`
 
 ```text
-usage: sase service proc logs [-h] [-n N] NAME
+usage: sase service proc logs [-h] NAME [-n N]
 ```
 
 Options:
@@ -170,7 +170,7 @@ Arguments:
 ### `sase service proc restart`
 
 ```text
-usage: sase service proc restart [-h] [-n] [-t SECONDS] NAME
+usage: sase service proc restart [-h] NAME [-n] [-t SECONDS]
 ```
 
 Options:
@@ -215,7 +215,7 @@ Arguments:
 ### `sase service proc show`
 
 ```text
-usage: sase service proc show [-h] [-j] NAME
+usage: sase service proc show [-h] NAME [-j]
 ```
 
 Options:
@@ -234,7 +234,7 @@ Arguments:
 ### `sase service proc start`
 
 ```text
-usage: sase service proc start [-h] [-n] [-t SECONDS] NAME
+usage: sase service proc start [-h] NAME [-n] [-t SECONDS]
 ```
 
 Options:

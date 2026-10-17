@@ -848,8 +848,8 @@ check: (_require-tool-run "check") _setup
     @tools/run_silent "SASE validation"     just validate
     @{{ venv_bin }}/python tools/probe_core_floor --advisory --sase-core-dir "{{ sase_core_dir }}"
     @tools/run_silent "committed plans"      just validate-committed-plans
-    @docs_scope="$$(tools/docs_changed)"; \
-    if [ "$$docs_scope" = run ]; then \
+    @docs_scope="$(tools/docs_changed)"; \
+    if [ "$docs_scope" = run ]; then \
         tools/run_silent "docs (build + links)" just docs-check; \
     else \
         printf "[check] Skipping docs build; no docs inputs changed.\n"; \

@@ -12,7 +12,7 @@ Inspect and manage managed workspace checkouts
 Reference for `sase workspace`. Run `sase workspace --help` for the exact output on this checkout.
 
 ```text
-usage: sase workspace [-h] {cleanup,compact,list,migrate,path,repair} ...
+usage: sase workspace [-h] {cleanup,compact,list,migrate,open,path,repair} ...
 ```
 
 Bare `sase workspace` defaults to `sase workspace list`.
@@ -54,7 +54,7 @@ Options:
 ## `sase workspace compact`
 
 ```text
-usage: sase workspace compact [-h] [-p PROJECT] [-n] [-j] [NUM ...]
+usage: sase workspace compact [-h] [NUM ...] [-p PROJECT] [-n] [-j]
 ```
 
 Options:
@@ -108,7 +108,7 @@ Options:
 ## `sase workspace open`
 
 ```text
-usage: sase workspace open [-h] [-p PROJECT] -r REASON [-P] [-c] workspace_num
+usage: sase workspace open [-h] workspace_num [-p PROJECT] -r REASON [-P] [-c]
 ```
 
 Options:
@@ -130,7 +130,7 @@ Arguments:
 ## `sase workspace path`
 
 ```text
-usage: sase workspace path [-h] [-p PROJECT] workspace_num
+usage: sase workspace path [-h] workspace_num [-p PROJECT]
 ```
 
 Options:

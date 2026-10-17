@@ -94,7 +94,7 @@ Options:
 ## `sase repo open`
 
 ```text
-usage: sase repo open [-h] [-p PROJECT] -r REASON [-w N] REPO
+usage: sase repo open [-h] REPO [-p PROJECT] -r REASON [-w N]
 ```
 
 Resolve a repository in three tiers: a primary, sidecar, or linked repository in the host project; another registered SASE project; or an external provider ref such as gh:owner/repo (owner/repo is GitHub shorthand). Provider refs and registered projects that match a configured linked repo open that linked checkout and explain the redirect on stderr. Materialize the selected checkout in one workspace context without cleaning, resetting, or synchronizing an existing checkout, then print only the opened path. The workspace defaults to the checkout that contains the current directory.
@@ -117,7 +117,7 @@ Arguments:
 ## `sase repo path`
 
 ```text
-usage: sase repo path [-h] [-e] [-p PROJECT] [-w N] REPO
+usage: sase repo path [-h] REPO [-e] [-p PROJECT] [-w N]
 ```
 
 Resolve a primary or sidecar repository by role name or repository slug and print exactly one absolute path. Resolution is read-only unless --ensure is passed. Linked and external repositories must be prepared with `sase repo open` instead.

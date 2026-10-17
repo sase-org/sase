@@ -37,7 +37,7 @@ Subcommands:
 ## `sase autonomy explain`
 
 ```text
-usage: sase autonomy explain [-h] [-g ID] [-j] [-p TEXT] [AGENT]
+usage: sase autonomy explain [-h] [AGENT] [-g ID] [-j] [-p TEXT]
 ```
 
 Predict each %auto decision exactly. With an agent name, show its live record's summary, the per-kind cells with rule and source, the decisions so far from the host log, and the coverage line. With --prompt, dry-run a prompt's %auto through the side-effect-free scan: $(...) is never executed and is labeled as unexpanded. With --gate, show the settled gate's deciding policy block, which is the revision that decided it.
@@ -75,7 +75,7 @@ Options:
 ## `sase autonomy log`
 
 ```text
-usage: sase autonomy log [-h] [-j] [-k KIND] [-o OUTCOME] [-s DATE] [AGENT]
+usage: sase autonomy log [-h] [AGENT] [-j] [-k KIND] [-o OUTCOME] [-s DATE]
 ```
 
 Read the host %auto decision log, newest first, rendered with the core decision sentence. Only non-manual evaluations are logged: manual agents leave no rows.
@@ -99,7 +99,7 @@ Arguments:
 ## `sase autonomy show`
 
 ```text
-usage: sase autonomy show [-h] [-j] PROFILE
+usage: sase autonomy show [-h] PROFILE [-j]
 ```
 
 Show one built-in profile's matrix: its layer, the selections that pick it, the per-kind cells, and the coverage line.

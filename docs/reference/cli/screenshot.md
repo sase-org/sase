@@ -14,8 +14,7 @@ Reference for `sase screenshot`. Run `sase screenshot --help` for the exact outp
 ```text
 usage: sase screenshot [-h] [-H ALIAS_OR_SSH] [-k] [-o PATH] [-p KEY] [-d MS]
                        [-s COLSxROWS] [-S] [-t SECONDS] [-T TEXT] [-w REGEX]
-                       [-W TMUX_TARGET]
-                       ...
+                       [-W TMUX_TARGET] ...
 ```
 
 Launch or reuse a real `sase tui` in tmux, drive it with keypresses and typed text, ask the live app to export SVG, and rasterize that SVG to PNG. Repeatable -p/--press, -T/--type, and -w/--wait-for form one argv-ordered input script.

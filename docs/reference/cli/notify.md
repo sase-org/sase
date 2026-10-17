@@ -43,7 +43,7 @@ Subcommands:
 ## `sase notify +1`
 
 ```text
-usage: sase notify +1 [-h] [-k DEDUP_KEY] [-s SENDER] [id] note
+usage: sase notify +1 [-h] [id] note [-k DEDUP_KEY] [-s SENDER]
 ```
 
 Append a +1 corroboration note to an existing notification, by id or by (sender, dedup key). A +1 never changes read/dismissed/muted/snooze state, order, or delivery.
@@ -66,9 +66,9 @@ Arguments:
 ## `sase notify apply-state`
 
 ```text
-usage: sase notify apply-state [-h] [-Q PATH] [-R PATH]
-                               notification_id
+usage: sase notify apply-state [-h] notification_id
                                {dismiss,mute,read,snooze,undismiss,unmute}
+                               [-Q PATH] [-R PATH]
 ```
 
 Mark one notification read, dismissed, undismissed, muted, unmuted, or snoozed. The notification id and action are positional; snooze expiry may come from the private request sidecar.
@@ -91,8 +91,9 @@ Arguments:
 ## `sase notify apply-state-many`
 
 ```text
-usage: sase notify apply-state-many [-h] [-Q PATH] [-R PATH]
+usage: sase notify apply-state-many [-h]
                                     {dismiss,mute,read,snooze,undismiss,unmute}
+                                    [-Q PATH] [-R PATH]
 ```
 
 Apply a notification state update to ids carried in the private request sidecar. This command is intended for durable ACE procs.

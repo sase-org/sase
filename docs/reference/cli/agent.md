@@ -268,7 +268,7 @@ Options:
 ### `sase agent auto-restart run`
 
 ```text
-usage: sase agent auto-restart run [-h] [-n] [-j] (-a DIR | -p | name)
+usage: sase agent auto-restart run [-h] ([name] | -a DIR | -p) [-n] [-j]
 ```
 
 Run the healer: claim the at-most-once ledger, verify the update-skew signature, witnesses, quiescence, and probe, then relaunch the failed agent under the same name. A manual run still honors the ledger.
@@ -309,7 +309,7 @@ Options:
 ### `sase agent auto-restart show`
 
 ```text
-usage: sase agent auto-restart show [-h] [-j] TARGET
+usage: sase agent auto-restart show [-h] TARGET [-j]
 ```
 
 Show one restart ledger record: the verdict, a checklist of witnesses, the state timeline, and the evidence bundle path.
@@ -331,8 +331,7 @@ Arguments:
 
 ```text
 usage: sase agent drain [-h] [-j] [-l N] [-m MODEL] [-n] [-y] [-Q PATH]
-                        [-R PATH]
-                        PROVIDER
+                        [-R PATH] PROVIDER
 ```
 
 Plan and apply a provider drain. The provider must have an active hard disable; enabled and soft-disabled providers are refused so agents cannot relaunch straight back onto them. Planning finishes before anything is killed. Draining live agents discards their in-flight work; chat transcripts are kept. Exit 0 means drained or previewed, 2 means refused with nothing changed, and 1 means at least one move failed after execution started.
@@ -386,8 +385,7 @@ Subcommands:
 
 ```text
 usage: sase agent hold create [-h] [-n NAME] [-t TRIBE] [-H HOOD] [-f] [-p]
-                              [-s {project,host}] [-T DURATION]
-                              [SELECTOR ...]
+                              [-s {project,host}] [-T DURATION] [SELECTOR ...]
 ```
 
 Options:
@@ -445,8 +443,7 @@ Arguments:
 
 ```text
 usage: sase agent hold run [-h] [-n NAME] [-t TRIBE] [-H HOOD] [-f] [-p]
-                           [-s {project,host}] [-T DURATION]
-                           ...
+                           [-s {project,host}] [-T DURATION] ...
 ```
 
 Arm a hold, run COMMAND, and release the hold in all cases -- success, failure, or interruption -- preserving COMMAND's exit status. With no selector flags, defaults to -f/--future plus -p/--pending (the documented selector-free quiesce recipe).
@@ -473,7 +470,7 @@ Arguments:
 ### `sase agent hold show`
 
 ```text
-usage: sase agent hold show [-h] [-k ARMER_KEY] [-j] [ARMER_KEY]
+usage: sase agent hold show [-h] [-k ARMER_KEY] [ARMER_KEY] [-j]
 ```
 
 Options:
@@ -688,7 +685,7 @@ Options:
 ## `sase agent persist-directive`
 
 ```text
-usage: sase agent persist-directive [-h] [-Q PATH] [-R PATH] artifacts_dir
+usage: sase agent persist-directive [-h] artifacts_dir [-Q PATH] [-R PATH]
 ```
 
 Apply one JSON-shaped agent-directive persistence spec. The artifacts directory is positional; mutation details come from the private request sidecar.
@@ -770,7 +767,7 @@ Options:
 ### `sase agent prompts show`
 
 ```text
-usage: sase agent prompts show [-h] [-j] [-p PROJECT] PROMPT
+usage: sase agent prompts show [-h] PROMPT [-j] [-p PROJECT]
 ```
 
 Options:
@@ -830,7 +827,7 @@ Arguments:
 ## `sase agent revert`
 
 ```text
-usage: sase agent revert [-h] [-Q PATH] [-R PATH] name
+usage: sase agent revert [-h] name [-Q PATH] [-R PATH]
 ```
 
 Revert an agent's commits using identifiers from the command line and optional SHA/workspace details from the request sidecar.
@@ -1045,8 +1042,7 @@ Options:
 
 ```text
 usage: sase agent wait [-h] [-a] [-i DURATION] [-j] [-p NAME] [-q]
-                       [-t DURATION] [-w]
-                       [NAME ...]
+                       [-t DURATION] [-w] [NAME ...]
 ```
 
 Block until the agents you name (or every agent running right now, with -a) reach a terminal state, then exit with a status code that says what happened. NAME is resolved the same way %wait resolves it: clan, then agent session, then workflow, then exact agent name. Exit codes: 0 every target succeeded, 1 at least one failed, 2 a usage error, 3 at least one target is blocked on a human (without -w), 4 the timeout expired, 130/143 interrupted by SIGINT/SIGTERM. Precedence when more than one applies: 1 > 3 > 4. Progress goes to stderr; the settle summary and the -j envelope go to stdout.

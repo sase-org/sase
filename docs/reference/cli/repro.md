@@ -67,9 +67,8 @@ Options:
 ## `sase repro replay`
 
 ```text
-usage: sase repro replay [-h] [--assert-stable] [--json]
+usage: sase repro replay [-h] path [--assert-stable] [--json]
                          [--write-artifacts WRITE_ARTIFACTS] [--size SIZE]
-                         path
 ```
 
 Options:

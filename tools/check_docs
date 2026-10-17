@@ -108,6 +108,14 @@ WHOLE_FILE_GENERATED_RE = re.compile(r"generated,?\s+do not edit", re.IGNORECASE
 GENERATED_STUB_MARKER = "<!-- generated, do not edit; source: docs/_meta/moves.yml -->"
 INLINE_CODE_RE = re.compile(r"`[^`\n]+`")
 WORD_RE = re.compile(r"\S+")
+INLINE_LINK_DEST_RE = re.compile(
+    r"\]\((?:<[^>\n]*>|[^\s)]+)(?:\s+(?:\"[^\n\"]*\"|'[^\n']*'|\([^\n)]*\)))?\)"
+)
+REF_LINK_DEF_RE = re.compile(r"^(\s{0,3}\[[^\]\n]+\]:)[^\n]*$", re.MULTILINE)
+HTML_MEDIA_ATTR_RE = re.compile(
+    r"(\b(?:src|href|poster)\s*=\s*)(?:\"[^\"]*\"|'[^']*'|[^\s>]+)",
+    re.IGNORECASE,
+)
 
 HYGIENE_PATTERNS = (
     (
@@ -430,12 +438,20 @@ def check_budget(
     return findings
 
 
+def _blank_link_destinations(text: str) -> str:
+    """Blank Markdown and HTML destinations so hygiene scans skip filenames."""
+    text = INLINE_LINK_DEST_RE.sub("]()", text)
+    text = REF_LINK_DEF_RE.sub(r"\1", text)
+    return HTML_MEDIA_ATTR_RE.sub(r'\1""', text)
+
+
 def check_hygiene(rel: str, text: str) -> list[Finding]:
     """Rule 4: Guide hygiene for ``start/``, ``guides/``, ``concepts/``."""
     _, body = _parse_frontmatter(text)
     body = FENCED_CODE_RE.sub("", body)
     body = HTML_COMMENT_RE.sub("", body)
     body = INLINE_CODE_RE.sub("", body)
+    body = _blank_link_destinations(body)
     findings: list[Finding] = []
     for lineno, line in enumerate(body.splitlines(), start=1):
         for _kind, pattern, template in HYGIENE_PATTERNS:
@@ -457,6 +473,7 @@ def check_reference_hygiene(rel: str, text: str) -> list[Finding]:
     body = GENERATED_BLOCK_RE.sub("", body)
     body = HTML_COMMENT_RE.sub("", body)
     body = INLINE_CODE_RE.sub("", body)
+    body = _blank_link_destinations(body)
     findings: list[Finding] = []
     for lineno, line in enumerate(body.splitlines(), start=1):
         for _kind, pattern, template in REFERENCE_HYGIENE_PATTERNS:

@@ -63,8 +63,8 @@ Options:
 
 ```text
 usage: sase gate answer [-h] [-d | -D] [-f FEEDBACK] -i REQUEST_ID [-I JSON]
-                        [-j] -k KIND [-o OPTION_ID] [-O OPTION_ID=JSON] [-R |
-                        -r] [-s FIELD=VALUE]
+                        [-j] -k KIND [-o OPTION_ID] [-O OPTION_ID=JSON]
+                        [-R | -r] [-s FIELD=VALUE]
 ```
 
 Answer a gate by selecting one branch's options and supplying each selected option's declared input. Input is delivered to commands as JSON on stdin and never as command arguments. Per-option values (--set, --option-input) and one shared value (--input) are mutually exclusive submission contracts.
@@ -90,7 +90,7 @@ Options:
 ## `sase gate cancel`
 
 ```text
-usage: sase gate cancel [-h] [-i REQUEST_ID] [-j] [-k KIND] [-r TEXT] [ID]
+usage: sase gate cancel [-h] [ID] [-i REQUEST_ID] [-j] [-k KIND] [-r TEXT]
 ```
 
 Cancel a pending gate by kind/request id, or cancel a pending gate turn by id (or unique id prefix), member agent name, or owning agent name. No follow-up agent is launched, even when one was recorded, unless the gate had already been answered concurrently -- that settles as answered instead.
@@ -166,7 +166,7 @@ Options:
 ## `sase gate show`
 
 ```text
-usage: sase gate show [-h] [-i REQUEST_ID] [-j] [-k KIND] [ID]
+usage: sase gate show [-h] [ID] [-i REQUEST_ID] [-j] [-k KIND]
 ```
 
 Print what a gate asks for: its branches, each option's declared input fields with their types, defaults, and choices, and every repeatable action it declares. A gate turn also prints its runtime state, workspace claim, and follow-up disposition. Use it to check that a gate you authored asks for what you intended.

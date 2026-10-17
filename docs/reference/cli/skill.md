@@ -96,7 +96,7 @@ Options:
 ## `sase skill use`
 
 ```text
-usage: sase skill use [-h] -r REASON skill-name
+usage: sase skill use [-h] skill-name -r REASON
 ```
 
 Append an attributable skill-use audit event for the current SASE agent. This is primarily called from generated SKILL.md files before a skill's instructions are followed.

@@ -12,7 +12,7 @@ Hand this agent's turn to the next agent session member and end this turn
 Reference for `sase pipe`. Run `sase pipe --help` for the exact output on this checkout.
 
 ```text
-usage: sase pipe [-h] [-f] [-j] [-m MODEL] [-n TOKEN] [-r TEXT] PROMPT
+usage: sase pipe [-h] PROMPT [-f] [-j] [-m MODEL] [-n TOKEN] [-r TEXT]
 ```
 
 End this agent's turn and continue the run as the next agent session member in the same workspace, with the prompt you write. This is not a launch, a monitor, or fan-out: one successor, serially, in the same process. This command kills the calling agent; say everything the successor needs inside PROMPT.

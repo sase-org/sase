@@ -135,6 +135,100 @@ def test_canonical_groups_fold_aliases() -> None:
         del tool.ALIASES["artifact-file"]
 
 
+def test_usage_non_adjacent_mutex_group() -> None:
+    tool = _load()
+    parser = argparse.ArgumentParser(prog="demo", add_help=True)
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument("-a", action="store_true")
+    parser.add_argument("-m", metavar="M")
+    group.add_argument("-p", metavar="NAME")
+    assert (
+        tool._format_usage(parser, "demo") == "usage: demo [-h] [-a | -p NAME] [-m M]"
+    )
+
+
+def test_usage_required_mutex_group_with_positional() -> None:
+    tool = _load()
+    parser = argparse.ArgumentParser(prog="demo", add_help=False)
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument("-a", metavar="DIR")
+    group.add_argument("-p", action="store_true")
+    positional = parser.add_argument("name")
+    # argparse rejects required positionals in mutex groups; attach the
+    # already-added positional so the usage builder still groups it.
+    group._group_actions.append(positional)
+    assert tool._format_usage(parser, "demo") == "usage: demo (-a DIR | -p | name)"
+
+
+def test_usage_subparsers_long_choice_list_stays_one_token() -> None:
+    tool = _load()
+    parser = argparse.ArgumentParser(prog="sase tool", add_help=True)
+    sub = parser.add_subparsers()
+    for name in (
+        "failures",
+        "list",
+        "receipt",
+        "receipts",
+        "run",
+        "runs",
+        "show",
+        "stats",
+        "stop",
+        "wait",
+    ):
+        sub.add_parser(name)
+    usage = tool._format_usage(parser, "sase tool")
+    token = "{failures,list,receipt,receipts,run,runs,show,stats,stop,wait} ..."
+    assert token in usage.replace("\n", " ")
+    # The brace group is one token: wrapping may move it, never split it.
+    joined_no_wrap_space = usage.replace("\n" + " " * len("usage: sase tool "), " ")
+    assert token in joined_no_wrap_space
+    assert usage.split(token, 1)[0].count("{") == 0
+
+
+def test_usage_required_option_with_metavar() -> None:
+    tool = _load()
+    parser = argparse.ArgumentParser(prog="demo", add_help=False)
+    parser.add_argument("-o", "--output", required=True, metavar="PATH")
+    assert tool._format_usage(parser, "demo") == "usage: demo -o PATH"
+
+
+def test_usage_nargs_optional_star_and_plus() -> None:
+    tool = _load()
+    parser = argparse.ArgumentParser(prog="demo", add_help=False)
+    parser.add_argument("--maybe", nargs="?", metavar="X")
+    parser.add_argument("--many", nargs="*", metavar="Y")
+    parser.add_argument("--some", nargs="+", metavar="Z")
+    assert (
+        tool._format_usage(parser, "demo")
+        == "usage: demo [--maybe [X]] [--many [Y ...]] [--some Z [Z ...]]"
+    )
+
+
+def test_usage_wraps_long_lines_on_whole_tokens() -> None:
+    tool = _load()
+    parser = argparse.ArgumentParser(prog="sase tool runs", add_help=True)
+    parser.add_argument("-a", action="store_true")
+    parser.add_argument("-A", metavar="AGENT")
+    parser.add_argument("-c", metavar="CURSOR")
+    parser.add_argument("-j", action="store_true")
+    parser.add_argument("-n", metavar="N")
+    parser.add_argument("-s", metavar="STATE")
+    parser.add_argument("-t", metavar="TOOL")
+    usage = tool._format_usage(parser, "sase tool runs")
+    lines = usage.splitlines()
+    assert len(lines) >= 2
+    assert lines[0].startswith("usage: sase tool runs ")
+    indent = " " * len("usage: sase tool runs ")
+    assert lines[1].startswith(indent)
+    for line in lines[1:]:
+        assert not line.startswith(indent + "[") or line.startswith(indent)
+        # A wrapped token is intact: no mid-token split of a bracket group.
+        if line.strip().startswith("["):
+            assert line.count("[") == line.count("]")
+    assert all(len(line) <= tool._USAGE_WIDTH or "[" in line for line in lines)
+
+
 def test_index_lists_groups() -> None:
     tool = _load()
     root, bead = _parsers()

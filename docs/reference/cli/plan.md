@@ -12,7 +12,8 @@ Review, approve, reject, propose, search, show, and validate implementation plan
 Reference for `sase plan`. Run `sase plan --help` for the exact output on this checkout.
 
 ```text
-usage: sase plan [-h] <subcommand> ...
+usage: sase plan [-h]
+                 {approve,links,list,propose,reject,search,show,validate} ...
 ```
 
 Review the plan pipeline, approve or reject pending proposals from the Patch, inspect SDD prompt/plan links, submit a new plan for review, search SDD and machine-local plans, show one plan's details, or strictly validate one plan file. With no subcommand, `sase plan` defaults to `sase plan list`.
@@ -41,10 +42,9 @@ Subcommands:
 ## `sase plan approve`
 
 ```text
-usage: sase plan approve [-h] [-D ID=VALUE] [-n]
+usage: sase plan approve [-h] [PLAN] [-D ID=VALUE] [-n]
                          [-k {approve,commit,epic,tale}] [-m MODEL] [-P NAME]
                          [-p PROMPT] [-w SPEC]
-                         [PLAN]
 ```
 
 Approve a pending proposal or a plan file without a live approval gate. PLAN matches a live proposal first (notification ID, archive or bundle path, name, <shard>/<name>, plan: ref, or planner agent), then a plan file. If PLAN is omitted, exactly one pending proposal must exist. A plan already approved whose coder failed, was killed, or never launched gets a replacement coder; one whose coder is running or finished is refused.
@@ -71,7 +71,7 @@ Arguments:
 ## `sase plan links`
 
 ```text
-usage: sase plan links [-h] <subcommand> ...
+usage: sase plan links [-h] {list,refresh,repair,validate} ...
 ```
 
 Inspect bidirectional artifact links between SDD prompts and plans, or reconcile projected plan provenance headers. With no subcommand, `sase plan links` defaults to `sase plan links list`.
@@ -219,12 +219,11 @@ Arguments:
 ## `sase plan search`
 
 ```text
-usage: sase plan search [-h] [-c {auto,always,never}]
+usage: sase plan search [-h] [query] [-c {auto,always,never}]
                         [-f {compact,full,json,markdown}] [-k KIND] [-n LIMIT]
                         [-A DATE] [-o {all,repo,local}]
                         [-r {relevance,recent,title}] [-s {wip,done}]
                         [-B DATE]
-                        [query]
 ```
 
 Find plan artifacts whose text contains a literal, case-insensitive query string, across plans in the resolved SDD store (the `repo` source, prioritized) and the machine-local `~/.sase/plans/` archive. The query is optional: omit it to browse and filter. SDD-store plans are surfaced above local plans on equal-relevance ties.
@@ -253,10 +252,9 @@ Arguments:
 ## `sase plan show`
 
 ```text
-usage: sase plan show [-h] [-c {auto,always,never}]
+usage: sase plan show [-h] [TARGET] [-c {auto,always,never}]
                       [-f {compact,full,json,raw}]
                       [-t {auto,bead,name,path,proposal,ref}] [-w WIDTH]
-                      [TARGET]
 ```
 
 Resolve TARGET — an explicit path, a `plan:` reference or legacy marker path, a pending-approval id or unique prefix, a bare slug or `<shard>/<slug>`, or a bead id whose design points at a plan — to exactly one plan and render it as a colored, section-structured detail view matching the PLAN lane in sase's TUI. With no TARGET, show the sole visible pending plan proposal, exactly as `sase plan approve`/`reject` treat an omitted SELECTOR. In auto mode the ladder is tried in this order: path, ref, proposal, name, then bead; `-t/--target` forces one rung with no fallthrough.
@@ -280,7 +278,7 @@ Arguments:
 ## `sase plan validate`
 
 ```text
-usage: sase plan validate [-h] [-e] [-j] [-q] PLAN_FILE
+usage: sase plan validate [-h] PLAN_FILE [-e] [-j] [-q]
 ```
 
 Strictly validate exactly one Markdown plan file against the frontmatter schema selected by its `tier:` property. The command is hermetic: it does not require an active project or agent run. All discovered problems are reported in one pass; failures include the expected schema and a minimal valid example.

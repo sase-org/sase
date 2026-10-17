@@ -12,9 +12,8 @@ Read refs, paths, or stdin in the SASE link-traversing pager
 Reference for `sase pager`. Run `sase pager --help` for the exact output on this checkout.
 
 ```text
-usage: sase pager [-h] [-c {auto,always,never}] [-l {auto,never}] [-p]
-                  [-s ALIAS] [-t TITLE] [-w WIDTH]
-                  [REF|PATH ...]
+usage: sase pager [-h] [REF|PATH ...] [-c {auto,always,never}]
+                  [-l {auto,never}] [-p] [-s ALIAS] [-t TITLE] [-w WIDTH]
 ```
 
 Open artifact references, file paths, or stdin as one navigable SASE pager document. With redirected stdout, --plain, or no controlling terminal, the command writes plain text instead of starting the Textual app.

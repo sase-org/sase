@@ -12,9 +12,8 @@ Launch an interactive agent CLI in a new tmux window
 Reference for `sase tmux-agent`. Run `sase tmux-agent --help` for the exact output on this checkout.
 
 ```text
-usage: sase tmux-agent [-h] [-c <dir>] [-e <level>] [-j] [-l] [-n] [-r] [-s]
-                       [-v]
-                       [<provider>]
+usage: sase tmux-agent [-h] [<provider>] [-c <dir>] [-e <level>] [-j] [-l]
+                       [-n] [-r] [-s] [-v]
 ```
 
 Launch an interactive agent CLI in a new tmux window. A bare `sase tmux-agent` paints a centered tmux display-menu of every registered agent CLI; choosing a row (or passing a provider) opens a new window in the current pane's directory. There is no `list` subcommand: a bare invocation must open the menu, because the tmux key binding (`bind A run "sase tmux-agent"`) depends on that. Use `-l|--list` to print the catalog. `--renumber` is an internal hook invoked when an agent CLI window exits.

@@ -55,7 +55,7 @@ Options:
 ## `sase goal drop`
 
 ```text
-usage: sase goal drop [-h] -w WHY ID
+usage: sase goal drop [-h] ID -w WHY
 ```
 
 Options:
@@ -74,9 +74,8 @@ Arguments:
 ## `sase goal edit`
 
 ```text
-usage: sase goal edit [-h] [-c CRITERION] [-o OUTCOME] [-t TITLE]
+usage: sase goal edit [-h] ID [-c CRITERION] [-o OUTCOME] [-t TITLE]
                       [-x REMOVE_CRITERION]
-                      ID
 ```
 
 Options:
@@ -116,7 +115,7 @@ Options:
 ## `sase goal merge`
 
 ```text
-usage: sase goal merge [-h] -i INTO [-w WHY] ID
+usage: sase goal merge [-h] ID -i INTO [-w WHY]
 ```
 
 Options:
@@ -151,7 +150,7 @@ Options:
 ## `sase goal reopen`
 
 ```text
-usage: sase goal reopen [-h] -m MESSAGE ID
+usage: sase goal reopen [-h] ID -m MESSAGE
 ```
 
 Options:
@@ -170,7 +169,7 @@ Arguments:
 ## `sase goal show`
 
 ```text
-usage: sase goal show [-h] [-j] ID
+usage: sase goal show [-h] ID [-j]
 ```
 
 Options:

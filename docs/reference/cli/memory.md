@@ -40,10 +40,9 @@ Subcommands:
 ## `sase memory history`
 
 ```text
-usage: sase memory history [-h] [-a] [-A REV] [-d] [-f {json,pager,text}]
-                           [-l N] [-m] [-p REF] [-s DATE]
-                           [-S {all,home,project}]
-                           [SELECTOR ...]
+usage: sase memory history [-h] [SELECTOR ...] [-a] [-A REV] [-d]
+                           [-f {json,pager,text}] [-l N] [-m] [-p REF]
+                           [-s DATE] [-S {all,home,project}]
 ```
 
 Browse the committed history of SASE memory notes, webs, strands, and agent instruction files (AGENTS.md plus its provider shims, project and home). With no selector, shows the cross-file changes feed; with selectors, shows each subject's timeline. Viewing history never records an audited read.
@@ -125,9 +124,8 @@ Options:
 ## `sase memory read`
 
 ```text
-usage: sase memory read [-h] [-d N] [-f {json,markdown,rich}] [-p REF]
-                        -r REASON
-                        selector [selector ...]
+usage: sase memory read [-h] selector [selector ...] [-d N]
+                        [-f {json,markdown,rich}] [-p REF] -r REASON
 ```
 
 Resolve one or more memory selectors from project sase/memory/, falling back to ~/sase/memory/ when the project file is absent. A selector is a flat note name (generated_skills.md), a bare memory-web name (glossary, every strand), or a web:keyword strand reference (glossary:stitch). The whole batch is resolved before anything is printed or logged, so one unknown selector fails the entire request. Leading YAML frontmatter is stripped from notes, child notes are listed when present, and each read appends one attributable audit log row. Identical to `sase memory show` except that it requires a reason and records an audited read before printing.
@@ -151,8 +149,8 @@ Arguments:
 ## `sase memory show`
 
 ```text
-usage: sase memory show [-h] [-d N] [-f {json,markdown,rich}] [-p REF]
-                        selector [selector ...]
+usage: sase memory show [-h] selector [selector ...] [-d N]
+                        [-f {json,markdown,rich}] [-p REF]
 ```
 
 Resolve one or more memory selectors exactly like `sase memory read` — project sase/memory/ first, then ~/sase/memory/ — strip leading YAML frontmatter from notes, and append the `## Children` section when children exist. Unlike `read`, this command records no audit event, so agents consulting memory to do work must use `sase memory read` instead.
@@ -214,8 +212,8 @@ Options:
 ### `sase memory web show`
 
 ```text
-usage: sase memory web show [-h] [-b] [-f {json,names,table}] [-p REF]
-                            WEB [PATTERN]
+usage: sase memory web show [-h] WEB [PATTERN] [-b] [-f {json,names,table}]
+                            [-p REF]
 ```
 
 Print one web's strand index: keyword, slug, aliases, mention-reference count, and summary, optionally filtered by PATTERN. This is the index; `sase memory show <web>:<keyword>` is the content read.

@@ -46,9 +46,8 @@ Subcommands:
 ## `sase machine add`
 
 ```text
-usage: sase machine add [-h] [-B PATH] [-c REF] [-j] [-p PROVIDER] [-S TARGET]
-                        [-t SECONDS]
-                        ALIAS [ENDPOINT]
+usage: sase machine add [-h] ALIAS [ENDPOINT] [-B PATH] [-c REF] [-j]
+                        [-p PROVIDER] [-S TARGET] [-t SECONDS]
 ```
 
 Enroll ALIAS against ENDPOINT using a pasted enrollment bundle, then deploy, reload, and require an authenticated hello. Canonical `sase machine init` is the guided path; this command is the direct add. The bundle is read from --bootstrap-file or an interactive prompt; no secret value is accepted as a command-line option.
@@ -97,8 +96,8 @@ Subcommands:
 ### `sase machine agent fork`
 
 ```text
-usage: sase machine agent fork [-h] [-j] [-t SECONDS] [-Q PATH] [-R PATH]
-                               ALIAS AGENT [INSTRUCTION]
+usage: sase machine agent fork [-h] ALIAS AGENT [INSTRUCTION] [-j]
+                               [-t SECONDS] [-Q PATH] [-R PATH]
 ```
 
 Fork AGENT on ALIAS with INSTRUCTION. The fork runs on the target through its own launch machinery.
@@ -124,8 +123,8 @@ Arguments:
 ### `sase machine agent retry`
 
 ```text
-usage: sase machine agent retry [-h] [-j] [-t SECONDS] [-Q PATH] [-R PATH]
-                                ALIAS AGENT [AGENT ...]
+usage: sase machine agent retry [-h] ALIAS AGENT [AGENT ...] [-j] [-t SECONDS]
+                                [-Q PATH] [-R PATH]
 ```
 
 Retry one or more remote agents on ALIAS.
@@ -150,8 +149,8 @@ Arguments:
 ### `sase machine agent stop`
 
 ```text
-usage: sase machine agent stop [-h] [-j] [-t SECONDS] [-Q PATH] [-R PATH]
-                               ALIAS AGENT [AGENT ...]
+usage: sase machine agent stop [-h] ALIAS AGENT [AGENT ...] [-j] [-t SECONDS]
+                               [-Q PATH] [-R PATH]
 ```
 
 Stop one or more remote agents on ALIAS.
@@ -197,9 +196,8 @@ Subcommands:
 ### `sase machine attention answer`
 
 ```text
-usage: sase machine attention answer [-h] [-j] [-t SECONDS] [-Q PATH]
-                                     [-R PATH]
-                                     ALIAS REQUEST [ANSWER]
+usage: sase machine attention answer [-h] ALIAS REQUEST [ANSWER] [-j]
+                                     [-t SECONDS] [-Q PATH] [-R PATH]
 ```
 
 Answer REQUEST on ALIAS with ANSWER.
@@ -225,9 +223,9 @@ Arguments:
 ### `sase machine attention approve`
 
 ```text
-usage: sase machine attention approve [-h] [-f TEXT] [-j] [-t SECONDS]
-                                      [-Q PATH] [-R PATH]
-                                      ALIAS REQUEST [OPTION ...]
+usage: sase machine attention approve [-h] ALIAS REQUEST [OPTION ...]
+                                      [-f TEXT] [-j] [-t SECONDS] [-Q PATH]
+                                      [-R PATH]
 ```
 
 Approve REQUEST on ALIAS by selecting one or more OPTIONs.
@@ -321,7 +319,7 @@ Options:
 ## `sase machine remove`
 
 ```text
-usage: sase machine remove [-h] [-j] [-y] ALIAS
+usage: sase machine remove [-h] ALIAS [-j] [-y]
 ```
 
 Remove ALIAS from local config and delete its local credential ref.
@@ -343,7 +341,7 @@ Arguments:
 ## `sase machine rename`
 
 ```text
-usage: sase machine rename [-h] [-j] OLD_ALIAS NEW_ALIAS
+usage: sase machine rename [-h] OLD_ALIAS NEW_ALIAS [-j]
 ```
 
 Rename OLD_ALIAS to NEW_ALIAS without changing gateway identity or credential references.
@@ -365,7 +363,7 @@ Arguments:
 ## `sase machine repair`
 
 ```text
-usage: sase machine repair [-h] [-B PATH] [-j] [-t SECONDS] ALIAS
+usage: sase machine repair [-h] ALIAS [-B PATH] [-j] [-t SECONDS]
 ```
 
 Re-enroll ALIAS using a fresh one-time bundle, deploy the updated record, and require an authenticated hello before retiring the still-applied credential.
@@ -388,7 +386,7 @@ Arguments:
 ## `sase machine show`
 
 ```text
-usage: sase machine show [-h] [-j] ALIAS
+usage: sase machine show [-h] ALIAS [-j]
 ```
 
 Show the full local config record for one enrolled machine alias.
@@ -409,7 +407,7 @@ Arguments:
 ## `sase machine status`
 
 ```text
-usage: sase machine status [-h] [-j] [-t SECONDS] [ALIAS ...]
+usage: sase machine status [-h] [ALIAS ...] [-j] [-t SECONDS]
 ```
 
 Check configured remote machines with bounded authenticated hello calls.

@@ -65,9 +65,8 @@ Subcommands:
 ## `sase bead +1`
 
 ```text
-usage: sase bead +1 [-h] [-a NAME] -n TEXT [-R REF] [-S] [-L] [-K] [-W] [-y]
-                    [--verified-after-close]
-                    id
+usage: sase bead +1 [-h] id [-a NAME] -n TEXT [-R REF] [-S] [-L] [-K] [-W]
+                    [-y] [--verified-after-close]
 ```
 
 Record one independently attributed report on an existing task bead. Each reporter counts at most once; later details belong in `sase bead note`. Draft tasks promote to ready; closed tasks promote only when the report's observation window starts after the current close.
@@ -96,7 +95,7 @@ Arguments:
 ## `sase bead apply-status`
 
 ```text
-usage: sase bead apply-status [-h] [-Q PATH] [-R PATH] bead_id status
+usage: sase bead apply-status [-h] bead_id status [-Q PATH] [-R PATH]
 ```
 
 Apply a status update to one bead. The bead id and status are positional. When run as a durable proc, the typed result is written to the configured result sidecar.
@@ -119,9 +118,8 @@ Arguments:
 ## `sase bead attach`
 
 ```text
-usage: sase bead attach [-h] [-a NAME] [-n TEXT] [-N NAME] [-S] [-L] [-K] [-W]
-                        [-y]
-                        id FILE [FILE ...]
+usage: sase bead attach [-h] id FILE [FILE ...] [-a NAME] [-n TEXT] [-N NAME]
+                        [-S] [-L] [-K] [-W] [-y]
 ```
 
 Attach snapshots of files to a bead as a new attributed note. The bead keeps the exact bytes on every machine, even after the file is gone. Use - to read one attachment from stdin (with -N/--name).
@@ -180,7 +178,7 @@ Subcommands:
 ### `sase bead attachment list`
 
 ```text
-usage: sase bead attachment list [-h] [-j] [id]
+usage: sase bead attachment list [-h] [id] [-j]
 ```
 
 List attachment snapshots on one bead, or on every bead when no ID is given. Text output shows one descriptor per attachment plus the cached view path or an unavailable marker.
@@ -258,7 +256,7 @@ Options:
 ### `sase bead attachment publish`
 
 ```text
-usage: sase bead attachment publish [-h] [-y] id name
+usage: sase bead attachment publish [-h] id name [-y]
 ```
 
 Widen one note attachment to public: rescan with the current scanner rules, upload the bytes to the public attachments sidecar, and append NoteEdited with visibility public and the note text unchanged. Human-only: refused inside an agent run except as an approved gate option. Note attachments only; +1 evidence is refused.
@@ -280,7 +278,7 @@ Arguments:
 ### `sase bead attachment purge`
 
 ```text
-usage: sase bead attachment purge [-h] -r REASON [-y] id name
+usage: sase bead attachment purge [-h] id name -r REASON [-y]
 ```
 
 Remove one attachment's bytes everywhere while leaving every bead event untouched: a tombstone goes to each configured shared store, the local object and its views are deleted, and a local tombstone is recorded. Notes keep their text and render (purged); fetches refuse the digest. Prints the manual history-erasure procedure; it is never automated. It never authors notes.
@@ -323,7 +321,7 @@ Arguments:
 ### `sase bead attachment unpublish`
 
 ```text
-usage: sase bead attachment unpublish [-h] [-y] id name
+usage: sase bead attachment unpublish [-h] id name [-y]
 ```
 
 Narrow one note attachment to private: ensure a private copy exists, remove the object from the public tree with a withdraw commit (no tombstone), and append NoteEdited with visibility private and the note text unchanged. Narrowing, so agents may run it. Note attachments only; +1 evidence is refused.
@@ -357,9 +355,9 @@ Options:
 ## `sase bead close`
 
 ```text
-usage: sase bead close [-h] [-f] [-P] [-n NOTE] [-S] [-L] [-K] [-W] [-y]
-                       [-p SPEC] [-r REASON] [-R {canceled,done,superseded}]
-                       ID [ID ...]
+usage: sase bead close [-h] ID [ID ...] [-f] [-P] [-n NOTE] [-S] [-L] [-K]
+                       [-W] [-y] [-p SPEC] [-r REASON]
+                       [-R {canceled,done,superseded}]
 ```
 
 Close one or more issues atomically. With --phases, the single target is an epic whose numbered phase beads are closed instead. Full IDs can route to another enabled project's owning store; mixed-store close batches are rejected before mutation. Free-text values accept @<path>.
@@ -464,10 +462,9 @@ Arguments:
 ### `sase bead dep list`
 
 ```text
-usage: sase bead dep list [-h] [-c {always,auto,never}] [-d {both,in,out}]
-                          [-f {compact,full,json}] [-n LIMIT]
-                          [-s {claimed,closed,in_progress,open}]
-                          [id]
+usage: sase bead dep list [-h] [id] [-c {always,auto,never}]
+                          [-d {both,in,out}] [-f {compact,full,json}]
+                          [-n LIMIT] [-s {claimed,closed,in_progress,open}]
 ```
 
 List dependency edges with blocking state and recorded provenance. A scoped read includes every status by default; a store-wide read defaults to open, claimed, and in-progress beads.
@@ -511,10 +508,9 @@ Arguments:
 ### `sase bead dep tree`
 
 ```text
-usage: sase bead dep tree [-h] [-c {always,auto,never}] [-d {both,in,out}]
-                          [-f {compact,full,json}] [-L LEVELS]
-                          [-s {claimed,closed,in_progress,open}]
-                          [id]
+usage: sase bead dep tree [-h] [id] [-c {always,auto,never}]
+                          [-d {both,in,out}] [-f {compact,full,json}]
+                          [-L LEVELS] [-s {claimed,closed,in_progress,open}]
 ```
 
 Walk dependencies, blockers, or both as a deterministic tree. A scoped tree includes every status by default; a store-wide tree defaults to open, claimed, and in-progress beads.
@@ -559,8 +555,7 @@ Options:
 
 ```text
 usage: sase bead epic-symbols [-h] [-c {auto,always,never}]
-                              [-f {compact,json}]
-                              [id]
+                              [-f {compact,json}] [id]
 ```
 
 List --epic-symbol entries from the working tree's Justfile. With an ID, only entries keyed to that bead or its descendant suffixes are shown. Land and phase agents should run this before closing: leftover entries go stale the instant the bead closes, and sase bead close refuses while any remain.
@@ -597,9 +592,8 @@ Options:
 ## `sase bead history`
 
 ```text
-usage: sase bead history [-h] [-F FIELD] [-f {compact,full,json}] [-n LIMIT]
-                         [-l] [-R] [-y]
-                         [id]
+usage: sase bead history [-h] [id] [-F FIELD] [-f {compact,full,json}]
+                         [-n LIMIT] [-l] [-R] [-y]
 ```
 
 Replay the canonical event streams for one bead, or find note revisions that no longer appear in current notes. Compact history output shows one row per event; full output shows the prior and new value for every changed field. A scoped full ID uses that bead's owning enabled project.
@@ -664,8 +658,8 @@ Options:
 ## `sase bead note`
 
 ```text
-usage: sase bead note [-h] [-a NAME] [-S] [-L] [-K] [-W] [-y] [-e N | -x N]
-                      id [text ...]
+usage: sase bead note [-h] id [text ...] [-a NAME] [-S] [-L] [-K] [-W] [-y]
+                      [-e N | -x N]
 ```
 
 Options:
@@ -722,7 +716,7 @@ Arguments:
 ## `sase bead pages`
 
 ```text
-usage: sase bead pages [-h] <subcommand> ...
+usage: sase bead pages [-h] {refresh,url} ...
 ```
 
 Reconcile generated Markdown pages in the project's beads sidecar or resolve one bead's hosted page URL. A bare 'sase bead pages' invocation prints this help.
@@ -867,7 +861,7 @@ Arguments:
 ### `sase bead ref list`
 
 ```text
-usage: sase bead ref list [-h] [-j] [-r] [id]
+usage: sase bead ref list [-h] [id] [-j] [-r]
 ```
 
 Options:
@@ -938,11 +932,10 @@ Arguments:
 ## `sase bead search`
 
 ```text
-usage: sase bead search [-h] [-c {auto,always,never}] [-f {compact,json,full}]
-                        [-n LIMIT] [-e]
+usage: sase bead search [-h] query [-c {auto,always,never}]
+                        [-f {compact,json,full}] [-n LIMIT] [-e]
                         [-s {open,claimed,ready,snoozed,in_progress,closed}]
                         [-T SLUG] [-r {plan,epic}] [-t {plan,phase,task}]
-                        query
 ```
 
 Find beads whose human-readable fields contain a case-insensitive literal substring by default. With --regex, interpret the query as a regular expression that is case-insensitive unless the pattern starts with (?-i). Searches every bead status by default.
@@ -973,8 +966,7 @@ Arguments:
 usage: sase bead show [-h] [-c {auto,always,never}] [-d]
                       [-f {compact,json,full}] [-i {auto,cells,kitty,never}]
                       [-N] [-p {auto,always,never}] [-P PROJECT]
-                      [-s {auto,plain,rich}] [-w WIDTH]
-                      ID [ID ...]
+                      [-s {auto,plain,rich}] [-w WIDTH] ID [ID ...]
 ```
 
 Show every listed bead in argv order. Full or shorthand IDs are accepted. Full IDs first resolve against the current project's store, then fall back to the enabled project named by the ID prefix; shorthand IDs stay local unless --project pins one enabled project. An ID ending in '..' expands to that bead plus its direct children (phase beads and child epics, one level, in phase-number order) before duplicate IDs collapse after resolution. A missing ID reports on stderr and exits 1 without suppressing beads that did resolve. --format compact prints list rows; --format json emits today's single envelope for one ID and an array of envelopes for two or more IDs, always an array for an expansion. --no-links skips neighborhood resolution and omits human and JSON artifact-link fields. Long output on a terminal is paged with color intact. DESCRIPTION, NOTES, link reasons, and +1 evidence prose wrap at 88 columns by default without breaking URLs or inline code spans. -i/--images controls attachment previews (auto, cells, kitty, never); read, JSON, and piped show never draw. This is the human command; inside a SASE agent run it refuses with exit 2 and names the matching `sase bead read ... -r "<why>"` command. Agents consulting beads to do work must use `sase bead read` instead.
@@ -1003,7 +995,7 @@ Arguments:
 ## `sase bead snooze`
 
 ```text
-usage: sase bead snooze [-h] [-c] [-p COUNT] [-r TEXT] [-u TIME] ID [ID ...]
+usage: sase bead snooze [-h] ID [ID ...] [-c] [-p COUNT] [-r TEXT] [-u TIME]
 ```
 
 Defer one or more open or ready task beads. A snoozed task keeps its place in every listing but stops raising triage gates until its wake time arrives or its +1 target is reached, whichever comes first. Use --cancel to wake one early.
@@ -1108,7 +1100,7 @@ Options:
 ### `sase bead task-type show`
 
 ```text
-usage: sase bead task-type show [-h] [-j] <slug>
+usage: sase bead task-type show [-h] <slug> [-j]
 ```
 
 Show one task type: label, summary, when_to_use, every field with type, requirement, role, help, and validators, the body template, the triage threshold, and provenance. Reads are not audited; there is no -r/--reason.
@@ -1129,7 +1121,7 @@ Arguments:
 ## `sase bead touched`
 
 ```text
-usage: sase bead touched [-h] [-j] [-l N] [-v VERB] <agent>
+usage: sase bead touched [-h] <agent> [-j] [-l N] [-v VERB]
 ```
 
 List the beads one agent touched, newest touch first, as recorded in the agent/bead touch index. One row per bead carries the bead id, the verb chips the agent performed on it with repeat counts, the bead's title, and the relative last-touch time. The index is a derived cache reduced from bead event streams, so a row reflects the last refresh, never a live stream scan; a missing index simply lists nothing. Counts report what the corpus contains, never what it wishes it contained. read comes from `sase bead read` / `sase artifact read bead:` with reasons, viewed comes from a machine-local log of human `show` views, so a remote agent's views are not visible while its mutations are, and automation never produces viewed. linked currently never appears: bead link events are owner-attributed and task sase-159 tracks that. The CLI lists touched beads only; the panel also marks assigned but untouched beads with an assigned chip.
@@ -1152,13 +1144,12 @@ Arguments:
 ## `sase bead update`
 
 ```text
-usage: sase bead update [-h] [-a ASSIGNEE] [-D DESIGN] [-d DESCRIPTION]
-                        [-x EXTERNAL_REF | -X] [-m MODEL] [-n NOTE] [-S] [-L]
-                        [-K] [-W] [-y] [-b DATE/RELEASE]
+usage: sase bead update [-h] ID [ID ...] [-a ASSIGNEE] [-D DESIGN]
+                        [-d DESCRIPTION] [-x EXTERNAL_REF | -X] [-m MODEL]
+                        [-n NOTE] [-S] [-L] [-K] [-W] [-y] [-b DATE/RELEASE]
                         [-z {xsmall,small,medium,large,xlarge}]
                         [-s {open,claimed,ready,in_progress,closed}]
                         [-r {plan,epic}] [-t TITLE]
-                        ID [ID ...]
 ```
 
 Update one or more issues. Every listed bead receives the same field changes in a single atomic commit.
@@ -1195,9 +1186,8 @@ Arguments:
 ## `sase bead work`
 
 ```text
-usage: sase bead work [-h] [-a DIR] [-c N] [-C NAME] [-n] [-j] [-P]
-                      [-p ID|top-level] [-w SPEC] [-y] [-Y]
-                      TARGET [TARGET ...]
+usage: sase bead work [-h] TARGET [TARGET ...] [-a DIR] [-c N] [-C NAME] [-n]
+                      [-j] [-P] [-p ID|top-level] [-w SPEC] [-y] [-Y]
 ```
 
 Launch one or more existing epic plan or standalone task beads, Markdown epic plans, or an ordered mix of both. Each target is processed completely before the next begins, and the command stops at the first error while preserving earlier side effects. An epic launch schedules its phase and land agents. A task launch starts one deterministic worker. A Markdown epic plan can also be validated, archived into the SDD store, compiled into a bead DAG, and launched. Plan-file launches are idempotent and resume from an existing bead_id link.

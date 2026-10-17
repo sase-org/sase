@@ -12,7 +12,7 @@ Launch a detached background agent from a prompt or workflow
 Reference for `sase run`. Run `sase run --help` for the exact output on this checkout.
 
 ```text
-usage: sase run [-h] [PROMPT]
+usage: sase run [-h] [PROMPT] [-Q PATH] [-R PATH]
 ```
 
 Launch a detached background coding-agent run from a prompt, macro, or workflow. Runs use the same launch machinery as sase's TUI and appear in the Agents tab there.

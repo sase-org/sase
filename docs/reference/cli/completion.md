@@ -60,8 +60,8 @@ Options:
 ## `sase completion candidates`
 
 ```text
-usage: sase completion candidates [-h] [-l N] [-p NAME] [-S SELECTOR]
-                                  KIND [PREFIX]
+usage: sase completion candidates [-h] KIND [PREFIX] [-l N] [-p NAME]
+                                  [-S SELECTOR]
 ```
 
 Print `value<TAB>description` candidate lines for one value kind, optionally filtered by a prefix. A pre-argparse fast path in entry.py handles this command ahead of argparse for every normal invocation; reaching this parser means the fast path deferred, which happens only for `--help` and argv shapes it does not recognize.
@@ -104,9 +104,8 @@ Options:
 ## `sase completion ensure`
 
 ```text
-usage: sase completion ensure [-h] [-f] [-p FILE] [-O {chezmoi,local}]
-                              [-t DIR]
-                              {bash,fish,zsh}
+usage: sase completion ensure [-h] {bash,fish,zsh} [-f] [-p FILE]
+                              [-O {chezmoi,local}] [-t DIR]
 ```
 
 Ensure runtime-cached completion grammar exists for SHELL and print exactly one absolute grammar-file path on success. Cache hits avoid building the argparse tree; diagnostics are written to stderr.
@@ -145,7 +144,7 @@ Options:
 ## `sase completion install`
 
 ```text
-usage: sase completion install [-h] [-d] [-f] [-t DIR] [{bash,fish,zsh}]
+usage: sase completion install [-h] [{bash,fish,zsh}] [-d] [-f] [-t DIR]
 ```
 
 Install native shell completion for sase. Detects the shell from $SHELL and the parent process when SHELL is omitted, picks a directory the shell actually scans, writes the script atomically, zcompiles it (zsh), verifies `_comps[sase]` registration, and stamps the install. Never edits ~/.zshrc. If registration fails, the exact `fpath=(...)` line to add before compinit is printed. Do not `eval "$(sase completion zsh)"`.
@@ -183,8 +182,8 @@ Options:
 ## `sase completion loader`
 
 ```text
-usage: sase completion loader [-h] [-O {chezmoi,local}] [-o FILE]
-                              {bash,fish,zsh}
+usage: sase completion loader [-h] {bash,fish,zsh} [-O {chezmoi,local}]
+                              [-o FILE]
 ```
 
 Print a small shell-native loader that resolves the active sase executable at runtime, asks `sase completion ensure SHELL` for the current cached grammar, and sources that grammar once.
@@ -206,7 +205,7 @@ Arguments:
 ## `sase completion refresh`
 
 ```text
-usage: sase completion refresh [-h] [-d] [-j] [{bash,fish,zsh}]
+usage: sase completion refresh [-h] [{bash,fish,zsh}] [-d] [-j]
 ```
 
 Refresh stamped completion installs from the running sase CLI. With no SHELL, refreshes every stamped supported shell. Chezmoi-owned applied targets are refreshed in place; migrate the managed source separately to prevent later rollback.

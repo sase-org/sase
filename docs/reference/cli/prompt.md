@@ -64,7 +64,7 @@ Arguments:
 ## `sase prompt delete`
 
 ```text
-usage: sase prompt delete [-h] [-y] id
+usage: sase prompt delete [-h] id [-y]
 ```
 
 Options:
@@ -96,7 +96,7 @@ Options:
 ## `sase prompt edit`
 
 ```text
-usage: sase prompt edit [-h] [-P VCS_PREFIX] id
+usage: sase prompt edit [-h] id [-P VCS_PREFIX]
 ```
 
 Options:
@@ -115,7 +115,7 @@ Arguments:
 ## `sase prompt export`
 
 ```text
-usage: sase prompt export [-h] [-F] [-m] [-o PATH] [-s] id
+usage: sase prompt export [-h] id [-F] [-m] [-o PATH] [-s]
 ```
 
 Options:
@@ -173,7 +173,7 @@ Options:
 ## `sase prompt run`
 
 ```text
-usage: sase prompt run [-h] [-e] [-P VCS_PREFIX] id
+usage: sase prompt run [-h] id [-e] [-P VCS_PREFIX]
 ```
 
 Options:
@@ -193,9 +193,8 @@ Arguments:
 ## `sase prompt save`
 
 ```text
-usage: sase prompt save [-h] [-D TEXT] [-F] [-g] [-n NAME] [-p PROJECT]
+usage: sase prompt save [-h] id [-D TEXT] [-F] [-g] [-n NAME] [-p PROJECT]
                         [-t TAG]
-                        id
 ```
 
 Options:
@@ -219,10 +218,10 @@ Arguments:
 ## `sase prompt search`
 
 ```text
-usage: sase prompt search [-h] [-a DATE] [-b DATE] [-c {auto,always,never}]
-                          [-f {compact,json,full}] [-n LIMIT]
-                          [-s {archive,local,all,sdd}] [-t TAG] [-x]
-                          query
+usage: sase prompt search [-h] query [-a DATE] [-b DATE]
+                          [-c {auto,always,never}] [-f {compact,json,full}]
+                          [-n LIMIT] [-s {archive,local,all,sdd}] [-t TAG]
+                          [-x]
 ```
 
 Find prompts whose text or metadata contains a literal query, across the canonical agents-sidecar archive and machine-wide local prompt history. Archived prompts rank first.
@@ -267,7 +266,7 @@ Options:
 ## `sase prompt show`
 
 ```text
-usage: sase prompt show [-h] [-f {raw,markdown,json}] id
+usage: sase prompt show [-h] id [-f {raw,markdown,json}]
 ```
 
 Options:
@@ -345,7 +344,7 @@ Arguments:
 ### `sase prompt stash-archive show`
 
 ```text
-usage: sase prompt stash-archive show [-h] [-j] id
+usage: sase prompt stash-archive show [-h] id [-j]
 ```
 
 Options:

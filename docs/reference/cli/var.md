@@ -12,7 +12,7 @@ Inspect and set SASE agent output variables
 Reference for `sase var`. Run `sase var --help` for the exact output on this checkout.
 
 ```text
-usage: sase var [-h] <subcommand> ...
+usage: sase var [-h] {get,list,set} ...
 ```
 
 Inspect historical output variables, retrieve a snapshot or selector values, or set variables on the current SASE agent run. With no subcommand, `sase var` defaults to `sase var list`.
@@ -36,9 +36,8 @@ Subcommands:
 ## `sase var get`
 
 ```text
-usage: sase var get [-h] [-c {auto,always,never}] [-f {pretty,raw,json,jsonl}]
-                    [-H] [-n N] [-p PROJECT]
-                    [TARGET ...]
+usage: sase var get [-h] [TARGET ...] [-c {auto,always,never}]
+                    [-f {pretty,raw,json,jsonl}] [-H] [-n N] [-p PROJECT]
 ```
 
 Read one output-variable snapshot or retrieve precise values by selector. With no target, read the current agent's artifact directory directly so the newest writes are visible. This form requires SASE_ARTIFACTS_DIR. With exactly one quoted <agent_name>, show the newest exact-name historical snapshot. Quote the wrapper so the shell keeps it intact, for example `sase var get '<build>' --format json`. Project filters narrow the candidate history; --hidden includes hidden agents. Exact names are preserved, including dotted, hyphenated, and digit-leading names. With one or more ordinary selectors, use the compact selector language. Unscoped keys choose the newest matching occurrence. Exact-agent selectors choose that name's newest artifact. Global (`*.KEY`) and hood (`HOOD.*.KEY`) selectors collapse repeated runs to the newest value per agent name. JSON paths use [INDEX] or ["KEY"] after the selected value; dotted map traversal is not accepted. Snapshot mode supports --format pretty|json. Selector mode also supports raw and jsonl. --limit applies only to selector wildcard expansion.
@@ -92,8 +91,8 @@ Options:
 ## `sase var set`
 
 ```text
-usage: sase var set [-h] [-j] [-v TEXT | -f PATH]
-                    KEY[=VALUE] [KEY[=VALUE] ...]
+usage: sase var set [-h] KEY[=VALUE] [KEY[=VALUE] ...] [-j]
+                    [-v TEXT | -f PATH]
 ```
 
 Set one or more output variables with KEY=VALUE assignments, or set one bare KEY from --value or --value-file.

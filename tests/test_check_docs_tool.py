@@ -260,6 +260,34 @@ def test_hygiene_patterns_fail_in_guides(tmp_path: Path) -> None:
     assert "history phrases" in joined
 
 
+def test_hygiene_ignores_link_destinations(tmp_path: Path) -> None:
+    tool = _load_tool()
+    fix = _fixture(tmp_path)
+    _write(
+        fix["docs"] / "guides" / "doing.md",
+        GOOD_FM
+        + "# D\n\n"
+        + "See the [diagram](../images/sase-concepts-model.svg) and "
+        + '![alt](sase-1le.png "sase-1le title").\n\n'
+        + "[ref]: ./sase-1le-diagram.svg\n\n"
+        + '<img src="sase-1le.svg" href="sase-1le.html" poster="sase-1le.mp4">\n',
+    )
+    assert _errors(_check(tool, fix)) == []
+
+
+def test_hygiene_flags_bead_id_in_visible_and_link_text(tmp_path: Path) -> None:
+    tool = _load_tool()
+    fix = _fixture(tmp_path)
+    _write(
+        fix["docs"] / "guides" / "doing.md",
+        GOOD_FM + "# D\n\nSee sase-1le and [sase-1le](./ok.svg).\n",
+    )
+    errors = _errors(_check(tool, fix))
+    joined = "\n".join(errors)
+    assert "bead IDs" in joined
+    assert "sase-1le" in joined
+
+
 def test_hygiene_ignores_fenced_code(tmp_path: Path) -> None:
     tool = _load_tool()
     fix = _fixture(tmp_path)
@@ -292,6 +320,36 @@ def test_reference_hygiene_rejects_bead_and_epic_phase_labels(
     errors = _errors(_check(tool, fix))
     assert any("bead IDs" in error for error in errors)
     assert any("epic or phase labels" in error for error in errors)
+
+
+def test_reference_hygiene_ignores_link_destinations(tmp_path: Path) -> None:
+    tool = _load_tool()
+    fix = _fixture(tmp_path)
+    _write(
+        fix["docs"] / "reference" / "thing.md",
+        GOOD_FM
+        + "# D\n\n"
+        + "See the [diagram](../images/sase-1le-model.svg) and "
+        + "![alt](sase-1le.png).\n\n"
+        + "[ref]: ./sase-1le-diagram.svg\n\n"
+        + '<img src="sase-1le.svg" href="sase-1le.html" poster="sase-1le.mp4">\n',
+    )
+    assert _errors(_check(tool, fix)) == []
+
+
+def test_reference_hygiene_flags_bead_id_in_visible_and_link_text(
+    tmp_path: Path,
+) -> None:
+    tool = _load_tool()
+    fix = _fixture(tmp_path)
+    _write(
+        fix["docs"] / "reference" / "thing.md",
+        GOOD_FM + "# D\n\nSee sase-1le and [sase-1le](./ok.svg).\n",
+    )
+    errors = _errors(_check(tool, fix))
+    joined = "\n".join(errors)
+    assert "bead IDs" in joined
+    assert "sase-1le" in joined
 
 
 def test_reference_hygiene_ignores_generated_blocks(tmp_path: Path) -> None:

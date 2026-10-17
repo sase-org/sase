@@ -12,7 +12,7 @@ Start, stop, list, and inspect monitored long-running commands
 Reference for `sase monitor`. Run `sase monitor --help` for the exact output on this checkout.
 
 ```text
-usage: sase monitor [-h] {list,show,resume,start,stop} ...
+usage: sase monitor [-h] {list,resume,show,start,stop} ...
 ```
 
 Hand a slow command off to a detached supervisor that runs as a real agent session member, with streaming output, a timeout, and an optional follow-up agent. Running `sase monitor` defaults to `sase monitor list`.
@@ -60,7 +60,7 @@ Options:
 ## `sase monitor resume`
 
 ```text
-usage: sase monitor resume [-h] [-j] [-k FILE] [-m MODEL] ID
+usage: sase monitor resume [-h] ID [-j] [-k FILE] [-m MODEL]
 ```
 
 Resume the ordinary follow-up requested by a terminal monitor. This reconciles existing continuation delivery state first, then launches only from the frozen monitor result; it never reruns the monitored command.
@@ -83,9 +83,8 @@ Arguments:
 ## `sase monitor show`
 
 ```text
-usage: sase monitor show [-h] [-A] [-b N] [-d] [-f {markdown,json}] [-F]
+usage: sase monitor show [-h] ID [-A] [-b N] [-d] [-f {markdown,json}] [-F]
                          [-l N] [-o] [-R START:END]
-                         ID
 ```
 
 Show one monitor by id (or unique id prefix), member agent name, or owning agent name, followed by the tail of its captured output. `--follow` streams new output until the monitor reaches a terminal state, exactly like `sase proc show --follow`.
@@ -116,8 +115,7 @@ Arguments:
 usage: sase monitor start [-h] [-a NAME] [-f REF] [-C DIR] [-i DURATION]
                           [-J RUN] [-j] [-k FILE] [-L TEXT] [-m MODEL]
                           [-n TEXT] [-o MODE] [-P FILE] [-p NAME] [-r TEXT]
-                          [-s TEXT] [-S TEXT] [-T N] [-t DURATION]
-                          ...
+                          [-s TEXT] [-S TEXT] [-T N] [-t DURATION] ...
 ```
 
 Start a command under a detached supervisor and return. The supervisor owns the command's process group and streams its combined output, so the command outlives this process. When run inside an agent, this is the last output the agent produces before it is killed — the runner adopts the handoff and the monitor keeps running in the same agent and workspace.
@@ -155,7 +153,7 @@ Arguments:
 ## `sase monitor stop`
 
 ```text
-usage: sase monitor stop [-h] [-j] [-Q PATH] [-R PATH] [ID]
+usage: sase monitor stop [-h] [ID] [-j] [-Q PATH] [-R PATH]
 ```
 
 Stop a running monitor by id (or unique id prefix), member agent name, or owning agent name; omitted, targets the calling agent's active monitor. No follow-up agent is launched, even when a next action was recorded.

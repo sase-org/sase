@@ -12,7 +12,7 @@ Restore a reverted Patch by re-applying its diff and creating a new PR
 Reference for `sase restore`. Run `sase restore --help` for the exact output on this checkout.
 
 ```text
-usage: sase restore [-h] [-l] [name]
+usage: sase restore [-h] [name] [-l]
 ```
 
 Options:

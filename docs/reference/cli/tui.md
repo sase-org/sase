@@ -12,11 +12,11 @@ Open sase's TUI for agents, Patches, artifacts, notifications, and Services
 Reference for `sase tui`. Run `sase tui --help` for the exact output on this checkout.
 
 ```text
-usage: sase tui [-h] [-m {large,small}] [-M {big,little}] [-p [PROFILE]]
-                [-r REFRESH_INTERVAL] [-R] [-s SANITY_REFRESH_INTERVAL]
+usage: sase tui [-h] [query] [-m {large,small}] [-M {big,little}]
+                [-p [PROFILE]] [-r REFRESH_INTERVAL] [-R]
+                [-s SANITY_REFRESH_INTERVAL]
                 [-t {artifacts,changespecs,patches,agents,services,axe}] [-T]
                 [-x] [-v {git,hg,auto}]
-                [query]
 ```
 
 Options:

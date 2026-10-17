@@ -42,7 +42,7 @@ Subcommands:
 ## `sase migrate backup`
 
 ```text
-usage: sase migrate backup [-h] [-a] [-j] [-s <dir>] <root>
+usage: sase migrate backup [-h] <root> [-a] [-j] [-s <dir>]
 ```
 
 Capture a quiescent-as-possible, checksummed, SQLite-consistent backup of <root> outside every SASE runtime root. Dry run unless -a/--apply, in which case it writes MANIFEST.json, SHA256SUMS, and provenance.json alongside the copied payload.
@@ -82,7 +82,7 @@ Options:
 ## `sase migrate plan`
 
 ```text
-usage: sase migrate plan [-h] [-b <id>] [-d <dir>] [-j] [-r <dir>] <operation>
+usage: sase migrate plan [-h] <operation> [-b <id>] [-d <dir>] [-j] [-r <dir>]
 ```
 
 Plan <operation>, write runs/<run-id>/manifest.json plus an initial journal record, mutate no source data, and print the manifest path. Apply later with `sase migrate run <manifest>`.
@@ -106,7 +106,7 @@ Arguments:
 ## `sase migrate restore`
 
 ```text
-usage: sase migrate restore [-h] [-a] [-j] [-r <dir>] <backup-id>
+usage: sase migrate restore [-h] <backup-id> [-a] [-j] [-r <dir>]
 ```
 
 Verify a backup's SHA256SUMS before touching anything, restore it to a staging path, and report its diff and ownership deltas against the live root. Dry run unless -a/--apply, in which case the live root is moved aside (never deleted) and the staged copy is swapped into its place. The backup itself is never modified or deleted by a restore.
@@ -129,7 +129,7 @@ Arguments:
 ## `sase migrate resume`
 
 ```text
-usage: sase migrate resume [-h] [-a] [-j] [-l <ms>] <run-id>
+usage: sase migrate resume [-h] <run-id> [-a] [-j] [-l <ms>]
 ```
 
 Replay a run journal, re-check source digests when the run has not started applying, and continue from the next resumable step. Dry run unless -a/--apply.
@@ -152,7 +152,7 @@ Arguments:
 ## `sase migrate run`
 
 ```text
-usage: sase migrate run [-h] [-a] [-j] [-l <ms>] <manifest>
+usage: sase migrate run [-h] <manifest> [-a] [-j] [-l <ms>]
 ```
 
 Run a manifest. Dry run checks digests, conflicts, and backup records without mutating data. -a/--apply executes the operation with a durable journal and receipt.
@@ -190,7 +190,7 @@ Options:
 ## `sase migrate verify`
 
 ```text
-usage: sase migrate verify [-h] [-j] <run-id>
+usage: sase migrate verify [-h] <run-id> [-j]
 ```
 
 Load one run manifest and re-check the operation's post-conditions and semantic fingerprints.

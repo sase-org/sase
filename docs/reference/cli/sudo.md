@@ -12,7 +12,7 @@ Request, inspect, and answer typed sudo gates
 Reference for `sase sudo`. Run `sase sudo --help` for the exact output on this checkout.
 
 ```text
-usage: sase sudo [-h] {answer,exec,finalize,list,request,show} ...
+usage: sase sudo [-h] {answer,list,request,show} ...
 ```
 
 Create typed sudo request gates and answer them from a controlling terminal through the dedicated sudo runner.
@@ -37,9 +37,8 @@ Subcommands:
 ## `sase sudo answer`
 
 ```text
-usage: sase sudo answer [-h] [-a | -d | -u] [-c ID] [-D | -N] [-f FEEDBACK]
+usage: sase sudo answer [-h] ID [-a | -d | -u] [-c ID] [-D | -N] [-f FEEDBACK]
                         [-j] [-R | -r]
-                        ID
 ```
 
 Options:
@@ -97,7 +96,7 @@ Options:
 ## `sase sudo show`
 
 ```text
-usage: sase sudo show [-h] [-j] ID
+usage: sase sudo show [-h] ID [-j]
 ```
 
 Options:

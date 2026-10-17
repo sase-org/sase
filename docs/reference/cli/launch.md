@@ -34,7 +34,7 @@ Subcommands:
 ## `sase launch approve`
 
 ```text
-usage: sase launch approve [-h] [-Q PATH] [-R PATH] selector
+usage: sase launch approve [-h] selector [-Q PATH] [-R PATH]
 ```
 
 Approve a pending launch request by request id or notification prefix.
@@ -56,7 +56,7 @@ Arguments:
 ## `sase launch reject`
 
 ```text
-usage: sase launch reject [-h] [-f FEEDBACK] [-Q PATH] [-R PATH] selector
+usage: sase launch reject [-h] selector [-f FEEDBACK] [-Q PATH] [-R PATH]
 ```
 
 Reject a pending launch request by request id or notification prefix.
@@ -79,10 +79,9 @@ Arguments:
 ## `sase launch request`
 
 ```text
-usage: sase launch request [-h] [-a APPROVAL] [-f PAYLOAD_FILE] [-m MAX_SLOTS]
-                           [-o {text,json}] [-p PROMPT] [-r REASON]
-                           [-s SOURCE]
-                           [payload]
+usage: sase launch request [-h] [payload] [-a APPROVAL] [-f PAYLOAD_FILE]
+                           [-m MAX_SLOTS] [-o {text,json}] [-p PROMPT]
+                           [-r REASON] [-s SOURCE]
 ```
 
 Create a LaunchApproval request from a structured JSON payload or prompt flags. Agent-side callers wait for the response; no agent is spawned unless host dispatch is approved and succeeds.

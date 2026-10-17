@@ -12,7 +12,8 @@ Inspect configured finalizers and declarations
 Reference for `sase final`. Run `sase final --help` for the exact output on this checkout.
 
 ```text
-usage: sase final [-h] <subcommand> ...
+usage: sase final [-h]
+                  {context,defer,doctor,list,prepare,show,status,submit} ...
 ```
 
 Inspect host-owned finalizer instances, provider provenance, and the current turn's declaration obligations. With no subcommand, `sase final` defaults to `sase final list`.
@@ -56,7 +57,7 @@ Options:
 ## `sase final defer`
 
 ```text
-usage: sase final defer [-h] [-p <path>] <repo-id> <reason>
+usage: sase final defer [-h] <repo-id> <reason> [-p <path>]
 ```
 
 Defer one repository obligation instead of committing it. Deferral is rare: prefer an authored commit message through `sase final submit`. The host adjudicates every deferral against this run's own evidence before accepting it, so an unfounded deferral is rejected as a repairable error instead of failing the run. An accepted deferral leaves the repository's tree dirty by design and completes the run instead of failing it. Only supports a turn with exactly one finalizer instance and one repository requiring a decision; use `sase final context -f json` and `sase final submit` for anything wider.
@@ -104,7 +105,7 @@ Options:
 ## `sase final prepare`
 
 ```text
-usage: sase final prepare [-h] [-j] <manifest-file|->
+usage: sase final prepare [-h] <manifest-file|-> [-j]
 ```
 
 Validate a versioned completion wrapper against the current host-issued finalizer context, observe opened repositories, and store a host-sealed single-use intent. Prints the immutable reference and a readable preview. Does not submit, commit, publish, or end the turn. The wrapper accepts an optional `accept: pass|no-new` policy (default `pass`); `no-new` is an explicit opt-in that completes a failed verification only with a covering verdict receipt.
@@ -125,7 +126,7 @@ Arguments:
 ## `sase final show`
 
 ```text
-usage: sase final show [-h] [-f {pretty,json}] instance
+usage: sase final show [-h] instance [-f {pretty,json}]
 ```
 
 Options:
@@ -144,7 +145,7 @@ Arguments:
 ## `sase final status`
 
 ```text
-usage: sase final status [-h] [-d <dir>] [-f {pretty,json}] [<agent>]
+usage: sase final status [-h] [<agent>] [-d <dir>] [-f {pretty,json}]
 ```
 
 Project the finalizer run view for one agent turn and print it. The view reconciles the sealed plan, the controller progress journal, operation records, steps, and typed evidence through the shared projection, so this output agrees with the Agents tab's FINAL deck. Pretty output is colored in the shared state vocabulary; JSON output is the projection response verbatim.

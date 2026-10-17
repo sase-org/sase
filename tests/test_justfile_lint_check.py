@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import subprocess
+from pathlib import Path
+
 import pytest
 
 from tests._justfile_lint_helpers import ROOT, dry_run
@@ -24,11 +27,82 @@ _CHECK_GATE_LINES = (
 )
 
 
+def _docs_stage_snippet() -> str:
+    """Extract the ``check`` recipe's docs-stage shell snippet.
+
+    Strips the leading ``@`` and line-continuation backslashes so the
+    fragment can run under ``sh``. The old ``$$`` spelling expands to the
+    shell PID and never invokes ``tools/docs_changed``.
+    """
+    text = (ROOT / "Justfile").read_text()
+    start = text.index("\ncheck: ")
+    end = text.index("\ncheck-full:", start)
+    recipe = text[start:end]
+    lines: list[str] = []
+    capturing = False
+    for raw in recipe.splitlines():
+        if "docs_scope=" in raw:
+            capturing = True
+        if not capturing:
+            continue
+        line = raw.lstrip()
+        if line.startswith("@"):
+            line = line[1:]
+        if line.endswith("\\"):
+            line = line[:-1].rstrip()
+        lines.append(line)
+        if line.strip() == "fi":
+            break
+    snippet = "\n".join(lines) + "\n"
+    assert "docs_scope=" in snippet
+    assert snippet.rstrip().endswith("fi")
+    return snippet
+
+
+def _run_docs_stage(tmp_path: Path, scope: str) -> subprocess.CompletedProcess[str]:
+    tools = tmp_path / "tools"
+    tools.mkdir()
+    docs_changed = tools / "docs_changed"
+    docs_changed.write_text(
+        "#!/bin/sh\nprintf '%s\\n' '" + scope + "'\n",
+        encoding="utf-8",
+    )
+    docs_changed.chmod(0o755)
+    run_silent = tools / "run_silent"
+    run_silent.write_text(
+        "#!/bin/sh\nprintf '%s\\n' \"$@\" > run_silent.out\n",
+        encoding="utf-8",
+    )
+    run_silent.chmod(0o755)
+    return subprocess.run(
+        ["sh", "-c", _docs_stage_snippet()],
+        cwd=tmp_path,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+
 def test_check_and_check_full_recipes_exist() -> None:
     justfile = (ROOT / "Justfile").read_text()
 
     assert '\ncheck: (_require-tool-run "check") _setup\n' in justfile
     assert '\ncheck-full: (_require-tool-run "check-full") _setup\n' in justfile
+
+
+def test_check_docs_stage_runs_when_docs_changed(tmp_path: Path) -> None:
+    result = _run_docs_stage(tmp_path, "run")
+    assert result.returncode == 0, result.stderr
+    recorded = (tmp_path / "run_silent.out").read_text(encoding="utf-8").splitlines()
+    assert recorded == ["docs (build + links)", "just", "docs-check"]
+    assert "Skipping docs build" not in result.stdout
+
+
+def test_check_docs_stage_skips_when_docs_unchanged(tmp_path: Path) -> None:
+    result = _run_docs_stage(tmp_path, "skip")
+    assert result.returncode == 0, result.stderr
+    assert not (tmp_path / "run_silent.out").exists()
+    assert "Skipping docs build; no docs inputs changed." in result.stdout
 
 
 def test_check_ends_in_the_scoped_test_lane() -> None:

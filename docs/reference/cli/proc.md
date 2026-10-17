@@ -39,7 +39,7 @@ Subcommands:
 ## `sase proc kill`
 
 ```text
-usage: sase proc kill [-h] [-j] REF
+usage: sase proc kill [-h] REF [-j]
 ```
 
 Kill one proc by exact fully qualified named proc, exact id, or unique id prefix (at least three characters). A bare name is derived beneath the calling sase agent. A proc that is already finished is reported as an unchanged no-op.
@@ -86,8 +86,7 @@ Options:
 
 ```text
 usage: sase proc run [-h] [-c DIR] [-j] [-l TEXT] [-N NAME] [-p NAME] [-q]
-                     [-s REF] [-t TAG] [-w]
-                     ...
+                     [-s REF] [-t TAG] [-w] ...
 ```
 
 Record a proc, start it under a supervisor, and return. The supervisor owns the command's process group and captures its combined output, so the proc survives this process and any TUI. Everything after `--` is the command to run. Targeting a session is attribution, not delegation: the proc runs the same way regardless, but the chosen session's Procs tab shows it and counts it.
@@ -116,7 +115,7 @@ Arguments:
 ## `sase proc show`
 
 ```text
-usage: sase proc show [-h] [-A] [-f {markdown,json}] [-F] [-l N] [-o] REF
+usage: sase proc show [-h] REF [-A] [-f {markdown,json}] [-F] [-l N] [-o]
 ```
 
 Show one proc by exact fully qualified named proc, exact id, or unique id prefix (at least three characters), followed by the tail of its captured output. A bare name is derived beneath the calling sase agent. `--follow` streams new output until the proc finishes and returns immediately for a proc that already has; with `--format json` it waits and then emits the finished proc.

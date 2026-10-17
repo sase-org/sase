@@ -60,6 +60,9 @@ _NO_VALUE_ACTIONS = (
     argparse._CountAction,
     argparse._VersionAction,
 )
+#: Wrap usage on whole tokens at this width. Independent of ``COLUMNS`` and
+#: of argparse's interpreter-specific formatter.
+_USAGE_WIDTH = 78
 
 
 def _clean(text: str | None) -> str:
@@ -202,6 +205,140 @@ def _format_grid(
     return lines
 
 
+def _usage_metavar(action: argparse.Action) -> str:
+    metavar = action.metavar
+    if isinstance(metavar, (list, tuple)):
+        return " ".join(str(part) for part in metavar)
+    if isinstance(metavar, str) and metavar:
+        return metavar
+    choices = getattr(action, "choices", None)
+    if isinstance(choices, dict) and choices:
+        return "{" + ",".join(sorted(str(name) for name in choices)) + "}"
+    if isinstance(choices, (list, tuple)) and choices:
+        return "{" + ",".join(str(choice) for choice in choices) + "}"
+    if isinstance(choices, set) and choices:
+        return "{" + ",".join(sorted(str(choice) for choice in choices)) + "}"
+    if action.option_strings:
+        return action.dest.upper()
+    return action.dest
+
+
+def _usage_args(action: argparse.Action) -> str:
+    """Return the argument placeholder for one action, or ``""`` if none."""
+    if action.option_strings and not _takes_value(action):
+        return ""
+    nargs = action.nargs
+    if nargs == 0:
+        return ""
+    if nargs == argparse.REMAINDER:
+        return "..."
+    metavar = _usage_metavar(action)
+    if nargs is None:
+        return metavar
+    if nargs == argparse.OPTIONAL:
+        return f"[{metavar}]"
+    if nargs == argparse.ZERO_OR_MORE:
+        return f"[{metavar} ...]"
+    if nargs == argparse.ONE_OR_MORE:
+        return f"{metavar} [{metavar} ...]"
+    if nargs == argparse.PARSER:
+        return f"{metavar} ..."
+    if isinstance(nargs, int):
+        if isinstance(action.metavar, (list, tuple)) and len(action.metavar) == nargs:
+            return " ".join(str(part) for part in action.metavar)
+        return " ".join([metavar] * nargs)
+    return metavar
+
+
+def _format_action_usage(action: argparse.Action, *, grouped: bool = False) -> str:
+    """Format one action as a usage token.
+
+    ``grouped`` omits the outer ``[]`` so mutually exclusive members can be
+    joined with `` | `` and wrapped once by the group.
+    """
+    if action.help is _SUPPRESS:
+        return ""
+    if isinstance(action, argparse._SubParsersAction):
+        names = [
+            name
+            for name in sorted(action.choices)
+            if _choice_help(action, name) is not _SUPPRESS
+        ]
+        if not names:
+            return ""
+        return "{" + ",".join(names) + "} ..."
+    args = _usage_args(action)
+    if action.option_strings:
+        option = action.option_strings[0]
+        piece = f"{option} {args}" if args else option
+        if grouped or getattr(action, "required", False):
+            return piece
+        return f"[{piece}]"
+    return args
+
+
+def _format_exclusive_group(group: argparse._MutuallyExclusiveGroup) -> str:
+    parts: list[str] = []
+    for action in group._group_actions:
+        token = _format_action_usage(action, grouped=True)
+        if token:
+            parts.append(token)
+    if not parts:
+        return ""
+    inner = " | ".join(parts)
+    if group.required:
+        return f"({inner})"
+    return f"[{inner}]"
+
+
+def _wrap_usage(prog: str, tokens: Sequence[str], width: int = _USAGE_WIDTH) -> str:
+    """Wrap usage on whole tokens; never split a bracketed group."""
+    prefix = f"usage: {prog}"
+    indent = " " * (len(prefix) + 1)
+    if not tokens:
+        return prefix
+    lines: list[str] = []
+    current = prefix
+    for token in tokens:
+        candidate = f"{current} {token}"
+        if len(candidate) <= width:
+            current = candidate
+            continue
+        lines.append(current)
+        current = f"{indent}{token}"
+    lines.append(current)
+    return "\n".join(lines)
+
+
+def _format_usage(parser: argparse.ArgumentParser, prog: str) -> str:
+    """Build interpreter-independent usage text for ``parser``.
+
+    Does not call argparse's ``format_usage``, ``format_help``, or
+    ``_format_usage``.
+    """
+    group_of: dict[int, argparse._MutuallyExclusiveGroup] = {}
+    for group in parser._mutually_exclusive_groups:
+        for action in group._group_actions:
+            group_of[id(action)] = group
+    emitted_groups: set[int] = set()
+    tokens: list[str] = []
+    for action in parser._actions:
+        if action.help is _SUPPRESS:
+            continue
+        mutex = group_of.get(id(action))
+        if mutex is not None:
+            mutex_id = id(mutex)
+            if mutex_id in emitted_groups:
+                continue
+            emitted_groups.add(mutex_id)
+            token = _format_exclusive_group(mutex)
+        else:
+            token = _format_action_usage(action)
+        if token:
+            tokens.append(token)
+    return _wrap_usage(prog, tokens)
+
+
 def _render_node(
     parser: argparse.ArgumentParser,
     prog: str,
@@ -209,10 +346,7 @@ def _render_node(
     lines: list[str],
 ) -> None:
     """Render one parser node's usage, options, and subcommand table."""
-    try:
-        usage = parser.format_usage().strip()
-    except (ValueError, IndexError):
-        usage = ""
+    usage = _format_usage(parser, prog)
     if usage:
         lines.append("```text")
         lines.append(usage)

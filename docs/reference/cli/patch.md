@@ -53,7 +53,7 @@ Subcommands:
 ## `sase patch accept`
 
 ```text
-usage: sase patch accept [-h] [-p PROJECT_FILE] [-Q PATH] [-R PATH] name
+usage: sase patch accept [-h] name [-p PROJECT_FILE] [-Q PATH] [-R PATH]
 ```
 
 Accept proposal commits onto a Patch
@@ -76,7 +76,7 @@ Arguments:
 ## `sase patch archive`
 
 ```text
-usage: sase patch archive [-h] [-p PROJECT_FILE] [-Q PATH] [-R PATH] name
+usage: sase patch archive [-h] name [-p PROJECT_FILE] [-Q PATH] [-R PATH]
 ```
 
 Archive a Patch
@@ -113,7 +113,7 @@ Options:
 ## `sase patch mail`
 
 ```text
-usage: sase patch mail [-h] [-p PROJECT_FILE] [-Q PATH] [-R PATH] name
+usage: sase patch mail [-h] name [-p PROJECT_FILE] [-Q PATH] [-R PATH]
 ```
 
 Mail a Ready Patch
@@ -151,8 +151,8 @@ Options:
 ## `sase patch rebase`
 
 ```text
-usage: sase patch rebase [-h] [-p PROJECT_FILE] [-Q PATH] [-R PATH]
-                         name parent
+usage: sase patch rebase [-h] name parent [-p PROJECT_FILE] [-Q PATH]
+                         [-R PATH]
 ```
 
 Rebase a Patch onto a new parent
@@ -253,8 +253,8 @@ Arguments:
 ## `sase patch restore`
 
 ```text
-usage: sase patch restore [-h] [-p PROJECT_FILE] [-Q PATH] [-R PATH]
-                          name [status]
+usage: sase patch restore [-h] name [status] [-p PROJECT_FILE] [-Q PATH]
+                          [-R PATH]
 ```
 
 Restore a Reverted Patch
@@ -278,7 +278,7 @@ Arguments:
 ## `sase patch revert`
 
 ```text
-usage: sase patch revert [-h] [-p PROJECT_FILE] [-Q PATH] [-R PATH] name
+usage: sase patch revert [-h] name [-p PROJECT_FILE] [-Q PATH] [-R PATH]
 ```
 
 Revert a Patch
@@ -301,7 +301,7 @@ Arguments:
 ## `sase patch rewind`
 
 ```text
-usage: sase patch rewind [-h] [-p PROJECT_FILE] [-Q PATH] [-R PATH] name entry
+usage: sase patch rewind [-h] name entry [-p PROJECT_FILE] [-Q PATH] [-R PATH]
 ```
 
 Rewind a Patch to a history entry
@@ -325,7 +325,7 @@ Arguments:
 ## `sase patch reword`
 
 ```text
-usage: sase patch reword [-h] [-p PROJECT_FILE] [-Q PATH] [-R PATH] name
+usage: sase patch reword [-h] name [-p PROJECT_FILE] [-Q PATH] [-R PATH]
 ```
 
 Reword a Patch description from the request sidecar
@@ -348,7 +348,7 @@ Arguments:
 ## `sase patch search`
 
 ```text
-usage: sase patch search [-h] [-f {plain,rich,markdown}] query
+usage: sase patch search [-h] query [-f {plain,rich,markdown}]
 ```
 
 Options:
@@ -367,8 +367,8 @@ Arguments:
 ## `sase patch set-origin`
 
 ```text
-usage: sase patch set-origin [-h] [-p PROJECT_FILE]
-                             name {sase,external,unknown}
+usage: sase patch set-origin [-h] name {sase,external,unknown}
+                             [-p PROJECT_FILE]
 ```
 
 Deliberately set a Patch's PR_ORIGIN field. This is the manual half of the tri-state PR_ORIGIN decision: it resolves an 'unknown' record (or corrects a wrong mark) without waiting for the external_pr_mirror job.
@@ -390,8 +390,8 @@ Arguments:
 ## `sase patch status`
 
 ```text
-usage: sase patch status [-h] [-p PROJECT_FILE] [-Q PATH] [-R PATH]
-                         name status
+usage: sase patch status [-h] name status [-p PROJECT_FILE] [-Q PATH]
+                         [-R PATH]
 ```
 
 Apply a Patch STATUS transition by name. Required identifiers are positional; optional project and operation sidecars use flags.
@@ -415,7 +415,7 @@ Arguments:
 ## `sase patch submit`
 
 ```text
-usage: sase patch submit [-h] [-p PROJECT_FILE] [-Q PATH] [-R PATH] name
+usage: sase patch submit [-h] name [-p PROJECT_FILE] [-Q PATH] [-R PATH]
 ```
 
 Submit a Patch
@@ -438,7 +438,7 @@ Arguments:
 ## `sase patch sync`
 
 ```text
-usage: sase patch sync [-h] [-p PROJECT_FILE] [-Q PATH] [-R PATH] name
+usage: sase patch sync [-h] name [-p PROJECT_FILE] [-Q PATH] [-R PATH]
 ```
 
 Sync a Patch workspace from its VCS remote
@@ -494,8 +494,8 @@ Options:
 ## `sase patch tag`
 
 ```text
-usage: sase patch tag [-h] [-p PROJECT_FILE] [-Q PATH] [-R PATH]
-                      name tag [value]
+usage: sase patch tag [-h] name tag [value] [-p PROJECT_FILE] [-Q PATH]
+                      [-R PATH]
 ```
 
 Add a tag to a Patch description

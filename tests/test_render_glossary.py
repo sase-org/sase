@@ -10,10 +10,13 @@ links, except inside fenced or inline code.
 from __future__ import annotations
 
 import importlib.util
+import re
 from importlib.machinery import SourceFileLoader
 from pathlib import Path
 import sys
 from types import ModuleType
+
+import pytest
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -128,3 +131,33 @@ def test_real_glossary_web_renders_every_term() -> None:
     )
     for slug in webs.glossary:
         assert f"{{#{slug}}}" in committed, slug
+
+
+def test_abbreviations_are_line_oriented_abbr_syntax() -> None:
+    webs_mod = _load("docs_webs_abbr_lines", TOOLS / "docs_webs.py")
+    tool = _load("render_glossary_abbr_lines", TOOLS / "render_glossary")
+    webs = webs_mod.Webs.load()
+    text = tool.render_abbreviations_text(webs)
+    matching = [
+        line for line in text.splitlines() if re.match(r"^\*\[[^\]]+\]: \S", line)
+    ]
+    assert len(matching) == len(tool.ABBR_TERMS)
+    for line in matching:
+        assert "\n" not in line
+        term, definition = line.split("]: ", 1)
+        assert definition == " ".join(definition.split())
+        assert term.startswith("*[")
+
+
+def test_abbreviations_produce_markdown_abbr_tooltips() -> None:
+    markdown = pytest.importorskip("markdown")
+    webs_mod = _load("docs_webs_abbr_md", TOOLS / "docs_webs.py")
+    tool = _load("render_glossary_abbr_md", TOOLS / "render_glossary")
+    webs = webs_mod.Webs.load()
+    abbreviations = tool.render_abbreviations_text(webs)
+    html = markdown.markdown(
+        "Work on a Patch today.\n\n" + abbreviations,
+        extensions=["abbr"],
+    )
+    assert "<abbr title=" in html
+    assert "[Patch]:" not in html

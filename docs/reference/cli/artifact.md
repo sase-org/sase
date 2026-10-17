@@ -139,7 +139,7 @@ Arguments:
 ### `sase artifact link import-indexes`
 
 ```text
-usage: sase artifact link import-indexes [-h] [-a] [-j] [ATTESTATION]
+usage: sase artifact link import-indexes [-h] [ATTESTATION] [-a] [-j]
 ```
 
 Plan or apply the legacy artifact-link index cutover. Preview is the default and writes nothing. Applying requires the positional attestation token printed by preview, fences current SASE binaries with link-events/STORE.json, publishes one deterministic baseline import event to every document sidecar root, and then marks legacy links/ indexes imported. Older SASE binaries do not understand the marker.
@@ -161,9 +161,8 @@ Arguments:
 ### `sase artifact link list`
 
 ```text
-usage: sase artifact link list [-h] [-d {both,in,out}] [-j] [-l N] [-o ORIGIN]
-                               [-R RELATION] [-s {index,store}]
-                               [reference]
+usage: sase artifact link list [-h] [reference] [-d {both,in,out}] [-j] [-l N]
+                               [-o ORIGIN] [-R RELATION] [-s {index,store}]
 ```
 
 List links. Without a ref, show the current project's recent links (default limit 50, newest first). With a ref, show that artifact's neighborhood.
@@ -241,7 +240,7 @@ Options:
 #### `sase artifact link relation show`
 
 ```text
-usage: sase artifact link relation show [-h] [-j] SLUG
+usage: sase artifact link relation show [-h] SLUG [-j]
 ```
 
 Options:
@@ -260,7 +259,7 @@ Arguments:
 ### `sase artifact link rm`
 
 ```text
-usage: sase artifact link rm [-h] [-R RELATION] SOURCE TARGET
+usage: sase artifact link rm [-h] SOURCE TARGET [-R RELATION]
 ```
 
 Remove stored edges between two artifacts. Without -R/--relation, every edge between the pair is removed. Refs accept a leading `@`.
@@ -282,7 +281,7 @@ Arguments:
 ### `sase artifact link suggest`
 
 ```text
-usage: sase artifact link suggest [-h] [-j] [-l N] [reference]
+usage: sase artifact link suggest [-h] [reference] [-j] [-l N]
 ```
 
 Suggest missing artifact links from hard evidence only: shared beads, shared epics, overlapping read sets, read-log candidates, and deterministic filename lineage. Suggestions are ephemeral; the command never writes store rows or companion files.
@@ -450,8 +449,8 @@ Options:
 ## `sase artifact read`
 
 ```text
-usage: sase artifact read [-h] [-f {json,markdown,rich}] [-n LINES]
-                          reference reason
+usage: sase artifact read [-h] reference reason [-f {json,markdown,rich}]
+                          [-n LINES]
 ```
 
 Resolve an artifact reference, strip leading frontmatter and managed Links / Referenced By tables, print the body, and record an audited read. A non-empty reason is required (positional). Markdown prints to stdout; a TTY pages, a pipe stays raw. Images, PDFs, and video print a metadata card and point at `sase artifact open`. `stitch:` prints the show payload plus the commit subject. The read is refused if the audit row cannot be recorded. Inside a SASE agent run with an identity, a `read` graph edge is also stored. `show`, `path`, and `open` stay silent.

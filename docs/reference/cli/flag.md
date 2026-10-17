@@ -38,7 +38,7 @@ Subcommands:
 ## `sase flag disable`
 
 ```text
-usage: sase flag disable [-h] [-j] <key>
+usage: sase flag disable [-h] <key> [-j]
 ```
 
 Persistently disable a registered feature flag on this machine. The choice is stored in the SASE-owned machine-state file `feature_flags.json` under SASE_HOME (normally ~/.sase/feature_flags.json). It is not written to ~/.config/sase/sase.yml, overlays, or project-local sase.yml. Saved machine preferences outrank registry defaults, user config, and overlay config. Inherited SASE_FEATURE_FLAGS and root -f/--enable-feature or -F/--disable-feature still win for this process. On success, the scheduler is restarted when it is already running so new processes see the saved value. A stopped scheduler is left stopped. Any separately running sase's TUI session must be restarted in its own terminal. Repeating an already-saved enable or disable still retries that scheduler restart. A restart failure does not roll back the saved preference.
@@ -59,7 +59,7 @@ Arguments:
 ## `sase flag enable`
 
 ```text
-usage: sase flag enable [-h] [-j] <key>
+usage: sase flag enable [-h] <key> [-j]
 ```
 
 Persistently enable a registered feature flag on this machine. The choice is stored in the SASE-owned machine-state file `feature_flags.json` under SASE_HOME (normally ~/.sase/feature_flags.json). It is not written to ~/.config/sase/sase.yml, overlays, or project-local sase.yml. Saved machine preferences outrank registry defaults, user config, and overlay config. Inherited SASE_FEATURE_FLAGS and root -f/--enable-feature or -F/--disable-feature still win for this process. On success, the scheduler is restarted when it is already running so new processes see the saved value. A stopped scheduler is left stopped. Any separately running sase's TUI session must be restarted in its own terminal. Repeating an already-saved enable or disable still retries that scheduler restart. A restart failure does not roll back the saved preference.
@@ -95,11 +95,10 @@ Options:
 ## `sase flag new`
 
 ```text
-usage: sase flag new [-h] [-d DESCRIPTION] [-k {beta,sunset}]
+usage: sase flag new [-h] <key> [-d DESCRIPTION] [-k {beta,sunset}]
                      --when-enabled WHEN_ENABLED --when-disabled WHEN_DISABLED
                      --remove-when REMOVE_WHEN [-r DATE/RELEASE]
                      [-z {xsmall,small,medium,large,xlarge}]
-                     <key>
 ```
 
 Scaffold a new feature flag. Creates the dedicated `flag` removal task bead with remove_by_date = today + 90 days and remove_by_release = the current minor plus two, then prints the registry entry to paste and a both-states test checklist. --when-enabled, --when-disabled, and --remove-when are required and each accepts `@<path>` to read the value from a file. Requires is_sase_managed: true in this checkout's sase/sase.yml.
@@ -126,7 +125,7 @@ Arguments:
 ## `sase flag show`
 
 ```text
-usage: sase flag show [-h] [-j] <key>
+usage: sase flag show [-h] <key> [-j]
 ```
 
 Show the full FeatureFlagDecision for one key: per-layer provenance, the dedicated flag bead and both removal thresholds, and the flag's call sites in the installed SASE package.

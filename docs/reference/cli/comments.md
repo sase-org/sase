@@ -12,7 +12,7 @@ Preview mentor comments from JSON (reads from stdin or file)
 Reference for `sase comments`. Run `sase comments --help` for the exact output on this checkout.
 
 ```text
-usage: sase comments [-h] [-c CONTEXT] [file]
+usage: sase comments [-h] [file] [-c CONTEXT]
 ```
 
 Options:

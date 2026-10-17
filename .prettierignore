@@ -22,6 +22,9 @@ tests/agents_sync/goldens/
 # Generated documentation index; renderer output is checked from its sources.
 docs/README.md
 
+# abbr definitions are line-oriented *[term]: text syntax that Prettier rewrites into emphasis.
+docs/_includes/abbreviations.md
+
 # Generated CLI reference; renderer output is checked by docs-gen-check.
 docs/reference/cli/
 

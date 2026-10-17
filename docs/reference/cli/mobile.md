@@ -12,8 +12,7 @@ Run mobile integration helpers
 Reference for `sase mobile`. Run `sase mobile --help` for the exact output on this checkout.
 
 ```text
-usage: sase mobile [-h]
-                   {agent-bridge,gateway,helper-bridge,notification-bridge} ...
+usage: sase mobile [-h] {gateway} ...
 ```
 
 Options:

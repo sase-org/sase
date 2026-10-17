@@ -51,7 +51,7 @@ Options:
 ## `sase macro expand`
 
 ```text
-usage: sase macro expand [-h] [-t] [prompt]
+usage: sase macro expand [-h] [prompt] [-t]
 ```
 
 Options:
@@ -70,7 +70,7 @@ Arguments:
 ## `sase macro explain`
 
 ```text
-usage: sase macro explain [-h] [-a KEY=VALUE] workflow_name [args ...]
+usage: sase macro explain [-h] workflow_name [args ...] [-a KEY=VALUE]
 ```
 
 Options:
@@ -90,7 +90,7 @@ Arguments:
 ## `sase macro graph`
 
 ```text
-usage: sase macro graph [-h] [-f {mermaid,text}] [workflow_name]
+usage: sase macro graph [-h] [workflow_name] [-f {mermaid,text}]
 ```
 
 Options:
@@ -122,8 +122,7 @@ Options:
 
 ```text
 usage: sase macro show [-h] [-c {auto,always,never}] [-f {full,json,raw}]
-                       [-p PROJECT]
-                       NAME
+                       [-p PROJECT] NAME
 ```
 
 Show one macro or workflow definition: its declared properties, typed inputs, local helper macros, highlighted body, provenance, and the references it makes. The NAME argument accepts a bare name or a copied reference (#name, #!name, /name); arguments such as #name(a, b) are ignored with a note. --format json emits a versioned record and --format raw emits the exact definition source bytes.
@@ -146,7 +145,7 @@ Arguments:
 ## `sase macro types`
 
 ```text
-usage: sase macro types [-h] [-j] [NAME]
+usage: sase macro types [-h] [NAME] [-j]
 ```
 
 List macro input types: scalar keywords, builtin domain types, and plugin-shared enums. With NAME, show one type's detail card.

@@ -89,7 +89,7 @@ Options:
 ### `sase axe job run`
 
 ```text
-usage: sase axe job run [-h] [-V] [-n] [-f] [-L ROUTINE] JOB
+usage: sase axe job run [-h] JOB [-V] [-n] [-f] [-L ROUTINE]
 ```
 
 Options:
@@ -217,9 +217,8 @@ Options:
 ### `sase axe routine run`
 
 ```text
-usage: sase axe routine run [-h] [-q QUERY] [-H MAX_HOOK_RUNNERS]
+usage: sase axe routine run [-h] ROUTINE [-q QUERY] [-H MAX_HOOK_RUNNERS]
                             [-A MAX_AGENT_RUNNERS] [-z ZOMBIE_TIMEOUT]
-                            ROUTINE
 ```
 
 Options:

@@ -117,6 +117,7 @@ def render_abbreviations_text(webs: Webs) -> str:
             definition = first_sentence(webs.glossary[slug].body)
         else:
             raise ValueError(f"abbreviation {term!r} has no definition source")
+        definition = " ".join(definition.split())
         if not definition:
             raise ValueError(f"abbreviation {term!r} has an empty definition")
         lines.append(f"*[{term}]: {definition}")
@@ -130,13 +131,12 @@ def generated_outputs(root: Path = REPO_ROOT) -> dict[Path, str]:
         decisions_dir=root / DECISIONS_DIR.relative_to(REPO_ROOT),
     )
     glossary_rel = GLOSSARY_OUTPUT.relative_to(REPO_ROOT).as_posix()
-    abbreviations_rel = ABBREVIATIONS_OUTPUT.relative_to(REPO_ROOT).as_posix()
     return {
         root / GLOSSARY_OUTPUT.relative_to(REPO_ROOT): format_with_prettier(
             render_glossary_text(webs), glossary_rel
         ),
-        root / ABBREVIATIONS_OUTPUT.relative_to(REPO_ROOT): format_with_prettier(
-            render_abbreviations_text(webs), abbreviations_rel
+        root / ABBREVIATIONS_OUTPUT.relative_to(REPO_ROOT): render_abbreviations_text(
+            webs
         ),
     }
 

@@ -45,9 +45,8 @@ Subcommands:
 ## `sase project add`
 
 ```text
-usage: sase project add [-h] [-a ALIAS] [-c] [-j] [-m] [-n NAME] [-S]
+usage: sase project add [-h] REF [-a ALIAS] [-c] [-j] [-m] [-n NAME] [-S]
                         [-Q PATH] [-R PATH] [-s] [-y]
-                        REF
 ```
 
 Register an existing repository as an enabled SASE project. New projects are enabled by default. Use --check to preview without writes. Setup can write the repository's sase/sase.yml, commit it, and push the default branch; agents may preview freely, while explicit setup is human-only. Interrupted operations can be resumed by repeating the same command. Successful setup may hand off to `sase init`.
@@ -137,7 +136,7 @@ Arguments:
 ### `sase project alias list`
 
 ```text
-usage: sase project alias list [-h] [-j] [project]
+usage: sase project alias list [-h] [project] [-j]
 ```
 
 Options:
@@ -175,10 +174,9 @@ Arguments:
 ## `sase project create`
 
 ```text
-usage: sase project create [-h] [-a ALIAS] [-c] [-d TEXT] [-j] [-m] [-n NAME]
-                           [-S] [-O KEY=VALUE] [-Q PATH] [-R PATH] [-s]
-                           [-v VISIBILITY] [-y]
-                           REF
+usage: sase project create [-h] REF [-a ALIAS] [-c] [-d TEXT] [-j] [-m]
+                           [-n NAME] [-S] [-O KEY=VALUE] [-Q PATH] [-R PATH]
+                           [-s] [-v VISIBILITY] [-y]
 ```
 
 Create a remote or bare repository and register it as an enabled SASE project. REF is gh:OWNER/NAME, OWNER/NAME, or git:NAME. Provider options are validated before any create subprocess. --check is read-only and available to agents; apply is human-only unless it runs as an approved /sase_gate option or SASE_PROJECT_CREATE_BYPASS holds a reason. Interrupted operations resume by repeating the same command. Successful setup may hand off to `sase init`.
@@ -226,7 +224,7 @@ Options:
 ## `sase project disable`
 
 ```text
-usage: sase project disable [-h] [-f] project
+usage: sase project disable [-h] project [-f]
 ```
 
 Options:
@@ -245,7 +243,7 @@ Arguments:
 ## `sase project enable`
 
 ```text
-usage: sase project enable [-h] [-f] project
+usage: sase project enable [-h] project [-f]
 ```
 
 Options:
@@ -278,7 +276,7 @@ Options:
 ## `sase project set-current`
 
 ```text
-usage: sase project set-current [-h] [-j] project
+usage: sase project set-current [-h] project [-j]
 ```
 
 Make PROJECT the current project by promoting it to the head of the VCS macro MRU store (~/.sase/vcs_macro_mru.json). This is the same write a launch on that project performs. The project must be enabled and launchable. The Projects tab in sase's TUI binds the same operation. Human output prints a one-line result, then the same project detail as `sase project current`. --json emits status, message, and the project payload (or null). Exits 0 when the project is current (set or already current) and 1 when it is not.
@@ -299,7 +297,7 @@ Arguments:
 ## `sase project set-state`
 
 ```text
-usage: sase project set-state [-h] [-f] project {enabled,disabled,sibling}
+usage: sase project set-state [-h] project {enabled,disabled,sibling} [-f]
 ```
 
 Options:
@@ -319,7 +317,7 @@ Arguments:
 ## `sase project show`
 
 ```text
-usage: sase project show [-h] [-j] project
+usage: sase project show [-h] project [-j]
 ```
 
 Options:
@@ -338,7 +336,7 @@ Arguments:
 ## `sase project suggest`
 
 ```text
-usage: sase project suggest [-h] [-a] [-j] [-o OWNER] [-r] [provider]
+usage: sase project suggest [-h] [provider] [-a] [-j] [-o OWNER] [-r]
 ```
 
 Rank repositories worth adding as SASE projects, grouped as RESUME, ON THIS MACHINE, SUGGESTED, LINKED TO YOUR PROJECTS, and DISABLED PROJECTS. Discovery is cache-first per owner and read-only: nothing is cloned, created, or registered. Human output prints one grouped section per workspace provider with a health line, owner errors with their remedy, a hidden row footer, and a closing `sase project add REF` hint. --json emits the machine-readable candidate document.

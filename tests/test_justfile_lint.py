@@ -12,6 +12,8 @@ from tests._justfile_lint_helpers import ROOT
 from tests.test_justfile_lint_check import (
     test_check_and_check_full_recipes_exist,
     test_check_and_check_full_share_an_identical_gate_list,
+    test_check_docs_stage_runs_when_docs_changed,
+    test_check_docs_stage_skips_when_docs_unchanged,
     test_check_ends_in_the_scoped_test_lane,
     test_check_full_does_not_print_a_scoped_summary,
     test_check_full_ends_in_the_full_test_lane,
@@ -80,6 +82,8 @@ __all__ = [
     "ROOT",
     "test_check_and_check_full_recipes_exist",
     "test_check_and_check_full_share_an_identical_gate_list",
+    "test_check_docs_stage_runs_when_docs_changed",
+    "test_check_docs_stage_skips_when_docs_unchanged",
     "test_check_and_check_full_skip_toobig_stage",
     "test_check_ends_in_the_scoped_test_lane",
     "test_check_full_does_not_print_a_scoped_summary",
