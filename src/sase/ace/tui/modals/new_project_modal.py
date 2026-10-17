@@ -122,7 +122,7 @@ class NewProjectModal(
         self._observed_facts: dict[str, object] = {}
         self._local_plan: dict[str, object] = {}
         self._local_plan_draft: ConfigureDraft | None = None
-        self._create_support: dict[str, str] = {}
+        self._create_support: dict[str, tuple[str, str]] = {}
         self._create_support_loading: set[str] = set()
         self._apply_submission: ApplySubmission | None = None
         self._apply_proc_id = ""
@@ -185,6 +185,12 @@ class NewProjectModal(
         self._show_stage(self._state.stage)
         if outcome == "configure":
             self.query_one(NewProjectConfigure).focus_name()
+
+    @on(NewProjectSource.CreateUnavailable)
+    def _source_create_unavailable(
+        self, _event: NewProjectSource.CreateUnavailable
+    ) -> None:
+        self._explain_create_unavailable()
 
     @on(events.Paste)
     def _paste_anywhere(self, event: events.Paste) -> None:

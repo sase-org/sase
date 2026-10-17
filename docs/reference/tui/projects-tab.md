@@ -66,9 +66,9 @@ account, and the first available owner.
 1. **Source.** Select a repository and press `Enter` to add it, or press `n` from the
    list to choose the pinned Create row. `j` / `k` move, `[` / `]` switch providers, `/`
    focuses the filter, `f` toggles hidden forks, `.` toggles all hidden rows, and `R`
-   refreshes discovery. When a provider remedy is offered, `t` runs it in a terminal and
-   refreshes afterward. In the filter, use arrow keys to move and `Enter` to choose;
-   `Esc` returns focus to the list.
+   refreshes discovery. If no Create row is available, `n` explains why. When a provider
+   remedy is offered, `t` runs it in a terminal and refreshes afterward. In the filter,
+   use arrow keys to move and `Enter` to choose; `Esc` returns focus to the list.
 2. **Configure.** Set the project name, aliases, SASE setup, and whether to make it
    current. `Tab` moves through controls; `Space` toggles the focused checkbox. Create
    also offers provider-specific repository settings and checks validity and name

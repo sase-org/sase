@@ -48,7 +48,7 @@ class NewProjectModalProvidersMixin(_MixinBase):
     if TYPE_CHECKING:
         app: App[Any]
         is_mounted: bool
-        _create_support: dict[str, str]
+        _create_support: dict[str, tuple[str, str]]
         _create_support_loading: set[str]
         _current_workflow_type: str
         _disabled_providers: set[str]
@@ -265,16 +265,20 @@ class NewProjectModalProvidersMixin(_MixinBase):
     def _maybe_discover_create_support(
         self, workflow_type: str, *, force: bool = False
     ) -> None:
-        """Describe the provider creation form off-thread, once per provider.
+        """Describe provider creation support for the current namespace.
 
         A non-None form pins the first Source Create row; None (or a
         failure) leaves the ordinary add-only Source list.
         """
         if not workflow_type or self._teardown_started:
             return
+        namespace = self._create_namespace(workflow_type)
+        if namespace is None:
+            return
         if workflow_type in self._create_support_loading:
             return
-        if not force and workflow_type in self._create_support:
+        cached = self._create_support.get(workflow_type)
+        if not force and cached is not None and cached[0] == namespace:
             self._apply_create_support(workflow_type)
             return
         if force:
@@ -282,18 +286,26 @@ class NewProjectModalProvidersMixin(_MixinBase):
         self._create_support_loading.add(workflow_type)
         spawn_pump_free_task(
             self,
-            self._observe_create_support(workflow_type),
+            self._observe_create_support(workflow_type, namespace),
             name=f"new-project-create-support:{workflow_type}",
             registry_attr=MODAL_TASKS,
         )
 
-    async def _observe_create_support(self, workflow_type: str) -> None:
+    def _create_namespace(self, workflow_type: str) -> str | None:
+        """Return the best usable owner namespace, or None before inventory loads."""
         inputs = self._inputs.get(workflow_type)
-        namespace = ""
-        if inputs is not None:
-            namespace = inputs.account or next(
-                (owner.name for owner in inputs.owners if owner.name), ""
-            )
+        if inputs is None:
+            return None
+        return inputs.account or next(
+            (
+                owner.name
+                for owner in inputs.owners
+                if owner.name and owner.status != "error"
+            ),
+            "",
+        )
+
+    async def _observe_create_support(self, workflow_type: str, namespace: str) -> None:
         try:
             form = await asyncio.to_thread(
                 workspace_provider.describe_repo_creation, workflow_type, namespace
@@ -305,9 +317,36 @@ class NewProjectModalProvidersMixin(_MixinBase):
             return
         self._create_support_loading.discard(workflow_type)
         self._create_support[workflow_type] = (
-            "supported" if form is not None else "unsupported"
+            namespace,
+            "supported" if form is not None else "unsupported",
         )
+        if self._create_namespace(workflow_type) != namespace:
+            self._maybe_discover_create_support(workflow_type)
+            return
         self._apply_create_support(workflow_type)
+
+    def _explain_create_unavailable(self) -> None:
+        """Explain why the current provider has no pinned Create row."""
+        workflow_type = self._state.workflow_type
+        metadata = self._provider_by_id.get(workflow_type)
+        display = str(getattr(metadata, "display_name", "") or workflow_type)
+        namespace = self._create_namespace(workflow_type)
+        cached = self._create_support.get(workflow_type)
+        if (
+            namespace is None
+            or workflow_type in self._create_support_loading
+            or cached is None
+            or cached[0] != namespace
+        ):
+            self.notify(
+                f"Checking whether {display} can create repositories…",
+                severity="information",
+            )
+        elif cached is not None and cached == (namespace, "unsupported"):
+            self.notify(
+                f"{display} can't create repositories for {namespace or 'this account'} — press R to retry",
+                severity="warning",
+            )
 
     def _apply_create_support(self, workflow_type: str) -> None:
         """Pin or clear the Source Create row from cached discovery."""
@@ -316,7 +355,9 @@ class NewProjectModalProvidersMixin(_MixinBase):
         if not self._wizard_dom_live():
             return
         source = self.query_one(NewProjectSource)
-        if self._create_support.get(workflow_type) != "supported":
+        cached = self._create_support.get(workflow_type)
+        namespace = self._create_namespace(workflow_type)
+        if cached is None or cached != (namespace, "supported"):
             source.set_create_row(None)
             return
         metadata = self._provider_by_id.get(workflow_type)
@@ -345,6 +386,7 @@ class NewProjectModalProvidersMixin(_MixinBase):
             pending = {owner.name for owner in inputs.owners}
             self._pending_by_provider[workflow_type] = pending
             self._show_inputs_if_selected(workflow_type)
+            self._maybe_discover_create_support(workflow_type)
             await self._refresh_owner_set(workflow_type, inputs, pending, force=False)
             self._mark_revalidated(workflow_type)
         finally:

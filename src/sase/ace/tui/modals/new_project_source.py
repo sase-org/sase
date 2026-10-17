@@ -79,6 +79,9 @@ class NewProjectSource(Vertical):
             super().__init__()
             self.row = row
 
+    class CreateUnavailable(Message):
+        """The user requested Create while no provider Create row is available."""
+
     BINDINGS = [
         ("j", "next_row", "Next"),
         ("down", "next_row", "Next"),
@@ -224,6 +227,7 @@ class NewProjectSource(Vertical):
             return
         row = self._create_row
         if row is None:
+            self.post_message(self.CreateUnavailable())
             return
         self.post_message(self.RowChosen(row))
 
