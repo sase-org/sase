@@ -11,12 +11,12 @@ from pathlib import Path
 
 import pytest
 
-from sase.workspace_provider import rescue as rescue_module
+from sase.workspace_provider import _rescue_git_worktree as rescue_worktree_module
 from sase.workspace_provider.rescue import (
-    _reap_rescue_store,
     quarantine_directory,
     rescue_git_repo,
 )
+from sase.workspace_provider._rescue_store import reap_rescue_store
 
 
 def _git(repo: Path, *args: str) -> subprocess.CompletedProcess[str]:
@@ -619,7 +619,7 @@ def test_rescue_patch_cap_is_honored(
     workspace, clone, _remote = _seed_remote_clone(tmp_path)
     local_sha = _commit_file(clone, "local.txt", "local\n", "unpushed work")
     (clone / "big.txt").write_text("dirty\n", encoding="utf-8")
-    monkeypatch.setattr(rescue_module, "RESCUE_PATCH_MAX_BYTES", 4)
+    monkeypatch.setattr(rescue_worktree_module, "RESCUE_PATCH_MAX_BYTES", 4)
 
     record = rescue_git_repo(
         clone,
@@ -657,7 +657,7 @@ def test_reap_deletes_only_aged_entries(tmp_path: Path) -> None:
     os.utime(old_bundle, (aged_bundle, aged_bundle))
     os.utime(old_quarantine, (aged_quarantine, aged_quarantine))
 
-    _reap_rescue_store(rescue_roots=[root], now=now)
+    reap_rescue_store(rescue_roots=[root], now=now)
 
     assert young.is_dir()
     assert young_quarantine.is_dir()

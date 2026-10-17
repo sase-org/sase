@@ -275,21 +275,21 @@ _REVIEWED_DIR_OPERATION_CONTEXTS: dict[str, DirOpReview] = {
             ),
         )
     ),
-    "src/sase/workspace_provider/rescue.py:_quarantine_directory": DirOpReview(
+    "src/sase/workspace_provider/_rescue_store.py:_quarantine_directory": DirOpReview(
         exemption=(
             "Moves a sidecar clone aside into a rescue-store entry with "
             "os.rename and removes only its own freshly created entry dir "
             "when the move fails; never an agent artifact directory."
         ),
     ),
-    "src/sase/workspace_provider/rescue.py:_reap_rescue_entries": DirOpReview(
+    "src/sase/workspace_provider/_rescue_store.py:_reap_rescue_entries": DirOpReview(
         exemption=(
             "Deletes only aged rescue-store entries (bundles/patches older "
             "than 30 days, quarantines older than 7 days); never an agent "
             "artifact directory."
         ),
     ),
-    "src/sase/workspace_provider/rescue.py:_rescue_git_repo": DirOpReview(
+    "src/sase/workspace_provider/_rescue_git.py:_rescue_git_repo_body": DirOpReview(
         exemption=(
             "Removes only its own freshly created, still-empty rescue entry "
             "dir when bundling finds nothing worth preserving; never an agent "
