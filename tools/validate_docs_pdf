@@ -19,7 +19,7 @@ MIN_PAGE_COUNT = 8
 REQUIRED_SENTINELS = (
     "Structured Agentic Software Engineering",
     "Run your first agent",
-    "Why Coding Agents Need Orchestration",
+    "One place to run agents and land their work",
     "SASE Wraps Agent CLIs, Not Models",
 )
 
@@ -146,11 +146,11 @@ def main() -> int:
             _error(f"  - {sentinel}")
         return 1
 
-    if "1structuredagenticsoftwareengineering" not in _compact(text):
+    if "1runateamofcodingagents" not in _compact(text):
         _error("missing numbered handbook title")
         return 1
 
-    if _normalize("Step 1 — Install SASE") not in text:
+    if _normalize("3.1 Before you start") not in text:
         _error("missing representative nested heading number")
         return 1
 

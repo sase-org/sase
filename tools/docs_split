@@ -22,6 +22,7 @@ from docs_moves import (
     MOVES_PATH,
     _rewrite_handwritten,
     _rewrite_links,
+    _unique_heading_anchor,
     load_moves,
     markdown_link,
     slugify_heading as _slugify,
@@ -55,7 +56,7 @@ class _IndentedSafeDumper(yaml.SafeDumper):
 
 
 HEADING_RE = re.compile(r"^\s{0,3}(#{1,6})\s+(.+?)\s*#*\s*$")
-EXPLICIT_ANCHOR_RE = re.compile(r"\s*\{\s*#([^}]+?)\s*\}\s*$")
+EXPLICIT_ANCHOR_RE = re.compile(r"\s*\{\s*#([^\s}]+)(?:\s+[^}]*)?\s*\}\s*$")
 
 
 @dataclass(frozen=True)
@@ -121,7 +122,7 @@ def _headings(lines: list[str]) -> list[Heading]:
 
     result: list[Heading] = []
     parents: dict[int, str] = {}
-    slug_counts: dict[str, int] = {}
+    used_anchors: set[str] = set()
     for position, (level, title, start) in enumerate(raw):
         for known_level in tuple(parents):
             if known_level >= level:
@@ -129,13 +130,8 @@ def _headings(lines: list[str]) -> list[Heading]:
         if level >= 2:
             parents[level] = title
         path = tuple(parents[item] for item in sorted(parents))
-        slug = _slugify(title)
-        count = slug_counts.get(slug, 0)
-        slug_counts[slug] = count + 1
-        anchor = slug if count == 0 else f"{slug}-{count}"
-        explicit = EXPLICIT_ANCHOR_RE.search(title)
-        if explicit:
-            anchor = explicit.group(1)
+        anchor = _unique_heading_anchor(_slugify(title), used_anchors)
+        used_anchors.add(anchor)
         end = len(lines)
         for next_level, _, next_start in raw[position + 1 :]:
             if next_level <= level:
@@ -348,26 +344,17 @@ def _heading_with_level(line: str, level: int, target_id: str | None) -> str:
     return f"{'#' * level} {body}{newline}"
 
 
-def _target_used_ids(text: str) -> tuple[set[str], dict[str, int]]:
+def _target_used_ids(text: str) -> set[str]:
     used: set[str] = set()
-    counts: dict[str, int] = {}
     lines = text.splitlines(keepends=True)
     for heading in _headings(lines):
-        base = _slugify(heading.title)
-        counts[base] = counts.get(base, 0) + 1
         used.add(heading.anchor)
     used.update(match.group(2) for match in HTML_ID_RE.finditer(text))
-    return used, counts
+    return used
 
 
-def _unique_anchor(base: str, used: set[str], counts: dict[str, int]) -> str:
-    count = counts.get(base, 0)
-    value = base if count == 0 else f"{base}-{count}"
-    while value in used:
-        count += 1
-        value = f"{base}-{count}"
-    counts[base] = count + 1
-    return value
+def _unique_anchor(base: str, used: set[str]) -> str:
+    return _unique_heading_anchor(base, used)
 
 
 def _replace_html_ids(text: str, replacements: dict[str, str]) -> str:
@@ -528,7 +515,6 @@ def _normalize_chunk(
     base_level: int,
     source_headings: dict[int, Heading],
     target_used: set[str],
-    target_counts: dict[str, int],
     source: str,
     target: str,
     anchors: dict[str, tuple[str, str]],
@@ -544,7 +530,7 @@ def _normalize_chunk(
             heading = source_headings[source_index]
             level = max(2, heading.level - base_level + 2)
             base_anchor = _slugify(heading.title)
-            natural = _unique_anchor(base_anchor, target_used, target_counts)
+            natural = _unique_anchor(base_anchor, target_used)
             if heading.anchor not in target_used:
                 target_anchor = heading.anchor
             else:
@@ -571,6 +557,8 @@ def _normalize_chunk(
             while candidate in target_used:
                 suffix += 1
                 candidate = f"{old_id}-{suffix}"
+            # This collision is an authored HTML id; `_replace_html_ids` writes the
+            # chosen spelling explicitly into the moved content.
             replacements[old_id] = candidate
             target_used.add(candidate)
             anchors[old_id] = (target, candidate)
@@ -664,13 +652,10 @@ def plan_split(
     source_headings = {heading.start: heading for heading in headings}
     anchor_map: dict[str, tuple[str, str]] = {}
     target_used: dict[str, set[str]] = {}
-    target_counts: dict[str, dict[str, int]] = {}
     target_word_totals: dict[str, tuple[int, int | None]] = {}
     normalized_chunks: dict[str, list[tuple[str, list[_NormalizedLine]]]] = {}
     for target, parts in chunks.items():
-        target_used[target], target_counts[target] = _target_used_ids(
-            target_texts[target]
-        )
+        target_used[target] = _target_used_ids(target_texts[target])
         normalized_chunks[target] = []
         for selector, chunk, base_level in parts:
             normalized = _normalize_chunk(
@@ -678,7 +663,6 @@ def plan_split(
                 base_level=base_level,
                 source_headings=source_headings,
                 target_used=target_used[target],
-                target_counts=target_counts[target],
                 source=source,
                 target=target,
                 anchors=anchor_map,
@@ -696,7 +680,7 @@ def plan_split(
     for _, request, _, _ in selected:
         if request.target is not None:
             target = request.target
-            used, _ = _target_used_ids(target_texts[target])
+            used = _target_used_ids(target_texts[target])
             for old_id in ids[request.selector]:
                 if old_id not in anchor_map:
                     anchor = old_id
@@ -705,6 +689,8 @@ def plan_split(
                         while f"{old_id}-{suffix}" in used:
                             suffix += 1
                         anchor = f"{old_id}-{suffix}"
+                    # This fallback routes a literal HTML id, not a generated heading
+                    # id, so its suffix is preserved as an explicit id by the split.
                     anchor_map[old_id] = (target, anchor)
                     used.add(anchor)
         elif request.drop and request.anchor_target is None:

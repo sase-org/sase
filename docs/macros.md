@@ -444,3 +444,7 @@ This page has moved. See [Macro Template Reference](reference/macros/index.md).
 <a id="troubleshooting"></a>
 
 - [Troubleshooting](reference/macros/troubleshooting.md#troubleshooting)
+
+<a id="table-of-contents"></a>
+
+- [Table of contents](reference/macros/index.md)

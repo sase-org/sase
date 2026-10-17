@@ -1,10 +1,11 @@
 INHERIT: mkdocs.yml
 
 # The handbook is a curated Guide edition. Keep these rules directory based so
-# new tutorial, concept, and guide pages join automatically.
+# new tutorial, concept, and guide pages join automatically. Anchor the homepage
+# rule: a bare `index.md` would also keep every Reference and Contribute hub.
 exclude_docs: |
   **/*.md
-  !index.md
+  !/index.md
   !start/**
   !concepts/**
   !guides/**

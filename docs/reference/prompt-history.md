@@ -92,6 +92,8 @@ by a recency index that would change every time you launch something new:
 If a short prefix matches more than one prompt, the command prints the colliding IDs and
 asks for a longer selector. Adding newer prompts never changes an existing prompt's ID.
 
+<a id="command-inventory"></a>
+
 ## Command Reference
 
 The generated [prompt CLI reference](cli/prompt.md) lists every subcommand and option.
@@ -281,6 +283,8 @@ sase prompt show ph_8f3a9c0d12ab -f raw | wc -c
 sase prompt show ph_8f3a9c0d12ab -f markdown   # metadata header + body
 sase prompt show ph_8f3a9c0d12ab -f json       # metadata + full text
 ```
+
+<a id="rerun-a-prompt-optionally-editing-first"></a>
 
 ### Replay a prompt
 

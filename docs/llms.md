@@ -181,9 +181,17 @@ This page has moved. See [Providers and models](reference/providers/index.md).
 
 - [On success postprocesssuccess](contribute/llm-invocation.md#on-success-postprocesssuccess)
 
+<a id="on-success-postprocess_success"></a>
+
+- [On success postprocess success](contribute/llm-invocation.md#on-success-postprocesssuccess)
+
 <a id="on-error-postprocesserror"></a>
 
 - [On error postprocesserror](contribute/llm-invocation.md#on-error-postprocesserror)
+
+<a id="on-error-postprocess_error"></a>
+
+- [On error postprocess error](contribute/llm-invocation.md#on-error-postprocesserror)
 
 <a id="sasemd-log-format"></a>
 
@@ -261,6 +269,10 @@ This page has moved. See [Providers and models](reference/providers/index.md).
 
 - [Command construction 1](reference/providers/agy.md#command-construction-1)
 
+<a id="command-construction_1"></a>
+
+- [Command construction 1](reference/providers/agy.md#command-construction-1)
+
 <a id="print-mode-no-progress-recovery"></a>
 
 - [Print mode no progress recovery](reference/providers/agy.md#print-mode-no-progress-recovery)
@@ -269,7 +281,15 @@ This page has moved. See [Providers and models](reference/providers/index.md).
 
 - [Model mapping 1](reference/providers/agy.md#model-mapping-1)
 
+<a id="model-mapping_1"></a>
+
+- [Model mapping 1](reference/providers/agy.md#model-mapping-1)
+
 <a id="environment-variables-1"></a>
+
+- [Environment variables 1](reference/providers/agy.md#environment-variables-1)
+
+<a id="environment-variables_1"></a>
 
 - [Environment variables 1](reference/providers/agy.md#environment-variables-1)
 
@@ -285,11 +305,19 @@ This page has moved. See [Providers and models](reference/providers/index.md).
 
 - [Timer display 1](reference/providers/agy.md#timer-display-1)
 
+<a id="timer-display_1"></a>
+
+- [Timer display 1](reference/providers/agy.md#timer-display-1)
+
 <a id="codex-cli-integration"></a>
 
 - [Codex cli integration](reference/providers/codex.md#codex-cli-integration)
 
 <a id="command-construction-2"></a>
+
+- [Command construction 2](reference/providers/codex.md#command-construction-2)
+
+<a id="command-construction_2"></a>
 
 - [Command construction 2](reference/providers/codex.md#command-construction-2)
 
@@ -301,11 +329,19 @@ This page has moved. See [Providers and models](reference/providers/index.md).
 
 - [Model mapping 2](reference/providers/codex.md#model-mapping-2)
 
+<a id="model-mapping_2"></a>
+
+- [Model mapping 2](reference/providers/codex.md#model-mapping-2)
+
 <a id="plan-handling"></a>
 
 - [Plan handling](reference/providers/codex.md#plan-handling)
 
 <a id="environment-variables-2"></a>
+
+- [Environment variables 2](reference/providers/codex.md#environment-variables-2)
+
+<a id="environment-variables_2"></a>
 
 - [Environment variables 2](reference/providers/codex.md#environment-variables-2)
 
@@ -321,6 +357,10 @@ This page has moved. See [Providers and models](reference/providers/index.md).
 
 - [Timer display 2](reference/providers/codex.md#timer-display-2)
 
+<a id="timer-display_2"></a>
+
+- [Timer display 2](reference/providers/codex.md#timer-display-2)
+
 <a id="qwen-code-integration"></a>
 
 - [Qwen code integration](reference/providers/qwen.md#qwen-code-integration)
@@ -329,7 +369,15 @@ This page has moved. See [Providers and models](reference/providers/index.md).
 
 - [Command construction 3](reference/providers/qwen.md#command-construction-3)
 
+<a id="command-construction_3"></a>
+
+- [Command construction 3](reference/providers/qwen.md#command-construction-3)
+
 <a id="model-mapping-3"></a>
+
+- [Model mapping 3](reference/providers/qwen.md#model-mapping-3)
+
+<a id="model-mapping_3"></a>
 
 - [Model mapping 3](reference/providers/qwen.md#model-mapping-3)
 
@@ -341,6 +389,10 @@ This page has moved. See [Providers and models](reference/providers/index.md).
 
 - [Environment variables 3](reference/providers/qwen.md#environment-variables-3)
 
+<a id="environment-variables_3"></a>
+
+- [Environment variables 3](reference/providers/qwen.md#environment-variables-3)
+
 <a id="qwen-tool-call-capture"></a>
 
 - [Qwen tool call capture](reference/providers/qwen.md#qwen-tool-call-capture)
@@ -349,7 +401,15 @@ This page has moved. See [Providers and models](reference/providers/index.md).
 
 - [Commit finalization 1](reference/providers/qwen.md#commit-finalization-1)
 
+<a id="commit-finalization_1"></a>
+
+- [Commit finalization 1](reference/providers/qwen.md#commit-finalization-1)
+
 <a id="timer-display-3"></a>
+
+- [Timer display 3](reference/providers/qwen.md#timer-display-3)
+
+<a id="timer-display_3"></a>
 
 - [Timer display 3](reference/providers/qwen.md#timer-display-3)
 
@@ -361,7 +421,15 @@ This page has moved. See [Providers and models](reference/providers/index.md).
 
 - [Command construction 4](reference/providers/opencode.md#command-construction-4)
 
+<a id="command-construction_4"></a>
+
+- [Command construction 4](reference/providers/opencode.md#command-construction-4)
+
 <a id="model-mapping-4"></a>
+
+- [Model mapping 4](reference/providers/opencode.md#model-mapping-4)
+
+<a id="model-mapping_4"></a>
 
 - [Model mapping 4](reference/providers/opencode.md#model-mapping-4)
 
@@ -373,7 +441,15 @@ This page has moved. See [Providers and models](reference/providers/index.md).
 
 - [Environment variables 4](reference/providers/opencode.md#environment-variables-4)
 
+<a id="environment-variables_4"></a>
+
+- [Environment variables 4](reference/providers/opencode.md#environment-variables-4)
+
 <a id="timer-display-4"></a>
+
+- [Timer display 4](reference/providers/opencode.md#timer-display-4)
+
+<a id="timer-display_4"></a>
 
 - [Timer display 4](reference/providers/opencode.md#timer-display-4)
 
@@ -389,11 +465,19 @@ This page has moved. See [Providers and models](reference/providers/index.md).
 
 - [Command construction 5](reference/providers/muse.md#command-construction-5)
 
+<a id="command-construction_5"></a>
+
+- [Command construction 5](reference/providers/muse.md#command-construction-5)
+
 <a id="single-turn-normalization"></a>
 
 - [Single turn normalization](reference/providers/muse.md#single-turn-normalization)
 
 <a id="model-mapping-5"></a>
+
+- [Model mapping 5](reference/providers/muse.md#model-mapping-5)
+
+<a id="model-mapping_5"></a>
 
 - [Model mapping 5](reference/providers/muse.md#model-mapping-5)
 
@@ -425,7 +509,15 @@ This page has moved. See [Providers and models](reference/providers/index.md).
 
 - [Environment variables 5](reference/providers/muse.md#environment-variables-5)
 
+<a id="environment-variables_5"></a>
+
+- [Environment variables 5](reference/providers/muse.md#environment-variables-5)
+
 <a id="timer-display-5"></a>
+
+- [Timer display 5](reference/providers/muse.md#timer-display-5)
+
+<a id="timer-display_5"></a>
 
 - [Timer display 5](reference/providers/muse.md#timer-display-5)
 
@@ -437,11 +529,23 @@ This page has moved. See [Providers and models](reference/providers/index.md).
 
 - [Selection 1](reference/providers/grok.md#selection-1)
 
+<a id="selection_1"></a>
+
+- [Selection 1](reference/providers/grok.md#selection-1)
+
 <a id="command-construction-6"></a>
 
 - [Command construction 6](reference/providers/grok.md#command-construction-6)
 
+<a id="command-construction_6"></a>
+
+- [Command construction 6](reference/providers/grok.md#command-construction-6)
+
 <a id="model-mapping-6"></a>
+
+- [Model mapping 6](reference/providers/grok.md#model-mapping-6)
+
+<a id="model-mapping_6"></a>
 
 - [Model mapping 6](reference/providers/grok.md#model-mapping-6)
 
@@ -450,6 +554,10 @@ This page has moved. See [Providers and models](reference/providers/index.md).
 - [Grok reasoning effort](reference/providers/grok.md#grok-reasoning-effort)
 
 <a id="the-event-stream-1"></a>
+
+- [The event stream 1](reference/providers/grok.md#the-event-stream-1)
+
+<a id="the-event-stream_1"></a>
 
 - [The event stream 1](reference/providers/grok.md#the-event-stream-1)
 
@@ -465,7 +573,15 @@ This page has moved. See [Providers and models](reference/providers/index.md).
 
 - [Interrupts and retries 1](reference/providers/grok.md#interrupts-and-retries-1)
 
+<a id="interrupts-and-retries_1"></a>
+
+- [Interrupts and retries 1](reference/providers/grok.md#interrupts-and-retries-1)
+
 <a id="skills-and-instruction-file-1"></a>
+
+- [Skills and instruction file 1](reference/providers/grok.md#skills-and-instruction-file-1)
+
+<a id="skills-and-instruction-file_1"></a>
 
 - [Skills and instruction file 1](reference/providers/grok.md#skills-and-instruction-file-1)
 
@@ -473,7 +589,15 @@ This page has moved. See [Providers and models](reference/providers/index.md).
 
 - [Environment variables 6](reference/providers/grok.md#environment-variables-6)
 
+<a id="environment-variables_6"></a>
+
+- [Environment variables 6](reference/providers/grok.md#environment-variables-6)
+
 <a id="timer-display-6"></a>
+
+- [Timer display 6](reference/providers/grok.md#timer-display-6)
+
+<a id="timer-display_6"></a>
 
 - [Timer display 6](reference/providers/grok.md#timer-display-6)
 
@@ -613,7 +737,15 @@ This page has moved. See [Providers and models](reference/providers/index.md).
 
 - [Configuration 1](reference/providers/retry-and-fallback.md#configuration-1)
 
+<a id="configuration_1"></a>
+
+- [Configuration 1](reference/providers/retry-and-fallback.md#configuration-1)
+
 <a id="config-fields-1"></a>
+
+- [Config fields 1](reference/config/llm-provider.md#llm_provider-retry)
+
+<a id="config-fields_1"></a>
 
 - [Config fields 1](reference/config/llm-provider.md#llm_provider-retry)
 

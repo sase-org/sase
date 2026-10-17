@@ -202,7 +202,7 @@ def test_docs_move_stub_records_all_heading_and_html_anchors(tmp_path: Path) -> 
     assert move["anchors"] == {
         "source-page": "reference/source.md#source-page",
         "repeated": "reference/source.md#repeated",
-        "repeated-1": "reference/source.md#repeated-1",
+        "repeated_1": "reference/source.md#repeated_1",
         "named-heading": "reference/source.md#named-heading",
         "html-anchor": "reference/source.md#html-anchor",
     }
@@ -303,7 +303,8 @@ def test_docs_split_moves_sections_rewrites_links_and_preserves_anchor_urls(
     assert "## Alpha" not in source.read_text(encoding="utf-8")
     alpha = (tmp_path / "docs/reference/alpha.md").read_text(encoding="utf-8")
     assert "## Alpha" in alpha
-    assert "beta.md#beta-1" in alpha
+    assert "## Alpha {#alpha_1}" not in alpha
+    assert "beta.md#beta_1" in alpha
     assert "../other.md#thing" in alpha
     links = (tmp_path / "docs/links.md").read_text(encoding="utf-8")
     assert "reference/alpha.md#alpha" in links
@@ -319,8 +320,8 @@ def test_docs_split_moves_sections_rewrites_links_and_preserves_anchor_urls(
     )
     split_move = next(item for item in moves["moves"] if item["from"] == "source.md")
     assert split_move["anchors"] == {
-        "alpha": "reference/alpha.md#alpha-1",
-        "beta": "reference/beta.md#beta-1",
+        "alpha": "reference/alpha.md#alpha_1",
+        "beta": "reference/beta.md#beta_1",
     }
     stub = (tmp_path / "docs/source.md").read_text(encoding="utf-8")
     assert '<a id="alpha"></a>' in stub
@@ -333,8 +334,8 @@ def test_docs_split_moves_sections_rewrites_links_and_preserves_anchor_urls(
     site = tmp_path / "site"
     for route, anchors in (
         ("source", {"alpha", "beta"}),
-        ("reference/alpha", {"alpha-1"}),
-        ("reference/beta", {"beta-1"}),
+        ("reference/alpha", {"alpha_1"}),
+        ("reference/beta", {"beta_1"}),
         ("instruction_bundles", set()),
     ):
         page = site / route / "index.html"
@@ -448,7 +449,7 @@ def test_docs_split_supports_h4_nested_intro_drop_and_finish(tmp_path: Path) -> 
     assert "### Child" in parent
     assert "#### Deep Heading" not in parent
     assert '<a id="deep-heading"></a>' in parent
-    assert "Moved to [Deep Heading](deep.md#deep-heading-1)." in parent
+    assert "Moved to [Deep Heading](deep.md#deep-heading_1)." in parent
     assert "## Deep Heading" in deep
     assert "### Child Detail {#child-detail}" in deep
     assert "deep-html" in deep
@@ -483,7 +484,7 @@ def test_docs_split_supports_h4_nested_intro_drop_and_finish(tmp_path: Path) -> 
     moves = yaml.safe_load((docs / "_meta/moves.yml").read_text(encoding="utf-8"))
     source_move = next(item for item in moves["moves"] if item["from"] == "source.md")
     assert source_move["to"] == "reference/index.md"
-    assert source_move["anchors"]["deep-heading"] == "reference/deep.md#deep-heading-1"
+    assert source_move["anchors"]["deep-heading"] == "reference/deep.md#deep-heading_1"
     assert source_move["anchors"]["deep-html"] == "reference/deep.md#deep-html"
     assert source_move["anchors"]["child-detail"] == "reference/deep.md#child-detail"
     assert source_move["anchors"]["contents"] == "reference/index.md#contents"
@@ -529,10 +530,10 @@ def test_docs_split_nested_pointers_use_their_own_targets(tmp_path: Path) -> Non
     grandchild = (docs / "howtos/grandchild.md").read_text(encoding="utf-8")
     assert "Parent facts." in parent
     assert "Child facts." not in parent
-    assert "Moved to [Child](../guides/child.md#child-1)." in parent
+    assert "Moved to [Child](../guides/child.md#child_1)." in parent
     assert "Child facts." in child
     assert "Grandchild facts." not in child
-    assert "Moved to [Grandchild](../howtos/grandchild.md#grandchild-1)." in child
+    assert "Moved to [Grandchild](../howtos/grandchild.md#grandchild_1)." in child
     assert "Grandchild facts." in grandchild
 
 
@@ -651,6 +652,11 @@ def test_docs_map_lists_pages_by_nav_tab_and_canonical_move(
     (tmp_path / "docs/images/ignored.prompt.md").write_text(
         "# Internal prompt\n", encoding="utf-8"
     )
+    (tmp_path / "docs/blog/posts").mkdir(parents=True)
+    (tmp_path / "docs/blog/posts/unpublished.md").write_text(
+        "---\ntitle: Unpublished\ndraft: true\n---\n\n# Unpublished\n",
+        encoding="utf-8",
+    )
     (tmp_path / "mkdocs.yml").write_text(
         "site_name: Fixture\nsite_url: https://example.test/\n"
         "exclude_docs: |\n  images/**/*.prompt.md\n"
@@ -667,3 +673,5 @@ def test_docs_map_lists_pages_by_nav_tab_and_canonical_move(
     assert "https://example.test/instruction_inventory/" in llms
     assert "ignored.prompt.md" not in readme
     assert "ignored.prompt.md" not in llms
+    assert "unpublished" not in readme
+    assert "unpublished" not in llms

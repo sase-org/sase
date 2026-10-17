@@ -340,16 +340,7 @@
 ## Blog
 
 - [SASE Blog](blog/index.md) — Essays on structured agentic software engineering and the SASE launch post.
-- [[03] AXE — The Background Daemon That Keeps Agent Work Moving](blog/posts/axe-background-daemon.md) — Agents shouldn't poll. AXE is the background daemon that does the polling for them so the engineering workflow keeps moving while individual agents finish, fail, or wait.
-- [[04] Beads and SDD — Planning Multi-Agent Work That Actually Lands](blog/posts/beads-and-sdd.md) — Orchestration only matters if you can split work into pieces with a real ordering. Beads and Spec-Driven Development are how SASE files that work and schedules it.
-- [[06] Patches in Practice — Review State Outside the Chat](blog/posts/changespecs-in-practice.md) — Patches are durable, reviewable records for PR-sized agent work. This post shows how their review state works in practice.
-- [[05] Commit Workflows — The Pluggable Path From Diff to PR](blog/posts/commit-workflows-plugins.md) — Every agent eventually has to land code somewhere. SASE's commit workflows are the small, runtime-uniform layer that turns a diff into a commit, a proposal, or a pull request without the agent caring which VCS is underneath.
-- [[02] Macros in Depth — From One File to Full Workflows](blog/posts/macros-in-depth.md) — Macros up close: when a single Markdown file is the right shape, when typed inputs and directives are enough, and when the job really does want a YAML workflow.
-- [[08] Where You Type — The Prompt Input Widget and sase-nvim](blog/posts/prompt-widget-and-nvim.md) — Where the operator actually types: a multiline Textual TextArea with completion, history, snippets, and a Vim mode in the TUI — and sase-nvim, the Neovim plugin that gives the same prompt language a richer editor.
 - [SASE: Structured Agentic Software Engineering](blog/posts/structured-agentic-software-engineering.md) — From a tmux full of coding agents to an operating layer around them: agent CLIs, Macros, sase's TUI Agents tab, and a practical install path for SASE.
-- [[07] Driving SASE From Your Phone — Telegram as the Mobile Control Surface](blog/posts/telegram-mobile-agents.md) — The sase-telegram plugin turns an existing Telegram chat into a mobile control surface for SASE — launch agents, approve plans, kill runs, and review generated images from the phone in your pocket.
-- [[09] What's Next — Shared Memory, Mobile, and the Web Surface](blog/posts/whats-next-memory-mobile-web.md) — SASE today is the orchestration layer. The next horizon is shared memory across agents, a mobile control surface, and a web frontend that doesn't require a terminal.
-- [[00] The Missing Operating Layer for Coding Agents](blog/posts/why-coding-agents-need-orchestration.md) — SASE's first principles: Macros, SDD, Beads, sase's TUI, AXE, plugins, and the durable operating layer around coding-agent CLIs.
 
 ## Compatibility
 

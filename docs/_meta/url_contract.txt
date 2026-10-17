@@ -50,6 +50,8 @@ https://sase.sh/perf_runbook/
 https://sase.sh/plugins/
 https://sase.sh/project_spec/
 https://sase.sh/prompt/
+https://sase.sh/prompt/#command-inventory
+https://sase.sh/prompt/#rerun-a-prompt-optionally-editing-first
 https://sase.sh/query_language/
 https://sase.sh/reference/
 https://sase.sh/reference/design-decisions/

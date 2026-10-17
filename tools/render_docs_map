@@ -14,7 +14,7 @@ from urllib.parse import urljoin
 import yaml  # type: ignore[import-untyped]
 
 from docs_moves import REPO_ROOT, load_moves, site_url
-from docs_render_utils import markdown_title_and_description
+from docs_render_utils import markdown_title_and_description, parse_frontmatter
 
 
 GENERATED_MARKER = "<!-- generated, do not edit -->"
@@ -110,6 +110,9 @@ def _read_documents(root: Path) -> tuple[list[tuple[str, str, str, str]], list[s
         if _excluded_by_mkdocs(relative, config.get("exclude_docs")):
             continue
         text = path.read_text(encoding="utf-8")
+        # The blog plugin never publishes drafts, so they get no site URL.
+        if parse_frontmatter(text)[0].get("draft") is True:
+            continue
         title, description = markdown_title_and_description(path, text)
         if relative in stub_paths:
             tab = "Compatibility"

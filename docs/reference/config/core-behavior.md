@@ -281,8 +281,8 @@ apply steps.
 
 Home-level provider instruction files (`CLAUDE.md`, `GEMINI.md`, `QWEN.md`,
 `OPENCODE.md`) in the chezmoi source are byte-for-byte copies of the root's generated
-`AGENTS.md` until E5. When no machine overlay declares `memory.h1_title`, those copies
-stay static `.md` files. When a machine overlay does declare a title, `sase memory init`
+`AGENTS.md`. When no machine overlay declares `memory.h1_title`, those copies stay
+static `.md` files. When a machine overlay does declare a title, `sase memory init`
 writes `AGENTS.md.tmpl` and preferred `*.md.tmpl` shims whose H1 switches on
 `.chezmoi.hostname`, and migrates leftover static copies away. Existing `*.md.tmpl`
 shims that imported `@{{ .chezmoi.homeDir }}/AGENTS.md` are recognized and migrated to

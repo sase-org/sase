@@ -69,6 +69,10 @@ This page has moved. See [Configuration reference](reference/config/index.md).
 
 - [Memoryh1title](reference/config/core-behavior.md#memoryh1title)
 
+<a id="memoryh1_title"></a>
+
+- [Memoryh1 title](reference/config/core-behavior.md#memoryh1_title)
+
 <a id="generated-templates"></a>
 
 - [Generated templates](reference/config/core-behavior.md#generated-templates)
@@ -76,6 +80,10 @@ This page has moved. See [Configuration reference](reference/config/index.md).
 <a id="issasemanaged"></a>
 
 - [Issasemanaged](reference/config/core-behavior.md#issasemanaged)
+
+<a id="is_sase_managed"></a>
+
+- [Is sase managed](reference/config/core-behavior.md#is_sase_managed)
 
 <a id="id"></a>
 
@@ -85,9 +93,17 @@ This page has moved. See [Configuration reference](reference/config/index.md).
 
 - [Machinename deprecated](reference/config/core-behavior.md#machinename-deprecated)
 
+<a id="machine_name-deprecated"></a>
+
+- [Machine name deprecated](reference/config/core-behavior.md#machinename-deprecated)
+
 <a id="usechezmoi"></a>
 
 - [Usechezmoi](reference/config/core-behavior.md#usechezmoi)
+
+<a id="use_chezmoi"></a>
+
+- [Use chezmoi](reference/config/core-behavior.md#use_chezmoi)
 
 <a id="timezone"></a>
 
@@ -101,6 +117,10 @@ This page has moved. See [Configuration reference](reference/config/index.md).
 
 - [Aceartifactfileviewer](reference/config/ace-behavior.md#aceartifactfileviewer)
 
+<a id="aceartifact_file_viewer"></a>
+
+- [Aceartifact file viewer](reference/config/ace-behavior.md#aceartifact_file_viewer)
+
 <a id="aceartifacts"></a>
 
 - [Aceartifacts](reference/config/ace-behavior.md#aceartifacts)
@@ -113,9 +133,17 @@ This page has moved. See [Configuration reference](reference/config/index.md).
 
 - [Aceaxedescriptionexpanded](reference/config/ace-behavior.md#aceaxedescriptionexpanded)
 
+<a id="aceaxe_description_expanded"></a>
+
+- [Aceaxe description expanded](reference/config/ace-behavior.md#aceaxe_description_expanded)
+
 <a id="acecurrentproject"></a>
 
 - [Acecurrentproject](reference/config/ace-behavior.md#acecurrentproject)
+
+<a id="acecurrent_project"></a>
+
+- [Acecurrent project](reference/config/ace-behavior.md#acecurrent_project)
 
 <a id="acetribes"></a>
 
@@ -125,17 +153,33 @@ This page has moved. See [Configuration reference](reference/config/index.md).
 
 - [Acenotificationtabs](reference/config/ace-behavior.md#acenotificationtabs)
 
+<a id="acenotification_tabs"></a>
+
+- [Acenotification tabs](reference/config/ace-behavior.md#acenotification_tabs)
+
 <a id="acenotificationindicatormaxcounts"></a>
 
 - [Acenotificationindicatormaxcounts](reference/config/ace-behavior.md#acenotificationindicatormaxcounts)
+
+<a id="acenotification_indicator_max_counts"></a>
+
+- [Acenotification indicator max counts](reference/config/ace-behavior.md#acenotification_indicator_max_counts)
 
 <a id="acepagesize"></a>
 
 - [Acepagesize](reference/config/ace-behavior.md#acepagesize)
 
+<a id="acepage_size"></a>
+
+- [Acepage size](reference/config/ace-behavior.md#acepage_size)
+
 <a id="acetoolcalls"></a>
 
 - [Acetoolcalls](reference/config/ace-behavior.md#acetoolcalls)
+
+<a id="acetool_calls"></a>
+
+- [Acetool calls](reference/config/ace-behavior.md#acetool_calls)
 
 <a id="aceupdates"></a>
 
@@ -149,6 +193,10 @@ This page has moved. See [Configuration reference](reference/config/index.md).
 
 - [Acesnippetconfigpath](reference/config/ace-prompts.md#acesnippetconfigpath)
 
+<a id="acesnippet_config_path"></a>
+
+- [Acesnippet config path](reference/config/ace-prompts.md#acesnippet_config_path)
+
 <a id="acesnippets"></a>
 
 - [Acesnippets](reference/config/ace-prompts.md#acesnippets)
@@ -157,33 +205,65 @@ This page has moved. See [Configuration reference](reference/config/index.md).
 
 - [Acepromptcompletion](reference/config/ace-prompts.md#acepromptcompletion)
 
+<a id="aceprompt_completion"></a>
+
+- [Aceprompt completion](reference/config/ace-prompts.md#aceprompt_completion)
+
 <a id="acepromptspellcheck"></a>
 
 - [Acepromptspellcheck](reference/config/ace-prompts.md#acepromptspellcheck)
+
+<a id="aceprompt_spellcheck"></a>
+
+- [Aceprompt spellcheck](reference/config/ace-prompts.md#aceprompt_spellcheck)
 
 <a id="acepromptstash"></a>
 
 - [Acepromptstash](reference/config/ace-prompts.md#acepromptstash)
 
+<a id="aceprompt_stash"></a>
+
+- [Aceprompt stash](reference/config/ace-prompts.md#aceprompt_stash)
+
 <a id="aceagentdecks"></a>
 
 - [Aceagentdecks](reference/config/ace-prompts.md#aceagentdecks)
+
+<a id="aceagent_decks"></a>
+
+- [Aceagent decks](reference/config/ace-prompts.md#aceagent_decks)
 
 <a id="aceagentheader"></a>
 
 - [Aceagentheader](reference/config/ace-prompts.md#aceagentheader)
 
+<a id="aceagent_header"></a>
+
+- [Aceagent header](reference/config/ace-prompts.md#aceagent_header)
+
 <a id="aceagenttabs"></a>
 
 - [Aceagenttabs](reference/config/ace-prompts.md#aceagenttabs)
+
+<a id="aceagent_tabs"></a>
+
+- [Aceagent tabs](reference/config/ace-prompts.md#aceagent_tabs)
 
 <a id="acepromptsubmission"></a>
 
 - [Acepromptsubmission](reference/config/ace-prompts.md#acepromptsubmission)
 
+<a id="aceprompt_submission"></a>
+
+- [Aceprompt submission](reference/config/ace-prompts.md#aceprompt_submission)
+
 <a id="acepromptinputs"></a>
 
 - [Acepromptinputs](reference/config/ace-prompts.md#acepromptinputs)
+
+<a id="aceprompt_inputs"></a>
+
+- [Aceprompt inputs](reference/config/ace-prompts.md#aceprompt_inputs)
 
 <a id="artifacts"></a>
 
@@ -193,25 +273,49 @@ This page has moved. See [Configuration reference](reference/config/index.md).
 
 - [Artifactrefs](reference/config/artifacts.md#artifactrefs)
 
+<a id="artifact_refs"></a>
+
+- [Artifact refs](reference/config/artifacts.md#artifact_refs)
+
 <a id="llmprovider"></a>
 
 - [Llmprovider](reference/config/llm-provider-behavior.md#llmprovider)
+
+<a id="llm_provider"></a>
+
+- [Llm provider](reference/config/llm-provider-behavior.md#llm_provider)
 
 <a id="llmproviderusagelimit"></a>
 
 - [Llmproviderusagelimit](reference/config/llm-provider-behavior.md#llmproviderusagelimit)
 
+<a id="llm_providerusage_limit"></a>
+
+- [Llm providerusage limit](reference/config/llm-provider-behavior.md#llm_providerusage_limit)
+
 <a id="llmproviderusagemetrics"></a>
 
 - [Llmproviderusagemetrics](reference/config/llm-provider-behavior.md#llmproviderusagemetrics)
+
+<a id="llm_providerusage_metrics"></a>
+
+- [Llm providerusage metrics](reference/config/llm-provider-behavior.md#llm_providerusage_metrics)
 
 <a id="llmprovidercontinuationbudget"></a>
 
 - [Llmprovidercontinuationbudget](reference/config/llm-provider-behavior.md#llmprovidercontinuationbudget)
 
+<a id="llm_providercontinuation_budget"></a>
+
+- [Llm providercontinuation budget](reference/config/llm-provider-behavior.md#llm_providercontinuation_budget)
+
 <a id="llmproviderretry"></a>
 
 - [Llmproviderretry](reference/config/llm-provider-behavior.md#llmproviderretry)
+
+<a id="llm_providerretry"></a>
+
+- [Llm providerretry](reference/config/llm-provider-behavior.md#llm_providerretry)
 
 <a id="finalizers"></a>
 
@@ -224,6 +328,10 @@ This page has moved. See [Configuration reference](reference/config/index.md).
 <a id="commithooks"></a>
 
 - [Commithooks](reference/config/finalizers.md#commithooks)
+
+<a id="commit_hooks"></a>
+
+- [Commit hooks](reference/config/finalizers.md#commit_hooks)
 
 <a id="monitor"></a>
 
@@ -245,13 +353,25 @@ This page has moved. See [Configuration reference](reference/config/index.md).
 
 - [Vcsprovider](reference/config/repositories-behavior.md#vcsprovider)
 
+<a id="vcs_provider"></a>
+
+- [Vcs provider](reference/config/repositories-behavior.md#vcs_provider)
+
 <a id="vcsrepocompletion"></a>
 
 - [Vcsrepocompletion](reference/config/repositories-behavior.md#vcsrepocompletion)
 
+<a id="vcs_repo_completion"></a>
+
+- [Vcs repo completion](reference/config/repositories-behavior.md#vcs_repo_completion)
+
 <a id="vcsrefcompletion"></a>
 
 - [Vcsrefcompletion](reference/config/repositories-behavior.md#vcsrefcompletion)
+
+<a id="vcs_ref_completion"></a>
+
+- [Vcs ref completion](reference/config/repositories-behavior.md#vcs_ref_completion)
 
 <a id="axe"></a>
 
@@ -261,6 +381,10 @@ This page has moved. See [Configuration reference](reference/config/index.md).
 
 - [Filehooks](reference/config/prompts-and-tools.md#filehooks)
 
+<a id="file_hooks"></a>
+
+- [File hooks](reference/config/prompts-and-tools.md#file_hooks)
+
 <a id="plugins"></a>
 
 - [Plugins](reference/config/prompts-and-tools.md#plugins)
@@ -268,6 +392,10 @@ This page has moved. See [Configuration reference](reference/config/index.md).
 <a id="mentorprofiles"></a>
 
 - [Mentorprofiles](reference/config/prompts-and-tools.md#mentorprofiles)
+
+<a id="mentor_profiles"></a>
+
+- [Mentor profiles](reference/config/prompts-and-tools.md#mentor_profiles)
 
 <a id="metahooks"></a>
 
@@ -280,6 +408,10 @@ This page has moved. See [Configuration reference](reference/config/index.md).
 <a id="macroaliases"></a>
 
 - [Macroaliases](reference/config/prompts-and-tools.md#macroaliases)
+
+<a id="macro_aliases"></a>
+
+- [Macro aliases](reference/config/prompts-and-tools.md#macro_aliases)
 
 <a id="tools"></a>
 
@@ -297,21 +429,41 @@ This page has moved. See [Configuration reference](reference/config/index.md).
 
 - [Maxrunningagents](reference/config/agents-and-runners.md#maxrunningagents)
 
+<a id="max_running_agents"></a>
+
+- [Max running agents](reference/config/agents-and-runners.md#max_running_agents)
+
 <a id="maxagentpipechain"></a>
 
 - [Maxagentpipechain](reference/config/agents-and-runners.md#maxagentpipechain)
+
+<a id="max_agent_pipe_chain"></a>
+
+- [Max agent pipe chain](reference/config/agents-and-runners.md#max_agent_pipe_chain)
 
 <a id="runnerslots"></a>
 
 - [Runnerslots](reference/config/agents-and-runners.md#runnerslots)
 
+<a id="runner_slots"></a>
+
+- [Runner slots](reference/config/agents-and-runners.md#runner_slots)
+
 <a id="agentscopeteardown"></a>
 
 - [Agentscopeteardown](reference/config/agents-and-runners.md#agentscopeteardown)
 
+<a id="agent_scope_teardown"></a>
+
+- [Agent scope teardown](reference/config/agents-and-runners.md#agent_scope_teardown)
+
 <a id="agentautorestart"></a>
 
 - [Agentautorestart](reference/config/agents-and-runners.md#agentautorestart)
+
+<a id="agent_auto_restart"></a>
+
+- [Agent auto restart](reference/config/agents-and-runners.md#agent_auto_restart)
 
 <a id="agent-hold-limits"></a>
 
@@ -337,6 +489,10 @@ This page has moved. See [Configuration reference](reference/config/index.md).
 
 - [Managedtmp](reference/config/runtime-and-storage.md#managedtmp)
 
+<a id="managed_tmp"></a>
+
+- [Managed tmp](reference/config/runtime-and-storage.md#managed_tmp)
+
 <a id="telemetry"></a>
 
 - [Telemetry](reference/config/runtime-and-storage.md#telemetry)
@@ -344,6 +500,10 @@ This page has moved. See [Configuration reference](reference/config/index.md).
 <a id="toolruns"></a>
 
 - [Toolruns](reference/config/runtime-and-storage.md#toolruns)
+
+<a id="tool_runs"></a>
+
+- [Tool runs](reference/config/runtime-and-storage.md#tool_runs)
 
 <a id="update"></a>
 
@@ -361,6 +521,10 @@ This page has moved. See [Configuration reference](reference/config/index.md).
 
 - [Chatinstall](reference/config/integrations-behavior.md#chatinstall)
 
+<a id="chat_install"></a>
+
+- [Chat install](reference/config/integrations-behavior.md#chat_install)
+
 <a id="telegram"></a>
 
 - [Telegram](reference/config/integrations-behavior.md#telegram)
@@ -368,6 +532,10 @@ This page has moved. See [Configuration reference](reference/config/index.md).
 <a id="mobilegateway"></a>
 
 - [Mobilegateway](reference/config/integrations-behavior.md#mobilegateway)
+
+<a id="mobile_gateway"></a>
+
+- [Mobile gateway](reference/config/integrations-behavior.md#mobile_gateway)
 
 <a id="sdd"></a>
 
@@ -381,9 +549,17 @@ This page has moved. See [Configuration reference](reference/config/index.md).
 
 - [Externalmirror](reference/config/automation-behavior.md#externalmirror)
 
+<a id="external_mirror"></a>
+
+- [External mirror](reference/config/automation-behavior.md#external_mirror)
+
 <a id="featureflags"></a>
 
 - [Featureflags](reference/config/feature-flags.md#featureflags)
+
+<a id="feature_flags"></a>
+
+- [Feature flags](reference/config/feature-flags.md#feature_flags)
 
 <a id="saved-machine-preferences"></a>
 
@@ -1132,3 +1308,7 @@ This page has moved. See [Configuration reference](reference/config/index.md).
 <a id="cli-options-50"></a>
 
 - [Cli options 50](reference/cli/chat.md#sase-chat)
+
+<a id="table-of-contents"></a>
+
+- [Table of contents](reference/config/index.md)

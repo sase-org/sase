@@ -37,14 +37,14 @@ lifecycle state and is independent of `sase project enable`.
   chezmoi-home files carry no header.
 - Provider instruction files: project roots and nested `AGENTS.md` directories keep
   `CLAUDE.md`; home and chezmoi roots keep `CLAUDE.md`, `GEMINI.md`, `QWEN.md`, and
-  `OPENCODE.md` until E5. Each is a byte-for-byte copy of that root's final `AGENTS.md`.
-  agy, Qwen, and OpenCode read `AGENTS.md`. Chezmoi home source roots stay on static
-  `.md` files unless a machine overlay under `dot_config/sase/` declares
-  `memory.h1_title`. In that case initialization writes `AGENTS.md.tmpl` and preferred
-  `*.md.tmpl` shims whose H1 switches on `.chezmoi.hostname`, and each title-declaring
-  overlay must have a `.chezmoiignore` hostname guard (the stanza `sase config init`
-  writes). Legacy `@AGENTS.md` / `@/path/to/home/AGENTS.md` import shims and leftover
-  static or `*.md.tmpl` sources are still recognized and migrated.
+  `OPENCODE.md`. Each is a byte-for-byte copy of that root's final `AGENTS.md`. agy,
+  Qwen, and OpenCode read `AGENTS.md`. Chezmoi home source roots stay on static `.md`
+  files unless a machine overlay under `dot_config/sase/` declares `memory.h1_title`. In
+  that case initialization writes `AGENTS.md.tmpl` and preferred `*.md.tmpl` shims whose
+  H1 switches on `.chezmoi.hostname`, and each title-declaring overlay must have a
+  `.chezmoiignore` hostname guard (the stanza `sase config init` writes). Legacy
+  `@AGENTS.md` / `@/path/to/home/AGENTS.md` import shims and leftover static or
+  `*.md.tmpl` sources are still recognized and migrated.
 
 Managed projects can override the packaged Jinja templates for `AGENTS.md`, minimal
 agent instructions, `sase/memory/sase.md`, and `sase/memory/README.md` with
@@ -93,9 +93,9 @@ Provider copying is the exception to project ownership. In both managed and unma
 projects, every readable `AGENTS.md` found with the normal project-tree pruning rules is
 copied byte-for-byte to `CLAUDE.md` beside it. Identical leftover `GEMINI.md`,
 `QWEN.md`, and `OPENCODE.md` copies at those project locations are deleted; a custom
-copy is left in place with a warning. Home and chezmoi roots still copy all four names
-until E5. A directory with no `AGENTS.md` is untouched, including any standalone
-provider files already there.
+copy is left in place with a warning. Home and chezmoi roots also copy all four names. A
+directory with no `AGENTS.md` is untouched, including any standalone provider files
+already there.
 
 When `use_chezmoi: true`, the home files are written to the chezmoi source tree. The
 command can then commit those home changes and run `chezmoi apply --force`;
@@ -250,7 +250,7 @@ is optional title customization, with a stable derived title otherwise. The reti
 `memory.enabled` key does not authorize management. It never creates or alters an
 unmanaged project's root `AGENTS.md`. Independently, it overwrites each provider
 instruction file (`CLAUDE.md` at project roots; also `GEMINI.md`, `QWEN.md`, and
-`OPENCODE.md` at home and chezmoi until E5) with a byte-for-byte copy of that root's
+`OPENCODE.md` at home and chezmoi roots) with a byte-for-byte copy of that root's
 `AGENTS.md` (legacy `@AGENTS.md` / `*.md.tmpl` import shims are recognized and migrated
 to full copies). This copy applies to every existing project-tree `AGENTS.md`;
 directories without one are untouched. For managed roots, memory init synchronizes

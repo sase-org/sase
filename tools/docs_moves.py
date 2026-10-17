@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import html
 import posixpath
 from pathlib import Path, PurePosixPath
 import re
+import unicodedata
 from urllib.parse import quote, unquote, urlsplit, urlunsplit
 
 import yaml  # type: ignore[import-untyped]
@@ -30,7 +32,16 @@ GENERATED_BLOCK_RE = re.compile(
 )
 GENERATED_FILE_RE = re.compile(r"generated,?\s+do not edit", re.IGNORECASE)
 HEADING_RE = re.compile(r"^\s{0,3}(#{1,6})\s+(.+?)\s*#*\s*$")
-EXPLICIT_ANCHOR_RE = re.compile(r"\s*\{\s*#([^}]+?)\s*\}\s*$")
+EXPLICIT_ANCHOR_RE = re.compile(r"\s*\{\s*#([^\s}]+)(?:\s+[^}]*)?\s*\}\s*$")
+ATTRIBUTE_LIST_RE = re.compile(r"\s*\{[^{}]*\}\s*$")
+CODE_SPAN_RE = re.compile(r"(?P<ticks>`+)(?P<text>.+?)(?P=ticks)")
+HEADING_INLINE_LINK_RE = re.compile(r"!?\[([^\]]+)\]\([^)]*\)")
+HEADING_REFERENCE_LINK_RE = re.compile(r"!?\[([^\]]+)\](?:\[[^\]]*\])?")
+HTML_TAG_RE = re.compile(r"<[^>]+>")
+UNDERSCORE_EMPHASIS_RE = re.compile(
+    r"(?<!\w)(?P<delimiter>_{1,2})(?!\s)(?P<text>.+?)(?<!\s)(?P=delimiter)(?!\w)"
+)
+UNIQUE_SUFFIX_RE = re.compile(r"^(.*)_([0-9]+)$")
 
 
 @dataclass(frozen=True)
@@ -131,28 +142,49 @@ def markdown_link(source_path: str, target_path: str, anchor: str | None = None)
 
 
 def slugify_heading(value: str) -> str:
-    """Return the heading anchor spelling used by the section splitter."""
+    """Return the heading anchor spelling emitted by Python-Markdown's toc."""
     explicit = EXPLICIT_ANCHOR_RE.search(value)
     if explicit:
         return explicit.group(1)
-    title = EXPLICIT_ANCHOR_RE.sub("", value).strip()
-    # Keep placeholder words in inline code, e.g. `<id>` in a CLI heading.
-    # Markdown renders the angle brackets as text there, not as an HTML tag.
-    title = re.sub(
-        r"`+([^`]+?)`+",
-        lambda match: match.group(1).replace("<", " ").replace(">", " "),
-        title,
-    )
-    title = re.sub(r"[*_~]", "", title)
-    title = re.sub(r"<[^>]+>", "", title)
-    title = re.sub(r"[^\w\-\s]", "", title.lower(), flags=re.UNICODE)
-    return re.sub(r"\s+", "-", title).strip("-")
+
+    code_spans: list[str] = []
+
+    def preserve_code(match: re.Match[str]) -> str:
+        code_spans.append(match.group("text"))
+        return f"SASECODESPAN{len(code_spans) - 1}TOKEN"
+
+    title = ATTRIBUTE_LIST_RE.sub("", value).strip()
+    title = CODE_SPAN_RE.sub(preserve_code, title)
+    title = HEADING_INLINE_LINK_RE.sub(r"\1", title)
+    title = HEADING_REFERENCE_LINK_RE.sub(r"\1", title)
+    title = HTML_TAG_RE.sub("", title)
+    title = UNDERSCORE_EMPHASIS_RE.sub(r"\g<text>", title)
+    title = html.unescape(title)
+    for index, code in enumerate(code_spans):
+        title = title.replace(f"SASECODESPAN{index}TOKEN", code)
+
+    title = unicodedata.normalize("NFKD", title)
+    title = title.encode("ascii", "ignore").decode("ascii")
+    title = re.sub(r"[^\w\s-]", "", title).strip().lower()
+    return re.sub(r"[-\s]+", "-", title)
 
 
-def page_anchors(text: str) -> list[str]:
-    """Return Markdown heading and HTML id anchors in document order."""
+def _unique_heading_anchor(value: str, used: set[str]) -> str:
+    """Return the next id Python-Markdown's ``toc.unique`` would choose."""
+    candidate = value
+    while candidate in used:
+        match = UNIQUE_SUFFIX_RE.match(candidate)
+        if match:
+            candidate = f"{match.group(1)}_{int(match.group(2)) + 1}"
+        else:
+            candidate = f"{candidate}_1"
+    return candidate
+
+
+def _heading_anchors(text: str) -> list[str]:
+    """Return Python-Markdown toc heading ids, excluding authored HTML ids."""
     anchors: list[str] = []
-    slug_counts: dict[str, int] = {}
+    used: set[str] = set()
     fence: str | None = None
     for line in text.splitlines():
         fence_match = re.match(r"^\s*(`{3,}|~{3,})", line)
@@ -166,13 +198,16 @@ def page_anchors(text: str) -> list[str]:
         if fence is not None:
             continue
         match = HEADING_RE.match(line)
-        if not match:
-            continue
-        title = match.group(2).strip()
-        slug = slugify_heading(title)
-        count = slug_counts.get(slug, 0)
-        slug_counts[slug] = count + 1
-        anchors.append(slug if count == 0 else f"{slug}-{count}")
+        if match:
+            anchor = _unique_heading_anchor(slugify_heading(match.group(2)), used)
+            used.add(anchor)
+            anchors.append(anchor)
+    return anchors
+
+
+def page_anchors(text: str) -> list[str]:
+    """Return Markdown heading and HTML id anchors in document order."""
+    anchors = _heading_anchors(text)
     anchors.extend(match.group(2) for match in HTML_ID_RE.finditer(text))
     return list(dict.fromkeys(anchor for anchor in anchors if anchor))
 

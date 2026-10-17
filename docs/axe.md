@@ -77,9 +77,17 @@ This page has moved. See [Scheduler](reference/automation/scheduler.md).
 
 - [Agentwaits 2 second interval](reference/automation/scheduler-default-routines.md#agentwaits-2-second-interval)
 
+<a id="agent_waits-2-second-interval"></a>
+
+- [Agent waits 2 second interval](reference/automation/scheduler-default-routines.md#agentwaits-2-second-interval)
+
 <a id="sidecarsync-30-second-interval"></a>
 
 - [Sidecarsync 30 second interval](reference/automation/scheduler-default-routines.md#sidecarsync-30-second-interval)
+
+<a id="sidecar_sync-30-second-interval"></a>
+
+- [Sidecar sync 30 second interval](reference/automation/scheduler-default-routines.md#sidecarsync-30-second-interval)
 
 <a id="wait-release-telemetry"></a>
 

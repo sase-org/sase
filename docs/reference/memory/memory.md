@@ -186,9 +186,9 @@ Agent launch also attempts to record evidence in `agent_meta.json`; capture fail
 not block launch. `workspace_head` is the workspace Git `HEAD`, when available.
 `instruction_snapshot` inventories readable root `AGENTS.md` and `CLAUDE.md` in the
 workspace, plus the first readable home instruction file in this order: `AGENTS.md`,
-`CLAUDE.md`, `GEMINI.md`, `QWEN.md`, `OPENCODE.md` (home keeps four copies until E5).
-This is a launch-time file inventory, not proof that a provider loaded every listed
-file; nested instruction files are not included.
+`CLAUDE.md`, `GEMINI.md`, `QWEN.md`, `OPENCODE.md` (home has four provider copies). This
+is a launch-time file inventory, not proof that a provider loaded every listed file;
+nested instruction files are not included.
 
 Each entry has `path`, `repo` (`project`, `none`, or `chezmoi`), `blob_oid`, and
 `tracked`. These hashes cover the files' actual bytes. Workspace entries use `project`

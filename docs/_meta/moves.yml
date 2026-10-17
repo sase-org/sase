@@ -38,10 +38,14 @@ moves:
       opened-repository-context: reference/tui/agents-tab-modes.md#opened-repository-context
       agent-search: reference/tui/agents-tab-modes.md#agent-search
       leader-mode-prefix-1: reference/tui/agents-tab-modes.md#leader-mode-prefix-1
+      leader-mode-prefix_1: reference/tui/agents-tab-modes.md#leader-mode-prefix-1
       bang-mode-prefix-1: reference/tui/agents-tab-modes.md#bang-mode-prefix-1
+      bang-mode-prefix_1: reference/tui/agents-tab-modes.md#bang-mode-prefix-1
       copy-mode-prefix-1: reference/tui/agents-tab-modes.md#copy-mode-prefix-1
+      copy-mode-prefix_1: reference/tui/agents-tab-modes.md#copy-mode-prefix-1
       agent-tabs: reference/tui/agents-tab.md#agent-tabs
       navigation-1: reference/tui/agents-tab.md#navigation-1
+      navigation_1: reference/tui/agents-tab.md#navigation-1
       agent-actions: reference/tui/agents-tab.md#agent-actions
       x-how-a-kill-is-carried-out: reference/tui/agents-tab.md#x-how-a-kill-is-carried-out
       enter-act-on-an-agent: reference/tui/agents-tab.md#enter-act-on-an-agent
@@ -103,6 +107,7 @@ moves:
       temporary-overrides: reference/tui/launch-control-overrides.md#temporary-overrides
       persistent-edits: reference/tui/launch-control-overrides.md#persistent-edits
       examples-1: reference/tui/launch-control-overrides.md#examples-1
+      examples_1: reference/tui/launch-control-overrides.md#examples-1
       macro-browser: reference/tui/snippets.md#macro-browser
       keybindings: reference/tui/snippets.md#keybindings
       editing-macros: reference/tui/snippets.md#editing-macros
@@ -140,6 +145,7 @@ moves:
       visual-mode: reference/tui/prompt-modes.md#visual-mode
       prompt-history-modal: reference/tui/prompts-overlay.md#prompt-history-modal
       keybindings-1: reference/tui/prompts-overlay.md#keybindings-1
+      keybindings_1: reference/tui/prompts-overlay.md#keybindings-1
       filtering: reference/tui/prompts-overlay.md#filtering
       overview: reference/tui/index.md#overview
       launching: reference/tui/launching.md#launching
@@ -184,11 +190,15 @@ moves:
       controlled-output-highlighting-and-ansi-fallback: reference/tui/services-tab.md#controlled-output-highlighting-and-ansi-fallback
       job-result-documents: reference/tui/services-tab.md#job-result-documents
       navigation-2: reference/tui/services-tab.md#navigation-2
+      navigation_2: reference/tui/services-tab.md#navigation-2
       commands: reference/tui/services-tab.md#commands
       axe-property-sheet: reference/tui/services-tab.md#axe-property-sheet
       leader-mode-prefix-2: reference/tui/services-tab.md#leader-mode-prefix-2
+      leader-mode-prefix_2: reference/tui/services-tab.md#leader-mode-prefix-2
       bang-mode-prefix-2: reference/tui/services-tab.md#bang-mode-prefix-2
+      bang-mode-prefix_2: reference/tui/services-tab.md#bang-mode-prefix-2
       copy-mode-prefix-2: reference/tui/services-tab.md#copy-mode-prefix-2
+      copy-mode-prefix_2: reference/tui/services-tab.md#copy-mode-prefix-2
       services-control: reference/tui/services-tab.md#services-control
       query-system: reference/tui/query-system.md#query-system-1
       editing-queries: reference/tui/query-system.md#editing-queries
@@ -240,7 +250,9 @@ moves:
       durable-procs: reference/tui/procs-tab.md#durable-procs
       filtering-procs: reference/tui/procs-tab.md#filtering-procs
       keybindings-2: reference/tui/procs-tab.md#keybindings-2
+      keybindings_2: reference/tui/procs-tab.md#keybindings-2
       updates-tab: reference/tui/updates-tab.md#updates-tab-1
+      keybindings-agents-tab: reference/tui/agents-tab.md#agents-tab
     title: sase's TUI User Guide
   - from: configuration.md
     to: reference/config/index.md
@@ -260,85 +272,129 @@ moves:
       updates-tab: reference/tui/admin-center.md#updates-tab
       configuration-sections: reference/config/core-behavior.md#configuration-sections
       memoryh1title: reference/config/core-behavior.md#memoryh1title
+      memoryh1_title: reference/config/core-behavior.md#memoryh1_title
       generated-templates: reference/config/core-behavior.md#generated-templates
       issasemanaged: reference/config/core-behavior.md#issasemanaged
+      is_sase_managed: reference/config/core-behavior.md#is_sase_managed
       id: reference/config/core-behavior.md#id
       machinename-deprecated: reference/config/core-behavior.md#machinename-deprecated
+      machine_name-deprecated: reference/config/core-behavior.md#machinename-deprecated
       usechezmoi: reference/config/core-behavior.md#usechezmoi
+      use_chezmoi: reference/config/core-behavior.md#use_chezmoi
       timezone: reference/config/core-behavior.md#timezone
       ace: reference/config/ace-behavior.md#ace
       aceartifactfileviewer: reference/config/ace-behavior.md#aceartifactfileviewer
+      aceartifact_file_viewer: reference/config/ace-behavior.md#aceartifact_file_viewer
       aceartifacts: reference/config/ace-behavior.md#aceartifacts
       aceartifactsstitches: reference/config/ace-behavior.md#aceartifactsstitches
       aceaxedescriptionexpanded: reference/config/ace-behavior.md#aceaxedescriptionexpanded
+      aceaxe_description_expanded: reference/config/ace-behavior.md#aceaxe_description_expanded
       acecurrentproject: reference/config/ace-behavior.md#acecurrentproject
+      acecurrent_project: reference/config/ace-behavior.md#acecurrent_project
       acetribes: reference/config/ace-behavior.md#acetribes
       acenotificationtabs: reference/config/ace-behavior.md#acenotificationtabs
+      acenotification_tabs: reference/config/ace-behavior.md#acenotification_tabs
       acenotificationindicatormaxcounts: reference/config/ace-behavior.md#acenotificationindicatormaxcounts
+      acenotification_indicator_max_counts: reference/config/ace-behavior.md#acenotification_indicator_max_counts
       acepagesize: reference/config/ace-behavior.md#acepagesize
+      acepage_size: reference/config/ace-behavior.md#acepage_size
       acetoolcalls: reference/config/ace-behavior.md#acetoolcalls
+      acetool_calls: reference/config/ace-behavior.md#acetool_calls
       aceupdates: reference/config/ace-behavior.md#aceupdates
       acekeymaps: reference/config/ace-keymap-configuration.md#acekeymaps
       acesnippetconfigpath: reference/config/ace-prompts.md#acesnippetconfigpath
+      acesnippet_config_path: reference/config/ace-prompts.md#acesnippet_config_path
       acesnippets: reference/config/ace-prompts.md#acesnippets
       acepromptcompletion: reference/config/ace-prompts.md#acepromptcompletion
+      aceprompt_completion: reference/config/ace-prompts.md#aceprompt_completion
       acepromptspellcheck: reference/config/ace-prompts.md#acepromptspellcheck
+      aceprompt_spellcheck: reference/config/ace-prompts.md#aceprompt_spellcheck
       acepromptstash: reference/config/ace-prompts.md#acepromptstash
+      aceprompt_stash: reference/config/ace-prompts.md#aceprompt_stash
       aceagentdecks: reference/config/ace-prompts.md#aceagentdecks
+      aceagent_decks: reference/config/ace-prompts.md#aceagent_decks
       aceagentheader: reference/config/ace-prompts.md#aceagentheader
+      aceagent_header: reference/config/ace-prompts.md#aceagent_header
       aceagenttabs: reference/config/ace-prompts.md#aceagenttabs
+      aceagent_tabs: reference/config/ace-prompts.md#aceagent_tabs
       acepromptsubmission: reference/config/ace-prompts.md#acepromptsubmission
+      aceprompt_submission: reference/config/ace-prompts.md#aceprompt_submission
       acepromptinputs: reference/config/ace-prompts.md#acepromptinputs
+      aceprompt_inputs: reference/config/ace-prompts.md#aceprompt_inputs
       artifacts: reference/config/artifacts.md#artifacts
       artifactrefs: reference/config/artifacts.md#artifactrefs
+      artifact_refs: reference/config/artifacts.md#artifact_refs
       llmprovider: reference/config/llm-provider-behavior.md#llmprovider
+      llm_provider: reference/config/llm-provider-behavior.md#llm_provider
       llmproviderusagelimit: reference/config/llm-provider-behavior.md#llmproviderusagelimit
+      llm_providerusage_limit: reference/config/llm-provider-behavior.md#llm_providerusage_limit
       llmproviderusagemetrics: reference/config/llm-provider-behavior.md#llmproviderusagemetrics
+      llm_providerusage_metrics: reference/config/llm-provider-behavior.md#llm_providerusage_metrics
       llmprovidercontinuationbudget: reference/config/llm-provider-behavior.md#llmprovidercontinuationbudget
+      llm_providercontinuation_budget: reference/config/llm-provider-behavior.md#llm_providercontinuation_budget
       llmproviderretry: reference/config/llm-provider-behavior.md#llmproviderretry
+      llm_providerretry: reference/config/llm-provider-behavior.md#llm_providerretry
       finalizers: reference/config/finalizers.md#finalizers
       commitmessage: reference/config/finalizers.md#commitmessage
       commithooks: reference/config/finalizers.md#commithooks
+      commit_hooks: reference/config/finalizers.md#commit_hooks
       monitor: reference/config/monitor-behavior.md#monitor
       repos: reference/config/repositories-behavior.md#repos
       external-repositories: reference/config/repositories-behavior.md#external-repositories
       dispatch: reference/config/repositories-behavior.md#dispatch
       vcsprovider: reference/config/repositories-behavior.md#vcsprovider
+      vcs_provider: reference/config/repositories-behavior.md#vcs_provider
       vcsrepocompletion: reference/config/repositories-behavior.md#vcsrepocompletion
+      vcs_repo_completion: reference/config/repositories-behavior.md#vcs_repo_completion
       vcsrefcompletion: reference/config/repositories-behavior.md#vcsrefcompletion
+      vcs_ref_completion: reference/config/repositories-behavior.md#vcs_ref_completion
       axe: reference/config/scheduler-behavior.md#axe
       filehooks: reference/config/prompts-and-tools.md#filehooks
+      file_hooks: reference/config/prompts-and-tools.md#file_hooks
       plugins: reference/config/prompts-and-tools.md#plugins
       mentorprofiles: reference/config/prompts-and-tools.md#mentorprofiles
+      mentor_profiles: reference/config/prompts-and-tools.md#mentor_profiles
       metahooks: reference/config/prompts-and-tools.md#metahooks
       macros: reference/config/prompts-and-tools.md#macros
       macroaliases: reference/config/prompts-and-tools.md#macroaliases
+      macro_aliases: reference/config/prompts-and-tools.md#macro_aliases
       tools: reference/config/prompts-and-tools.md#tools
       gate: reference/config/agents-and-runners.md#gate
       autonomy: reference/config/agents-and-runners.md#autonomy
       maxrunningagents: reference/config/agents-and-runners.md#maxrunningagents
+      max_running_agents: reference/config/agents-and-runners.md#max_running_agents
       maxagentpipechain: reference/config/agents-and-runners.md#maxagentpipechain
+      max_agent_pipe_chain: reference/config/agents-and-runners.md#max_agent_pipe_chain
       runnerslots: reference/config/agents-and-runners.md#runnerslots
+      runner_slots: reference/config/agents-and-runners.md#runner_slots
       agentscopeteardown: reference/config/agents-and-runners.md#agentscopeteardown
+      agent_scope_teardown: reference/config/agents-and-runners.md#agent_scope_teardown
       agentautorestart: reference/config/agents-and-runners.md#agentautorestart
+      agent_auto_restart: reference/config/agents-and-runners.md#agent_auto_restart
       agent-hold-limits: reference/config/agents-and-runners.md#agent-hold-limits
       tmux_agent: reference/config/agents-and-runners.md#tmux_agent
       procs: reference/config/runtime-and-storage.md#procs
       service: reference/config/runtime-and-storage.md#service
       disk: reference/config/runtime-and-storage.md#disk
       managedtmp: reference/config/runtime-and-storage.md#managedtmp
+      managed_tmp: reference/config/runtime-and-storage.md#managed_tmp
       telemetry: reference/config/runtime-and-storage.md#telemetry
       toolruns: reference/config/runtime-and-storage.md#toolruns
+      tool_runs: reference/config/runtime-and-storage.md#tool_runs
       update: reference/config/runtime-and-storage.md#update
       markdown: reference/config/display-and-reading.md#markdown
       pager: reference/config/display-and-reading.md#pager
       chatinstall: reference/config/integrations-behavior.md#chatinstall
+      chat_install: reference/config/integrations-behavior.md#chat_install
       telegram: reference/config/integrations-behavior.md#telegram
       mobilegateway: reference/config/integrations-behavior.md#mobilegateway
+      mobile_gateway: reference/config/integrations-behavior.md#mobile_gateway
       sdd: reference/config/automation-behavior.md#sdd
       bead: reference/config/automation-behavior.md#bead
       externalmirror: reference/config/automation-behavior.md#externalmirror
+      external_mirror: reference/config/automation-behavior.md#external_mirror
       featureflags: reference/config/feature-flags.md#featureflags
+      feature_flags: reference/config/feature-flags.md#feature_flags
       saved-machine-preferences: reference/config/feature-flags.md#saved-machine-preferences
       resolution-order: reference/config/feature-flags.md#resolution-order
       enable-disable-and-restart: reference/config/feature-flags.md#enable-disable-and-restart
@@ -526,6 +582,7 @@ moves:
       cli-options-48: reference/cli/agent.md#sase-agent
       cli-options-49: reference/cli/agent-cli.md#sase-agent-cli
       cli-options-50: reference/cli/chat.md#sase-chat
+      table-of-contents: reference/config/index.md
     title: Configuration Reference
   - from: development.md
     to: contribute/development.md
@@ -649,7 +706,9 @@ moves:
       provider-teardown-watchdog: contribute/llm-invocation.md#provider-teardown-watchdog
       postprocessing: contribute/llm-invocation.md#postprocessing
       on-success-postprocesssuccess: contribute/llm-invocation.md#on-success-postprocesssuccess
+      on-success-postprocess_success: contribute/llm-invocation.md#on-success-postprocesssuccess
       on-error-postprocesserror: contribute/llm-invocation.md#on-error-postprocesserror
+      on-error-postprocess_error: contribute/llm-invocation.md#on-error-postprocesserror
       sasemd-log-format: contribute/llm-invocation.md#sasemd-log-format
       prompt-file-saving: contribute/llm-invocation.md#prompt-file-saving
       chat-history: contribute/llm-invocation.md#chat-history
@@ -669,40 +728,59 @@ moves:
       claude-tool-calls: reference/providers/claude.md#claude-tool-calls
       antigravity-agy-integration: reference/providers/agy.md#antigravity-agy-integration
       command-construction-1: reference/providers/agy.md#command-construction-1
+      command-construction_1: reference/providers/agy.md#command-construction-1
       print-mode-no-progress-recovery: reference/providers/agy.md#print-mode-no-progress-recovery
       model-mapping-1: reference/providers/agy.md#model-mapping-1
+      model-mapping_1: reference/providers/agy.md#model-mapping-1
       environment-variables-1: reference/providers/agy.md#environment-variables-1
+      environment-variables_1: reference/providers/agy.md#environment-variables-1
       skill-deployment: reference/providers/agy.md#skill-deployment
       structured-artifacts-parity-gap: reference/providers/agy.md#structured-artifacts-parity-gap
       timer-display-1: reference/providers/agy.md#timer-display-1
+      timer-display_1: reference/providers/agy.md#timer-display-1
       codex-cli-integration: reference/providers/codex.md#codex-cli-integration
       command-construction-2: reference/providers/codex.md#command-construction-2
+      command-construction_2: reference/providers/codex.md#command-construction-2
       codex-instruction-delivery: reference/providers/codex.md#codex-instruction-delivery
       model-mapping-2: reference/providers/codex.md#model-mapping-2
+      model-mapping_2: reference/providers/codex.md#model-mapping-2
       plan-handling: reference/providers/codex.md#plan-handling
       environment-variables-2: reference/providers/codex.md#environment-variables-2
+      environment-variables_2: reference/providers/codex.md#environment-variables-2
       codex-tool-call-capture: reference/providers/codex.md#codex-tool-call-capture
       turn-integrity-check: reference/providers/codex.md#turn-integrity-check
       timer-display-2: reference/providers/codex.md#timer-display-2
+      timer-display_2: reference/providers/codex.md#timer-display-2
       qwen-code-integration: reference/providers/qwen.md#qwen-code-integration
       command-construction-3: reference/providers/qwen.md#command-construction-3
+      command-construction_3: reference/providers/qwen.md#command-construction-3
       model-mapping-3: reference/providers/qwen.md#model-mapping-3
+      model-mapping_3: reference/providers/qwen.md#model-mapping-3
       authentication: reference/providers/qwen.md#authentication
       environment-variables-3: reference/providers/qwen.md#environment-variables-3
+      environment-variables_3: reference/providers/qwen.md#environment-variables-3
       qwen-tool-call-capture: reference/providers/qwen.md#qwen-tool-call-capture
       commit-finalization-1: reference/providers/qwen.md#commit-finalization-1
+      commit-finalization_1: reference/providers/qwen.md#commit-finalization-1
       timer-display-3: reference/providers/qwen.md#timer-display-3
+      timer-display_3: reference/providers/qwen.md#timer-display-3
       opencode-integration: reference/providers/opencode.md#opencode-integration
       command-construction-4: reference/providers/opencode.md#command-construction-4
+      command-construction_4: reference/providers/opencode.md#command-construction-4
       model-mapping-4: reference/providers/opencode.md#model-mapping-4
+      model-mapping_4: reference/providers/opencode.md#model-mapping-4
       authentication-and-config: reference/providers/opencode.md#authentication-and-config
       environment-variables-4: reference/providers/opencode.md#environment-variables-4
+      environment-variables_4: reference/providers/opencode.md#environment-variables-4
       timer-display-4: reference/providers/opencode.md#timer-display-4
+      timer-display_4: reference/providers/opencode.md#timer-display-4
       muse-code-integration: reference/providers/muse.md#muse-code-integration
       selection: reference/providers/muse.md#selection
       command-construction-5: reference/providers/muse.md#command-construction-5
+      command-construction_5: reference/providers/muse.md#command-construction-5
       single-turn-normalization: reference/providers/muse.md#single-turn-normalization
       model-mapping-5: reference/providers/muse.md#model-mapping-5
+      model-mapping_5: reference/providers/muse.md#model-mapping-5
       muse-reasoning-effort: reference/providers/muse.md#muse-reasoning-effort
       the-event-stream: reference/providers/muse.md#the-event-stream
       muse-tool-call-capture: reference/providers/muse.md#muse-tool-call-capture
@@ -710,19 +788,29 @@ moves:
       interrupts-and-retries: reference/providers/muse.md#interrupts-and-retries
       skills-and-instruction-file: reference/providers/muse.md#skills-and-instruction-file
       environment-variables-5: reference/providers/muse.md#environment-variables-5
+      environment-variables_5: reference/providers/muse.md#environment-variables-5
       timer-display-5: reference/providers/muse.md#timer-display-5
+      timer-display_5: reference/providers/muse.md#timer-display-5
       grok-build-integration: reference/providers/grok.md#grok-build-integration
       selection-1: reference/providers/grok.md#selection-1
+      selection_1: reference/providers/grok.md#selection-1
       command-construction-6: reference/providers/grok.md#command-construction-6
+      command-construction_6: reference/providers/grok.md#command-construction-6
       model-mapping-6: reference/providers/grok.md#model-mapping-6
+      model-mapping_6: reference/providers/grok.md#model-mapping-6
       grok-reasoning-effort: reference/providers/grok.md#grok-reasoning-effort
       the-event-stream-1: reference/providers/grok.md#the-event-stream-1
+      the-event-stream_1: reference/providers/grok.md#the-event-stream-1
       grok-tool-call-capture: reference/providers/grok.md#grok-tool-call-capture
       token-usage: reference/providers/grok.md#token-usage
       interrupts-and-retries-1: reference/providers/grok.md#interrupts-and-retries-1
+      interrupts-and-retries_1: reference/providers/grok.md#interrupts-and-retries-1
       skills-and-instruction-file-1: reference/providers/grok.md#skills-and-instruction-file-1
+      skills-and-instruction-file_1: reference/providers/grok.md#skills-and-instruction-file-1
       environment-variables-6: reference/providers/grok.md#environment-variables-6
+      environment-variables_6: reference/providers/grok.md#environment-variables-6
       timer-display-6: reference/providers/grok.md#timer-display-6
+      timer-display_6: reference/providers/grok.md#timer-display-6
       external-provider-plugins: reference/providers/plugins.md#external-provider-plugins-1
       subscription-usage-extension: reference/providers/plugins.md#subscription-usage-extension
       configuration: reference/providers/configuration.md#configuration
@@ -757,7 +845,9 @@ moves:
       vcs-provider: reference/environment-variables.md#vcs-provider
       retry-and-fallback: reference/providers/retry-and-fallback.md#retry-and-fallback
       configuration-1: reference/providers/retry-and-fallback.md#configuration-1
+      configuration_1: reference/providers/retry-and-fallback.md#configuration-1
       config-fields-1: reference/config/llm-provider.md#llm_provider-retry
+      config-fields_1: reference/config/llm-provider.md#llm_provider-retry
       default-configuration: reference/providers/retry-and-fallback.md#default-configuration
       provider-supplied-retry-defaults: reference/providers/retry-and-fallback.md#provider-supplied-retry-defaults
       retry-flow: reference/providers/retry-and-fallback.md#retry-flow
@@ -871,7 +961,9 @@ moves:
       hooks-5-second-interval: reference/automation/scheduler-default-routines.md#hooks-5-second-interval
       waits-10-second-interval: reference/automation/scheduler-default-routines.md#waits-10-second-interval
       agentwaits-2-second-interval: reference/automation/scheduler-default-routines.md#agentwaits-2-second-interval
+      agent_waits-2-second-interval: reference/automation/scheduler-default-routines.md#agentwaits-2-second-interval
       sidecarsync-30-second-interval: reference/automation/scheduler-default-routines.md#sidecarsync-30-second-interval
+      sidecar_sync-30-second-interval: reference/automation/scheduler-default-routines.md#sidecarsync-30-second-interval
       wait-release-telemetry: reference/automation/scheduler-default-routines.md#wait-release-telemetry
       checks-5-minute-interval: reference/automation/scheduler-default-routines.md#checks-5-minute-interval
       usage-60-second-interval: reference/automation/scheduler-default-routines.md#usage-60-second-interval
@@ -952,6 +1044,7 @@ moves:
       hand-off-and-lifecycle-control: reference/automation/tools.md#hand-off-and-lifecycle-control
       detached-runs: reference/automation/tools.md#detached-runs
       inline-then-escalate-1: reference/automation/tools.md#inline-then-escalate-1
+      inline-then-escalate_1: reference/automation/tools.md#inline-then-escalate_1
       ceiling-bounded-wait: reference/automation/tools.md#ceiling-bounded-wait
       monitor-joins: reference/automation/tools.md#monitor-joins
       in-the-tui: reference/automation/tools.md#in-the-tui
@@ -1084,6 +1177,7 @@ moves:
       rules-and-limitations: reference/macros/multi-agent-prompts.md#rules-and-limitations
       relationship-to-workflows: reference/macros/multi-agent-prompts.md#relationship-to-workflows
       troubleshooting: reference/macros/troubleshooting.md#troubleshooting
+      table-of-contents: reference/macros/index.md
     title: Macro Template Reference
   - from: workflow_spec.md
     to: reference/workflows.md
@@ -1141,8 +1235,10 @@ moves:
       cli-commands: reference/work-units/bead-cli.md#cli-commands
       sase-bead-apply-status-id-status: reference/work-units/bead-cli-records.md#sase-bead-apply-status-id-status
       sase-bead-attach-id-file: reference/work-units/bead-cli-records.md#sase-bead-attach-id-file
+      sase-bead-attach-id-file-: reference/work-units/bead-cli-records.md#sase-bead-attach-id-file
       sase-bead-attachment-list-id-open-path-push: reference/work-units/bead-cli-records.md#sase-bead-attachment-list-id-open-path-push
       sase-bead-attachment-purge-id-name--r-why-sase-bead-attachment-prune: reference/work-units/bead-cli-records.md#sase-bead-attachment-purge-id-name--r-why-sase-bead-attachment-prune
+      sase-bead-attachment-purge-id-name-r-why-sase-bead-attachment-prune: reference/work-units/bead-cli-records.md#sase-bead-attachment-purge-id-name--r-why-sase-bead-attachment-prune
       sase-bead-1-task-id: reference/work-units/bead-cli-records.md#sase-bead-1-task-id
       sase-bead-close-id-id2: reference/work-units/bead-cli-records.md#sase-bead-close-id-id2
       sase-bead-create: reference/work-units/bead-cli-records.md#sase-bead-create
@@ -1176,6 +1272,7 @@ moves:
       plan-file-linking: reference/work-units/bead-tui.md#plan-file-linking
       task-bead-surfaces: reference/work-units/bead-tui.md#task-bead-surfaces
       plan-approval-flow: reference/work-units/bead-tui.md#plan-approval-flow
+      table-of-contents: reference/work-units/index.md
     title: Bead Issue Tracking
   - from: sdd.md
     to: reference/work-units/index.md

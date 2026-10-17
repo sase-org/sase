@@ -173,11 +173,19 @@ This page has moved. See [Work units](reference/work-units/index.md).
 
 - [Sase bead attach id file](reference/work-units/bead-cli-records.md#sase-bead-attach-id-file)
 
+<a id="sase-bead-attach-id-file-"></a>
+
+- [Sase bead attach id file](reference/work-units/bead-cli-records.md#sase-bead-attach-id-file)
+
 <a id="sase-bead-attachment-list-id-open-path-push"></a>
 
 - [Sase bead attachment list id open path push](reference/work-units/bead-cli-records.md#sase-bead-attachment-list-id-open-path-push)
 
 <a id="sase-bead-attachment-purge-id-name--r-why-sase-bead-attachment-prune"></a>
+
+- [Sase bead attachment purge id name r why sase bead attachment prune](reference/work-units/bead-cli-records.md#sase-bead-attachment-purge-id-name--r-why-sase-bead-attachment-prune)
+
+<a id="sase-bead-attachment-purge-id-name-r-why-sase-bead-attachment-prune"></a>
 
 - [Sase bead attachment purge id name r why sase bead attachment prune](reference/work-units/bead-cli-records.md#sase-bead-attachment-purge-id-name--r-why-sase-bead-attachment-prune)
 
@@ -312,3 +320,7 @@ This page has moved. See [Work units](reference/work-units/index.md).
 <a id="plan-approval-flow"></a>
 
 - [Plan approval flow](reference/work-units/bead-tui.md#plan-approval-flow)
+
+<a id="table-of-contents"></a>
+
+- [Table of contents](reference/work-units/index.md)

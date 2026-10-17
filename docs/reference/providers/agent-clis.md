@@ -501,8 +501,8 @@ Canonical docs: <https://docs.x.ai/build/overview>
 ## Antigravity CLI
 
 Google's Antigravity CLI (`agy`). There is no separate "Gemini CLI" provider in SASE.
-agy 1.4.0 reads `AGENTS.md` for workspace context; home roots still keep a `GEMINI.md`
-copy until E5.
+agy 1.4.0 reads `AGENTS.md` for workspace context; home roots also get a `GEMINI.md`
+copy of `AGENTS.md`.
 
 ### Install
 

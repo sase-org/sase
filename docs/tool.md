@@ -81,6 +81,10 @@ This page has moved. See [Named tools and ToolRuns](reference/automation/tools.m
 
 - [Inline then escalate 1](reference/automation/tools.md#inline-then-escalate-1)
 
+<a id="inline-then-escalate_1"></a>
+
+- [Inline then escalate 1](reference/automation/tools.md#inline-then-escalate_1)
+
 <a id="ceiling-bounded-wait"></a>
 
 - [Ceiling bounded wait](reference/automation/tools.md#ceiling-bounded-wait)

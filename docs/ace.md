@@ -29,11 +29,23 @@ This page has moved. See [TUI](reference/tui/index.md).
 
 - [Leader mode prefix 1](reference/tui/agents-tab-modes.md#leader-mode-prefix-1)
 
+<a id="leader-mode-prefix_1"></a>
+
+- [Leader mode prefix 1](reference/tui/agents-tab-modes.md#leader-mode-prefix-1)
+
 <a id="bang-mode-prefix-1"></a>
 
 - [Bang mode prefix 1](reference/tui/agents-tab-modes.md#bang-mode-prefix-1)
 
+<a id="bang-mode-prefix_1"></a>
+
+- [Bang mode prefix 1](reference/tui/agents-tab-modes.md#bang-mode-prefix-1)
+
 <a id="copy-mode-prefix-1"></a>
+
+- [Copy mode prefix 1](reference/tui/agents-tab-modes.md#copy-mode-prefix-1)
+
+<a id="copy-mode-prefix_1"></a>
 
 - [Copy mode prefix 1](reference/tui/agents-tab-modes.md#copy-mode-prefix-1)
 
@@ -42,6 +54,10 @@ This page has moved. See [TUI](reference/tui/index.md).
 - [Agent tabs](reference/tui/agents-tab.md#agent-tabs)
 
 <a id="navigation-1"></a>
+
+- [Navigation 1](reference/tui/agents-tab.md#navigation-1)
+
+<a id="navigation_1"></a>
 
 - [Navigation 1](reference/tui/agents-tab.md#navigation-1)
 
@@ -289,6 +305,10 @@ This page has moved. See [TUI](reference/tui/index.md).
 
 - [Examples 1](reference/tui/launch-control-overrides.md#examples-1)
 
+<a id="examples_1"></a>
+
+- [Examples 1](reference/tui/launch-control-overrides.md#examples-1)
+
 <a id="macro-browser"></a>
 
 - [Macro browser](reference/tui/snippets.md#macro-browser)
@@ -434,6 +454,10 @@ This page has moved. See [TUI](reference/tui/index.md).
 - [Prompt history modal](reference/tui/prompts-overlay.md#prompt-history-modal)
 
 <a id="keybindings-1"></a>
+
+- [Keybindings 1](reference/tui/prompts-overlay.md#keybindings-1)
+
+<a id="keybindings_1"></a>
 
 - [Keybindings 1](reference/tui/prompts-overlay.md#keybindings-1)
 
@@ -613,6 +637,10 @@ This page has moved. See [TUI](reference/tui/index.md).
 
 - [Navigation 2](reference/tui/services-tab.md#navigation-2)
 
+<a id="navigation_2"></a>
+
+- [Navigation 2](reference/tui/services-tab.md#navigation-2)
+
 <a id="commands"></a>
 
 - [Commands](reference/tui/services-tab.md#commands)
@@ -625,11 +653,23 @@ This page has moved. See [TUI](reference/tui/index.md).
 
 - [Leader mode prefix 2](reference/tui/services-tab.md#leader-mode-prefix-2)
 
+<a id="leader-mode-prefix_2"></a>
+
+- [Leader mode prefix 2](reference/tui/services-tab.md#leader-mode-prefix-2)
+
 <a id="bang-mode-prefix-2"></a>
 
 - [Bang mode prefix 2](reference/tui/services-tab.md#bang-mode-prefix-2)
 
+<a id="bang-mode-prefix_2"></a>
+
+- [Bang mode prefix 2](reference/tui/services-tab.md#bang-mode-prefix-2)
+
 <a id="copy-mode-prefix-2"></a>
+
+- [Copy mode prefix 2](reference/tui/services-tab.md#copy-mode-prefix-2)
+
+<a id="copy-mode-prefix_2"></a>
 
 - [Copy mode prefix 2](reference/tui/services-tab.md#copy-mode-prefix-2)
 
@@ -837,6 +877,14 @@ This page has moved. See [TUI](reference/tui/index.md).
 
 - [Keybindings 2](reference/tui/procs-tab.md#keybindings-2)
 
+<a id="keybindings_2"></a>
+
+- [Keybindings 2](reference/tui/procs-tab.md#keybindings-2)
+
 <a id="updates-tab"></a>
 
 - [Updates tab](reference/tui/updates-tab.md#updates-tab-1)
+
+<a id="keybindings-agents-tab"></a>
+
+- [Keybindings agents tab](reference/tui/agents-tab.md#agents-tab)

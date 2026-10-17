@@ -7,6 +7,16 @@
     {% include "generated/release_announce.html" %}
   {% endif %}
 {% endblock %}
+{% block content %}
+  {# mkdocs-exporter prints each handbook page from a temporary file and #}
+  {# resolves its src and href paths, but not <video poster>. Point the #}
+  {# PDF build's relative posters at the built site so strict export loads them. #}
+  {% if config.extra.pdf_handbook %}
+    {{ super() | replace(' poster="images/', ' poster="file://' ~ config.site_dir ~ '/' ~ page.url ~ 'images/') }}
+  {% else %}
+    {{ super() }}
+  {% endif %}
+{% endblock %}
 {% block extrahead %}
   {{ super() }}
   {% set default_image = "images/sase_social_card.png" %}

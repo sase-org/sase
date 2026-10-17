@@ -61,14 +61,9 @@ def test_output_variables_and_generated_cli_document_sase_var_contract() -> None
 
 
 def test_published_docs_do_not_restore_var_show() -> None:
-    for relative in (
-        "docs/configuration.md",
-        "docs/cli.md",
-        "src/sase/macros/skills/sase_var.md",
-    ):
-        text = (ROOT / relative).read_text(encoding="utf-8")
-        assert "sase var show" not in text, relative
+    skill = ROOT / "src/sase/macros/skills/sase_var.md"
+    assert "sase var show" not in skill.read_text(encoding="utf-8")
 
-    for path in sorted((ROOT / "docs/reference/macros").glob("*.md")):
+    for path in sorted((ROOT / "docs").rglob("*.md")):
         text = path.read_text(encoding="utf-8")
         assert "sase var show" not in text, path.relative_to(ROOT)

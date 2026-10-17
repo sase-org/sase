@@ -17,6 +17,7 @@ ROOT = Path(__file__).resolve().parents[1]
 PDF_CONFIG = ROOT / "mkdocs-pdf.yml"
 JUSTFILE = ROOT / "Justfile"
 POSTPROCESS = ROOT / "tools" / "postprocess_docs_pdf"
+MAIN_TEMPLATE = ROOT / "docs" / "overrides" / "main.html"
 
 
 class _MkDocsYamlLoader(yaml.SafeLoader):
@@ -99,3 +100,50 @@ def test_pdf_image_optimization_reencodes_each_shared_rgb_png_once() -> None:
     duplicate.replace.assert_not_called()
     jpeg.replace.assert_not_called()
     transparent.replace.assert_not_called()
+
+
+def test_pdf_config_keeps_only_the_root_index_page() -> None:
+    """A bare ``!index.md`` would pull every Reference hub into the strict build."""
+
+    pathspec = pytest.importorskip("pathspec")
+    data = yaml.load(PDF_CONFIG.read_text(encoding="utf-8"), Loader=_MkDocsYamlLoader)
+    excluded = pathspec.GitIgnoreSpec.from_lines(data["exclude_docs"].splitlines())
+
+    assert not excluded.match_file("index.md")
+    assert not excluded.match_file("guides/index.md")
+    assert excluded.match_file("reference/index.md")
+    assert excluded.match_file("reference/tui/index.md")
+    assert excluded.match_file("contribute/index.md")
+
+
+def test_pdf_build_resolves_relative_video_posters() -> None:
+    """mkdocs-exporter resolves src and href for print, but not <video poster>."""
+
+    jinja2 = pytest.importorskip("jinja2")
+    loader = jinja2.ChoiceLoader(
+        [
+            jinja2.DictLoader(
+                {
+                    "base.html": (
+                        "{% block content %}"
+                        '<video poster="images/still.png"></video>'
+                        '<video poster="https://sase.sh/still.png"></video>'
+                        "{% endblock %}"
+                    )
+                }
+            ),
+            jinja2.FileSystemLoader(str(MAIN_TEMPLATE.parent)),
+        ]
+    )
+    template = jinja2.Environment(loader=loader).get_template(MAIN_TEMPLATE.name)
+    page = SimpleNamespace(url="start/")
+
+    pdf = template.render(
+        config={"extra": {"pdf_handbook": {"build_date": ""}}, "site_dir": "/tmp/site"},
+        page=page,
+    )
+    web = template.render(config={"extra": {}, "site_dir": "/tmp/site"}, page=page)
+
+    assert 'poster="file:///tmp/site/start/images/still.png"' in pdf
+    assert 'poster="https://sase.sh/still.png"' in pdf
+    assert 'poster="images/still.png"' in web
