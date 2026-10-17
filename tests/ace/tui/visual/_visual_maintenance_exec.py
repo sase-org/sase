@@ -67,6 +67,11 @@ TIMEOUT_EXIT_CODE = 124
 # for xdist workers to exit cleanly and release the suite admission lease.
 TERMINATE_GRACE_SECONDS = 10.0
 
+# A SIGKILLed direct child should be reapable promptly. Keep this wait bounded
+# as well: an uninterruptible kernel wait must not turn timeout cleanup into an
+# unbounded wait.
+_POST_KILL_REAP_SECONDS = 1.0
+
 
 def run_governed_visual_pytest(
     *,
@@ -175,7 +180,15 @@ def _drain_child_output(
                 sys.stdout.buffer.flush()
     finally:
         selector.close()
-    return int(proc.wait())
+    if deadline is None:
+        return int(proc.wait())
+    remaining = deadline - clock()
+    if remaining <= 0:
+        return _timeout_kill(proc, log, grace_seconds=grace_seconds)
+    try:
+        return int(proc.wait(timeout=remaining))
+    except subprocess.TimeoutExpired:
+        return _timeout_kill(proc, log, grace_seconds=grace_seconds)
 
 
 def _timeout_kill(
@@ -237,18 +250,108 @@ def _terminate_process_tree(
     xdist workers it spawned. The lease and locks they hold are released by
     the kernel when the holders die.
     """
+    process_group_id = proc.pid
+    _signal_process_group(process_group_id, signal.SIGTERM)
+    grace_deadline = time.monotonic() + max(0.0, grace_seconds)
+
+    while True:
+        # poll() reaps the leader when it has exited. Its descendants can
+        # still hold the output pipe or maintenance lock, so their state is
+        # checked separately from the leader's return code.
+        proc.poll()
+        group_live = _process_group_has_live_members(process_group_id)
+        if proc.returncode is not None and not group_live:
+            return
+        remaining = grace_deadline - time.monotonic()
+        if remaining <= 0:
+            break
+        time.sleep(min(0.05, remaining))
+
+    # The leader may have exited on SIGTERM while a descendant ignored it.
+    # Escalate against the owned process group, not just the Popen leader.
+    if _process_group_has_live_members(process_group_id):
+        _signal_process_group(process_group_id, signal.SIGKILL)
+
+    reap_deadline = time.monotonic() + _POST_KILL_REAP_SECONDS
+    while _process_group_has_live_members(process_group_id):
+        remaining = reap_deadline - time.monotonic()
+        if remaining <= 0:
+            # A second group signal is harmless if the first one already
+            # finished its work, and still targets only this owned group.
+            _signal_process_group(process_group_id, signal.SIGKILL)
+            break
+        time.sleep(min(0.05, remaining))
+
     try:
-        os.killpg(proc.pid, signal.SIGTERM)
+        proc.wait(timeout=max(0.0, reap_deadline - time.monotonic()))
+    except subprocess.TimeoutExpired:
+        # Cover a process that raced with the first group scan or has not yet
+        # acted on SIGKILL. Both attempts remain bounded.
+        _signal_process_group(process_group_id, signal.SIGKILL)
+        try:
+            proc.wait(timeout=_POST_KILL_REAP_SECONDS)
+        except subprocess.TimeoutExpired:
+            pass
+
+
+def _signal_process_group(process_group_id: int, signum: int) -> None:
+    """Signal one owned process group, tolerating a group that already exited."""
+    try:
+        os.killpg(process_group_id, signum)
     except (ProcessLookupError, PermissionError):
         pass
+
+
+def _process_group_has_live_members(process_group_id: int) -> bool:
+    """Return whether the group has work left, ignoring exited zombies.
+
+    Linux exposes each process's group and state in ``/proc/<pid>/stat``.
+    Zombie and dead entries no longer hold pipes or locks and should not keep
+    the grace period alive. On systems without procfs, killpg(..., 0) provides
+    the best available group-existence check.
+    """
+    proc_root = Path("/proc")
     try:
-        proc.wait(timeout=grace_seconds)
-    except subprocess.TimeoutExpired:
-        try:
-            os.killpg(proc.pid, signal.SIGKILL)
-        except (ProcessLookupError, PermissionError):
-            pass
-        proc.wait()
+        entries = os.scandir(proc_root)
+    except OSError:
+        return _process_group_exists(process_group_id)
+
+    with entries:
+        for entry in entries:
+            if not entry.name.isdecimal():
+                continue
+            try:
+                stat = Path(entry.path, "stat").read_text(encoding="ascii")
+            except (FileNotFoundError, ProcessLookupError):
+                continue
+            except OSError:
+                # If procfs is restricted, fall back to the portable group
+                # existence check rather than falsely declaring it empty.
+                return _process_group_exists(process_group_id)
+            close_paren = stat.rfind(")")
+            if close_paren < 0:
+                continue
+            fields = stat[close_paren + 1 :].split()
+            if len(fields) < 3:
+                continue
+            try:
+                member_group = int(fields[2])
+            except ValueError:
+                continue
+            if member_group == process_group_id and fields[0] not in {"Z", "X"}:
+                return True
+    return False
+
+
+def _process_group_exists(process_group_id: int) -> bool:
+    """Best-effort group check for platforms without readable procfs."""
+    try:
+        os.killpg(process_group_id, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
 
 
 def run_pytest(

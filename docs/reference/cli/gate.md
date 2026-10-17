@@ -63,8 +63,8 @@ Options:
 
 ```text
 usage: sase gate answer [-h] [-d | -D] [-f FEEDBACK] -i REQUEST_ID [-I JSON]
-                        [-j] -k KIND [-o OPTION_ID] [-O OPTION_ID=JSON]
-                        [-R | -r] [-s FIELD=VALUE]
+                        [-j] -k KIND [-o OPTION_ID] [-O OPTION_ID=JSON] [-R |
+                        -r] [-s FIELD=VALUE]
 ```
 
 Answer a gate by selecting one branch's options and supplying each selected option's declared input. Input is delivered to commands as JSON on stdin and never as command arguments. Per-option values (--set, --option-input) and one shared value (--input) are mutually exclusive submission contracts.

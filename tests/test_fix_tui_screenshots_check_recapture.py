@@ -599,6 +599,76 @@ def test_check_timed_out_retry_keeps_first_pass_and_writes_manifest(
     assert verify["child_exit_code"] == 124
 
 
+def test_check_timed_out_retry_preserves_unrecovered_first_pass_failure(
+    tmp_path: Path,
+) -> None:
+    """A timed-out retry keeps a first-pass failure in the manifest and exit."""
+    red, ace, runner = _pair(tmp_path, candidate=make_png(1, 1, (255, 0, 0, 255)))
+    runner.attempts = [AttemptScript(exit_code=1, failed=(ACE_NODE,))]
+    index = git_index(tmp_path)
+    seen_timeouts: list[float | None] = []
+
+    def first_then_stop(
+        *,
+        repo_root: Path,
+        capture_dir: Path,
+        run_id: str,
+        scope: str,
+        pytest_args: Sequence[str],
+        log_path: Path,
+        ace_root: Path,
+        pager_root: Path,
+        workers: int | None = None,
+        timeout_seconds: float | None = None,
+    ) -> int:
+        if "-verify" in run_id:
+            seen_timeouts.append(timeout_seconds)
+            log_path.write_text("fake hung visual pytest\n", encoding="utf-8")
+            return 124
+        return runner(
+            repo_root=repo_root,
+            capture_dir=capture_dir,
+            run_id=run_id,
+            scope=scope,
+            pytest_args=pytest_args,
+            log_path=log_path,
+            ace_root=ace_root,
+            pager_root=pager_root,
+            workers=workers,
+            timeout_seconds=timeout_seconds,
+        )
+
+    hooks = MaintenanceHooks(
+        preflight=lambda _update: None,
+        run_pytest=first_then_stop,
+        is_ci=lambda _env: False,
+        renderer_identity=lambda: {"packages": {}, "fonts": {}},
+        monotonic=_FakeClock([0.0, 0.0, 0.0, 1000.0, 1000.0]),
+    )
+    assert (
+        main(
+            ["--check", "--recapture-budget-seconds", "600"],
+            repo_root=tmp_path,
+            hooks=hooks,
+            environ={},
+        )
+        == EXIT_FAILURE
+    )
+    assert ace.read_bytes() == red
+    assert git_index(tmp_path) == index
+    assert seen_timeouts == [600.0]
+    manifest = _manifest(tmp_path)
+    assert manifest["status"] == "failed"
+    assert manifest["exit_code"] == EXIT_FAILURE
+    assert any("budget exhausted" in str(warning) for warning in manifest["warnings"])
+    assert any(ACE_NODE in str(error) for error in manifest["errors"])
+    assert manifest["unstable"] == []
+    verify = next(
+        attempt for attempt in manifest["attempts"] if attempt["label"] == "verify"
+    )
+    assert verify["child_exit_code"] == 124
+
+
 def _strict_inventory(
     *,
     reasons: tuple[str, ...] = (),

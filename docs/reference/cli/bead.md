@@ -13,8 +13,7 @@ Reference for `sase bead`. Run `sase bead --help` for the exact output on this c
 
 ```text
 usage: sase bead [-h]
-                 {+1,apply-status,attach,attachment,blocked,close,create,dep,doctor,epic-symbols,export,history,init,list,note,onboard,open,pages,read,ready,ref,resolve-conflicts,rm,search,show,snooze,stats,sync,sync-external,task-type,touched,update,work}
-                 ...
+                 {+1,apply-status,attach,attachment,blocked,close,create,dep,doctor,epic-symbols,export,history,init,list,note,onboard,open,pages,read,ready,ref,resolve-conflicts,rm,search,show,snooze,stats,sync,sync-external,task-type,touched,update,work} ...
 ```
 
 Bare `sase bead` defaults to `sase bead list`.
@@ -152,8 +151,7 @@ Arguments:
 
 ```text
 usage: sase bead attachment [-h]
-                            {list,open,path,prune,publish,purge,push,unpublish}
-                            ...
+                            {list,open,path,prune,publish,purge,push,unpublish} ...
 ```
 
 List content-addressed attachment snapshots on a bead, open one in the terminal viewer, print the absolute local view path for one attachment, publish one note attachment to the public store, unpublish one note attachment back to private, push queued uploads to the shared store, purge one attachment behind tombstones, or prune the local cache. Invoking 'sase bead attachment' without a subcommand delegates to 'sase bead attachment list'. List and open never fetch; path always fetches from the shared store when needed, even above the auto-fetch cap. Push drains the upload outbox and never authors notes. Publish and unpublish edit manifests through NoteEdited with the note text unchanged.
