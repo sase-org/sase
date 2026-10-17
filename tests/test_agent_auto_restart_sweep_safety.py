@@ -8,6 +8,7 @@ trip-once storm breaker, and cheap idle ticks.
 
 from __future__ import annotations
 
+import datetime
 import json
 import time
 import uuid
@@ -21,11 +22,24 @@ import pytest
 from sase.agent.auto_restart.healer import HealerTarget, heal_one
 from sase.agent.auto_restart.healer_targets import is_healer_candidate
 from sase.axe import runner_auto_restart_doorbell as doorbell_mod
+from sase.core.time import get_timezone
 
 PROVIDER_429 = (
     "ProviderError: 429 rate limited — quota exhausted for model; retry after 60s"
 )
 SKEW_ERROR = "ImportError: cannot import name 'auto_launch_prefix'"
+
+
+def _artifact_stamp(now: float) -> str:
+    """Format a healer-readable artifact stamp for ``now``."""
+    return datetime.datetime.fromtimestamp(now, tz=get_timezone()).strftime(
+        "%Y%m%d%H%M%S"
+    )
+
+
+def _ledger_timestamp(now: float) -> str:
+    """Format an ISO timestamp in the same timezone as artifact stamps."""
+    return datetime.datetime.fromtimestamp(now, tz=get_timezone()).isoformat()
 
 
 @pytest.fixture
@@ -95,7 +109,7 @@ def test_candidate_rule_matrix(tmp_home: Path) -> None:
     _ = tmp_home
     now = time.time()
     base = {"outcome": "failed"}
-    row = Path("/tmp/row/20261009T120000")
+    row = Path("/tmp/row") / _artifact_stamp(now)
     assert is_healer_candidate(
         artifacts_dir=row, done=dict(base), has_doorbell=True, now=now
     )
@@ -128,21 +142,18 @@ def test_recent_non_skew_row_untouched(
     tmp_home: Path, quiet_notifications: dict[str, list]
 ) -> None:
     """A recent provider-429 row: no ledger, no write, no ping via both paths."""
-    import datetime
-
     from sase.agent.auto_restart import ledger as ledger_mod
     from sase.agent.auto_restart import sweep as sweep_mod
     from sase.agent.auto_restart.healer_targets import resolve_pending_targets
-    from sase.core.time import get_timezone
 
-    stamp = datetime.datetime.now(get_timezone()).strftime("%Y%m%d%H%M%S")
+    now = time.time()
+    stamp = _artifact_stamp(now)
     row = _projects_row(
         tmp_home,
         stamp,
         {"outcome": "failed", "error": PROVIDER_429},
     )
     before = (row / "done.json").read_text(encoding="utf-8")
-    now = time.time()
     assert resolve_pending_targets(now=now) == []
     outcome = heal_one(_target(row), now=now)
     assert outcome.action == "skipped"
@@ -173,16 +184,18 @@ def test_non_skew_row_and_dismissed_bundle_untouched(
     from sase.agent.auto_restart import ledger as ledger_mod
     from sase.agent.auto_restart.healer_targets import resolve_pending_targets
 
+    now = time.time()
+    stamp = _artifact_stamp(now)
     row = _projects_row(
         tmp_home,
-        "20261009T120000",
+        stamp,
         {"outcome": "failed", "error": PROVIDER_429},
     )
     before = (row / "done.json").read_text(encoding="utf-8")
     # A dismissed bundle for an already-wiped row.
     bundles = tmp_home / "dismissed_bundles"
     bundles.mkdir(parents=True, exist_ok=True)
-    (bundles / "20261009120000_safety-old.json").write_text(
+    (bundles / f"{stamp}_safety-old.json").write_text(
         json.dumps(
             {
                 "status": "FAILED",
@@ -195,8 +208,8 @@ def test_non_skew_row_and_dismissed_bundle_untouched(
         encoding="utf-8",
     )
 
-    assert resolve_pending_targets(now=time.time()) == []
-    outcome = heal_one(_target(row), now=time.time())
+    assert resolve_pending_targets(now=now) == []
+    outcome = heal_one(_target(row), now=now)
     assert outcome.action == "skipped"
     assert outcome.reason == "not_update_skew"
     assert ledger_mod.iter_ledger_records() == []
@@ -211,8 +224,11 @@ def test_job_tick_ignores_non_skew_and_bundles(
     from sase.agent.auto_restart import ledger as ledger_mod
     from sase.agent.auto_restart import sweep as sweep_mod
 
+    now = time.time()
     _projects_row(
-        tmp_home, "20261009T120000", {"outcome": "failed", "error": PROVIDER_429}
+        tmp_home,
+        _artifact_stamp(now),
+        {"outcome": "failed", "error": PROVIDER_429},
     )
     submissions: list[int] = []
     with (
@@ -227,7 +243,7 @@ def test_job_tick_ignores_non_skew_and_bundles(
             lambda *, count: submissions.append(count) or True,
         ),
     ):
-        tick = sweep_mod.run_job_tick(now=time.time())
+        tick = sweep_mod.run_job_tick(now=now)
     assert tick.action == "idle", tick
     assert submissions == []
     assert ledger_mod.iter_ledger_records() == []
@@ -236,31 +252,33 @@ def test_job_tick_ignores_non_skew_and_bundles(
 
 def test_stale_legacy_row_is_ignored(tmp_home: Path) -> None:
     """A skew-shaped legacy row older than max_defer_seconds is ignored."""
-    from sase.agent.auto_restart.healer_targets import resolve_pending_targets
+    from sase.agent.auto_restart.healer_targets import (
+        _HISTORY_LOOKBACK_SECONDS,
+        resolve_pending_targets,
+    )
 
+    now = time.time()
+    stale_stamp = _artifact_stamp(now - _HISTORY_LOOKBACK_SECONDS - 60)
     row = _projects_row(
         tmp_home,
-        "20200101T000000",
+        stale_stamp,
         {"outcome": "failed", "error": SKEW_ERROR},
     )
-    assert resolve_pending_targets(now=time.time()) == []
-    outcome = heal_one(_target(row), now=time.time())
+    assert resolve_pending_targets(now=now) == []
+    outcome = heal_one(_target(row), now=now)
     assert outcome.action == "skipped"
     assert outcome.reason == "not_update_skew"
 
 
 def test_recent_legacy_skew_row_is_candidate(tmp_home: Path) -> None:
     """A recent skew-shaped legacy row without markers is still a candidate."""
-    import datetime
-
-    from sase.core.time import get_timezone
-
-    stamp = datetime.datetime.now(get_timezone()).strftime("%Y%m%dT%H%M%S")
+    now = time.time()
+    stamp = _artifact_stamp(now)
     row = _projects_row(tmp_home, stamp, {"outcome": "failed", "error": SKEW_ERROR})
     assert is_healer_candidate(
         artifacts_dir=row,
         done=json.loads((row / "done.json").read_text(encoding="utf-8")),
-        now=time.time(),
+        now=now,
     )
 
 
@@ -309,9 +327,10 @@ def test_handled_doorbell_deleted_and_next_tick_idle(
     from sase.agent.auto_restart import ledger as ledger_mod
     from sase.agent.auto_restart import sweep as sweep_mod
 
+    now = time.time()
     row = _projects_row(
         tmp_home,
-        "20261009T120000",
+        _artifact_stamp(now),
         {
             "outcome": "failed",
             "error": SKEW_ERROR,
@@ -326,7 +345,7 @@ def test_handled_doorbell_deleted_and_next_tick_idle(
     outcome = heal_one(
         _target(row),
         classify=lambda assembled: _decline_verdict(),
-        now=time.time(),
+        now=now,
     )
     assert outcome.action == "declined"
     assert not Path(doorbell_path).exists()
@@ -343,24 +362,14 @@ def test_disabled_path_resurfaces_silenced_once_and_ignores_others(
     tmp_home: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Silenced rows resurface exactly once; non-silenced rows are untouched."""
-    import datetime
-
     import sase.agent.auto_restart.notify as notify
     from sase.agent.auto_restart import ledger as ledger_mod
     from sase.agent.auto_restart import sweep as sweep_mod
-    from sase.core.time import get_timezone
 
-    now = time.time()
-    tz = get_timezone()
-    silenced_stamp = datetime.datetime.fromtimestamp(now - 600, tz=tz).strftime(
-        "%Y%m%dT%H%M%S"
-    )
-    plain_stamp = datetime.datetime.fromtimestamp(now - 60, tz=tz).strftime(
-        "%Y%m%dT%H%M%S"
-    )
+    base = time.time()
     silenced = _projects_row(
         tmp_home,
-        silenced_stamp,
+        _artifact_stamp(base),
         {
             "outcome": "failed",
             "error": SKEW_ERROR,
@@ -368,8 +377,8 @@ def test_disabled_path_resurfaces_silenced_once_and_ignores_others(
                 "state": "pending",
                 "reason": None,
                 "reason_text": "recovery pending",
-                "requested_at": "2026-10-09T12:00:00+00:00",
-                "updated_at": "2026-10-09T12:00:00+00:00",
+                "requested_at": _ledger_timestamp(base),
+                "updated_at": _ledger_timestamp(base),
                 "episode_id": None,
             },
         },
@@ -377,7 +386,7 @@ def test_disabled_path_resurfaces_silenced_once_and_ignores_others(
     )
     plain = _projects_row(
         tmp_home,
-        plain_stamp,
+        _artifact_stamp(base + 10),
         {"outcome": "failed", "error": PROVIDER_429},
         name="plain-worker",
     )
@@ -392,7 +401,6 @@ def test_disabled_path_resurfaces_silenced_once_and_ignores_others(
         lambda: False,
     )
     counts = []
-    base = time.time()
     for step in range(3):
         tick = sweep_mod.run_job_tick(now=base + step)
         assert tick.action == "disabled", tick
@@ -417,11 +425,14 @@ def test_write_recovery_creates_nothing_and_dry_run_writes_nothing(
     write_recovery(_target(missing), "declined", "nope", now=time.time())
     assert not missing.exists()
 
+    now = time.time()
     row = _projects_row(
-        tmp_home, "20261009T120000", {"outcome": "failed", "error": PROVIDER_429}
+        tmp_home,
+        _artifact_stamp(now),
+        {"outcome": "failed", "error": PROVIDER_429},
     )
     before = (row / "done.json").read_text(encoding="utf-8")
-    write_recovery(_target(row), "declined", "dry", now=time.time(), dry_run=True)
+    write_recovery(_target(row), "declined", "dry", now=now, dry_run=True)
     assert (row / "done.json").read_text(encoding="utf-8") == before
 
 
@@ -474,9 +485,10 @@ def test_storm_sends_exactly_one_escalation(
 
     outcomes = []
     for index in range(3):
+        now = time.time() + index
         row = _projects_row(
             tmp_home,
-            f"20261009T12{index:02d}00",
+            _artifact_stamp(now),
             {
                 "outcome": "failed",
                 "error": SKEW_ERROR,
@@ -492,7 +504,7 @@ def test_storm_sends_exactly_one_escalation(
                 run_probe=lambda modules, binding_checks=None: SimpleNamespace(
                     ok=True, failures=(), detail="clean"
                 ),
-                now=time.time(),
+                now=now,
             )
         )
     assert [o.action for o in outcomes] == ["declined"] * 3
