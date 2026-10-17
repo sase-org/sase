@@ -35,6 +35,7 @@ from ._new_project_apply_shared import (
     MODAL_TASKS,
     record_successful_add_preferences,
     record_successful_create_preferences,
+    wizard_is_open,
 )
 from .new_project_failed import NewProjectFailed, create_setup_incomplete
 from .new_project_progress import NewProjectProgress
@@ -177,7 +178,7 @@ class NewProjectApplyMixin(MixinBase):
 
     def _on_add_handle(self, old_id: str, new_id: str) -> None:
         self._apply_proc_id = new_id or old_id or getattr(self, "_apply_proc_id", "")
-        if not self.is_mounted:
+        if not wizard_is_open(self):
             return
         self.query_one(NewProjectProgress).update_proc_id(old_id, new_id)
 
@@ -297,9 +298,10 @@ class NewProjectApplyMixin(MixinBase):
         run_project_init(protocol, InitScope.for_projects([key], [name]))
 
     def _on_init_finished(self, initialized: bool) -> None:
+        if not wizard_is_open(self) or self._state.stage != "progress":
+            return
         if initialized:
-            if self.is_mounted and self._state.stage == "progress":
-                self.query_one(NewProjectProgress).mark_initialized()
+            self.query_one(NewProjectProgress).mark_initialized()
             self._finish_ready(needs_init=False)
             return
         self._finish_ready(needs_init=True)
@@ -351,7 +353,7 @@ class NewProjectApplyMixin(MixinBase):
 
     def _observe_add_completion(self, completion: TrackedProcCompletion[Any]) -> None:
         """Let Progress settle from proc evidence if NDJSON never arrived."""
-        if not self.is_mounted or self._state.stage != "progress":
+        if not wizard_is_open(self) or self._state.stage != "progress":
             return
         matches = self.query(NewProjectProgress)
         if not matches:

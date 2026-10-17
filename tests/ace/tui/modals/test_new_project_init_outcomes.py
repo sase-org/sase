@@ -176,11 +176,56 @@ def test_reload_does_not_finish_wizard_host() -> None:
             finished.append(initialized)
 
     modal = _Modal()
+    modal.app = SimpleNamespace(screen_stack=[modal])
     host = NewProjectInitHost(modal)
     host.reload_projects()
     assert finished == []
     host.report_init_outcome(True)
     assert finished == [True]
+
+
+def test_closed_wizard_host_drops_outcome() -> None:
+    finished: list[bool] = []
+
+    class _Modal:
+        is_mounted = True
+        app = SimpleNamespace(screen_stack=[])
+
+        def _on_init_finished(self, initialized: bool) -> None:
+            finished.append(initialized)
+
+    host = NewProjectInitHost(_Modal())
+    assert host.is_mounted is False
+    host.report_init_outcome(False)
+    assert finished == []
+
+
+async def _start_wizard_init_handoff(
+    pilot: Any, app: Any, modal: Any
+) -> list[tuple[tuple[Any, ...], dict[str, Any], Any]]:
+    submitted: list[tuple[tuple[Any, ...], dict[str, Any], Any]] = []
+
+    def fake_submit(*args: Any, **kwargs: Any) -> Any:
+        handle = SimpleNamespace(proc_id=f"session-{len(submitted)}")
+        submitted.append((args, kwargs, handle))
+        return handle
+
+    app._submit_session_worker = fake_submit  # type: ignore[method-assign]
+    app.push_screen(modal)
+    await pilot.pause()
+    _select_suggested(modal)
+    await pilot.pause()
+    await _tab_to_review(pilot, modal)
+    await pilot.press("enter")
+    await pilot.pause()
+    await pilot.press("y")
+    await pilot.pause()
+    modal._on_progress_result(
+        _result("ok", next_argv=("sase", "init", "-p", "gh_sase-org__new"))
+    )
+    await pilot.pause()
+    assert submitted
+    return submitted
 
 
 async def test_wizard_init_success_marks_initialized(
@@ -192,29 +237,8 @@ async def test_wizard_init_success_marks_initialized(
         "start_check",
         lambda self, document: self.show_document(document),
     )
-    submitted: list[Any] = []
-
-    def fake_submit(*args: Any, **kwargs: Any) -> Any:
-        handle = SimpleNamespace(proc_id=f"session-{len(submitted)}")
-        submitted.append((args, kwargs, handle))
-        return handle
-
     async with app.run_test(size=(120, 40)) as pilot:
-        app._submit_session_worker = fake_submit  # type: ignore[method-assign]
-        app.push_screen(modal)
-        await pilot.pause()
-        _select_suggested(modal)
-        await pilot.pause()
-        await _tab_to_review(pilot, modal)
-        await pilot.press("enter")
-        await pilot.pause()
-        await pilot.press("y")
-        await pilot.pause()
-        modal._on_progress_result(
-            _result("ok", next_argv=("sase", "init", "-p", "gh_sase-org__new"))
-        )
-        await pilot.pause()
-        assert submitted
+        submitted = await _start_wizard_init_handoff(pilot, app, modal)
         _args, kwargs, handle = submitted[0]
         payload = check_payload(project_plan("gh_sase-org__new"), status="current")
         kwargs["on_complete"](_completion(handle.proc_id, payload))
@@ -222,3 +246,33 @@ async def test_wizard_init_success_marks_initialized(
         assert modal._state.stage == "ready"
         ready = modal.query_one(NewProjectReady)
         assert not ready._needs_init
+
+
+@pytest.mark.parametrize("outcome", ["failed", "current"])
+async def test_closed_wizard_ignores_late_init_outcome(
+    monkeypatch: pytest.MonkeyPatch, outcome: str
+) -> None:
+    app, modal = _make_add_flow(monkeypatch)
+    monkeypatch.setattr(
+        NewProjectReview,
+        "start_check",
+        lambda self, document: self.show_document(document),
+    )
+    async with app.run_test(size=(120, 40)) as pilot:
+        submitted = await _start_wizard_init_handoff(pilot, app, modal)
+        _args, kwargs, handle = submitted[0]
+        if outcome == "failed":
+            completion = _completion(
+                handle.proc_id, None, success=False, message="boom", error="boom"
+            )
+        else:
+            payload = check_payload(project_plan("gh_sase-org__new"), status="current")
+            completion = _completion(handle.proc_id, payload)
+
+        await pilot.press("escape")
+        await pilot.pause()
+        await pilot.pause()
+        assert modal not in app.screen_stack
+        kwargs["on_complete"](completion)
+        await pilot.pause()
+        assert modal._state.stage == "progress"

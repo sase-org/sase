@@ -13,6 +13,7 @@ from ._new_project_apply_shared import (
     MODAL_TASKS,
     find_projects_pane,
     reload_projects_if_mounted,
+    wizard_is_open,
 )
 from .project_selection_types import SelectionItem
 
@@ -51,7 +52,7 @@ def launch_from_ready(modal: Any) -> None:
 
 async def ensure_catalog_and_launch(modal: Any) -> None:
     await asyncio.to_thread(ensure_project_tag_catalog)
-    if not modal.is_mounted:
+    if not wizard_is_open(modal):
         return
     key = getattr(modal, "_ready_key", "")
     name = getattr(modal, "_ready_name", "") or key

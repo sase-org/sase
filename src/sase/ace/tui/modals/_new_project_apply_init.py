@@ -5,7 +5,11 @@ from __future__ import annotations
 import weakref
 from typing import Any
 
-from ._new_project_apply_shared import find_projects_pane, reload_projects_if_mounted
+from ._new_project_apply_shared import (
+    find_projects_pane,
+    reload_projects_if_mounted,
+    wizard_is_open,
+)
 from sase.ace.tui.modals.projects_pane_init import InitScope
 from sase.ace.tui.modals.projects_pane_init_flow import run_project_init
 
@@ -28,7 +32,7 @@ class NewProjectInitHost:
     @property
     def is_mounted(self) -> bool:
         modal = self._modal_ref()
-        if modal is not None and modal.is_mounted:
+        if wizard_is_open(modal):
             return True
         pane = find_projects_pane(self._app)
         return pane is not None and getattr(pane, "is_mounted", False)
@@ -72,7 +76,7 @@ class NewProjectInitHost:
             return
         self._finished = True
         modal = self._modal_ref()
-        if modal is not None and modal.is_mounted:
+        if modal is not None and wizard_is_open(modal):
             modal._on_init_finished(initialized)
 
 

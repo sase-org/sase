@@ -17,6 +17,29 @@ from sase.project_onboarding.preferences import (
 MODAL_TASKS = "_new_project_modal_tasks"
 
 
+def wizard_is_open(modal: Any) -> bool:
+    """Return whether the New Project wizard is still open and queryable.
+
+    Textual sets ``is_mounted`` once and never clears it, so a dismissed
+    wizard keeps reporting mounted after teardown prunes its widgets.
+    Completions that outlive the wizard (durable add/create procs, the
+    ``sase init`` hand-off) must use this instead. ``dismiss()`` pops the
+    wizard off the screen stack synchronously, before pruning starts, so
+    stack membership closes the whole teardown window.
+    """
+    if modal is None:
+        return False
+    if not getattr(modal, "is_mounted", False):
+        return False
+    if getattr(modal, "_teardown_started", False):
+        return False
+    try:
+        stack = modal.app.screen_stack
+    except Exception:
+        return False
+    return any(screen is modal for screen in stack)
+
+
 def find_projects_pane(app: Any) -> Any | None:
     """Return the mounted Projects pane from the screen stack, top-down.
 
@@ -82,7 +105,7 @@ def on_project_apply_complete(
         reload_projects_if_mounted(app)
     modal = modal_ref()
     observe = getattr(modal, "_observe_add_completion", None)
-    if modal is not None and getattr(modal, "is_mounted", False) and callable(observe):
+    if wizard_is_open(modal) and callable(observe):
         observe(completion)
 
 
@@ -158,4 +181,5 @@ __all__ = [
     "record_successful_add_preferences",
     "record_successful_create_preferences",
     "reload_projects_if_mounted",
+    "wizard_is_open",
 ]
