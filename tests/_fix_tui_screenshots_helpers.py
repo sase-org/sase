@@ -195,6 +195,7 @@ class FakeRunner:
         ace_root: Path,
         pager_root: Path,
         workers: int | None = None,
+        timeout_seconds: float | None = None,
     ) -> int:
         self.calls.append(
             {
@@ -203,6 +204,7 @@ class FakeRunner:
                 "pytest_args": tuple(pytest_args),
                 "capture_dir": capture_dir,
                 "workers": workers,
+                "timeout_seconds": timeout_seconds,
             }
         )
         if "-verify" in str(run_id):

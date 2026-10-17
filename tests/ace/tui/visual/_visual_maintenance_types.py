@@ -90,6 +90,7 @@ class VisualPytestFn(Protocol):
         ace_root: Path,
         pager_root: Path,
         workers: int | None = None,
+        timeout_seconds: float | None = None,
     ) -> int: ...
 
 

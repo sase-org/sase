@@ -390,17 +390,21 @@ def _run_locked_check(
             recovered = tuple(
                 record.node_id for record in recapture.unstable if record.node_id
             )
+            cured = tuple(dict.fromkeys((*recovered, *recapture.retry_trusted)))
             strict_errors = check_mode_strict_errors(
                 inventory,
-                recovered=recovered,
+                recovered=cured,
+                child_exit_code=child_exit,
+                scope=request.scope,
             )
             failure_ids = recapture.execution_failed
             error_items = list(strict_errors)
+            error_items.extend(recapture.retry_errors)
             for node_id in failure_ids:
                 marker = f"failed_node:{node_id}"
                 if marker not in error_items:
                     error_items.append(marker)
-            if failure_ids or strict_errors:
+            if failure_ids or strict_errors or recapture.retry_errors:
                 status = STATUS_FAILED
                 exit_code = EXIT_FAILURE
                 errors = tuple(error_items)

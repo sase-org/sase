@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 import os
 from pathlib import Path
+import selectors
+import signal
 import subprocess
 import sys
-from typing import Any
+import time
+from typing import Any, BinaryIO
 
 from tests.ace.tui.visual._visual_maintenance_baseline import (
     default_ace_root,
@@ -54,6 +57,17 @@ def build_run_pytest_command(
 WORKERS_ENV_VAR = "SASE_PYTEST_WORKERS"
 
 
+# Exit code reported when the recapture wall-clock budget expires while a
+# governed child is still running. It mirrors ``timeout(1)``; pytest itself
+# only exits 0-5, so this value unambiguously means "we stopped the child".
+TIMEOUT_EXIT_CODE = 124
+
+# Grace between SIGTERM and SIGKILL when stopping an over-budget process
+# tree. Short enough to preserve the CI report-upload margin, long enough
+# for xdist workers to exit cleanly and release the suite admission lease.
+TERMINATE_GRACE_SECONDS = 10.0
+
+
 def run_governed_visual_pytest(
     *,
     repo_root: Path,
@@ -66,12 +80,19 @@ def run_governed_visual_pytest(
     pager_root: Path,
     workers: int | None = None,
     environ: Mapping[str, str] | None = None,
+    timeout_seconds: float | None = None,
 ) -> int:
     """Invoke ``tools/run_pytest visual`` with candidate capture enabled.
 
     When *workers* is set, the child runs with ``SASE_PYTEST_WORKERS=<n>``
     in a copy of the process environment. ``None`` keeps the governed
     default.
+
+    When *timeout_seconds* is set, a quiet or hung child cannot block past
+    the remaining recapture budget: the owned process group is terminated
+    (SIGTERM, then SIGKILL after a bounded grace), partial logs are kept,
+    and :data:`TIMEOUT_EXIT_CODE` is returned. ``None`` keeps the previous
+    unbounded behavior for first-pass capture and update mode.
     """
     command = build_run_pytest_command(
         repo_root=repo_root,
@@ -95,24 +116,139 @@ def run_governed_visual_pytest(
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             env=dict(child_env) if child_env is not None else None,
+            start_new_session=True,
         )
         assert proc.stdout is not None
         try:
-            while True:
-                chunk = proc.stdout.read(65536)
-                if not chunk:
-                    break
-                log.write(chunk)
+            return _drain_child_output(
+                proc,
+                log,
+                timeout_seconds=timeout_seconds,
+            )
+        except KeyboardInterrupt:
+            _terminate_process_tree(proc)
+            raise
+
+
+def _drain_child_output(
+    proc: subprocess.Popen[bytes],
+    log: BinaryIO,
+    *,
+    mirror: bool = True,
+    timeout_seconds: float | None = None,
+    clock: Callable[[], float] = time.monotonic,
+    grace_seconds: float = TERMINATE_GRACE_SECONDS,
+) -> int:
+    """Mirror child output to *log* until EOF; enforce *timeout_seconds*.
+
+    Returns the child exit code, or :data:`TIMEOUT_EXIT_CODE` when the
+    budget expired first. On expiry the owned process group is stopped so
+    no xdist child survives, partial output already read is preserved, and
+    a note is appended to the log.
+    """
+    assert proc.stdout is not None
+    stdout_fd = proc.stdout.fileno()
+    deadline = None if timeout_seconds is None else clock() + timeout_seconds
+    selector = selectors.DefaultSelector()
+    selector.register(proc.stdout, selectors.EVENT_READ)
+    try:
+        while True:
+            remaining: float | None = None
+            if deadline is not None:
+                remaining = deadline - clock()
+                if remaining <= 0:
+                    return _timeout_kill(proc, log, grace_seconds=grace_seconds)
+            ready = selector.select(timeout=remaining)
+            if not ready:
+                return _timeout_kill(proc, log, grace_seconds=grace_seconds)
+            # os.read issues a single raw read: unlike BufferedReader.read,
+            # which loops until its buffer is full or EOF, it returns the
+            # bytes already available, so a quiet child cannot stall the
+            # deadline check below.
+            chunk = os.read(stdout_fd, 65536)
+            if not chunk:
+                break
+            log.write(chunk)
+            log.flush()
+            if mirror:
                 sys.stdout.buffer.write(chunk)
                 sys.stdout.buffer.flush()
-            return int(proc.wait())
-        except KeyboardInterrupt:
-            proc.terminate()
+    finally:
+        selector.close()
+    return int(proc.wait())
+
+
+def _timeout_kill(
+    proc: subprocess.Popen[bytes],
+    log: BinaryIO,
+    *,
+    grace_seconds: float,
+) -> int:
+    """Stop an over-budget child, keep partial logs, report the timeout."""
+    _terminate_process_tree(proc, grace_seconds=grace_seconds)
+    _drain_remaining(proc, log)
+    note = (
+        f"\n[sase] recapture budget expired; terminated child pid {proc.pid} "
+        f"and its process group (exit {TIMEOUT_EXIT_CODE})\n"
+    ).encode()
+    log.write(note)
+    log.flush()
+    return TIMEOUT_EXIT_CODE
+
+
+def _drain_remaining(proc: subprocess.Popen[bytes], log: BinaryIO) -> None:
+    """Append whatever the dead child left in its stdout pipe to *log*.
+
+    Reads non-blocking so a pipe holder that escaped the process-group
+    kill cannot stall the run; whatever is unread stays unread.
+    """
+    assert proc.stdout is not None
+    fd = proc.stdout.fileno()
+    try:
+        os.set_blocking(fd, False)
+    except (OSError, ValueError):
+        pass
+    try:
+        while True:
             try:
-                proc.wait(timeout=10)
-            except subprocess.TimeoutExpired:
-                proc.kill()
-            raise
+                chunk = os.read(fd, 65536)
+            except BlockingIOError:
+                break
+            if not chunk:
+                break
+            log.write(chunk)
+    except (OSError, ValueError):
+        pass
+    finally:
+        try:
+            os.set_blocking(fd, True)
+        except (OSError, ValueError):
+            pass
+    log.flush()
+
+
+def _terminate_process_tree(
+    proc: subprocess.Popen[bytes],
+    grace_seconds: float = TERMINATE_GRACE_SECONDS,
+) -> None:
+    """Terminate the owned process group with a bounded grace/kill fallback.
+
+    The child starts in its own session, so signalling the group also stops
+    xdist workers it spawned. The lease and locks they hold are released by
+    the kernel when the holders die.
+    """
+    try:
+        os.killpg(proc.pid, signal.SIGTERM)
+    except (ProcessLookupError, PermissionError):
+        pass
+    try:
+        proc.wait(timeout=grace_seconds)
+    except subprocess.TimeoutExpired:
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)
+        except (ProcessLookupError, PermissionError):
+            pass
+        proc.wait()
 
 
 def run_pytest(
@@ -125,6 +261,7 @@ def run_pytest(
     pytest_args: Sequence[str],
     log_path: Path,
     workers: int | None = None,
+    timeout_seconds: float | None = None,
 ) -> int:
     runner = hooks.run_pytest or run_governed_visual_pytest
     return runner(
@@ -137,6 +274,7 @@ def run_pytest(
         ace_root=default_ace_root(repo_root),
         pager_root=default_pager_root(repo_root),
         workers=workers,
+        timeout_seconds=timeout_seconds,
     )
 
 

@@ -14,7 +14,10 @@ from tests.ace.tui.visual._visual_capture_records import CaptureRecord
 from tests.ace.tui.visual._visual_maintenance_compare import (
     classify_selected_captures,
 )
-from tests.ace.tui.visual._visual_maintenance_exec import run_pytest
+from tests.ace.tui.visual._visual_maintenance_exec import (
+    TIMEOUT_EXIT_CODE,
+    run_pytest,
+)
 from tests.ace.tui.visual._visual_maintenance_manifest import posix_relative
 from tests.ace.tui.visual._visual_maintenance_trust import derive_node_trust
 from tests.ace.tui.visual._visual_maintenance_types import (
@@ -393,10 +396,16 @@ def _run_one_verify_attempt(
     attempt_index: int,
     owners: Sequence[str],
     workers: int | None,
-) -> tuple[AttemptRecord, Path, InventoryReport | None]:
+    timeout_seconds: float | None = None,
+    deadline: float | None = None,
+    clock: Callable[[], float] = time.monotonic,
+) -> tuple[AttemptRecord, Path, InventoryReport | None, bool]:
     """Run one targeted recapture into a fresh directory.
 
     Update-mode agreement and check-mode recapture share this pytest pass.
+    Returns the attempt record, capture directory, inventory (when the
+    child wrote one), and whether the recapture budget expired mid-batch:
+    the child was stopped and its evidence must not cure the first pass.
     """
     dir_name = "verify" if attempt_index == 1 else f"verify-{attempt_index}"
     attempt_dir = run_dir / dir_name
@@ -415,6 +424,7 @@ def _run_one_verify_attempt(
         pytest_args=tuple(owners),
         log_path=log_path,
         workers=workers,
+        timeout_seconds=timeout_seconds,
     )
     attempt = AttemptRecord(
         label=dir_name,
@@ -424,7 +434,15 @@ def _run_one_verify_attempt(
         workers=workers,
         child_exit_code=child_exit,
     )
-    return attempt, attempt_dir, _load_if_present(attempt_dir / "inventory.json")
+    timed_out = (
+        deadline is not None and child_exit == TIMEOUT_EXIT_CODE and clock() >= deadline
+    )
+    return (
+        attempt,
+        attempt_dir,
+        _load_if_present(attempt_dir / "inventory.json"),
+        timed_out,
+    )
 
 
 @dataclass
@@ -445,7 +463,12 @@ class _AttemptDriver:
         self,
         owners_fn: Callable[[], Sequence[str]],
     ) -> Iterator[tuple[int, AttemptRecord, Path, InventoryReport | None]]:
-        """Yield pytest recapture attempts until owners empty, max, or budget."""
+        """Yield pytest recapture attempts until owners empty, max, or budget.
+
+        The remaining wall-clock budget rides into each governed attempt so
+        a quiet or hung child cannot block past the deadline; a stopped
+        child marks the budget exhausted instead of yielding evidence.
+        """
         for attempt_index in range(1, self.max_attempts + 1):
             owners = list(owners_fn())
             if not owners:
@@ -453,8 +476,11 @@ class _AttemptDriver:
             if self.deadline is not None and self.clock() >= self.deadline:
                 self.budget_exhausted = True
                 return
+            timeout_seconds: float | None = None
+            if self.deadline is not None:
+                timeout_seconds = max(0.0, self.deadline - self.clock())
             workers = self.workers_for_attempt(attempt_index)
-            attempt, attempt_dir, inventory = _run_one_verify_attempt(
+            attempt, attempt_dir, inventory, timed_out = _run_one_verify_attempt(
                 hooks=self.hooks,
                 repo_root=self.repo_root,
                 run_id=self.run_id,
@@ -462,7 +488,16 @@ class _AttemptDriver:
                 attempt_index=attempt_index,
                 owners=owners,
                 workers=workers,
+                timeout_seconds=timeout_seconds,
+                deadline=self.deadline,
+                clock=self.clock,
             )
+            if timed_out:
+                # A stopped child leaves no trustworthy inventory behind;
+                # partial logs survive in the attempt log. Remaining nodes
+                # keep their first-pass outcome below.
+                self.budget_exhausted = True
+                inventory = None
             yield attempt_index, attempt, attempt_dir, inventory
 
 
@@ -480,6 +515,8 @@ class CheckRecaptureResult:
     verify_dir: Path | None
     first_attempt_diffs_dir: str | None
     budget_exhausted: bool = False
+    retry_errors: tuple[str, ...] = ()
+    retry_trusted: tuple[str, ...] = ()
 
 
 def first_pass_failed_nodes(
@@ -567,8 +604,11 @@ def run_check_recapture(
     attempts: list[AttemptRecord] = []
     logs: dict[str, str] = {}
     warnings: list[str] = []
+    retry_errors: list[str] = []
+    retry_trusted: set[str] = set()
     verify_dir_first: Path | None = None
     last_trusted: dict[str, bool] = {}
+    attempts_with_evidence = 0
     clock = hooks.monotonic if hooks.monotonic is not None else time.monotonic
     deadline = None if budget_seconds is None else clock() + budget_seconds
 
@@ -594,7 +634,20 @@ def run_check_recapture(
             verify_dir_first = attempt_dir
         if inventory is None:
             continue
+        blocker = _retry_attempt_blocker(attempt, inventory)
+        if blocker is not None:
+            # A matching image from a broken retry cannot cure the first
+            # pass: its node data is unusable and the breakage itself fails
+            # the run. Other nodes may still recover on a later valid
+            # attempt.
+            retry_errors.append(blocker)
+            continue
+        attempts_with_evidence += 1
         trusted, _ = derive_node_trust(inventory)
+        # A test failure is cured once the node passes on a valid retry,
+        # even when its image still drifts: the drift is reported through
+        # remaining changes, not as a test failure.
+        retry_trusted.update(trusted)
         by_node: dict[str, list[CaptureRecord]] = {}
         for record in inventory.captures:
             by_node.setdefault(record.node_id, []).append(record)
@@ -644,13 +697,16 @@ def run_check_recapture(
         if item.node_id not in resolved or item.kind not in {KIND_CREATED, KIND_UPDATED}
     )
     recover = set(first_pass_recover)
-    if attempts:
+    if attempts_with_evidence:
         execution_failed = tuple(
             sorted(
                 node_id for node_id in remaining if not last_trusted.get(node_id, False)
             )
         )
     else:
+        # No usable retry evidence (budget expired, every retry broken, or
+        # no retry ran): remaining nodes keep their first-pass outcome, so
+        # only first-pass test failures fail here. Pure drift stays drift.
         execution_failed = tuple(
             sorted(node_id for node_id in remaining if node_id in recover)
         )
@@ -667,41 +723,149 @@ def run_check_recapture(
         verify_dir=verify_dir_first,
         first_attempt_diffs_dir=diffs_rel,
         budget_exhausted=driver.budget_exhausted,
+        retry_errors=tuple(retry_errors),
+        retry_trusted=tuple(sorted(retry_trusted)),
     )
 
 
-_STRICT_INCOMPLETE_PREFIXES = (
-    "skipped_node:",
-    "xfailed_node:",
-    "xpassed_node:",
-    "deselected_visual_node:",
-    "visual_root_unexecuted:",
+# Pytest exit codes with an ordinary per-test meaning: success and plain
+# test failure. Anything else (interrupt, internal error, usage error, no
+# tests collected) is harness breakage that recapture cannot cure.
+ORDINARY_EXITSTATUSES = (0, 1)
+
+# Retry-inventory reasons proving the retry harness itself broke, so none
+# of its node data may cure the first pass.
+_RETRY_HARNESS_PREFIXES = (
+    "missing_worker:",
     "incomplete_worker:",
     "lost_worker:",
-    "missing_worker:",
+    "unexpected_worker:",
+    "duplicate_canonical_path:",
+    "worker_error:",
+    "malformed_worker:",
+    "invalid_capture:",
+    "invalid_scope:",
 )
+
+
+def _retry_attempt_blocker(
+    attempt: AttemptRecord, inventory: InventoryReport
+) -> str | None:
+    """Return why a retry attempt cannot cure the first pass, if any.
+
+    Only ordinary test outcomes from a protocol-clean retry may recover a
+    node. Abnormal exits, exit disagreement, collect-only or mismatched
+    collection, and capture protocol errors invalidate the whole attempt
+    while leaving other nodes free to recover on a later valid attempt.
+    """
+    label = attempt.label
+    child_exit = attempt.child_exit_code
+    session_exit = inventory.session_exitstatus
+    if child_exit is not None and child_exit not in ORDINARY_EXITSTATUSES:
+        return (
+            f"retry {label} child exit {child_exit} is not an ordinary "
+            "test result; its captures cannot cure the first pass"
+        )
+    if session_exit not in ORDINARY_EXITSTATUSES:
+        return (
+            f"retry {label} session exit status {session_exit} is not an "
+            "ordinary test result; its captures cannot cure the first pass"
+        )
+    if child_exit is not None and child_exit != session_exit:
+        return (
+            f"retry {label} child exit {child_exit} disagrees with session "
+            f"exit status {session_exit}; its captures cannot cure the first pass"
+        )
+    if inventory.collectonly:
+        return (
+            f"retry {label} only collected tests; its captures cannot cure "
+            "the first pass"
+        )
+    if "collection_mismatch" in inventory.reasons:
+        return (
+            f"retry {label} workers disagreed about collection; its captures "
+            "cannot cure the first pass"
+        )
+    if inventory.errors:
+        names = ", ".join(sorted(set(inventory.errors))[:3])
+        return (
+            f"retry {label} has capture protocol errors ({names}); its "
+            "captures cannot cure the first pass"
+        )
+    for reason in inventory.reasons:
+        if reason.startswith(_RETRY_HARNESS_PREFIXES):
+            return (
+                f"retry {label} has harness evidence ({reason}); its captures "
+                "cannot cure the first pass"
+            )
+    return None
+
+
+# Inventory scope marker, never a failure on its own.
+_STRICT_BENIGN_REASONS = frozenset({"requested_scope_targeted"})
+
+# Node-failure reasons a trusted exact-matching recapture may cure.
+_STRICT_CURABLE_PREFIXES = (
+    "failed_node:",
+    "error_node:",
+    "unaccounted_node:",
+)
+
+# Structural root evidence demanded only from full-scope runs. A targeted
+# run legitimately covers one root; its missing sibling is not a failure.
+_FULL_SCOPE_ROOT_PREFIX = "visual_root_unexecuted:"
 
 
 def check_mode_strict_errors(
     inventory: InventoryReport,
     *,
     recovered: Sequence[str],
+    child_exit_code: int | None = None,
+    scope: str = "full",
 ) -> tuple[str, ...]:
-    """Return first-pass incompleteness recapture cannot hide.
+    """Return first-pass failures recapture cannot hide.
 
-    Recovered pytest failures are ignored. Skips, lost workers, missing
-    roots, and protocol errors still fail the check run.
+    Only ordinary pytest test-failure status (exit 1) and node failure
+    reasons actually cured on a valid retry are ignored: a node that passes
+    its test on a protocol-clean retry cured its failure, and an exact
+    golden match additionally clears its drift. Internal errors,
+    interrupts, usage failures, unexplained exit disagreement, protocol
+    errors, collect-only or mismatched collection, missing workers,
+    skipped nodes, and structural full-scope omissions remain failures.
+    Targeted runs are not required to execute both visual roots.
     """
     recovered_nodes = set(recovered)
     errors = list(inventory.errors)
     for reason in inventory.reasons:
-        if reason.startswith(_STRICT_INCOMPLETE_PREFIXES):
-            errors.append(reason)
+        if reason in _STRICT_BENIGN_REASONS:
             continue
-        if reason.startswith("unaccounted_node:"):
+        if reason.startswith(_STRICT_CURABLE_PREFIXES):
             node_id = reason.split(":", 1)[1]
             if node_id not in recovered_nodes:
                 errors.append(reason)
+            continue
+        if reason.startswith(_FULL_SCOPE_ROOT_PREFIX) and scope != "full":
+            continue
+        if reason.startswith("session_exitstatus:"):
+            try:
+                status = int(reason.split(":", 1)[1])
+            except ValueError:
+                errors.append(reason)
+                continue
+            if status in ORDINARY_EXITSTATUSES:
+                continue
+            errors.append(reason)
+            continue
+        errors.append(reason)
+    if child_exit_code is not None and child_exit_code not in ORDINARY_EXITSTATUSES:
+        errors.append(
+            f"child_exit_code:{child_exit_code} is not an ordinary test result"
+        )
+    session_exit = inventory.session_exitstatus
+    if child_exit_code is not None and child_exit_code != session_exit:
+        errors.append(
+            f"exit_disagreement:child={child_exit_code}:session={session_exit}"
+        )
     return tuple(errors)
 
 

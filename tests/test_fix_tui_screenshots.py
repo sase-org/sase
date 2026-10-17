@@ -89,14 +89,39 @@ def test_help_lists_sorted_check_flag_and_exit_codes(
     assert exc_info.value.code == 0
     output = capsys.readouterr().out
     assert "-c, --check" in output
-    assert "-b, --recapture-budget-seconds" in output
-    assert output.index("-b, --recapture-budget-seconds") < output.index("-c, --check")
+    # argparse repeats the metavar after the short alias on some
+    # interpreters ("-b SECONDS, --recapture-budget-seconds SECONDS" on
+    # 3.11/3.12 versus "-b, --recapture-budget-seconds SECONDS" on
+    # 3.13+), so never assert the two spellings are adjacent.
+    assert "-b" in output
+    assert "--recapture-budget-seconds" in output
+    assert "SECONDS" in output
+    assert output.index("--recapture-budget-seconds") < output.index("-c, --check")
     assert "Exit codes:" in output
     assert str(EXIT_SUCCESS) in output
     assert "1  check mode" in output or "1  check" in output
     assert str(EXIT_USAGE) in output
     assert str(EXIT_FAILURE) in output
     assert "just" in output
+    # Aliases, destination, metavar, order, and semantics hold on every
+    # interpreter regardless of help formatting.
+    parser = build_parser()
+    by_dest = {action.dest: action for action in parser._actions}
+    budget = by_dest["recapture_budget_seconds"]
+    assert budget.option_strings == ["-b", "--recapture-budget-seconds"]
+    assert budget.metavar == "SECONDS"
+    assert budget.type is int
+    assert budget.default is None
+    check = by_dest["check"]
+    assert check.option_strings == ["-c", "--check"]
+    assert parser._actions.index(budget) < parser._actions.index(check)
+    assert parse_command(["-b", "12"], environ={}).recapture_budget_seconds == 12
+    assert (
+        parse_command(
+            ["--recapture-budget-seconds", "12"], environ={}
+        ).recapture_budget_seconds
+        == 12
+    )
 
 
 def test_check_short_alias_and_double_dash_selectors() -> None:
