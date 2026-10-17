@@ -227,7 +227,17 @@ def test_prepare_service_launch_uses_direct_gateway_argv() -> None:
 
 def test_parser_accepts_mobile_gateway_pair() -> None:
     args = create_parser().parse_args(
-        ["mobile", "gateway", "pair", "-b", "127.0.0.1", "-p", "7630"]
+        [
+            "mobile",
+            "gateway",
+            "pair",
+            "-b",
+            "127.0.0.1",
+            "-p",
+            "7630",
+            "-H",
+            "/tmp/sase",
+        ]
     )
 
     assert args.command == "mobile"
@@ -235,6 +245,7 @@ def test_parser_accepts_mobile_gateway_pair() -> None:
     assert args.mobile_gateway_subcommand == "pair"
     assert args.bind_address == "127.0.0.1"
     assert args.port == 7630
+    assert args.state_dir == "/tmp/sase"
 
 
 def test_parser_accepts_mobile_gateway_start() -> None:
@@ -424,11 +435,36 @@ class _FakeProcess:
         self.terminated = True
 
 
+_OWNER_LOCAL_HEALTH = {
+    "status": "ok",
+    "pairing": {"issuance": "owner_local_v1"},
+}
+_ISSUED_PAIRING = {
+    "schema_version": 1,
+    "pairing_id": "pair_123",
+    "code": "123456",
+    "expires_at": "2026-05-06T15:00:00Z",
+    "host_label": "workstation",
+    "host_fingerprint": None,
+}
+
+
+def _capture_issue(
+    captured: list[dict[str, Any]],
+) -> Any:
+    def issue(request: dict[str, Any]) -> dict[str, Any]:
+        captured.append(request)
+        return dict(_ISSUED_PAIRING)
+
+    return issue
+
+
 def test_run_mobile_gateway_start_foreground_lifecycle(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     proc = _FakeProcess()
     requests: list[tuple[str, str, bytes | None]] = []
+    issued: list[dict[str, Any]] = []
 
     def fake_popen(argv: list[str]) -> _FakeProcess:
         proc.argv = argv
@@ -436,24 +472,26 @@ def test_run_mobile_gateway_start_foreground_lifecycle(
 
     def fake_opener(request: Any, timeout: float) -> _FakeResponse:
         requests.append((request.get_method(), request.full_url, request.data))
-        if request.get_method() == "GET":
-            return _FakeResponse({"status": "ok"})
-        return _FakeResponse(
-            {
-                "pairing_id": "pair_123",
-                "code": "123456",
-                "expires_at": "2026-05-06T15:00:00Z",
-            }
-        )
+        if request.get_method() != "GET":
+            raise AssertionError(
+                f"unexpected {request.get_method()} {request.full_url}"
+            )
+        return _FakeResponse(_OWNER_LOCAL_HEALTH)
 
-    with patch(
-        "sase.integrations.mobile_gateway.load_merged_config",
-        return_value={
-            "mobile_gateway": {
-                "command": "sase_gateway",
-                "startup_timeout_seconds": 1,
-            }
-        },
+    with (
+        patch(
+            "sase.integrations.mobile_gateway.load_merged_config",
+            return_value={
+                "mobile_gateway": {
+                    "command": "sase_gateway",
+                    "startup_timeout_seconds": 1,
+                }
+            },
+        ),
+        patch(
+            "sase.integrations.mobile_gateway.require_rust_binding",
+            return_value=_capture_issue(issued),
+        ),
     ):
         code = _run_mobile_gateway_start(
             _args(),
@@ -467,12 +505,8 @@ def test_run_mobile_gateway_start_foreground_lifecycle(
     assert proc.argv == ["sase_gateway", "--bind", "127.0.0.1:7629"]
     assert requests == [
         ("GET", "http://127.0.0.1:7629/api/v1/health", None),
-        (
-            "POST",
-            "http://127.0.0.1:7629/api/v1/session/pair/start",
-            b'{"schema_version": 1}',
-        ),
     ]
+    assert issued == [{"schema_version": 1}]
     assert "Starting SASE mobile gateway at http://127.0.0.1:7629" in out
     assert "Pairing code: 123456" in out
     assert "Pairing ID: pair_123" in out
@@ -593,24 +627,42 @@ def test_run_mobile_gateway_start_delegates_to_service_host(
     assert "sase mobile gateway pair" in out
 
 
-def test_run_mobile_gateway_pair_posts_challenge_request(
+def test_run_mobile_gateway_pair_issues_owner_local_challenge(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     requests: list[tuple[str, str, bytes | None]] = []
+    issued: list[dict[str, Any]] = []
 
     def fake_opener(request: Any, timeout: float) -> _FakeResponse:
         requests.append((request.get_method(), request.full_url, request.data))
-        return _FakeResponse(
-            {
-                "pairing_id": "pair_456",
-                "code": "654321",
-                "expires_at": "2026-05-06T15:05:00Z",
-            }
-        )
+        if request.get_method() != "GET":
+            raise AssertionError(
+                f"unexpected {request.get_method()} {request.full_url}"
+            )
+        return _FakeResponse(_OWNER_LOCAL_HEALTH)
 
-    with patch(
-        "sase.integrations.mobile_gateway.load_merged_config",
-        return_value={"mobile_gateway": {"port": 7630}},
+    pairing = dict(_ISSUED_PAIRING)
+    pairing.update(
+        {
+            "pairing_id": "pair_456",
+            "code": "654321",
+            "expires_at": "2026-05-06T15:05:00Z",
+        }
+    )
+
+    def issue(request: dict[str, Any]) -> dict[str, Any]:
+        issued.append(request)
+        return pairing
+
+    with (
+        patch(
+            "sase.integrations.mobile_gateway.load_merged_config",
+            return_value={"mobile_gateway": {"port": 7630}},
+        ),
+        patch(
+            "sase.integrations.mobile_gateway.require_rust_binding",
+            return_value=issue,
+        ),
     ):
         code = mobile_gateway._run_mobile_gateway_pair(  # noqa: SLF001
             _args(),
@@ -620,11 +672,124 @@ def test_run_mobile_gateway_pair_posts_challenge_request(
     out = capsys.readouterr().out
     assert code == 0
     assert requests == [
-        (
-            "POST",
-            "http://127.0.0.1:7630/api/v1/session/pair/start",
-            b'{"schema_version": 1}',
-        )
+        ("GET", "http://127.0.0.1:7630/api/v1/health", None),
     ]
+    assert issued == [{"schema_version": 1}]
     assert "Pairing code: 654321" in out
     assert "Pairing ID: pair_456" in out
+
+
+def test_run_mobile_gateway_pair_passes_cli_state_dir(
+    tmp_path: Path,
+) -> None:
+    issued: list[dict[str, Any]] = []
+
+    def fake_opener(request: Any, timeout: float) -> _FakeResponse:
+        return _FakeResponse(_OWNER_LOCAL_HEALTH)
+
+    with (
+        patch(
+            "sase.integrations.mobile_gateway.load_merged_config",
+            return_value={
+                "mobile_gateway": {"state_dir": str(tmp_path / "config-state")}
+            },
+        ),
+        patch(
+            "sase.integrations.mobile_gateway.require_rust_binding",
+            return_value=_capture_issue(issued),
+        ),
+    ):
+        code = mobile_gateway._run_mobile_gateway_pair(  # noqa: SLF001
+            _args(state_dir=str(tmp_path / "cli-state")),
+            opener=fake_opener,
+        )
+
+    assert code == 0
+    assert issued == [
+        {
+            "schema_version": 1,
+            "state_root": str(tmp_path / "cli-state"),
+        }
+    ]
+
+
+def test_run_mobile_gateway_pair_uses_config_state_dir(
+    tmp_path: Path,
+) -> None:
+    issued: list[dict[str, Any]] = []
+
+    def fake_opener(request: Any, timeout: float) -> _FakeResponse:
+        return _FakeResponse(_OWNER_LOCAL_HEALTH)
+
+    with (
+        patch(
+            "sase.integrations.mobile_gateway.load_merged_config",
+            return_value={
+                "mobile_gateway": {"state_dir": str(tmp_path / "config-state")}
+            },
+        ),
+        patch(
+            "sase.integrations.mobile_gateway.require_rust_binding",
+            return_value=_capture_issue(issued),
+        ),
+    ):
+        code = mobile_gateway._run_mobile_gateway_pair(  # noqa: SLF001
+            _args(),
+            opener=fake_opener,
+        )
+
+    assert code == 0
+    assert issued == [
+        {
+            "schema_version": 1,
+            "state_root": str(tmp_path / "config-state"),
+        }
+    ]
+
+
+def test_run_mobile_gateway_pair_rejects_old_gateway_without_issuing() -> None:
+    def fake_opener(request: Any, timeout: float) -> _FakeResponse:
+        return _FakeResponse({"status": "ok"})
+
+    def fail_binding(_name: str) -> None:
+        raise AssertionError("must not issue against an old gateway")
+
+    with (
+        patch(
+            "sase.integrations.mobile_gateway.load_merged_config",
+            return_value={},
+        ),
+        patch(
+            "sase.integrations.mobile_gateway.require_rust_binding",
+            side_effect=fail_binding,
+        ),
+        pytest.raises(_MobileGatewayError, match="upgrade sase_gateway"),
+    ):
+        mobile_gateway._run_mobile_gateway_pair(  # noqa: SLF001
+            _args(),
+            opener=fake_opener,
+        )
+
+
+def test_run_mobile_gateway_pair_wraps_missing_binding() -> None:
+    def fake_opener(request: Any, timeout: float) -> _FakeResponse:
+        return _FakeResponse(_OWNER_LOCAL_HEALTH)
+
+    with (
+        patch(
+            "sase.integrations.mobile_gateway.load_merged_config",
+            return_value={},
+        ),
+        patch(
+            "sase.integrations.mobile_gateway.require_rust_binding",
+            side_effect=AttributeError("mobile_pairing_issue is missing"),
+        ),
+        pytest.raises(
+            _MobileGatewayError,
+            match="could not issue owner-local pairing challenge",
+        ),
+    ):
+        mobile_gateway._run_mobile_gateway_pair(  # noqa: SLF001
+            _args(),
+            opener=fake_opener,
+        )

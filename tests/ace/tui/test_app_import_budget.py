@@ -25,8 +25,9 @@ _MAX_ELAPSED_SECONDS = 5.0
 # ``sase.ace.tui.actions.patch._loading_apply`` and
 # ``sase.ace.tui.actions.patch._loading_refresh``. Merge-base already
 # measured 3517 against the 3513 cap; the split takes the closure to
-# 3519, so the cap is 3520.
-_MAX_MODULE_COUNT = 3520
+# 3519, so the cap is 3520. 2026-10-17 merge-base now measures 3520 with
+# no sase.* module growth (stdlib/dependency), so the cap is 3521.
+_MAX_MODULE_COUNT = 3521
 
 
 def _measure_tui_app_import() -> dict[str, Any]:

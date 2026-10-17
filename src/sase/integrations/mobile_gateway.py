@@ -18,6 +18,7 @@ from urllib.error import URLError
 from urllib.request import Request, urlopen
 
 from sase.config.core import load_merged_config
+from sase.core.rust import require_rust_binding
 
 DEFAULT_BIND_ADDRESS = "127.0.0.1"
 DEFAULT_PORT = 7629
@@ -232,7 +233,15 @@ def _run_mobile_gateway_start(
     print(f"Starting SASE mobile gateway at {launch.url}")
     proc = popen(launch.argv)
     try:
-        pairing = _wait_for_pairing(launch.url, proc, startup_timeout, opener, sleep)
+        pairing = _wait_for_pairing(
+            launch.url,
+            proc,
+            startup_timeout,
+            opener,
+            sleep,
+            args,
+            config,
+        )
         _print_pairing(pairing)
         print("Keep this process running while mobile clients connect.")
         return int(proc.wait())
@@ -259,15 +268,17 @@ def _run_mobile_gateway_pair(
     *,
     opener: UrlOpen = urlopen,
 ) -> int:
-    """Request and print a pairing challenge from an already-running gateway."""
+    """Issue and print an owner-local pairing challenge for a running gateway."""
     config = _load_mobile_gateway_config()
     url = _configured_gateway_url(args, config)
     try:
-        pairing = _request_pairing(url, opener)
+        health = _request_json(opener, "GET", f"{url}/api/v1/health")
     except (OSError, URLError, TimeoutError, json.JSONDecodeError) as exc:
         raise _MobileGatewayError(
-            f"could not request pairing challenge from {url}: {exc}"
+            f"could not reach mobile gateway at {url}: {exc}"
         ) from exc
+    _require_owner_local_issuance(health, url)
+    pairing = _issue_local_pairing(args, config)
     _print_pairing(pairing)
     return 0
 
@@ -288,6 +299,8 @@ def _wait_for_pairing(
     startup_timeout: float,
     opener: UrlOpen,
     sleep: SleepFn,
+    args: argparse.Namespace,
+    config: _MobileGatewayConfig,
 ) -> dict[str, Any]:
     deadline = time.monotonic() + startup_timeout
     last_error: str | None = None
@@ -300,7 +313,8 @@ def _wait_for_pairing(
         try:
             health = _request_json(opener, "GET", f"{base_url}/api/v1/health")
             if health.get("status") == "ok":
-                return _request_pairing(base_url, opener)
+                _require_owner_local_issuance(health, base_url)
+                return _issue_local_pairing(args, config)
         except (OSError, URLError, TimeoutError, json.JSONDecodeError) as exc:
             last_error = str(exc)
         sleep(0.1)
@@ -310,13 +324,49 @@ def _wait_for_pairing(
     )
 
 
-def _request_pairing(base_url: str, opener: UrlOpen) -> dict[str, Any]:
-    return _request_json(
-        opener,
-        "POST",
-        f"{base_url}/api/v1/session/pair/start",
-        {"schema_version": 1},
-    )
+def _require_owner_local_issuance(health: dict[str, Any], url: str) -> None:
+    pairing = health.get("pairing")
+    issuance = pairing.get("issuance") if isinstance(pairing, dict) else None
+    if issuance != "owner_local_v1":
+        raise _MobileGatewayError(
+            f"gateway at {url} does not advertise owner-local pairing; "
+            "upgrade sase_gateway"
+        )
+
+
+def _effective_state_root(
+    args: argparse.Namespace,
+    config: _MobileGatewayConfig,
+) -> Path | None:
+    return _optional_path(getattr(args, "state_dir", None)) or config.state_dir
+
+
+def _issue_local_pairing(
+    args: argparse.Namespace,
+    config: _MobileGatewayConfig,
+) -> dict[str, Any]:
+    request: dict[str, Any] = {"schema_version": 1}
+    state_root = _effective_state_root(args, config)
+    if state_root is not None:
+        request["state_root"] = str(state_root)
+    try:
+        issue = require_rust_binding("mobile_pairing_issue")
+        pairing = issue(request)
+    except (
+        OSError,
+        TimeoutError,
+        ValueError,
+        TypeError,
+        AttributeError,
+        ImportError,
+        RuntimeError,
+    ) as exc:
+        raise _MobileGatewayError(
+            f"could not issue owner-local pairing challenge: {exc}"
+        ) from exc
+    if not isinstance(pairing, dict):
+        raise _MobileGatewayError("pairing issuer returned a non-object result")
+    return pairing
 
 
 def _print_pairing(pairing: dict[str, Any]) -> None:
@@ -325,9 +375,7 @@ def _print_pairing(pairing: dict[str, Any]) -> None:
         pairing_id = pairing["pairing_id"]
         expires_at = pairing["expires_at"]
     except KeyError as exc:
-        raise _MobileGatewayError(
-            f"gateway pairing response missing {exc.args[0]}"
-        ) from exc
+        raise _MobileGatewayError(f"pairing challenge missing {exc.args[0]}") from exc
     print(f"Pairing code: {code}")
     print(f"Pairing ID: {pairing_id}")
     print(f"Expires at: {expires_at}")

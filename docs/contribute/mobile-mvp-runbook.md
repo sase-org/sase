@@ -114,7 +114,10 @@ The gateway is a long-running process, so upgrading `sase` or `sase-core-rs` doe
 replace the binary that is already serving clients. Stop and restart
 `sase mobile gateway start` (or the supervisor unit that runs it) after an upgrade. When
 the gateway runs as a service proc under the service host, restart it with
-`sase service proc restart gateway` instead.
+`sase service proc restart gateway` instead. Owner-local pairing requires the upgraded
+gateway: health must advertise `pairing.issuance = owner_local_v1` before
+`sase mobile gateway pair` will issue a challenge. Existing paired-device tokens remain
+valid; restarting does not revoke them.
 
 Start the gateway on loopback:
 
@@ -125,8 +128,9 @@ sase mobile gateway start
 Run in the foreground, the command prints a pairing code, pairing ID, and expiration;
 keep the process running while mobile clients connect. When the built-in `gateway`
 service proc is enabled on this machine, the command instead hands ownership to the
-service host and returns (see
-[Mobile Gateway](../reference/integrations/mobile-gateway.md)).
+service host and returns. Issue a challenge for that running gateway with
+`sase mobile gateway pair`, adding `-H/--state-dir` when the gateway uses a nondefault
+state root (see [Mobile Gateway](../reference/integrations/mobile-gateway.md)).
 
 For an emulator pointed at host loopback, use `http://10.0.2.2:7629` as the base URL in
 the Android app. For a physical device on the same trusted LAN, bind explicitly to a LAN
@@ -340,7 +344,8 @@ Controls:
 
 - The Python launcher refuses non-loopback binds unless `--allow-non-loopback` / `-L` is
   passed.
-- Product APIs require bearer auth after pairing.
+- Product APIs require bearer auth after pairing. HTTP cannot issue pairing challenges;
+  only the owner-local CLI can.
 - Helper routes expose fixed operations, not arbitrary commands.
 
 Guidance:

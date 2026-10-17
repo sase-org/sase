@@ -24402,7 +24402,7 @@
               {
                 "aliases": [],
                 "default_child": null,
-                "description_digest": "e307e8e6ba285e4a",
+                "description_digest": "cf1bb544c54657f1",
                 "hidden": false,
                 "mutex_groups": [],
                 "name": "pair",
@@ -24454,6 +24454,22 @@
                     ],
                     "takes_value": true,
                     "value_hint": "int"
+                  },
+                  {
+                    "choices": null,
+                    "default": null,
+                    "dest": "state_dir",
+                    "hidden": false,
+                    "kind": "dir",
+                    "metavar": null,
+                    "repeatable": false,
+                    "required": false,
+                    "strings": [
+                      "-H",
+                      "--state-dir"
+                    ],
+                    "takes_value": true,
+                    "value_hint": "path"
                   }
                 ],
                 "path": [

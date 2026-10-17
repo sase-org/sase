@@ -404,6 +404,7 @@ REQUIRED_BINDINGS = (
     "migration_residue_classify",
     "migration_tree_digest",
     "migration_wire_schema_version",
+    "mobile_pairing_issue",
     "project_tag_scan",
     "project_tag_resolve",
     "project_tag_expand",

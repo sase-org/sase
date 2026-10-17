@@ -41,24 +41,26 @@ Options:
 
 Subcommands:
 
-| Subcommand                  | Summary                                              |
-| --------------------------- | ---------------------------------------------------- |
-| `sase mobile gateway pair`  | Request a pairing challenge from the running gateway |
-| `sase mobile gateway start` | Start the mobile gateway in the foreground           |
+| Subcommand                  | Summary                                                        |
+| --------------------------- | -------------------------------------------------------------- |
+| `sase mobile gateway pair`  | Issue an owner-local pairing challenge for the running gateway |
+| `sase mobile gateway start` | Start the mobile gateway in the foreground                     |
 
 ### `sase mobile gateway pair`
 
 ```text
 usage: sase mobile gateway pair [-h] [-b BIND_ADDRESS] [-p PORT]
+                                [-H STATE_DIR]
 ```
 
 Options:
 
-| Option                                           | Description                                            | Default |
-| ------------------------------------------------ | ------------------------------------------------------ | ------- |
-| `-b BIND_ADDRESS`, `--bind-address BIND_ADDRESS` | Host address to contact (default: config or 127.0.0.1) | —       |
-| `-h`, `--help`                                   | show this help message and exit                        | —       |
-| `-p PORT`, `--port PORT`                         | Port to contact (default: config or 7629)              | —       |
+| Option                                           | Description                                                             | Default |
+| ------------------------------------------------ | ----------------------------------------------------------------------- | ------- |
+| `-b BIND_ADDRESS`, `--bind-address BIND_ADDRESS` | Host address to contact (default: config or 127.0.0.1)                  | —       |
+| `-h`, `--help`                                   | show this help message and exit                                         | —       |
+| `-p PORT`, `--port PORT`                         | Port to contact (default: config or 7629)                               | —       |
+| `-H STATE_DIR`, `--state-dir STATE_DIR`          | SASE state root for the pairing store (default: config or runtime home) | —       |
 
 ### `sase mobile gateway start`
 

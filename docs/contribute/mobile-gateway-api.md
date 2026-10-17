@@ -77,6 +77,12 @@ CI-friendly smoke slices for the three-repo mobile gateway surface:
 .venv/bin/pytest tests/test_mobile_gateway.py
 ```
 
+Pairing challenges are issued only by the owner-local CLI into the gateway state root.
+`POST /api/v1/session/pair/start` is gone; smoke the remaining unauthenticated surface
+with health plus `POST /api/v1/session/pair/finish` after `sase mobile gateway pair`.
+Restart an upgraded gateway before that CLI will issue. Existing paired-device tokens
+stay valid.
+
 ## Events
 
 Authenticated clients subscribe to `GET /api/v1/events` with

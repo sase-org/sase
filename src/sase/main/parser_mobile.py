@@ -113,7 +113,7 @@ def register_mobile_parser(subparsers: argparse._SubParsersAction) -> None:
 
     pair_parser = gateway_subparsers.add_parser(
         "pair",
-        help="Request a pairing challenge from the running gateway",
+        help="Issue an owner-local pairing challenge for the running gateway",
     )
     pair_parser.add_argument(
         "-b",
@@ -125,6 +125,11 @@ def register_mobile_parser(subparsers: argparse._SubParsersAction) -> None:
         "--port",
         type=int,
         help="Port to contact (default: config or 7629)",
+    )
+    pair_parser.add_argument(
+        "-H",
+        "--state-dir",
+        help="SASE state root for the pairing store (default: config or runtime home)",
     )
 
     start_parser = gateway_subparsers.add_parser(

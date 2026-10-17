@@ -67,14 +67,16 @@ sase mobile gateway start
 sase mobile gateway pair
 ```
 
-The final command asks the already-running gateway for a new pairing challenge. Use
+The final command issues a pairing challenge into the gateway's local state root on this
+machine. Pass `-H/--state-dir` when the gateway was started with a nondefault root. Use
 `sase service proc show gateway`, `sase service proc logs gateway`, and the Services tab
 for lifecycle and output. `sase service proc stop gateway` stops it until the next host
 boot; `sase service proc disable gateway` changes the durable machine override.
 
 Otherwise, `sase mobile gateway start` retains the foreground path. It runs the Rust
-gateway on `127.0.0.1:7629`, waits for `GET /api/v1/health`, creates a one-time pairing
-challenge, and prints:
+gateway on `127.0.0.1:7629`, waits for `GET /api/v1/health` to advertise
+`pairing.issuance = owner_local_v1`, issues a one-time pairing challenge into that
+shared state root, and prints:
 
 ```text
 Starting SASE mobile gateway at http://127.0.0.1:7629
@@ -212,18 +214,38 @@ docs/contribute/mobile-mvp-runbook.md
 Keep the gateway on `127.0.0.1` when using Tailscale Serve. Tailscale proxies the
 loopback gateway inside the tailnet, so the SASE process does not need a LAN or public
 bind. Use `--allow-non-loopback` / `-L` only for explicit LAN or tailnet address binds
-during short smoke windows.
+during short smoke windows. Loopback still shares the host with other local accounts:
+challenge issuance is an owner-local filesystem operation, so another user on the same
+machine cannot mint a pairing code by contacting the HTTP listener.
 
 ## Pairing Flow
 
-The local host starts pairing with `POST /api/v1/session/pair/start`. The response
-contains a short-lived one-time code and a `pairing_id`; it does not contain a
-long-lived credential. A mobile client finishes pairing by sending the code, the
-`pairing_id`, and device metadata to `POST /api/v1/session/pair/finish`.
+The owner issues a pairing challenge with `sase mobile gateway pair` (or the foreground
+`start` path). The CLI writes the challenge into `<sase_home>/mobile_gateway/pairing/`
+as the gateway's OS account, then prints a six-digit code, a `pairing_id`, and a
+five-minute expiration. HTTP callers cannot create challenges. `GET /api/v1/health`
+advertises `pairing.issuance = owner_local_v1` so the CLI can refuse an old gateway
+instead of falling back to unauthenticated issuance.
+
+The issuer and the gateway must share the same state root: CLI `-H/--state-dir`, then
+`mobile_gateway.state_dir`, then the runtime `SASE_HOME` / `HOME/.sase` default. Pairing
+is supported on Linux and macOS, where the store enforces owner-only `0700`/`0600`
+objects and rejects symlink, hard-link, wrong-owner, and attacker-writable containing
+paths. New pairing is unavailable on platforms without that owner isolation.
+
+A matching ID is consumed on the first finish attempt even when the code is wrong or
+expired. Existing paired-device bearer tokens stay valid across this upgrade; this
+change does not revoke them. Install the matching `sase-core` wheel and CLI, then
+restart an old gateway before relying on the fix.
+
+A mobile client finishes pairing by sending the owner-supplied code, the `pairing_id`,
+and device metadata to `POST /api/v1/session/pair/finish`.
 
 Example:
 
 ```bash
+sase mobile gateway pair
+
 PAIRING_ID="pair_abc123"
 PAIRING_CODE="123456"
 
@@ -270,9 +292,8 @@ curl -sS http://127.0.0.1:7629/api/v1/session \
   -H "Authorization: Bearer $TOKEN"
 ```
 
-Only `GET /api/v1/health`, `POST /api/v1/session/pair/start`, and
-`POST /api/v1/session/pair/finish` are unauthenticated. All other routes require this
-bearer token.
+Only `GET /api/v1/health` and `POST /api/v1/session/pair/finish` are unauthenticated.
+`POST /api/v1/session/pair/start` is gone. All other routes require this bearer token.
 
 ## Storage And Revocation
 
