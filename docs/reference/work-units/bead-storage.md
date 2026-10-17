@@ -255,7 +255,7 @@ Use these checks when changing bead internals:
 
 ```bash
 sase core health -j
-pytest tests/test_bead tests/test_core_facade/test_bead_read.py tests/test_core_facade/test_bead_mutation.py
+pytest tests/test_bead tests/test_core_facade/test_bead_read.py tests/test_core_facade/test_bead_mutation_operations.py tests/test_core_facade/test_bead_mutation_claim.py
 just rust-check
 just bead-perf-smoke
 ```
