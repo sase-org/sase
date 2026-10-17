@@ -242,15 +242,13 @@ def test_loader_queries_current_activity_and_previous_equal_window(
         )
         return _activity_payload()
 
+    monkeypatch.setattr("sase.stats.loader.query_run_stats", run_query)
     monkeypatch.setattr(
-        "sase.ace.tui.modals.statistics_pane_data.query_run_stats", run_query
-    )
-    monkeypatch.setattr(
-        "sase.ace.tui.modals.statistics_pane_data.query_activity_stats",
+        "sase.stats.loader.query_activity_stats",
         activity_query,
     )
     monkeypatch.setattr(
-        "sase.ace.tui.modals.statistics_pane_data.load_project_display_snapshot",
+        "sase.stats.loader.load_project_display_snapshot",
         load_snapshot,
     )
     monkeypatch.setattr("sase.config.core.get_max_running_agents", lambda: 9)

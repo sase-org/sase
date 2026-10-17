@@ -12,10 +12,9 @@ from rich.text import Text
 
 from sase.ace.tui.patch_status import patch_status_glyph
 from sase.core.time import format_local
-from sase.telemetry.render import categorical_color, format_duration
-
-from .statistics_pane_data import ProjectsGroupBy, StatisticsView
-from .statistics_pane_legends import VIEW_LEGENDS
+from sase.stats.registry import VIEW_LEGENDS, ProjectsGroupBy, StatisticsView
+from sase.stats.render.primitives import format_duration, percent, share_bar
+from sase.telemetry.render import categorical_color
 
 _ACCENT = "#FF87D7"
 _CYAN = "#87D7FF"
@@ -27,14 +26,6 @@ class StatisticsProjectsRenderingMixin:
     """Render the three Projects grouping strategies without performing I/O."""
 
     _projects_group_by: ProjectsGroupBy
-
-    @staticmethod
-    def _percent(value: float) -> str:
-        raise NotImplementedError
-
-    @staticmethod
-    def _share_bar(value: float, maximum: float, *, width: int = 14) -> Text:
-        raise NotImplementedError
 
     @staticmethod
     def _legend_note(view: StatisticsView) -> Text:
@@ -78,11 +69,11 @@ class StatisticsProjectsRenderingMixin:
             table.add_row(
                 self._project_cell(row.project_key, row.project_label),
                 self._project_runs_cell(row),
-                self._percent(row.success_rate),
+                percent(row.success_rate),
                 str(row.commits),
                 str(row.distinct_patches),
                 format_duration(row.total_runtime_seconds),
-                self._share_bar(row.runs, total_runs, width=10),
+                share_bar(row.runs, total_runs, width=10),
                 self._format_timestamp(row.last_run_ts),
             )
         return Group(

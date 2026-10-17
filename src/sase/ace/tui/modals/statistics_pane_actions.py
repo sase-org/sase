@@ -11,9 +11,8 @@ from textual.widgets import Input, Static
 
 from sase.ace.tui.keymaps import split_key_alternatives
 from sase.ace.tui.widgets.panel_tab_strip import PanelTabStrip
-from sase.stats.ranges import PRESET_ORDER, StatsRange, parse_custom_range
-
-from .statistics_pane_data import (
+from sase.stats.ranges import PRESET_ORDER, PresetKey, StatsRange, parse_stats_range
+from sase.stats.registry import (
     MACROS_GROUP_ORDER,
     PERF_GROUP_ORDER,
     PROJECTS_GROUP_ORDER,
@@ -308,13 +307,18 @@ class StatisticsPaneActionsMixin(StatisticsPaneLayoutMixin):
     @on(Input.Submitted, "#statistics-custom-range")
     def _on_custom_range_submitted(self, event: Input.Submitted) -> None:
         try:
-            selected_range = parse_custom_range(event.value)
+            selected_range = parse_stats_range(event.value)
         except ValueError as exc:
             self.notify(str(exc), severity="error")
             event.input.select_all()
             return
-        self._preset_key = None
-        self._custom_range_value = event.value.strip()
+        stripped = event.value.strip()
+        if stripped in PRESET_ORDER:
+            self._preset_key = cast(PresetKey, stripped)
+            self._custom_range_value = None
+        else:
+            self._preset_key = None
+            self._custom_range_value = stripped
         self._range = selected_range
         self._close_custom_range()
         self._selection_changed(reload=True)

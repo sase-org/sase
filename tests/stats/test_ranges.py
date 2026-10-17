@@ -10,6 +10,7 @@ from sase.stats.ranges import (
     StatsRange,
     bucket_seconds_for,
     parse_custom_range,
+    parse_stats_range,
     resolve_preset,
 )
 
@@ -208,3 +209,47 @@ def test_invalid_custom_ranges_raise(value: str) -> None:
 def test_bucket_size_switches_after_48_hours() -> None:
     assert bucket_seconds_for(100, 100 + 48 * 3_600) == 3_600
     assert bucket_seconds_for(100, 101 + 48 * 3_600) == 86_400
+
+
+def test_parse_stats_range_accepts_presets() -> None:
+    assert parse_stats_range("7d", now=_NOW) == resolve_preset("7d", now=_NOW)
+    assert parse_stats_range("today", now=_NOW) == resolve_preset("today", now=_NOW)
+    assert parse_stats_range("all", now=_NOW) == resolve_preset("all", now=_NOW)
+
+
+def test_parse_stats_range_accepts_a_bare_calendar_day() -> None:
+    result = parse_stats_range("2026-07-01", now=_NOW)
+
+    assert result == parse_custom_range("2026-07-01..2026-07-01", now=_NOW)
+    assert result.display_label == "Jul 1, 2026"
+
+
+def test_parse_stats_range_caps_today_as_a_bare_day() -> None:
+    result = parse_stats_range("2026-07-18", now=_NOW)
+
+    assert result.end_ts == int(_NOW.timestamp())
+    assert result.display_label.endswith("to date")
+
+
+def test_parse_stats_range_delegates_custom_forms() -> None:
+    assert parse_stats_range("12h", now=_NOW) == parse_custom_range("12h", now=_NOW)
+    assert parse_stats_range("2026-03", now=_NOW) == parse_custom_range(
+        "2026-03", now=_NOW
+    )
+    assert parse_stats_range("2026-07-01..2026-07-03", now=_NOW) == parse_custom_range(
+        "2026-07-01..2026-07-03", now=_NOW
+    )
+    assert parse_stats_range("2026-07-01..", now=_NOW) == parse_custom_range(
+        "2026-07-01..", now=_NOW
+    )
+
+
+def test_parse_stats_range_errors_name_accepted_forms() -> None:
+    with pytest.raises(ValueError, match="Accepted: today, 24h, 7d"):
+        parse_stats_range("nope", now=_NOW)
+    with pytest.raises(ValueError, match="Accepted:"):
+        parse_stats_range("7m", now=_NOW)
+    with pytest.raises(ValueError, match=r"Invalid statistics range: ''"):
+        parse_stats_range("", now=_NOW)
+    with pytest.raises(ValueError, match="starts in the future"):
+        parse_stats_range("2027-01-01", now=_NOW)

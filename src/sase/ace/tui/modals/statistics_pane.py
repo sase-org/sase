@@ -16,23 +16,22 @@ from sase.ace.tui.keymaps import (
 )
 from sase.ace.tui.util.debounce import DetailPanelDebouncer
 from sase.current_project import CurrentProject, resolve_current_project
+from sase.stats.loader import StatisticsViewData, load_statistics_view
 from sase.stats.ranges import (
     DEFAULT_PRESET,
     PresetKey,
     StatsRange,
-    parse_custom_range,
+    parse_stats_range,
     resolve_preset,
 )
-
-from .statistics_pane_actions import StatisticsPaneActionsMixin
-from .statistics_pane_data import (
+from sase.stats.registry import (
+    MacrosGroupBy,
     PerfGroupBy,
     ProjectsGroupBy,
     StatisticsView,
-    StatisticsViewData,
-    MacrosGroupBy,
-    load_statistics_view,
 )
+
+from .statistics_pane_actions import StatisticsPaneActionsMixin
 
 _REFRESH_INTERVAL_SECONDS = 30.0
 
@@ -159,7 +158,7 @@ class StatisticsPane(StatisticsPaneActionsMixin):
         if self._preset_key is not None:
             return resolve_preset(self._preset_key)
         if self._custom_range_value is not None:
-            return parse_custom_range(self._custom_range_value)
+            return parse_stats_range(self._custom_range_value)
         return self._range
 
     def _start_load(self) -> None:

@@ -12,9 +12,10 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from sase.telemetry.render import categorical_color, format_duration
-
-from .statistics_pane_data import StatisticsViewData, MacrosGroupBy
+from sase.stats.loader import StatisticsViewData
+from sase.stats.registry import MacrosGroupBy
+from sase.stats.render.primitives import format_duration, percent, share_bar
+from sase.telemetry.render import categorical_color
 from .statistics_pane_projects import StatisticsProjectsRenderingMixin
 
 _ACCENT = "#FF87D7"
@@ -31,14 +32,6 @@ class StatisticsMacrosRenderingMixin:
     _project_filter: str | None
     _macro_focus: str | None
     size: Any
-
-    @staticmethod
-    def _percent(value: float) -> str:
-        raise NotImplementedError
-
-    @staticmethod
-    def _share_bar(value: float, maximum: float, *, width: int = 14) -> Text:
-        raise NotImplementedError
 
     def _effective_key(self, action: str) -> str:
         raise NotImplementedError
@@ -162,7 +155,7 @@ class StatisticsMacrosRenderingMixin:
         metrics.append(f"Runs  {focus.runs}", style=_CYAN)
         metrics.append(f"   Refs  {focus.references}")
         metrics.append(f"   Agents  {focus.distinct_agents}")
-        metrics.append(f"   Success  {self._percent(focus.success_rate)}", style=_GREEN)
+        metrics.append(f"   Success  {percent(focus.success_rate)}", style=_GREEN)
         metrics.append(f"  (✓ {focus.completed} / × {focus.failed})")
         metrics.append(
             f"   Wall  {format_duration(focus.total_runtime_seconds)}",
@@ -200,7 +193,7 @@ class StatisticsMacrosRenderingMixin:
             buckets.add_row(
                 bucket.label,
                 str(bucket.runs),
-                self._share_bar(bucket.runs, maximum),
+                share_bar(bucket.runs, maximum),
             )
 
         width = max(24, (max(60, int(self.size.width or 100)) - 4) // 3)
@@ -265,8 +258,8 @@ class StatisticsMacrosRenderingMixin:
             table.add_row(
                 row_label,
                 str(row.count),
-                self._percent(row.share),
-                self._share_bar(row.share, 1.0, width=10),
+                percent(row.share),
+                share_bar(row.share, 1.0, width=10),
             )
         if not rows:
             table.add_row(
@@ -332,10 +325,10 @@ class StatisticsMacrosRenderingMixin:
                 self._macro_cell(row),
                 str(row.runs),
                 str(row.references),
-                self._percent(row.share),
-                self._share_bar(row.share, 1.0, width=10),
+                percent(row.share),
+                share_bar(row.share, 1.0, width=10),
                 str(row.distinct_agents),
-                self._percent(row.success_rate),
+                percent(row.success_rate),
                 format_duration(row.total_runtime_seconds),
                 StatisticsProjectsRenderingMixin._format_timestamp(row.last_run_ts),
             )
@@ -365,8 +358,8 @@ class StatisticsMacrosRenderingMixin:
             table.add_row(
                 self._macro_cell(row),
                 str(row.runs),
-                self._percent(row.share),
-                self._share_bar(row.share, 1.0, width=10),
+                percent(row.share),
+                share_bar(row.share, 1.0, width=10),
                 style="bold",
             )
             children = getattr(
@@ -417,8 +410,8 @@ class StatisticsMacrosRenderingMixin:
                     table.add_row(
                         label,
                         str(child.count),
-                        self._percent(child.share),
-                        self._share_bar(child.share, 1.0, width=10),
+                        percent(child.share),
+                        share_bar(child.share, 1.0, width=10),
                     )
             if truncated:
                 table.add_row(
@@ -458,7 +451,7 @@ class StatisticsMacrosRenderingMixin:
             f"{macros.runs_with_macros} runs referenced · "
             f"{macros.total_references} references · "
             f"{macros.runs_without_macros} runs without macros "
-            f"({self._percent(without_share)})",
+            f"({percent(without_share)})",
             style="dim",
         )
         if macros.truncated_rows:

@@ -256,19 +256,19 @@ def test_load_statistics_view_builds_perf_only_for_perf_view(
     perf_log_calls: list[dict[str, int]] = []
     telemetry_calls: list[dict[str, object]] = []
     monkeypatch.setattr(
-        "sase.ace.tui.modals.statistics_pane_data.query_run_stats",
+        "sase.stats.loader.query_run_stats",
         lambda **_kwargs: {"totals": {"runs": 0}},
     )
     monkeypatch.setattr(
-        "sase.ace.tui.modals.statistics_pane_data.query_activity_stats",
+        "sase.stats.loader.query_activity_stats",
         lambda **_kwargs: {},
     )
     monkeypatch.setattr(
-        "sase.ace.tui.modals.statistics_pane_data.load_project_display_snapshot",
+        "sase.stats.loader.load_project_display_snapshot",
         ProjectDisplaySnapshot,
     )
     monkeypatch.setattr(
-        "sase.ace.tui.modals.statistics_pane_data.get_max_running_agents",
+        "sase.stats.loader.get_max_running_agents",
         lambda: 2,
         raising=False,
     )
@@ -294,12 +294,8 @@ def test_load_statistics_view_builds_perf_only_for_perf_view(
         )
         return perf_telemetry_payload()
 
-    monkeypatch.setattr(
-        "sase.ace.tui.modals.statistics_pane_data.query_perf_logs", logs
-    )
-    monkeypatch.setattr(
-        "sase.ace.tui.modals.statistics_pane_data.query_perf_telemetry", telemetry
-    )
+    monkeypatch.setattr("sase.stats.loader.query_perf_logs", logs)
+    monkeypatch.setattr("sase.stats.loader.query_perf_telemetry", telemetry)
     selected = StatsRange(1_000, 2_000, "span", "Last hour")
 
     overview = load_statistics_view("overview", selected)

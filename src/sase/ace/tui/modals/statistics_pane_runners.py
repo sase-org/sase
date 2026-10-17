@@ -14,9 +14,8 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from sase.telemetry.render import format_duration
-
-from .statistics_pane_data import StatisticsViewData
+from sase.stats.loader import StatisticsViewData
+from sase.stats.render.primitives import format_duration
 
 _ACCENT = "#FF87D7"
 _CYAN = "#87D7FF"

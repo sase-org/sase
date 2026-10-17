@@ -13,41 +13,25 @@ from textual.widgets import Static
 
 from sase.ace.tui.keymaps import StatisticsPaneKeymaps, key_display_name
 from sase.core.time import format_local
+from sase.stats.loader import StatisticsViewData
 from sase.stats.ranges import PresetKey, StatsRange
-from sase.telemetry.render import categorical_color, render_stat_tile
-
-from .statistics_pane_data import (
+from sase.stats.registry import (
+    VIEW_LABELS,
+    VIEW_ORDER,
+    MacrosGroupBy,
     PerfGroupBy,
     ProjectsGroupBy,
     StatisticsView,
-    StatisticsViewData,
-    MacrosGroupBy,
-    VIEW_LABELS,
-    VIEW_ORDER,
+    statistics_group_label,
     statistics_view_supports_grouping,
 )
+from sase.telemetry.render import categorical_color, render_stat_tile
 from .statistics_pane_views import StatisticsViewsRenderingMixin
 
 _ACCENT = "#FF87D7"
 _CYAN = "#87D7FF"
 _GOLD = "#FFD700"
 _GREEN = "#5FD75F"
-_PROJECTS_GROUP_LABELS: dict[ProjectsGroupBy, str] = {
-    "project": "By Project",
-    "patch": "By Patch",
-    "drilldown": "Project → Patch",
-}
-_MACROS_GROUP_LABELS: dict[MacrosGroupBy, str] = {
-    "usage": "By Usage",
-    "model": "By Model",
-    "project": "By Project",
-    "pairing": "Used With",
-}
-_PERF_GROUP_LABELS: dict[PerfGroupBy, str] = {
-    "subsystem": "By Subsystem",
-    "provider": "By Provider",
-    "workflow": "By Workflow",
-}
 
 
 class StatisticsPanePresentationBase(StatisticsViewsRenderingMixin, Vertical):
@@ -353,17 +337,17 @@ class StatisticsPanePresentationBase(StatisticsViewsRenderingMixin, Vertical):
         scope = self._scope_text(key, "Group", accent=_GREEN)
         if self._view == "projects":
             scope.append(
-                f"Projects · {_PROJECTS_GROUP_LABELS[self._projects_group_by]}",
+                f"Projects · {statistics_group_label('projects', self._projects_group_by)}",
                 style=f"bold {_GREEN}",
             )
         elif self._view == "macros":
             scope.append(
-                f"Macros · {_MACROS_GROUP_LABELS[self._macros_group_by]}",
+                f"Macros · {statistics_group_label('macros', self._macros_group_by)}",
                 style=f"bold {_GREEN}",
             )
         elif self._view == "perf":
             scope.append(
-                f"Perf · {_PERF_GROUP_LABELS[self._perf_group_by]}",
+                f"Perf · {statistics_group_label('perf', self._perf_group_by)}",
                 style=f"bold {_GREEN}",
             )
         else:

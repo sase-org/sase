@@ -19,9 +19,9 @@ STRING_PAIRS: set[tuple[str, str]] = {
         "A legacy top-level ``xprompts`` identity from the pre-cutover Admin",
     ),
     ("src/sase/ace/tui/modals/config_hub_session.py", '"xprompts"'),
-    ("src/sase/ace/tui/modals/statistics_pane_data.py", '"xprompts"'),
+    ("src/sase/stats/registry.py", '"xprompts"'),
     (
-        "src/sase/ace/tui/modals/statistics_pane_data.py",
+        "src/sase/stats/registry.py",
         "A stored ``xprompts`` id is read as ``macros`` unconditionally.",
     ),
     ("src/sase/agent/launch_proc_runtime.py", '"proc_origin_is_not_xprompt_proc"'),

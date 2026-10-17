@@ -12,9 +12,9 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 from sase.core.time import get_timezone
-from sase.telemetry.render import format_duration
-
-from .statistics_pane_data import StatisticsView, StatisticsViewData
+from sase.stats.loader import StatisticsViewData
+from sase.stats.registry import StatisticsView
+from sase.stats.render.primitives import format_duration, percent, share_bar
 from .statistics_pane_perf import StatisticsPerfRenderingMixin
 from .statistics_pane_projects import StatisticsProjectsRenderingMixin
 from .statistics_pane_runners import StatisticsRunnersRenderingMixin
@@ -81,7 +81,7 @@ class StatisticsViewsRenderingMixin(
             buckets.add_row(
                 bucket.label,
                 str(bucket.runs),
-                self._share_bar(bucket.runs, maximum),
+                share_bar(bucket.runs, maximum),
             )
         providers = self._count_table(
             "Provider", overview.top_providers, include_share=True
@@ -100,7 +100,7 @@ class StatisticsViewsRenderingMixin(
             projects.add_row(
                 self._project_cell(row.project_key, row.project_label),
                 str(row.runs),
-                self._percent(row.success_rate),
+                percent(row.success_rate),
             )
         mini_table_width = max(24, (max(60, int(self.size.width or 100)) - 4) // 3)
         buckets_title = "Runs over time"
@@ -136,8 +136,8 @@ class StatisticsViewsRenderingMixin(
                 row.model,
                 row.effort,
                 str(row.runs),
-                self._percent(row.share),
-                self._percent(row.success_rate),
+                percent(row.share),
+                percent(row.success_rate),
                 "—"
                 if row.mean_runtime_seconds is None
                 else format_duration(row.mean_runtime_seconds),
@@ -246,8 +246,8 @@ class StatisticsViewsRenderingMixin(
                 share = row.share or 0.0
                 values.extend(
                     [
-                        StatisticsViewsRenderingMixin._percent(share),
-                        StatisticsViewsRenderingMixin._share_bar(share, 1.0),
+                        percent(share),
+                        share_bar(share, 1.0),
                     ]
                 )
             table.add_row(*values)
@@ -274,22 +274,9 @@ class StatisticsViewsRenderingMixin(
             table.add_row(
                 row.label,
                 str(row.count),
-                StatisticsViewsRenderingMixin._share_bar(row.count, maximum),
+                share_bar(row.count, maximum),
             )
         return table
-
-    @staticmethod
-    def _percent(value: float) -> str:
-        return f"{value * 100:.1f}%"
-
-    @staticmethod
-    def _share_bar(value: float, maximum: float, *, width: int = 14) -> Text:
-        ratio = min(1.0, max(0.0, float(value) / float(maximum))) if maximum else 0.0
-        filled = round(ratio * width)
-        text = Text()
-        text.append("█" * filled, style=_ACCENT)
-        text.append("░" * (width - filled), style="#444444")
-        return text
 
 
 __all__ = ["StatisticsViewsRenderingMixin"]

@@ -17,7 +17,7 @@ pytestmark = pytest.mark.contract
 
 _PROJECT_METADATA_FLOW_FILES = (
     "src/sase/ace/tui/actions/_state_init_late.py",
-    "src/sase/ace/tui/modals/statistics_pane_data.py",
+    "src/sase/stats/loader.py",
     "src/sase/ace/tui/modals/statistics_pane_rendering.py",
     "src/sase/ace/tui/modals/statistics_pane_projects.py",
     "src/sase/ace/tui/modals/statistics_pane_views.py",
@@ -48,7 +48,7 @@ _ALLOWED_METADATA_LOADERS = {
         "load_project_ref_display_snapshot",
     ): "Commits projects one merged scope before mount so first paint and collection agree.",
     (
-        "src/sase/ace/tui/modals/statistics_pane_data.py",
+        "src/sase/stats/loader.py",
         "load_statistics_view",
         "load_project_display_snapshot",
     ): "Statistics loads its display snapshot in the threaded view loader.",

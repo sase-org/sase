@@ -13,29 +13,25 @@ from rich.table import Table
 from rich.text import Text
 
 from sase.core.time import format_local
+from sase.stats.loader import StatisticsViewData
+from sase.stats.registry import statistics_group_label
+from sase.stats.render.primitives import format_duration, share_bar
 from sase.telemetry.render import (
     categorical_color,
     empty_state,
     format_bytes,
-    format_duration,
     format_percentage,
     format_tokens,
     render_stat_tile,
     status_color,
 )
 
-from .statistics_pane_data import StatisticsViewData
-
 _ACCENT = "#FF87D7"
 _CYAN = "#87D7FF"
 _GOLD = "#FFD700"
 _GREEN = "#5FD75F"
 _MUTED = "#808080"
-_PERF_GROUP_LABELS: dict[str, str] = {
-    "subsystem": "By Subsystem",
-    "provider": "By Provider",
-    "workflow": "By Workflow",
-}
+
 _PERF_COUNT_COLUMN_LABELS: dict[str, str] = {
     "provider": "LLM invocations",
     "workflow": "Agent runs",
@@ -61,10 +57,6 @@ class StatisticsPerfRenderingMixin:
 
     _perf_stacked: bool
     size: Any
-
-    @staticmethod
-    def _share_bar(value: float, maximum: float, *, width: int = 14) -> Text:
-        raise NotImplementedError
 
     def _effective_key(self, action: str) -> str:
         raise NotImplementedError
@@ -248,7 +240,7 @@ class StatisticsPerfRenderingMixin:
 
     def _perf_latency_panel(self, perf: Any, *, width: int) -> Panel:
         latency = perf.latency
-        group_label = _PERF_GROUP_LABELS.get(latency.group_by, "By Subsystem")
+        group_label = statistics_group_label("perf", latency.group_by)
         title = f"Latency & reliability · {group_label}"
         if not perf.coverage.telemetry.enabled:
             return self._perf_message_panel(
@@ -306,7 +298,7 @@ class StatisticsPerfRenderingMixin:
                     )
                 )
             if show_share:
-                values.append(self._share_bar(row.share, 1.0, width=bar_width))
+                values.append(share_bar(row.share, 1.0, width=bar_width))
             table.add_row(*values)
         body: Any = table
         if latency.group_by == "provider":

@@ -20,17 +20,18 @@ from sase.ace.tui.keymaps.metadata import _STATISTICS_BINDING_META
 from sase.core.time import format_local
 from sase.stats.ranges import StatsRange
 
-from .statistics_pane_data import (
+from sase.stats.registry import (
     VIEW_DESCRIPTIONS,
     VIEW_LABELS,
+    VIEW_LEGENDS,
     VIEW_ORDER,
+    MacrosGroupBy,
     PerfGroupBy,
     ProjectsGroupBy,
     StatisticsView,
-    MacrosGroupBy,
+    statistics_group_label,
     statistics_view_supports_grouping,
 )
-from .statistics_pane_legends import VIEW_LEGENDS
 
 _ACCENT = "#FF87D7"
 _CYAN = "#87D7FF"
@@ -207,27 +208,13 @@ class StatisticsHelpModal(ModalScreen[None]):
         return ""
 
     def _projects_group_label(self) -> str:
-        if self._projects_group_by == "project":
-            return "By Project"
-        if self._projects_group_by == "patch":
-            return "By Patch"
-        return "Project → Patch"
+        return statistics_group_label("projects", self._projects_group_by)
 
     def _macros_group_label(self) -> str:
-        if self._macros_group_by == "usage":
-            return "By Usage"
-        if self._macros_group_by == "model":
-            return "By Model"
-        if self._macros_group_by == "project":
-            return "By Project"
-        return "Used With"
+        return statistics_group_label("macros", self._macros_group_by)
 
     def _perf_group_label(self) -> str:
-        if self._perf_group_by == "provider":
-            return "By Provider"
-        if self._perf_group_by == "workflow":
-            return "By Workflow"
-        return "By Subsystem"
+        return statistics_group_label("perf", self._perf_group_by)
 
     def _glossary_text(self) -> Text:
         text = Text()

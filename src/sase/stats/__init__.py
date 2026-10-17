@@ -28,6 +28,7 @@ from sase.stats.ranges import (
     RangePreset,
     StatsRange,
     parse_custom_range,
+    parse_stats_range,
     resolve_preset,
 )
 from sase.stats.views import StatisticsViews, build_statistics_views
@@ -59,6 +60,7 @@ __all__ = [
     "build_perf_view",
     "build_statistics_views",
     "parse_custom_range",
+    "parse_stats_range",
     "query_activity_stats",
     "query_run_stats",
     "resolve_preset",

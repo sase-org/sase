@@ -5,17 +5,19 @@ from __future__ import annotations
 import pytest
 from textual.color import Color
 
-from sase.ace.tui import provider_styles
 from sase.ace.tui.provider_styles import (
-    _NEUTRAL_PROVIDER_STYLE,
-    _PROVIDER_FALLBACK_STYLES,
     ProviderTextPalette,
     provider_text_palette,
 )
+from sase.integrations.provider_palette import (
+    NEUTRAL_PROVIDER_STYLE,
+    PROVIDER_FALLBACK_STYLES,
+    _derived_style,
+)
 
 _NEUTRAL = ProviderTextPalette(
-    subject_style=_NEUTRAL_PROVIDER_STYLE.model_style,
-    detail_style=_NEUTRAL_PROVIDER_STYLE.dim_style,
+    subject_style=NEUTRAL_PROVIDER_STYLE.model_style,
+    detail_style=NEUTRAL_PROVIDER_STYLE.dim_style,
 )
 
 
@@ -39,7 +41,7 @@ def _no_plugin_colors(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_registered_provider_returns_table_model_and_dim_hues() -> None:
     palette = provider_text_palette("grok")
 
-    grok = _PROVIDER_FALLBACK_STYLES["grok"]
+    grok = PROVIDER_FALLBACK_STYLES["grok"]
     assert palette.subject_style == grok.model_style
     assert palette.detail_style == grok.dim_style
 
@@ -138,7 +140,7 @@ def test_registry_failure_keeps_a_registered_providers_built_in_palette(
         "sase.llm_provider.registry.provider_cli_status_color_map", boom
     )
 
-    grok = _PROVIDER_FALLBACK_STYLES["grok"]
+    grok = PROVIDER_FALLBACK_STYLES["grok"]
     assert provider_text_palette("grok") == ProviderTextPalette(
         subject_style=grok.model_style,
         detail_style=grok.dim_style,
@@ -146,6 +148,4 @@ def test_registry_failure_keeps_a_registered_providers_built_in_palette(
 
 
 def test_derived_style_is_deterministic() -> None:
-    assert provider_styles._derived_style("#FF5500") == provider_styles._derived_style(
-        "#FF5500"
-    )
+    assert _derived_style("#FF5500") == _derived_style("#FF5500")

@@ -45,6 +45,7 @@ STRING_PAIRS: set[tuple[str, str]] = {
     ("tests/question_gate_turn/test_followup_prompt.py", '"% xprompts_enabled:true"'),
     ("tests/question_gate_turn/test_followup_prompt.py", '"%xprompts_enabled:false"'),
     ("tests/question_gate_turn/test_followup_prompt.py", '"%xprompts_enabled:true"'),
+    ("tests/stats/test_registry.py", '"xprompts"'),
     ("tests/stats/test_views_macros.py", '"distinct_xprompts"'),
     ("tests/stats/test_views_macros.py", '"runs_with_xprompts"'),
     ("tests/stats/test_views_macros.py", '"runs_without_xprompts"'),

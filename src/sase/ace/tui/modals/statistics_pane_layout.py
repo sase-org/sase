@@ -11,7 +11,7 @@ from textual.widgets import Input, Static
 
 from sase.ace.tui.widgets.panel_tab_strip import PanelTab, PanelTabStrip
 
-from .statistics_pane_data import (
+from sase.stats.registry import (
     STATISTICS_VIEW_BY_ID,
     STATISTICS_VIEW_SPECS,
     StatisticsView,

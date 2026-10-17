@@ -267,10 +267,12 @@ The default focused-pane keys are:
 From a custom range, `t` returns to **Today** and `T` returns to **All time** before
 subsequent presses continue through the preset cycle.
 
-Custom ranges accept elapsed windows such as `12h`, `14d`, or `8w`; a calendar month
-such as `2026-07`; a closed date range such as `2026-07-01..2026-07-18`; or an
-open-ended range such as `2026-07-01..`. Calendar inputs use the configured SASE
-timezone, closed ranges include the final date, and future time is excluded.
+Custom ranges accept the named presets (`today`, `24h`, `7d`, `30d`, `90d`, `all`);
+elapsed windows such as `12h`, `14d`, or `8w`; a calendar month such as `2026-07`; a
+single local day such as `2026-07-01`; a closed date range such as
+`2026-07-01..2026-07-18`; or an open-ended range such as `2026-07-01..`. Calendar inputs
+use the configured SASE timezone, closed ranges and a bare day include the final date,
+and future time is excluded. `sase.stats.ranges.parse_stats_range` is the shared parser.
 
 The project choices are ranked by run count in the most recently loaded unfiltered
 result. First open seeds the current project when `ace.current_project.seed_filters` is

@@ -61,7 +61,7 @@ def _string_scope_ok(relative: Path) -> bool:
 _MACRO_SRC_STRING_REASONS: dict[str, str] = {
     "src/sase/ace/tui/modals/config_center_catalog.py": "unconditional reader maps the retired top-level Admin Center id to Config",
     "src/sase/ace/tui/modals/config_hub_session.py": "unconditional reader maps the retired Config sub-tab id to Macros",
-    "src/sase/ace/tui/modals/statistics_pane_data.py": "unconditional reader maps the retired Statistics view id to Macros",
+    "src/sase/stats/registry.py": "unconditional reader maps the retired Statistics view id to Macros",
     "src/sase/_sidecar_ref_constants.py": "sunset-policy implementation: flag-gated aliases, gated legacy directories, or retired-spelling readers; removed with the flag",
     "src/sase/_sidecar_ref_normalization.py": "sunset-policy implementation: flag-gated aliases, gated legacy directories, or retired-spelling readers; removed with the flag",
     "src/sase/agent/launch_proc_runtime.py": "durable proc-origin reader via legacy_xprompt_names",

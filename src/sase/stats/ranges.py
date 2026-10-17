@@ -82,6 +82,45 @@ def resolve_preset(
     )
 
 
+_ACCEPTED_RANGE_FORMS = (
+    "today, 24h, 7d, 30d, 90d, all, Nh/Nd/Nw, YYYY-MM, YYYY-MM-DD, "
+    "START..END, or START.."
+)
+
+
+def parse_stats_range(
+    text: str,
+    *,
+    now: datetime | None = None,
+) -> StatsRange:
+    """Parse a Statistics range, including presets and a single calendar day.
+
+    Accepted forms are the named presets, ``Nh`` / ``Nd`` / ``Nw``,
+    ``YYYY-MM``, a bare ``YYYY-MM-DD`` (that whole local day),
+    ``START..END``, and ``START..``. Bounds are ``[start, end)`` in the
+    configured SASE timezone and are capped at *now*.
+    """
+    stripped = text.strip()
+    if stripped in PRESET_ORDER:
+        return resolve_preset(stripped, now=now)  # type: ignore[arg-type]
+    if _DATE_RE.fullmatch(stripped):
+        try:
+            return _parse_single_day(stripped, now=now)
+        except ValueError as exc:
+            raise ValueError(f"{exc}. Accepted: {_ACCEPTED_RANGE_FORMS}.") from None
+    try:
+        return parse_custom_range(text, now=now)
+    except ValueError as exc:
+        message = str(exc)
+        if message.startswith("Invalid custom range") or message == (
+            "Custom range cannot be empty"
+        ):
+            raise ValueError(
+                f"Invalid statistics range: {text!r}. Accepted: {_ACCEPTED_RANGE_FORMS}."
+            ) from None
+        raise ValueError(f"{message}. Accepted: {_ACCEPTED_RANGE_FORMS}.") from None
+
+
 def parse_custom_range(
     value: str,
     *,
@@ -155,6 +194,18 @@ def parse_custom_range(
         )
 
     raise ValueError(f"Invalid custom range: {value!r}")
+
+
+def _parse_single_day(value: str, *, now: datetime | None = None) -> StatsRange:
+    current = _configured_now(now)
+    start = _parse_calendar(value, "%Y-%m-%d", current.tzinfo)
+    return _calendar_range(
+        start,
+        start + timedelta(days=1),
+        current,
+        range_kind="closed",
+        closed_end=True,
+    )
 
 
 def bucket_seconds_for(start_ts: int, end_ts: int) -> int:
@@ -283,5 +334,6 @@ __all__ = [
     "StatsRange",
     "bucket_seconds_for",
     "parse_custom_range",
+    "parse_stats_range",
     "resolve_preset",
 ]

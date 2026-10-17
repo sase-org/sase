@@ -8,7 +8,7 @@ from sase.ace.tui.modals.model_picker_options import (
     rows_to_options,
 )
 from sase.ace.tui.modals.model_picker_rows import ModelPickerRow, build_model_rows
-from sase.ace.tui.provider_styles import _provider_style_for
+from sase.ace.tui.provider_styles import provider_style_for
 from sase.llm_provider.provider_disable import (
     PROVIDER_DISABLE_WIRE_SCHEMA_VERSION,
     TemporaryProviderDisable,
@@ -66,10 +66,10 @@ def test_build_model_options_has_separators() -> None:
 
 def test_provider_style_uses_plugin_primary_with_builtin_accents() -> None:
     """Provider palettes should be deterministic and provider-specific."""
-    codex = _provider_style_for("codex")
-    claude = _provider_style_for("claude")
-    grok = _provider_style_for("grok")
-    xai = _provider_style_for("xai")
+    codex = provider_style_for("codex")
+    claude = provider_style_for("claude")
+    grok = provider_style_for("grok")
+    xai = provider_style_for("xai")
     assert codex.name_style == "bold #10A37F"
     assert codex.model_style == "#63D9B6"
     assert claude.name_style == "bold #D97757"
@@ -78,7 +78,7 @@ def test_provider_style_uses_plugin_primary_with_builtin_accents() -> None:
     assert grok.model_style == "#5FE3EF"
     assert xai.name_style == "bold #00C8D7"
     assert xai.model_style == "#5FE3EF"
-    assert _provider_style_for("mystery").name_style == "bold #AF87D7"
+    assert provider_style_for("mystery").name_style == "bold #AF87D7"
 
 
 def test_model_picker_provider_headers_include_count_and_style() -> None:
