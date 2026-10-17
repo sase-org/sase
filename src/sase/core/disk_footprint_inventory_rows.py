@@ -197,6 +197,18 @@ def sase_state_rows(
             horizon="keeps newest 2 completed sets",
             reclaim=None,
         ),
+        DiskFootprintRow(
+            section="sase_home",
+            name="cache/project_stats",
+            path=str(sase_home() / "cache" / "project_stats"),
+            physical_path=str(
+                normalize_path_no_follow(sase_home() / "cache" / "project_stats")
+            ),
+            size_bytes=tree_size_fn(sase_home() / "cache" / "project_stats"),
+            owner="project_stats_cache",
+            horizon="rebuildable from source repositories",
+            reclaim=None,
+        ),
     ]
     months = get_artifact_retention_keep_recent_run_months()
     projects = sase_projects_dir()

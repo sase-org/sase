@@ -20,6 +20,10 @@ exception: they retain Python fallback paths for missing or stale cleanup bindin
 The shipped Rust-backed operations are grouped by the Python facade that calls them:
 
 - Project parsing: `parse_project_bytes`
+- Project statistics: `project_stats_query` through `sase.core.project_stats_facade`.
+  Rust owns history, attribution, committed plans, code snapshots, run aggregation, and
+  caching; `sase.stats.project` assembles the inventory request and returns the shared
+  immutable presentation view.
 - Project lifecycle helpers: normalize legacy state to canonical `enabled` / `disabled`,
   read and update `PROJECT_STATE`, derive the true-project predicate and `git` / `gh`
   VCS kind, and list lifecycle-filtered project records for CLI/TUI/launch discovery.

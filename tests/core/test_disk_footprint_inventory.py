@@ -32,6 +32,7 @@ def test_collect_disk_footprint_attributes_owned_paths_and_strays(
     _write(managed / "cargo-targets" / "agent" / "build.o", "build")
     _write(sase_home / "procs" / "runtime" / "proc-1" / "state", "runtime")
     _write(sase_home / "cache" / "rust-prebuild" / "sets" / "a", "cache")
+    _write(sase_home / "cache" / "project_stats" / "v1" / "a.json", "stats")
     _write(projects / "proj" / "artifacts" / "ace-run" / "202609" / "run", "run")
     _write(workspace_root / "sase_10" / "file", "workspace")
     _write(core / "Cargo.toml", "[workspace]\n")
@@ -81,6 +82,10 @@ def test_collect_disk_footprint_attributes_owned_paths_and_strays(
     assert rows_by_path[managed / "cargo-targets"].owner == "managed_tmp_reaper"
     assert rows_by_path[sase_home / "tools"].owner == "tool_run_retention"
     assert rows_by_path[sase_home / "tools"].horizon.startswith("summary 180d")
+    stats_cache = rows_by_path[sase_home / "cache" / "project_stats"]
+    assert stats_cache.owner == "project_stats_cache"
+    assert "rebuildable" in stats_cache.horizon
+    assert stats_cache.size_bytes > 0
     assert rows_by_path[projects / "proj" / "artifacts" / "ace-run"].owner == (
         "artifact_run_retention"
     )

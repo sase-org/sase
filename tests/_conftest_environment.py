@@ -413,7 +413,8 @@ def _clear_agent_env_vars(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
     agent's continuation key. Both the canonical ``SASE_LINKED_REPO*`` vars and
     the deprecated ``SASE_SIBLING_REPO*`` aliases are scrubbed so finalizer tests
     don't inherit the developer's real linked repositories (e.g. a dirty chezmoi
-    checkout) from the surrounding agent.
+    checkout) from the surrounding agent. The host finalizer marker is cleared
+    too; tests that exercise that protection set it explicitly.
     """
     keys_to_clear = {
         key
@@ -435,6 +436,7 @@ def _clear_agent_env_vars(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
                 "SASE_CHOP_PROMPT_HASH",
                 "SASE_CHOP_RUN_ID",
                 "SASE_FEATURE_FLAGS",
+                "SASE_FINALIZER_OWNED_TURN",
                 "SASE_GATE_COMMAND",
                 "SASE_HOME_MEMORY_DEPLOY_BYPASS",
                 "SASE_LINKED_REPOS_JSON",

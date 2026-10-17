@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "start_ts": 100,
+  "end_ts": 200,
+  "now_ts": 200,
+  "timezone": "UTC",
+  "facets": ["code", "output", "runs"],
+  "cache_dir": "/sase-home/cache/project_stats",
+  "run_index_path": "/index.sqlite",
+  "agents_sidecars": [{"project_key": "alpha", "path": "/work/agents"}],
+  "local_agent_name_prefix": "owner.apollo.",
+  "known_model_aliases": {"opus": "anthropic/opus"},
+  "record_repo_names": ["agents", "alpha--plans", "plans"],
+  "include_run_only_projects": false,
+  "budget": {"timeout_ms": 30000, "max_output_bytes": 33554432},
+  "projects": [{
+    "key": "alpha", "label": "Alpha Project", "state": "enabled", "selection": "always",
+    "index_project_names": ["Alpha Project", "a", "alpha"],
+    "code_repos": [
+      {"id": "linked:library", "name": "library", "kind": "linked", "path": "/work/library", "identity": "", "ref_candidates": ["refs/remotes/origin/HEAD", "HEAD"]},
+      {"id": "primary:alpha", "name": "alpha", "kind": "primary", "path": "/work/alpha", "identity": "", "ref_candidates": ["refs/remotes/origin/HEAD", "HEAD"]}
+    ],
+    "record_repos": [
+      {"id": "sidecar:agents", "name": "agents", "kind": "sidecar", "path": "/work/agents", "identity": "", "ref_candidates": ["refs/remotes/origin/HEAD", "HEAD"]},
+      {"id": "sidecar:plans", "name": "plans", "kind": "sidecar", "path": "/work/plans", "identity": "", "ref_candidates": ["refs/remotes/origin/HEAD", "HEAD"]}
+    ],
+    "not_counted": [{"name": "foreign", "reason": "external"}, {"name": "dotfiles", "reason": "user_linked"}],
+    "plan_store": {"storage": "in_tree", "repo_path": "/work/alpha", "plans_dir": "sdd", "project_filter": null}
+  }]
+}
