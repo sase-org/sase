@@ -55,6 +55,7 @@ def _write_tui_launch_request(
     launch_cwd: Path,
     *,
     request_id: str = "launch-dispatch",
+    launch_submitted_at: str = "2026-10-16T20:00:00.000000Z",
     prompt: str = "%i(reviewer, session=foo)\nDo work",
     project_name: str = "demo",
     cl_name: str = "demo",
@@ -65,6 +66,7 @@ def _write_tui_launch_request(
         json.dumps(
             {
                 "request_id": request_id,
+                "launch_submitted_at": launch_submitted_at,
                 "dispatch": {
                     "cwd": str(launch_cwd),
                     "prompt": prompt,
@@ -208,6 +210,8 @@ def test_tui_launch_approval_approve_dispatches_stored_request(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    from sase.env_contracts import SASE_LAUNCH_SUBMITTED_AT_ENV
+
     response_dir = tmp_path / "launch"
     launch_cwd = tmp_path / "workspace"
     _write_tui_launch_request(response_dir, launch_cwd)
@@ -216,9 +220,16 @@ def test_tui_launch_approval_approve_dispatches_stored_request(
     seen: dict[str, object] = {}
     notifications_path, pending_path = _isolated_notification_paths(tmp_path)
 
-    def fake_launch(prompt: str, origin: object = None) -> list[AgentLaunchResult]:
+    def fake_launch(
+        prompt: str,
+        *,
+        extra_env: dict[str, str] | None = None,
+        origin: object = None,
+    ) -> list[AgentLaunchResult]:
         seen["prompt"] = prompt
         seen["cwd"] = Path.cwd()
+        seen["extra_env"] = extra_env
+        seen["origin"] = origin
         return [
             AgentLaunchResult(
                 pid=123,
@@ -245,6 +256,8 @@ def test_tui_launch_approval_approve_dispatches_stored_request(
     assert seen == {
         "prompt": "%i(reviewer, session=foo)\nDo work",
         "cwd": launch_cwd,
+        "extra_env": {SASE_LAUNCH_SUBMITTED_AT_ENV: "2026-10-16T20:00:00.000000Z"},
+        "origin": "generated",
     }
     assert json.loads((response_dir / "launch_response.json").read_text()) == {
         "action": "approve",
@@ -398,15 +411,23 @@ def test_tui_launch_approval_dispatch_failure_records_failed_response(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    from sase.env_contracts import SASE_LAUNCH_SUBMITTED_AT_ENV
+
     response_dir = tmp_path / "launch"
     launch_cwd = tmp_path / "workspace"
     _write_tui_launch_request(response_dir, launch_cwd)
     notification = _launch_notification(response_dir)
     app = _TuiLaunchApprovalApp()
+    seen: dict[str, object] = {}
     notifications_path, pending_path = _isolated_notification_paths(tmp_path)
 
-    def fake_launch(prompt: str, origin: object = None) -> list[AgentLaunchResult]:
-        del prompt, origin
+    def fake_launch(
+        prompt: str,
+        *,
+        extra_env: dict[str, str] | None = None,
+        origin: object = None,
+    ) -> list[AgentLaunchResult]:
+        seen.update(prompt=prompt, extra_env=extra_env, origin=origin)
         raise RuntimeError("launch boom")
 
     from sase.notifications import store as notification_store
@@ -423,6 +444,11 @@ def test_tui_launch_approval_dispatch_failure_records_failed_response(
             LaunchApprovalResult(action="approve"),
         )
 
+    assert seen == {
+        "prompt": "%i(reviewer, session=foo)\nDo work",
+        "extra_env": {SASE_LAUNCH_SUBMITTED_AT_ENV: "2026-10-16T20:00:00.000000Z"},
+        "origin": "generated",
+    }
     assert json.loads((response_dir / "launch_response.json").read_text()) == {
         "action": "approve",
         "dispatch_status": "failed",

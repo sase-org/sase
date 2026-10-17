@@ -523,14 +523,18 @@ def test_approve_launch_response_dispatches_stored_request(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    from sase.env_contracts import SASE_LAUNCH_SUBMITTED_AT_ENV
+
     response_dir = tmp_path / "launch"
     launch_cwd = tmp_path / "workspace"
+    submitted_at = "2026-10-16T20:00:00.000000Z"
     response_dir.mkdir()
     launch_cwd.mkdir()
     (response_dir / LAUNCH_REQUEST_FILE).write_text(
         json.dumps(
             {
                 "request_id": "launch-dispatch",
+                "launch_submitted_at": submitted_at,
                 "dispatch": {
                     "cwd": str(launch_cwd),
                     "prompt": "%i(reviewer, session=foo)\nDo work",
@@ -546,9 +550,16 @@ def test_approve_launch_response_dispatches_stored_request(
     )
     seen: dict[str, object] = {}
 
-    def fake_launch(prompt: str, origin: object = None) -> list[AgentLaunchResult]:
+    def fake_launch(
+        prompt: str,
+        *,
+        extra_env: dict[str, str] | None = None,
+        origin: object = None,
+    ) -> list[AgentLaunchResult]:
         seen["prompt"] = prompt
         seen["cwd"] = Path.cwd()
+        seen["extra_env"] = extra_env
+        seen["origin"] = origin
         return [
             AgentLaunchResult(
                 pid=123,
@@ -565,6 +576,8 @@ def test_approve_launch_response_dispatches_stored_request(
     assert seen == {
         "prompt": "%i(reviewer, session=foo)\nDo work",
         "cwd": launch_cwd,
+        "extra_env": {SASE_LAUNCH_SUBMITTED_AT_ENV: submitted_at},
+        "origin": "generated",
     }
     assert result.launched_count == 1
     assert result.response_json == {

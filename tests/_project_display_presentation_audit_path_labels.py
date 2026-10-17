@@ -97,6 +97,12 @@ _PATH_LABEL_EXEMPTIONS = (
         "Dispatch payloads carry canonical identity for replay and lookup.",
     ),
     _PathLabelExemption(
+        "src/sase/ace/tui/actions/hints/_view_target_repair.py",
+        "repair_archived_prompt_path",
+        "Path(project_file).parent.name",
+        "Storage key passed to hidden_sidecar_clone_dir to find the agents sidecar.",
+    ),
+    _PathLabelExemption(
         "src/sase/ace/tui/actions/agents/_notification_navigation.py",
         "navigate_to_patch_tab",
         "Path(project_file).parent.name",

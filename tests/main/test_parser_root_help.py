@@ -88,7 +88,7 @@ def test_root_help_renders_compact_help(capsys: pytest.CaptureFixture[str]) -> N
         in help_text
     )
     assert (
-        "Inspect loaded memory, review proposals, and audit reference memory activity."
+        "Inspect and initialize SASE memory, and audit reference memory activity."
         in help_text
     )
     assert (

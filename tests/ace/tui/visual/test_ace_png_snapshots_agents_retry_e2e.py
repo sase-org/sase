@@ -69,6 +69,7 @@ async def test_real_fakey_retry_countdown_png_snapshot(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    monkeypatch.setattr(time, "time", lambda: _VISUAL_NOW.timestamp())
     harness = FakeyRetryHarness(
         tmp_path,
         monkeypatch,
@@ -92,7 +93,6 @@ async def test_real_fakey_retry_countdown_png_snapshot(
         retry_wait.wait_until_started()
         harness.normalize_visual_timestamps(_VISUAL_NOW, countdown_seconds=9)
         _patch_sentinel_pid_liveness(monkeypatch)
-        monkeypatch.setattr(time, "time", lambda: _VISUAL_NOW.timestamp())
 
         async with AcePage(query='"fakey"', patches=patches()) as page:
             await _open_agents_tab(page, agent_count=1)
@@ -174,6 +174,7 @@ async def test_real_fakey_running_fallback_png_snapshot(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    monkeypatch.setattr(time, "time", lambda: _VISUAL_NOW.timestamp())
     harness = FakeyRetryHarness(
         tmp_path,
         monkeypatch,
@@ -249,6 +250,7 @@ async def test_real_fakey_completed_retry_chain_png_snapshot(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    monkeypatch.setattr(time, "time", lambda: _VISUAL_NOW.timestamp())
     harness = FakeyRetryHarness(
         tmp_path,
         monkeypatch,
