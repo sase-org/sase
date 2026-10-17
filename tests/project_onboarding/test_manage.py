@@ -10,12 +10,15 @@ from typing import Any
 
 import pytest
 
+from sase import workspace_provider
+from sase.project_onboarding import _manage_ops as manage_ops
 from sase.project_onboarding import manage
 from sase.project_onboarding.journal import (
     lookup_journal,
     record_intent,
     set_journal_status,
 )
+from sase.project_onboarding.manage_git import GIT_TIMEOUT_SECONDS
 
 _IDENTITY = "github.com/sase-org/bob"
 _FINGERPRINT = "f" * 64
@@ -70,7 +73,7 @@ def onboarding_repo(
     _git(checkout, "config", "user.name", "Onboarding Test")
     _git(checkout, "config", "user.email", "onboarding@example.test")
     monkeypatch.setattr(
-        manage.workspace_provider,
+        workspace_provider,
         "parse_repo_ref",
         lambda workflow, ref: SimpleNamespace(identity_key=_IDENTITY),
     )
@@ -164,12 +167,12 @@ def test_add_and_commit_failures_leave_recoverable_marker(
     failed_command: str,
 ) -> None:
     repo = onboarding_repo
-    real_run_git = manage._run_git
+    real_run_git = manage_ops.run_git
 
     def fail_once(
         checkout: Path,
         *args: str,
-        timeout: float = manage._GIT_TIMEOUT_SECONDS,
+        timeout: float = GIT_TIMEOUT_SECONDS,
     ) -> subprocess.CompletedProcess[str]:
         if args and args[0] == failed_command:
             return subprocess.CompletedProcess(
@@ -177,7 +180,7 @@ def test_add_and_commit_failures_leave_recoverable_marker(
             )
         return real_run_git(checkout, *args, timeout=timeout)
 
-    monkeypatch.setattr(manage, "_run_git", fail_once)
+    monkeypatch.setattr(manage_ops, "run_git", fail_once)
     with pytest.raises(manage.ManagementError, match="injected failure"):
         _manage(repo)
 
@@ -226,8 +229,8 @@ def test_lost_responses_after_write_commit_and_push_are_reobserved(
     onboarding_repo: dict[str, Any],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    real_enable = manage.enable_sase_management
-    real_run_git = manage._run_git
+    real_enable = manage_ops.enable_sase_management
+    real_run_git = manage_ops.run_git
 
     def lost_write_response(path: Path) -> Any:
         result = real_enable(path)
@@ -236,7 +239,7 @@ def test_lost_responses_after_write_commit_and_push_are_reobserved(
     def lost_git_response(
         checkout: Path,
         *args: str,
-        timeout: float = manage._GIT_TIMEOUT_SECONDS,
+        timeout: float = GIT_TIMEOUT_SECONDS,
     ) -> subprocess.CompletedProcess[str]:
         result = real_run_git(checkout, *args, timeout=timeout)
         if args and args[0] in {"commit", "push"} and result.returncode == 0:
@@ -248,8 +251,8 @@ def test_lost_responses_after_write_commit_and_push_are_reobserved(
             )
         return result
 
-    monkeypatch.setattr(manage, "enable_sase_management", lost_write_response)
-    monkeypatch.setattr(manage, "_run_git", lost_git_response)
+    monkeypatch.setattr(manage_ops, "enable_sase_management", lost_write_response)
+    monkeypatch.setattr(manage_ops, "run_git", lost_git_response)
 
     result = _manage(onboarding_repo)
 
@@ -302,7 +305,7 @@ def empty_origin_repo(
     _git(checkout, "config", "user.name", "Onboarding Test")
     _git(checkout, "config", "user.email", "onboarding@example.test")
     monkeypatch.setattr(
-        manage.workspace_provider,
+        workspace_provider,
         "parse_repo_ref",
         lambda workflow, ref: SimpleNamespace(identity_key=_IDENTITY),
     )
@@ -416,13 +419,13 @@ def test_empty_origin_push_failure_retries_same_commit(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     repo = empty_origin_repo
-    real_run_git = manage._run_git
+    real_run_git = manage_ops.run_git
     failed = {"once": False}
 
     def fail_push_once(
         checkout: Path,
         *args: str,
-        timeout: float = manage._GIT_TIMEOUT_SECONDS,
+        timeout: float = GIT_TIMEOUT_SECONDS,
     ) -> subprocess.CompletedProcess[str]:
         if args and args[0] == "push" and not failed["once"]:
             failed["once"] = True
@@ -431,7 +434,7 @@ def test_empty_origin_push_failure_retries_same_commit(
             )
         return real_run_git(checkout, *args, timeout=timeout)
 
-    monkeypatch.setattr(manage, "_run_git", fail_push_once)
+    monkeypatch.setattr(manage_ops, "run_git", fail_push_once)
     with pytest.raises(manage.ManagementError, match="injected push failure"):
         _manage(repo)
 
@@ -442,7 +445,7 @@ def test_empty_origin_push_failure_retries_same_commit(
     assert _origin_heads(repo["bare"]) == {}
 
     set_journal_status(_IDENTITY, "failed", display="sase-org/bob")
-    monkeypatch.setattr(manage, "_run_git", real_run_git)
+    monkeypatch.setattr(manage_ops, "run_git", real_run_git)
     result = _manage(repo)
 
     assert result["commit_id"] == marker_commit
@@ -455,19 +458,19 @@ def test_empty_origin_recovers_when_push_evidence_is_lost(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     repo = empty_origin_repo
-    real_run_git = manage._run_git
+    real_run_git = manage_ops.run_git
 
     def crash_after_push(
         checkout: Path,
         *args: str,
-        timeout: float = manage._GIT_TIMEOUT_SECONDS,
+        timeout: float = GIT_TIMEOUT_SECONDS,
     ) -> subprocess.CompletedProcess[str]:
         result = real_run_git(checkout, *args, timeout=timeout)
         if args and args[0] == "push" and result.returncode == 0:
             raise manage.ManagementError("simulated crash after push")
         return result
 
-    monkeypatch.setattr(manage, "_run_git", crash_after_push)
+    monkeypatch.setattr(manage_ops, "run_git", crash_after_push)
     with pytest.raises(manage.ManagementError, match="simulated crash after push"):
         _manage(repo)
 
@@ -479,7 +482,7 @@ def test_empty_origin_recovers_when_push_evidence_is_lost(
     assert journal["management"].get("push_verified") is not True
 
     set_journal_status(_IDENTITY, "failed", display="sase-org/bob")
-    monkeypatch.setattr(manage, "_run_git", real_run_git)
+    monkeypatch.setattr(manage_ops, "run_git", real_run_git)
     result = _manage(repo)
 
     assert result["ok"] is True
@@ -496,12 +499,12 @@ def test_empty_origin_fails_closed_when_origin_gains_a_commit(
     repo = empty_origin_repo
     checkout: Path = repo["checkout"]
     tmp_path: Path = repo["tmp_path"]
-    real_run_git = manage._run_git
+    real_run_git = manage_ops.run_git
 
     def seed_origin_after_marker_commit(
         path: Path,
         *args: str,
-        timeout: float = manage._GIT_TIMEOUT_SECONDS,
+        timeout: float = GIT_TIMEOUT_SECONDS,
     ) -> subprocess.CompletedProcess[str]:
         result = real_run_git(path, *args, timeout=timeout)
         if args and args[0] == "commit" and result.returncode == 0:
@@ -516,7 +519,7 @@ def test_empty_origin_fails_closed_when_origin_gains_a_commit(
                 _git(second, "push", "origin", "HEAD:refs/heads/main")
         return result
 
-    monkeypatch.setattr(manage, "_run_git", seed_origin_after_marker_commit)
+    monkeypatch.setattr(manage_ops, "run_git", seed_origin_after_marker_commit)
     with pytest.raises(manage.ManagementError, match="origin received commits"):
         _manage(repo)
 
