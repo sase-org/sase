@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from sase.notification_gates.models import GateError
+from sase.notification_gates.models import GATE_TURN_DEFAULT_TIMEOUT_SECONDS, GateError
 
 SUDO_REQUEST_SCHEMA_VERSION = 1
 
@@ -149,10 +149,7 @@ def normalize_sudo_request(value: object) -> SudoRequest:
         data.get("timeout_seconds", data.get("timeout")), "timeout_seconds"
     )
     gate_timeout_seconds = _timeout(
-        data.get(
-            "gate_timeout_seconds",
-            data.get("timeout_seconds", data.get("timeout", 300)),
-        )
+        data.get("gate_timeout_seconds", int(GATE_TURN_DEFAULT_TIMEOUT_SECONDS))
     )
     stop_on_failure = _stop_on_failure(data)
     output_to_agent = _output_to_agent(data)

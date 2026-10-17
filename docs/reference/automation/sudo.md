@@ -46,19 +46,19 @@ Agents must do all non-root preparation first, then batch the root work into one
 `argv` array whose executable is an absolute path, and a short `why` that explains why
 root is needed.
 
-| Field                  | Default           | Meaning                                                                                   |
-| ---------------------- | ----------------- | ----------------------------------------------------------------------------------------- |
-| `reason`               | required          | Why the batch needs root. Reviewers see it as untrusted agent text.                       |
-| `commands`             | required          | Non-empty array of commands, run in the listed order.                                     |
-| `run_as`               | `root`            | Target user.                                                                              |
-| `cwd`                  | current directory | Existing absolute working directory for the commands.                                     |
-| `env`                  | `{}`              | Reviewed string environment variables.                                                    |
-| `machine`              | this host         | Enrolled machine alias or SSH target; see [Remote Flow](#remote-flow).                    |
-| `stop_on_failure`      | `true`            | Skip the remaining commands after one fails.                                              |
-| `output_to_agent`      | `tail`            | Command output passed to the successor: `none`, `tail`, or `full`.                        |
-| `gate_timeout_seconds` | `300`             | Review window in whole seconds (at most one day).                                         |
-| `timeout_seconds`      | none              | Default per-command timeout; also the review window when `gate_timeout_seconds` is unset. |
-| `next.prompt`          | none              | Prompt for the successor that receives the ledger after approval.                         |
+| Field                  | Default           | Meaning                                                                |
+| ---------------------- | ----------------- | ---------------------------------------------------------------------- |
+| `reason`               | required          | Why the batch needs root. Reviewers see it as untrusted agent text.    |
+| `commands`             | required          | Non-empty array of commands, run in the listed order.                  |
+| `run_as`               | `root`            | Target user.                                                           |
+| `cwd`                  | current directory | Existing absolute working directory for the commands.                  |
+| `env`                  | `{}`              | Reviewed string environment variables.                                 |
+| `machine`              | this host         | Enrolled machine alias or SSH target; see [Remote Flow](#remote-flow). |
+| `stop_on_failure`      | `true`            | Skip the remaining commands after one fails.                           |
+| `output_to_agent`      | `tail`            | Command output passed to the successor: `none`, `tail`, or `full`.     |
+| `gate_timeout_seconds` | `86400`           | Review window in whole seconds (at most one day).                      |
+| `timeout_seconds`      | none              | Default per-command timeout.                                           |
+| `next.prompt`          | none              | Prompt for the successor that receives the ledger after approval.      |
 
 The working directory must be an existing absolute directory when the request is
 created. At execution time, the runner changes the sudo child process into that
@@ -68,9 +68,10 @@ authenticating. Normally the approved command inherits that directory, but sudoe
 `CWD`/`runcwd` policy remains authoritative. SASE does not fall back to the runner's
 directory or use root privileges to enter root-only directories.
 
-The review window is short by default. A request nobody answers within
-`gate_timeout_seconds` settles as timed out and launches no follow-up, so set a longer
-window when the reviewer may not be at a terminal.
+The review window defaults to one day. A request nobody answers within
+`gate_timeout_seconds` settles as timed out and launches no follow-up, so the agent
+session ends. Set a shorter `gate_timeout_seconds` only when the commands become unsafe
+to run later.
 
 Each command accepts `id`, `argv`, `why`, and an optional `timeout_seconds` (at most one
 day). Command IDs are 1–64 letters, digits, `.`, `_`, or `-`, start with a letter or

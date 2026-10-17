@@ -343,13 +343,24 @@ def test_disabled_path_resurfaces_silenced_once_and_ignores_others(
     tmp_home: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Silenced rows resurface exactly once; non-silenced rows are untouched."""
+    import datetime
+
     import sase.agent.auto_restart.notify as notify
     from sase.agent.auto_restart import ledger as ledger_mod
     from sase.agent.auto_restart import sweep as sweep_mod
+    from sase.core.time import get_timezone
 
+    now = time.time()
+    tz = get_timezone()
+    silenced_stamp = datetime.datetime.fromtimestamp(now - 600, tz=tz).strftime(
+        "%Y%m%dT%H%M%S"
+    )
+    plain_stamp = datetime.datetime.fromtimestamp(now - 60, tz=tz).strftime(
+        "%Y%m%dT%H%M%S"
+    )
     silenced = _projects_row(
         tmp_home,
-        "20261009T120000",
+        silenced_stamp,
         {
             "outcome": "failed",
             "error": SKEW_ERROR,
@@ -366,7 +377,7 @@ def test_disabled_path_resurfaces_silenced_once_and_ignores_others(
     )
     plain = _projects_row(
         tmp_home,
-        "20261009T121000",
+        plain_stamp,
         {"outcome": "failed", "error": PROVIDER_429},
         name="plain-worker",
     )

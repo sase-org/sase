@@ -197,13 +197,14 @@ class TestDeferredWorkspaceFlow:
 
         def claim_bead(**kwargs: Any) -> SimpleNamespace:
             assert_run_started_at()
+            submitted_at = kwargs.pop("submitted_at")
+            assert isinstance(submitted_at, str) and submitted_at
             assert kwargs == {
                 "agent_name": "test-agent",
                 "bead_id": "sase-8f.2",
                 "workspace_dir": str(real_ws),
                 "workspace_num": 3,
                 "artifacts_dir": artifacts_dir,
-                "submitted_at": None,
                 "run_id": "20260316_120000",
             }
             events.append("claim-bead")

@@ -13,13 +13,15 @@ import pytest
 from sase.agent.gate_intent import list_gate_intents
 from sase.main.parser import create_parser
 from sase.notification_gates.durability import read_json_object
-from sase.notification_gates.models import GateError
+from sase.notification_gates.models import GATE_TURN_DEFAULT_TIMEOUT_SECONDS, GateError
 from sase.notification_gates.service import create_gate
 from sase.sudo import cli as sudo_cli
 from sase.sudo.gate import APPROVE_OPTION_ID, DENY_OPTION_ID, build_sudo_gate_request
 from sase.sudo.manifest import selected_sudo_manifest
 from sase.sudo.models import normalize_sudo_request
 from tests._sudo_gate_helpers import _multi_command_request, _request
+
+_DEFAULT_GATE_TIMEOUT_SECONDS = int(GATE_TURN_DEFAULT_TIMEOUT_SECONDS)
 
 
 def test_sudo_gate_creation_is_unconditional(gate_home: Path) -> None:
@@ -61,6 +63,54 @@ def test_sudo_manifest_subset_rehashes_in_reviewed_order() -> None:
     assert command_ids == ("alpha", "gamma")
     assert [command["id"] for command in subset["commands"]] == ["alpha", "gamma"]
     assert manifest_sha256 != sudo_payload["manifest_sha256"]
+
+
+def test_sudo_request_omitting_gate_timeout_uses_one_day_window() -> None:
+    request = _request()
+    del request["timeout_seconds"]
+
+    normalized = normalize_sudo_request(request)
+    spec = build_sudo_gate_request(request)
+
+    assert normalized.gate_timeout_seconds == _DEFAULT_GATE_TIMEOUT_SECONDS
+    assert spec["gate_timeout_seconds"] == float(_DEFAULT_GATE_TIMEOUT_SECONDS)
+
+
+@pytest.mark.parametrize("timeout_key", ["timeout_seconds", "timeout"])
+def test_sudo_request_command_timeout_does_not_set_review_window(
+    timeout_key: str,
+) -> None:
+    request = _request()
+    del request["timeout_seconds"]
+    request[timeout_key] = 30
+
+    normalized = normalize_sudo_request(request)
+    spec = build_sudo_gate_request(request)
+
+    assert normalized.commands[0].timeout_seconds == 30.0
+    assert spec["gate_timeout_seconds"] == float(_DEFAULT_GATE_TIMEOUT_SECONDS)
+
+
+def test_sudo_request_honors_explicit_gate_timeout() -> None:
+    request = _request()
+    request["gate_timeout_seconds"] = 600
+
+    normalized = normalize_sudo_request(request)
+    spec = build_sudo_gate_request(request)
+
+    assert normalized.gate_timeout_seconds == 600
+    assert spec["gate_timeout_seconds"] == 600.0
+
+
+@pytest.mark.parametrize("value", [0, 86401, 600.0, True])
+def test_sudo_request_rejects_invalid_gate_timeout(value: object) -> None:
+    request = _request()
+    request["gate_timeout_seconds"] = value
+
+    with pytest.raises(GateError) as excinfo:
+        normalize_sudo_request(request)
+
+    assert excinfo.value.code == "invalid_timeout"
 
 
 def test_sudo_request_validation_rejects_shorthand_and_unsafe_forms() -> None:
