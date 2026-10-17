@@ -32,6 +32,7 @@ __all__ = [
     "fake_process",
     "options",
     "pr",
+    "red_gate",
     "run",
     "run_payload",
     "signal_values",
@@ -75,6 +76,22 @@ def run(
         jobs,
         excerpt,
         drift,
+    )
+
+
+def red_gate(
+    run_id: int = 80,
+    *,
+    status: str = "completed",
+    conclusion: str | None = "failure",
+    jobs: tuple[tuple[str, str | None], ...] = (("test (1, 8)", "failure"),),
+) -> watch.WorkflowRun:
+    return run(
+        run_id,
+        status=status,
+        conclusion=conclusion,
+        jobs=jobs,
+        excerpt="FAILED: flaky shard",
     )
 
 
