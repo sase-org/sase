@@ -15,8 +15,10 @@ run state they all share lives in ``axe.run_agent_runner_state``.
 
 import logging
 import os
+import signal
 import sys
 import time
+import traceback
 from datetime import UTC, datetime
 
 from sase.ace.hooks import format_duration
@@ -67,6 +69,7 @@ from sase.axe.runner_auto_restart_doorbell import recovery_requests_silence
 from sase.axe.runner_lifecycle_phase import boot_code_identity
 from sase.axe.runner_reporting import write_error_report
 from sase.axe.runner_signals import install_sigterm_handler, killed_at, was_killed
+from sase.agent._user_kill_intent import has_user_kill_intent
 from sase.axe.source_skew import snapshot_source_revision
 from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
@@ -346,6 +349,18 @@ def main() -> None:
         try:
             _run_agent(state)
         except Exception as e:
+            artifacts_dir = state.current_artifacts_dir or state.artifacts_dir
+            if was_killed() and has_user_kill_intent(artifacts_dir):
+                state.success = False
+                print(
+                    "Runner raised an exception while handling a user kill; "
+                    "treating it as a kill",
+                    file=sys.stderr,
+                )
+                traceback.print_exception(e, file=sys.stderr)
+                _record_user_kill(state)
+                raise SystemExit(128 + signal.SIGTERM) from e
+
             state.success = False
             lost_intent = find_gate_intent_lost_error(e)
             state.error_summary, state.error_traceback_str = record_runner_error(
@@ -361,13 +376,7 @@ def main() -> None:
             _silence_notification_for_pending_recovery(state)
         except SystemExit as e:
             if is_user_kill_exit(e):
-                state.exec_outcome = "killed"
-                state.suppress_completion_notification = True
-                record_kill_provenance(
-                    state.current_artifacts_dir or state.artifacts_dir,
-                    None,
-                    kill_time=killed_at(),
-                )
+                _record_user_kill(state)
                 raise
 
             state.success = False
@@ -414,6 +423,17 @@ def main() -> None:
             cleanup_launch_scratch(exec_outcome=state.exec_outcome)
 
     sys.exit(0 if state.success else 1)
+
+
+def _record_user_kill(state: RunnerRunState) -> None:
+    """Record user-kill outcome and provenance before leaving the runner."""
+    state.exec_outcome = "killed"
+    state.suppress_completion_notification = True
+    record_kill_provenance(
+        state.current_artifacts_dir or state.artifacts_dir,
+        None,
+        kill_time=killed_at(),
+    )
 
 
 if __name__ == "__main__":

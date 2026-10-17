@@ -1,6 +1,7 @@
 """Shared signal state and handlers for axe runners."""
 
 import logging
+import os
 import signal
 import sys
 import time
@@ -29,10 +30,13 @@ def install_sigterm_handler(
     soft: bool = False,
     on_signal: Callable[[], None] | None = None,
 ) -> None:
-    """Install a SIGTERM handler that sets killed flag and exits gracefully.
+    """Install an idempotent SIGTERM handler that exits gracefully.
 
     The handler uses sys.exit() instead of re-raising SIGTERM so that
     finally blocks run, ensuring workspace cleanup happens before exit.
+    It writes its message directly to the stderr file descriptor because
+    buffered stderr writes can re-enter this handler when SIGTERM is repeated.
+    Repeated delivery is a no-op until reset_killed() re-arms the handler.
 
     Args:
         description: What was killed (e.g., "agent", "mentor", "workflow").
@@ -43,14 +47,32 @@ def install_sigterm_handler(
     """
 
     def _handler(_signum: int, _frame: object) -> None:
+        if _killed_state["killed"]:
+            return
+
+        # Publish the kill before doing I/O or invoking a callback.
         _killed_state["killed"] = True
         _killed_state["killed_at"] = time.time()
-        print(f"\nReceived SIGTERM - {description} was killed", file=sys.stderr)
+
+        try:
+            message = f"\nReceived SIGTERM - {description} was killed\n".encode()
+            try:
+                stderr_fd = sys.stderr.fileno()
+            except (OSError, ValueError, AttributeError):
+                stderr_fd = 2
+            os.write(stderr_fd, message)
+        except (OSError, ValueError, AttributeError):
+            pass
+
         if on_signal is not None:
             try:
                 on_signal()
             except Exception:
-                logger.exception("SIGTERM cleanup callback failed")
+                # A signal handler must never raise beyond deliberate SystemExit.
+                try:
+                    logger.exception("SIGTERM cleanup callback failed")
+                except Exception:
+                    pass
         if not soft:
             sys.exit(128 + signal.SIGTERM)
 

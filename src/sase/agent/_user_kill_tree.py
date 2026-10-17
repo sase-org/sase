@@ -328,10 +328,10 @@ def terminate_agent_processes(
     Registered SASE supervisors found in the set are stopped through their
     canonical stop so store records settle.
 
-    Sequence: SIGTERM to the group and every pinned pid, wait up to
-    *grace_seconds*, rediscover (catching late children), SIGKILL whatever is
-    left, wait up to *post_kill_seconds*, and report anything still running as
-    ``survivors``. The result is recorded in the intent marker when there is
+    Sequence: SIGTERM to the group and pinned pids outside that group, wait up
+    to *grace_seconds*, rediscover (catching late children), SIGKILL whatever
+    is left, wait up to *post_kill_seconds*, and report anything still running
+    as ``survivors``. The result is recorded in the intent marker when there is
     one. A runner pid that is not a group leader is signalled directly with its
     tree; it is never reported ``already_stopped`` because ``killpg`` found no
     such group.
@@ -376,13 +376,17 @@ def _run_termination(
         )
         return AgentTerminationResult(True, status, pid, pid, marker_path=marker_str)
 
-    termination.signal_group(signal.SIGTERM)
+    group_signalled = termination.signal_group(signal.SIGTERM)
     plain = [
         target
         for target in termination.targets.values()
         if target.pid not in termination.supervisors
     ]
     for target in plain:
+        if group_signalled:
+            row = read_process_row(target.pid)
+            if row is not None and row.pgid == termination.pid:
+                continue
         termination.signal(target, signal.SIGTERM)
     termination.stop_supervisors()
     termination.wait_for_exit(grace_seconds)

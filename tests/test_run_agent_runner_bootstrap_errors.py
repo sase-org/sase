@@ -253,6 +253,147 @@ def test_user_kill_during_bootstrap_preserves_exit_and_skips_error_recording(
     assert state.suppress_completion_notification is True
 
 
+def test_exception_during_user_kill_exits_as_killed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv(RUNNER_CODE_REFRESHED_ENV, raising=False)
+    args = _runner_args(tmp_path)
+    Path(args.prompt_file).write_text("Do work", encoding="utf-8")
+    with ExitStack() as stack:
+        artifacts_dir, record_completion, finalize, _ = _runner_patches(
+            stack,
+            tmp_path=tmp_path,
+        )
+        stack.enter_context(
+            patch.object(
+                run_agent_runner,
+                "_run_agent",
+                side_effect=RuntimeError("runner failed while being killed"),
+            )
+        )
+        stack.enter_context(
+            patch.object(run_agent_runner, "was_killed", return_value=True)
+        )
+        has_kill_intent = stack.enter_context(
+            patch.object(run_agent_runner, "has_user_kill_intent", return_value=True)
+        )
+        stack.enter_context(
+            patch.object(run_agent_runner, "killed_at", return_value=12.34)
+        )
+        record_error = stack.enter_context(
+            patch.object(run_agent_runner, "record_runner_error")
+        )
+        write_failed_marker = stack.enter_context(
+            patch.object(run_agent_runner, "write_error_done_marker")
+        )
+        record_provenance = stack.enter_context(
+            patch.object(run_agent_runner, "record_kill_provenance")
+        )
+
+        with pytest.raises(SystemExit) as exc_info:
+            run_agent_runner.main()
+
+    assert exc_info.value.code == 143
+    assert not (artifacts_dir / "done.json").exists()
+    record_error.assert_not_called()
+    write_failed_marker.assert_not_called()
+    record_provenance.assert_called_once_with(
+        has_kill_intent.call_args.args[0], None, kill_time=12.34
+    )
+    assert record_completion.call_count == 0
+    assert finalize.call_count == 1
+    state = finalize.call_args.kwargs["state"]
+    assert state.exec_outcome == "killed"
+    assert state.suppress_completion_notification is True
+
+
+def test_exception_with_sigterm_but_no_user_intent_stays_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv(RUNNER_CODE_REFRESHED_ENV, raising=False)
+    args = _runner_args(tmp_path)
+    Path(args.prompt_file).write_text("Do work", encoding="utf-8")
+    with ExitStack() as stack:
+        _artifacts_dir, _, finalize, _ = _runner_patches(stack, tmp_path=tmp_path)
+        stack.enter_context(
+            patch.object(
+                run_agent_runner,
+                "_run_agent",
+                side_effect=RuntimeError("external SIGTERM coincided with failure"),
+            )
+        )
+        stack.enter_context(
+            patch.object(run_agent_runner, "was_killed", return_value=True)
+        )
+        stack.enter_context(
+            patch.object(run_agent_runner, "has_user_kill_intent", return_value=False)
+        )
+        record_error = stack.enter_context(
+            patch.object(
+                run_agent_runner,
+                "record_runner_error",
+                return_value=("RuntimeError: failed", "traceback"),
+            )
+        )
+        provenance = stack.enter_context(
+            patch.object(run_agent_runner, "record_kill_provenance")
+        )
+
+        with pytest.raises(SystemExit) as exc_info:
+            run_agent_runner.main()
+
+    assert exc_info.value.code == 1
+    record_error.assert_called_once()
+    assert record_error.call_args.kwargs["killed"] is True
+    provenance.assert_not_called()
+    assert finalize.call_args.kwargs["state"].exec_outcome == ""
+
+
+def test_exception_without_sigterm_stays_failure_even_with_user_intent(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv(RUNNER_CODE_REFRESHED_ENV, raising=False)
+    args = _runner_args(tmp_path)
+    Path(args.prompt_file).write_text("Do work", encoding="utf-8")
+    with ExitStack() as stack:
+        _artifacts_dir, _, finalize, _ = _runner_patches(stack, tmp_path=tmp_path)
+        stack.enter_context(
+            patch.object(
+                run_agent_runner,
+                "_run_agent",
+                side_effect=RuntimeError("ordinary runner failure"),
+            )
+        )
+        stack.enter_context(
+            patch.object(run_agent_runner, "was_killed", return_value=False)
+        )
+        stack.enter_context(
+            patch.object(run_agent_runner, "has_user_kill_intent", return_value=True)
+        )
+        record_error = stack.enter_context(
+            patch.object(
+                run_agent_runner,
+                "record_runner_error",
+                return_value=("RuntimeError: failed", "traceback"),
+            )
+        )
+        provenance = stack.enter_context(
+            patch.object(run_agent_runner, "record_kill_provenance")
+        )
+
+        with pytest.raises(SystemExit) as exc_info:
+            run_agent_runner.main()
+
+    assert exc_info.value.code == 1
+    record_error.assert_called_once()
+    assert record_error.call_args.kwargs["killed"] is False
+    provenance.assert_not_called()
+    assert finalize.call_args.kwargs["state"].exec_outcome == ""
+
+
 def test_gate_intent_lost_summary_is_passed_to_error_recorder(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

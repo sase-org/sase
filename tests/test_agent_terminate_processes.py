@@ -290,6 +290,57 @@ def test_non_leader_runner_is_terminated_with_its_tree(
     assert process_is_running(os.getpid())
 
 
+def test_group_sigterm_is_not_duplicated_to_group_members(
+    tmp_path: Path, scratch_key: str, reap: list[int]
+) -> None:
+    proc, pids = launch_runner(tmp_path, scratch_key, reap)
+    artifacts = tmp_path / "artifacts"
+    write_meta(artifacts, proc.pid, launch_scratch_key=scratch_key)
+    direct_signals: list[tuple[int, int]] = []
+    group_signals: list[tuple[int, int]] = []
+
+    result = terminate_agent_processes(
+        proc.pid,
+        artifacts_dir=artifacts,
+        grace_seconds=0,
+        post_kill_seconds=0,
+        kill=lambda pid, sig: direct_signals.append((pid, sig)),
+        killpg=lambda pgid, sig: group_signals.append((pgid, sig)),
+        registry_fn=no_registry,
+    )
+
+    term_pids = {pid for pid, sig in direct_signals if sig == signal.SIGTERM}
+    assert (proc.pid, signal.SIGTERM) in group_signals
+    assert proc.pid not in term_pids
+    assert pids["same_group"] not in term_pids
+    assert pids["setsid"] in term_pids
+    assert result.success is False  # The recorders intentionally leave processes alive.
+
+
+def test_non_leader_runner_still_gets_direct_sigterm(
+    tmp_path: Path, scratch_key: str, reap: list[int]
+) -> None:
+    proc, _pids = launch_runner(tmp_path, scratch_key, reap, new_session=False)
+    assert os.getpgid(proc.pid) != proc.pid
+    artifacts = tmp_path / "artifacts"
+    write_meta(artifacts, proc.pid, launch_scratch_key=scratch_key)
+    direct_signals: list[tuple[int, int]] = []
+    group_signals: list[tuple[int, int]] = []
+
+    terminate_agent_processes(
+        proc.pid,
+        artifacts_dir=artifacts,
+        grace_seconds=0,
+        post_kill_seconds=0,
+        kill=lambda pid, sig: direct_signals.append((pid, sig)),
+        killpg=lambda pgid, sig: group_signals.append((pgid, sig)),
+        registry_fn=no_registry,
+    )
+
+    assert (proc.pid, signal.SIGTERM) in direct_signals
+    assert not any(sig == signal.SIGTERM for _pgid, sig in group_signals)
+
+
 def test_immediate_stage_signals_a_non_leader_and_its_tree(
     tmp_path: Path, scratch_key: str, reap: list[int]
 ) -> None:
