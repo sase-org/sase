@@ -3,13 +3,15 @@
 from __future__ import annotations
 
 import argparse
-from collections.abc import Callable, Iterable, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
+import os
 from pathlib import Path
 import subprocess
 import sys
 from typing import TextIO
 
+from sase.agent.identity import agent_marker_present
 from sase.config.core import CHEZMOI_HOME, CONFIG_DIR, get_use_chezmoi
 from sase.content_layout import LayoutCollisionError
 from sase.workflows.commit.command_hooks import run_before_commit_hook
@@ -53,6 +55,10 @@ from .init_memory.project_deploy import (
 from .init_memory.staleness import (
     workspace_pinned_sase_mismatch_warning as _workspace_pinned_sase_mismatch_warning,
 )
+
+HOME_MEMORY_DEPLOY_BYPASS_ENV = "SASE_HOME_MEMORY_DEPLOY_BYPASS"
+_GATE_COMMAND_VALUE = "1"
+_emitted_home_bypass_reasons: set[str] = set()
 
 
 @dataclass(frozen=True)
@@ -421,6 +427,43 @@ def _memory_web_scope_warnings(inputs: _MemoryInitInputs) -> tuple[str, ...]:
     )
 
 
+def _deferred_home_memory_warning(pending_count: int) -> str:
+    noun = "home memory file" if pending_count == 1 else "home memory files"
+    return (
+        f"{pending_count} {noun} out of sync with rendered sources; refresh is "
+        "deferred until land. Rerun `sase memory init` after landing."
+    )
+
+
+def _home_memory_deploy_allowed(
+    env: Mapping[str, str] | None = None,
+    *,
+    stderr: TextIO | None = None,
+) -> bool:
+    """Return whether this process may write or apply the shared home memory root."""
+    current = env if env is not None else os.environ
+    if not agent_marker_present(current):
+        return True
+    gate = current.get("SASE_GATE_COMMAND")
+    if isinstance(gate, str) and gate.strip() == _GATE_COMMAND_VALUE:
+        return True
+    bypass = current.get(HOME_MEMORY_DEPLOY_BYPASS_ENV)
+    reason = bypass.strip() if isinstance(bypass, str) else ""
+    if reason:
+        _emit_home_memory_bypass_reason(
+            reason, sys.stderr if stderr is None else stderr
+        )
+        return True
+    return False
+
+
+def _emit_home_memory_bypass_reason(reason: str, stream: TextIO) -> None:
+    if reason in _emitted_home_bypass_reasons:
+        return
+    _emitted_home_bypass_reasons.add(reason)
+    print(f"{HOME_MEMORY_DEPLOY_BYPASS_ENV}: {reason}", file=stream)
+
+
 def _summarize_memory_actions(actions: tuple[InitAction, ...]) -> str:
     if not actions:
         return "memory files are current"
@@ -454,6 +497,16 @@ def plan_init_memory(args: argparse.Namespace) -> InitPlan:
         )
 
     root_plans = _memory_root_plans(inputs)
+    home_plan = root_plans[-1]
+    project_plans = root_plans[:-1]
+    check_mode = bool(getattr(args, "check", False))
+    warnings_list = list(warnings)
+    if check_mode:
+        change_plans = project_plans
+        if home_plan.changes:
+            warnings_list.append(_deferred_home_memory_warning(len(home_plan.changes)))
+    else:
+        change_plans = root_plans
     actions = tuple(
         InitAction(
             path=change.path,
@@ -461,7 +514,7 @@ def plan_init_memory(args: argparse.Namespace) -> InitPlan:
             detail=change.detail,
             new_content=change.new_content,
         )
-        for root_plan in root_plans
+        for root_plan in change_plans
         for change in root_plan.changes
     )
     if getattr(args, "_project_config_changed", False):
@@ -472,7 +525,7 @@ def plan_init_memory(args: argparse.Namespace) -> InitPlan:
         )
         actions = (config_action, *actions)
     blockers = _memory_plan_blockers(root_plans)
-    warnings = (*warnings, *_memory_root_plan_warnings(root_plans))
+    warnings = (*warnings_list, *_memory_root_plan_warnings(root_plans))
     try:
         from sase.main.init_memory.tracking import tracking_blockers_for_root
 
@@ -557,6 +610,8 @@ def run_init_memory(args: argparse.Namespace) -> int:
                 other_dirty=(*git_state.other_dirty, *git_state.memory_dirty),
             )
 
+    skip_home = not _home_memory_deploy_allowed()
+    home_plan = root_plans[-1]
     project_result: _MemoryRootResult | None = None
     if inputs.is_project_dir:
         project_result = _initialize_memory_root(
@@ -570,12 +625,20 @@ def run_init_memory(args: argparse.Namespace) -> int:
             include_project_agent_docs=True,
             include_project_memory=True,
         )
-    home_result = _initialize_memory_root(
-        inputs.home_root,
-        inputs.home_entries,
-        enable_amd=True,
-        chezmoi_home_roots=(inputs.home_root,) if inputs.use_chezmoi else (),
-    )
+    if skip_home:
+        home_result = _MemoryRootResult(
+            root=home_plan.root,
+            written_paths=(),
+            unreferenced=home_plan.unreferenced,
+            deleted_paths=(),
+        )
+    else:
+        home_result = _initialize_memory_root(
+            inputs.home_root,
+            inputs.home_entries,
+            enable_amd=True,
+            chezmoi_home_roots=(inputs.home_root,) if inputs.use_chezmoi else (),
+        )
     results = tuple(
         result for result in (project_result, home_result) if result is not None
     )
@@ -584,10 +647,17 @@ def run_init_memory(args: argparse.Namespace) -> int:
         _print_validation_errors(results)
         return 1
 
+    if skip_home:
+        print(
+            f"{COMMAND_LABEL}: home memory refresh deferred until land "
+            "(agent run); rerun `sase memory init` outside an agent after "
+            f"landing — home target: {_home_memory_path(inputs.use_chezmoi)}"
+        )
     print(f"{COMMAND_LABEL}: initialized memory")
     if inputs.is_project_dir and inputs.is_sase_managed:
         print(f"  project memory target: {_sase_memory_path(inputs.project_root)}")
-    print(f"  home memory target: {_home_memory_path(inputs.use_chezmoi)}")
+    if not skip_home:
+        print(f"  home memory target: {_home_memory_path(inputs.use_chezmoi)}")
     print(f"  global config source: {inputs.global_config}")
 
     exit_code = 0
@@ -616,6 +686,8 @@ def run_init_memory(args: argparse.Namespace) -> int:
         if project_exit_code != 0:
             exit_code = project_exit_code
 
+    if skip_home:
+        return exit_code
     if inputs.use_chezmoi:
         home_changed_paths = (*home_result.written_paths, *home_result.deleted_paths)
         live_delete_targets: list[Path] = []

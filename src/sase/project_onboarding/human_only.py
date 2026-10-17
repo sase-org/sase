@@ -7,7 +7,7 @@ import os
 import sys
 from typing import Literal, TextIO
 
-from sase.agent.identity import discover_agent_identity
+from sase.agent.identity import agent_marker_present
 
 _Actor = Literal["human", "agent"]
 
@@ -35,7 +35,7 @@ def detect_actor(
     """
 
     current = env if env is not None else os.environ
-    actor: _Actor = "agent" if _agent_present(current) else "human"
+    actor: _Actor = "agent" if agent_marker_present(current) else "human"
     if actor == "human":
         return actor
     if _clean(current.get("SASE_GATE_COMMAND")) == _GATE_COMMAND_VALUE:
@@ -45,16 +45,6 @@ def detect_actor(
         _emit_bypass_reason(bypass, sys.stderr if stderr is None else stderr)
         return "human"
     return "agent"
-
-
-def _agent_present(env: Mapping[str, str]) -> bool:
-    if _clean(env.get("SASE_AGENT")):
-        return True
-    if _clean(env.get("SASE_AGENT_NAME")):
-        return True
-    if _clean(env.get("SASE_MONITOR_ID")):
-        return True
-    return discover_agent_identity(env) is not None
 
 
 def _clean(value: str | None) -> str:

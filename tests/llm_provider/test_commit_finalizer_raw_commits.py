@@ -38,10 +38,16 @@ from sase.llm_provider.types import InvokeResult
 from ._commit_finalizer_raw_commits_detection_tests import (
     test_detects_raw_commits_in_main_and_sibling_oldest_first,
     test_foreign_agent_commit_is_not_raw,
+    test_foreign_linked_form_trailer_is_not_raw,
+    test_foreign_memory_tool_commits_in_sibling_do_not_fail_backstop,
     test_host_stitch_commit_waiting_on_resume_is_not_raw,
     test_opened_repo_baseline_capture_records_head,
     test_own_and_unattributed_commits_are_still_raw_alongside_foreign,
+    test_own_global_form_trailer_counts_as_raw,
+    test_own_linked_form_trailer_counts_as_raw,
+    test_plain_raw_commit_still_counts,
     test_remote_reachable_fast_forwards_since_baseline_are_ignored,
+    test_sase_type_without_agent_is_not_raw,
     test_sdd_and_headless_baseline_records_are_skipped,
 )
 from ._commit_finalizer_raw_commits_absorb_tests import (
@@ -54,6 +60,7 @@ from ._commit_finalizer_raw_commits_absorb_tests import (
 )
 from ._commit_finalizer_raw_commits_protected_tests import (
     test_absorb_preserves_commit_before_complete_raw_suffix,
+    test_absorb_rejects_exempted_tool_commit_inside_raw_suffix,
     test_absorb_rejects_filtered_commit_inside_raw_suffix,
     test_absorb_rejects_protected_path_restored_to_baseline_head,
     test_absorb_rejects_rename_of_a_protected_path,
@@ -81,6 +88,7 @@ __all__ = [
     "raw_commits",
     "subprocess",
     "test_absorb_preserves_commit_before_complete_raw_suffix",
+    "test_absorb_rejects_exempted_tool_commit_inside_raw_suffix",
     "test_absorb_rejects_filtered_commit_inside_raw_suffix",
     "test_absorb_rejects_protected_path_restored_to_baseline_head",
     "test_absorb_rejects_rename_of_a_protected_path",
@@ -96,10 +104,16 @@ __all__ = [
     "test_context_absorbs_eligible_raw_commit_into_obligation",
     "test_detects_raw_commits_in_main_and_sibling_oldest_first",
     "test_foreign_agent_commit_is_not_raw",
+    "test_foreign_linked_form_trailer_is_not_raw",
+    "test_foreign_memory_tool_commits_in_sibling_do_not_fail_backstop",
     "test_host_stitch_commit_waiting_on_resume_is_not_raw",
     "test_opened_repo_baseline_capture_records_head",
     "test_own_and_unattributed_commits_are_still_raw_alongside_foreign",
+    "test_own_global_form_trailer_counts_as_raw",
+    "test_own_linked_form_trailer_counts_as_raw",
+    "test_plain_raw_commit_still_counts",
     "test_remote_reachable_fast_forwards_since_baseline_are_ignored",
+    "test_sase_type_without_agent_is_not_raw",
     "test_sdd_and_headless_baseline_records_are_skipped",
     "unrecorded_local_commits",
 ]

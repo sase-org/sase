@@ -124,6 +124,71 @@ linked_repos:
     assert not (home_root / "sase" / "memory").exists()
 
 
+def test_memory_check_home_only_drift_is_deferred_warning(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    project_root = tmp_path / "project"
+    home_root = tmp_path / "home"
+    config_dir = tmp_path / "config"
+    project_root.mkdir()
+    home_root.mkdir()
+    patch_standard_paths(
+        monkeypatch,
+        project_root=project_root,
+        home_root=home_root,
+        config_dir=config_dir,
+        project_is_vcs=False,
+    )
+
+    plan = plan_memory(check=True)
+
+    assert plan.actions == ()
+    assert plan.blockers == ()
+    assert "current" in plan.summary
+    assert any(
+        "home memory" in warning and "deferred until land" in warning
+        for warning in plan.warnings
+    )
+    assert run_memory(check=True) == 0
+    out = capsys.readouterr().out
+    assert "Needs attention:" not in out
+    assert "refresh is deferred until land" in out
+    assert "Rerun `sase memory init` after landing." in out
+
+
+def test_memory_check_project_drift_still_fails(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    project_root = tmp_path / "project"
+    home_root = tmp_path / "home"
+    config_dir = tmp_path / "config"
+    project_root.mkdir()
+    home_root.mkdir()
+    patch_standard_paths(
+        monkeypatch,
+        project_root=project_root,
+        home_root=home_root,
+        config_dir=config_dir,
+    )
+    assert run_memory() == 0
+    capsys.readouterr()
+    (project_root / "CLAUDE.md").write_text("stale shim\n", encoding="utf-8")
+
+    plan = plan_memory(check=True)
+
+    assert any(action.path == project_root / "CLAUDE.md" for action in plan.actions)
+    assert not any(
+        str(action.path).startswith(str(home_root)) for action in plan.actions
+    )
+    assert run_memory(check=True) == 1
+    out = capsys.readouterr().out
+    assert "Needs attention:" in out
+
+
 def test_memory_check_missing_tree_reports_drift_without_writing(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

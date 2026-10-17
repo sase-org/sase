@@ -396,6 +396,46 @@ def test_deploy_behavior_auto_commit_type_tags_message() -> None:
     assert msg == "chore: run sase init\n\nSASE_TYPE=init"
 
 
+def test_deploy_includes_runtime_agent_tag_by_default(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: list[list[str]] = []
+    monkeypatch.setenv("SASE_AGENT_NAME", "phase-agent")
+    monkeypatch.setattr(
+        "sase.config.require_agent_owner_identity",
+        lambda: AgentOwnerIdentity("alice", "athena"),
+    )
+
+    def handler(*a: Any, **kw: Any) -> MagicMock:
+        cmd = a[0] if a else kw.get("cmd", [])
+        captured.append(cmd)
+        if "rev-parse" in cmd:
+            return MagicMock(returncode=0, stdout="", stderr="")
+        if "diff" in cmd and "--cached" in cmd:
+            return MagicMock(returncode=1, stdout="", stderr="")
+        return MagicMock(returncode=0, stdout="", stderr="")
+
+    with patch.object(_init_chezmoi_deploy.subprocess, "run", side_effect=handler):
+        _init_chezmoi_deploy.deploy_to_chezmoi(
+            [Path("/x/a")],
+            _init_chezmoi_deploy.ChezmoiDeployBehavior(
+                command_label="init",
+                commit_message="chore: initialize sase memory",
+                auto_commit_type="memory",
+                no_push=True,
+            ),
+        )
+
+    commit_calls = [c for c in captured if "commit" in c and "-m" in c]
+    assert commit_calls, "No commit call observed"
+    msg = commit_calls[0][commit_calls[0].index("-m") + 1]
+    assert msg == (
+        "chore: initialize sase memory\n\n"
+        "SASE_TYPE=memory\n"
+        "SASE_AGENT=alice.athena.phase-agent"
+    )
+
+
 def test_deferred_deploy_keeps_skill_provenance_trailers(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

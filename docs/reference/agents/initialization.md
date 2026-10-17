@@ -134,16 +134,20 @@ sase skill use sase_plan --reason "Need to prepare an implementation plan"
 ```
 
 Start with `sase init -c` or `sase memory init --check` when you only want a drift
-report. After that, `sase memory init --no-commit` is the usual first apply run for
+report. Home-root write drift is a deferred warning on `--check`; project-root drift
+still fails. After that, `sase memory init --no-commit` is the usual first apply run for
 memory because it writes the generated files but skips the project git commit/pull/push
 path. It is not a dry run: it can still write project files, write home memory, and
-follow home-level `use_chezmoi` deployment. `sase init memory` remains a compatibility
-alias for `sase memory init`, and `sase init config` remains a compatibility alias for
-`sase config init`, `sase init repo` is an alias for `sase repo init`, and
-`sase init skills` remains an alias for `sase skill init`. `sase init machine` remains a
-compatibility alias for `sase machine init`, and `sase init service` remains a
-compatibility alias for `sase service init` — except that the alias has no preview step
-or `--yes` flag: unless you pass `--check`, it applies the service plan immediately.
+follow home-level `use_chezmoi` deployment, except that agents and monitors skip the
+home write, commit, and apply unless `SASE_GATE_COMMAND=1` or
+`SASE_HOME_MEMORY_DEPLOY_BYPASS` holds a reason. `sase init memory` remains a
+compatibility alias for `sase memory init`, and `sase init config` remains a
+compatibility alias for `sase config init`, `sase init repo` is an alias for
+`sase repo init`, and `sase init skills` remains an alias for `sase skill init`.
+`sase init machine` remains a compatibility alias for `sase machine init`, and
+`sase init service` remains a compatibility alias for `sase service init` — except that
+the alias has no preview step or `--yes` flag: unless you pass `--check`, it applies the
+service plan immediately.
 
 ## Commands
 

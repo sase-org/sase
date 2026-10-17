@@ -99,8 +99,8 @@ def run_memory(
     )
 
 
-def plan_memory(*, no_commit: bool = True) -> InitPlan:
-    return plan_init_memory(argparse.Namespace(no_commit=no_commit))
+def plan_memory(*, no_commit: bool = True, check: bool = False) -> InitPlan:
+    return plan_init_memory(argparse.Namespace(no_commit=no_commit, check=check))
 
 
 def patch_standard_paths(

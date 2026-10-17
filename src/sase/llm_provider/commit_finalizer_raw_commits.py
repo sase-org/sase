@@ -17,9 +17,11 @@ closes that gap:
 Commits carrying a ``SASE_AGENT=`` trailer that names a different agent are a
 concurrent agent's work, not this turn's raw commits: the discarded-work
 guard already exempts foreign-agent races in shared clones, and the detector
-agrees with it. Unattributed commits (no trailer) always count, and commits
-trailered with this agent's own name count too, so the backstop still fails
-closed for anything that could be this turn's work.
+agrees with it. An agent's own trailer in global form
+(``owner.machine.<name>``) or linked form (``[owner.machine.<name>][n]``)
+counts as own. A footer with a SASE ``TYPE`` tag and no ``AGENT`` tag is
+SASE tooling run outside any agent, so it is skipped. Commits with neither
+tag still count, since that is what raw ``git commit`` produces.
 
 Only ``main``, ``sibling``, and opened ``external`` repos are in scope. SDD
 stores and the agents prompt archive (both ``kind == "sdd"``) have their own
@@ -37,6 +39,7 @@ from pathlib import Path
 import re
 import subprocess
 
+from .commit_finalizer_agent_provenance import agent_provenance_matches
 from .commit_finalizer_baseline import load_finalizer_baseline_records
 from .commit_finalizer_git_paths import normalize_path
 
@@ -238,9 +241,10 @@ def _unrecorded_commits_for_repo(
 ) -> tuple[_RawCommit, ...]:
     """List local-only commits newer than *baseline_head*, oldest first.
 
-    Skips commits attributed to a foreign agent; only unattributed commits
-    and commits trailered with this agent's own name can be this turn's raw
-    work.
+    Skips commits attributed to a foreign agent and SASE tool commits that
+    carry a ``TYPE`` tag with no ``AGENT`` tag. Only unattributed raw
+    commits and commits trailered with this agent's own name can be this
+    turn's raw work.
     """
 
     try:
@@ -287,8 +291,8 @@ def _current_agent_name() -> str | None:
     """Resolve this agent's name without ever raising.
 
     ``None`` means the name is unavailable; :func:`_is_foreign_agent_commit`
-    then treats any trailered commit as foreign and keeps only unattributed
-    commits, which always count.
+    then treats any ``AGENT``-trailered commit as foreign. Unattributed
+    commits still count unless they carry a SASE ``TYPE`` tag.
     """
 
     try:
@@ -300,37 +304,31 @@ def _current_agent_name() -> str | None:
 
 
 def _is_foreign_agent_commit(message: str, current_agent: str | None) -> bool:
-    """Return whether *message* attributes its commit to another agent.
+    """Return whether *message* is not this turn's raw commit.
 
-    A missing or empty ``AGENT`` trailer is unattributed, never foreign: raw
-    ``git commit`` outside the host path carries no trailer, so unattributed
-    commits always count. A trailer naming this agent counts too. Anything
-    else names a concurrent agent whose race the discarded-work guard already
-    exempts. Never raises: an unreadable trailer fails closed to "not
-    foreign".
+    A missing or empty ``AGENT`` trailer is unattributed. Raw ``git commit``
+    outside the host path carries no trailer, so unattributed commits with
+    no SASE ``TYPE`` tag always count. A footer with a ``TYPE`` tag and no
+    ``AGENT`` tag is SASE tooling run outside any agent and is skipped. A
+    trailer naming this agent, including global
+    (``owner.machine.<name>``) and linked (``[owner.machine.<name>][n]``)
+    forms, counts as own. Anything else names a concurrent agent whose race
+    the discarded-work guard already exempts. Never raises: an unreadable
+    trailer fails closed to "not foreign".
     """
 
     try:
         from sase.workflows.commit.runtime_tags import parse_trailing_commit_tags
 
-        recorded = parse_trailing_commit_tags(message).get("AGENT")
+        tags = parse_trailing_commit_tags(message)
     except Exception:
         return False
+    recorded = tags.get("AGENT")
     if not recorded:
-        return False
+        return bool(tags.get("TYPE"))
     if current_agent is None:
         return True
-    return not _is_same_agent(recorded, current_agent)
-
-
-def _is_same_agent(recorded: str, current: str) -> bool:
-    """Return whether a commit trailer name identifies the current agent."""
-
-    return (
-        recorded == current
-        or recorded.startswith((f"{current}.", f"{current}--"))
-        or current.startswith((f"{recorded}.", f"{recorded}--"))
-    )
+    return not agent_provenance_matches(recorded, current_agent)
 
 
 def _absorb_one_repo(

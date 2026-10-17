@@ -211,6 +211,230 @@ def test_own_and_unattributed_commits_are_still_raw_alongside_foreign(
     assert [commit.sha for commit in findings[0].commits] == [own_sha, plain_sha]
 
 
+def _pin_owner_identity(monkeypatch: pytest.MonkeyPatch) -> None:
+    from sase.core.agent_identity_facade import (
+        AgentIdentitySnapshot,
+        AgentOwnerIdentity,
+    )
+
+    snapshot = AgentIdentitySnapshot(AgentOwnerIdentity("bbugyi200", "athena"))
+    monkeypatch.setattr(
+        AgentIdentitySnapshot,
+        "current",
+        classmethod(lambda cls: snapshot),
+    )
+
+
+def _own_linked_message(local_name: str) -> str:
+    label = f"bbugyi200.athena.{local_name}"
+    return (
+        "own payload\n\n"
+        f"SASE_AGENT=[{label}][1]\n\n"
+        f"[1]: https://github.com/sase-org/sase--agents/blob/main/"
+        f"families/{label}.md"
+    )
+
+
+def test_own_linked_form_trailer_counts_as_raw(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_AGENT_NAME", "current-agent")
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(tmp_path / "agent-meta"))
+    _pin_owner_identity(monkeypatch)
+    repo = init_repo(tmp_path / "main")
+    artifacts_dir = tmp_path / "artifacts"
+    write_baseline(
+        artifacts_dir,
+        [
+            baseline_record(
+                repo_id="main",
+                repo=repo,
+                kind="main",
+                name="main",
+                scope="run_start",
+                head=repo_head(repo),
+            ),
+        ],
+    )
+
+    own_sha = commit_file(
+        repo, "own.txt", "own\n", _own_linked_message("current-agent")
+    )
+
+    findings = unrecorded_local_commits(artifacts_dir)
+    assert len(findings) == 1
+    assert [commit.sha for commit in findings[0].commits] == [own_sha]
+
+
+def test_own_global_form_trailer_counts_as_raw(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_AGENT_NAME", "current-agent")
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(tmp_path / "agent-meta"))
+    _pin_owner_identity(monkeypatch)
+    repo = init_repo(tmp_path / "main")
+    artifacts_dir = tmp_path / "artifacts"
+    write_baseline(
+        artifacts_dir,
+        [
+            baseline_record(
+                repo_id="main",
+                repo=repo,
+                kind="main",
+                name="main",
+                scope="run_start",
+                head=repo_head(repo),
+            ),
+        ],
+    )
+
+    own_sha = commit_file(
+        repo,
+        "own.txt",
+        "own\n",
+        "own payload\n\nSASE_AGENT=bbugyi200.athena.current-agent",
+    )
+
+    findings = unrecorded_local_commits(artifacts_dir)
+    assert len(findings) == 1
+    assert [commit.sha for commit in findings[0].commits] == [own_sha]
+
+
+def test_foreign_linked_form_trailer_is_not_raw(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_AGENT_NAME", "current-agent")
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(tmp_path / "agent-meta"))
+    _pin_owner_identity(monkeypatch)
+    repo = init_repo(tmp_path / "main")
+    artifacts_dir = tmp_path / "artifacts"
+    write_baseline(
+        artifacts_dir,
+        [
+            baseline_record(
+                repo_id="main",
+                repo=repo,
+                kind="main",
+                name="main",
+                scope="run_start",
+                head=repo_head(repo),
+            ),
+        ],
+    )
+
+    commit_file(repo, "foreign.txt", "foreign\n", _own_linked_message("other-agent"))
+
+    assert unrecorded_local_commits(artifacts_dir) == ()
+
+
+def test_sase_type_without_agent_is_not_raw(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_AGENT_NAME", "current-agent")
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(tmp_path / "agent-meta"))
+    repo = init_repo(tmp_path / "main")
+    artifacts_dir = tmp_path / "artifacts"
+    write_baseline(
+        artifacts_dir,
+        [
+            baseline_record(
+                repo_id="main",
+                repo=repo,
+                kind="main",
+                name="main",
+                scope="run_start",
+                head=repo_head(repo),
+            ),
+        ],
+    )
+
+    commit_file(
+        repo,
+        "memory.txt",
+        "memory\n",
+        "chore: initialize sase memory\n\nSASE_TYPE=memory",
+    )
+
+    assert unrecorded_local_commits(artifacts_dir) == ()
+
+
+def test_plain_raw_commit_still_counts(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_AGENT_NAME", "current-agent")
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(tmp_path / "agent-meta"))
+    repo = init_repo(tmp_path / "main")
+    artifacts_dir = tmp_path / "artifacts"
+    write_baseline(
+        artifacts_dir,
+        [
+            baseline_record(
+                repo_id="main",
+                repo=repo,
+                kind="main",
+                name="main",
+                scope="run_start",
+                head=repo_head(repo),
+            ),
+        ],
+    )
+
+    plain_sha = commit_file(repo, "plain.txt", "plain\n", "plain raw work")
+
+    findings = unrecorded_local_commits(artifacts_dir)
+    assert len(findings) == 1
+    assert [commit.sha for commit in findings[0].commits] == [plain_sha]
+
+
+def test_foreign_memory_tool_commits_in_sibling_do_not_fail_backstop(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.finalizers.commit_validation import raise_if_unpublished_local_commits
+    from sase.llm_provider.types import InvokeResult
+
+    monkeypatch.setenv("SASE_AGENT_NAME", "sase-1li.3--1")
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(tmp_path / "agent-meta"))
+    sibling = init_repo(tmp_path / "chezmoi")
+    artifacts_dir = tmp_path / "artifacts"
+    write_baseline(
+        artifacts_dir,
+        [
+            baseline_record(
+                repo_id="sibling:chezmoi",
+                repo=sibling,
+                kind="sibling",
+                name="chezmoi",
+                scope="run_start",
+                head=repo_head(sibling),
+            ),
+        ],
+    )
+
+    for index in range(3):
+        commit_file(
+            sibling,
+            f"home-{index}.txt",
+            f"{index}\n",
+            "chore: initialize sase memory\n\nSASE_TYPE=memory",
+        )
+
+    assert unrecorded_local_commits(artifacts_dir) == ()
+    assert (
+        raise_if_unpublished_local_commits(
+            artifacts_dir,
+            instance_id="commit",
+            invoke_result=InvokeResult(content="done"),
+        )
+        is None
+    )
+
+
 def test_sdd_and_headless_baseline_records_are_skipped(
     tmp_path: Path,
 ) -> None:

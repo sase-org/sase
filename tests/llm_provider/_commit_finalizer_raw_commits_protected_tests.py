@@ -224,6 +224,45 @@ def test_absorb_rejects_filtered_commit_inside_raw_suffix(
     assert all(sha in diagnostic.message for sha in raw_shas)
 
 
+def test_absorb_rejects_exempted_tool_commit_inside_raw_suffix(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_AGENT_TIMESTAMP", "run-1")
+    monkeypatch.setenv("SASE_AGENT_NAME", "current-agent")
+    repo = init_repo(tmp_path / "linked")
+    baseline = repo_head(repo)
+    artifacts_dir = tmp_path / "artifacts"
+    write_baseline(
+        artifacts_dir,
+        [
+            baseline_record(
+                repo_id="sibling:core",
+                repo=repo,
+                kind="sibling",
+                name="core",
+                scope="run_start",
+                head=baseline,
+            ),
+        ],
+    )
+    first = commit_file(repo, "raw-one.txt", "one\n", "first raw commit")
+    commit_file(
+        repo,
+        "memory.txt",
+        "memory\n",
+        "chore: initialize sase memory\n\nSASE_TYPE=memory",
+    )
+    second = commit_file(repo, "raw-two.txt", "two\n", "second raw commit")
+    tip_state = repo_state(repo)
+
+    findings = unrecorded_local_commits(artifacts_dir)
+    assert len(findings) == 1
+    assert [commit.sha for commit in findings[0].commits] == [first, second]
+    assert absorb_raw_local_commits(str(tmp_path), artifacts_dir) == ()
+    assert repo_state(repo) == tip_state
+
+
 @pytest.mark.parametrize("preceding", ["foreign", "host", "remote"])
 def test_absorb_preserves_commit_before_complete_raw_suffix(
     tmp_path: Path,

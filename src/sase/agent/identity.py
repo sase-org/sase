@@ -30,6 +30,23 @@ class AgentIdentity:
     artifacts_dir: str | None = None
 
 
+def agent_marker_present(env: Mapping[str, str] | None = None) -> bool:
+    """Return whether the process environment marks an agent or monitor run.
+
+    An agent is recognized from ``SASE_AGENT``, ``SASE_AGENT_NAME``,
+    ``SASE_MONITOR_ID``, or an identity discovered by
+    :func:`discover_agent_identity`.
+    """
+    current_env = env if env is not None else os.environ
+    if _clean_value(current_env.get("SASE_AGENT")) is not None:
+        return True
+    if _clean_value(current_env.get("SASE_AGENT_NAME")) is not None:
+        return True
+    if _clean_value(current_env.get("SASE_MONITOR_ID")) is not None:
+        return True
+    return discover_agent_identity(current_env) is not None
+
+
 def discover_agent_identity(
     env: Mapping[str, str] | None = None,
 ) -> AgentIdentity | None:
@@ -288,6 +305,7 @@ __all__ = [
     "AgentIdentity",
     "AgentIdentityError",
     "AgentIdentitySource",
+    "agent_marker_present",
     "agent_name_from_meta",
     "current_instant",
     "discover_agent_identity",

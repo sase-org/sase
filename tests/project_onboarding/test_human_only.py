@@ -32,8 +32,7 @@ class TestDetectActor:
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.setattr(
-            human_only,
-            "discover_agent_identity",
+            "sase.agent.identity.discover_agent_identity",
             lambda env: AgentIdentity(name="coder", source="agent_meta"),
         )
         assert detect_actor({}) == "agent"

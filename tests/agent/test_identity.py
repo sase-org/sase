@@ -9,6 +9,7 @@ from unittest.mock import patch
 import pytest
 
 from sase.agent import identity
+from sase.agent.identity import AgentIdentity, agent_marker_present
 
 
 def _env(artifacts_dir: Path) -> dict[str, str]:
@@ -122,6 +123,22 @@ def test_human_environment_without_agent_identity_uses_current_instant(
     assert (
         identity.resolve_observation_window_start({}) == "2026-08-10T00:00:00.000000Z"
     )
+
+
+def test_agent_marker_present_reads_each_marker(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    assert agent_marker_present({}) is False
+    assert agent_marker_present({"SASE_AGENT": "1"}) is True
+    assert agent_marker_present({"SASE_AGENT_NAME": "sase-1"}) is True
+    assert agent_marker_present({"SASE_MONITOR_ID": "mon-1"}) is True
+    assert agent_marker_present({"SASE_AGENT": "  "}) is False
+    monkeypatch.setattr(
+        identity,
+        "discover_agent_identity",
+        lambda env: AgentIdentity(name="coder", source="agent_meta"),
+    )
+    assert agent_marker_present({}) is True
 
 
 def test_resolve_audit_identity_prefers_agent_env() -> None:

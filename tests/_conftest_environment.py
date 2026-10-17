@@ -435,9 +435,12 @@ def _clear_agent_env_vars(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
                 "SASE_CHOP_PROMPT_HASH",
                 "SASE_CHOP_RUN_ID",
                 "SASE_FEATURE_FLAGS",
+                "SASE_GATE_COMMAND",
+                "SASE_HOME_MEMORY_DEPLOY_BYPASS",
                 "SASE_LINKED_REPOS_JSON",
                 SASE_MODEL_ALIAS_OVERRIDES_ENV,
                 "SASE_MONITOR_CONTINUATION",
+                "SASE_MONITOR_ID",
                 "SASE_SIBLING_REPOS_JSON",
                 "TMUX_PANE",
             }

@@ -12,6 +12,7 @@ import uuid
 
 from sase.agents_sync.git_sync_ops import AGENTS_SYNC_AUTO_COMMIT_TYPE
 
+from .commit_finalizer_agent_provenance import agent_provenance_matches
 from .commit_finalizer_git_paths import normalize_path
 from .commit_finalizer_git_status import (
     UNKNOWN_HEAD_SENTINEL,
@@ -375,7 +376,7 @@ def _new_commits_are_attributable(
         from sase.workflows.commit.runtime_tags import parse_trailing_commit_tags
 
         tags = parse_trailing_commit_tags(message)
-        if _agent_provenance_matches(tags.get("AGENT"), agent_name):
+        if agent_provenance_matches(tags.get("AGENT"), agent_name):
             return True
         if tags.get("TYPE") == AGENTS_SYNC_AUTO_COMMIT_TYPE:
             return True
@@ -482,27 +483,3 @@ def _ledger_matches_commit(
     return any(
         entry.commit_tree and entry.commit_tree == commit_tree for entry in same_repo
     )
-
-
-def _agent_provenance_matches(recorded_agent: str | None, agent_name: str) -> bool:
-    if not recorded_agent:
-        return False
-    if _names_match(recorded_agent, agent_name):
-        return True
-    return _names_match(_sase_agent_of(recorded_agent), _sase_agent_of(agent_name))
-
-
-def _names_match(recorded_agent: str, agent_name: str) -> bool:
-    return recorded_agent == agent_name or recorded_agent.startswith(
-        (f"{agent_name}.", f"{agent_name}--")
-    )
-
-
-def _sase_agent_of(name: str) -> str:
-    try:
-        from sase.core.agent_identity_facade import AgentIdentitySnapshot
-        from sase.sase_agent import sase_agent_ref_for_turn
-
-        return sase_agent_ref_for_turn(name, AgentIdentitySnapshot.current()).local_name
-    except Exception:
-        return name

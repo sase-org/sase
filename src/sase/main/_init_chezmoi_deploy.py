@@ -37,7 +37,7 @@ class ChezmoiDeployBehavior:
     git_failure_is_error: bool = True
     chezmoi_missing_is_error: bool = True
     commit_tags: dict[str, object] = field(default_factory=dict)
-    include_runtime_commit_tags: bool = False
+    include_runtime_commit_tags: bool = True
     git_missing_suffix: str = ""
     not_repo_suffix: str = ""
     commit_failed_label: str = "commit failed"
@@ -58,7 +58,7 @@ class _DeferredChezmoiDeploy:
     chezmoi_home: Path = CHEZMOI_HOME
     delete_target_root: Path | None = None
     commit_tags: dict[str, object] = field(default_factory=dict)
-    include_runtime_commit_tags: bool = False
+    include_runtime_commit_tags: bool = True
 
     def add(
         self,
@@ -66,7 +66,7 @@ class _DeferredChezmoiDeploy:
         *,
         chezmoi_home: Path = CHEZMOI_HOME,
         commit_tags: dict[str, object] | None = None,
-        include_runtime_commit_tags: bool = False,
+        include_runtime_commit_tags: bool = True,
         delete_targets: Iterable[Path] = (),
         delete_target_root: Path | None = None,
     ) -> None:
@@ -443,7 +443,7 @@ def defer_chezmoi_paths(
     *,
     chezmoi_home: Path = CHEZMOI_HOME,
     commit_tags: dict[str, object] | None = None,
-    include_runtime_commit_tags: bool = False,
+    include_runtime_commit_tags: bool = True,
     delete_targets: Iterable[Path] = (),
     delete_target_root: Path | None = None,
 ) -> bool:

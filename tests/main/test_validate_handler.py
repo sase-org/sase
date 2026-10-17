@@ -305,6 +305,58 @@ def test_validate_prints_warnings_section_for_passing_checks(
     assert "run `sase doctor -v` or `sase doctor -j`" not in out
 
 
+def test_validate_prints_home_memory_deferred_warning(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    results = [
+        (0, "", ""),
+        (
+            0,
+            "SASE initialization check\n"
+            "\n"
+            "Up to date:\n"
+            "  ok   init memory  memory files are current\n"
+            "\n"
+            "Warnings:\n"
+            "  init memory: 7 home memory files out of sync with rendered "
+            "sources; refresh is deferred until land. Rerun `sase memory init` "
+            "after landing.\n",
+            "",
+        ),
+        (0, "", ""),
+        (0, "", ""),
+        (0, "", ""),
+        (0, "", ""),
+        (0, "", ""),
+    ]
+
+    def fake_run(
+        command: list[str],
+        *,
+        capture_output: bool,
+        text: bool,
+        check: bool,
+    ) -> subprocess.CompletedProcess[str]:
+        returncode, stdout, stderr = results.pop(0)
+        return _completed(command, returncode, stdout=stdout, stderr=stderr)
+
+    monkeypatch.setattr(validate_handler.subprocess, "run", fake_run)
+
+    exit_code = _run_validate_command()
+
+    assert exit_code == 0
+    out = capsys.readouterr().out
+    assert "  ok     init memory --check\n" in out
+    assert "Warnings:\n" in out
+    assert (
+        "  init memory: 7 home memory files out of sync with rendered "
+        "sources; refresh is deferred until land. Rerun `sase memory init` "
+        "after landing.\n"
+    ) in out
+    assert "failed (exit" not in out
+
+
 def test_entry_dispatches_validate_command(monkeypatch: pytest.MonkeyPatch) -> None:
     seen: list[str] = []
 

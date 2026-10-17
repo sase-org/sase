@@ -11,9 +11,9 @@ This page describes memory initialization and the related list and audit command
 
 ## Memory Initialization
 
-`sase memory init` always initializes the home-level memory surface. It initializes
-project-local memory only for a SASE-managed repository, and independently owns provider
-instruction copies:
+`sase memory init` initializes the home-level memory surface, except inside an agent or
+monitor as described below. It initializes project-local memory only for a SASE-managed
+repository, and independently owns provider instruction copies:
 
 `sase memory init -M` is the convenience path for a repository that should be
 SASE-managed: it creates or updates `sase/sase.yml` with the repository-wide marker
@@ -101,6 +101,13 @@ When `use_chezmoi: true`, the home files are written to the chezmoi source tree.
 command can then commit those home changes and run `chezmoi apply --force`;
 `--no-commit` does not disable that home deployment path.
 
+Inside an agent or monitor, home memory is not written, committed, or applied. Project
+memory still refreshes. The command prints a deferral naming the home target and asks
+you to rerun `sase memory init` outside an agent after landing. An approved `/sase_gate`
+command (`SASE_GATE_COMMAND=1`) or a nonempty `SASE_HOME_MEMORY_DEPLOY_BYPASS` reason
+restores the home deploy; the bypass prints its reason to stderr once. This applies to
+both chezmoi and non-chezmoi home roots.
+
 The generated `sase/memory/sase.md` summarizes workspace naming, linked repositories,
 and the `/sase_final` terminal-action contract for end-of-turn declarations. The
 generated reference `sase/memory/sase_artifacts.md` note owns artifact-reference and
@@ -130,10 +137,14 @@ project files, commits them with the standard memory-init commit message, pulls 
 rebase, and pushes. This path does not run `commit_hooks.after`. Use
 `sase memory init --check` to report drift without writing, or
 `sase memory init --no-commit` when you want to review generated project files before
-committing. `--no-commit` only skips the project deploy path; home memory deployment
-still follows `use_chezmoi` when it is enabled. CI checks the committed project
-instruction files without regenerating them: its home initialization runs outside the
-checkout, so `just validate` sees them exactly as committed.
+committing. `--check` reports home-root write drift as a warning rather than a failure:
+refresh is deferred until land, and you rerun `sase memory init` after landing.
+Project-root drift, config errors, required-plugin blockers, validation errors, and
+tracking blockers still fail. `--no-commit` only skips the project deploy path; home
+memory deployment still follows `use_chezmoi` when it is enabled, except in agent or
+monitor context as described above. CI checks the committed project instruction files
+without regenerating them: its home initialization runs outside the checkout, so
+`just validate` sees them exactly as committed.
 
 The tracking part of `--check` also fails when an existing managed file is untracked,
 including when Git ignores it. It does not require tracked files to have a clean index
