@@ -13,7 +13,7 @@ from sase.amd.constants import (
     HOME_PROVIDER_SHIM_CONTENT,
     HOME_PROVIDER_SHIM_FILES,
 )
-from sase.main import init_memory_handler
+from sase.main import _init_memory_apply, _init_memory_support
 from sase.main._init_chezmoi_deploy import defer_chezmoi_deploy
 from tests.main.init_memory_handler_helpers import (
     patch_standard_paths,
@@ -57,7 +57,7 @@ def test_init_memory_uses_chezmoi_home_and_global_config_source(
         config_dir=config_dir,
         use_chezmoi=True,
     )
-    monkeypatch.setattr(init_memory_handler, "CHEZMOI_HOME", chezmoi_home)
+    monkeypatch.setattr(_init_memory_support, "CHEZMOI_HOME", chezmoi_home)
     write(
         chezmoi_home / "dot_config" / "sase" / "sase.yml",
         """
@@ -82,7 +82,7 @@ sibling_repos:
         deployed.extend(paths)
         return 0
 
-    monkeypatch.setattr(init_memory_handler, "_deploy_to_chezmoi", fake_deploy)
+    monkeypatch.setattr(_init_memory_apply, "_deploy_to_chezmoi", fake_deploy)
 
     assert run_handler() == 0
 
@@ -133,7 +133,7 @@ def test_init_memory_chezmoi_migrates_plain_provider_shim_source(
         config_dir=config_dir,
         use_chezmoi=True,
     )
-    monkeypatch.setattr(init_memory_handler, "CHEZMOI_HOME", chezmoi_home)
+    monkeypatch.setattr(_init_memory_support, "CHEZMOI_HOME", chezmoi_home)
     write(chezmoi_home / "CLAUDE.md", HOME_PROVIDER_SHIM_CONTENT)
     deployed: list[Path] = []
 
@@ -144,7 +144,7 @@ def test_init_memory_chezmoi_migrates_plain_provider_shim_source(
         deployed.extend(paths)
         return 0
 
-    monkeypatch.setattr(init_memory_handler, "_deploy_to_chezmoi", fake_deploy)
+    monkeypatch.setattr(_init_memory_apply, "_deploy_to_chezmoi", fake_deploy)
 
     assert run_handler() == 0
 
@@ -173,7 +173,7 @@ def test_init_memory_chezmoi_migrates_generated_legacy_provider_templates(
         config_dir=config_dir,
         use_chezmoi=True,
     )
-    monkeypatch.setattr(init_memory_handler, "CHEZMOI_HOME", chezmoi_home)
+    monkeypatch.setattr(_init_memory_support, "CHEZMOI_HOME", chezmoi_home)
 
     deployed: list[Path] = []
     deleted: list[Path] = []
@@ -186,7 +186,7 @@ def test_init_memory_chezmoi_migrates_generated_legacy_provider_templates(
         deleted.extend(delete_targets)
         return 0
 
-    monkeypatch.setattr(init_memory_handler, "_deploy_to_chezmoi", fake_deploy)
+    monkeypatch.setattr(_init_memory_apply, "_deploy_to_chezmoi", fake_deploy)
 
     assert run_handler() == 0
     agents = (chezmoi_home / "AGENTS.md").read_text()
@@ -227,10 +227,10 @@ def test_init_memory_deferred_chezmoi_collects_paths_without_deploy(
         config_dir=config_dir,
         use_chezmoi=True,
     )
-    monkeypatch.setattr(init_memory_handler, "CHEZMOI_HOME", chezmoi_home)
+    monkeypatch.setattr(_init_memory_support, "CHEZMOI_HOME", chezmoi_home)
 
     deploy_mock = MagicMock(return_value=0)
-    monkeypatch.setattr(init_memory_handler, "_deploy_to_chezmoi", deploy_mock)
+    monkeypatch.setattr(_init_memory_apply, "_deploy_to_chezmoi", deploy_mock)
 
     with defer_chezmoi_deploy() as deferred:
         assert run_handler() == 0
@@ -257,7 +257,7 @@ def test_init_memory_chezmoi_retired_source_deletes_live_target(
         config_dir=config_dir,
         use_chezmoi=True,
     )
-    monkeypatch.setattr(init_memory_handler, "CHEZMOI_HOME", chezmoi_home)
+    monkeypatch.setattr(_init_memory_support, "CHEZMOI_HOME", chezmoi_home)
     write(
         chezmoi_home / "sase" / "memory" / "task_types.md",
         short_note(
@@ -279,7 +279,7 @@ def test_init_memory_chezmoi_retired_source_deletes_live_target(
         deleted.extend(delete_targets)
         return 0
 
-    monkeypatch.setattr(init_memory_handler, "_deploy_to_chezmoi", fake_deploy)
+    monkeypatch.setattr(_init_memory_apply, "_deploy_to_chezmoi", fake_deploy)
 
     assert run_handler() == 0
 
@@ -342,7 +342,7 @@ def _patch_chezmoi_home(
         config_dir=config_dir,
         use_chezmoi=True,
     )
-    monkeypatch.setattr(init_memory_handler, "CHEZMOI_HOME", chezmoi_home)
+    monkeypatch.setattr(_init_memory_support, "CHEZMOI_HOME", chezmoi_home)
     monkeypatch.setattr(config_core, "CHEZMOI_HOME", chezmoi_home)
 
 
@@ -388,7 +388,7 @@ def test_init_memory_chezmoi_templates_machine_h1_titles(
         deleted.extend(delete_targets)
         return 0
 
-    monkeypatch.setattr(init_memory_handler, "_deploy_to_chezmoi", fake_deploy)
+    monkeypatch.setattr(_init_memory_apply, "_deploy_to_chezmoi", fake_deploy)
 
     assert run_handler() == 0
 
@@ -441,7 +441,7 @@ def test_init_memory_chezmoi_without_machine_titles_stays_static(
     )
 
     monkeypatch.setattr(
-        init_memory_handler, "_deploy_to_chezmoi", lambda *_args, **_kwargs: 0
+        _init_memory_apply, "_deploy_to_chezmoi", lambda *_args, **_kwargs: 0
     )
 
     assert run_handler() == 0

@@ -9,7 +9,7 @@ import subprocess
 import pytest
 
 from sase.core.agent_identity_facade import AgentOwnerIdentity
-from sase.main import init_memory_handler
+from sase.main import _init_memory_apply, _init_memory_support
 from sase.main._init_chezmoi_deploy import defer_chezmoi_deploy
 from tests.main.init_memory_handler_helpers import (
     patch_standard_paths,
@@ -72,7 +72,7 @@ def _prepare_chezmoi_home(
         config_dir=config_dir,
         use_chezmoi=True,
     )
-    monkeypatch.setattr(init_memory_handler, "CHEZMOI_HOME", chezmoi_home)
+    monkeypatch.setattr(_init_memory_support, "CHEZMOI_HOME", chezmoi_home)
     _install_dummy_chezmoi(tmp_path, monkeypatch)
     return project_root, chezmoi_root, chezmoi_home
 
@@ -135,7 +135,7 @@ def test_agent_memory_init_bypass_deploys_home_and_prints_reason(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    init_memory_handler._emitted_home_bypass_reasons.clear()
+    _init_memory_apply._emitted_home_bypass_reasons.clear()
     _project_root, chezmoi_root, chezmoi_home = _prepare_chezmoi_home(
         tmp_path, monkeypatch
     )

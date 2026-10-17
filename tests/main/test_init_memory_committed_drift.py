@@ -22,7 +22,7 @@ from pathlib import Path
 
 import pytest
 
-from sase.main import init_memory_handler
+from sase.main import _init_memory_support
 from sase.main.init_memory_handler import plan_init_memory
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -35,8 +35,8 @@ def test_repo_project_memory_notes_match_generator_output(
 ) -> None:
     monkeypatch.chdir(_REPO_ROOT)
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
-    monkeypatch.setattr(init_memory_handler, "CONFIG_DIR", tmp_path / "config")
-    monkeypatch.setattr(init_memory_handler, "get_use_chezmoi", lambda: False)
+    monkeypatch.setattr(_init_memory_support, "CONFIG_DIR", tmp_path / "config")
+    monkeypatch.setattr(_init_memory_support, "get_use_chezmoi", lambda: False)
 
     plan = plan_init_memory(argparse.Namespace(no_commit=True))
 
@@ -54,7 +54,7 @@ def test_project_memory_templates_beat_home_and_chezmoi_templates(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from sase.main import init_memory_handler as handler_mod
+    from sase.main import _init_memory_apply, _init_memory_support as handler_mod
     from tests.main.init_memory_handler_helpers import (
         patch_standard_paths,
         run_handler,
@@ -103,7 +103,9 @@ def test_project_memory_templates_beat_home_and_chezmoi_templates(
     import sase.config.core as config_core
 
     monkeypatch.setattr(config_core, "CHEZMOI_HOME", chezmoi_home)
-    monkeypatch.setattr(handler_mod, "_deploy_to_chezmoi", lambda _paths, **_kwargs: 0)
+    monkeypatch.setattr(
+        _init_memory_apply, "_deploy_to_chezmoi", lambda _paths, **_kwargs: 0
+    )
 
     write(
         project_root / "sase.yml",

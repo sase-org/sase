@@ -8,7 +8,7 @@ import shutil
 
 import pytest
 
-from sase.main import init_memory_handler
+from sase.main import _init_memory_support, init_memory_handler
 from sase.main.init_memory_handler import handle_init_memory_command, plan_init_memory
 from sase.main.init_plan import InitPlan
 from sase.markdown_width import prettier_markdown_argv
@@ -121,5 +121,5 @@ def patch_standard_paths(
             write(config_path, "is_sase_managed: true\n")
     monkeypatch.chdir(project_root)
     monkeypatch.setenv("HOME", str(home_root))
-    monkeypatch.setattr(init_memory_handler, "CONFIG_DIR", config_dir)
-    monkeypatch.setattr(init_memory_handler, "get_use_chezmoi", lambda: use_chezmoi)
+    monkeypatch.setattr(_init_memory_support, "CONFIG_DIR", config_dir)
+    monkeypatch.setattr(_init_memory_support, "get_use_chezmoi", lambda: use_chezmoi)

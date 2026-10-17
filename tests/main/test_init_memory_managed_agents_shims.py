@@ -8,7 +8,7 @@ import pytest
 
 import sase.config.core as config_core
 from sase.amd.constants import PROJECT_PROVIDER_SHIM_FILES
-from sase.main import init_memory_handler
+from sase.main import _init_memory_support
 from tests.main.init_memory_handler_helpers import (
     patch_standard_paths,
     plan_memory,
@@ -60,7 +60,7 @@ def test_init_memory_chezmoi_custom_static_shim_blocks_template_migration(
         config_dir=config_dir,
         use_chezmoi=True,
     )
-    monkeypatch.setattr(init_memory_handler, "CHEZMOI_HOME", chezmoi_home)
+    monkeypatch.setattr(_init_memory_support, "CHEZMOI_HOME", chezmoi_home)
     monkeypatch.setattr(config_core, "CHEZMOI_HOME", chezmoi_home)
     write(chezmoi_home / "dot_config" / "sase" / "sase.yml", "use_chezmoi: true\n")
     write(

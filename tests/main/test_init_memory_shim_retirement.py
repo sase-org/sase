@@ -14,7 +14,7 @@ from sase.amd.constants import (
     PROVIDER_SHIM_CONTENT,
     RETIRED_PROJECT_PROVIDER_SHIM_FILES,
 )
-from sase.main import init_memory_handler
+from sase.main import _init_memory_apply, _init_memory_support
 from tests.main.init_memory_handler_helpers import (
     patch_standard_paths,
     plan_memory,
@@ -155,14 +155,14 @@ def test_chezmoi_root_still_writes_four_provider_copies(
         config_dir=config_dir,
         use_chezmoi=True,
     )
-    monkeypatch.setattr(init_memory_handler, "CHEZMOI_HOME", chezmoi_home)
+    monkeypatch.setattr(_init_memory_support, "CHEZMOI_HOME", chezmoi_home)
     monkeypatch.setattr(config_core, "CHEZMOI_HOME", chezmoi_home)
 
     def fake_deploy(paths: Iterable[Path], **_kwargs: object) -> int:
         del paths
         return 0
 
-    monkeypatch.setattr(init_memory_handler, "_deploy_to_chezmoi", fake_deploy)
+    monkeypatch.setattr(_init_memory_apply, "_deploy_to_chezmoi", fake_deploy)
 
     assert run_memory() == 0
 

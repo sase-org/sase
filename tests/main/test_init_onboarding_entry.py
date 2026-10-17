@@ -117,7 +117,7 @@ def test_init_check_memory_alias_does_not_apply(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    from sase.main import entry, init_memory_handler
+    from sase.main import _init_memory_apply, entry, init_memory_handler
 
     def _fail_apply(*args: object, **kwargs: object) -> object:
         raise AssertionError("memory check mode must not apply generated files")
@@ -132,7 +132,12 @@ def test_init_check_memory_alias_does_not_apply(
             summary="create memory files",
         ),
     )
-    monkeypatch.setattr(init_memory_handler, "_initialize_memory_root", _fail_apply)
+    monkeypatch.setattr(
+        _init_memory_apply,
+        "plan_init_memory",
+        init_memory_handler.plan_init_memory,
+    )
+    monkeypatch.setattr(_init_memory_apply, "initialize_memory_root", _fail_apply)
 
     with pytest.raises(SystemExit) as exc:
         entry.main()

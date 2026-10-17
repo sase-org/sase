@@ -9,7 +9,7 @@ import pytest
 
 import sase.config.core as config_core
 from sase.amd._agents_doc import _long_memory_entry_path, parse_amd_agents_document
-from sase.main import init_memory_handler
+from sase.main import _init_memory_apply, _init_memory_support
 from tests.main.init_memory_handler_helpers import (
     long_note,
     patch_standard_paths,
@@ -365,7 +365,7 @@ def test_user_template_is_resolved_from_chezmoi_source_config_dir(
         config_dir=config_dir,
         use_chezmoi=True,
     )
-    monkeypatch.setattr(init_memory_handler, "CHEZMOI_HOME", chezmoi_home)
+    monkeypatch.setattr(_init_memory_support, "CHEZMOI_HOME", chezmoi_home)
     monkeypatch.setattr(config_core, "CHEZMOI_HOME", chezmoi_home)
     source_config_dir = chezmoi_home / "dot_config" / "sase"
     write(source_config_dir / "sase.yml", 'memory:\n  h1_title: "Source Home"\n')
@@ -380,7 +380,7 @@ def test_user_template_is_resolved_from_chezmoi_source_config_dir(
         deployed.extend(paths)
         return 0
 
-    monkeypatch.setattr(init_memory_handler, "_deploy_to_chezmoi", fake_deploy)
+    monkeypatch.setattr(_init_memory_apply, "_deploy_to_chezmoi", fake_deploy)
 
     assert run_handler() == 0
 

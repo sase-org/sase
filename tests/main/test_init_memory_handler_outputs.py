@@ -8,7 +8,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from sase.amd.constants import HOME_PROVIDER_SHIM_FILES, PROJECT_PROVIDER_SHIM_FILES
-from sase.main import init_memory_handler
+from sase.main.init_memory import project_deploy
 from sase.main.init_memory.roots import read_memory_directory_map_bytes
 from sase.memory.inventory import stats_for_text
 from tests.main.init_memory_handler_helpers import (
@@ -67,7 +67,7 @@ linked_repos:
 """,
     )
     git_run = MagicMock(return_value=MagicMock(returncode=0, stdout="", stderr=""))
-    monkeypatch.setattr(init_memory_handler.subprocess, "run", git_run)
+    monkeypatch.setattr(project_deploy.subprocess, "run", git_run)
 
     assert run_handler(no_commit=False) == 0
 

@@ -11,8 +11,9 @@ from unittest.mock import MagicMock
 import pytest
 
 import sase.config.core as config_core
+from sase.main import _init_memory_apply
+from sase.main.init_memory import project_deploy
 from sase.main.init_memory_handler import plan_init_memory, run_init_memory
-from sase.main import init_memory_handler
 from sase.main.init_onboarding import run_init_onboarding
 from sase.main.init_registry import InitCommandSpec, iter_init_command_specs
 from tests.main.init_memory_handler_helpers import (
@@ -47,7 +48,7 @@ def test_bare_init_routes_confirmation_and_fold_subject_through_injected_input(
     (project_root / "sase.yml").unlink()
     write(project_root / "AGENTS.md", "# Project Instructions\n")
     monkeypatch.setattr(config_core, "get_use_chezmoi", lambda: False)
-    monkeypatch.setattr(init_memory_handler, "run_before_commit_hook", lambda cwd: True)
+    monkeypatch.setattr(_init_memory_apply, "run_before_commit_hook", lambda cwd: True)
 
     git_calls: list[list[str]] = []
 
@@ -66,7 +67,7 @@ def test_bare_init_routes_confirmation_and_fold_subject_through_injected_input(
             return MagicMock(returncode=0, stdout=f"{project_root}\n", stderr="")
         return MagicMock(returncode=0, stdout="", stderr="")
 
-    monkeypatch.setattr(init_memory_handler.subprocess, "run", fake_run)
+    monkeypatch.setattr(project_deploy.subprocess, "run", fake_run)
     prompts: list[str] = []
     responses = iter(("yes", "sync project instructions"))
 
