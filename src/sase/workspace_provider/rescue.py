@@ -6,6 +6,11 @@ must never fail because of it. This module preserves that state *outside* the
 workspace on a best-effort basis — git bundles, worktree patches, manifests —
 so the workspace itself can be healed or evicted afterwards.
 
+Tags never trigger a rescue on their own. They only ride along as labels for
+commits that a branch, stash, recovery ref, or detached HEAD is already being
+rescued for. Upstream release tags whose commit sits on no remote branch
+therefore produce no rescue entry.
+
 The store lives under ``sase_projects_dir()/<project key>/rescue/<YYYYMM>/``
 with a machine-level ``~/.sase/rescue/`` fallback when no project key
 resolves, and never inside the workspace directory. Every entry carries a
@@ -70,6 +75,31 @@ class RescueRecord:
     note: str | None = None
 
 
+@dataclass(frozen=True)
+class _WorkRefs:
+    """Work anchors and tag labels collected from a clone.
+
+    Tags never trigger a rescue on their own. They only ride along as
+    labels for commits that an anchor is already being rescued for. A
+    tag whose commit nothing else references (no branch, stash, recovery
+    ref, or detached HEAD ahead of every tag) is not rescued. This
+    extends the trade-off :func:`_published_tags` already accepts for
+    never-pushed tags on pushed commits.
+    """
+
+    branch_anchors: tuple[str, ...]
+    tags: tuple[str, ...]
+    detached_head_sha: str | None
+    stash_shas: tuple[str, ...]
+
+    def all_anchors(self) -> list[str]:
+        anchors = list(self.branch_anchors)
+        if self.detached_head_sha is not None:
+            anchors.append(self.detached_head_sha)
+        anchors.extend(self.stash_shas)
+        return anchors
+
+
 def rescue_git_repo(
     repo_root: str | Path,
     *,
@@ -82,6 +112,7 @@ def rescue_git_repo(
     """Bundle local-only commits and the worktree outside the workspace.
 
     Returns ``None`` when there was nothing to rescue. Never raises.
+    Tags never trigger a rescue on their own.
     """
     try:
         return _rescue_git_repo(
@@ -145,6 +176,28 @@ def _rescue_git_repo(
 ) -> RescueRecord | None:
     if not _is_git_repo(repo_root):
         return None
+    try:
+        return _rescue_git_repo_body(
+            repo_root,
+            workspace_dir=workspace_dir,
+            workspace_num=workspace_num,
+            label=label,
+            reason=reason,
+            include_worktree=include_worktree,
+        )
+    finally:
+        _delete_rescue_tmp_namespace(repo_root)
+
+
+def _rescue_git_repo_body(
+    repo_root: Path,
+    *,
+    workspace_dir: Path,
+    workspace_num: int,
+    label: str,
+    reason: str,
+    include_worktree: bool,
+) -> RescueRecord | None:
     head = _git(repo_root, "rev-parse", "--verify", "HEAD")
     branch = _git(repo_root, "symbolic-ref", "-q", "--short", "HEAD")
     upstream = _git(repo_root, "rev-parse", "--verify", "@{upstream}")
@@ -154,8 +207,9 @@ def _rescue_git_repo(
     if include_worktree is False:
         has_worktree_changes = False
 
-    bundle_refs = _bundle_refs(repo_root, head=head, stash_shas=stash_shas)
-    if not bundle_refs and not has_worktree_changes:
+    collected = _collect_work_refs(repo_root, head=head, stash_shas=stash_shas)
+    needs_bundle = _anchors_need_bundle(repo_root, collected.all_anchors())
+    if not needs_bundle and not has_worktree_changes:
         return None
 
     safe_label = _sanitize_label(label or repo_root.name)
@@ -170,7 +224,8 @@ def _rescue_git_repo(
     rescue_dir.mkdir(parents=True, exist_ok=True)
 
     bundle_path: Path | None = None
-    if bundle_refs:
+    if needs_bundle:
+        bundle_refs, _ = _prepare_bundle_refs(repo_root, collected)
         bundle_path = _write_bundle(repo_root, rescue_dir, bundle_refs)
 
     patch_path: Path | None = None
@@ -451,11 +506,28 @@ def _stash_shas(repo_root: Path) -> list[str]:
     return [line.strip() for line in result.stdout.splitlines() if line.strip()]
 
 
-def _remote_tracking_refs(repo_root: Path) -> list[str]:
-    result = _git(repo_root, "for-each-ref", "--format=%(refname)", "refs/remotes")
+def _refnames(repo_root: Path, namespace: str) -> list[str]:
+    result = _git(repo_root, "for-each-ref", "--format=%(refname)", namespace)
     if result.returncode != 0:
         return []
     return [line.strip() for line in result.stdout.splitlines() if line.strip()]
+
+
+def _remote_tracking_refs(repo_root: Path) -> list[str]:
+    return _refnames(repo_root, "refs/remotes")
+
+
+def _tags_merged_into(repo_root: Path, commits: list[str]) -> set[str]:
+    """Tags whose commit is reachable from at least one of *commits*."""
+    if not commits:
+        return set()
+    args = ["for-each-ref", "--format=%(refname)"]
+    args.extend(f"--merged={ref}" for ref in commits)
+    args.append("refs/tags")
+    result = _git(repo_root, *args)
+    if result.returncode != 0:
+        return set()
+    return {line.strip() for line in result.stdout.splitlines() if line.strip()}
 
 
 def _published_tags(repo_root: Path, remote_refs: list[str]) -> set[str]:
@@ -466,52 +538,134 @@ def _published_tags(repo_root: Path, remote_refs: list[str]) -> set[str]:
     Git keeps no list of which tags a remote has, and rescue must stay
     offline (no `git ls-remote` during launch), so a never-pushed tag on a
     pushed commit is not rescued; only the tag name and message are lost,
-    never a commit. With no remote-tracking refs, keep every tag, matching
-    `_write_bundle()`, which then bundles everything.
+    never a commit. Tags also never trigger a rescue on their own: a tag
+    whose commit nothing else references is not rescued. With no
+    remote-tracking refs, keep every tag, matching `_write_bundle()`, which
+    then bundles everything.
     """
     if not remote_refs:
         return set()
-    args = ["for-each-ref", "--format=%(refname)"]
-    args.extend(f"--merged={ref}" for ref in remote_refs)
-    args.append("refs/tags")
-    result = _git(repo_root, *args)
+    return _tags_merged_into(repo_root, remote_refs)
+
+
+def _unpublished_detached_head_sha(
+    repo_root: Path, *, head: subprocess.CompletedProcess[str]
+) -> str | None:
+    """Return HEAD when a detached checkout holds commits not on remotes or tags.
+
+    A detached HEAD resting on, or behind, a tag checkout (``git checkout
+    <tag>``) is not local work: ``git rev-list -1 HEAD --not --remotes
+    --tags`` is empty. A new commit on top of that tag is still rescued.
+    """
+    sha = (head.stdout or "").strip()
+    if head.returncode != 0 or not sha:
+        return None
+    attached = _git(repo_root, "symbolic-ref", "-q", "HEAD")
+    if attached.returncode == 0:
+        return None
+    unpublished = _git(
+        repo_root, "rev-list", "-1", "HEAD", "--not", "--remotes", "--tags"
+    )
+    if unpublished.returncode != 0:
+        return sha
+    if not (unpublished.stdout or "").strip():
+        return None
+    return sha
+
+
+def _collect_work_refs(
+    repo_root: Path,
+    *,
+    head: subprocess.CompletedProcess[str],
+    stash_shas: list[str],
+) -> _WorkRefs:
+    """Collect work anchors and tags. Does not create temp refs."""
+    branch_anchors = [
+        *_refnames(repo_root, "refs/heads"),
+        *_refnames(repo_root, "refs/sase/recovery"),
+    ]
+    tags = _refnames(repo_root, "refs/tags")
+    return _WorkRefs(
+        branch_anchors=tuple(branch_anchors),
+        tags=tuple(tags),
+        detached_head_sha=_unpublished_detached_head_sha(repo_root, head=head),
+        stash_shas=tuple(stash_shas),
+    )
+
+
+def _anchors_need_bundle(repo_root: Path, anchors: list[str]) -> bool:
+    """True when *anchors* carry a commit not reachable from remotes.
+
+    With no remote-tracking refs, any anchor counts. Tags are never
+    consulted: they do not trigger a rescue on their own.
+    """
+    if not anchors:
+        return False
+    if not _remote_tracking_refs(repo_root):
+        return True
+    result = _git(repo_root, "rev-list", "-1", *anchors, "--not", "--remotes")
     if result.returncode != 0:
-        return set()
-    return {line.strip() for line in result.stdout.splitlines() if line.strip()}
+        return True
+    return bool((result.stdout or "").strip())
 
 
-def _bundle_refs(
-    repo_root: Path, *, head: subprocess.CompletedProcess[str], stash_shas: list[str]
+def _tags_to_bundle(
+    repo_root: Path,
+    *,
+    anchors: list[str],
+    tags: tuple[str, ...],
+    remote_refs: list[str],
 ) -> list[str]:
-    refs: list[str] = []
-    for namespace in ("refs/heads", "refs/tags", "refs/sase/recovery"):
-        result = _git(repo_root, "for-each-ref", "--format=%(refname)", namespace)
-        if result.returncode == 0:
-            refs.extend(
-                line.strip() for line in result.stdout.splitlines() if line.strip()
-            )
-    published = _published_tags(repo_root, _remote_tracking_refs(repo_root))
-    if published:
-        refs = [ref for ref in refs if ref not in published]
+    """Tags that label rescued work, or every tag when there are no remotes."""
+    if not tags:
+        return []
+    if not remote_refs:
+        return list(tags)
+    published = _published_tags(repo_root, remote_refs)
+    labeled = _tags_merged_into(repo_root, anchors)
+    return [tag for tag in tags if tag in labeled and tag not in published]
+
+
+def _prepare_bundle_refs(
+    repo_root: Path, collected: _WorkRefs
+) -> tuple[list[str], list[str]]:
+    """Return ``(bundle refs, temp refs)``. Creates ``refs/sase/rescue-tmp/``."""
+    refs = list(collected.branch_anchors)
     temp_refs: list[str] = []
-    branch_result = _git(repo_root, "symbolic-ref", "-q", "HEAD")
-    if branch_result.returncode != 0 and head.returncode == 0 and head.stdout.strip():
+    if collected.detached_head_sha is not None:
         # Detached HEAD holding commits no branch contains: bundle it through
         # a temporary ref, since `git bundle create` refuses a bare SHA with
         # "Refusing to create empty bundle".
         ref = "refs/sase/rescue-tmp/detached-head"
-        created = _git(repo_root, "update-ref", ref, head.stdout.strip())
+        created = _git(repo_root, "update-ref", ref, collected.detached_head_sha)
         if created.returncode == 0:
             temp_refs.append(ref)
         else:
-            refs.append(head.stdout.strip())
-    for index, sha in enumerate(stash_shas):
+            refs.append(collected.detached_head_sha)
+    for index, sha in enumerate(collected.stash_shas):
         ref = f"refs/sase/rescue-tmp/stash-{index}"
         created = _git(repo_root, "update-ref", ref, sha)
         if created.returncode == 0:
             temp_refs.append(ref)
     refs.extend(temp_refs)
-    return refs
+    refs.extend(
+        _tags_to_bundle(
+            repo_root,
+            anchors=collected.all_anchors(),
+            tags=collected.tags,
+            remote_refs=_remote_tracking_refs(repo_root),
+        )
+    )
+    return refs, temp_refs
+
+
+def _delete_temp_refs(repo_root: Path, refs: list[str]) -> None:
+    for ref in refs:
+        _git(repo_root, "update-ref", "-d", ref)
+
+
+def _delete_rescue_tmp_namespace(repo_root: Path) -> None:
+    _delete_temp_refs(repo_root, _refnames(repo_root, "refs/sase/rescue-tmp"))
 
 
 def _write_bundle(repo_root: Path, rescue_dir: Path, refs: list[str]) -> Path | None:
@@ -537,8 +691,7 @@ def _write_bundle(repo_root: Path, rescue_dir: Path, refs: list[str]) -> Path | 
             return None
         return bundle_path
     finally:
-        for ref in temp_refs:
-            _git(repo_root, "update-ref", "-d", ref)
+        _delete_temp_refs(repo_root, temp_refs)
         if bundle_path is not None and bundle_path.exists():
             pass
         elif bundle_path is not None and os.path.lexists(bundle_path):

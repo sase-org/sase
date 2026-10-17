@@ -295,9 +295,11 @@ work to the durable rescue store outside the workspace
 (`~/.sase/projects/<project>/rescue/<YYYYMM>/`, falling back to `~/.sase/rescue/`).
 Linked and external clones use the same rescue store, with a bundle of local-only
 commits and a worktree patch; they are never published during eviction. Rescue is
-best-effort: if it fails, eviction can still discard local work. Tags whose commit is
-already reachable from a remote-tracking branch, such as fetched release tags, count as
-published and are not rescued. Eviction always proceeds. Each rescue pins a
+best-effort: if it fails, eviction can still discard local work. Tags never trigger a
+rescue on their own: they are bundled only as labels for local-only commits that a
+branch, stash, recovery ref, or detached HEAD is already being rescued for, so upstream
+release tags in third-party clones produce no rescue entries. A tag whose commit nothing
+else references is not rescued. Eviction always proceeds. Each rescue pins a
 `refs/sase/recovery/` ref inside the store's own repository, writes a `manifest.json`
 with copy-pasteable restore commands
 (`git fetch <bundle> 'refs/*:refs/sase/rescued/<stamp>/*'`,

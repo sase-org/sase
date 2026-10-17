@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import subprocess
 import time
 from pathlib import Path
@@ -139,6 +140,49 @@ def _rescue_entries(home: Path) -> list[Path]:
         for entry in month.iterdir()
         if entry.is_dir()
     )
+
+
+def _rescue_tmp_refs(repo: Path) -> str:
+    return _git(
+        repo, "for-each-ref", "--format=%(refname)", "refs/sase/rescue-tmp"
+    ).stdout.strip()
+
+
+def _push_off_branch_tag(tmp_path: Path, remote: Path, tag: str = "v1.0") -> None:
+    """Push *tag* pointing at a commit that is on no remote branch."""
+    work = tmp_path / f"off-branch-{tag}"
+    subprocess.run(
+        ["git", "clone", str(remote), str(work)],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    _git(work, "config", "user.email", "test@test.com")
+    _git(work, "config", "user.name", "Test")
+    _git(work, "config", "commit.gpgsign", "false")
+    _git(work, "checkout", "-b", "tmp-release")
+    _commit_file(work, "release.txt", "off-branch release\n", "release bump")
+    _git(work, "tag", "-a", tag, "-m", f"release {tag}")
+    _git(work, "push", "origin", f"refs/tags/{tag}")
+
+
+def _seed_clone_with_off_branch_tag(
+    tmp_path: Path, tag: str = "v1.0"
+) -> tuple[Path, Path, Path]:
+    """Return (workspace, clone, remote) whose clone has an off-branch upstream tag."""
+    workspace, clone, remote = _seed_remote_clone(tmp_path)
+    _push_off_branch_tag(tmp_path, remote, tag)
+    shutil.rmtree(clone)
+    subprocess.run(
+        ["git", "clone", str(remote), str(clone)],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    _git(clone, "config", "user.email", "test@test.com")
+    _git(clone, "config", "user.name", "Test")
+    _git(clone, "config", "commit.gpgsign", "false")
+    return workspace, clone, remote
 
 
 def test_rescue_bundles_local_commits_restorable_by_fetch(
@@ -436,6 +480,136 @@ def test_rescue_bundles_everything_without_remote_tracking_refs(
     assert "refs/tags/v-offline" in heads
     fresh = _clone_and_fetch(record.bundle_path, repo, tmp_path / "fresh")
     assert _holds_object(fresh, sha)
+
+
+def test_rescue_ignores_upstream_tags_off_every_remote_branch(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    home, notified = _redirect_state(tmp_path, monkeypatch)
+    workspace, clone, _remote = _seed_clone_with_off_branch_tag(tmp_path)
+
+    assert (
+        rescue_git_repo(
+            clone,
+            workspace_dir=workspace,
+            workspace_num=7,
+            label="plans",
+            reason="upstream off-branch tag",
+            include_worktree=True,
+        )
+        is None
+    )
+    assert _rescue_entries(home) == []
+    assert notified == []
+    assert _rescue_tmp_refs(clone) == ""
+
+
+def test_rescue_bundle_omits_upstream_off_branch_tags_when_rescuing_branch_work(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _redirect_state(tmp_path, monkeypatch)
+    workspace, clone, _remote = _seed_clone_with_off_branch_tag(tmp_path, "v-upstream")
+    local_sha = _commit_file(clone, "local.txt", "local\n", "unpushed work")
+    _git(clone, "tag", "-a", "v-local", "-m", "local release")
+
+    record = rescue_git_repo(
+        clone,
+        workspace_dir=workspace,
+        workspace_num=7,
+        label="plans",
+        reason="branch work plus off-branch tag",
+        include_worktree=True,
+    )
+
+    assert record is not None and record.bundle_path is not None
+    heads = subprocess.run(
+        ["git", "bundle", "list-heads", str(record.bundle_path)],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout
+    assert "refs/heads/main" in heads
+    assert "refs/tags/v-local" in heads
+    assert "refs/tags/v-upstream" not in heads
+    fresh = _clone_and_fetch(record.bundle_path, clone, tmp_path / "fresh")
+    peeled = _git(
+        fresh, "rev-parse", "refs/sase/rescued/x/tags/v-local^{commit}"
+    ).stdout.strip()
+    assert peeled == local_sha
+    assert _rescue_tmp_refs(clone) == ""
+
+
+def test_worktree_only_rescue_writes_no_tag_bundle(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _home, notified = _redirect_state(tmp_path, monkeypatch)
+    workspace, clone, _remote = _seed_clone_with_off_branch_tag(tmp_path)
+    (clone / "untracked.txt").write_text("untracked\n", encoding="utf-8")
+
+    record = rescue_git_repo(
+        clone,
+        workspace_dir=workspace,
+        workspace_num=7,
+        label="plans",
+        reason="worktree only",
+        include_worktree=True,
+    )
+
+    assert record is not None
+    assert record.patch_path is not None
+    assert record.bundle_path is None
+    assert len(notified) == 1
+    notes = notified[0][3]
+    assert any("worktree changes" in note for note in notes)
+    assert all("local commits" not in note for note in notes)
+    assert _rescue_tmp_refs(clone) == ""
+
+
+def test_rescue_ignores_detached_checkout_of_upstream_tag(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    home, notified = _redirect_state(tmp_path, monkeypatch)
+    workspace, clone, _remote = _seed_clone_with_off_branch_tag(tmp_path)
+    _git(clone, "checkout", "v1.0")
+
+    assert (
+        rescue_git_repo(
+            clone,
+            workspace_dir=workspace,
+            workspace_num=7,
+            label="plans",
+            reason="detached tag",
+            include_worktree=True,
+        )
+        is None
+    )
+    assert _rescue_entries(home) == []
+    assert notified == []
+    assert _rescue_tmp_refs(clone) == ""
+
+
+def test_rescue_bundles_new_commit_on_detached_upstream_tag(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _redirect_state(tmp_path, monkeypatch)
+    workspace, clone, _remote = _seed_clone_with_off_branch_tag(tmp_path)
+    _git(clone, "checkout", "v1.0")
+    orphan_sha = _commit_file(clone, "orphan.txt", "orphan\n", "detached work")
+
+    record = rescue_git_repo(
+        clone,
+        workspace_dir=workspace,
+        workspace_num=7,
+        label="plans",
+        reason="detached work",
+        include_worktree=True,
+    )
+
+    assert record is not None and record.bundle_path is not None
+    assert _bundle_lists_sha(record.bundle_path, orphan_sha)
+    fresh = _clone_and_fetch(record.bundle_path, clone, tmp_path / "fresh")
+    assert _holds_object(fresh, orphan_sha)
+    assert _rescue_tmp_refs(clone) == ""
 
 
 def test_rescue_patch_cap_is_honored(

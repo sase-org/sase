@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+import shutil
 import subprocess
 
 import pytest
@@ -189,6 +190,43 @@ def test_linked_clone_with_only_pushed_release_tags_needs_no_rescue(
     _git(clone, "tag", "-a", "v1.0", "-m", "release 1.0")
     _git(clone, "tag", "-a", "v2.0", "-m", "release 2.0")
     _git(clone, "push", "origin", "--tags")
+    home, notified = _redirect_rescue_state(tmp_path, monkeypatch)
+
+    rescue_repo_clones_before_eviction(workspace, WORKSPACE_NUM)
+
+    assert _rescue_entries(home) == []
+    assert notified == []
+
+
+def test_external_clone_with_only_upstream_off_branch_tag_needs_no_rescue(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    workspace = tmp_path / "workspace"
+    clone, remote = _seed_remote_clone(
+        tmp_path,
+        workspace / "sase" / "repos" / "external" / "gh" / "owner" / "repo",
+    )
+    work = tmp_path / "off-branch-tag-work"
+    subprocess.run(
+        ["git", "clone", str(remote), str(work)],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    _git(work, "config", "user.email", "test@example.com")
+    _git(work, "config", "user.name", "Test")
+    _git(work, "config", "commit.gpgsign", "false")
+    _git(work, "checkout", "-b", "tmp-release")
+    _commit_file(work, "release.txt", "off-branch\n", "release bump")
+    _git(work, "tag", "-a", "v1.0", "-m", "release 1.0")
+    _git(work, "push", "origin", "refs/tags/v1.0")
+    shutil.rmtree(clone)
+    subprocess.run(
+        ["git", "clone", str(remote), str(clone)],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
     home, notified = _redirect_rescue_state(tmp_path, monkeypatch)
 
     rescue_repo_clones_before_eviction(workspace, WORKSPACE_NUM)
