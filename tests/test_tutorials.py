@@ -94,8 +94,8 @@ class TutorialStepError(AssertionError):
             f"detail: {detail}",
         ]
         if output:
-            tail = "\n".join(output.splitlines()[-40:])
-            lines += ["output (last 40 lines):", tail]
+            tail = "\n".join(output.splitlines()[-80:])
+            lines += ["output (last 80 lines):", tail]
         super().__init__("\n".join(lines))
         self.block = block
 
@@ -186,6 +186,17 @@ class TutorialEnv:
     env: dict[str, str]
 
 
+@dataclass
+class AgentListProbe:
+    """One ``sase agent list -a -j`` invocation, including failures."""
+
+    rows: list[dict[str, object]]
+    returncode: int | None = None
+    stdout: str = ""
+    stderr: str = ""
+    error: str = ""
+
+
 def prepare_tutorial_env(root: Path) -> TutorialEnv:
     """Build a fresh temporary HOME pinned to fakey for one tutorial run."""
     home = root / "home"
@@ -243,11 +254,73 @@ def execute_block(
     )
 
 
-def _running_agent_names(tutorial: TutorialEnv) -> list[str]:
+def _sase_home(tutorial: TutorialEnv) -> Path:
+    raw = tutorial.env.get("SASE_HOME")
+    if raw:
+        return Path(raw)
+    return tutorial.home / ".sase"
+
+
+def _bounded_text(text: str, *, max_lines: int = 40, max_chars: int = 4000) -> str:
+    if not text:
+        return "(empty)"
+    lines = text.splitlines()
+    if len(lines) > max_lines:
+        lines = ["...", *lines[-max_lines:]]
+    clipped = "\n".join(lines)
+    if len(clipped) > max_chars:
+        return "..." + clipped[-max_chars:]
+    return clipped
+
+
+def _artifact_agent_names(tutorial: TutorialEnv) -> list[str]:
+    """Return agent names recorded in ``agent_meta.json`` under the tutorial HOME."""
+    names: list[str] = []
+    seen: set[str] = set()
+    projects = _sase_home(tutorial) / "projects"
+    if not projects.is_dir():
+        return names
+    for meta in projects.rglob("agent_meta.json"):
+        try:
+            data = json.loads(meta.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        if not isinstance(data, dict):
+            continue
+        name = data.get("name")
+        if not name or not isinstance(name, str) or name in seen:
+            continue
+        seen.add(name)
+        names.append(name)
+    return names
+
+
+def _artifact_dir_dump(tutorial: TutorialEnv, *, max_paths: int = 20) -> str:
+    projects = _sase_home(tutorial) / "projects"
+    if not projects.is_dir():
+        return f"(no projects dir at {projects})"
+    paths = sorted(projects.rglob("agent_meta.json"))
+    if not paths:
+        children = sorted(path.name for path in projects.iterdir())
+        label = ", ".join(children) if children else "none"
+        return f"(no agent_meta.json under {projects}; children: {label})"
+    lines: list[str] = []
+    for path in paths[:max_paths]:
+        done = path.with_name("done.json").is_file()
+        running = path.with_name("running.json").is_file()
+        lines.append(f"  {path} done={done} running={running}")
+    extra = len(paths) - max_paths
+    if extra > 0:
+        lines.append(f"  ... {extra} more")
+    return "\n".join(lines)
+
+
+def _list_agent_rows(tutorial: TutorialEnv) -> AgentListProbe:
+    """List running and recently completed agents in the tutorial HOME."""
     binary = sase_binary()
     try:
         result = subprocess.run(
-            [str(binary), "agent", "list", "-j"],
+            [str(binary), "agent", "list", "-a", "-j"],
             cwd=str(tutorial.work),
             env=tutorial.env,
             capture_output=True,
@@ -255,33 +328,145 @@ def _running_agent_names(tutorial: TutorialEnv) -> list[str]:
             timeout=60,
             check=False,
         )
-    except (OSError, subprocess.TimeoutExpired):
-        return []
-    if result.returncode != 0:
-        return []
+    except OSError as exc:
+        return AgentListProbe(rows=[], error=f"OSError: {exc}")
+    except subprocess.TimeoutExpired as exc:
+        stdout = exc.stdout if isinstance(exc.stdout, str) else ""
+        stderr = exc.stderr if isinstance(exc.stderr, str) else ""
+        return AgentListProbe(
+            rows=[],
+            returncode=None,
+            stdout=stdout,
+            stderr=stderr,
+            error="timed out after 60s",
+        )
+    rows: list[dict[str, object]] = []
     try:
-        rows = json.loads(result.stdout or "[]")
-    except json.JSONDecodeError:
-        return []
-    return [
-        str(row["name"])
-        for row in rows
-        if isinstance(row, dict) and row.get("status") == "RUNNING" and row.get("name")
-    ]
+        parsed = json.loads(result.stdout or "[]")
+    except json.JSONDecodeError as exc:
+        return AgentListProbe(
+            rows=[],
+            returncode=result.returncode,
+            stdout=result.stdout or "",
+            stderr=result.stderr or "",
+            error=f"invalid JSON: {exc}",
+        )
+    if isinstance(parsed, list):
+        rows = [row for row in parsed if isinstance(row, dict)]
+    return AgentListProbe(
+        rows=rows,
+        returncode=result.returncode,
+        stdout=result.stdout or "",
+        stderr=result.stderr or "",
+        error="" if result.returncode == 0 else f"exit {result.returncode}",
+    )
 
 
-def wait_for_launch(block: TutorialBlock, tutorial: TutorialEnv) -> None:
-    """Wait for a ``sase run`` block's agents to reach a terminal success."""
-    deadline = time.monotonic() + APPEAR_TIMEOUT_SECONDS
+def _new_agent_names(
+    rows: list[dict[str, object]],
+    *,
+    known_names: frozenset[str],
+) -> list[str]:
     names: list[str] = []
-    while time.monotonic() < deadline:
-        names = _running_agent_names(tutorial)
-        if names:
+    seen: set[str] = set()
+    for row in rows:
+        name = row.get("name")
+        if not isinstance(name, str) or not name or name in known_names or name in seen:
+            continue
+        seen.add(name)
+        names.append(name)
+    return names
+
+
+def _known_agent_names(tutorial: TutorialEnv) -> frozenset[str]:
+    listed = _new_agent_names(_list_agent_rows(tutorial).rows, known_names=frozenset())
+    return frozenset(listed) | frozenset(_artifact_agent_names(tutorial))
+
+
+def _launch_diagnostics(
+    tutorial: TutorialEnv,
+    *,
+    launch_result: subprocess.CompletedProcess[str] | None,
+    probe: AgentListProbe,
+    known_names: frozenset[str],
+) -> str:
+    parts: list[str] = []
+    if launch_result is None:
+        parts.append("sase run result: (not captured)")
+    else:
+        parts.append(f"sase run exit {launch_result.returncode}")
+        parts.append("sase run stdout:")
+        parts.append(_bounded_text(launch_result.stdout or ""))
+        parts.append("sase run stderr:")
+        parts.append(_bounded_text(launch_result.stderr or ""))
+    if probe.error:
+        parts.append(f"sase agent list -a error: {probe.error}")
+    rc = "n/a" if probe.returncode is None else str(probe.returncode)
+    parts.append(f"sase agent list -a exit {rc}")
+    parts.append("sase agent list -a stdout:")
+    parts.append(_bounded_text(probe.stdout))
+    if probe.stderr.strip():
+        parts.append("sase agent list -a stderr:")
+        parts.append(_bounded_text(probe.stderr))
+    listed = [
+        f"{row.get('name')}:{row.get('status')}"
+        for row in probe.rows
+        if row.get("name")
+    ]
+    parts.append(f"listed agents: {listed or '(none)'}")
+    parts.append(
+        "known names before launch: "
+        + (", ".join(sorted(known_names)) if known_names else "(none)")
+    )
+    disk_names = _artifact_agent_names(tutorial)
+    parts.append(
+        "artifact agent_meta names: "
+        + (", ".join(disk_names) if disk_names else "(none)")
+    )
+    parts.append("artifact dirs:")
+    parts.append(_artifact_dir_dump(tutorial))
+    return "\n".join(parts)
+
+
+def wait_for_launch(
+    block: TutorialBlock,
+    tutorial: TutorialEnv,
+    *,
+    launch_result: subprocess.CompletedProcess[str] | None = None,
+    known_names: frozenset[str] = frozenset(),
+) -> None:
+    """Wait for a ``sase run`` block's agents to reach a terminal success.
+
+    Fakey can finish between ``sase run`` returning and the first poll, and a
+    just-spawned agent is ``STARTING`` before ``RUNNING``. Listing therefore
+    includes recently completed agents, treats any new name as appeared, and
+    falls back to ``agent_meta.json`` on disk when the listing index is stale.
+    """
+    deadline = time.monotonic() + APPEAR_TIMEOUT_SECONDS
+    probe = AgentListProbe(rows=[])
+    names: list[str] = []
+    while True:
+        probe = _list_agent_rows(tutorial)
+        names = _new_agent_names(probe.rows, known_names=known_names)
+        if not names:
+            names = [
+                name
+                for name in _artifact_agent_names(tutorial)
+                if name not in known_names
+            ]
+        if names or time.monotonic() >= deadline:
             break
         time.sleep(2)  # sase-test-wait: poll for agent registration
     if not names:
         raise TutorialStepError(
-            block, detail="no agents appeared after `sase run` within 60s"
+            block,
+            detail="no agents appeared after `sase run` within 60s",
+            output=_launch_diagnostics(
+                tutorial,
+                launch_result=launch_result,
+                probe=probe,
+                known_names=known_names,
+            ),
         )
     binary = sase_binary()
     try:
@@ -296,14 +481,28 @@ def wait_for_launch(block: TutorialBlock, tutorial: TutorialEnv) -> None:
         )
     except subprocess.TimeoutExpired as exc:
         raise TutorialStepError(
-            block, detail=f"timed out waiting 300s for agents {names}"
+            block,
+            detail=f"timed out waiting 300s for agents {names}",
+            output=_launch_diagnostics(
+                tutorial,
+                launch_result=launch_result,
+                probe=probe,
+                known_names=known_names,
+            ),
         ) from exc
     output = (settled.stdout or "") + (settled.stderr or "")
     if settled.returncode != 0:
         raise TutorialStepError(
             block,
             detail=f"`sase agent wait` exited {settled.returncode}",
-            output=output,
+            output=output
+            + "\n"
+            + _launch_diagnostics(
+                tutorial,
+                launch_result=launch_result,
+                probe=probe,
+                known_names=known_names,
+            ),
         )
 
 
@@ -315,6 +514,11 @@ def run_tutorial_file(path: Path, tutorial: TutorialEnv) -> int:
         if block.skipped:
             continue
         executed += 1
+        known_names = (
+            _known_agent_names(tutorial)
+            if is_launch_block(block.script)
+            else frozenset()
+        )
         try:
             result = execute_block(block.script, cwd=tutorial.work, env=tutorial.env)
         except subprocess.TimeoutExpired as exc:
@@ -336,7 +540,12 @@ def run_tutorial_file(path: Path, tutorial: TutorialEnv) -> int:
                     output=output,
                 )
         if is_launch_block(block.script):
-            wait_for_launch(block, tutorial)
+            wait_for_launch(
+                block,
+                tutorial,
+                launch_result=result,
+                known_names=known_names,
+            )
     return executed
 
 
@@ -416,6 +625,153 @@ def test_tutorial_unmet_expect_reports_readably(tmp_path: Path) -> None:
     with pytest.raises(TutorialStepError, match="expected output") as exc_info:
         run_tutorial_file(page, tutorial)
     assert "'goodbye'" in str(exc_info.value)
+
+
+def _launch_block() -> TutorialBlock:
+    return TutorialBlock(
+        page="first-change.md",
+        step=1,
+        script='sase run "+home create welcome.txt"',
+        skipped=False,
+        skip_reason="",
+        expects=(),
+    )
+
+
+def _wait_tutorial(tmp_path: Path) -> TutorialEnv:
+    home = tmp_path / "home"
+    work = tmp_path / "work"
+    sase_home = home / ".sase"
+    work.mkdir()
+    sase_home.mkdir(parents=True)
+    env = dict(os.environ)
+    env["HOME"] = str(home)
+    env["SASE_HOME"] = str(sase_home)
+    return TutorialEnv(root=tmp_path, home=home, work=work, env=env)
+
+
+def test_wait_for_launch_treats_starting_as_appeared(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    tutorial = _wait_tutorial(tmp_path)
+    monkeypatch.setattr(
+        "tests.test_tutorials._list_agent_rows",
+        lambda _tutorial: AgentListProbe(
+            rows=[{"name": "home-2", "status": "STARTING"}],
+            returncode=0,
+            stdout='[{"name":"home-2","status":"STARTING"}]',
+        ),
+    )
+    monkeypatch.setattr("tests.test_tutorials._artifact_agent_names", lambda _t: [])
+    waited: list[list[str]] = []
+
+    def fake_run(
+        argv: list[str], **_kwargs: object
+    ) -> subprocess.CompletedProcess[str]:
+        waited.append(list(argv))
+        return subprocess.CompletedProcess(argv, 0, "", "")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    wait_for_launch(_launch_block(), tutorial, known_names=frozenset({"home-1"}))
+    assert waited and "home-2" in waited[0]
+
+
+def test_wait_for_launch_treats_already_done_as_appeared(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    tutorial = _wait_tutorial(tmp_path)
+    monkeypatch.setattr(
+        "tests.test_tutorials._list_agent_rows",
+        lambda _tutorial: AgentListProbe(
+            rows=[{"name": "home-2", "status": "DONE"}],
+            returncode=0,
+            stdout='[{"name":"home-2","status":"DONE"}]',
+        ),
+    )
+    monkeypatch.setattr("tests.test_tutorials._artifact_agent_names", lambda _t: [])
+    waited: list[list[str]] = []
+
+    def fake_run(
+        argv: list[str], **_kwargs: object
+    ) -> subprocess.CompletedProcess[str]:
+        waited.append(list(argv))
+        return subprocess.CompletedProcess(argv, 0, "", "")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    wait_for_launch(_launch_block(), tutorial, known_names=frozenset({"home-1"}))
+    assert waited and "home-2" in waited[0]
+
+
+def test_wait_for_launch_uses_disk_meta_when_listing_is_empty(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    tutorial = _wait_tutorial(tmp_path)
+    monkeypatch.setattr(
+        "tests.test_tutorials._list_agent_rows",
+        lambda _tutorial: AgentListProbe(rows=[], returncode=0, stdout="[]"),
+    )
+    monkeypatch.setattr(
+        "tests.test_tutorials._artifact_agent_names", lambda _t: ["home-2"]
+    )
+    waited: list[list[str]] = []
+
+    def fake_run(
+        argv: list[str], **_kwargs: object
+    ) -> subprocess.CompletedProcess[str]:
+        waited.append(list(argv))
+        return subprocess.CompletedProcess(argv, 0, "", "")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    wait_for_launch(_launch_block(), tutorial, known_names=frozenset({"home-1"}))
+    assert waited and "home-2" in waited[0]
+
+
+def test_wait_for_launch_timeout_includes_run_output_and_home_state(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    tutorial = _wait_tutorial(tmp_path)
+    meta = (
+        Path(tutorial.env["SASE_HOME"])
+        / "projects"
+        / "home"
+        / "artifacts"
+        / "ace-run"
+        / "agent_meta.json"
+    )
+    meta.parent.mkdir(parents=True)
+    meta.write_text("{}", encoding="utf-8")
+    monkeypatch.setattr(
+        "tests.test_tutorials._list_agent_rows",
+        lambda _tutorial: AgentListProbe(
+            rows=[],
+            returncode=0,
+            stdout="[]",
+            stderr="listing skipped",
+        ),
+    )
+    monkeypatch.setattr("tests.test_tutorials._artifact_agent_names", lambda _t: [])
+    monkeypatch.setattr("tests.test_tutorials.APPEAR_TIMEOUT_SECONDS", 0)
+    monkeypatch.setattr(time, "sleep", lambda _seconds: None)
+    launch_result = subprocess.CompletedProcess(
+        ["bash", "-c", "sase run"],
+        0,
+        "Agent started (PID 12345)\n",
+        "warning: fakey\n",
+    )
+    with pytest.raises(TutorialStepError, match="no agents appeared") as exc_info:
+        wait_for_launch(
+            _launch_block(),
+            tutorial,
+            launch_result=launch_result,
+            known_names=frozenset({"home-1"}),
+        )
+    message = str(exc_info.value)
+    assert "sase run exit 0" in message
+    assert "Agent started (PID 12345)" in message
+    assert "warning: fakey" in message
+    assert "sase agent list -a exit 0" in message
+    assert "known names before launch: home-1" in message
+    assert "agent_meta.json" in message
 
 
 @pytest.mark.slow
