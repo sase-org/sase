@@ -13,6 +13,7 @@ from sase.axe.clan_summary_script import (
 )
 from sase.axe.run_agent_phases import ClanSummaryResolutionRequest
 from sase.bead.model import Status
+from sase.env_contracts import SASE_LAUNCH_SUBMITTED_AT_ENV
 from sase.linked_repos import LinkedRepoResolution, _ResolvedLinkedRepo
 
 from tests._axe_run_agent_runner_retry_helpers import (
@@ -25,6 +26,8 @@ from tests._axe_run_agent_runner_retry_helpers import (
     exec_result,
     run_main,
 )
+
+SUBMITTED_AT = "2026-10-17T20:00:00.000000Z"
 
 
 class TestDeferredWorkspaceFlow:
@@ -102,9 +105,18 @@ class TestDeferredWorkspaceFlow:
         detect_repeat_stop.assert_not_called()
         write_error.assert_not_called()
 
+    @pytest.mark.parametrize("ambient_submitted_at", [None, "hostile ambient value"])
     def test_deferred_wait_gates_before_claim_and_prepares_claimed_workspace(
-        self, tmp_path: Path
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        ambient_submitted_at: str | None,
     ) -> None:
+        if ambient_submitted_at is None:
+            monkeypatch.delenv(SASE_LAUNCH_SUBMITTED_AT_ENV, raising=False)
+        else:
+            monkeypatch.setenv(SASE_LAUNCH_SUBMITTED_AT_ENV, ambient_submitted_at)
+
         artifacts_dir = str(tmp_path / "artifacts")
         placeholder_ws = tmp_path / "placeholder"
         real_ws = tmp_path / "real-ws"
@@ -198,7 +210,7 @@ class TestDeferredWorkspaceFlow:
         def claim_bead(**kwargs: Any) -> SimpleNamespace:
             assert_run_started_at()
             submitted_at = kwargs.pop("submitted_at")
-            assert isinstance(submitted_at, str) and submitted_at
+            assert submitted_at == SUBMITTED_AT
             assert kwargs == {
                 "agent_name": "test-agent",
                 "bead_id": "sase-8f.2",
@@ -243,7 +255,10 @@ class TestDeferredWorkspaceFlow:
             update_target="main",
             workspace_dir=placeholder_ws,
             workspace_num="0",
-            env={"SASE_AGENT_DEFERRED_WORKSPACE": "1"},
+            env={
+                "SASE_AGENT_DEFERRED_WORKSPACE": "1",
+                SASE_LAUNCH_SUBMITTED_AT_ENV: SUBMITTED_AT,
+            },
         )
 
         assert events == [

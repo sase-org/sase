@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 from sase.directory_map_assets import DIRECTORY_MAP_ASSET_OVERRIDE_ENV
-from sase.env_contracts import WORKSPACE_PIN_ENV_VARS
+from sase.env_contracts import SASE_LAUNCH_SUBMITTED_AT_ENV, WORKSPACE_PIN_ENV_VARS
 
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -439,6 +439,7 @@ def _clear_agent_env_vars(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
                 "SASE_FINALIZER_OWNED_TURN",
                 "SASE_GATE_COMMAND",
                 "SASE_HOME_MEMORY_DEPLOY_BYPASS",
+                SASE_LAUNCH_SUBMITTED_AT_ENV,
                 "SASE_LINKED_REPOS_JSON",
                 SASE_MODEL_ALIAS_OVERRIDES_ENV,
                 "SASE_MONITOR_CONTINUATION",

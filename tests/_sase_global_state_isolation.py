@@ -5,6 +5,8 @@ from __future__ import annotations
 from collections.abc import Mapping
 import os
 
+from sase.env_contracts import SASE_LAUNCH_SUBMITTED_AT_ENV
+
 
 _ENV_KEYS_TO_IGNORE = frozenset(
     {
@@ -21,6 +23,7 @@ _ENV_KEYS_TO_IGNORE = frozenset(
         "SASE_DETACH_SCOPE_DISABLE",
         "SASE_DISABLE_PLUGIN_COMMANDS",
         "SASE_HOME",
+        SASE_LAUNCH_SUBMITTED_AT_ENV,
         "SASE_PYTEST_SANDBOX_DIR",
     }
 )
