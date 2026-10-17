@@ -19,7 +19,11 @@ import subprocess
 from pathlib import Path
 
 from sase.amd._agents_doc import is_managed_agents_document
-from sase.amd.constants import AGENTS_TEMPLATE_FILENAME, PROVIDER_SHIM_FILES
+from sase.amd.constants import (
+    AGENTS_TEMPLATE_FILENAME,
+    HOME_PROVIDER_SHIM_FILES,
+    PROJECT_PROVIDER_SHIM_FILES,
+)
 from sase.amd.inventory import discover_project_agent_docs
 from sase.core.memory_history_wire import (
     MemoryHistoryInstructionFile,
@@ -121,7 +125,7 @@ def _instruction_entry_for_agents(
     return MemoryHistoryInstructionFile(
         dir=directory,
         agents_path=relative,
-        shim_paths=tuple(f"{prefix}{shim}" for shim in PROVIDER_SHIM_FILES),
+        shim_paths=tuple(f"{prefix}{shim}" for shim in PROJECT_PROVIDER_SHIM_FILES),
         template=agents_path.name == AGENTS_TEMPLATE_FILENAME,
         managed=(is_managed_agents_document(text) if text is not None else False),
     )
@@ -224,7 +228,7 @@ def build_home_scope(
                 agents_path=HOME_AGENTS_TEMPLATE,
                 shim_paths=tuple(
                     f"{HOME_INSTRUCTION_DIR}/{shim}.tmpl"
-                    for shim in PROVIDER_SHIM_FILES
+                    for shim in HOME_PROVIDER_SHIM_FILES
                 ),
                 template=True,
                 managed=managed,
@@ -256,7 +260,7 @@ def map_deployed_home_path(path: Path) -> str | None:
         return None
     if parts[0] == "AGENTS.md" and len(parts) == 1:
         return HOME_AGENTS_TEMPLATE
-    if len(parts) == 1 and parts[0] in PROVIDER_SHIM_FILES:
+    if len(parts) == 1 and parts[0] in HOME_PROVIDER_SHIM_FILES:
         stem = parts[0]
         return f"{HOME_INSTRUCTION_DIR}/{stem}.tmpl"
     if parts[0] == "sase" and len(parts) >= 3 and parts[1] == "memory":

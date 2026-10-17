@@ -16,6 +16,7 @@ from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
+from sase.amd.constants import AGENTS_FILENAME, RECOGNIZED_PROVIDER_SHIM_FILES
 from sase.memory.history._pager_provider_common import (
     wire_history_path,
     wire_subject_id,
@@ -27,13 +28,7 @@ from sase.pager.history.models import VersionPin, committed_pin_for_ordinal
 from sase.pager.syntax_policy import classify_source
 
 _MEMORY_ROOT_MARKERS = ("sase/memory/", "memory/")
-_INSTRUCTION_NAMES = (
-    "AGENTS.md",
-    "CLAUDE.md",
-    "GEMINI.md",
-    "QWEN.md",
-    "OPENCODE.md",
-)
+_INSTRUCTION_NAMES = (AGENTS_FILENAME, *RECOGNIZED_PROVIDER_SHIM_FILES)
 _SHIM_SUFFIXES = (".md", ".yml", ".yaml", ".toml")
 _HOME_TEMPLATE_SUFFIX = ".tmpl"
 

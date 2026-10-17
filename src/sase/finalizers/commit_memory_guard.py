@@ -16,6 +16,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from sase.amd.constants import AGENTS_FILENAME, RECOGNIZED_PROVIDER_SHIM_FILES
 from sase.core.finalizer_wire import FinalizerDiagnosticWire
 
 GUARD_DIAGNOSTIC_CODE = "memory_change_uncovered"
@@ -26,7 +27,7 @@ _MEMORY_README_SUFFIX = "sase/memory/README.md"
 _MEMORY_README_LEGACY = "memory/README.md"
 
 _GENERATED_ROOT_BASENAMES = frozenset(
-    {"AGENTS.md", "CLAUDE.md", "GEMINI.md", "QWEN.md", "OPENCODE.md"}
+    {AGENTS_FILENAME, *RECOGNIZED_PROVIDER_SHIM_FILES}
 )
 
 _PLAN_LAUNCH_META_KEYS = (

@@ -21,8 +21,10 @@ from .constants import (
     AGENTS_TEMPLATE_FILENAME,
     CHEZMOI_PROVIDER_SHIM_TEMPLATE_CONTENT,
     HOME_PROVIDER_SHIM_CONTENT,
+    HOME_PROVIDER_SHIM_FILES,
+    PROJECT_PROVIDER_SHIM_FILES,
     PROVIDER_SHIM_CONTENT,
-    PROVIDER_SHIM_FILES,
+    RETIRED_PROJECT_PROVIDER_SHIM_FILES,
 )
 
 # Legacy ``@``-import provider shim texts. Provider files are now full copies of
@@ -72,6 +74,7 @@ class ProviderShimPlan:
     deletes: tuple[_PlannedDelete, ...]
     blockers: tuple[str, ...] = ()
     source_path: Path | None = None
+    warnings: tuple[str, ...] = ()
 
     @property
     def actions(self) -> tuple[InitAction, ...]:
@@ -155,12 +158,32 @@ def is_root_agents_filename(name: str) -> bool:
     return name in AGENTS_SOURCE_FILENAMES
 
 
+def _uses_home_provider_shims(
+    root: Path,
+    *,
+    chezmoi_home_roots: Iterable[Path] = (),
+    prefer_templates: bool = False,
+    include_project_memory: bool = False,
+) -> bool:
+    """Return whether this root still writes the four-name home shim set.
+
+    Project roots and nested ``AGENTS.md`` parents use the ``CLAUDE.md``-only
+    list. Home, chezmoi, and ``prefer_templates`` roots keep all four until E5.
+    """
+    if prefer_templates:
+        return True
+    if is_chezmoi_home_root(root, chezmoi_home_roots=chezmoi_home_roots):
+        return True
+    return not include_project_memory
+
+
 def provider_shim_specs(
     root: Path,
     *,
     agents_content: str,
     chezmoi_home_roots: Iterable[Path] = (),
     prefer_templates: bool = False,
+    include_project_memory: bool = False,
 ) -> tuple[_ProviderShimSpec, ...]:
     """Return provider instruction specs that copy the root's ``AGENTS.md``.
 
@@ -171,8 +194,18 @@ def provider_shim_specs(
     as a legacy path to migrate away from. When *prefer_templates* is true,
     that preference flips so chezmoi evaluates the H1 hostname switch.
     Legacy ``@AGENTS.md``-style shims are still recognized (see
-    ``_is_provider_shim_text``) so existing files migrate cleanly.
+    ``is_provider_shim_text``) so existing files migrate cleanly.
     """
+    filenames = (
+        HOME_PROVIDER_SHIM_FILES
+        if _uses_home_provider_shims(
+            root,
+            chezmoi_home_roots=chezmoi_home_roots,
+            prefer_templates=prefer_templates,
+            include_project_memory=include_project_memory,
+        )
+        else PROJECT_PROVIDER_SHIM_FILES
+    )
     if prefer_templates:
         return tuple(
             _ProviderShimSpec(
@@ -181,7 +214,7 @@ def provider_shim_specs(
                 content=agents_content,
                 legacy_paths=(root / filename,),
             )
-            for filename in PROVIDER_SHIM_FILES
+            for filename in filenames
         )
 
     if is_chezmoi_home_root(root, chezmoi_home_roots=chezmoi_home_roots):
@@ -192,7 +225,7 @@ def provider_shim_specs(
                 content=agents_content,
                 legacy_paths=(root / f"{filename}.tmpl",),
             )
-            for filename in PROVIDER_SHIM_FILES
+            for filename in filenames
         )
 
     return tuple(
@@ -201,11 +234,12 @@ def provider_shim_specs(
             path=root / filename,
             content=agents_content,
         )
-        for filename in PROVIDER_SHIM_FILES
+        for filename in filenames
     )
 
 
-def _is_provider_shim_text(text: str) -> bool:
+def is_provider_shim_text(text: str) -> bool:
+    """Return whether *text* is a recognized legacy ``@AGENTS.md``-style shim."""
     normalized = text.strip()
     return normalized in _PROVIDER_SHIM_TEXTS or bool(
         _ABSOLUTE_AGENTS_IMPORT_RE.fullmatch(normalized)
@@ -230,7 +264,7 @@ def _provider_state_for_text(
 ) -> str:
     if preferred and text == expected_content:
         return "exact_shim"
-    if _is_provider_shim_text(text):
+    if is_provider_shim_text(text):
         return "shim"
     if not preferred and _is_legacy_generated_chezmoi_copy(
         text, expected_content=expected_content
@@ -320,11 +354,11 @@ def apply_planned_delete(delete: _PlannedDelete) -> tuple[bool, str | None]:
         return False, error or f"{delete.path}: failed to read file before delete"
 
     if delete.allow_custom:
-        can_delete = current == delete.expected_content or _is_provider_shim_text(
+        can_delete = current == delete.expected_content or is_provider_shim_text(
             current
         )
     else:
-        can_delete = _is_provider_shim_text(current)
+        can_delete = is_provider_shim_text(current)
     if not can_delete:
         return (
             False,
@@ -363,6 +397,56 @@ def _shim_plan_conflict(
     )
 
 
+def _can_retire_provider_shim_text(
+    text: str, *, agents_content: str, on_disk_agents: str | None
+) -> bool:
+    """Return whether a retired shim is a generated copy safe to delete."""
+    if text == agents_content:
+        return True
+    if on_disk_agents is not None and text == on_disk_agents:
+        return True
+    return is_provider_shim_text(text)
+
+
+def _retired_provider_shim_actions(
+    root: Path, *, agents_content: str
+) -> tuple[tuple[_PlannedDelete, ...], tuple[str, ...]]:
+    """Plan deletes (or warnings) for retired project-root provider copies."""
+    deletes: list[_PlannedDelete] = []
+    warnings: list[str] = []
+    on_disk_agents, _error = read_text(root / AGENTS_FILENAME)
+    candidates: list[Path] = []
+    for filename in RETIRED_PROJECT_PROVIDER_SHIM_FILES:
+        candidates.append(root / filename)
+        candidates.append(root / f"{filename}.tmpl")
+    for path in candidates:
+        if not path.exists():
+            continue
+        text, read_error = read_text(path)
+        if read_error is not None or text is None:
+            warnings.append(
+                read_error
+                or f"{path}: failed to read retired provider instruction file"
+            )
+            continue
+        if _can_retire_provider_shim_text(
+            text, agents_content=agents_content, on_disk_agents=on_disk_agents
+        ):
+            delete = _planned_delete(
+                path,
+                detail="retired provider instruction shim",
+                expected_content=text,
+                allow_custom=True,
+            )
+            if delete is not None:
+                deletes.append(delete)
+            continue
+        warnings.append(
+            f"{path}: custom retired provider instruction file left in place"
+        )
+    return tuple(deletes), tuple(warnings)
+
+
 def provider_shim_plan(
     root: Path,
     *,
@@ -370,13 +454,21 @@ def provider_shim_plan(
     chezmoi_home_roots: Iterable[Path] = (),
     migrated_paths: Iterable[Path] = (),
     prefer_templates: bool = False,
+    include_project_memory: bool = False,
 ) -> ProviderShimPlan:
     writes: list[_PlannedWrite] = []
     deletes: list[_PlannedDelete] = []
     blockers: list[str] = []
+    warnings: list[str] = []
     migrated_resolved = {_resolved(path) for path in migrated_paths}
     source_path = (
         root / AGENTS_TEMPLATE_FILENAME if prefer_templates else root / AGENTS_FILENAME
+    )
+    retire_project_shims = not _uses_home_provider_shims(
+        root,
+        chezmoi_home_roots=chezmoi_home_roots,
+        prefer_templates=prefer_templates,
+        include_project_memory=include_project_memory,
     )
 
     for spec in provider_shim_specs(
@@ -384,6 +476,7 @@ def provider_shim_plan(
         agents_content=agents_content,
         chezmoi_home_roots=chezmoi_home_roots,
         prefer_templates=prefer_templates,
+        include_project_memory=include_project_memory,
     ):
         conflict = _shim_plan_conflict(spec, migrated_paths=migrated_resolved)
         if conflict is not None:
@@ -424,7 +517,7 @@ def provider_shim_plan(
                 legacy_text,
                 expected_content=spec.content,
             )
-            if _is_provider_shim_text(legacy_text) or managed or legacy_generated:
+            if is_provider_shim_text(legacy_text) or managed or legacy_generated:
                 delete = _planned_delete(
                     legacy_path,
                     detail="legacy provider instruction shim",
@@ -441,17 +534,26 @@ def provider_shim_plan(
                     f"must be migrated or removed before managing {spec.path.name}"
                 )
 
+    if retire_project_shims:
+        retired_deletes, retired_warnings = _retired_provider_shim_actions(
+            root, agents_content=agents_content
+        )
+        deletes.extend(retired_deletes)
+        warnings.extend(retired_warnings)
+
     if blockers:
         return ProviderShimPlan(
             writes=(),
             deletes=(),
             blockers=tuple(blockers),
             source_path=source_path,
+            warnings=tuple(warnings),
         )
     return ProviderShimPlan(
         writes=tuple(writes),
         deletes=tuple(deletes),
         source_path=source_path,
+        warnings=tuple(warnings),
     )
 
 

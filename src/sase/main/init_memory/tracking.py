@@ -15,7 +15,7 @@ from pathlib import Path
 from sase.amd.constants import (
     AGENTS_FILENAME,
     AGENTS_TEMPLATE_FILENAME,
-    PROVIDER_SHIM_FILES,
+    production_provider_shim_files,
 )
 
 _GIT_TIMEOUT_SECONDS = 10
@@ -73,8 +73,13 @@ def _is_managed_agents_text(text: str) -> bool:
         return True
 
 
-def _managed_instruction_files(root: Path) -> tuple[Path, ...]:
+def _managed_instruction_files(
+    root: Path, *, include_project_memory: bool = False
+) -> tuple[Path, ...]:
     """Return existing managed instruction files and shims under *root*."""
+    shim_names = production_provider_shim_files(
+        include_project_memory=include_project_memory
+    )
     try:
         from sase.amd.inventory import discover_project_agent_docs
     except ImportError:
@@ -96,7 +101,7 @@ def _managed_instruction_files(root: Path) -> tuple[Path, ...]:
             found.append(agents_path)
         # Shims alongside a managed AGENTS.md are managed copies.
         sibling_dir = agents_path.parent
-        for shim_name in PROVIDER_SHIM_FILES:
+        for shim_name in shim_names:
             shim_path = sibling_dir / shim_name
             if shim_path.exists() and shim_path.is_file():
                 if shim_path not in found:
@@ -104,7 +109,7 @@ def _managed_instruction_files(root: Path) -> tuple[Path, ...]:
     # Fallback: root-level files when discovery found nothing (e.g. home roots
     # or minimal checkouts). Root AGENTS.md/shims are always managed scope.
     if not found:
-        for name in (AGENTS_FILENAME, *PROVIDER_SHIM_FILES):
+        for name in (AGENTS_FILENAME, *shim_names):
             candidate = root / name
             if candidate.exists() and candidate.is_file():
                 if candidate not in found:
@@ -127,9 +132,16 @@ def _managed_instruction_files(root: Path) -> tuple[Path, ...]:
     return tuple(unique)
 
 
-def _managed_paths_for_root(root: Path) -> tuple[Path, ...]:
+def _managed_paths_for_root(
+    root: Path, *, include_project_memory: bool = False
+) -> tuple[Path, ...]:
     """Return all existing managed memory + instruction files under *root*."""
-    return (*_managed_memory_files(root), *_managed_instruction_files(root))
+    return (
+        *_managed_memory_files(root),
+        *_managed_instruction_files(
+            root, include_project_memory=include_project_memory
+        ),
+    )
 
 
 def git_toplevel(start: Path) -> Path | None:
@@ -250,9 +262,13 @@ def _repo_relative(repo: Path, path: Path) -> str | None:
         return None
 
 
-def tracking_blockers_for_root(root: Path, *, label: str = "memory") -> tuple[str, ...]:
+def tracking_blockers_for_root(
+    root: Path, *, label: str = "memory", include_project_memory: bool = False
+) -> tuple[str, ...]:
     """Return --check blockers for untracked/ignored managed files under *root*."""
-    managed = _managed_paths_for_root(root)
+    managed = _managed_paths_for_root(
+        root, include_project_memory=include_project_memory
+    )
     if not managed:
         return ()
     by_repo: dict[Path, list[Path]] = {}
@@ -358,10 +374,12 @@ def _git_status_dirty(repo: Path, rels: list[str]) -> set[str]:
 
 
 def verify_publish_guard_for_root(
-    root: Path, *, label: str = "memory"
+    root: Path, *, label: str = "memory", include_project_memory: bool = False
 ) -> tuple[str, ...]:
     """Verify every managed file under *root* is tracked and clean."""
-    managed = _managed_paths_for_root(root)
+    managed = _managed_paths_for_root(
+        root, include_project_memory=include_project_memory
+    )
     if not managed:
         return ()
     by_repo: dict[Path, dict[str, Path]] = {}

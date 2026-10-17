@@ -40,9 +40,6 @@ _SKIP_SCAN_PREFIXES = (
     "local/",
     "AGENTS.md",
     "CLAUDE.md",
-    "GEMINI.md",
-    "OPENCODE.md",
-    "QWEN.md",
 )
 
 

@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from sase.amd.constants import PROVIDER_SHIM_CONTENT, PROVIDER_SHIM_FILES
+from sase.amd.constants import PROVIDER_SHIM_CONTENT, PROJECT_PROVIDER_SHIM_FILES
 from tests.main.init_memory_handler_helpers import (
     patch_standard_paths,
     plan_memory,
@@ -276,7 +276,7 @@ def test_memory_plan_creates_nested_agent_doc_provider_shims(
 
     assert plan.blockers == ()
     assert {(action.operation, action.path) for action in plan.actions} == {
-        ("create", nested / filename) for filename in PROVIDER_SHIM_FILES
+        ("create", nested / filename) for filename in PROJECT_PROVIDER_SHIM_FILES
     }
 
 
@@ -302,7 +302,7 @@ def test_memory_apply_creates_nested_agent_doc_provider_shims_idempotently(
 
     assert run_memory() == 0
 
-    for filename in PROVIDER_SHIM_FILES:
+    for filename in PROJECT_PROVIDER_SHIM_FILES:
         assert (nested / filename).read_text(encoding="utf-8") == agents_content
     assert plan_memory().actions == ()
 

@@ -8,7 +8,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from sase.amd.constants import PROVIDER_SHIM_FILES
+from sase.amd.constants import PROJECT_PROVIDER_SHIM_FILES
 from sase.main import init_memory_handler
 from sase.main.init_memory.git_state import DirtyPath, PreInitGitState
 from sase.main.init_memory.models import MemoryRootResult
@@ -145,9 +145,6 @@ def test_init_memory_default_commits_and_pushes_project_changes(
     assert verbs == [
         "rev-parse",
         "status",
-        "add",
-        "add",
-        "add",
         "add",
         "add",
         "add",
@@ -364,7 +361,7 @@ def test_init_memory_folds_root_agents_trigger_with_generated_shims(
     add_paths = {Path(cmd[-1]) for cmd in git_calls if cmd[0] == "git" and "add" in cmd}
     assert add_paths == {
         project_root / "AGENTS.md",
-        *(project_root / filename for filename in PROVIDER_SHIM_FILES),
+        *(project_root / filename for filename in PROJECT_PROVIDER_SHIM_FILES),
     }
     commit = next(cmd for cmd in git_calls if "commit" in cmd and "-m" in cmd)
     message = commit[commit.index("-m") + 1]
@@ -390,7 +387,9 @@ def test_init_memory_folds_nested_agents_trigger_with_generated_shims(
 
     add_paths = {Path(cmd[-1]) for cmd in git_calls if cmd[0] == "git" and "add" in cmd}
     assert nested / "AGENTS.md" in add_paths
-    assert {nested / filename for filename in PROVIDER_SHIM_FILES}.issubset(add_paths)
+    assert {nested / filename for filename in PROJECT_PROVIDER_SHIM_FILES}.issubset(
+        add_paths
+    )
 
 
 def test_init_memory_agents_trigger_plus_unrelated_dirty_path_refuses_all(

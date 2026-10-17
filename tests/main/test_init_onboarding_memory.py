@@ -134,7 +134,8 @@ def test_bare_init_check_reports_nested_agent_doc_provider_drift(
     assert exit_code == 1
     assert "Needs attention:" in out
     assert "init memory" in out
-    assert "provider shims" in out
+    assert "provider instruction shim" in out
+    assert "demos/tapes/CLAUDE.md" in out
     assert "No init subcommands need to run" not in out
     assert calls == []
 

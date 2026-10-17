@@ -6,21 +6,25 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
+from sase.amd.constants import (
+    AGENTS_FILENAME,
+    AGENTS_TEMPLATE_FILENAME,
+    RECOGNIZED_PROVIDER_SHIM_FILES,
+)
+
 ReferenceKind = Literal["loaded", "plain"]
 MemoryEntryStatus = Literal["loaded", "referenced", "available", "missing"]
 MemoryEntryKind = Literal["memory", "instruction"]
 MemoryContextRootKind = Literal["project", "home"]
 
+# Recognition list: leftover GEMINI.md / QWEN.md / OPENCODE.md copies still
+# count as instruction roots. agy 1.4.0 reads both GEMINI.md and AGENTS.md.
 INSTRUCTION_ROOT_FILENAMES = (
-    "CLAUDE.md",
-    # Antigravity CLI (`agy`) reads GEMINI.md for workspace context.
-    "GEMINI.md",
-    "QWEN.md",
-    "OPENCODE.md",
-    "AGENTS.md",
-    "AGENTS.md.tmpl",
+    *RECOGNIZED_PROVIDER_SHIM_FILES,
+    AGENTS_FILENAME,
+    AGENTS_TEMPLATE_FILENAME,
 )
-LOADED_INSTRUCTION_ROOT_FILENAMES = ("AGENTS.md", "AGENTS.md.tmpl")
+LOADED_INSTRUCTION_ROOT_FILENAMES = (AGENTS_FILENAME, AGENTS_TEMPLATE_FILENAME)
 
 
 @dataclass(frozen=True)

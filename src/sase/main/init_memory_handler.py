@@ -280,7 +280,9 @@ def _deploy_to_project_repo(
     try:
         from sase.main.init_memory.tracking import verify_publish_guard_for_root
 
-        problems = verify_publish_guard_for_root(project_result.root)
+        problems = verify_publish_guard_for_root(
+            project_result.root, include_project_memory=True
+        )
     except Exception:  # noqa: BLE001 - the guard never masks a deploy result.
         return exit_code
     if problems:
@@ -476,7 +478,11 @@ def plan_init_memory(args: argparse.Namespace) -> InitPlan:
 
         tracking = (
             *(
-                tracking_blockers_for_root(inputs.project_root, label="memory")
+                tracking_blockers_for_root(
+                    inputs.project_root,
+                    label="memory",
+                    include_project_memory=True,
+                )
                 if inputs.is_project_dir
                 else ()
             ),

@@ -9,8 +9,8 @@ from rich.console import Console
 
 from sase.amd.constants import (
     HOME_PROVIDER_SHIM_CONTENT,
+    HOME_PROVIDER_SHIM_FILES,
     PROVIDER_SHIM_CONTENT,
-    PROVIDER_SHIM_FILES,
 )
 from sase.amd._agents_doc import parse_amd_agents_document
 from sase.amd.inventory import _render_amd_inventory, _build_amd_inventory
@@ -25,7 +25,7 @@ def write(path: Path, content: str) -> None:
 
 def write_shims(
     root: Path,
-    filenames: tuple[str, ...] = PROVIDER_SHIM_FILES,
+    filenames: tuple[str, ...] = HOME_PROVIDER_SHIM_FILES,
     *,
     content: str = PROVIDER_SHIM_CONTENT,
 ) -> None:
@@ -180,7 +180,12 @@ def test_build_inventory_scans_project_agents_from_vcs_root_and_prunes(
     assert root_entry.management == "managed"
     assert root_entry.short_memory_refs == 2
     assert root_entry.long_memory_refs == 1
-    assert {shim.state for shim in root_entry.provider_shims} == {"exact_shim"}
+    assert [(shim.filename, shim.state) for shim in root_entry.provider_shims] == [
+        ("CLAUDE.md", "exact_shim"),
+        ("GEMINI.md", "retired"),
+        ("QWEN.md", "retired"),
+        ("OPENCODE.md", "retired"),
+    ]
 
     tools_entry = entry_by_path("tools/AGENTS.md", inventory.entries)
     assert tools_entry.scope == "project-subdir"
@@ -188,11 +193,10 @@ def test_build_inventory_scans_project_agents_from_vcs_root_and_prunes(
     assert tools_entry.management == "custom"
     assert tools_entry.short_memory_refs == 1
     assert tools_entry.long_memory_refs == 0
-    assert [
-        (shim.filename, shim.state)
-        for shim in tools_entry.provider_shims
-        if shim.state == "missing"
-    ] == [("QWEN.md", "missing"), ("OPENCODE.md", "missing")]
+    assert [(shim.filename, shim.state) for shim in tools_entry.provider_shims] == [
+        ("CLAUDE.md", "shim"),
+        ("GEMINI.md", "retired"),
+    ]
 
 
 def test_build_inventory_includes_live_home_and_chezmoi_source(
@@ -505,4 +509,6 @@ def test_render_agent_docs_inventory_outputs_compact_rich_table(
     assert "managed" in output
     assert "custom" in output
     assert "short 2 / long 1" in output
-    assert "missing: QWEN.md, OPENCODE.md" in output
+    assert "retired: GEMINI.md, QWEN.md, OPENCODE.md" in output
+    assert "retired: GEMINI.md" in output
+    assert "missing: QWEN.md, OPENCODE.md" not in output

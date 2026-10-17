@@ -11,6 +11,8 @@ from collections.abc import Callable, Iterable, Sequence
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
+from sase.amd.constants import AGENTS_FILENAME, RECOGNIZED_PROVIDER_SHIM_FILES
+
 
 LEGACY_TOKEN_RE = re.compile(
     r"(?i:change[-_]?specs?[A-Za-z0-9_-]*)"
@@ -277,13 +279,7 @@ def _is_generated_provider_copy(
     repo: str, path: str, line: str, match: str, context: str
 ) -> bool:
     del line, match, context
-    if repo == "main" and path in {
-        "AGENTS.md",
-        "CLAUDE.md",
-        "GEMINI.md",
-        "OPENCODE.md",
-        "QWEN.md",
-    }:
+    if repo == "main" and path in {AGENTS_FILENAME, *RECOGNIZED_PROVIDER_SHIM_FILES}:
         return True
     if repo == "chezmoi" and "/skills/" in path:
         return True

@@ -7,7 +7,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from sase.amd.constants import PROVIDER_SHIM_FILES
+from sase.amd.constants import HOME_PROVIDER_SHIM_FILES, PROJECT_PROVIDER_SHIM_FILES
 from sase.main import init_memory_handler
 from sase.main.init_memory.roots import read_memory_directory_map_bytes
 from sase.memory.inventory import stats_for_text
@@ -253,7 +253,12 @@ def test_init_memory_includes_final_declaration_contract(
         _assert_final_declaration_contract(memory)
         agents = (root / "AGENTS.md").read_text(encoding="utf-8")
         _assert_final_declaration_contract(agents)
-        for filename in PROVIDER_SHIM_FILES:
+        shims = (
+            PROJECT_PROVIDER_SHIM_FILES
+            if root == project_root
+            else HOME_PROVIDER_SHIM_FILES
+        )
+        for filename in shims:
             assert (root / filename).read_text(encoding="utf-8") == agents
 
 

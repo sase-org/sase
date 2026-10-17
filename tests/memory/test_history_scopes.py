@@ -57,7 +57,7 @@ def test_project_scope_instruction_entry(
     assert set(by_dir) == {".", "src/sase/ace"}
     root_entry = by_dir["."]
     assert root_entry.agents_path == "AGENTS.md"
-    assert "CLAUDE.md" in root_entry.shim_paths
+    assert root_entry.shim_paths == ("CLAUDE.md",)
     assert root_entry.managed is False
     assert root_entry.template is False
     assert by_dir["src/sase/ace"].agents_path == "src/sase/ace/AGENTS.md"

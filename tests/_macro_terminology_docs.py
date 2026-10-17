@@ -30,9 +30,6 @@ _MACRO_DOCS_SCOPES = (
     "sase/memory",
     "AGENTS.md",
     "CLAUDE.md",
-    "GEMINI.md",
-    "OPENCODE.md",
-    "QWEN.md",
 )
 
 _MACRO_DOCS_DECISIONS = Path("sase/memory/decisions")
@@ -165,18 +162,6 @@ _MACRO_DOCS_ALLOWLIST: set[tuple[str, str]] = {
         "CLAUDE.md",
         "LLM Calls; Machine Tab; Macro (xprompt); Macro Invocation (smack, macro reference, macro",
     ),
-    (
-        "GEMINI.md",
-        "LLM Calls; Machine Tab; Macro (xprompt); Macro Invocation (smack, macro reference, macro",
-    ),
-    (
-        "OPENCODE.md",
-        "LLM Calls; Machine Tab; Macro (xprompt); Macro Invocation (smack, macro reference, macro",
-    ),
-    (
-        "QWEN.md",
-        "LLM Calls; Machine Tab; Macro (xprompt); Macro Invocation (smack, macro reference, macro",
-    ),
     ("sase/memory/glossary/macro.md", "- xprompt"),
     (
         "sase/memory/glossary/macro.md",
@@ -211,9 +196,6 @@ _MACRO_DOCS_REASONS: dict[str, str] = {
     "sase/memory/glossary.md": "generated roster renders the Macro strand's xprompt alias",
     "AGENTS.md": "generated roster renders the Macro strand's xprompt alias",
     "CLAUDE.md": "generated roster renders the Macro strand's xprompt alias",
-    "GEMINI.md": "generated roster renders the Macro strand's xprompt alias",
-    "OPENCODE.md": "generated roster renders the Macro strand's xprompt alias",
-    "QWEN.md": "generated roster renders the Macro strand's xprompt alias",
     "sase/memory/glossary/macro.md": "glossary 'formerly' clause and alias keep old glossary:xprompt reads resolving",
     "sase/memory/macros.md": "memory discovery line names the retired directory spellings the sunset flag still reads",
 }

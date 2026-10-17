@@ -52,10 +52,10 @@ canonical path labels are:
 - `sase validate`
 
 The remaining labels describe frontmatter (`type: core | reference`, `parent:`,
-`description:`), core notes, `AGENTS.md`, provider shims (`CLAUDE.md`, `GEMINI.md`,
-`QWEN.md`, `OPENCODE.md`), reference notes, audited reference fetching, agent context,
-regeneration, and the drift gate. Legacy `type: short` and `type: long` still parse as
-core and reference.
+`description:`), core notes, `AGENTS.md`, the project-root `CLAUDE.md` copy (home and
+chezmoi roots still keep `GEMINI.md`, `QWEN.md`, and `OPENCODE.md` until E5), reference
+notes, audited reference fetching, agent context, regeneration, and the drift gate.
+Legacy `type: short` and `type: long` still parse as core and reference.
 
 ## Post-Processing Record
 

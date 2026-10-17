@@ -18,16 +18,21 @@ from rich.text import Text
 from sase.config import core as config_core
 
 from ._agents_doc import parse_amd_agents_document
-from ._shared import provider_shim_specs, provider_status_for_spec
+from ._shared import (
+    is_provider_shim_text,
+    provider_shim_specs,
+    provider_status_for_spec,
+    read_text,
+)
 from .constants import (
     AGENTS_FILENAME,
     AGENTS_TEMPLATE_FILENAME,
-    PROVIDER_SHIM_FILES,
+    RETIRED_PROJECT_PROVIDER_SHIM_FILES,
 )
 
 AmdScope = Literal["home", "chezmoi", "project", "project-subdir"]
 AmdManagement = Literal["managed", "custom", "incomplete managed structure"]
-ProviderShimState = Literal["exact_shim", "shim", "custom", "missing"]
+ProviderShimState = Literal["exact_shim", "shim", "custom", "missing", "retired"]
 
 _PRUNED_DIR_NAMES = frozenset(
     {
@@ -201,12 +206,33 @@ def _management_state_and_memory_counts(
     return management, short_count, long_count
 
 
+def _retired_provider_shims(
+    directory: Path, *, agents_content: str
+) -> tuple[_ProviderShimStatus, ...]:
+    """Report still-present retired copies; skip missing names at project roots."""
+    statuses: list[_ProviderShimStatus] = []
+    for filename in RETIRED_PROJECT_PROVIDER_SHIM_FILES:
+        path = directory / filename
+        if not path.exists():
+            continue
+        text, error = read_text(path)
+        if error is not None or text is None:
+            statuses.append(_ProviderShimStatus(filename=filename, state="custom"))
+            continue
+        if text == agents_content or is_provider_shim_text(text):
+            statuses.append(_ProviderShimStatus(filename=filename, state="retired"))
+        else:
+            statuses.append(_ProviderShimStatus(filename=filename, state="custom"))
+    return tuple(statuses)
+
+
 def _provider_shims(
     directory: Path,
     *,
     agents_content: str,
     chezmoi_home_roots: tuple[Path, ...] = (),
     prefer_templates: bool = False,
+    include_project_memory: bool = False,
 ) -> tuple[_ProviderShimStatus, ...]:
     statuses: list[_ProviderShimStatus] = []
     for spec in provider_shim_specs(
@@ -214,6 +240,7 @@ def _provider_shims(
         agents_content=agents_content,
         chezmoi_home_roots=chezmoi_home_roots,
         prefer_templates=prefer_templates,
+        include_project_memory=include_project_memory,
     ):
         state, _error = provider_status_for_spec(spec)
         statuses.append(
@@ -221,6 +248,10 @@ def _provider_shims(
                 filename=spec.filename,
                 state=cast(ProviderShimState, state),
             )
+        )
+    if include_project_memory:
+        statuses.extend(
+            _retired_provider_shims(directory, agents_content=agents_content)
         )
     return tuple(statuses)
 
@@ -269,6 +300,7 @@ def _entry_for_agents(
             agents_content=text or "",
             chezmoi_home_roots=chezmoi_home_roots,
             prefer_templates=path.name == AGENTS_TEMPLATE_FILENAME,
+            include_project_memory=scope in {"project", "project-subdir"},
         ),
     )
 
@@ -378,12 +410,24 @@ def _management_text(state: AmdManagement) -> Text:
 
 
 def _shim_summary(shims: tuple[_ProviderShimStatus, ...]) -> Text:
-    ok = tuple(shim for shim in shims if shim.state in {"exact_shim", "shim"})
+    production = tuple(
+        shim
+        for shim in shims
+        if shim.filename not in RETIRED_PROJECT_PROVIDER_SHIM_FILES
+    )
+    ok = tuple(shim for shim in production if shim.state in {"exact_shim", "shim"})
     custom = tuple(shim.filename for shim in shims if shim.state == "custom")
-    missing = tuple(shim.filename for shim in shims if shim.state == "missing")
-    loose = tuple(shim.filename for shim in shims if shim.state == "shim")
+    missing = tuple(shim.filename for shim in production if shim.state == "missing")
+    retired = tuple(shim.filename for shim in shims if shim.state == "retired")
+    loose = tuple(shim.filename for shim in production if shim.state == "shim")
 
-    if len(ok) == len(PROVIDER_SHIM_FILES) and not loose:
+    if (
+        production
+        and len(ok) == len(production)
+        and not loose
+        and not custom
+        and not retired
+    ):
         return Text("all shims", style="green")
 
     text = Text()
@@ -394,6 +438,11 @@ def _shim_summary(shims: tuple[_ProviderShimStatus, ...]) -> Text:
             text.append("; ", style="dim")
         text.append("noncanonical whitespace: ", style="yellow")
         text.append(", ".join(loose))
+    if retired:
+        if text:
+            text.append("; ", style="dim")
+        text.append("retired: ", style="yellow")
+        text.append(", ".join(retired))
     if custom:
         if text:
             text.append("; ", style="dim")

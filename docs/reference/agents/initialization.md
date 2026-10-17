@@ -161,8 +161,9 @@ wiring, native service installation, or generated skill files.
 ## Agent Documents
 
 `sase instructions list` is the read-only inventory for agent instruction documents:
-root `AGENTS.md` plus provider instruction files such as `CLAUDE.md`, `GEMINI.md`,
-`QWEN.md`, and `OPENCODE.md` (each a full copy of `AGENTS.md`).
+root `AGENTS.md` plus the project-root provider copy `CLAUDE.md` (a full copy of
+`AGENTS.md`). Home and chezmoi roots still keep `GEMINI.md`, `QWEN.md`, and
+`OPENCODE.md` until E5. agy, Qwen, and OpenCode read `AGENTS.md`.
 
 ```bash
 sase instructions list

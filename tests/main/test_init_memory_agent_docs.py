@@ -14,7 +14,7 @@ from pathlib import Path
 import pytest
 
 import sase.config.core as config_core
-from sase.amd.constants import PROVIDER_SHIM_FILES
+from sase.amd.constants import HOME_PROVIDER_SHIM_FILES, PROJECT_PROVIDER_SHIM_FILES
 from sase.main import init_memory_handler
 from tests.main.init_memory_handler_helpers import (
     patch_standard_paths,
@@ -78,7 +78,7 @@ def test_init_memory_manages_live_home_from_user_overlay(
     assert "### 1.1 SASE = Structured Agentic Software Engineering (sase)" in agents
     assert "- @sase/memory/sase.md" not in agents
     # Provider files are byte-for-byte copies of ``AGENTS.md``.
-    for filename in PROVIDER_SHIM_FILES:
+    for filename in HOME_PROVIDER_SHIM_FILES:
         assert (home_root / filename).read_text(encoding="utf-8") == agents
     assert not (home_root / "GROK.md").exists()
 
@@ -124,7 +124,7 @@ def test_init_memory_manages_chezmoi_home_from_source_overlay(
     assert "- @sase/memory/sase.md" not in agents
     # Chezmoi writes a static copy of ``AGENTS.md`` (no ``.tmpl``) because the
     # inlined content carries no template variables.
-    for filename in PROVIDER_SHIM_FILES:
+    for filename in HOME_PROVIDER_SHIM_FILES:
         assert (chezmoi_home / filename).read_text(encoding="utf-8") == agents
         assert not (chezmoi_home / f"{filename}.tmpl").exists()
     assert not (chezmoi_home / "GROK.md").exists()
@@ -133,7 +133,8 @@ def test_init_memory_manages_chezmoi_home_from_source_overlay(
 
 def test_provider_instruction_shims_do_not_include_grok() -> None:
     """Grok reads AGENTS.md natively, so SASE must not generate GROK.md."""
-    assert "GROK.md" not in PROVIDER_SHIM_FILES
+    assert "GROK.md" not in HOME_PROVIDER_SHIM_FILES
+    assert "GROK.md" not in PROJECT_PROVIDER_SHIM_FILES
 
 
 def test_init_memory_does_not_migrate_single_custom_provider_file(
@@ -190,4 +191,6 @@ def test_init_memory_overwrites_multiple_custom_provider_files(
     agents = (project_root / "AGENTS.md").read_text(encoding="utf-8")
     _assert_derived_managed_agents(agents)
     assert (project_root / "CLAUDE.md").read_text(encoding="utf-8") == agents
-    assert (project_root / "GEMINI.md").read_text(encoding="utf-8") == agents
+    assert (project_root / "GEMINI.md").read_text(encoding="utf-8") == (
+        "# Gemini custom\n"
+    )

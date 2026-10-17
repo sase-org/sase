@@ -62,7 +62,7 @@ def _subject(
     managed: bool = True,
     template: bool = False,
     diverged: bool = False,
-    shims: tuple[str, ...] = ("CLAUDE.md", "GEMINI.md", "QWEN.md", "OPENCODE.md"),
+    shims: tuple[str, ...] = ("CLAUDE.md",),
 ) -> InstructionSubject:
     return InstructionSubject(
         subject_id=subject_id,
@@ -85,7 +85,7 @@ def test_subjects_filters_kind_and_names_rows_by_directory() -> None:
         ),
         _subject_row(
             "instructions:project:sase/.",
-            ["AGENTS.md", "CLAUDE.md", "GEMINI.md", "QWEN.md", "OPENCODE.md"],
+            ["AGENTS.md", "CLAUDE.md"],
         ),
     )
     found = instruction_subjects(wire)
@@ -99,7 +99,7 @@ def test_subjects_filters_kind_and_names_rows_by_directory() -> None:
     ]
     root = found[0]
     assert root.managed is True
-    assert root.shims == ("CLAUDE.md", "GEMINI.md", "QWEN.md", "OPENCODE.md")
+    assert root.shims == ("CLAUDE.md",)
 
 
 def test_subjects_root_sorts_first() -> None:
@@ -143,7 +143,7 @@ def test_display_for_subject_id() -> None:
 
 
 def test_row_chips_cover_shims_diverged_template() -> None:
-    assert _instruction_row_chips(_subject()) == ("≡ 4 shims",)
+    assert _instruction_row_chips(_subject()) == ("≡ 1 shim",)
     diverged = _subject(diverged=True)
     assert "⚠ diverged" in _instruction_row_chips(diverged)
     assert "TEMPLATE" in _instruction_row_chips(_subject(template=True))
@@ -151,7 +151,7 @@ def test_row_chips_cover_shims_diverged_template() -> None:
     assert _instruction_row_chips(_subject(shims=("CLAUDE.md",))) == ("≡ 1 shim",)
     row = build_instruction_row_text(_subject())
     assert row.plain.startswith("● AGENTS.md")
-    assert "≡ 4 shims" in row.plain
+    assert "≡ 1 shim" in row.plain
 
 
 def test_group_text_marks_expansion() -> None:
@@ -242,7 +242,7 @@ def test_history_only_option_renders_group_and_rows() -> None:
     )
     assert row_option is not None
     assert "AGENTS.md" in row_option.prompt.plain
-    assert "≡ 4 shims" in row_option.prompt.plain
+    assert "≡ 1 shim" in row_option.prompt.plain
 
 
 def test_instruction_file_traits_mirror_pager_lookup() -> None:

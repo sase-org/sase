@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from sase.amd.constants import PROVIDER_SHIM_FILES
+from sase.amd.constants import PROJECT_PROVIDER_SHIM_FILES
 from tests.main.init_memory_handler_helpers import (
     patch_standard_paths,
     plan_memory,
@@ -146,7 +146,7 @@ def test_memory_apply_preserves_glossary_descriptor_body_and_provider_shims(
     assert "Human-owned descriptor body." in note
     assert "**GLOSSARY TERMS:** Agent Clan (clan); Workspace" in _normalized(note)
     assert "A named, rootless container" not in agents
-    for filename in PROVIDER_SHIM_FILES:
+    for filename in PROJECT_PROVIDER_SHIM_FILES:
         assert (project_root / filename).read_text(encoding="utf-8") == agents
 
     assert run_memory(check=True) == 0

@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from sase.amd.constants import PROVIDER_SHIM_FILES
+from sase.amd.constants import HOME_PROVIDER_SHIM_FILES, PROJECT_PROVIDER_SHIM_FILES
 from tests.main.init_memory_handler_helpers import (
     SASE_MEMORY_HEADER,
     patch_standard_paths,
@@ -124,7 +124,12 @@ sibling_repos:
         )
         assert "@sase/memory/sase.md" not in agents
         # Provider files are byte-for-byte copies of ``AGENTS.md``.
-        for filename in PROVIDER_SHIM_FILES:
+        shims = (
+            PROJECT_PROVIDER_SHIM_FILES
+            if root == project_root
+            else HOME_PROVIDER_SHIM_FILES
+        )
+        for filename in shims:
             assert (root / filename).read_text() == agents
 
 

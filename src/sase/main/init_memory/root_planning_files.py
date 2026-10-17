@@ -154,6 +154,7 @@ def agent_doc_shim_plans(
             provider_shim_plan(
                 agents_path.parent,
                 agents_content=agents_content,
+                include_project_memory=True,
             )
         )
     return tuple(plans)

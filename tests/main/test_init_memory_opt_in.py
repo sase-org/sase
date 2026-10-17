@@ -6,7 +6,10 @@ from pathlib import Path
 
 import pytest
 
-from sase.amd.constants import PROVIDER_SHIM_FILES
+from sase.amd.constants import (
+    PROJECT_PROVIDER_SHIM_FILES,
+    RETIRED_PROJECT_PROVIDER_SHIM_FILES,
+)
 from tests.main.init_memory_handler_helpers import (
     patch_standard_paths,
     plan_memory,
@@ -61,7 +64,7 @@ def test_unmanaged_project_does_not_manage_memory_or_root_agents(
     )
     assert plan.blockers == ()
     assert {action.path for action in project_actions} == {
-        project_root / filename for filename in PROVIDER_SHIM_FILES
+        project_root / filename for filename in PROJECT_PROVIDER_SHIM_FILES
     }
     assert project_root / "AGENTS.md" not in {action.path for action in project_actions}
 
@@ -71,8 +74,10 @@ def test_unmanaged_project_does_not_manage_memory_or_root_agents(
         encoding="utf-8"
     ) == memory_content
     assert not (project_root / "sase" / "memory" / "sase.md").exists()
-    for filename in PROVIDER_SHIM_FILES:
+    for filename in PROJECT_PROVIDER_SHIM_FILES:
         assert (project_root / filename).read_text(encoding="utf-8") == agents_content
+    for filename in RETIRED_PROJECT_PROVIDER_SHIM_FILES:
+        assert not (project_root / filename).exists()
 
 
 def test_enable_project_memory_creates_local_config_before_initializing(
@@ -220,13 +225,15 @@ def test_unmanaged_project_copies_root_and_nested_agents_only(
 
     assert run_memory() == 0
 
-    for filename in PROVIDER_SHIM_FILES:
+    for filename in PROJECT_PROVIDER_SHIM_FILES:
         assert (project_root / filename).read_text(encoding="utf-8") == root_content
         assert (nested / filename).read_text(encoding="utf-8") == nested_content
     assert (standalone / "CLAUDE.md").read_text(encoding="utf-8") == (
         standalone_content
     )
-    for filename in set(PROVIDER_SHIM_FILES) - {"CLAUDE.md"}:
+    for filename in RETIRED_PROJECT_PROVIDER_SHIM_FILES:
+        assert not (project_root / filename).exists()
+        assert not (nested / filename).exists()
         assert not (standalone / filename).exists()
     assert not (project_root / "sase" / "memory").exists()
     assert plan_memory().actions == ()

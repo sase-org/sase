@@ -35,14 +35,16 @@ lifecycle state and is independent of `sase project enable`.
   title. The project file opens with a short generated-source header naming
   `sase/memory/`, `sase memory init`, and the per-invocation bundle inspectors; home and
   chezmoi-home files carry no header.
-- Provider instruction files `CLAUDE.md`, `GEMINI.md`, `QWEN.md`, and `OPENCODE.md`;
-  each is a byte-for-byte copy of that root's final `AGENTS.md`. Chezmoi home source
-  roots stay on static `.md` files unless a machine overlay under `dot_config/sase/`
-  declares `memory.h1_title`. In that case initialization writes `AGENTS.md.tmpl` and
-  preferred `*.md.tmpl` shims whose H1 switches on `.chezmoi.hostname`, and each
-  title-declaring overlay must have a `.chezmoiignore` hostname guard (the stanza
-  `sase config init` writes). Legacy `@AGENTS.md` / `@/path/to/home/AGENTS.md` import
-  shims and leftover static or `*.md.tmpl` sources are still recognized and migrated.
+- Provider instruction files: project roots and nested `AGENTS.md` directories keep
+  `CLAUDE.md`; home and chezmoi roots keep `CLAUDE.md`, `GEMINI.md`, `QWEN.md`, and
+  `OPENCODE.md` until E5. Each is a byte-for-byte copy of that root's final `AGENTS.md`.
+  agy, Qwen, and OpenCode read `AGENTS.md`. Chezmoi home source roots stay on static
+  `.md` files unless a machine overlay under `dot_config/sase/` declares
+  `memory.h1_title`. In that case initialization writes `AGENTS.md.tmpl` and preferred
+  `*.md.tmpl` shims whose H1 switches on `.chezmoi.hostname`, and each title-declaring
+  overlay must have a `.chezmoiignore` hostname guard (the stanza `sase config init`
+  writes). Legacy `@AGENTS.md` / `@/path/to/home/AGENTS.md` import shims and leftover
+  static or `*.md.tmpl` sources are still recognized and migrated.
 
 Managed projects can override the packaged Jinja templates for `AGENTS.md`, minimal
 agent instructions, `sase/memory/sase.md`, and `sase/memory/README.md` with
@@ -89,9 +91,11 @@ as described under provider instruction files above.
 
 Provider copying is the exception to project ownership. In both managed and unmanaged
 projects, every readable `AGENTS.md` found with the normal project-tree pruning rules is
-copied byte-for-byte to `CLAUDE.md`, `GEMINI.md`, `QWEN.md`, and `OPENCODE.md` beside
-it. A directory with no `AGENTS.md` is untouched, including any standalone provider
-files already there.
+copied byte-for-byte to `CLAUDE.md` beside it. Identical leftover `GEMINI.md`,
+`QWEN.md`, and `OPENCODE.md` copies at those project locations are deleted; a custom
+copy is left in place with a warning. Home and chezmoi roots still copy all four names
+until E5. A directory with no `AGENTS.md` is untouched, including any standalone
+provider files already there.
 
 When `use_chezmoi: true`, the home files are written to the chezmoi source tree. The
 command can then commit those home changes and run `chezmoi apply --force`;
@@ -245,20 +249,21 @@ requires `is_sase_managed: true` in the project's own `sase/sase.yml`; `memory.h
 is optional title customization, with a stable derived title otherwise. The retired
 `memory.enabled` key does not authorize management. It never creates or alters an
 unmanaged project's root `AGENTS.md`. Independently, it overwrites each provider
-instruction file (`CLAUDE.md`, `GEMINI.md`, `QWEN.md`, `OPENCODE.md`) with a
-byte-for-byte copy of that root's `AGENTS.md` (legacy `@AGENTS.md` / `*.md.tmpl` import
-shims are recognized and migrated to full copies). This copy applies to every existing
-project-tree `AGENTS.md`; directories without one are untouched. For managed roots,
-memory init synchronizes memory: core notes are inlined into the `## Core Memory` block
-of `AGENTS.md`, every heading in the generated document is numbered, reference notes are
-rendered as numbered sections headed by the note path with the description as the body,
-and missing reference-memory `description` frontmatter is inserted. By default it also
-tries to commit, rebase-pull, and push generated project-side files. `sase init memory`
-is a compatibility alias for this command. Generated repository memory requires agents
-to use `/sase_repo` before reading or modifying any repo outside their own workspace
-checkout. The rule covers linked repos, sidecars, different SASE projects, and unlinked
-GitHub repos even when no linked repositories are configured. The same run also
-refreshes each memory web's inline strand roster — for example the `glossary` web's
+instruction file (`CLAUDE.md` at project roots; also `GEMINI.md`, `QWEN.md`, and
+`OPENCODE.md` at home and chezmoi until E5) with a byte-for-byte copy of that root's
+`AGENTS.md` (legacy `@AGENTS.md` / `*.md.tmpl` import shims are recognized and migrated
+to full copies). This copy applies to every existing project-tree `AGENTS.md`;
+directories without one are untouched. For managed roots, memory init synchronizes
+memory: core notes are inlined into the `## Core Memory` block of `AGENTS.md`, every
+heading in the generated document is numbered, reference notes are rendered as numbered
+sections headed by the note path with the description as the body, and missing
+reference-memory `description` frontmatter is inserted. By default it also tries to
+commit, rebase-pull, and push generated project-side files. `sase init memory` is a
+compatibility alias for this command. Generated repository memory requires agents to use
+`/sase_repo` before reading or modifying any repo outside their own workspace checkout.
+The rule covers linked repos, sidecars, different SASE projects, and unlinked GitHub
+repos even when no linked repositories are configured. The same run also refreshes each
+memory web's inline strand roster — for example the `glossary` web's
 `**GLOSSARY TERMS:**` line in `sase/memory/glossary.md` — from its current strand files;
 `sase memory init --check` reports drift if a web's rendered roster or its Memory Webs
 inlining is stale. Unlike the generated notes above, `sase/memory/glossary.md` and every

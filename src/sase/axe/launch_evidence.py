@@ -14,7 +14,11 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
-from sase.amd.constants import AGENTS_FILENAME, PROVIDER_SHIM_FILES
+from sase.amd.constants import (
+    AGENTS_FILENAME,
+    HOME_PROVIDER_SHIM_FILES,
+    PROJECT_PROVIDER_SHIM_FILES,
+)
 from sase.memory.blob_oid import git_blob_oid
 
 logger = logging.getLogger(__name__)
@@ -160,7 +164,7 @@ def _store_instruction_snapshot_bytes(data: bytes, oid: str | None = None) -> st
 
 def _home_instruction_candidates() -> list[Path]:
     home = Path.home()
-    return [home / AGENTS_FILENAME, *(home / name for name in PROVIDER_SHIM_FILES)]
+    return [home / AGENTS_FILENAME, *(home / name for name in HOME_PROVIDER_SHIM_FILES)]
 
 
 def capture_instruction_snapshot(
@@ -173,7 +177,7 @@ def capture_instruction_snapshot(
     workspace = Path(workspace_dir)
     project_candidates = [
         workspace / AGENTS_FILENAME,
-        *(workspace / name for name in PROVIDER_SHIM_FILES),
+        *(workspace / name for name in PROJECT_PROVIDER_SHIM_FILES),
     ]
     use_chezmoi = False
     try:

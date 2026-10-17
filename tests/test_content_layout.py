@@ -67,11 +67,18 @@ def test_path_classes_separate_tracked_generated_and_runtime_content() -> None:
     assert {entry.path.name for entry in project.agent_documents} == {
         "AGENTS.md",
         "CLAUDE.md",
-        "GEMINI.md",
-        "OPENCODE.md",
-        "QWEN.md",
     }
     assert all(entry.tracking == "generated" for entry in project.agent_documents)
+
+    layout = _resolve_content_layout(
+        project_root="/repo",
+        home_root="/home/alice",
+        chezmoi_source_root="/dotfiles/home",
+    )
+    home_names = {"AGENTS.md", "CLAUDE.md", "GEMINI.md", "OPENCODE.md", "QWEN.md"}
+    assert {entry.path.name for entry in layout.home.agent_documents} == home_names
+    assert layout.chezmoi is not None
+    assert {entry.path.name for entry in layout.chezmoi.agent_documents} == home_names
 
 
 def test_missing_project_root_keeps_home_layout_available() -> None:

@@ -99,9 +99,9 @@ sase memory list
 The dashboard separates:
 
 - `loaded` files reached by transitive `@...` references from `AGENTS.md` in the project
-  or home context. Provider instruction files (`CLAUDE.md`, `GEMINI.md`, …) are full
-  copies of `AGENTS.md`; they are reported as instruction roots but are not separate
-  traversal roots for this dashboard.
+  or home context. Provider instruction files (`CLAUDE.md`, and leftover `GEMINI.md` /
+  `QWEN.md` / `OPENCODE.md`) are full copies of `AGENTS.md`; they are reported as
+  instruction roots but are not separate traversal roots for this dashboard.
 - `referenced` files mentioned by plain `sase/memory/...` text or by audited
   `sase memory read` instructions, but not loaded.
 - `available` files present under project or home `sase/memory/` but unreachable from
@@ -184,11 +184,11 @@ Older rows without these fields still load; failed hash capture does not block a
 
 Agent launch also attempts to record evidence in `agent_meta.json`; capture failure does
 not block launch. `workspace_head` is the workspace Git `HEAD`, when available.
-`instruction_snapshot` inventories readable root `AGENTS.md` and provider shims in the
+`instruction_snapshot` inventories readable root `AGENTS.md` and `CLAUDE.md` in the
 workspace, plus the first readable home instruction file in this order: `AGENTS.md`,
-`CLAUDE.md`, `GEMINI.md`, `QWEN.md`, `OPENCODE.md`. This is a launch-time file
-inventory, not proof that a provider loaded every listed file; nested instruction files
-are not included.
+`CLAUDE.md`, `GEMINI.md`, `QWEN.md`, `OPENCODE.md` (home keeps four copies until E5).
+This is a launch-time file inventory, not proof that a provider loaded every listed
+file; nested instruction files are not included.
 
 Each entry has `path`, `repo` (`project`, `none`, or `chezmoi`), `blob_oid`, and
 `tracked`. These hashes cover the files' actual bytes. Workspace entries use `project`

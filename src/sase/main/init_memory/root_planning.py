@@ -416,14 +416,18 @@ def memory_root_context(
     include_project_memory: bool = False,
 ) -> _MemoryRootContext:
     if not manage_memory:
+        additional_shim_plans = (
+            agent_doc_shim_plans(root, include_root=True)
+            if include_project_agent_docs
+            else ()
+        )
         return _MemoryRootContext(
             amd_sync=None,
             expected_files=(),
             shim_plan=ProviderShimPlan(writes=(), deletes=()),
-            additional_shim_plans=(
-                agent_doc_shim_plans(root, include_root=True)
-                if include_project_agent_docs
-                else ()
+            additional_shim_plans=additional_shim_plans,
+            warnings=tuple(
+                warning for plan in additional_shim_plans for warning in plan.warnings
             ),
         )
 
@@ -557,6 +561,7 @@ def memory_root_context(
         agents_content=agents_content,
         chezmoi_home_roots=chezmoi_home_roots,
         prefer_templates=prefer_templates,
+        include_project_memory=include_project_memory,
     )
     legacy_template_plans = (
         ()
@@ -584,7 +589,11 @@ def memory_root_context(
         stale_agents_delete_paths=stale_agents_delete_paths,
         source_memory_root=migration.source_memory_root,
         blockers=template_blockers,
-        warnings=memory_web_plan.warnings,
+        warnings=(
+            *memory_web_plan.warnings,
+            *shim_plan.warnings,
+            *(warning for plan in additional_shim_plans for warning in plan.warnings),
+        ),
     )
 
 

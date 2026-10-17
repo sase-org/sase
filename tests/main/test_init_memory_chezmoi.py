@@ -11,7 +11,7 @@ import pytest
 import sase.config.core as config_core
 from sase.amd.constants import (
     HOME_PROVIDER_SHIM_CONTENT,
-    PROVIDER_SHIM_FILES,
+    HOME_PROVIDER_SHIM_FILES,
 )
 from sase.main import init_memory_handler
 from sase.main._init_chezmoi_deploy import defer_chezmoi_deploy
@@ -109,7 +109,7 @@ sibling_repos:
     assert 'sase repo open <linked_repo> -r "<reason>"' not in chezmoi_memory
     # Chezmoi writes static copies of ``AGENTS.md`` (no ``.tmpl``).
     agents = (chezmoi_home / "AGENTS.md").read_text()
-    for filename in PROVIDER_SHIM_FILES:
+    for filename in HOME_PROVIDER_SHIM_FILES:
         assert (chezmoi_home / filename).read_text() == agents
         assert not (chezmoi_home / f"{filename}.tmpl").exists()
     assert chezmoi_home / "sase" / "memory" / "sase.md" in deployed
@@ -190,10 +190,10 @@ def test_init_memory_chezmoi_migrates_generated_legacy_provider_templates(
 
     assert run_handler() == 0
     agents = (chezmoi_home / "AGENTS.md").read_text()
-    for filename in ("AGENTS.md", *PROVIDER_SHIM_FILES):
+    for filename in ("AGENTS.md", *HOME_PROVIDER_SHIM_FILES):
         (chezmoi_home / filename).unlink()
     write(chezmoi_home / "AGENTS.md.tmpl", _legacy_chezmoi_provider_copy(agents))
-    for filename in PROVIDER_SHIM_FILES:
+    for filename in HOME_PROVIDER_SHIM_FILES:
         write(chezmoi_home / f"{filename}.tmpl", _legacy_chezmoi_provider_copy(agents))
     deployed.clear()
     deleted.clear()
@@ -203,7 +203,7 @@ def test_init_memory_chezmoi_migrates_generated_legacy_provider_templates(
     agents = (chezmoi_home / "AGENTS.md").read_text()
     assert not (chezmoi_home / "AGENTS.md.tmpl").exists()
     assert Path.home() / "AGENTS.md" in deleted
-    for filename in PROVIDER_SHIM_FILES:
+    for filename in HOME_PROVIDER_SHIM_FILES:
         assert (chezmoi_home / filename).read_text() == agents
         assert not (chezmoi_home / f"{filename}.tmpl").exists()
         assert chezmoi_home / filename in deployed
@@ -404,7 +404,7 @@ def test_init_memory_chezmoi_templates_machine_h1_titles(
         "{{ else }}# athena - Bryan Bugyi's Home Server{{ end }}"
     )
     templated = template_path.read_text(encoding="utf-8")
-    for filename in PROVIDER_SHIM_FILES:
+    for filename in HOME_PROVIDER_SHIM_FILES:
         shim = chezmoi_home / f"{filename}.tmpl"
         assert shim.read_text(encoding="utf-8") == templated
         assert not (chezmoi_home / filename).exists()
@@ -449,7 +449,7 @@ def test_init_memory_chezmoi_without_machine_titles_stays_static(
     agents = (chezmoi_home / "AGENTS.md").read_text(encoding="utf-8")
     assert agents.startswith("# Home Instructions\n")
     assert not (chezmoi_home / "AGENTS.md.tmpl").exists()
-    for filename in PROVIDER_SHIM_FILES:
+    for filename in HOME_PROVIDER_SHIM_FILES:
         assert (chezmoi_home / filename).read_text(encoding="utf-8") == agents
         assert not (chezmoi_home / f"{filename}.tmpl").exists()
 

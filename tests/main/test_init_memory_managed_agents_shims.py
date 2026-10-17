@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 import sase.config.core as config_core
-from sase.amd.constants import PROVIDER_SHIM_FILES
+from sase.amd.constants import PROJECT_PROVIDER_SHIM_FILES
 from sase.main import init_memory_handler
 from tests.main.init_memory_handler_helpers import (
     patch_standard_paths,
@@ -37,9 +37,9 @@ def test_init_memory_overwrites_provider_shims(
 
     assert run_handler() == 0
 
-    # Every provider file is overwritten with a byte-for-byte copy of AGENTS.md.
+    # The project-root CLAUDE.md copy is overwritten with AGENTS.md.
     agents = (project_root / "AGENTS.md").read_text()
-    for filename in PROVIDER_SHIM_FILES:
+    for filename in PROJECT_PROVIDER_SHIM_FILES:
         assert (project_root / filename).read_text() == agents
 
 
