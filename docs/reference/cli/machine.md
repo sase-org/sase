@@ -13,7 +13,8 @@ Reference for `sase machine`. Run `sase machine --help` for the exact output on 
 
 ```text
 usage: sase machine [-h]
-                    {add,agent,attention,bootstrap,discover,init,list,remove,rename,repair,show,status} ...
+                    {add,agent,attention,bootstrap,discover,init,list,remove,rename,repair,show,status}
+                    ...
 ```
 
 Manage viewer-local aliases for enrolled remote machines. With no subcommand, delegates to `sase machine list`.

@@ -49,16 +49,17 @@ def test_repo_list_json(
     ctx = _project_context(tmp_path)
     record = RepoRecord(
         name="demo",
-        kind="primary",
+        kind="linked",
         project="demo",
         project_key="demo",
         path=ctx.primary_workspace_dir,
         exists=True,
         auto_clone=False,
         description=None,
-        source="ProjectSpec",
+        source="repos.linked config",
         env_name=None,
         clones=(RepoCloneRecord(0, ctx.primary_workspace_dir, True),),
+        declared_by="user",
     )
     monkeypatch.setattr(
         "sase.main.repo_handler.collect_repo_inventory",
@@ -75,7 +76,8 @@ def test_repo_list_json(
 
     assert exc_info.value.code == 0
     payload = json.loads(capsys.readouterr().out)
-    assert payload["repos"][0]["kind"] == "primary"
+    assert payload["repos"][0]["kind"] == "linked"
+    assert payload["repos"][0]["declared_by"] == "user"
     assert payload["repos"][0]["path"] == ctx.primary_workspace_dir
     assert payload["repos"][0]["clones"] == [
         {

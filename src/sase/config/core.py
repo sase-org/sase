@@ -603,6 +603,36 @@ def load_merged_config() -> dict[str, Any]:
     return result
 
 
+def load_merged_config_for_local_path(
+    local_path: Path | None,
+    *,
+    linked_repo_origin_key: str | None = None,
+) -> dict[str, Any]:
+    """Load config with an explicitly selected project-local layer.
+
+    Repository inventory walks registered projects that can differ from the
+    current working directory. This entry point composes the same bundled,
+    plugin, user, and overlay layers as :func:`load_merged_config`, but uses
+    the caller's local path instead of discovering one from cwd.
+    """
+    global _default_config_cache, _plugin_configs_cache
+    if _default_config_cache is None:
+        _default_config_cache = _load_default_config()
+    if _plugin_configs_cache is None:
+        _plugin_configs_cache = _load_plugin_configs()
+
+    return merge_config_sources(
+        default_config=_default_config_cache,
+        plugin_configs=_plugin_configs_cache,
+        user_base_path=CONFIG_DIR / "sase.yml",
+        overlay_paths=_get_overlay_paths(),
+        selected_identity_snapshot=get_agent_owner_config_snapshot(),
+        local_path=local_path,
+        yaml_loader=_load_yaml_file,
+        linked_repo_origin_key=linked_repo_origin_key,
+    )
+
+
 def load_public_merged_config() -> dict[str, Any]:
     """Return the effective config projected for public display surfaces."""
     result = dict(load_merged_config())

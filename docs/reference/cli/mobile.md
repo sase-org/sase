@@ -13,7 +13,8 @@ Reference for `sase mobile`. Run `sase mobile --help` for the exact output on th
 
 ```text
 usage: sase mobile [-h]
-                   {agent-bridge,gateway,helper-bridge,notification-bridge} ...
+                   {agent-bridge,gateway,helper-bridge,notification-bridge}
+                   ...
 ```
 
 Options:

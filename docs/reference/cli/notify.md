@@ -13,7 +13,8 @@ Reference for `sase notify`. Run `sase notify --help` for the exact output on th
 
 ```text
 usage: sase notify [-h] [-s SENDER] [-t TAG]
-                   {+1,apply-state,apply-state-many,create,list,rules,show} ...
+                   {+1,apply-state,apply-state-many,create,list,rules,show}
+                   ...
 ```
 
 Create and inspect raw notifications. Privileged gate actions must be created with `sase gate create`. With no subcommand, delegates to `sase notify list`.

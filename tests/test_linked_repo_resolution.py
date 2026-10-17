@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
 
 from sase.linked_repos import resolve_linked_repos_for_project
 from tests._linked_repo_resolution_helpers import _project_file
@@ -176,3 +177,65 @@ def test_legacy_workspace_strategy_is_ignored_with_warning(tmp_path: Path) -> No
     )
     assert any("deprecated workspace" in warning for warning in resolution.warnings)
     assert "workspace_strategy" not in repo.to_json_dict()
+
+
+def test_resolution_uses_target_project_local_config_and_tracks_origins(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    from sase._linked_repo_config import (
+        merged_linked_entries_from_config,
+        reset_linked_repo_config_caches,
+        resolution_config,
+    )
+    from sase.config import core as config_core
+
+    global_config = tmp_path / "config"
+    global_config.mkdir()
+    (global_config / "sase.yml").write_text(
+        "repos:\n  linked:\n    - name: user-tool\n      path: /global/user-tool\n",
+        encoding="utf-8",
+    )
+    project_a_parent = tmp_path / "project-a"
+    project_b_parent = tmp_path / "project-b"
+    primary_a = project_a_parent / "checkout"
+    primary_b = project_b_parent / "checkout"
+    for primary in (primary_a, primary_b):
+        (primary / ".git").mkdir(parents=True)
+    (primary_a / "sase").mkdir()
+    (primary_a / "sase" / "sase.yml").write_text(
+        "repos:\n  linked:\n    - name: x\n      path: ../x\n",
+        encoding="utf-8",
+    )
+    (project_a_parent / "x").mkdir()
+    (project_b_parent / "x").mkdir()
+
+    monkeypatch.setattr(config_core, "CONFIG_DIR", global_config)
+    monkeypatch.setattr(config_core, "_load_default_config", lambda: {})
+    monkeypatch.setattr(config_core, "_load_plugin_configs", lambda: [])
+    monkeypatch.setattr(config_core, "_get_overlay_paths", lambda: [])
+    monkeypatch.setattr(
+        config_core,
+        "get_agent_owner_config_snapshot",
+        lambda: SimpleNamespace(selected_overlay=None),
+    )
+    config_core.clear_config_cache()
+    reset_linked_repo_config_caches()
+    monkeypatch.chdir(primary_a)
+
+    try:
+        config_b = resolution_config(str(primary_b), None)
+        entries_b, _warnings_b = merged_linked_entries_from_config(config_b)
+        assert [entry["name"] for entry in entries_b] == ["user-tool"]
+        assert entries_b[0]["_sase_declared_by"] == "user"
+
+        config_a = resolution_config(str(primary_a), None)
+        entries_a, _warnings_a = merged_linked_entries_from_config(config_a)
+        assert [entry["name"] for entry in entries_a] == ["user-tool", "x"]
+        assert [entry["_sase_declared_by"] for entry in entries_a] == [
+            "user",
+            "project",
+        ]
+    finally:
+        reset_linked_repo_config_caches()
+        config_core.clear_config_cache()

@@ -61,10 +61,13 @@ def test_resolution_config_caches_only_implicit_config(
         calls += 1
         return {"generation": calls}
 
-    monkeypatch.setattr("sase.config.core.load_merged_config", load)
     monkeypatch.setattr(
-        "sase._linked_repo_config_state.read_project_local_config",
-        lambda _primary: {},
+        "sase.config.core.load_merged_config_for_local_path",
+        lambda _local_path, **_kwargs: load(),
+    )
+    monkeypatch.setattr(
+        "sase._linked_repo_config_state.resolve_project_config_read_path",
+        lambda _primary: None,
     )
 
     first = resolution_config(str(tmp_path), None)

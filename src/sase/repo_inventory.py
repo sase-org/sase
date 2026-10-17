@@ -33,6 +33,7 @@ from sase._linked_repo_config import (
 )
 from sase._linked_repo_config_keys import (
     DEFAULT_LINKED_REPO_MARKER,
+    LINKED_REPO_DECLARED_BY_KEY,
     SIDECAR_REMOTE_URL_KEY,
     SIDECAR_REPO_MARKER,
     SIDECAR_ROLE_KEY,
@@ -40,6 +41,7 @@ from sase._linked_repo_config_keys import (
 )
 from sase._repo_inventory_models import (
     RepoCloneRecord,
+    RepoDeclaredBy,
     RepoInventory,
     RepoInventoryIssue,
     RepoInventoryProjectNotFoundError,
@@ -510,6 +512,9 @@ def _collect_project_repos(
                         else "repos.linked config"
                     )
                 ),
+                declared_by=(
+                    _linked_repo_declared_by(entry) if not is_sidecar else None
+                ),
                 env_name=env_names.get(index),
                 slug=entry_slug if is_sidecar else None,
                 remote_url=(
@@ -629,6 +634,11 @@ def _repo_basename(repo: str) -> str:
     return repo.rstrip("/").rsplit("/", 1)[-1]
 
 
+def _linked_repo_declared_by(entry: Mapping[str, Any]) -> RepoDeclaredBy | None:
+    value = entry.get(LINKED_REPO_DECLARED_BY_KEY)
+    return value if value in {"project", "user"} else None
+
+
 def _sanitize_env_name(name: str) -> str:
     env_name = _ENV_INVALID_CHARS.sub("_", name).strip("_").upper()
     return env_name or "REPO"
@@ -647,6 +657,7 @@ __all__ = [
     "RepoInventoryIssue",
     "RepoInventoryProjectNotFoundError",
     "RepoKind",
+    "RepoDeclaredBy",
     "RepoRecord",
     "collect_repo_inventory",
     "repo_display_name",

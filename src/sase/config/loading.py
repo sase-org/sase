@@ -47,6 +47,38 @@ def _layer_input(
     }
 
 
+def _with_linked_repo_origin(
+    data: dict[str, Any],
+    *,
+    origin_key: str | None,
+    origin: str,
+) -> dict[str, Any]:
+    """Tag linked-repo declarations with the layer class that contributed them."""
+    if origin_key is None:
+        return data
+
+    result = dict(data)
+    for key in ("linked_repos", "sibling_repos"):
+        entries = result.get(key)
+        if isinstance(entries, list):
+            result[key] = [
+                {**entry, origin_key: origin} if isinstance(entry, dict) else entry
+                for entry in entries
+            ]
+
+    repos = result.get("repos")
+    if isinstance(repos, dict):
+        linked = repos.get("linked")
+        if isinstance(linked, list):
+            result_repos = dict(repos)
+            result_repos["linked"] = [
+                {**entry, origin_key: origin} if isinstance(entry, dict) else entry
+                for entry in linked
+            ]
+            result["repos"] = result_repos
+    return result
+
+
 def _with_rust_normalized_axe(
     result: dict[str, Any], layer_inputs: list[dict[str, Any]]
 ) -> dict[str, Any]:
@@ -246,6 +278,7 @@ def merge_config_sources(
     selected_identity_snapshot: AgentOwnerConfigSnapshot,
     local_path: Path | None,
     yaml_loader: Callable[[Path], dict[str, Any] | None],
+    linked_repo_origin_key: str | None = None,
 ) -> dict[str, Any]:
     """Load and merge the already-discovered config source chain.
 
@@ -260,6 +293,11 @@ def merge_config_sources(
             source="default",
         ),
         source="default",
+    )
+    default_contribution = _with_linked_repo_origin(
+        default_contribution,
+        origin_key=linked_repo_origin_key,
+        origin="user",
     )
     layer_inputs = [
         _layer_input(
@@ -282,6 +320,11 @@ def merge_config_sources(
             ),
             source=f"plugin:{index}",
         )
+        contribution = _with_linked_repo_origin(
+            contribution,
+            origin_key=linked_repo_origin_key,
+            origin="user",
+        )
         layer_inputs.append(
             _layer_input(
                 name=f"plugin:{index}",
@@ -301,6 +344,11 @@ def merge_config_sources(
                 source=str(user_base_path),
             ),
             source="user",
+        )
+        contribution = _with_linked_repo_origin(
+            contribution,
+            origin_key=linked_repo_origin_key,
+            origin="user",
         )
         layer_inputs.append(
             _layer_input(
@@ -348,6 +396,11 @@ def merge_config_sources(
             contribution,
             source=f"overlay:{overlay_path.name}",
         )
+        contribution = _with_linked_repo_origin(
+            contribution,
+            origin_key=linked_repo_origin_key,
+            origin="user",
+        )
         layer_inputs.append(
             _layer_input(
                 name=f"overlay:{overlay_path.name}",
@@ -365,6 +418,11 @@ def merge_config_sources(
             contribution = _normalize_layer(
                 _without_owner_identity(local_config, source=str(local_path)),
                 source="local",
+            )
+            contribution = _with_linked_repo_origin(
+                contribution,
+                origin_key=linked_repo_origin_key,
+                origin="project",
             )
             layer_inputs.append(
                 _layer_input(

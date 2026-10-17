@@ -6,6 +6,7 @@ from dataclasses import asdict, dataclass
 from typing import Literal
 
 RepoKind = Literal["primary", "sidecar", "linked", "external"]
+RepoDeclaredBy = Literal["project", "user"]
 
 
 @dataclass(frozen=True)
@@ -42,6 +43,7 @@ class RepoRecord:
     clones: tuple[RepoCloneRecord, ...] = ()
     auto_sync: bool = False
     revision_pin: str | None = None
+    declared_by: RepoDeclaredBy | None = None
 
     def clone_for_workspace(self, workspace_num: int) -> RepoCloneRecord | None:
         """Return this repo's clone record for *workspace_num*, if registered."""
@@ -70,6 +72,7 @@ class RepoRecord:
             "auto_sync": self.auto_sync,
             "description": self.description,
             "source": self.source,
+            "declared_by": self.declared_by,
             "env_name": self.env_name,
             "slug": self.slug,
             "remote_url": self.remote_url,

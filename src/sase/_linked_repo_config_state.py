@@ -13,6 +13,7 @@ from typing import Any
 import yaml  # type: ignore[import-untyped]
 
 from sase._yaml_safe import yaml_safe_load
+from sase._linked_repo_config_keys import LINKED_REPO_DECLARED_BY_KEY
 from sase.content_layout import resolve_project_config_read_path
 
 
@@ -39,13 +40,13 @@ def resolution_config(
 def _resolution_config_cached(primary_workspace_dir: str) -> Mapping[str, Any]:
     """Resolve config once per primary workspace until explicitly reset."""
 
-    from sase.config.core import load_merged_config
+    from sase.config.core import load_merged_config_for_local_path
 
-    merged = load_merged_config()
-    local_config = read_project_local_config(primary_workspace_dir)
-    if local_config:
-        return _merge_resolution_config(merged, local_config)
-    return merged
+    local_path = resolve_project_config_read_path(primary_workspace_dir)
+    return load_merged_config_for_local_path(
+        local_path,
+        linked_repo_origin_key=LINKED_REPO_DECLARED_BY_KEY,
+    )
 
 
 def _merge_resolution_config(

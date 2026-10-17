@@ -12,6 +12,7 @@ from pathlib import Path
 import pytest
 
 from sase.core.project_lifecycle_wire import ProjectRecordWire
+from sase._linked_repo_config_keys import LINKED_REPO_DECLARED_BY_KEY
 from sase.repo_inventory import RepoRecord, collect_repo_inventory, repo_display_name
 from sase.sdd.store import write_sdd_store_record
 from tests._repo_inventory_helpers import project_record, set_github_origin
@@ -106,8 +107,10 @@ def test_inventory_collects_all_repo_kinds_and_sidecar_wins_overlap(
     ]
     by_name = {record.name: record for record in inventory.records}
     assert by_name["widget"].exists is True
+    assert by_name["widget"].declared_by is None
     assert by_name["widget--plans"].path == str(plans_clone)
     assert by_name["widget--plans"].source == "SDD store record"
+    assert by_name["widget--plans"].declared_by is None
     assert by_name["widget--research"].exists is False
     assert by_name["widget-core"].env_name == "WIDGET_CORE"
     assert by_name["missing-docs"].exists is False
@@ -153,6 +156,46 @@ def test_inventory_surfaces_configured_sidecar_role_and_slug(
     assert sidecar.exists is False
     assert sidecar.source == "repos.sidecar config"
     assert sidecar.remote_url == "git@github.com:acme/shared-designs.git"
+
+
+def test_inventory_carries_linked_repo_declaration_origin(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project = project_record(tmp_path)
+    config = {
+        "repos": {
+            "linked": [
+                {
+                    "name": "project-repo",
+                    "path": "../project-repo",
+                    LINKED_REPO_DECLARED_BY_KEY: "project",
+                },
+                {
+                    "name": "user-repo",
+                    "path": "../user-repo",
+                    LINKED_REPO_DECLARED_BY_KEY: "user",
+                },
+            ]
+        }
+    }
+    monkeypatch.setattr(
+        "sase.repo_inventory.list_project_records",
+        lambda *_args, **_kwargs: [project],
+    )
+    monkeypatch.setattr(
+        "sase.repo_inventory.resolution_config",
+        lambda *_args, **_kwargs: config,
+    )
+
+    inventory = collect_repo_inventory(tmp_path / "projects")
+
+    linked = {
+        record.name: record for record in inventory.records if record.kind == "linked"
+    }
+    assert linked["project-repo"].declared_by == "project"
+    assert linked["user-repo"].declared_by == "user"
+    assert linked["user-repo"].to_json_dict()["declared_by"] == "user"
 
 
 def test_explicit_disabled_project_is_included(

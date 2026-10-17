@@ -14,6 +14,7 @@ from sase.sdd._store_types import (
 REPOS_CONFIG_KEY = "repos"
 REPOS_LINKED_CONFIG_KEY = "linked"
 REVISION_PIN_CONFIG_KEY = "revision_pin"
+LINKED_REPO_DECLARED_BY_KEY = "_sase_declared_by"
 REPOS_SIDECAR_CONFIG_KEY = "sidecar"
 LINKED_REPOS_CONFIG_KEY = "linked_repos"
 SIBLING_REPOS_CONFIG_KEY = "sibling_repos"

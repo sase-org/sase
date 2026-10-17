@@ -125,8 +125,8 @@ Options:
 ## `sase memory read`
 
 ```text
-usage: sase memory read [-h] [-d N] [-f {json,markdown,rich}] [-p REF]
-                        -r REASON
+usage: sase memory read [-h] [-d N] [-f {json,markdown,rich}] [-p REF] -r
+                        REASON
                         selector [selector ...]
 ```
 

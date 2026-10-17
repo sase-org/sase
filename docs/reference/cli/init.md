@@ -12,7 +12,7 @@ Initialize SASE-managed resources
 Reference for `sase init`. Run `sase init --help` for the exact output on this checkout.
 
 ```text
-usage: sase init [-h] [-a | -M | -p NAME] [-c | -y] [-d] [-j]
+usage: sase init [-h] [-a] [-c] [-d] [-j] [-M] [-p NAME] [-y]
                  {config,machine,memory,repo,service,skills} ...
 ```
 
