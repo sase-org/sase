@@ -194,6 +194,9 @@ def _sdd_role_available(
         AGENTS_SIDECAR_ROLE,
         BEADS_SIDECAR_ROLE,
         PLANS_SIDECAR_ROLE,
+        SDD_STORAGE_IN_TREE,
+        SDD_STORAGE_LOCAL,
+        SDD_STORAGE_SEPARATE_REPO,
         read_sdd_store_record,
     )
 
@@ -206,6 +209,17 @@ def _sdd_role_available(
     except (OSError, RuntimeError, ValueError):
         record = None
     if record is not None and record.sidecar_for_kind(role) is not None:
+        return True
+    if (
+        record is not None
+        and record.storage
+        in {
+            SDD_STORAGE_IN_TREE,
+            SDD_STORAGE_LOCAL,
+            SDD_STORAGE_SEPARATE_REPO,
+        }
+        and role == "research"
+    ):
         return True
     try:
         config = resolution_config(primary_workspace_dir, None)

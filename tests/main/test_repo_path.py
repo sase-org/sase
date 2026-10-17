@@ -18,6 +18,7 @@ from sase.repo_inventory import (
 )
 from sase.sdd.store import write_sdd_store_record
 from sase.workspace_provider.store import WorkspaceStore
+from tests.main.workspace_handler_helpers import write_project_local_config
 
 
 def test_repo_path_parser_accepts_repo_and_context_options() -> None:
@@ -296,6 +297,22 @@ def test_repo_path_ensure_materializes_legacy_sdd_sidecar(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     ctx = _project_context(tmp_path)
+    write_project_local_config(
+        Path(ctx.primary_workspace_dir),
+        {
+            "is_sase_managed": True,
+            "repos": {
+                "sidecar": {
+                    "custom": {
+                        "research": {
+                            "description": "Durable SASE research reports",
+                        }
+                    }
+                }
+            },
+        },
+        monkeypatch=monkeypatch,
+    )
     primary = _primary_record(ctx)
     _patch_context_and_inventory(monkeypatch, ctx, RepoInventory((primary,)))
     monkeypatch.setattr(

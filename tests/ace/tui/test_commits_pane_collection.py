@@ -436,8 +436,17 @@ async def test_sidecar_filter_and_compatibility_toggle_share_collection_scope(
         assert calls[-1]["include_sidecars"] is True
         assert "sidecar:true" in pane._filter_chips()
 
+        surviving_shas = {entry.commit.full_id for entry in narrow.commits}
         await page.press("j")
         await page.wait_for(lambda _state: pane._selected_entry() is not None)
+        if pane._selected_entry().commit.full_id not in surviving_shas:  # type: ignore[union-attr]
+            await page.press("j")
+            await page.wait_for(
+                lambda _state: (
+                    (entry := pane._selected_entry()) is not None
+                    and entry.commit.full_id in surviving_shas
+                )
+            )
         selected_sha = pane._selected_entry().commit.full_id  # type: ignore[union-attr]
 
         await page.press("d")

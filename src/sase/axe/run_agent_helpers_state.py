@@ -50,7 +50,10 @@ def _commit_sha(*values: Any) -> str | None:
     """Return the first commit hash, ignoring URLs and other result values."""
     for value in values:
         candidate = _text(value)
-        if candidate is not None and _COMMIT_SHA_RE.fullmatch(candidate):
+        if candidate is None:
+            continue
+        candidate = candidate.strip()
+        if _COMMIT_SHA_RE.fullmatch(candidate):
             return candidate
     return None
 

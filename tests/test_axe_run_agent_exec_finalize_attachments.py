@@ -119,7 +119,7 @@ def test_finalize_loop_legacy_commit_metadata_scans_workspace_head(
     ctx.workspace_dir = str(workspace)
     artifacts = Path(ctx.artifacts_dir)
     (artifacts / "commit_result.json").write_text(
-        json.dumps({"result": _stdout(workspace, "git", "rev-parse", "HEAD")})
+        json.dumps({"result": _stdout(workspace, "git", "rev-parse", "HEAD").strip()})
     )
     (artifacts / "workflow_state.json").write_text(json.dumps({"steps": []}))
     state = LoopState(

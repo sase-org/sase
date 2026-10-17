@@ -183,11 +183,15 @@ def discover_agent_runtime(
 def resolve_turn_model_label(artifacts_dir: str | None = None) -> str | None:
     """Resolve the producing turn's provider/model label without inventing it."""
     fallback_model = _clean_value(os.environ.get("SASE_MODEL_OVERRIDE"))
+    provider_value: object
+    model_value: object
     if fallback_model is not None:
         try:
             from sase.llm_provider.registry import resolve_model_provider
 
-            provider, model = resolve_model_provider(fallback_model, consume=False)
+            provider_value, model_value = resolve_model_provider(
+                fallback_model, consume=False
+            )
         except Exception:  # noqa: BLE001 - missing provider metadata means unknown.
             return None
     else:
@@ -197,12 +201,12 @@ def resolve_turn_model_label(artifacts_dir: str | None = None) -> str | None:
         meta = _agent_meta_from_dir(meta_dir)
         if meta is None:
             return None
-        provider = meta.get("llm_provider")
-        model = meta.get("model")
+        provider_value = meta.get("llm_provider")
+        model_value = meta.get("model")
 
-    if not isinstance(provider, str) or not (provider := provider.strip()):
+    if not isinstance(provider_value, str) or not (provider := provider_value.strip()):
         return None
-    if not isinstance(model, str) or not (model := model.strip()):
+    if not isinstance(model_value, str) or not (model := model_value.strip()):
         return None
 
     from sase.history.chat_storage import format_metadata_model

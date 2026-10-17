@@ -18,7 +18,7 @@ from sase.bead_pages.audit import audit_commit_link_attribution
 from sase.bead_pages.publication import publish_committed_bead_pages
 from sase.core.agent_identity_facade import AgentIdentitySnapshot, AgentOwnerIdentity
 from sase.core.paths import sase_projects_dir
-from sase.sdd.store import SddStore
+from sase.sdd.store import SddStore, write_sdd_store_record
 from sase.workflows.commit.checkpoint import CommitCheckpoint
 from sase.workflows.commit.workflow import CommitWorkflow, RunResult
 
@@ -232,6 +232,24 @@ def _multi_repo_publication(
     _init_git_repo(beads, "git@github.com:sase-org/sase--beads.git")
     _register_project("sase", checkout)
     _write_marker(checkout, project_name="sase")
+    write_sdd_store_record(
+        checkout,
+        {
+            "schema_version": 3,
+            "storage": "sidecar_repos",
+            "provider": "github",
+            "sidecars": {
+                "plans": {
+                    "repo": "sase-org/sase--plans",
+                    "remote_url": "git@github.com:sase-org/sase--plans.git",
+                },
+                "beads": {
+                    "repo": "sase-org/sase--beads",
+                    "remote_url": "git@github.com:sase-org/sase--beads.git",
+                },
+            },
+        },
+    )
     with BeadProject.init(beads, beads_dirname=BEADS_DIRNAME_ROOT) as project:
         root = project.create("Published pages", IssueType.PLAN)
         phase = project.create("Publication", IssueType.PHASE, parent_id=root.id)

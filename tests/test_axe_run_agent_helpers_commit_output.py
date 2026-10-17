@@ -308,6 +308,21 @@ def test_create_pull_request_without_commit_sha_does_not_project_pr_url(
     assert step_output is None
 
 
+def test_extract_step_output_accepts_real_git_sha_with_trailing_newline(
+    tmp_path: Path,
+) -> None:
+    sha = "a1b2c3d"
+    (tmp_path / "commit_result.json").write_text(
+        json.dumps({"result": f"{sha}\n", "cwd": "/workspace/sase_7"})
+    )
+
+    step_output, _diff_path = extract_step_output_and_diff_path(str(tmp_path))
+
+    assert step_output is not None
+    assert step_output["meta_new_commit"] == sha
+    assert step_output["meta_commit_cwd"] == "/workspace/sase_7"
+
+
 def test_extract_step_output_prefers_commit_result_message_over_workflow_subject(
     tmp_path: Path,
 ) -> None:

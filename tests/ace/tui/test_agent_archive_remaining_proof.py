@@ -361,12 +361,19 @@ async def test_mounted_arrival_then_clear_name_keeps_selection(
         arrival_key = app._agents_archive_view.archive.selected_key
 
         app._commit_agents_filter_query("in:archive")
-        await page.pause()
-
-        archive = app._agents_archive_view.archive
-        assert archive.committed_query == "in:archive"
-        assert archive.selected_key == arrival_key
-        assert arrival_key in page.app.query_one("#archive-list", ArchiveList).item_keys
+        await page.wait_for(
+            lambda _state: (
+                app._agents_archive_view.archive.committed_query == "in:archive"
+                and app._agents_archive_view.archive.selected_key == arrival_key
+                and arrival_key
+                in (
+                    page.app.query_one("#archive-list", ArchiveList).item_keys
+                    if page.app.query("#archive-list")
+                    else ()
+                )
+            ),
+            timeout=15.0,
+        )
 
 
 async def test_mounted_comma_a_from_artifacts_tab_opens_agents_archive(

@@ -11,7 +11,7 @@ import pytest
 
 from sase.main.workspace_handler import handle_workspace_command
 from sase.sibling_repos import opened_sibling_names
-from tests.main.workspace_handler_helpers import make_args
+from tests.main.workspace_handler_helpers import make_args, write_project_local_config
 
 
 def _git_init(path: Path) -> None:
@@ -107,6 +107,7 @@ def _setup_current_project(
             }
         ],
     }
+    write_project_local_config(main, config, monkeypatch=monkeypatch)
     monkeypatch.setattr(
         "sase.main.workspace_handler.load_merged_config", lambda: config
     )
@@ -209,6 +210,7 @@ class TestWorkspaceProjectResolution:
             lambda cwd=None: None,
         )
         config = {"workspace": {"root": str(tmp_path / "managed")}}
+        write_project_local_config(main, config, monkeypatch=monkeypatch)
         monkeypatch.setattr(
             "sase.main.workspace_handler.load_merged_config", lambda: config
         )

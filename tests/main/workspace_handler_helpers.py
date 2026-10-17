@@ -4,8 +4,15 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
+from typing import Any
+from collections.abc import Mapping
 
 import pytest
+import yaml
+
+from sase._linked_repo_config import reset_linked_repo_config_caches
+from sase.config.core import clear_config_cache
+from sase.content_layout import resolve_project_config_write_path
 
 
 @pytest.fixture
@@ -38,6 +45,7 @@ def project_layout(
             "cleanup_ttl_days": 1,
         }
     }
+    write_project_local_config(primary, fake_config, monkeypatch=monkeypatch)
     monkeypatch.setattr(
         "sase.main.workspace_handler.load_merged_config",
         lambda: fake_config,
@@ -47,6 +55,31 @@ def project_layout(
         lambda: fake_config,
     )
     return project_name, str(project_file), primary
+
+
+def write_project_local_config(
+    workspace: Path,
+    config: Mapping[str, Any],
+    *,
+    monkeypatch: pytest.MonkeyPatch | None = None,
+) -> Path:
+    """Write *config* at the target project's canonical ``sase/sase.yml``.
+
+    Repository resolution now loads config for the target workspace instead of
+    the process cwd, so tests that previously patched ``load_merged_config``
+    still need a realistic project-local file.
+    """
+
+    if monkeypatch is not None:
+        config_dir = workspace.parent / "empty-sase-config"
+        config_dir.mkdir(parents=True, exist_ok=True)
+        monkeypatch.setattr("sase.config.core.CONFIG_DIR", config_dir)
+    path = resolve_project_config_write_path(workspace)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(yaml.safe_dump(dict(config)), encoding="utf-8")
+    reset_linked_repo_config_caches()
+    clear_config_cache()
+    return path
 
 
 def make_args(**overrides: object) -> argparse.Namespace:

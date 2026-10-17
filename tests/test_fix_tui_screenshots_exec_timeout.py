@@ -89,7 +89,7 @@ def _wait_for_file(path: Path, *, timeout_seconds: float = 3.0) -> str:
         try:
             return path.read_text(encoding="utf-8")
         except FileNotFoundError:
-            time.sleep(0.01)
+            time.sleep(0.01)  # sase-test-wait: poll until child writes readiness file
     raise AssertionError(f"child did not create readiness file {path}")
 
 
