@@ -198,6 +198,8 @@ class BeadsOptionsMixin(_MixinBase):
         pending_id = self._pending_option_id()
         if pending_id is None and self._pending_entry_target is not None:
             if self._loaded_current_snapshot():
+                # This query has settled. Hand a remaining miss to the host
+                # planner, which can re-resolve a stale chip kind and retry.
                 state = (
                     LinkRequestState.FAILED
                     if self._load_error is not None
@@ -386,27 +388,28 @@ class BeadsOptionsMixin(_MixinBase):
         )
 
     def _unfiltered_snapshot_has_target(self, target: ArtifactEntryTarget) -> bool:
-        """Return whether *target* exists in the unfiltered Beads inventory."""
+        """Return whether the target identity exists under any resolvable kind.
+
+        Link chips can carry a stale Beads kind. The project and bead ID are
+        authoritative; the follow planner corrects task/epic/phase/flag kind
+        after it has the loaded row model.
+        """
         snapshot = self._snapshot
         if snapshot is None or target.pane_id != "beads" or len(target.parts) < 3:
             return False
         project, kind, bead_id = target.parts[0], target.parts[1], target.parts[2]
-        if kind == "epic":
-            beads = snapshot.epics
-        elif kind == "flag":
-            beads = snapshot.flags
-        elif kind == "task":
-            beads = snapshot.tasks
-        elif kind == "phase":
-            return any(
-                phase.project == project and phase.issue.id == bead_id
-                for phases in snapshot.phases_by_epic.values()
-                for phase in phases
-            )
-        else:
+        if kind not in {"epic", "flag", "task", "phase"}:
             return False
+        if any(
+            bead.project == project and bead.issue.id == bead_id
+            for beads in (snapshot.epics, snapshot.flags, snapshot.tasks)
+            for bead in beads
+        ):
+            return True
         return any(
-            bead.project == project and bead.issue.id == bead_id for bead in beads
+            phase.project == project and phase.issue.id == bead_id
+            for phases in snapshot.phases_by_epic.values()
+            for phase in phases
         )
 
     def _complete_pending_inventory_miss(self) -> None:

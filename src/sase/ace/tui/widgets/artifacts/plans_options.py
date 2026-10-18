@@ -390,6 +390,9 @@ class PlansOptionsMixin(_MixinBase):
                 # report when the scan's refresh re-renders.
                 return
             if self._loaded_current_snapshot():
+                # Query and archive coverage are settled. Let the host
+                # planner re-resolve a stale provider kind before reporting
+                # this remaining miss.
                 state = (
                     LinkRequestState.FAILED
                     if self._load_error is not None
@@ -601,7 +604,13 @@ class PlansOptionsMixin(_MixinBase):
         )
 
     def _unfiltered_snapshot_has_target(self, target: ArtifactEntryTarget) -> bool:
-        """Return whether *target* exists in the unfiltered Plans inventory."""
+        """Return whether the target identity exists under a resolvable kind.
+
+        A plan document's active/archive classification can change between
+        chip creation and follow resolution. Its project and path remain the
+        stable identity while the follow planner corrects that classification.
+        Proposal targets use their bead ID and only resolve as proposals.
+        """
         snapshot = self._snapshot
         pane_id = getattr(self, "pane_key", None)
         if pane_id is None:
@@ -615,13 +624,11 @@ class PlansOptionsMixin(_MixinBase):
                 item.project == project and item.notification.id == identity
                 for item in snapshot.proposals
             )
-        if kind == "active":
+        if kind in {"active", "archive"}:
             return any(
                 item.project == project and item.document.path == identity
                 for item in snapshot.active
-            )
-        if kind == "archive":
-            return any(
+            ) or any(
                 item.project == project and item.match.plan.path == identity
                 for item in snapshot.archive
             )

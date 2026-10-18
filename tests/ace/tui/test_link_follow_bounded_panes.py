@@ -388,6 +388,10 @@ async def test_archived_plan_reveals_through_path_context_after_scan(
         target = plan_row_target(archive_row)
         identity = target.parts[2]
         assert "/" in identity
+        stale_active_target = ArtifactEntryTarget(
+            target.pane_id, (target.parts[0], "active", identity)
+        )
+        assert pane._unfiltered_snapshot_has_target(stale_active_target)
 
         bar = pane.query_one(PlanFilterBar)
         bar.post_message(PlanFilterBar.Submitted("kind:active"))

@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+from threading import Event
 from pathlib import Path
+from typing import Any
 
 import pytest
 from textual.widgets import Static
@@ -10,6 +12,7 @@ from textual.widgets import Static
 from sase.ace.link_reveal_context import explain_hidden
 from sase.ace.testing import AcePage
 from sase.ace.tui.actions.link_follow import _link_follow_outcomes
+from sase.ace.tui.widgets.artifacts import query_session
 from sase.ace.tui.widgets.artifacts import beads_pane
 from sase.ace.tui.widgets.artifacts.bead_filter_bar import BeadFilterBar
 from sase.ace.tui.widgets.artifacts.beads_pane import ArtifactsBeadsPane
@@ -101,6 +104,64 @@ async def test_epic_context_selects_and_expands(
         assert pane.host_limit_query() == "id:alpha-1 id:alpha-1.*"
         phase = ArtifactEntryTarget("beads", ("alpha", "phase", "alpha-1.1"))
         assert phase in pane.entry_targets()
+
+
+async def test_kind_mismatch_stays_pending_until_query_worker_settles(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async with AcePage(initial_tab="patches") as page:
+        pane = await _open_beads(page, tmp_path, monkeypatch)
+        await _set_query(page, pane, "id:alpha-open")
+        await page.wait_for(lambda _state: not pane._query_session._workers)
+
+        target = ArtifactEntryTarget("beads", ("alpha", "epic", "alpha-1"))
+        assert target not in pane.entry_targets()
+
+        started = Event()
+        release = Event()
+        evaluate = query_session.evaluate_artifact_query_many
+
+        def blocked_evaluate(*args: Any, **kwargs: Any) -> Any:
+            started.set()
+            if not release.wait(timeout=10):
+                raise TimeoutError("test query worker was not released")
+            return evaluate(*args, **kwargs)
+
+        monkeypatch.setattr(
+            query_session, "evaluate_artifact_query_many", blocked_evaluate
+        )
+        await _set_query(page, pane, "id:alpha-open x")
+        await page.wait_for(lambda _state: started.is_set())
+
+        app = page.app
+        origin = app._current_link_trail_origin()
+        chip = ArtifactEntryTarget("beads", ("alpha", "task", "alpha-1"))
+        original_resolve = app._resolve_link_follow_target
+        planner_ready = False
+
+        def resolve_after_query_settles(
+            ref: str, requested: ArtifactEntryTarget
+        ) -> ArtifactEntryTarget:
+            if ref == "bead:alpha-1" and not planner_ready:
+                return requested
+            return original_resolve(ref, requested)
+
+        monkeypatch.setattr(
+            app, "_resolve_link_follow_target", resolve_after_query_settles
+        )
+        app._follow_artifacts_target("bead:alpha-1", chip, origin)
+
+        try:
+            assert app._link_follow_transaction is not None
+            assert pane._pending_entry_target == chip
+        finally:
+            planner_ready = True
+            release.set()
+
+        await page.wait_for(lambda _state: app._link_follow_transaction is None)
+        assert pane.selected_entry_target() == target
+        assert pane.host_limit_query() == "id:alpha-1 id:alpha-1.*"
 
 
 async def test_task_context_preserves_small_limit(
