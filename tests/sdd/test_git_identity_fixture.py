@@ -44,6 +44,39 @@ def test_test_created_repo_can_commit_without_local_identity(tmp_path: Path) -> 
     )
 
 
+def test_test_created_repo_never_forks_background_maintenance(tmp_path: Path) -> None:
+    """A commit must not fork a detached ``git maintenance`` that races copies.
+
+    The detached run creates and removes ``.git/objects/maintenance.lock`` while a
+    test is still copying or listing the repository it just committed to.
+    """
+    assert (
+        subprocess.run(
+            ["git", "config", "--global", "--get", "maintenance.auto"],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        == "false"
+    )
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _git(repo, "init", "-q")
+    (repo / "README.md").write_text("# test repo\n", encoding="utf-8")
+    _git(repo, "add", "README.md")
+    trace = tmp_path / "trace2.jsonl"
+    subprocess.run(
+        ["git", "commit", "-q", "-m", "commit under trace"],
+        cwd=repo,
+        check=True,
+        env={**os.environ, "GIT_TRACE2_EVENT": str(trace)},
+    )
+
+    assert trace.read_text(encoding="utf-8").strip()
+    assert '"maintenance"' not in trace.read_text(encoding="utf-8")
+
+
 def test_sdd_git_identity_survives_empty_home_subprocess(tmp_path: Path) -> None:
     home = tmp_path / "empty-home"
     xdg_config = tmp_path / "empty-xdg-config"

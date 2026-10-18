@@ -14,6 +14,7 @@ from typing import Any
 import pytest
 
 from sase.llm_provider.muse import MuseProvider
+from sase.llm_provider.usage import muse as muse_usage
 from sase.llm_provider.usage.probe import default_probe_context, run_usage_probe
 
 _FIXTURE = (
@@ -80,7 +81,15 @@ def _run_muse_probe(
     mint_after_polls: int = 2,
     deadline_seconds: float = 8.0,
     working_directory: str | None = None,
+    in_process: pytest.MonkeyPatch | None = None,
 ) -> tuple[dict[str, Any], list[dict[str, Any]], list[dict[str, Any]]]:
+    """Run the Muse probe against the fake CLI and return its recorded frames.
+
+    The probe normally runs in an isolated worker, exactly as in production.
+    Passing a ``MonkeyPatch`` as *in_process* runs it in this process instead,
+    with the fake's settings applied through that monkeypatch, so a test can
+    shrink the probe's module-level timings.
+    """
     env = _fake_env(tmp_path, mode=mode, usage=usage, mint_after_polls=mint_after_polls)
     now = time.time()
     context = default_probe_context(
@@ -90,13 +99,20 @@ def _run_muse_probe(
         executable=str(fake_muse),
         working_directory=working_directory,
     )
-    probe_result = run_usage_probe(
-        context,
-        isolate=True,
-        plugin_spec={"kind": "entry_point", "name": "muse"},
-        now=now,
-        env=env,
-    )
+    if in_process is None:
+        probe_result = run_usage_probe(
+            context,
+            isolate=True,
+            plugin_spec={"kind": "entry_point", "name": "muse"},
+            now=now,
+            env=env,
+        )
+    else:
+        for name, value in env.items():
+            in_process.setenv(name, value)
+        probe_result = run_usage_probe(
+            context, isolate=False, plugin=MuseProvider(), now=now
+        )
     observation = probe_result.observation
     assert observation is not None
     return (
@@ -187,11 +203,23 @@ def test_muse_usage_probe_preserves_over_quota_percentages(tmp_path: Path) -> No
 
 
 def test_muse_usage_probe_missed_mint_is_a_timeout_not_absence(
-    tmp_path: Path,
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     fake = _make_fake_muse(tmp_path)
+    # The mint wait is the budget under test. It starts only after the fake has
+    # answered the four-call prefix, so it never depends on process start-up.
+    # An isolated run under a tight deadline would: the worker's interpreter
+    # start-up and the fake's share one wall clock with the mint wait, and a
+    # loaded host can spend it all before the first request is sent. So shrink
+    # the wait in-process and give the whole probe a deadline it cannot reach.
+    monkeypatch.setattr(muse_usage, "_MINT_WAIT_SECONDS", 1.0)
+    monkeypatch.setattr(muse_usage, "_POLL_INTERVAL_SECONDS", 0.05)
     result, messages, _ = _run_muse_probe(
-        fake, tmp_path, mode="never_mint", deadline_seconds=2.0
+        fake,
+        tmp_path,
+        mode="never_mint",
+        deadline_seconds=60.0,
+        in_process=monkeypatch,
     )
     methods = _methods(messages)
     assert methods[: len(_SEQUENCE_PREFIX)] == _SEQUENCE_PREFIX

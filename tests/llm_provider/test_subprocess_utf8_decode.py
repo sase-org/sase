@@ -11,6 +11,7 @@ exception.
 import io
 import json
 import os
+import select
 import subprocess
 import sys
 import threading
@@ -21,6 +22,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from sase.llm_provider._subprocess_stream import (
+    _JSONL_RECORD_BUDGET,
     prepare_nonblocking_text_stream,
     stream_json_lines,
 )
@@ -308,6 +310,15 @@ def test_stream_json_lines_keeps_reading_stderr_after_stdout_eof() -> None:
 
 
 def test_stream_json_lines_dispatches_stderr_during_a_large_stdout_burst() -> None:
+    """Pending stderr is read within one record budget of a stdout backlog.
+
+    The contract only applies when both pipes already hold data, so the reader
+    starts after the child confirms that its stdout burst and its stderr line
+    are both written. Starting the reader first would let it drain the whole
+    burst before the child got scheduled to write stderr, which says nothing
+    about the loop. The burst fits in a pipe buffer, so the child never blocks
+    before it confirms.
+    """
     event_count = 1200
     payload = "".join(
         json.dumps({"index": index}) + "\n" for index in range(event_count)
@@ -319,15 +330,19 @@ def test_stream_json_lines_dispatches_stderr_during_a_large_stdout_burst() -> No
         "    count = os.write(1, data)\n"
         "    data = data[count:]\n"
         "os.write(2, b'stderr-ready')\n"
+        "os.write(int(sys.argv[2]), b'x')\n"
         "sys.stdin.readline()\n"
     )
+    confirm_read, confirm_write = os.pipe()
     process = subprocess.Popen(
-        [sys.executable, "-c", script, payload],
+        [sys.executable, "-c", script, payload, str(confirm_write)],
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
+        pass_fds=(confirm_write,),
     )
+    os.close(confirm_write)
     handled = 0
     stderr_seen = threading.Event()
     stderr_position: list[int] = []
@@ -349,6 +364,8 @@ def test_stream_json_lines_dispatches_stderr_during_a_large_stdout_burst() -> No
         return data
 
     try:
+        confirmed, _, _ = select.select([confirm_read], [], [], 5)
+        assert confirmed, "child never confirmed both pipes were written"
         with patch(
             "sase.llm_provider._subprocess_stream.os.read",
             side_effect=observe_stderr_read,
@@ -356,7 +373,7 @@ def test_stream_json_lines_dispatches_stderr_during_a_large_stdout_burst() -> No
             thread, results, failures = _run_stream_in_thread(process, handle)
             assert stderr_seen.wait(timeout=5)
             assert process.poll() is None
-            assert 0 <= stderr_position[0] < event_count
+            assert 0 <= stderr_position[0] <= _JSONL_RECORD_BUDGET < event_count
             assert process.stdin is not None
             process.stdin.write("release\n")
             process.stdin.flush()
@@ -366,6 +383,7 @@ def test_stream_json_lines_dispatches_stderr_during_a_large_stdout_burst() -> No
             assert results == [("stderr-ready", 0)]
             assert handled == event_count
     finally:
+        os.close(confirm_read)
         if process.poll() is None:
             process.kill()
         process.wait()

@@ -185,7 +185,13 @@ def _disable_plugin_commands_by_default() -> Iterator[None]:
 def _configure_test_git_identity(
     tmp_path_factory: pytest.TempPathFactory,
 ) -> Iterator[None]:
-    """Give every test-created git repository a deterministic commit identity."""
+    """Give every test-created git repository a deterministic commit identity.
+
+    Also turns off automatic maintenance: after a commit, git forks a detached
+    ``git maintenance run --auto`` that creates and removes
+    ``.git/objects/maintenance.lock`` in the background, which races any test
+    that copies or lists a repository it just committed to.
+    """
     config_path = tmp_path_factory.mktemp("git-identity") / "gitconfig"
     config_path.write_text(
         "\n".join(
@@ -195,6 +201,10 @@ def _configure_test_git_identity(
                 f"\temail = {_TEST_GIT_AUTHOR_EMAIL}",
                 "[commit]",
                 "\tgpgsign = false",
+                "[maintenance]",
+                "\tauto = false",
+                "[gc]",
+                "\tauto = 0",
                 "",
             )
         ),
