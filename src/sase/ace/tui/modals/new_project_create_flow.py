@@ -196,7 +196,6 @@ class NewProjectCreateFlowMixin(NewProjectCreateChecksMixin):
         self._create_plan = {}
         self._create_plan_identity = ""
         self._state.set_create_draft(draft)
-        self._paint_create_configure()
         self._describe_create_form(owner)
 
     def _on_create_review_requested(self) -> None:

@@ -37,6 +37,7 @@ class NewProjectCreateRenderingMixin:
         _ignore_checkbox_values: dict[str, bool]
         _ignore_input_values: dict[str, str]
         _owners: tuple[str, ...]
+        _syncing: bool
         _supported_visibilities: tuple[str, ...]
 
         def query_one(self, *args: Any, **kwargs: Any) -> Any: ...
@@ -59,36 +60,44 @@ class NewProjectCreateRenderingMixin:
         from textual.widgets import Input as _Input
         from textual.widgets import Static as _Static
 
-        owner_button = self.query_one("#new-project-create-owner", _Button)
-        owner_button.label = self._draft.owner or "No owners available"
-        owner_button.disabled = not self._owners
-        visibility_button = self.query_one("#new-project-create-visibility", _Button)
-        visibility_button.label = self._draft.visibility or "private"
-        self.query_one("#new-project-create-visibility-row").display = bool(
-            self._supported_visibilities
-        )
-        self._sync_text_input("#new-project-create-name", self._draft.raw_name, _Input)
-        self._sync_text_input(
-            "#new-project-create-project-name",
-            self._draft.project.name,
-            _Input,
-        )
-        self._sync_text_input(
-            "#new-project-create-project-aliases",
-            ", ".join(self._draft.project.aliases),
-            _Input,
-        )
-        current = self.query_one("#new-project-create-current", _Checkbox)
-        if current.value != self._draft.project.make_current:
-            self._ignore_checkbox_values[current.id or ""] = (
-                self._draft.project.make_current
+        self._syncing = True
+        try:
+            owner_button = self.query_one("#new-project-create-owner", _Button)
+            owner_button.label = self._draft.owner or "No owners available"
+            owner_button.disabled = not self._owners
+            visibility_button = self.query_one(
+                "#new-project-create-visibility", _Button
             )
-            current.value = self._draft.project.make_current
-        self._sync_form_slot()
-        self._render_target()
-        self._render_project()
-        self._render_setup()
-        self._render_actions()
+            visibility_button.label = self._draft.visibility or "private"
+            self.query_one("#new-project-create-visibility-row").display = bool(
+                self._supported_visibilities
+            )
+            self._sync_text_input(
+                "#new-project-create-name", self._draft.raw_name, _Input
+            )
+            self._sync_text_input(
+                "#new-project-create-project-name",
+                self._draft.project.name,
+                _Input,
+            )
+            self._sync_text_input(
+                "#new-project-create-project-aliases",
+                ", ".join(self._draft.project.aliases),
+                _Input,
+            )
+            current = self.query_one("#new-project-create-current", _Checkbox)
+            if current.value != self._draft.project.make_current:
+                self._ignore_checkbox_values[current.id or ""] = (
+                    self._draft.project.make_current
+                )
+                current.value = self._draft.project.make_current
+            self._sync_form_slot()
+            self._render_target()
+            self._render_project()
+            self._render_setup()
+            self._render_actions()
+        finally:
+            self._syncing = False
         _ = _Static
 
     def _sync_text_input(self, selector: str, value: str, input_type: Any) -> None:
@@ -112,8 +121,7 @@ class NewProjectCreateRenderingMixin:
         slot = self.query_one("#new-project-create-form-slot")
         if self._form_status != "ready" or self._form is None:
             self._form_widget_for = None
-            for child in list(slot.children):
-                child.remove()
+            slot.remove_children()
             if self._form_status == "loading":
                 text = "◌ Loading provider options…"
             elif self._form_message:
@@ -124,11 +132,11 @@ class NewProjectCreateRenderingMixin:
             return
         if self._form_widget_for == self._form:
             widget = self._form_widget()
-            if widget is not None:
+            if widget is not None and widget.is_mounted:
                 widget.set_values(dict(self._draft.provider_values))
-            return
-        for child in list(slot.children):
-            child.remove()
+                return
+            self._form_widget_for = None
+        slot.remove_children()
         from sase.ace.tui.widgets.repo_creation_form import (
             RepoCreationFormWidget as _FormWidget,
         )

@@ -87,6 +87,7 @@ class NewProjectCreateConfigure(NewProjectCreateRenderingMixin, VerticalScroll):
         self._check_due = False
         self._ignore_input_values: dict[str, str] = {}
         self._ignore_checkbox_values: dict[str, bool] = {}
+        self._syncing = False
 
     def compose(self) -> ComposeResult:
         from textual.containers import Vertical as _Vertical
@@ -310,6 +311,8 @@ class NewProjectCreateConfigure(NewProjectCreateRenderingMixin, VerticalScroll):
         if self._ignore_input_values.get(control_id) == event.value:
             self._ignore_input_values.pop(control_id, None)
             return
+        if self._syncing:
+            return
         if control_id == "new-project-create-name":
             self._rename_target(event.value)
         elif control_id == "new-project-create-project-name":
@@ -339,12 +342,12 @@ class NewProjectCreateConfigure(NewProjectCreateRenderingMixin, VerticalScroll):
             self._workflow_type, self._draft.owner, raw_name
         )
         draft = replace(self._draft, raw_name=raw_name)
-        if not draft.project_name_edited and self.is_mounted:
+        if not draft.project_name_edited and self.is_mounted and not self._syncing:
             project_input = self.query_one("#new-project-create-project-name", _Input)
             project_id = project_input.id or ""
+            pending_programmatic = project_id in self._ignore_input_values
             pending_project_edit = (
-                project_input.value != draft.project.name
-                and self._ignore_input_values.get(project_id) != project_input.value
+                not pending_programmatic and project_input.value != draft.project.name
             )
             if pending_project_edit:
                 draft = replace(
@@ -379,6 +382,8 @@ class NewProjectCreateConfigure(NewProjectCreateRenderingMixin, VerticalScroll):
             return
         if self._ignore_checkbox_values.get(checkbox_id) == event.value:
             self._ignore_checkbox_values.pop(checkbox_id, None)
+            return
+        if self._syncing:
             return
         if checkbox_id == "new-project-create-setup":
             project = replace(

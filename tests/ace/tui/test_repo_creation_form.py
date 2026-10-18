@@ -353,3 +353,36 @@ async def test_static_field_restrictions_and_disabled_internal_choice_stay_visib
             "unknown"
             in app.query_one("#repo-creation-form-capability", Static).render().plain
         )
+
+
+async def test_stale_controls_ready_after_detach_does_not_query_missing_controls() -> (
+    None
+):
+    """Owner-switch remount used to raise NoMatches on #repo-creation-form-errors."""
+    app = _FormApp(_template_form())
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        form = app.query_one(RepoCreationFormWidget)
+        assert form._controls_ready
+        form.remove_children()
+        await pilot.pause()
+        form._controls_ready = True
+        form.set_values({"description": "after detach"})
+        assert form.raw_values["description"] == "after detach"
+        assert not form._controls_ready
+
+
+async def test_remount_rearms_controls_ready_and_applies_pending_values() -> None:
+    app = _FormApp(_template_form())
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        form = app.query_one(RepoCreationFormWidget)
+        await form.remove()
+        assert not form._controls_ready
+        await app.mount(form)
+        form.set_values({"description": "before compose refresh"})
+        await pilot.pause()
+        assert form._controls_ready
+        editor = app.query_one("#repo-creation-form-value-0", SingleLineVimTextArea)
+        assert editor.text == "before compose refresh"
+        assert form.raw_values["description"] == "before compose refresh"

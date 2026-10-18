@@ -131,11 +131,54 @@ async def test_project_name_follows_until_explicitly_edited(
         assert project.value == "custom"
 
 
-async def test_owner_switch_preserves_per_owner_drafts(
+async def test_queued_project_name_edit_survives_repository_rename(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from textual.widgets import Input
 
+    app, modal, _, _ = make_modal(monkeypatch)
+    async with app.run_test(size=(120, 40)) as pilot:
+        app.push_screen(modal)
+        await pilot.pause()
+        await enter_create_stage(pilot, modal)
+        name = modal.query_one("#new-project-create-name", Input)
+        project = modal.query_one("#new-project-create-project-name", Input)
+        project.value = "custom"
+        name.value = "beta"
+        await wait_for(
+            pilot,
+            lambda: (
+                modal._state.create_draft is not None
+                and modal._state.create_draft.project_name_edited
+                and modal._state.create_draft.project.name == "custom"
+                and modal._state.create_draft.raw_name == "beta"
+            ),
+        )
+        assert project.value == "custom"
+
+
+def _pump_free_create_form_failures(caplog: pytest.LogCaptureFixture) -> list[str]:
+    return [
+        record.getMessage()
+        for record in caplog.records
+        if "pump-free task" in record.getMessage()
+        and "new-project-create-form:" in record.getMessage()
+        and "failed" in record.getMessage()
+    ]
+
+
+async def test_owner_switch_preserves_per_owner_drafts(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    import logging
+
+    from textual.widgets import Input
+
+    from sase.ace.tui.modals import new_project_create_checks
+    from sase.ace.tui.util import pump_tasks
+
+    caplog.set_level(logging.ERROR, logger=pump_tasks.__name__)
+    caplog.set_level(logging.ERROR, logger=new_project_create_checks.__name__)
     app, modal, _, _ = make_modal(monkeypatch)
     async with app.run_test(size=(120, 40)) as pilot:
         app.push_screen(modal)
@@ -158,23 +201,36 @@ async def test_owner_switch_preserves_per_owner_drafts(
             lambda: (
                 modal._state.create_draft is not None
                 and modal._state.create_draft.owner == "bbugyi200"
+                and modal._create_form_status in {"ready", "unavailable"}
             ),
         )
-        await wait_for(pilot, lambda: modal._create_form_status == "ready")
         assert modal._state.create_draft is not None
         assert modal._state.create_draft.owner == "bbugyi200"
         assert modal._state.create_draft.raw_name == ""
+        assert not modal._state.create_draft.project_name_edited
         modal._on_create_owner_selected("sase-org")
         await wait_for(
             pilot,
             lambda: (
                 modal._state.create_draft is not None
                 and modal._state.create_draft.owner == "sase-org"
+                and modal._create_form_status in {"ready", "unavailable"}
             ),
         )
-        await wait_for(pilot, lambda: modal._create_form_status == "ready")
         assert modal._state.create_draft is not None
         assert modal._state.create_draft.raw_name == "alpha"
+        assert modal._create_form_status == "ready"
+        modal._on_create_owner_selected("bbugyi200")
+        await wait_for(
+            pilot,
+            lambda: (
+                modal._state.create_draft is not None
+                and modal._state.create_draft.owner == "bbugyi200"
+                and modal._create_form_status in {"ready", "unavailable"}
+            ),
+        )
+        assert modal._create_form_status == "ready"
+        assert _pump_free_create_form_failures(caplog) == []
 
 
 async def test_taken_name_offers_explicit_add_instead(
@@ -243,7 +299,11 @@ async def test_probe_failure_never_becomes_available(
         await enter_create_stage(pilot, modal)
         modal.query_one("#new-project-create-name", Input).value = "new"
         await wait_for(
-            pilot, lambda: modal._create_availability.status == "unavailable"
+            pilot,
+            lambda: (
+                modal._create_availability.status == "unavailable"
+                and "permission denied" in modal._create_availability.reason
+            ),
         )
         assert modal._create_availability.status == "unavailable"
         assert "permission denied" in modal._create_availability.reason

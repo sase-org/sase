@@ -244,7 +244,7 @@ class RepoCreationFormWidget(VerticalScroll):
         for name, value in values.items():
             if name in self._fields_by_name:
                 updated[name] = str(value)
-        if self._controls_ready:
+        if self._ready_to_touch_controls():
             focused = self.app.focused
             if isinstance(focused, (SingleLineVimTextArea, VimTextArea)):
                 field_name = self._field_name_from_id(focused.id)
@@ -252,7 +252,7 @@ class RepoCreationFormWidget(VerticalScroll):
                     updated[field_name] = self._editor_text(focused)
         self._synchronizing = True
         try:
-            if self._controls_ready:
+            if self._ready_to_touch_controls():
                 for index, field in enumerate(self._fields):
                     if updated[field.name] == self._raw_values[field.name]:
                         continue
@@ -265,19 +265,52 @@ class RepoCreationFormWidget(VerticalScroll):
         self._recompute_and_notify()
 
     def on_mount(self) -> None:
+        self._controls_ready = False
         self.call_after_refresh(self._mark_controls_ready)
 
-    def _mark_controls_ready(self) -> None:
+    def on_unmount(self) -> None:
+        self._controls_ready = False
+
+    def _controls_are_present(self) -> bool:
+        """Return whether the composed evaluation controls exist in the DOM."""
         try:
             self.query_one("#repo-creation-form-errors", Static)
             for index in range(len(self._fields)):
                 self.query_one(f"#repo-creation-form-status-{index}", Static)
                 self.query_one(f"#repo-creation-form-value-{index}")
         except NoMatches:
-            self.call_after_refresh(self._mark_controls_ready)
+            return False
+        return True
+
+    def _ready_to_touch_controls(self) -> bool:
+        """Return True when the flag is set and the composed controls exist."""
+        if not self._controls_ready:
+            return False
+        if self._controls_are_present():
+            return True
+        self._controls_ready = False
+        return False
+
+    def _mark_controls_ready(self) -> None:
+        if not self.is_mounted or not self._controls_are_present():
+            self._controls_ready = False
+            if self.is_mounted:
+                self.call_after_refresh(self._mark_controls_ready)
             return
         self._controls_ready = True
+        self._apply_raw_values_to_controls()
         self._refresh_evaluation_view()
+
+    def _apply_raw_values_to_controls(self) -> None:
+        """Push stored values onto composed controls without a Changed echo."""
+        self._synchronizing = True
+        try:
+            for index, field in enumerate(self._fields):
+                if self._is_focused_field(field.name):
+                    continue
+                self._set_control_value(index, field, self._raw_values[field.name])
+        finally:
+            self._synchronizing = False
 
     def on_key(self, event: events.Key) -> None:
         if event.character != "a":
@@ -454,7 +487,7 @@ class RepoCreationFormWidget(VerticalScroll):
             return
         field = self._fields[index]
         self._raw_values[field.name] = value
-        if self.is_mounted:
+        if self._ready_to_touch_controls():
             self.query_one(
                 f"#repo-creation-form-value-{index}", Button
             ).label = search_button_text(value)
@@ -462,7 +495,7 @@ class RepoCreationFormWidget(VerticalScroll):
 
     def _recompute_and_notify(self) -> None:
         self._evaluate()
-        if self._controls_ready:
+        if self._ready_to_touch_controls():
             self._refresh_evaluation_view()
         self.post_message(self.Changed())
 
@@ -486,7 +519,7 @@ class RepoCreationFormWidget(VerticalScroll):
             }
 
     def _refresh_evaluation_view(self) -> None:
-        if not self._controls_ready:
+        if not self._ready_to_touch_controls():
             return
         evaluated = {
             str(item.get("name") or ""): item
@@ -531,7 +564,7 @@ class RepoCreationFormWidget(VerticalScroll):
         self._apply_advanced_visibility()
 
     def _apply_advanced_visibility(self) -> None:
-        if not self._controls_ready:
+        if not self._ready_to_touch_controls():
             return
         advanced_count = sum(field.group == "advanced" for field in self._fields)
         toggle = (

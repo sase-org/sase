@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from dataclasses import replace
 from typing import TYPE_CHECKING, Any
 
@@ -30,6 +31,8 @@ from .new_project_create_types import (
     CreateIdentity,
 )
 from .new_project_create_widget import NewProjectCreateConfigure
+
+log = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from textual.app import App
@@ -79,6 +82,9 @@ class NewProjectCreateChecksMixin(_MixinBase):
 
         def notify(self, message: str, **kwargs: Any) -> None: ...
         def query_one(self, *args: Any, **kwargs: Any) -> Any: ...
+        def call_after_refresh(
+            self, callback: Any, *args: Any, **kwargs: Any
+        ) -> Any: ...
 
     def _supported_visibilities(self) -> tuple[str, ...]:
         if self._create_form_status != "ready":
@@ -208,8 +214,42 @@ class NewProjectCreateChecksMixin(_MixinBase):
                 )
                 self._state.set_create_draft(updated)
                 self._create_drafts[owner] = updated
-        self._paint_create_configure()
+        self._paint_observed_create_form(generation, owner)
+
+    def _paint_observed_create_form(
+        self, generation: int, owner: str, *, retry: bool = True
+    ) -> None:
+        """Paint the settled form; retry once if the slot is mid-remount."""
+        if not self._create_form_observation_current(generation, owner):
+            return
+        try:
+            self._paint_create_configure()
+        except Exception:
+            log.exception(
+                "create-form paint failed after status=%s owner=%s",
+                self._create_form_status,
+                owner,
+            )
+            if (
+                retry
+                and self.is_mounted
+                and self._create_form_observation_current(generation, owner)
+            ):
+                self.call_after_refresh(
+                    lambda: self._paint_observed_create_form(
+                        generation, owner, retry=False
+                    )
+                )
+            return
         self._schedule_create_check()
+
+    def _create_form_observation_current(self, generation: int, owner: str) -> bool:
+        return (
+            self.is_mounted
+            and generation == self._create_form_generation
+            and self._state.wizard_mode == "create"
+            and self._create_form_owner == owner
+        )
 
     def _schedule_create_check(self) -> None:
         """Run probe, checkout observation, and planning off-thread."""
