@@ -331,6 +331,12 @@ async def test_beads_sync_reports_visible_and_missing(
         assert pane.request_entry_target(missing, generation=None) is (
             LinkRequestState.MISSING
         )
+        # A background enrichment reload must not conflate loading with
+        # absence: the current-scope snapshot is already authoritative.
+        pane._loading = True
+        assert pane.request_entry_target(missing, generation=None) is (
+            LinkRequestState.MISSING
+        )
 
 
 async def test_files_sync_reports_visible_and_missing(
@@ -439,6 +445,10 @@ async def test_plans_sync_reports_visible_and_missing(
         assert pane.selected_entry_target() == visible
 
         missing = ArtifactEntryTarget("ref:plan", ("alpha", "archive", "nope.md"))
+        assert pane.request_entry_target(missing, generation=None) is (
+            LinkRequestState.MISSING
+        )
+        pane._loading = True
         assert pane.request_entry_target(missing, generation=None) is (
             LinkRequestState.MISSING
         )

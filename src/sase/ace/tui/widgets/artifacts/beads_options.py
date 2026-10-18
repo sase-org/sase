@@ -183,6 +183,7 @@ class BeadsOptionsMixin(_MixinBase):
                 self._display_matched_triage_count = triage_count
         if pending_query:
             self._sync_query_bar(None, exact=False)
+            self._complete_pending_inventory_miss()
             return
         options, rows = build_bead_options(
             self._snapshot,
@@ -374,11 +375,59 @@ class BeadsOptionsMixin(_MixinBase):
         )
 
     def _loaded_current_snapshot(self) -> bool:
+        """Return whether the current-scope inventory is already on the pane.
+
+        A background refresh (``_loading``) must not turn an inventory miss
+        into ``PENDING``: the loaded snapshot is already authoritative, and
+        enrichment reloads do not add or remove bead identities.
+        """
         return (
-            self._snapshot is not None
-            and self._snapshot.project == self.project_scope
-            and not self._loading
+            self._snapshot is not None and self._snapshot.project == self.project_scope
         )
+
+    def _unfiltered_snapshot_has_target(self, target: ArtifactEntryTarget) -> bool:
+        """Return whether *target* exists in the unfiltered Beads inventory."""
+        snapshot = self._snapshot
+        if snapshot is None or target.pane_id != "beads" or len(target.parts) < 3:
+            return False
+        project, kind, bead_id = target.parts[0], target.parts[1], target.parts[2]
+        if kind == "epic":
+            beads = snapshot.epics
+        elif kind == "flag":
+            beads = snapshot.flags
+        elif kind == "task":
+            beads = snapshot.tasks
+        elif kind == "phase":
+            return any(
+                phase.project == project and phase.issue.id == bead_id
+                for phases in snapshot.phases_by_epic.values()
+                for phase in phases
+            )
+        else:
+            return False
+        return any(
+            bead.project == project and bead.issue.id == bead_id for bead in beads
+        )
+
+    def _complete_pending_inventory_miss(self) -> None:
+        """Report ``MISSING`` when a pending target is absent from inventory.
+
+        Query evaluation and background refreshes can only hide or restyle
+        rows that already exist. A bead the current snapshot does not
+        contain cannot appear later from either, so waiting on them would
+        conflate loading with absence.
+        """
+        target = self._pending_entry_target
+        if target is None or not self._loaded_current_snapshot():
+            return
+        if self._unfiltered_snapshot_has_target(target):
+            return
+        state = (
+            LinkRequestState.FAILED
+            if self._load_error is not None
+            else LinkRequestState.MISSING
+        )
+        self._complete_entry_request(state)
 
 
 __all__ = ["BeadsOptionsMixin"]

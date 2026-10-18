@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pytest
 
+from sase.ace.testing.wait import wait_for
 from sase.ace.tui.widgets.next_word_completion import (
     NextWordChain,
     build_midword_ghost_text,
@@ -20,7 +21,11 @@ from sase.core.prompt_prediction_wire import (
     PromptPredictionResult,
     PromptPredictionWordCompletion,
 )
-from tests.ace.tui.widgets.test_prompt_next_word import NextWordTestApp, _bar_hint
+from tests.ace.tui.widgets.test_prompt_next_word import (
+    NextWordTestApp,
+    _bar_hint,
+    _hold_reveal_beat,
+)
 
 
 def _place_cursor_at_end(ta: PromptTextArea) -> None:
@@ -292,6 +297,7 @@ async def test_word_character_after_cursor_stays_silent() -> None:
 async def test_midword_peek_reveals_then_finishes_word(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    _hold_reveal_beat(monkeypatch)
     app = _auto_app()
     async with app.run_test() as pilot:
         ta = app.query_one(PromptTextArea)
@@ -323,8 +329,7 @@ async def test_midword_peek_ctrl_t_finishes_without_duplicating(
         ta.load_text("Can you help me impl the plan")
         ta.cursor_location = (0, len("Can you help me impl"))
         await pilot.press("e")
-        await pilot.pause(0.6)
-        assert ta._next_word_peek_visible() is True
+        await wait_for(pilot, ta._next_word_peek_visible)
         await pilot.press("ctrl+t")
         assert ta.text == "Can you help me implement the plan"
         assert ta._next_word_chain_is_armed() is True
@@ -346,8 +351,7 @@ async def test_midword_peek_ctrl_l_takes_all_in_one_undo_step(
         ta.load_text("Can you help me impl the plan")
         ta.cursor_location = (0, len("Can you help me impl"))
         await pilot.press("e")
-        await pilot.pause(0.6)
-        assert ta._next_word_peek_visible() is True
+        await wait_for(pilot, ta._next_word_peek_visible)
         before = ta.text
         await pilot.press("ctrl+l")
         assert ta.text == "Can you help me implement it now the plan"
@@ -365,8 +369,7 @@ async def test_real_midword_peek_after_prose() -> None:
         await pilot.press("e")
         assert ta.text == "Can you help me imple the plan"
         assert ta._next_word_ghost_visible() is False
-        await pilot.pause(0.6)
-        assert ta._next_word_peek_visible() is True
+        await wait_for(pilot, ta._next_word_peek_visible)
         assert "implement" in _bar_hint(bar)
         await pilot.press("ctrl+t")
         assert ta.text == "Can you help me implement the plan"
@@ -411,8 +414,7 @@ async def test_deferred_midword_defers_then_applies(
         assert ta._next_word_ghost_visible() is False
         assert ta._next_word_peek_visible() is False
         assert ta._next_word_midword_timer is not None
-        await pilot.pause(0.6)
-        assert ta._next_word_ghost_visible() is True
+        await wait_for(pilot, ta._next_word_ghost_visible)
         assert ta.suggestion == "ment it"
         assert seen["complete_current_word"] is True
         assert seen["limit"] == 0
@@ -431,7 +433,7 @@ async def test_deferred_midword_discards_a_stale_snapshot(
         assert ta._maybe_auto_next_word_midword("e") is False
         ta.load_text("something else entirely")
         ta.cursor_location = (0, len(ta.text))
-        await pilot.pause(0.6)
+        await wait_for(pilot, lambda: ta._next_word_midword_timer is None)
         assert ta._next_word_ghost_visible() is False
         assert ta._next_word_peek_visible() is False
         assert ta.suggestion == ""

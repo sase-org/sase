@@ -184,6 +184,7 @@ async def test_auto_peek_appears_only_after_reveal_beat(
 async def test_ctrl_t_before_reveal_reveals_without_inserting(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    _hold_reveal_beat(monkeypatch)
     app = _chain_app()
     async with app.run_test() as pilot:
         ta = app.query_one(PromptTextArea)

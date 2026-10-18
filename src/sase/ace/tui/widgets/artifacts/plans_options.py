@@ -335,6 +335,7 @@ class PlansOptionsMixin(_MixinBase):
                 exact=False,
                 coverage_label=coverage_label if not exact else None,
             )
+            self._complete_pending_inventory_miss()
             return
         mode = self._active_grouping_mode()
         registry = self._group_fold_registry() if mode is not None else None
@@ -588,11 +589,64 @@ class PlansOptionsMixin(_MixinBase):
         )
 
     def _loaded_current_snapshot(self) -> bool:
+        """Return whether the current-scope inventory is already on the pane.
+
+        A background refresh (``_loading``) must not turn an inventory miss
+        into ``PENDING``: the loaded snapshot is already authoritative.
+        Truncated archive coverage is handled separately by
+        :meth:`_deep_archive_scan_outstanding`.
+        """
         return (
-            self._snapshot is not None
-            and self._snapshot.project == self.project_scope
-            and not self._loading
+            self._snapshot is not None and self._snapshot.project == self.project_scope
         )
+
+    def _unfiltered_snapshot_has_target(self, target: ArtifactEntryTarget) -> bool:
+        """Return whether *target* exists in the unfiltered Plans inventory."""
+        snapshot = self._snapshot
+        pane_id = getattr(self, "pane_key", None)
+        if pane_id is None:
+            contract = self.contract
+            pane_id = contract.id if contract is not None else "ref:plan"
+        if snapshot is None or target.pane_id != pane_id or len(target.parts) < 3:
+            return False
+        project, kind, identity = target.parts[0], target.parts[1], target.parts[2]
+        if kind == "proposal":
+            return any(
+                item.project == project and item.notification.id == identity
+                for item in snapshot.proposals
+            )
+        if kind == "active":
+            return any(
+                item.project == project and item.document.path == identity
+                for item in snapshot.active
+            )
+        if kind == "archive":
+            return any(
+                item.project == project and item.match.plan.path == identity
+                for item in snapshot.archive
+            )
+        return False
+
+    def _complete_pending_inventory_miss(self) -> None:
+        """Report ``MISSING`` when a pending target cannot appear later.
+
+        Query evaluation can only hide rows that already exist. A deep
+        archive scan can still surface a truncated archive row, so an
+        outstanding scan keeps the request pending.
+        """
+        target = self._pending_entry_target
+        if target is None or not self._loaded_current_snapshot():
+            return
+        if self._deep_archive_scan_outstanding():
+            return
+        if self._unfiltered_snapshot_has_target(target):
+            return
+        state = (
+            LinkRequestState.FAILED
+            if self._load_error is not None
+            else LinkRequestState.MISSING
+        )
+        self._complete_entry_request(state)
 
 
 __all__ = ["PlansOptionsMixin"]
