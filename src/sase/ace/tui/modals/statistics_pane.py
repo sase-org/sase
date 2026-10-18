@@ -237,10 +237,10 @@ class StatisticsPane(StatisticsPaneActionsMixin):
         if event.worker is not self._worker:
             return
         if event.state == WorkerState.SUCCESS:
-            self._loading = False
-            self._loaded_once = True
             result = event.worker.result
             if not isinstance(result, StatisticsViewData):
+                self._loading = False
+                self._loaded_once = True
                 self._paint_error("statistics worker returned no result")
                 return
             if (
@@ -256,8 +256,15 @@ class StatisticsPane(StatisticsPaneActionsMixin):
                     )
                 )
             ):
+                # Keep the pane loading until a result for the current
+                # selection lands. Clearing `_loading` here races the next
+                # range cycle: settle waits see idle while a reload is still
+                # debounced.
+                self._loading = True
                 self._schedule_load()
                 return
+            self._loading = False
+            self._loaded_once = True
             self._last_result = result
             if result.project_filter is None:
                 self._project_filter_options = tuple(

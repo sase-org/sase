@@ -16,7 +16,10 @@ from sase.ace.tui.actions.agents._archive_view import (
     open_agents_archive_view,
 )
 from sase.ace.tui.models.agent import Agent, AgentType
-from sase.ace.tui.models.agent_archive_view import AGENTS_VIEW_INBOX
+from sase.ace.tui.models.agent_archive_view import (
+    AGENTS_VIEW_INBOX,
+    ARCHIVE_SECTION_PULSE,
+)
 from sase.ace.tui.widgets.agents_archive import ArchiveColumn, ArchiveList, ArchivePulse
 from sase.feature_flags import override_flags
 from tests.ace.tui._agent_archive_column_helpers import (
@@ -209,10 +212,17 @@ async def test_J_switches_to_the_pulse_and_enter_returns_to_the_inbox(
         await page.press("J")
         pulse = app.query_one("#archive-pulse", ArchivePulse)
         assert pulse.has_class("-selected")
+        assert app._agents_archive_view.archive.focused_section == ARCHIVE_SECTION_PULSE
         await page.press("enter")
-        await page.pause()
-
-        assert app._agents_archive_view.active_view == AGENTS_VIEW_INBOX
+        await page.wait_for(
+            lambda _s: app._agents_archive_view.active_view == AGENTS_VIEW_INBOX,
+            timeout_message=lambda: (
+                "wait_for() timed out waiting for Inbox after pulse Enter —"
+                f" active_view={app._agents_archive_view.active_view!r}"
+                f" focused_section={app._agents_archive_view.archive.focused_section!r}"
+                f" pulse_selected={pulse.has_class('-selected')}"
+            ),
+        )
         content = app.query_one("#agents-content")
         assert not content.has_class("-archive-active")
         assert app.query_one("#agent-list-container").display

@@ -83,6 +83,7 @@ def test_stale_project_filter_result_is_discarded_and_rescheduled(
 
     assert scheduled == [True]
     assert pane._last_result is None
+    assert pane._loading is True
 
 
 def test_stale_macro_focus_result_is_discarded_and_rescheduled(
@@ -107,6 +108,7 @@ def test_stale_macro_focus_result_is_discarded_and_rescheduled(
 
     assert scheduled == [True]
     assert pane._last_result is None
+    assert pane._loading is True
 
 
 def test_stale_perf_group_result_is_discarded_and_rescheduled(
@@ -131,6 +133,7 @@ def test_stale_perf_group_result_is_discarded_and_rescheduled(
 
     assert scheduled == [True]
     assert pane._last_result is None
+    assert pane._loading is True
 
 
 async def test_refresh_preserves_selection_and_hidden_tick_is_inert(

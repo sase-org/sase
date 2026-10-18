@@ -134,16 +134,20 @@ class ArchiveList(OptionList, inherit_bindings=False):
         ids = [option.id for option in options if option.id is not None]
         if len(ids) != len(set(ids)):
             raise DuplicateID("Options contain duplicated IDs")
-        self._options[:] = options
-        self._option_to_index = {option: idx for idx, option in enumerate(options)}
-        self._id_to_option = {
-            option.id: option for option in options if option.id is not None
-        }
-        self._mouse_hovering_over = None
-        self._clear_caches()
-        if self.is_mounted:
-            self.refresh(layout=self.styles.auto_dimensions)
-            self._update_lines()
+        self._programmatic_update = True
+        try:
+            self._options[:] = options
+            self._option_to_index = {option: idx for idx, option in enumerate(options)}
+            self._id_to_option = {
+                option.id: option for option in options if option.id is not None
+            }
+            self._mouse_hovering_over = None
+            self._clear_caches()
+            if self.is_mounted:
+                self.refresh(layout=self.styles.auto_dimensions)
+                self._update_lines()
+        finally:
+            self._programmatic_update = False
 
     def set_cursor(self, key: str | None) -> None:
         """Highlight ``key`` silently, keeping its row visible."""

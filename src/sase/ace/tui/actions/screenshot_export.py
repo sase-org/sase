@@ -31,7 +31,10 @@ _SCREENSHOT_DEBOUNCERS = (
 _SCREENSHOT_VISUAL_TASK_REGISTRIES = ("_projected_record_hydration_tasks",)
 _SCREENSHOT_VISUAL_WORKER_GROUPS = frozenset({"screenshot-visual"})
 _SCREENSHOT_VISUAL_WORKER_NAME_PREFIXES = ("screenshot-visual:",)
-_SCREENSHOT_STABLE_FRAME_COUNT = 3
+# Two matching compositor samples after the pending-work gate is empty is
+# quiescence. A third identical sample is wall-clock, not progress, and is
+# what timed out under Full CI with stable_frames=2/3 and nothing pending.
+_SCREENSHOT_STABLE_FRAME_COUNT = 2
 _SCREENSHOT_SETTLE_TIMEOUT_SECONDS = 3.0
 _SCREENSHOT_SETTLING_TIMER_MAX_SECONDS = 0.5
 _SCREENSHOT_STARTUP_TABS = frozenset({"agents", "services"})

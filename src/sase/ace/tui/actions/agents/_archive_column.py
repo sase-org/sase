@@ -48,6 +48,7 @@ from ...models.agent_archive_list import (
 )
 from ...models.agent_archive_view import (
     ARCHIVE_SECTION_LIST,
+    ARCHIVE_SECTION_PULSE,
     ArchiveViewState,
 )
 from ._archive_controller import (
@@ -348,7 +349,8 @@ def _advance_reveal(owner: Any, computed: _Computed) -> bool:
     if key is None or model.position(key) is not None:
         if key is not None:
             archive.selected_key = key
-            archive.focused_section = ARCHIVE_SECTION_LIST
+            if archive.focused_section != ARCHIVE_SECTION_PULSE:
+                archive.focused_section = ARCHIVE_SECTION_LIST
         archive.reveal_row = None
         runtime.reveal_container = None
         return False

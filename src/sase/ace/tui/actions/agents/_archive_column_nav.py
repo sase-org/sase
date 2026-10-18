@@ -272,8 +272,13 @@ def dispatch_archive_intent(owner: Any, intent: str) -> None:
 
 def archive_cursor_from_widget(owner: Any, key: str) -> None:
     """The user moved the list highlight (arrow keys or mouse)."""
-    if archive_detail_owns_panel(owner):
-        _set_cursor(owner, key, from_widget=True)
+    if not archive_detail_owns_panel(owner):
+        return
+    # Rebuilds and OptionList highlight echoes must not yank pulse focus;
+    # J then Enter would otherwise activate a list row and stay on Archive.
+    if column_archive(owner).focused_section == ARCHIVE_SECTION_PULSE:
+        return
+    _set_cursor(owner, key, from_widget=True)
 
 
 def archive_activate_key(owner: Any, key: str) -> None:

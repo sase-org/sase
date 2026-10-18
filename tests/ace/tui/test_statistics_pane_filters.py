@@ -31,6 +31,7 @@ from tests.ace.tui._statistics_pane_helpers import (
     _result,
     _run_payload,
     _scope_plain,
+    _wait_statistics_settled,
 )
 from tests._project_display_case import ProjectDisplayCase
 
@@ -91,18 +92,20 @@ async def test_reverse_range_cycles_backward_wraps_and_reenters_from_custom(
         assert pane._preset_key == "all"
         pane.action_cycle_range_reverse()
         assert pane._preset_key == "90d"
-        await page.wait_for(lambda _state: len(calls) == 2 and not pane._loading)
+        await _wait_statistics_settled(page, pane)
+        assert pane._last_result is not None
+        assert pane._last_result.selected_range == pane._range
 
         await page.press("c")
         custom_input = pane.query_one("#statistics-custom-range", Input)
         custom_input.value = "14d"
         await page.press("enter")
-        await page.wait_for(lambda _state: len(calls) == 3 and not pane._loading)
+        await _wait_statistics_settled(page, pane)
         assert pane._preset_key is None
         assert pane._custom_range_value == "14d"
 
         await page.press("T")
-        await page.wait_for(lambda _state: len(calls) == 4 and not pane._loading)
+        await _wait_statistics_settled(page, pane)
         assert pane._preset_key == "all"
         assert pane._range.display_label == "All time"
         assert pane._custom_range_value is None
@@ -110,9 +113,9 @@ async def test_reverse_range_cycles_backward_wraps_and_reenters_from_custom(
         await page.press("c")
         custom_input.value = "14d"
         await page.press("enter")
-        await page.wait_for(lambda _state: len(calls) == 5 and not pane._loading)
+        await _wait_statistics_settled(page, pane)
         await page.press("t")
-        await page.wait_for(lambda _state: len(calls) == 6 and not pane._loading)
+        await _wait_statistics_settled(page, pane)
         assert pane._preset_key == "today"
         assert pane._range.display_label == "Today"
         assert pane._custom_range_value is None

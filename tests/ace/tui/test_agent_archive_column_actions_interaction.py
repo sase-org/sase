@@ -119,6 +119,21 @@ async def test_pulse_updates_live_without_rebuilding_the_list_or_resetting_detai
 # --- widget events and echo guards -----------------------------------------
 
 
+async def test_list_cursor_echo_does_not_steal_pulse_focus() -> None:
+    harness = await opened()
+    owner = harness.owner
+    key = selection_key(harness)
+    route_archive_key(owner, INTENT_SWITCH_SECTION)
+    assert harness.archive.focused_section == ARCHIVE_SECTION_PULSE
+
+    _widget_cursor_moved(owner, "u.m@t05")
+
+    assert harness.archive.focused_section == ARCHIVE_SECTION_PULSE
+    assert selection_key(harness) == key
+    route_archive_key(owner, INTENT_ACTIVATE)
+    assert owner._agents_archive_view.active_view == AGENTS_VIEW_INBOX
+
+
 async def test_widget_cursor_events_update_state_without_echoing_back() -> None:
     harness = await opened()
     owner = harness.owner
@@ -194,6 +209,7 @@ __all__ = [
     "test_J_and_K_switch_pulse_and_list_focus_without_moving_the_inbox",
     "test_enter_l_or_click_on_the_pulse_returns_to_the_parked_inbox",
     "test_pulse_updates_live_without_rebuilding_the_list_or_resetting_detail",
+    "test_list_cursor_echo_does_not_steal_pulse_focus",
     "test_widget_cursor_events_update_state_without_echoing_back",
     "test_click_activation_matches_the_keyboard_path",
     "test_cursor_survives_a_rebuild_and_falls_to_a_neighbor_when_row_vanishes",

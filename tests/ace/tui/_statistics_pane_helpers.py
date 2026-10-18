@@ -415,6 +415,20 @@ def _patch_center(
     monkeypatch.setattr(sp, "load_statistics_view", load)
 
 
+async def _wait_statistics_settled(page: AcePage, pane: StatisticsPane) -> None:
+    """Wait until the pane's last result matches the current selection."""
+    await page.wait_for(
+        lambda _state: (
+            not pane._loading
+            and (pane._load_debouncer is None or not pane._load_debouncer.is_pending)
+            and pane._last_result is not None
+            and pane._last_result.selected_range == pane._range
+            and pane._last_result.project_filter == pane._project_filter
+            and pane._last_result.macro_focus == pane._macro_focus
+        )
+    )
+
+
 async def _open_statistics(
     page: AcePage,
 ) -> tuple[ConfigCenterModal, StatisticsPane]:

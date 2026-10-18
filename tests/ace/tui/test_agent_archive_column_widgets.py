@@ -377,6 +377,10 @@ async def test_programmatic_cursor_is_silent_and_user_movement_posts_once() -> N
         assert archive_list.highlighted == archive_list.item_keys.index("u.m@r4")
         assert app.messages == []  # echo guard: no phantom CursorMoved
 
+        column.apply_items(_items(), "u.m@r4", tz=UTC, grouping="day")
+        await pilot.pause()
+        assert app.messages == []  # rebuild must not post a highlight echo
+
         archive_list.action_cursor_down()
         await pilot.pause()
         assert app.messages == [("moved", "u.m@r5")]

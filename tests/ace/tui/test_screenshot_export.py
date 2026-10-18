@@ -125,6 +125,43 @@ class _StalledAcknowledgementExportApp(_AcknowledgedRefreshExportApp):
         self._frame += 1
 
 
+class _QuiescentThenStallRefreshExportApp(ScreenshotExportMixin):
+    """Identical idle frames whose third refresh would hang forever.
+
+    Full CI timed out at stable_frames=2/3 with matching digests and nothing
+    pending: the third sample is wall-clock, not progress. Two matching
+    frames must complete without waiting for that hung refresh.
+    """
+
+    screen_stack = ()
+    workers = ()
+
+    def __init__(self) -> None:
+        self.refresh_count = 0
+        self.export_count = 0
+        self._refreshes = 0
+
+    def refresh(
+        self,
+        *,
+        repaint: bool = True,
+        layout: bool = False,
+        recompose: bool = False,
+    ) -> None:
+        del repaint, layout, recompose
+        self.refresh_count += 1
+
+    async def wait_for_refresh(self) -> None:
+        self._refreshes += 1
+        if self._refreshes >= 3:
+            await asyncio.Event().wait()
+
+    def export_screenshot(self, *, title: str, simplify: bool) -> str:
+        del title, simplify
+        self.export_count += 1
+        return "<svg><text>idle</text></svg>"
+
+
 class _RejectedAcknowledgementExportApp(_AcknowledgedRefreshExportApp):
     """Host that rejects post-refresh callback scheduling."""
 
@@ -251,8 +288,8 @@ async def test_export_body_waits_for_stable_visual_frame(tmp_path: Path) -> None
     assert paths.done.exists()
     assert not paths.error.exists()
     assert paths.svg.read_text(encoding="utf-8") == ("<svg><text>settled</text></svg>")
-    assert app.export_count >= 4
-    assert app.refresh_count >= 4
+    assert app.export_count >= 3
+    assert app.refresh_count >= 3
 
 
 async def test_export_body_uses_call_after_refresh_acknowledgement(
@@ -265,8 +302,8 @@ async def test_export_body_uses_call_after_refresh_acknowledgement(
     assert paths.done.exists()
     assert not paths.error.exists()
     assert paths.svg.read_text(encoding="utf-8") == ("<svg><text>settled</text></svg>")
-    assert app.export_count >= 4
-    assert app.refresh_count >= 4
+    assert app.export_count >= 3
+    assert app.refresh_count >= 3
 
 
 async def test_export_body_ignores_running_background_workers(tmp_path: Path) -> None:
@@ -277,7 +314,27 @@ async def test_export_body_ignores_running_background_workers(tmp_path: Path) ->
     assert paths.done.exists()
     assert not paths.error.exists()
     assert paths.svg.read_text(encoding="utf-8") == ("<svg><text>settled</text></svg>")
-    assert app.export_count >= 4
+    assert app.export_count >= 3
+
+
+async def test_export_body_completes_when_idle_frames_match_without_a_third_refresh(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app = _QuiescentThenStallRefreshExportApp()
+    monkeypatch.setattr(
+        screenshot_export_module,
+        "_SCREENSHOT_SETTLE_TIMEOUT_SECONDS",
+        0.4,
+    )
+
+    paths = await app._run_screenshot_export(tmp_path)
+
+    assert paths.done.exists()
+    assert not paths.error.exists()
+    assert paths.svg.read_text(encoding="utf-8") == "<svg><text>idle</text></svg>"
+    assert app.export_count == 2
+    assert app._refreshes == 2
 
 
 async def test_export_body_waits_for_tagged_finite_visual_worker(
