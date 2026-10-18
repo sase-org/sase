@@ -20,7 +20,9 @@ from sase.ace.tui.widgets.update_accents import (
 )
 from sase.monitor_state import MONITOR_GLYPH, MONITOR_GLYPH_COLOR
 
-PROC_GEAR_HUE = "#48CAE4"
+# Cornflower blue (xterm 69): darker and bluer than the ⚒ sky #87D7FF
+# beside it so the two chips separate by both hue and lightness.
+PROC_GEAR_HUE = "#5F87FF"
 MONITOR_GEAR_HUE = MONITOR_GLYPH_COLOR
 UPDATE_GEAR_HUE = UPDATES_ACCENT
 

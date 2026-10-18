@@ -27,11 +27,14 @@ from sase.ace.tui.widgets.provider_priority_indicator import (
 from sase.ace.tui.widgets.stashed_prompts_indicator import StashedPromptsIndicator
 from sase.ace.tui.widgets.update_accents import UPDATES_SURFACE
 from sase.ace.tui.widgets.updates_indicator import UpdatesAvailableIndicator
+from sase.tool.view_vocabulary import TOOL_RUN_ACCENT
 from tests._provider_disables_indicator_helpers import _priority
 
 _MIN_SURFACE_CONTRAST = 3.0
 _MIN_TEXT_CONTRAST = 4.5
 _MIN_STASH_HUE_DISTANCE = 45.0
+_MIN_TOOLS_PROC_CONTRAST = 1.8
+_MIN_TOOLS_PROC_HUE_DISTANCE = 20.0
 
 
 def _hex_to_rgb(value: str) -> tuple[int, int, int]:
@@ -144,6 +147,26 @@ def _neighbors() -> dict[str, Text]:
             _priority("codex", expires_at=None),
         ),
     }
+
+
+def test_proc_gear_stays_distinct_from_tools_chip() -> None:
+    """``tools:`` and ``bg:`` render adjacent, so their fills must differ.
+
+    Lightness is what keeps the chips apart under color-vision deficiency;
+    hue distance is the remaining identity cue on a full-color terminal.
+    """
+    ratio = _contrast_ratio(PROC_GEAR_HUE, TOOL_RUN_ACCENT)
+    assert ratio >= _MIN_TOOLS_PROC_CONTRAST, (
+        f"proc gear {PROC_GEAR_HUE} too close in luminance to tools chip "
+        f"{TOOL_RUN_ACCENT}: {ratio:.2f}:1 "
+        f"(need >= {_MIN_TOOLS_PROC_CONTRAST}:1)"
+    )
+    distance = _hue_distance(PROC_GEAR_HUE, TOOL_RUN_ACCENT)
+    assert distance >= _MIN_TOOLS_PROC_HUE_DISTANCE, (
+        f"proc gear {PROC_GEAR_HUE} too close in hue to tools chip "
+        f"{TOOL_RUN_ACCENT}: {distance:.1f}° "
+        f"(need >= {_MIN_TOOLS_PROC_HUE_DISTANCE}°)"
+    )
 
 
 def test_updates_surface_stays_distinct_from_every_neighbor() -> None:

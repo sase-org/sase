@@ -99,7 +99,7 @@ def test_label_composition_full_compact_and_hidden() -> None:
     assert group.full_cells == 0
     assert group.compact_cells == 0
 
-    group._set_body(Text(" 2 ", style="bold #1a1a1a on #48CAE4"))
+    group._set_body(Text(" 2 ", style="bold #1a1a1a on #5F87FF"))
     assert group.group_visible is True
     assert group.full_cells > group.compact_cells > 0
     # Full shows the dim label plus the body.
@@ -118,7 +118,7 @@ def test_set_body_noops_on_identical_body() -> None:
     from rich.text import Text
 
     group = _ProbeGroup()
-    body = Text(" 2 ", style="bold #1a1a1a on #48CAE4")
+    body = Text(" 2 ", style="bold #1a1a1a on #5F87FF")
     assert group._set_body(body) is True
     assert group._set_body(body.copy()) is False
     assert group.set_density("full") is False
@@ -133,7 +133,7 @@ def test_full_density_dims_only_the_label() -> None:
 
     console = Console(color_system="truecolor", width=80)
     group = _ProbeGroup()
-    group._set_body(Text(" 2 ", style="bold #1a1a1a on #48CAE4"))
+    group._set_body(Text(" 2 ", style="bold #1a1a1a on #5F87FF"))
 
     full = group._composed_text()
     # No base style may leak onto appended spans.

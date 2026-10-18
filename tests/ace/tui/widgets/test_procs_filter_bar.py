@@ -39,8 +39,8 @@ def _option_labels(option_list: OptionList) -> list[str]:
     ]
 
 
-def test_accent_is_the_procs_teal() -> None:
-    assert ProcsFilterBar().ACCENT == PROC_GEAR_HUE == "#48CAE4"
+def test_accent_is_the_procs_blue() -> None:
+    assert ProcsFilterBar().ACCENT == PROC_GEAR_HUE == "#5F87FF"
 
 
 async def test_bar_is_hidden_at_rest_with_an_empty_query() -> None:

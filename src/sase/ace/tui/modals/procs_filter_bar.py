@@ -16,7 +16,7 @@ __all__ = ["ProcsFilterBar"]
 
 
 class ProcsFilterBar(FilterBar):
-    """Show-while-active Procs filter editor, accented in the procs teal."""
+    """Show-while-active Procs filter editor, accented in the procs blue."""
 
     ACCENT = PROC_GEAR_HUE
     ROW_ID = "procs-filter-row"

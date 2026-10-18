@@ -19,7 +19,7 @@ from sase.core.time import local_now
 from sase.procs import ACTIVE_PROC_STATUSES, DETACHED_PROC_KIND
 
 from .._proc_observer_models import proc_gear_lane
-from ..proc_gear_chips import UPDATE_GEAR_HUE
+from ..proc_gear_chips import PROC_GEAR_HUE, UPDATE_GEAR_HUE
 from ..proc_observer import (
     DETAIL_LOG_LINES,
     ObservedProc,
@@ -432,7 +432,7 @@ def _log_body(lines: tuple[ProcLogLine, ...], trimmed_count: int) -> Text:
 def _render_log_line(line: ProcLogLine) -> Text:
     """Style one retained log line by stream and content."""
     if line.stream == "progress":
-        return Text(line.text, style="bold #48CAE4")
+        return Text(line.text, style=f"bold {PROC_GEAR_HUE}")
     if line.stream == "header":
         return Text(line.text, style="dim")
     if line.stream == "result":

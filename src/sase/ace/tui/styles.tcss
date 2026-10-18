@@ -269,7 +269,7 @@ BeadFilterBar .filter-bar-completion > .option-list--option-highlighted {
 
 ProcsFilterBar .filter-bar-completion > .option-list--option-highlighted {
     color: $background;
-    background: #48CAE4;
+    background: #5F87FF;
     text-style: bold;
 }
 

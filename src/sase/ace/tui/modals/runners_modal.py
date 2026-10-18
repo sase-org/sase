@@ -11,6 +11,7 @@ from textual.containers import Container, VerticalScroll
 from textual.screen import ModalScreen
 from textual.widgets import Static
 
+from sase.ace.tui.proc_gear_chips import PROC_GEAR_HUE
 from sase.core.time import local_now
 from sase.project_display_names import humanize_cl_name, humanize_vcs_refs_in_text
 
@@ -284,8 +285,8 @@ class RunnersModal(CopyModeForwardingMixin, ModalScreen[RunnerJumpTarget | None]
 
         text.append("\n")
 
-        # Procs section (teal) - TUI background operations
-        self._add_section_header(text, "Procs", "#48CAE4")
+        # Procs section (blue) - TUI background operations
+        self._add_section_header(text, "Procs", PROC_GEAR_HUE)
         if self._background_procs:
             for proc in self._background_procs:
                 dummy = RunnerInfo(
@@ -301,10 +302,10 @@ class RunnersModal(CopyModeForwardingMixin, ModalScreen[RunnerJumpTarget | None]
                     raw_suffix=None,
                 )
                 self._jumpable_runners.append(_JumpableRunner(dummy, "proc"))
-                self._add_proc_entry(text, proc, "#48CAE4", hint_char=_next_hint())
+                self._add_proc_entry(text, proc, PROC_GEAR_HUE, hint_char=_next_hint())
         else:
-            self._add_empty_row(text, "No procs", "#48CAE4")
-        self._add_section_footer(text, "#48CAE4")
+            self._add_empty_row(text, "No procs", PROC_GEAR_HUE)
+        self._add_section_footer(text, PROC_GEAR_HUE)
 
         return text
 
@@ -527,7 +528,7 @@ class RunnersModal(CopyModeForwardingMixin, ModalScreen[RunnerJumpTarget | None]
         # Type badge with status-dependent background color
         match proc.status:
             case "running":
-                badge_style = "bold #1a1a1a on #48CAE4"
+                badge_style = f"bold #1a1a1a on {PROC_GEAR_HUE}"
                 badge_text = f"(bg:{proc.proc_type})"
             case "success":
                 badge_style = "bold #1a1a1a on #2ECC71"

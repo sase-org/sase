@@ -159,7 +159,7 @@ async def test_config_center_procs_tab_filtered_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The teal filter bar, its highlighted closed display, and `N/M shown`."""
+    """The blue filter bar, its highlighted closed display, and `N/M shown`."""
     patch_startup_loaders(monkeypatch)
     _patch_macro_sources(monkeypatch)
     _patch_plugins_catalog(monkeypatch)

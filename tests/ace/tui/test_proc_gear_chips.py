@@ -37,7 +37,7 @@ def test_gear_chip_nonzero_renders_filled_chip_regardless_of_hide_at_zero() -> N
 
 
 def test_gear_hues_match_the_canonical_top_bar_lanes() -> None:
-    assert PROC_GEAR_HUE == "#48CAE4"
+    assert PROC_GEAR_HUE == "#5F87FF"
     assert MONITOR_GEAR_HUE == "#FFAF5F"
 
 
