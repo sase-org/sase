@@ -120,6 +120,44 @@ def test_publish_generation_runs_on_schedule_or_manual_dispatch_only() -> None:
     assert jobs["publish"]["if"] == publish_if
 
 
+def test_publish_builds_the_release_please_tagged_commit() -> None:
+    workflow = _load_publish_workflow()
+    jobs = workflow["jobs"]
+
+    assert jobs["release"]["outputs"]["sha"] == (
+        "${{ steps.release3.outputs.sha || steps.release2.outputs.sha || "
+        "steps.release1.outputs.sha || '' }}"
+    )
+
+    build_steps = jobs["build"]["steps"]
+    checkout_index = next(
+        index
+        for index, step in enumerate(build_steps)
+        if step.get("uses") == "actions/checkout@v4"
+    )
+    assert build_steps[checkout_index]["with"]["ref"] == (
+        "${{ needs.release.outputs.sha }}"
+    )
+    guard = build_steps[0]
+    assert guard["name"] == "Require the release commit"
+    assert guard["if"] == (
+        "${{ needs.release.outputs.release_created == 'true' && "
+        "needs.release.outputs.sha == '' }}"
+    )
+    assert "exit 1" in guard["run"]
+    recorded = build_steps[checkout_index + 1]
+    assert recorded["id"] == "built"
+    assert 'echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"' in recorded["run"]
+    assert jobs["build"]["outputs"] == {"sha": "${{ steps.built.outputs.sha }}"}
+
+    floor_checkout = next(
+        step
+        for step in jobs["install-smoke-core-floor"]["steps"]
+        if step.get("uses") == "actions/checkout@v4"
+    )
+    assert floor_checkout["with"]["ref"] == "${{ needs.build.outputs.sha }}"
+
+
 def test_publish_sync_release_metadata_applies_ratchet_before_lock_refresh() -> None:
     workflow = _load_publish_workflow()
     jobs = workflow["jobs"]

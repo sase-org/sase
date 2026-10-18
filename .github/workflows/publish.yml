@@ -25,6 +25,10 @@ jobs:
       pull-requests: write
     outputs:
       release_created: ${{ steps.release3.outputs.release_created || steps.release2.outputs.release_created || steps.release1.outputs.release_created || 'false' }}
+      # The commit release-please tagged. The build checks it out instead of
+      # this run's trigger commit, so commits that land between the release PR
+      # merge and this run never ship under the release's version number.
+      sha: ${{ steps.release3.outputs.sha || steps.release2.outputs.sha || steps.release1.outputs.sha || '' }}
     steps:
       - uses: googleapis/release-please-action@v5
         id: release1
@@ -127,8 +131,21 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    outputs:
+      sha: ${{ steps.built.outputs.sha }}
     steps:
+      - name: Require the release commit
+        if: ${{ needs.release.outputs.release_created == 'true' && needs.release.outputs.sha == '' }}
+        run: |
+          echo "release-please created a release but reported no release commit SHA" >&2
+          exit 1
       - uses: actions/checkout@v4
+        with:
+          # Empty on publish_existing dispatches, which build the dispatched ref.
+          ref: ${{ needs.release.outputs.sha }}
+      - name: Record the built commit
+        id: built
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
       - uses: astral-sh/setup-uv@v4
         with:
           enable-cache: true
@@ -254,6 +271,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Read the core floor from the commit the wheel was built from.
+          ref: ${{ needs.build.outputs.sha }}
       - uses: actions/download-artifact@v4
         with:
           name: dist
