@@ -9,6 +9,7 @@ import pytest
 from textual.widgets import Button, Input, OptionList
 
 from sase import workspace_provider
+from sase.ace.testing.wait import wait_for
 from sase.ace.tui.proc_observer import ObservedProc
 from sase.core.time import local_now
 from sase.ace.tui.modals.new_project_configure import NewProjectConfigure
@@ -166,9 +167,20 @@ async def test_configure_keeps_draft_when_going_back_and_ignores_printable_back(
         _select_suggested(modal)
         await pilot.pause()
         assert modal._state.stage == "configure"
-        name = modal.query_one("#new-project-configure-name", Input)
+        configure = modal.query_one(NewProjectConfigure)
+        name = configure.query_one("#new-project-configure-name", Input)
         name.value = "renamed"
-        await pilot.pause(0.4)
+        await wait_for(
+            pilot,
+            lambda: (
+                modal._state.draft is not None
+                and modal._state.draft.name == "renamed"
+                and modal._local_plan_draft == modal._state.draft
+                and not configure.query_one(
+                    "#new-project-configure-review", Button
+                ).disabled
+            ),
+        )
         assert modal._state.draft is not None
         assert modal._state.draft.name == "renamed"
 
@@ -211,7 +223,17 @@ async def test_review_back_restores_draft_and_y_stores_model_submission(
         configure = modal.query_one(NewProjectConfigure)
         name = configure.query_one("#new-project-configure-name", Input)
         name.value = "renamed"
-        await pilot.pause(0.4)
+        await wait_for(
+            pilot,
+            lambda: (
+                modal._state.draft is not None
+                and modal._state.draft.name == "renamed"
+                and modal._local_plan_draft == modal._state.draft
+                and not configure.query_one(
+                    "#new-project-configure-review", Button
+                ).disabled
+            ),
+        )
         review_button = configure.query_one("#new-project-configure-review", Button)
         assert not review_button.disabled
         await _tab_to_review(pilot, modal)

@@ -333,10 +333,25 @@ class NewProjectCreateConfigure(NewProjectCreateRenderingMixin, VerticalScroll):
 
     def _rename_target(self, raw_name: str) -> None:
         """Apply pure normalization and follow it with the project name."""
+        from textual.widgets import Input as _Input
+
         identity = normalize_create_name(
             self._workflow_type, self._draft.owner, raw_name
         )
         draft = replace(self._draft, raw_name=raw_name)
+        if not draft.project_name_edited and self.is_mounted:
+            project_input = self.query_one("#new-project-create-project-name", _Input)
+            project_id = project_input.id or ""
+            pending_project_edit = (
+                project_input.value != draft.project.name
+                and self._ignore_input_values.get(project_id) != project_input.value
+            )
+            if pending_project_edit:
+                draft = replace(
+                    draft,
+                    project=replace(draft.project, name=project_input.value),
+                    project_name_edited=True,
+                )
         if not draft.project_name_edited:
             base = identity.project_name_base or identity.name
             if base and base != draft.project.name:

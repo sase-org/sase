@@ -10,6 +10,7 @@ from textual.app import App, ComposeResult
 from textual.widgets import Static
 
 from sase import workspace_provider
+from sase.ace.testing.wait import wait_for
 from sase.workspace_provider._hookspec import (
     ParsedRepoRef,
     RepoCreationChoice,
@@ -183,4 +184,16 @@ async def enter_create_stage(pilot: Any, modal: Any, **kwargs: Any) -> None:
         account="bbugyi200",
         **kwargs,
     )
-    await pilot.pause(0.6)
+
+    def _settled() -> bool:
+        """Wait for provider setup and any seeded-name validation to finish."""
+        if modal._create_form_status == "loading":
+            return False
+        if not modal._create_identity.valid:
+            return True
+        return (
+            modal._create_availability.status != "checking"
+            and modal._create_plan_current()
+        )
+
+    await wait_for(pilot, _settled)

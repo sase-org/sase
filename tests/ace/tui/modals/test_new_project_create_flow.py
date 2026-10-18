@@ -91,15 +91,42 @@ async def test_project_name_follows_until_explicitly_edited(
         name = modal.query_one("#new-project-create-name", Input)
         project = modal.query_one("#new-project-create-project-name", Input)
         name.value = "alpha"
-        await pilot.pause(0.6)
+        await wait_for(
+            pilot,
+            lambda: (
+                modal._state.create_draft is not None
+                and modal._state.create_draft.project.name == "alpha"
+                and project.value == "alpha"
+            ),
+        )
         assert modal._state.create_draft is not None
         assert modal._state.create_draft.project.name == "alpha"
         assert project.value == "alpha"
         project.value = "custom"
-        await pilot.pause(0.6)
+        await wait_for(
+            pilot,
+            lambda: (
+                modal._state.create_draft is not None
+                and modal._state.create_draft.project_name_edited
+                and modal._state.create_draft.project.name == "custom"
+            ),
+        )
         assert modal._state.create_draft.project_name_edited
         name.value = "beta"
-        await pilot.pause(0.6)
+        await wait_for(
+            pilot,
+            lambda: (
+                modal._state.create_draft is not None
+                and modal._state.create_draft.raw_name == "beta"
+            ),
+        )
+        await wait_for(
+            pilot,
+            lambda: (
+                modal._create_availability.status == "available"
+                and modal._create_plan_current()
+            ),
+        )
         assert modal._state.create_draft.project.name == "custom"
         assert project.value == "custom"
 
@@ -118,14 +145,34 @@ async def test_owner_switch_preserves_per_owner_drafts(
         assert modal._state.create_draft.owner == "sase-org"
         assert modal._state.create_draft.visibility == "public"
         modal.query_one("#new-project-create-name", Input).value = "alpha"
-        await pilot.pause(0.6)
+        await wait_for(
+            pilot,
+            lambda: (
+                modal._state.create_draft is not None
+                and modal._state.create_draft.raw_name == "alpha"
+            ),
+        )
         modal._on_create_owner_selected("bbugyi200")
-        await pilot.pause(0.6)
+        await wait_for(
+            pilot,
+            lambda: (
+                modal._state.create_draft is not None
+                and modal._state.create_draft.owner == "bbugyi200"
+            ),
+        )
+        await wait_for(pilot, lambda: modal._create_form_status == "ready")
         assert modal._state.create_draft is not None
         assert modal._state.create_draft.owner == "bbugyi200"
         assert modal._state.create_draft.raw_name == ""
         modal._on_create_owner_selected("sase-org")
-        await pilot.pause(0.6)
+        await wait_for(
+            pilot,
+            lambda: (
+                modal._state.create_draft is not None
+                and modal._state.create_draft.owner == "sase-org"
+            ),
+        )
+        await wait_for(pilot, lambda: modal._create_form_status == "ready")
         assert modal._state.create_draft is not None
         assert modal._state.create_draft.raw_name == "alpha"
 
@@ -141,7 +188,7 @@ async def test_taken_name_offers_explicit_add_instead(
         await pilot.pause()
         await enter_create_stage(pilot, modal)
         modal.query_one("#new-project-create-name", Input).value = "taken"
-        await pilot.pause(0.6)
+        await wait_for(pilot, lambda: modal._create_availability.status == "taken")
         assert modal._create_availability.status == "taken"
         add_instead = modal.query_one("#new-project-create-add-instead", Button)
         assert add_instead.display
@@ -167,8 +214,13 @@ async def test_enter_with_available_name_creates_nothing(
         await pilot.pause()
         await enter_create_stage(pilot, modal)
         modal.query_one("#new-project-create-name", Input).value = "fresh"
-        await pilot.pause(0.6)
-        assert modal._create_availability.status == "available"
+        await wait_for(
+            pilot,
+            lambda: (
+                modal._create_availability.status == "available"
+                and modal._create_plan_current()
+            ),
+        )
         name = modal.query_one("#new-project-create-name", Input)
         name.focus()
         await pilot.press("enter")
@@ -190,7 +242,9 @@ async def test_probe_failure_never_becomes_available(
         await pilot.pause()
         await enter_create_stage(pilot, modal)
         modal.query_one("#new-project-create-name", Input).value = "new"
-        await pilot.pause(0.6)
+        await wait_for(
+            pilot, lambda: modal._create_availability.status == "unavailable"
+        )
         assert modal._create_availability.status == "unavailable"
         assert "permission denied" in modal._create_availability.reason
         assert modal.query_one("#new-project-create-review", Button).disabled
@@ -209,7 +263,7 @@ async def test_missing_form_leaves_no_confirmable_draft(
         await pilot.pause()
         await enter_create_stage(pilot, modal)
         modal.query_one("#new-project-create-name", Input).value = "new"
-        await pilot.pause(0.6)
+        await wait_for(pilot, lambda: modal._create_form_status == "unavailable")
         assert modal._create_form_status == "unavailable"
         assert modal.query_one("#new-project-create-review", Button).disabled
         status = modal.query_one("#new-project-create-status", Static)
@@ -230,6 +284,24 @@ async def test_name_collision_blocks_review_but_occupied_checkout_surfaces(
         modal.query_one(
             "#new-project-create-project-name", Input
         ).value = "existing-project"
-        await pilot.pause(0.8)
-        assert modal.query_one("#new-project-create-review", Button).disabled
+        review = modal.query_one("#new-project-create-review", Button)
+        await wait_for(
+            pilot,
+            lambda: (
+                modal._state.create_draft is not None
+                and modal._state.create_draft.raw_name == "brandnew"
+                and modal._state.create_draft.project_name_edited
+                and modal._state.create_draft.project.name == "existing-project"
+                and modal.query_one("#new-project-create-project-name", Input).value
+                == "existing-project"
+            ),
+        )
+        assert review.disabled
+        await wait_for(
+            pilot,
+            lambda: (
+                review.disabled
+                and "existing-project" in (modal._create_identity_reason() or "")
+            ),
+        )
         assert "existing-project" in (modal._create_identity_reason() or "")

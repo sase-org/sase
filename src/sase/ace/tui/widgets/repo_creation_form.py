@@ -14,6 +14,7 @@ from rich.text import Text
 from textual import events
 from textual.app import ComposeResult
 from textual.containers import Vertical, VerticalScroll
+from textual.css.query import NoMatches
 from textual.message import Message
 from textual.widgets import Button, Checkbox, RadioButton, RadioSet, Static, TextArea
 
@@ -141,6 +142,7 @@ class RepoCreationFormWidget(VerticalScroll):
                     self._raw_values[name] = str(value)
         self._advanced_expanded = False
         self._synchronizing = False
+        self._controls_ready = False
         self._evaluation: dict[str, Any] = {}
         self._evaluate()
 
@@ -242,7 +244,7 @@ class RepoCreationFormWidget(VerticalScroll):
         for name, value in values.items():
             if name in self._fields_by_name:
                 updated[name] = str(value)
-        if self.is_mounted:
+        if self._controls_ready:
             focused = self.app.focused
             if isinstance(focused, (SingleLineVimTextArea, VimTextArea)):
                 field_name = self._field_name_from_id(focused.id)
@@ -250,7 +252,7 @@ class RepoCreationFormWidget(VerticalScroll):
                     updated[field_name] = self._editor_text(focused)
         self._synchronizing = True
         try:
-            if self.is_mounted:
+            if self._controls_ready:
                 for index, field in enumerate(self._fields):
                     if updated[field.name] == self._raw_values[field.name]:
                         continue
@@ -263,7 +265,19 @@ class RepoCreationFormWidget(VerticalScroll):
         self._recompute_and_notify()
 
     def on_mount(self) -> None:
-        self.call_after_refresh(self._refresh_evaluation_view)
+        self.call_after_refresh(self._mark_controls_ready)
+
+    def _mark_controls_ready(self) -> None:
+        try:
+            self.query_one("#repo-creation-form-errors", Static)
+            for index in range(len(self._fields)):
+                self.query_one(f"#repo-creation-form-status-{index}", Static)
+                self.query_one(f"#repo-creation-form-value-{index}")
+        except NoMatches:
+            self.call_after_refresh(self._mark_controls_ready)
+            return
+        self._controls_ready = True
+        self._refresh_evaluation_view()
 
     def on_key(self, event: events.Key) -> None:
         if event.character != "a":
@@ -448,7 +462,7 @@ class RepoCreationFormWidget(VerticalScroll):
 
     def _recompute_and_notify(self) -> None:
         self._evaluate()
-        if self.is_mounted:
+        if self._controls_ready:
             self._refresh_evaluation_view()
         self.post_message(self.Changed())
 
@@ -472,7 +486,7 @@ class RepoCreationFormWidget(VerticalScroll):
             }
 
     def _refresh_evaluation_view(self) -> None:
-        if not self.is_mounted:
+        if not self._controls_ready:
             return
         evaluated = {
             str(item.get("name") or ""): item
@@ -517,7 +531,7 @@ class RepoCreationFormWidget(VerticalScroll):
         self._apply_advanced_visibility()
 
     def _apply_advanced_visibility(self) -> None:
-        if not self.is_mounted:
+        if not self._controls_ready:
             return
         advanced_count = sum(field.group == "advanced" for field in self._fields)
         toggle = (

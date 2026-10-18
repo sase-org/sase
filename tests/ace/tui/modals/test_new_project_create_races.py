@@ -64,24 +64,58 @@ async def test_late_form_completion_keeps_current_owner_edits(
             owners=["sase-org", "bbugyi200"],
             account="bbugyi200",
         )
-        await pilot.pause()
+        await wait_for(pilot, lambda: describe_calls == ["sase-org"])
         assert describe_calls == ["sase-org"]
-        modal.query_one("#new-project-create-name", Input).value = "alpha"
+        name = modal.query_one("#new-project-create-name", Input)
+        name.value = "alpha"
+        await wait_for(
+            pilot,
+            lambda: (
+                modal._state.create_draft is not None
+                and modal._state.create_draft.owner == "sase-org"
+                and modal._state.create_draft.raw_name == "alpha"
+            ),
+        )
         modal._on_create_owner_selected("bbugyi200")
-        await pilot.pause()
+        await wait_for(pilot, lambda: describe_calls == ["sase-org", "bbugyi200"])
         assert describe_calls == ["sase-org", "bbugyi200"]
+
+        name.value = "beta"
+        await wait_for(
+            pilot,
+            lambda: (
+                modal._state.create_draft is not None
+                and modal._state.create_draft.owner == "bbugyi200"
+                and modal._state.create_draft.raw_name == "beta"
+            ),
+        )
         gates["bbugyi200"].set()
-        await pilot.pause(0.5)
-        assert modal._create_form is not None
-        assert modal._create_form.namespace == "bbugyi200"
-        assert modal._state.create_draft is not None
-        assert modal._state.create_draft.owner == "bbugyi200"
+        await wait_for(
+            pilot,
+            lambda: (
+                modal._create_form is not None
+                and modal._create_form.namespace == "bbugyi200"
+                and modal._state.create_draft is not None
+                and modal._state.create_draft.owner == "bbugyi200"
+                and modal._state.create_draft.raw_name == "beta"
+            ),
+        )
         gates["sase-org"].set()
-        await pilot.pause(0.5)
+        await wait_for(
+            pilot,
+            lambda: (
+                not any(
+                    task.get_name() == "new-project-create-form:gh:sase-org"
+                    for task in getattr(modal, "_new_project_create_tasks", ())
+                )
+            ),
+        )
         assert modal._create_form is not None
         assert modal._create_form.namespace == "bbugyi200"
         assert modal._state.create_draft is not None
         assert modal._state.create_draft.owner == "bbugyi200"
+        assert modal._state.create_draft.raw_name == "beta"
+        assert name.value == "beta"
 
 
 async def test_stale_probe_and_preview_results_are_discarded(
@@ -95,8 +129,13 @@ async def test_stale_probe_and_preview_results_are_discarded(
         await pilot.pause()
         await enter_create_stage(pilot, modal)
         modal.query_one("#new-project-create-name", Input).value = "settled"
-        await pilot.pause(0.8)
-        assert modal._create_availability.status == "available"
+        await wait_for(
+            pilot,
+            lambda: (
+                modal._create_availability.status == "available"
+                and modal._create_plan_current()
+            ),
+        )
         settled_plan = dict(modal._create_plan)
         assert settled_plan
         draft = modal._state.create_draft
@@ -148,8 +187,7 @@ async def test_back_cancels_pending_work(
             owners=["sase-org"],
             account="",
         )
-        await pilot.pause(0.8)
-        assert "sase-org/typed" in probe_calls
+        await wait_for(pilot, lambda: "sase-org/typed" in probe_calls)
 
 
 async def test_unmount_cancels_pending_timer(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -230,7 +268,7 @@ async def test_bare_git_entry_supports_empty_namespace(
         app.push_screen(modal)
         await pilot.pause()
         modal.enter_create_configure(workflow_type="git", owners=[])
-        await pilot.pause(0.6)
+        await wait_for(pilot, lambda: modal._create_form_status == "ready")
         assert modal._state.create_draft is not None
         assert modal._state.create_draft.owner == ""
         assert modal._state.create_draft.visibility == ""
