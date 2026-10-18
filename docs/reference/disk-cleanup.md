@@ -41,12 +41,12 @@ statistics cache is rebuildable from source repositories. Its row reports its si
 rebuildable status without offering a reclaim command; it is not one of the
 `sase disk reap` cleanup passes.
 
-`sase disk reap` runs, or previews, the owner passes in order: managed-temp reaping,
-proc runtime cleanup, ACE-run artifact retention (the same owner as
-`sase artifact prune-runs`), and workspace Git object compaction. It exits `1` when any
-owner step is blocked, fails, or cannot report a trustworthy result, and `0` otherwise.
-Because ACE-run deletion is currently preview-only, the artifact-run step reports
-`blocked` under `--apply`.
+`sase disk reap` previews the owner passes; `--apply` runs them. Their order is
+managed-temp reaping, proc runtime cleanup, [tool run](glossary.md#tool-run) retention,
+ACE-run artifact retention (the same owner as `sase artifact prune-runs`), and workspace
+Git object compaction. It exits `1` when any owner step is blocked, fails, or cannot
+report a trustworthy result, and `0` otherwise. Because ACE-run deletion is currently
+preview-only, the artifact-run step reports `blocked` under `--apply`.
 
 ## Related
 

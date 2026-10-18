@@ -180,11 +180,12 @@ Bare `sase repo` defaults to `sase repo list`. `sase repo list --all` includes e
 and disabled projects at primary workspace context, while `sase repo log` remains
 project-scoped.
 
-The JSON inventory's `declared_by` field identifies a linked repository's configuration
-source: `project` for the selected project's local config, or `user` for the shared
-default, plugin, user, and overlay layers. Other repository kinds have no declaration
-source. Selecting a different project also selects that project's local configuration;
-see [Repository configuration behavior](../config/repositories-behavior.md#repos).
+In `sase repo list --json`, a linked repository's `declared_by` field is `project` for
+project-local configuration or `user` for any shared configuration layer (bundled
+defaults, plugins, user config, or overlays). Other repository kinds have
+`declared_by: null`. Selecting a different project also selects that project's local
+configuration; see
+[Repository configuration behavior](../config/repositories-behavior.md#repos).
 
 ## `sase workspace` CLI
 

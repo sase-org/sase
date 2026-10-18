@@ -17,12 +17,12 @@ audit event. SASE materializes a hidden sibling-state ProjectSpec for the linked
 when needed. Entries can live in user config or a project-local `sase/sase.yml`; local
 entries are resolved relative to the project's primary workspace directory.
 
-Repository inventory and linked-repo resolution load the selected project's own local
-configuration, even when invoked from another checkout or from the TUI. The bundled,
-plugin, user, and selected overlay layers still apply. For example, querying project B
-from project A includes shared user-configured links and B's local links; A's local
-links do not enter B's inventory. Each project's relative paths resolve against its own
-primary workspace.
+Repository inventory and linked-repo resolution load the project-local configuration
+from the selected project's primary checkout, even when invoked from another checkout or
+from the TUI. The bundled, plugin, user, and selected overlay layers also apply. For
+example, querying project B from project A includes shared user-configured links and B's
+local links; A's local links do not enter B's inventory. Relative repository paths
+resolve against the selected project's primary checkout.
 
 Linked repositories are lazy by default. Set `auto_clone: true` for a repository that
 every launched agent needs; SASE materializes and prepares those entries before

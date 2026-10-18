@@ -36,14 +36,13 @@ sase project add <repository>
 ```
 
 Setup can write the repository's management file, commit it, and push the default
-branch. For an empty repository, setup creates the first commit, containing only
-`sase/sase.yml`, on the clone's branch and pushes it, which makes that branch the
-default. When setup succeeds in a terminal, it can offer to initialize the project
-directly.
+branch. Empty repositories can receive their first commit during
+[setup](../reference/agents/initialization.md#project-registration-and-setup). When
+setup succeeds in a terminal, it can offer to initialize the project directly.
 
 ## 3. Initialize the project
 
-Preview what initialization would change, then apply it:
+Use the registered project name for `<name>`. Preview initialization, then apply it:
 
 ```bash
 sase init -p <name> --check

@@ -71,35 +71,14 @@ batched chezmoi deploy. The selector cannot be combined with `--all`,
 `--enable-project-memory`, or an explicit init subcommand. An unknown or non-enabled
 name fails immediately and lists the valid names.
 
-`sase project add REF` registers an existing repository before this initialization step.
-When its setup succeeds in a terminal, add can offer `sase init -p KEY` directly. This
-handoff uses the normal initializer, including its per-sidecar confirmation: accepting
-the add command does not approve creation of a missing remote sidecar.
-
-When project add or create includes SASE setup, it sets `is_sase_managed: true` in
-`sase/sase.yml`, preserves other configuration, and commits and pushes that file. The
-management commit contains only that file. For an empty origin with no branches, setup
-can create the repository's first commit without a README or an existing default-branch
-tip. It uses the branch recorded by an interrupted setup, otherwise the provider's
-reported default branch, otherwise the clone's current branch. Setup verifies the pushed
-commit and configures the local branch to track it.
-
-Setup records its progress so repeating the same add or create command can resume a
-completed write, commit, or push. A failed push preserves the local marker commit. Setup
-stops if origin gains unrelated commits during the operation, if the checkout has
-unpublished commits, or if the management file has local edits outside the recorded
-setup. Resolve the reported condition before retrying. If creation succeeds but setup
-fails, the repository remains available for that retry. The generated
-[project CLI reference](../cli/project.md) lists the add and create options.
-
-`--check -j/--json` writes exactly one JSON document to stdout instead of the Rich
-report. The payload carries `schema_version` (currently `1`) and a top-level `status` of
-`current`, `drift`, or `blocked` so callers can distinguish drift from blockers without
-using the exit code — both still exit `1`. Each project entry includes name, display
-name, an `InitRunStatus`-style per-project status, `unavailable_reason` when inventory
-held the project back, and per-planner rows with label, summary, change and runnable
-flags, a `requires_tty` marker, warnings, blockers, and actions (including `new_content`
-so a consumer can render full diffs). `--json` requires `--check`.
+`sase init --check --json` writes exactly one JSON document to stdout instead of the
+Rich report. The payload carries `schema_version` (currently `1`) and a top-level
+`status` of `current`, `drift`, or `blocked` so callers can distinguish drift from
+blockers without using the exit code — both still exit `1`. Each project entry includes
+name, display name, an `InitRunStatus`-style per-project status, `unavailable_reason`
+when inventory held the project back, and per-planner rows with label, summary, change
+and runnable flags, a `requires_tty` marker, warnings, blockers, and actions (including
+`new_content` so a consumer can render full diffs). `--json` requires `--check`.
 
 The [Admin Center Projects tab](../tui/projects-tab.md#initialize-from-the-projects-tab)
 can drive the same flow: `i` initializes the marked or highlighted projects and `I`
@@ -164,6 +143,34 @@ compatibility alias for `sase config init`, `sase init repo` is an alias for
 `sase init service` remains a compatibility alias for `sase service init` — except that
 the alias has no preview step or `--yes` flag: unless you pass `--check`, it applies the
 service plan immediately.
+
+## Project registration and setup
+
+`sase project add REF` registers an existing repository; `sase project create REF`
+creates one before registering it. When the plan includes SASE setup, registration is
+followed by setting `is_sase_managed: true` in `sase/sase.yml`, preserving other
+configuration, and committing and pushing that file. This management commit changes only
+`sase/sase.yml`. An already-committed marker confirmed on origin needs no new commit.
+
+For an empty `origin` remote with no branches, setup can create the first commit,
+containing only `sase/sase.yml`; no README or earlier commit is required. The branch
+comes from the interrupted setup's recorded branch, otherwise the provider's reported
+default branch, otherwise the checkout's current branch. After verifying that the remote
+branch points to the commit, setup fills in missing upstream settings for the local
+branch.
+
+Repeating the same add or create command resumes from recorded progress, recognizing a
+completed file write, commit, or push. A failed push preserves the local management
+commit for retry. Unrelated local commits, unexpected changes to the target remote
+history, or edits to `sase/sase.yml` outside the recorded setup stop the operation. The
+error identifies the condition to resolve before retrying. A repository created before
+setup fails remains available for that retry.
+
+After successful setup in an interactive terminal, add or create can offer
+`sase init -p NAME`. This separate initialization step prepares memory, sidecars, and
+the other managed resources described above. Its per-sidecar creation confirmations
+still apply. The generated [project CLI reference](../cli/project.md) lists the add and
+create options.
 
 ## Commands
 

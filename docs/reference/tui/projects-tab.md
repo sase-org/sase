@@ -95,8 +95,8 @@ account, and the first available owner.
 A partial add or create stops at **Failed**, even if a project record or repository
 already exists. The failure view shows the setup error and any recovery command; it
 does not offer initialization until setup succeeds. Empty repositories can receive a
-first commit containing the SASE management file during setup; see
-[Initialization](../agents/initialization.md).
+first commit containing `sase/sase.yml` during setup; see
+[Project registration and setup](../agents/initialization.md#project-registration-and-setup).
 
 Source uses the discovery groups from `sase project suggest`: RESUME, ON THIS MACHINE,
 SUGGESTED, LINKED TO YOUR PROJECTS, and DISABLED PROJECTS. Choosing a running RESUME
