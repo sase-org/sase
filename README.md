@@ -79,7 +79,7 @@ SASE's default provider autodetection never selects Muse or Grok from `PATH`, be
 those executable names are generic; select either explicitly with a provider/model
 directive. Model-alias routing is a separate mechanism: whichever shipped size aliases
 currently target Muse or Grok can select them (see the generated
-[shipped size-alias defaults](https://sase.sh/reference/providers/models/#implicit-role-aliases).
+[shipped size-alias defaults](https://sase.sh/reference/providers/models/#implicit-role-aliases)).
 The `+home` examples below run in SASE's built-in `home` sandbox, not in your current
 directory.
 

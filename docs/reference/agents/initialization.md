@@ -76,6 +76,22 @@ When its setup succeeds in a terminal, add can offer `sase init -p KEY` directly
 handoff uses the normal initializer, including its per-sidecar confirmation: accepting
 the add command does not approve creation of a missing remote sidecar.
 
+When project add or create includes SASE setup, it sets `is_sase_managed: true` in
+`sase/sase.yml`, preserves other configuration, and commits and pushes that file. The
+management commit contains only that file. For an empty origin with no branches, setup
+can create the repository's first commit without a README or an existing default-branch
+tip. It uses the branch recorded by an interrupted setup, otherwise the provider's
+reported default branch, otherwise the clone's current branch. Setup verifies the pushed
+commit and configures the local branch to track it.
+
+Setup records its progress so repeating the same add or create command can resume a
+completed write, commit, or push. A failed push preserves the local marker commit. Setup
+stops if origin gains unrelated commits during the operation, if the checkout has
+unpublished commits, or if the management file has local edits outside the recorded
+setup. Resolve the reported condition before retrying. If creation succeeds but setup
+fails, the repository remains available for that retry. The generated
+[project CLI reference](../cli/project.md) lists the add and create options.
+
 `--check -j/--json` writes exactly one JSON document to stdout instead of the Rich
 report. The payload carries `schema_version` (currently `1`) and a top-level `status` of
 `current`, `drift`, or `blocked` so callers can distinguish drift from blockers without
@@ -390,12 +406,12 @@ and bundled skill list.
 
 Bare `sase init` is the onboarding coordinator for SASE-managed resources. It runs
 read-only planners for config (owner identity), machine enrollment, memory,
-repositories, and skills, in that order, prints a grouped summary, and prompts once per
-initializer that needs work when stdin is interactive. Non-interactive runs never
-prompt; they print the drift summary and ask the caller to rerun with `--yes`. That flag
-runs needed initializers but cannot authorize creation of a missing provider sidecar
-repository, which always requires its own interactive `y`/`yes` response. The memory
-planner (which owns agent-document initialization) only generates managed project
+repositories, service, and skills, in that order, prints a grouped summary, and prompts
+once per initializer that needs work when stdin is interactive. Non-interactive runs
+never prompt; they print the drift summary and ask the caller to rerun with `--yes`.
+That flag runs needed initializers but cannot authorize creation of a missing provider
+sidecar repository, which always requires its own interactive `y`/`yes` response. The
+memory planner (which owns agent-document initialization) only generates managed project
 `AGENTS.md` from bare `sase init` when the current project's own `sase/sase.yml` sets
 `is_sase_managed: true`. The repository planner uses that same local marker and skips
 unmanaged repositories before provider work. Neither planner infers project ownership

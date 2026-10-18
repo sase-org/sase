@@ -54,7 +54,7 @@ Initialization walks the config, machine, memory, repository, service, and skill
 in order. Confirm everything is current:
 
 ```bash
-sase init --check
+sase init -p <name> --check
 ```
 
 SASE reports that it is initialized and no steps need to run.

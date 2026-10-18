@@ -92,6 +92,12 @@ account, and the first available owner.
    terminal, then checks the plan again. If repository creation succeeded before later
    setup failed, the repository is kept and retry resumes setup.
 
+A partial add or create stops at **Failed**, even if a project record or repository
+already exists. The failure view shows the setup error and any recovery command; it
+does not offer initialization until setup succeeds. Empty repositories can receive a
+first commit containing the SASE management file during setup; see
+[Initialization](../agents/initialization.md).
+
 Source uses the discovery groups from `sase project suggest`: RESUME, ON THIS MACHINE,
 SUGGESTED, LINKED TO YOUR PROJECTS, and DISABLED PROJECTS. Choosing a running RESUME
 entry opens its existing proc in Procs; an interrupted entry opens a resume plan in
