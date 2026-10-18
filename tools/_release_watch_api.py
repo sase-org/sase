@@ -35,6 +35,7 @@ EXIT_CODES = {
     "WATCHER_BROKEN": 16,
     "MASTER_GATE_RED": 17,
     "STOPPED": 18,
+    "CORE_CI_RED": 19,
 }
 IN_FLIGHT = frozenset({"queued", "in_progress", "waiting", "pending", "requested"})
 BAD_CONCLUSIONS = frozenset(
@@ -42,15 +43,38 @@ BAD_CONCLUSIONS = frozenset(
 )
 GOOD_CONCLUSIONS = frozenset({"success", "skipped", "neutral"})
 TERMINAL_CONCLUSIONS = GOOD_CONCLUSIONS | BAD_CONCLUSIONS
-SIGNALS = ("pypi", "release_pr", "full_ci", "master_gate", "publish", "core_pypi")
+SIGNALS = (
+    "pypi",
+    "release_pr",
+    "full_ci",
+    "master_gate",
+    "publish",
+    "core_pypi",
+    "core_pr",
+)
+CORE_REPO = "sase-org/sase-core"
+CORE_RELEASE_WORKFLOW = "release-plz.yml"
+CORE_CI_RED_GRACE = 45 * 60.0
+CORE_CUT_COOLDOWN = 90 * 60.0
+CORE_CUT_MAX_DISPATCHES = 3
+_CORE_RELEASE_BRANCH_RE = re.compile(
+    r"^release-plz-\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}Z$"
+)
+_CORE_RELEASE_TITLE_RE = re.compile(r"^chore: release v(\d+\.\d+\.\d+)$")
+_CHECK_STATE_CONCLUSIONS = {
+    "SUCCESS": "success",
+    "FAILURE": "failure",
+    "ERROR": "failure",
+    "PENDING": "pending",
+    "EXPECTED": "pending",
+}
+_RUN_FIELDS = "databaseId,headSha,status,conclusion,createdAt,updatedAt,url"
 GH_TIMEOUT = 30
 HTTP_TIMEOUT = 20
 PROCESS_TIMEOUT = 300
 LOG_EXCERPT_LIMIT = 1800
 _ANSI_CSI_RE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
-_VISUAL_REPORT_STATUS_RE = re.compile(
-    r"^SASE_VISUAL_REPORT_STATUS=([A-Za-z0-9_-]+)$"
-)
+_VISUAL_REPORT_STATUS_RE = re.compile(r"^SASE_VISUAL_REPORT_STATUS=([A-Za-z0-9_-]+)$")
 _STABLE_CORE_VERSION_RE = re.compile(
     r"(\d+)\.(\d+)\.(\d+)(?:\.post\d+)?(?:\+[A-Za-z0-9]+(?:[-_.][A-Za-z0-9]+)*)?",
     re.IGNORECASE,
@@ -89,6 +113,7 @@ class WatchOptions:
     await_core_version: str | None = None
     max_red_gate_minutes: float = 120.0
     no_dispatch: bool = False
+    dispatch_core_cut: bool = False
 
 
 @dataclass(frozen=True)
@@ -103,6 +128,7 @@ class WorkflowRun:
     jobs: tuple[tuple[str, str | None], ...] = ()
     failed_excerpt: str = ""
     visual_golden_drift: bool = False
+    event: str = ""
 
     @property
     def is_in_flight(self) -> bool:
@@ -155,6 +181,70 @@ class ReleasePullRequest:
 
 
 @dataclass(frozen=True)
+class CoreCheck:
+    name: str
+    status: str
+    url: str
+
+
+@dataclass(frozen=True)
+class CoreReleasePullRequest:
+    number: int
+    title: str
+    version: str
+    head_sha: str
+    url: str
+    checks: tuple[CoreCheck, ...]
+
+    @property
+    def failed_checks(self) -> tuple[CoreCheck, ...]:
+        return tuple(check for check in self.checks if check.status in BAD_CONCLUSIONS)
+
+    @property
+    def pending_checks(self) -> tuple[CoreCheck, ...]:
+        return tuple(
+            check for check in self.checks if check.status not in TERMINAL_CONCLUSIONS
+        )
+
+    @property
+    def ci_state(self) -> str:
+        """Classify the head's checks: no_checks, pending, failing, red, or green.
+
+        ``failing`` has a failed check while others still run; ``red`` means
+        every check completed and at least one failed.
+        """
+        if not self.checks:
+            return "no_checks"
+        failed = bool(self.failed_checks)
+        if self.pending_checks:
+            return "failing" if failed else "pending"
+        return "red" if failed else "green"
+
+
+@dataclass(frozen=True)
+class CoreReleaseState:
+    """The sase-core release-plz PR and recent Release-plz runs.
+
+    ``active`` is False when the watch is not waiting on core, in which case
+    nothing was read.
+    """
+
+    active: bool = False
+    pr: CoreReleasePullRequest | None = None
+    runs: tuple[WorkflowRun, ...] = ()
+
+    @property
+    def cut_in_flight(self) -> bool:
+        return any(run.is_in_flight for run in self.runs)
+
+    def dispatched_within(self, now: datetime, window: timedelta) -> bool:
+        return any(
+            run.event == "workflow_dispatch" and now - run.created_at < window
+            for run in self.runs
+        )
+
+
+@dataclass(frozen=True)
 class Snapshot:
     pypi_versions: tuple[str, ...]
     release_pr: ReleasePullRequest | None
@@ -165,6 +255,7 @@ class Snapshot:
     core_version: str
     core_uploaded_at: datetime
     ci_watch_reason: str
+    core_release: CoreReleaseState | None = None
 
     @property
     def fixed_runs(self) -> tuple[WorkflowRun, ...]:
@@ -215,6 +306,7 @@ class Snapshot:
                 else f"{pub.run_id}:{pub.conclusion}"
             ),
             "core_pypi": f"{self.core_version}@{iso_utc(self.core_uploaded_at)}",
+            "core_pr": render_core_state(self.core_release),
         }
 
 
@@ -226,6 +318,18 @@ class SignalFailure:
 
 def iso_utc(value: datetime) -> str:
     return value.astimezone(UTC).isoformat(timespec="seconds").replace("+00:00", "Z")
+
+
+def render_core_state(state: CoreReleaseState | None) -> str:
+    if state is None or not state.active:
+        return "off"
+    pr = state.pr
+    if pr is None:
+        return "none"
+    item = f"#{pr.number}:v{pr.version}:{pr.head_sha[:12]}:{pr.ci_state}"
+    if state.cut_in_flight:
+        item += ":cut_in_flight"
+    return item
 
 
 def _parse_datetime(value: object, field_name: str) -> datetime:
@@ -295,9 +399,7 @@ def parse_bead_closed(output: str, bead_id: str) -> bool | None:
         return None
     first_line = text.splitlines()[0]
     head, _, _ = first_line.partition(bead_id)
-    if "✓" in head or any(
-        status in first_line for status in _BEAD_CLOSED_STATUSES
-    ):
+    if "✓" in head or any(status in first_line for status in _BEAD_CLOSED_STATUSES):
         return True
     if any(status in first_line for status in _BEAD_OPEN_STATUSES):
         return False
@@ -307,8 +409,8 @@ def parse_bead_closed(output: str, bead_id: str) -> bool | None:
 def parse_args(argv: Sequence[str] | None = None) -> WatchOptions:
     parser = _WatchArgumentParser(
         description=(
-            "Poll the sase release signals, dispatch only the guarded CI/Publish actions, "
-            "and write a final evidence verdict."
+            "Poll the sase release signals, dispatch only the guarded "
+            "CI/Publish/core-cut actions, and write a final evidence verdict."
         ),
     )
     parser.add_argument(
@@ -327,7 +429,19 @@ def parse_args(argv: Sequence[str] | None = None) -> WatchOptions:
         help=(
             "Keep watching while published sase-core-rs is below this stable "
             "X.Y.Z version; suppress CORE_FLOOR_BLOCKED from older floor "
-            "evidence until it is published"
+            "evidence until it is published; read the sase-core release PR "
+            "and stop with CORE_CI_RED when its checks stay red"
+        ),
+    )
+    parser.add_argument(
+        "--dispatch-core-cut",
+        action="store_true",
+        help=(
+            "While awaiting core, dispatch sase-core's Release-plz cut "
+            "(dry_run=false) when the core release PR has no failed check, "
+            "no run is in flight, and none was dispatched in the last 90 "
+            f"minutes (at most {CORE_CUT_MAX_DISPATCHES} per watch); "
+            "requires --await-core-version"
         ),
     )
     parser.add_argument(
@@ -400,6 +514,8 @@ def parse_args(argv: Sequence[str] | None = None) -> WatchOptions:
         r"[0-9]+\.[0-9]+\.[0-9]+", ns.await_core_version
     ):
         parser.error("--await-core-version must be a stable X.Y.Z version")
+    if ns.dispatch_core_cut and ns.await_core_version is None:
+        parser.error("--dispatch-core-cut requires --await-core-version")
     return WatchOptions(
         repo=ns.repo,
         version=ns.version,
@@ -414,6 +530,7 @@ def parse_args(argv: Sequence[str] | None = None) -> WatchOptions:
         await_core_version=ns.await_core_version,
         max_red_gate_minutes=ns.max_red_gate_minutes,
         no_dispatch=ns.no_dispatch,
+        dispatch_core_cut=ns.dispatch_core_cut,
     )
 
 
@@ -593,6 +710,7 @@ def parse_run(raw: object, where: str) -> WorkflowRun:
         obj.get("updatedAt", obj.get("updated_at")), f"{where}.updated_at"
     )
     url = _required_str(obj, "url", where)
+    event = _optional_str(obj.get("event"), f"{where}.event")
     return WorkflowRun(
         run_id,
         sha,
@@ -601,6 +719,7 @@ def parse_run(raw: object, where: str) -> WorkflowRun:
         created,
         updated,
         url,
+        event=(event or "").strip().lower(),
     )
 
 
@@ -690,13 +809,7 @@ def _parse_release_pr(
             raise ValueError(f"release PR statusCheckRollup[{index}] has no name")
         conclusion = check.get("conclusion")
         if conclusion is None and isinstance(check.get("state"), str):
-            conclusion = {
-                "SUCCESS": "success",
-                "FAILURE": "failure",
-                "ERROR": "failure",
-                "PENDING": "pending",
-                "EXPECTED": "pending",
-            }.get(check["state"].upper(), "unknown")
+            conclusion = _CHECK_STATE_CONCLUSIONS.get(check["state"].upper(), "unknown")
         if conclusion is not None and not isinstance(conclusion, str):
             raise ValueError(f"release PR check {name} has invalid conclusion")
         checks[name] = conclusion.lower() if conclusion else "pending"
@@ -718,6 +831,95 @@ def _parse_release_pr(
         head_sha,
         head_created_at,
         url,
+        checks,
+    )
+
+
+def _core_check(check: Mapping[str, Any], where: str) -> CoreCheck:
+    name = check.get("name", check.get("context"))
+    if not isinstance(name, str) or not name:
+        raise ValueError(f"{where} has no name")
+    url = check.get("detailsUrl", check.get("targetUrl"))
+    if url is not None and not isinstance(url, str):
+        raise ValueError(f"{where} has an invalid url")
+    conclusion = check.get("conclusion")
+    if not conclusion and isinstance(check.get("state"), str):
+        conclusion = _CHECK_STATE_CONCLUSIONS.get(check["state"].upper(), "unknown")
+    if conclusion is not None and not isinstance(conclusion, str):
+        raise ValueError(f"{where} check {name} has invalid conclusion")
+    status = check.get("status")
+    if isinstance(status, str) and status.upper() != "COMPLETED":
+        conclusion = "pending"
+    return CoreCheck(
+        name, conclusion.lower() if conclusion else "pending", url or "no url"
+    )
+
+
+def _parse_core_checks(raw_checks: list[Any], where: str) -> tuple[CoreCheck, ...]:
+    """Parse a rollup, keeping only the latest entry per workflow and check.
+
+    A PR collects one entry per workflow run, so a re-run or title edit
+    repeats the same check name; an unfinished re-run outranks older results.
+    """
+    latest: dict[tuple[str, str], tuple[tuple[bool, str], CoreCheck]] = {}
+    for index, raw in enumerate(raw_checks):
+        entry = _mapping(raw, f"{where}[{index}]")
+        check = _core_check(entry, f"{where}[{index}]")
+        workflow = entry.get("workflowName")
+        started = entry.get("startedAt")
+        order = (
+            check.status not in TERMINAL_CONCLUSIONS,
+            started if isinstance(started, str) else "",
+        )
+        key = (workflow if isinstance(workflow, str) else "", check.name)
+        if key not in latest or order >= latest[key][0]:
+            latest[key] = (order, check)
+    return tuple(check for _order, check in latest.values())
+
+
+def parse_core_release_pr(payload: object) -> CoreReleasePullRequest | None:
+    """Pick the open release-plz release PR out of ``gh pr list`` output.
+
+    The branch and title shapes match the guard sase-core's own merge job uses
+    before it touches a PR. Returns None when no open PR matches and raises
+    ValueError when several do.
+    """
+    rows = _list(payload, "core release PR list")
+    candidates: list[Mapping[str, Any]] = []
+    for index, raw in enumerate(rows):
+        pr = _mapping(raw, f"core release PR list[{index}]")
+        branch = pr.get("headRefName")
+        title = pr.get("title")
+        if (
+            isinstance(branch, str)
+            and isinstance(title, str)
+            and _CORE_RELEASE_BRANCH_RE.fullmatch(branch)
+            and _CORE_RELEASE_TITLE_RE.fullmatch(title)
+        ):
+            candidates.append(pr)
+    if len(candidates) > 1:
+        numbers = ", ".join(f"#{pr.get('number')}" for pr in candidates)
+        raise ValueError(f"found {len(candidates)} open core release PRs: {numbers}")
+    if not candidates:
+        return None
+    pr = candidates[0]
+    number = pr.get("number")
+    if not isinstance(number, int) or isinstance(number, bool):
+        raise ValueError("core release PR number must be an integer")
+    title = _required_str(pr, "title", "core release PR")
+    title_match = _CORE_RELEASE_TITLE_RE.fullmatch(title)
+    assert title_match is not None
+    raw_checks = pr.get("statusCheckRollup")
+    checks = _parse_core_checks(
+        [] if raw_checks is None else _list(raw_checks, "core release PR rollup"),
+        "core release PR rollup",
+    )
+    return CoreReleasePullRequest(
+        number,
+        title,
+        title_match.group(1),
+        _required_str(pr, "headRefOid", "core release PR").lower(),
+        _required_str(pr, "url", "core release PR"),
         checks,
     )
 
@@ -835,9 +1037,24 @@ class GithubReader:
     get_json: Callable[[str, float], object] = _http_json
     http_timeout: float = HTTP_TIMEOUT
     cached_gate_runs: list[WorkflowRun] = field(default_factory=list, repr=False)
+    await_core_version: str | None = None
+    core_gh: GhClient | None = None
+    published_core: str | None = field(default=None, repr=False)
+
+    def _core_client(self) -> GhClient:
+        if self.core_gh is None:
+            self.core_gh = GhClient(
+                CORE_REPO,
+                runner=getattr(self.gh, "runner", run_process),
+                executable=getattr(self.gh, "executable", "gh"),
+                timeout=getattr(self.gh, "timeout", GH_TIMEOUT),
+            )
+        return self.core_gh
 
     def validate(self) -> None:
         self.gh.validate()
+        if self.await_core_version is not None:
+            self._core_client().text("workflow", "view", CORE_RELEASE_WORKFLOW)
 
     def _pypi(self) -> tuple[str, ...]:
         data = self.get_json("https://pypi.org/pypi/sase/json", self.http_timeout)
@@ -849,10 +1066,56 @@ class GithubReader:
             "https://pypi.org/pypi/sase-core-rs/json", self.http_timeout
         )
         _releases, version, upload = _parse_pypi(data, "sase-core-rs")
+        self.published_core = version
         return version, upload
 
+    def _core_release(self) -> CoreReleaseState:
+        """Read the core release PR and Release-plz runs while awaiting core.
+
+        Reads nothing, and reports an inactive state, when the watch does not
+        wait on core or the published core already meets the requirement.
+        """
+        required = self.await_core_version
+        published = self.published_core
+        if (
+            required is None
+            or published is None
+            or core_version_meets(published, required)
+        ):
+            return CoreReleaseState()
+        core_gh = self._core_client()
+        pr = parse_core_release_pr(
+            core_gh.json(
+                "pr",
+                "list",
+                "--state",
+                "open",
+                "--limit",
+                "100",
+                "--json",
+                "number,title,headRefName,headRefOid,url,statusCheckRollup",
+            )
+        )
+        runs = self._run_list(
+            CORE_RELEASE_WORKFLOW,
+            limit=20,
+            gh=core_gh,
+            fields=_RUN_FIELDS + ",event",
+        )
+        return CoreReleaseState(
+            True,
+            pr,
+            tuple(sorted(runs, key=lambda run: run.created_at, reverse=True)),
+        )
+
     def _run_list(
-        self, workflow: str, *, branch: str | None = None, limit: int = 100
+        self,
+        workflow: str,
+        *,
+        branch: str | None = None,
+        limit: int = 100,
+        gh: GhClient | None = None,
+        fields: str = _RUN_FIELDS,
     ) -> list[WorkflowRun]:
         args = [
             "run",
@@ -862,11 +1125,11 @@ class GithubReader:
             "--limit",
             str(limit),
             "--json",
-            "databaseId,headSha,status,conclusion,createdAt,updatedAt,url",
+            fields,
         ]
         if branch:
             args.extend(["--branch", branch])
-        payload = self.gh.json(*args)
+        payload = (gh or self.gh).json(*args)
         return [
             parse_run(row, f"{workflow} run[{index}]")
             for index, row in enumerate(_list(payload, f"{workflow} runs"))
@@ -972,9 +1235,7 @@ class GithubReader:
             )
         return tuple(sorted(fixed, key=lambda run: run.updated_at, reverse=True))
 
-    def _gate_conclusion_at(
-        self, sha: str, runs: Sequence[WorkflowRun]
-    ) -> str | None:
+    def _gate_conclusion_at(self, sha: str, runs: Sequence[WorkflowRun]) -> str | None:
         matches = [run for run in runs if run.sha == sha]
         if not matches:
             return None
@@ -1063,10 +1324,13 @@ class GithubReader:
             return self._run_list("publish.yml", limit=100)
         if name == "core_pypi":
             return self._core_pypi()
+        if name == "core_pr":
+            return self._core_release()
         raise ValueError(f"unknown signal {name}")
 
     def read_signals(self) -> dict[str, object | SignalFailure]:
         result: dict[str, object | SignalFailure] = {}
+        self.published_core = None
         for name in SIGNALS:
             try:
                 result[name] = self.read_signal(name)

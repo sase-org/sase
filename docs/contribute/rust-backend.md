@@ -780,23 +780,51 @@ ends the watch with `MASTER_GATE_RED` after `-g/--max-red-gate-minutes` (default
 with no green run observed there; in-flight runs neither count as red nor reset that
 clock. When only test shards failed, the watcher first retries them once per `HEAD` SHA
 with `gh run rerun --failed`. The watcher can dispatch Full CI and Publish when its
-conditions and cooldowns permit; it never merges a PR, edits source, or dispatches a
-core Release-plz workflow. A floor-failed release-PR head that is behind current
-`master` with a non-green Master Gate at its merge-base is _stale_: the watcher reports
-no verdict, shows `release_pr=#NNN:open:stale` in the state line, and refreshes the head
-with one `publish.yml -f publish_existing=false` dispatch per master `HEAD` SHA
-(30-minute cooldown) while the Master Gate at `HEAD` is green and no Publish run is in
-flight. The refresh joins the existing Publish dedup so one dispatch serves every
-Publish reason, and a Publish run created after a refresh dispatch that leaves the head
-stale blocks any further refresh for that SHA. The `DEADLINE` detail names the stale
-head, its merge-base, and the merge-base gate result. Pass
-`-c/--await-core-version X.Y.Z` when a core release has already been requested: the
-watcher keeps polling while published `sase-core-rs` is below that stable version,
-reports `awaiting_core`, and suppresses `CORE_FLOOR_BLOCKED` from older floor evidence
-until the minimum is on PyPI. Use `--dry-run` to suppress workflow dispatch and bead
-closure while polling. It still reads live services, writes its verdict, and can run the
-temporary installation check. Use `-n/--no-dispatch` for an observe-only watch that
-still closes the bead.
+conditions and cooldowns permit; it never merges a PR or edits source, and it dispatches
+a core Release-plz workflow only when `--dispatch-core-cut` is set. A floor-failed
+release-PR head that is behind current `master` with a non-green Master Gate at its
+merge-base is _stale_: the watcher reports no verdict, shows
+`release_pr=#NNN:open:stale` in the state line, and refreshes the head with one
+`publish.yml -f publish_existing=false` dispatch per master `HEAD` SHA (30-minute
+cooldown) while the Master Gate at `HEAD` is green and no Publish run is in flight. The
+refresh joins the existing Publish dedup so one dispatch serves every Publish reason,
+and a Publish run created after a refresh dispatch that leaves the head stale blocks any
+further refresh for that SHA. The `DEADLINE` detail names the stale head, its
+merge-base, and the merge-base gate result. Pass `-c/--await-core-version X.Y.Z` when a
+core release has already been requested: the watcher keeps polling while published
+`sase-core-rs` is below that stable version, reports `awaiting_core`, and suppresses
+`CORE_FLOOR_BLOCKED` from older floor evidence until the minimum is on PyPI.
+
+While it waits on core, the watcher also reads the open `sase-org/sase-core` release-plz
+PR (head branch `release-plz-<UTC timestamp>`, title `chore: release vX.Y.Z`) and the
+recent core `Release-plz` runs, and renders them as the `core_pr=` state-line field:
+`off` when it is not waiting on core, `none` when no such PR is open, otherwise
+`#NUMBER:vVERSION:HEAD12:STATE`. `STATE` is `no_checks`, `pending`, `failing` (a failed
+check while others still run), `red` (every check completed and one failed), or `green`,
+with a `:cut_in_flight` suffix while a `Release-plz` run is active. Checks are
+deduplicated by workflow and name, keeping the newest entry, so a fixed PR title does
+not keep an old failure alive. An unreadable or ambiguous core read counts like any
+other signal: three in a row end the watch with `WATCHER_BROKEN`. The verdict evidence
+lists the core PR's checks, its failing checks with their URLs, and the `Release-plz`
+runs.
+
+When the core PR head stays `red` for 45 minutes of observation, the watch stops with
+`CORE_CI_RED`. Any check starting again, or a new head SHA, restarts that clock. The
+detail names the PR, the head SHA, and each failing check with its URL.
+
+Pass `--dispatch-core-cut` (it requires `-c/--await-core-version`) to let the watcher
+cut the core release itself instead of waiting for the daily `Release-plz` schedule. It
+runs
+`gh workflow run release-plz.yml -R sase-org/sase-core --ref master -f dry_run=false`
+when the core PR has registered checks and none has failed, no `Release-plz` run is in
+flight, and no `workflow_dispatch` run started in the last 90 minutes. It dispatches at
+most three times per watch and records `dispatched:core_cut` (or `cap:core_cut` once the
+cap is reached) in the actions. `-n/--no-dispatch` suppresses it, and `--dry-run` and
+`--once` print `would dispatch:core_cut`.
+
+Use `--dry-run` to suppress workflow dispatch and bead closure while polling. It still
+reads live services, writes its verdict, and can run the temporary installation check.
+Use `-n/--no-dispatch` for an observe-only watch that still closes the bead.
 
 When the target version appears on PyPI, the watcher installs that exact version into a
 fresh temporary virtualenv, checks `sase --version`, and records the installed
@@ -819,6 +847,7 @@ installed package was built from `--fixed-sha` or require green CI for this verd
 | 16   | `WATCHER_BROKEN`     | Invalid arguments, startup failure, or repeatedly unreadable signals                  |
 | 17   | `MASTER_GATE_RED`    | No green Master Gate at `HEAD` within the red-gate budget                             |
 | 18   | `STOPPED`            | Termination signal arrived before a verdict                                           |
+| 19   | `CORE_CI_RED`        | While awaiting core, the core release PR head stayed fully completed and red          |
 
 The watch prints its evidence and `verdict_file` path on exit. State lines flush
 immediately, so live progress stays visible under a monitor. Without `--verdict-file`,

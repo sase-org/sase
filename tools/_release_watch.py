@@ -11,6 +11,9 @@ from _release_watch_api import (
     BAD_CONCLUSIONS,
     EXIT_CODES,
     GOOD_CONCLUSIONS,
+    CoreCheck,
+    CoreReleasePullRequest,
+    CoreReleaseState,
     GhClient,
     GithubReader,
     IN_FLIGHT,
@@ -26,6 +29,7 @@ from _release_watch_api import (
     default_verdict_path,
     parse_bead_closed,
     parse_compare_base,
+    parse_core_release_pr,
     parse_run,
     parse_args,
 )
@@ -35,6 +39,9 @@ __all__ = [
     "BAD_CONCLUSIONS",
     "EXIT_CODES",
     "GOOD_CONCLUSIONS",
+    "CoreCheck",
+    "CoreReleasePullRequest",
+    "CoreReleaseState",
     "GhClient",
     "GithubReader",
     "IN_FLIGHT",
@@ -52,6 +59,7 @@ __all__ = [
     "parse_args",
     "parse_bead_closed",
     "parse_compare_base",
+    "parse_core_release_pr",
     "parse_run",
     "short_exception",
 ]
@@ -97,5 +105,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         watcher.set_verdict("WATCHER_BROKEN", f"bad arguments: {short_exception(exc)}")
         return watcher.finalize()
     gh = GhClient(options.repo)
-    reader = GithubReader(options.repo, options.version, options.fixed_sha, gh)
+    reader = GithubReader(
+        options.repo,
+        options.version,
+        options.fixed_sha,
+        gh,
+        await_core_version=options.await_core_version,
+    )
     return ReleaseWatcher(options, reader).run()

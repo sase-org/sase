@@ -21,13 +21,18 @@ import _release_watch_engine as engine  # noqa: E402
 
 NOW = datetime(2026, 10, 14, 12, tzinfo=UTC)
 SHA = "a" * 40
+CORE_SHA = "c" * 40
 
 __all__ = [
+    "CORE_SHA",
     "FakeClock",
     "NOW",
     "SHA",
     "UTC",
     "Reader",
+    "core_check",
+    "core_pr",
+    "core_state",
     "engine",
     "fake_process",
     "options",
@@ -64,6 +69,7 @@ def run(
     jobs: tuple[tuple[str, str | None], ...] = (),
     excerpt: str = "",
     drift: bool = False,
+    event: str = "",
 ) -> watch.WorkflowRun:
     return watch.WorkflowRun(
         run_id,
@@ -76,6 +82,7 @@ def run(
         jobs,
         excerpt,
         drift,
+        event,
     )
 
 
@@ -121,6 +128,37 @@ def pr(
     )
 
 
+def core_check(
+    name: str = "cargo fmt + clippy + test (macos-latest)",
+    status: str = "failure",
+) -> watch.CoreCheck:
+    slug = name.replace(" ", "-")
+    return watch.CoreCheck(
+        name, status, f"https://github.com/sase-org/sase-core/actions/job/{slug}"
+    )
+
+
+def core_pr(
+    *checks: watch.CoreCheck, head_sha: str = CORE_SHA
+) -> watch.CoreReleasePullRequest:
+    return watch.CoreReleasePullRequest(
+        331,
+        "chore: release v0.42.0",
+        "0.42.0",
+        head_sha,
+        "https://github.com/sase-org/sase-core/pull/331",
+        checks,
+    )
+
+
+def core_state(
+    pr: watch.CoreReleasePullRequest | None = None,
+    *runs: watch.WorkflowRun,
+    active: bool = True,
+) -> watch.CoreReleaseState:
+    return watch.CoreReleaseState(active, pr, runs)
+
+
 def snapshot(
     *,
     pypi: tuple[str, ...] = (),
@@ -131,6 +169,7 @@ def snapshot(
     core_upload: datetime = NOW - timedelta(hours=3),
     gate: watch.WorkflowRun | None = None,
     master_sha: str = SHA,
+    core_release: watch.CoreReleaseState | None = None,
 ) -> watch.Snapshot:
     return watch.Snapshot(
         pypi,
@@ -142,6 +181,7 @@ def snapshot(
         core_version,
         core_upload,
         "green",
+        core_release,
     )
 
 
@@ -166,8 +206,9 @@ def signal_values(
     publish: tuple[watch.WorkflowRun, ...] = (),
     pypi: tuple[str, ...] = (),
     core: tuple[str, datetime] = ("0.40.0", NOW - timedelta(hours=3)),
+    core_release: watch.CoreReleaseState | None = None,
 ) -> dict[str, object]:
-    return {
+    values: dict[str, object] = {
         "pypi": pypi,
         "release_pr": release,
         "full_ci": full,
@@ -175,6 +216,9 @@ def signal_values(
         "publish": publish,
         "core_pypi": core,
     }
+    if core_release is not None:
+        values["core_pr"] = core_release
+    return values
 
 
 def run_payload(

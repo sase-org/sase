@@ -19,11 +19,17 @@ from typing import Any
 
 from _release_watch_api import (
     BAD_CONCLUSIONS,
+    CORE_CI_RED_GRACE,
+    CORE_CUT_COOLDOWN,
+    CORE_CUT_MAX_DISPATCHES,
+    CORE_RELEASE_WORKFLOW,
+    CORE_REPO,
     EXIT_CODES,
     GOOD_CONCLUSIONS,
     GH_TIMEOUT,
     PROCESS_TIMEOUT,
     SIGNALS,
+    CoreReleaseState,
     ReleasePullRequest,
     SignalFailure,
     Snapshot,
@@ -36,6 +42,7 @@ from _release_watch_api import (
     iso_utc,
     parse_bead_closed,
     read_ci_watch_reason,
+    render_core_state,
     run_process,
 )
 
@@ -82,6 +89,9 @@ class ReleaseWatcher:
     _gate_rerun_shas: set[str] = field(default_factory=set)
     _pr_refresh_shas: set[str] = field(default_factory=set)
     _pr_refresh_dispatched_at: dict[str, datetime] = field(default_factory=dict)
+    _core_red_since: float | None = None
+    _core_red_sha: str | None = None
+    _core_cut_dispatches: int = 0
     _in_close_retry: bool = False
 
     def __post_init__(self) -> None:
@@ -310,6 +320,10 @@ class ReleaseWatcher:
                 )
             elif name == "core_pypi" and isinstance(value, tuple):
                 item = f"{value[0]}@{iso_utc(value[1])}"
+            elif name == "core_pr":
+                item = render_core_state(
+                    value if isinstance(value, CoreReleaseState) else None
+                )
             else:
                 item = "unparsed"
             rendered.append(f"{name}={item}")
@@ -337,6 +351,7 @@ class ReleaseWatcher:
         assert isinstance(core, tuple)
         master_sha, master_run = gate
         core_version, core_uploaded_at = core
+        core_release = values.get("core_pr")
         return Snapshot(
             pypi,
             pr,
@@ -347,6 +362,7 @@ class ReleaseWatcher:
             core_version,
             core_uploaded_at,
             read_ci_watch_reason(),
+            core_release if isinstance(core_release, CoreReleaseState) else None,
         )
 
     def evaluate(self, snapshot: Snapshot) -> tuple[str, str] | None:
@@ -373,6 +389,9 @@ class ReleaseWatcher:
                     "PUBLISH_FAILED",
                     f"post-merge Publish run {run.run_id} failed: {run.failed_jobs}",
                 )
+        core_verdict = self._check_core_ci(snapshot)
+        if core_verdict is not None:
+            return core_verdict
         if self._is_stale_head(snapshot):
             return None
         if not self._awaiting_core(snapshot) and self._floor_blocked(snapshot):
@@ -384,8 +403,7 @@ class ReleaseWatcher:
         red_runs = [
             run
             for run in snapshot.fixed_runs
-            if run.is_red
-            and (started_at is None or run.created_at >= started_at)
+            if run.is_red and (started_at is None or run.created_at >= started_at)
         ]
         deterministic = [run for run in red_runs if run.deterministic_failure]
         if deterministic or len(red_runs) >= self.options.max_red_full_ci:
@@ -451,6 +469,62 @@ class ReleaseWatcher:
         if required is None:
             return False
         return not core_version_meets(snapshot.core_version, required)
+
+    def _check_core_ci(self, snapshot: Snapshot) -> tuple[str, str] | None:
+        """Stop once the core release PR head has stayed fully red past the grace.
+
+        Only a head whose checks have all completed with a failure counts. A
+        new head SHA, or any check starting again, restarts the clock.
+        """
+        state = snapshot.core_release
+        core_pr = state.pr if state is not None and state.active else None
+        if core_pr is None or not self._awaiting_core(snapshot):
+            self._core_red_since = None
+            self._core_red_sha = None
+            return None
+        if self._core_red_sha != core_pr.head_sha:
+            self._core_red_sha = core_pr.head_sha
+            self._core_red_since = None
+        if core_pr.ci_state != "red":
+            self._core_red_since = None
+            return None
+        if self._core_red_since is None:
+            self._core_red_since = self.monotonic()
+            return None
+        red_seconds = self.monotonic() - self._core_red_since
+        if red_seconds < CORE_CI_RED_GRACE:
+            return None
+        rows = "\n".join(
+            f"FAILED check: {check.name} {check.url}" for check in core_pr.failed_checks
+        )
+        return (
+            "CORE_CI_RED",
+            f"sase-core release PR #{core_pr.number} {core_pr.url} "
+            f"(v{core_pr.version}) head {core_pr.head_sha}: every check "
+            f"completed and some failed for {red_seconds / 60:.1f} minutes "
+            f"(grace {CORE_CI_RED_GRACE / 60:g})\n{rows}",
+        )
+
+    def _core_cut_eligible(self, snapshot: Snapshot) -> bool:
+        """True when the core release PR could merge on a cut right now."""
+        state = snapshot.core_release
+        if (
+            not self.options.dispatch_core_cut
+            or state is None
+            or not state.active
+            or state.pr is None
+            or not self._awaiting_core(snapshot)
+        ):
+            return False
+        pr = state.pr
+        return (
+            bool(pr.checks)
+            and not pr.failed_checks
+            and not state.cut_in_flight
+            and not state.dispatched_within(
+                self.now(), timedelta(seconds=CORE_CUT_COOLDOWN)
+            )
+        )
 
     def _is_stale_head(self, snapshot: Snapshot) -> bool:
         pr = snapshot.release_pr
@@ -566,8 +640,7 @@ class ReleaseWatcher:
         fixed_red = [
             run
             for run in full
-            if run.is_red
-            and (started_at is None or run.created_at >= started_at)
+            if run.is_red and (started_at is None or run.created_at >= started_at)
         ]
         newest = full[0] if full else None
         no_full_running = not snapshot.full_in_flight
@@ -674,6 +747,29 @@ class ReleaseWatcher:
                 item for item in dispatches if item not in publish_candidates
             ] + [chosen]
 
+        core_cut_capped = False
+        if self._core_cut_eligible(snapshot):
+            if self._core_cut_dispatches >= CORE_CUT_MAX_DISPATCHES:
+                core_cut_capped = True
+            else:
+                dispatches.append(
+                    (
+                        "core_cut",
+                        CORE_CUT_COOLDOWN,
+                        (
+                            "workflow",
+                            "run",
+                            CORE_RELEASE_WORKFLOW,
+                            "-R",
+                            CORE_REPO,
+                            "--ref",
+                            "master",
+                            "-f",
+                            "dry_run=false",
+                        ),
+                    )
+                )
+
         gate = snapshot.master_gate
         gate_rerun_due = (
             gate is not None
@@ -701,6 +797,9 @@ class ReleaseWatcher:
             )
 
         reported: list[str] = []
+        if core_cut_capped:
+            self.actions.append("cap:core_cut")
+            reported.append("cap:core_cut")
         for key, cooldown, argv_tail in dispatches:
             if now - self.last_dispatch.get(key, float("-inf")) < cooldown:
                 self.actions.append(f"cooldown:{key}")
@@ -726,6 +825,8 @@ class ReleaseWatcher:
                 reported.append(failed)
                 continue
             self.last_dispatch[key] = now
+            if key == "core_cut":
+                self._core_cut_dispatches += 1
             if key == "master_gate_rerun":
                 self._gate_rerun_shas.add(snapshot.master_sha)
             if key == "pr_refresh":
@@ -916,6 +1017,7 @@ class ReleaseWatcher:
                     f"{name}={status}" for name, status in sorted(pr.checks.items())
                 )
                 lines.append(f"  rollup: {checks or 'none'}")
+            self._append_core_evidence(lines, snapshot.core_release)
             lines.append(f"- master HEAD: {snapshot.master_sha}")
             self._append_run_evidence(
                 lines,
@@ -927,6 +1029,28 @@ class ReleaseWatcher:
         lines.append(f"- last state line: {self.last_state_line}")
         lines.append(f"- close outcome: {self.close_outcome}")
         return "\n".join(lines) + "\n"
+
+    def _append_core_evidence(
+        self, lines: list[str], state: CoreReleaseState | None
+    ) -> None:
+        if state is None or not state.active:
+            return
+        pr = state.pr
+        if pr is None:
+            lines.append("- sase-core release PR: none")
+        else:
+            lines.append(
+                f"- sase-core release PR: #{pr.number} {pr.url} title={pr.title!r} "
+                f"head={pr.head_sha} checks={pr.ci_state}"
+            )
+            rollup = ", ".join(
+                f"{check.name}={check.status}"
+                for check in sorted(pr.checks, key=lambda check: check.name)
+            )
+            lines.append(f"  rollup: {rollup or 'none'}")
+            for check in pr.failed_checks:
+                lines.append(f"  failing: {check.name} {check.url}")
+        self._append_run_evidence(lines, "sase-core Release-plz", state.runs)
 
     @staticmethod
     def _append_run_evidence(
@@ -985,9 +1109,7 @@ class ReleaseWatcher:
         once without waiting for it.
         """
         assert self.verdict_path is not None
-        log_path = self.verdict_path.parent / (
-            self.verdict_path.stem + ".close.log"
-        )
+        log_path = self.verdict_path.parent / (self.verdict_path.stem + ".close.log")
         try:
             log_path.parent.mkdir(parents=True, exist_ok=True)
             log_file = open(log_path, "a", encoding="utf-8")
@@ -1003,13 +1125,9 @@ class ReleaseWatcher:
             finally:
                 log_file.close()
             pid = getattr(child, "pid", "?")
-            self.close_outcome = (
-                f"detached closer launched (pid {pid}); see {log_path}"
-            )
+            self.close_outcome = f"detached closer launched (pid {pid}); see {log_path}"
         except Exception as exc:
-            self.close_outcome = (
-                f"detached closer failed: {short_exception(exc)}"
-            )
+            self.close_outcome = f"detached closer failed: {short_exception(exc)}"
         self.actions.append("bead_close:" + self.close_outcome)
 
     def finalize(self, *, detached: bool = False) -> int:
@@ -1056,9 +1174,7 @@ class ReleaseWatcher:
                             try:
                                 result = self.process(argv, timeout=GH_TIMEOUT)
                                 if result.returncode == 0:
-                                    self.close_outcome = (
-                                        f"closed on attempt {attempt}"
-                                    )
+                                    self.close_outcome = f"closed on attempt {attempt}"
                                     break
                                 self.close_outcome = f"attempt {attempt} exited {result.returncode}: {(result.stderr or '').strip()[:300]}"
                             except WatcherSignal:
