@@ -9,6 +9,7 @@ import json
 import os
 import sys
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 
@@ -23,6 +24,7 @@ from sase.bead.epic_launch_handoff import CompletionNotificationPayload
 from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
 )
+from sase.core.atomic_json import write_json_marker_atomic
 from sase.core.agent_output_variables import read_agent_output_variables
 from sase.core.dismissed_agent_completion import SHELL_HANDOFF_OUTCOMES
 from sase.core.output_variable_values import VarValue
@@ -106,9 +108,7 @@ def write_error_done_marker(
             failure_facts=failure_facts,
             recovery=recovery,
         )
-        done_path = os.path.join(current_artifacts_dir, "done.json")
-        with open(done_path, "w", encoding="utf-8") as f:
-            json.dump(error_done, f, indent=2)
+        write_json_marker_atomic(Path(current_artifacts_dir) / "done.json", error_done)
         update_agent_artifact_index_for_marker_mutation(current_artifacts_dir)
     except Exception as exc:
         print(

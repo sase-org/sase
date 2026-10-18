@@ -36,6 +36,11 @@ _OUTPUT_BYTES = 256 * 1024
 # FLAKY evidence, never manufacture it, so skipping a slow gatherer stays
 # fail-open; the helper's hard timeout is the outer bound.
 _GATHER_SOFT_SECONDS = 8.0
+# The running executor writes stage events to the same ToolRun store while this
+# helper persists its classification. Let those short SQLite writer locks drain
+# before failing closed as a generic helper error; _run_silent_record.py still
+# supplies the hard subprocess bound.
+_STORE_BUSY_TIMEOUT_MS = 2_000
 
 
 def _stage_decision(items: object) -> tuple[str, str, dict[str, int]]:
@@ -160,7 +165,7 @@ def execute_triage_stage(
         )
         return 2
     try:
-        shown = tool_run_show(run_id)
+        shown = tool_run_show(run_id, busy_timeout_ms=_STORE_BUSY_TIMEOUT_MS)
     except Exception as exc:  # noqa: BLE001 - an unreadable store stops.
         _emit("stop", "helper_error", {})
         print(f"sase tool _triage-stage: cannot load run ({exc})", file=sys.stderr)
@@ -210,7 +215,8 @@ def execute_triage_stage(
                 "owner_candidates": [],
                 "knobs": triage_knobs(),
                 "now_ts": int(time.time()),
-            }
+            },
+            busy_timeout_ms=_STORE_BUSY_TIMEOUT_MS,
         )
     except Exception as exc:  # noqa: BLE001 - triage must always fail open.
         _emit("stop", "helper_error", {})

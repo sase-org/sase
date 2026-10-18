@@ -55,15 +55,6 @@ _SECOND_TIMESTAMP = "20260810090000"
 _USAGE_LIMIT_ERROR = "FAKEY-USAGE-LIMIT hit"
 
 
-def _wait_for_file(path: Path, *, timeout: float = 30.0) -> None:
-    deadline = time.monotonic() + timeout
-    while time.monotonic() < deadline:
-        if path.is_file():
-            return
-        time.sleep(0.01)  # sase-test-wait: poll for the child-written file
-    raise AssertionError(f"timed out waiting for {path}")
-
-
 def _wait_for_json(
     path: Path,
     predicate: Callable[[dict[str, Any]], bool],
@@ -329,8 +320,13 @@ def test_provider_drain_e2e_relaunches_stranded_agent(
     # execution back through the disabled fakey binary; that must not turn the
     # already-completed drain relaunch into a failed drain move.
     replacement_done_path = replacement_artifacts / "done.json"
-    _wait_for_file(replacement_done_path)
-    replacement_done = json.loads(replacement_done_path.read_text(encoding="utf-8"))
+    replacement_done = _wait_for_json(
+        replacement_done_path,
+        lambda payload: (
+            "LLM provider 'fakey' is temporarily disabled"
+            in str(payload.get("error") or "")
+        ),
+    )
     assert "LLM provider 'fakey' is temporarily disabled" in replacement_done["error"]
 
     # The drain still owns exactly one notification for this disable window,

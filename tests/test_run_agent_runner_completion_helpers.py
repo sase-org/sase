@@ -2,6 +2,7 @@
 
 import json
 import subprocess
+import threading
 
 from sase.axe.image_attachments import collect_agent_image_paths
 from sase.axe.run_agent_phases import build_done_marker
@@ -99,6 +100,51 @@ def test_failed_done_marker_copies_execution_provider_from_agent_meta(tmp_path):
     assert marker["exec_llm_provider"] == "fakey"
     assert isinstance(marker["finished_at"], float)
     assert marker["finished_at"] > 1_700_000_000
+
+
+def test_failed_done_marker_is_published_atomically(tmp_path, monkeypatch):
+    (tmp_path / "agent_meta.json").write_text("{}", encoding="utf-8")
+    dump_started = threading.Event()
+    allow_dump = threading.Event()
+    real_dump = json.dump
+
+    def _paused_dump(payload, stream, **kwargs):
+        dump_started.set()
+        assert allow_dump.wait(timeout=5)
+        real_dump(payload, stream, **kwargs)
+
+    monkeypatch.setattr("sase.core.atomic_json.json.dump", _paused_dump)
+    writer = threading.Thread(
+        target=write_error_done_marker,
+        kwargs={
+            "current_artifacts_dir": str(tmp_path),
+            "cl_name": "test-cl",
+            "project_file": "/tmp/project.sase",
+            "timestamp": "20260430120000",
+            "artifacts_timestamp": "20260430120000",
+            "workspace_num": 1,
+            "workspace_dir": "/tmp/workspace",
+            "output_path": "/tmp/output.log",
+            "agent_name": "test-agent",
+            "agent_model": "opus",
+            "agent_llm_provider": "claude",
+            "agent_vcs_provider": "git",
+            "agent_hidden": False,
+            "error": "provider failed",
+            "traceback_str": "traceback",
+        },
+    )
+    writer.start()
+    try:
+        assert dump_started.wait(timeout=5)
+        assert not (tmp_path / "done.json").exists()
+    finally:
+        allow_dump.set()
+        writer.join(timeout=5)
+
+    assert not writer.is_alive()
+    marker = json.loads((tmp_path / "done.json").read_text(encoding="utf-8"))
+    assert marker["error"] == "provider failed"
 
 
 def test_collect_agent_image_paths_from_working_tree(tmp_path):

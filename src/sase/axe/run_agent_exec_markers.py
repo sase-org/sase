@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import json
 import os
+from pathlib import Path
 from typing import Any
 
 from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
 )
+from sase.core.atomic_json import write_json_marker_atomic
 from sase.core.patch_metadata import canonicalize_patch_metadata
 
 
@@ -35,9 +37,8 @@ def write_done_marker_and_update_index(
 
     merge_handoff_aborted_into_done_marker(artifacts_dir, done_marker)
     canonicalize_patch_metadata(done_marker)
-    done_path = os.path.join(artifacts_dir, "done.json")
-    with open(done_path, "w", encoding="utf-8") as f:
-        json.dump(done_marker, f, indent=2)
+    done_path = Path(artifacts_dir) / "done.json"
+    write_json_marker_atomic(done_path, done_marker)
     update_agent_artifact_index_for_marker_mutation(artifacts_dir)
     try:
         from sase.core.agent_hold_facade import reconcile_agent_holds_for_artifact
@@ -54,7 +55,7 @@ def write_done_marker_and_update_index(
         touch_turn_refresh_pulse(project_name_from_artifacts_dir(artifacts_dir))
     except Exception:  # noqa: BLE001 - pulse must never fail the agent run
         pass
-    return done_path
+    return str(done_path)
 
 
 def short_pdf_source(source_path: str | None, workspace_dir: str) -> str:

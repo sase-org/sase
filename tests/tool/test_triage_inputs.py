@@ -5,6 +5,8 @@ from __future__ import annotations
 import importlib
 import json
 import os
+import sqlite3
+import threading
 import time
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -24,6 +26,7 @@ from sase.core.tool_run import (
     tool_run_triage_settle,
     tool_run_triage_show,
     tool_run_triage_stage,
+    tool_run_store_path,
 )
 from sase.tool.executor import ToolRunCliRequest, execute_tool_run
 from sase.tool.triage_inputs import gather_selection_records
@@ -642,3 +645,77 @@ def test_execute_triage_stage_continues_for_selection_witness(
     assert payload["decision"] == "continue"
     assert payload["reason"] == "all_known_or_flaky"
     assert code == 0
+
+
+def test_execute_triage_stage_waits_for_tool_store_writer(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A transient store writer must not turn a generic result into helper_error."""
+    _home(monkeypatch, tmp_path)
+    begun = tool_run_begin(
+        {
+            "schema_version": 1,
+            "tool_name": "check",
+            "definition": {
+                "schema_version": 1,
+                "name": "check",
+                "argv": ["true"],
+                "description": "fixture",
+                "stages": "run_silent",
+                "inputs": [],
+                "env": [],
+                "args": "deny",
+                "fingerprint": {"repos": [], "toolchain": {}},
+            },
+            "display_argv": ["true"],
+            "project": "fixture",
+            "workspace": "stage-workspace",
+            "commit_running": True,
+        }
+    )["run"]
+    run_id = str(begun["run_id"])
+    tool_run_observe(
+        {
+            "schema_version": 1,
+            "run_id": run_id,
+            "fingerprint_before": {
+                "schema_version": 1,
+                "project_identity": "fixture",
+                "extra_args_digest": str(begun.get("extra_args_digest") or ""),
+                "repos": [
+                    {"identity": "fixture", "head": "deadbeef", "dirty_paths": []}
+                ],
+                "completeness": {"complete": True},
+            },
+        }
+    )
+    output = tmp_path / "stage.log"
+    output.write_text("plain boom with no shape\n", encoding="utf-8")
+
+    store_lock = sqlite3.connect(tool_run_store_path(), check_same_thread=False)
+    store_lock.execute("BEGIN IMMEDIATE")
+
+    def _release_store_lock() -> None:
+        time.sleep(0.6)  # sase-test-wait: let the SQLite retry block.
+        store_lock.rollback()
+        store_lock.close()
+
+    releaser = threading.Thread(target=_release_store_lock)
+    releaser.start()
+    try:
+        code = execute_triage_stage(
+            run_id,
+            stage_id="stage-1",
+            description="opaque",
+            output=str(output),
+        )
+    finally:
+        releaser.join(timeout=5)
+
+    captured = capsys.readouterr()
+    payload = json.loads(captured.out)
+    assert payload["decision"] == "stop"
+    assert payload["reason"] == "unknown_item", captured.err
+    assert code == 1
