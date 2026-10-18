@@ -440,11 +440,11 @@ class DeckPanelSpreadMixin:
             # A pending mode transition may still have a deferred restore
             # queued for the old page. Let this navigation own the scroll.
             self._files_transition_generation += 1
+            generation = self._files_transition_generation
             current = self._files_spread_active_index()
             nxt = (current + direction) % len(slots)
             spread_view = self.files_spread_view  # type: ignore[attr-defined]
             spread_view.enable_section_layout_reserve()
-            row = self._files_anchor_row(nxt)
             # Update the hidden paged index silently so E/clipboard follow.
             try:
                 file_view.set_current_index_silent(nxt)
@@ -455,46 +455,74 @@ class DeckPanelSpreadMixin:
                 self.refresh_chrome()  # type: ignore[attr-defined]
             except Exception:
                 pass
-            if row is None:
-                # Anchors not ready: retry bounded after refresh.
-                try:
-                    self.call_after_refresh(  # type: ignore[attr-defined]
-                        lambda: self._retry_files_scroll(nxt, 0)
-                    )
-                except Exception:
-                    pass
-                return
-            try:
-                scroll = self.query_one(  # type: ignore[attr-defined]
-                    f"#agent-deck-panel-{self._panel_index}-files-scroll",
-                    VerticalScroll,
-                )
-                scroll.scroll_to(y=row, animate=False)
-            except Exception:
-                pass
+            # Enabling the reserve changes the scroll extent during layout.
+            # Resolve the anchor only after that layout, then confirm the
+            # requested position survived the refresh before considering the
+            # navigation complete.
+            self._schedule_files_scroll(nxt, generation, 0)
         except Exception:
             pass
 
-    def _retry_files_scroll(self, index: int, attempt: int) -> None:
-        if attempt >= 3:
+    def _schedule_files_scroll(self, index: int, generation: int, attempt: int) -> None:
+        if attempt >= 8 or generation != getattr(
+            self, "_files_transition_generation", -1
+        ):
+            return
+        try:
+            self.call_after_refresh(  # type: ignore[attr-defined]
+                lambda: self._apply_files_scroll(index, generation, attempt)
+            )
+        except Exception:
+            pass
+
+    def _apply_files_scroll(self, index: int, generation: int, attempt: int) -> None:
+        if generation != getattr(self, "_files_transition_generation", -1):
             return
         row = self._files_anchor_row(index)
-        if row is None:
-            try:
-                self.call_after_refresh(  # type: ignore[attr-defined]
-                    lambda: self._retry_files_scroll(index, attempt + 1)
-                )
-            except Exception:
-                pass
-            return
         try:
             scroll = self.query_one(  # type: ignore[attr-defined]
                 f"#agent-deck-panel-{self._panel_index}-files-scroll",
                 VerticalScroll,
             )
+            max_scroll_y = int(scroll.max_scroll_y)
+        except Exception:
+            self._schedule_files_scroll(index, generation, attempt + 1)
+            return
+        if row is None or max_scroll_y < row:
+            self._schedule_files_scroll(index, generation, attempt + 1)
+            return
+        try:
             scroll.scroll_to(y=row, animate=False)
         except Exception:
+            self._schedule_files_scroll(index, generation, attempt + 1)
+            return
+        try:
+            self.call_after_refresh(  # type: ignore[attr-defined]
+                lambda: self._confirm_files_scroll(index, row, generation, attempt)
+            )
+        except Exception:
             pass
+
+    def _confirm_files_scroll(
+        self, index: int, row: int, generation: int, attempt: int
+    ) -> None:
+        if generation != getattr(self, "_files_transition_generation", -1):
+            return
+        live_row = self._files_anchor_row(index)
+        try:
+            scroll = self.query_one(  # type: ignore[attr-defined]
+                f"#agent-deck-panel-{self._panel_index}-files-scroll",
+                VerticalScroll,
+            )
+            landed = (
+                live_row == row
+                and int(scroll.scroll_y) == row
+                and int(scroll.max_scroll_y) >= row
+            )
+        except Exception:
+            landed = False
+        if not landed:
+            self._schedule_files_scroll(index, generation, attempt + 1)
 
 
 __all__ = ["DeckPanelSpreadMixin"]
