@@ -348,7 +348,9 @@ class AgentEnterActionMixin:
                 severity="warning",
             )
             return
-        identity = getattr(agent, "identity", None)
+        identity = resolution.subject_identity
+        if not isinstance(identity, tuple):
+            identity = getattr(agent, "identity", None)
         if not isinstance(identity, tuple):
             fallback = targets[0].row_identity
             identity = fallback if isinstance(fallback, tuple) else ()

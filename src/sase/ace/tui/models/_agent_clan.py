@@ -258,6 +258,32 @@ def clan_members(agent: Agent) -> tuple[Agent, ...]:
     )
 
 
+def clan_lone_stopped_member(agent: Agent) -> Agent | None:
+    """Return the clan's single member that needs the user, if any.
+
+    Matches the header's ``stopped`` count: a unique direct member counts
+    when ``agent_status_bucket(member) == "Stopped"`` or
+    ``agent_is_asking(member.status)``. Nested clan containers are never
+    members, so this cannot recurse. Returns ``None`` for a non-clan row
+    and when zero or two-or-more unique members need the user.
+    """
+    if not agent.is_clan_container:
+        return None
+    stopped: list[Agent] = []
+    seen: set[tuple[AgentType, str, str | None]] = set()
+    for member in clan_members(agent):
+        if member.identity in seen:
+            continue
+        seen.add(member.identity)
+        if agent_status_bucket(member) == "Stopped" or agent_is_asking(member.status):
+            stopped.append(member)
+            if len(stopped) > 1:
+                return None
+    if len(stopped) != 1:
+        return None
+    return stopped[0]
+
+
 def clan_running_lane_rows(agent: Agent) -> tuple[Agent, ...]:
     """Return the clan's own in-flight member rows, one per running lane.
 
@@ -565,6 +591,7 @@ __all__ = [
     "agent_summary_status_counts",
     "aggregate_clan_status",
     "apply_clan_container_status",
+    "clan_lone_stopped_member",
     "clan_running_lane_rows",
     "clan_member_status_priority",
     "clan_member_counts",

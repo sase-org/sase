@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Sequence
+from dataclasses import replace
 from datetime import datetime
 from typing import TYPE_CHECKING
 
+from ...models._agent_clan import clan_lone_stopped_member
 from ...models.agent_session_members import (
     concrete_agent_session_turn_rows,
     agent_session_roster_container,
@@ -28,6 +30,7 @@ from ._agent_enter_models import (
     CLAN_EMPTY_MESSAGE,
     AgentEnterResolution,
     AgentEnterTarget,
+    identity_of,
 )
 from ._agent_enter_scopes import (
     classify_scope,
@@ -136,6 +139,10 @@ def resolve_agent_enter_targets(
     identity-matched gate notifications, the legacy question-marker and
     workflow-HITL fallbacks, and the row's Patch. Gates come first, newest
     first; the Patch comes last.
+
+    A clan container with exactly one stopped direct member delegates to
+    that member when the member itself resolves at least one target;
+    otherwise the clan keeps the inside-the-clan empty message.
     """
     from ._remote_attention import has_pending_remote_attention
 
@@ -143,6 +150,16 @@ def resolve_agent_enter_targets(
     title = scope_title(agent)
 
     if scope == "clan":
+        member = clan_lone_stopped_member(agent)
+        if member is not None:
+            delegated = resolve_agent_enter_targets(
+                member,
+                gate_notifications=gate_notifications,
+                patch_name_for=patch_name_for,
+                patch_lookup=patch_lookup,
+            )
+            if delegated.targets:
+                return replace(delegated, subject_identity=identity_of(member))
         return AgentEnterResolution(
             targets=(), scope_title=title, empty_message=CLAN_EMPTY_MESSAGE
         )

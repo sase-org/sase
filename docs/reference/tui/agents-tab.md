@@ -191,8 +191,11 @@ What counts as a target depends on the selected row:
   workflow uses that workflow's meta Patch, if it recorded one.
 - A **remote row** answers its pending
   [remote attention](../automation/notifications.md#remote-attention) request.
-- A **clan container** toasts `Select an agent inside this clan`. Monitors and named
-  procs have no targets, and a grouping banner ignores `Enter`.
+- A **clan container** with exactly one stopped member (a pending gate, a plan waiting
+  for review, or a question) acts on that member: the footer hint, the targets, and the
+  `Act on <member>` chooser are the member's. Any other clan, or a lone stopped member
+  with no target, toasts `Select an agent inside this clan`. Monitors and named procs
+  have no targets, and a grouping banner ignores `Enter`.
 
 With no target, `Enter` toasts `No pending gate or Patch for this agent`. `Enter` works
 from the first frame: if the notification inbox has not been polled yet, sase's TUI

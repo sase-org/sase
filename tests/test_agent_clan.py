@@ -9,6 +9,7 @@ from sase.ace.tui.models._agent_clan import (
     ClanStatusCounts,
     aggregate_clan_status,
     apply_clan_container_status,
+    clan_lone_stopped_member,
     clan_member_counts,
     clan_members,
     clan_running_lane_rows,
@@ -256,6 +257,52 @@ def test_clan_running_lane_rows_returns_empty_for_non_clan_row() -> None:
     leaf = _agent("solo", "RUNNING", suffix="solo")
 
     assert clan_running_lane_rows(leaf) == ()
+
+
+def test_clan_lone_stopped_member_returns_none_for_non_clan_row() -> None:
+    leaf = _agent("solo", "QUESTION", suffix="solo")
+
+    assert clan_lone_stopped_member(leaf) is None
+
+
+def test_clan_lone_stopped_member_counts_status_bucket_override() -> None:
+    container = _agent("research", "RUNNING", suffix=None)
+    container.is_clan_container = True
+    member = _agent("research.one", "RUNNING", suffix="one")
+    member.status_bucket = "Stopped"
+    done = _agent("research.two", "DONE", suffix="two")
+    container.runtime_children = [member, done]
+
+    assert clan_lone_stopped_member(container) is member
+
+
+def test_clan_lone_stopped_member_counts_waiting_input_as_asking() -> None:
+    container = _agent("research", "RUNNING", suffix=None)
+    container.is_clan_container = True
+    member = _agent("research.one", "WAITING INPUT", suffix="one")
+    done = _agent("research.two", "DONE", suffix="two")
+    container.runtime_children = [member, done]
+
+    assert clan_lone_stopped_member(container) is member
+
+
+def test_clan_lone_stopped_member_returns_none_for_two_stopped() -> None:
+    container = _agent("research", "RUNNING", suffix=None)
+    container.is_clan_container = True
+    first = _agent("research.one", "QUESTION", suffix="one")
+    second = _agent("research.two", "PLAN", suffix="two")
+    container.runtime_children = [first, second]
+
+    assert clan_lone_stopped_member(container) is None
+
+
+def test_clan_lone_stopped_member_deduplicates_identity() -> None:
+    container = _agent("research", "RUNNING", suffix=None)
+    container.is_clan_container = True
+    member = _agent("research.one", "QUESTION", suffix="one")
+    container.runtime_children = [member, member]
+
+    assert clan_lone_stopped_member(container) is member
 
 
 def test_cleanup_cascades_from_container_but_not_from_member() -> None:

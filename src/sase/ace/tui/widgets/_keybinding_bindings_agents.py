@@ -375,6 +375,8 @@ class AgentBindingsMixin:
                         f"cleanup ({completed_count} done)",
                     )
                 )
+            if enter_action_label:
+                bindings.append((self._kd("act_on_agent"), enter_action_label))
             return bindings
 
         bindings.append((self._kd("agents_retry"), "retry"))

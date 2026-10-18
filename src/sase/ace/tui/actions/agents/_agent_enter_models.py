@@ -61,6 +61,9 @@ class AgentEnterResolution:
     targets: tuple[AgentEnterTarget, ...] = ()
     scope_title: str = ""
     empty_message: str | None = None
+    #: Identity of the row the targets act on when it is not the selected
+    #: row (a clan's lone stopped member); ``None`` means the selected row.
+    subject_identity: tuple[object, ...] | None = None
 
     @property
     def primary(self) -> AgentEnterTarget | None:

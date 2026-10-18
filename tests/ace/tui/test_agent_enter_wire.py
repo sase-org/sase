@@ -230,6 +230,23 @@ def test_footer_enter_hint_primary_and_secondary() -> None:
     assert (footer._kd("jump_to_agent_patch"), "go to PR") in bindings
 
 
+def test_footer_enter_hint_on_clan_container() -> None:
+    footer = KeybindingFooter()
+    footer.set_keymap_registry(load_keymap_registry({}))
+    clan = replace(
+        make_agent(),
+        is_clan_container=True,
+        agent_clan="testclan",
+    )
+    bindings = footer._compute_agent_bindings(
+        clan, enter_action_label="review sudo request"
+    )
+    assert (footer._kd("act_on_agent"), "review sudo request") in bindings
+    assert (footer._kd("kill_agent"), "kill/dismiss clan") in bindings
+    bindings = footer._compute_agent_bindings(clan, enter_action_label=None)
+    assert not any(key == footer._kd("act_on_agent") for key, _ in bindings)
+
+
 def test_footer_enter_sorts_first() -> None:
     footer = KeybindingFooter()
     footer.set_keymap_registry(load_keymap_registry({}))
@@ -278,10 +295,12 @@ class _WireApp(
         self,
         agent: Agent,
         notifications: list[Notification] | None = None,
+        *,
+        children: list[Agent] | None = None,
     ) -> None:
         super().__init__()
         self._agents = [agent]
-        self._agents_with_children = [agent]
+        self._agents_with_children = [agent, *(children or [])]
         self.current_idx = 0
         self.current_tab = "agents"
         self._current_group_key = None
@@ -319,6 +338,9 @@ class _WireApp(
         return _patch_name_for(agent)
 
     def _agent_by_identity(self, identity: tuple[object, ...]) -> Agent | None:
+        for agent in self._agents_with_children:
+            if agent.identity == identity:
+                return agent
         for agent in self._agents:
             if agent.identity == identity:
                 return agent
@@ -387,6 +409,35 @@ async def test_enter_sudo_gate_dispatches(
     )
     await _press_enter(app)
     assert dispatched == ["n-sudo"]
+
+
+async def test_enter_clan_lone_stopped_member_dispatches_plan(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    member = replace(
+        make_agent(name="worker", status="PLAN", raw_suffix="20260918020202"),
+        agent_clan="testclan",
+        agent_clan_generation="20260918010101",
+    )
+    clan = replace(
+        make_agent(name="testclan", raw_suffix="20260918010101"),
+        is_clan_container=True,
+        agent_clan="testclan",
+        agent_clan_generation="20260918010101",
+    )
+    clan.runtime_children = [member]
+    notification = _notification(
+        "n-plan", "PlanApproval", action_data=_matching_action_data(member)
+    )
+    app = _WireApp(clan, [notification], children=[member])
+    app._resolve_agent_cl_name = lambda _a: None  # type: ignore[method-assign]
+    dispatched: list[str] = []
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.agents._notification_dispatch.open_notification_action",
+        lambda _app, note: dispatched.append(note.id) or True,
+    )
+    await _press_enter(app)
+    assert dispatched == ["n-plan"]
 
 
 async def test_enter_gate_plus_patch_chooser_p_selects_patch(
