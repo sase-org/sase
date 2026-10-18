@@ -13,6 +13,8 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
+from sase.llm_provider import registry as llm_registry
+
 from .models import AgentCliStatus, InstallMethod
 from .operations import collect_agent_cli_statuses
 
@@ -99,6 +101,16 @@ def _status_json(status: AgentCliStatus) -> dict[str, Any]:
             "version": status.version_error,
             "latest": status.latest_error,
         },
+        "other_installs": [
+            {
+                "executable": item.executable,
+                "version": item.version,
+                "version_error": item.version_error,
+            }
+            for item in status.other_installs
+        ],
+        "version_skew": status.has_version_skew,
+        "shadow_remedy": (_shadow_remedy(status) if status.has_version_skew else None),
     }
 
 
@@ -157,16 +169,49 @@ def _installed_cell(status: AgentCliStatus) -> Text:
         value = Text("not installed", style="yellow")
         value.append("\n")
         value.append(status.install_hint, style="dim")
-        return value
+        return _append_other_installs(value, status)
     if status.install_method is InstallMethod.BUNDLED:
-        return Text(status.installed_version or "bundled", style="green")
+        return _append_other_installs(
+            Text(status.installed_version or "bundled", style="green"), status
+        )
     if status.installed_version:
-        return Text(status.installed_version, style="green")
+        return _append_other_installs(
+            Text(status.installed_version, style="green"), status
+        )
     value = Text("installed; version unknown", style="yellow")
     if status.version_error:
         value.append("\n")
         value.append(status.version_error, style="dim")
+    return _append_other_installs(value, status)
+
+
+def _append_other_installs(value: Text, status: AgentCliStatus) -> Text:
+    if not status.other_installs:
+        return value
+    for item in status.other_installs:
+        value.append("\n")
+        label = item.version or item.version_error or "unknown"
+        skewed = (
+            status.installed_version is not None
+            and item.version is not None
+            and item.version != status.installed_version
+        )
+        value.append(
+            f"also {item.executable} ({label})",
+            style="yellow" if skewed else "dim",
+        )
+    if status.has_version_skew:
+        value.append("\n")
+        value.append("version skew", style="bold yellow")
+        value.append(f": {_shadow_remedy(status)}", style="dim")
     return value
+
+
+def _shadow_remedy(status: AgentCliStatus) -> str:
+    return (
+        "remove the stale copy, or pin "
+        f"{llm_registry.provider_path_env_var(status.name)}"
+    )
 
 
 def _latest_cell(status: AgentCliStatus) -> Text:
@@ -197,6 +242,14 @@ def _details_cell(status: AgentCliStatus) -> Text:
     if status.docs_url:
         details.append("\n")
         details.append(status.docs_url, style="blue underline")
+    for item in status.other_installs:
+        details.append("\n")
+        label = item.version or item.version_error or "unknown"
+        details.append(f"also {item.executable} ({label})", style="yellow")
+    if status.has_version_skew:
+        details.append("\n")
+        details.append("version skew: ", style="bold yellow")
+        details.append(_shadow_remedy(status), style="dim")
     if (
         status.version_error
         and status.install_method is not InstallMethod.NOT_INSTALLED

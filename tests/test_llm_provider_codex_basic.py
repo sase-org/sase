@@ -104,6 +104,34 @@ def test_codex_provider_raises_on_failure(
     assert exc_info.value.stderr == "some error"
 
 
+@patch.dict(os.environ, {"SASE_CODEX_PATH": "/opt/openai/bin/codex"})
+@patch("sase.llm_provider.codex.stream_and_parse_codex_json_output")
+@patch("sase.llm_provider.codex.subprocess.Popen")
+@patch("sase.llm_provider.codex.provider_timer")
+def test_codex_version_rejection_names_launched_executable(
+    mock_timer: MagicMock,
+    mock_popen: MagicMock,
+    mock_stream: MagicMock,
+) -> None:
+    """A stale-CLI rejection keeps the original message and names the binary."""
+    mock_process = MagicMock()
+    mock_popen.return_value = mock_process
+    original = (
+        "The 'gpt-6-astra' model requires a newer version of Codex. Please update."
+    )
+    mock_stream.return_value = ("", original, 1)
+
+    provider = CodexProvider()
+    with pytest.raises(subprocess.CalledProcessError) as exc_info:
+        provider.invoke("test", model_tier="large", suppress_output=True)
+
+    stderr = exc_info.value.stderr
+    assert original in stderr
+    assert "SASE launched /opt/openai/bin/codex" in stderr
+    assert "sase agent-cli list" in stderr
+    assert "SASE_CODEX_PATH" in stderr
+
+
 @patch("sase.llm_provider.codex.stream_and_parse_codex_json_output")
 @patch("sase.llm_provider.codex.subprocess.Popen")
 @patch("sase.llm_provider.codex.provider_timer")

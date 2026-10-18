@@ -26,6 +26,7 @@ from sase.agent_clis.models import (
     AgentCliUpdateResult,
     AgentCliUpdatesReady,
     InstallMethod,
+    ShadowInstall,
     UpdateResultStatus,
     UpdateStrategy,
 )
@@ -197,6 +198,63 @@ def test_list_json_is_versioned_and_forwards_offline_refresh(capsys: Any) -> Non
     }
     assert payload["agent_clis"][0]["executable"] == "/usr/local/bin/codex"
     assert payload["agent_clis"][0]["docs_url"] == "https://example.test/codex"
+    assert payload["agent_clis"][0]["other_installs"] == []
+    assert payload["agent_clis"][0]["version_skew"] is False
+
+
+def test_list_renders_shadowed_install_version_skew() -> None:
+    installed = replace(
+        _status(),
+        other_installs=(
+            ShadowInstall(
+                executable="/home/user/.nvm/versions/node/v24/bin/codex",
+                version="0.163.0",
+            ),
+        ),
+    )
+    console = _console()
+
+    code = handle_agent_cli_list_command(
+        argparse.Namespace(json=False, offline=False, refresh=False, verbose=False),
+        console=console,
+        status_fn=lambda **_kwargs: (installed,),
+    )
+
+    rendered = _output(console)
+    assert code == 0
+    assert "/home/user/.nvm/versions/node/v24/bin/codex" in rendered
+    assert "0.163.0" in rendered
+    assert "version skew" in rendered
+    assert "SASE_CODEX_PATH" in rendered
+
+
+def test_list_json_includes_other_installs_and_skew(capsys: Any) -> None:
+    installed = replace(
+        _status(),
+        other_installs=(
+            ShadowInstall(
+                executable="/home/user/.nvm/bin/codex",
+                version="0.163.0",
+            ),
+        ),
+    )
+
+    code = handle_agent_cli_list_command(
+        argparse.Namespace(json=True, offline=False, refresh=False, verbose=False),
+        status_fn=lambda **_kwargs: (installed,),
+    )
+
+    payload = json.loads(capsys.readouterr().out)
+    assert code == 0
+    assert payload["agent_clis"][0]["version_skew"] is True
+    assert payload["agent_clis"][0]["other_installs"] == [
+        {
+            "executable": "/home/user/.nvm/bin/codex",
+            "version": "0.163.0",
+            "version_error": None,
+        }
+    ]
+    assert "SASE_CODEX_PATH" in payload["agent_clis"][0]["shadow_remedy"]
 
 
 def test_update_without_names_or_all_is_usage_error() -> None:

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 from sase.agent_clis.detect import (
@@ -323,3 +324,123 @@ def test_unknown_version_compare_and_malformed_env_fall_back_to_defaults(
     assert status.self_update_env == ()
     assert status.install_env == (("KEEP", "1"),)
     assert status.installs_from_script is False
+
+
+def _write_executable(directory: Path, name: str) -> Path:
+    directory.mkdir(parents=True, exist_ok=True)
+    path = directory / name
+    path.write_text("", encoding="utf-8")
+    path.chmod(0o755)
+    return path
+
+
+def _tool_providers() -> dict[str, dict[str, object]]:
+    return {
+        "tool": {
+            "autodetect_cli_name": "tool",
+            "install": {
+                "manager": "native",
+                "self_update_argv": ["update"],
+            },
+        }
+    }
+
+
+def test_detection_reports_shadowed_install_version_skew(tmp_path: Path) -> None:
+    first = tmp_path / "first"
+    second = tmp_path / "second"
+    exe1 = _write_executable(first, "tool")
+    exe2 = _write_executable(second, "tool")
+
+    def run(argv: tuple[str, ...], **_kwargs: object) -> CommandResult:
+        if argv[0] == str(exe1):
+            return _result(argv, "tool 1.0.0")
+        if argv[0] == str(exe2):
+            return _result(argv, "tool 2.0.0")
+        raise AssertionError(argv)
+
+    status = detect_agent_cli_statuses(
+        _tool_providers(),
+        env={"PATH": os.pathsep.join((str(first), str(second)))},
+        run_fn=run,
+    )[0]
+
+    assert status.executable == str(exe1)
+    assert status.installed_version == "1.0.0"
+    assert len(status.other_installs) == 1
+    assert status.other_installs[0].executable == str(exe2)
+    assert status.other_installs[0].version == "2.0.0"
+    assert status.has_version_skew is True
+
+
+def test_detection_lists_matching_shadowed_installs_without_skew(
+    tmp_path: Path,
+) -> None:
+    first = tmp_path / "first"
+    second = tmp_path / "second"
+    exe1 = _write_executable(first, "tool")
+    exe2 = _write_executable(second, "tool")
+
+    def run(argv: tuple[str, ...], **_kwargs: object) -> CommandResult:
+        if argv[0] in {str(exe1), str(exe2)}:
+            return _result(argv, "tool 1.0.0")
+        raise AssertionError(argv)
+
+    status = detect_agent_cli_statuses(
+        _tool_providers(),
+        env={"PATH": os.pathsep.join((str(first), str(second)))},
+        run_fn=run,
+    )[0]
+
+    assert status.other_installs[0].executable == str(exe2)
+    assert status.other_installs[0].version == "1.0.0"
+    assert status.has_version_skew is False
+
+
+def test_detection_dedupes_shadowed_installs_by_realpath(tmp_path: Path) -> None:
+    real_dir = tmp_path / "real"
+    link_dir = tmp_path / "link"
+    real_exe = _write_executable(real_dir, "tool")
+    link_dir.mkdir()
+    link_exe = link_dir / "tool"
+    link_exe.symlink_to(real_exe)
+
+    def run(argv: tuple[str, ...], **_kwargs: object) -> CommandResult:
+        if argv[0] in {str(real_exe), str(link_exe)}:
+            return _result(argv, "tool 1.0.0")
+        raise AssertionError(argv)
+
+    status = detect_agent_cli_statuses(
+        _tool_providers(),
+        env={"PATH": os.pathsep.join((str(link_dir), str(real_dir)))},
+        run_fn=run,
+    )[0]
+
+    assert status.executable == str(link_exe)
+    assert status.other_installs == ()
+    assert status.has_version_skew is False
+
+
+def test_detection_includes_nvm_bin_shadow_candidate(tmp_path: Path) -> None:
+    path_dir = tmp_path / "path"
+    nvm_dir = tmp_path / "nvm"
+    path_exe = _write_executable(path_dir, "tool")
+    nvm_exe = _write_executable(nvm_dir, "tool")
+
+    def run(argv: tuple[str, ...], **_kwargs: object) -> CommandResult:
+        if argv[0] == str(path_exe):
+            return _result(argv, "tool 1.0.0")
+        if argv[0] == str(nvm_exe):
+            return _result(argv, "tool 9.9.9")
+        raise AssertionError(argv)
+
+    status = detect_agent_cli_statuses(
+        _tool_providers(),
+        env={"PATH": str(path_dir), "NVM_BIN": str(nvm_dir)},
+        run_fn=run,
+    )[0]
+
+    assert status.executable == str(path_exe)
+    assert status.other_installs[0].executable == str(nvm_exe)
+    assert status.other_installs[0].version == "9.9.9"
+    assert status.has_version_skew is True

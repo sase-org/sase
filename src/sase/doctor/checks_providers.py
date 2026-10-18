@@ -7,8 +7,8 @@ import time
 from collections.abc import Mapping, Sequence
 from typing import Any, TYPE_CHECKING
 
-from sase.agent_clis.detect import resolve_executable
-from sase.agent_clis.models import InstallMethod
+from sase.agent_clis.detect import detect_agent_cli_statuses, resolve_executable
+from sase.agent_clis.models import AgentCliStatus, InstallMethod
 from sase.diagnostics import CheckSpec, DiagnosticCheck
 from sase.install_remedy import reinstall_remedy
 from sase.llm_provider import registry as llm_registry
@@ -109,6 +109,12 @@ def provider_check_specs(context: DoctorContext) -> tuple[CheckSpec, ...]:
             runner=lambda: _check_llm_auth(context),
         ),
         CheckSpec(
+            id="llm.cli_shadow",
+            group="llm",
+            title="Agent CLI install shadows",
+            runner=lambda: _check_llm_cli_shadow(context),
+        ),
+        CheckSpec(
             id="llm.model_advisory",
             group="llm",
             title="Model advisories",
@@ -147,6 +153,105 @@ def _check_llm_auth(context: DoctorContext) -> DiagnosticCheck:
     from sase.doctor.checks_providers_auth import check_llm_auth
 
     return check_llm_auth(context)
+
+
+def _check_llm_cli_shadow(context: DoctorContext) -> DiagnosticCheck:
+    """WARN when PATH/NVM_BIN hide a second agent CLI at a different version."""
+    try:
+        payload = llm_registry.get_llm_metadata_payload()
+        providers = providers_from_payload(payload)
+    except Exception as exc:  # noqa: BLE001 - report registry failures.
+        return DiagnosticCheck(
+            id="llm.cli_shadow",
+            group="llm",
+            status="ERROR",
+            title="Agent CLI install shadows",
+            summary="agent CLI shadow detection could not inspect registry metadata",
+            details=(f"{type(exc).__name__}: {exc}",),
+            next_steps=(
+                "Run `sase doctor -C llm.registry` and fix provider registry errors first.",
+            ),
+            data={"error": f"{type(exc).__name__}: {exc}"},
+        )
+
+    try:
+        statuses = detect_agent_cli_statuses(providers, env=context.env)
+    except Exception as exc:  # noqa: BLE001 - doctor should report, not crash.
+        return DiagnosticCheck(
+            id="llm.cli_shadow",
+            group="llm",
+            status="ERROR",
+            title="Agent CLI install shadows",
+            summary="agent CLI shadow detection failed",
+            details=(f"{type(exc).__name__}: {exc}",),
+            next_steps=("Run `sase agent-cli list` to inspect provider CLIs.",),
+            data={"error": f"{type(exc).__name__}: {exc}"},
+        )
+
+    skewed = tuple(status for status in statuses if status.has_version_skew)
+    details = _cli_shadow_details(skewed)
+    data = {
+        "providers": [
+            {
+                "name": status.name,
+                "executable": status.executable,
+                "installed_version": status.installed_version,
+                "other_installs": [
+                    {
+                        "executable": item.executable,
+                        "version": item.version,
+                        "version_error": item.version_error,
+                    }
+                    for item in status.other_installs
+                ],
+                "version_skew": status.has_version_skew,
+            }
+            for status in statuses
+            if status.other_installs
+        ]
+    }
+    if skewed:
+        return DiagnosticCheck(
+            id="llm.cli_shadow",
+            group="llm",
+            status="WARN",
+            title="Agent CLI install shadows",
+            summary=(
+                "agent CLI installs have version skew between PATH copies"
+                if len(skewed) > 1
+                else f"{skewed[0].name} has version-skewed shadowed installs"
+            ),
+            details=details,
+            next_steps=(
+                "Run `sase agent-cli list` to inspect extra installs.",
+                "Remove the stale copy, or pin SASE_<PROVIDER>_PATH for the affected provider.",
+            ),
+            data=data,
+        )
+    return DiagnosticCheck(
+        id="llm.cli_shadow",
+        group="llm",
+        status="OK",
+        title="Agent CLI install shadows",
+        summary="No shadowed agent CLI installs with version skew.",
+        data=data,
+    )
+
+
+def _cli_shadow_details(statuses: Sequence[AgentCliStatus]) -> tuple[str, ...]:
+    rows: list[str] = []
+    for status in statuses:
+        extras = ", ".join(
+            f"{item.executable} ({item.version or item.version_error or 'unknown'})"
+            for item in status.other_installs
+            if item.version is not None and item.version != status.installed_version
+        )
+        env_var = llm_registry.provider_path_env_var(status.name)
+        rows.append(
+            f"{status.name}: {status.executable} {status.installed_version} "
+            f"shadowed by {extras}; remove the stale copy, or pin {env_var}"
+        )
+    return tuple(rows)
 
 
 def _check_llm_model_advisory() -> DiagnosticCheck:

@@ -73,6 +73,15 @@ class UpdateTrigger(StrEnum):
 
 
 @dataclass(frozen=True)
+class ShadowInstall:
+    """A second executable for the same agent-CLI binary on PATH or NVM_BIN."""
+
+    executable: str
+    version: str | None
+    version_error: str | None = None
+
+
+@dataclass(frozen=True)
 class AgentCliStatus:
     """Detected state and update capability for one provider CLI."""
 
@@ -104,6 +113,17 @@ class AgentCliStatus:
     latest_version_url: str | None = None
     latest_version_json_field: str | None = None
     version_compare: VersionCompare = VersionCompare.PEP440
+    other_installs: tuple[ShadowInstall, ...] = ()
+
+    @property
+    def has_version_skew(self) -> bool:
+        """Whether another install reports a different version than PATH's."""
+        if self.installed_version is None:
+            return False
+        return any(
+            install.version is not None and install.version != self.installed_version
+            for install in self.other_installs
+        )
 
     @property
     def installs_from_script(self) -> bool:
@@ -227,6 +247,7 @@ __all__ = [
     "InstallMethod",
     "InstallRoute",
     "NothingToUpdate",
+    "ShadowInstall",
     "UnknownName",
     "UpdateEntry",
     "UpdateReady",

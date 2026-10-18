@@ -13,7 +13,13 @@ from typing import Any
 
 from sase.llm_provider import registry as llm_registry
 
-from .models import AgentCliStatus, EnvOverlay, InstallMethod, VersionCompare
+from .models import (
+    AgentCliStatus,
+    EnvOverlay,
+    InstallMethod,
+    ShadowInstall,
+    VersionCompare,
+)
 from .runner import (
     PROBE_TIMEOUT_SECONDS,
     AgentCliRunnerError,
@@ -275,6 +281,18 @@ def detect_agent_cli_statuses(
             )
         else:
             version = _VersionProbe(None)
+        other_installs = (
+            ()
+            if method is InstallMethod.BUNDLED
+            else _probe_shadow_installs(
+                binary,
+                executable,
+                environment,
+                version_argv=version_argv,
+                version_regex=version_regex,
+                run_fn=run_fn,
+            )
+        )
         statuses.append(
             AgentCliStatus(
                 name=name,
@@ -316,9 +334,89 @@ def detect_agent_cli_statuses(
                     install.get("latest_version_json_field")
                 ),
                 version_compare=_version_compare(install.get("version_compare")),
+                other_installs=other_installs,
             )
         )
     return tuple(statuses)
+
+
+def _probe_shadow_installs(
+    binary: str,
+    resolved: str | None,
+    env: Mapping[str, str],
+    *,
+    version_argv: Sequence[str],
+    version_regex: str | None,
+    run_fn: RunnerFn,
+) -> tuple[ShadowInstall, ...]:
+    """Probe every other executable for ``binary`` on PATH and ``$NVM_BIN``."""
+    return tuple(
+        _shadow_install(
+            candidate,
+            version_argv=version_argv,
+            version_regex=version_regex,
+            run_fn=run_fn,
+        )
+        for candidate in _iter_shadow_candidates(binary, resolved, env)
+    )
+
+
+def _shadow_install(
+    executable: str,
+    *,
+    version_argv: Sequence[str],
+    version_regex: str | None,
+    run_fn: RunnerFn,
+) -> ShadowInstall:
+    probe = probe_version(
+        executable,
+        version_argv=version_argv,
+        version_regex=version_regex,
+        run_fn=run_fn,
+    )
+    return ShadowInstall(
+        executable=executable,
+        version=probe.version,
+        version_error=probe.error,
+    )
+
+
+def _iter_shadow_candidates(
+    binary: str,
+    resolved: str | None,
+    env: Mapping[str, str],
+) -> tuple[str, ...]:
+    """Return other executables for ``binary``, deduped by realpath."""
+    seen: set[str] = set()
+    if resolved:
+        seen.add(_realpath(resolved))
+    candidates: list[str] = []
+    for entry in (env.get("PATH") or "").split(os.pathsep):
+        if entry:
+            _consider_shadow_candidate(os.path.join(entry, binary), seen, candidates)
+    nvm_bin = env.get("NVM_BIN")
+    if nvm_bin:
+        _consider_shadow_candidate(os.path.join(nvm_bin, binary), seen, candidates)
+    return tuple(candidates)
+
+
+def _consider_shadow_candidate(
+    path: str, seen: set[str], candidates: list[str]
+) -> None:
+    if not path or not os.path.isfile(path) or not os.access(path, os.X_OK):
+        return
+    real = _realpath(path)
+    if real in seen:
+        return
+    seen.add(real)
+    candidates.append(path)
+
+
+def _realpath(path: str) -> str:
+    try:
+        return os.path.realpath(path)
+    except OSError:
+        return path
 
 
 def _probe_single_line(argv: tuple[str, ...], *, run_fn: RunnerFn) -> str | None:

@@ -4,7 +4,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from sase.agent_clis.models import AgentCliStatus, InstallMethod, ShadowInstall
 from sase.doctor.checks_providers import (
+    _check_llm_cli_shadow,
     _check_llm_registry,
     provider_check_specs,
     setup_hint,
@@ -29,9 +31,69 @@ def test_provider_check_specs_registers_llm_auth(tmp_path) -> None:
         "llm.model_policy",
         "llm.default",
         "llm.auth",
+        "llm.cli_shadow",
         "llm.model_advisory",
         "llm.usage",
     ]
+
+
+def _cli_status(
+    *,
+    other_version: str | None = None,
+    other_path: str = "/usr/local/bin/codex",
+) -> AgentCliStatus:
+    other_installs = ()
+    if other_version is not None:
+        other_installs = (ShadowInstall(executable=other_path, version=other_version),)
+    return AgentCliStatus(
+        name="codex",
+        display_name="Codex CLI",
+        binary="codex",
+        executable="/home/user/.nvm/bin/codex",
+        installed_version="0.163.0",
+        latest_version=None,
+        install_method=InstallMethod.NPM,
+        update_available=False,
+        docs_url=None,
+        install_hint="npm install -g @openai/codex",
+        other_installs=other_installs,
+    )
+
+
+def test_cli_shadow_check_warns_on_version_skew(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr(
+        "sase.doctor.checks_providers.llm_registry.get_llm_metadata_payload",
+        lambda: {"providers": {"codex": {"autodetect_cli_name": "codex"}}},
+    )
+    monkeypatch.setattr(
+        "sase.doctor.checks_providers.detect_agent_cli_statuses",
+        lambda *_args, **_kwargs: (_cli_status(other_version="0.128.0"),),
+    )
+
+    check = _check_llm_cli_shadow(_context(tmp_path))
+
+    assert check.status == "WARN"
+    assert check.id == "llm.cli_shadow"
+    assert "codex" in check.summary
+    assert any("0.128.0" in detail for detail in check.details)
+    assert any("SASE_CODEX_PATH" in detail for detail in check.details)
+    assert any("sase agent-cli list" in step for step in check.next_steps)
+
+
+def test_cli_shadow_check_passes_without_version_skew(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr(
+        "sase.doctor.checks_providers.llm_registry.get_llm_metadata_payload",
+        lambda: {"providers": {"codex": {"autodetect_cli_name": "codex"}}},
+    )
+    monkeypatch.setattr(
+        "sase.doctor.checks_providers.detect_agent_cli_statuses",
+        lambda *_args, **_kwargs: (_cli_status(other_version="0.163.0"),),
+    )
+
+    check = _check_llm_cli_shadow(_context(tmp_path))
+
+    assert check.status == "OK"
+    assert check.details == ()
 
 
 def test_setup_hint_prefers_enriched_provider_metadata() -> None:

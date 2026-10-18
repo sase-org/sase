@@ -20,6 +20,7 @@ from ._codex_home import (
     resolve_codex_project_dir,
 )
 from ._codex_instructions import (
+    CODEX_PATH_ENV,
     CODEX_TURN_INTEGRITY_ERROR_PREFIX,
     EFFORT_CLI_ARGS,
     coerce_stream_result,
@@ -57,6 +58,8 @@ if TYPE_CHECKING:
     from .retry_config import ProviderRetryConfig
     from .usage.types import UsageProbeContext
     from .usage_limit_config import ProviderUsageLimitConfig
+
+_CODEX_NEWER_VERSION_MARKER = "requires a newer version of Codex"
 
 
 class CodexProvider(LLMProvider):
@@ -366,6 +369,9 @@ class CodexProvider(LLMProvider):
                 continue
 
             if return_code != 0:
+                stderr_content, response_content = _annotate_stale_codex_cli(
+                    stderr_content, response_content, base_args[0]
+                )
                 raise subprocess.CalledProcessError(
                     return_code,
                     base_args,
@@ -467,6 +473,31 @@ class CodexProvider(LLMProvider):
             return stream_and_parse_codex_json_output(
                 process, suppress_output=suppress_output
             )
+
+
+def _annotate_stale_codex_cli(
+    stderr: str, output: str, executable: str
+) -> tuple[str, str]:
+    """Name the launched binary when Codex rejects its own version."""
+    if (
+        _CODEX_NEWER_VERSION_MARKER not in stderr
+        and _CODEX_NEWER_VERSION_MARKER not in output
+    ):
+        return stderr, output
+    hint = (
+        f"SASE launched {executable}. Run `sase agent-cli list` to inspect "
+        f"shadowed installs, or pin {CODEX_PATH_ENV}."
+    )
+    if hint in stderr or hint in output:
+        return stderr, output
+    if _CODEX_NEWER_VERSION_MARKER in stderr:
+        return _append_hint(stderr, hint), output
+    return stderr, _append_hint(output, hint)
+
+
+def _append_hint(text: str, hint: str) -> str:
+    stripped = text.rstrip()
+    return f"{stripped}\n{hint}" if stripped else hint
 
 
 __all__ = [

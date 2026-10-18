@@ -216,6 +216,7 @@ def test_doctor_registry_includes_phase4_catalog_checks(tmp_path) -> None:
     assert {
         "llm.registry",
         "llm.default",
+        "llm.cli_shadow",
         "runtime.node",
         "service.platform",
         "install.management",
