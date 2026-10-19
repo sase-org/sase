@@ -77,7 +77,7 @@ class _ProjectStatsLanguage:
 
 @dataclass(frozen=True, slots=True)
 class _ProjectStatsCode:
-    counter: str = "nonblank"
+    counter: str = "sloc"
     code_files: int | None = None
     code_lines: int | None = None
     test_lines: int | None = None
