@@ -76,6 +76,10 @@ _COMPACT_ROOT_COMMANDS: tuple[CompactRootCommand, ...] = (
         "List enabled projects, inspect the current project, and manage disabled work.",
     ),
     CompactRootCommand(
+        "stats",
+        "Show Admin Center Statistics views from the command line.",
+    ),
+    CompactRootCommand(
         "stitch",
         "Dispatch a commit, proposal, or PR; show the stitch timeline.",
     ),

@@ -80,6 +80,7 @@ Groups:
 | [`sase service`](service.md)           | Manage the per-machine SASE service host                                          |
 | [`sase skill`](skill.md)               | Inspect and initialize generated SASE skills                                      |
 | [`sase snippet`](snippet.md)           | Add, delete, list, and show SASE snippets                                         |
+| [`sase stats`](stats.md)               | Show Admin Center Statistics views from the command line.                         |
 | [`sase stitch`](stitch.md)             | Dispatch a commit, or show the cross-repository timeline                          |
 | [`sase sudo`](sudo.md)                 | Request, inspect, and answer typed sudo gates                                     |
 | [`sase telemetry`](telemetry.md)       | Inspect locally persisted telemetry (defaults to list)                            |

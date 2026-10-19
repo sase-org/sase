@@ -57,6 +57,7 @@ def test_root_help_renders_compact_help(capsys: pytest.CaptureFixture[str]) -> N
         "bead",
         "project",
         "screenshot",
+        "stats",
         "stitch",
         "tool",
         "tui",
@@ -94,6 +95,7 @@ def test_root_help_renders_compact_help(capsys: pytest.CaptureFixture[str]) -> N
     assert (
         "Inspect and refresh cached LLM subscription-usage observations." in help_text
     )
+    assert "Show Admin Center Statistics views from the command line." in help_text
 
 
 def test_root_help_captured_output_is_plain(

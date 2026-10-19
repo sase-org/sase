@@ -191,6 +191,7 @@ nav:
               - sase service: reference/cli/service.md
               - sase skill: reference/cli/skill.md
               - sase snippet: reference/cli/snippet.md
+              - sase stats: reference/cli/stats.md
               - sase stitch: reference/cli/stitch.md
               - sase sudo: reference/cli/sudo.md
           - Commands T–Z:

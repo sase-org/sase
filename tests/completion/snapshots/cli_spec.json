@@ -37960,6 +37960,197 @@
       },
       {
         "aliases": [],
+        "default_child": null,
+        "description_digest": "c612f6c8a7b723b0",
+        "hidden": false,
+        "mutex_groups": [],
+        "name": "stats",
+        "options": [
+          {
+            "choices": null,
+            "default": null,
+            "dest": "help",
+            "hidden": false,
+            "kind": null,
+            "metavar": null,
+            "repeatable": false,
+            "required": false,
+            "strings": [
+              "-h",
+              "--help"
+            ],
+            "takes_value": false,
+            "value_hint": null
+          }
+        ],
+        "path": [
+          "stats"
+        ],
+        "positionals": [],
+        "run_policy": [],
+        "stdin": false,
+        "subcommands": [
+          {
+            "aliases": [],
+            "default_child": null,
+            "description_digest": "6cab3ad48ff0a375",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "project",
+            "options": [
+              {
+                "choices": null,
+                "default": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": "False",
+                "dest": "include_disabled",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-D",
+                  "--include-disabled"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": "False",
+                "dest": "fetch",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-F",
+                  "--fetch"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              },
+              {
+                "choices": [
+                  "json",
+                  "markdown",
+                  "rich"
+                ],
+                "default": null,
+                "dest": "format",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-f",
+                  "--format"
+                ],
+                "takes_value": true,
+                "value_hint": null
+              },
+              {
+                "choices": [
+                  "model",
+                  "patch",
+                  "project",
+                  "repo"
+                ],
+                "default": null,
+                "dest": "group_by",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-g",
+                  "--group-by"
+                ],
+                "takes_value": true,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": "False",
+                "dest": "json",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-j",
+                  "--json"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": null,
+                "dest": "project",
+                "hidden": false,
+                "kind": "project",
+                "metavar": "PROJECT",
+                "repeatable": true,
+                "required": false,
+                "strings": [
+                  "-p",
+                  "--project"
+                ],
+                "takes_value": true,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": null,
+                "dest": "range",
+                "hidden": false,
+                "kind": null,
+                "metavar": "RANGE",
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-r",
+                  "--range"
+                ],
+                "takes_value": true,
+                "value_hint": "text"
+              }
+            ],
+            "path": [
+              "stats",
+              "project"
+            ],
+            "positionals": [],
+            "run_policy": [],
+            "stdin": false,
+            "subcommands": [],
+            "writes": false
+          }
+        ],
+        "writes": false
+      },
+      {
+        "aliases": [],
         "default_child": "list",
         "description_digest": "5e068494b4e6409d",
         "hidden": false,

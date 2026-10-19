@@ -59,6 +59,7 @@ from sase.main.parser_scheduler import register_scheduler_parser
 from sase.main.parser_service import register_service_parser
 from sase.main.parser_skills import register_skills_parser
 from sase.main.parser_snippet import register_snippet_parser
+from sase.main.parser_stats import register_stats_parser
 from sase.main.parser_stitch import register_stitch_parser
 from sase.main.parser_sudo import register_sudo_parser
 from sase.main.parser_telemetry import register_telemetry_parser
@@ -133,6 +134,7 @@ COMMAND_REGISTRARS_BY_NAME: dict[str, Any] = {
         register_service_parser,
         register_skills_parser,
         register_snippet_parser,
+        register_stats_parser,
         register_stitch_parser,
         register_sudo_parser,
         register_telemetry_parser,

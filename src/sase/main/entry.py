@@ -572,6 +572,12 @@ def main() -> NoReturn:
 
         handle_snippet_command(args)
 
+    # --- stats ---
+    if args.command == "stats":
+        from .stats_handler import handle_stats_command
+
+        sys.exit(handle_stats_command(args))
+
     # --- sudo ---
     if args.command == "sudo":
         from .sudo_handler import handle_sudo_command

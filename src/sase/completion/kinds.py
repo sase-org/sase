@@ -378,6 +378,7 @@ _VALUE_HINT_TABLE: Final[dict[str, str]] = dict.fromkeys(
         "prompt",
         "query",
         "questions_json",
+        "range",
         "raw_range",
         "reason",
         "remote_ref",

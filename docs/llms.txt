@@ -138,6 +138,7 @@
 - [sase service](https://sase.sh/reference/cli/service/) — Manage the per-machine SASE service host.
 - [sase skill](https://sase.sh/reference/cli/skill/) — Inspect, initialize, and audit generated SASE skills.
 - [sase snippet](https://sase.sh/reference/cli/snippet/) — Inspect or update the effective snippet catalog for a project.
+- [sase stats](https://sase.sh/reference/cli/stats/) — Show Admin Center Statistics views from the command line.
 - [sase stitch](https://sase.sh/reference/cli/stitch/) — Dispatch a commit, proposal, or pull request, or show the cross-repository stitch timeline for the primary repo and configured linked repos.
 - [sase sudo](https://sase.sh/reference/cli/sudo/) — Create typed sudo request gates and answer them from a controlling terminal through the dedicated sudo runner.
 - [sase telemetry](https://sase.sh/reference/cli/telemetry/) — Inspect locally persisted telemetry.

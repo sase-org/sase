@@ -1,0 +1,51 @@
+usage: sase stats project [-h] [-D] [-F] [-f {json,markdown,rich}]
+                          [-g {model,patch,project,repo}] [-j] [-p PROJECT]
+                          [-r RANGE]
+
+Show the Admin Center Statistics → Projects view: what each project produced (commits and committed plans, and which provider/model produced them), how big and how old its code is, and this machine's agent runs. Output and code facts come from each code repo's default branch and match on every machine; run facts come from this machine's run log and say so. Same loader and definitions as the TUI tab.
+
+options:
+  -h, --help            show this help message and exit
+  -D, --include-disabled
+                        Also include disabled projects when no -p is given
+  -F, --fetch           Fetch each code repo's default branch before measuring
+                        (default: local refs)
+  -f {json,markdown,rich}, --format {json,markdown,rich}
+                        Output format (default: rich)
+  -g {model,patch,project,repo}, --group-by {model,patch,project,repo}
+                        Breakdown table, like the TUI's g key (default:
+                        project for several projects, model for one)
+  -j, --json            Shorthand for --format json
+  -p PROJECT, --project PROJECT
+                        Project name, alias, key, or +tag; repeatable
+                        (default: every enabled project)
+  -r RANGE, --range RANGE
+                        today, 24h, 7d, 30d, 90d, all, Nh/Nd/Nw, YYYY-MM,
+                        YYYY-MM-DD, or START..END (default: 7d, the TUI
+                        default)
+
+definitions:
+  Commits: default-branch commits in code repos, by committer time in range
+  Agent share: commits with an agent footer, divided by commits
+  Plans: plan documents first committed to the plan store, by first-add committer time
+  By model: commits and plans credited to a provider/model; rows including ? and ∅ sum to the total
+  ?: model not recorded (unpublished page, empty metadata, ambiguous session, or malformed tag)
+  ∅: no agent footer on the commit, or no proposer on the plan
+  Code lines: role-classified source and test lines over the committed tree
+  Tests: test-line share of code lines
+  Doc lines: non-blank documentation lines
+  Age: time since the first author-date commit across code repos
+  Active days: distinct author dates in the SASE timezone
+  Runs: agent runs launched on this machine, by launch time
+  Success: completed runs divided by all runs
+  Agent time: summed run durations on this machine
+  Patches: distinct attributed Patches on this machine
+  Run commits: commits recorded by runs, to code repos only (patch grouping)
+  Coverage: resolved models among agent-tagged commits, plus unavailable sources
+
+examples:
+  sase stats project
+  sase stats project -p sase -r all
+  sase stats project -p sase -g model -r 30d
+  sase stats project -p +sase -F -f markdown > sase-stats.md
+  sase stats project -p sase -j | jq '.data.projects[0].models[] | {provider, model, commits, plans}'

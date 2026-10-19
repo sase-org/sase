@@ -136,6 +136,7 @@
 - [sase service](reference/cli/service.md) — Manage the per-machine SASE service host.
 - [sase skill](reference/cli/skill.md) — Inspect, initialize, and audit generated SASE skills.
 - [sase snippet](reference/cli/snippet.md) — Inspect or update the effective snippet catalog for a project.
+- [sase stats](reference/cli/stats.md) — Show Admin Center Statistics views from the command line.
 - [sase stitch](reference/cli/stitch.md) — Dispatch a commit, proposal, or pull request, or show the cross-repository stitch timeline for the primary repo and configured linked repos.
 - [sase sudo](reference/cli/sudo.md) — Create typed sudo request gates and answer them from a controlling terminal through the dedicated sudo runner.
 - [sase telemetry](reference/cli/telemetry.md) — Inspect locally persisted telemetry.
