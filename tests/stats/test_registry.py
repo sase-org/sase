@@ -37,6 +37,28 @@ def test_cli_name_maps_each_view_id_to_its_singular_noun() -> None:
     assert tuple(spec.id for spec in STATISTICS_VIEW_SPECS) == VIEW_ORDER
 
 
+def test_project_report_constants_stay_off_the_live_spec() -> None:
+    from sase.stats.registry import PROJECT_REPORT_GROUPINGS, PROJECT_REPORT_LEGENDS
+
+    spec = {item.id: item for item in STATISTICS_VIEW_SPECS}["projects"]
+    assert tuple(group.id for group in spec.groupings) == (
+        "project",
+        "patch",
+        "drilldown",
+    )
+    assert {entry.term for entry in spec.legends} == {
+        "Success",
+        "Share",
+        "Wall",
+        "Patches",
+        "✓/×",
+        "Unattributed",
+    }
+    assert PROJECT_REPORT_GROUPINGS == ("project", "repo", "model", "patch")
+    terms = {entry.term for entry in PROJECT_REPORT_LEGENDS}
+    assert {"Commits", "Plans", "Runs", "?", "∅", "Coverage"} <= terms
+
+
 def test_groupings_stay_on_the_pre_tui_ids() -> None:
     by_id = {spec.id: spec for spec in STATISTICS_VIEW_SPECS}
     assert tuple(group.id for group in by_id["projects"].groupings) == (

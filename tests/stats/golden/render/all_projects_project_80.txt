@@ -1,0 +1,31 @@
+╭─ SASE projects · 2 enabled ──────────────────────────────────────────────────╮
+│ OUTPUT   501 commits · 99% by agents · 77 plans committed (17 epic · 60      │
+│          tale)                                                               │
+│ CODE     3.5M lines · 45% tests · 8 of 9 code repos                          │
+│ RUNS     403 runs on apollo · ✓ 339 × 64 · 84% success · 63 h agent time ·   │
+│          27 Patches                                                          │
+│          Commits by provider  ██████▓▓▓▓▓▒▒░░▓   🦋 muse 197  🤖 codex 140   │
+│          🎭 claude 71  🚀 grok 52  🤖 openai 4  ? 31  ∅ 6                    │
+╰──────────────────────────────────────── Last 7 days · Oct 09 – Oct 16, 2026 ─╯
+PROJECT · Last 7 days · Oct 09 – Oct 16, 2026                                   
+PROJECT     COMMITS   AGENT   PLANS   CODE LINES   TESTS    AGE   RUNS   SUCCESS
+────────────────────────────────────────────────────────────────────────────────
+■ sase          412     99%      61    3,126,927     46%   8 mo    233       81%
+■ bob-cli        89     98%      16      369,231     36%   5 mo    170       88%
+                                                                                
+total           501     99%      77    3,496,158     45%   8 mo    403       84%
+ᵃ runs launched on this machine (apollo).
+Model recorded for 381 of 408 agent commits (93%) · 27 unresolved: 27 agent page
+not published
+Commits: code repos' default branches, by commit time · refs fetched 2 h ago (-F
+to refresh)
+Plans: first committed to the plan store, credited to the proposing model · 
+Runs: this machine (apollo) only
+Issues: gh_sase-org__sase.missing: not cloned
+Commits = default-branch commits in code repos, by committer time in range  ·  
+Plans = plan documents first committed to the plan store, by first-add committer
+time  ·  ? = model not recorded (unpublished page, empty metadata, ambiguous 
+session, or malformed tag)  ·  ∅ = no agent footer on the commit, or no proposer
+on the plan  ·  Runs = agent runs launched on this machine, by launch time
+More: -g repo · -g patch · -g model · -r all · -j        Definitions: sase stats
+project -h

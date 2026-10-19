@@ -1,0 +1,23 @@
+╭─ ■ sase ─────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ OUTPUT   0 commits · 0% by agents · 0 plans committed                                                                │
+│ CODE     3.1M lines · 46% tests · 82k doc lines · 6 of 7 code repos                                                  │
+│                     Feb 14, 2026 · 8 months · commits on 239 of 245 days · 17,755 commits all time                   │
+│ RUNS     0 runs on apollo · ✓ 0 × 0 · 0ms agent time                                                                 │
+│          Commits by provider  ░░░░░░░░░░░░░░░░░░░░░░░░   ? 0  ∅ 0                                                    │
+╰──────────────────────────────────────────────────────────────────────────────── Last 7 days · Oct 09 – Oct 16, 2026 ─╯
+BY MODEL · Last 7 days · Oct 09 – Oct 16, 2026                                                                          
+MODEL                                                                              COMMITS   SHARE   PLANS   EPIC   TALE
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+?  model not recorded                                                                    0       —       —      —      —
+∅  no agent footer                                                                       0       —       —      —      —
+                                                                                                                        
+total                                                                                    0       —       —      —      —
+No agent-tagged commits in range
+Commits: code repos' default branches, by commit time · refs fetched 2 h ago (-F to refresh)
+Plans: first committed to the plan store, credited to the proposing model · Runs: this machine (apollo) only
+Issues: gh_sase-org__sase.missing: not cloned
+Commits = default-branch commits in code repos, by committer time in range  ·  Plans = plan documents first committed to
+the plan store, by first-add committer time  ·  ? = model not recorded (unpublished page, empty metadata, ambiguous 
+session, or malformed tag)  ·  ∅ = no agent footer on the commit, or no proposer on the plan  ·  Runs = agent runs 
+launched on this machine, by launch time
+More: -g repo · -g patch · -g project · -r all · -j        Definitions: sase stats project -h

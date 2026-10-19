@@ -60,6 +60,63 @@ class StatisticsViewSpec:
     legends: tuple[MetricLegend, ...] = ()
 
 
+PROJECT_REPORT_GROUPINGS: tuple[str, ...] = ("project", "repo", "model", "patch")
+PROJECT_REPORT_LEGENDS: tuple[MetricLegend, ...] = (
+    MetricLegend(
+        "Commits",
+        "default-branch commits in code repos, by committer time in range",
+    ),
+    MetricLegend(
+        "Agent share",
+        "commits with an agent footer, divided by commits",
+    ),
+    MetricLegend(
+        "Plans",
+        "plan documents first committed to the plan store, by first-add committer time",
+    ),
+    MetricLegend(
+        "By model",
+        "commits and plans credited to a provider/model; rows including ? and ∅ sum to the total",
+    ),
+    MetricLegend(
+        "?",
+        "model not recorded (unpublished page, empty metadata, ambiguous session, or malformed tag)",
+    ),
+    MetricLegend(
+        "∅",
+        "no agent footer on the commit, or no proposer on the plan",
+    ),
+    MetricLegend(
+        "Code lines",
+        "role-classified source and test lines over the committed tree",
+    ),
+    MetricLegend("Tests", "test-line share of code lines"),
+    MetricLegend("Doc lines", "non-blank documentation lines"),
+    MetricLegend(
+        "Age",
+        "time since the first author-date commit across code repos",
+    ),
+    MetricLegend(
+        "Active days",
+        "distinct author dates in the SASE timezone",
+    ),
+    MetricLegend(
+        "Runs",
+        "agent runs launched on this machine, by launch time",
+    ),
+    MetricLegend("Success", "completed runs divided by all runs"),
+    MetricLegend("Agent time", "summed run durations on this machine"),
+    MetricLegend("Patches", "distinct attributed Patches on this machine"),
+    MetricLegend(
+        "Run commits",
+        "commits recorded by runs, to code repos only (patch grouping)",
+    ),
+    MetricLegend(
+        "Coverage",
+        "resolved models among agent-tagged commits, plus unavailable sources",
+    ),
+)
+
 _PROJECTS_GROUPINGS: tuple[StatisticsGrouping, ...] = (
     StatisticsGrouping("project", "By Project"),
     StatisticsGrouping("patch", "By Patch"),
@@ -368,6 +425,8 @@ __all__ = [
     "MACROS_GROUP_ORDER",
     "PERF_GROUP_ORDER",
     "PROJECTS_GROUP_ORDER",
+    "PROJECT_REPORT_GROUPINGS",
+    "PROJECT_REPORT_LEGENDS",
     "STATISTICS_VIEW_BY_ID",
     "STATISTICS_VIEW_SPECS",
     "VIEW_COMPACT_LABELS",

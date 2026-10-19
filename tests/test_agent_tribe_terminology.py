@@ -34,6 +34,8 @@ _TAG_IDENTIFIER_ALLOWLIST = {
     Path("src/sase/ops/commands/_agent_revert.py"),
     # Mirrors agent_tagged_commits in the commit-provenance statistics wire.
     Path("src/sase/stats/project/models.py"),
+    # Reads agent_tagged_commits from the commit-provenance statistics wire.
+    Path("src/sase/stats/render/legend.py"),
 }
 
 _CURRENT_DOCUMENTATION = (
