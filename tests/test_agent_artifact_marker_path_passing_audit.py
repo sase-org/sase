@@ -27,6 +27,12 @@ _REVIEWED_PATH_PASSING_CONTEXTS: dict[str, PathPassingReview] = {
             "index for the same artifacts directory."
         ),
     ),
+    "src/sase/axe/run_agent_runner_finalize.py:write_error_done_marker": PathPassingReview(
+        lifecycle_coverage=(
+            "Writes done.json through write_json_marker_atomic and immediately "
+            "refreshes the Tier 1 artifact index for the same artifacts directory."
+        ),
+    ),
     "src/sase/agent/identity.py:require_agent_identity": PathPassingReview(
         exemption=(
             "Read-only audit attribution fallback: artifacts_dir is used only "

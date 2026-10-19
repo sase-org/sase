@@ -191,7 +191,7 @@ _REVIEWED_MARKER_MUTATION_CONTEXTS: dict[str, Review] = {
         lifecycle_calls=(_UPDATE_INDEX,),
     ),
     "src/sase/axe/run_agent_exec_markers.py:write_done_marker_and_update_index": Review(
-        mutation_calls=("open", "dump"),
+        mutation_calls=("write_json_marker_atomic",),
         lifecycle_calls=(_UPDATE_INDEX,),
     ),
     "src/sase/axe/run_agent_exec_markers.py:update_workflow_pdf_status": Review(
@@ -223,7 +223,7 @@ _REVIEWED_MARKER_MUTATION_CONTEXTS: dict[str, Review] = {
         lifecycle_calls=(_UPDATE_INDEX,),
     ),
     "src/sase/axe/run_agent_runner_finalize.py:write_error_done_marker": Review(
-        mutation_calls=("open", "dump"),
+        mutation_calls=("write_json_marker_atomic",),
         lifecycle_calls=(_UPDATE_INDEX,),
     ),
     "src/sase/axe/run_agent_runner_setup_meta.py:setup_artifacts_directory": Review(
