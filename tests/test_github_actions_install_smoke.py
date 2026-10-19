@@ -31,10 +31,22 @@ def test_canary_installs_are_isolated_and_cache_free() -> None:
     job = workflow["jobs"]["install-smoke"]
     env = job.get("env", {})
     assert env.get("UV_NO_CACHE") == "1"
-    assert "UV_TOOL_DIR" in env
-    assert "UV_TOOL_BIN_DIR" in env
     run_text = _job_run_text(job)
+    assert "canary-tool-dir" in run_text
+    assert "canary-exact-tool-dir" in run_text
+    assert "GITHUB_ENV" in run_text
     assert "--refresh" in run_text
+
+
+def test_canary_job_env_uses_no_runner_context() -> None:
+    # The `runner` context is not available in job-level `env`; GitHub
+    # rejects the whole workflow file with "Unrecognized named-value:
+    # 'runner'" and every run fails before any job starts. Isolated paths
+    # must be derived from $RUNNER_TEMP inside a step instead.
+    workflow = _load_install_smoke_workflow()
+    for name, job in workflow["jobs"].items():
+        for key, value in job.get("env", {}).items():
+            assert "runner." not in str(value), f"{name}.env.{key}"
 
 
 def test_canary_keeps_the_single_sourced_documented_commands() -> None:

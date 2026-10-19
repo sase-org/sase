@@ -74,11 +74,6 @@ jobs:
         os: [ubuntu-latest, macos-latest]
     env:
       UV_NO_CACHE: '1'
-      UV_TOOL_DIR: ${{ runner.temp }}/canary-tool-dir
-      UV_TOOL_BIN_DIR: ${{ runner.temp }}/canary-tool-bin
-      CANARY_HOME: ${{ runner.temp }}/canary-home
-      CANARY_EXACT_TOOL_DIR: ${{ runner.temp }}/canary-exact-tool-dir
-      CANARY_EXACT_TOOL_BIN: ${{ runner.temp }}/canary-exact-tool-bin
     steps:
       - uses: actions/checkout@v4
 
@@ -89,10 +84,26 @@ jobs:
         run: uv python install 3.12
 
       - name: Prepare isolated install dirs
+        # The `runner` context is not available in job-level `env`
+        # (GitHub rejects the workflow with "Unrecognized named-value:
+        # 'runner'"), so derive the isolated paths from $RUNNER_TEMP here
+        # and export them to later steps through $GITHUB_ENV.
         run: |
           set -euo pipefail
+          UV_TOOL_DIR="$RUNNER_TEMP/canary-tool-dir"
+          UV_TOOL_BIN_DIR="$RUNNER_TEMP/canary-tool-bin"
+          CANARY_HOME="$RUNNER_TEMP/canary-home"
+          CANARY_EXACT_TOOL_DIR="$RUNNER_TEMP/canary-exact-tool-dir"
+          CANARY_EXACT_TOOL_BIN="$RUNNER_TEMP/canary-exact-tool-bin"
           mkdir -p "$UV_TOOL_DIR" "$UV_TOOL_BIN_DIR" "$CANARY_HOME" \
             "$CANARY_EXACT_TOOL_DIR" "$CANARY_EXACT_TOOL_BIN"
+          {
+            echo "UV_TOOL_DIR=$UV_TOOL_DIR"
+            echo "UV_TOOL_BIN_DIR=$UV_TOOL_BIN_DIR"
+            echo "CANARY_HOME=$CANARY_HOME"
+            echo "CANARY_EXACT_TOOL_DIR=$CANARY_EXACT_TOOL_DIR"
+            echo "CANARY_EXACT_TOOL_BIN=$CANARY_EXACT_TOOL_BIN"
+          } >> "$GITHUB_ENV"
           echo "$UV_TOOL_BIN_DIR" >> "$GITHUB_PATH"
 
       - name: Run the documented install command
