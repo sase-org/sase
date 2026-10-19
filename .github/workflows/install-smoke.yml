@@ -36,8 +36,46 @@ jobs:
         run: python3 tools/render_applicability --check-installed
 
       - name: Smoke the CLI entry points
-        # Default doctor mode exits 0 on WARN and 1 on ERROR, so warnings
-        # are tolerated and only hard errors fail this step.
+        # Isolated home so doctor does not inherit this checkout's required
+        # plugins. Full `sase doctor -j` exits 1 on ERROR, and a CI runner
+        # has no LLM provider; pin the provider check and accept that
+        # expected diagnostic, matching publish.yml's install-smoke.
         run: |
+          set -euo pipefail
           sase --help
-          sase doctor -j
+          sase version -j
+          sase core health --json
+          doctor_json="$(mktemp)"
+          doctor_status=0
+          clean_home="$(mktemp -d)"
+          SASE_HOME="$clean_home" HOME="$clean_home" \
+            sase doctor -C llm.default -j > "$doctor_json" || doctor_status=$?
+          cat "$doctor_json"
+          python3 - "$doctor_json" "$doctor_status" <<'PY'
+          import json
+          import sys
+
+          path = sys.argv[1]
+          doctor_status = int(sys.argv[2])
+          with open(path, encoding="utf-8") as fp:
+              payload = json.load(fp)
+
+          checks = payload.get("checks", [])
+          summary = checks[0].get("summary", "") if checks else ""
+          expected_missing_provider = (
+              payload.get("status") == "ERROR"
+              and "no usable default LLM provider executable was found" in summary
+          )
+
+          if doctor_status == 0 and payload.get("status") == "OK":
+              print("Provider readiness smoke passed.")
+          elif doctor_status == 1 and expected_missing_provider:
+              print("Provider readiness smoke produced the expected CI diagnostic.")
+          else:
+              print(
+                  "Unexpected provider readiness result: "
+                  f"exit={doctor_status}, status={payload.get('status')!r}, summary={summary!r}",
+                  file=sys.stderr,
+              )
+              sys.exit(1)
+          PY

@@ -338,9 +338,16 @@ async def test_merge_stitch_context_carries_merges_show(
         await page.__aexit__(None, None, None)
 
 
-async def _open_plans(
-    page: AcePage, tmp_path: Any, monkeypatch: pytest.MonkeyPatch
-) -> Any:
+def _install_truncated_archived_plans(
+    tmp_path: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Patch Plans loaders before AcePage so pytest cannot restore the empty override.
+
+    AcePage's fast-startup stack installs `_empty_artifacts_project_choices` only
+    when the production function is still in place. A function-scoped monkeypatch
+    applied after that capture snapshots the empty helper and writes it back when
+    the test fixture tears down, leaking it into the next test in the process.
+    """
     from pathlib import Path
 
     value = replace(_snapshot(tmp_path), archive_truncated=True)
@@ -369,6 +376,9 @@ async def _open_plans(
         "load_plans_snapshot",
         lambda _project, **_kwargs: value,
     )
+
+
+async def _open_plans(page: AcePage) -> Any:
     await page.press(page.artifacts_digit("ref:plan"))
     pane = page.query_one_widget("#artifacts-plans-pane", ArtifactsDocumentsPane)
     pane.set_project_scope("alpha")
@@ -382,8 +392,9 @@ async def test_archived_plan_reveals_through_path_context_after_scan(
     tmp_path: Any, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """A filtered-out archived plan lands via ``path:`` once the scan reports."""
+    _install_truncated_archived_plans(tmp_path, monkeypatch)
     async with AcePage(initial_tab="patches") as page:
-        pane = await _open_plans(page, tmp_path, monkeypatch)
+        pane = await _open_plans(page)
         archive_row = next(row for row in pane._rows.values() if row.kind == "archive")
         target = plan_row_target(archive_row)
         identity = target.parts[2]
@@ -406,6 +417,37 @@ async def test_archived_plan_reveals_through_path_context_after_scan(
         assert _link_follow_outcomes["context"] == 1
         reveal = app._link_reveals["ref:plan"]
         assert reveal.label == f"plan {identity.rsplit('/', 1)[-1]}"
+
+
+async def test_open_plans_does_not_leak_empty_project_choices(
+    tmp_path: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Installing Plans patches before AcePage leaves production identity intact."""
+    from sase.ace.testing._startup import _empty_artifacts_project_choices
+    from sase.ace.tui.actions import artifacts as artifacts_actions
+
+    original = artifacts_actions._collect_artifacts_project_choices
+    _install_truncated_archived_plans(tmp_path, monkeypatch)
+    async with AcePage(initial_tab="patches") as page:
+        pane = await _open_plans(page)
+        assert pane.snapshot is not None
+        assert artifacts_actions._collect_artifacts_project_choices is _choices
+    assert artifacts_actions._collect_artifacts_project_choices is _choices
+    assert (
+        artifacts_actions._collect_artifacts_project_choices
+        is not _empty_artifacts_project_choices
+    )
+
+    with pytest.raises(RuntimeError, match="forced teardown"):
+        async with AcePage(initial_tab="patches") as page:
+            await _open_plans(page)
+            raise RuntimeError("forced teardown")
+    assert artifacts_actions._collect_artifacts_project_choices is _choices
+
+    async with AcePage() as page:
+        assert artifacts_actions._collect_artifacts_project_choices is _choices
+    assert artifacts_actions._collect_artifacts_project_choices is _choices
+    assert artifacts_actions._collect_artifacts_project_choices is not original
 
 
 def test_provider_schema_accepts_rendered_path_query() -> None:

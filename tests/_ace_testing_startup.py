@@ -270,6 +270,63 @@ async def test_ace_page_preserves_caller_supplied_startup_fixtures(
     assert calls >= {"agents", "axe", "project-choices"}
 
 
+async def test_nested_project_choices_patch_unwinds_before_page_exit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A nested monkeypatch of project choices must not leak the empty override.
+
+    Function-scoped monkeypatch applied after AcePage entry captures the
+    fast-startup empty helper and restores it after page exit. Nested
+    ``monkeypatch.context()`` unwinds first so AcePage can restore the
+    production function, including when the body raises.
+    """
+    from sase.ace.testing._startup import _empty_artifacts_project_choices
+
+    original = artifacts_actions._collect_artifacts_project_choices
+
+    def patched_choices() -> object:
+        return artifacts_actions._ArtifactsProjectChoices(
+            choices=(),
+            enabled_projects=(),
+            display_names={},
+        )
+
+    async with AcePage():
+        with monkeypatch.context() as nested:
+            nested.setattr(
+                artifacts_actions,
+                "_collect_artifacts_project_choices",
+                patched_choices,
+            )
+            assert (
+                artifacts_actions._collect_artifacts_project_choices is patched_choices
+            )
+        assert (
+            artifacts_actions._collect_artifacts_project_choices
+            is _empty_artifacts_project_choices
+        )
+    assert artifacts_actions._collect_artifacts_project_choices is original
+
+    with pytest.raises(RuntimeError, match="forced teardown"):
+        async with AcePage():
+            with monkeypatch.context() as nested:
+                nested.setattr(
+                    artifacts_actions,
+                    "_collect_artifacts_project_choices",
+                    patched_choices,
+                )
+                raise RuntimeError("forced teardown")
+    assert artifacts_actions._collect_artifacts_project_choices is original
+
+    async with AcePage():
+        assert artifacts_actions._collect_artifacts_project_choices is not original
+        assert (
+            artifacts_actions._collect_artifacts_project_choices
+            is _empty_artifacts_project_choices
+        )
+    assert artifacts_actions._collect_artifacts_project_choices is original
+
+
 async def test_ace_page_fast_stylesheet_cache_skips_second_parse(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

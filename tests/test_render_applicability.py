@@ -109,7 +109,11 @@ def test_smoke_workflow_reads_the_single_sourced_command() -> None:
     )
     assert "tools/render_applicability --install-command" in run_steps
     assert "tools/render_applicability --check-installed" in run_steps
-    assert "sase doctor -j" in run_steps
+    assert "sase --help" in run_steps
+    assert "sase version -j" in run_steps
+    assert "sase core health --json" in run_steps
+    assert "sase doctor -C llm.default -j" in run_steps
+    assert "no usable default LLM provider executable was found" in run_steps
     assert "--strict" not in run_steps
 
 

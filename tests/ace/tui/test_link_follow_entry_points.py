@@ -576,10 +576,14 @@ async def test_matrix_archived_plan_via_links_panel(
     from sase.ace.testing import AcePage
     from sase.ace.tui.widgets.artifacts.plan_filter_bar import PlanFilterBar
     from sase.ace.tui.widgets.artifacts.plans_list import plan_row_target
-    from tests.ace.tui.test_link_follow_bounded_panes import _open_plans
+    from tests.ace.tui.test_link_follow_bounded_panes import (
+        _install_truncated_archived_plans,
+        _open_plans,
+    )
 
+    _install_truncated_archived_plans(tmp_path, monkeypatch)
     async with AcePage(initial_tab="patches") as page:
-        pane = await _open_plans(page, tmp_path, monkeypatch)
+        pane = await _open_plans(page)
         archive_row = next(row for row in pane._rows.values() if row.kind == "archive")
         target = plan_row_target(archive_row)
         identity = target.parts[2]
