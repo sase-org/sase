@@ -1,0 +1,682 @@
+#!/usr/bin/env python3
+"""Seal and evaluate exact-candidate release manifests (phase sase-1n6.2).
+
+An exact candidate is built once at its tag: the wheel and sdist plus an exact
+``sase-core-rs==X.Y.Z`` with its full file set and digests. This tool owns the
+candidate manifest: ``seal`` writes the immutable sealed fields, ``observe``
+appends one observation asset, ``verify`` rechecks a sealed manifest,
+``evaluate`` runs the promotion predicate, ``show`` prints a manifest,
+``download`` resolves an asset locator to local bytes, ``core-files`` fetches
+the core PyPI file list and cross-checks ``uv.lock``, and ``core-suffixes``
+parses the completeness set from sase-core's ``release-plz.yml``.
+
+Sealed fields (immutable): repository, version, tag (or the rehearsal ref),
+peeled SHA and tree, candidate ID, build generation, builder workflow revision,
+run ID and attempt, core source pin, exact core version with its full file set
+and PyPI digests, and every dist's filename, size and SHA-256 plus its asset
+locator.
+
+The candidate ID derives only from sealed fields: it is stable across
+observations and changes with the generation. A rebuild at the same tag is a
+new generation that must be qualified again. Tags never move.
+
+Observation kinds: ``qualification``, ``exercise``, ``publication``,
+``confirmation``, ``abandoned`` and ``veto``. Each observation is its own
+asset named by generation, kind, run ID and attempt, so a re-append is
+idempotent and nothing is rewritten.
+
+Only the stdlib plus ``packaging`` is used. The workflow runs this through
+``uv run --no-project --with packaging`` so the runner needs no checkout
+install.
+"""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import shutil
+import subprocess
+import sys
+import urllib.request
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
+from collections.abc import Sequence
+
+
+SCHEMA_VERSION = 1
+
+OBSERVATION_KINDS = (
+    "qualification",
+    "exercise",
+    "publication",
+    "confirmation",
+    "abandoned",
+    "veto",
+)
+
+# Sealed fields only: the candidate ID is a digest of exactly these keys.
+SEALED_KEYS = (
+    "schema_version",
+    "repository",
+    "version",
+    "tag",
+    "sha",
+    "tree",
+    "generation",
+    "builder_revision",
+    "builder_run_id",
+    "builder_attempt",
+    "core_source_pin",
+    "core_version",
+    "core_files",
+    "dists",
+)
+
+EXIT_OK = 0
+EXIT_REFUSED = 2
+EXIT_ERROR = 3
+
+
+class Refusal(Exception):
+    """A typed refusal: the candidate or request is red, not a crash."""
+
+
+def _canonical(payload: Any) -> bytes:
+    return json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+
+
+def candidate_id(sealed: dict[str, Any]) -> str:
+    """Derive the candidate ID from sealed fields only."""
+    projection = {key: sealed[key] for key in SEALED_KEYS if key in sealed}
+    return "candidate-" + hashlib.sha256(_canonical(projection)).hexdigest()[:32]
+
+
+def observation_asset_name(
+    generation: int, kind: str, run_id: int, attempt: int
+) -> str:
+    """Name one observation asset; re-appending it is idempotent."""
+    if kind not in OBSERVATION_KINDS:
+        raise Refusal(f"unknown observation kind: {kind!r}")
+    return f"candidate-gen{generation}-{kind}-run{run_id}-attempt{attempt}.json"
+
+
+def _core_files_complete(
+    core_files: list[dict[str, Any]], expected_suffixes: Sequence[str]
+) -> list[str]:
+    """Return the expected suffixes with no live (non-yanked) file."""
+    live = [
+        entry
+        for entry in core_files
+        if isinstance(entry, dict) and not entry.get("yanked", False)
+    ]
+    missing = []
+    for suffix in expected_suffixes:
+        if not any(
+            isinstance(entry.get("filename"), str)
+            and entry["filename"].endswith(suffix)
+            for entry in live
+        ):
+            missing.append(suffix)
+    return missing
+
+
+def seal_manifest(
+    *,
+    repository: str,
+    version: str,
+    tag: str,
+    sha: str,
+    tree: str,
+    generation: int,
+    builder_revision: str,
+    builder_run_id: int,
+    builder_attempt: int,
+    core_source_pin: str,
+    core_version: str,
+    core_files: list[dict[str, Any]],
+    expected_core_suffixes: Sequence[str],
+    dists: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Build the sealed manifest, refusing incomplete or malformed input."""
+    if not repository or not version or not tag or not sha:
+        raise Refusal("repository, version, tag, and sha must all be non-empty")
+    if generation < 1:
+        raise Refusal(f"generation must be >= 1, got {generation}")
+    wheels = [d for d in dists if d.get("packagetype") == "bdist_wheel"]
+    sdists = [d for d in dists if d.get("packagetype") == "sdist"]
+    if len(wheels) != 1 or len(sdists) != 1 or len(dists) != 2:
+        raise Refusal(
+            "dist set must be exactly one wheel plus one sdist, "
+            f"got {len(wheels)} wheel(s) and {len(sdists)} sdist(s)"
+        )
+    for dist in dists:
+        for key in ("filename", "size", "sha256", "asset"):
+            if not dist.get(key):
+                raise Refusal(f"dist {dist.get('filename', '?')!r} misses {key!r}")
+        if version.replace("-", "_") not in dist["filename"].replace("-", "_"):
+            raise Refusal(
+                f"dist {dist['filename']!r} is not named for version {version!r}"
+            )
+    missing = _core_files_complete(core_files, expected_core_suffixes)
+    if missing:
+        raise Refusal(
+            f"incomplete core file set for sase-core-rs=={core_version}: "
+            f"no live file for suffixes {missing}"
+        )
+    manifest: dict[str, Any] = {
+        "schema_version": SCHEMA_VERSION,
+        "repository": repository,
+        "version": version,
+        "tag": tag,
+        "sha": sha,
+        "tree": tree,
+        "generation": generation,
+        "builder_revision": builder_revision,
+        "builder_run_id": builder_run_id,
+        "builder_attempt": builder_attempt,
+        "core_source_pin": core_source_pin,
+        "core_version": core_version,
+        "core_files": core_files,
+        "dists": dists,
+        "observations": [],
+    }
+    manifest["candidate_id"] = candidate_id(manifest)
+    return manifest
+
+
+def verify_manifest(manifest: dict[str, Any]) -> list[str]:
+    """Recheck a sealed manifest; return a list of typed problems (empty OK)."""
+    problems: list[str] = []
+    if manifest.get("schema_version") != SCHEMA_VERSION:
+        problems.append(f"SCHEMA_MISMATCH expected={SCHEMA_VERSION}")
+    for key in SEALED_KEYS:
+        if key not in manifest:
+            problems.append(f"MISSING_FIELD field={key}")
+    if problems:
+        return problems
+    if manifest.get("candidate_id") != candidate_id(manifest):
+        problems.append("IDENTITY_MISMATCH candidate_id does not match sealed fields")
+    try:
+        seal_manifest(
+            repository=manifest["repository"],
+            version=manifest["version"],
+            tag=manifest["tag"],
+            sha=manifest["sha"],
+            tree=manifest.get("tree", ""),
+            generation=manifest["generation"],
+            builder_revision=manifest.get("builder_revision", ""),
+            builder_run_id=manifest.get("builder_run_id", 0),
+            builder_attempt=manifest.get("builder_attempt", 1),
+            core_source_pin=manifest.get("core_source_pin", ""),
+            core_version=manifest["core_version"],
+            core_files=manifest["core_files"],
+            expected_core_suffixes=_suffixes_covered_by(manifest["core_files"]),
+            dists=manifest["dists"],
+        )
+    except Refusal as exc:
+        problems.append(f"SEAL_REFUSED {exc}")
+    return problems
+
+
+def _suffixes_covered_by(core_files: list[dict[str, Any]]) -> list[str]:
+    """Derive one satisfied suffix per live file (verify-time self-check)."""
+    suffixes = []
+    for entry in core_files:
+        if isinstance(entry, dict) and not entry.get("yanked", False):
+            suffixes.append(entry.get("filename", ""))
+    return suffixes
+
+
+@dataclass
+class Clause:
+    name: str
+    ok: bool
+    detail: str
+
+
+def evaluate_manifest(
+    manifest: dict[str, Any],
+    observations: Sequence[dict[str, Any]],
+) -> dict[str, Any]:
+    """Run the promotion predicate over a manifest plus observation assets.
+
+    Qualification and exercise clauses read "required evidence missing" until
+    those phases fill them in. Missing evidence is red: skipped, cancelled,
+    missing, stale, zero-collected or unreadable evidence never satisfies a
+    gate.
+    """
+    problems = verify_manifest(manifest)
+    clauses = [
+        Clause(
+            "source_and_version_identity_match",
+            not problems,
+            "; ".join(problems) if problems else "candidate ID matches sealed fields",
+        )
+    ]
+
+    core_files = manifest.get("core_files", [])
+    live_core = [f for f in core_files if isinstance(f, dict) and not f.get("yanked")]
+    core_ok = bool(manifest.get("core_version")) and bool(live_core) and not problems
+    clauses.append(
+        Clause(
+            "public_dependency_contract_satisfied",
+            core_ok,
+            f"exact core pin {manifest.get('core_version')!r} with "
+            f"{len(live_core)} live file(s)"
+            if core_ok
+            else "exact core pin missing, incomplete, or manifest red",
+        )
+    )
+
+    dists_ok = not problems and len(manifest.get("dists", [])) == 2
+    clauses.append(
+        Clause(
+            "exact_expected_files_retained_and_hashed",
+            dists_ok,
+            "sealed dist set retained (hash recheck runs at publish)"
+            if dists_ok
+            else "dist set missing or manifest red",
+        )
+    )
+
+    by_kind: dict[str, list[dict[str, Any]]] = {}
+    for obs in observations:
+        if isinstance(obs, dict) and obs.get("kind") in OBSERVATION_KINDS:
+            by_kind.setdefault(obs["kind"], []).append(obs)
+
+    def _latest(kind: str) -> dict[str, Any] | None:
+        items = by_kind.get(kind, [])
+        if not items:
+            return None
+        return sorted(
+            items,
+            key=lambda o: (o.get("generation", 0), o.get("attempt", 0)),
+            reverse=True,
+        )[0]
+
+    for kind in ("qualification", "exercise"):
+        latest = _latest(kind)
+        if latest is None:
+            clauses.append(
+                Clause(kind, False, f"required evidence missing: no {kind} observation")
+            )
+        elif latest.get("verdict") == "pass":
+            clauses.append(
+                Clause(
+                    kind,
+                    True,
+                    f"{kind} passed at generation {latest.get('generation')}",
+                )
+            )
+        else:
+            clauses.append(
+                Clause(
+                    kind,
+                    False,
+                    f"{kind} red: {latest.get('reason', latest.get('verdict'))}",
+                )
+            )
+
+    vetoes = [
+        o
+        for o in by_kind.get("veto", [])
+        if o.get("verdict") not in ("withdrawn", "pass")
+    ]
+    clauses.append(
+        Clause(
+            "no_confirmed_release_veto",
+            not vetoes,
+            f"{len(vetoes)} active veto(s)" if vetoes else "no active veto",
+        )
+    )
+
+    publishable = all(clause.ok for clause in clauses)
+    return {
+        "candidate_id": manifest.get("candidate_id"),
+        "publishable": publishable,
+        "rerun_eligible": False,
+        "rerun_reason": "qualification evidence missing (qualify phase fills this in)",
+        "clauses": [{"name": c.name, "ok": c.ok, "detail": c.detail} for c in clauses],
+    }
+
+
+def append_observation(
+    manifest: dict[str, Any],
+    *,
+    kind: str,
+    run_id: int,
+    attempt: int,
+    verdict: str,
+    reason: str = "",
+    extra: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Append one observation; re-appending the same asset is idempotent."""
+    name = observation_asset_name(manifest["generation"], kind, run_id, attempt)
+    observation: dict[str, Any] = {
+        "asset": name,
+        "kind": kind,
+        "generation": manifest["generation"],
+        "candidate_id": manifest["candidate_id"],
+        "run_id": run_id,
+        "attempt": attempt,
+        "verdict": verdict,
+        "reason": reason,
+    }
+    if extra:
+        observation["extra"] = extra
+    existing = manifest.setdefault("observations", [])
+    for index, prior in enumerate(existing):
+        if isinstance(prior, dict) and prior.get("asset") == name:
+            existing[index] = observation
+            return observation
+    existing.append(observation)
+    return observation
+
+
+def cross_check_lock_hashes(
+    core_files: list[dict[str, Any]],
+    lock_path: Path,
+    version: str,
+) -> list[str]:
+    """Cross-check PyPI digests against uv.lock hashes; return mismatches."""
+    try:
+        import tomllib
+    except ImportError:  # pragma: no cover - Python 3.12+ always has tomllib
+        return ["LOCK_UNREADABLE tomllib missing"]
+    try:
+        lock = tomllib.loads(lock_path.read_text(encoding="utf-8"))
+    except OSError as exc:
+        return [f"LOCK_UNREADABLE {exc}"]
+    problems = []
+    for package in lock.get("package", []):
+        if package.get("name") != "sase-core-rs" or package.get("version") != version:
+            continue
+        locked: dict[str, str] = {}
+        sdist = package.get("sdist")
+        if isinstance(sdist, dict) and sdist.get("hash"):
+            locked[sdist.get("url", "")] = sdist["hash"]
+        wheels = package.get("wheels", [])
+        if isinstance(wheels, list):
+            for wheel in wheels:
+                if isinstance(wheel, dict) and wheel.get("hash"):
+                    locked[wheel.get("url", "")] = wheel["hash"]
+        for entry in core_files:
+            url = entry.get("url", "")
+            if url in locked and locked[url] != "sha256:" + entry.get("sha256", ""):
+                problems.append(f"HASH_MISMATCH {entry.get('filename')}")
+    return problems
+
+
+def parse_expected_suffixes(text: str) -> list[str]:
+    """Read the core completeness set from sase-core's release-plz.yml text.
+
+    The suffix set stays single-sourced in sase-core; this parses it, never
+    copies it.
+    """
+    import re
+
+    match = re.search(r"EXPECTED_DIST_SUFFIXES\s*[:=]\s*\[(?P<items>[^\]]*)\]", text)
+    if match is None:
+        raise Refusal("EXPECTED_DIST_SUFFIXES not found in release-plz.yml")
+    return re.findall(r"""["']([^"']+)["']""", match.group("items"))
+
+
+def resolve_locator(locator: str, dest: Path) -> Path:
+    """Resolve an asset locator to local bytes.
+
+    ``file:`` locators copy a local path; ``gh-release:`` locators download a
+    draft-release asset with ``gh``. Anything else fails closed.
+    """
+    if locator.startswith("file:"):
+        src = Path(locator[len("file:") :])
+        if not src.is_file():
+            raise Refusal(f"asset not found: {src}")
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_bytes(src.read_bytes())
+        return dest
+    if locator.startswith("gh-release:"):
+        gh = shutil.which("gh")
+        if gh is None:
+            raise Refusal("gh is required to download gh-release: assets")
+        spec = locator[len("gh-release:") :]
+        tag, _, name = spec.partition("/")
+        if not tag or not name:
+            raise Refusal(f"malformed gh-release locator: {locator!r}")
+        proc = subprocess.run(
+            [
+                gh,
+                "release",
+                "download",
+                tag,
+                "--pattern",
+                name,
+                "--dir",
+                str(dest.parent),
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if proc.returncode != 0:
+            raise Refusal(f"gh release download failed: {proc.stderr.strip()}")
+        return dest.parent / name
+    raise Refusal(f"unsupported asset locator: {locator!r}")
+
+
+def fetch_pypi_core_files(
+    version: str,
+    urlopen: Any = urllib.request.urlopen,
+) -> list[dict[str, Any]]:
+    """Fetch sase-core-rs's PyPI file list with digests for one version."""
+    url = "https://pypi.org/pypi/sase-core-rs/json"
+    with urlopen(url, timeout=30) as response:
+        payload = json.loads(response.read().decode("utf-8"))
+    releases = payload.get("releases", {})
+    if version not in releases:
+        raise Refusal(f"sase-core-rs=={version} has no PyPI release")
+    files = []
+    for entry in releases[version]:
+        digest = (entry.get("digests") or {}).get("sha256", "")
+        files.append(
+            {
+                "filename": entry.get("filename", ""),
+                "packagetype": entry.get("packagetype", ""),
+                "yanked": bool(entry.get("yanked", False)),
+                "sha256": digest,
+                "url": entry.get("url", ""),
+            }
+        )
+    return files
+
+
+def _load_json(path: Path) -> Any:
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _dump_json(path: Path, payload: Any) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
+
+
+def _add_common(sub: argparse.ArgumentParser) -> None:
+    sub.add_argument("--manifest", required=True, help="sealed manifest JSON path")
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="release_candidate",
+        description="Seal and evaluate exact-candidate release manifests.",
+    )
+    subs = parser.add_subparsers(dest="command", required=True)
+
+    seal = subs.add_parser("seal", help="write the sealed manifest")
+    seal.add_argument("--repository", required=True)
+    seal.add_argument("--version", required=True)
+    seal.add_argument("--tag", required=True)
+    seal.add_argument("--sha", required=True)
+    seal.add_argument("--tree", default="")
+    seal.add_argument("--generation", type=int, default=1)
+    seal.add_argument("--builder-revision", default="")
+    seal.add_argument("--builder-run-id", type=int, default=0)
+    seal.add_argument("--builder-attempt", type=int, default=1)
+    seal.add_argument("--core-source-pin", default="")
+    seal.add_argument("--core-version", required=True)
+    seal.add_argument("--core-files", required=True, help="PyPI core file list JSON")
+    seal.add_argument(
+        "--expected-core-suffixes",
+        required=True,
+        help="expected core dist suffixes JSON (from sase-core release-plz.yml)",
+    )
+    seal.add_argument("--dists", required=True, help="built dist set JSON")
+    seal.add_argument("--out", required=True, help="manifest output path")
+
+    verify = subs.add_parser("verify", help="recheck a sealed manifest")
+    _add_common(verify)
+
+    show = subs.add_parser("show", help="print a sealed manifest")
+    _add_common(show)
+
+    observe = subs.add_parser("observe", help="append one observation asset")
+    _add_common(observe)
+    observe.add_argument("--kind", required=True, choices=sorted(OBSERVATION_KINDS))
+    observe.add_argument("--run-id", type=int, required=True)
+    observe.add_argument("--attempt", type=int, default=1)
+    observe.add_argument("--verdict", required=True)
+    observe.add_argument("--reason", default="")
+    observe.add_argument("--extra", default="", help="extra JSON object")
+    observe.add_argument("--out", default="", help="observation asset output path")
+
+    evaluate = subs.add_parser("evaluate", help="run the promotion predicate")
+    _add_common(evaluate)
+    evaluate.add_argument(
+        "--observations",
+        default="",
+        help="JSON list of observation assets (defaults to manifest's own)",
+    )
+
+    download = subs.add_parser("download", help="resolve an asset locator")
+    download.add_argument("--locator", required=True)
+    download.add_argument("--dest", required=True)
+
+    core_files = subs.add_parser(
+        "core-files", help="fetch the core PyPI file list and cross-check uv.lock"
+    )
+    core_files.add_argument("--version", required=True)
+    core_files.add_argument("--lock", default="uv.lock")
+    core_files.add_argument("--out", required=True)
+
+    core_suffixes = subs.add_parser(
+        "core-suffixes", help="parse EXPECTED_DIST_SUFFIXES from release-plz.yml"
+    )
+    group = core_suffixes.add_mutually_exclusive_group(required=True)
+    group.add_argument("--url", default="")
+    group.add_argument("--file", default="")
+    core_suffixes.add_argument("--out", required=True)
+
+    return parser
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
+    try:
+        if args.command == "seal":
+            manifest = seal_manifest(
+                repository=args.repository,
+                version=args.version,
+                tag=args.tag,
+                sha=args.sha,
+                tree=args.tree,
+                generation=args.generation,
+                builder_revision=args.builder_revision,
+                builder_run_id=args.builder_run_id,
+                builder_attempt=args.builder_attempt,
+                core_source_pin=args.core_source_pin,
+                core_version=args.core_version,
+                core_files=_load_json(Path(args.core_files)),
+                expected_core_suffixes=_load_json(Path(args.expected_core_suffixes)),
+                dists=_load_json(Path(args.dists)),
+            )
+            _dump_json(Path(args.out), manifest)
+            print(manifest["candidate_id"])
+            return EXIT_OK
+        if args.command == "verify":
+            manifest = _load_json(Path(args.manifest))
+            problems = verify_manifest(manifest)
+            if problems:
+                for problem in problems:
+                    print(problem)
+                return EXIT_REFUSED
+            print(f"OK {manifest.get('candidate_id')}")
+            return EXIT_OK
+        if args.command == "show":
+            manifest = _load_json(Path(args.manifest))
+            print(json.dumps(manifest, indent=2, sort_keys=True))
+            return EXIT_OK
+        if args.command == "observe":
+            path = Path(args.manifest)
+            manifest = _load_json(path)
+            observation = append_observation(
+                manifest,
+                kind=args.kind,
+                run_id=args.run_id,
+                attempt=args.attempt,
+                verdict=args.verdict,
+                reason=args.reason,
+                extra=_load_json(Path(args.extra)) if args.extra else None,
+            )
+            _dump_json(path, manifest)
+            if args.out:
+                _dump_json(Path(args.out), observation)
+            print(observation["asset"])
+            return EXIT_OK
+        if args.command == "evaluate":
+            manifest = _load_json(Path(args.manifest))
+            observations: Sequence[dict[str, Any]]
+            if args.observations:
+                observations = _load_json(Path(args.observations))
+            else:
+                observations = manifest.get("observations", [])
+            result = evaluate_manifest(manifest, observations)
+            print(json.dumps(result, indent=2, sort_keys=True))
+            return EXIT_OK if result["publishable"] else EXIT_REFUSED
+        if args.command == "download":
+            resolved = resolve_locator(args.locator, Path(args.dest))
+            print(resolved)
+            return EXIT_OK
+        if args.command == "core-files":
+            files = fetch_pypi_core_files(args.version)
+            problems = cross_check_lock_hashes(files, Path(args.lock), args.version)
+            if problems:
+                for problem in problems:
+                    print(problem, file=sys.stderr)
+                return EXIT_REFUSED
+            _dump_json(Path(args.out), files)
+            print(f"{len(files)} files for sase-core-rs=={args.version}")
+            return EXIT_OK
+        if args.command == "core-suffixes":
+            if args.url:
+                with urllib.request.urlopen(args.url, timeout=30) as response:
+                    text = response.read().decode("utf-8")
+            else:
+                text = Path(args.file).read_text(encoding="utf-8")
+            suffixes = parse_expected_suffixes(text)
+            if not suffixes:
+                raise Refusal("no suffixes parsed from release-plz.yml")
+            _dump_json(Path(args.out), suffixes)
+            print(f"{len(suffixes)} expected suffixes")
+            return EXIT_OK
+    except Refusal as exc:
+        print(f"REFUSED {exc}", file=sys.stderr)
+        return EXIT_REFUSED
+    except (OSError, ValueError, KeyError) as exc:
+        print(f"ERROR {exc}", file=sys.stderr)
+        return EXIT_ERROR
+    raise AssertionError(f"unhandled command: {args.command}")
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

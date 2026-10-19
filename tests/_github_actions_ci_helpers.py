@@ -54,6 +54,11 @@ def _load_publish_workflow() -> dict[str, Any]:
     return yaml.safe_load(workflow_path.read_text())
 
 
+def _load_release_workflow() -> dict[str, Any]:
+    workflow_path = REPO_ROOT / ".github" / "workflows" / "release.yml"
+    return yaml.safe_load(workflow_path.read_text())
+
+
 def _load_master_gate_workflow() -> dict[str, Any]:
     workflow_path = REPO_ROOT / ".github" / "workflows" / "master-gate.yml"
     return yaml.safe_load(workflow_path.read_text())

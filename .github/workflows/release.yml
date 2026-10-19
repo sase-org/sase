@@ -1,0 +1,295 @@
+name: Release
+
+# Exact-candidate release train (phase sase-1n6.2). One build at the tag, sealed
+# into a candidate manifest stashed on the draft GitHub release.
+#
+# Modes (workflow_dispatch input `mode`):
+# - `release`: dispatched at a `v*` tag. Runs every owned job, stashes on the
+#   draft release, then stops red with "not yet qualified" until the qualify,
+#   exercise, publish and confirm jobs land in later phases. It must never
+#   succeed yet.
+# - `resume`: dispatched at a `v*` tag whose sealed generation already carries
+#   passing evidence. Runs only `publish` and `confirm` (later phases).
+# - `rehearse`: dispatched at a branch (normally `master`). Builds, seals,
+#   qualifies and exercises, but stores everything as workflow artifacts, never
+#   touches a GitHub release, and runs `publish` as a verify-only plan.
+#
+# A workflow dispatched at a tag runs that tag's own workflow files: a tag cut
+# before release.yml existed can never run it, and a release.yml fix reaches
+# only later tags. Rehearse at `master`. A candidate broken by its own
+# release.yml is burned, never patched in place.
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Train mode
+        type: choice
+        required: true
+        default: rehearse
+        options:
+          - release
+          - resume
+          - rehearse
+      core_version:
+        description: Rehearse-only core override, sealed as `override`
+        type: string
+        required: false
+        default: ""
+      rebuild:
+        description: Allow a second sealed generation at the same tag
+        type: boolean
+        required: false
+        default: false
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  identity:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.assert.outputs.version }}
+      sha: ${{ steps.assert.outputs.sha }}
+      tree: ${{ steps.assert.outputs.tree }}
+      mode: ${{ inputs.mode }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Assert source and version identity
+        id: assert
+        env:
+          MODE: ${{ inputs.mode }}
+        run: |
+          set -euo pipefail
+          ref="${GITHUB_REF}"
+          checkout_sha="${GITHUB_SHA}"
+          if [ "${MODE}" = "rehearse" ]; then
+            case "${ref}" in
+              refs/heads/*) ;;
+              *) echo "::error::rehearse mode requires a branch ref, got ${ref}"; exit 1 ;;
+            esac
+            head_sha="$(git rev-parse HEAD)"
+            if [ "${head_sha}" != "${checkout_sha}" ]; then
+              echo "::error::ref SHA ${head_sha} != checkout SHA ${checkout_sha}"
+              exit 1
+            fi
+            sha="${head_sha}"
+          else
+            case "${ref}" in
+              refs/tags/v*) ;;
+              *) echo "::error::${MODE} mode requires a refs/tags/v* ref, got ${ref}"; exit 1 ;;
+            esac
+            tag_name="${ref#refs/tags/}"
+            peeled="$(git rev-list -n 1 "${tag_name}^{commit}")"
+            if [ "${peeled}" != "${checkout_sha}" ]; then
+              echo "::error::tag ${tag_name} peels to ${peeled} != GITHUB_SHA ${checkout_sha}"
+              exit 1
+            fi
+            sha="${peeled}"
+          fi
+          py_version="$(python3 -c 'import tomllib; print(tomllib.load(open("pyproject.toml","rb"))["project"]["version"]')"
+          init_version="$(python3 -c 'import ast; print(ast.literal_eval(open("src/sase/__init__.py").read().split("__version__")[1].split("=")[1].split("#")[0].strip()))')"
+          if [ "${py_version}" != "${init_version}" ]; then
+            echo "::error::pyproject.toml ${py_version} != __version__ ${init_version}"
+            exit 1
+          fi
+          if [ "${MODE}" != "rehearse" ]; then
+            want="v${py_version}"
+            have="${ref#refs/tags/}"
+            if [ "${want}" != "${have}" ]; then
+              echo "::error::tag ${have} != version v${py_version}"
+              exit 1
+            fi
+          fi
+          tree="$(git rev-parse "HEAD^{tree}")"
+          echo "version=${py_version}" >> "$GITHUB_OUTPUT"
+          echo "sha=${sha}" >> "$GITHUB_OUTPUT"
+          echo "tree=${tree}" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: identity
+    if: ${{ inputs.mode == 'release' || inputs.mode == 'rehearse' }}
+    runs-on: ubuntu-latest
+    outputs:
+      manifest: ${{ steps.seal.outputs.manifest }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.identity.outputs.sha }}
+      - uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+          cache-dependency-glob: "**/pyproject.toml"
+      - name: Set up Python
+        run: uv python install 3.12
+      - name: Build once and check the dist set
+        run: |
+          set -euo pipefail
+          rm -rf dist/
+          uv build
+          uvx twine check dist/*
+          wheels="$(ls dist/*.whl 2>/dev/null | wc -l)"
+          sdists="$(ls dist/*.tar.gz 2>/dev/null | wc -l)"
+          if [ "${wheels}" != "1" ] || [ "${sdists}" != "1" ]; then
+            echo "::error::dist set must be exactly one wheel plus one sdist"
+            ls dist/
+            exit 1
+          fi
+      - name: Resolve the exact core pin
+        id: core
+        env:
+          MODE: ${{ inputs.mode }}
+          CORE_OVERRIDE: ${{ inputs.core_version }}
+        run: |
+          set -euo pipefail
+          if [ -n "${CORE_OVERRIDE}" ] && [ "${MODE}" != "rehearse" ]; then
+            echo "::error::core_version override is rehearse-only"
+            exit 1
+          fi
+          if grep -Eq '^[[:space:]]*"sase-core-rs==[^"]+"' pyproject.toml; then
+            core_pin="$(grep -Eo 'sase-core-rs==[0-9][0-9.]*' pyproject.toml | head -n 1)"
+            core_source="pyproject"
+          elif [ -n "${CORE_OVERRIDE}" ]; then
+            core_pin="sase-core-rs==${CORE_OVERRIDE}"
+            core_source="override"
+          else
+            locked="$(python3 -c 'import tomllib; print([p["version"] for p in tomllib.load(open("uv.lock","rb"))["package"] if p["name"] == "sase-core-rs"][0])')"
+            core_pin="sase-core-rs==${locked}"
+            core_source="uv.lock"
+          fi
+          echo "core_pin=${core_pin}" >> "$GITHUB_OUTPUT"
+          echo "core_version=${core_pin#sase-core-rs==}" >> "$GITHUB_OUTPUT"
+          echo "core_source=${core_source}" >> "$GITHUB_OUTPUT"
+      - name: Fetch the core file list and digests
+        run: |
+          set -euo pipefail
+          uv run --no-project --with packaging \
+            python tools/release_candidate core-files \
+            --version '${{ steps.core.outputs.core_version }}' \
+            --lock uv.lock \
+            --out core-files.json
+      - name: Read the core completeness set at the pin's tag
+        run: |
+          set -euo pipefail
+          uv run --no-project --with packaging \
+            python tools/release_candidate core-suffixes \
+            --url 'https://raw.githubusercontent.com/sase-org/sase-core/v${{ steps.core.outputs.core_version }}/.github/workflows/release-plz.yml' \
+            --out core-suffixes.json
+      - name: Seal the candidate manifest
+        id: seal
+        env:
+          MODE: ${{ inputs.mode }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          python3 - > dists.json <<'EOF'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+          mode = os.environ["MODE"]
+          tag = os.environ["TAG"]
+          dists = []
+          for path in sorted(Path("dist").iterdir()):
+            name = path.name
+            if name.endswith(".whl"):
+              packagetype = "bdist_wheel"
+            elif name.endswith(".tar.gz"):
+              packagetype = "sdist"
+            else:
+              continue
+            if mode == "release":
+              asset = f"gh-release:{tag}/{name}"
+            else:
+              asset = f"file:dist/{name}"
+            dists.append(
+              {
+                "filename": name,
+                "packagetype": packagetype,
+                "size": path.stat().st_size,
+                "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+                "asset": asset,
+              }
+            )
+          print(json.dumps(dists))
+          EOF
+          uv run --no-project --with packaging \
+            python tools/release_candidate seal \
+            --repository '${{ github.repository }}' \
+            --version '${{ needs.identity.outputs.version }}' \
+            --tag '${{ github.ref }}' \
+            --sha '${{ needs.identity.outputs.sha }}' \
+            --tree '${{ needs.identity.outputs.tree }}' \
+            --generation 1 \
+            --builder-revision '${{ github.workflow_ref }}' \
+            --builder-run-id '${{ github.run_id }}' \
+            --builder-attempt '${{ github.run_attempt }}' \
+            --core-source-pin "$(grep -Eo 'sase-core-rs[^"]*' pyproject.toml | head -n 1)" \
+            --core-version '${{ steps.core.outputs.core_version }}' \
+            --core-files core-files.json \
+            --expected-core-suffixes core-suffixes.json \
+            --dists dists.json \
+            --out candidate-manifest.json
+          uv run --no-project --with packaging \
+            python tools/release_candidate verify \
+            --manifest candidate-manifest.json
+          echo "manifest=candidate-manifest.json" >> "$GITHUB_OUTPUT"
+      - name: Upload the candidate build
+        uses: actions/upload-artifact@v4
+        with:
+          name: candidate-build
+          path: |
+            dist/
+            candidate-manifest.json
+            core-files.json
+
+  stash:
+    needs:
+      - identity
+      - build
+    if: ${{ inputs.mode == 'release' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      REBUILD: ${{ inputs.rebuild }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.identity.outputs.sha }}
+      - name: Download built dists and manifest
+        uses: actions/download-artifact@v4
+        with:
+          name: candidate-build
+          path: candidate/
+      - name: Stash on the draft release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          state="$(gh release view "${TAG}" --json isDraft --jq .isDraft)"
+          if [ "${state}" != "true" ]; then
+            echo "::error::release ${TAG} is missing or is not a draft"
+            exit 1
+          fi
+          sealed="$(gh release view "${TAG}" --json assets --jq '[.assets[].name | select(startswith("candidate-gen"))] | length')"
+          if [ "${sealed}" != "0" ] && [ "${REBUILD}" != "true" ]; then
+            echo "::error::${TAG} already has a sealed generation; pass rebuild: true for a new one"
+            exit 1
+          fi
+          gh release upload "${TAG}" candidate/* --clobber
+
+  not-yet-qualified:
+    needs:
+      - stash
+    if: ${{ inputs.mode == 'release' || inputs.mode == 'resume' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Refuse until qualify, exercise, publish and confirm land
+        run: |
+          echo "::error::not yet qualified"
+          exit 1

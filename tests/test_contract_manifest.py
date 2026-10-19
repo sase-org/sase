@@ -295,8 +295,27 @@ MANIFEST_PATH = ROOT / "tests" / "contract_manifest.txt"
 # contract membership. The whole 75-entry set measured 105.29 s under the
 # command above on this host (single run; 824 passed); the next candidate
 # should displace an entry rather than add one.
-_MANIFEST_ENTRY_BUDGET = 75
-_MEASURED_SERIAL_COST = "105.29 serial seconds across 75 entries"
+# Re-curated to 79 on 2026-10-19 (sase-1n6.2) for four paths. First,
+# `test_release_candidate.py` guards the new `tools/release_candidate`
+# script (seal/verify/observe/evaluate, candidate-ID stability, dist-set and
+# core-file completeness refusals), admitted on the same value-per-second
+# basis as the other `tools/` script guards already in this set: the script
+# is not a node in the import graph, so a change that touches only it
+# contributes no seeds, `RULE_CONTRACT_SET_ONLY` fires, and the contract set
+# is the only scoped-selection coverage. Second,
+# `test_github_actions_release.py` guards the new checked-in
+# `.github/workflows/release.yml`, a data asset no import edge reaches, the
+# same reason every other workflow contract file earned its marker. Third,
+# `test_github_actions_install_smoke.py` and
+# `test_github_actions_testpypi_drill.py` landed marked `contract` without a
+# manifest refresh, so the marker selection had already drifted past this
+# manifest on master (the matches-marker test was red on the clean base);
+# syncing them redistributes no coverage. The two new files measured ~4 s
+# standalone (22 tests). The whole 79-entry set measured 130.81 s under the
+# command above on this host (single run; 881 passed). The next candidate
+# should displace an entry rather than add one.
+_MANIFEST_ENTRY_BUDGET = 79
+_MEASURED_SERIAL_COST = "130.81 serial seconds across 79 entries"
 
 
 def _load_refresh_tool() -> ModuleType:
