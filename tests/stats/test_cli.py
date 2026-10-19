@@ -111,6 +111,34 @@ def test_json_envelope_round_trip(
     assert envelope["query"]["group_by"] == "model"
 
 
+def test_cli_json_data_matches_projects_tui_worker_payload(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The CLI envelope and TUI worker preserve the same shared wire payload."""
+    from sase.stats.loader import load_statistics_view
+
+    view = one_project_view()
+    tui_calls: list[tuple[object, frozenset[str]]] = []
+
+    def load_for_tui(query: object, *, facets: object) -> object:
+        tui_calls.append((query, frozenset(facets)))  # type: ignore[arg-type]
+        return view
+
+    monkeypatch.setattr("sase.stats.loader.load_project_stats", load_for_tui)
+    worker_result = load_statistics_view("projects", view.query.range, "sase")
+    assert worker_result.project_stats is view
+    assert tui_calls[0][1] == frozenset({"output", "runs"})
+
+    monkeypatch.setattr(
+        "sase.main.stats_handler_project.load_project_stats", lambda query: view
+    )
+    argv = ["stats", "project", "-p", "sase", "-j"]
+    assert handle_stats_project(parse_sase_args(argv), argv=argv) == 0
+    envelope = json.loads(capsys.readouterr().out)
+
+    assert envelope["data"] == worker_result.project_stats.data
+
+
 def test_json_and_explicit_json_format_agree(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:

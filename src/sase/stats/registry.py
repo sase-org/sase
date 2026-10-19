@@ -66,6 +66,12 @@ PROJECT_REPORT_GROUPINGS: tuple[ProjectsGroupBy, ...] = (
     "model",
     "patch",
 )
+PROJECT_REPORT_OPTION_MAP: tuple[tuple[str, str, str], ...] = (
+    ("range", "-r", "cycle_range"),
+    ("project", "-p", "cycle_project_filter"),
+    ("group_by", "-g", "cycle_group"),
+)
+PROJECT_REPORT_CLI_ONLY_OPTIONS: tuple[str, ...] = ("-D", "-F", "-f", "-j")
 PROJECT_REPORT_LEGENDS: tuple[MetricLegend, ...] = (
     MetricLegend(
         "Commits",
@@ -429,8 +435,10 @@ __all__ = [
     "MACROS_GROUP_ORDER",
     "PERF_GROUP_ORDER",
     "PROJECTS_GROUP_ORDER",
+    "PROJECT_REPORT_CLI_ONLY_OPTIONS",
     "PROJECT_REPORT_GROUPINGS",
     "PROJECT_REPORT_LEGENDS",
+    "PROJECT_REPORT_OPTION_MAP",
     "STATISTICS_VIEW_BY_ID",
     "STATISTICS_VIEW_SPECS",
     "VIEW_COMPACT_LABELS",

@@ -48,6 +48,44 @@ def test_project_report_constants_drive_the_live_spec() -> None:
     assert {"Commits", "Plans", "Runs", "?", "∅", "Coverage"} <= terms
 
 
+def test_project_options_are_reachable_from_cli_and_tui() -> None:
+    """Range, project, and grouping inputs line up across both surfaces."""
+    from sase.ace.tui.keymaps import build_statistics_bindings, load_keymap_registry
+    from sase.stats.registry import (
+        PROJECT_REPORT_CLI_ONLY_OPTIONS,
+        PROJECT_REPORT_OPTION_MAP,
+    )
+    from tests.main.parser_cli_helpers import parse_sase_args
+
+    bindings = {
+        binding.action: binding.key
+        for binding in build_statistics_bindings(load_keymap_registry({}).statistics)
+    }
+    assert {
+        tui_action for _name, _option, tui_action in PROJECT_REPORT_OPTION_MAP
+    } <= bindings.keys()
+    assert PROJECT_REPORT_OPTION_MAP == (
+        ("range", "-r", "cycle_range"),
+        ("project", "-p", "cycle_project_filter"),
+        ("group_by", "-g", "cycle_group"),
+    )
+
+    args = parse_sase_args(
+        ["stats", "project", "-r", "all", "-p", "sase", "-g", "patch"]
+    )
+    assert args.range == "all"
+    assert args.project == ["sase"]
+    assert args.group_by == "patch"
+
+    # These options intentionally have no TUI counterpart.
+    cli_only = parse_sase_args(["stats", "project", "-D", "-F", "-f", "markdown", "-j"])
+    assert PROJECT_REPORT_CLI_ONLY_OPTIONS == ("-D", "-F", "-f", "-j")
+    assert all(
+        getattr(cli_only, name)
+        for name in ("include_disabled", "fetch", "format", "json")
+    )
+
+
 def test_groupings_stay_on_the_pre_tui_ids() -> None:
     by_id = {spec.id: spec for spec in STATISTICS_VIEW_SPECS}
     assert tuple(group.id for group in by_id["projects"].groupings) == (
