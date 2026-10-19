@@ -68,17 +68,21 @@ recovery release always ships through the normal train while the incident is ope
 - **Family install canary** (`install-smoke.yml`, helper `tools/check_family_install`).
   A red run means a clean `uv tool install` of `sase`, alone or with the family plugins,
   no longer produces the newest working release on Linux or macOS. Each matrix leg
-  uploads an `install-canary-<os>.json` artifact (`schema_version`, os, run id, verdict
-  `green`/`red`, per-package expected/installed versions and rules, failing step and
-  reason); the alert job opens or comments on one `install-canary` issue and a green run
-  closes it. A missing artifact counts as red. A `workflow_dispatch` probe input forces
-  the red path without touching the issue unless asked.
+  uploads an `install-canary-<os>.json` artifact (`schema_version`, os, run id, attempt,
+  sha, verdict `green`/`red`, per-package expected/installed versions and rules, failing
+  step and reason). The alert is green only when the smoke job succeeded and both OS
+  artifacts (`install-canary-ubuntu-latest.json` and `install-canary-macos-latest.json`)
+  are present, readable, and green; a missing artifact counts as red. A red scheduled
+  (or opted-in dispatch) run opens or comments on one `install-canary` issue, and a
+  later green run closes it. A `workflow_dispatch` probe input forces the red path
+  without touching the issue unless asked.
 - **Release dependency floor** (`tools/check_release_dependency_floor`, reusable
   workflow `release-dependency-floor.yml`, called by each plugin at `@master`). It
   blocks a plugin release PR whose family sibling floor has no published, non-yanked,
   non-pre-release match, or whose full runtime set does not jointly resolve. It clears
-  on its own: the hourly schedule re-runs the failed check for the current head SHA once
-  the sibling publishes, with no new push. A probe input such as `sase>=99` forces the
+  on its own: the schedule re-runs the failed check for the current head SHA once the
+  sibling publishes, with no new push — hourly for the first day, then every four hours,
+  stopping at GitHub's 50-attempt rerun cap. A probe input such as `sase>=99` forces the
   red path.
 - **Retention protected set** (`.github/scripts/pypi_retention.py`, `pypi_delete.py`).
   Deletion plans derive from live consumer metadata — the newest ten non-yanked releases
@@ -90,12 +94,9 @@ recovery release always ships through the normal train while the incident is ope
 
 ## Practice drill
 
-The yank-and-fix-forward path is rehearsed on TestPyPI before a real outage needs it:
-workflow `testpypi-drill.yml` publishes a throwaway package's good, broken, and
-fix-forward versions, a human yanks the broken one in the TestPyPI UI, and
-`tools/check_testpypi_drill` asserts each step. The drill needs a TestPyPI project and a
-pending trusted publisher first; both are human-only setup tracked by the runbook
-phase's gate.
+The yank-and-fix-forward path has an optional TestPyPI rehearsal (`testpypi-drill.yml`
+and `tools/check_testpypi_drill`). It was not run when E1 landed. Running it needs the
+human-only TestPyPI project and pending-publisher setup first.
 
 ## Related
 
@@ -103,4 +104,5 @@ phase's gate.
   `uv tool install sase` command, which resolves to the 0.1.0 fallback this runbook
   yanks. That fix lives with the blog posts, not here.
 - The install commands the canary checks are single-sourced in
-  `tools/render_applicability`; `INSTALL.md` shows the family form.
+  `tools/render_applicability`. The family command is `INSTALL.md`'s
+  `--with sase-github --with sase-telegram` form plus `--with sase-research-artifacts`.

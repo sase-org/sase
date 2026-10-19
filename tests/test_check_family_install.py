@@ -258,28 +258,166 @@ def test_result_contract_shape() -> None:
     assert rows["sase"]["rule"] == "newest"
 
 
-def test_plugins_loaded_proof_and_missing_plugin() -> None:
-    payload = {
-        "packages": [
-            {"name": "sase", "plugin_signals": []},
-            {"name": "sase-github", "plugin_signals": ["entry_point:x"]},
-            {"name": "sase-telegram", "plugin_signals": ["entry_point:y"]},
-            {"name": "sase-research-artifacts", "plugin_signals": []},
-        ]
-    }
-    assert tool.check_plugins_loaded(payload) == ["sase-research-artifacts"]
-    full = {
-        "packages": [
-            {"name": name, "plugin_signals": ["entry_point:x"]}
-            for name in (
-                "sase",
-                "sase-github",
-                "sase-telegram",
-                "sase-research-artifacts",
-            )
-        ]
-    }
-    assert tool.check_plugins_loaded(full) == []
+def _load_report(
+    *plugins: str, entries: list[dict[str, Any]] | None = None, extra: Any = None
+) -> list[Any]:
+    default_entries = entries or [
+        {"group": "sase_commands", "name": "cmd", "ok": True, "error": None}
+    ]
+    report: list[Any] = [
+        {"plugin": name, "entries": list(default_entries)} for name in plugins
+    ]
+    if extra is not None:
+        report.append(extra)
+    return report
+
+
+def test_plugin_load_verdict_green_when_every_entry_loads() -> None:
+    report = _load_report(*tool.LOAD_PROOF_PLUGINS)
+    ok, reason = tool.plugin_load_verdict(report)
+    assert ok
+    assert reason is None
+
+
+def test_plugin_load_verdict_red_when_plugin_has_no_entry_points() -> None:
+    report = _load_report("sase-github", "sase-telegram")
+    report.append({"plugin": "sase-research-artifacts", "entries": []})
+    ok, reason = tool.plugin_load_verdict(report)
+    assert not ok
+    assert reason == "sase-research-artifacts has no recognized entry points"
+
+
+def test_plugin_load_verdict_red_when_load_raises() -> None:
+    report = _load_report("sase-telegram", "sase-research-artifacts")
+    report.insert(
+        0,
+        {
+            "plugin": "sase-github",
+            "entries": [
+                {
+                    "group": "sase_commands",
+                    "name": "github",
+                    "ok": False,
+                    "error": "ImportError: boom",
+                }
+            ],
+        },
+    )
+    ok, reason = tool.plugin_load_verdict(report)
+    assert not ok
+    assert reason == (
+        "sase-github sase_commands github failed to load: ImportError: boom"
+    )
+
+
+def test_plugin_load_verdict_red_when_plugin_missing_from_report() -> None:
+    report = _load_report("sase-github", "sase-telegram")
+    ok, reason = tool.plugin_load_verdict(report)
+    assert not ok
+    assert reason == (
+        "sase-research-artifacts is missing from the load report (fail closed)"
+    )
+
+
+def test_plugin_load_verdict_rejects_malformed_report() -> None:
+    ok, reason = tool.plugin_load_verdict({"plugin": "sase-github"})
+    assert not ok
+    assert reason == "plugin load report is not a list (fail closed)"
+
+
+def test_assert_plugins_loaded_cli_uses_the_load_verdict(
+    monkeypatch: Any, capsys: Any
+) -> None:
+    monkeypatch.setattr(
+        tool, "resolve_installed_python", lambda exe: "/opt/sase/python"
+    )
+    monkeypatch.setattr(
+        tool,
+        "run_plugin_load_script",
+        lambda python: _load_report(*tool.LOAD_PROOF_PLUGINS),
+    )
+    assert tool.main(["--assert-plugins-loaded", "--sase-exe", "sase"]) == 0
+    assert (
+        "every family plugin loaded recognized entry points" in capsys.readouterr().out
+    )
+
+
+def test_assert_plugins_loaded_cli_is_red_when_load_raises(
+    monkeypatch: Any, capsys: Any
+) -> None:
+    monkeypatch.setattr(
+        tool, "resolve_installed_python", lambda exe: "/opt/sase/python"
+    )
+    monkeypatch.setattr(
+        tool,
+        "run_plugin_load_script",
+        lambda python: [
+            {
+                "plugin": "sase-github",
+                "entries": [
+                    {
+                        "group": "sase_vcs",
+                        "name": "github",
+                        "ok": False,
+                        "error": "RuntimeError: no",
+                    }
+                ],
+            },
+            *_load_report("sase-telegram", "sase-research-artifacts"),
+        ],
+    )
+    assert tool.main(["--assert-plugins-loaded"]) == 1
+    err = capsys.readouterr().err
+    assert "sase-github sase_vcs github failed to load: RuntimeError: no" in err
+
+
+def test_resolve_installed_python_reads_shebang(tmp_path: Path) -> None:
+    python = tmp_path / "python"
+    python.write_text("#!/bin/true\n", encoding="utf-8")
+    python.chmod(0o755)
+    sase = tmp_path / "sase"
+    sase.write_text(f"#!{python}\nprint('hi')\n", encoding="utf-8")
+    sase.chmod(0o755)
+    assert tool.resolve_installed_python(str(sase)) == str(python)
+
+
+def test_resolve_installed_python_falls_back_to_uv_tool_dir(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    python = tmp_path / "sase" / "bin" / "python"
+    python.parent.mkdir(parents=True)
+    python.write_text("", encoding="utf-8")
+    python.chmod(0o755)
+    sase = tmp_path / "sase-shim"
+    sase.write_text("#!/usr/bin/env python\n", encoding="utf-8")
+    sase.chmod(0o755)
+    monkeypatch.setenv("UV_TOOL_DIR", str(tmp_path))
+    assert tool.resolve_installed_python(str(sase)) == str(python)
+
+
+def test_refetch_recomputes_core_expectation(tmp_path: Path, monkeypatch: Any) -> None:
+    fixture = _full_fixture(core_releases=("0.42.0", "0.42.1"))
+    core_fetches = {"n": 0}
+
+    def fetch(url: str) -> Any:
+        if url == _pypi_url("sase-core-rs"):
+            core_fetches["n"] += 1
+            if core_fetches["n"] > 1:
+                return {"releases": _releases("0.42.0", "0.42.1", "0.42.2")}
+        return fixture[url]
+
+    monkeypatch.setattr(tool, "_fetch_json", fetch)
+    monkeypatch.setattr(
+        tool, "read_installed_versions", lambda exe: _installed(core="0.42.2")
+    )
+    out = tmp_path / "result.json"
+    rc = tool.main(["--write-result", str(out)])
+    assert rc == 0
+    payload = json.loads(out.read_text(encoding="utf-8"))
+    assert payload["verdict"] == "green"
+    core_row = next(row for row in payload["packages"] if row["name"] == "sase-core-rs")
+    assert core_row["expected"] == "0.42.2"
+    assert core_fetches["n"] >= 2
 
 
 def test_force_expect_override_drives_probe_red() -> None:

@@ -27,7 +27,8 @@ name: Install smoke
 #       {"name": "sase", "expected": "0.18.0", "installed": "0.18.0",
 #        "rule": "newest" | "exact", "ok": true, "reason": null}
 #     ],
-#     "failing_step": null | "assert-newest-versions" | "assert-exact-versions",
+#     "failing_step": null | "assert-newest-versions" | "assert-exact-versions"
+#                     | "<first failed pre-merge step id>",
 #     "reason": null | "<first failure, e.g. 'sase 0.1.0 (expected 0.18.0)'>"
 #   }
 #
@@ -35,7 +36,8 @@ name: Install smoke
 # non-pre-release PyPI version ("newest") or the pinned reinstall
 # ("exact"); sase-core-rs must equal the newest version satisfying the
 # installed sase's own requirement ("window"). A missing or unreadable
-# result artifact counts as red.
+# result artifact counts as red. The alert is green only when the smoke
+# job succeeded and both OS artifacts exist, parse, and say green.
 #
 # Alerting is a detector, never a merge gate: a red canary blocks nothing.
 
@@ -75,15 +77,20 @@ jobs:
     env:
       UV_NO_CACHE: '1'
     steps:
-      - uses: actions/checkout@v4
+      - name: Check out the repository
+        id: checkout
+        uses: actions/checkout@v4
 
       - name: Set up uv
+        id: setup-uv
         uses: astral-sh/setup-uv@v4
 
       - name: Set up Python
+        id: setup-python
         run: uv python install 3.12
 
       - name: Prepare isolated install dirs
+        id: prepare-isolated-dirs
         # The `runner` context is not available in job-level `env`
         # (GitHub rejects the workflow with "Unrecognized named-value:
         # 'runner'"), so derive the isolated paths from $RUNNER_TEMP here
@@ -107,54 +114,78 @@ jobs:
           echo "$UV_TOOL_BIN_DIR" >> "$GITHUB_PATH"
 
       - name: Run the documented install command
+        id: documented-install
         run: eval "$(python3 tools/render_applicability --install-command) --refresh"
 
       - name: Assert the installed version meets the documented floor
+        id: assert-floor
         run: python3 tools/render_applicability --check-installed
 
       - name: Run the documented family install command
+        id: documented-family-install
         run: eval "$(python3 tools/render_applicability --install-family-command) --refresh"
 
       - name: Assert the family install tracks the newest releases
+        id: assert-newest-versions
+        env:
+          PROBE_EXPECT: ${{ inputs.probe_expect }}
         run: |
           set -euo pipefail
           probe_args=""
-          if [ -n "${{ inputs.probe_expect }}" ]; then
-            probe_args="--force-expect ${{ inputs.probe_expect }}"
+          if [ -n "${PROBE_EXPECT:-}" ]; then
+            probe_args="--force-expect ${PROBE_EXPECT}"
           fi
           # shellcheck disable=SC2086
           uv run --no-project --with packaging tools/check_family_install \
+            --os "${{ matrix.os }}" \
             --step assert-newest-versions \
             --write-result install-canary-newest.json \
             $probe_args
 
       - name: Reinstall the exact current release in a fresh tool directory
+        id: reinstall-exact
         run: |
           set -euo pipefail
           pins="$(uv run --no-project --with packaging \
             tools/check_family_install --print-pins)"
           echo "Exact pins: $pins"
+          echo "CANARY_EXACT_PINS=$pins" >> "$GITHUB_ENV"
           # shellcheck disable=SC2086
           UV_TOOL_DIR="$CANARY_EXACT_TOOL_DIR" \
           UV_TOOL_BIN_DIR="$CANARY_EXACT_TOOL_BIN" \
             uv tool install --refresh $pins
 
       - name: Assert the exact reinstall tracks the pinned releases
+        id: assert-exact-versions
+        env:
+          PROBE_EXPECT: ${{ inputs.probe_expect }}
         run: |
           set -euo pipefail
+          expect_args=""
+          # shellcheck disable=SC2086
+          set -- $CANARY_EXACT_PINS
+          for token in "$@"; do
+            case "$token" in
+              --with) ;;
+              *) expect_args="$expect_args --expect $token" ;;
+            esac
+          done
           probe_args=""
-          if [ -n "${{ inputs.probe_expect }}" ]; then
-            probe_args="--force-expect ${{ inputs.probe_expect }}"
+          if [ -n "${PROBE_EXPECT:-}" ]; then
+            probe_args="--force-expect ${PROBE_EXPECT}"
           fi
           # shellcheck disable=SC2086
           uv run --no-project --with packaging tools/check_family_install \
             --sase-exe "$CANARY_EXACT_TOOL_BIN/sase" \
+            --os "${{ matrix.os }}" \
             --mode exact \
             --step assert-exact-versions \
             --write-result install-canary-exact.json \
+            $expect_args \
             $probe_args
 
       - name: Smoke the CLI entry points
+        id: smoke-cli
         # Isolated home so doctor does not inherit this checkout's required
         # plugins. Full `sase doctor -j` exits 1 on ERROR, and a CI runner
         # has no LLM provider; pin the provider check and accept that
@@ -202,23 +233,77 @@ jobs:
           PY
 
       - name: Install shell completion in the isolated home
+        id: install-completion
         run: |
           set -euo pipefail
           HOME="$CANARY_HOME" SASE_HOME="$CANARY_HOME" sase completion install
 
       - name: Prove each plugin's entry points loaded
+        id: prove-plugins-loaded
         run: |
           set -euo pipefail
           uv run --no-project --with packaging tools/check_family_install \
-            --assert-plugins-loaded canary-version.json
+            --sase-exe "$UV_TOOL_BIN_DIR/sase" \
+            --assert-plugins-loaded
 
       - name: Merge the canary result contract
         if: always()
+        env:
+          CANARY_STEPS: ${{ toJSON(steps) }}
+          CANARY_OS: ${{ matrix.os }}
         run: |
           set -euo pipefail
           python3 - <<'PY'
           import json
+          import os
           from pathlib import Path
+
+          # Explicit ordered list of pre-merge step ids. Keep in lockstep
+          # with the install-smoke steps that run before this merge.
+          PRE_MERGE_STEP_IDS = (
+              "checkout",
+              "setup-uv",
+              "setup-python",
+              "prepare-isolated-dirs",
+              "documented-install",
+              "assert-floor",
+              "documented-family-install",
+              "assert-newest-versions",
+              "reinstall-exact",
+              "assert-exact-versions",
+              "smoke-cli",
+              "install-completion",
+              "prove-plugins-loaded",
+          )
+
+          try:
+              steps = json.loads(os.environ.get("CANARY_STEPS") or "{}")
+          except json.JSONDecodeError:
+              steps = {}
+          if not isinstance(steps, dict):
+              steps = {}
+
+          failed_step = next(
+              (
+                  step_id
+                  for step_id in PRE_MERGE_STEP_IDS
+                  if isinstance(steps.get(step_id), dict)
+                  and steps[step_id].get("outcome") == "failure"
+              ),
+              None,
+          )
+
+          identity = {
+              "os": os.environ.get("CANARY_OS", ""),
+              "run_id": os.environ.get("GITHUB_RUN_ID", ""),
+              "attempt": os.environ.get("GITHUB_RUN_ATTEMPT", ""),
+              "sha": os.environ.get("GITHUB_SHA", ""),
+          }
+
+          def fill_identity(payload: dict) -> None:
+              for key, value in identity.items():
+                  if not payload.get(key):
+                      payload[key] = value
 
           merged = None
           for path in ("install-canary-newest.json", "install-canary-exact.json"):
@@ -227,12 +312,21 @@ jobs:
               except (OSError, json.JSONDecodeError) as exc:
                   run = {
                       "schema_version": 1,
+                      "os": identity["os"],
+                      "run_id": identity["run_id"],
+                      "attempt": identity["attempt"],
+                      "sha": identity["sha"],
                       "mode": Path(path).stem,
                       "verdict": "red",
                       "packages": [],
-                      "failing_step": "read-result-artifact",
-                      "reason": f"{path} is missing or unreadable: {exc}",
+                      "failing_step": failed_step or "read-result-artifact",
+                      "reason": (
+                          f"{failed_step} failed"
+                          if failed_step
+                          else f"{path} is missing or unreadable: {exc}"
+                      ),
                   }
+              fill_identity(run)
               if merged is None:
                   merged = dict(run)
                   merged["mode"] = "newest+exact"
@@ -244,7 +338,12 @@ jobs:
                       merged["failing_step"] = run.get("failing_step")
                       merged["reason"] = run.get("reason")
           assert merged is not None
-          Path("install-canary-${{ matrix.os }}.json").write_text(
+          fill_identity(merged)
+          if failed_step is not None:
+              merged["verdict"] = "red"
+              merged["failing_step"] = failed_step
+              merged["reason"] = f"{failed_step} failed"
+          Path(f"install-canary-{identity['os']}.json").write_text(
               json.dumps(merged, indent=2) + "\n", encoding="utf-8"
           )
           print(f"canary verdict: {merged['verdict']}")
@@ -280,31 +379,47 @@ jobs:
       - name: Open, update, or close the alert issue
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          INSTALL_SMOKE_RESULT: ${{ needs.install-smoke.result }}
+          EVENT_NAME: ${{ github.event_name }}
+          ALERT: ${{ inputs.alert }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           set -euo pipefail
           may_alert="false"
-          if [ "${{ github.event_name }}" = "schedule" ]; then
+          if [ "${EVENT_NAME}" = "schedule" ]; then
             may_alert="true"
-          elif [ "${{ github.event_name }}" = "workflow_dispatch" ] \
-            && [ "${{ inputs.alert }}" = "true" ]; then
+          elif [ "${EVENT_NAME}" = "workflow_dispatch" ] \
+            && [ "${ALERT}" = "true" ]; then
             may_alert="true"
           fi
 
           verdict="$(python3 - <<'PY'
           import json
+          import os
           from pathlib import Path
 
-          roots = sorted(Path("canary-results").glob("install-canary-*.json"))
-          if not roots:
+          # Expected canary artifacts. Keep this set equal to
+          # jobs.install-smoke.strategy.matrix.os.
+          expected = (
+              "install-canary-ubuntu-latest.json",
+              "install-canary-macos-latest.json",
+          )
+          root = Path("canary-results")
+          if os.environ.get("INSTALL_SMOKE_RESULT") != "success":
               print("red")
-          else:
-              bad = False
-              for path in roots:
-                  try:
-                      bad = bad or json.loads(path.read_text())["verdict"] != "green"
-                  except (OSError, KeyError, json.JSONDecodeError):
-                      bad = True
-              print("red" if bad else "green")
+              raise SystemExit(0)
+          for name in expected:
+              path = root / name
+              try:
+                  payload = json.loads(path.read_text(encoding="utf-8"))
+              except (OSError, json.JSONDecodeError):
+                  print("red")
+                  raise SystemExit(0)
+              if not isinstance(payload, dict) or payload.get("verdict") != "green":
+                  print("red")
+                  raise SystemExit(0)
+          print("green")
           PY
           )"
           echo "canary verdict: $verdict (may_alert=$may_alert)"
@@ -317,14 +432,14 @@ jobs:
           if [ "$verdict" = "red" ] && [ "$may_alert" = "true" ]; then
             gh label create install-canary --color B60205 \
               --description "Family install canary failures" 2>/dev/null || true
-            body="The family install canary is red. See run ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}."
+            body="The family install canary is red. See run ${RUN_URL}."
             if [ -z "$number" ]; then
               gh issue create --title "$title" --label install-canary --body "$body"
             else
               gh issue comment "$number" --body "$body (still red)"
             fi
           elif [ "$verdict" = "green" ] && [ -n "$number" ] && [ "$may_alert" = "true" ]; then
-            gh issue comment "$number" --body "Canary is green again: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}."
+            gh issue comment "$number" --body "Canary is green again: ${RUN_URL}."
             gh issue close "$number"
           else
             echo "No alert action (verdict=$verdict may_alert=$may_alert open_issue=${number:-none})."

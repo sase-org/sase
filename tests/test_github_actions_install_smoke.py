@@ -8,6 +8,8 @@ or closes a single alert issue.
 
 from __future__ import annotations
 
+import re
+
 import pytest
 
 from tests._github_actions_ci_helpers import _job_run_text
@@ -68,6 +70,10 @@ def test_canary_asserts_newest_and_exact_with_the_helper() -> None:
     assert "--step assert-exact-versions" in run_text
     assert "--mode exact" in run_text
     assert "--print-pins" in run_text
+    assert "--expect" in run_text
+    assert "--os" in run_text
+    assert "matrix.os" in run_text
+    assert "CANARY_EXACT_PINS" in run_text
     assert "--write-result install-canary-newest.json" in run_text
     assert "--write-result install-canary-exact.json" in run_text
 
@@ -105,9 +111,18 @@ def test_probe_input_forces_the_red_path() -> None:
     triggers = _workflow_triggers(workflow)
     inputs = triggers["workflow_dispatch"]["inputs"]
     assert "probe_expect" in inputs
-    run_text = _job_run_text(workflow["jobs"]["install-smoke"])
+    job = workflow["jobs"]["install-smoke"]
+    run_text = _job_run_text(job)
     assert "--force-expect" in run_text
-    assert "inputs.probe_expect" in run_text
+    probe_steps = [
+        step
+        for step in job["steps"]
+        if isinstance(step, dict) and "PROBE_EXPECT" in step.get("env", {})
+    ]
+    assert probe_steps
+    for step in probe_steps:
+        assert step["env"]["PROBE_EXPECT"] == "${{ inputs.probe_expect }}"
+        assert "PROBE_EXPECT" in step["run"]
 
 
 def test_alert_job_holds_the_only_issues_write() -> None:
@@ -140,16 +155,22 @@ def test_alert_counts_a_missing_artifact_as_red() -> None:
     workflow = _load_install_smoke_workflow()
     run_text = _job_run_text(workflow["jobs"]["install-canary-alert"])
     assert "canary-results" in run_text
-    assert "glob" in run_text and "install-canary-*.json" in run_text
+    assert "install-canary-ubuntu-latest.json" in run_text
+    assert "install-canary-macos-latest.json" in run_text
+    assert "INSTALL_SMOKE_RESULT" in run_text
 
 
 def test_probe_runs_stay_quiet_without_the_alert_input() -> None:
     workflow = _load_install_smoke_workflow()
     triggers = _workflow_triggers(workflow)
     assert triggers["workflow_dispatch"]["inputs"]["alert"]["default"] is False
-    run_text = _job_run_text(workflow["jobs"]["install-canary-alert"])
-    assert "inputs.alert" in run_text
-    assert "github.event_name" in run_text and "schedule" in run_text
+    step = _alert_issue_step(workflow)
+    assert step["env"]["ALERT"] == "${{ inputs.alert }}"
+    assert step["env"]["EVENT_NAME"] == "${{ github.event_name }}"
+    run_text = step["run"]
+    assert "ALERT" in run_text
+    assert "EVENT_NAME" in run_text
+    assert "schedule" in run_text
 
 
 def test_canary_keeps_its_schedule_and_dispatch_triggers() -> None:
@@ -158,3 +179,88 @@ def test_canary_keeps_its_schedule_and_dispatch_triggers() -> None:
     assert triggers["schedule"] == [{"cron": "26 7 * * *"}]
     assert "workflow_dispatch" in triggers
     assert "push" not in triggers
+
+
+def _alert_issue_step(workflow: dict) -> dict:
+    return next(
+        step
+        for step in workflow["jobs"]["install-canary-alert"]["steps"]
+        if isinstance(step, dict)
+        and step.get("name") == "Open, update, or close the alert issue"
+    )
+
+
+def _merge_step(workflow: dict) -> dict:
+    return next(
+        step
+        for step in workflow["jobs"]["install-smoke"]["steps"]
+        if isinstance(step, dict)
+        and step.get("name") == "Merge the canary result contract"
+    )
+
+
+def test_alert_step_sets_gh_repo() -> None:
+    workflow = _load_install_smoke_workflow()
+    step = _alert_issue_step(workflow)
+    assert step["env"]["GH_REPO"] == "${{ github.repository }}"
+    assert step["env"]["GH_TOKEN"] == "${{ secrets.GITHUB_TOKEN }}"
+
+
+def test_alert_reads_install_smoke_result() -> None:
+    workflow = _load_install_smoke_workflow()
+    step = _alert_issue_step(workflow)
+    assert step["env"]["INSTALL_SMOKE_RESULT"] == "${{ needs.install-smoke.result }}"
+    assert "INSTALL_SMOKE_RESULT" in step["run"]
+    assert '!= "success"' in step["run"] or "!= 'success'" in step["run"]
+
+
+def test_alert_expected_artifacts_match_the_os_matrix() -> None:
+    workflow = _load_install_smoke_workflow()
+    matrix_os = workflow["jobs"]["install-smoke"]["strategy"]["matrix"]["os"]
+    run_text = _alert_issue_step(workflow)["run"]
+    named = set(re.findall(r'"install-canary-([A-Za-z0-9.-]+)\.json"', run_text))
+    assert named == set(matrix_os)
+
+
+def test_no_run_block_expands_inputs_directly() -> None:
+    workflow = _load_install_smoke_workflow()
+    for name, job in workflow["jobs"].items():
+        for index, step in enumerate(job["steps"]):
+            if not isinstance(step, dict):
+                continue
+            run = step.get("run", "")
+            assert "${{ inputs." not in run, f"{name} step {index} ({step.get('name')})"
+
+
+def test_every_pre_merge_step_has_an_id_walked_by_merge() -> None:
+    workflow = _load_install_smoke_workflow()
+    job = workflow["jobs"]["install-smoke"]
+    merge_index = next(
+        index
+        for index, step in enumerate(job["steps"])
+        if isinstance(step, dict)
+        and step.get("name") == "Merge the canary result contract"
+    )
+    pre_merge = job["steps"][:merge_index]
+    ids = [step["id"] for step in pre_merge]
+    assert ids
+    merge = job["steps"][merge_index]
+    assert merge["env"]["CANARY_STEPS"] == "${{ toJSON(steps) }}"
+    assert merge["env"]["CANARY_OS"] == "${{ matrix.os }}"
+    for step_id in ids:
+        assert f'"{step_id}"' in merge["run"]
+
+
+def test_merge_fallback_fills_identity_from_the_environment() -> None:
+    workflow = _load_install_smoke_workflow()
+    merge = _merge_step(workflow)
+    run = merge["run"]
+    for field in ("os", "run_id", "attempt", "sha"):
+        assert field in run
+    assert "GITHUB_RUN_ID" in run
+    assert "GITHUB_RUN_ATTEMPT" in run
+    assert "GITHUB_SHA" in run
+    assert "CANARY_OS" in merge["env"]
+    assert "failed_step" in run
+    assert "outcome" in run
+    assert "failure" in run

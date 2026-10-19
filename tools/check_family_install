@@ -29,6 +29,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import shutil
 import subprocess
 import sys
 import urllib.error
@@ -378,21 +379,135 @@ def core_expectation(
     return usable_satisfying(CORE_PACKAGE, spec, fetch)
 
 
-def check_plugins_loaded(
-    version_payload: Mapping[str, Any], plugins: Sequence[str] = LOAD_PROOF_PLUGINS
-) -> list[str]:
-    """Return the family plugins with no loaded entry points (pure)."""
-    packages = version_payload.get("packages", [])
-    signals: dict[str, list[Any]] = {}
-    if isinstance(packages, list):
-        for record in packages:
-            if not isinstance(record, dict):
+PLUGIN_LOAD_SCRIPT = r"""
+import importlib.metadata
+import json
+import sys
+
+from sase.plugins.inventory import ENTRY_POINT_GROUPS
+
+groups = frozenset(ENTRY_POINT_GROUPS)
+report = []
+for plugin in sys.argv[1:]:
+    item = {"plugin": plugin, "entries": []}
+    try:
+        dist = importlib.metadata.distribution(plugin)
+    except importlib.metadata.PackageNotFoundError:
+        report.append(item)
+        continue
+    for ep in dist.entry_points:
+        group = getattr(ep, "group", None)
+        if group not in groups:
+            continue
+        entry = {
+            "group": group,
+            "name": getattr(ep, "name", ""),
+            "ok": True,
+            "error": None,
+        }
+        try:
+            ep.load()
+        except Exception as exc:
+            entry["ok"] = False
+            entry["error"] = f"{type(exc).__name__}: {exc}"
+        item["entries"].append(entry)
+    report.append(item)
+sys.stdout.write(json.dumps(report))
+"""
+
+
+def _python_from_shebang(path: Path) -> str | None:
+    try:
+        first = path.read_text(encoding="utf-8", errors="replace").splitlines()[0]
+    except OSError:
+        return None
+    if not first.startswith("#!"):
+        return None
+    rest = first[2:].strip()
+    if not rest:
+        return None
+    cmd0 = rest.split()[0]
+    if Path(cmd0).name == "env":
+        return None
+    if Path(cmd0).is_file():
+        return cmd0
+    return None
+
+
+def resolve_installed_python(sase_exe: str) -> str:
+    """Return the interpreter that runs the installed ``sase`` executable."""
+    path = Path(sase_exe)
+    if not path.is_file():
+        found = shutil.which(sase_exe)
+        if found:
+            path = Path(found)
+    python = _python_from_shebang(path) if path.is_file() else None
+    if python is not None:
+        return python
+    tool_dir = os.environ.get("UV_TOOL_DIR", "")
+    if tool_dir:
+        candidate = Path(tool_dir) / "sase" / "bin" / "python"
+        if candidate.is_file():
+            return str(candidate)
+    raise PypiUnavailable(
+        f"could not resolve the installed interpreter for {sase_exe!r} (fail closed)"
+    )
+
+
+def run_plugin_load_script(python: str) -> Any:
+    """Run the load proof under *python* and return the JSON report."""
+    try:
+        proc = subprocess.run(
+            [python, "-c", PLUGIN_LOAD_SCRIPT, *LOAD_PROOF_PLUGINS],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        raise PypiUnavailable(f"plugin load script failed: {exc}") from exc
+    if proc.returncode != 0:
+        detail = (proc.stderr or proc.stdout or "").strip() or f"exit {proc.returncode}"
+        raise PypiUnavailable(f"plugin load script failed: {detail}")
+    try:
+        return json.loads(proc.stdout)
+    except json.JSONDecodeError as exc:
+        raise PypiUnavailable(f"plugin load script is not JSON: {exc}") from exc
+
+
+def plugin_load_verdict(
+    report: Any, plugins: Sequence[str] = LOAD_PROOF_PLUGINS
+) -> tuple[bool, str | None]:
+    """Return ``(ok, reason)`` for a plugin load report (pure)."""
+    if not isinstance(report, list):
+        return False, "plugin load report is not a list (fail closed)"
+    by_name: dict[str, Any] = {}
+    for item in report:
+        if not isinstance(item, dict):
+            return False, "plugin load report entry is not an object (fail closed)"
+        name = item.get("plugin")
+        if not isinstance(name, str) or not name:
+            return False, "plugin load report entry is missing plugin (fail closed)"
+        by_name[name] = item
+    for plugin in plugins:
+        item = by_name.get(plugin)
+        if item is None:
+            return False, f"{plugin} is missing from the load report (fail closed)"
+        entries = item.get("entries")
+        if not isinstance(entries, list) or not entries:
+            return False, f"{plugin} has no recognized entry points"
+        for entry in entries:
+            if not isinstance(entry, dict):
+                return False, (
+                    f"{plugin} load report entry is not an object (fail closed)"
+                )
+            if entry.get("ok") is True:
                 continue
-            name = record.get("name")
-            if isinstance(name, str):
-                entry = record.get("plugin_signals", [])
-                signals[name] = list(entry) if isinstance(entry, list) else []
-    return [name for name in plugins if not signals.get(name)]
+            group = entry.get("group") or "<unknown-group>"
+            ep_name = entry.get("name") or "<unknown-entry>"
+            error = entry.get("error") or "load failed"
+            return False, f"{plugin} {group} {ep_name} failed to load: {error}"
+    return True, None
 
 
 def build_result(
@@ -490,9 +605,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     parser.add_argument(
         "--assert-plugins-loaded",
-        metavar="VERSION_JSON",
-        help="instead of versions, assert every family plugin in this "
-        "`sase version -j` payload file has loaded entry points",
+        action="store_true",
+        help="load each family plugin's recognized entry points under the "
+        "installed sase interpreter and fail if any is missing or raises",
     )
     parser.add_argument("--write-result", default="", metavar="PATH")
     parser.add_argument("--os", default=os.environ.get("RUNNER_OS", ""))
@@ -520,33 +635,30 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(" ".join(pin_args))
         return 0
 
-    identity = {"os": args.os, "run_id": args.run_id, "attempt": args.attempt,
-                "sha": args.sha}
+    identity = {
+        "os": args.os,
+        "run_id": args.run_id,
+        "attempt": args.attempt,
+        "sha": args.sha,
+    }
 
     if args.assert_plugins_loaded:
         try:
-            payload = json.loads(Path(args.assert_plugins_loaded).read_text())
-        except (OSError, json.JSONDecodeError) as exc:
+            python = resolve_installed_python(args.sase_exe)
+            report = run_plugin_load_script(python)
+        except PypiUnavailable as exc:
             print(
-                f"[check_family_install] cannot read version payload: {exc}",
+                f"[check_family_install] cannot prove plugin loads: {exc}",
                 file=sys.stderr,
             )
             return 2
-        if not isinstance(payload, dict):
-            print(
-                "[check_family_install] version payload is not an object",
-                file=sys.stderr,
-            )
-            return 2
-        missing = check_plugins_loaded(payload)
-        if missing:
-            print(
-                "[check_family_install] plugins without loaded entry points: "
-                + ", ".join(missing),
-                file=sys.stderr,
-            )
+        ok, reason = plugin_load_verdict(report)
+        if not ok:
+            print(f"[check_family_install] {reason}", file=sys.stderr)
             return 1
-        print("[check_family_install] every family plugin loaded entry points")
+        print(
+            "[check_family_install] every family plugin loaded recognized entry points"
+        )
         return 0
 
     overrides: dict[str, str] = dict(
@@ -601,7 +713,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         fresh = apply_overrides(
             compute_expectations(_fetch_json), {**pins, **overrides}
         )
-        return fresh, core_expected
+        return fresh, core_expectation(
+            installed.get("sase"), fresh["sase"], _fetch_json
+        )
 
     try:
         result = run_check(
