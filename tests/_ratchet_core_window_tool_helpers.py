@@ -1,4 +1,4 @@
-"""Shared fixtures and fixture builders for ratchet_core_window tool tests."""
+"""Shared fixtures and fixture builders for ratchet_core_pin tool tests."""
 
 from __future__ import annotations
 
@@ -13,7 +13,8 @@ import pytest
 
 
 ROOT = Path(__file__).resolve().parents[1]
-SCRIPT = ROOT / "tools" / "ratchet_core_window"
+SCRIPT = ROOT / "tools" / "ratchet_core_pin"
+SOURCE_PIN = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 PLATFORMS = (
     "macosx_10_12_x86_64.macosx_11_0_arm64.macosx_10_12_universal2",
     "manylinux_2_28_aarch64",
@@ -23,9 +24,9 @@ PLATFORMS = (
 
 
 def load_tool() -> ModuleType:
-    loader = SourceFileLoader("ratchet_core_window_tool", str(SCRIPT))
+    loader = SourceFileLoader("ratchet_core_pin_tool", str(SCRIPT))
     spec = importlib.util.spec_from_file_location(
-        "ratchet_core_window_tool",
+        "ratchet_core_pin_tool",
         SCRIPT,
         loader=loader,
     )
@@ -201,6 +202,7 @@ def write_project(
     )
     uv_lock.write_text(lock_text(lock_version, specifier), encoding="utf-8")
     (root / "README.md").write_text("# fixture\n", encoding="utf-8")
+    (root / "sase-core-revision.txt").write_text(f"{SOURCE_PIN}\n", encoding="utf-8")
     return pyproject, uv_lock
 
 
@@ -228,6 +230,7 @@ def write_project_with_asttokens(
         encoding="utf-8",
     )
     (root / "README.md").write_text("# fixture\n", encoding="utf-8")
+    (root / "sase-core-revision.txt").write_text(f"{SOURCE_PIN}\n", encoding="utf-8")
     return pyproject, uv_lock
 
 
@@ -275,3 +278,28 @@ def asttokens_refresh_lock_runner(
         return subprocess.CompletedProcess(["uv", "lock"], 0, "", "")
 
     return _runner
+
+
+def fake_ensure(tool: ModuleType, version: str):
+    """Return an ``ensure_core`` stand-in that always picks *version*."""
+
+    result = tool.release_core.Pinned(
+        version=version,
+        files=(f"sase_core_rs-{version}.tar.gz",),
+    )
+
+    def _ensure(pin: str) -> object:
+        del pin
+        return result
+
+    return _ensure
+
+
+def fake_core_lag(tool: ModuleType, *, newest_complete: str | None = "0.42.1"):
+    result = tool.release_core.CoreLag(pin=SOURCE_PIN, newest_complete=newest_complete)
+
+    def _ensure(pin: str) -> object:
+        del pin
+        return result
+
+    return _ensure

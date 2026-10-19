@@ -198,7 +198,7 @@ def _validate_published_minimum(
             _error(
                 f"declared minimum {DEPENDENCY_NAME}=={minimum.raw} is not "
                 f"published on PyPI. Publish that core release before "
-                "ratcheting sase's dependency window."
+                "ratcheting sase's dependency pin."
             )
             return False
         _error(
@@ -220,6 +220,13 @@ def _mismatch_kind(version: ParsedVersion, constraints: list[Constraint]) -> str
             version, constraint
         ):
             return "sase-core checkout is behind"
+    for constraint in constraints:
+        if constraint.operator in {"=", "=="} and not _satisfies_constraint(
+            version, constraint
+        ):
+            if _compare_versions(version, constraint.version) < 0:
+                return "sase-core checkout is behind"
+            return "sase-core checkout is ahead of sase's compatibility window"
     for constraint in constraints:
         if constraint.operator in {"<", "<="} and not _satisfies_constraint(
             version, constraint
@@ -256,8 +263,8 @@ def _remediation(kind: str) -> str:
         # callers in the Justfile print the opposite advice right after this.
         return (
             "No action is needed: editable installs build from the checkout "
-            "regardless, and `tools/ratchet_core_window` moves the published "
-            "window on the release branch at release time."
+            "regardless, and `tools/ratchet_core_pin` moves the published "
+            "pin on the release branch at release time."
         )
     return (
         "Make the local `sase-core` checkout and `sase`'s `sase-core-rs` "

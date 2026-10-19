@@ -245,7 +245,7 @@ def _stale_core_plan(
     """Plan the editable-core restore for a dev install running a wheel core.
 
     A wheel-installed core in a dev install means an earlier update replaced
-    the local build (for example when a published version window excluded the
+    the local build (for example when a published exact pin excluded the
     checkout's version). The restore is actionable only when the checkout can
     actually be rebuilt; otherwise the wheel is kept and the reason says why.
     """

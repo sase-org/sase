@@ -32,8 +32,7 @@ def test_setup_is_fatal_on_the_core_version_behind_bit() -> None:
 
     assert "if [ $((validation_status & 16)) -ne 0 ]" in output
     assert (
-        "[setup] ERROR: the sase-core checkout is behind the sase-core-rs floor"
-        in output
+        "[setup] ERROR: the sase-core checkout is behind the sase-core-rs pin" in output
     )
     assert "sase repo open sase-core" in output
     assert 'if [ "${SASE_ALLOW_STALE_CORE:-}" = "1" ]' in output
@@ -45,7 +44,7 @@ def test_setup_notes_the_core_version_ahead_bit_as_normal() -> None:
     assert "if [ $((validation_status & 1)) -ne 0 ]" in output
     assert (
         "[setup] Note: the sase-core checkout is ahead of the published "
-        "sase-core-rs window in pyproject.toml" in output
+        "sase-core-rs pin in pyproject.toml" in output
     )
     assert "no action is needed here" in output
 
@@ -215,7 +214,7 @@ def test_rust_install_is_fatal_on_a_behind_status() -> None:
 
     assert 'if [ "$status" -eq 3 ]' in output
     assert (
-        "[rust-install] ERROR: the sase-core checkout is behind the sase-core-rs floor"
+        "[rust-install] ERROR: the sase-core checkout is behind the sase-core-rs pin"
         in output
     )
     assert "sase repo open sase-core" in output
@@ -228,7 +227,7 @@ def test_rust_install_notes_other_nonzero_status_as_normal() -> None:
     assert 'elif [ "$status" -ne 0 ]' in output
     assert (
         "[rust-install] Note: the sase-core checkout is ahead of the published "
-        "sase-core-rs window in pyproject.toml" in output
+        "sase-core-rs pin in pyproject.toml" in output
     )
     assert "no action is needed here" in output
 

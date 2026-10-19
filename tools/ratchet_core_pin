@@ -1,10 +1,14 @@
 #!/usr/bin/env python3
-"""Ratchet sase's ``sase-core-rs`` requirement to the newest complete PyPI release.
+"""Ratchet sase's ``sase-core-rs`` requirement to an exact ``==X.Y.Z`` pin.
+
+The pin is chosen by the shared core-ensure rule in ``tools/_release_core.py``:
+the newest complete published ``sase-core-rs`` whose tag contains
+``sase-core-revision.txt``. ``CORE_LAG`` changes nothing.
 
 Exit codes:
-  0: declared floor already matches the newest complete release
+  0: declared pin already matches the core-ensure pick
   2: a ratchet is pending, report-only, or was applied
-  3: the tool could not determine or apply a safe ratchet
+  3: the tool could not determine or apply a safe ratchet, including CORE_LAG
 """
 
 from __future__ import annotations
@@ -28,10 +32,17 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+import _release_core as release_core  # noqa: E402
+
+ensure_core = release_core.ensure_core
+
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_PYPROJECT = REPO_ROOT / "pyproject.toml"
 DEFAULT_UV_LOCK = REPO_ROOT / "uv.lock"
+DEFAULT_REVISION_FILE = REPO_ROOT / "sase-core-revision.txt"
 DEPENDENCY_NAME = "sase-core-rs"
 PROJECT_PACKAGE_NAME = "sase"
 PYPI_URL = f"https://pypi.org/pypi/{DEPENDENCY_NAME}/json"
@@ -76,6 +87,7 @@ _REFRESH_FIELD_ORDER = (
 UrlOpenFn = Callable[..., Any]
 SleepFn = Callable[[float], None]
 LockRunner = Callable[[Path, "ParsedVersion"], subprocess.CompletedProcess[str]]
+EnsureCoreFn = Callable[[str], "release_core.CoreEnsureResult"]
 
 
 class RatchetError(ValueError):
@@ -123,7 +135,7 @@ class TransitiveLockRefresh:
 
 
 def _error(message: str) -> None:
-    print(f"[ratchet_core_window] {message}", file=sys.stderr)
+    print(f"[ratchet_core_pin] {message}", file=sys.stderr)
 
 
 def _describe_field_names(fields: frozenset[str]) -> str:
@@ -269,23 +281,8 @@ def _read_core_requirement(pyproject: Path) -> CoreRequirement:
     raise RatchetError(f"{pyproject} does not declare a {DEPENDENCY_NAME} dependency")
 
 
-def ceiling_specifier_for_floor(version: ParsedVersion) -> str:
-    """Return the upper-bound policy paired with a selected core floor."""
-
-    if len(version.parts) < 2:
-        raise RatchetError(
-            f"cannot compute a compatibility ceiling from {version.raw}; "
-            "expected at least major.minor"
-        )
-    major = version.parts[0]
-    minor = version.parts[1]
-    if major == 0:
-        return f"<0.{minor + 1}.0"
-    return f"<{major + 1}.0.0"
-
-
 def dependency_specifier_for_floor(version: ParsedVersion) -> str:
-    return f">={version.raw},{ceiling_specifier_for_floor(version)}"
+    return f"=={version.raw}"
 
 
 def fetch_pypi_metadata(
@@ -962,7 +959,7 @@ def _render_report_diff(
     lock_runner: LockRunner,
     allow_transitive_lock_refresh: bool,
 ) -> tuple[str, tuple[TransitiveLockRefresh, ...]]:
-    with tempfile.TemporaryDirectory(prefix="sase-core-window-") as raw_tmp:
+    with tempfile.TemporaryDirectory(prefix="sase-core-pin-") as raw_tmp:
         scratch = Path(raw_tmp)
         (scratch / "pyproject.toml").write_text(after_pyproject, encoding="utf-8")
         (scratch / "uv.lock").write_text(before_uv_lock, encoding="utf-8")
@@ -1040,41 +1037,66 @@ def _validate_project_paths(pyproject: Path, uv_lock: Path) -> None:
         raise RatchetError("--pyproject and --uv-lock must live in the same directory")
 
 
-def ratchet_core_window(
+def _revision_file(pyproject: Path, explicit: Path | None) -> Path:
+    if explicit is not None:
+        return explicit
+    sibling = pyproject.parent / "sase-core-revision.txt"
+    if sibling.is_file():
+        return sibling
+    return DEFAULT_REVISION_FILE
+
+
+def ratchet_core_pin(
     *,
     pyproject: Path = DEFAULT_PYPROJECT,
     uv_lock: Path = DEFAULT_UV_LOCK,
+    revision_file: Path | None = None,
     check: bool = False,
     report_only: bool = False,
     allow_transitive_lock_refresh: bool = False,
-    metadata_fetcher: Callable[[], dict[str, object]] | None = None,
     lock_runner: LockRunner | None = None,
+    ensure_core_fn: EnsureCoreFn | None = None,
 ) -> int:
-    fetcher = metadata_fetcher or fetch_pypi_metadata
     runner = lock_runner or _run_uv_lock
+    ensure = ensure_core_fn or ensure_core
     _validate_project_paths(pyproject, uv_lock)
     before_pyproject = pyproject.read_text(encoding="utf-8")
     before_uv_lock = uv_lock.read_text(encoding="utf-8")
     requirement = _read_core_requirement(pyproject)
-    target = select_target_version(fetcher(), requirement.floor)
+    try:
+        pin = release_core.read_source_pin(_revision_file(pyproject, revision_file))
+        result = ensure(pin)
+    except release_core.CoreEnsureError as exc:
+        raise RatchetError(str(exc)) from exc
+
+    print(result.typed())
+    if isinstance(result, release_core.CoreLag):
+        _error(
+            f"no complete published {DEPENDENCY_NAME} release contains "
+            f"source pin {result.pin}"
+        )
+        return EXIT_COULD_NOT_DETERMINE
+    if not isinstance(result, release_core.Pinned):
+        raise RatchetError(f"unreadable core-ensure result: {result!r}")
+
+    target = parse_version(result.version, "core-ensure pick")
     comparison = _compare_versions(target, requirement.floor)
     if comparison < 0:
         raise RatchetError(
-            f"refusing to lower {DEPENDENCY_NAME} floor from "
+            f"refusing to lower {DEPENDENCY_NAME} pin from "
             f"{requirement.floor.raw} to {target.raw}"
         )
-    if comparison == 0:
+    new_specifier = dependency_specifier_for_floor(target)
+    if requirement.specifier == new_specifier:
         print(
-            f"{DEPENDENCY_NAME} floor already matches newest complete "
-            f"published release {target.raw}"
+            f"{DEPENDENCY_NAME} pin already matches newest complete "
+            f"containing release {target.raw}"
         )
         return EXIT_OK
 
-    new_specifier = dependency_specifier_for_floor(target)
     after_pyproject = rewrite_pyproject_requirement(before_pyproject, new_specifier)
     summary = (
-        f"{DEPENDENCY_NAME} ratchet {requirement.floor.raw} -> {target.raw} "
-        f"({new_specifier})"
+        f"{DEPENDENCY_NAME} ratchet {requirement.specifier} -> {new_specifier}"
     )
     if check:
         print(f"{summary} pending")
@@ -1159,12 +1181,19 @@ def main(argv: list[str] | None = None) -> int:
         default=DEFAULT_UV_LOCK,
         help="Path to sase's uv.lock.",
     )
+    parser.add_argument(
+        "--revision-file",
+        type=Path,
+        default=None,
+        help="Path to sase-core-revision.txt (default: next to pyproject.toml).",
+    )
     namespace = parser.parse_args(argv)
 
     try:
-        return ratchet_core_window(
+        return ratchet_core_pin(
             pyproject=namespace.pyproject,
             uv_lock=namespace.uv_lock,
+            revision_file=namespace.revision_file,
             check=namespace.check,
             report_only=namespace.report_only,
             allow_transitive_lock_refresh=namespace.allow_transitive_lock_refresh,

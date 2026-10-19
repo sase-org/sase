@@ -1,4 +1,4 @@
-"""Unexpected uv.lock diff guardrail tests for ratchet_core_window."""
+"""Unexpected uv.lock diff guardrail tests for ratchet_core_pin."""
 
 from __future__ import annotations
 
@@ -12,6 +12,7 @@ from tests._ratchet_core_window_tool_helpers import PLATFORMS
 from tests._ratchet_core_window_tool_helpers import (
     asttokens_refresh_lock_runner as _asttokens_refresh_lock_runner,
 )
+from tests._ratchet_core_window_tool_helpers import fake_ensure as _fake_ensure
 from tests._ratchet_core_window_tool_helpers import load_tool as _load_tool
 from tests._ratchet_core_window_tool_helpers import lock_text as _lock_text
 from tests._ratchet_core_window_tool_helpers import (
@@ -20,7 +21,6 @@ from tests._ratchet_core_window_tool_helpers import (
 from tests._ratchet_core_window_tool_helpers import (
     lock_text_with_asttokens as _lock_text_with_asttokens,
 )
-from tests._ratchet_core_window_tool_helpers import metadata as _metadata
 from tests._ratchet_core_window_tool_helpers import write_project as _write_project
 from tests._ratchet_core_window_tool_helpers import (
     write_project_with_asttokens as _write_project_with_asttokens,
@@ -44,9 +44,7 @@ def test_unrelated_package_movement_restores_files(
     pyproject, uv_lock = _write_project(tmp_path)
     before_pyproject = pyproject.read_text(encoding="utf-8")
     before_uv_lock = uv_lock.read_text(encoding="utf-8")
-    monkeypatch.setattr(
-        tool, "fetch_pypi_metadata", lambda: _metadata("0.21.3", "0.22.0")
-    )
+    monkeypatch.setattr(tool, "ensure_core", _fake_ensure(tool, "0.22.0"))
 
     def _bad_lock_runner(
         project_dir: Path,
@@ -82,9 +80,7 @@ def test_reconciliation_mode_rejects_package_set_changes(
     pyproject, uv_lock = _write_project_with_asttokens(tmp_path)
     before_pyproject = pyproject.read_text(encoding="utf-8")
     before_uv_lock = uv_lock.read_text(encoding="utf-8")
-    monkeypatch.setattr(
-        tool, "fetch_pypi_metadata", lambda: _metadata("0.21.3", "0.22.0")
-    )
+    monkeypatch.setattr(tool, "ensure_core", _fake_ensure(tool, "0.22.0"))
 
     def _bad_lock_runner(
         project_dir: Path,
@@ -131,9 +127,7 @@ def test_reconciliation_mode_rejects_direct_dependency_package_refresh(
     )
     before_pyproject = pyproject.read_text(encoding="utf-8")
     before_uv_lock = uv_lock.read_text(encoding="utf-8")
-    monkeypatch.setattr(
-        tool, "fetch_pypi_metadata", lambda: _metadata("0.21.3", "0.22.0")
-    )
+    monkeypatch.setattr(tool, "ensure_core", _fake_ensure(tool, "0.22.0"))
     monkeypatch.setattr(
         tool,
         "_run_uv_lock",
@@ -165,9 +159,7 @@ def test_reconciliation_mode_rejects_direct_dependency_diff_restores_files(
     pyproject, uv_lock = _write_project(tmp_path)
     before_pyproject = pyproject.read_text(encoding="utf-8")
     before_uv_lock = uv_lock.read_text(encoding="utf-8")
-    monkeypatch.setattr(
-        tool, "fetch_pypi_metadata", lambda: _metadata("0.21.3", "0.22.0")
-    )
+    monkeypatch.setattr(tool, "ensure_core", _fake_ensure(tool, "0.22.0"))
 
     def _bad_lock_runner(
         project_dir: Path,
@@ -216,9 +208,7 @@ def test_lock_revision_bump_is_accepted(
         ),
         encoding="utf-8",
     )
-    monkeypatch.setattr(
-        tool, "fetch_pypi_metadata", lambda: _metadata("0.21.3", "0.22.0")
-    )
+    monkeypatch.setattr(tool, "ensure_core", _fake_ensure(tool, "0.22.0"))
 
     def _runner(project_dir: Path, target: object) -> subprocess.CompletedProcess[str]:
         specifier = tool.dependency_specifier_for_floor(target)
@@ -255,9 +245,7 @@ def test_lock_requires_python_change_is_still_refused(
     )
     before_pyproject = pyproject.read_text(encoding="utf-8")
     before_uv_lock = uv_lock.read_text(encoding="utf-8")
-    monkeypatch.setattr(
-        tool, "fetch_pypi_metadata", lambda: _metadata("0.21.3", "0.22.0")
-    )
+    monkeypatch.setattr(tool, "ensure_core", _fake_ensure(tool, "0.22.0"))
 
     def _runner(project_dir: Path, target: object) -> subprocess.CompletedProcess[str]:
         specifier = tool.dependency_specifier_for_floor(target)
@@ -288,9 +276,7 @@ def test_core_package_still_refuses_extra_lock_format_fields(
     pyproject, uv_lock = _write_project(tmp_path)
     before_pyproject = pyproject.read_text(encoding="utf-8")
     before_uv_lock = uv_lock.read_text(encoding="utf-8")
-    monkeypatch.setattr(
-        tool, "fetch_pypi_metadata", lambda: _metadata("0.21.3", "0.22.0")
-    )
+    monkeypatch.setattr(tool, "ensure_core", _fake_ensure(tool, "0.22.0"))
 
     def _runner(project_dir: Path, target: object) -> subprocess.CompletedProcess[str]:
         specifier = tool.dependency_specifier_for_floor(target)

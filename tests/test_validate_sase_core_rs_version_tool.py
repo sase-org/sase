@@ -127,8 +127,47 @@ def test_sase_core_rs_version_validation_fails_when_source_hits_upper_bound(
     # The ahead direction is normal dev state; it must not send the reader to
     # `pyproject.toml`, which is what the release-branch ratchet replaced.
     assert "No action is needed" in result.stderr
-    assert "tools/ratchet_core_window" in result.stderr
+    assert "tools/ratchet_core_pin" in result.stderr
     assert "Bump" not in result.stderr
+
+
+def test_exact_pin_classifies_behind(
+    tmp_path: Path,
+) -> None:
+    core = _write_core(tmp_path, "0.1.4")
+    pyproject = _write_pyproject(tmp_path, "sase-core-rs==0.2.0")
+
+    result = _run_validator(core, pyproject)
+
+    assert result.returncode == 3
+    assert "sase-core checkout is behind" in result.stderr
+    assert "sase-core-rs==0.2.0" in result.stderr
+
+
+def test_exact_pin_classifies_ahead(
+    tmp_path: Path,
+) -> None:
+    core = _write_core(tmp_path, "0.3.0")
+    pyproject = _write_pyproject(tmp_path, "sase-core-rs==0.2.0")
+
+    result = _run_validator(core, pyproject)
+
+    assert result.returncode == 4
+    assert "ahead of sase's compatibility window" in result.stderr
+    assert "sase-core-rs==0.2.0" in result.stderr
+    assert result.returncode != 1
+
+
+def test_exact_pin_passes_when_source_matches(
+    tmp_path: Path,
+) -> None:
+    core = _write_core(tmp_path, "0.2.0")
+    pyproject = _write_pyproject(tmp_path, "sase-core-rs==0.2.0")
+
+    result = _run_validator(core, pyproject)
+
+    assert result.returncode == 0
+    assert result.stderr == ""
 
 
 def test_sase_core_rs_version_validation_reports_missing_cargo_toml(

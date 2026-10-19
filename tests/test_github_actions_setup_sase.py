@@ -35,9 +35,9 @@ def test_setup_sase_action_exports_wheel_for_the_whole_job() -> None:
     """Later `just` recipes must still see the wheel build-core produced.
 
     Every recipe re-enters `_setup`, and `_core-overrides-arg` only lifts the
-    published sase-core-rs window when SASE_CORE_WHEEL is set. Scoping the
+    published sase-core-rs pin when SASE_CORE_WHEEL is set. Scoping the
     variable to the install step alone lets the editable install silently
-    re-resolve sase-core-rs back inside the pyproject window.
+    re-resolve sase-core-rs back onto the pyproject pin.
     """
     install_script = _setup_sase_install_script()
 

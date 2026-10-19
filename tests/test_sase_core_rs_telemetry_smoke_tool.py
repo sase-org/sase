@@ -17,7 +17,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "tools" / "smoke_sase_core_rs_telemetry"
 DEPENDENCY_NAME = "sase-core-rs"
 PACKAGE_NAME_RE = re.compile(r"\s*([A-Za-z0-9_.-]+)")
-INCLUSIVE_MINIMUM_RE = re.compile(r"(?:^|,)\s*>=\s*([^,;\s]+)")
+INCLUSIVE_MINIMUM_RE = re.compile(r"(?:^|,)\s*(?:>=|==)\s*([^,;\s]+)")
 
 
 def _load_tool() -> ModuleType:
@@ -59,6 +59,17 @@ def test_declared_minimum_tracks_pyproject_dependency() -> None:
 
     pyproject = ROOT / "pyproject.toml"
     assert tool.declared_minimum_version(pyproject) == _declared_core_floor(pyproject)
+
+
+def test_declared_minimum_parses_exact_pin(tmp_path: Path) -> None:
+    tool = _load_tool()
+    pyproject = tmp_path / "pyproject.toml"
+    pyproject.write_text(
+        '[project]\ndependencies = ["sase-core-rs==0.42.0"]\n',
+        encoding="utf-8",
+    )
+
+    assert tool.declared_minimum_version(pyproject) == "0.42.0"
 
 
 def test_declared_minimum_parses_inclusive_floor(tmp_path: Path) -> None:

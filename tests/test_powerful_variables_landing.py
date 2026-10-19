@@ -11,7 +11,9 @@ ROOT = Path(__file__).resolve().parents[1]
 
 # The sase-core release that first published the powerful-variable bindings.
 POWERFUL_VARIABLE_CORE_FLOOR = (0, 27, 9)
-_CORE_FLOOR_RE = re.compile(r"^sase-core-rs>=(\d+(?:\.\d+)*),<\d+(?:\.\d+)*$")
+_CORE_FLOOR_RE = re.compile(
+    r"^sase-core-rs(?:==|>=)(\d+(?:\.\d+)*)(?:,<\d+(?:\.\d+)*)?$"
+)
 
 
 def _declared_core_floor() -> tuple[int, ...]:
@@ -24,7 +26,7 @@ def _declared_core_floor() -> tuple[int, ...]:
 
 
 def test_sase_core_rs_floor_is_published_powerful_variable_release() -> None:
-    # Compare rather than pin: `tools/ratchet_core_window` raises this floor on
+    # Compare rather than pin: `tools/ratchet_core_pin` raises this pin on
     # the release branch, so an exact-string guard would fail every ratchet.
     assert _declared_core_floor() >= POWERFUL_VARIABLE_CORE_FLOOR
 

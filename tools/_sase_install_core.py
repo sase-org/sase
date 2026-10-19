@@ -20,8 +20,8 @@ from the checkout's ``sase-core-revision.txt`` working tree, and decides:
 5. pin in HEAD               -> ready; dirty is a warning row
    (consequential, allowed)
 
-then the ``sase-core-rs`` version-window check runs
-(``tools/validate_sase_core_rs_version``): behind the floor is fatal (or a
+then the ``sase-core-rs`` pin check runs
+(``tools/validate_sase_core_rs_version``): behind the pin is fatal (or a
 warning row under ``SASE_ALLOW_STALE_CORE=1``), ahead is a dim note.
 
 Rule 3 mirrors ``sase._linked_repo_workspaces.refresh_clean_linked_checkout``:
@@ -388,7 +388,7 @@ def check_version_window(
     *,
     env: Mapping[str, str] | None = None,
 ) -> tuple[str | None, str | None, tuple[str, ...]]:
-    """Run the ``sase-core-rs`` floor/ceiling check.
+    """Run the ``sase-core-rs`` pin check.
 
     Return ``(fatal, note_suffix, warnings)``: *fatal* is the ``✗`` text when
     the pairing cannot proceed, *note_suffix* extends the core plan-row note.
@@ -404,7 +404,7 @@ def check_version_window(
             stdin=subprocess.DEVNULL,
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
-        return f"could not check the sase-core-rs version window: {exc}", None, ()
+        return f"could not check the sase-core-rs pin: {exc}", None, ()
     if completed.returncode == 0:
         return None, None, ()
     tail_lines = (completed.stderr.strip() or completed.stdout.strip()).splitlines()
@@ -412,25 +412,25 @@ def check_version_window(
     if completed.returncode == 4:
         return (
             None,
-            "core ahead of the published sase-core-rs window (ignored for dev builds)",
+            "core ahead of the published sase-core-rs pin (ignored for dev builds)",
             (),
         )
     if completed.returncode == 3:
         if stale_allowed(env):
             return (
                 None,
-                "behind the sase-core-rs floor "
+                "behind the sase-core-rs pin "
                 "(proceeding because SASE_ALLOW_STALE_CORE=1)",
                 (),
             )
         return (
-            f"sase-core checkout is behind the sase-core-rs floor: {tail} "
+            f"sase-core checkout is behind the sase-core-rs pin: {tail} "
             "Set SASE_ALLOW_STALE_CORE=1 to proceed anyway "
             "(intentional bisects only).",
             None,
             (),
         )
-    return f"could not check the sase-core-rs version window: {tail}", None, ()
+    return f"could not check the sase-core-rs pin: {tail}", None, ()
 
 
 def _rule4_fatal(pin: str, git: CoreGit, core_dir: str | Path, head_desc: str) -> str:

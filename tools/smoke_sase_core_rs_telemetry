@@ -22,6 +22,7 @@ TELEMETRY_BINDINGS = (
     "telemetry_prune",
     "telemetry_store_stats",
 )
+_PIN_PATTERN = re.compile(r"(?:^|,)\s*==\s*([^,;\s]+)")
 _MINIMUM_PATTERN = re.compile(r"(?:^|,)\s*>=\s*([^,;\s]+)")
 
 
@@ -40,6 +41,9 @@ def declared_minimum_version(pyproject_path: Path) -> str:
         if not normalized.startswith(DEPENDENCY_NAME):
             continue
         specifier = requirement[len(DEPENDENCY_NAME) :]
+        pin = _PIN_PATTERN.search(specifier)
+        if pin is not None:
+            return pin.group(1)
         match = _MINIMUM_PATTERN.search(specifier)
         if match is None:
             raise ValueError(
@@ -164,7 +168,7 @@ def _parser() -> argparse.ArgumentParser:
         "--print-minimum",
         type=Path,
         metavar="PYPROJECT",
-        help="print the declared inclusive sase-core-rs minimum and exit",
+        help="print the pinned or inclusive-minimum sase-core-rs version and exit",
     )
     return parser
 

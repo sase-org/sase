@@ -46,10 +46,10 @@ fallback_sase_github_dir := if path_exists(workspace_sase_github_dir) == "true" 
 sase_github_dir := env_var_or_default("SASE_GITHUB_DIR", env_var_or_default("SASE_LINKED_REPO_SASE_GITHUB_DIR", env_var_or_default("SASE_SIBLING_REPO_SASE_GITHUB_DIR", fallback_sase_github_dir)))
 
 # Dev installs build sase_core_rs from the local checkout or install the
-# SASE_CORE_WHEEL supplied by CI, so the published sase-core-rs version window
+# SASE_CORE_WHEEL supplied by CI, so the published sase-core-rs exact pin
 # in pyproject.toml must not constrain (or downgrade) that build during
 # dependency resolution. In either case editable install-venv recipes pass a uv
-# overrides file that lifts the window.
+# overrides file that lifts the pin.
 core_overrides_file := venv_dir / "sase-core-rs-overrides.txt"
 
 # The pinned renderer stack makes exact PNG equality the default in every
@@ -77,7 +77,7 @@ _setup-format-tools: _format-venv
     fi
 
 # Print the `--overrides <file>` argument that lifts the published
-# sase-core-rs version window for dev installs. Prints nothing when no
+# sase-core-rs exact pin for dev installs. Prints nothing when no
 # buildable sase-core checkout or explicit SASE_CORE_WHEEL exists, keeping the
 # pyproject constraint authoritative for normal published-wheel resolution.
 _core-overrides-arg:
@@ -118,14 +118,14 @@ _setup: _venv
     fi; \
     if [ $((validation_status & 16)) -ne 0 ]; then \
         if [ "${SASE_ALLOW_STALE_CORE:-}" = "1" ]; then \
-            printf "[setup] WARNING: the sase-core checkout at {{ sase_core_dir }} is behind the sase-core-rs floor in pyproject.toml; proceeding because SASE_ALLOW_STALE_CORE=1.\n"; \
+            printf "[setup] WARNING: the sase-core checkout at {{ sase_core_dir }} is behind the sase-core-rs pin in pyproject.toml; proceeding because SASE_ALLOW_STALE_CORE=1.\n"; \
         else \
-            printf "[setup] ERROR: the sase-core checkout is behind the sase-core-rs floor in\npyproject.toml; the extension built from it will not satisfy sase's tests.\nIn a SASE workspace run 'sase repo open sase-core'; otherwise update the checkout\ndirectly. Then rerun 'just install-venv'.\nSet SASE_ALLOW_STALE_CORE=1 to proceed anyway (intentional bisects only).\n" >&2; \
+            printf "[setup] ERROR: the sase-core checkout is behind the sase-core-rs pin in\npyproject.toml; the extension built from it will not satisfy sase's tests.\nIn a SASE workspace run 'sase repo open sase-core'; otherwise update the checkout\ndirectly. Then rerun 'just install-venv'.\nSet SASE_ALLOW_STALE_CORE=1 to proceed anyway (intentional bisects only).\n" >&2; \
             exit "$validation_status"; \
         fi; \
     fi; \
     if [ $((validation_status & 1)) -ne 0 ]; then \
-        printf "[setup] Note: the sase-core checkout is ahead of the published sase-core-rs window in pyproject.toml; dev installs build from {{ sase_core_dir }} regardless. This is normal — the release-branch reconciler ratchets the published window at release time, so no action is needed here.\n"; \
+        printf "[setup] Note: the sase-core checkout is ahead of the published sase-core-rs pin in pyproject.toml; dev installs build from {{ sase_core_dir }} regardless. This is normal — the release-branch reconciler ratchets the published pin at release time, so no action is needed here.\n"; \
     fi; \
     if [ $((validation_status & 34)) -ne 0 ]; then \
         if [ $((validation_status & 32)) -ne 0 ]; then \
@@ -755,8 +755,8 @@ refresh-shard-timings *args: _setup
     @printf "\n---------- Refreshing shard timing table... ----------\n"
     {{ venv_bin }}/python tools/refresh_shard_timings "$@"
 
-ratchet-core-window *args: _venv
-    @{{ venv_bin }}/python tools/ratchet_core_window {{ args }}
+ratchet-core-pin *args: _venv
+    @{{ venv_bin }}/python tools/ratchet_core_pin {{ args }}
 
 # Propose moving sase-core-revision.txt (the pinned Rust core revision CI
 # builds from) forward to sase-core's current remote HEAD. Pass --check to
@@ -1111,13 +1111,13 @@ rust-install VENV=venv_dir_abs: _venv
     "{{ VENV }}/bin/python" tools/validate_sase_core_rs_version --sase-core-dir "{{ sase_core_dir }}" --pyproject pyproject.toml || status=$?; \
     if [ "$status" -eq 3 ]; then \
         if [ "${SASE_ALLOW_STALE_CORE:-}" = "1" ]; then \
-            printf "[rust-install] WARNING: the sase-core checkout at {{ sase_core_dir }} is behind the sase-core-rs floor in pyproject.toml; proceeding because SASE_ALLOW_STALE_CORE=1.\n"; \
+            printf "[rust-install] WARNING: the sase-core checkout at {{ sase_core_dir }} is behind the sase-core-rs pin in pyproject.toml; proceeding because SASE_ALLOW_STALE_CORE=1.\n"; \
         else \
-            printf "[rust-install] ERROR: the sase-core checkout is behind the sase-core-rs floor in\npyproject.toml; the extension built from it will not satisfy sase's tests.\nIn a SASE workspace run 'sase repo open sase-core'; otherwise update the checkout\ndirectly. Then rerun `just install-venv` (this checkout's .venv) or `sase update` (your installed `sase`).\nSet SASE_ALLOW_STALE_CORE=1 to proceed anyway (intentional bisects only).\n" >&2; \
+            printf "[rust-install] ERROR: the sase-core checkout is behind the sase-core-rs pin in\npyproject.toml; the extension built from it will not satisfy sase's tests.\nIn a SASE workspace run 'sase repo open sase-core'; otherwise update the checkout\ndirectly. Then rerun `just install-venv` (this checkout's .venv) or `sase update` (your installed `sase`).\nSet SASE_ALLOW_STALE_CORE=1 to proceed anyway (intentional bisects only).\n" >&2; \
             exit 1; \
         fi; \
     elif [ "$status" -ne 0 ]; then \
-        printf "[rust-install] Note: the sase-core checkout is ahead of the published sase-core-rs window in pyproject.toml; dev builds from {{ sase_core_dir }} ignore it. This is normal — the release-branch reconciler ratchets the published window at release time, so no action is needed here.\n"; \
+        printf "[rust-install] Note: the sase-core checkout is ahead of the published sase-core-rs pin in pyproject.toml; dev builds from {{ sase_core_dir }} ignore it. This is normal — the release-branch reconciler ratchets the published pin at release time, so no action is needed here.\n"; \
     fi
     # Harden cargo crate downloads against transient crates.io flakiness.
     # CI has hit `curl ... [16] Error in the HTTP2 framing layer` while
@@ -1210,13 +1210,13 @@ rust-dev-install VENV=venv_dir_abs: _venv
     "{{ VENV }}/bin/python" tools/validate_sase_core_rs_version --sase-core-dir "{{ sase_core_dir }}" --pyproject pyproject.toml || status=$?; \
     if [ "$status" -eq 3 ]; then \
         if [ "${SASE_ALLOW_STALE_CORE:-}" = "1" ]; then \
-            printf "[rust-dev-install] WARNING: the sase-core checkout at {{ sase_core_dir }} is behind the sase-core-rs floor in pyproject.toml; proceeding because SASE_ALLOW_STALE_CORE=1.\n"; \
+            printf "[rust-dev-install] WARNING: the sase-core checkout at {{ sase_core_dir }} is behind the sase-core-rs pin in pyproject.toml; proceeding because SASE_ALLOW_STALE_CORE=1.\n"; \
         else \
-            printf "[rust-dev-install] ERROR: the sase-core checkout is behind the sase-core-rs floor in\npyproject.toml; the extension built from it will not satisfy sase's tests.\nIn a SASE workspace run 'sase repo open sase-core'; otherwise update the checkout\ndirectly. Then rerun `just install-venv` (this checkout's .venv) or `sase update` (your installed `sase`).\nSet SASE_ALLOW_STALE_CORE=1 to proceed anyway (intentional bisects only).\n" >&2; \
+            printf "[rust-dev-install] ERROR: the sase-core checkout is behind the sase-core-rs pin in\npyproject.toml; the extension built from it will not satisfy sase's tests.\nIn a SASE workspace run 'sase repo open sase-core'; otherwise update the checkout\ndirectly. Then rerun `just install-venv` (this checkout's .venv) or `sase update` (your installed `sase`).\nSet SASE_ALLOW_STALE_CORE=1 to proceed anyway (intentional bisects only).\n" >&2; \
             exit 1; \
         fi; \
     elif [ "$status" -ne 0 ]; then \
-        printf "[rust-dev-install] Note: the sase-core checkout is ahead of the published sase-core-rs window in pyproject.toml; dev builds from {{ sase_core_dir }} ignore it. This is normal — the release-branch reconciler ratchets the published window at release time, so no action is needed here.\n"; \
+        printf "[rust-dev-install] Note: the sase-core checkout is ahead of the published sase-core-rs pin in pyproject.toml; dev builds from {{ sase_core_dir }} ignore it. This is normal — the release-branch reconciler ratchets the published pin at release time, so no action is needed here.\n"; \
     fi
     # Capture the source identity after the checkout refresh above and before
     # the build below. It is staged to a pending file and moved into place

@@ -10,8 +10,8 @@ description:
 A subset of sase's core APIs is served by a Rust extension distributed as
 [`sase-core-rs`](https://pypi.org/project/sase-core-rs/) on PyPI and built from the
 sibling [`sase-core`](https://github.com/sase-org/sase-core) repo. `sase` declares
-`sase-core-rs` as a hard runtime dependency (see `pyproject.toml` for the pinned range),
-so a normal `uv tool install sase` (or `pip install sase`) pulls a prebuilt wheel
+`sase-core-rs` as a hard runtime dependency (see `pyproject.toml` for the exact pin), so
+a normal `uv tool install sase` (or `pip install sase`) pulls a prebuilt wheel
 automatically — no Rust toolchain required and no env-var backend selection. Most ported
 operations fail fast when the extension or a required binding is unavailable. The
 agent-cleanup planner and cleanup-mutation wrappers are a temporary compatibility
@@ -682,19 +682,19 @@ then refuse to build from a checkout that is still behind the `sase-core-rs` flo
 `pyproject.toml`; set `SASE_ALLOW_STALE_CORE=1` to skip the refresh and downgrade the
 floor check to a warning for an intentional bisect.
 
-Dev installs always track the local checkout. The published `sase-core-rs` version
-window in `pyproject.toml` applies only to wheel-based installs: editable installs pass
-a uv override that lifts the window so the locally built extension is never downgraded
-to a published wheel during dependency resolution, and `sase update` rebuilds the
-editable extension from the checkout whenever it finds a published wheel installed in a
-dev environment. Every successful `rust-install` (cached wheel or fresh build) also
-records the source it built from in `.venv/.sase-core-rs-source.json`. The identity is
-the checkout's `HEAD` plus a digest of uncommitted and untracked changes under
-`crates/`, `Cargo.toml`, `Cargo.lock`, and `rust-toolchain.toml` (build output under
-`target/` is never hashed), captured before the build starts so an edit made mid-build
-still reads as stale. Any recipe that runs the shared `_setup` step (`just check`,
-`just test`, `just lint`, ...) compares that stamp with the current identity and
-rebuilds the extension, printing
+Dev installs always track the local checkout. The published `sase-core-rs` exact pin in
+`pyproject.toml` applies only to wheel-based installs: editable installs pass a uv
+override that lifts the pin so the locally built extension is never downgraded to a
+published wheel during dependency resolution, and `sase update` rebuilds the editable
+extension from the checkout whenever it finds a published wheel installed in a dev
+environment. Every successful `rust-install` (cached wheel or fresh build) also records
+the source it built from in `.venv/.sase-core-rs-source.json`. The identity is the
+checkout's `HEAD` plus a digest of uncommitted and untracked changes under `crates/`,
+`Cargo.toml`, `Cargo.lock`, and `rust-toolchain.toml` (build output under `target/` is
+never hashed), captured before the build starts so an edit made mid-build still reads as
+stale. Any recipe that runs the shared `_setup` step (`just check`, `just test`,
+`just lint`, ...) compares that stamp with the current identity and rebuilds the
+extension, printing
 `[setup] Rebuilding sase_core_rs: linked sase-core source changed since the extension was built.`,
 when the stamp is missing or differs. The check runs only when `_setup` builds from a
 local checkout with `cargo` on `PATH`; it is skipped when `SASE_CORE_WHEEL` supplies a
@@ -710,27 +710,36 @@ recipes for the edit, then move the pin so CI builds a core that has it: see
 
 #### Who owns the published version window
 
-The `sase-core-rs` requirement in `pyproject.toml` is owned by the
-`sync-release-metadata` job in `publish.yml`, not by feature agents. On scheduled or
-manual release-generation runs that find a pending release-please branch, that job
-re-reads PyPI, selects the newest fully published stable `sase-core-rs`, and ratchets
-the requirement (and `uv.lock`) on the release branch in one commit. The window only
-ever moves at release time, in that one place.
+The `sase-core-rs` requirement in `pyproject.toml` is an exact pin (`==X.Y.Z`) owned by
+the `sync-release-metadata` job in `publish.yml`, not by feature agents. On scheduled or
+manual release-generation runs that find a pending release-please branch, that job runs
+`tools/ratchet_core_pin`, which asks the shared core-ensure rule for a pick and writes
+`sase-core-rs==X.Y.Z` (and `uv.lock`) on the release branch in one commit. The pin only
+ever moves at release time, in that one place, and never backwards.
+
+Core-ensure (`tools/_release_core.py`) picks the newest _complete_ published
+`sase-core-rs` whose tag `vX.Y.Z` contains this checkout's `sase-core-revision.txt`
+commit. Complete means every `EXPECTED_DIST_SUFFIXES` file from sase-core's
+`release-plz.yml` _at that tag_ is on PyPI and none of those files is yanked. If no
+published core contains the pin, the result is `CORE_LAG(pin, newest_complete)`: the
+ratchet changes nothing and prints that typed reason. An unreadable compare or workflow
+file is an error, never a pick.
 
 If your change calls a `sase-core` binding or depends on core behavior that has not been
 published yet: do nothing. Land the Python change as usual — a source checkout builds
-`sase_core_rs` from `../sase-core` regardless of the declared window, so nothing blocks
+`sase_core_rs` from `../sase-core` regardless of the declared pin, so nothing blocks
 local development or the feature PR. The release lane (`release-core-floor-smoke` in
-`ci.yml`, plus the floor-pinned leg of `publish.yml`'s `install-smoke`) mechanically
-blocks the `sase` release until a `sase-core` release publishes the capability, which is
-the correct place for that invariant to be enforced.
+`ci.yml`, now a pinned-core smoke, plus the pin-locked leg of `publish.yml`'s
+`install-smoke`) mechanically blocks the `sase` release until a complete `sase-core`
+release contains the source pin, which is the correct place for that invariant to be
+enforced.
 
 To run the ratchet by hand (for example, to preview what the release branch will do):
 
 ```bash
-just ratchet-core-window --report-only   # print the proposed version and diff, write nothing
-just ratchet-core-window --check         # exit non-zero if a ratchet is pending
-just ratchet-core-window                 # apply: rewrite pyproject.toml and uv.lock
+just ratchet-core-pin --report-only   # print the typed pick or CORE_LAG, and the diff
+just ratchet-core-pin --check         # exit non-zero if a ratchet is pending
+just ratchet-core-pin                 # apply: rewrite pyproject.toml and uv.lock
 ```
 
 Docs-only commands do not need the application package or the Rust extension.

@@ -23,10 +23,10 @@ def editable_override_lines(requirements: Iterable[Requirement]) -> tuple[str, .
 
     When the host ``sase`` package itself is editable (a dev install), an
     unconstrained ``sase-core-rs`` override is appended so the published
-    version window in the host's pyproject never applies: dev installs build
+    exact pin in the host's pyproject never applies: dev installs build
     ``sase_core_rs`` from the local checkout, and uv must not downgrade or
-    replace that build just because the checkout version is outside the
-    window published for wheel installs.
+    replace that build just because the checkout version differs from the
+    pin published for wheel installs.
     """
     seen: set[str] = set()
     lines: list[str] = []

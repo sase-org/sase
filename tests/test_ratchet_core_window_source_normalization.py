@@ -44,8 +44,8 @@ def test_reconciliation_mode_allows_canonical_pypi_registry_spellings(
     )
     monkeypatch.setattr(
         tool,
-        "fetch_pypi_metadata",
-        lambda: base.metadata("0.21.3", "0.22.0"),
+        "ensure_core",
+        base.fake_ensure(tool, "0.22.0"),
     )
     monkeypatch.setattr(
         tool,
@@ -135,8 +135,8 @@ def test_reconciliation_mode_rejects_ambiguous_transitive_sources(
     before_uv_lock = uv_lock.read_text(encoding="utf-8")
     monkeypatch.setattr(
         tool,
-        "fetch_pypi_metadata",
-        lambda: base.metadata("0.21.3", "0.22.0"),
+        "ensure_core",
+        base.fake_ensure(tool, "0.22.0"),
     )
     monkeypatch.setattr(
         tool,

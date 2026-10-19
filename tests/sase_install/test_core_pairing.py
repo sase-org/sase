@@ -261,13 +261,13 @@ def test_floor_failure_is_fatal_and_stale_allows_it(tmp_path: Path) -> None:
     core = kit.make_core_checkout(tmp_path, version="0.34.0")
     checkout = kit.make_dev_checkout(tmp_path, core)
     with pytest.raises(
-        install_core.CorePairingError, match="behind the sase-core-rs floor"
+        install_core.CorePairingError, match="behind the sase-core-rs pin"
     ):
         _pair(tmp_path, checkout, core)
     pairing = _pair(tmp_path, checkout, core, SASE_ALLOW_STALE_CORE="1")
     assert pairing.action == "ready"
     assert pairing.consequential
-    assert "floor" in pairing.note
+    assert "behind the sase-core-rs pin" in pairing.note
 
 
 def test_ahead_of_window_is_a_dim_note(tmp_path: Path) -> None:

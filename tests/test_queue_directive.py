@@ -28,7 +28,9 @@ from sase.macro.queue_directive import (
 
 ROOT = Path(__file__).resolve().parents[1]
 WEIGHTED_CAPACITY_CORE_FLOOR = (0, 33, 0)
-_CORE_FLOOR_RE = re.compile(r"^sase-core-rs>=(\d+(?:\.\d+)*),<\d+(?:\.\d+)*$")
+_CORE_FLOOR_RE = re.compile(
+    r"^sase-core-rs(?:==|>=)(\d+(?:\.\d+)*)(?:,<\d+(?:\.\d+)*)?$"
+)
 
 
 def _declared_core_floor() -> tuple[int, ...]:

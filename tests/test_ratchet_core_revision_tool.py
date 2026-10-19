@@ -2,7 +2,7 @@
 
 The tool proposes moving ``sase-core-revision.txt`` (the git SHA CI builds
 sase's Rust core from) forward once sase-core's remote HEAD has moved past
-it. It mirrors ``tools/ratchet_core_window``'s ``--check``/``--report-only``/
+it. It mirrors ``tools/ratchet_core_pin``'s ``--check``/``--report-only``/
 apply contract and exit codes.
 """
 
