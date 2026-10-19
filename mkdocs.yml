@@ -402,6 +402,7 @@ nav:
           - Telemetry: contribute/telemetry.md
           - Performance runbook: contribute/perf-runbook.md
           - Mobile MVP runbook: contribute/mobile-mvp-runbook.md
+          - Release safety and recovery: contribute/release-safety.md
       - Agent and VCS internals:
           - Agent sidecar synchronization: contribute/agents-sidecar-sync.md
           - Workspace provider: contribute/workspace-provider.md

@@ -331,6 +331,7 @@
 - [sase tui Performance Runbook](https://sase.sh/contribute/perf-runbook/) — This runbook explains how to capture and compare performance data for sase's TUI, the sase tui terminal user interface.
 - [Plugin API](https://sase.sh/contribute/plugin-api/) — Contributor contract for discovering and writing SASE plugins.
 - [Reader testing](https://sase.sh/contribute/reader-testing/) — How to run an observed reader round and turn the results into doc changes.
+- [Release Safety and Recovery](https://sase.sh/contribute/release-safety/) — How to recover a broken family release: yank then fix forward, core backfill, and the safety nets that catch the next one.
 - [Rust Backend (sase_core_rs)](https://sase.sh/contribute/rust-backend/) — A subset of sase's core APIs is served by a Rust extension distributed as sase-core-rs on PyPI and built from the sibling sase-core repo.
 - [SDD Storage](https://sase.sh/contribute/sdd-storage/) — The workspace provider owns SDD placement, while projects select a store beneath it.
 - [Telemetry](https://sase.sh/contribute/telemetry/) — SASE records debugging and health metric history locally.

@@ -466,6 +466,22 @@ def test_ci_does_not_invoke_plugin_release_dependency_floor() -> None:
     assert "release-core-floor-smoke" in raw
 
 
+def test_ci_and_publish_never_invoke_the_testpypi_drill() -> None:
+    """The yank-and-fix-forward drill is manual-only rehearsal.
+
+    tools/check_testpypi_drill runs only from the workflow_dispatch
+    testpypi-drill.yml against TestPyPI; it must never grow onto sase CI or
+    the real PyPI publish path.
+    """
+    for workflow_name in ("ci.yml", "publish.yml"):
+        raw = (REPO_ROOT / ".github" / "workflows" / workflow_name).read_text(
+            encoding="utf-8"
+        )
+
+        assert "tools/check_testpypi_drill" not in raw
+        assert "testpypi-drill.yml" not in raw
+
+
 def test_ci_and_master_gate_never_run_the_diff_scoped_test_lane() -> None:
     """Both gates always exercise exhaustive lanes; the scoped lane is a local, agent-only fast path.
 

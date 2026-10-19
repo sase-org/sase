@@ -79,6 +79,11 @@ def _load_shard_timings_ratchet_workflow() -> dict[str, Any]:
     return yaml.safe_load(workflow_path.read_text())
 
 
+def _load_testpypi_drill_workflow() -> dict[str, Any]:
+    workflow_path = REPO_ROOT / ".github" / "workflows" / "testpypi-drill.yml"
+    return yaml.safe_load(workflow_path.read_text())
+
+
 def _load_setup_sase_action() -> dict[str, Any]:
     action_path = REPO_ROOT / ".github" / "actions" / "setup-sase" / "action.yml"
     return yaml.safe_load(action_path.read_text())

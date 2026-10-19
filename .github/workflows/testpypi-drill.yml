@@ -1,0 +1,205 @@
+name: TestPyPI yank-and-fix-forward drill
+
+# Phase sase-1my.5 (runbook): rehearse the human-only recovery steps on
+# TestPyPI before a real outage needs them. A dispatcher publishes one
+# throwaway version at a time; a human yanks the broken 0.0.2 in the
+# TestPyPI UI between dispatches; every dispatch asserts the registry state
+# with tools/check_testpypi_drill and proves version selection with pip.
+#
+# Human setup (one gate, before the first dispatch): create the TestPyPI
+# project (default `sase-yank-drill`) and add a pending trusted publisher
+# for sase-org/sase, workflow `testpypi-drill.yml`, environment `testpypi`.
+# The publish job below consumes that publisher through OIDC, so it carries
+# no secret. This workflow never touches real PyPI: the upload URL is pinned
+# to test.pypi.org and a contract test refuses any other index.
+#
+# Drill order:
+#   1. dispatch step=publish-good  -> 0.0.1, installable, wins unpinned.
+#   2. dispatch step=publish-broken -> 0.0.2 with an unsatisfiable dep.
+#   3. yank 0.0.2 in the TestPyPI UI (human only, no yank API exists).
+#   4. dispatch step=verify + expect=yanked -> unpinned skips 0.0.2 and
+#      `==0.0.2` still resolves (exact pins keep installing yanked files).
+#   5. dispatch step=publish-fix -> 0.0.3, the fix-forward.
+#   6. dispatch step=verify + expect=fixed -> 0.0.3 wins, 0.0.2 stays yanked.
+
+on:
+  workflow_dispatch:
+    inputs:
+      project:
+        description: TestPyPI project for the drill (must already exist)
+        type: string
+        required: false
+        default: sase-yank-drill
+      step:
+        description: Drill move to perform
+        type: choice
+        required: false
+        default: verify
+        options:
+          - publish-good
+          - publish-broken
+          - publish-fix
+          - verify
+      expect:
+        description: Registry state the verify step asserts (yanked or fixed)
+        type: choice
+        required: false
+        default: yanked
+        options:
+          - yanked
+          - fixed
+
+concurrency:
+  group: testpypi-drill
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    name: Publish one drill version to TestPyPI
+    if: ${{ inputs.step != 'verify' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: testpypi
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      TESTPYPI_INDEX: https://test.pypi.org/simple/
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v4
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Generate the throwaway package
+        env:
+          DRILL_PROJECT: ${{ inputs.project }}
+          DRILL_STEP: ${{ inputs.step }}
+        run: |
+          set -euo pipefail
+          case "${DRILL_STEP}" in
+            publish-good) drill_version="0.0.1" ;;
+            publish-broken) drill_version="0.0.2" ;;
+            publish-fix) drill_version="0.0.3" ;;
+            *) echo "unknown drill step: ${DRILL_STEP}" >&2; exit 1 ;;
+          esac
+          echo "drill_version=${drill_version}" >> "$GITHUB_ENV"
+          rm -rf .drill-dist
+          mkdir -p ".drill-dist/${DRILL_PROJECT//-/_}"
+          touch ".drill-dist/${DRILL_PROJECT//-/_}/__init__.py"
+          {
+            echo "[build-system]"
+            echo 'requires = ["hatchling"]'
+            echo 'build-backend = "hatchling.build"'
+            echo ""
+            echo "[project]"
+            echo "name = \"${DRILL_PROJECT}\""
+            echo "version = \"${drill_version}\""
+            echo 'description = "Throwaway yank-and-fix-forward drill package (E1 runbook)"'
+            echo 'requires-python = ">=3.12"'
+            if [[ "${DRILL_STEP}" == "publish-broken" ]]; then
+              echo 'dependencies = ["sase-yank-drill-does-not-exist>=1"]'
+            fi
+          } > .drill-dist/pyproject.toml
+          cat .drill-dist/pyproject.toml
+
+      - name: Build the drill distributions
+        run: |
+          set -euo pipefail
+          cd .drill-dist
+          uv build
+          uvx --from twine twine check dist/*
+
+      - name: Publish to TestPyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+          packages-dir: .drill-dist/dist/
+          # Re-running a drill step after it already published stays green.
+          skip-existing: true
+          verbose: true
+
+  verify:
+    name: Assert the drill state
+    needs: publish
+    if: ${{ always() && needs.publish.result != 'failure' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    env:
+      TESTPYPI_INDEX: https://test.pypi.org/simple/
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v4
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Resolve the expected registry state
+        env:
+          DRILL_STEP: ${{ inputs.step }}
+          DRILL_EXPECT: ${{ inputs.expect }}
+        run: |
+          set -euo pipefail
+          case "${DRILL_STEP}" in
+            publish-good) drill_expect="good" ;;
+            publish-broken) drill_expect="broken" ;;
+            publish-fix) drill_expect="fixed" ;;
+            verify) drill_expect="${DRILL_EXPECT}" ;;
+            *) echo "unknown drill step: ${DRILL_STEP}" >&2; exit 1 ;;
+          esac
+          echo "drill_expect=${drill_expect}" >> "$GITHUB_ENV"
+          case "${drill_expect}" in
+            good|yanked) echo "drill_winner=0.0.1" >> "$GITHUB_ENV" ;;
+            fixed) echo "drill_winner=0.0.3" >> "$GITHUB_ENV" ;;
+            broken) echo "drill_winner=" >> "$GITHUB_ENV" ;;
+          esac
+
+      - name: Assert the registry state
+        env:
+          DRILL_PROJECT: ${{ inputs.project }}
+        run: |
+          set -euo pipefail
+          uv run --no-project --with packaging -- \
+            python tools/check_testpypi_drill \
+            --project "${DRILL_PROJECT}" \
+            --step "${drill_expect}"
+
+      - name: Prove unpinned resolution skips the yanked release
+        if: ${{ env.drill_winner != '' }}
+        env:
+          DRILL_PROJECT: ${{ inputs.project }}
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/drill-probe && mkdir -p /tmp/drill-probe
+          python3 -m venv /tmp/drill-probe/venv
+          /tmp/drill-probe/venv/bin/pip install --upgrade pip
+          /tmp/drill-probe/venv/bin/pip download --no-deps \
+            --only-binary :all: \
+            --index-url "${TESTPYPI_INDEX}" \
+            --dest /tmp/drill-probe "${DRILL_PROJECT}"
+          ls /tmp/drill-probe/*.whl | grep -F "${drill_winner}" \
+            || { echo "unpinned resolution did not select ${drill_winner}" >&2; exit 1; }
+
+      - name: Prove an exact pin still installs the yanked release
+        if: ${{ env.drill_expect == 'yanked' || env.drill_expect == 'fixed' }}
+        env:
+          DRILL_PROJECT: ${{ inputs.project }}
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/drill-pin && mkdir -p /tmp/drill-pin
+          python3 -m venv /tmp/drill-pin/venv
+          /tmp/drill-pin/venv/bin/pip install --upgrade pip
+          /tmp/drill-pin/venv/bin/pip download --no-deps \
+            --only-binary :all: \
+            --index-url "${TESTPYPI_INDEX}" \
+            --dest /tmp/drill-pin "${DRILL_PROJECT}==0.0.2"
+          ls /tmp/drill-pin/*0.0.2*.whl \
+            || { echo "exact pin ${DRILL_PROJECT}==0.0.2 stopped resolving" >&2; exit 1; }
