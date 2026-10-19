@@ -882,7 +882,7 @@ class ReleaseWatcher:
                     ],
                     PROCESS_TIMEOUT,
                 ),
-                ([str(env_dir / "bin/sase"), "--version"], 30),
+                ([str(env_dir / "bin/sase"), "version", "--json"], 30),
                 (
                     [
                         str(python),
@@ -908,7 +908,7 @@ class ReleaseWatcher:
                     ],
                     PROCESS_TIMEOUT,
                 ),
-                ([str(env_dir / "bin/sase"), "--version"], 30),
+                ([str(env_dir / "bin/sase"), "version", "--json"], 30),
                 (
                     [
                         str(python),
@@ -928,15 +928,63 @@ class ReleaseWatcher:
                     f"command {' '.join(argv)} exited {result.returncode}: {failed_excerpt(output)}",
                 )
             outputs.append((result.stdout or "").strip())
-            if index == 2 and self.options.version not in outputs[-1]:
-                return (
-                    False,
-                    f"sase --version did not report {self.options.version}: {outputs[-1]}",
-                )
+            if index == 2:
+                try:
+                    inventory = json.loads(outputs[-1])
+                except json.JSONDecodeError as exc:
+                    return (
+                        False,
+                        f"sase version --json returned malformed inventory JSON: {exc}",
+                    )
+                if not isinstance(inventory, dict) or inventory.get("schema_version") != 1:
+                    return (
+                        False,
+                        "sase version --json returned an unsupported inventory schema",
+                    )
+                packages = inventory.get("packages")
+                if not isinstance(packages, list):
+                    return (
+                        False,
+                        "sase version --json inventory is missing its packages list",
+                    )
+                host_records = [
+                    package
+                    for package in packages
+                    if isinstance(package, dict)
+                    and package.get("name") == "sase"
+                    and package.get("role") == "host"
+                ]
+                if len(host_records) != 1:
+                    return (
+                        False,
+                        "sase version --json inventory is missing a unique host package row",
+                    )
+                host_version = host_records[0].get("distribution_version")
+                if not isinstance(host_version, str) or not host_version:
+                    return (
+                        False,
+                        "sase version --json host package row is missing distribution_version",
+                    )
+                if host_version != self.options.version:
+                    return (
+                        False,
+                        "sase version --json host distribution_version "
+                        f"{host_version!r} did not exactly match requested release "
+                        f"{self.options.version!r}",
+                    )
         core_version = outputs[-1].splitlines()[-1] if outputs[-1] else "unknown"
+        required_core = self.options.await_core_version
+        if required_core and not core_version_meets(core_version, required_core):
+            return (
+                False,
+                f"installed sase-core-rs {core_version!r} does not meet required "
+                f"minimum {required_core}",
+            )
         return (
             True,
-            f"fresh venv installed sase=={self.options.version}; sase --version={outputs[-2]}; sase-core-rs={core_version}",
+            f"fresh venv installed sase=={self.options.version}; "
+            f"sase version --json host distribution_version={self.options.version}; "
+            f"sase-core-rs={core_version}",
         )
 
     def set_verdict(self, verdict: str, detail: str) -> None:
