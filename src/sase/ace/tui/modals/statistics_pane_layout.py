@@ -40,7 +40,7 @@ _VIEW_TABS: tuple[PanelTab, ...] = tuple(
 OVERVIEW_TILE_TARGETS: tuple[tuple[str, StatisticsView], ...] = (
     ("Agents Run", "projects"),
     ("Success Rate", "projects"),
-    ("Commits", "projects"),
+    ("Run commits (this machine)", "projects"),
     ("Plans Proposed", "plans_questions"),
     ("Questions", "plans_questions"),
 )

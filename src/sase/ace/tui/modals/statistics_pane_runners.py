@@ -114,6 +114,8 @@ class StatisticsRunnersRenderingMixin:
     size: Any
 
     def _runners_renderable(self, result: StatisticsViewData) -> Group:
+        if result.views is None:
+            return Group(Text("Loading runner occupancy", style="dim italic"))
         runners = result.views.runners
         available_width = max(76, int(self.size.width or 100) - 2)
         summary = self._runner_summary(runners, width=available_width)
@@ -291,6 +293,7 @@ class StatisticsRunnersRenderingMixin:
         return tuple(notes)
 
     def _runner_timeline(self, result: StatisticsViewData, *, width: int) -> Panel:
+        assert result.views is not None
         runners = result.views.runners
         scale = max(
             1,

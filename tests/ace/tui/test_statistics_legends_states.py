@@ -21,6 +21,7 @@ from tests.ace.tui._statistics_pane_helpers import (
     _open_statistics,
     _patch_center,
     _result,
+    _wait_statistics_settled,
 )
 
 
@@ -54,7 +55,9 @@ def test_view_renderables_include_verified_metric_definitions() -> None:
             "Top projects column = completed ÷ all runs"
         ),
         "runners": "Average = runner-seconds ÷ analyzed wall time",
-        "projects": "Success = completed ÷ all runs",
+        "projects": (
+            "Commits = default-branch commits in code repos, by committer time in range"
+        ),
         "providers": "Avg runtime = mean among runs with a valid finish/stop duration",
         "activity": "Agents = distinct agent names that used the skill or memory",
         "macros": (
@@ -72,7 +75,8 @@ def test_view_renderables_include_verified_metric_definitions() -> None:
     }
     for view in VIEW_ORDER:
         pane._view = view
-        assert expected[view] in _render_plain(pane._view_renderable(result))
+        painted = result if view != "projects" else _result("projects", pane._range)
+        assert expected[view] in _render_plain(pane._view_renderable(painted))
 
 
 def test_empty_agent_runs_still_paint_the_perf_view() -> None:
@@ -126,7 +130,7 @@ def test_plans_questions_ignores_the_run_count_empty_state() -> None:
 
 
 def test_overview_still_shows_empty_state_when_no_runs_are_recorded() -> None:
-    """overview, projects, and providers stay run-derived empty states."""
+    """overview and providers stay run-derived empty states."""
     pane = StatisticsPane(auto_load=False)
     pane._view = "overview"
     pane._last_result = _result("overview", pane._range, runs_empty=True)
@@ -154,6 +158,8 @@ def test_empty_state_message_is_specific_to_the_selected_view() -> None:
     assert pane._empty_state_message() == "No plans or questions recorded"
     pane._view = "overview"
     assert pane._empty_state_message() == "No agent runs recorded"
+    pane._view = "projects"
+    assert pane._empty_state_message() == "No projects recorded"
 
 
 def test_empty_state_names_range_and_omits_irrelevant_filter_action() -> None:
@@ -213,13 +219,13 @@ def test_overview_tile_mapping_is_complete() -> None:
     assert OVERVIEW_TILE_TARGETS == (
         ("Agents Run", "projects"),
         ("Success Rate", "projects"),
-        ("Commits", "projects"),
+        ("Run commits (this machine)", "projects"),
         ("Plans Proposed", "plans_questions"),
         ("Questions", "plans_questions"),
     )
 
 
-async def test_overview_tile_click_uses_set_view_without_loading_again(
+async def test_overview_tile_click_loads_the_projects_report(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     calls: list[tuple[StatisticsView, StatsRange, str | None, str | None]] = []
@@ -230,5 +236,6 @@ async def test_overview_tile_click_uses_set_view_without_loading_again(
 
         await page.click("#statistics-tile-0")
         await page.wait_for(lambda _state: pane._view == "projects")
+        await _wait_statistics_settled(page, pane)
 
-        assert len(calls) == 1
+        assert [call[0] for call in calls] == ["overview", "projects"]

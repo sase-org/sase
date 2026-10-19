@@ -24,8 +24,8 @@ from sase.ace.tui.modals.saved_agent_group_revival_rendering import (
 )
 from sase.ace.tui.modals.statistics_help_modal import StatisticsHelpModal
 from sase.ace.tui.modals.statistics_pane import StatisticsPane
-from sase.ace.tui.modals.statistics_pane_projects import (
-    StatisticsProjectsRenderingMixin,
+from sase.ace.tui.modals.statistics_pane_views import (
+    StatisticsViewsRenderingMixin,
 )
 from sase.ace.tui.modals.procs_pane_render import _elapsed, _relative_time
 from sase.ace.tui.proc_observer import ObservedProc
@@ -110,7 +110,7 @@ def test_statistics_displays_use_configured_timezone(tz_divergence: None) -> Non
 
     assert pane._status_text().plain == "updated 06:24:49"
     assert "Last loaded — 2026-07-03 06:24:49 EDT." in modal._freshness_text().plain
-    assert StatisticsProjectsRenderingMixin._format_timestamp(epoch) == "Jul 03 06:24"
+    assert StatisticsViewsRenderingMixin._format_timestamp(epoch) == "Jul 03 06:24"
 
 
 def test_inventory_saved_group_and_roster_displays_use_configured_timezone(

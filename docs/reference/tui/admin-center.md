@@ -182,12 +182,14 @@ time range. Its eight numbered views are **01 Overview**, **02 Runners**, **03
 Projects**, **04 Providers**, **05 Activity**, **06 Macros**, **07 Plans & Questions**,
 and **08 Perf**. The Runners view uses today's effective global limit—including a
 temporary override—as present-day context, never as historical configuration. The
-Projects view can group by project, by Patch, or as a project-to-Patch drilldown. Macros
-can group by usage, model, project, or co-usage. Perf combines TUI startup and
-responsiveness logs with telemetry latency and reliability; its grouping cycles through
-subsystem, provider, and workflow. A pane-wide project filter lets you apply the same
-scope to the run-backed views, but Perf is global and marks the project chip **not
-applied**.
+Projects view reports default-branch output, committed plans, lifetime code, and this
+machine's runs. Press `g` to group by project, repo, model, or Project → Patch; several
+projects default to project grouping, while a one-project scope defaults to model and
+skips project while cycling. Macros can group by usage, model, project, or co-usage.
+Perf combines TUI startup and responsiveness logs with telemetry latency and
+reliability; its grouping cycles through subsystem, provider, and workflow. A pane-wide
+project filter lets you apply the same scope to the run-backed views, but Perf is global
+and marks the project chip **not applied**.
 
 The pane loads only while visible, refreshes every 30 seconds, and performs its queries
 off the UI thread. Use `[` / `]` to change views or press `0` followed by `1`–`8` to
@@ -205,8 +207,8 @@ that list for the new range. If a selected project produces an empty result, eit
 project-cycle key clears directly to **All projects**. Every populated view includes a
 compact metric legend, `?` opens the complete glossary and current scope, and
 empty/error states show the effective keys for widening, clearing, or retrying. The
-Overview Agents Run, Success Rate, and Commits tiles open Projects, while Plans Proposed
-and Questions open Plans & Questions. The plan and question tiles remain all-project
+Overview Agents Run, Success Rate, and **Run commits (this machine)** tiles open
+Projects, while Plans Proposed and Questions open Plans & Questions. The plan and question tiles remain all-project
 values even when a project is selected; see
 [Telemetry: Admin Center Statistics tab](../../contribute/telemetry.md#admin-center-statistics-tab) for
 the view contents, range syntax, and project-filter caveats, and

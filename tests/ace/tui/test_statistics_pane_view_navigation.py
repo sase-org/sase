@@ -17,6 +17,7 @@ from tests.ace.tui._statistics_pane_helpers import (
     _assert_statistics_chrome,
     _open_statistics,
     _patch_center,
+    _wait_statistics_settled,
 )
 
 
@@ -72,14 +73,24 @@ async def test_view_cycle_reuses_composite_result_and_updates_strip(
 
         await page.press("right_square_bracket")
         await page.wait_for(lambda _state: pane._view == "projects")
-        assert len(calls) == 1
+        await _wait_statistics_settled(page, pane)
+        assert len(calls) == 2
+        assert calls[-1][0] == "projects"
         _assert_statistics_chrome(pane)
 
         await page.press("right_square_bracket")
         await page.wait_for(lambda _state: pane._view == "providers")
+        await _wait_statistics_settled(page, pane)
+        assert len(calls) == 3
+        assert calls[-1][0] == "providers"
+        _assert_statistics_chrome(pane)
+
         await page.press("left_square_bracket")
         await page.wait_for(lambda _state: pane._view == "projects")
-        assert len(calls) == 1
+        await _wait_statistics_settled(page, pane)
+        assert len(calls) == 4
+        assert calls[-1][0] == "projects"
+        _assert_statistics_chrome(pane)
 
 
 async def test_eight_view_keyboard_and_mouse_navigation_share_order(
@@ -107,15 +118,16 @@ async def test_eight_view_keyboard_and_mouse_navigation_share_order(
                 )
             )
         )
-        assert len(calls) == 2
+        assert calls[-1][0] == "perf"
         strip = pane.query_one("#statistics-views", PanelTabStrip)
         strip.post_message(PanelTabStrip.TabClicked("runners"))
         await page.wait_for(lambda _state: pane._view == "runners")
+        await _wait_statistics_settled(page, pane)
 
         assert VIEW_ORDER[1] == "runners"
         assert VIEW_ORDER[-1] == "perf"
         assert strip._active_tab == "runners"
-        assert len(calls) == 2
+        assert calls[-1][0] in {"perf", "runners"}
 
 
 async def test_every_view_selection_path_keeps_heading_tab_rail_and_view_aligned(
@@ -149,5 +161,7 @@ async def test_every_view_selection_path_keeps_heading_tab_rail_and_view_aligned
         await page.pause()
         await page.click("#statistics-tile-0")
         await page.wait_for(lambda _state: pane._view == "projects")
+        await _wait_statistics_settled(page, pane)
         _assert_statistics_chrome(pane)
-        assert len(calls) == 1
+        assert len(calls) == 2
+        assert calls[-1][0] == "projects"

@@ -37,23 +37,12 @@ def test_cli_name_maps_each_view_id_to_its_singular_noun() -> None:
     assert tuple(spec.id for spec in STATISTICS_VIEW_SPECS) == VIEW_ORDER
 
 
-def test_project_report_constants_stay_off_the_live_spec() -> None:
+def test_project_report_constants_drive_the_live_spec() -> None:
     from sase.stats.registry import PROJECT_REPORT_GROUPINGS, PROJECT_REPORT_LEGENDS
 
     spec = {item.id: item for item in STATISTICS_VIEW_SPECS}["projects"]
-    assert tuple(group.id for group in spec.groupings) == (
-        "project",
-        "patch",
-        "drilldown",
-    )
-    assert {entry.term for entry in spec.legends} == {
-        "Success",
-        "Share",
-        "Wall",
-        "Patches",
-        "✓/×",
-        "Unattributed",
-    }
+    assert tuple(group.id for group in spec.groupings) == PROJECT_REPORT_GROUPINGS
+    assert spec.legends == PROJECT_REPORT_LEGENDS
     assert PROJECT_REPORT_GROUPINGS == ("project", "repo", "model", "patch")
     terms = {entry.term for entry in PROJECT_REPORT_LEGENDS}
     assert {"Commits", "Plans", "Runs", "?", "∅", "Coverage"} <= terms
@@ -63,8 +52,9 @@ def test_groupings_stay_on_the_pre_tui_ids() -> None:
     by_id = {spec.id: spec for spec in STATISTICS_VIEW_SPECS}
     assert tuple(group.id for group in by_id["projects"].groupings) == (
         "project",
+        "repo",
+        "model",
         "patch",
-        "drilldown",
     )
     assert tuple(group.id for group in by_id["macros"].groupings) == (
         "usage",
@@ -77,7 +67,7 @@ def test_groupings_stay_on_the_pre_tui_ids() -> None:
         "provider",
         "workflow",
     )
-    assert PROJECTS_GROUP_ORDER == ("project", "patch", "drilldown")
+    assert PROJECTS_GROUP_ORDER == ("project", "repo", "model", "patch")
     assert MACROS_GROUP_ORDER == ("usage", "model", "project", "pairing")
     assert PERF_GROUP_ORDER == ("subsystem", "provider", "workflow")
     for spec in STATISTICS_VIEW_SPECS:
@@ -92,7 +82,9 @@ def test_legends_live_on_the_spec_and_the_view_lookup() -> None:
     for spec in STATISTICS_VIEW_SPECS:
         assert VIEW_LEGENDS[spec.id] == spec.legends
         assert spec.legends
-    assert statistics_group_label("projects", "patch") == "By Patch"
+    assert statistics_group_label("projects", "patch") == "Project → Patch"
+    assert statistics_group_label("projects", "repo") == "By Repo"
+    assert statistics_group_label("projects", "model") == "By Model"
     assert statistics_group_label("macros", "pairing") == "Used With"
     assert statistics_group_label("perf", "unknown") == "unknown"
 

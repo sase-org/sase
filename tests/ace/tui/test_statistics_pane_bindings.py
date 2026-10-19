@@ -17,6 +17,7 @@ from tests.ace.tui._statistics_pane_helpers import (
     _open_statistics,
     _patch_center,
     _scope_plain,
+    _wait_statistics_settled,
 )
 
 
@@ -98,14 +99,16 @@ async def test_configured_bindings_dispatch_and_render_effective_help(
         await page.press("f11", "f11", "f7")
         await page.wait_for(
             lambda _state: (
-                pane._view == "projects" and pane._projects_group_by == "patch"
+                pane._view == "projects" and pane._projects_group_by == "repo"
             )
         )
+        await _wait_statistics_settled(page, pane)
         assert pane.query_one("#statistics-scope-group", Static).display is True
         assert _scope_plain(pane, "group").startswith(" f7  Group ")
-        assert len(calls) == 4
+        assert calls[-1][0] == "projects"
 
         pane._set_view("runners")
+        await _wait_statistics_settled(page, pane)
         scroll = pane.query_one("#statistics-body-scroll", VerticalScroll)
         await page.wait_for(lambda _state: scroll.max_scroll_y > 0)
         await page.press("f5")
@@ -114,7 +117,7 @@ async def test_configured_bindings_dispatch_and_render_effective_help(
         await page.press("f4")
         await page.wait_for(lambda _state: scroll.scroll_y < moved)
         assert pane._view == "runners"
-        assert len(calls) == 4
+        assert calls[-1][0] == "runners"
 
 
 async def test_default_half_page_scroll_does_not_reload_or_capture_range_input(

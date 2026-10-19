@@ -41,6 +41,7 @@ from tests.ace.tui.visual._ace_config_center_statistics_helpers import (
     _patch_statistics_loading,
     _patch_statistics_perf_degraded,
     _patch_statistics_populated,
+    _patch_statistics_projects_measuring_code,
 )
 from tests.ace.tui.visual._ace_config_center_macro_helpers import (
     _patch_macro_sources,
@@ -68,6 +69,7 @@ __all__ = [
     "_patch_statistics_loading",
     "_patch_statistics_perf_degraded",
     "_patch_statistics_populated",
+    "_patch_statistics_projects_measuring_code",
     "_patch_macro_sources",
     "_seed_focused_error_log",
     "_seed_logs_tab_files",

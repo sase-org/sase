@@ -11,9 +11,10 @@ from rich.console import Group
 from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
-from sase.core.time import get_timezone
+from sase.core.time import format_local, get_timezone
+from sase.project_accents import project_accent
 from sase.stats.loader import StatisticsViewData
-from sase.stats.registry import StatisticsView
+from sase.stats.registry import VIEW_LEGENDS, StatisticsView
 from sase.stats.render.primitives import format_duration, percent, share_bar
 from .statistics_pane_perf import StatisticsPerfRenderingMixin
 from .statistics_pane_projects import StatisticsProjectsRenderingMixin
@@ -48,14 +49,16 @@ class StatisticsViewsRenderingMixin(
     size: Any
 
     def _view_renderable(self, result: StatisticsViewData) -> Any:
+        if self._view == "projects":
+            return self._projects_renderable(result)
         views = result.views
+        if views is None:
+            return Text("Loading statistics", style="dim italic")
         renderable: Any
         if self._view == "overview":
             renderable = self._overview_renderable(views.overview)
         elif self._view == "runners":
             renderable = self._runners_renderable(result)
-        elif self._view == "projects":
-            return self._projects_renderable(views.projects)
         elif self._view == "providers":
             renderable = self._providers_renderable(views.providers)
         elif self._view == "activity":
@@ -69,7 +72,38 @@ class StatisticsViewsRenderingMixin(
             )
         elif self._view == "perf":
             renderable = self._perf_renderable(result)
+        else:
+            renderable = Text("Unknown statistics view", style="dim italic")
         return Group(renderable, self._legend_note(self._view))
+
+    @staticmethod
+    def _legend_note(view: StatisticsView) -> Text:
+        """Render one dim, newline-free metric definition line for ``view``."""
+        note = Text(style="dim")
+        for index, entry in enumerate(VIEW_LEGENDS[view]):
+            if index:
+                note.append("  ·  ")
+            note.append(entry.term, style="bold dim")
+            note.append(f" = {entry.meaning}")
+        return note
+
+    @staticmethod
+    def _project_cell(
+        project_key: str,
+        project_label: str,
+        *,
+        bold: bool = True,
+    ) -> Text:
+        text = Text(no_wrap=True, overflow="ellipsis")
+        text.append("■ ", style=project_accent(project_key, among=(project_key,)))
+        text.append(project_label, style="bold" if bold else None)
+        return text
+
+    @staticmethod
+    def _format_timestamp(timestamp: float) -> str:
+        if timestamp <= 0:
+            return "—"
+        return format_local(timestamp, "%b %d %H:%M")
 
     def _overview_renderable(self, overview: Any) -> Group:
         buckets = Table(box=box.SIMPLE, expand=True, show_header=True)

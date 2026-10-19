@@ -2,9 +2,14 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 from sase.ace.tui.modals.statistics_pane_data import StatisticsViewData
+from sase.project_display_names import ProjectDisplaySnapshot
 from sase.stats import PerfView, build_perf_view
 from sase.stats.perf_query import PerfGroupBy
+from sase.stats.project.query import ProjectStatsQuery
+from sase.stats.project.view import ProjectStatsView, build_project_stats_view
 from sase.stats.ranges import StatsRange
 from sase.stats.views import build_statistics_views
 from tests.ace.tui.visual._ace_config_center_statistics_fixtures import (
@@ -16,10 +21,73 @@ from tests.ace.tui.visual._ace_config_center_statistics_fixtures import (
     _WIDGETS_KEY,
     _macros_payload,
 )
+from tests.stats._project_render_fixtures import (
+    MACHINE,
+    _bob_project,
+    _portfolio,
+    _sase_project,
+)
 from tests.stats._views_payloads import (
     perf_logs_payload,
     perf_telemetry_payload,
 )
+
+
+def _populated_project_stats(
+    *,
+    facets: set[str] | frozenset[str] | None = None,
+) -> ProjectStatsView:
+    """Pinned Projects report matching the visual Statistics range and labels."""
+    resolved_facets = set(facets) if facets is not None else {"output", "runs", "code"}
+    widgets = _sase_project()
+    widgets["key"] = _WIDGETS_KEY
+    widgets["label"] = "widgets"
+    engine = _bob_project()
+    engine["key"] = _ENGINE_KEY
+    engine["label"] = "engine"
+    integration = _bob_project()
+    integration["key"] = _INTEGRATION_KEY
+    integration["label"] = "integration"
+    rows = [widgets, engine, integration]
+    if "code" not in resolved_facets:
+        for row in rows:
+            row["code"] = None
+    wire = {
+        "schema_version": 1,
+        "metric_policy_version": 1,
+        "classifier_version": 1,
+        "engine_version": 1,
+        "range": {
+            "start_ts": _STATISTICS_RANGE.start_ts,
+            "end_ts": _STATISTICS_RANGE.end_ts,
+        },
+        "fingerprint": "visual-projects-" + "-".join(sorted(resolved_facets)),
+        "projects": rows,
+        "portfolio": _portfolio(rows),
+        "issues": [],
+    }
+    query = ProjectStatsQuery(
+        range=_STATISTICS_RANGE,
+        preset="7d",
+        fetch=False,
+    )
+    labels = {row["key"]: row["label"] for row in rows}
+    view = build_project_stats_view(
+        wire,
+        query,
+        machine=MACHINE,
+        generated_at="2024-07-08T18:20:00-04:00",
+        timezone="America/New_York",
+        facets=resolved_facets,
+        display_snapshot=ProjectDisplaySnapshot(labels),
+    )
+    if "code" not in resolved_facets:
+        view = replace(
+            view,
+            projects=tuple(replace(project, code=None) for project in view.projects),
+            portfolio=replace(view.portfolio, code=None),
+        )
+    return view
 
 
 def _populated_statistics_view(
@@ -330,6 +398,17 @@ def _populated_statistics_view(
     perf = None
     if view == "perf":
         perf = _perf_populated_view(selected_range, perf_group_by)
+    if view == "projects":
+        return StatisticsViewData(
+            view=view,  # type: ignore[arg-type]
+            selected_range=selected_range,
+            generated_at=_STATISTICS_NOW,
+            views=None,
+            project_filter=project_filter,
+            macro_focus=macro_focus,
+            project_display_snapshot=_PROJECT_DISPLAY_SNAPSHOT,
+            project_stats=_populated_project_stats(),
+        )
     return StatisticsViewData(
         view=view,  # type: ignore[arg-type]
         selected_range=selected_range,

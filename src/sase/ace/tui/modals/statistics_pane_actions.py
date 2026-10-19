@@ -11,11 +11,11 @@ from textual.widgets import Input, Static
 
 from sase.ace.tui.keymaps import split_key_alternatives
 from sase.ace.tui.widgets.panel_tab_strip import PanelTabStrip
+from sase.stats.loader import StatisticsViewData
 from sase.stats.ranges import PRESET_ORDER, PresetKey, StatsRange, parse_stats_range
 from sase.stats.registry import (
     MACROS_GROUP_ORDER,
     PERF_GROUP_ORDER,
-    PROJECTS_GROUP_ORDER,
     VIEW_LABELS,
     VIEW_ORDER,
     StatisticsView,
@@ -138,10 +138,13 @@ class StatisticsPaneActionsMixin(StatisticsPaneLayoutMixin):
         if not statistics_view_supports_grouping(self._view):
             return
         if self._view == "projects":
-            index = PROJECTS_GROUP_ORDER.index(self._projects_group_by)
-            self._projects_group_by = PROJECTS_GROUP_ORDER[
-                (index + 1) % len(PROJECTS_GROUP_ORDER)
-            ]
+            order = self._projects_group_cycle_order()
+            current = self._effective_projects_group_by()
+            try:
+                index = order.index(current)
+            except ValueError:
+                index = -1
+            self._projects_group_by = order[(index + 1) % len(order)]
             self._selection_changed(reload=False)
         elif self._view == "macros":
             index = MACROS_GROUP_ORDER.index(self._macros_group_by)
@@ -164,7 +167,11 @@ class StatisticsPaneActionsMixin(StatisticsPaneLayoutMixin):
 
     def action_focus_macro(self) -> None:
         """Open the cached macro picker while viewing loaded Macros data."""
-        if self._view != "macros" or self._last_result is None:
+        if (
+            self._view != "macros"
+            or self._last_result is None
+            or self._last_result.views is None
+        ):
             return
         from .statistics_macro_picker_modal import (
             StatisticsMacroPickerModal,
@@ -209,16 +216,14 @@ class StatisticsPaneActionsMixin(StatisticsPaneLayoutMixin):
             self._project_filter is not None
             and self._last_result is not None
             and self._last_result.project_filter == self._project_filter
-            and self._last_result.views.empty
+            and self._filtered_result_is_empty(self._last_result)
         ):
             self._project_filter = None
             self._selection_changed(reload=True)
             return
         options = self._project_filter_options
         if not options and self._last_result is not None:
-            options = tuple(
-                row.project_key for row in self._last_result.views.projects.projects
-            )
+            options = self._project_keys_from_result(self._last_result)
         if not options:
             return
         cycle: tuple[str | None, ...] = (None, *options)
@@ -268,7 +273,7 @@ class StatisticsPaneActionsMixin(StatisticsPaneLayoutMixin):
             StatisticsHelpModal(
                 current_view=self._view,
                 selected_range=self._range,
-                projects_group_by=self._projects_group_by,
+                projects_group_by=self._effective_projects_group_by(),
                 macros_group_by=self._macros_group_by,
                 perf_group_by=self._perf_group_by,
                 project_label=project_label,
@@ -345,10 +350,22 @@ class StatisticsPaneActionsMixin(StatisticsPaneLayoutMixin):
             self.query_one("#statistics-views", PanelTabStrip).set_active_tab(resolved)
         except Exception:
             pass
-        needs_perf = resolved == "perf" and (
-            self._last_result is None or self._last_result.perf is None
+        needs_reload = self._last_result is None or not self._result_paints_view(
+            self._last_result, resolved
         )
-        self._selection_changed(reload=needs_perf)
+        self._selection_changed(reload=needs_reload)
+
+    def _filtered_result_is_empty(self, result: StatisticsViewData) -> bool:
+        if result.view == "projects":
+            return result.project_stats is None or not result.project_stats.projects
+        return result.views is not None and result.views.empty
+
+    def _project_keys_from_result(self, result: StatisticsViewData) -> tuple[str, ...]:
+        if result.project_stats is not None:
+            return tuple(project.key for project in result.project_stats.projects)
+        if result.views is not None:
+            return tuple(row.project_key for row in result.views.projects.projects)
+        return ()
 
     def _selection_changed(self, *, reload: bool) -> None:
         self._last_error = ""

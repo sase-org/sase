@@ -233,7 +233,11 @@ class StatisticsHelpModal(ModalScreen[None]):
         text = Text()
         text.append("Source", style="bold")
         text.append(
-            " — durable agent-run records queried through the Rust statistics bindings.\n",
+            " — Overview, Runners, Providers, Activity, Macros, and Plans & "
+            "Questions query durable agent-run records through the Rust "
+            "statistics bindings. Projects reports default-branch output, "
+            "committed plans, lifetime code, and this machine's runs. Perf "
+            "combines TUI logs with the telemetry metric store.\n",
             style="dim",
         )
         text.append("Range", style=f"bold {_GOLD}")

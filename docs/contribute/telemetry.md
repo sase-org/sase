@@ -185,11 +185,12 @@ sase telemetry status
 ## Admin Center Statistics tab
 
 Open the SASE Admin Center with `#` or the command palette, then press `6` or select
-**Statistics**. The first seven views aggregate durable agent records. The eighth,
-**Perf**, combines bounded TUI diagnostic logs with the telemetry metric store described
-above. The pane loads only while visible, performs aggregation off the UI thread,
-refreshes every 30 seconds, and shows loading, empty-range, and query-error states in
-place.
+**Statistics**. Six of the first seven views aggregate durable agent run and activity
+records. **Projects** loads the shared project-stats report instead: default-branch
+output, committed plans, lifetime code, and this machine's runs. The eighth, **Perf**,
+combines bounded TUI diagnostic logs with the telemetry metric store described above.
+The pane loads only while visible, performs aggregation off the UI thread, refreshes
+every 30 seconds, and shows loading, empty-range, and query-error states in place.
 
 The scope header makes the current controls explicit: **Range** shows a friendly summary
 and, when space permits, its absolute span; **Group** appears only in the Projects,
@@ -208,22 +209,23 @@ retention rules.
 
 The eight numbered views answer different questions:
 
-| #   | View                  | Contents                                                                                                                                                                                                       |
-| --- | --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 01  | **Overview**          | Run volume over time plus top providers, skills, and projects.                                                                                                                                                 |
-| 02  | **Runners**           | Historical runner occupancy and concurrency trends, with today's effective global limit (including a temporary override) as present-day context.                                                               |
-| 03  | **Projects**          | Project and Patch run counts, success, commits, wall time, and last activity; `g` cycles project, Patch, and project-to-Patch groupings. A bounded Patch list closes with `N additional Patch rows not shown.` |
-| 04  | **Providers**         | Provider, model, and effort usage with success rates and average runtime.                                                                                                                                      |
-| 05  | **Activity**          | Skill, memory, and workspace use; the three panels are titled **Top …** because each is truncated to the highest-volume rows.                                                                                  |
-| 06  | **Macros**            | Macro use by frequency, model, project, and co-usage, with an optional focused Macro drill-down.                                                                                                               |
-| 07  | **Plans & Questions** | Plan lifecycle and tier/phase distributions plus question-session counts and sizes.                                                                                                                            |
-| 08  | **Perf**              | TUI startup and responsiveness, launch and agent/LLM latency, reliability, and the health of each data source.                                                                                                 |
+| #   | View                  | Contents                                                                                                                                                                                                                                                                |
+| --- | --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 01  | **Overview**          | Run volume over time plus top providers, skills, and projects.                                                                                                                                                                                                          |
+| 02  | **Runners**           | Historical runner occupancy and concurrency trends, with today's effective global limit (including a temporary override) as present-day context.                                                                                                                        |
+| 03  | **Projects**          | Default-branch output, committed plans, lifetime code, and this machine's runs. `g` cycles project, repo, model, and Project → Patch. Output/Runs paint first while Code shows `measuring code…`. A bounded Patch list closes with `N additional Patch rows not shown.` |
+| 04  | **Providers**         | Provider, model, and effort usage with success rates and average runtime.                                                                                                                                                                                               |
+| 05  | **Activity**          | Skill, memory, and workspace use; the three panels are titled **Top …** because each is truncated to the highest-volume rows.                                                                                                                                           |
+| 06  | **Macros**            | Macro use by frequency, model, project, and co-usage, with an optional focused Macro drill-down.                                                                                                                                                                        |
+| 07  | **Plans & Questions** | Plan lifecycle and tier/phase distributions plus question-session counts and sizes.                                                                                                                                                                                     |
+| 08  | **Perf**              | TUI startup and responsiveness, launch and agent/LLM latency, reliability, and the health of each data source.                                                                                                                                                          |
 
 Each populated view ends with a compact legend defining its calculated metrics. Press
 `?` for the complete per-view glossary, control list, active range/group/project scope,
-and freshness notes. On Overview, the Agents Run, Success Rate, and Commits tiles open
-Projects when clicked; Plans Proposed and Questions open Plans & Questions without
-another data load.
+and freshness notes. On Overview, the Agents Run, Success Rate, and **Run commits (this
+machine)** tiles open Projects when clicked; Plans Proposed and Questions open Plans &
+Questions. Switching into Projects loads its report; switching back loads a composite
+result.
 
 Two Overview definitions differ from each other on purpose: the **Success Rate** tile is
 completed ÷ _finished_ runs, while the **Top projects** success column is completed ÷
@@ -239,13 +241,14 @@ than 96 buckets remain, adjacent buckets are merged into equal-width chunks and 
 panel title names the new width (for example `Runs over time · 7-day buckets`); an
 unaggregated panel keeps the plain title.
 
-The empty state is per view rather than global. Overview, Projects, and Providers are
-entirely run-derived, so they report "No agent runs recorded in …". Activity and Plans &
-Questions are timestamped by when their skill/memory/plan/question events happened
-rather than by when the producing agent launched, so they report their own emptiness
-("No skill or memory activity recorded", "No plans or questions recorded") and still
-render data in a window that contains no launches. Runners, Macros, and Perf render
-their own empty states inside the view.
+The empty state is per view rather than global. Overview and Providers are entirely
+run-derived, so they report "No agent runs recorded in …". Projects reports "No projects
+recorded" and still shows a project with zero local runs when it has output or lifetime
+code. Activity and Plans & Questions are timestamped by when their
+skill/memory/plan/question events happened rather than by when the producing agent
+launched, so they report their own emptiness ("No skill or memory activity recorded",
+"No plans or questions recorded") and still render data in a window that contains no
+launches. Runners, Macros, and Perf render their own empty states inside the view.
 
 The default focused-pane keys are:
 
@@ -291,10 +294,19 @@ total-question counts and questions-per-session distributions, come from global
 documents rather than project-attributed runs. The detailed Plans & Questions view
 labels those fields **all projects** while a project is selected. The Overview Plans
 Proposed and Questions tiles also use all-project document aggregates, but their tile
-faces do not append that scope label. The Projects view retains an `(no Patch)` row for
-runs that have a project but no Patch attribution. Perf does not apply the project
-filter because its telemetry labels and TUI diagnostic logs do not carry project
-attribution. See
+faces do not append that scope label. Projects uses three clocks: default-branch commits
+by committer time in the selected range, plan documents by first-add committer time in
+the plan store, and this machine's runs by launch time. Code is a lifetime measurement
+of the committed tree, not a range total. Fetch is a CLI preflight; the Statistics pane
+never fetches remotes. Several projects default to project grouping; one project
+defaults to model, skips project while cycling, and still offers repo, model, and
+Project → Patch. The `(no Patch)` row is for runs that have a project but no Patch
+attribution. Unchanged fingerprints skip a report-body rebuild, but the first Code
+completion still paints. A failed refresh keeps the last good report for that selection
+and shows `stale · <time>` with the failure; a first-load failure shows an error rather
+than measured zeros. A Code failure keeps Output/Runs usable, ends `measuring code…`,
+and stays retryable. Perf does not apply the project filter because its telemetry labels
+and TUI diagnostic logs do not carry project attribution. See
 [Reading the Admin Center Perf view](perf-runbook.md#reading-the-admin-center-perf-view)
 for its panels, sources, retention, and probe flags.
 

@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import asyncio
+import time
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+from textual.containers import VerticalScroll
 from textual.widgets import Static
 from textual.worker import WorkerState
 
@@ -26,6 +28,7 @@ from tests.ace.tui._statistics_pane_helpers import (
     _render_plain,
     _result,
     _run_payload,
+    _wait_statistics_settled,
 )
 from tests._project_display_case import ProjectDisplayCase
 
@@ -145,18 +148,19 @@ async def test_refresh_preserves_selection_and_hidden_tick_is_inert(
     async with AcePage() as page:
         modal, pane = await _open_statistics(page)
         pane._set_view("projects")
+        await _wait_statistics_settled(page, pane)
         pane.action_cycle_group()
         await page.pause()
         await page.press("r")
-        await page.wait_for(lambda _state: len(calls) == 2 and not pane._loading)
+        await page.wait_for(lambda _state: len(calls) == 3 and not pane._loading)
 
         assert calls[-1][0] == "projects"
-        assert pane._projects_group_by == "patch"
+        assert pane._projects_group_by == "repo"
         _assert_range_scope_matches_selection(pane)
         await modal._switch_to("config")
         pane._on_refresh_tick()
         await page.pause()
-        assert len(calls) == 2
+        assert len(calls) == 3
         assert pane._load_debouncer is not None
         assert not pane._load_debouncer.is_pending
 
@@ -167,7 +171,10 @@ async def test_auto_refresh_soak_keeps_event_loop_and_message_pump_responsive(
     project_display_case: ProjectDisplayCase,
 ) -> None:
     stall_log = tmp_path / "tui_stalls.jsonl"
+    perf_log = tmp_path / "tui_jk.jsonl"
     monkeypatch.setenv("SASE_TUI_STALL_PATH", str(stall_log))
+    monkeypatch.setenv("SASE_TUI_PERF", "1")
+    monkeypatch.setenv("SASE_TUI_PERF_PATH", str(perf_log))
     monkeypatch.setenv("SASE_TUI_HITCH_THRESHOLD_SECONDS", "0.5")
     monkeypatch.setenv("SASE_TUI_PUMP_HITCH_THRESHOLD_SECONDS", "0.5")
     monkeypatch.setenv("SASE_TUI_STALL_THRESHOLD_SECONDS", "1.0")
@@ -202,6 +209,50 @@ async def test_auto_refresh_soak_keeps_event_loop_and_message_pump_responsive(
         )
         assert project_display_case.project_label in rendered
         assert project_display_case.project_key not in rendered
+
+        pane._set_view("projects")
+        await page.wait_for(
+            lambda _state: (
+                pane._view == "projects"
+                and pane._last_result is not None
+                and pane._last_result.project_stats is not None
+                and pane._code_complete
+            ),
+            timeout=30.0,
+        )
+        projects_calls = len(calls)
+        await asyncio.sleep(1.1)  # sase-test-wait: projects auto-refresh soak window
+        await page.wait_for(
+            lambda _state: len(calls) >= projects_calls + 3, timeout=30.0
+        )
+        await page.wait_for(
+            lambda _state: (
+                pane._last_result is not None
+                and pane._last_result.project_stats is not None
+                and pane._code_complete
+            ),
+            timeout=30.0,
+        )
+        assert pane._last_result is not None
+        assert pane._last_result.project_stats is not None
+        assert pane._code_complete is True
+        assert all(call[0] == "projects" for call in calls[projects_calls:])
+
+        samples: list[float] = []
+        for _ in range(20):
+            started = time.perf_counter()
+            pane.action_cycle_group()
+            samples.append((time.perf_counter() - started) * 1000.0)
+        samples.sort()
+        group_p95 = samples[max(0, int(round(0.95 * (len(samples) - 1))))]
+        assert group_p95 < 16.0
+
+        scroll = pane.query_one("#statistics-body-scroll", VerticalScroll)
+        await page.wait_for(lambda _state: scroll.max_scroll_y >= 0)
+        if scroll.max_scroll_y > 0:
+            await page.press("ctrl+d")
+            await page.wait_for(lambda _state: scroll.scroll_y > 0)
+            await page.press("ctrl+u")
 
     assert not stall_log.exists() or not stall_log.read_text().strip()
 
@@ -268,6 +319,7 @@ def test_loader_queries_current_activity_and_previous_equal_window(
         ("activity", 10, 20, None, "sase", None),
         ("runs", 0, 10, "tribe", "sase", None),
     ]
+    assert result.views is not None
     assert result.views.overview.agents_run == 6
     assert result.project_filter == "sase"
     assert result.macro_focus == "split_file"
@@ -277,3 +329,44 @@ def test_loader_queries_current_activity_and_previous_equal_window(
     # The current global runner limit is captured off-thread and carried on the
     # immutable result so rendering performs no configuration I/O.
     assert result.views.runners.current_limit == 9
+
+
+def test_projects_loader_skips_legacy_queries_and_returns_project_stats(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from tests.stats._project_render_fixtures import all_projects_view
+
+    selected_range = StatsRange(10, 20, "absolute", "Last 10 seconds")
+    report = all_projects_view()
+    run_calls: list[str] = []
+    activity_calls: list[str] = []
+    project_calls: list[object] = []
+
+    def run_query(**_kwargs: object) -> dict:
+        run_calls.append("runs")
+        return {}
+
+    def activity_query(**_kwargs: object) -> dict:
+        activity_calls.append("activity")
+        return {}
+
+    def load_project_stats(query: object, *, facets: object) -> object:
+        project_calls.append((query, frozenset(facets)))  # type: ignore[arg-type]
+        return report
+
+    monkeypatch.setattr("sase.stats.loader.query_run_stats", run_query)
+    monkeypatch.setattr("sase.stats.loader.query_activity_stats", activity_query)
+    monkeypatch.setattr("sase.stats.loader.load_project_stats", load_project_stats)
+
+    result = sp.load_statistics_view("projects", selected_range, "sase")
+
+    assert run_calls == []
+    assert activity_calls == []
+    assert len(project_calls) == 1
+    query, facets = project_calls[0]
+    assert facets == frozenset({"output", "runs"})
+    assert query.fetch is False
+    assert query.project_refs == ("sase",)
+    assert result.views is None
+    assert result.project_stats is report
+    assert result.view == "projects"

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import time
+from collections.abc import Collection
 from dataclasses import dataclass, field
 
 from sase.project_display_names import (
@@ -15,6 +16,12 @@ from sase.stats.perf_query import (
     query_perf_logs,
     query_perf_telemetry,
 )
+from sase.stats.project import (
+    ProjectStatsFacet,
+    ProjectStatsQuery,
+    ProjectStatsView,
+    load_project_stats,
+)
 from sase.stats.query import RuntimeGroupBy, query_activity_stats, query_run_stats
 from sase.stats.ranges import StatsRange
 from sase.stats.registry import StatisticsView
@@ -22,6 +29,7 @@ from sase.stats.views import StatisticsViews, build_statistics_views
 from sase.telemetry._config import HealthThresholds
 
 _FIXED_RUNTIME_GROUP_BY: RuntimeGroupBy = "tribe"
+_PRIMARY_PROJECT_FACETS: frozenset[ProjectStatsFacet] = frozenset({"output", "runs"})
 
 
 @dataclass(frozen=True, slots=True)
@@ -31,13 +39,14 @@ class StatisticsViewData:
     view: StatisticsView
     selected_range: StatsRange
     generated_at: float
-    views: StatisticsViews
+    views: StatisticsViews | None = None
     project_filter: str | None = None
     macro_focus: str | None = None
     project_display_snapshot: ProjectDisplaySnapshot = field(
         default_factory=ProjectDisplaySnapshot
     )
     perf: PerfView | None = None
+    project_stats: ProjectStatsView | None = None
 
 
 def load_statistics_view(
@@ -46,10 +55,23 @@ def load_statistics_view(
     project_filter: str | None = None,
     macro_focus: str | None = None,
     perf_group_by: PerfGroupBy = "subsystem",
+    *,
+    facets: Collection[ProjectStatsFacet] | None = None,
+    preset: str | None = None,
 ) -> StatisticsViewData:
-    """Query composite bindings and build all view models off-thread."""
+    """Query composite bindings or the Projects report off-thread."""
     from sase.config.core import get_max_running_agents
     from sase.telemetry._config import get_telemetry_config as load_telemetry_config
+
+    if view == "projects":
+        return _load_projects_statistics_view(
+            selected_range,
+            project_filter,
+            facets=(
+                frozenset(facets) if facets is not None else _PRIMARY_PROJECT_FACETS
+            ),
+            preset=preset,
+        )
 
     project_display_snapshot = load_project_display_snapshot()
     current_runner_limit = get_max_running_agents()
@@ -99,6 +121,43 @@ def load_statistics_view(
         macro_focus=macro_focus,
         project_display_snapshot=project_display_snapshot,
         perf=perf,
+    )
+
+
+def _project_stats_query(
+    selected_range: StatsRange,
+    project_filter: str | None = None,
+    *,
+    preset: str | None = None,
+) -> ProjectStatsQuery:
+    """Build the TUI/CLI-shared Projects query with fetch disabled."""
+    return ProjectStatsQuery(
+        range=selected_range,
+        project_refs=(project_filter,) if project_filter else (),
+        preset=preset,
+        fetch=False,
+    )
+
+
+def _load_projects_statistics_view(
+    selected_range: StatsRange,
+    project_filter: str | None,
+    *,
+    facets: frozenset[ProjectStatsFacet],
+    preset: str | None,
+) -> StatisticsViewData:
+    report = load_project_stats(
+        _project_stats_query(selected_range, project_filter, preset=preset),
+        facets=facets,
+    )
+    return StatisticsViewData(
+        view="projects",
+        selected_range=selected_range,
+        generated_at=time.time(),
+        views=None,
+        project_filter=project_filter,
+        project_display_snapshot=report.display_snapshot,
+        project_stats=report,
     )
 
 

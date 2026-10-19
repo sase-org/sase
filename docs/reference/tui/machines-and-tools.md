@@ -104,9 +104,12 @@ Use `[` / `]` to move between views, `t` / `T` to cycle time ranges, `c` to ente
 custom range, `p` / `P` to cycle project scope, `Ctrl+D` / `Ctrl+U` to scroll, `r` to
 refresh, and `?` for the pane's key help. First open seeds the project filter from the
 [current project](projects-tab.md#current-project) when `ace.current_project.seed_filters` is on; `p` /
-`P` can always cycle away from that seed, including back to **All projects**. On
-Overview, Agents Run, Success Rate, and Commits open Projects; Plans Proposed and
-Questions open Plans & Questions.
+`P` can always cycle away from that seed, including back to **All projects**. On Overview, Agents Run, Success Rate, and **Run commits (this machine)** open
+Projects; Plans Proposed and Questions open Plans & Questions. The Projects sub-tab
+reports default-branch output, committed plans, lifetime code, and this machine's runs.
+Press `g` to group by project, repo, model, or Project → Patch. Output and Runs paint
+first while Code measures. Overview's run-commit tile stays run-recorded and is
+distinct from Projects default-branch commits and Patch Run commits.
 
 The **Perf** sub-tab combines five headline measures—Startup (median visible-ready),
 Stalls (stall count, with hitches named separately in the tile's detail line), Launch

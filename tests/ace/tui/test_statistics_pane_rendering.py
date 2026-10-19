@@ -39,33 +39,42 @@ def test_renderers_use_projected_labels_and_canonical_project_colors(
     )
     color_keys: list[str] = []
 
-    def color_for(key: str) -> str:
+    def color_for(key: str, *, among: object = None) -> str:
+        del among
         color_keys.append(key)
         return "#87D7FF"
 
     monkeypatch.setattr(
-        "sase.ace.tui.modals.statistics_pane_projects.categorical_color",
+        "sase.ace.tui.modals.statistics_pane_views.project_accent",
         color_for,
     )
     pane = StatisticsPane(auto_load=False)
+    projects_result = _result(
+        "projects",
+        pane._range,
+        project_display_case=project_display_case,
+    )
 
     overview = _render_plain(pane._overview_renderable(views.overview))
     activity = _render_plain(pane._activity_renderable(views.activity))
-    project_surfaces: list[str] = []
-    for group_by in ("project", "patch", "drilldown"):
-        pane._projects_group_by = group_by  # type: ignore[assignment]
-        project_surfaces.append(
-            _render_plain(pane._projects_renderable(views.projects))
-        )
+    pane._projects_group_by = "project"
+    by_project = _render_plain(pane._projects_renderable(projects_result))
+    pane._projects_group_by = "repo"
+    by_repo = _render_plain(pane._projects_renderable(projects_result))
+    pane._projects_group_by = "model"
+    by_model = _render_plain(pane._projects_renderable(projects_result))
+    pane._projects_group_by = "patch"
+    by_patch = _render_plain(pane._projects_renderable(projects_result))
 
     assert project_display_case.project_label in overview
     assert f"{project_display_case.project_label} · 15" in activity
     assert views.runtime.rows[0].group_label == project_display_case.project_label
-    assert all(
-        project_display_case.project_label in rendered for rendered in project_surfaces
+    assert project_display_case.project_label in by_project
+    assert project_display_case.project_label in by_repo
+    assert patch_label in by_patch
+    assert widgets_key not in "\n".join(
+        (overview, activity, by_project, by_repo, by_model, by_patch)
     )
-    assert patch_label in "\n".join(project_surfaces)
-    assert widgets_key not in "\n".join((overview, activity, *project_surfaces))
     assert widgets_key in color_keys
 
 
@@ -245,20 +254,34 @@ def test_commits_tile_shows_distinct_agents_and_committing_runs() -> None:
     assert "7" in rendered
 
 
-def test_projects_by_project_uses_patches_header_and_spec_footnote() -> None:
+def test_projects_renderable_matches_shared_compose_at_the_same_context() -> None:
+    from sase.stats.loader import StatisticsViewData
+    from sase.stats.render.compose import render_project_stats
+    from sase.stats.render.context import RenderContext
+    from tests.stats._project_render_fixtures import MACHINE, NOW, TZ, all_projects_view
+
     pane = StatisticsPane(auto_load=False)
-    payload = _run_payload(pane._range, "tribe")
-    payload["work"]["malformed_spec_files_skipped"] = 2
-    views = build_statistics_views(payload, _activity_payload())
+    report = all_projects_view()
+    result = StatisticsViewData(
+        view="projects",
+        selected_range=pane._range,
+        generated_at=NOW.timestamp(),
+        project_stats=report,
+    )
+    pane._last_result = result
+    pane._projects_group_by = "project"
+    pane._projects_body_width = lambda: 120  # type: ignore[method-assign]
+    ctx = RenderContext(
+        width=120,
+        color=True,
+        unicode=True,
+        now=NOW,
+        timezone=TZ,
+        machine=MACHINE,
+    )
 
-    rendered = _render_plain(pane._projects_by_project_renderable(views.projects))
-
-    assert "Patches" in rendered
-    assert "Specs" not in rendered
-    assert "2 unreadable project spec files skipped." in rendered
-    assert "malformed Patch files skipped." not in rendered
-    assert "Patches = distinct attributed Patches" in _render_plain(
-        pane._projects_renderable(views.projects)
+    assert _render_plain(pane._projects_renderable(result)) == _render_plain(
+        render_project_stats(report, "project", ctx)
     )
 
 

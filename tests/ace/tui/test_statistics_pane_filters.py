@@ -71,6 +71,7 @@ async def test_range_and_project_group_switches_coalesce_to_latest_selection(
         assert pane._preset_key == "30d"
         assert pane._range.display_label == "Last 30 days"
         assert pane._projects_group_by == "patch"
+        assert pane._effective_projects_group_by() == "patch"
         _assert_range_scope_matches_selection(pane)
 
 
@@ -153,20 +154,22 @@ async def test_group_cycle_is_view_sensitive_and_projects_reuses_result(
                 )
             )
         )
-        cached_calls = len(calls)
-
         pane._set_view("projects")
+        await _wait_statistics_settled(page, pane)
+        cached_calls = len(calls)
         pane.action_cycle_group()
         await page.pause()
 
-        assert pane._projects_group_by == "patch"
+        assert pane._projects_group_by == "repo"
         assert len(calls) == cached_calls
-        assert "Projects · By Patch" in _scope_plain(pane, "group")
+        assert "Projects · By Repo" in _scope_plain(pane, "group")
         assert "group" not in (
             pane.query_one("#statistics-hints", Static).render().plain
         )
 
         pane._set_view("macros")
+        await _wait_statistics_settled(page, pane)
+        cached_calls = len(calls)
         pane.action_cycle_group()
         await page.pause()
         assert pane._macros_group_by == "model"
@@ -174,19 +177,21 @@ async def test_group_cycle_is_view_sensitive_and_projects_reuses_result(
         assert "Macros · By Model" in _scope_plain(pane, "group")
 
         pane._set_view("providers")
+        await _wait_statistics_settled(page, pane)
+        cached_calls = len(calls)
         pane.action_cycle_group()
         await page.pause()
-        assert pane._projects_group_by == "patch"
+        assert pane._projects_group_by == "repo"
         assert pane._macros_group_by == "model"
         assert pane._perf_group_by == "subsystem"
         assert len(calls) == cached_calls
         assert pane.query_one("#statistics-scope-group", Static).display is False
 
         pane._set_view("projects")
-        await page.pause()
+        await _wait_statistics_settled(page, pane)
         assert pane.query_one("#statistics-scope-group", Static).display is True
-        assert "Projects · By Patch" in _scope_plain(pane, "group")
-        assert len(calls) == cached_calls
+        assert "Projects · By Repo" in _scope_plain(pane, "group")
+        cached_calls = len(calls)
 
         pane._set_view("perf")
         await page.wait_for(
@@ -280,8 +285,9 @@ async def test_empty_project_filter_clears_to_all_projects_in_either_direction(
         project_filter: str | None = None,
         macro_focus: str | None = None,
         perf_group_by: str = "subsystem",
+        **kwargs: object,
     ) -> StatisticsViewData:
-        del perf_group_by
+        del perf_group_by, kwargs
         calls.append((view, selected_range, project_filter, macro_focus))
         return _result(
             view,
@@ -355,8 +361,9 @@ async def test_project_filter_label_submits_canonical_key_across_reload_paths(
         project_filter: str | None = None,
         macro_focus: str | None = None,
         perf_group_by: str = "subsystem",
+        **kwargs: object,
     ) -> StatisticsViewData:
-        del perf_group_by
+        del perf_group_by, kwargs
         calls.append((view, selected_range, project_filter, macro_focus))
         payload = _run_payload(selected_range, "tribe")
         payload["workspaces"][0]["project"] = widgets_key

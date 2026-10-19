@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from typing import Any
 
 import pytest
@@ -24,6 +25,7 @@ from sase.project_display_names import ProjectDisplaySnapshot
 from sase.stats import PerfView, build_perf_view
 from sase.stats.perf_query import PerfGroupBy
 from sase.stats.query import RuntimeGroupBy
+from sase.stats.project.view import ProjectStatsView
 from sase.stats.ranges import StatsRange
 from sase.stats.views import build_statistics_views
 
@@ -35,6 +37,59 @@ from tests.ace.tui._plugins_browser_pane_helpers import (
 from tests._project_display_case import ProjectDisplayCase
 
 _NOW = 1_720_268_400.0
+_PROJECTS_PRIMARY_FACETS: frozenset[str] = frozenset({"output", "runs", "code"})
+
+
+def _pane_project_stats(
+    *,
+    project_filter: str | None = None,
+    empty: bool = False,
+    facets: set[str] | frozenset[str] | None = None,
+    project_display_case: ProjectDisplayCase | None = None,
+) -> ProjectStatsView:
+    """Build a Projects report whose keys match the pane's composite fixtures."""
+    from tests.stats._project_render_fixtures import (
+        _bob_project,
+        _sase_project,
+        build_view,
+    )
+
+    resolved_facets = (
+        set(facets) if facets is not None else set(_PROJECTS_PRIMARY_FACETS)
+    )
+    if empty:
+        return build_view(projects=[], facets=resolved_facets)
+    sase = _sase_project()
+    if project_display_case is not None:
+        sase["key"] = project_display_case.project_key
+        sase["label"] = project_display_case.project_label
+        _patch_key, patch_label = project_display_case.patch("statistics-projects")
+        if sase["patches"]:
+            sase["patches"][0] = {**sase["patches"][0], "name": patch_label}
+    else:
+        sase["key"] = "sase"
+        sase["label"] = "sase"
+    core = _bob_project()
+    core["key"] = "core"
+    core["label"] = "core"
+    rows = [sase, core]
+    if project_filter is not None:
+        rows = [row for row in rows if row["key"] == project_filter]
+    if "code" not in resolved_facets:
+        for row in rows:
+            row["code"] = None
+    view = build_view(
+        projects=rows,
+        facets=resolved_facets,
+        project_refs=(project_filter,) if project_filter else (),
+    )
+    if "code" not in resolved_facets:
+        view = replace(
+            view,
+            projects=tuple(replace(project, code=None) for project in view.projects),
+            portfolio=replace(view.portfolio, code=None),
+        )
+    return view
 
 
 def _run_payload(selected_range: StatsRange, group_by: RuntimeGroupBy) -> dict:
@@ -310,6 +365,7 @@ def _result(
     runtime_group_by: RuntimeGroupBy = "tribe",
     perf_group_by: PerfGroupBy = "subsystem",
     perf: PerfView | None = None,
+    facets: set[str] | frozenset[str] | None = None,
 ) -> StatisticsViewData:
     run_payload: dict[str, Any] = (
         {} if empty else _run_payload(selected_range, runtime_group_by)
@@ -369,6 +425,22 @@ def _result(
     resolved_perf = perf
     if resolved_perf is None and view == "perf":
         resolved_perf = _perf_view(selected_range, group_by=perf_group_by)
+    if view == "projects":
+        return StatisticsViewData(
+            view=view,
+            selected_range=selected_range,
+            generated_at=_NOW,
+            views=None,
+            project_filter=project_filter,
+            macro_focus=macro_focus,
+            project_display_snapshot=display_snapshot,
+            project_stats=_pane_project_stats(
+                project_filter=project_filter,
+                empty=empty,
+                facets=facets,
+                project_display_case=project_display_case,
+            ),
+        )
     return StatisticsViewData(
         view=view,
         selected_range=selected_range,
@@ -401,8 +473,10 @@ def _patch_center(
         project_filter: str | None = None,
         macro_focus: str | None = None,
         perf_group_by: PerfGroupBy = "subsystem",
+        **kwargs: object,
     ) -> StatisticsViewData:
         calls.append((view, selected_range, project_filter, macro_focus))
+        facets = kwargs.get("facets")
         return _result(
             view,
             selected_range,
@@ -410,12 +484,36 @@ def _patch_center(
             project_display_case=project_display_case,
             macro_focus=macro_focus,
             perf_group_by=perf_group_by,
+            facets=facets if isinstance(facets, (set, frozenset)) else None,
         )
 
+    def load_code(
+        selected_range: StatsRange,
+        project_filter: str | None = None,
+        *,
+        preset: str | None = None,
+    ) -> ProjectStatsView:
+        del preset
+        result = _result(
+            "projects",
+            selected_range,
+            project_filter=project_filter,
+            project_display_case=project_display_case,
+            facets={"code"},
+        )
+        assert result.project_stats is not None
+        return result.project_stats
+
     monkeypatch.setattr(sp, "load_statistics_view", load)
+    monkeypatch.setattr(sp, "_load_project_code_stats", load_code)
 
 
-async def _wait_statistics_settled(page: AcePage, pane: StatisticsPane) -> None:
+async def _wait_statistics_settled(
+    page: AcePage,
+    pane: StatisticsPane,
+    *,
+    timeout: float = 30.0,
+) -> None:
     """Wait until the pane's last result matches the current selection."""
     await page.wait_for(
         lambda _state: (
@@ -425,7 +523,11 @@ async def _wait_statistics_settled(page: AcePage, pane: StatisticsPane) -> None:
             and pane._last_result.selected_range == pane._range
             and pane._last_result.project_filter == pane._project_filter
             and pane._last_result.macro_focus == pane._macro_focus
-        )
+            and pane._result_matches_selection(pane._last_result)
+            and pane._result_paints_view(pane._last_result, pane._view)
+            and (pane._view != "projects" or pane._code_complete)
+        ),
+        timeout=timeout,
     )
 
 

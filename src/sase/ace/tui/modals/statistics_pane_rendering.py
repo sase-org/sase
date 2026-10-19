@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from typing import Any
 
 from rich.align import Align
@@ -13,6 +14,7 @@ from textual.widgets import Static
 
 from sase.ace.tui.keymaps import StatisticsPaneKeymaps, key_display_name
 from sase.core.time import format_local
+from sase.project_accents import project_accent
 from sase.stats.loader import StatisticsViewData
 from sase.stats.ranges import PresetKey, StatsRange
 from sase.stats.registry import (
@@ -53,6 +55,7 @@ class StatisticsPanePresentationBase(StatisticsViewsRenderingMixin, Vertical):
     _loading: bool
     _last_result: StatisticsViewData | None
     _last_error: str
+    _stale_at: float | None
     _compact_scope: bool
     _runners_stacked: bool
     _perf_stacked: bool
@@ -83,10 +86,14 @@ class StatisticsPanePresentationBase(StatisticsViewsRenderingMixin, Vertical):
         self._update_heading()
         show_tiles = self._view in {"overview", "perf"}
         self._set_tiles_visible(show_tiles)
-        if result is None:
+        if result is None or not self._result_paints_view(result, self._view):
             self._paint_loading()
             return
-        if self._view == "runners" and not result.views.runners.available:
+        if (
+            self._view == "runners"
+            and result.views is not None
+            and not result.views.runners.available
+        ):
             self._set_tiles_visible(False)
             self._update_static(
                 "#statistics-body",
@@ -106,16 +113,31 @@ class StatisticsPanePresentationBase(StatisticsViewsRenderingMixin, Vertical):
             self._paint_perf_tiles(result)
         self._update_static("#statistics-body", self._view_renderable(result))
 
+    def _result_paints_view(
+        self, result: StatisticsViewData, view: StatisticsView
+    ) -> bool:
+        if view == "projects":
+            return result.project_stats is not None
+        if view == "perf":
+            return result.views is not None and result.perf is not None
+        return result.views is not None
+
     def _current_view_is_empty(self, result: StatisticsViewData) -> bool:
         """Gate the run-count empty state on data the selected view actually uses.
 
-        ``overview``, ``projects``, and ``providers`` are entirely run-derived,
-        so the shared run-count check is accurate for them. ``activity`` and
-        ``plans_questions`` are timestamped by when their skill/memory/plan/
-        question events happened, not by when the producing agent launched,
-        so a window with zero launches can still hold data for those two.
-        ``runners``, ``macros``, and ``perf`` render their own empty states.
+        ``overview`` and ``providers`` are entirely run-derived, so the shared
+        run-count check is accurate for them. ``projects`` is empty only when
+        the report has no projects: a project with zero local runs can still
+        have output or lifetime code. ``activity`` and ``plans_questions`` are
+        timestamped by when their skill/memory/plan/question events happened,
+        not by when the producing agent launched, so a window with zero
+        launches can still hold data for those two. ``runners``, ``macros``,
+        and ``perf`` render their own empty states.
         """
+        if self._view == "projects":
+            return result.project_stats is None or not result.project_stats.projects
+        if result.views is None:
+            return False
         if self._view == "activity":
             return result.views.activity.empty
         if self._view == "plans_questions":
@@ -125,6 +147,8 @@ class StatisticsPanePresentationBase(StatisticsViewsRenderingMixin, Vertical):
         return result.views.empty
 
     def _paint_overview_tiles(self, result: StatisticsViewData) -> None:
+        if result.views is None:
+            return
         overview = result.views.overview
         tile_width = self._tile_width()
         bucket_values = tuple(float(bucket.runs) for bucket in overview.buckets)
@@ -154,7 +178,7 @@ class StatisticsPanePresentationBase(StatisticsViewsRenderingMixin, Vertical):
             render_stat_tile(
                 f"{overview.commits}\n{overview.committing_agents} agents · "
                 f"{overview.committing_runs} runs",
-                caption="Commits",
+                caption="Run commits (this machine)",
                 width=tile_width,
                 height=6,
                 key="commits",
@@ -189,14 +213,27 @@ class StatisticsPanePresentationBase(StatisticsViewsRenderingMixin, Vertical):
 
     def _paint_error(self, message: str) -> None:
         self._last_error = message
-        self._update_heading()
-        if self._last_result is not None:
+        last = self._last_result
+        if (
+            last is not None
+            and self._result_matches_selection(last)
+            and self._result_paints_view(last, self._view)
+        ):
+            if self._stale_at is None:
+                self._stale_at = time.time()
+            self._update_heading()
             return
+        self._stale_at = None
+        self._update_heading()
         self._set_tiles_visible(False)
         self._update_static(
             "#statistics-body",
             self._error_state_renderable(message),
         )
+
+    def _result_matches_selection(self, result: StatisticsViewData) -> bool:
+        """Return whether ``result`` matches the pane's current selection."""
+        raise NotImplementedError
 
     def _empty_state_message(self) -> str:
         """Describe what's missing for the currently selected view."""
@@ -204,6 +241,8 @@ class StatisticsPanePresentationBase(StatisticsViewsRenderingMixin, Vertical):
             return "No skill or memory activity recorded"
         if self._view == "plans_questions":
             return "No plans or questions recorded"
+        if self._view == "projects":
+            return "No projects recorded"
         return "No agent runs recorded"
 
     def _empty_state_renderable(self, result: StatisticsViewData) -> Panel:
@@ -301,6 +340,12 @@ class StatisticsPanePresentationBase(StatisticsViewsRenderingMixin, Vertical):
         status = Text(no_wrap=True, overflow="ellipsis")
         if self._loading:
             status.append("refreshing…", style="dim italic")
+        elif self._stale_at is not None:
+            stale = format_local(self._stale_at, "%H:%M:%S")
+            status.append(f"stale · {stale}", style=f"italic {_GOLD}")
+            if self._last_error:
+                status.append(" · ", style="dim")
+                status.append("load failed", style="red")
         elif self._last_error:
             status.append("load failed", style="red")
         elif self._last_result is not None:
@@ -337,7 +382,8 @@ class StatisticsPanePresentationBase(StatisticsViewsRenderingMixin, Vertical):
         scope = self._scope_text(key, "Group", accent=_GREEN)
         if self._view == "projects":
             scope.append(
-                f"Projects · {statistics_group_label('projects', self._projects_group_by)}",
+                "Projects · "
+                f"{statistics_group_label('projects', self._effective_projects_group_by())}",
                 style=f"bold {_GREEN}",
             )
         elif self._view == "macros":
@@ -370,7 +416,13 @@ class StatisticsPanePresentationBase(StatisticsViewsRenderingMixin, Vertical):
             if self._view == "perf":
                 scope.append(project_label, style="dim")
             else:
-                scope.append("■ ", style=categorical_color(self._project_filter))
+                scope.append(
+                    "■ ",
+                    style=project_accent(
+                        self._project_filter,
+                        among=(self._project_filter,),
+                    ),
+                )
                 scope.append(project_label, style=f"bold {_GOLD}")
         if self._view == "perf":
             scope.append(" · not applied", style="dim")

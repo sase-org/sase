@@ -146,7 +146,9 @@ async def test_pending_perf_load_cannot_restore_stale_rail(
         project_filter: str | None = None,
         macro_focus: str | None = None,
         perf_group_by: str = "subsystem",
+        **kwargs: object,
     ) -> StatisticsViewData:
+        del kwargs
         calls.append((view, selected_range, project_filter, macro_focus))
         if view == "perf":
             perf_started.set()
@@ -203,8 +205,9 @@ async def test_failed_perf_load_keeps_the_active_view_rail(
         project_filter: str | None = None,
         macro_focus: str | None = None,
         perf_group_by: str = "subsystem",
+        **kwargs: object,
     ) -> StatisticsViewData:
-        del perf_group_by
+        del perf_group_by, kwargs
         calls.append((view, selected_range, project_filter, macro_focus))
         if view == "perf":
             raise RuntimeError("perf exploded")

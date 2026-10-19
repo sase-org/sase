@@ -13,10 +13,9 @@ from rich.table import Table
 from rich.text import Text
 
 from sase.stats.loader import StatisticsViewData
-from sase.stats.registry import MacrosGroupBy
+from sase.stats.registry import MacrosGroupBy, StatisticsView
 from sase.stats.render.primitives import format_duration, percent, share_bar
 from sase.telemetry.render import categorical_color
-from .statistics_pane_projects import StatisticsProjectsRenderingMixin
 
 _ACCENT = "#FF87D7"
 _CYAN = "#87D7FF"
@@ -39,7 +38,25 @@ class StatisticsMacrosRenderingMixin:
     def _effective_project_keys(self) -> str:
         raise NotImplementedError
 
+    @staticmethod
+    def _legend_note(view: StatisticsView) -> Text:
+        raise NotImplementedError
+
+    def _project_cell(
+        self,
+        project_key: str,
+        project_label: str,
+        *,
+        bold: bool = True,
+    ) -> Text:
+        raise NotImplementedError
+
+    def _format_timestamp(self, timestamp: float) -> str:
+        raise NotImplementedError
+
     def _macros_renderable(self, result: StatisticsViewData) -> Any:
+        if result.views is None:
+            return self._macros_unavailable_renderable()
         macros = result.views.macros
         if not macros.available:
             return self._macros_unavailable_renderable()
@@ -69,7 +86,7 @@ class StatisticsMacrosRenderingMixin:
             body = self._macros_usage_renderable(macros)
         return Group(
             body,
-            StatisticsProjectsRenderingMixin._legend_note("macros"),
+            self._legend_note("macros"),
         )
 
     def _macro_focus_renderable(
@@ -170,13 +187,9 @@ class StatisticsMacrosRenderingMixin:
 
         dates = Text()
         dates.append("First used  ", style="dim")
-        dates.append(
-            StatisticsProjectsRenderingMixin._format_timestamp(focus.first_run_ts)
-        )
+        dates.append(self._format_timestamp(focus.first_run_ts))
         dates.append("   Last used  ", style="dim")
-        dates.append(
-            StatisticsProjectsRenderingMixin._format_timestamp(focus.last_run_ts)
-        )
+        dates.append(self._format_timestamp(focus.last_run_ts))
         return Panel(
             Group(heading, metrics, dates),
             title="Macro focus",
@@ -247,7 +260,7 @@ class StatisticsMacrosRenderingMixin:
         table.add_column("Scale")
         for row in rows:
             if projects:
-                row_label: Any = StatisticsProjectsRenderingMixin._project_cell(
+                row_label: Any = self._project_cell(
                     row.key,
                     row.label,
                 )
@@ -330,7 +343,7 @@ class StatisticsMacrosRenderingMixin:
                 str(row.distinct_agents),
                 percent(row.success_rate),
                 format_duration(row.total_runtime_seconds),
-                StatisticsProjectsRenderingMixin._format_timestamp(row.last_run_ts),
+                self._format_timestamp(row.last_run_ts),
             )
         return Group(
             self._macros_summary(macros),
@@ -398,7 +411,7 @@ class StatisticsMacrosRenderingMixin:
                     if dimension == "project":
                         label = Text("  ")
                         label.append_text(
-                            StatisticsProjectsRenderingMixin._project_cell(
+                            self._project_cell(
                                 child.key,
                                 child.label,
                             )

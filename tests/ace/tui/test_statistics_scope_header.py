@@ -49,8 +49,11 @@ _REVIEWED_COPY: dict[str, tuple[str, str, str, str, str]] = {
         "Projects",
         "Projects",
         "Proj",
-        ("Compare run outcomes, commits, Patches, and wall time across projects."),
-        "Compare outcomes, Patches, and wall time.",
+        (
+            "Compare what projects produced, which models produced it, "
+            "their code, and this machine's runs."
+        ),
+        "Compare output, models, code, and this machine's runs.",
     ),
     "providers": (
         "Providers",
@@ -253,8 +256,8 @@ def test_scope_renderables_cover_range_group_project_and_status(
         project_display_snapshot=ProjectDisplaySnapshot({project_key: "widgets"})
     )
     monkeypatch.setattr(
-        "sase.ace.tui.modals.statistics_pane_rendering.categorical_color",
-        lambda _key: "#123456",
+        "sase.ace.tui.modals.statistics_pane_rendering.project_accent",
+        lambda _key, **_kwargs: "#123456",
     )
     project_scope = pane._project_scope_text()
     swatch_offset = project_scope.plain.index("■")

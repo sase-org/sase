@@ -24,7 +24,7 @@ StatisticsView = Literal[
     "plans_questions",
     "perf",
 ]
-ProjectsGroupBy = Literal["project", "patch", "drilldown"]
+ProjectsGroupBy = Literal["project", "repo", "model", "patch"]
 MacrosGroupBy = Literal["usage", "model", "project", "pairing"]
 _STATISTICS_ACCENT = "#FF87D7"
 
@@ -60,7 +60,12 @@ class StatisticsViewSpec:
     legends: tuple[MetricLegend, ...] = ()
 
 
-PROJECT_REPORT_GROUPINGS: tuple[str, ...] = ("project", "repo", "model", "patch")
+PROJECT_REPORT_GROUPINGS: tuple[ProjectsGroupBy, ...] = (
+    "project",
+    "repo",
+    "model",
+    "patch",
+)
 PROJECT_REPORT_LEGENDS: tuple[MetricLegend, ...] = (
     MetricLegend(
         "Commits",
@@ -117,10 +122,15 @@ PROJECT_REPORT_LEGENDS: tuple[MetricLegend, ...] = (
     ),
 )
 
-_PROJECTS_GROUPINGS: tuple[StatisticsGrouping, ...] = (
-    StatisticsGrouping("project", "By Project"),
-    StatisticsGrouping("patch", "By Patch"),
-    StatisticsGrouping("drilldown", "Project → Patch"),
+_PROJECT_GROUP_LABELS: dict[str, str] = {
+    "project": "By Project",
+    "repo": "By Repo",
+    "model": "By Model",
+    "patch": "Project → Patch",
+}
+_PROJECTS_GROUPINGS: tuple[StatisticsGrouping, ...] = tuple(
+    StatisticsGrouping(group_id, _PROJECT_GROUP_LABELS[group_id])
+    for group_id in PROJECT_REPORT_GROUPINGS
 )
 _MACROS_GROUPINGS: tuple[StatisticsGrouping, ...] = (
     StatisticsGrouping("usage", "By Usage"),
@@ -155,8 +165,10 @@ STATISTICS_VIEW_SPECS: tuple[StatisticsViewSpec, ...] = (
             ),
             MetricLegend("Delta", "run change vs the preceding equal-length window"),
             MetricLegend(
-                "Commits",
-                "total commits, with distinct committing agents and committing runs",
+                "Run commits (this machine)",
+                "commits recorded by runs on this machine, with distinct "
+                "committing agents and committing runs; distinct from "
+                "Projects default-branch commits and Patch Run commits",
             ),
             MetricLegend("Tiles", "click to open their detail view"),
         ),
@@ -204,18 +216,14 @@ STATISTICS_VIEW_SPECS: tuple[StatisticsViewSpec, ...] = (
         "Projects",
         "Projects",
         "Proj",
-        ("Compare run outcomes, commits, Patches, and wall time across projects."),
-        "Compare outcomes, Patches, and wall time.",
+        (
+            "Compare what projects produced, which models produced it, "
+            "their code, and this machine's runs."
+        ),
+        "Compare output, models, code, and this machine's runs.",
         cli_name="project",
         groupings=_PROJECTS_GROUPINGS,
-        legends=(
-            MetricLegend("Success", "completed ÷ all runs"),
-            MetricLegend("Share", "share of runs in range"),
-            MetricLegend("Wall", "summed agent runtime"),
-            MetricLegend("Patches", "distinct attributed Patches"),
-            MetricLegend("✓/×", "completed/failed runs"),
-            MetricLegend("Unattributed", "runs with no Patch"),
-        ),
+        legends=PROJECT_REPORT_LEGENDS,
     ),
     StatisticsViewSpec(
         "providers",
@@ -371,11 +379,7 @@ PERF_GROUP_ORDER: tuple[PerfGroupBy, ...] = (
     "provider",
     "workflow",
 )
-PROJECTS_GROUP_ORDER: tuple[ProjectsGroupBy, ...] = (
-    "project",
-    "patch",
-    "drilldown",
-)
+PROJECTS_GROUP_ORDER: tuple[ProjectsGroupBy, ...] = PROJECT_REPORT_GROUPINGS
 MACROS_GROUP_ORDER: tuple[MacrosGroupBy, ...] = (
     "usage",
     "model",

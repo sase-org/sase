@@ -14,6 +14,7 @@ from tests.ace.tui.visual._ace_config_center_statistics_fixtures import (
 )
 from tests.ace.tui.visual._ace_config_center_statistics_views import (
     _degraded_perf_statistics_view,
+    _populated_project_stats,
     _populated_statistics_view,
 )
 
@@ -49,6 +50,66 @@ def _patch_statistics_populated(monkeypatch: pytest.MonkeyPatch) -> None:
                 perf_group_by=perf_group_by,
             )
         ),
+    )
+    monkeypatch.setattr(
+        sp,
+        "_load_project_code_stats",
+        lambda selected_range, project_filter=None, **_kw: _populated_project_stats(
+            facets={"code"}
+        ),
+    )
+
+
+def _patch_statistics_projects_measuring_code(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Paint Output/Runs while Code stays pending for a snapshot.
+
+    A blocked Code worker never lets ``wait_for_visual_idle`` converge, so
+    this fixture skips starting that worker (the loading-snapshot pattern)
+    while leaving ``_code_complete`` false so the card shows
+    ``measuring code…``.
+    """
+    monkeypatch.setattr(sp, "resolve_preset", lambda _key: _STATISTICS_RANGE)
+
+    def load(
+        view: str,
+        selected_range: object,
+        project_filter: str | None = None,
+        macro_focus: str | None = None,
+        perf_group_by: str = "subsystem",
+        **_kw: object,
+    ) -> StatisticsViewData:
+        if view == "projects":
+            return StatisticsViewData(
+                view="projects",  # type: ignore[arg-type]
+                selected_range=selected_range,  # type: ignore[arg-type]
+                generated_at=_STATISTICS_NOW,
+                views=None,
+                project_filter=project_filter,
+                macro_focus=macro_focus,
+                project_stats=_populated_project_stats(facets={"output", "runs"}),
+            )
+        return _populated_statistics_view(
+            view,
+            selected_range,  # type: ignore[arg-type]
+            project_filter,
+            macro_focus,
+            perf_group_by=perf_group_by,  # type: ignore[arg-type]
+        )
+
+    def load_code(
+        selected_range: object,
+        project_filter: str | None = None,
+        **_kw: object,
+    ) -> object:
+        del selected_range, project_filter, _kw
+        raise AssertionError("measuring-code snapshot must not start the Code worker")
+
+    monkeypatch.setattr(sp, "load_statistics_view", load)
+    monkeypatch.setattr(sp, "_load_project_code_stats", load_code)
+    monkeypatch.setattr(
+        StatisticsPane, "_start_code_load", lambda _self, _generation: None
     )
 
 
@@ -86,4 +147,5 @@ __all__ = [
     "_patch_statistics_loading",
     "_patch_statistics_perf_degraded",
     "_patch_statistics_populated",
+    "_patch_statistics_projects_measuring_code",
 ]
