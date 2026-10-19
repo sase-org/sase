@@ -453,3 +453,39 @@ def test_diff_bare_short_sha_still_gets_patches_marker() -> None:
     marker = _target_marker(target, dangling=False)
     assert marker.icon == ARTIFACTS_ICONS["patches"]
     assert marker.accent == ARTIFACTS_ACCENTS["patches"]
+
+
+def test_resolvable_local_anchor_paints_section_mark() -> None:
+    from sase.pager._labels import _target_marker
+
+    body = "see [Head](#my-head) here\n\n## My Head\n"
+    document = _document(body)
+    section = document.sections[0]
+    layer = build_label_layer(document, width=80)
+
+    assert len(layer.labels) == 1
+    marker = _target_marker(layer.labels[0].target, dangling=False)
+    assert marker.icon == "§"
+    rendered = render_section_with_labels(section, layer.labels_by_section[0])
+    assert "[0]§\u00a0" in rendered.plain
+
+
+def test_missing_local_anchor_paints_dangling_with_no_press() -> None:
+    from sase.pager.document import local_anchor_fragment, section_local_anchor_lines
+
+    body = "see [Missing](#nope) here\n\n## Real\n"
+    document = _document(body)
+    section = document.sections[0]
+
+    def is_dangling(section_index: int, target) -> bool:
+        fragment = local_anchor_fragment(target)
+        if fragment is None:
+            return False
+        return section_local_anchor_lines(section, fragment) is None
+
+    layer = build_label_layer(document, width=80, is_dangling=is_dangling)
+
+    assert len(layer.labels) == 1
+    assert layer.labels[0].dangling is True
+    rendered = render_section_with_labels(section, layer.labels_by_section[0])
+    assert "(missing)" in rendered.plain

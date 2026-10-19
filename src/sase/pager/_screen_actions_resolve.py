@@ -60,9 +60,13 @@ class PagerActionResolveMixin:
         document: PagerDocument,
         line: int | None,
         end_line: int | None = None,
+        *,
+        section_index: int = 0,
     ) -> None:
         """Open *document* in the other pane, leaving focus on this view."""
-        self.pager_host.show_in_other_view(self, document, line, end_line)
+        self.pager_host.show_in_other_view(
+            self, document, line, end_line, section_index=section_index
+        )
 
     def _resolve_and_dispatch(
         self: Any,
@@ -72,6 +76,7 @@ class PagerActionResolveMixin:
         context: LinkResolutionContext | None = None,
         cache_identity: object | None = None,
         other_pane: bool = False,
+        edit_line: int | None = None,
     ) -> None:
         key = self._dangling_ref_key(cache_identity or ref, context)
         cached = self._dangling_refs.get(key)
@@ -158,6 +163,7 @@ class PagerActionResolveMixin:
                 context=context,
                 cache_identity=cache_identity,
                 other_pane=other_pane,
+                edit_line=edit_line,
             )
 
         spawn_pump_free_task(
@@ -246,6 +252,7 @@ class PagerActionResolveMixin:
         context: LinkResolutionContext | None = None,
         cache_identity: object | None = None,
         other_pane: bool = False,
+        edit_line: int | None = None,
     ) -> None:
         try:
             if not self.is_mounted:
@@ -276,6 +283,12 @@ class PagerActionResolveMixin:
                 self._update_footer()
             return
         if intent == "edit":
+            if edit_line is not None:
+                import dataclasses
+
+                target = dataclasses.replace(
+                    target, edit_line=edit_line, edit_column=None
+                )
             self._launch_editor(target)
             return
         if target.kind is LinkTargetKind.MEDIA:
@@ -307,7 +320,9 @@ class PagerActionResolveMixin:
         *,
         line: int | None,
         end_line: int | None = None,
+        section_index: int = 0,
     ) -> None:
+        same_document = document is self.document
         self.document = document
         self._body = None
         self._body_renderer = None
@@ -318,11 +333,14 @@ class PagerActionResolveMixin:
         self._pending_action = "follow"
         self._clear_goto_state()
         self._reset_search_state()
-        self._reset_syntax_for_new_document()
+        if not same_document:
+            self._reset_syntax_for_new_document()
         self._invalidate_body_layout()
         scroll = self._body_scroll()
         scroll.scroll_to(x=0, y=0, animate=False, immediate=True)
-        mark = self._line_mark_for_landing(line=line, end_line=end_line)
+        mark = self._line_mark_for_landing(
+            line=line, end_line=end_line, section_index=section_index
+        )
         if mark is not None:
             self._goto_mark = mark
             self._invalidate_body_paint()
@@ -376,6 +394,19 @@ class PagerActionResolveMixin:
         section_index: int,
         target: PagerTargetSpan,
     ) -> bool:
+        from sase.pager.document import (
+            local_anchor_fragment,
+            section_local_anchor_lines,
+        )
+
+        if not 0 <= section_index < len(self.document.sections):
+            return False
+        section = self.document.sections[section_index]
+        fragment = local_anchor_fragment(target)
+        if fragment is not None:
+            if getattr(section.version_pin, "view", "read") == "diff":
+                return False
+            return section_local_anchor_lines(section, fragment) is None
         origin = self._origin_for_section_index(section_index)
         identity = target_resolution_cache_identity(target, origin)
         if identity is None:

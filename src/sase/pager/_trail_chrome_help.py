@@ -184,6 +184,10 @@ def _binding_rows(
             "path:12 / path:12-40 / #L12",
             "Land on and rail that line; E opens the editor there",
         ),
+        (
+            "[text](#heading)",
+            "Jump to that heading in this section; backspace returns",
+        ),
         ("backspace / ctrl+o", "Walk back"),
     ]
     insertion = len(rows)

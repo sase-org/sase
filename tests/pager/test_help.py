@@ -21,6 +21,16 @@ def test_help_lists_line_addressed_link_landing() -> None:
     assert text.index("; or :") < text.index("path:12") < text.index("backspace")
 
 
+def test_help_lists_same_document_anchor_row_in_order() -> None:
+    text = _pager_help_text(section_total=1).plain
+
+    assert "[text](#heading)" in text
+    assert "Jump to that heading in this section; backspace returns" in text
+    assert (
+        text.index("path:12") < text.index("[text](#heading)") < text.index("backspace")
+    )
+
+
 def test_help_lists_other_pane_rows_when_labels_exist() -> None:
     text = _pager_help_text(section_total=1, label_count=3).plain
 

@@ -157,13 +157,16 @@ class PagerGotoMixin:
         *,
         line: int | None,
         end_line: int | None,
+        section_index: int = 0,
     ) -> LineMark | None:
         if line is None:
             return None
         body = self._body
         if body is None or not body.section_line_counts:
             return None
-        line_count = body.section_line_counts[0]
+        if not 0 <= section_index < len(body.section_line_counts):
+            return None
+        line_count = body.section_line_counts[section_index]
         if line_count <= 0:
             return None
         start = line if line >= 1 else 1
@@ -179,7 +182,7 @@ class PagerGotoMixin:
                 f"{title} has {line_count} lines — showing line {line_count}.",
                 severity="information",
             )
-        return LineMark(0, start, end)
+        return LineMark(section_index, start, end)
 
 
 __all__ = ["PagerGotoMixin"]

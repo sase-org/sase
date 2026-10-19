@@ -85,6 +85,7 @@ class _PagerViewHost(Protocol):
         document: PagerDocument,
         line: int | None,
         end_line: int | None = None,
+        section_index: int = 0,
     ) -> None:
         """Open *document* in the captured ``ctrl+w`` target pane.
 

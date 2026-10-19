@@ -27,7 +27,14 @@ _MAX_ELAPSED_SECONDS = 5.0
 # measured 3517 against the 3513 cap; the split takes the closure to
 # 3519, so the cap is 3520. 2026-10-17 merge-base now measures 3520 with
 # no sase.* module growth (stdlib/dependency), so the cap is 3521.
-_MAX_MODULE_COUNT = 3521
+# 2026-10-19 pager same-document anchor links add one mixin module that
+# ``PagerActionMixin`` must import at class-definition time
+# (deferral is impossible):
+# ``sase.pager._screen_actions_anchor``. The closure goes 3520 -> 3521
+# (``tools/tui_import_closure --diff`` attributes the full +1 to that
+# module; ``sase.pager.markdown_anchors`` stays lazily imported and out
+# of the closure), so the cap is 3522.
+_MAX_MODULE_COUNT = 3522
 
 
 def _measure_tui_app_import() -> dict[str, Any]:

@@ -400,6 +400,82 @@ def section_content_digest(section: PagerSection) -> str:
     return digest
 
 
+def local_anchor_fragment(target: PagerTargetSpan) -> str | None:
+    """Return the same-document fragment for *target*, if any.
+
+    Only ``scanned`` ``file_path`` spans whose Markdown destination starts
+    with ``#`` qualify. Everything else (``./#a``, ``other.md#a``, skill
+    spans, URLs, attached targets) returns ``None``.
+    """
+    if target.source != "scanned":
+        return None
+    if target.kind != LinkSpanKind.FILE_PATH.value:
+        return None
+    semantic = target.semantic_target
+    destination: str | None = None
+    if semantic is not None and semantic.markdown_destination is not None:
+        destination = semantic.markdown_destination
+    elif isinstance(target.target, str):
+        destination = target.target
+    if destination is None or not destination.startswith("#"):
+        return None
+    return destination[1:]
+
+
+def section_local_anchor_lines(
+    section: PagerSection, fragment: str
+) -> tuple[int, int] | None:
+    """Return the landing ``(start_line, end_line)`` for *fragment*.
+
+    Memoized in the section's ``_memo``: the anchor index lives under one
+    key and per-fragment results under another, so many anchors do not
+    copy the memo dict once per insert.
+    """
+    lines_key = ("local-anchor-lines", "")
+    cached_map = section._memo.get(lines_key)
+    if isinstance(cached_map, dict) and fragment in cached_map:
+        result = cached_map[fragment]
+        return result  # type: ignore[return-value]
+    if not isinstance(cached_map, dict):
+        fresh: dict[str, tuple[int, int] | None] = {}
+        object.__setattr__(section, "_memo", {**section._memo, lines_key: fresh})
+        cached_map = fresh
+    computed = _compute_local_anchor_lines(section, fragment)
+    cached_map[fragment] = computed  # type: ignore[index]
+    return computed
+
+
+def _compute_local_anchor_lines(
+    section: PagerSection, fragment: str
+) -> tuple[int, int] | None:
+    try:
+        split = split_link_location("#" + fragment)
+    except (AttributeError, ImportError, RuntimeError, ValueError):
+        split = None
+    if split is not None and split.base == "" and split.location is not None:
+        line = split.location.line
+        end_line = split.location.end_line or line
+        return (line, end_line)
+    index_key = ("local-anchor-index", "")
+    cached_index = section._memo.get(index_key)
+    if cached_index is None:
+        from sase.pager.markdown_anchors import (
+            MarkdownAnchorIndex,
+            build_markdown_anchor_index,
+        )
+
+        cached_index = build_markdown_anchor_index(section.plain_text)
+        assert isinstance(cached_index, MarkdownAnchorIndex)
+        object.__setattr__(section, "_memo", {**section._memo, index_key: cached_index})
+    line_for = getattr(cached_index, "line_for", None)
+    if not callable(line_for):
+        return None
+    line = line_for(fragment)
+    if line is None:
+        return None
+    return (line, line)
+
+
 def _compute_line_prefix(text: str, width: int) -> tuple[tuple[int, ...], ...]:
     """Compute ``(line_starts, start_rows)`` for *text* in one pass.
 
@@ -557,8 +633,10 @@ __all__ = [
     "PagerTargetSpan",
     "PagerTargetSource",
     "RawSourceSpec",
+    "local_anchor_fragment",
     "section_content_digest",
     "section_line_prefix",
+    "section_local_anchor_lines",
     "section_origin",
     "section_syntax_language",
     "section_target_spans",

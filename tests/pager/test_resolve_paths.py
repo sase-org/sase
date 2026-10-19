@@ -316,6 +316,22 @@ def test_resolve_ref_parses_markdown_heading_fragment(tmp_path: Path) -> None:
     assert target.edit_line == 3
 
 
+def test_resolve_ref_skips_fenced_heading_for_cross_file_fragment(
+    tmp_path: Path,
+) -> None:
+    path = _write(
+        tmp_path / "docs" / "guide.md",
+        "# Intro\n```\n## Target Heading\n```\n## Target Heading\nsection\n",
+    )
+
+    target = resolve_ref("docs/guide.md#target-heading", context=_context(tmp_path))
+
+    assert target is not None
+    assert target.edit_path == path.resolve()
+    assert target.scroll_line == 5
+    assert target.edit_line == 5
+
+
 def test_directory_link_target_shows_the_ws_label_but_keeps_identity_exact(
     tmp_path: Path,
 ) -> None:

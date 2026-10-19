@@ -2,11 +2,9 @@
 
 from __future__ import annotations
 
-import re
 from pathlib import Path
 from urllib.parse import unquote
 
-_HEADING_RE = re.compile(r"^#{1,6}\s+(.+?)\s*#*\s*$")
 _MARKDOWN_SUFFIXES = frozenset({".md", ".markdown", ".mdown", ".mkd"})
 
 
@@ -21,7 +19,7 @@ def fragment_target_line(
         return None, None
     if not _is_markdown_path(path):
         return None, f"fragment #{decoded} is not supported for {path}"
-    line = _heading_fragment_line(path, decoded)
+    line = _heading_fragment_line(path, fragment)
     if line is None:
         return None, f"fragment #{decoded} was not found in {path}"
     return line, None
@@ -32,44 +30,13 @@ def _is_markdown_path(path: Path) -> bool:
 
 
 def _heading_fragment_line(path: Path, fragment: str) -> int | None:
-    wanted = _heading_slug(fragment)
-    if not wanted:
-        return None
     try:
-        lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+        text = path.read_text(encoding="utf-8", errors="replace")
     except OSError:
         return None
-    seen: dict[str, int] = {}
-    for line_number, line in enumerate(lines, start=1):
-        match = _HEADING_RE.match(line)
-        if match is None:
-            continue
-        base = _heading_slug(match.group(1))
-        if not base:
-            continue
-        ordinal = seen.get(base, 0)
-        seen[base] = ordinal + 1
-        slug = base if ordinal == 0 else f"{base}-{ordinal}"
-        if slug == wanted:
-            return line_number
-    return None
+    from sase.pager.markdown_anchors import build_markdown_anchor_index
 
-
-def _heading_slug(text: str) -> str:
-    output: list[str] = []
-    last_dash = False
-    for character in text.strip().lower():
-        if character.isspace() or character == "-":
-            if output and not last_dash:
-                output.append("-")
-                last_dash = True
-            continue
-        if character.isalnum() or character == "_":
-            output.append(character)
-            last_dash = False
-    while output and output[-1] == "-":
-        output.pop()
-    return "".join(output)
+    return build_markdown_anchor_index(text).line_for(fragment)
 
 
 __all__ = ["fragment_target_line"]

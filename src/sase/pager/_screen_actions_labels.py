@@ -18,6 +18,7 @@ from sase.pager.jump_hints import (
     normalize_jump_key,
 )
 from sase.pager._labels import PagerLabel, PagerLabelLayer
+from sase.pager.document import local_anchor_fragment
 from sase.pager.link_scan import LinkSpanKind
 from sase.pager.app import ViewPendingAction
 
@@ -164,6 +165,10 @@ class PagerActionLabelsMixin:
                     self.pager_host._disarm_other()  # type: ignore[attr-defined]
                 except Exception:
                     pass
+            return
+        fragment = local_anchor_fragment(target)
+        if fragment is not None:
+            self._activate_local_anchor(label.section_index, fragment, action)
             return
         if action == "edit":
             self._edit_target(target, context=context, origin=origin)

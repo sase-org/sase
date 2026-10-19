@@ -176,6 +176,7 @@ class PagerScreenSplitArmMixin:
         document: PagerDocument,
         line: int | None,
         end_line: int | None = None,
+        section_index: int = 0,
     ) -> None:
         """Open *document* in the captured ``ctrl+w`` target pane.
 
@@ -224,7 +225,9 @@ class PagerScreenSplitArmMixin:
             try:
                 target._bump_history_generation()
                 target._push_trail_entry()
-                target._navigate_to_document(document, line=line, end_line=end_line)
+                target._navigate_to_document(
+                    document, line=line, end_line=end_line, section_index=section_index
+                )
             except Exception:
                 pass
             return
@@ -253,7 +256,9 @@ class PagerScreenSplitArmMixin:
             try:
                 target._bump_history_generation()
                 target._push_trail_entry()
-                target._navigate_to_document(document, line=line, end_line=end_line)
+                target._navigate_to_document(
+                    document, line=line, end_line=end_line, section_index=section_index
+                )
             except Exception:
                 pass
             return
@@ -268,7 +273,9 @@ class PagerScreenSplitArmMixin:
             try:
                 source._bump_history_generation()
                 source._push_trail_entry()
-                source._navigate_to_document(document, line=line, end_line=end_line)
+                source._navigate_to_document(
+                    document, line=line, end_line=end_line, section_index=section_index
+                )
             except Exception:
                 pass
             self.notify("No room for a split — opened here.", severity="information")
@@ -322,7 +329,10 @@ class PagerScreenSplitArmMixin:
                 try:
                     new_view._push_trail_entry()
                     new_view._navigate_to_document(
-                        document, line=line, end_line=end_line
+                        document,
+                        line=line,
+                        end_line=end_line,
+                        section_index=section_index,
                     )
                 except Exception:
                     pass

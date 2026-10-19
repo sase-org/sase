@@ -31,6 +31,7 @@ from sase.pager.document import (
     PagerOrigin,
     PagerSection,
     PagerTargetSpan,
+    local_anchor_fragment,
     section_line_prefix,
     section_target_spans,
     target_resolution_cache_identity,
@@ -409,6 +410,9 @@ def _label_style(label: PagerLabel, *, pending_prefix: str) -> str:
 def _target_marker(target: PagerTargetSpan, *, dangling: bool) -> _TargetMarker:
     if dangling:
         return _TargetMarker(_DANGLING_ICON, _DANGLING_ACCENT)
+
+    if local_anchor_fragment(target) is not None:
+        return _TargetMarker("§", ARTIFACTS_ACCENTS["files"])
 
     if target.kind == LinkSpanKind.URL.value:
         return _TargetMarker(_URL_ICON, EXTERNAL_ACCENT)

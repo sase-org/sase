@@ -55,7 +55,7 @@ A link to a file or file-backed artifact may carry a line, a column, or a line r
 | GitHub-style | `README.md#L12` | `src/app.py#L12C5` | `src/app.py#L12-L40`, `src/app.py#L12C5-L40C2` |
 
 Artifact references accept the colon suffix too, as in `plan:202609/x.md:12`. Anything
-else, such as `README.md#usage` or `src/app.py:0`, is followed as a plain target.
+else, such as `src/app.py:0`, is followed as a plain target.
 
 Following a located link opens the target and marks the landed line — or every line of a
 range, including wrapped continuation rows — with a thick accent rail in the gutter. The
@@ -67,6 +67,15 @@ suffix, and `E<label>` opens the editor at that line and column.
 
 To jump within the current section, press `:` or `;`, type a line number, and press
 `Enter`; the destination is railed and positioned the same way.
+
+Same-document links such as `[text](#heading)`, `[text](#L12)`, and
+`[text](#L12-L40)` jump within the current section. Heading fragments match
+GitHub slugs first, then case- and punctuation-insensitive forms; `{#id}`,
+`<a id>`, and `^block` anchors count, and fenced code is ignored. The jump
+records a trail entry, so `Backspace` returns. Such links paint a `§` label;
+a missing anchor paints `⊘ (missing)`. `Ctrl+W <label>` opens the heading in
+the other pane, `E<label>` edits the section's file at the heading line, and
+`y<label>` copies the authored `#slug` destination.
 
 ## Syntax highlighting
 

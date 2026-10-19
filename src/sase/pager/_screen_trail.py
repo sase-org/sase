@@ -67,6 +67,7 @@ class PagerTrailMixin:
         append_bounded_trail(self._back_trail, self._current_view_state())
 
     def _restore_view_state(self: Any, state: PagerTrailEntry) -> None:
+        same_document = state.document is self.document
         self.document = state.document
         rehydrate = getattr(self, "_rehydrate_history_pins", None)
         if callable(rehydrate):
@@ -81,7 +82,8 @@ class PagerTrailMixin:
         self._footer_status = None
         self._clear_goto_state()
         self._goto_mark = state.line_mark
-        self._reset_syntax_for_new_document()
+        if not same_document:
+            self._reset_syntax_for_new_document()
         self._invalidate_body_layout()
         self._restore_search_state(state.search)
         self._update_trail()

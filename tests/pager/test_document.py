@@ -678,3 +678,99 @@ def test_section_with_bead_id_prefixes_returns_copy_with_fresh_spans() -> None:
     after = section_target_spans(stamped, PagerOrigin.BEAD)
     assert [span.text for span in after] == ["bob-cli-5s.1"]
     assert [span.text for span in section_target_spans(section, PagerOrigin.BEAD)] == []
+
+
+def _anchor_section(body: str) -> PagerSection:
+    return PagerSection(
+        identity="file:/tmp/anchors.md",
+        title="anchors.md",
+        kind="file",
+        body=body,
+    )
+
+
+def _first_file_path_span(
+    section: PagerSection, origin: PagerOrigin
+) -> PagerTargetSpan:
+    from sase.pager.document import section_target_spans as _spans
+
+    for span in _spans(section, origin):
+        if span.kind == LinkSpanKind.FILE_PATH.value:
+            return span
+    raise AssertionError("no file_path span found")
+
+
+def test_local_anchor_fragment_classifies_targets() -> None:
+    from sase.pager.document import local_anchor_fragment as _frag
+
+    section = _anchor_section("see [x](#slug) here\n")
+    span = _first_file_path_span(section, PagerOrigin.FILE)
+    assert _frag(span) == "slug"
+
+    empty_section = _anchor_section("see [x](#) here\n")
+    assert _frag(_first_file_path_span(empty_section, PagerOrigin.FILE)) == ""
+
+    for body in (
+        "see [p](#skill/sase_plan) here\n",
+        "see [x](other.md#a) here\n",
+        "see [x](./#a) here\n",
+        "see https://example.test here\n",
+    ):
+        sec = _anchor_section(body)
+        spans = [
+            s
+            for s in section_target_spans(sec, PagerOrigin.FILE)
+            if s.kind != LinkSpanKind.BARE_TOKEN.value
+        ]
+        assert spans, body
+        # Skill spans are macro_skill; file URLs with bases are file_path but
+        # must not count as local anchors; plain URLs never do.
+        for candidate in spans:
+            if candidate.kind == LinkSpanKind.URL.value:
+                assert _frag(candidate) is None
+            elif candidate.kind == LinkSpanKind.MACRO_SKILL.value:
+                assert _frag(candidate) is None
+            else:
+                assert _frag(candidate) is None, body
+
+
+def test_local_anchor_fragment_rejects_attached_targets() -> None:
+    from sase.pager.document import local_anchor_fragment as _frag
+
+    section = PagerSection(
+        identity="file:/tmp/attached.md",
+        title="attached.md",
+        kind="file",
+        body="hello",
+        targets=(AttachedTarget(kind="file", target="#slug", start=0, end=5),),
+    )
+    spans = section_target_spans(section, PagerOrigin.FILE)
+    assert len(spans) == 1
+    assert spans[0].source == "attached"
+    assert _frag(spans[0]) is None
+
+
+def test_section_local_anchor_lines_line_range_and_memoization(
+    monkeypatch,
+) -> None:
+    import sase.pager.document as _doc
+
+    section = _anchor_section(
+        "line one\nline two\nline three\nline four\nline five\nline six\nline seven\n"
+    )
+    assert _doc.section_local_anchor_lines(section, "L5-L7") == (5, 7)
+
+    calls: list[str] = []
+    import sase.pager.markdown_anchors as _anchors
+
+    original = _anchors.build_markdown_anchor_index
+
+    def counting(text: str):
+        calls.append(text)
+        return original(text)
+
+    monkeypatch.setattr(_anchors, "build_markdown_anchor_index", counting)
+    section2 = _anchor_section("# Alpha\nbody\n## Beta\n")
+    assert _doc.section_local_anchor_lines(section2, "beta") == (3, 3)
+    assert _doc.section_local_anchor_lines(section2, "beta") == (3, 3)
+    assert len(calls) == 1
