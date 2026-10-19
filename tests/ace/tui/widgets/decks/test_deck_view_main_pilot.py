@@ -611,3 +611,67 @@ async def test_final_panel_shows_no_badge_and_no_cycle() -> None:
         ) == (None, None, None)
         assert detail.cycle_focused_deck_view() is None
         assert detail.set_focused_deck_view(DeckView.SPREAD) is False
+
+
+async def test_spread_title_cue_and_paged_tabs_flip() -> None:
+    """Spread titles use a here-name cue; paging restores tabs; the footer flips."""
+    app = _DetailApp()
+    async with app.run_test(size=(100, 30)) as pilot:
+        await pilot.pause()
+        _pin(app, deck=1000.0, blocks=1000.0)
+        detail = app.query_one("#agent-detail-panel", AgentDetail)
+        panel = detail.deck_area.panel(0)
+        panel.show_main_document(
+            _document("s1", _reply_card(2, lines_per_block=4), digest="scope-spread"),
+            "reply",
+        )
+        await _settle(pilot, panel, DeckView.SPREAD)
+        panel.refresh_chrome()
+        title = panel._border_title.plain
+        assert "\u2503" not in title
+        assert "SPREAD" in title
+        assert "Context" in title
+        assert "Reply" in title
+        assert "\u25b4" in title or "\u25be" in title
+        assert panel.deck_cards_spread is True
+        before = title
+        panel.show_main_document(
+            _document(
+                "s1",
+                _reply_card(2, lines_per_block=4),
+                digest="scope-partial",
+                partial=True,
+            ),
+            "reply",
+        )
+        await pilot.pause()
+        panel.refresh_chrome()
+        assert panel._border_title.plain == before
+        panel.show_main_document(
+            _document("s1", _reply_card(2, lines_per_block=4), digest="scope-spread-2"),
+            "reply",
+        )
+        await _settle(pilot, panel, DeckView.SPREAD)
+        # Jump toward the other card so the here-name and cue swap.
+        if "\u25be" in panel._border_title.plain:
+            detail.cycle_focused_deck_card(1)
+        else:
+            detail.cycle_focused_deck_card(-1)
+        await pilot.pause()
+        panel.refresh_chrome()
+        jumped = panel._border_title.plain
+        assert jumped != before
+        assert "\u2503" not in jumped
+        assert "Context" in jumped
+        assert "Reply" in jumped
+        assert "\u25b4" in jumped or "\u25be" in jumped
+        _pin(app, deck=0.0, blocks=0.0)
+        panel.show_main_document(
+            _document("s1", _reply_card(3), digest="scope-paged"),
+            "reply",
+        )
+        await _settle(pilot, panel, DeckView.PAGE_BLOCKS)
+        panel.refresh_chrome()
+        paged = panel._border_title.plain
+        assert "\u2503" in paged or "\u2039" in paged
+        assert panel.deck_cards_spread is False

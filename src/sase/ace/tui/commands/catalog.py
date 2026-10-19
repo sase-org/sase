@@ -291,6 +291,12 @@ def _iter_deck_view_commands() -> Iterator[CommandSpec]:
     from sase.ace.tui.widgets.decks.model import DECK_VIEW_CHOICES
 
     labels = {
+        "auto": "Deck view: automatic (unlock)",
+        "spread": "Deck view: spread (locked)",
+        "page_cards": "Deck view: page cards (locked)",
+        "page_blocks": "Deck view: page blocks (locked)",
+    }
+    old_labels = {
         "auto": "Deck view: automatic",
         "spread": "Deck view: spread (fixed)",
         "page_cards": "Deck view: page cards (fixed)",
@@ -298,6 +304,18 @@ def _iter_deck_view_commands() -> Iterator[CommandSpec]:
     }
     for index, view in enumerate(DECK_VIEW_CHOICES):
         label = labels[view.value]
+        layout_name = view.value.replace("_", " ")
+        extra: tuple[str, ...]
+        if view.value == "auto":
+            extra = ("unlock", old_labels[view.value].lower())
+        else:
+            extra = (
+                "locked",
+                "fixed",
+                old_labels[view.value],
+                old_labels[view.value].lower(),
+                f"{layout_name} (fixed)",
+            )
         yield CommandSpec(
             id=f"agents.deck_view.{view.value}",
             label=label,
@@ -313,8 +331,9 @@ def _iter_deck_view_commands() -> Iterator[CommandSpec]:
             aliases=(
                 "deck view",
                 "deck layout",
-                view.value.replace("_", " "),
+                layout_name,
                 label.lower(),
+                *extra,
             ),
         )
 

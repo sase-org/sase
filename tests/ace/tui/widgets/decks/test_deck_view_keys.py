@@ -203,7 +203,7 @@ def test_deck_view_handlers_dispatch_and_refresh_footer() -> None:
     assert seen.get("refreshed") is True
     assert (
         host.notified
-        == "Main view fixed \u00b7 palette \u201cDeck view: automatic\u201d undoes"
+        == "Main view locked \U0001f512 \u00b7 palette \u201cDeck view: automatic\u201d unlocks"
     )
     assert len(host.notified) <= 70
 
@@ -255,7 +255,7 @@ def test_deck_view_first_fix_toast_fires_once() -> None:
 
     _Host(first_fix=True).action_cycle_deck_view()
     assert notified == [
-        "Files view fixed \u00b7 palette \u201cDeck view: automatic\u201d undoes"
+        "Files view locked \U0001f512 \u00b7 palette \u201cDeck view: automatic\u201d unlocks"
     ]
     _Host(first_fix=False).action_cycle_deck_view()
     assert len(notified) == 1
@@ -300,6 +300,18 @@ def test_deck_view_footer_entry_is_conditional() -> None:
     assert ("P", "view") in on
 
 
+def test_deck_card_footer_label_is_jump_when_spread() -> None:
+    footer = KeybindingFooter()
+    agent = _agent()
+    paged = footer._compute_agent_bindings(agent, deck_card_count=2)
+    assert any(label == "cards" for _, label in paged)
+    spread = footer._compute_agent_bindings(
+        agent, deck_card_count=2, deck_cards_spread=True
+    )
+    assert any(label == "jump" for _, label in spread)
+    assert not any(label == "cards" for _, label in spread)
+
+
 def test_deck_view_palette_specs_and_execution() -> None:
     from sase.ace.tui.commands import build_command_catalog
     from sase.ace.tui.commands.execute import execute_command
@@ -311,10 +323,10 @@ def test_deck_view_palette_specs_and_execution() -> None:
     assert by_id["app.cycle_deck_view"].key_display == "P"
     assert "spread" in by_id["app.cycle_deck_view"].aliases
     labels = {
-        "auto": "Deck view: automatic",
-        "spread": "Deck view: spread (fixed)",
-        "page_cards": "Deck view: page cards (fixed)",
-        "page_blocks": "Deck view: page blocks (fixed)",
+        "auto": "Deck view: automatic (unlock)",
+        "spread": "Deck view: spread (locked)",
+        "page_cards": "Deck view: page cards (locked)",
+        "page_blocks": "Deck view: page blocks (locked)",
     }
     for index, view in enumerate(DECK_VIEW_CHOICES):
         spec = by_id[f"agents.deck_view.{view.value}"]
@@ -323,6 +335,12 @@ def test_deck_view_palette_specs_and_execution() -> None:
         assert spec.executor.kind == "app_action"
         assert spec.executor.action == "set_deck_view_at"
         assert spec.executor.digit == index
+        if view.value == "auto":
+            assert "unlock" in spec.aliases
+        else:
+            assert "fixed" in spec.aliases
+            assert "locked" in spec.aliases
+            assert f"Deck view: {view.value.replace('_', ' ')} (fixed)" in spec.aliases
 
     class _App:
         def __init__(self) -> None:
@@ -460,7 +478,7 @@ def test_deck_view_help_row() -> None:
         for _section, bindings in agents_bindings(reg)
         for key, label in bindings
     }
-    assert ("P", "Cycle deck view (auto: palette)") in pairs
+    assert ("P", "Lock a wider deck view (palette unlocks)") in pairs
 
 
 def test_deck_view_search_exit_keys() -> None:

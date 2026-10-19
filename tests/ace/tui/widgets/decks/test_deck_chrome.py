@@ -202,10 +202,7 @@ async def test_pilot_title_within_four_cells_of_width_drops_to_compact(
         title = _title_plain(panel)
         assert "…" not in title
         assert title != full
-        # The view badge adds ladder rungs, so this budget lands on the
-        # micro + tiny rung instead of the old compact tier.
-        assert title.startswith("MAIN ")
-        assert "·" in title
+        assert "MAIN" in title
         assert len(title) <= panel.size.width - 4
 
 
@@ -298,3 +295,78 @@ def test_chrome_view_files_media_blocked_names_unavailable() -> None:
     assert view is not None
     assert view.shown is DeckView.PAGE_CARDS
     assert view.status is ViewStatus.BLOCKED
+    assert view.effective is DeckView.PAGE_CARDS
+
+
+def test_title_is_paged_follows_effective_and_card_count() -> None:
+    host = _BadgeHost()
+    host.set_main_cards(2, blocks=3)
+    host.block_mode_for_active_card = lambda: RenderMode.PAGED  # type: ignore[attr-defined]
+    two = (CardTab("c0", "A"), CardTab("c1", "B"))
+    view = host._chrome_view(DeckId.MAIN)
+    assert host._title_is_paged(DeckId.MAIN, two, view) is True
+    assert host._title_is_paged(DeckId.MAIN, (CardTab("c0", "A"),), view) is False
+    host._render_mode[DeckId.MAIN] = RenderMode.SPREAD
+    spread_view = host._chrome_view(DeckId.MAIN)
+    assert host._title_is_paged(DeckId.MAIN, two, spread_view) is False
+
+
+def test_title_is_paged_tools_always_and_final_from_mode() -> None:
+    host = _BadgeHost()
+    two = (CardTab("runs", "Runs"), CardTab("calls", "LLM Calls"))
+    assert host._title_is_paged(DeckId.TOOLS, two, None) is True
+    host._render_mode[DeckId.FINAL] = RenderMode.SPREAD
+    assert host._title_is_paged(DeckId.FINAL, two, None) is False
+    host._render_mode[DeckId.FINAL] = RenderMode.PAGED
+    assert host._title_is_paged(DeckId.FINAL, two, None) is True
+    host._render_mode[DeckId.RECORD] = RenderMode.SPREAD
+    assert host._title_is_paged(DeckId.RECORD, two, None) is False
+
+
+def test_held_title_tabs_keep_cue_across_partial_main_paints() -> None:
+    host = _BadgeHost()
+    host.set_main_cards(2)
+    two = (CardTab("c0", "A"), CardTab("c1", "B"))
+    tabs, index = host._held_title_tabs(DeckId.MAIN, two, 1)
+    assert (tabs, index) == (two, 1)
+    host.set_partial(True)
+    held_tabs, held_index = host._held_title_tabs(
+        DeckId.MAIN, (CardTab("c0", "A"), CardTab("c1", "B")), 0
+    )
+    assert held_index == 1
+    assert held_tabs[1].title == "B"
+
+
+def test_title_is_paged_uses_held_view_during_partial_main_paints() -> None:
+    host = _BadgeHost()
+    host.set_main_cards(2, blocks=3)
+    host.block_mode_for_active_card = lambda: RenderMode.PAGED  # type: ignore[attr-defined]
+    full = host._chrome_view(DeckId.MAIN)
+    host.set_partial(True)
+    held = host._chrome_view(DeckId.MAIN)
+    assert held == full
+    two = (CardTab("c0", "A"), CardTab("c1", "B"))
+    assert host._title_is_paged(DeckId.MAIN, two, held) is True
+
+
+def test_chip_hidden_when_no_choice_unless_pending_or_blocked() -> None:
+    from sase.ace.tui.widgets.decks.title_scope import chip_set
+
+    host = _BadgeHost()
+    host.set_main_cards(1)
+    view = host._chrome_view(DeckId.MAIN)
+    assert view is not None
+    assert view.choice_exists is False
+    assert chip_set(DeckId.MAIN, view, accent="red", focused=True) == (
+        None,
+        None,
+        None,
+    )
+    host.file_view = SimpleNamespace(_file_list=["notes.md", "shot.png"])
+    host.view_policy = lambda _deck: DeckView.SPREAD  # type: ignore[attr-defined]
+    host._files_spread_blocked = True  # type: ignore[attr-defined]
+    blocked = host._chrome_view(DeckId.FILES)
+    assert blocked is not None
+    chips = chip_set(DeckId.FILES, blocked, accent="green", focused=True)
+    assert chips[0] is not None
+    assert "spread unavailable" in chips[0].plain

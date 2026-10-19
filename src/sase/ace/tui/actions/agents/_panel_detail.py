@@ -221,8 +221,8 @@ class AgentPanelDetailMixin:
             deck_name = "Main" if deck is DeckId.MAIN else "Files"
             try:
                 message = (
-                    f"{deck_name} view fixed \u00b7 palette \u201cDeck view:"
-                    " automatic\u201d undoes"
+                    f"{deck_name} view locked \U0001f512 \u00b7 palette \u201c"
+                    "Deck view: automatic\u201d unlocks"
                 )[:70]
                 self.notify(message)  # type: ignore[attr-defined]
             except Exception:

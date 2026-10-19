@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from sase.ace.tui.widgets.decks.model import DeckId, DeckView
 from sase.ace.tui.widgets.decks.render_mode import RenderMode
-from sase.ace.tui.widgets.decks.view_badge import badge_variants
+from sase.ace.tui.widgets.decks.view_chip import chip_variants
 from sase.ace.tui.widgets.decks.view_policy import (
     _BlockState,
     ResolvedView,
@@ -196,7 +196,11 @@ def test_resolve_auto_shows_effective() -> None:
         policy=DeckView.AUTO,
         shown=DeckView.PAGE_BLOCKS,
         status=ViewStatus.OK,
+        effective=DeckView.PAGE_BLOCKS,
+        choice_exists=True,
     )
+    assert resolved.effective is DeckView.PAGE_BLOCKS
+    assert resolved.choice_exists is True
 
 
 def test_resolve_fixed_non_vacuous_shows_requested() -> None:
@@ -217,7 +221,16 @@ def test_resolve_fixed_vacuous_shows_requested_name() -> None:
         content,
     )
     assert resolved.shown is DeckView.PAGE_BLOCKS
+    assert resolved.effective is DeckView.PAGE_CARDS
     assert resolved.status is ViewStatus.OK
+    assert resolved.choice_exists is True
+
+
+def test_resolve_one_card_has_no_choice() -> None:
+    content = ViewContent(deck=DeckId.MAIN, card_count=1, active_block_count=0)
+    resolved = resolve_view(DeckId.MAIN, DeckView.AUTO, DeckView.SPREAD, content)
+    assert resolved.choice_exists is False
+    assert resolved.effective is DeckView.SPREAD
 
 
 def test_resolve_pending_and_blocked_show_effective() -> None:
@@ -242,74 +255,105 @@ def test_resolve_pending_and_blocked_show_effective() -> None:
     assert blocked.status is ViewStatus.BLOCKED
 
 
-def _badge_plain(resolved: ResolvedView) -> tuple[str, str, str]:
-    long, short, tiny = badge_variants(resolved, accent="green", focused=True)
-    return (long.plain, short.plain, tiny.plain)
+def _chip_plain(resolved: ResolvedView) -> tuple[str, str, str]:
+    long, short, tiny, word_long, word_short, word_tiny = chip_variants(
+        resolved, accent="green", focused=True
+    )
+
+    def _joined(chip: object, word: object) -> str:
+        extra = f" {word.plain}" if word is not None and word.plain else ""
+        return f"{chip.plain}{extra}"
+
+    return (
+        _joined(long, word_long),
+        _joined(short, word_short),
+        _joined(tiny, word_tiny),
+    )
 
 
-def test_badge_variants_d5_table() -> None:
-    auto_spread = ResolvedView(
-        DeckId.MAIN, DeckView.AUTO, DeckView.SPREAD, ViewStatus.OK
+def _rv(
+    deck: DeckId,
+    policy: DeckView,
+    shown: DeckView,
+    status: ViewStatus,
+    *,
+    effective: DeckView | None = None,
+    choice_exists: bool = True,
+) -> ResolvedView:
+    return ResolvedView(
+        deck=deck,
+        policy=policy,
+        shown=shown,
+        status=status,
+        effective=shown if effective is None else effective,
+        choice_exists=choice_exists,
     )
-    assert _badge_plain(auto_spread) == (
-        "spread · auto",
-        "spread · auto",
-        "S·A",
-    )
-    auto_page_cards = ResolvedView(
+
+
+def test_chip_variants_layout_and_lock() -> None:
+    lock = "\U0001f512"
+    auto_spread = _rv(DeckId.MAIN, DeckView.AUTO, DeckView.SPREAD, ViewStatus.OK)
+    assert _chip_plain(auto_spread) == (" SPREAD ", " SPREAD ", " S ")
+    auto_page_cards = _rv(
         DeckId.MAIN, DeckView.AUTO, DeckView.PAGE_CARDS, ViewStatus.OK
     )
-    assert _badge_plain(auto_page_cards) == (
-        "page cards · auto",
-        "cards · auto",
-        "C·A",
-    )
-    auto_page_blocks = ResolvedView(
+    assert _chip_plain(auto_page_cards) == (" PAGE CARDS ", " CARDS ", " C ")
+    auto_page_blocks = _rv(
         DeckId.MAIN, DeckView.AUTO, DeckView.PAGE_BLOCKS, ViewStatus.OK
     )
-    assert _badge_plain(auto_page_blocks) == (
-        "page blocks · auto",
-        "blocks · auto",
-        "B·A",
+    assert _chip_plain(auto_page_blocks) == (" PAGE BLOCKS ", " BLOCKS ", " B ")
+    locked_spread = _rv(DeckId.MAIN, DeckView.SPREAD, DeckView.SPREAD, ViewStatus.OK)
+    assert _chip_plain(locked_spread) == (
+        f" SPREAD {lock} ",
+        f" SPREAD {lock} ",
+        f" S{lock} ",
     )
-    fixed_spread = ResolvedView(
-        DeckId.MAIN, DeckView.SPREAD, DeckView.SPREAD, ViewStatus.OK
-    )
-    assert _badge_plain(fixed_spread) == (
-        "spread · fixed",
-        "spread · fixed",
-        "S·F",
-    )
-    fixed_blocks = ResolvedView(
+    locked_blocks = _rv(
         DeckId.MAIN,
         DeckView.PAGE_BLOCKS,
         DeckView.PAGE_BLOCKS,
         ViewStatus.OK,
     )
-    assert _badge_plain(fixed_blocks) == (
-        "page blocks · fixed",
-        "blocks · fixed",
-        "B·F",
+    assert _chip_plain(locked_blocks) == (
+        f" PAGE BLOCKS {lock} ",
+        f" BLOCKS {lock} ",
+        f" B{lock} ",
     )
-    pending = ResolvedView(
+    pending = _rv(
         DeckId.FILES,
         DeckView.SPREAD,
         DeckView.PAGE_CARDS,
         ViewStatus.PENDING,
+        effective=DeckView.PAGE_CARDS,
     )
-    assert _badge_plain(pending) == (
-        "page cards · spreading…",
-        "cards · spreading…",
-        "C·…",
+    assert _chip_plain(pending) == (
+        f" PAGE CARDS {lock}  spreading…",
+        f" CARDS {lock}  spreading…",
+        f" C{lock}  …",
     )
-    blocked = ResolvedView(
+    blocked = _rv(
         DeckId.FILES,
         DeckView.SPREAD,
         DeckView.PAGE_CARDS,
         ViewStatus.BLOCKED,
+        effective=DeckView.PAGE_CARDS,
     )
-    assert _badge_plain(blocked) == (
-        "page cards · spread unavailable",
-        "cards · no spread",
-        "C·!",
+    assert _chip_plain(blocked) == (
+        f" PAGE CARDS {lock}  spread unavailable",
+        f" CARDS {lock}  no spread",
+        f" C{lock}  !",
     )
+    for resolved in (auto_spread, locked_spread, pending):
+        assert "auto" not in _chip_plain(resolved)[0]
+        assert "fixed" not in _chip_plain(resolved)[0]
+
+
+def test_chip_width_does_not_depend_on_focus() -> None:
+    resolved = _rv(DeckId.MAIN, DeckView.SPREAD, DeckView.SPREAD, ViewStatus.OK)
+    focused = chip_variants(resolved, accent="green", focused=True)
+    unfocused = chip_variants(resolved, accent="green", focused=False)
+    for left, right in zip(focused, unfocused, strict=True):
+        if left is None:
+            assert right is None
+            continue
+        assert left.plain == right.plain

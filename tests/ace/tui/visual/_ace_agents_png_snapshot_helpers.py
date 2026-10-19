@@ -110,7 +110,7 @@ async def show_reply_card(page: AcePage, panel_index: int = 0) -> AgentDetail:
         detail,
         panel_index,
         "reply",
-        description="visible Main header selects Reply 2/2",
+        description="visible Main header selects Reply",
     )
     return detail
 
@@ -347,7 +347,23 @@ def _main_card_header_visible(
         title = compact(title)
         position = compact(position)
         expected_header = (f"{title}{position}", f"{position}{title}")
-        return any(token in visible_text for token in expected_header)
+        if any(token in visible_text for token in expected_header):
+            return True
+        # Spread titles drop N/M; the here-name in the painted frame is the
+        # selection proof. Micro rungs may drop the name, so also accept the
+        # border title when the chrome already names this card.
+        try:
+            spread = bool(panel.deck_cards_spread)
+        except Exception:
+            spread = False
+        if not spread:
+            return False
+        if title in visible_text:
+            return True
+        try:
+            return title in compact(panel._border_title.plain)
+        except Exception:
+            return False
     except Exception:
         return False
 

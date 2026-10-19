@@ -40,12 +40,19 @@ class ViewStatus(StrEnum):
 
 @dataclass(frozen=True)
 class ResolvedView:
-    """Effective view plus policy for badge rendering."""
+    """Effective view plus policy for chip rendering.
+
+    ``shown`` follows the D5 vacuous-request label rule. ``effective`` is
+    the layout actually applied, which drives tab-vs-spread chrome.
+    ``choice_exists`` is true when two or more D3-distinct layouts exist.
+    """
 
     deck: DeckId
     policy: DeckView
     shown: DeckView
     status: ViewStatus
+    effective: DeckView
+    choice_exists: bool
 
 
 # Shallowest first: spread < page cards < page blocks.
@@ -165,12 +172,15 @@ def resolve_view(
     requested layout shares the effective signature (a vacuous request)
     shows the requested name so the badge stays stable across cards.
     """
+    choice_exists = len(_distinct_layouts(content)) >= 2
     if blocked:
         return ResolvedView(
             deck=deck,
             policy=policy,
             shown=effective_layout,
             status=ViewStatus.BLOCKED,
+            effective=effective_layout,
+            choice_exists=choice_exists,
         )
     if pending:
         return ResolvedView(
@@ -178,6 +188,8 @@ def resolve_view(
             policy=policy,
             shown=effective_layout,
             status=ViewStatus.PENDING,
+            effective=effective_layout,
+            choice_exists=choice_exists,
         )
     if policy is DeckView.AUTO:
         return ResolvedView(
@@ -185,6 +197,8 @@ def resolve_view(
             policy=policy,
             shown=effective_layout,
             status=ViewStatus.OK,
+            effective=effective_layout,
+            choice_exists=choice_exists,
         )
     try:
         requested_signature = _layout_signature(policy, content)
@@ -195,12 +209,21 @@ def resolve_view(
             policy=policy,
             shown=effective_layout,
             status=ViewStatus.OK,
+            effective=effective_layout,
+            choice_exists=choice_exists,
         )
     if requested_signature == effective_signature:
         shown: DeckView = policy
     else:
         shown = effective_layout
-    return ResolvedView(deck=deck, policy=policy, shown=shown, status=ViewStatus.OK)
+    return ResolvedView(
+        deck=deck,
+        policy=policy,
+        shown=shown,
+        status=ViewStatus.OK,
+        effective=effective_layout,
+        choice_exists=choice_exists,
+    )
 
 
 __all__ = [

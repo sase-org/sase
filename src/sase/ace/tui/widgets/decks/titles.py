@@ -4,14 +4,17 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from rich.cells import cell_len
 from rich.text import Text
 
 from .model import DeckId, DeckLayout
 from .spec import DECK_SPECS, active_deck_cycle
-
 from .view_policy import ResolvedView
+
+if TYPE_CHECKING:
+    from .title_scope import SpreadCue
 
 DECK_GLYPHS: dict[DeckId, str] = {s.deck_id: s.glyph for s in DECK_SPECS}
 
@@ -36,6 +39,7 @@ _SEPARATOR = "#444444"
 ZOOM_CHIP_TEXT = "ZOOM"
 ZOOM_CHIP_STYLE = "bold #1a1a1a on #FFD700"
 ZOOM_CHIP_WIDTH = 5  # "ZOOM" plus one trailing space.
+# VIEW_CHIP_STYLE lives in view_chip.py next to this ZOOM chip.
 
 
 @dataclass(frozen=True)
@@ -76,16 +80,10 @@ def _append_name(
     focused: bool,
     badge: Text | None,
 ) -> None:
-    """Append ``glyph NAME`` plus the optional view badge after it."""
-    glyph = DECK_GLYPHS[deck]
-    name = DECK_NAMES[deck]
-    if focused:
-        text.append(f"{glyph} {name} ", style=f"bold {accent}")
-    else:
-        text.append(f"{glyph} {name} ", style="dim")
-    if badge is not None:
-        text.append_text(badge)
-        text.append(" ", style="")
+    """Append ``glyph NAME`` plus the optional view chip after it."""
+    from .title_scope import append_deck_name
+
+    append_deck_name(text, deck, accent=accent, focused=focused, badge=badge)
 
 
 def _build_full(
@@ -173,15 +171,10 @@ def _skips_full_tier(deck: DeckId, tab_count: int) -> bool:
 def _badge_variants(
     deck: DeckId, view: ResolvedView | None, *, accent: str, focused: bool
 ) -> tuple[Text | None, Text | None, Text | None]:
-    """Return the (long, short, tiny) badge, or Nones when deck has no badge."""
-    if view is None:
-        return (None, None, None)
-    if deck is DeckId.MAIN or deck is DeckId.FILES:
-        from .view_badge import badge_variants
+    """Return the (long, short, tiny) view chip, or Nones when hidden."""
+    from .title_scope import chip_set
 
-        long, short, tiny = badge_variants(view, accent=accent, focused=focused)
-        return (long, short, tiny)
-    return (None, None, None)
+    return chip_set(deck, view, accent=accent, focused=focused)
 
 
 def _with_zoom_chip(rung: Text) -> Text:
@@ -191,6 +184,143 @@ def _with_zoom_chip(rung: Text) -> Text:
     chip.append(" ", style="")
     chip.append_text(rung)
     return chip
+
+
+def _pick_title_rung(candidates: Sequence[Text], *, width: int, zoomed: bool) -> Text:
+    """Return the widest fitting rung, wrapping with ZOOM when zoomed."""
+    if not candidates:
+        return Text()
+    if not zoomed:
+        if width <= 0:
+            return candidates[0]
+        for rendered in candidates:
+            if _plain_width(rendered) <= width:
+                return rendered
+        return candidates[-1]
+    if width <= 0:
+        return _with_zoom_chip(candidates[0])
+    budget = width - ZOOM_CHIP_WIDTH
+    for rendered in candidates:
+        if _plain_width(rendered) <= budget:
+            return _with_zoom_chip(rendered)
+    return Text(ZOOM_CHIP_TEXT, style=ZOOM_CHIP_STYLE)
+
+
+def _paged_title_candidates(
+    deck: DeckId,
+    tabs: Sequence[CardTab],
+    active_index: int | None,
+    *,
+    accent: str,
+    focused: bool,
+    long_badge: Text | None,
+    short_badge: Text | None,
+    tiny_badge: Text | None,
+) -> list[Text]:
+    """Return the paged tab-strip ladder."""
+    use_compact_full = _skips_full_tier(deck, len(tabs))
+    has_badge = long_badge is not None
+    if not has_badge:
+        if use_compact_full:
+            return [
+                _build_compact(
+                    deck, tabs, active_index, accent=accent, focused=focused
+                ),
+                _build_micro(deck, tabs, active_index, accent=accent, focused=focused),
+            ]
+        return [
+            _build_full(deck, tabs, active_index, accent=accent, focused=focused),
+            _build_compact(deck, tabs, active_index, accent=accent, focused=focused),
+            _build_micro(deck, tabs, active_index, accent=accent, focused=focused),
+        ]
+    assert short_badge is not None and tiny_badge is not None
+    if use_compact_full:
+        return [
+            _build_compact(
+                deck,
+                tabs,
+                active_index,
+                accent=accent,
+                focused=focused,
+                badge=long_badge,
+            ),
+            _build_compact(
+                deck,
+                tabs,
+                active_index,
+                accent=accent,
+                focused=focused,
+                badge=short_badge,
+            ),
+            _build_compact(
+                deck,
+                tabs,
+                active_index,
+                accent=accent,
+                focused=focused,
+                badge=tiny_badge,
+            ),
+            _build_micro(
+                deck,
+                tabs,
+                active_index,
+                accent=accent,
+                focused=focused,
+                badge=tiny_badge,
+            ),
+            _build_micro(deck, tabs, active_index, accent=accent, focused=focused),
+        ]
+    return [
+        _build_full(
+            deck,
+            tabs,
+            active_index,
+            accent=accent,
+            focused=focused,
+            badge=long_badge,
+        ),
+        _build_full(
+            deck,
+            tabs,
+            active_index,
+            accent=accent,
+            focused=focused,
+            badge=short_badge,
+        ),
+        _build_compact(
+            deck,
+            tabs,
+            active_index,
+            accent=accent,
+            focused=focused,
+            badge=long_badge,
+        ),
+        _build_compact(
+            deck,
+            tabs,
+            active_index,
+            accent=accent,
+            focused=focused,
+            badge=short_badge,
+        ),
+        _build_compact(
+            deck,
+            tabs,
+            active_index,
+            accent=accent,
+            focused=focused,
+            badge=tiny_badge,
+        ),
+        _build_micro(
+            deck,
+            tabs,
+            active_index,
+            accent=accent,
+            focused=focused,
+            badge=tiny_badge,
+        ),
+        _build_micro(deck, tabs, active_index, accent=accent, focused=focused),
+    ]
 
 
 def deck_title(
@@ -203,195 +333,57 @@ def deck_title(
     focused: bool,
     view: ResolvedView | None = None,
     zoomed: bool = False,
+    paged: bool = True,
+    spread_cue: SpreadCue | None = None,
 ) -> Text:
-    """Render a deck title tab strip, picking the widest fitting tier.
+    """Render a deck title, picking the widest fitting tier.
 
-    ``view`` adds the effective-view badge after the deck name for Main
-    and Files decks; every other deck (and ``None``) keeps the tab-only
-    rungs. The first rung that fits the chrome budget wins: full tabs +
-    long badge, full tabs + short badge, compact tabs + long badge,
-    compact tabs + short badge, compact tabs + tiny badge, micro + tiny
-    badge, then micro alone.
+    One card is never paged: the heading is the card name with no tabs and
+    no chip. Spread decks (``paged=False``) use a you-are-here name plus
+    ``▴``/``▾`` cues. Paged decks keep the tab-strip rungs, with the view
+    chip in place of the old ``auto``/``fixed`` badge.
 
-    When ``zoomed``, every rung is led by the reverse-gold ZOOM chip and
-    rungs are picked against ``width`` minus the chip; the chip is never
+    ``paged`` defaults to True for non-chrome callers. When ``zoomed``,
+    every rung is led by the reverse-gold ZOOM chip; the chip is never
     dropped, so below the smallest rung the chip alone remains.
     """
+    from .title_scope import (
+        SpreadCue,
+        one_card_candidates,
+        spread_title_candidates,
+        structural_spread_cue,
+    )
+
     tabs = tuple(tabs)
+    if len(tabs) <= 1:
+        candidates = one_card_candidates(deck, tabs, accent=accent, focused=focused)
+        return _pick_title_rung(candidates, width=width, zoomed=zoomed)
     long_badge, short_badge, tiny_badge = _badge_variants(
         deck, view, accent=accent, focused=focused
     )
-    has_badge = long_badge is not None
-    # Files and FINAL list full-tier tabs only when there are 4 or fewer;
-    # FINAL has no badge, so it shares Files' compact-only rungs.
-    use_compact_full = _skips_full_tier(deck, len(tabs))
-    candidates: list[tuple[str, Text]]
-    if use_compact_full:
-        candidates = [
-            (
-                "compact",
-                _build_compact(
-                    deck, tabs, active_index, accent=accent, focused=focused
-                ),
-            ),
-            (
-                "micro",
-                _build_micro(deck, tabs, active_index, accent=accent, focused=focused),
-            ),
-        ]
-    else:
-        candidates = [
-            (
-                "full",
-                _build_full(deck, tabs, active_index, accent=accent, focused=focused),
-            ),
-            (
-                "compact",
-                _build_compact(
-                    deck, tabs, active_index, accent=accent, focused=focused
-                ),
-            ),
-            (
-                "micro",
-                _build_micro(deck, tabs, active_index, accent=accent, focused=focused),
-            ),
-        ]
-    if has_badge:
-        assert long_badge is not None and short_badge is not None
-        assert tiny_badge is not None
-        if use_compact_full:
-            candidates = [
-                (
-                    "compact-long",
-                    _build_compact(
-                        deck,
-                        tabs,
-                        active_index,
-                        accent=accent,
-                        focused=focused,
-                        badge=long_badge,
-                    ),
-                ),
-                (
-                    "compact-short",
-                    _build_compact(
-                        deck,
-                        tabs,
-                        active_index,
-                        accent=accent,
-                        focused=focused,
-                        badge=short_badge,
-                    ),
-                ),
-                (
-                    "compact-tiny",
-                    _build_compact(
-                        deck,
-                        tabs,
-                        active_index,
-                        accent=accent,
-                        focused=focused,
-                        badge=tiny_badge,
-                    ),
-                ),
-                (
-                    "micro-tiny",
-                    _build_micro(
-                        deck,
-                        tabs,
-                        active_index,
-                        accent=accent,
-                        focused=focused,
-                        badge=tiny_badge,
-                    ),
-                ),
-                candidates[1],
-            ]
-        else:
-            candidates = [
-                (
-                    "full-long",
-                    _build_full(
-                        deck,
-                        tabs,
-                        active_index,
-                        accent=accent,
-                        focused=focused,
-                        badge=long_badge,
-                    ),
-                ),
-                (
-                    "full-short",
-                    _build_full(
-                        deck,
-                        tabs,
-                        active_index,
-                        accent=accent,
-                        focused=focused,
-                        badge=short_badge,
-                    ),
-                ),
-                (
-                    "compact-long",
-                    _build_compact(
-                        deck,
-                        tabs,
-                        active_index,
-                        accent=accent,
-                        focused=focused,
-                        badge=long_badge,
-                    ),
-                ),
-                (
-                    "compact-short",
-                    _build_compact(
-                        deck,
-                        tabs,
-                        active_index,
-                        accent=accent,
-                        focused=focused,
-                        badge=short_badge,
-                    ),
-                ),
-                (
-                    "compact-tiny",
-                    _build_compact(
-                        deck,
-                        tabs,
-                        active_index,
-                        accent=accent,
-                        focused=focused,
-                        badge=tiny_badge,
-                    ),
-                ),
-                (
-                    "micro-tiny",
-                    _build_micro(
-                        deck,
-                        tabs,
-                        active_index,
-                        accent=accent,
-                        focused=focused,
-                        badge=tiny_badge,
-                    ),
-                ),
-                candidates[2],
-            ]
-    if not zoomed:
-        if width <= 0:
-            return candidates[0][1]
-        for _tier, rendered in candidates:
-            if _plain_width(rendered) <= width:
-                return rendered
-        return candidates[-1][1]
-    if width <= 0:
-        return _with_zoom_chip(candidates[0][1])
-    budget = width - ZOOM_CHIP_WIDTH
-    for _tier, rendered in candidates:
-        if _plain_width(rendered) <= budget:
-            return _with_zoom_chip(rendered)
-    chip_only = Text(ZOOM_CHIP_TEXT, style=ZOOM_CHIP_STYLE)
-    return chip_only
+    if not paged:
+        cue = spread_cue or structural_spread_cue(tabs, active_index)
+        if cue is None:
+            cue = SpreadCue(here=tabs[0].title)
+        candidates = spread_title_candidates(
+            deck,
+            cue,
+            (long_badge, short_badge, tiny_badge),
+            accent=accent,
+            focused=focused,
+        )
+        return _pick_title_rung(candidates, width=width, zoomed=zoomed)
+    candidates = _paged_title_candidates(
+        deck,
+        tabs,
+        active_index,
+        accent=accent,
+        focused=focused,
+        long_badge=long_badge,
+        short_badge=short_badge,
+        tiny_badge=tiny_badge,
+    )
+    return _pick_title_rung(candidates, width=width, zoomed=zoomed)
 
 
 def final_switcher_segment(status: str | None, glyph: str | None) -> Text:

@@ -65,7 +65,8 @@ async def test_files_deck_spreads_live_without_a_hand_fed_probe(
         assert panel._render_mode[DeckId.FILES] is RenderMode.SPREAD
         # The title badge names the view now; the subtitle keeps no tag.
         assert "spread" not in panel._border_subtitle.plain
-        assert "spread · auto" in panel._border_title.plain
+        assert "SPREAD" in panel._border_title.plain
+        assert "auto" not in panel._border_title.plain
 
 
 async def test_files_probe_error_clears_pending_and_stays_paged(

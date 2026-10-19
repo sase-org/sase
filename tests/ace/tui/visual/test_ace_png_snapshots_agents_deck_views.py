@@ -1,9 +1,9 @@
 """sase's TUI PNG visual snapshots for Agents deck views.
 
-Covers the view badge (effective layout plus auto/fixed policy) on Main and
-Files decks: automatic page blocks, one ``P`` to fixed page cards, two ``P``
-to fixed spread, a narrow split with focused-fixed versus unfocused-auto
-badges, a forced Files spread, and a media-blocked Files spread request.
+Covers the view chip (effective layout plus lock) on Main and Files decks:
+automatic page blocks, one ``P`` to locked page cards, two ``P`` to locked
+spread, a narrow split with a focused lock versus an unfocused auto chip, a
+forced Files spread, and a media-blocked Files spread request.
 """
 
 from __future__ import annotations
@@ -239,10 +239,9 @@ async def test_agents_deck_view_auto_page_blocks_png_snapshot(
         assert card is not None and card.has_block_navigation
         assert panel.effective_layout(DeckId.MAIN) is DeckView.PAGE_BLOCKS
         assert panel.view_policy(DeckId.MAIN) is DeckView.AUTO
-        # The 120-column ladder picks the short rung (``blocks · auto``);
-        # either rung contains these words.
-        assert "blocks" in _title_plain(detail)
-        assert "auto" in _title_plain(detail)
+        title = _title_plain(detail)
+        assert "BLOCKS" in title or "PAGE BLOCKS" in title or " B " in f" {title} "
+        assert "\U0001f512" not in title
         assert panel._block_rail_widget().has_class("-shown")
         ace_png_visual.assert_page_png(
             page,
@@ -268,8 +267,9 @@ async def test_agents_deck_view_fixed_page_cards_png_snapshot(
         # One P widens page blocks to fixed page cards.
         await _press_view(page, detail, DeckView.PAGE_CARDS)
         assert panel.effective_layout(DeckId.MAIN) is DeckView.PAGE_CARDS
-        assert "cards" in _title_plain(detail)
-        assert "fixed" in _title_plain(detail)
+        title = _title_plain(detail)
+        assert "CARDS" in title or "PAGE CARDS" in title
+        assert "\U0001f512" in title
         ace_png_visual.assert_page_png(
             page,
             "agents_deck_view_fixed_page_cards_120x40",
@@ -291,12 +291,14 @@ async def test_agents_deck_view_fixed_spread_png_snapshot(
         detail = await _show_reply(page)
         panel = detail.deck_area.panel(0)
         assert panel.effective_layout(DeckId.MAIN) is DeckView.PAGE_BLOCKS
-        # Two P presses widen through page cards to fixed spread.
+        # Two P presses widen through page cards to locked spread.
         await _press_view(page, detail, DeckView.PAGE_CARDS)
         await _press_view(page, detail, DeckView.SPREAD)
         assert panel.effective_layout(DeckId.MAIN) is DeckView.SPREAD
-        assert "spread" in _title_plain(detail)
-        assert "fixed" in _title_plain(detail)
+        title = _title_plain(detail)
+        assert "SPREAD" in title
+        assert "\U0001f512" in title
+        assert "\u2503" not in title
         ace_png_visual.assert_page_png(
             page,
             "agents_deck_view_fixed_spread_120x40",
@@ -359,12 +361,11 @@ async def test_agents_deck_view_split_narrow_png_snapshot(
         page.app.clear_notifications()
         await wait_for_visual_idle(page)
         assert detail.deck_area.panel(1).view_policy(DeckId.MAIN) is DeckView.AUTO
-        # Narrow split panels ladder down to short or tiny rungs
-        # (``fixed``/``auto`` versus ``·F``/``·A``).
+        # Narrow split panels ladder down to short or tiny rungs.
         left_title = _title_plain(detail, 0)
         right_title = _title_plain(detail, 1)
-        assert "fixed" in left_title or "·F" in left_title
-        assert "auto" in right_title or "·A" in right_title
+        assert "\U0001f512" in left_title
+        assert "\U0001f512" not in right_title
         ace_png_visual.assert_page_png(
             page,
             "agents_deck_view_split_narrow_120x40",
@@ -406,8 +407,9 @@ async def test_agents_deck_view_files_fixed_spread_png_snapshot(
             description="Files deck spreads after the complete probe",
         )
         await wait_for_visual_idle(page)
-        assert "spread" in _title_plain(detail)
-        assert "fixed" in _title_plain(detail)
+        files_title = _title_plain(detail)
+        assert "SPREAD" in files_title
+        assert "\U0001f512" in files_title
         ace_png_visual.assert_page_png(
             page,
             "agents_deck_view_files_fixed_spread_160x40",
@@ -477,15 +479,129 @@ async def test_agents_deck_view_files_media_blocked_png_snapshot(
         await wait_for_visual_idle(page)
         assert panel._render_mode.get(DeckId.FILES) is RenderMode.PAGED
         blocked_title = _title_plain(detail)
-        # At 120 columns the ladder drops to the tiny rung (``C·!``); the
-        # long/short blocked texts are pinned in test_deck_view_policy.py.
         assert (
             "spread unavailable" in blocked_title
             or "no spread" in blocked_title
-            or "C·!" in blocked_title
+            or "!" in blocked_title
         )
         ace_png_visual.assert_page_png(
             page,
             "agents_deck_view_files_media_blocked_120x40",
             title="ACE agents deck view Files media blocked",
+        )
+
+
+async def test_agents_deck_view_split_spread_paged_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    patch_startup_loaders(
+        monkeypatch,
+        agents=[_view_session(tmp_path, extra_reply_lines=60)],
+    )
+    async with AcePage(query='"visual"', patches=patches()) as page:
+        await _goto_agents(page, 1)
+        detail = await _show_reply(page)
+        detail.deck_area.panel(0)._availability = {
+            DeckId.MAIN: DeckAvailability(True, 2),
+            DeckId.FILES: DeckAvailability(False, 0),
+            DeckId.TOOLS: DeckAvailability(False, 0),
+        }
+        await page.press("vertical_line")
+        await wait_for_state(
+            page,
+            lambda: detail.deck_area.panel(1).deck is DeckId.MAIN,
+            description="Right panel duplicates the Main deck",
+        )
+        detail.set_deck_preferred_card(0, "reply")
+        detail.set_deck_preferred_card(1, "reply")
+        page.app._refresh_agents_display(list_changed=True, defer_detail=True)
+        await wait_for_state(
+            page,
+            lambda: (
+                detail.deck_area.panel(0).main_view.active_card_id == "reply"
+                and detail.deck_area.panel(1).main_view.active_card_id == "reply"
+            ),
+            description="Both panels show the Reply card",
+        )
+        await page.press("ctrl+f")
+        await wait_for_state(
+            page,
+            lambda: detail.deck_area.focused_panel().panel_index == 0,
+            description="Left panel is focused",
+        )
+        await _press_view(page, detail, DeckView.PAGE_CARDS)
+        await _press_view(page, detail, DeckView.SPREAD)
+        page.app.clear_notifications()
+        await wait_for_visual_idle(page)
+        left_title = _title_plain(detail, 0)
+        right_title = _title_plain(detail, 1)
+        assert (
+            "SPREAD" in left_title
+            or " S " in f" {left_title} "
+            or "\U0001f512" in left_title
+        )
+        assert "\u2503" not in left_title
+        # Split-narrow panels collapse the unfocused PAGE BLOCKS chip to
+        # ``B  2/2``; N/M and the tiny ``B`` mark paged chrome when ┃/‹
+        # do not fit.
+        assert (
+            "\u2503" in right_title
+            or "\u2039" in right_title
+            or "2/2" in right_title
+            or " B " in f" {right_title} "
+            or "BLOCKS" in right_title
+        )
+        assert "\u25b4" not in right_title and "\u25be" not in right_title
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_deck_view_split_spread_paged_120x40",
+            title="ACE agents deck view split spread and paged",
+        )
+
+
+async def test_agents_deck_view_one_card_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    from rich.text import Text
+
+    from sase.ace.tui.widgets.decks.card_part import context_card
+    from sase.ace.tui.widgets.decks.main_document import MainDeckDocument
+
+    patch_startup_loaders(
+        monkeypatch,
+        agents=[_view_session(tmp_path, extra_reply_lines=0)],
+    )
+    async with AcePage(query='"visual"', patches=patches()) as page:
+        await _goto_agents(page, 1)
+        detail = await _show_reply(page)
+        panel = detail.deck_area.panel(0)
+        panel.show_main_document(
+            MainDeckDocument(
+                cards=(context_card(Text("only-context")),),
+                subject="one-card",
+                partial=False,
+                digest="one-card-heading",
+            ),
+            "context",
+        )
+        await wait_for_state(
+            page,
+            lambda: len(panel._main_document.cards) == 1,
+            description="Main deck shows one card",
+        )
+        panel.refresh_chrome()
+        page.app.clear_notifications()
+        await wait_for_visual_idle(page)
+        title = _title_plain(detail)
+        assert "\u2503" not in title
+        assert "SPREAD" not in title
+        assert "PAGE" not in title
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_deck_view_one_card_120x40",
+            title="ACE agents deck view one-card heading",
         )

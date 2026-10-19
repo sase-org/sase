@@ -37,7 +37,7 @@ class AgentFooterDisplayMixin:
 
     def _archive_footer_deck_counts(
         self, agent_detail: AgentDetail
-    ) -> tuple[int, bool, bool]:
+    ) -> tuple[int, bool, bool, bool]:
         """Return deck footer counts for the Archive's conditional footer.
 
         Reads only the focused deck panel of the shared detail widget, so
@@ -47,6 +47,7 @@ class AgentFooterDisplayMixin:
         deck_card_count = 0
         card_blocks_navigable = False
         deck_view_cycle_available = False
+        deck_cards_spread = False
         try:
             from ...widgets.decks.model import DeckId as _DeckId
 
@@ -59,6 +60,10 @@ class AgentFooterDisplayMixin:
                 deck_view_cycle_available = bool(focused.deck_view_cycle_available)
             except Exception:
                 deck_view_cycle_available = False
+            try:
+                deck_cards_spread = bool(focused.deck_cards_spread)
+            except Exception:
+                deck_cards_spread = False
             if focused.deck is _DeckId.MAIN:
                 try:
                     deck_card_count = len(
@@ -92,7 +97,12 @@ class AgentFooterDisplayMixin:
                     deck_card_count = 0
         except Exception:
             deck_card_count = 0
-        return deck_card_count, card_blocks_navigable, deck_view_cycle_available
+        return (
+            deck_card_count,
+            card_blocks_navigable,
+            deck_view_cycle_available,
+            deck_cards_spread,
+        )
 
     def _apply_archive_footer_update(
         self,
@@ -105,9 +115,12 @@ class AgentFooterDisplayMixin:
             archive_marked_count,
         )
 
-        deck_card_count, card_blocks_navigable, deck_view_cycle_available = (
-            self._archive_footer_deck_counts(agent_detail)
-        )
+        (
+            deck_card_count,
+            card_blocks_navigable,
+            deck_view_cycle_available,
+            deck_cards_spread,
+        ) = self._archive_footer_deck_counts(agent_detail)
         selection_is_container = False
         has_selection = archive_markable_key(self) is not None
         if has_selection:
@@ -126,6 +139,7 @@ class AgentFooterDisplayMixin:
             deck_card_count=deck_card_count,
             card_blocks_navigable=card_blocks_navigable,
             deck_view_cycle_available=deck_view_cycle_available,
+            deck_cards_spread=deck_cards_spread,
         )
 
     def _apply_agent_footer_update(
@@ -415,6 +429,7 @@ class AgentFooterDisplayMixin:
             deck_card_count = 0
             card_blocks_navigable = False
             deck_view_cycle_available = False
+            deck_cards_spread = False
             try:
                 from ...widgets.decks.model import DeckId as _DeckId
                 from ...widgets.decks.model import DeckLayout as _DeckLayout
@@ -438,6 +453,10 @@ class AgentFooterDisplayMixin:
                         )
                     except Exception:
                         deck_view_cycle_available = False
+                    try:
+                        deck_cards_spread = bool(focused.deck_cards_spread)
+                    except Exception:
+                        deck_cards_spread = False
                     if focused.deck is _DeckId.MAIN:
                         try:
                             deck_card_count = len(
@@ -491,6 +510,7 @@ class AgentFooterDisplayMixin:
                 deck_card_count = 0
                 card_blocks_navigable = False
                 deck_view_cycle_available = False
+                deck_cards_spread = False
             _tab_strip_visible = False
             _tab_visible_fn = getattr(self, "_agent_tab_strip_visible", None)
             if callable(_tab_visible_fn):
@@ -563,6 +583,7 @@ class AgentFooterDisplayMixin:
                 deck_card_count=deck_card_count,
                 card_blocks_navigable=card_blocks_navigable,
                 deck_view_cycle_available=deck_view_cycle_available,
+                deck_cards_spread=deck_cards_spread,
                 agent_tab_strip_visible=_tab_strip_visible,
                 deck_zoomed=deck_zoomed,
                 node_rail=node_rail,

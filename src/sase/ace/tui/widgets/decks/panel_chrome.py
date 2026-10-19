@@ -22,6 +22,7 @@ class DeckPanelChromeMixin:
     _deck: DeckId
     _focused: bool
     _held_chrome_views: dict[DeckId, ResolvedView]
+    _deck_cards_spread: bool
 
     def _resolve_accent(self, deck: DeckId) -> str:
         if deck is DeckId.MAIN:
@@ -442,6 +443,102 @@ class DeckPanelChromeMixin:
             return fresh
         return None
 
+    def _held_title_tabs(
+        self,
+        deck: DeckId,
+        tabs: tuple[CardTab, ...],
+        active_index: int | None,
+    ) -> tuple[tuple[CardTab, ...], int | None]:
+        """Hold Main title tabs across partial paints so the cue stays put.
+
+        ``_chrome_view`` already holds the chip's ``ResolvedView``; the
+        you-are-here name still comes from ``tabs`` / ``active_index``, so a
+        ``j``/``k`` flash that lands on a different preferred card would
+        otherwise rewrite the spread cue. Empty Main decks clear the hold.
+        """
+        if deck is not DeckId.MAIN:
+            return tabs, active_index
+        try:
+            document = self._main_document  # type: ignore[attr-defined]
+            empty = not bool(getattr(document, "cards", ()))
+            partial = bool(getattr(document, "partial", False))
+        except Exception:
+            return tabs, active_index
+        if empty:
+            try:
+                self._held_chrome_tabs = None
+                self._held_chrome_active_index = None
+            except Exception:
+                pass
+            return tabs, active_index
+        if partial:
+            held_tabs = getattr(self, "_held_chrome_tabs", None)
+            if held_tabs:
+                return held_tabs, getattr(self, "_held_chrome_active_index", None)
+            return tabs, active_index
+        try:
+            self._held_chrome_tabs = tabs
+            self._held_chrome_active_index = active_index
+        except Exception:
+            pass
+        return tabs, active_index
+
+    def _title_is_paged(
+        self,
+        deck: DeckId,
+        tabs: tuple[CardTab, ...],
+        view: ResolvedView | None,
+    ) -> bool:
+        """Return whether the title should use paged tab rungs.
+
+        One card is never paged. Tools is always paged. Main and Files
+        follow the held view's effective layout so the chip and tabs
+        agree during partial paints. FINAL and RECORD follow the applied
+        render mode.
+        """
+        if len(tabs) <= 1:
+            return False
+        if deck is DeckId.TOOLS:
+            return True
+        if deck in (DeckId.MAIN, DeckId.FILES) and view is not None:
+            return view.effective is not DeckView.SPREAD
+        try:
+            return not self.is_spread(deck)  # type: ignore[attr-defined]
+        except Exception:
+            return not self._is_spread_active_for(deck)
+
+    @property
+    def deck_cards_spread(self) -> bool:
+        """Return whether the shown deck is spread with two or more cards."""
+        try:
+            return bool(self._deck_cards_spread)
+        except Exception:
+            return False
+
+    def _sync_deck_cards_spread(self, spread: bool) -> None:
+        """Cache the spread-cards predicate and poke the footer on flips."""
+        try:
+            previous = bool(self._deck_cards_spread)
+        except Exception:
+            previous = False
+        try:
+            self._deck_cards_spread = bool(spread)
+        except Exception:
+            pass
+        if bool(spread) == previous:
+            return
+        try:
+            app = self.app  # type: ignore[attr-defined]
+        except Exception:
+            return
+        refresh = getattr(app, "_refresh_agent_footer_bindings_only", None)
+        if not callable(refresh):
+            return
+        try:
+            refresh()
+        except Exception:
+            pass
+
     def _zoom_key_display(self) -> str:
         """Return the configured zoom key display, or "" when unbound."""
         try:
@@ -497,10 +594,18 @@ class DeckPanelChromeMixin:
         active_index = self._active_tab_index()
         if deck is DeckId.MAIN and not tabs:
             active_index = None
+        tabs, active_index = self._held_title_tabs(deck, tabs, active_index)
         try:
             view = self._chrome_view(deck)
         except Exception:
             view = None
+        paged = self._title_is_paged(deck, tabs, view)
+        if paged:
+            spread_cue = None
+        else:
+            from .title_scope import structural_spread_cue
+
+            spread_cue = structural_spread_cue(tabs, active_index)
         try:
             self.border_title = deck_title(  # type: ignore[attr-defined]
                 deck,
@@ -511,9 +616,12 @@ class DeckPanelChromeMixin:
                 focused=self._focused,
                 view=view,
                 zoomed=zoomed,
+                paged=paged,
+                spread_cue=spread_cue,
             )
         except Exception:
             pass
+        self._sync_deck_cards_spread(not paged and len(tabs) > 1)
         if deck is DeckId.FILES:
             from .titles import file_line_status
 

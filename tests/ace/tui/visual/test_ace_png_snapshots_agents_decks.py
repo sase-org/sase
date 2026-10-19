@@ -454,7 +454,8 @@ async def test_agents_decks_single_files_spread_png_snapshot(
         assert panel.deck is DeckId.FILES
         assert panel.is_spread(DeckId.FILES)
         assert "spread" not in _subtitle_plain(detail)
-        assert "spread · auto" in _title_plain(detail)
+        assert "SPREAD" in _title_plain(detail)
+        assert "auto" not in _title_plain(detail)
         ace_png_visual.assert_page_png(
             page,
             "agents_decks_single_files_spread_160x40",

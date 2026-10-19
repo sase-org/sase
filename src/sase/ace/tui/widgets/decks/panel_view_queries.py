@@ -199,6 +199,8 @@ class DeckPanelViewQueriesMixin:
                 policy=policy,
                 shown=effective,
                 status=ViewStatus.OK,
+                effective=effective,
+                choice_exists=False,
             )
 
     # -- Cycle availability ---------------------------------------------

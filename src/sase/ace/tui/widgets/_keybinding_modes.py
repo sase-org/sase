@@ -45,6 +45,7 @@ class KeybindingModesMixin:
             deck_card_count: int = 0,
             card_blocks_navigable: bool = False,
             deck_view_cycle_available: bool = False,
+            deck_cards_spread: bool = False,
         ) -> list[tuple[str, str]]: ...
 
         def _compute_agent_bindings(
@@ -88,6 +89,7 @@ class KeybindingModesMixin:
             deck_card_count: int = 0,
             card_blocks_navigable: bool = False,
             deck_view_cycle_available: bool = False,
+            deck_cards_spread: bool = False,
             agent_tab_strip_visible: bool = False,
             deck_zoomed: bool = False,
             node_rail: bool = False,
@@ -185,6 +187,7 @@ class KeybindingModesMixin:
         deck_card_count: int = 0,
         card_blocks_navigable: bool = False,
         deck_view_cycle_available: bool = False,
+        deck_cards_spread: bool = False,
         agent_tab_strip_visible: bool = False,
         deck_zoomed: bool = False,
         node_rail: bool = False,
@@ -229,6 +232,7 @@ class KeybindingModesMixin:
             deck_card_count=deck_card_count,
             card_blocks_navigable=card_blocks_navigable,
             deck_view_cycle_available=deck_view_cycle_available,
+            deck_cards_spread=deck_cards_spread,
             agent_tab_strip_visible=agent_tab_strip_visible,
             deck_zoomed=deck_zoomed,
             node_rail=node_rail,
@@ -244,6 +248,7 @@ class KeybindingModesMixin:
         deck_card_count: int = 0,
         card_blocks_navigable: bool = False,
         deck_view_cycle_available: bool = False,
+        deck_cards_spread: bool = False,
     ) -> None:
         """Update bindings for the Agents Archive view (read-only)."""
         bindings = self._compute_archive_bindings(
@@ -253,6 +258,7 @@ class KeybindingModesMixin:
             deck_card_count=deck_card_count,
             card_blocks_navigable=card_blocks_navigable,
             deck_view_cycle_available=deck_view_cycle_available,
+            deck_cards_spread=deck_cards_spread,
         )
         self._update_display(bindings)
 

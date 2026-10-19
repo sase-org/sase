@@ -74,7 +74,7 @@ def main_sections(km: KeymapRegistry) -> Sections:
                 ),
                 (
                     d(a.cycle_deck_view),
-                    "Cycle deck view (auto: palette)",
+                    "Lock a wider deck view (palette unlocks)",
                 ),
                 (
                     d(a.pick_deck),

@@ -69,6 +69,7 @@ class AgentBindingsMixin:
         deck_card_count: int = 0,
         card_blocks_navigable: bool = False,
         deck_view_cycle_available: bool = False,
+        deck_cards_spread: bool = False,
         agent_tab_strip_visible: bool = False,
         deck_zoomed: bool = False,
         node_rail: bool = False,
@@ -479,7 +480,7 @@ class AgentBindingsMixin:
             bindings.append(
                 (
                     f"{self._kd('next_deck_card')}/{self._kd('prev_deck_card')}",
-                    "cards",
+                    "jump" if deck_cards_spread else "cards",
                 )
             )
         if card_blocks_navigable:
@@ -526,6 +527,7 @@ class AgentBindingsMixin:
         deck_card_count: int = 0,
         card_blocks_navigable: bool = False,
         deck_view_cycle_available: bool = False,
+        deck_cards_spread: bool = False,
     ) -> list[tuple[str, str]]:
         """Compute conditional bindings for the Agents Archive view.
 
@@ -552,7 +554,7 @@ class AgentBindingsMixin:
             bindings.append(
                 (
                     f"{self._kd('next_deck_card')}/{self._kd('prev_deck_card')}",
-                    "cards",
+                    "jump" if deck_cards_spread else "cards",
                 )
             )
         if card_blocks_navigable:
