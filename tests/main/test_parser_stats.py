@@ -101,6 +101,9 @@ def test_project_help_golden(
     capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv("COLUMNS", "80")
+    monkeypatch.setenv("NO_COLOR", "1")
+    monkeypatch.delenv("FORCE_COLOR", raising=False)
+    monkeypatch.delenv("PYTHON_COLORS", raising=False)
     help_text = parse_and_capture_help(["stats", "project", "-h"], capsys)
     path = GOLDEN / "project_help.txt"
     if _UPDATE:
@@ -114,6 +117,9 @@ def test_project_help_includes_definitions_and_examples(
     capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv("COLUMNS", "80")
+    monkeypatch.setenv("NO_COLOR", "1")
+    monkeypatch.delenv("FORCE_COLOR", raising=False)
+    monkeypatch.delenv("PYTHON_COLORS", raising=False)
     help_text = parse_and_capture_help(["stats", "project", "-h"], capsys)
 
     assert "definitions:" in help_text
@@ -123,11 +129,8 @@ def test_project_help_includes_definitions_and_examples(
     assert "sase stats project -p sase -r all" in help_text
     assert "-D, --include-disabled" in help_text
     assert "-F, --fetch" in help_text
-    assert "-f {json,markdown,rich}, --format {json,markdown,rich}" in help_text
-    assert (
-        "-g {model,patch,project,repo}, --group-by {model,patch,project,repo}"
-        in help_text
-    )
+    assert "-f, --format {json,markdown,rich}" in help_text
+    assert "-g, --group-by {model,patch,project,repo}" in help_text
     assert "-j, --json" in help_text
-    assert "-p PROJECT, --project PROJECT" in help_text
-    assert "-r RANGE, --range RANGE" in help_text
+    assert "-p, --project PROJECT" in help_text
+    assert "-r, --range RANGE" in help_text

@@ -10,17 +10,16 @@ options:
                         Also include disabled projects when no -p is given
   -F, --fetch           Fetch each code repo's default branch before measuring
                         (default: local refs)
-  -f {json,markdown,rich}, --format {json,markdown,rich}
+  -f, --format {json,markdown,rich}
                         Output format (default: rich)
-  -g {model,patch,project,repo}, --group-by {model,patch,project,repo}
+  -g, --group-by {model,patch,project,repo}
                         Breakdown table, like the TUI's g key (default:
                         project for several projects, model for one)
   -j, --json            Shorthand for --format json
-  -p PROJECT, --project PROJECT
+  -p, --project PROJECT
                         Project name, alias, key, or +tag; repeatable
                         (default: every enabled project)
-  -r RANGE, --range RANGE
-                        today, 24h, 7d, 30d, 90d, all, Nh/Nd/Nw, YYYY-MM,
+  -r, --range RANGE     today, 24h, 7d, 30d, 90d, all, Nh/Nd/Nw, YYYY-MM,
                         YYYY-MM-DD, or START..END (default: 7d, the TUI
                         default)
 

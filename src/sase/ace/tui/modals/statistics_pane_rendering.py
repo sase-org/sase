@@ -56,6 +56,7 @@ class StatisticsPanePresentationBase(StatisticsViewsRenderingMixin, Vertical):
     _last_result: StatisticsViewData | None
     _last_error: str
     _stale_at: float | None
+    _painted_identity: tuple[object, ...] | None
     _compact_scope: bool
     _runners_stacked: bool
     _perf_stacked: bool
@@ -214,15 +215,18 @@ class StatisticsPanePresentationBase(StatisticsViewsRenderingMixin, Vertical):
     def _paint_error(self, message: str) -> None:
         self._last_error = message
         last = self._last_result
-        if (
-            last is not None
-            and self._result_matches_selection(last)
-            and self._result_paints_view(last, self._view)
-        ):
-            if self._stale_at is None:
-                self._stale_at = time.time()
-            self._update_heading()
-            return
+        if last is not None and self._result_paints_view(last, self._view):
+            matches = self._painted_identity == self._selection_identity()
+            if self._painted_identity is None:
+                try:
+                    matches = self._result_matches_selection(last)
+                except Exception:
+                    matches = False
+            if matches:
+                if self._stale_at is None:
+                    self._stale_at = time.time()
+                self._update_heading()
+                return
         self._stale_at = None
         self._update_heading()
         self._set_tiles_visible(False)
@@ -233,6 +237,10 @@ class StatisticsPanePresentationBase(StatisticsViewsRenderingMixin, Vertical):
 
     def _result_matches_selection(self, result: StatisticsViewData) -> bool:
         """Return whether ``result`` matches the pane's current selection."""
+        raise NotImplementedError
+
+    def _selection_identity(self) -> tuple[object, ...]:
+        """Return the user selection without resolved bounds."""
         raise NotImplementedError
 
     def _empty_state_message(self) -> str:

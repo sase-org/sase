@@ -116,6 +116,9 @@ class StatisticsPane(StatisticsPaneActionsMixin):
         self._stale_at: float | None = None
         self._load_generation = 0
         self._inflight_selection: tuple[object, ...] | None = None
+        self._inflight_identity: tuple[object, ...] | None = None
+        self._painted_identity: tuple[object, ...] | None = None
+        self._unmerged_primary: StatisticsViewData | None = None
         self._primary_fingerprint: str | None = None
         self._code_fingerprint: str | None = None
         self._code_complete = False
@@ -217,6 +220,29 @@ class StatisticsPane(StatisticsPaneActionsMixin):
             self._perf_group_by if self._view == "perf" else None,
         )
 
+    def _selection_identity(self) -> tuple[object, ...]:
+        """User selection without resolved bounds for revalidation checks."""
+        return (
+            self._view,
+            self._preset_key,
+            self._custom_range_value if self._preset_key is None else None,
+            self._project_filter,
+            self._macro_focus,
+            self._perf_group_by if self._view == "perf" else None,
+        )
+
+    def _painted_matches_current(self) -> bool:
+        """Whether the painted report belongs to the current user selection."""
+        if self._painted_identity is not None:
+            return self._painted_identity == self._selection_identity()
+        current = self._last_result
+        if current is None:
+            return False
+        try:
+            return self._result_matches_selection(current)
+        except Exception:
+            return False
+
     def _worker_is_running(self, worker: Worker[Any] | None) -> bool:
         return worker is not None and worker.state in (
             WorkerState.PENDING,
@@ -250,6 +276,7 @@ class StatisticsPane(StatisticsPaneActionsMixin):
             return
         self._range = self._resolve_current_range()
         selection = self._current_selection()
+        identity = self._selection_identity()
         if (
             self._worker_is_running(self._worker)
             and self._inflight_selection == selection
@@ -264,6 +291,7 @@ class StatisticsPane(StatisticsPaneActionsMixin):
         self._load_generation += 1
         generation = self._load_generation
         self._inflight_selection = selection
+        self._inflight_identity = identity
         if self._code_worker is not None:
             self._code_worker.cancel()
             self._code_worker = None
@@ -272,7 +300,7 @@ class StatisticsPane(StatisticsPaneActionsMixin):
         self._update_heading()
         matching = (
             self._last_result is not None
-            and self._result_matches_selection(self._last_result)
+            and self._painted_identity == identity
             and self._result_paints_view(self._last_result, view)
         )
         if not matching:
@@ -429,6 +457,7 @@ class StatisticsPane(StatisticsPaneActionsMixin):
         self._loaded_once = True
         self._last_error = ""
         self._stale_at = None
+        current_identity = self._selection_identity()
         if already_complete and self._last_result is not None:
             self._cache_filter_options(self._last_result)
             self._update_heading()
@@ -439,8 +468,39 @@ class StatisticsPane(StatisticsPaneActionsMixin):
             if not self._code_complete:
                 self._start_code_load(self._load_generation)
             return
+        if (
+            self._view == "projects"
+            and result.project_stats is not None
+            and self._last_result is not None
+            and self._last_result.project_stats is not None
+            and self._code_complete
+            and "code" in self._last_result.project_stats.facets
+            and self._painted_identity == current_identity
+        ):
+            fresh_primary = result.project_stats
+            painted = self._last_result.project_stats
+            merged = merge_project_code_stats(fresh_primary, painted)
+            if merged is not None:
+                self._unmerged_primary = result
+                self._last_result = replace(result, project_stats=merged)
+                self._primary_fingerprint = fingerprint
+                self._code_complete = True
+                self._painted_identity = current_identity
+                self._cache_filter_options(self._last_result)
+                self._paint_current_view()
+                self._start_code_load(self._load_generation)
+                self.call_after_refresh(self._repaint_loaded_view_after_layout)
+                return
+            self._unmerged_primary = result
+            self._primary_fingerprint = fingerprint
+            self._cache_filter_options(self._last_result)
+            self._update_heading()
+            self._start_code_load(self._load_generation)
+            return
+        self._unmerged_primary = None
         self._last_result = result
         self._primary_fingerprint = fingerprint
+        self._painted_identity = current_identity
         if result.project_stats is not None and "code" in result.project_stats.facets:
             self._code_complete = True
             self._code_fingerprint = result.project_stats.fingerprint
@@ -484,34 +544,68 @@ class StatisticsPane(StatisticsPaneActionsMixin):
                 and payload.generation != self._load_generation
             ):
                 return
+            message = (
+                str(event.worker.error) if event.worker.error else "code load failed"
+            )
+            pending = self._unmerged_primary
+            if (
+                pending is not None
+                and pending.project_stats is not None
+                and self._view == "projects"
+                and self._painted_matches_current()
+            ):
+                settled = replace(
+                    pending.project_stats,
+                    facets=pending.project_stats.facets | frozenset({"code"}),
+                )
+                self._last_result = replace(pending, project_stats=settled)
+                self._unmerged_primary = None
+                self._code_complete = True
+                self._painted_identity = self._selection_identity()
+                self._last_error = message
+                self._cache_filter_options(self._last_result)
+                self._update_heading()
+                self._paint_current_view()
+                return
             self._code_complete = True
             current = self._last_result
             if (
                 current is not None
                 and current.project_stats is not None
-                and self._result_matches_selection(current)
+                and self._painted_matches_current()
             ):
                 settled = replace(
                     current.project_stats,
                     facets=current.project_stats.facets | frozenset({"code"}),
                 )
                 self._last_result = replace(current, project_stats=settled)
-                self._last_error = (
-                    str(event.worker.error)
-                    if event.worker.error
-                    else "code load failed"
-                )
+                self._painted_identity = self._selection_identity()
+                self._last_error = message
                 self._update_heading()
                 self._paint_current_view()
 
     def _apply_code_result(self, report: ProjectStatsView) -> None:
+        if self._view != "projects":
+            return
+        if not self._painted_matches_current():
+            return
+        pending = self._unmerged_primary
+        if pending is not None and pending.project_stats is not None:
+            merged = merge_project_code_stats(pending.project_stats, report)
+            if merged is None:
+                self._schedule_load()
+                return
+            self._unmerged_primary = None
+            self._code_complete = True
+            self._code_fingerprint = report.fingerprint
+            self._last_error = ""
+            self._last_result = replace(pending, project_stats=merged)
+            self._painted_identity = self._selection_identity()
+            self._cache_filter_options(self._last_result)
+            self._paint_current_view()
+            return
         current = self._last_result
-        if (
-            current is None
-            or current.project_stats is None
-            or not self._result_matches_selection(current)
-            or self._view != "projects"
-        ):
+        if current is None or current.project_stats is None:
             return
         merged = merge_project_code_stats(current.project_stats, report)
         if merged is None:
@@ -536,6 +630,7 @@ class StatisticsPane(StatisticsPaneActionsMixin):
             perf=current.perf,
             project_stats=merged,
         )
+        self._painted_identity = self._selection_identity()
         self._paint_current_view()
 
     def _cache_filter_options(self, result: StatisticsViewData) -> None:

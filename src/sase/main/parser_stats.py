@@ -7,6 +7,8 @@ import argparse
 from sase.completion.kinds import ValueKind, set_completion_kind
 from sase.stats.registry import PROJECT_REPORT_GROUPINGS, PROJECT_REPORT_LEGENDS
 
+from ._help_format import StableInvocationHelpFormatter
+
 _STATS_SUMMARY = "Show Admin Center Statistics views from the command line."
 _PROJECT_HELP = (
     "Show the Admin Center Statistics → Projects view: what each project "
@@ -33,7 +35,7 @@ def register_stats_parser(subparsers: argparse._SubParsersAction) -> None:
             f"{_STATS_SUMMARY} Bare `sase stats` lists implemented views. "
             "There are no stubs."
         ),
-        formatter_class=argparse.RawDescriptionHelpFormatter,
+        formatter_class=StableInvocationHelpFormatter,
         epilog=(
             "examples:\n"
             "  sase stats\n"
@@ -55,7 +57,7 @@ def _register_project_parser(stats_sub: argparse._SubParsersAction) -> None:
         "project",
         help=_PROJECT_HELP,
         description=_PROJECT_DESCRIPTION,
-        formatter_class=argparse.RawDescriptionHelpFormatter,
+        formatter_class=StableInvocationHelpFormatter,
         epilog=_project_epilog(),
     )
     project_parser.add_argument(

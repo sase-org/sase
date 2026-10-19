@@ -370,3 +370,39 @@ def test_projects_loader_skips_legacy_queries_and_returns_project_stats(
     assert result.views is None
     assert result.project_stats is report
     assert result.view == "projects"
+
+
+async def test_overview_revalidation_tick_never_paints_loading(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[tuple[StatisticsView, StatsRange, str | None, str | None]] = []
+    _patch_center(monkeypatch, calls)
+
+    async with AcePage() as page:
+        _modal, pane = await _open_statistics(page)
+        assert pane._view == "overview"
+        old_range = pane._range
+        old_end = old_range.end_ts
+        new_range = old_range._replace(
+            start_ts=old_range.start_ts + 30,
+            end_ts=old_range.end_ts + 30,
+        )
+
+        def fake_resolve(key: object, *, now: object = None) -> object:
+            del key, now
+            return new_range
+
+        monkeypatch.setattr(sp, "resolve_preset", fake_resolve)
+
+        loading_calls: list[bool] = []
+        orig_loading = pane._paint_loading
+        monkeypatch.setattr(
+            pane, "_paint_loading", lambda: (loading_calls.append(True), orig_loading())
+        )
+
+        pane._start_load()
+        await _wait_statistics_settled(page, pane)
+
+        assert loading_calls == []
+        assert pane._last_result is not None
+        assert pane._last_result.selected_range.end_ts == old_end + 30
