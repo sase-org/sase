@@ -16,10 +16,13 @@ from textual.containers import VerticalScroll
 
 from .block_model import (
     BlockCursor,
+    SpreadFollowState,
     arrived_ids,
+    classify_spread_follow,
     cycle_block_id,
     derive_spread_block,
     land_cursor,
+    park_cursor,
     reconcile_cursor,
     select_cursor,
     step_cursor,
@@ -331,6 +334,36 @@ class CardDocumentViewBlocksMixin:
             return None
         try:
             return min(int(header), int(bottom))
+        except Exception:
+            return None
+
+    def spread_follow_state(self, card: Any) -> SpreadFollowState | None:
+        """Classify the current spread position before new content is applied."""
+        if getattr(self, "_spread_pending_card", None) is not None:
+            return SpreadFollowState.PARKED
+        if self._block_spread_pending is not None:
+            return None
+        try:
+            scroll = self.parent  # type: ignore[attr-defined]
+            if not isinstance(scroll, VerticalScroll):
+                return None
+            return classify_spread_follow(
+                scroll_y=float(scroll.scroll_y),
+                landing_target=self.spread_landing_target(card),
+                real_bottom=self._real_bottom(),
+            )
+        except Exception:
+            return None
+
+    def park_block_cursor(self, card_id: str) -> BlockCursor | None:
+        """Stop following ``card_id`` while preserving its active and known blocks."""
+        try:
+            cursor = self._block_cursors.get(card_id)
+            if cursor is None:
+                return None
+            parked = park_cursor(cursor)
+            self._block_cursors[card_id] = parked
+            return parked
         except Exception:
             return None
 

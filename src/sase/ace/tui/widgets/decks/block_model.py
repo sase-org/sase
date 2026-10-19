@@ -10,7 +10,8 @@ dots). Everything here is pure: no Textual imports, no widget state.
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+from enum import StrEnum
 
 from .model import RenderMode
 from .render_mode import decide_render_mode
@@ -23,6 +24,48 @@ class BlockCursor:
     block_id: str
     following: bool
     known_ids: frozenset[str]
+
+
+class SpreadFollowState(StrEnum):
+    """Where a deck-spread reader sits relative to the follow landing."""
+
+    LANDED = "landed"
+    BOTTOM = "bottom"
+    PARKED = "parked"
+
+
+def park_cursor(cursor: BlockCursor) -> BlockCursor:
+    """Return ``cursor`` parked, preserving its block and known ids."""
+    if not cursor.following:
+        return cursor
+    return replace(cursor, following=False)
+
+
+def classify_spread_follow(
+    *, scroll_y: float, landing_target: int | None, real_bottom: int | None
+) -> SpreadFollowState | None:
+    """Classify the reader's old scroll row against landing and real bottom."""
+    if landing_target is None or real_bottom is None:
+        return None
+    row = int(round(scroll_y))
+    if row == int(landing_target):
+        return SpreadFollowState.LANDED
+    if row >= int(real_bottom):
+        return SpreadFollowState.BOTTOM
+    return SpreadFollowState.PARKED
+
+
+def spread_follow_relands(
+    state: SpreadFollowState | None, *, following: bool, newest_changed: bool
+) -> bool:
+    """Decide whether a same-subject spread refresh should re-land the reader."""
+    if state is None:
+        return following
+    if state is SpreadFollowState.LANDED:
+        return True
+    if state is SpreadFollowState.BOTTOM:
+        return newest_changed
+    return False
 
 
 def land_cursor(ids: Sequence[str]) -> BlockCursor | None:
@@ -203,12 +246,16 @@ def decide_block_mode(
 
 __all__ = [
     "BlockCursor",
+    "SpreadFollowState",
     "arrived_ids",
+    "classify_spread_follow",
     "cycle_block_id",
     "decide_block_mode",
     "derive_spread_block",
     "land_cursor",
+    "park_cursor",
     "reconcile_cursor",
     "select_cursor",
     "step_cursor",
+    "spread_follow_relands",
 ]

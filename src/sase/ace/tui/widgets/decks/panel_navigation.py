@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+from .block_model import spread_follow_relands
 from .main_document import MainDeckDocument
 from .model import DeckId, RenderMode, cycle_card_id
 
@@ -215,6 +216,12 @@ class DeckPanelNavigationMixin:
                 previous_document=previous_document,
             )
         else:
+            follow_state = None
+            previous_newest = None
+            if new_mode is RenderMode.SPREAD and not is_new_subject:
+                follow_state, previous_newest = self._capture_main_spread_follow(  # type: ignore[attr-defined]
+                    previous_document, preferred_card
+                )
             try:
                 if new_mode is RenderMode.PAGED:
                     active = self._show_main_paged(document, preferred_card, new_mode)
@@ -269,9 +276,8 @@ class DeckPanelNavigationMixin:
                         except Exception:
                             pass
                 else:
-                    # Same-subject streaming: a follower re-lands with the
-                    # clamp; a parked reader stays put. A bottom pin persists
-                    # via the scheduled reapply.
+                    # Same-subject streaming follows the reader's pre-refresh
+                    # position, with the cursor as fallback when unmeasurable.
                     try:
                         pinned = bool(
                             getattr(self.main_view, "is_pinned_to_bottom", False)
@@ -289,8 +295,17 @@ class DeckPanelNavigationMixin:
                                     cursor = view._block_cursors.get(card.card_id)  # type: ignore[attr-defined]
                                 except Exception:
                                     cursor = None
-                                if cursor is not None and bool(
+                                following = cursor is not None and bool(
                                     getattr(cursor, "following", False)
+                                )
+                                newest_changed = (
+                                    previous_newest is not None
+                                    and card.newest_block_id != previous_newest
+                                )
+                                if spread_follow_relands(
+                                    follow_state,
+                                    following=following,
+                                    newest_changed=newest_changed,
                                 ):
                                     try:
                                         if bool(

@@ -4,18 +4,91 @@ from __future__ import annotations
 
 from sase.ace.tui.widgets.decks.block_model import (
     BlockCursor,
+    SpreadFollowState,
     arrived_ids,
+    classify_spread_follow,
     cycle_block_id,
     decide_block_mode,
     derive_spread_block,
     land_cursor,
+    park_cursor,
     reconcile_cursor,
     select_cursor,
     step_cursor,
+    spread_follow_relands,
 )
 from sase.ace.tui.widgets.decks.model import RenderMode
 
 IDS = ("b0", "b1", "b2")
+
+
+def test_park_cursor_clears_following_and_preserves_state() -> None:
+    cursor = BlockCursor("b1", True, frozenset(("b0", "b1")))
+    parked = park_cursor(cursor)
+    assert parked == BlockCursor("b1", False, frozenset(("b0", "b1")))
+    assert park_cursor(parked) is parked
+
+
+def test_classify_spread_follow() -> None:
+    classify = classify_spread_follow
+    assert classify(scroll_y=1, landing_target=None, real_bottom=10) is None
+    assert classify(scroll_y=1, landing_target=1, real_bottom=None) is None
+    assert (
+        classify(scroll_y=8, landing_target=8, real_bottom=8)
+        is SpreadFollowState.LANDED
+    )
+    assert (
+        classify(scroll_y=8, landing_target=5, real_bottom=8)
+        is SpreadFollowState.BOTTOM
+    )
+    assert (
+        classify(scroll_y=10, landing_target=5, real_bottom=8)
+        is SpreadFollowState.BOTTOM
+    )
+    assert (
+        classify(scroll_y=4, landing_target=5, real_bottom=12)
+        is SpreadFollowState.PARKED
+    )
+    assert (
+        classify(scroll_y=8, landing_target=5, real_bottom=12)
+        is SpreadFollowState.PARKED
+    )
+    assert (
+        classify(scroll_y=4.6, landing_target=5, real_bottom=12)
+        is SpreadFollowState.LANDED
+    )
+
+
+def test_spread_follow_relands_truth_table() -> None:
+    for following in (False, True):
+        assert (
+            spread_follow_relands(None, following=following, newest_changed=False)
+            is following
+        )
+    assert (
+        spread_follow_relands(
+            SpreadFollowState.LANDED, following=False, newest_changed=False
+        )
+        is True
+    )
+    assert (
+        spread_follow_relands(
+            SpreadFollowState.BOTTOM, following=False, newest_changed=False
+        )
+        is False
+    )
+    assert (
+        spread_follow_relands(
+            SpreadFollowState.BOTTOM, following=False, newest_changed=True
+        )
+        is True
+    )
+    assert (
+        spread_follow_relands(
+            SpreadFollowState.PARKED, following=True, newest_changed=True
+        )
+        is False
+    )
 
 
 def test_land_newest_following_all_known() -> None:

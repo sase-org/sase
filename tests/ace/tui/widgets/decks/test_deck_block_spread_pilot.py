@@ -76,9 +76,13 @@ def _document(
     *,
     digest: str,
     partial: bool = False,
+    context_lines: int = 1,
 ) -> MainDeckDocument:
     return MainDeckDocument(
-        cards=(context_card(Text("context-body")), reply),
+        cards=(
+            context_card(Text("\n".join(f"context-{i}" for i in range(context_lines)))),
+            reply,
+        ),
         subject=subject,
         partial=partial,
         digest=digest,
@@ -317,3 +321,174 @@ async def test_deck_spread_to_paged_into_block_page() -> None:
         assert panel.main_view.active_card_id in ("context", "reply")
         if panel.main_view.active_card_id == "reply":
             assert panel.main_view.active_block_id("reply") == "b2"
+
+
+async def _show_follow_document(
+    pilot: Any, panel: Any, *, count: int = 3, lines_per_block: int = 3, digest: str
+) -> Any:
+    panel.show_main_document(
+        _document(
+            "follow-subject",
+            _reply_card(count, lines_per_block=lines_per_block),
+            digest=digest,
+            context_lines=12,
+        ),
+        "reply",
+    )
+    await wait_for(pilot, lambda: panel._render_mode[DeckId.MAIN] is RenderMode.SPREAD)
+    view = panel.main_view
+    card = panel._main_document.card("reply")
+    assert card is not None
+    await wait_for_anchor_scroll(
+        pilot,
+        lambda: int(_scroll(panel).scroll_y),
+        lambda: view.spread_landing_target(card),
+    )
+    return view
+
+
+async def _refresh_follow_document(
+    pilot: Any,
+    panel: Any,
+    *,
+    count: int = 3,
+    lines_per_block: int = 3,
+    digest: str,
+) -> None:
+    panel.show_main_document(
+        _document(
+            "follow-subject",
+            _reply_card(count, lines_per_block=lines_per_block),
+            digest=digest,
+            context_lines=12,
+        ),
+        None,
+    )
+    await wait_for(pilot, lambda: panel._main_document.digest == digest)
+
+
+async def test_spread_follow_parks_reader_at_top_and_announces_arrival() -> None:
+    app = _DetailApp()
+    async with app.run_test(size=(100, 30)) as pilot:
+        await pilot.pause()
+        _pin(app, deck=10, blocks=1000)
+        panel = await _panel(app)
+        view = await _show_follow_document(pilot, panel, digest="top-1")
+        _scroll(panel).scroll_to(y=0, animate=False)
+        await wait_for(pilot, lambda: int(_scroll(panel).scroll_y) == 0)
+        await _refresh_follow_document(pilot, panel, digest="top-2")
+        await wait_for(pilot, lambda: int(_scroll(panel).scroll_y) == 0)
+        assert view._block_cursors["reply"].following is False
+        await _refresh_follow_document(pilot, panel, count=4, digest="top-3")
+        await wait_for(pilot, lambda: view.arrived_block_ids("reply") == ("b3",))
+        assert int(_scroll(panel).scroll_y) == 0
+
+
+async def test_spread_follow_context_navigation_stays_put() -> None:
+    app = _DetailApp()
+    async with app.run_test(size=(100, 30)) as pilot:
+        await pilot.pause()
+        _pin(app, deck=10, blocks=1000)
+        panel = await _panel(app)
+        view = await _show_follow_document(pilot, panel, digest="context-1")
+        assert view.scroll_to_card("context") == "context"
+        await wait_for(pilot, lambda: int(_scroll(panel).scroll_y) == 0)
+        await _refresh_follow_document(pilot, panel, digest="context-2")
+        await wait_for(pilot, lambda: int(_scroll(panel).scroll_y) == 0)
+
+
+async def test_spread_follow_mid_newest_block_stays_put() -> None:
+    app = _DetailApp()
+    async with app.run_test(size=(100, 30)) as pilot:
+        await pilot.pause()
+        _pin(app, deck=10, blocks=1000)
+        panel = await _panel(app)
+        view = await _show_follow_document(
+            pilot, panel, lines_per_block=40, digest="mid-1"
+        )
+        landing = view.spread_landing_target(panel._main_document.card("reply"))
+        assert landing is not None
+        target = landing + 5
+        _scroll(panel).scroll_to(y=target, animate=False)
+        await wait_for(pilot, lambda: int(_scroll(panel).scroll_y) == target)
+        await _refresh_follow_document(pilot, panel, lines_per_block=40, digest="mid-2")
+        await wait_for(pilot, lambda: int(_scroll(panel).scroll_y) == target)
+
+
+async def test_spread_follow_bottom_only_relands_for_new_turn() -> None:
+    app = _DetailApp()
+    async with app.run_test(size=(100, 30)) as pilot:
+        await pilot.pause()
+        _pin(app, deck=10, blocks=1000)
+        panel = await _panel(app)
+        view = await _show_follow_document(
+            pilot, panel, lines_per_block=40, digest="bottom-1"
+        )
+        bottom = view._real_bottom()
+        landing = view.spread_landing_target(panel._main_document.card("reply"))
+        assert bottom is not None and landing is not None and bottom > landing
+        _scroll(panel).scroll_to(y=bottom, animate=False)
+        await wait_for(pilot, lambda: int(_scroll(panel).scroll_y) == bottom)
+        await _refresh_follow_document(
+            pilot, panel, lines_per_block=40, digest="bottom-2"
+        )
+        await wait_for(pilot, lambda: int(_scroll(panel).scroll_y) == bottom)
+        await _refresh_follow_document(
+            pilot, panel, count=4, lines_per_block=40, digest="bottom-3"
+        )
+        card = panel._main_document.card("reply")
+        assert card is not None
+        await wait_for_anchor_scroll(
+            pilot,
+            lambda: int(_scroll(panel).scroll_y),
+            lambda: view.spread_landing_target(card),
+        )
+        assert view.active_block_id("reply") == "b3"
+
+
+async def test_spread_follow_returns_to_landing_and_refollows() -> None:
+    app = _DetailApp()
+    async with app.run_test(size=(100, 30)) as pilot:
+        await pilot.pause()
+        _pin(app, deck=10, blocks=1000)
+        panel = await _panel(app)
+        view = await _show_follow_document(pilot, panel, digest="return-1")
+        card = panel._main_document.card("reply")
+        assert card is not None
+        landing = view.spread_landing_target(card)
+        assert landing is not None
+        _scroll(panel).scroll_to(y=0, animate=False)
+        await wait_for(pilot, lambda: int(_scroll(panel).scroll_y) == 0)
+        await _refresh_follow_document(pilot, panel, digest="return-2")
+        await wait_for(pilot, lambda: view._block_cursors["reply"].following is False)
+        _scroll(panel).scroll_to(y=landing, animate=False)
+        await wait_for(pilot, lambda: int(_scroll(panel).scroll_y) == landing)
+        await _refresh_follow_document(pilot, panel, count=4, digest="return-3")
+        card = panel._main_document.card("reply")
+        assert card is not None
+        await wait_for_anchor_scroll(
+            pilot,
+            lambda: int(_scroll(panel).scroll_y),
+            lambda: view.spread_landing_target(card),
+        )
+        assert view.active_block_id("reply") == "b3"
+        assert view._block_cursors["reply"].following is True
+
+
+async def test_spread_follow_never_scrolled_reader_lands_new_turn() -> None:
+    app = _DetailApp()
+    async with app.run_test(size=(100, 30)) as pilot:
+        await pilot.pause()
+        _pin(app, deck=10, blocks=1000)
+        panel = await _panel(app)
+        view = await _show_follow_document(pilot, panel, digest="follow-1")
+        await _refresh_follow_document(pilot, panel, count=4, digest="follow-2")
+        card = panel._main_document.card("reply")
+        assert card is not None
+        await wait_for_anchor_scroll(
+            pilot,
+            lambda: int(_scroll(panel).scroll_y),
+            lambda: view.spread_landing_target(card),
+        )
+        assert view.active_block_id("reply") == "b3"
+        assert view._block_cursors["reply"].following is True

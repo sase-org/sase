@@ -8,8 +8,9 @@ is a cached O(1) predicate for key gating.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
+from .block_model import SpreadFollowState
 from .block_rail import BlockRail, BlockRailEntry
 from .card_documents import resolve_document_deck, spread_block_card
 from .document_blocks import DeckPanelDocumentBlocksMixin
@@ -26,6 +27,10 @@ class DeckPanelBlocksMixin(DeckPanelDocumentBlocksMixin):
     _block_mode_measured: bool
     _block_navigable: bool
     _main_active_card: str | None
+
+    if TYPE_CHECKING:
+
+        def __getattr__(self, name: str) -> Any: ...
 
     def _init_block_panel_state(self) -> None:
         self._block_mode = RenderMode.PAGED
@@ -65,6 +70,31 @@ class DeckPanelBlocksMixin(DeckPanelDocumentBlocksMixin):
     def _land_deck_spread_on_blocks(self, document: Any, preferred: str | None) -> bool:
         """Sticky-Reply chat-log landing for a deck-spread document."""
         return self.land_document_spread_on_blocks(DeckId.MAIN, document, preferred)
+
+    def _capture_main_spread_follow(
+        self, previous_document: Any, preferred_card: str | None
+    ) -> tuple[SpreadFollowState | None, str | None]:
+        """Classify the reader before a same-subject spread refresh.
+
+        Runs before the new content lands (which clears the published anchors).
+        A parked reader's cursor stops following here, before the refresh
+        reconciles cursors, so a newly arrived block is announced instead of
+        marked seen.
+        """
+        try:
+            if bool(getattr(self.main_view, "is_pinned_to_bottom", False)):
+                return (None, None)
+            if previous_document is None or previous_document.partial:
+                return (None, None)
+            card = self._spread_block_card(previous_document, preferred_card)
+            if card is None:
+                return (None, None)
+            state = self.main_view.spread_follow_state(card)
+            if state is SpreadFollowState.PARKED:
+                self.main_view.park_block_cursor(card.card_id)
+            return (state, card.newest_block_id)
+        except Exception:
+            return (None, None)
 
     def _cycle_spread_block(self, direction: int) -> bool:
         """Anchor-motion step for spread decks and block-spread cards."""
