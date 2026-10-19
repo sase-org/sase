@@ -61,6 +61,44 @@ Observations are append-only, each its own asset named by generation, kind, run 
 attempt. The kinds are `qualification`, `exercise`, `publication`, `confirmation`,
 `abandoned` and `veto`.
 
+## Exercise
+
+The `exercise-legs` job installs the sealed wheel and sdist into clean environments and
+proves the candidate works from its exact files. The matrix is `os` (`ubuntu-latest`,
+`macos-latest`) by `artifact` (`wheel`, `sdist`) with `fail-fast: false`, so one red
+platform never hides the other. Each leg downloads the sealed build, verifies its
+SHA-256 against the manifest before installing anything, then runs
+`tools/exercise_release run-leg`:
+
+1. Install the exact file with `uv tool install --python 3.12`, with dependencies from
+   public PyPI, into an isolated home (`HOME`, `SASE_HOME`, `XDG_*`, `UV_TOOL_DIR`,
+   `UV_TOOL_BIN_DIR`) with `UV_NO_CACHE=1`. The tool scrubs caller-session `SASE_*`
+   leaks and seeds the smallest owner identity a clean home needs.
+2. Assert the installed `sase-core-rs` equals the manifest's exact pin
+   (`sase version -j`).
+3. Create durable work with a real fakey agent launch (`sase run %model:fakey-large`),
+   wait for it, then reload its record in a new process.
+4. Prove the host/worker crossing from the durable record (fakey provider, worker
+   invocation records, terminal `done.json`).
+5. Render one frame through `sase screenshot`, the visual-snapshot tooling.
+6. Run `uv pip check` and `sase core health --json` against the install.
+7. On `wheel` legs only, install the newest still-installable PyPI release at or below
+   the candidate (strictly older at real tags; the released same-version bytes in
+   version-equals-last-release rehearsals, since retention deletes old cores and an
+   uninstallable newest-older is skipped, never forced), create durable state with it,
+   upgrade to the candidate wheel, then reload the state and rerun health.
+
+Each leg uploads `exercise-<os>-<artifact>.json` with the verdict, the first failed step
+and its reason. The `exercise` summary job merges the four legs into one `exercise`
+observation: all green means pass, while any red, missing or unreadable leg yields
+`EXERCISE_RED(<os>)`, which withholds publication. In `release` mode the observation is
+stashed on the draft release; in `rehearse` mode it is a workflow artifact.
+
+The rehearse-only `probe` input injects faults: `break-macos` deletes one imported
+module from the installed package on the macOS legs only, so those legs must go red and
+the merge must report `EXERCISE_RED(macos)`. Probes are refused in `release` and
+`resume` modes.
+
 ## Tag-frozen workflow rule
 
 A workflow dispatched at a tag runs that tag's own workflow files. A tag cut before

@@ -332,8 +332,29 @@ MANIFEST_PATH = ROOT / "tests" / "contract_manifest.txt"
 # The two workflow-guard files from the 78-entry refresh were already in the
 # 79-entry set. Estimated 161.27 serial seconds across the unioned 80-entry
 # set. The next candidate should displace an entry rather than add one.
-_MANIFEST_ENTRY_BUDGET = 80
-_MEASURED_SERIAL_COST = "161.27 serial seconds across 80 entries"
+#
+# Re-curated to 80 on 2026-10-19 (sase-1n6.4) for
+# `test_exercise_release.py`, the guard for the new `tools/exercise_release`
+# script (install, core-pin, durable-reload, boundary, tui-frame, pip-check,
+# health, upgrade-nminus1) and the release.yml exercise-legs matrix it
+# rehearses locally. Admitted on the same value-per-second basis as the other
+# `tools/` script guards already in this set: the script is not a node in the
+# import graph, so a change that touches only it contributes no seeds,
+# `RULE_CONTRACT_SET_ONLY` fires, and the contract set is the only
+# scoped-selection coverage. The file measured 3.32 s standalone (13 tests).
+# The whole 80-entry set measured 141.50 s under the command above on this
+# host (single run; 901 passed). The next candidate should displace an entry
+# rather than add one.
+#
+# Unioned to 81 on 2026-10-19 while rebasing sase-1n6.4 onto the 80-entry set:
+# this side added `test_exercise_release.py` while the base added
+# `test_release_core.py` on the same value-per-second basis (both guard
+# `tools/` scripts no import edge reaches). The union keeps both guards with
+# no duplicates. The whole 81-entry set measured 128.49 serial seconds under
+# the command above on this host (single run; 923 passed). The next candidate
+# should displace an entry rather than add one.
+_MANIFEST_ENTRY_BUDGET = 81
+_MEASURED_SERIAL_COST = "128.49 serial seconds across 81 entries"
 
 
 def _load_refresh_tool() -> ModuleType:

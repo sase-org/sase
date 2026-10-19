@@ -1,0 +1,858 @@
+#!/usr/bin/env python3
+"""Exercise an exact release candidate on this machine (phase sase-1n6.4).
+
+A release.yml ``exercise-legs`` matrix leg runs ``run-leg``: it installs one
+stashed dist file (wheel or sdist) into an isolated tool directory with
+dependencies from public PyPI, then runs a scripted no-LLM workflow using the
+``fakey`` provider:
+
+- ``install``: install the exact dist file, then (macOS probe only) delete one
+  imported module so the leg must go red;
+- ``core-pin``: the installed ``sase-core-rs`` must equal the manifest's core;
+- ``durable-reload``: launch a real fakey agent, wait for it, then reload its
+  durable record in a new process;
+- ``boundary``: the record must show the host/worker crossing (fakey provider
+  subprocess) and a terminal state;
+- ``tui-frame``: render one frame through the visual-snapshot tooling;
+- ``pip-check``: ``uv pip check`` on the tool environment;
+- ``health``: ``sase core health --json`` must probe clean;
+- ``upgrade-nminus1`` (wheel legs only): install the previous PyPI release,
+  create durable state with it, upgrade to the candidate wheel, reload the
+  state and rerun health.
+
+``merge`` folds the four leg files (Linux/macOS x wheel/sdist) into one
+verdict plus a typed reason. A missing or unreadable leg is red, and any red
+leg yields ``EXERCISE_RED(<os>)``, which the ``publish`` job and the steward
+treat as withholding publication.
+
+Only the stdlib is used.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import shutil
+import subprocess
+import sys
+import time
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any, Sequence
+
+
+SCHEMA_VERSION = 1
+
+EXIT_OK = 0
+EXIT_RED = 2
+EXIT_ERROR = 3
+
+STEP_NAMES = (
+    "install",
+    "core-pin",
+    "durable-reload",
+    "boundary",
+    "tui-frame",
+    "pip-check",
+    "health",
+    "upgrade-nminus1",
+)
+
+EXPECTED_LEGS = (
+    ("ubuntu-latest", "wheel"),
+    ("ubuntu-latest", "sdist"),
+    ("macos-latest", "wheel"),
+    ("macos-latest", "sdist"),
+)
+
+SHORT_OS = {"ubuntu-latest": "linux", "macos-latest": "macos"}
+
+#: ``SASE_*`` variables the leg keeps; every other ``SASE_*`` entry is a
+#: caller-session leak (agent name, workspace number, linked-repo paths) that
+#: would steer the candidate's own launches, so it is dropped.
+KEEP_SASE_ENV = frozenset({"SASE_HOME", "SASE_ARTIFACTS_DIR"})
+
+#: Seeded owner identity for the isolated home. A clean CI home has no
+#: machine selector or overlay, and ``sase run`` refuses without one, so the
+#: leg seeds the smallest complete identity and nothing else.
+SEED_MACHINE_NAME = "exerciseci"
+SEED_USERNAME = "ci_exercise"
+
+FRAME_MIN_BYTES = 10_240
+
+
+class LegError(Exception):
+    """A leg step failed: red evidence, not a tool crash."""
+
+
+@dataclass
+class StepResult:
+    name: str
+    ok: bool
+    detail: str
+    skipped: bool = False
+
+    def as_json(self) -> dict[str, Any]:
+        return {
+            "name": self.name,
+            "ok": self.ok,
+            "detail": self.detail,
+            "skipped": self.skipped,
+        }
+
+
+@dataclass
+class Completed:
+    args: list[str]
+    returncode: int
+    stdout: str
+    stderr: str
+
+
+class Runner:
+    """Run subprocesses, capturing output."""
+
+    def run(
+        self,
+        argv: Sequence[str],
+        *,
+        env: dict[str, str] | None = None,
+        cwd: Path | None = None,
+        timeout: int = 300,
+    ) -> Completed:
+        proc = subprocess.run(
+            list(argv),
+            capture_output=True,
+            text=True,
+            env=env,
+            cwd=str(cwd) if cwd is not None else None,
+            timeout=timeout,
+            check=False,
+        )
+        return Completed(
+            args=list(argv),
+            returncode=proc.returncode,
+            stdout=proc.stdout,
+            stderr=proc.stderr,
+        )
+
+
+def scrub_session_env(env: dict[str, str]) -> dict[str, str]:
+    """Drop caller-session ``SASE_*`` leaks, keeping isolation roots."""
+    return {
+        key: value
+        for key, value in env.items()
+        if not (key.startswith("SASE_") and key not in KEEP_SASE_ENV)
+    }
+
+
+def seed_owner_identity(sase_home: Path, config_home: Path) -> None:
+    """Seed the smallest owner identity a clean home needs for launches."""
+    sase_home.mkdir(parents=True, exist_ok=True)
+    (sase_home / "machine_name").write_text(SEED_MACHINE_NAME + "\n", encoding="utf-8")
+    overlay_dir = config_home / "sase"
+    overlay_dir.mkdir(parents=True, exist_ok=True)
+    (overlay_dir / "sase_exercise.yml").write_text(
+        "id:\n"
+        f"  username: {SEED_USERNAME}\n"
+        f"  machine_name: {SEED_MACHINE_NAME}\n",
+        encoding="utf-8",
+    )
+
+
+@dataclass
+class LegConfig:
+    os_name: str
+    artifact: str
+    dist_path: Path
+    candidate_version: str
+    core_version: str
+    run_id: str
+    attempt: str
+    previous_version: str
+    apply_probe: str
+    work_dir: Path
+    out_path: Path
+    candidate_id: str
+    generation: int
+    timeout_scale: float = 1.0
+
+
+@dataclass
+class LegContext:
+    config: LegConfig
+    runner: Runner
+    env: dict[str, str]
+    sase_home: Path
+    tool_bin: Path
+    tool_python: Path
+    exe: Path
+    steps: list[StepResult] = field(default_factory=list)
+
+    def record(self, name: str, ok: bool, detail: str) -> StepResult:
+        step = StepResult(name=name, ok=ok, detail=detail)
+        self.steps.append(step)
+        return step
+
+    def require_uv(self) -> str:
+        uv = shutil.which("uv", path=self.env.get("PATH", os.defpath))
+        if uv is None:
+            raise LegError("uv is not on PATH")
+        return uv
+
+
+def _short_os(os_name: str) -> str:
+    return SHORT_OS.get(os_name, os_name)
+
+
+def step_install(ctx: LegContext) -> StepResult:
+    """Install the exact dist file into the isolated tool directory."""
+    uv = ctx.require_uv()
+    if not ctx.config.dist_path.is_file():
+        return ctx.record(
+            "install", False, f"dist file is missing: {ctx.config.dist_path}"
+        )
+    completed = ctx.runner.run(
+        [
+            uv,
+            "tool",
+            "install",
+            "--python",
+            "3.12",
+            "--refresh",
+            str(ctx.config.dist_path),
+        ],
+        env=ctx.env,
+        timeout=int(600 * ctx.config.timeout_scale),
+    )
+    if completed.returncode != 0:
+        tail = (completed.stderr or completed.stdout).strip().splitlines()[-1:]
+        return ctx.record(
+            "install", False, f"uv tool install failed: {' '.join(tail)}"
+        )
+    if not ctx.exe.is_file():
+        return ctx.record(
+            "install", False, f"installed but no sase exe at {ctx.exe}"
+        )
+    detail = f"installed {ctx.config.dist_path.name} with deps from public PyPI"
+    if ctx.config.apply_probe == "break-macos" and ctx.config.os_name.startswith(
+        "macos"
+    ):
+        # Delete the console script's entry module, so every sase invocation
+        # on the macOS legs fails at startup. (__init__.py is not enough:
+        # namespace-package fallback keeps submodule imports working.)
+        probe = ctx.runner.run(
+            [
+                str(ctx.tool_python),
+                "-c",
+                "import sase.main.entry; print(sase.main.entry.__file__)",
+            ],
+            env=ctx.env,
+            timeout=120,
+        )
+        if probe.returncode != 0:
+            return ctx.record(
+                "install", False, "probe setup failed: installed sase not importable"
+            )
+        entry_path = Path(probe.stdout.strip()).resolve()
+        if entry_path.name != "entry.py" or not entry_path.is_file():
+            return ctx.record(
+                "install",
+                False,
+                f"probe setup failed: unexpected entry module {entry_path}",
+            )
+        entry_path.unlink()
+        detail += "; probe break-macos deleted one imported module"
+    return ctx.record("install", True, detail)
+
+
+def step_core_pin(ctx: LegContext) -> StepResult:
+    """The installed core must equal the manifest's exact core pin."""
+    completed = ctx.runner.run([str(ctx.exe), "version", "-j"], env=ctx.env, timeout=120)
+    if completed.returncode != 0:
+        return ctx.record(
+            "core-pin", False, f"sase version -j failed: {completed.stderr.strip()}"
+        )
+    try:
+        payload = json.loads(completed.stdout)
+    except json.JSONDecodeError as exc:
+        return ctx.record("core-pin", False, f"sase version -j is not JSON: {exc}")
+    installed: str | None = None
+    for package in payload.get("packages", []):
+        if not isinstance(package, dict):
+            continue
+        if package.get("role") == "core" or package.get("name") == "sase-core-rs":
+            installed = str(package.get("distribution_version", ""))
+    if installed is None:
+        return ctx.record("core-pin", False, "sase version -j names no core package")
+    if installed != ctx.config.core_version:
+        return ctx.record(
+            "core-pin",
+            False,
+            f"installed core {installed} != manifest pin {ctx.config.core_version}",
+        )
+    return ctx.record("core-pin", True, f"sase-core-rs=={installed} matches manifest")
+
+
+def _find_prompt_artifacts(sase_home: Path, marker: str) -> Path | None:
+    """Find the durable run directory whose prompt carries *marker*."""
+    projects = sase_home / "projects"
+    if not projects.is_dir():
+        return None
+    matches: list[Path] = []
+    for prompt_file in projects.rglob("submitted_prompt.md"):
+        try:
+            if marker in prompt_file.read_text(encoding="utf-8"):
+                matches.append(prompt_file.parent)
+        except OSError:
+            continue
+    if not matches:
+        return None
+    return max(matches, key=lambda d: d.stat().st_mtime)
+
+
+def _launch_fakey(
+    ctx: LegContext, exe: str, marker: str, *, timeout: int = 240
+) -> Completed:
+    prompt = f"%model:fakey-large {marker}; do not change files"
+    return ctx.runner.run([exe, "run", prompt], env=ctx.env, timeout=timeout)
+
+
+def _await_done(run_dir: Path, *, timeout_s: int = 120) -> bool:
+    """Wait for the run's done.json to flush; the wait call can settle first."""
+    deadline = time.monotonic() + timeout_s
+    while True:
+        try:
+            if run_dir.joinpath("done.json").is_file():
+                json.loads(run_dir.joinpath("done.json").read_text(encoding="utf-8"))
+                return True
+        except (OSError, json.JSONDecodeError):
+            pass
+        if time.monotonic() >= deadline:
+            return False
+        time.sleep(2)
+
+
+def _wait_for_agents(ctx: LegContext, exe: str) -> Completed:
+    return ctx.runner.run(
+        [exe, "agent", "wait", "-a", "-t", "300s"], env=ctx.env, timeout=330
+    )
+
+
+def step_durable_reload(ctx: LegContext) -> StepResult:
+    """Launch a fakey agent, then reload its durable record in a new process."""
+    marker = (
+        f"exercise-{_short_os(ctx.config.os_name)}-{ctx.config.artifact}"
+        f"-{ctx.config.run_id}-{ctx.config.attempt}"
+    )
+    launched = _launch_fakey(ctx, str(ctx.exe), marker)
+    if launched.returncode != 0 or "Agent started" not in launched.stdout:
+        return ctx.record(
+            "durable-reload",
+            False,
+            f"fakey launch failed: {(launched.stderr or launched.stdout).strip()}",
+        )
+    waited = _wait_for_agents(ctx, str(ctx.exe))
+    if waited.returncode != 0:
+        return ctx.record(
+            "durable-reload",
+            False,
+            f"agent wait failed: {(waited.stderr or waited.stdout).strip()}",
+        )
+    # A new process reloads the durable record: list, then read the files.
+    listed = ctx.runner.run(
+        [str(ctx.exe), "agent", "list", "-a", "-j"], env=ctx.env, timeout=120
+    )
+    if listed.returncode != 0:
+        return ctx.record(
+            "durable-reload", False, f"agent list failed: {listed.stderr.strip()}"
+        )
+    try:
+        entries = json.loads(listed.stdout)
+    except json.JSONDecodeError as exc:
+        return ctx.record("durable-reload", False, f"agent list is not JSON: {exc}")
+    run_dir = _find_prompt_artifacts(ctx.sase_home, marker)
+    if run_dir is None:
+        return ctx.record(
+            "durable-reload", False, "no durable run record carries the marker prompt"
+        )
+    if not _await_done(run_dir):
+        return ctx.record(
+            "durable-reload", False, "durable run record has no done.json"
+        )
+    names = {
+        str(entry.get("artifacts_dir", ""))
+        for entry in entries
+        if isinstance(entry, dict)
+    }
+    if str(run_dir) not in names:
+        return ctx.record(
+            "durable-reload",
+            False,
+            "new-process agent list does not show the durable run",
+        )
+    return ctx.record(
+        "durable-reload", True, f"created and reloaded durable run at {run_dir.name}"
+    )
+
+
+def step_boundary(ctx: LegContext) -> StepResult:
+    """The durable run must show a real host/worker crossing and a terminal state."""
+    marker = (
+        f"exercise-{_short_os(ctx.config.os_name)}-{ctx.config.artifact}"
+        f"-{ctx.config.run_id}-{ctx.config.attempt}"
+    )
+    run_dir = _find_prompt_artifacts(ctx.sase_home, marker)
+    if run_dir is None:
+        return ctx.record("boundary", False, "durable run record is missing")
+    try:
+        meta = json.loads((run_dir / "agent_meta.json").read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        return ctx.record("boundary", False, f"agent_meta.json unreadable: {exc}")
+    if meta.get("llm_provider") != "fakey" or meta.get("model") != "fakey-large":
+        return ctx.record(
+            "boundary",
+            False,
+            f"run did not use the fakey worker: {meta.get('llm_provider')!r}",
+        )
+    invocations = sorted(run_dir.glob("invocation-*.json"))
+    if not invocations:
+        return ctx.record("boundary", False, "no worker invocation records")
+    try:
+        done = json.loads((run_dir / "done.json").read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        return ctx.record("boundary", False, f"done.json unreadable: {exc}")
+    outcome = str(done.get("outcome", "")).upper()
+    if "COMPLET" not in outcome and "SUCCEED" not in outcome:
+        return ctx.record("boundary", False, f"run is not terminal-clean: {done!r}")
+    if done.get("exec_llm_provider") != "fakey":
+        return ctx.record(
+            "boundary",
+            False,
+            "done.json does not record a fakey worker execution",
+        )
+    return ctx.record(
+        "boundary",
+        True,
+        f"fakey worker crossed and settled ({len(invocations)} invocation(s))",
+    )
+
+
+def step_tui_frame(ctx: LegContext) -> StepResult:
+    """Render one frame through the visual-snapshot tooling."""
+    if shutil.which("tmux", path=ctx.env.get("PATH", os.defpath)) is None:
+        return ctx.record("tui-frame", False, "tmux is not on PATH")
+    frame = ctx.config.work_dir / "frame.svg"
+    completed = ctx.runner.run(
+        [
+            str(ctx.exe),
+            "screenshot",
+            "-S",
+            "-o",
+            str(frame),
+            "-s",
+            "120x40",
+            "-t",
+            "120",
+        ],
+        env=ctx.env,
+        timeout=180,
+    )
+    if completed.returncode != 0:
+        return ctx.record(
+            "tui-frame",
+            False,
+            f"screenshot failed: {(completed.stderr or completed.stdout).strip()}",
+        )
+    try:
+        size = frame.stat().st_size
+    except OSError:
+        return ctx.record("tui-frame", False, "screenshot wrote no frame file")
+    if size < FRAME_MIN_BYTES:
+        return ctx.record(
+            "tui-frame", False, f"frame is suspiciously small ({size} bytes)"
+        )
+    return ctx.record("tui-frame", True, f"rendered headless frame ({size} bytes)")
+
+
+def step_pip_check(ctx: LegContext) -> StepResult:
+    """``uv pip check`` must report a consistent tool environment."""
+    uv = ctx.require_uv()
+    completed = ctx.runner.run(
+        [uv, "pip", "check", "--python", str(ctx.tool_python)],
+        env=ctx.env,
+        timeout=120,
+    )
+    if completed.returncode != 0:
+        return ctx.record(
+            "pip-check",
+            False,
+            f"uv pip check failed: {(completed.stdout or completed.stderr).strip()}",
+        )
+    return ctx.record("pip-check", True, "tool environment is consistent")
+
+
+def step_health(ctx: LegContext) -> StepResult:
+    """``sase core health`` must probe clean on the candidate install."""
+    completed = ctx.runner.run(
+        [str(ctx.exe), "core", "health", "--json"], env=ctx.env, timeout=120
+    )
+    if completed.returncode != 0:
+        return ctx.record(
+            "health", False, f"sase core health failed: {completed.stderr.strip()}"
+        )
+    try:
+        payload = json.loads(completed.stdout)
+    except json.JSONDecodeError as exc:
+        return ctx.record("health", False, f"health output is not JSON: {exc}")
+    if payload.get("probe_ok") is not True or payload.get("error"):
+        return ctx.record(
+            "health", False, f"core probe red: {completed.stdout.strip()[:200]}"
+        )
+    return ctx.record("health", True, "core health probe is clean")
+
+
+def step_upgrade_nminus1(ctx: LegContext) -> StepResult:
+    """Upgrade durable N-1 state to the candidate wheel (wheel legs only)."""
+    if ctx.config.artifact != "wheel":
+        return ctx.record("upgrade-nminus1", True, "sdist legs skip the N-1 upgrade")
+    prev = ctx.config.previous_version
+    if not prev:
+        return ctx.record(
+            "upgrade-nminus1", False, "UPGRADE_NO_PREVIOUS no previous release given"
+        )
+    uv = ctx.require_uv()
+    prev_tool_dir = ctx.config.work_dir / "prev-tool-dir"
+    prev_tool_bin = ctx.config.work_dir / "prev-tool-bin"
+    prev_tool_dir.mkdir(parents=True, exist_ok=True)
+    prev_tool_bin.mkdir(parents=True, exist_ok=True)
+    prev_env = dict(ctx.env)
+    prev_env["UV_TOOL_DIR"] = str(prev_tool_dir)
+    prev_env["UV_TOOL_BIN_DIR"] = str(prev_tool_bin)
+    installed = ctx.runner.run(
+        [uv, "tool", "install", "--python", "3.12", f"sase=={prev}"],
+        env=prev_env,
+        timeout=int(600 * ctx.config.timeout_scale),
+    )
+    if installed.returncode != 0:
+        tail = (installed.stderr or installed.stdout).strip().splitlines()[-1:]
+        return ctx.record(
+            "upgrade-nminus1", False, f"sase=={prev} install failed: {' '.join(tail)}"
+        )
+    prev_exe = prev_tool_bin / "sase"
+    marker = (
+        f"upgrade-{_short_os(ctx.config.os_name)}-{ctx.config.run_id}"
+        f"-{ctx.config.attempt}"
+    )
+    launched = _launch_fakey(ctx, str(prev_exe), marker)
+    if launched.returncode != 0 or "Agent started" not in launched.stdout:
+        return ctx.record(
+            "upgrade-nminus1",
+            False,
+            f"sase=={prev} fakey launch failed: "
+            f"{(launched.stderr or launched.stdout).strip()}",
+        )
+    waited = _wait_for_agents(ctx, str(prev_exe))
+    if waited.returncode != 0:
+        return ctx.record(
+            "upgrade-nminus1",
+            False,
+            f"sase=={prev} agent wait failed: {(waited.stderr or waited.stdout).strip()}",
+        )
+    upgraded = ctx.runner.run(
+        [uv, "tool", "install", "--python", "3.12", "--refresh", str(ctx.config.dist_path)],
+        env=ctx.env,
+        timeout=int(600 * ctx.config.timeout_scale),
+    )
+    if upgraded.returncode != 0:
+        tail = (upgraded.stderr or upgraded.stdout).strip().splitlines()[-1:]
+        return ctx.record(
+            "upgrade-nminus1", False, f"upgrade to candidate failed: {' '.join(tail)}"
+        )
+    listed = ctx.runner.run(
+        [str(ctx.exe), "agent", "list", "-a", "-j"], env=ctx.env, timeout=120
+    )
+    if listed.returncode != 0:
+        return ctx.record(
+            "upgrade-nminus1",
+            False,
+            "upgraded sase cannot list the N-1 durable state",
+        )
+    run_dir = _find_prompt_artifacts(ctx.sase_home, marker)
+    if run_dir is None or not _await_done(run_dir):
+        return ctx.record(
+            "upgrade-nminus1",
+            False,
+            "N-1 durable state does not survive the upgrade",
+        )
+    healthy = ctx.runner.run(
+        [str(ctx.exe), "core", "health", "--json"], env=ctx.env, timeout=120
+    )
+    try:
+        payload = json.loads(healthy.stdout) if healthy.returncode == 0 else {}
+    except json.JSONDecodeError:
+        payload = {}
+    if payload.get("probe_ok") is not True:
+        return ctx.record(
+            "upgrade-nminus1", False, "upgraded sase core health is red"
+        )
+    return ctx.record(
+        "upgrade-nminus1", True, f"sase=={prev} state reloaded after upgrade to wheel"
+    )
+
+
+STEP_FUNCS = {
+    "install": step_install,
+    "core-pin": step_core_pin,
+    "durable-reload": step_durable_reload,
+    "boundary": step_boundary,
+    "tui-frame": step_tui_frame,
+    "pip-check": step_pip_check,
+    "health": step_health,
+    "upgrade-nminus1": step_upgrade_nminus1,
+}
+
+
+def build_leg_env(os_environ: dict[str, str]) -> dict[str, str]:
+    """Scrub caller-session leaks from the leg environment."""
+    return scrub_session_env(dict(os_environ))
+
+
+def resolve_paths(env: dict[str, str]) -> tuple[Path, Path, Path, Path, Path]:
+    """Resolve the isolated home, config, and tool directories from *env*."""
+    home = Path(env.get("HOME", str(Path.home()))).expanduser()
+    sase_home = Path(env.get("SASE_HOME", str(home / ".sase"))).expanduser()
+    config_home = Path(
+        env.get("XDG_CONFIG_HOME", str(home / ".config"))
+    ).expanduser()
+    tool_dir = Path(
+        env.get("UV_TOOL_DIR", str(home / ".local" / "share" / "uv" / "tools"))
+    ).expanduser()
+    tool_bin = Path(
+        env.get("UV_TOOL_BIN_DIR", str(home / ".local" / "bin"))
+    ).expanduser()
+    return home, sase_home, config_home, tool_dir, tool_bin
+
+
+def run_leg(config: LegConfig, runner: Runner | None = None) -> dict[str, Any]:
+    """Run every leg step in order, stopping at the first failure."""
+    active = runner or Runner()
+    env = build_leg_env(dict(os.environ))
+    _, sase_home, config_home, tool_dir, tool_bin = resolve_paths(env)
+    seed_owner_identity(sase_home, config_home)
+    exe = tool_bin / "sase"
+    tool_python = tool_dir / "sase" / "bin" / "python"
+    config.work_dir.mkdir(parents=True, exist_ok=True)
+    ctx = LegContext(
+        config=config,
+        runner=active,
+        env=env,
+        sase_home=sase_home,
+        tool_bin=tool_bin,
+        tool_python=tool_python,
+        exe=exe,
+    )
+    failing_step: str | None = None
+    reason: str | None = None
+    for name in STEP_NAMES:
+        try:
+            step = STEP_FUNCS[name](ctx)
+        except LegError as exc:
+            step = ctx.record(name, False, str(exc))
+        if not step.ok and failing_step is None:
+            failing_step = name
+            reason = step.detail
+            break
+    for name in STEP_NAMES[len(ctx.steps) :]:
+        ctx.steps.append(StepResult(name=name, ok=True, detail="skipped", skipped=True))
+    verdict = "pass" if failing_step is None else "fail"
+    leg = {
+        "schema_version": SCHEMA_VERSION,
+        "os": config.os_name,
+        "artifact": config.artifact,
+        "candidate_id": config.candidate_id,
+        "generation": config.generation,
+        "run_id": config.run_id,
+        "attempt": config.attempt,
+        "core_version": config.core_version,
+        "verdict": verdict,
+        "failing_step": failing_step,
+        "reason": reason,
+        "steps": [step.as_json() for step in ctx.steps],
+    }
+    config.out_path.parent.mkdir(parents=True, exist_ok=True)
+    config.out_path.write_text(json.dumps(leg, indent=2, sort_keys=True) + "\n")
+    return leg
+
+
+def load_leg(path: Path) -> tuple[str, str, dict[str, Any] | None]:
+    """Load one leg file; return (label, status, leg-or-None)."""
+    try:
+        leg = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        return path.name, "missing", None
+    if not isinstance(leg, dict) or leg.get("schema_version") != SCHEMA_VERSION:
+        return path.name, "unreadable", None
+    verdict = leg.get("verdict")
+    if verdict not in ("pass", "fail"):
+        return path.name, "unreadable", leg
+    return path.name, str(verdict), leg
+
+
+def merge_legs(
+    leg_paths: Sequence[Path],
+    *,
+    candidate_id: str,
+    generation: int,
+    run_id: int,
+    attempt: int,
+) -> dict[str, Any]:
+    """Fold leg files into one exercise verdict with a typed reason.
+
+    Every expected leg must be present and green. Anything else is
+    ``EXERCISE_RED(<os>)`` grouped by short OS name (``linux``/``macos``),
+    which withholds publication.
+    """
+    by_leg: dict[tuple[str, str], Path] = {}
+    for leg_path in leg_paths:
+        text = leg_path.name
+        for os_name, artifact in EXPECTED_LEGS:
+            short = _short_os(os_name)
+            if text.startswith(f"exercise-{os_name}-{artifact}") or text.startswith(
+                f"exercise-{short}-{artifact}"
+            ):
+                by_leg[(os_name, artifact)] = leg_path
+    failures: list[str] = []
+    missing: list[str] = []
+    legs: list[dict[str, Any]] = []
+    for os_name, artifact in EXPECTED_LEGS:
+        path = by_leg.get((os_name, artifact))
+        if path is None:
+            missing.append(f"{_short_os(os_name)}-{artifact}")
+            continue
+        _label, status, leg = load_leg(path)
+        if status != "pass" or leg is None:
+            if status == "missing":
+                missing.append(f"{_short_os(os_name)}-{artifact}")
+            else:
+                detail = ""
+                if isinstance(leg, dict):
+                    detail = str(leg.get("failing_step") or leg.get("reason") or status)
+                failures.append(f"{_short_os(os_name)}-{artifact}:{detail}")
+                legs.append(leg if isinstance(leg, dict) else {})
+        else:
+            legs.append(leg)
+    red_oses: list[str] = sorted(
+        {entry.split("-", 1)[0] for entry in failures + missing}
+    )
+    if not failures and not missing:
+        verdict = "pass"
+        reason = f"4/4 legs green for {candidate_id}"
+    else:
+        verdict = "fail"
+        reason = f"EXERCISE_RED({'+'.join(red_oses)})"
+        problems = [f"{name} evidence missing" for name in missing] + [
+            f"{name}" for name in failures
+        ]
+        reason += ": " + "; ".join(problems)
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "kind": "exercise",
+        "candidate_id": candidate_id,
+        "generation": generation,
+        "run_id": run_id,
+        "attempt": attempt,
+        "verdict": verdict,
+        "reason": reason,
+        "extra": {"legs": legs, "missing": missing, "failures": failures},
+    }
+
+
+def _dump_json(path: Path, payload: Any) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="exercise_release",
+        description="Exercise an exact release candidate on this machine.",
+    )
+    subs = parser.add_subparsers(dest="command", required=True)
+
+    leg = subs.add_parser("run-leg", help="run one matrix leg and write its JSON")
+    leg.add_argument("--os", required=True, help="runner OS (matrix.os)")
+    leg.add_argument("--artifact", required=True, choices=("wheel", "sdist"))
+    leg.add_argument("--dist", required=True, help="stashed dist file for this leg")
+    leg.add_argument("--candidate-version", required=True)
+    leg.add_argument("--core-version", required=True)
+    leg.add_argument("--candidate-id", default="")
+    leg.add_argument("--generation", type=int, default=1)
+    leg.add_argument("--run-id", default="0")
+    leg.add_argument("--attempt", default="1")
+    leg.add_argument("--previous-version", default="")
+    leg.add_argument("--apply-probe", default="none")
+    leg.add_argument("--work-dir", required=True)
+    leg.add_argument("--out", required=True)
+
+    merge = subs.add_parser("merge", help="merge leg files into one verdict")
+    merge.add_argument("legs", nargs="+", help="exercise leg JSON files")
+    merge.add_argument("--candidate-id", required=True)
+    merge.add_argument("--generation", type=int, required=True)
+    merge.add_argument("--run-id", type=int, required=True)
+    merge.add_argument("--attempt", type=int, default=1)
+    merge.add_argument("--out", required=True, help="extra JSON output path")
+    return parser
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
+    try:
+        if args.command == "run-leg":
+            if args.artifact not in ("wheel", "sdist"):
+                raise LegError(f"unknown artifact: {args.artifact!r}")
+            if args.apply_probe not in ("none", "break-macos"):
+                raise LegError(f"unknown probe: {args.apply_probe!r}")
+            config = LegConfig(
+                os_name=args.os,
+                artifact=args.artifact,
+                dist_path=Path(args.dist),
+                candidate_version=args.candidate_version,
+                core_version=args.core_version,
+                run_id=args.run_id,
+                attempt=args.attempt,
+                previous_version=args.previous_version,
+                apply_probe=args.apply_probe,
+                work_dir=Path(args.work_dir),
+                out_path=Path(args.out),
+                candidate_id=args.candidate_id,
+                generation=args.generation,
+            )
+            leg = run_leg(config)
+            print(json.dumps({"verdict": leg["verdict"], "reason": leg["reason"]}))
+            return EXIT_OK if leg["verdict"] == "pass" else EXIT_RED
+        if args.command == "merge":
+            merged = merge_legs(
+                [Path(item) for item in args.legs],
+                candidate_id=args.candidate_id,
+                generation=args.generation,
+                run_id=args.run_id,
+                attempt=args.attempt,
+            )
+            _dump_json(Path(args.out), merged["extra"])
+            print(
+                json.dumps({"verdict": merged["verdict"], "reason": merged["reason"]})
+            )
+            return EXIT_OK if merged["verdict"] == "pass" else EXIT_RED
+    except LegError as exc:
+        print(f"REFUSED {exc}", file=sys.stderr)
+        return EXIT_RED
+    except (OSError, ValueError) as exc:
+        print(f"ERROR {exc}", file=sys.stderr)
+        return EXIT_ERROR
+    raise AssertionError(f"unhandled command: {args.command}")
+
+
+if __name__ == "__main__":
+    sys.exit(main())
