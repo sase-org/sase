@@ -453,6 +453,19 @@ def test_release_branch_core_floor_lane_uses_published_floor() -> None:
     assert "python -m pytest -m contract" in run_text
 
 
+def test_ci_does_not_invoke_plugin_release_dependency_floor() -> None:
+    """sase's release PR keeps release-core-floor-smoke.
+
+    Family plugins call tools/check_release_dependency_floor through the
+    shared reusable workflow; this check must not grow onto sase CI.
+    """
+    raw = (REPO_ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+
+    assert "tools/check_release_dependency_floor" not in raw
+    assert "release-dependency-floor.yml" not in raw
+    assert "release-core-floor-smoke" in raw
+
+
 def test_ci_and_master_gate_never_run_the_diff_scoped_test_lane() -> None:
     """Both gates always exercise exhaustive lanes; the scoped lane is a local, agent-only fast path.
 

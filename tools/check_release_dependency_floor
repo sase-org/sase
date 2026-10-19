@@ -1,0 +1,729 @@
+#!/usr/bin/env python3
+"""Check that a plugin release's family floors are published and jointly resolvable.
+
+On a family plugin release PR this tool:
+
+1. For every runtime dependency whose normalized name is ``sase`` or ``sase-*``,
+   asserts that at least one published, non-yanked, non-pre-release PyPI version
+   satisfies the specifier.
+2. Resolves the full runtime dependency list jointly from public PyPI
+   (``uv pip compile``, Python 3.12, no cache).
+
+A red check names the sibling, the specifier, and the newest published version,
+for example ``DEPENDENCY_UNPUBLISHED sase>=0.19.0: newest published is 0.18.0``.
+Unreachable PyPI fails closed. Optional and dev dependencies, and non-family
+names, are ignored by the per-sibling rule.
+
+The ``rerun`` command finds the open release-please PR and re-runs a failed
+floor-check workflow for its current head SHA, so the check can turn green
+after a sibling publishes without a new push. GitHub caps a workflow run at
+50 re-runs; this command stops at attempt 50 and backs off from hourly (first
+24 hours) to every four hours after that.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import subprocess
+import sys
+import tempfile
+import tomllib
+import urllib.error
+import urllib.request
+from collections.abc import Callable, Sequence
+from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+from typing import Any
+from urllib.parse import quote
+
+from packaging.requirements import Requirement
+from packaging.specifiers import SpecifierSet
+from packaging.utils import canonicalize_name
+from packaging.version import InvalidVersion, Version
+
+
+RELEASE_PLEASE_PREFIX = "release-please--"
+FAMILY_PREFIX = "sase-"
+FAMILY_ROOT = "sase"
+PYPI_JSON_URL = "https://pypi.org/pypi/{name}/json"
+USER_AGENT = "sase-release-dependency-floor/1"
+PYPI_TIMEOUT_SECONDS = 20.0
+DEFAULT_PYTHON_VERSION = "3.12"
+# GitHub allows 50 re-runs per workflow run (attempts 2 through 51). Stop at
+# attempt 50 so a scheduled tick never hits the cap and annotates the check.
+MAX_RUN_ATTEMPT = 50
+HOURLY_WINDOW = timedelta(hours=24)
+THEN_EVERY = timedelta(hours=4)
+DEFAULT_WORKFLOW_FILE = "release-dependency-floor.yml"
+
+RunFn = Callable[[Sequence[str]], subprocess.CompletedProcess[str]]
+FetchFn = Callable[[str], object]
+
+
+class PypiUnreachable(Exception):
+    """PyPI could not be read; the floor check must fail closed."""
+
+    def __init__(self, name: str, reason: str) -> None:
+        super().__init__(f"{name}: {reason}")
+        self.name = name
+        self.reason = reason
+
+
+@dataclass(frozen=True)
+class ReleaseVersion:
+    """One published version of a PyPI project, with its yank flag."""
+
+    version: str
+    yanked: bool
+
+
+@dataclass(frozen=True)
+class ProjectReleases:
+    """The versions PyPI lists for one project."""
+
+    name: str
+    versions: tuple[ReleaseVersion, ...]
+
+
+@dataclass(frozen=True)
+class Finding:
+    """One red floor-check reason."""
+
+    kind: str
+    message: str
+
+    def render(self) -> str:
+        return f"{self.kind} {self.message}"
+
+
+@dataclass(frozen=True)
+class CheckOutcome:
+    """The result of one floor check invocation."""
+
+    exit_code: int
+    notice: str | None
+    findings: tuple[Finding, ...]
+
+
+@dataclass(frozen=True)
+class JointCompileResult:
+    """Whether ``uv pip compile`` could resolve the runtime set."""
+
+    ok: bool
+    output: str
+
+
+@dataclass(frozen=True)
+class WorkflowRun:
+    """One GitHub Actions run of the floor-check workflow."""
+
+    database_id: int
+    head_sha: str
+    conclusion: str | None
+    status: str
+    attempt: int
+    created_at: datetime
+    updated_at: datetime
+
+
+@dataclass(frozen=True)
+class ReleasePleasePr:
+    """An open release-please pull request."""
+
+    number: int
+    head_ref: str
+    head_sha: str
+
+
+def is_family_package(name: str) -> bool:
+    """Return whether *name* is a family sibling (``sase`` or ``sase-*``)."""
+    canonical = canonicalize_name(name)
+    return canonical == FAMILY_ROOT or canonical.startswith(FAMILY_PREFIX)
+
+
+def should_enforce(*, head_ref: str | None, extra_requirement: str | None) -> bool:
+    """Return whether this invocation must enforce the floor.
+
+    A probe extra-requirement always enforces. A missing head ref (local run)
+    always enforces. Otherwise only release-please heads are enforced; every
+    other ref passes with a notice so the job is never SKIPPED.
+    """
+    if extra_requirement:
+        return True
+    if not head_ref:
+        return True
+    return head_ref.startswith(RELEASE_PLEASE_PREFIX)
+
+
+def notice_for_head(head_ref: str) -> str:
+    """Return the pass-with-notice line for a non-release head ref."""
+    return (
+        f"NOTICE: head ref {head_ref!r} is not a release-please branch; "
+        "floor check not enforced."
+    )
+
+
+def runtime_requirements(pyproject: Path) -> list[str]:
+    """Return ``[project.dependencies]`` from *pyproject*."""
+    data = tomllib.loads(pyproject.read_text(encoding="utf-8"))
+    project = data.get("project")
+    if not isinstance(project, dict):
+        raise ValueError(f"{pyproject}: missing [project] table")
+    deps = project.get("dependencies", [])
+    if not isinstance(deps, list):
+        raise ValueError(f"{pyproject}: project.dependencies is not a list")
+    requirements: list[str] = []
+    for item in deps:
+        if not isinstance(item, str) or not item.strip():
+            raise ValueError(f"{pyproject}: invalid runtime dependency {item!r}")
+        requirements.append(item.strip())
+    return requirements
+
+
+def family_requirements(raw_requirements: Sequence[str]) -> list[Requirement]:
+    """Return parsed runtime requirements whose names are family siblings."""
+    found: list[Requirement] = []
+    for raw in raw_requirements:
+        requirement = Requirement(raw)
+        if is_family_package(requirement.name):
+            found.append(requirement)
+    return found
+
+
+def parse_project_json(name: str, payload: object) -> ProjectReleases:
+    """Parse a PyPI project JSON document into version rows."""
+    if not isinstance(payload, dict):
+        raise PypiUnreachable(name, "malformed JSON")
+    releases = payload.get("releases")
+    if not isinstance(releases, dict):
+        raise PypiUnreachable(name, "malformed JSON: missing releases")
+    versions: list[ReleaseVersion] = []
+    for version, files in releases.items():
+        if not isinstance(version, str):
+            raise PypiUnreachable(name, "malformed JSON: non-string version")
+        if not isinstance(files, list):
+            raise PypiUnreachable(name, f"malformed JSON: releases[{version}]")
+        if not files:
+            continue
+        yanked = True
+        for file_info in files:
+            if not isinstance(file_info, dict) or file_info.get("yanked") is not True:
+                yanked = False
+                break
+        versions.append(ReleaseVersion(version=version, yanked=yanked))
+    return ProjectReleases(name=name, versions=tuple(versions))
+
+
+def _usable_version(item: ReleaseVersion) -> Version | None:
+    if item.yanked:
+        return None
+    try:
+        version = Version(item.version)
+    except InvalidVersion:
+        return None
+    if version.is_prerelease:
+        return None
+    return version
+
+
+def newest_published(project: ProjectReleases) -> str | None:
+    """Return the newest non-yanked, non-pre-release version string."""
+    best: tuple[Version, str] | None = None
+    for item in project.versions:
+        version = _usable_version(item)
+        if version is None:
+            continue
+        if best is None or version > best[0]:
+            best = (version, item.version)
+    return None if best is None else best[1]
+
+
+def specifier_is_satisfied(specifier: SpecifierSet, project: ProjectReleases) -> bool:
+    """Return whether any usable published version satisfies *specifier*."""
+    for item in project.versions:
+        if _usable_version(item) is None:
+            continue
+        if specifier.contains(item.version, prereleases=False):
+            return True
+    return False
+
+
+def unpublished_finding(requirement: Requirement, newest: str | None) -> Finding:
+    """Build the canonical unpublished-floor finding."""
+    newest_text = "none" if newest is None else newest
+    rendered = str(requirement)
+    return Finding(
+        kind="DEPENDENCY_UNPUBLISHED",
+        message=f"{rendered}: newest published is {newest_text}",
+    )
+
+
+def fetch_pypi_project(name: str, *, timeout: float = PYPI_TIMEOUT_SECONDS) -> object:
+    """GET the PyPI JSON API for *name*; 404 becomes an empty releases map."""
+    url = PYPI_JSON_URL.format(name=quote(name, safe=""))
+    request = urllib.request.Request(
+        url,
+        headers={"User-Agent": USER_AGENT, "Accept": "application/json"},
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            return json.load(response)
+    except urllib.error.HTTPError as exc:
+        if exc.code == 404:
+            return {"releases": {}}
+        raise PypiUnreachable(name, f"HTTP {exc.code} from PyPI") from exc
+    except urllib.error.URLError as exc:
+        reason = exc.reason if exc.reason else str(exc)
+        raise PypiUnreachable(name, str(reason)) from exc
+    except TimeoutError as exc:
+        raise PypiUnreachable(name, "timed out") from exc
+    except (OSError, json.JSONDecodeError, ValueError) as exc:
+        raise PypiUnreachable(name, str(exc)) from exc
+
+
+def _default_run(cmd: Sequence[str]) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(cmd, check=False, capture_output=True, text=True)
+
+
+def joint_compile(
+    requirements: Sequence[str],
+    *,
+    python_version: str = DEFAULT_PYTHON_VERSION,
+    run_fn: RunFn | None = None,
+) -> JointCompileResult:
+    """Resolve *requirements* jointly with ``uv pip compile`` (no cache)."""
+    runner = run_fn or _default_run
+    with tempfile.TemporaryDirectory(prefix="sase-floor-") as tmp:
+        tmp_path = Path(tmp)
+        req_file = tmp_path / "requirements.in"
+        out_file = tmp_path / "requirements.txt"
+        req_file.write_text("\n".join(requirements) + "\n", encoding="utf-8")
+        cmd = [
+            "uv",
+            "--no-cache",
+            "pip",
+            "compile",
+            "--python-version",
+            python_version,
+            "--color",
+            "never",
+            "--output-file",
+            str(out_file),
+            str(req_file),
+        ]
+        try:
+            result = runner(cmd)
+        except FileNotFoundError as exc:
+            return JointCompileResult(ok=False, output=f"uv not found: {exc}")
+        output = (result.stderr or result.stdout or "").strip()
+        return JointCompileResult(ok=result.returncode == 0, output=output)
+
+
+def check_floor(
+    *,
+    pyproject: Path,
+    head_ref: str | None = None,
+    extra_requirement: str | None = None,
+    python_version: str = DEFAULT_PYTHON_VERSION,
+    fetch_fn: FetchFn | None = None,
+    run_fn: RunFn | None = None,
+) -> CheckOutcome:
+    """Run the sibling-floor and joint-resolve checks against *pyproject*."""
+    extra = extra_requirement.strip() if extra_requirement else None
+    if not should_enforce(head_ref=head_ref, extra_requirement=extra):
+        assert head_ref is not None
+        return CheckOutcome(exit_code=0, notice=notice_for_head(head_ref), findings=())
+
+    raw = runtime_requirements(pyproject)
+    if extra:
+        raw = [*raw, extra]
+    findings: list[Finding] = []
+    fetcher = fetch_fn or fetch_pypi_project
+    for requirement in family_requirements(raw):
+        canonical = canonicalize_name(requirement.name)
+        try:
+            payload = fetcher(canonical)
+            project = parse_project_json(canonical, payload)
+        except PypiUnreachable as exc:
+            findings.append(
+                Finding(kind="PYPI_UNREACHABLE", message=f"{exc.name}: {exc.reason}")
+            )
+            continue
+        if specifier_is_satisfied(requirement.specifier, project):
+            continue
+        findings.append(unpublished_finding(requirement, newest_published(project)))
+
+    if any(finding.kind == "PYPI_UNREACHABLE" for finding in findings):
+        return CheckOutcome(exit_code=1, notice=None, findings=tuple(findings))
+
+    compiled = joint_compile(raw, python_version=python_version, run_fn=run_fn)
+    if not compiled.ok:
+        detail = compiled.output or "uv pip compile failed"
+        findings.append(Finding(kind="JOINT_RESOLVE_FAILED", message=detail))
+    exit_code = 0 if not findings else 1
+    return CheckOutcome(exit_code=exit_code, notice=None, findings=tuple(findings))
+
+
+def parse_iso8601(value: str) -> datetime:
+    """Parse a GitHub timestamp into an aware UTC datetime."""
+    return datetime.fromisoformat(value.replace("Z", "+00:00"))
+
+
+def should_rerun_failed(
+    run: WorkflowRun,
+    *,
+    now: datetime,
+    max_attempt: int = MAX_RUN_ATTEMPT,
+    hourly_window: timedelta = HOURLY_WINDOW,
+    then_every: timedelta = THEN_EVERY,
+) -> tuple[bool, str]:
+    """Return whether a failed floor-check run should be re-run now."""
+    if run.status != "completed":
+        return False, f"run is {run.status}"
+    if run.conclusion != "failure":
+        return False, f"conclusion is {run.conclusion}"
+    if run.attempt >= max_attempt:
+        return (
+            False,
+            f"attempt {run.attempt} reached cap {max_attempt} "
+            "(GitHub allows 50 re-runs per workflow run)",
+        )
+    age = now - run.created_at
+    since_last = now - run.updated_at
+    if age <= hourly_window:
+        return True, "hourly window"
+    if since_last < then_every:
+        return False, f"backing off; last attempt was {since_last} ago"
+    return True, "post-day backoff"
+
+
+def _gh_json(args: Sequence[str], run_fn: RunFn) -> Any:
+    result = run_fn(["gh", *args])
+    if result.returncode != 0:
+        detail = (result.stderr or result.stdout or "gh failed").strip()
+        raise RuntimeError(detail)
+    text = result.stdout.strip() if result.stdout else "null"
+    return json.loads(text)
+
+
+def _parse_pr_rows(payload: object) -> list[ReleasePleasePr]:
+    if not isinstance(payload, list):
+        raise RuntimeError("gh pr list returned malformed JSON")
+    found: list[ReleasePleasePr] = []
+    for row in payload:
+        if not isinstance(row, dict):
+            continue
+        head_ref = row.get("headRefName")
+        head_sha = row.get("headRefOid")
+        number = row.get("number")
+        if not isinstance(head_ref, str) or not isinstance(head_sha, str):
+            continue
+        if not isinstance(number, int):
+            continue
+        if not head_ref.startswith(RELEASE_PLEASE_PREFIX):
+            continue
+        found.append(
+            ReleasePleasePr(number=number, head_ref=head_ref, head_sha=head_sha)
+        )
+    return found
+
+
+def _parse_run_rows(payload: object) -> list[WorkflowRun]:
+    if not isinstance(payload, list):
+        raise RuntimeError("gh run list returned malformed JSON")
+    found: list[WorkflowRun] = []
+    for row in payload:
+        if not isinstance(row, dict):
+            continue
+        try:
+            database_id = int(row["databaseId"])
+            head_sha = str(row["headSha"])
+            status = str(row.get("status") or "")
+            attempt = int(row.get("attempt") or 1)
+            created_at = parse_iso8601(str(row["createdAt"]))
+            updated_at = parse_iso8601(str(row["updatedAt"]))
+        except (KeyError, TypeError, ValueError) as exc:
+            raise RuntimeError(f"gh run list row is malformed: {exc}") from exc
+        conclusion_raw = row.get("conclusion")
+        conclusion = str(conclusion_raw) if conclusion_raw else None
+        found.append(
+            WorkflowRun(
+                database_id=database_id,
+                head_sha=head_sha,
+                conclusion=conclusion,
+                status=status,
+                attempt=attempt,
+                created_at=created_at,
+                updated_at=updated_at,
+            )
+        )
+    return found
+
+
+def rerun_failed_floor_checks(
+    *,
+    repo: str,
+    workflow: str = DEFAULT_WORKFLOW_FILE,
+    event_name: str | None = None,
+    now: datetime | None = None,
+    run_fn: RunFn | None = None,
+    max_attempt: int = MAX_RUN_ATTEMPT,
+    hourly_window: timedelta = HOURLY_WINDOW,
+    then_every: timedelta = THEN_EVERY,
+    dry_run: bool = False,
+) -> tuple[int, list[str]]:
+    """Re-run failed floor-check runs on open release-please PRs."""
+    if event_name and event_name != "schedule":
+        return 0, [f"NOTICE: event {event_name!r} does not rerun failed floor checks."]
+    runner = run_fn or _default_run
+    clock = now or datetime.now(timezone.utc)
+    lines: list[str] = []
+    try:
+        prs = _parse_pr_rows(
+            _gh_json(
+                [
+                    "pr",
+                    "list",
+                    "--repo",
+                    repo,
+                    "--state",
+                    "open",
+                    "--limit",
+                    "50",
+                    "--json",
+                    "number,headRefName,headRefOid",
+                ],
+                runner,
+            )
+        )
+    except RuntimeError as exc:
+        return 1, [f"rerun: failed to list pull requests: {exc}"]
+    if not prs:
+        return 0, ["NOTICE: no open release-please PRs."]
+    failed = False
+    for pr in prs:
+        try:
+            runs = _parse_run_rows(
+                _gh_json(
+                    [
+                        "run",
+                        "list",
+                        "--repo",
+                        repo,
+                        "--workflow",
+                        workflow,
+                        "--commit",
+                        pr.head_sha,
+                        "--limit",
+                        "5",
+                        "--json",
+                        "databaseId,headSha,conclusion,status,attempt,"
+                        "createdAt,updatedAt",
+                    ],
+                    runner,
+                )
+            )
+        except RuntimeError as exc:
+            failed = True
+            lines.append(f"PR #{pr.number}: failed to list runs: {exc}")
+            continue
+        matching = [run for run in runs if run.head_sha == pr.head_sha]
+        if not matching:
+            lines.append(f"PR #{pr.number}: no floor-check run for {pr.head_sha[:12]}")
+            continue
+        latest = matching[0]
+        rerun, reason = should_rerun_failed(
+            latest,
+            now=clock,
+            max_attempt=max_attempt,
+            hourly_window=hourly_window,
+            then_every=then_every,
+        )
+        if not rerun:
+            lines.append(f"PR #{pr.number}: skip run {latest.database_id} ({reason})")
+            continue
+        if dry_run:
+            lines.append(
+                f"PR #{pr.number}: would rerun {latest.database_id} ({reason})"
+            )
+            continue
+        result = runner(
+            [
+                "gh",
+                "run",
+                "rerun",
+                str(latest.database_id),
+                "--repo",
+                repo,
+                "--failed",
+            ]
+        )
+        if result.returncode != 0:
+            failed = True
+            detail = (result.stderr or result.stdout or "gh run rerun failed").strip()
+            lines.append(f"PR #{pr.number}: rerun failed: {detail}")
+            continue
+        lines.append(f"PR #{pr.number}: reran {latest.database_id} ({reason})")
+    return (1 if failed else 0, lines)
+
+
+def _print_outcome(outcome: CheckOutcome) -> int:
+    if outcome.notice:
+        print(outcome.notice)
+        return 0
+    if not outcome.findings:
+        print("Release dependency floor satisfied.")
+        return 0
+    for finding in outcome.findings:
+        print(finding.render(), file=sys.stderr)
+    return outcome.exit_code
+
+
+def _add_check_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "-e",
+        "--extra-requirement",
+        default=None,
+        help="Extra requirement to plant (for example sase>=99 on a probe run)",
+    )
+    parser.add_argument(
+        "-r",
+        "--head-ref",
+        default=None,
+        help=(
+            "Git head ref of the caller. Enforcement runs when this starts "
+            "with 'release-please--', when it is omitted (local runs), or "
+            "when --extra-requirement is set. Other refs pass with a notice."
+        ),
+    )
+    parser.add_argument(
+        "-p",
+        "--pyproject",
+        type=Path,
+        default=Path("pyproject.toml"),
+        help="Path to the caller pyproject.toml (default: ./pyproject.toml)",
+    )
+    parser.add_argument(
+        "--python-version",
+        default=DEFAULT_PYTHON_VERSION,
+        help="Target Python version for uv pip compile (default: 3.12)",
+    )
+
+
+def _add_rerun_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Print the rerun plan without calling gh run rerun",
+    )
+    parser.add_argument(
+        "--event",
+        default=None,
+        help="GitHub event name; non-schedule events pass with a notice",
+    )
+    parser.add_argument(
+        "--hourly-hours",
+        type=int,
+        default=24,
+        help="Hours after the first attempt to keep hourly reruns (default: 24)",
+    )
+    parser.add_argument(
+        "--max-attempt",
+        type=int,
+        default=MAX_RUN_ATTEMPT,
+        help="Do not rerun once github.run_attempt reaches this cap (default: 50)",
+    )
+    parser.add_argument(
+        "-R",
+        "--repo",
+        default=None,
+        help="owner/name repository (default: $GITHUB_REPOSITORY)",
+    )
+    parser.add_argument(
+        "--then-every-hours",
+        type=int,
+        default=4,
+        help="Hours between reruns after the hourly window (default: 4)",
+    )
+    parser.add_argument(
+        "-w",
+        "--workflow",
+        default=DEFAULT_WORKFLOW_FILE,
+        help="Caller workflow file name (default: release-dependency-floor.yml)",
+    )
+
+
+def build_parser() -> argparse.ArgumentParser:
+    """Return the CLI parser for check (default) and rerun."""
+    parser = argparse.ArgumentParser(
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    subparsers = parser.add_subparsers(dest="command")
+    check_parser = subparsers.add_parser(
+        "check",
+        help="Verify family sibling floors and joint resolve (default)",
+    )
+    _add_check_arguments(check_parser)
+    rerun_parser = subparsers.add_parser(
+        "rerun",
+        help="Re-run failed floor checks on open release-please PRs",
+    )
+    _add_rerun_arguments(rerun_parser)
+    return parser
+
+
+def _normalize_argv(argv: Sequence[str]) -> list[str]:
+    if not argv or argv[0].startswith("-"):
+        return ["check", *argv]
+    if argv[0] not in {"check", "rerun", "help"}:
+        return ["check", *argv]
+    return list(argv)
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    """CLI entry point."""
+    raw = list(sys.argv[1:] if argv is None else argv)
+    parser = build_parser()
+    namespace = parser.parse_args(_normalize_argv(raw))
+    command = namespace.command or "check"
+    if command == "rerun":
+        repo = namespace.repo or os.environ.get("GITHUB_REPOSITORY")
+        if not repo:
+            print(
+                "rerun requires --repo or GITHUB_REPOSITORY",
+                file=sys.stderr,
+            )
+            return 2
+        event = namespace.event or os.environ.get("GITHUB_EVENT_NAME")
+        exit_code, lines = rerun_failed_floor_checks(
+            repo=repo,
+            workflow=namespace.workflow,
+            event_name=event,
+            max_attempt=namespace.max_attempt,
+            hourly_window=timedelta(hours=namespace.hourly_hours),
+            then_every=timedelta(hours=namespace.then_every_hours),
+            dry_run=namespace.dry_run,
+        )
+        for line in lines:
+            stream = sys.stderr if exit_code else sys.stdout
+            print(line, file=stream)
+        return exit_code
+
+    if not namespace.pyproject.is_file():
+        print(f"pyproject not found: {namespace.pyproject}", file=sys.stderr)
+        return 2
+    outcome = check_floor(
+        pyproject=namespace.pyproject,
+        head_ref=namespace.head_ref,
+        extra_requirement=namespace.extra_requirement,
+        python_version=namespace.python_version,
+    )
+    return _print_outcome(outcome)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

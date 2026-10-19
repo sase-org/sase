@@ -1,0 +1,118 @@
+name: Release dependency floor
+
+# Shared floor check for family plugin release PRs (E1 floor-check).
+#
+# ci_watch's plan_release_merge refuses with release_pr_checks_not_green
+# unless every rollup entry is COMPLETED with conclusion SUCCESS, SKIPPED, or
+# NEUTRAL. SKIPPED counts as green, so neither job in this workflow uses an
+# `if:` that would skip it. The check job always runs: it enforces when the
+# head ref starts with `release-please--` (or a probe extra-requirement is
+# set) and otherwise exits 0 with a notice. A FAILURE conclusion is what
+# blocks a plugin release.
+#
+# The caller repo is checked out at the PR head. This workflow's own script
+# is checked out at job.workflow_sha so the reusable workflow and the tool
+# never skew.
+#
+# On schedule, the rerun job finds the open release-please PR and, if the
+# latest floor-check run for its current head SHA failed, runs
+# `gh run rerun --failed` on it. GitHub caps a workflow run at 50 re-runs;
+# the tool stops at attempt 50, hourly for the first 24 hours, then every
+# four hours. Do not use commit statuses: ci_watch would read them as never
+# green.
+#
+# Called from each plugin as
+# uses: sase-org/sase/.github/workflows/release-dependency-floor.yml@master
+# sase's own release PR keeps release-core-floor-smoke and does not call this.
+
+on:
+  workflow_call:
+    inputs:
+      probe_requirement:
+        description: Extra requirement to force a red check (for example sase>=99)
+        type: string
+        required: false
+        default: ""
+
+jobs:
+  check:
+    name: Release dependency floor
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - name: Check out the caller at the PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Check out the floor-check script at this workflow's commit
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
+          path: .sase-floor-check
+          sparse-checkout: |
+            tools/check_release_dependency_floor
+          sparse-checkout-cone-mode: false
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Check family sibling floors and joint resolve
+        env:
+          HEAD_REF: ${{ github.head_ref || github.ref_name }}
+          PROBE_REQUIREMENT: ${{ inputs.probe_requirement }}
+        run: |
+          set -euo pipefail
+          extra=()
+          if [[ -n "${PROBE_REQUIREMENT}" ]]; then
+            extra+=(--extra-requirement "${PROBE_REQUIREMENT}")
+          fi
+          uv run --python 3.12 --no-project --with packaging -- \
+            python .sase-floor-check/tools/check_release_dependency_floor \
+            --pyproject pyproject.toml \
+            --head-ref "${HEAD_REF}" \
+            "${extra[@]}"
+
+  rerun:
+    name: Rerun failed floor check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      actions: write
+      contents: read
+      pull-requests: read
+    steps:
+      - name: Check out the floor-check script at this workflow's commit
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
+          path: .sase-floor-check
+          sparse-checkout: |
+            tools/check_release_dependency_floor
+          sparse-checkout-cone-mode: false
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Rerun a failed floor check on the open release-please PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          uv run --python 3.12 --no-project --with packaging -- \
+            python .sase-floor-check/tools/check_release_dependency_floor rerun \
+            --repo "${GITHUB_REPOSITORY}" \
+            --event "${GITHUB_EVENT_NAME}" \
+            --workflow release-dependency-floor.yml
