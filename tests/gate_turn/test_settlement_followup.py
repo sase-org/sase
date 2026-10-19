@@ -10,6 +10,10 @@ import pytest
 
 from sase.agent.launch_types import AgentLaunchResult
 from sase.core.paths import sase_projects_dir
+from sase.core.wait_dependency_resolution import (
+    build_wait_dependency_index,
+    dependency_resolution_status,
+)
 import sase.gate_turn.followup as followup_module
 import sase.gate_turn.handoff as handoff_module
 import sase.gate_turn.settlement as settlement_module
@@ -288,6 +292,22 @@ def test_tale_approve_commit_settlement_launches_coder_followup(
         called_artifacts_dir: str, meta: dict[str, Any], **kwargs: Any
     ) -> FollowupLaunchResult:
         observed["policy"] = kwargs["policy"]
+        on_disk_meta = json.loads(
+            (Path(called_artifacts_dir) / "agent_meta.json").read_text()
+        )
+        on_disk_done = json.loads(
+            (Path(called_artifacts_dir) / "done.json").read_text()
+        )
+        observed["meta_outcome"] = on_disk_meta.get("gate_followup_outcome")
+        observed["done_outcome"] = on_disk_done.get("gate_followup_outcome")
+        observed["attempt_live"] = on_disk_meta.get("gate_followup_attempt_live")
+        observed["attempt_stage"] = on_disk_meta.get("gate_followup_attempt_stage")
+        index = build_wait_dependency_index("proj", projects_root=sase_projects_dir())
+        session = index.agent_session_candidate("lane")
+        observed["session_resolved"] = session.is_resolved if session else None
+        observed["wait_resolved"] = dependency_resolution_status(
+            index, ["lane"]
+        ).resolved
         return _fake_launcher(called_artifacts_dir, meta, **kwargs)
 
     monkeypatch.setattr(
@@ -310,6 +330,37 @@ def test_tale_approve_commit_settlement_launches_coder_followup(
     assert meta["gate_accent"] == "#00D7D7"
     assert meta["gate_followup_outcome"] == "launched"
     assert meta["gate_followup_agent"] == "lane--1"
+    assert observed["meta_outcome"] is None
+    assert observed["done_outcome"] is None
+    assert observed["attempt_live"] is True
+    assert observed["attempt_stage"] == "launching"
+    assert observed["session_resolved"] is False
+    assert observed["wait_resolved"] is False
+
+
+def test_deferred_fallback_outcome_is_written_after_launch_without_outcome(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request_id = "deferred-outcome-fallback"
+    gate = create_gate(gate_spec(request_id, turn=DEFAULT_TURN))
+    artifacts_dir = make_gate_turn_member(
+        request_id, gate.bundle_path, turn=DEFAULT_TURN
+    )
+    execute_gate_selection(gate.bundle_path, ["cleanup"], {}, source="test")
+    record = read_gate_turn_marker("proj", artifacts_dir)
+    assert record is not None
+
+    monkeypatch.setattr(
+        "sase.gate_turn.handoff_launch.settle_turn_claim_and_followup",
+        lambda *args, **kwargs: None,
+    )
+
+    settle_gate_turn(record, gate_state="answered", reason="gate answered")
+
+    meta = json.loads((Path(artifacts_dir) / "agent_meta.json").read_text())
+    done = json.loads((Path(artifacts_dir) / "done.json").read_text())
+    assert meta["gate_followup_outcome"] == "failed"
+    assert done["gate_followup_outcome"] == "failed"
 
 
 def test_suffixless_gate_spawns_after_ignoring_completed_code_creator(

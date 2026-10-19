@@ -11,7 +11,6 @@ from pathlib import Path
 from typing import Any, Literal
 
 from sase.agent.names import match_agent_name_template
-from sase.ace.hooks.processes import is_process_running
 from sase.core.agent_scan_facade import (
     default_agent_artifact_index_path,
     query_agent_artifact_index,
@@ -27,6 +26,11 @@ from sase.core.gate_followup_facade import (
     gate_followup_attempt_id,
 )
 from sase.core.paths import sase_projects_dir
+from sase.gate_turn.attempt_liveness import (
+    ATTEMPT_LIVE_FIELD,
+    ATTEMPT_OWNER_PID_FIELD,
+    gate_followup_attempt_is_live,
+)
 from sase.notification_gates.durability import atomic_write_json, file_lock
 from sase.plan_chain import PLAN_CHAIN_CODER_SUFFIX
 
@@ -38,8 +42,6 @@ FOLLOWUP_LOCK_NAME = ".gate_followup.lock"
 ATTEMPT_ID_FIELD = "gate_followup_attempt_id"
 ATTEMPT_FINGERPRINT_FIELD = "gate_followup_attempt_fingerprint"
 ATTEMPT_STAGE_FIELD = "gate_followup_attempt_stage"
-ATTEMPT_LIVE_FIELD = "gate_followup_attempt_live"
-ATTEMPT_OWNER_PID_FIELD = "gate_followup_attempt_owner_pid"
 ATTEMPT_STARTED_AT_FIELD = "gate_followup_attempt_started_at"
 ERROR_STAGE_FIELD = "gate_followup_error_stage"
 ERROR_TYPE_FIELD = "gate_followup_error_type"
@@ -111,8 +113,7 @@ def _attempt_snapshot(
     if not attempt_id:
         return None
     owner_pid = _optional_int(meta.get(ATTEMPT_OWNER_PID_FIELD))
-    recorded_live = bool(meta.get(ATTEMPT_LIVE_FIELD))
-    live = recorded_live and (owner_pid is None or is_process_running(owner_pid))
+    live = gate_followup_attempt_is_live(meta)
     return {
         "attempt_id": attempt_id,
         "fingerprint": _str(meta.get(ATTEMPT_FINGERPRINT_FIELD)) or fingerprint or None,
@@ -284,14 +285,20 @@ def apply_decision(
     artifacts_dir: str,
     meta: dict[str, Any],
     decision: Mapping[str, Any],
-) -> None:
+    *,
+    defer_outcome: bool = False,
+) -> str | None:
     """Persist classifier-selected outcome, agent, and attention fields."""
     from sase.axe.run_agent_helpers_artifacts import update_meta_field
 
     persist_outcome = decision.get("persist_outcome")
+    deferred_outcome: str | None = None
     if isinstance(persist_outcome, str) and persist_outcome:
-        meta["gate_followup_outcome"] = persist_outcome
-        update_meta_field(artifacts_dir, "gate_followup_outcome", persist_outcome)
+        if defer_outcome:
+            deferred_outcome = persist_outcome
+        else:
+            meta["gate_followup_outcome"] = persist_outcome
+            update_meta_field(artifacts_dir, "gate_followup_outcome", persist_outcome)
     adopt_agent = decision.get("adopt_agent")
     if (
         isinstance(adopt_agent, str)
@@ -304,6 +311,7 @@ def apply_decision(
         reason = str(decision.get("reason") or "follow-up needs attention")
         meta["gate_followup_error"] = reason
         update_meta_field(artifacts_dir, "gate_followup_error", reason)
+    return deferred_outcome
 
 
 def notify_handoff_failure(

@@ -64,7 +64,11 @@ def launch_or_record_followup(
     config: TurnSettlementConfig,
     done_marker: Mapping[str, Any] | None = None,
 ) -> None:
-    """Launch, adopt, wait, or record a follow-up according to the core decision."""
+    """Launch, adopt, wait, or record a follow-up according to the core decision.
+
+    Defer provisional outcomes during launch because an interim terminal outcome
+    releases ``%w:<session>`` waiters before the successor exists.
+    """
     followup_requested = bool(policy is not None and meta.get("gate_next_action"))
     evidence = collect_successor_evidence(
         project_name=project_name,
@@ -89,7 +93,13 @@ def launch_or_record_followup(
         followup_requested=followup_requested,
         successor_evidence=evidence,
     )
-    apply_decision(artifacts_dir, meta, decision)
+    launch_allowed = bool(decision.get("launch_allowed"))
+    deferred_outcome = apply_decision(
+        artifacts_dir,
+        meta,
+        decision,
+        defer_outcome=launch_allowed,
+    )
     if decision.get("recovery") == "adopt":
         persist_attempt(
             artifacts_dir,
@@ -99,7 +109,7 @@ def launch_or_record_followup(
             fingerprint=str(meta.get("gate_request_fingerprint") or ""),
         )
         return
-    if not decision.get("launch_allowed"):
+    if not launch_allowed:
         if not already_settled and decision.get("recovery") != "wait":
             _release_failed_attempt_claim(meta, project_name, artifacts_dir)
         return
@@ -155,6 +165,7 @@ def launch_or_record_followup(
         )
         _release_failed_attempt_claim(meta, project_name, artifacts_dir)
         notify_handoff_failure(meta, error=exc, stage="launching")
+        _merge_and_record_deferred_outcome(artifacts_dir, meta, deferred_outcome)
         return
     disk = _read_meta(artifacts_dir)
     merge_followup_fields(meta, disk)
@@ -170,7 +181,9 @@ def launch_or_record_followup(
             error_stage="launching",
         )
         notify_handoff_failure(meta, error=settle_error, stage="launching")
+        _merge_and_record_deferred_outcome(artifacts_dir, meta, deferred_outcome)
         return
+    _record_deferred_outcome_if_missing(meta, deferred_outcome, artifacts_dir)
     persist_attempt(
         artifacts_dir,
         meta,
@@ -179,6 +192,26 @@ def launch_or_record_followup(
         fingerprint=fingerprint,
     )
     _ = done_marker
+
+
+def _merge_and_record_deferred_outcome(
+    artifacts_dir: str,
+    meta: dict[str, Any],
+    deferred_outcome: str | None,
+) -> None:
+    merge_followup_fields(meta, _read_meta(artifacts_dir))
+    _record_deferred_outcome_if_missing(meta, deferred_outcome, artifacts_dir)
+
+
+def _record_deferred_outcome_if_missing(
+    meta: dict[str, Any],
+    deferred_outcome: str | None,
+    artifacts_dir: str,
+) -> None:
+    """Persist the classifier fallback after launch, if no outcome was recorded."""
+    if deferred_outcome and not meta.get("gate_followup_outcome"):
+        meta["gate_followup_outcome"] = deferred_outcome
+        update_meta_field(artifacts_dir, "gate_followup_outcome", deferred_outcome)
 
 
 def settle_already_terminal_handoff(

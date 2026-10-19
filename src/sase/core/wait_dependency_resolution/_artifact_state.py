@@ -16,6 +16,7 @@ from sase.core.dismissed_agent_completion import (
     effective_done_outcome,
 )
 from sase.gate_turn.state import TERMINAL_GATE_STATES, is_real_gate_member
+from sase.gate_turn.attempt_liveness import gate_followup_attempt_is_live
 from sase.monitor_state import is_monitor_member_role
 from sase.plan_chain import (
     agent_session_base,
@@ -157,6 +158,11 @@ def turn_followup_handoff_agent(
     meta: Mapping[str, Any],
     done_data: Mapping[str, Any] | None,
 ) -> str | None:
+    """Return a successor agent or a placeholder while a gate handoff is pending.
+
+    The on-disk meta mapping carries flat attempt liveness. Snapshot rows without
+    that key fail open to the existing resolution behavior.
+    """
     kind = _terminal_turn_kind(meta, done_data)
     if kind is None:
         return None
@@ -178,7 +184,13 @@ def turn_followup_handoff_agent(
     if (
         kind == "gate"
         and state not in {"lost", "stopped"}
-        and followup_outcome is None
+        and (
+            followup_outcome is None
+            or (
+                followup_outcome not in SUCCESSFUL_TURN_FOLLOWUP_OUTCOMES
+                and gate_followup_attempt_is_live(meta)
+            )
+        )
         and isinstance(next_action, str)
         and next_action.strip()
     ):
