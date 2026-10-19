@@ -28,6 +28,7 @@ from tests.ace.tui._statistics_pane_helpers import (
     _assert_statistics_chrome,
     _open_statistics,
     _patch_center,
+    _wait_statistics_settled,
     _rail_text,
     _rail_widget,
     _render_plain,
@@ -279,10 +280,15 @@ async def test_description_rail_cannot_steal_focus_or_bindings(
         assert custom_input.has_focus
         await page.press("escape")
         await page.pause()
+        # Neither the rail click nor the cancelled custom-range editor reloads.
+        assert len(calls) == 1
         await page.press("0", "3")
         await page.wait_for(lambda _state: pane._view == "projects")
         _assert_statistics_chrome(pane)
-        assert len(calls) == 1
+        # Projects is its own report (sase-1m3.11), so the switch schedules
+        # exactly one debounced Projects load.
+        await _wait_statistics_settled(page, pane)
+        assert [call[0] for call in calls[1:]] == ["projects"]
 
 
 async def test_resize_switches_statistics_caption_without_reloading(

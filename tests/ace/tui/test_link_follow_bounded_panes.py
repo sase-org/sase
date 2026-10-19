@@ -388,6 +388,25 @@ async def _open_plans(page: AcePage) -> Any:
     return pane
 
 
+async def _commit_kind_active_hiding(
+    page: AcePage, pane: Any, target: ArtifactEntryTarget
+) -> None:
+    """Commit ``kind:active`` and wait until its query result hides *target*.
+
+    ``host_limit_query()`` reports the committed query at once, but the Rust
+    query runs on a worker and the option list keeps the pre-query rows until
+    it lands. Following before then selects the still-rendered archive row
+    and never needs the ``path:`` context these tests exercise.
+    """
+    pane.query_one(PlanFilterBar).post_message(PlanFilterBar.Submitted("kind:active"))
+    await page.wait_for(
+        lambda _state: (
+            pane.host_limit_query() == "kind:active"
+            and all(plan_row_target(row) != target for row in pane._rows.values())
+        )
+    )
+
+
 async def test_archived_plan_reveals_through_path_context_after_scan(
     tmp_path: Any, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -404,9 +423,7 @@ async def test_archived_plan_reveals_through_path_context_after_scan(
         )
         assert pane._unfiltered_snapshot_has_target(stale_active_target)
 
-        bar = pane.query_one(PlanFilterBar)
-        bar.post_message(PlanFilterBar.Submitted("kind:active"))
-        await page.wait_for(lambda _state: pane.host_limit_query() == "kind:active")
+        await _commit_kind_active_hiding(page, pane, target)
         assert pane.selected_entry_target() != target
 
         await _follow(page, f"plan:{identity}", target)

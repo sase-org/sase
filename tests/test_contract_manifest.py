@@ -310,12 +310,17 @@ MANIFEST_PATH = ROOT / "tests" / "contract_manifest.txt"
 # `test_github_actions_testpypi_drill.py` landed marked `contract` without a
 # manifest refresh, so the marker selection had already drifted past this
 # manifest on master (the matches-marker test was red on the clean base);
-# syncing them redistributes no coverage. The two new files measured ~4 s
-# standalone (22 tests). The whole 79-entry set measured 130.81 s under the
-# command above on this host (single run; 881 passed). The next candidate
-# should displace an entry rather than add one.
+# syncing them redistributes no coverage. They are checked-in workflow-YAML
+# guards, data assets no import edge reaches, so the contract set is their only
+# scoped coverage -- the same basis on which `test_github_actions_ci_master_gate.py`
+# and its siblings were admitted. Together they measured 4.10 s standalone
+# (22 tests). A refreshed run of the whole 79-entry set measured 159.35 serial
+# seconds (881 passed) under the command above, with 163.93 s wall time and
+# starting host load averages 13.28/20.99/24.66; treat that loaded run as an
+# inflated measurement. The next candidate should displace an entry rather
+# than add one.
 _MANIFEST_ENTRY_BUDGET = 79
-_MEASURED_SERIAL_COST = "130.81 serial seconds across 79 entries"
+_MEASURED_SERIAL_COST = "159.35 serial seconds across 79 entries"
 
 
 def _load_refresh_tool() -> ModuleType:

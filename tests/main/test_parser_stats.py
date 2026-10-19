@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import sys
 from pathlib import Path
 
 import pytest
@@ -10,10 +11,21 @@ import pytest
 from sase.main.parser import default_list_delegation_notice
 from sase.stats.registry import PROJECT_REPORT_GROUPINGS, PROJECT_REPORT_LEGENDS
 from tests.main.parser_cli_helpers import parse_sase_args
-from tests.main.parser_help_helpers import parse_and_capture_help, parser_for
+from tests.main.parser_help_helpers import (
+    assert_metavar_option_documented,
+    parse_and_capture_help,
+    parser_for,
+)
 
 GOLDEN = Path(__file__).resolve().parents[1] / "stats" / "golden" / "cli"
 _UPDATE = os.environ.get("SASE_UPDATE_PROJECT_RENDER_GOLDENS") == "1"
+# Python 3.13 argparse stopped repeating an option's metavar after its short
+# alias ("-f, --format {…}" rather than "-f {…}, --format {…}"), which also
+# moves short invocations onto the help column. 3.13 and 3.14 render this
+# parser identically, so one golden per spelling covers requires-python.
+_HELP_GOLDEN = (
+    "project_help_py313.txt" if sys.version_info >= (3, 13) else "project_help.txt"
+)
 
 
 def test_bare_stats_is_not_a_list_default() -> None:
@@ -105,8 +117,9 @@ def test_project_help_golden(
     monkeypatch.delenv("FORCE_COLOR", raising=False)
     monkeypatch.delenv("PYTHON_COLORS", raising=False)
     help_text = parse_and_capture_help(["stats", "project", "-h"], capsys)
-    path = GOLDEN / "project_help.txt"
+    path = GOLDEN / _HELP_GOLDEN
     if _UPDATE:
+        # Update mode rewrites only the running interpreter's golden.
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(help_text, encoding="utf-8")
         return
@@ -129,8 +142,12 @@ def test_project_help_includes_definitions_and_examples(
     assert "sase stats project -p sase -r all" in help_text
     assert "-D, --include-disabled" in help_text
     assert "-F, --fetch" in help_text
-    assert "-f, --format {json,markdown,rich}" in help_text
-    assert "-g, --group-by {model,patch,project,repo}" in help_text
+    assert_metavar_option_documented(
+        help_text, "-f", "--format", "{json,markdown,rich}"
+    )
+    assert_metavar_option_documented(
+        help_text, "-g", "--group-by", "{model,patch,project,repo}"
+    )
     assert "-j, --json" in help_text
-    assert "-p, --project PROJECT" in help_text
-    assert "-r, --range RANGE" in help_text
+    assert_metavar_option_documented(help_text, "-p", "--project", "PROJECT")
+    assert_metavar_option_documented(help_text, "-r", "--range", "RANGE")

@@ -574,9 +574,9 @@ async def test_matrix_archived_plan_via_links_panel(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     from sase.ace.testing import AcePage
-    from sase.ace.tui.widgets.artifacts.plan_filter_bar import PlanFilterBar
     from sase.ace.tui.widgets.artifacts.plans_list import plan_row_target
     from tests.ace.tui.test_link_follow_bounded_panes import (
+        _commit_kind_active_hiding,
         _install_truncated_archived_plans,
         _open_plans,
     )
@@ -587,9 +587,7 @@ async def test_matrix_archived_plan_via_links_panel(
         archive_row = next(row for row in pane._rows.values() if row.kind == "archive")
         target = plan_row_target(archive_row)
         identity = target.parts[2]
-        bar = pane.query_one(PlanFilterBar)
-        bar.post_message(PlanFilterBar.Submitted("kind:active"))
-        await page.wait_for(lambda _state: pane.host_limit_query() == "kind:active")
+        await _commit_kind_active_hiding(page, pane, target)
         chip = _chip(f"plan:{identity}", target)
         app = page.app
         app._follow_single_link_chip(chip)
