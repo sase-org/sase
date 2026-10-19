@@ -26,6 +26,7 @@ CORE_SHA = "c" * 40
 __all__ = [
     "CORE_SHA",
     "FakeClock",
+    "FakeSignals",
     "NOW",
     "SHA",
     "UTC",
@@ -45,6 +46,21 @@ __all__ = [
     "watch",
     "watch_api",
 ]
+
+
+class FakeSignals:
+    SIGTERM = 15
+    SIGINT = 2
+    SIGHUP = 1
+
+    def __init__(self) -> None:
+        self.handlers: dict[int, Any] = {}
+
+    def getsignal(self, signum: int) -> Any:
+        return self.handlers.get(signum)
+
+    def signal(self, signum: int, handler: Any) -> None:
+        self.handlers[signum] = handler
 
 
 class FakeClock:
