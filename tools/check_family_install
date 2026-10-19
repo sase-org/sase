@@ -1,0 +1,632 @@
+#!/usr/bin/env python3
+"""Family install canary check (phase sase-1my.2).
+
+Compares the packages in an isolated ``uv tool install`` of sase plus the
+family plugins against the newest usable PyPI releases, and records the
+``install-canary-<os>.json`` result contract that E2.6's ``INSTALL_BROKEN``
+consumes.
+
+Rules (see the ``canary`` phase of ``plan:202610/e1_installable_family.md``):
+
+- sase and each family plugin must equal the newest non-yanked,
+  non-pre-release PyPI version (rule ``newest``), or the pinned version in
+  ``--exact`` mode (rule ``exact``).
+- ``sase-core-rs`` must equal the newest version satisfying the installed
+  sase's own requirement (rule ``window``). A core minor beyond sase's window
+  is normal between releases and must not read as red.
+- On a version mismatch the PyPI reads are repeated once, to absorb CDN lag
+  or a release that lands mid-run, before the verdict is recorded.
+- Unreadable, malformed or partial PyPI evidence never yields green: the
+  check fails closed with rule ``unknown`` on the affected packages.
+
+Only the stdlib plus ``packaging`` is used. The workflow runs this through
+``uv run --no-project --with packaging`` so the runner needs no checkout
+install.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import subprocess
+import sys
+import urllib.error
+import urllib.request
+from collections.abc import Callable, Mapping, Sequence
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
+
+
+SCHEMA_VERSION = 1
+
+#: Packages that must track the newest usable PyPI release, in check order.
+FAMILY_PACKAGES = (
+    "sase",
+    "sase-github",
+    "sase-telegram",
+    "sase-research-artifacts",
+)
+
+#: Plugins that must show loaded entry points in ``sase version -j``. sase
+#: itself is the host, not a plugin, so it carries no proof requirement.
+LOAD_PROOF_PLUGINS = (
+    "sase-github",
+    "sase-telegram",
+    "sase-research-artifacts",
+)
+
+#: The distribution whose expectation comes from sase's own requirement.
+CORE_PACKAGE = "sase-core-rs"
+
+PYPI_URL_TEMPLATE = "https://pypi.org/pypi/{name}/json"
+PYPI_VERSION_URL_TEMPLATE = "https://pypi.org/pypi/{name}/{version}/json"
+PYPI_TIMEOUT_SECONDS = 30.0
+
+
+class PypiUnavailable(Exception):
+    """PyPI could not be read, or its payload was malformed (fail closed)."""
+
+
+@dataclass(frozen=True)
+class PackageResult:
+    """One row of the result contract's ``packages`` list."""
+
+    name: str
+    expected: str | None
+    installed: str | None
+    rule: str
+    ok: bool
+    reason: str | None = None
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "name": self.name,
+            "expected": self.expected,
+            "installed": self.installed,
+            "rule": self.rule,
+            "ok": self.ok,
+            "reason": self.reason,
+        }
+
+
+def _fetch_json(url: str) -> Any:
+    request = urllib.request.Request(
+        url,
+        headers={
+            "User-Agent": "sase-install-canary/1",
+            "Accept": "application/json",
+        },
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=PYPI_TIMEOUT_SECONDS) as resp:
+            return json.load(resp)
+    except urllib.error.HTTPError as exc:
+        raise PypiUnavailable(f"HTTP {exc.code} from {url}") from exc
+    except (urllib.error.URLError, OSError, ValueError) as exc:
+        raise PypiUnavailable(f"could not read {url}: {exc}") from exc
+
+
+def _usable_versions(releases: Any) -> list[Any]:
+    """Return usable release versions, newest first (fail closed)."""
+    from packaging.version import Version
+
+    if not isinstance(releases, dict):
+        raise PypiUnavailable("PyPI releases payload is not an object")
+    usable: list[Any] = []
+    for raw, files in releases.items():
+        try:
+            parsed = Version(str(raw))
+        except Exception as exc:
+            raise PypiUnavailable(f"unparsable version {raw!r} on PyPI") from exc
+        if parsed.is_prerelease or parsed.is_devrelease:
+            continue
+        if not isinstance(files, list) or not any(
+            isinstance(entry, dict) and not entry.get("yanked") for entry in files
+        ):
+            continue
+        usable.append(parsed)
+    usable.sort(reverse=True)
+    return usable
+
+
+def newest_usable(name: str, fetch: Callable[[str], Any] = _fetch_json) -> str:
+    """Return the newest non-yanked, non-pre-release version of *name*."""
+    url = PYPI_URL_TEMPLATE.format(name=name)
+    try:
+        payload = fetch(url)
+    except PypiUnavailable:
+        raise
+    except Exception as exc:
+        raise PypiUnavailable(f"could not read {url}: {exc}") from exc
+    if not isinstance(payload, dict):
+        raise PypiUnavailable(f"PyPI payload for {name} is not an object")
+    usable = _usable_versions(payload.get("releases"))
+    if not usable:
+        raise PypiUnavailable(f"PyPI lists no usable release for {name}")
+    return str(usable[0])
+
+
+def usable_satisfying(
+    name: str, specifier: str, fetch: Callable[[str], Any] = _fetch_json
+) -> str:
+    """Return the newest usable version of *name* inside *specifier*."""
+    from packaging.specifiers import SpecifierSet
+
+    try:
+        spec = SpecifierSet(specifier)
+    except Exception as exc:
+        raise PypiUnavailable(f"unparsable requirement {specifier!r}: {exc}") from exc
+    url = PYPI_URL_TEMPLATE.format(name=name)
+    try:
+        payload = fetch(url)
+    except PypiUnavailable:
+        raise
+    except Exception as exc:
+        raise PypiUnavailable(f"could not read {url}: {exc}") from exc
+    if not isinstance(payload, dict):
+        raise PypiUnavailable(f"PyPI payload for {name} is not an object")
+    for candidate in _usable_versions(payload.get("releases")):
+        if candidate in spec:
+            return str(candidate)
+    raise PypiUnavailable(f"no usable {name} release satisfies {specifier!r}")
+
+
+def sase_core_specifier(
+    sase_version: str, fetch: Callable[[str], Any] = _fetch_json
+) -> str:
+    """Return installed sase's own requirement on ``sase-core-rs``."""
+    from packaging.requirements import Requirement
+    from packaging.utils import canonicalize_name
+
+    url = PYPI_VERSION_URL_TEMPLATE.format(name="sase", version=sase_version)
+    try:
+        payload = fetch(url)
+    except PypiUnavailable:
+        raise
+    except Exception as exc:
+        raise PypiUnavailable(f"could not read {url}: {exc}") from exc
+    if not isinstance(payload, dict):
+        raise PypiUnavailable(f"PyPI payload for sase {sase_version} is not an object")
+    info = payload.get("info")
+    requires = info.get("requires_dist") if isinstance(info, dict) else None
+    if not isinstance(requires, list):
+        raise PypiUnavailable(
+            f"PyPI lists no requirements for sase {sase_version} (fail closed)"
+        )
+    for raw in requires:
+        if not isinstance(raw, str):
+            continue
+        try:
+            req = Requirement(raw)
+        except Exception as exc:
+            raise PypiUnavailable(
+                f"unparsable sase {sase_version} requirement {raw!r}: {exc}"
+            ) from exc
+        if canonicalize_name(req.name) == "sase-core-rs":
+            return str(req.specifier)
+    raise PypiUnavailable(
+        f"sase {sase_version} declares no {CORE_PACKAGE} requirement (fail closed)"
+    )
+
+
+def read_installed_versions(sase_exe: str) -> dict[str, str | None]:
+    """Return ``{name: distribution_version}`` from ``sase version -j``."""
+    try:
+        proc = subprocess.run(
+            [sase_exe, "version", "-j"],
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+    except (OSError, subprocess.CalledProcessError) as exc:
+        raise PypiUnavailable(f"`sase version -j` failed: {exc}") from exc
+    try:
+        payload = json.loads(proc.stdout)
+    except json.JSONDecodeError as exc:
+        raise PypiUnavailable(f"`sase version -j` is not JSON: {exc}") from exc
+    packages = payload.get("packages", []) if isinstance(payload, dict) else []
+    installed: dict[str, str | None] = {}
+    if isinstance(packages, list):
+        for record in packages:
+            if not isinstance(record, dict):
+                continue
+            name = record.get("name")
+            if isinstance(name, str):
+                version = record.get("distribution_version")
+                installed[name] = str(version) if version is not None else None
+    return installed
+
+
+def _versions_equal(left: str | None, right: str | None) -> bool:
+    from packaging.version import Version
+
+    if not left or not right:
+        return False
+    try:
+        return Version(str(left)) == Version(str(right))
+    except Exception:
+        return str(left) == str(right)
+
+
+def evaluate(
+    installed: Mapping[str, str | None],
+    expected: Mapping[str, str | None],
+    core_expected: str | None,
+    rule: str,
+) -> list[PackageResult]:
+    """Compare installed versions against expectations (pure)."""
+    results: list[PackageResult] = []
+    for name in FAMILY_PACKAGES:
+        want = expected.get(name)
+        got = installed.get(name)
+        if want is None:
+            results.append(
+                PackageResult(
+                    name=name,
+                    expected=None,
+                    installed=got,
+                    rule="unknown",
+                    ok=False,
+                    reason=f"no expectation computed for {name} (fail closed)",
+                )
+            )
+        elif got is None:
+            results.append(
+                PackageResult(
+                    name=name,
+                    expected=want,
+                    installed=None,
+                    rule=rule,
+                    ok=False,
+                    reason=f"{name} is not installed (expected {want})",
+                )
+            )
+        elif _versions_equal(got, want):
+            results.append(
+                PackageResult(
+                    name=name, expected=want, installed=got, rule=rule, ok=True
+                )
+            )
+        else:
+            results.append(
+                PackageResult(
+                    name=name,
+                    expected=want,
+                    installed=got,
+                    rule=rule,
+                    ok=False,
+                    reason=f"{name} {got} (expected {want})",
+                )
+            )
+    core_got = installed.get(CORE_PACKAGE)
+    if core_expected is None:
+        results.append(
+            PackageResult(
+                name=CORE_PACKAGE,
+                expected=None,
+                installed=core_got,
+                rule="unknown",
+                ok=False,
+                reason=f"no {CORE_PACKAGE} window computed (fail closed)",
+            )
+        )
+    elif core_got is None:
+        results.append(
+            PackageResult(
+                name=CORE_PACKAGE,
+                expected=core_expected,
+                installed=None,
+                rule="window",
+                ok=False,
+                reason=f"{CORE_PACKAGE} is not installed (expected {core_expected})",
+            )
+        )
+    elif _versions_equal(core_got, core_expected):
+        results.append(
+            PackageResult(
+                name=CORE_PACKAGE,
+                expected=core_expected,
+                installed=core_got,
+                rule="window",
+                ok=True,
+            )
+        )
+    else:
+        results.append(
+            PackageResult(
+                name=CORE_PACKAGE,
+                expected=core_expected,
+                installed=core_got,
+                rule="window",
+                ok=False,
+                reason=f"{CORE_PACKAGE} {core_got} (expected {core_expected})",
+            )
+        )
+    return results
+
+
+def compute_expectations(
+    fetch: Callable[[str], Any] = _fetch_json,
+) -> dict[str, str]:
+    """Return the newest usable PyPI version for each family package."""
+    return {name: newest_usable(name, fetch) for name in FAMILY_PACKAGES}
+
+
+def apply_overrides(
+    expected: Mapping[str, str], overrides: Mapping[str, str]
+) -> dict[str, str]:
+    """Return *expected* with probe pins applied (pure).
+
+    The probe input uses this to force an impossible version and prove the
+    red path; the core window still comes from the installed sase.
+    """
+    merged = dict(expected)
+    merged.update(overrides)
+    return merged
+
+
+def core_expectation(
+    installed_sase: str | None,
+    fallback_sase: str,
+    fetch: Callable[[str], Any] = _fetch_json,
+) -> str:
+    """Return the newest usable core inside the installed sase's window."""
+    spec = sase_core_specifier(installed_sase or fallback_sase, fetch)
+    return usable_satisfying(CORE_PACKAGE, spec, fetch)
+
+
+def check_plugins_loaded(
+    version_payload: Mapping[str, Any], plugins: Sequence[str] = LOAD_PROOF_PLUGINS
+) -> list[str]:
+    """Return the family plugins with no loaded entry points (pure)."""
+    packages = version_payload.get("packages", [])
+    signals: dict[str, list[Any]] = {}
+    if isinstance(packages, list):
+        for record in packages:
+            if not isinstance(record, dict):
+                continue
+            name = record.get("name")
+            if isinstance(name, str):
+                entry = record.get("plugin_signals", [])
+                signals[name] = list(entry) if isinstance(entry, list) else []
+    return [name for name in plugins if not signals.get(name)]
+
+
+def build_result(
+    results: Sequence[PackageResult],
+    *,
+    step: str,
+    identity: Mapping[str, str],
+    mode: str,
+) -> dict[str, Any]:
+    """Assemble the ``install-canary-<os>.json`` result contract (pure)."""
+    failing = next((item for item in results if not item.ok), None)
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "os": identity.get("os", ""),
+        "run_id": identity.get("run_id", ""),
+        "attempt": identity.get("attempt", ""),
+        "sha": identity.get("sha", ""),
+        "mode": mode,
+        "verdict": "green" if failing is None else "red",
+        "packages": [item.as_dict() for item in results],
+        "failing_step": None if failing is None else step,
+        "reason": None if failing is None else failing.reason,
+    }
+
+
+def run_check(
+    sase_exe: str,
+    *,
+    step: str,
+    identity: Mapping[str, str],
+    mode: str,
+    expected: Mapping[str, str],
+    core_expected: str,
+    refetch: Callable[[], tuple[Mapping[str, str], str]] | None = None,
+) -> dict[str, Any]:
+    """Evaluate once; on mismatch re-fetch expectations once and re-evaluate."""
+    installed = read_installed_versions(sase_exe)
+    results = evaluate(installed, expected, core_expected, mode)
+    if any(not item.ok for item in results) and refetch is not None:
+        fresh_expected, fresh_core = refetch()
+        results = evaluate(installed, fresh_expected, fresh_core, mode)
+    return build_result(results, step=step, identity=identity, mode=mode)
+
+
+def _parse_override(raw: str) -> tuple[str, str]:
+    name, sep, version = raw.partition("==")
+    if not sep or not name or not version:
+        raise SystemExit(
+            f"[check_family_install] --force-expect needs NAME==VERSION, got {raw!r}"
+        )
+    return name, version
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        description="Assert an isolated family install tracks PyPI, then "
+        "record the install-canary result contract."
+    )
+    parser.add_argument(
+        "--sase-exe",
+        default="sase",
+        help="sase executable installed in the isolated tool environment",
+    )
+    parser.add_argument(
+        "--mode",
+        choices=("newest", "exact"),
+        default="newest",
+        help="newest: expect the newest usable PyPI release; "
+        "exact: expect the --expect pins (same rule label on rows)",
+    )
+    parser.add_argument(
+        "--expect",
+        action="append",
+        default=[],
+        metavar="NAME==VERSION",
+        help="pin one expectation (repeatable; implies exact rows for pins)",
+    )
+    parser.add_argument(
+        "--force-expect",
+        action="append",
+        default=[],
+        metavar="NAME==VERSION",
+        help="override one computed expectation (probe input for the red path)",
+    )
+    parser.add_argument(
+        "--no-refetch",
+        action="store_true",
+        help="do not re-fetch PyPI once on mismatch",
+    )
+    parser.add_argument(
+        "--print-pins",
+        action="store_true",
+        help="print the exact-install argument list "
+        "(sase==NEWEST plus --with PLUGIN==NEWEST) and exit",
+    )
+    parser.add_argument(
+        "--assert-plugins-loaded",
+        metavar="VERSION_JSON",
+        help="instead of versions, assert every family plugin in this "
+        "`sase version -j` payload file has loaded entry points",
+    )
+    parser.add_argument("--write-result", default="", metavar="PATH")
+    parser.add_argument("--os", default=os.environ.get("RUNNER_OS", ""))
+    parser.add_argument("--run-id", default=os.environ.get("GITHUB_RUN_ID", ""))
+    parser.add_argument("--attempt", default=os.environ.get("GITHUB_RUN_ATTEMPT", ""))
+    parser.add_argument("--sha", default=os.environ.get("GITHUB_SHA", ""))
+    parser.add_argument(
+        "--step",
+        default="",
+        help="workflow step name recorded as failing_step on red",
+    )
+    args = parser.parse_args(list(argv) if argv is not None else None)
+
+    if args.print_pins:
+        try:
+            expected = compute_expectations(_fetch_json)
+        except PypiUnavailable as exc:
+            print(f"[check_family_install] cannot compute pins: {exc}", file=sys.stderr)
+            return 1
+        pin_args = [f"sase=={expected['sase']}"] + [
+            f"--with {name}=={expected[name]}"
+            for name in FAMILY_PACKAGES
+            if name != "sase"
+        ]
+        print(" ".join(pin_args))
+        return 0
+
+    identity = {"os": args.os, "run_id": args.run_id, "attempt": args.attempt,
+                "sha": args.sha}
+
+    if args.assert_plugins_loaded:
+        try:
+            payload = json.loads(Path(args.assert_plugins_loaded).read_text())
+        except (OSError, json.JSONDecodeError) as exc:
+            print(
+                f"[check_family_install] cannot read version payload: {exc}",
+                file=sys.stderr,
+            )
+            return 2
+        if not isinstance(payload, dict):
+            print(
+                "[check_family_install] version payload is not an object",
+                file=sys.stderr,
+            )
+            return 2
+        missing = check_plugins_loaded(payload)
+        if missing:
+            print(
+                "[check_family_install] plugins without loaded entry points: "
+                + ", ".join(missing),
+                file=sys.stderr,
+            )
+            return 1
+        print("[check_family_install] every family plugin loaded entry points")
+        return 0
+
+    overrides: dict[str, str] = dict(
+        _parse_override(raw) for raw in args.force_expect
+    )
+    pins: dict[str, str] = dict(_parse_override(raw) for raw in args.expect)
+    rule = "exact" if (args.mode == "exact" or pins) else "newest"
+    step = args.step or f"assert-{rule}-versions"
+
+    def _fail_closed(exc: BaseException) -> int:
+        result = build_result(
+            [
+                PackageResult(
+                    name=name,
+                    expected=None,
+                    installed=None,
+                    rule="unknown",
+                    ok=False,
+                    reason=str(exc),
+                )
+                for name in (*FAMILY_PACKAGES, CORE_PACKAGE)
+            ],
+            step=step,
+            identity=identity,
+            mode=rule,
+        )
+        if args.write_result:
+            Path(args.write_result).write_text(
+                json.dumps(result, indent=2) + "\n", encoding="utf-8"
+            )
+        print(f"[check_family_install] RED (fail closed): {exc}", file=sys.stderr)
+        return 1
+
+    try:
+        expected = apply_overrides(
+            compute_expectations(_fetch_json), {**pins, **overrides}
+        )
+    except PypiUnavailable as exc:
+        return _fail_closed(exc)
+    try:
+        installed = read_installed_versions(args.sase_exe)
+    except PypiUnavailable as exc:
+        return _fail_closed(exc)
+    try:
+        core_expected = core_expectation(
+            installed.get("sase"), expected["sase"], _fetch_json
+        )
+    except PypiUnavailable as exc:
+        return _fail_closed(exc)
+
+    def _refetch() -> tuple[Mapping[str, str], str]:
+        fresh = apply_overrides(
+            compute_expectations(_fetch_json), {**pins, **overrides}
+        )
+        return fresh, core_expected
+
+    try:
+        result = run_check(
+            args.sase_exe,
+            step=step,
+            identity=identity,
+            mode=rule,
+            expected=expected,
+            core_expected=core_expected,
+            refetch=None if args.no_refetch else _refetch,
+        )
+    except PypiUnavailable as exc:
+        return _fail_closed(exc)
+    if args.write_result:
+        Path(args.write_result).write_text(
+            json.dumps(result, indent=2) + "\n", encoding="utf-8"
+        )
+    verdict = result["verdict"]
+    reason = result["reason"]
+    if verdict == "green":
+        print("[check_family_install] GREEN: family install tracks expectations")
+        return 0
+    print(f"[check_family_install] RED: {reason}", file=sys.stderr)
+    return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

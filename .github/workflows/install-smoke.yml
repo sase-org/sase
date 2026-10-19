@@ -1,25 +1,84 @@
 name: Install smoke
 
-# Phase sase-1le.3 (applicability): prove the documented install command
-# installs the documented product. The command itself is single-sourced
-# from tools/render_applicability (--install-command), so this workflow
-# never drifts from the docs. While sase>=0.18 is unreleased the install
-# step fails loudly with a resolver error instead of silently installing
-# 0.1.0; that red run is the signal that product and docs disagree.
+# Phase sase-1my.2 (canary): prove a clean `uv tool install` of sase, alone
+# or with the family plugins, installs the newest family release on Linux
+# and macOS, and that release works.
+#
+# The documented commands are single-sourced from
+# tools/render_applicability (--install-command, --install-family-command),
+# so this workflow never drifts from the docs. While sase>=0.18 is
+# unreleased the install step fails loudly with a resolver error instead of
+# silently installing 0.1.0; that red run is the signal that product and
+# docs disagree.
+#
+# Result contract (for E2.6's INSTALL_BROKEN): each matrix leg uploads one
+# `install-canary-<os>` artifact containing a single
+# `install-canary-<os>.json` file with this shape:
+#
+#   {
+#     "schema_version": 1,
+#     "os": "ubuntu-latest",
+#     "run_id": "123",
+#     "attempt": "1",
+#     "sha": "abc...",
+#     "mode": "newest+exact",
+#     "verdict": "green" | "red",
+#     "packages": [
+#       {"name": "sase", "expected": "0.18.0", "installed": "0.18.0",
+#        "rule": "newest" | "exact", "ok": true, "reason": null}
+#     ],
+#     "failing_step": null | "assert-newest-versions" | "assert-exact-versions",
+#     "reason": null | "<first failure, e.g. 'sase 0.1.0 (expected 0.18.0)'>"
+#   }
+#
+# Rules: sase and each family plugin must equal the newest non-yanked,
+# non-pre-release PyPI version ("newest") or the pinned reinstall
+# ("exact"); sase-core-rs must equal the newest version satisfying the
+# installed sase's own requirement ("window"). A missing or unreadable
+# result artifact counts as red.
+#
+# Alerting is a detector, never a merge gate: a red canary blocks nothing.
 
 on:
   schedule:
     - cron: '26 7 * * *'
   workflow_dispatch:
+    inputs:
+      probe_expect:
+        description: >-
+          Force one impossible expectation (NAME==VERSION) to prove the red
+          path. Probe runs never open or close the alert issue unless
+          `alert` is also true.
+        type: string
+        required: false
+        default: ''
+      alert:
+        description: >-
+          Allow this manual run to open, comment on, or close the alert
+          issue like a scheduled run does.
+        type: boolean
+        required: false
+        default: false
 
 permissions:
   contents: read
 
 jobs:
   install-smoke:
-    name: Documented install smoke
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
+    name: Family install canary (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    env:
+      UV_NO_CACHE: '1'
+      UV_TOOL_DIR: ${{ runner.temp }}/canary-tool-dir
+      UV_TOOL_BIN_DIR: ${{ runner.temp }}/canary-tool-bin
+      CANARY_HOME: ${{ runner.temp }}/canary-home
+      CANARY_EXACT_TOOL_DIR: ${{ runner.temp }}/canary-exact-tool-dir
+      CANARY_EXACT_TOOL_BIN: ${{ runner.temp }}/canary-exact-tool-bin
     steps:
       - uses: actions/checkout@v4
 
@@ -29,11 +88,60 @@ jobs:
       - name: Set up Python
         run: uv python install 3.12
 
+      - name: Prepare isolated install dirs
+        run: |
+          set -euo pipefail
+          mkdir -p "$UV_TOOL_DIR" "$UV_TOOL_BIN_DIR" "$CANARY_HOME" \
+            "$CANARY_EXACT_TOOL_DIR" "$CANARY_EXACT_TOOL_BIN"
+          echo "$UV_TOOL_BIN_DIR" >> "$GITHUB_PATH"
+
       - name: Run the documented install command
-        run: eval "$(python3 tools/render_applicability --install-command)"
+        run: eval "$(python3 tools/render_applicability --install-command) --refresh"
 
       - name: Assert the installed version meets the documented floor
         run: python3 tools/render_applicability --check-installed
+
+      - name: Run the documented family install command
+        run: eval "$(python3 tools/render_applicability --install-family-command) --refresh"
+
+      - name: Assert the family install tracks the newest releases
+        run: |
+          set -euo pipefail
+          probe_args=""
+          if [ -n "${{ inputs.probe_expect }}" ]; then
+            probe_args="--force-expect ${{ inputs.probe_expect }}"
+          fi
+          # shellcheck disable=SC2086
+          uv run --no-project --with packaging tools/check_family_install \
+            --step assert-newest-versions \
+            --write-result install-canary-newest.json \
+            $probe_args
+
+      - name: Reinstall the exact current release in a fresh tool directory
+        run: |
+          set -euo pipefail
+          pins="$(uv run --no-project --with packaging \
+            tools/check_family_install --print-pins)"
+          echo "Exact pins: $pins"
+          # shellcheck disable=SC2086
+          UV_TOOL_DIR="$CANARY_EXACT_TOOL_DIR" \
+          UV_TOOL_BIN_DIR="$CANARY_EXACT_TOOL_BIN" \
+            uv tool install --refresh $pins
+
+      - name: Assert the exact reinstall tracks the pinned releases
+        run: |
+          set -euo pipefail
+          probe_args=""
+          if [ -n "${{ inputs.probe_expect }}" ]; then
+            probe_args="--force-expect ${{ inputs.probe_expect }}"
+          fi
+          # shellcheck disable=SC2086
+          uv run --no-project --with packaging tools/check_family_install \
+            --sase-exe "$CANARY_EXACT_TOOL_BIN/sase" \
+            --mode exact \
+            --step assert-exact-versions \
+            --write-result install-canary-exact.json \
+            $probe_args
 
       - name: Smoke the CLI entry points
         # Isolated home so doctor does not inherit this checkout's required
@@ -42,8 +150,10 @@ jobs:
         # expected diagnostic, matching publish.yml's install-smoke.
         run: |
           set -euo pipefail
+          export HOME="$CANARY_HOME"
+          export SASE_HOME="$CANARY_HOME"
           sase --help
-          sase version -j
+          sase version -j | tee canary-version.json
           sase core health --json
           doctor_json="$(mktemp)"
           doctor_status=0
@@ -79,3 +189,132 @@ jobs:
               )
               sys.exit(1)
           PY
+
+      - name: Install shell completion in the isolated home
+        run: |
+          set -euo pipefail
+          HOME="$CANARY_HOME" SASE_HOME="$CANARY_HOME" sase completion install
+
+      - name: Prove each plugin's entry points loaded
+        run: |
+          set -euo pipefail
+          uv run --no-project --with packaging tools/check_family_install \
+            --assert-plugins-loaded canary-version.json
+
+      - name: Merge the canary result contract
+        if: always()
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          merged = None
+          for path in ("install-canary-newest.json", "install-canary-exact.json"):
+              try:
+                  run = json.loads(Path(path).read_text(encoding="utf-8"))
+              except (OSError, json.JSONDecodeError) as exc:
+                  run = {
+                      "schema_version": 1,
+                      "mode": Path(path).stem,
+                      "verdict": "red",
+                      "packages": [],
+                      "failing_step": "read-result-artifact",
+                      "reason": f"{path} is missing or unreadable: {exc}",
+                  }
+              if merged is None:
+                  merged = dict(run)
+                  merged["mode"] = "newest+exact"
+                  merged["packages"] = list(run.get("packages", []))
+              else:
+                  merged["packages"].extend(run.get("packages", []))
+                  if merged["verdict"] == "green" and run.get("verdict") != "green":
+                      merged["verdict"] = "red"
+                      merged["failing_step"] = run.get("failing_step")
+                      merged["reason"] = run.get("reason")
+          assert merged is not None
+          Path("install-canary-${{ matrix.os }}.json").write_text(
+              json.dumps(merged, indent=2) + "\n", encoding="utf-8"
+          )
+          print(f"canary verdict: {merged['verdict']}")
+          if merged["verdict"] != "green":
+              raise SystemExit(f"canary red: {merged['reason']}")
+          PY
+
+      - name: Upload the canary result artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: install-canary-${{ matrix.os }}
+          path: install-canary-${{ matrix.os }}.json
+          if-no-files-found: error
+          retention-days: 30
+
+  install-canary-alert:
+    name: Canary alert
+    needs: [install-smoke]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      issues: write
+    steps:
+      - name: Download the canary result artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: install-canary-*
+          merge-multiple: true
+          path: canary-results
+
+      - name: Open, update, or close the alert issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          may_alert="false"
+          if [ "${{ github.event_name }}" = "schedule" ]; then
+            may_alert="true"
+          elif [ "${{ github.event_name }}" = "workflow_dispatch" ] \
+            && [ "${{ inputs.alert }}" = "true" ]; then
+            may_alert="true"
+          fi
+
+          verdict="$(python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          roots = sorted(Path("canary-results").glob("install-canary-*.json"))
+          if not roots:
+              print("red")
+          else:
+              bad = False
+              for path in roots:
+                  try:
+                      bad = bad or json.loads(path.read_text())["verdict"] != "green"
+                  except (OSError, KeyError, json.JSONDecodeError):
+                      bad = True
+              print("red" if bad else "green")
+          PY
+          )"
+          echo "canary verdict: $verdict (may_alert=$may_alert)"
+
+          title="[install-canary] family install is red"
+          number="$(gh issue list --label install-canary --state open \
+            --search "$title in:title" --json number --jq '.[0].number // empty' \
+            || true)"
+
+          if [ "$verdict" = "red" ] && [ "$may_alert" = "true" ]; then
+            gh label create install-canary --color B60205 \
+              --description "Family install canary failures" 2>/dev/null || true
+            body="The family install canary is red. See run ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}."
+            if [ -z "$number" ]; then
+              gh issue create --title "$title" --label install-canary --body "$body"
+            else
+              gh issue comment "$number" --body "$body (still red)"
+            fi
+          elif [ "$verdict" = "green" ] && [ -n "$number" ] && [ "$may_alert" = "true" ]; then
+            gh issue comment "$number" --body "Canary is green again: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}."
+            gh issue close "$number"
+          else
+            echo "No alert action (verdict=$verdict may_alert=$may_alert open_issue=${number:-none})."
+          fi

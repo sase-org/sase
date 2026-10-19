@@ -64,6 +64,11 @@ def _load_full_workflow() -> dict[str, Any]:
     return yaml.safe_load(workflow_path.read_text())
 
 
+def _load_install_smoke_workflow() -> dict[str, Any]:
+    workflow_path = REPO_ROOT / ".github" / "workflows" / "install-smoke.yml"
+    return yaml.safe_load(workflow_path.read_text())
+
+
 def _load_core_pin_ratchet_workflow() -> dict[str, Any]:
     workflow_path = REPO_ROOT / ".github" / "workflows" / "core-pin-ratchet.yml"
     return yaml.safe_load(workflow_path.read_text())

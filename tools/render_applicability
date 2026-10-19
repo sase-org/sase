@@ -32,6 +32,19 @@ ANNOUNCE_PARTIAL = (
 INSTALL_FLOOR = "0.18"
 INSTALL_COMMAND = 'uv tool install "sase>=0.18"'
 
+# Phase sase-1my.2 (canary) owns these. The family canary installs sase plus
+# the PyPI-published plugins in one tool environment, per reviewer decision
+# ``research_artifacts = yes``. sase-nvim is intentionally excluded: it is a
+# Neovim plugin, not a Python distribution on PyPI.
+INSTALL_FAMILY_PLUGINS = (
+    "sase-github",
+    "sase-telegram",
+    "sase-research-artifacts",
+)
+INSTALL_FAMILY_COMMAND = INSTALL_COMMAND + "".join(
+    f" --with {plugin}" for plugin in INSTALL_FAMILY_PLUGINS
+)
+
 # Newcomer-facing pages that must carry INSTALL_COMMAND verbatim in a
 # copy-pasteable fence. Dated blog posts and prose mentions of the install
 # method ("a normal `uv tool install sase` user") are intentionally excluded.
@@ -210,6 +223,12 @@ def main(argv: list[str] | None = None) -> int:
         "(used by the install-smoke workflow)",
     )
     parser.add_argument(
+        "--install-family-command",
+        action="store_true",
+        help="print the single-sourced documented family install command "
+        "(used by the install-smoke workflow)",
+    )
+    parser.add_argument(
         "--check-installed",
         action="store_true",
         help="assert `sase version -j` meets the documented floor "
@@ -219,6 +238,9 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.install_command:
         print(INSTALL_COMMAND)
+        return 0
+    if args.install_family_command:
+        print(INSTALL_FAMILY_COMMAND)
         return 0
     if args.check_installed:
         print(check_installed())
