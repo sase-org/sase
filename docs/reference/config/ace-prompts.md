@@ -252,7 +252,7 @@ Source: `src/sase/ace/config.py`, `src/sase/core/prompt_stash_facade.py`,
 
 Controls whether a multi-card agent data deck renders spread (every card on one
 scrollable page) or paged (one card at a time) on the Agents tab deck panels, under the
-automatic deck view (see [Deck Views](../tui/agent-statuses.md#deck-views)). A fixed
+automatic deck view (see [Deck Views](../tui/agent-statuses.md#deck-views)). A locked
 deck view bypasses these thresholds entirely.
 
 ```yaml

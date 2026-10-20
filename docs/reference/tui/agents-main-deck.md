@@ -75,10 +75,12 @@ no agent is selected; other tabs keep `V` bound to the Agent Run Log modal.
 
 `Ctrl+J` and `Ctrl+K` move to the next / previous card in the focused deck panel
 (wrapping). In a paged Main deck this swaps the visible card; in a spread Main deck it
-scrolls the next / previous card's header to the top. The chosen card is the panel's
-preferred card: on a new selection the panel shows the preferred card when the node has
-it, otherwise the default card (`Context`, or `Summary` for clan and tribe documents),
-while the preference itself is kept. Numbered roster rows (`SESSION TURNS`,
+jumps by scrolling the next / previous card's header to the top. Tabs in the deck title
+mean the deck is paged — other cards live on other pages. With no tabs the whole deck is
+one scrollable document, and `▴`/`▾` name the cards above and below. The chosen card is
+the panel's preferred card: on a new selection the panel shows the preferred card when
+the node has it, otherwise the default card (`Context`, or `Summary` for clan and tribe
+documents), while the preference itself is kept. Numbered roster rows (`SESSION TURNS`,
 `CLAN MEMBERS`, `TRIBE MEMBERS`, `NEIGHBORS`) live in the jump panel and are not cards;
 within a session container's `SASE CONTEXT` region, its lane sub-headings (`BEAD`,
 `PLAN`, `ARTIFACTS`, `MEMORY`, `GLOSSARY`, `SKILLS`, `WORKSPACES`) are fold anchors, not

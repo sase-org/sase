@@ -295,7 +295,7 @@ history); `Ctrl+J` / `Ctrl+K` move to the next / previous card in the focused pa
   when the selected node has at least one tool run. The default card is the panel's
   sticky Tools preference when it names a card that exists, otherwise Runs, otherwise
   LLM Calls — so a reader who prefers LLM Calls stays there. Tools is paged-only: it
-  never spreads, `P` stays a no-op, and there is no deck-view badge. The border
+  never spreads, `P` stays a no-op, and there is no view chip. The border
   subtitle's Tools segment reads `tools ⚒N M` (N runs, M LLM calls; `tools ⚒N` when
   there are no calls), bold accent while a run is live and red while one is silent.
 - **FINAL deck.** The `⊛ FINAL` deck shows how the selected node's turns landed: an
@@ -320,65 +320,82 @@ history); `Ctrl+J` / `Ctrl+K` move to the next / previous card in the focused pa
 A multi-card deck renders **spread** — every card on one scrollable page separated by
 titled rules — when its cards fit within `ace.agent_decks.spread_max_screens` panel
 viewport heights (default `1.5`; `0` means always paged), and **paged** — one card at a
-time — otherwise. In spread mode `Ctrl+J` / `Ctrl+K` scroll the next / previous card's
-header to the top. The deck panel's border title names the deck, its
-[deck view](#deck-views) badge (Main and Files decks only), and its cards with the
-active card highlighted (and an `N/M` position when there is more than one card); the
-border subtitle is a `main · files · tools · final · record` switcher showing each
-deck's card, file, run/call, or finalizer count when known, dimming decks with no
-content. A deck with no content for the selection shows an empty-state card instead, so
-the layout never jumps.
+time — otherwise. In spread mode `Ctrl+J` / `Ctrl+K` jump by scrolling the next /
+previous card's header to the top; in paged mode they change pages. **Tabs mean pages:**
+the title shows card tabs only on a paged multi-card deck; a spread title names the card
+in view and uses `▴`/`▾` for the rest (see [Deck Views](#deck-views)). Main and Files
+also show a view chip when a layout choice exists. The border subtitle is a
+`main · files · tools · final · record` switcher showing each deck's card, file,
+run/call, or finalizer count when known, dimming decks with no content; a paged deck
+prepends a `+N card` continuation cue. A deck with no content for the selection shows an
+empty-state card instead, so the layout never jumps.
 
 #### Deck Views
+
+**Tabs mean pages.** A deck panel's title shows card tabs (`Context │ Reply  2/2`, or
+`‹ 2/2 › Reply` when compact) only when the applied layout is paged and the deck has two
+or more cards. With no tabs the whole deck is one scrollable document. A one-card deck
+shows only the card name (`◆ MAIN  Summary`) — no tabs, no chip.
 
 Each Main and Files deck panel has a **deck view**: `spread` (every card on one
 scrollable page), `page cards` (one whole card per page), or `page blocks` (one card
 block per page). The view is normally **automatic** — resolved from the content through
-the `ace.agent_decks` spread thresholds — or **fixed** to one layout by you. The Tools,
-FINAL, and RECORD decks have no views: they always lay out automatically and show no
-badge. Deck views stay a Main-and-Files feature; FINAL's and RECORD's spread/paged and
-block paging resolve automatically from the `ace.agent_decks` thresholds like every
-other automatic deck.
+the `ace.agent_decks` spread thresholds — or **locked** to one layout by you. The Tools,
+FINAL, and RECORD decks have no policy: they always lay out automatically and show no
+view chip. FINAL and RECORD still follow the tab rule (paged titles keep tabs; spread
+titles do not). Tools is always paged.
 
-**The badge.** The top border title shows the effective view right after the deck name,
-for example `◆ MAIN  page blocks · auto` or `◆ MAIN  spread · fixed`. The layout word
-uses the deck accent; `fixed` is bold accent while `auto` stays muted, so a fixed panel
-stands out at a glance. On narrow panels the badge shortens (`cards`, `blocks`, `B·A`)
-but never depends on color alone. No badge appears for the Tools, FINAL, or RECORD deck,
-an empty deck, or a panel that has never painted a full Main document.
+**The view chip.** On Main and Files, a solid chip sits after the deck name while a
+layout choice exists (two or more distinct layouts) or a spread request is
+pending/blocked: long `SPREAD` / `PAGE CARDS` / `PAGE BLOCKS`, short `SPREAD` / `CARDS`
+/ `BLOCKS`, tiny `S` / `C` / `B`. When the policy is locked, `🔒` sits inside the chip
+(`SPREAD 🔒`, tiny `S🔒`). Automatic shows no lock mark and never `🔓`. Unfocused chips
+keep the same width without the solid fill. No chip appears for Tools, FINAL, RECORD, a
+one-card deck, an empty deck, or a panel that has never painted a full Main document.
+
+**Spread cues.** A spread title names the card in view, then `▴`/`▾` for cards off-screen
+in each direction (`Reply · ▴ Context`; several cards in one direction become a count,
+`▾ 3 files`). When every card fits, the title reads `both cards in view` or
+`all N cards in view` (Files: `files`). FINAL and RECORD use the same grammar without a
+chip.
+
+**Paged continuation.** A paged deck's bottom border leads with how much lives on other
+pages (`+1 card · Ctrl+J`; in page blocks also `+3 blocks · (/)`). Spread decks omit this
+cue. When the scroller is at the bottom the cue turns bold, so a scrollbar on the current
+card is not "more of the same deck below."
 
 **`P` cycles the view.** `P` steps the focused panel's Main or Files deck wider
-(`page blocks` → `page cards` → `spread`, wrapping) and pins the result as a fixed view.
-The first press from automatic starts after the effective layout, so it always changes
-what is on screen; layouts that would render identically for the current content are
-skipped. `P` is unavailable when there is nothing to choose (a one-card deck, the Tools,
-FINAL, or RECORD deck, an empty deck, or while a Main document is still partial). The
-footer shows a `P view` entry and the help modal an `Agents › Navigation` row only while
-the cycle is available. The first press that fixes a view posts one teaching toast
-naming the palette reset; routine presses stay silent because the badge changes in
-place. The badge and panel chrome repaint on the first frame after `P`; the Main body
-for the new layout is built off the event loop and swapped in when ready, so on a very
-long Reply the badge can lead the body by a moment.
+(`page blocks` → `page cards` → `spread`, wrapping) and **locks** the result. The first
+press from automatic starts after the effective layout, so it always changes what is on
+screen; identical layouts for the current content are skipped. `P` is unavailable when
+there is nothing to choose (a one-card deck, Tools, FINAL, RECORD, an empty deck, or a
+partial Main document). The footer shows `P view` only while the cycle is available.
 
-**Palette.** The command palette offers `Cycle deck view` plus four direct choices:
-`Deck view: automatic`, `Deck view: spread (fixed)`, `Deck view: page cards (fixed)`,
-and `Deck view: page blocks (fixed)` (Main only — Files never pages blocks). Only
-`automatic` returns a panel to automatic; `P` cycles just the three fixed layouts. The
-choice equal to the current policy is hidden. A direct choice applies to the focused
-panel's deck even when it changes nothing for the current card, since it also covers
-future cards.
+**`B` locks or unlocks.** `B` (`ace.keymaps.app.toggle_deck_view_lock`) locks the layout
+automatic chose — the picture stays, `🔒` appears — or, when already locked, returns the
+panel to automatic. The footer shows `B lock` or `B unlock`. The first `P` press that
+locks a view toasts `Main view locked 🔒 · B unlocks` (palette form when `B` is unbound);
+the lock key itself is silent because the chip changes in place. Chrome repaints on the
+first frame after `P` or `B`; the Main body for a new layout is built off the event loop,
+so on a very long Reply the chip can lead the body by a moment.
+
+**Palette.** The command palette offers `Cycle deck view` plus
+`Deck view: automatic (unlock)`, `Deck view: spread (locked)`,
+`Deck view: page cards (locked)`, and `Deck view: page blocks (locked)` (Main only —
+Files never pages blocks). The old `(fixed)` labels remain search aliases. Only
+automatic unlocks; `P` cycles the three locked layouts. The choice equal to the current
+policy is hidden. A direct choice applies even when it changes nothing for the current
+card, since it also covers future cards.
 
 **Persistence.** Each panel keeps one view per deck (Main and Files), surviving card and
 deck switches, splits, zoom, and restarts in `~/.sase/ace_agents_deck_state.json`. New
-panels start automatic. A view change keeps the reader's place: the same card, block,
-scroll offset, and pin survive in every direction.
+panels start automatic. A view change keeps the same card, block, scroll offset, and pin.
 
-**Files specifics.** A fixed `spread` on Files reads every page fully (capped per page,
-with truncation hints, so nothing is silently dropped). While that read runs the deck
-stays paged and the badge reads `page cards · spreading…`. Files with an image or video
-can never spread: the deck stays paged with `page cards · spread unavailable`, keeps the
-fixed preference for the next compatible selection, and toasts once when you caused the
-change.
+**Files specifics.** A locked `spread` on Files reads every page fully (capped per page,
+with truncation hints). While that read runs the deck stays paged and `spreading…` sits
+after the chip. Files with an image or video can never spread: the deck stays paged with
+`spread unavailable` after the chip, keeps the locked preference for the next compatible
+selection, and toasts once when you caused the change.
 
 #### Card Blocks
 
