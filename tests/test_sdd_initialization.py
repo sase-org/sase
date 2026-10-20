@@ -200,7 +200,7 @@ def test_commit_bare_git_sdd_init_paths_push_timeout_is_best_effort(
     # launch via ws_get_workspace_directory).
     with (
         patch("sase.sdd._commit.subprocess.run", side_effect=fake_run),
-        patch("sase.sdd._git.sdd_git_command", side_effect=fake_sdd_git_command),
+        patch("sase.sdd._git_runner.sdd_git_command", side_effect=fake_sdd_git_command),
         patch("sase.sdd._repository_transaction.require_sdd_repository_health"),
     ):
         commit_bare_git_sdd_init_paths(tmp_path, [generated], push=True)

@@ -32,7 +32,7 @@ def test_streaming_transfer_succeeds_while_progress_continues(
         return [sys.executable, "-c", script]
 
     monkeypatch.setenv("SASE_SDD_GIT_NETWORK_TRANSFER_CEILING", "2")
-    monkeypatch.setattr("sase.sdd._git.sdd_git_command", command)
+    monkeypatch.setattr("sase.sdd._git_runner.sdd_git_command", command)
 
     result = run_sdd_git(
         ["clone", "source", "target"],
@@ -62,7 +62,7 @@ def test_streaming_transfer_aborts_after_progress_stalls(
     )
     monkeypatch.setenv("SASE_SDD_GIT_NETWORK_TRANSFER_CEILING", "1")
     monkeypatch.setattr(
-        "sase.sdd._git.sdd_git_command",
+        "sase.sdd._git_runner.sdd_git_command",
         lambda _args: [sys.executable, "-c", script],
     )
 
@@ -94,7 +94,7 @@ def test_streaming_transfer_aborts_at_absolute_ceiling(
     )
     monkeypatch.setenv("SASE_SDD_GIT_NETWORK_TRANSFER_CEILING", "0.05")
     monkeypatch.setattr(
-        "sase.sdd._git.sdd_git_command",
+        "sase.sdd._git_runner.sdd_git_command",
         lambda _args: [sys.executable, "-c", script],
     )
 
@@ -165,7 +165,7 @@ def test_interruption_kills_process_group_with_pipe_holding_descendant(
 ) -> None:
     command, pid_file = _descendant_pipe_command(tmp_path)
     monkeypatch.setenv("SASE_SDD_GIT_NETWORK_TRANSFER_CEILING", "5")
-    monkeypatch.setattr("sase.sdd._git.sdd_git_command", lambda _args: command)
+    monkeypatch.setattr("sase.sdd._git_runner.sdd_git_command", lambda _args: command)
 
     def run_transfer() -> None:
         run_sdd_git(

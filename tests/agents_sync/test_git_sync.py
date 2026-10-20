@@ -497,10 +497,10 @@ def test_network_git_retries_transient_classifier_failure(
             )
         return subprocess.CompletedProcess(["git", *args], 0, stdout="ok", stderr="")
 
-    monkeypatch.setattr("sase.sdd._git.run_sdd_git", fake_run_sdd_git)
-    monkeypatch.setattr("sase.sdd._git.time.sleep", sleeps.append)
+    monkeypatch.setattr("sase.sdd._git_network.run_sdd_git", fake_run_sdd_git)
+    monkeypatch.setattr("sase.sdd._git_network.time.sleep", sleeps.append)
     monkeypatch.setattr(
-        "sase.sdd._git.classify_failure_retryability",
+        "sase.sdd._git_network.classify_failure_retryability",
         lambda *_args, **_kwargs: RetryabilityVerdictWire(
             schema_version=RETRYABILITY_WIRE_SCHEMA_VERSION,
             verdict=RETRYABILITY_VERDICT_TRANSIENT,
