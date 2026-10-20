@@ -370,8 +370,15 @@ MANIFEST_PATH = ROOT / "tests" / "contract_manifest.txt"
 # set measured 123.37 s under the command above on this host (single run;
 # 1004 passed). The next candidate should displace an entry rather than add
 # one.
-_MANIFEST_ENTRY_BUDGET = 83
-_MEASURED_SERIAL_COST = "123.37 serial seconds across 83 entries"
+#
+# Re-curated to 84 on 2026-10-20 (sase-1n6.5.1.5.2) when
+# `test_release_candidate.py` split three QUALIFY_RED identity/history tests
+# into `test_release_candidate_qualify_red.py` to stay under the 1000-line
+# toobig ceiling. The added path redistributes the same evaluator tests rather
+# than expanding contract membership. Estimated serial cost is unchanged aside
+# from per-module collection overhead on the 123.37 s 83-entry measurement.
+_MANIFEST_ENTRY_BUDGET = 84
+_MEASURED_SERIAL_COST = "123.37 serial seconds across 83 entries plus one split file"
 
 
 def _load_refresh_tool() -> ModuleType:

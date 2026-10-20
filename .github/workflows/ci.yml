@@ -370,8 +370,6 @@ jobs:
       fail-fast: false
       matrix:
         python-version: ["3.12", "3.13", "3.14"]
-    env:
-      SASE_QUALIFY_EVIDENCE_PATH: ${{ runner.temp }}/qualify-session.json
     steps:
       - uses: actions/checkout@v4
         with:
@@ -385,11 +383,16 @@ jobs:
         if: matrix.python-version == '3.12'
         env:
           PYTEST_ADDOPTS: -p tests._pytest_qualify_evidence
+          # Job-level env cannot use the runner context in a reusable
+          # workflow: GitHub rejects ${{ runner.temp }} there at parse time
+          # and blocks release.yml from calling this file.
+          SASE_QUALIFY_EVIDENCE_PATH: ${{ runner.temp }}/qualify-session.json
         run: just test-cov
       - name: Run tests
         if: matrix.python-version == '3.13' || matrix.python-version == '3.14'
         env:
           PYTEST_ADDOPTS: -p tests._pytest_qualify_evidence
+          SASE_QUALIFY_EVIDENCE_PATH: ${{ runner.temp }}/qualify-session.json
         run: just test
       - name: Build shard timings table
         if: always() && matrix.python-version == '3.14' && github.ref == 'refs/heads/master'

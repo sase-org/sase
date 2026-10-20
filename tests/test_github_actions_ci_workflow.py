@@ -776,10 +776,10 @@ def test_test_commands_and_plugin_activation_stay_reporting_only() -> None:
     assert plain["run"] == "just test"
     assert coverage["env"]["PYTEST_ADDOPTS"] == "-p tests._pytest_qualify_evidence"
     assert plain["env"]["PYTEST_ADDOPTS"] == "-p tests._pytest_qualify_evidence"
-    assert (
-        _load_ci_workflow()["jobs"]["test"]["env"]["SASE_QUALIFY_EVIDENCE_PATH"]
-        == "${{ runner.temp }}/qualify-session.json"
-    )
+    session_report = "${{ runner.temp }}/qualify-session.json"
+    assert coverage["env"]["SASE_QUALIFY_EVIDENCE_PATH"] == session_report
+    assert plain["env"]["SASE_QUALIFY_EVIDENCE_PATH"] == session_report
+    assert "env" not in _load_ci_workflow()["jobs"]["test"]
 
 
 def test_advisory_jobs_still_run_for_qualification() -> None:
