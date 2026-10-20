@@ -120,3 +120,13 @@ def _write_executable(path: Path, contents: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(contents, encoding="utf-8")
     path.chmod(path.stat().st_mode | stat.S_IXUSR)
+
+
+# Public aliases let split contract modules share these helpers without
+# importing private names across module boundaries.
+load_ci_workflow = _load_ci_workflow
+load_build_core_workflow = _load_build_core_workflow
+load_telemetry_workflow = _load_telemetry_workflow
+load_master_gate_workflow = _load_master_gate_workflow
+workflow_triggers = _workflow_triggers
+job_run_text = _job_run_text
