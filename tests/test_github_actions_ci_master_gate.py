@@ -274,7 +274,19 @@ def test_build_core_workflow_is_reusable_only() -> None:
     triggers = _workflow_triggers(workflow)
 
     assert set(triggers) == {"workflow_call"}
-    assert triggers["workflow_call"] is None
+    call = triggers["workflow_call"]
+    # sase-1n6.5.1.2 added explicit-ref plumbing and the published-core mode:
+    # inputless callers (ci.yml, telemetry.yml) stay on source defaults, and
+    # the probe path stays rehearse-only. Input detail lives in
+    # test_github_actions_build_core.py; this guard pins the trigger shape.
+    assert set(call["inputs"]) == {
+        "ref",
+        "core-source",
+        "core-version",
+        "manifest-artifact",
+        "probe-core-version",
+    }
+    assert set(call.get("outputs", {})) == {"core-version", "probe"}
     assert workflow["permissions"] == {"contents": "read"}
 
 

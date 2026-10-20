@@ -9,6 +9,10 @@ inputs:
     description: Just recipe used to set up this checkout's .venv.
     required: false
     default: install-venv
+  expected-core-version:
+    description: Expected sase-core-rs version. When set, the installed distribution must equal it exactly.
+    required: false
+    default: ''
 
 runs:
   using: composite
@@ -85,3 +89,15 @@ runs:
         chmod 0755 "$lsp_tmp"
         mv -f "$lsp_tmp" "$lsp_dest"
         "$lsp_dest" --version
+    - name: Verify installed core version
+      if: inputs.expected-core-version != ''
+      shell: bash
+      run: |
+        set -euo pipefail
+        expected="${{ inputs.expected-core-version }}"
+        installed="$(.venv/bin/python -c 'import importlib.metadata; print(importlib.metadata.version("sase-core-rs"))')"
+        if [[ "$installed" != "$expected" ]]; then
+          echo "error: installed sase-core-rs $installed != expected $expected" >&2
+          exit 1
+        fi
+        echo "sase-core-rs $installed matches expected $expected"

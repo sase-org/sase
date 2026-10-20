@@ -4,30 +4,124 @@ name: Build Core
 # workflow, so both the correctness lane (ci.yml) and the measurement lane
 # (telemetry.yml) build the exact same artifact from the exact same steps
 # instead of drifting copies.
+#
+# Two modes, selected by `core-source`:
+# - `source` (default): builds the wheel from the sase-core-revision.txt pin
+#   and the LSP from that same checkout, exactly as before. Inputless callers
+#   (ci.yml, telemetry.yml) stay on this mode at the default ref.
+# - `published`: downloads the sealed candidate manifest, installs the
+#   manifest's hashed PyPI wheel (filename, version, size and SHA-256 are all
+#   validated against the sealed record), and builds only the LSP from the
+#   sase-core v<version> tag. Maturin and any source wheel fallback never run
+#   in this mode.
+#
+# `ref` pins the sase commit the pin file is read from. `probe-core-version`
+# is the explicit rehearse-only probe path: it builds an older complete core
+# against independently verified probe metadata and records the output as a
+# probe. A probe can never qualify the original pair.
 on:
   workflow_call:
+    inputs:
+      ref:
+        description: Explicit sase commit to build from (pin file and release-please check read at this ref). Empty preserves the caller default.
+        type: string
+        required: false
+        default: ''
+      core-source:
+        description: "'source' builds the sase-core-revision.txt wheel; 'published' uses the sealed manifest wheel from PyPI and builds only the tag LSP."
+        type: string
+        required: false
+        default: 'source'
+      core-version:
+        description: Expected sase-core-rs version. Required at runtime when core-source is published; must equal the sealed manifest pin.
+        type: string
+        required: false
+        default: ''
+      manifest-artifact:
+        description: Artifact holding the sealed candidate-manifest.json (published mode only).
+        type: string
+        required: false
+        default: 'candidate-build'
+      probe-core-version:
+        description: Rehearse-only probe core version. Builds this older complete core and marks the output as a probe. Never qualifies.
+        type: string
+        required: false
+        default: ''
+    outputs:
+      core-version:
+        description: Effective core version built (probe version in probe mode, manifest version otherwise). Empty in source mode.
+        value: ${{ jobs.build-core.outputs.core-version }}
+      probe:
+        description: "'true' when the output is a rehearse-only probe core."
+        value: ${{ jobs.build-core.outputs.probe }}
 
 permissions:
   contents: read
 
 jobs:
   build-core:
-    # All source-based lanes depend on this root job, so the release-please
-    # exclusion propagates without repeating the condition on every consumer.
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.ref != 'release-please--branches--master'
+    # Published qualification builds always run. Source mode keeps the
+    # release-please exclusion so the release PR still skips this root job
+    # (its core comes from the floor-smoke leg instead).
+    if: ${{ inputs.core-source == 'published' || github.event_name != 'pull_request' || github.event.pull_request.head.ref != 'release-please--branches--master' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    outputs:
+      core-version: ${{ steps.resolve-core.outputs.version }}
+      probe: ${{ steps.resolve-core.outputs.probe }}
     env:
       CARGO_HTTP_MULTIPLEXING: "false"
       CARGO_NET_RETRY: "10"
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+      # Fail closed on unknown modes and inconsistent version inputs before
+      # any build runs. Published mode requires the expected core version so
+      # a bare published call can never drift off the sealed pin; the probe
+      # input requires published mode so it can never leak into source CI.
+      - name: Resolve core mode
+        id: resolve-core
+        run: |
+          set -euo pipefail
+          mode="${{ inputs.core-source }}"
+          case "$mode" in
+            source|published) ;;
+            *)
+              echo "::error::core-source must be 'source' or 'published', got '$mode'"
+              exit 1
+              ;;
+          esac
+          if [ "$mode" = "published" ] && [ -z "${{ inputs.core-version }}" ]; then
+            echo "::error::core-version is required when core-source is published"
+            exit 1
+          fi
+          if [ -n "${{ inputs.probe-core-version }}" ] && [ "$mode" != "published" ]; then
+            echo "::error::probe-core-version requires core-source 'published'"
+            exit 1
+          fi
+          effective="${{ inputs.probe-core-version }}"
+          if [ -z "$effective" ]; then
+            effective="${{ inputs.core-version }}"
+          fi
+          probe="false"
+          if [ -n "${{ inputs.probe-core-version }}" ]; then
+            probe="true"
+          fi
+          echo "version=$effective" >> "$GITHUB_OUTPUT"
+          echo "probe=$probe" >> "$GITHUB_OUTPUT"
+          echo "Core mode=$mode version=$effective probe=$probe"
+      - uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+          cache-dependency-glob: "sase-core/**/pyproject.toml"
       # sase-core-revision.txt is the pinned source of truth (not the
       # checkout's HEAD): it keeps this build reproducible across runs of the
       # same sase SHA and stops an ordinary sase-core push from reddening
       # master on its own. tools/ratchet_core_revision proposes bumps when
       # sase-core moves.
       - name: Resolve pinned Rust core revision
+        if: inputs.core-source == 'source'
         id: core-sha
         run: |
           set -euo pipefail
@@ -39,25 +133,71 @@ jobs:
           echo "sha=$core_sha" >> "$GITHUB_OUTPUT"
           echo "Building pinned sase-core commit $core_sha"
       - name: Check out Rust core
+        if: inputs.core-source == 'source'
         uses: actions/checkout@v4
         with:
           repository: sase-org/sase-core
           ref: ${{ steps.core-sha.outputs.sha }}
           path: sase-core
-      - uses: astral-sh/setup-uv@v4
+      # Published mode builds nothing from source: the wheel comes from PyPI
+      # below and only the LSP is compiled, from the exact v<version> tag the
+      # sealed manifest binds.
+      - name: Check out published Rust core tag
+        if: inputs.core-source == 'published'
+        uses: actions/checkout@v4
         with:
-          enable-cache: true
-          cache-dependency-glob: "sase-core/**/pyproject.toml"
+          repository: sase-org/sase-core
+          ref: v${{ steps.resolve-core.outputs.version }}
+          path: sase-core
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
       - name: Cache Rust build
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: sase-core -> target
-          shared-key: sase-core-${{ steps.core-sha.outputs.sha }}
+          shared-key: sase-core-${{ steps.core-sha.outputs.sha }}${{ steps.resolve-core.outputs.version }}
       - name: Build abi3 Rust core wheel
+        if: inputs.core-source == 'source'
         working-directory: sase-core/crates/sase_core_py
         run: uvx maturin build --release --out "$GITHUB_WORKSPACE/dist"
+      # Published mode downloads the sealed manifest and selects exactly one
+      # matching sase_core_rs-<version>-...-manylinux_2_28_x86_64.whl. The
+      # helper fetches that wheel from PyPI and validates filename, version,
+      # size and SHA-256 against the sealed record: missing, yanked,
+      # duplicate or mismatched files refuse.
+      - name: Download the sealed candidate manifest
+        if: inputs.core-source == 'published'
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ inputs.manifest-artifact }}
+          path: published-core/
+      - name: Fetch and verify the published core wheel
+        if: inputs.core-source == 'published'
+        run: |
+          set -euo pipefail
+          effective="${{ steps.resolve-core.outputs.version }}"
+          uv run --no-project --with packaging \
+            python tools/release_candidate core-files \
+            --version "$effective" \
+            --lock uv.lock \
+            --out published-core/core-files.json
+          uv run --no-project --with packaging \
+            python tools/release_candidate core-suffixes \
+            --url "https://raw.githubusercontent.com/sase-org/sase-core/v$effective/.github/workflows/release-plz.yml" \
+            --out published-core/core-suffixes.json
+          mkdir -p "$GITHUB_WORKSPACE/dist"
+          probe_args=()
+          if [ "${{ steps.resolve-core.outputs.probe }}" = "true" ]; then
+            probe_args=(--probe-version "${{ inputs.probe-core-version }}")
+          fi
+          uv run --no-project --with packaging \
+            python tools/release_candidate published-core \
+            --manifest published-core/candidate-manifest.json \
+            --core-files published-core/core-files.json \
+            --expected-core-suffixes published-core/core-suffixes.json \
+            --out-dir "$GITHUB_WORKSPACE/dist" \
+            --expect-version "${{ inputs.core-version }}" \
+            "${probe_args[@]}"
       - name: Build macro LSP
         working-directory: sase-core
         run: |
@@ -66,7 +206,20 @@ jobs:
           lsp_bin="sase-macro-lsp"
           install -m 0755 "target/release/$lsp_bin" "$GITHUB_WORKSPACE/dist/$lsp_bin"
       - name: Record wheel provenance
+        if: inputs.core-source == 'source'
         run: echo "${{ steps.core-sha.outputs.sha }}" > dist/sase-core-sha.txt
+      # The tag commit (not the tag name) is the provenance: it pins exactly
+      # which sase-core source the LSP was built from. Probe outputs also
+      # carry the probe marker the helper wrote next to the wheel.
+      - name: Record published tag provenance
+        if: inputs.core-source == 'published'
+        run: |
+          set -euo pipefail
+          git -C sase-core rev-parse HEAD > "$GITHUB_WORKSPACE/dist/sase-core-sha.txt"
+          echo "Published sase-core tag v${{ steps.resolve-core.outputs.version }} at $(cat "$GITHUB_WORKSPACE/dist/sase-core-sha.txt")"
+          if [ "${{ steps.resolve-core.outputs.probe }}" = "true" ]; then
+            echo "Probe core build (see probe-core-version.txt): never qualifies the sealed pair"
+          fi
       - name: Upload Rust core artifacts
         uses: actions/upload-artifact@v4
         with:

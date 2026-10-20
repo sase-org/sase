@@ -353,8 +353,25 @@ MANIFEST_PATH = ROOT / "tests" / "contract_manifest.txt"
 # no duplicates. The whole 81-entry set measured 128.49 serial seconds under
 # the command above on this host (single run; 923 passed). The next candidate
 # should displace an entry rather than add one.
-_MANIFEST_ENTRY_BUDGET = 81
-_MEASURED_SERIAL_COST = "128.49 serial seconds across 81 entries"
+#
+# Re-curated to 83 on 2026-10-19 (sase-1n6.5.1.2) for two paths.
+# `test_github_actions_build_core.py` guards the published-core inputs, probe
+# path, and artifact shape of the checked-in `build-core.yml` workflow, a data
+# asset no import edge reaches -- the same basis on which every other workflow
+# contract file earned its marker. `test_release_candidate_published_core.py`
+# guards the new `published-core` subcommand of `tools/release_candidate`
+# (exact-one wheel selection, sealed digest verification, probe recording),
+# admitted on the same value-per-second basis as the other `tools/` script
+# guards already in this set: the script is not a node in the import graph,
+# so a change that touches only it contributes no seeds,
+# `RULE_CONTRACT_SET_ONLY` fires, and the contract set is the only
+# scoped-selection coverage. The two files measured 4.29 s standalone under
+# the command above on this host (single run; 30 passed). The whole 83-entry
+# set measured 123.37 s under the command above on this host (single run;
+# 1004 passed). The next candidate should displace an entry rather than add
+# one.
+_MANIFEST_ENTRY_BUDGET = 83
+_MEASURED_SERIAL_COST = "123.37 serial seconds across 83 entries"
 
 
 def _load_refresh_tool() -> ModuleType:

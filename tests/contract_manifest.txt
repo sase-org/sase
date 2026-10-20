@@ -16,6 +16,7 @@ tests/test_core_finalizer_facade.py
 tests/test_demo_media_postprocessor.py
 tests/test_exercise_release.py
 tests/test_gemini_active_surface_guard.py
+tests/test_github_actions_build_core.py
 tests/test_github_actions_ci_master_gate.py
 tests/test_github_actions_ci_workflow.py
 tests/test_github_actions_install_smoke.py
@@ -39,6 +40,7 @@ tests/test_ratchet_core_window_tool_guardrails.py
 tests/test_ratchet_core_window_tool_modes.py
 tests/test_ratchet_core_window_tool_reconciliation.py
 tests/test_release_candidate.py
+tests/test_release_candidate_published_core.py
 tests/test_release_core.py
 tests/test_require_tool_run.py
 tests/test_ruff_config.py

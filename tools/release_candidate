@@ -8,8 +8,11 @@ appends one observation asset, ``qualify`` validates N1 evidence and appends a
 qualification observation, ``verify`` rechecks a sealed manifest,
 ``evaluate`` runs the promotion predicate, ``show`` prints a manifest,
 ``download`` resolves an asset locator to local bytes, ``core-files`` fetches
-the core PyPI file list and cross-checks ``uv.lock``, and ``core-suffixes``
-parses the completeness set from sase-core's ``release-plz.yml``.
+the core PyPI file list and cross-checks ``uv.lock``, ``core-suffixes``
+parses the completeness set from sase-core's ``release-plz.yml``, and
+``published-core`` selects the sealed manifest's published core wheel,
+downloads it from PyPI and verifies filename, version, size and SHA-256
+(including the rehearse-only probe path).
 
 Sealed fields (immutable): repository, version, tag (or the rehearsal ref),
 peeled SHA and tree, candidate ID, build generation, builder workflow revision,
@@ -609,9 +612,11 @@ def resolve_locator(locator: str, dest: Path) -> Path:
 
 def fetch_pypi_core_files(
     version: str,
-    urlopen: Any = urllib.request.urlopen,
+    urlopen: Any = None,
 ) -> list[dict[str, Any]]:
     """Fetch sase-core-rs's PyPI file list with digests for one version."""
+    if urlopen is None:
+        urlopen = urllib.request.urlopen
     url = "https://pypi.org/pypi/sase-core-rs/json"
     with urlopen(url, timeout=30) as response:
         payload = json.loads(response.read().decode("utf-8"))
@@ -627,10 +632,194 @@ def fetch_pypi_core_files(
                 "packagetype": entry.get("packagetype", ""),
                 "yanked": bool(entry.get("yanked", False)),
                 "sha256": digest,
+                "size": entry.get("size", 0),
                 "url": entry.get("url", ""),
             }
         )
     return files
+
+
+CORE_FILENAME_STEM = "sase_core_rs"
+PLATFORM_WHEEL_SUFFIX = "manylinux_2_28_x86_64"
+PROBE_MARKER_FILENAME = "probe-core-version.txt"
+
+
+def _live_entries(core_files: Any) -> list[dict[str, Any]]:
+    """Return the non-yanked file records; anything else is not a candidate."""
+    if not isinstance(core_files, list):
+        return []
+    return [
+        entry
+        for entry in core_files
+        if isinstance(entry, dict) and not entry.get("yanked", False)
+    ]
+
+
+def _parse_dotted_version(value: Any, label: str = "version") -> tuple[int, ...]:
+    """Parse a numeric dot-separated version; Refusal (never an exception)."""
+    import re
+
+    if not isinstance(value, str) or not re.fullmatch(r"\d+(?:\.\d+)*", value.strip()):
+        raise Refusal(f"unsupported {label} {value!r}; expected numeric dot-separated")
+    return tuple(int(part) for part in value.strip().split("."))
+
+
+def select_published_wheel(
+    core_files: list[dict[str, Any]],
+    version: str,
+    platform_suffix: str = PLATFORM_WHEEL_SUFFIX,
+) -> dict[str, Any]:
+    """Select exactly one live platform wheel for version; refuse otherwise.
+
+    Missing (no live file under the version stem and platform suffix) and
+    duplicate (more than one live match) are both refusals: the caller must
+    never guess which bytes the sealed candidate binds.
+    """
+    stem = f"{CORE_FILENAME_STEM}-{version}-"
+    wanted = f"{platform_suffix}.whl"
+    matches = [
+        entry
+        for entry in _live_entries(core_files)
+        if isinstance(entry.get("filename"), str)
+        and entry["filename"].startswith(stem)
+        and entry["filename"].endswith(wanted)
+        and entry.get("packagetype") == "bdist_wheel"
+    ]
+    if not matches:
+        raise Refusal(
+            f"no live {platform_suffix} wheel for sase-core-rs=={version}"
+        )
+    if len(matches) > 1:
+        names = sorted(str(entry.get("filename", "?")) for entry in matches)
+        raise Refusal(
+            f"duplicate live {platform_suffix} wheels "
+            f"for sase-core-rs=={version}: {names}"
+        )
+    return matches[0]
+
+
+def published_core_plan(
+    manifest: dict[str, Any],
+    core_files: list[dict[str, Any]],
+    expected_suffixes: Sequence[str],
+    *,
+    expect_version: str = "",
+    probe_version: str = "",
+    platform_suffix: str = PLATFORM_WHEEL_SUFFIX,
+) -> dict[str, Any]:
+    """Validate a published-core request against the sealed manifest.
+
+    Returns the download plan (effective version, probe flag, wheel filename,
+    SHA-256, size, URL and ``v<version>`` tag). The manifest is only read,
+    never modified. ``expect_version`` (the caller's required core version)
+    must equal the sealed pin outside and inside the probe path; a declared
+    probe must name a strictly older complete core and is recorded as a probe
+    that can never qualify the original pair.
+    """
+    if not isinstance(manifest, dict):
+        raise Refusal("manifest root must be an object")
+    problems = verify_manifest(manifest)
+    if problems:
+        raise Refusal(f"sealed manifest is red: {'; '.join(problems)}")
+    manifest_version = manifest["core_version"]
+    if expect_version and expect_version != manifest_version:
+        raise Refusal(
+            f"expected core {expect_version!r} differs from "
+            f"the sealed manifest core {manifest_version!r}"
+        )
+    probe = bool(probe_version)
+    effective = probe_version or manifest_version
+    if probe:
+        if probe_version == manifest_version:
+            raise Refusal("probe version must differ from the sealed manifest core")
+        if _parse_dotted_version(probe_version, "probe version") >= (
+            _parse_dotted_version(manifest_version, "manifest core version")
+        ):
+            raise Refusal(
+                f"probe core {probe_version!r} must be older than "
+                f"the sealed manifest core {manifest_version!r}"
+            )
+    missing = _core_files_complete(core_files, expected_suffixes)
+    if missing:
+        raise Refusal(
+            f"incomplete core file set for sase-core-rs=={effective}: "
+            f"no live file for suffixes {missing}"
+        )
+    wheel = select_published_wheel(core_files, effective, platform_suffix)
+    if not probe:
+        sealed = [
+            entry
+            for entry in _live_entries(manifest.get("core_files"))
+            if entry.get("filename") == wheel.get("filename")
+        ]
+        if len(sealed) != 1:
+            raise Refusal(
+                f"sealed manifest has no live record of {wheel.get('filename')!r}"
+            )
+        if sealed[0].get("sha256", "") != wheel.get("sha256", ""):
+            raise Refusal(
+                f"SHA-256 mismatch for {wheel.get('filename')!r}: "
+                "fresh PyPI file list differs from the sealed manifest"
+            )
+        for key in ("size",):
+            sealed_size = sealed[0].get(key, 0)
+            fresh_size = wheel.get(key, 0)
+            if sealed_size and fresh_size and sealed_size != fresh_size:
+                raise Refusal(
+                    f"size mismatch for {wheel.get('filename')!r}: "
+                    f"sealed {sealed_size} != fresh {fresh_size}"
+                )
+    size = wheel.get("size", 0)
+    return {
+        "version": effective,
+        "probe": probe,
+        "manifest_version": manifest_version,
+        "filename": wheel.get("filename", ""),
+        "sha256": wheel.get("sha256", ""),
+        "size": size if isinstance(size, int) and size > 0 else 0,
+        "url": wheel.get("url", ""),
+        "tag": f"v{effective}",
+    }
+
+
+def fetch_and_verify_wheel(
+    plan: dict[str, Any],
+    out_dir: Path,
+    urlopen: Any = None,
+) -> Path:
+    """Download the planned wheel and verify size and SHA-256; refuse red.
+
+    Writes the wheel plus (probe only) the probe marker into ``out_dir``.
+    """
+    if urlopen is None:
+        urlopen = urllib.request.urlopen
+    filename = plan.get("filename", "")
+    url = plan.get("url", "")
+    if not filename or not url:
+        raise Refusal("published-core plan has no wheel filename or download URL")
+    try:
+        with urlopen(url, timeout=60) as response:
+            data = response.read()
+    except Refusal:
+        raise
+    except Exception as exc:
+        raise Refusal(f"cannot download {filename} from PyPI: {exc}") from exc
+    digest = hashlib.sha256(data).hexdigest()
+    if digest != plan.get("sha256", ""):
+        raise Refusal(f"downloaded {filename} SHA-256 mismatch")
+    if plan.get("size") and len(data) != plan["size"]:
+        raise Refusal(
+            f"downloaded {filename} size mismatch: "
+            f"got {len(data)}, expected {plan['size']}"
+        )
+    out_dir.mkdir(parents=True, exist_ok=True)
+    path = out_dir / filename
+    path.write_bytes(data)
+    if plan.get("probe"):
+        (out_dir / PROBE_MARKER_FILENAME).write_text(
+            f"{plan.get('version', '')}\n", encoding="utf-8"
+        )
+    return path
 
 
 def _load_json(path: Path) -> Any:
@@ -691,6 +880,49 @@ def build_parser() -> argparse.ArgumentParser:
     observe.add_argument("--reason", default="")
     observe.add_argument("--extra", default="", help="extra JSON object")
     observe.add_argument("--out", default="", help="observation asset output path")
+
+    published_core = subs.add_parser(
+        "published-core",
+        help="select and verify the sealed manifest's published core wheel",
+    )
+    published_core.add_argument(
+        "-m",
+        "--manifest",
+        required=True,
+        help="sealed manifest JSON path (read-only, never modified)",
+    )
+    published_core.add_argument(
+        "--core-files",
+        required=True,
+        help="fresh PyPI core file list JSON for the effective version",
+    )
+    published_core.add_argument(
+        "--expected-core-suffixes",
+        required=True,
+        help="expected core dist suffixes JSON (from sase-core release-plz.yml)",
+    )
+    published_core.add_argument(
+        "--out-dir",
+        required=True,
+        help="directory receiving the verified wheel",
+    )
+    published_core.add_argument(
+        "-e",
+        "--expect-version",
+        default="",
+        help="required caller core version; must equal the sealed pin",
+    )
+    published_core.add_argument(
+        "-p",
+        "--probe-version",
+        default="",
+        help="rehearse-only older probe core version (recorded as a probe)",
+    )
+    published_core.add_argument(
+        "--platform-suffix",
+        default=PLATFORM_WHEEL_SUFFIX,
+        help="platform wheel suffix to select",
+    )
 
     qualify = subs.add_parser(
         "qualify", help="evaluate candidate-bound N1 evidence and append an observation"
@@ -797,6 +1029,21 @@ def main(argv: Sequence[str] | None = None) -> int:
             if args.out:
                 _dump_json(Path(args.out), observation)
             print(observation["asset"])
+            return EXIT_OK
+        if args.command == "published-core":
+            manifest = _load_json(Path(args.manifest))
+            if not isinstance(manifest, dict):
+                raise Refusal("manifest root must be an object")
+            plan = published_core_plan(
+                manifest,
+                _load_json(Path(args.core_files)),
+                _load_json(Path(args.expected_core_suffixes)),
+                expect_version=args.expect_version,
+                probe_version=args.probe_version,
+                platform_suffix=args.platform_suffix,
+            )
+            path = fetch_and_verify_wheel(plan, Path(args.out_dir))
+            print(json.dumps({**plan, "path": str(path)}, indent=2, sort_keys=True))
             return EXIT_OK
         if args.command == "qualify":
             if args.run_id < 1 or args.attempt < 1:

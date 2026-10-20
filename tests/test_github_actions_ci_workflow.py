@@ -156,11 +156,35 @@ def test_rust_core_is_built_once_and_shared_with_source_based_jobs() -> None:
         for step in build_steps
         if step.get("with", {}).get("repository") == "sase-org/sase-core"
     ]
-    assert len(core_checkouts) == 1
-    assert core_checkouts[0]["with"]["path"] == "sase-core"
-    assert core_checkouts[0]["with"]["ref"] == "${{ steps.core-sha.outputs.sha }}"
+    assert len(core_checkouts) == 2
+    source_checkout = next(
+        step
+        for step in core_checkouts
+        if "core-sha" in str(step.get("with", {}).get("ref", ""))
+    )
+    published_checkout = next(
+        step
+        for step in core_checkouts
+        if "core-sha" not in str(step.get("with", {}).get("ref", ""))
+    )
+    assert source_checkout["with"]["path"] == "sase-core"
+    assert source_checkout["with"]["ref"] == "${{ steps.core-sha.outputs.sha }}"
+    assert source_checkout.get("if") == "inputs.core-source == 'source'"
+    assert published_checkout["with"]["path"] == "sase-core"
+    assert (
+        published_checkout["with"]["ref"]
+        == "v${{ steps.resolve-core.outputs.version }}"
+    )
+    assert published_checkout.get("if") == "inputs.core-source == 'published'"
     assert "sase-core-revision.txt" in build_run_text
-    assert "git -C sase-core rev-parse HEAD" not in build_run_text
+    provenance_steps = [
+        step for step in build_steps if "sase-core-sha.txt" in str(step.get("run", ""))
+    ]
+    assert any(
+        "git -C sase-core rev-parse HEAD" in step.get("run", "")
+        and step.get("if") == "inputs.core-source == 'published'"
+        for step in provenance_steps
+    )
     assert build_core["env"] == {
         "CARGO_HTTP_MULTIPLEXING": "false",
         "CARGO_NET_RETRY": "10",

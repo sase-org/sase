@@ -95,6 +95,91 @@ def test_setup_sase_install_script_records_the_wheel_in_github_env(
     assert installed_lsp.stat().st_mode & stat.S_IXUSR
 
 
+def _setup_sase_verify_script() -> str:
+    steps = _load_setup_sase_action()["runs"]["steps"]
+    return next(
+        step["run"]
+        for step in steps
+        if step.get("name") == "Verify installed core version"
+    )
+
+
+def test_setup_sase_action_declares_an_optional_expected_core_version() -> None:
+    inputs = _load_setup_sase_action()["inputs"]
+    assert inputs["expected-core-version"]["required"] is False
+    assert inputs["expected-core-version"]["default"] == ""
+
+
+def test_setup_sase_verify_step_runs_only_when_an_expected_version_is_set() -> None:
+    steps = _load_setup_sase_action()["runs"]["steps"]
+    verify = next(
+        step for step in steps if step.get("name") == "Verify installed core version"
+    )
+    assert verify["if"] == "inputs.expected-core-version != ''"
+    install_index = next(
+        index
+        for index, step in enumerate(steps)
+        if step.get("name") == "Install dependencies"
+    )
+    verify_index = next(
+        index
+        for index, step in enumerate(steps)
+        if step.get("name") == "Verify installed core version"
+    )
+    assert install_index < verify_index
+    script = verify["run"]
+    assert 'importlib.metadata.version("sase-core-rs")' in script
+    assert "installed sase-core-rs" in script
+    assert "matches expected" in script
+
+
+def _write_verify_python(tmp_path: Path, version: str) -> None:
+    _write_executable(
+        tmp_path / ".venv" / "bin" / "python",
+        f'#!/bin/sh\nprintf "%s\\n" "{version}"\n',
+    )
+
+
+def test_setup_sase_verify_script_accepts_the_expected_core_version(
+    tmp_path: Path,
+) -> None:
+    _write_verify_python(tmp_path, "0.42.0")
+    script = _setup_sase_verify_script().replace(
+        "${{ inputs.expected-core-version }}", "0.42.0"
+    )
+
+    result = subprocess.run(
+        ["bash", "-e", "-c", script],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0
+    assert "sase-core-rs 0.42.0 matches expected 0.42.0" in result.stdout
+
+
+def test_setup_sase_verify_script_refuses_a_version_drift(
+    tmp_path: Path,
+) -> None:
+    _write_verify_python(tmp_path, "0.41.0")
+    script = _setup_sase_verify_script().replace(
+        "${{ inputs.expected-core-version }}", "0.42.0"
+    )
+
+    result = subprocess.run(
+        ["bash", "-e", "-c", script],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 1
+    assert "installed sase-core-rs 0.41.0 != expected 0.42.0" in result.stderr
+
+
 def test_setup_sase_install_script_installs_macro_lsp_under_its_own_name(
     tmp_path: Path,
 ) -> None:
