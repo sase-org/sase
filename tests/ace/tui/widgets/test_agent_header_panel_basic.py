@@ -138,6 +138,7 @@ async def test_secondary_only_keeps_header_visible_and_toggleable() -> None:
         panel = header_panel(detail)
 
         detail.toggle_deck_split(DeckLayout.LEFT_RIGHT)
+        detail.toggle_deck_focus()
         await pilot.pause()
         detail.show_deck(0, DeckId.MAIN)
         detail.show_deck(1, DeckId.FILES)
@@ -243,6 +244,7 @@ async def test_bottom_pinned_body_stays_pinned_across_toggle() -> None:
         detail = app.query_one("#agent-detail-panel", AgentDetail)
         await show_agent(detail, solo_agent(), pilot)
         detail.toggle_deck_split(DeckLayout.LEFT_RIGHT)
+        detail.toggle_deck_focus()
         await pilot.pause()
         detail.show_deck(0, DeckId.MAIN)
         detail.show_deck(1, DeckId.FILES)

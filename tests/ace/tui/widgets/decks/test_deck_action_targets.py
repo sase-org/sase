@@ -28,6 +28,7 @@ async def test_focused_file_view_prefers_focused_then_fallback(tmp_path: Path) -
         detail.update_display(make_artifact_agent(tmp_path, status="DONE"))
         await pilot.pause()
         detail.toggle_deck_split(DeckLayout.LEFT_RIGHT)
+        detail.toggle_deck_focus()
         await pilot.pause()
         area = detail.deck_area
         # Focused panel (1) shows something; force FILES on panel 1.
@@ -58,7 +59,6 @@ async def test_focused_tools_view_only_when_focused_is_tools(
         detail.update_display(make_artifact_agent(tmp_path, status="DONE"))
         await pilot.pause()
         detail.toggle_deck_split(DeckLayout.LEFT_RIGHT)
-        await pilot.pause()
         detail.toggle_deck_focus()
         await pilot.pause()
         detail.show_deck(1, DeckId.TOOLS)
@@ -81,6 +81,7 @@ async def test_main_view_for_actions_and_ensure_shown(tmp_path: Path) -> None:
         detail.update_display(make_artifact_agent(tmp_path, status="DONE"))
         await pilot.pause()
         detail.toggle_deck_split(DeckLayout.LEFT_RIGHT)
+        detail.toggle_deck_focus()
         await pilot.pause()
         detail.show_deck(0, DeckId.MAIN)
         detail.show_deck(1, DeckId.FILES)

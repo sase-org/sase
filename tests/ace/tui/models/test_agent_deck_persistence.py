@@ -17,7 +17,7 @@ from sase.ace.tui.models.agent_deck_persistence import (
     snapshot_from_area_state,
     _serialize_agents_deck_state,
 )
-from sase.ace.tui.widgets.decks.layout import toggle_split, toggle_zoom
+from sase.ace.tui.widgets.decks.layout import toggle_focus, toggle_split, toggle_zoom
 from sase.ace.tui.widgets.decks.model import (
     DeckAreaState,
     DeckId,
@@ -212,12 +212,15 @@ def test_oversized_file_fails_open(tmp_path: Path) -> None:
     assert load_agents_deck_state(path) == EMPTY_AGENTS_DECK_STATE
 
 
-def test_snapshot_from_area_state_unwraps_zoom() -> None:
+@pytest.mark.parametrize("focused", [0, 1])
+def test_snapshot_from_area_state_unwraps_zoom(focused: int) -> None:
     from sase.ace.tui.widgets.decks.model import with_panel_deck
 
     split = toggle_split(
         DeckAreaState(), DeckLayout.TOP_BOTTOM, DeckPanelState(DeckId.FILES)
     )
+    if focused == 1:
+        split = toggle_focus(split)
     zoomed = toggle_zoom(split)
     snapshot = snapshot_from_area_state(zoomed)
     assert snapshot.layout is DeckLayout.TOP_BOTTOM
@@ -227,10 +230,10 @@ def test_snapshot_from_area_state_unwraps_zoom() -> None:
     edited = with_panel_deck(zoomed, zoomed.focused, DeckId.TOOLS)
     kept = snapshot_from_area_state(edited)
     assert kept.layout is DeckLayout.TOP_BOTTOM
-    assert kept.focused == 0
-    assert kept.panels[0].deck is DeckId.TOOLS
-    assert kept.panels[0].previous_deck is DeckId.MAIN
-    assert kept.panels[1].deck is DeckId.FILES
+    assert kept.focused == focused
+    assert kept.panels[focused].deck is DeckId.TOOLS
+    assert kept.panels[focused].previous_deck is split.panels[focused].deck
+    assert kept.panels[1 - focused].deck is split.panels[1 - focused].deck
 
 
 def test_area_state_round_trip_through_snapshot() -> None:
@@ -388,10 +391,13 @@ def test_files_page_blocks_decodes_to_auto(tmp_path: Path) -> None:
     assert loaded.panels[0].views.files is DeckView.AUTO
 
 
-def test_zoom_unwrap_carries_views() -> None:
+@pytest.mark.parametrize("focused", [0, 1])
+def test_zoom_unwrap_carries_views(focused: int) -> None:
     split = toggle_split(
         DeckAreaState(), DeckLayout.TOP_BOTTOM, DeckPanelState(DeckId.FILES)
     )
+    if focused == 1:
+        split = toggle_focus(split)
     zoomed = toggle_zoom(split)
     edited = with_panel_view(zoomed, 0, DeckId.MAIN, DeckView.PAGE_CARDS)
     snapshot = snapshot_from_area_state(edited)

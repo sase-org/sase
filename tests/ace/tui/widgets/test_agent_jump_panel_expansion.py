@@ -149,6 +149,7 @@ async def test_bottom_pinned_body_stays_pinned_across_jump_toggle() -> None:
         detail = app.query_one("#agent-detail-panel", AgentDetail)
         await _show_agent(detail, _solo(), pilot)
         detail.toggle_deck_split(DeckLayout.LEFT_RIGHT)
+        detail.toggle_deck_focus()
         await pilot.pause()
         detail.show_deck(0, DeckId.MAIN)
         detail.show_deck(1, DeckId.FILES)

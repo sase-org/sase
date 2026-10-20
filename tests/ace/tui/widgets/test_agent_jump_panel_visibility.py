@@ -152,6 +152,7 @@ async def test_panel_sits_below_secondary_scroll_in_every_layout(
         await _show_agent(detail, root, pilot)
         panel = _jump_panel(detail)
         detail.toggle_deck_split(DeckLayout.LEFT_RIGHT)
+        detail.toggle_deck_focus()
         await pilot.pause()
         detail.show_deck(0, DeckId.MAIN)
         detail.show_deck(1, DeckId.FILES)

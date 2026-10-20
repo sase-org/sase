@@ -102,7 +102,7 @@ def test_nest_keeps_focus_and_main_does_not_move() -> None:
     before = _two_panes(Axis.ROWS, 0)
     nested = _nest(before, DeckLayout.LEFT_RIGHT)
     assert len(nested.grid.panes) == 3
-    assert nested.grid.focused == 0
+    assert nested.grid.focused == before.grid.focused
     assert nested.grid.recent == (0, 2, 1)
     assert nested.panels[2].deck is DeckId.TOOLS
     # The unfocused pane becomes main without moving or resizing.
@@ -331,7 +331,9 @@ def test_zoom_chrome_names_three_of_three() -> None:
 def test_close_focused_is_inverse_of_nest() -> None:
     two = _two_panes(Axis.ROWS, 0)
     nested = toggle_split(two, DeckLayout.LEFT_RIGHT, DeckPanelState(DeckId.TOOLS))
-    undone = dataclasses.replace(nested, grid=close_focused(focus_pane(nested.grid, 2)))
+    undone = dataclasses.replace(
+        nested, grid=close_focused(cycle_focus(nested.grid, 1))
+    )
     assert undone.grid.panes == two.grid.panes
     assert undone.grid.focused == two.grid.focused
 
