@@ -8,7 +8,9 @@ from dataclasses import dataclass
 import os
 from pathlib import Path
 import signal
+import subprocess
 import threading
+import time
 
 from sase.agents_sync.commit_publication_transaction import (
     DrainResult,
@@ -16,6 +18,7 @@ from sase.agents_sync.commit_publication_transaction import (
     publish_queued_transaction,
 )
 from sase.agents_sync.git import GitRunner, run_git
+from sase.agents_sync.git_sync_ops import lock_holder_diagnostic
 from sase.agents_sync.inventory import (
     build_project_hood_inventory,
 )
@@ -28,6 +31,10 @@ from sase.agents_sync.publication_outbox import (
     enqueue_agent_publication,
     list_agent_publications,
     update_agent_publications,
+)
+from sase.agents_sync.publication_timing import (
+    DrainTiming,
+    emit_drain_timing,
 )
 from sase.agents_sync.repository_inspection import repository_root
 from sase.agents_sync.targets import resolve_sync_targets
@@ -240,12 +247,17 @@ def _drain_agent_publications(
 ) -> _CommitPublicationOutcome:
     """Drain active agent-hood requests for one project under its sidecar lock."""
 
+    timer = DrainTiming(project_key=project_key)
     selection = resolve_sync_targets((project_key,))
     if len(selection.targets) != 1:
         outcome = selection.outcomes[0] if selection.outcomes else None
         detail = (
             (outcome.skip_reason or outcome.error) if outcome is not None else None
         ) or "agents target is unavailable"
+        timer.stage = "resolve_target"
+        timer.outcome = "target_unavailable"
+        timer.error = detail
+        emit_drain_timing(timer)
         return _CommitPublicationOutcome(
             skip_reason=f"project {project_key!r} has no usable agents target: {detail}"
         )
@@ -253,6 +265,10 @@ def _drain_agent_publications(
     try:
         owner = require_agent_owner_identity()
     except Exception as exc:
+        timer.stage = "resolve_owner"
+        timer.outcome = "owner_unavailable"
+        timer.error = f"owner identity is unavailable: {exc}"
+        emit_drain_timing(timer)
         return _CommitPublicationOutcome(error=f"owner identity is unavailable: {exc}")
 
     from sase.agents_sync import git_sync
@@ -264,23 +280,51 @@ def _drain_agent_publications(
         lock_timeout_seconds=timeout,
     )
     if clone_error is not None:
+        timer.stage = "ensure_clone"
+        timer.outcome = "clone_failed"
+        timer.error = clone_error
+        emit_drain_timing(timer)
         return _record_failure(target, clone_error)
 
     lock_path = (
         git_sync.agents_git_dir(target.sidecar_path, git_runner)
         / "sase-agents-sync.lock"
     )
-    with git_sync.bounded_agents_lock(lock_path, timeout) as acquired:
+    lock_wait_start = time.monotonic()
+    with git_sync.bounded_agents_lock(
+        lock_path, timeout, operation="commit-publication-drain"
+    ) as acquired:
+        timer.lock_wait_seconds = time.monotonic() - lock_wait_start
         if not acquired:
-            return _record_failure(target, "agents sync lock is busy")
+            error = "agents sync lock is busy"
+            holder = lock_holder_diagnostic(lock_path)
+            if holder is not None:
+                error = f"{error}; {holder}"
+            timer.stage = "acquire_lock"
+            timer.outcome = "lock_busy"
+            timer.error = error
+            emit_drain_timing(timer)
+            return _record_failure(target, error)
         try:
             with _bounded_publication_drain(_configured_publication_drain_timeout()):
-                result = _publish_queued_locked(target, owner, git_runner)
+                result = _publish_queued_locked(target, owner, git_runner, timer=timer)
         except _PublicationDrainTimedOut as exc:
+            timer.alarm_fired = True
+            timer.alarm_stage = timer.stage or "drain"
+            timer.outcome = "timeout"
+            timer.error = str(exc)
+            emit_drain_timing(timer)
             return _record_failure(target, str(exc))
     if result.error is not None:
+        timer.outcome = "failed_with_item_errors" if result.drained else "failed"
+        timer.error = result.error
+        emit_drain_timing(timer)
         return _record_failure(target, result.error, result.error_keys)
 
+    timer.outcome = "published" if result.drained else "no_requests"
+    if result.item_errors:
+        timer.error = "; ".join(result.item_errors)
+    emit_drain_timing(timer)
     try:
         from sase.agents_sync.status import rewrite_agents_sync_status_after_sync
 
@@ -418,21 +462,51 @@ def _display_repository(commit_cwd: Path | str | None) -> str:
     return str(Path(commit_cwd).expanduser().resolve(strict=False))
 
 
+def _counting_git_runner(base: GitRunner, timer: DrainTiming) -> GitRunner:
+    """Wrap a git runner to count per-op subprocesses on the drain timer."""
+
+    def _run(
+        cwd: Path,
+        args: list[str],
+        *,
+        network: bool = False,
+        op: str = "agents_sync.git",
+    ) -> subprocess.CompletedProcess[str]:
+        timer.git_op_counts[op] = timer.git_op_counts.get(op, 0) + 1
+        return base(cwd, args, network=network, op=op)
+
+    return _run
+
+
 def _publish_queued_locked(
     target: ProjectTarget,
     owner: AgentOwnerIdentity,
     git_runner: GitRunner,
+    timer: DrainTiming | None = None,
 ) -> DrainResult:
     from sase.agents_sync import git_sync
 
     requests = _active_agent_publications(target.project_key)
+    if timer is not None:
+        timer.active_requests = len(requests)
+        timer.distinct_hoods = len({request.local_hood for request in requests})
     if not requests:
         return DrainResult()
     logical_keys = tuple(item.logical_key for item in requests)
-    cleanup_error = git_sync.clean_agents_payload_worktree(
-        target.sidecar_path,
-        git_runner,
+    runner = (
+        _counting_git_runner(git_runner, timer) if timer is not None else git_runner
     )
+    if timer is not None:
+        with timer.record_stage("payload_clean"):
+            cleanup_error = git_sync.clean_agents_payload_worktree(
+                target.sidecar_path,
+                runner,
+            )
+    else:
+        cleanup_error = git_sync.clean_agents_payload_worktree(
+            target.sidecar_path,
+            runner,
+        )
     if cleanup_error is not None:
         return DrainResult(error=cleanup_error, error_keys=logical_keys)
     result: DrainResult
@@ -440,7 +514,7 @@ def _publish_queued_locked(
         result = publish_queued_transaction(
             target,
             owner,
-            git_runner,
+            runner,
             requests,
             hooks=PublicationTransactionHooks(
                 build_inventory=build_project_hood_inventory,
@@ -449,12 +523,20 @@ def _publish_queued_locked(
                 acknowledge_publications=acknowledge_agent_publications,
                 configured_max_attempts=configured_publication_max_attempts,
             ),
+            timer=timer,
         )
     finally:
-        cleanup_error = git_sync.clean_agents_payload_worktree(
-            target.sidecar_path,
-            git_runner,
-        )
+        if timer is not None:
+            with timer.record_stage("cleanup"):
+                cleanup_error = git_sync.clean_agents_payload_worktree(
+                    target.sidecar_path,
+                    runner,
+                )
+        else:
+            cleanup_error = git_sync.clean_agents_payload_worktree(
+                target.sidecar_path,
+                runner,
+            )
     return (
         DrainResult(error=cleanup_error, error_keys=logical_keys)
         if cleanup_error is not None

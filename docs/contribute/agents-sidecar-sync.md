@@ -31,6 +31,14 @@ terminal state, commits, prompt data, and chat refresh the same stable run; abse
 not create an implicit deletion or tombstone. Identical inputs produce byte-identical
 files and a no-op publication.
 
+Commit-triggered drains emit one structured timing line per drain to
+`~/.sase/logs/agent_publication_drains.jsonl` (see
+`src/sase/agents_sync/publication_timing.py`), recording lock wait, per-stage durations,
+inventory counters, and per-op git subprocess counts. `bounded_agents_lock` records its
+holder (`{pid, operation, agent, started_at}`) beside the flock file so lock-busy errors
+name the holder and its age. The drain transaction accepts an optional `DrainTiming`
+accumulator; without one every code path behaves exactly as before.
+
 After each pull/rebase, SASE rebuilds root, user, machine, hood, session, and agent
 Markdown from every validated owner manifest. Index and neighbor pages link a _specific
 run_, so their session member links use stable `member-<role>` anchors; solo links

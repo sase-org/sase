@@ -1,0 +1,191 @@
+#!/usr/bin/env python3
+"""Profile one representative agent-hood publication drain (read-only).
+
+Runs ``build_project_hood_inventory`` and ``plan_hoods`` against real state
+for one large hood and one small hood, printing the stage breakdown. Both
+functions write nothing: the inventory is in-memory and ``plan_hoods``
+returns its payload dict without touching the sidecar clone.
+
+Usage:
+    .venv/bin/python tools/agents_publication_profile --project sase
+    SASE_SDD_GIT_SLOW_MS=0 .venv/bin/python tools/agents_publication_profile \\
+        --project sase --large-hood research
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import subprocess
+import sys
+import time
+from collections import Counter
+from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT / "src") not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT / "src"))
+
+
+def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Profile inventory build and hood planning for publication drains."
+    )
+    parser.add_argument(
+        "--project",
+        default=None,
+        help="Project key to profile (default: current workspace project).",
+    )
+    parser.add_argument(
+        "--large-hood",
+        default=None,
+        help="Large hood to plan (default: hood with the most runs).",
+    )
+    parser.add_argument(
+        "--small-hood",
+        default=None,
+        help="Small hood to plan (default: hood with the fewest runs).",
+    )
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Print the breakdown as JSON instead of text.",
+    )
+    return parser.parse_args(argv)
+
+
+def _counting_runner() -> tuple[Counter[str], object]:
+    from sase.agents_sync.git import run_git
+
+    counts: Counter[str] = Counter()
+
+    def _run(
+        cwd: Path,
+        args: list[str],
+        *,
+        network: bool = False,
+        op: str = "agents_sync.git",
+    ) -> subprocess.CompletedProcess[str]:
+        counts[op] += 1
+        return run_git(cwd, args, network=network, op=op)
+
+    return counts, _run
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = _parse_args(argv)
+
+    from sase.agents_sync.inventory import build_project_hood_inventory
+    from sase.agents_sync.publication_planning import plan_hoods
+    from sase.agents_sync.targets import resolve_sync_targets
+    from sase.config import require_agent_owner_identity
+    from sase.core.agent_identity_facade import AgentIdentitySnapshot
+
+    project_key = args.project
+    if not project_key:
+        try:
+            from sase.workflows.utils import get_project_from_workspace
+        except ImportError as exc:
+            print(f"cannot resolve project: {exc}; pass --project", file=sys.stderr)
+            return 2
+        project_key = get_project_from_workspace()
+    if not project_key:
+        print("cannot resolve project: pass --project", file=sys.stderr)
+        return 2
+
+    selection = resolve_sync_targets((project_key,))
+    if len(selection.targets) != 1:
+        outcome = selection.outcomes[0] if selection.outcomes else None
+        detail = (
+            (outcome.skip_reason or outcome.error) if outcome is not None else None
+        ) or "agents target is unavailable"
+        print(f"no usable agents target for {project_key!r}: {detail}", file=sys.stderr)
+        return 2
+    target = selection.targets[0]
+    owner = require_agent_owner_identity()
+    identity = AgentIdentitySnapshot(owner)
+
+    counts, git_runner = _counting_runner()
+
+    inventory_start = time.perf_counter()
+    inventory = build_project_hood_inventory(
+        target, identity, git_runner=git_runner  # type: ignore[arg-type]
+    )
+    inventory_seconds = time.perf_counter() - inventory_start
+
+    by_hood: Counter[str] = Counter()
+    for run in inventory.runs:
+        by_hood[run.local_name.split("--")[0]] += 1
+    if not by_hood:
+        print("inventory has no runs", file=sys.stderr)
+        return 2
+    ranked = by_hood.most_common()
+    large_hood = args.large_hood or ranked[0][0]
+    small_hood = args.small_hood or ranked[-1][0]
+
+    prompt_bytes = sum(len(run.prompt_bytes or b"") for run in inventory.runs)
+    chat_bytes = sum(len(run.chat_bytes or b"") for run in inventory.runs)
+
+    hood_timings: dict[str, dict[str, object]] = {}
+    for hood in (large_hood, small_hood):
+        start = time.perf_counter()
+        payload, hood_counts = plan_hoods(
+            target, target.sidecar_path, inventory, (hood,), owner
+        )
+        elapsed = time.perf_counter() - start
+        payload_bytes = sum(len(chunk) for chunk in payload.values())
+        hood_timings[hood] = {
+            "runs": by_hood.get(hood, 0),
+            "seconds": elapsed,
+            "payload_files": len(payload),
+            "payload_bytes": payload_bytes,
+            "hoods_published": hood_counts.hoods_published,
+            "hoods_refreshed": hood_counts.hoods_refreshed,
+            "hoods_unchanged": hood_counts.hoods_unchanged,
+            "runs_published": hood_counts.runs_published,
+        }
+
+    breakdown = {
+        "project_key": project_key,
+        "inventory_seconds": inventory_seconds,
+        "runs_scanned": len(inventory.runs),
+        "distinct_hoods": len(by_hood),
+        "commit_record_calls": counts.get("agents_sync.commit_record", 0),
+        "git_op_counts": dict(counts),
+        "prompt_bytes": prompt_bytes,
+        "chat_bytes": chat_bytes,
+        "top_hoods_by_runs": [
+            {"hood": hood, "runs": runs} for hood, runs in ranked[:10]
+        ],
+        "hood_timings": hood_timings,
+    }
+    if args.json:
+        print(json.dumps(breakdown, indent=2, sort_keys=True))
+    else:
+        print(f"project: {project_key}")
+        print(f"inventory build: {inventory_seconds:.2f}s")
+        print(f"runs scanned: {len(inventory.runs)} in {len(by_hood)} hoods")
+        print(
+            f"commit_record calls: {counts.get('agents_sync.commit_record', 0)} "
+            f"({sum(counts.values())} git subprocesses total)"
+        )
+        print(f"prompt bytes: {prompt_bytes}  chat bytes: {chat_bytes}")
+        print("top hoods by runs:")
+        for entry in breakdown["top_hoods_by_runs"]:
+            assert isinstance(entry, dict)
+            print(f"  {entry['hood']}: {entry['runs']} runs")
+        for hood, timing in hood_timings.items():
+            assert isinstance(timing, dict)
+            print(
+                f"plan_hoods({hood}): {timing['seconds']:.2f}s, "
+                f"{timing['runs']} runs, {timing['payload_files']} files, "
+                f"{timing['payload_bytes']} bytes"
+            )
+        print("git ops by name:")
+        for op, count in counts.most_common(15):
+            print(f"  {count:6d}  {op}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

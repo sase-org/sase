@@ -2,12 +2,17 @@
 
 from __future__ import annotations
 
+from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
+import subprocess
 import time
 from typing import TYPE_CHECKING, Any, TypedDict
 
 from sase.agents_sync.io import AgentsSyncFormatError
+from sase.agents_sync.publication_outbox_diagnostics import (
+    classify_publication_error,
+)
 from sase.agents_sync.targets import resolve_sync_targets
 from sase.agents_sync.publication_outbox import (
     AGENT_PUBLICATION_OUTBOX_FILENAME,
@@ -227,6 +232,7 @@ def _check_agent_publication_outbox(
     problems: list[_OutboxProblem] = []
     errors: list[str] = []
     migration_notices: list[str] = []
+    all_items: list[AgentPublicationOutboxItem] = []
     owner_manifest_problems, owner_manifest_errors = _owner_manifest_problems(
         context,
         records,
@@ -246,6 +252,7 @@ def _check_agent_publication_outbox(
             continue
 
         items = document.items
+        all_items.extend(items)
         migration_notices.extend(
             f"{effective_project_name(record)}: {notice}" for notice in document.notices
         )
@@ -279,6 +286,11 @@ def _check_agent_publication_outbox(
         owner_manifest_errors=owner_manifest_errors,
         stalled_attempts=attempts_threshold,
         stalled_age_seconds=stalled_age_seconds,
+        last_error_histogram=_last_error_histogram(all_items),
+        oldest_active_age_seconds=_oldest_active_age_seconds(all_items, now=checked_at),
+        sidecar_states=_outbox_sidecar_states(
+            context, tuple(outbox["project_key"] for outbox in outboxes)
+        ),
     )
     if errors:
         visible_errors = errors[:_MAX_DETAIL_ROWS]
@@ -476,6 +488,9 @@ def _outbox_data(
     owner_manifest_errors: tuple[str, ...],
     stalled_attempts: int,
     stalled_age_seconds: float,
+    last_error_histogram: dict[str, int] | None = None,
+    oldest_active_age_seconds: float | None = None,
+    sidecar_states: tuple[dict[str, Any], ...] = (),
 ) -> dict[str, Any]:
     return {
         "projects_root": str(projects_root),
@@ -494,6 +509,9 @@ def _outbox_data(
         "errors": errors,
         "migration_notice_count": len(migration_notices),
         "migration_notices": migration_notices,
+        "last_error_histogram": dict(last_error_histogram or {}),
+        "oldest_active_age_seconds": oldest_active_age_seconds,
+        "sidecar_states": sidecar_states,
         "owner_manifest_problem_count": len(owner_manifest_problems),
         "owner_manifest_problems": tuple(
             problem.to_data() for problem in owner_manifest_problems
@@ -507,6 +525,171 @@ def _outbox_data(
         "remediation_command": _REMEDIATION_COMMAND,
         "retired_remediation_command": _RETIRED_REMEDIATION_COMMAND,
     }
+
+
+def _last_error_histogram(
+    items: list[AgentPublicationOutboxItem] | tuple[AgentPublicationOutboxItem, ...],
+) -> dict[str, int]:
+    """Count last-error classes over items that record an error."""
+
+    return dict(
+        Counter(
+            classify_publication_error(item.last_error)
+            for item in items
+            if item.last_error
+        )
+    )
+
+
+def _oldest_active_age_seconds(
+    items: list[AgentPublicationOutboxItem] | tuple[AgentPublicationOutboxItem, ...],
+    *,
+    now: float,
+) -> float | None:
+    """Return the greatest age of any non-terminal request, if any exists."""
+
+    ages = [
+        age
+        for item in items
+        if not item.terminal
+        for age in (_item_age_seconds(item, now=now),)
+        if age is not None
+    ]
+    return max(ages) if ages else None
+
+
+_SIDECAR_GIT_TIMEOUT_SECONDS = 10.0
+
+
+def _outbox_sidecar_states(
+    context: DoctorContext,
+    project_keys: tuple[str, ...],
+) -> tuple[dict[str, Any], ...]:
+    """Inspect each outbox project's hidden agents clone (read-only, best-effort).
+
+    Reports commits ahead of/behind upstream, a rebase in progress, untracked
+    ``files/objects``, and dirty ``prompts/`` or ``artifacts/``. Any failure
+    degrades to an ``unavailable`` entry: doctor must never fail because a
+    sidecar clone is wedged.
+    """
+
+    if not project_keys:
+        return ()
+    try:
+        require_agent_owner_identity()
+    except (RuntimeError, ValueError):
+        return ()
+    try:
+        selection = resolve_sync_targets(
+            project_keys,
+            projects_root=context.sase_home / "projects",
+        )
+    except Exception:  # noqa: BLE001 - doctor isolates target resolution.
+        return ()
+    states: list[dict[str, Any]] = []
+    for target in selection.targets:
+        states.append(
+            _sidecar_state(target.project_key, target.project, target.sidecar_path)
+        )
+    return tuple(states)
+
+
+def _sidecar_state(
+    project_key: str, project: str, sidecar_path: Path
+) -> dict[str, Any]:
+    """Read one hidden clone's sync state, degrading to ``unavailable``."""
+
+    base: dict[str, Any] = {
+        "project_key": project_key,
+        "project": project,
+        "sidecar_path": str(sidecar_path),
+    }
+    try:
+        if not (sidecar_path / ".git").exists():
+            return {**base, "status": "missing"}
+        git_dir_result = _sidecar_git(
+            sidecar_path, ["rev-parse", "--git-dir"], timeout=10.0
+        )
+        git_dir = Path(git_dir_result.stdout.strip())
+        git_dir = git_dir if git_dir.is_absolute() else sidecar_path / git_dir
+        ahead, behind = _sidecar_ahead_behind(sidecar_path)
+        rebase_in_progress = any(
+            (git_dir / marker).exists() for marker in ("rebase-merge", "rebase-apply")
+        )
+        untracked_objects = _sidecar_porcelain_count(
+            sidecar_path, ("files/objects",), untracked_only=True
+        )
+        dirty_prompts = _sidecar_porcelain_count(
+            sidecar_path, ("prompts",), untracked_only=False
+        )
+        dirty_artifacts = _sidecar_porcelain_count(
+            sidecar_path, ("artifacts",), untracked_only=False
+        )
+    except Exception as exc:  # noqa: BLE001 - doctor never fails on sidecar state.
+        return {**base, "status": "unavailable", "error": str(exc)[:200]}
+    return {
+        **base,
+        "status": "ok",
+        "ahead": ahead,
+        "behind": behind,
+        "rebase_in_progress": rebase_in_progress,
+        "untracked_objects": untracked_objects,
+        "dirty_prompts": dirty_prompts,
+        "dirty_artifacts": dirty_artifacts,
+    }
+
+
+def _sidecar_git(
+    sidecar_path: Path, args: list[str], *, timeout: float
+) -> subprocess.CompletedProcess[str]:
+    """Run one read-only git command in a hidden clone."""
+
+    return subprocess.run(
+        ["git", *args],
+        cwd=sidecar_path,
+        capture_output=True,
+        text=True,
+        timeout=timeout,
+        check=False,
+    )
+
+
+def _sidecar_ahead_behind(sidecar_path: Path) -> tuple[int | None, int | None]:
+    """Return ``(ahead, behind)`` counts against the upstream, if resolvable."""
+
+    result = _sidecar_git(
+        sidecar_path,
+        ["rev-list", "--left-right", "--count", "HEAD...@{upstream}"],
+        timeout=_SIDECAR_GIT_TIMEOUT_SECONDS,
+    )
+    if result.returncode != 0:
+        return None, None
+    try:
+        ahead_raw, behind_raw = result.stdout.strip().split()
+        return int(ahead_raw), int(behind_raw)
+    except ValueError:
+        return None, None
+
+
+def _sidecar_porcelain_count(
+    sidecar_path: Path, pathspecs: tuple[str, ...], *, untracked_only: bool
+) -> int | None:
+    """Count porcelain entries under *pathspecs* (``None`` when unreadable)."""
+
+    args = ["status", "--porcelain=v1"]
+    args.append("--untracked-files=all" if untracked_only else "--untracked-files=no")
+    args.extend(("--", *pathspecs))
+    result = _sidecar_git(sidecar_path, args, timeout=_SIDECAR_GIT_TIMEOUT_SECONDS)
+    if result.returncode != 0:
+        return None
+    count = 0
+    for line in result.stdout.splitlines():
+        if not line.strip():
+            continue
+        if untracked_only and not line.startswith("??"):
+            continue
+        count += 1
+    return count
 
 
 def _owner_manifest_problems(

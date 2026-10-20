@@ -359,6 +359,21 @@ Do not delete or hand-edit either publication outbox. `--retry-quarantined` clea
 quarantine flag for both hood and Referenced By requests and gives them a fresh retry
 budget before running the normal full reconciliation.
 
+### Outbox diagnostics
+
+`sase doctor -C state.agent_publication_outbox -j` reports a `last_error_histogram` that
+groups requests by stable failure class (`timeout`, `lock_busy`, `index_lock`,
+`unstaged_changes`, `rebase_conflict`, `manifest_mismatch`, `other`, `unknown`), the
+oldest active request's age in `oldest_active_age_seconds`, and per-project hidden-clone
+state in `sidecar_states` (commits ahead of/behind upstream, rebase in progress,
+untracked `files/objects`, dirty `prompts/`/`artifacts/`). Every commit-triggered drain
+also appends one structured timing line to `~/.sase/logs/agent_publication_drains.jsonl`
+with per-stage durations and inventory counters; a failed drain names the sync-lock
+holder (pid, operation, agent, age) recorded beside the lock file. Profile a
+representative drain read-only with `tools/agents_publication_profile --project <key>`.
+The current breakdown is published as `@research:202610/pub_drain_measurement.md` and
+attached to bead `sase-1nf.9`.
+
 Retired agent-publication requests stay stopped until an explicit recovery. After a
 publisher fix makes terminal work publishable, revive that project's retired hood
 requests once with:

@@ -15,6 +15,7 @@ from sase.agents_sync.prompt_archive.deferred import (
     prompt_runs_by_request,
 )
 from sase.agents_sync.publication_outbox import AgentPublicationOutboxItem
+from sase.agents_sync.publication_timing import DrainTiming
 from sase.agents_sync.v2_io import read_owner_manifest
 from sase.agents_sync.v2_models import V2ProjectIdentity
 from sase.core.agent_identity_facade import (
@@ -49,15 +50,22 @@ def publish_queued_transaction(
     requests: tuple[AgentPublicationOutboxItem, ...],
     *,
     hooks: PublicationTransactionHooks,
+    timer: DrainTiming | None = None,
 ) -> DrainResult:
     """Publish prepared requests in one pull/commit/push transaction."""
 
     from sase.agents_sync import git_sync
 
     logical_keys = tuple(item.logical_key for item in requests)
-    pulled = git_sync.pull_agents_rebase(
-        target.sidecar_path, git_runner, "agents_sync.commit_publish_pull"
-    )
+    if timer is not None:
+        with timer.record_stage("pull_rebase"):
+            pulled = git_sync.pull_agents_rebase(
+                target.sidecar_path, git_runner, "agents_sync.commit_publish_pull"
+            )
+    else:
+        pulled = git_sync.pull_agents_rebase(
+            target.sidecar_path, git_runner, "agents_sync.commit_publish_pull"
+        )
     if pulled.returncode != 0:
         cleanup = git_sync.abort_agents_rebase(target.sidecar_path, git_runner)
         return DrainResult(
@@ -69,30 +77,62 @@ def publish_queued_transaction(
 
     identity = AgentIdentitySnapshot(owner)
     with name_registry_load_session():
-        inventory = hooks.build_inventory(
-            target,
-            identity,
-            git_runner=git_runner,
-        )
+        if timer is not None:
+            with timer.record_stage("inventory_build"):
+                inventory = hooks.build_inventory(
+                    target,
+                    identity,
+                    git_runner=git_runner,
+                )
+        else:
+            inventory = hooks.build_inventory(
+                target,
+                identity,
+                git_runner=git_runner,
+            )
+    if timer is not None:
+        _record_inventory_counters(timer, inventory)
 
-    prepared, item_errors = _prepare_publications(
-        target,
-        owner,
-        requests,
-        identity,
-        inventory,
-        git_runner,
-        hooks=hooks,
-    )
+    if timer is not None:
+        with timer.record_stage("prepare"):
+            prepared, item_errors = _prepare_publications(
+                target,
+                owner,
+                requests,
+                identity,
+                inventory,
+                git_runner,
+                hooks=hooks,
+                timer=timer,
+            )
+    else:
+        prepared, item_errors = _prepare_publications(
+            target,
+            owner,
+            requests,
+            identity,
+            inventory,
+            git_runner,
+            hooks=hooks,
+        )
     prepared_keys = tuple(item.logical_key for item in prepared)
     if not prepared:
         return DrainResult(item_errors=item_errors)
-    commit_result = git_sync.commit_agents_payload_if_dirty(
-        target.sidecar_path,
-        owner,
-        git_runner,
-        extra_paths=("prompts", "artifacts"),
-    )
+    if timer is not None:
+        with timer.record_stage("commit"):
+            commit_result = git_sync.commit_agents_payload_if_dirty(
+                target.sidecar_path,
+                owner,
+                git_runner,
+                extra_paths=("prompts", "artifacts"),
+            )
+    else:
+        commit_result = git_sync.commit_agents_payload_if_dirty(
+            target.sidecar_path,
+            owner,
+            git_runner,
+            extra_paths=("prompts", "artifacts"),
+        )
     if isinstance(commit_result, str):
         return DrainResult(
             item_errors=item_errors,
@@ -104,17 +144,34 @@ def publish_queued_transaction(
         committed or git_sync.agents_ahead_count(target.sidecar_path, git_runner) > 0
     )
     if not should_push:
-        hooks.acknowledge_publications(target.project_key, prepared_keys)
+        if timer is not None:
+            with timer.record_stage("verify"):
+                hooks.acknowledge_publications(target.project_key, prepared_keys)
+        else:
+            hooks.acknowledge_publications(target.project_key, prepared_keys)
         return DrainResult(drained=len(prepared), item_errors=item_errors)
 
-    pushed = git_runner(
-        target.sidecar_path,
-        ["push"],
-        network=True,
-        op="agents_sync.commit_publish_push",
-    )
+    if timer is not None:
+        with timer.record_stage("push"):
+            pushed = git_runner(
+                target.sidecar_path,
+                ["push"],
+                network=True,
+                op="agents_sync.commit_publish_push",
+            )
+    else:
+        pushed = git_runner(
+            target.sidecar_path,
+            ["push"],
+            network=True,
+            op="agents_sync.commit_publish_push",
+        )
     if pushed.returncode == 0:
-        hooks.acknowledge_publications(target.project_key, prepared_keys)
+        if timer is not None:
+            with timer.record_stage("verify"):
+                hooks.acknowledge_publications(target.project_key, prepared_keys)
+        else:
+            hooks.acknowledge_publications(target.project_key, prepared_keys)
         return DrainResult(drained=len(prepared), item_errors=item_errors)
     if not git_sync.is_agents_non_fast_forward(pushed):
         return DrainResult(
@@ -159,48 +216,99 @@ def publish_queued_transaction(
             ),
             error_keys=prepared_keys,
         )
-    retry_prepared, retry_errors = _prepare_publications(
-        target,
-        owner,
-        prepared,
-        identity,
-        inventory,
-        git_runner,
-        hooks=hooks,
-    )
+    if timer is not None:
+        with timer.record_stage("retry_prepare"):
+            retry_prepared, retry_errors = _prepare_publications(
+                target,
+                owner,
+                prepared,
+                identity,
+                inventory,
+                git_runner,
+                hooks=hooks,
+                timer=timer,
+            )
+    else:
+        retry_prepared, retry_errors = _prepare_publications(
+            target,
+            owner,
+            prepared,
+            identity,
+            inventory,
+            git_runner,
+            hooks=hooks,
+        )
     all_item_errors = (*item_errors, *retry_errors)
     retry_keys = tuple(item.logical_key for item in retry_prepared)
     if not retry_prepared:
         return DrainResult(item_errors=all_item_errors)
-    retry_commit = git_sync.commit_agents_payload_if_dirty(
-        target.sidecar_path,
-        owner,
-        git_runner,
-        extra_paths=("prompts", "artifacts"),
-    )
+    if timer is not None:
+        with timer.record_stage("retry_commit"):
+            retry_commit = git_sync.commit_agents_payload_if_dirty(
+                target.sidecar_path,
+                owner,
+                git_runner,
+                extra_paths=("prompts", "artifacts"),
+            )
+    else:
+        retry_commit = git_sync.commit_agents_payload_if_dirty(
+            target.sidecar_path,
+            owner,
+            git_runner,
+            extra_paths=("prompts", "artifacts"),
+        )
     if isinstance(retry_commit, str):
         return DrainResult(
             item_errors=all_item_errors,
             error=retry_commit,
             error_keys=retry_keys,
         )
-    retry_push = git_runner(
-        target.sidecar_path,
-        ["push"],
-        network=True,
-        op="agents_sync.commit_publish_retry_push",
-    )
+    if timer is not None:
+        with timer.record_stage("retry_push"):
+            retry_push = git_runner(
+                target.sidecar_path,
+                ["push"],
+                network=True,
+                op="agents_sync.commit_publish_retry_push",
+            )
+    else:
+        retry_push = git_runner(
+            target.sidecar_path,
+            ["push"],
+            network=True,
+            op="agents_sync.commit_publish_retry_push",
+        )
     if retry_push.returncode != 0:
         return DrainResult(
             item_errors=all_item_errors,
             error=git_sync.agents_git_error("git push retry failed", retry_push),
             error_keys=retry_keys,
         )
-    hooks.acknowledge_publications(target.project_key, retry_keys)
+    if timer is not None:
+        with timer.record_stage("verify"):
+            hooks.acknowledge_publications(target.project_key, retry_keys)
+    else:
+        hooks.acknowledge_publications(target.project_key, retry_keys)
     return DrainResult(
         drained=len(retry_prepared),
         item_errors=all_item_errors,
     )
+
+
+def _record_inventory_counters(
+    timer: DrainTiming, inventory: ProjectHoodInventory
+) -> None:
+    """Record inventory size counters on the drain timer (never raises)."""
+
+    try:
+        timer.runs_scanned = len(inventory.runs)
+        timer.prompt_bytes = sum(len(run.prompt_bytes or b"") for run in inventory.runs)
+        timer.chat_bytes = sum(len(run.chat_bytes or b"") for run in inventory.runs)
+        timer.commit_record_calls = timer.git_op_counts.get(
+            "agents_sync.commit_record", 0
+        )
+    except Exception:  # noqa: BLE001 - timing must not fail a drain.
+        return
 
 
 def _prepare_publications(
@@ -212,6 +320,7 @@ def _prepare_publications(
     git_runner: GitRunner,
     *,
     hooks: PublicationTransactionHooks,
+    timer: DrainTiming | None = None,
 ) -> tuple[tuple[AgentPublicationOutboxItem, ...], tuple[str, ...]]:
     repo = target.sidecar_path
     requests_by_hood: dict[str, list[AgentPublicationOutboxItem]] = {}
@@ -225,21 +334,42 @@ def _prepare_publications(
     for hood_requests in requests_by_hood.values():
         request = hood_requests[0]
         try:
-            hooks.publish_hood(
-                target,
-                repo,
-                request.local_agent,
-                identity=identity,
-                inventory=inventory,
-                git_runner=git_runner,
-            )
-            for hood_request in hood_requests:
-                prepare_deferred_prompt_archive(
+            if timer is not None:
+                with timer.record_stage(f"hood_publish:{request.local_hood}"):
+                    hooks.publish_hood(
+                        target,
+                        repo,
+                        request.local_agent,
+                        identity=identity,
+                        inventory=inventory,
+                        git_runner=git_runner,
+                    )
+            else:
+                hooks.publish_hood(
                     target,
-                    hood_request,
-                    git_runner,
-                    prompt_runs=prompt_runs,
+                    repo,
+                    request.local_agent,
+                    identity=identity,
+                    inventory=inventory,
+                    git_runner=git_runner,
                 )
+            if timer is not None:
+                with timer.record_stage("prompt_archive_prepare"):
+                    for hood_request in hood_requests:
+                        prepare_deferred_prompt_archive(
+                            target,
+                            hood_request,
+                            git_runner,
+                            prompt_runs=prompt_runs,
+                        )
+            else:
+                for hood_request in hood_requests:
+                    prepare_deferred_prompt_archive(
+                        target,
+                        hood_request,
+                        git_runner,
+                        prompt_runs=prompt_runs,
+                    )
             published_by_hood[request.local_hood] = hood_requests
         except Exception as exc:  # noqa: BLE001 - durable auxiliary boundary
             error = f"could not publish agent hood {request.local_hood!r}: {exc}"
@@ -255,16 +385,30 @@ def _prepare_publications(
             )
             errors.append(error)
 
+    if timer is not None:
+        timer.stage = "manifest_verify"
     try:
-        entries = (
-            read_owner_manifest(
-                repo,
-                owner,
-                V2ProjectIdentity(target.project_key, target.project),
-            ).by_hood()
-            if published_by_hood
-            else {}
-        )
+        if timer is not None:
+            with timer.record_stage("manifest_verify"):
+                entries = (
+                    read_owner_manifest(
+                        repo,
+                        owner,
+                        V2ProjectIdentity(target.project_key, target.project),
+                    ).by_hood()
+                    if published_by_hood
+                    else {}
+                )
+        else:
+            entries = (
+                read_owner_manifest(
+                    repo,
+                    owner,
+                    V2ProjectIdentity(target.project_key, target.project),
+                ).by_hood()
+                if published_by_hood
+                else {}
+            )
     except Exception as exc:  # noqa: BLE001 - durable auxiliary boundary
         for hood, hood_requests in published_by_hood.items():
             error = f"could not publish agent hood {hood!r}: {exc}"
