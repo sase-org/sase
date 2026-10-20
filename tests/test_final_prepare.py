@@ -10,7 +10,6 @@ from typing import Any
 
 import pytest
 
-from sase.config.tools import ToolCatalog, _ToolCatalogEntry
 from sase.core.continuation_facade import bind_conditional_completion
 from sase.core.continuation_wire import CONTINUATION_WIRE_SCHEMA_VERSION
 from sase.finalizers.declaration import (
@@ -33,50 +32,17 @@ from sase.monitor.delivery import HOST_COMPLETION_RECEIPT_FILENAME
 
 from .finalizer_declaration_channel_test_helpers import (
     prepare_dirty_declaration,
+    stub_run_silent_check_catalog,
+    stub_tool_catalog,
     valid_manifest,
 )
-
-
-def _catalog_entry(name: str, argv: list[str], stages: str) -> _ToolCatalogEntry:
-    return _ToolCatalogEntry(
-        name=name,
-        definition={
-            "name": name,
-            "argv": list(argv),
-            "description": f"test tool {name}",
-            "stages": stages,
-            "args": "deny",
-        },
-        digest="digest:" + name,
-        diagnostics=(),
-    )
-
-
-def _stub_tool_catalog(
-    monkeypatch: pytest.MonkeyPatch, entries: list[_ToolCatalogEntry]
-) -> None:
-    catalog = ToolCatalog(
-        project="test-project", path=None, entries=tuple(entries), diagnostics=()
-    )
-    monkeypatch.setattr(
-        "sase.config.tools.load_project_tool_catalog_at",
-        lambda _start: catalog,
-    )
 
 
 @pytest.fixture(autouse=True)
 def _run_silent_check_catalog(monkeypatch: pytest.MonkeyPatch) -> None:
     """Mirror the sase checkout's stage-reporting check tools hermetically."""
 
-    monkeypatch.delenv(DELIVERY_ARTIFACTS_ENV, raising=False)
-    _stub_tool_catalog(
-        monkeypatch,
-        [
-            _catalog_entry("check", ["just", "check"], "run_silent"),
-            _catalog_entry("check-full", ["just", "check-full"], "run_silent"),
-            _catalog_entry("install-venv", ["just", "install-venv"], "none"),
-        ],
-    )
+    stub_run_silent_check_catalog(monkeypatch)
 
 
 def _digest(label: str) -> str:
@@ -381,7 +347,7 @@ def test_prepare_refuses_check_without_stage_evidence(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    _stub_tool_catalog(monkeypatch, [])
+    stub_tool_catalog(monkeypatch, [])
     prepare_dirty_declaration(monkeypatch, tmp_path)
     publication = publish_final_context()
     repo_id = publication.context.obligations[0].obligation_id
@@ -432,7 +398,7 @@ def test_prepare_seals_unnamed_check_as_none(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    _stub_tool_catalog(monkeypatch, [])
+    stub_tool_catalog(monkeypatch, [])
     captured = _capture_seal_request(monkeypatch)
     prepare_dirty_declaration(monkeypatch, tmp_path)
     publication = publish_final_context()

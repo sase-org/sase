@@ -13,7 +13,6 @@ from typing import Any
 from sase.agent._user_kill_intent import read_recorded_scratch_key
 from sase.axe.agent_meta import write_agent_meta_atomic
 from sase.axe.run_agent_exec_markers import write_done_marker_and_update_index
-from sase.axe.run_agent_runner_scratch import cleanup_launch_scratch_key
 from sase.bead.epic_launch_handoff import publish_deferred_monitor_completion
 from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
@@ -421,6 +420,10 @@ def settle_monitor_followup(state: dict[str, Any]) -> None:
 
 def _cleanup_starter_cargo_target(meta: dict[str, Any]) -> None:
     """Reclaim an unheld starter cargo target before launching a follow-up."""
+    # Deferred to keep the scratch reaper out of the TUI import closure
+    # (import budget).
+    from sase.axe.run_agent_runner_scratch import cleanup_launch_scratch_key
+
     if meta.get("monitor_tool_run_joined") is True:
         cleanup_launch_scratch_key(
             None,

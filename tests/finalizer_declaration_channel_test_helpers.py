@@ -9,6 +9,7 @@ from pathlib import Path
 
 import pytest
 
+from sase.config.tools import ToolCatalog, _ToolCatalogEntry
 from sase.finalizers.declaration import (
     FINAL_SUBMISSION_ATTEMPTS_FILENAME,
     SASE_FINAL_TURN_NONCE_ENV,
@@ -19,6 +20,7 @@ from sase.llm_provider.commit_finalizer_baseline import FINALIZER_BASELINE_FILEN
 from sase.llm_provider.commit_finalizer_git import normalize_path
 from sase.llm_provider.commit_finalizer_types import DirtyRepo, DirtyState
 from sase.macro.directives import PromptDirectives
+from sase.monitor.continuation_delivery import DELIVERY_ARTIFACTS_ENV
 
 APP_FINGERPRINTS: dict[str, tuple[str, str]] = {"src/app.py": ("M", "abc123")}
 
@@ -154,3 +156,44 @@ def prepare_dirty_declaration(
     )
     persist_default_plan(repo)
     return resolved
+
+
+def catalog_entry(name: str, argv: list[str], stages: str) -> _ToolCatalogEntry:
+    return _ToolCatalogEntry(
+        name=name,
+        definition={
+            "name": name,
+            "argv": list(argv),
+            "description": f"test tool {name}",
+            "stages": stages,
+            "args": "deny",
+        },
+        digest="digest:" + name,
+        diagnostics=(),
+    )
+
+
+def stub_tool_catalog(
+    monkeypatch: pytest.MonkeyPatch, entries: list[_ToolCatalogEntry]
+) -> None:
+    catalog = ToolCatalog(
+        project="test-project", path=None, entries=tuple(entries), diagnostics=()
+    )
+    monkeypatch.setattr(
+        "sase.config.tools.load_project_tool_catalog_at",
+        lambda _start: catalog,
+    )
+
+
+def stub_run_silent_check_catalog(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Mirror the sase checkout's stage-reporting check tools hermetically."""
+
+    monkeypatch.delenv(DELIVERY_ARTIFACTS_ENV, raising=False)
+    stub_tool_catalog(
+        monkeypatch,
+        [
+            catalog_entry("check", ["just", "check"], "run_silent"),
+            catalog_entry("check-full", ["just", "check-full"], "run_silent"),
+            catalog_entry("install-venv", ["just", "install-venv"], "none"),
+        ],
+    )

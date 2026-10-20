@@ -30,13 +30,23 @@ from sase.monitor.output import OutputCapture
 from sase.turns.followup import FollowupLaunchResult
 from sase.macro.directives import PromptDirectives
 
-from ..finalizer_declaration_channel_test_helpers import valid_manifest
+from ..finalizer_declaration_channel_test_helpers import (
+    stub_run_silent_check_catalog,
+    valid_manifest,
+)
 from ..finalizers_protocol_harness_test_helpers import (
     dirty_repo,
     patch_dirty,
     prepare_agent_env,
     successful_stitch,
 )
+
+
+@pytest.fixture(autouse=True)
+def _run_silent_check_catalog(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Mirror the sase checkout's stage-reporting check tools, so prepare seals stage_source: run_silent."""
+
+    stub_run_silent_check_catalog(monkeypatch)
 
 
 def _capture() -> OutputCapture:
