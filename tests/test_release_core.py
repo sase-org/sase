@@ -1,4 +1,8 @@
-"""Core-ensure rule: newest complete published core containing the source pin."""
+"""Core release checks and curated release-watch fact-reader cases.
+
+The imported cases cover tools/_release_watch_facts.py and
+tools/_release_watch_transport.py, which are outside the test import graph.
+"""
 
 from __future__ import annotations
 
@@ -12,6 +16,16 @@ from pathlib import Path
 from types import ModuleType
 
 import pytest
+from tests._release_watch_facts_contract_cases import (
+    test_candidate_attempt_gap_is_not_promoted_from_stale_evidence,
+    test_candidate_cli_preserves_identity_clauses_and_missing_evidence_refusal,
+    test_candidate_evaluator_malformed_output_is_an_error,
+    test_empty_paginated_read_is_distinct_from_failed_read,
+    test_github_transport_uses_pagination_timeout_and_plain_environment,
+    test_pypi_inventory_keeps_yanks_and_digest_identity,
+    test_tag_sha_and_observation_generation_mismatches_fail_closed,
+    test_train_reader_matches_and_rejects_conflicting_pypi_digests,
+)  # noqa: F401
 
 
 pytestmark = pytest.mark.contract
