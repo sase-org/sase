@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
+from sase._interruptions import PublicationDrainTimedOut
 from sase.agents_sync.git import GitRunner
 from sase.agents_sync.inventory_io import (
     canonical_local_name as _canonical_local_name,
@@ -84,6 +85,8 @@ def historical_associations(
             continue
         try:
             agent_ref = sase_agent_ref_for_name(local_name, identity)
+        except PublicationDrainTimedOut:
+            raise
         except Exception:  # noqa: BLE001 - best-effort history boundary.
             continue
         if value is None:
@@ -158,6 +161,8 @@ def primary_remote_url(
             ["config", "--get", "remote.origin.url"],
             op="agents_sync.v2_primary_remote",
         )
+    except PublicationDrainTimedOut:
+        raise
     except Exception:  # noqa: BLE001 - optional local Git metadata boundary.
         return None
     remote_url = result.stdout.strip()

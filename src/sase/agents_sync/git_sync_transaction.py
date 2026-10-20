@@ -6,6 +6,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+from sase._interruptions import PublicationDrainTimedOut
 from sase.agents_sync.git import GitRunner
 from sase.agents_sync.git_sync_ops import (
     abort_agents_rebase,
@@ -66,9 +67,23 @@ def _clean_sync_worktree(repo: Path, git_runner: GitRunner) -> str | None:
     artifact pool on every pass.
     """
 
-    return clean_agents_payload_worktree(repo, git_runner) or (
-        clean_prompt_archive_worktree(repo, git_runner)
-    )
+    return clean_publication_worktree(repo, git_runner)
+
+
+def clean_publication_worktree(repo: Path, git_runner: GitRunner) -> str | None:
+    """Clean both regenerable publication path families, reporting every failure."""
+
+    errors: list[str] = []
+    for cleanup in (clean_agents_payload_worktree, clean_prompt_archive_worktree):
+        try:
+            error = cleanup(repo, git_runner)
+        except PublicationDrainTimedOut:
+            raise
+        except Exception as exc:  # noqa: BLE001 - try every owned path family.
+            error = str(exc) or type(exc).__name__
+        if error is not None:
+            errors.append(error)
+    return "; ".join(errors) if errors else None
 
 
 def _sync_project_transaction(

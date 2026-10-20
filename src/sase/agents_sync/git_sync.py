@@ -24,7 +24,10 @@ from sase.agents_sync.git_sync_ops import (
     is_agents_non_fast_forward,
     pull_agents_rebase,
 )
-from sase.agents_sync.git_sync_transaction import sync_project_locked
+from sase.agents_sync.git_sync_transaction import (
+    clean_publication_worktree,
+    sync_project_locked,
+)
 from sase.agents_sync.inventory import build_project_hood_inventory
 from sase.agents_sync.models import (
     ExportCounts,
@@ -393,6 +396,7 @@ __all__ = [
     "agents_git_error",
     "bounded_agents_lock",
     "clean_agents_payload_worktree",
+    "clean_publication_worktree",
     "commit_agents_payload_if_dirty",
     "configured_agents_lock_timeout",
     "ensure_agents_clone",

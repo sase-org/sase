@@ -12,6 +12,7 @@ import subprocess
 import threading
 import time
 
+from sase._interruptions import PublicationDrainTimedOut
 from sase.agents_sync.commit_publication_transaction import (
     DrainResult,
     PublicationTransactionHooks,
@@ -64,10 +65,6 @@ _DRAIN_TIMEOUT_ENV = "SASE_AGENTS_PUBLICATION_DRAIN_TIMEOUT"
 DEFAULT_PUBLICATION_DRAIN_TIMEOUT_SECONDS = 120.0
 
 
-class _PublicationDrainTimedOut(Exception):
-    """Raised when a synchronous agent-hood drain exceeds its wall-clock bound."""
-
-
 def _configured_publication_drain_timeout() -> float:
     """Return the configured bound on a synchronous post-push drain attempt."""
 
@@ -82,7 +79,11 @@ def _configured_publication_drain_timeout() -> float:
 
 
 @contextmanager
-def _bounded_publication_drain(timeout_seconds: float) -> Iterator[None]:
+def _bounded_publication_drain(
+    timeout_seconds: float,
+    *,
+    timer: DrainTiming | None = None,
+) -> Iterator[None]:
     """Bound a synchronous drain so a stalled render cannot wedge the caller.
 
     A finalizer that never returns keeps holding ``sase-agents-sync.lock``
@@ -103,17 +104,30 @@ def _bounded_publication_drain(timeout_seconds: float) -> Iterator[None]:
         return
 
     def _on_alarm(_signum: int, _frame: object) -> None:
-        raise _PublicationDrainTimedOut(
+        if timer is not None:
+            timer.alarm_fired = True
+            timer.alarm_stage = timer.stage or "drain"
+        raise PublicationDrainTimedOut(
             f"agent-hood publication did not complete within {timeout_seconds:.0f}s"
         )
 
-    previous = signal.signal(signal.SIGALRM, _on_alarm)
+    previous_handler = signal.getsignal(signal.SIGALRM)
+    previous_timer = signal.getitimer(signal.ITIMER_REAL)
+    signal.setitimer(signal.ITIMER_REAL, 0)
+    signal.signal(signal.SIGALRM, _on_alarm)
+    started = time.monotonic()
     signal.setitimer(signal.ITIMER_REAL, timeout_seconds)
     try:
         yield
     finally:
         signal.setitimer(signal.ITIMER_REAL, 0)
-        signal.signal(signal.SIGALRM, previous)
+        signal.signal(signal.SIGALRM, previous_handler)
+        previous_delay, previous_interval = previous_timer
+        if previous_delay > 0:
+            remaining = max(previous_delay - (time.monotonic() - started), 1e-6)
+            signal.setitimer(signal.ITIMER_REAL, remaining, previous_interval)
+        elif previous_interval > 0:
+            signal.setitimer(signal.ITIMER_REAL, 0, previous_interval)
 
 
 @dataclass(frozen=True, slots=True)
@@ -306,15 +320,20 @@ def _drain_agent_publications(
             emit_drain_timing(timer)
             return _record_failure(target, error)
         try:
-            with _bounded_publication_drain(_configured_publication_drain_timeout()):
+            with _bounded_publication_drain(
+                _configured_publication_drain_timeout(), timer=timer
+            ):
                 result = _publish_queued_locked(target, owner, git_runner, timer=timer)
-        except _PublicationDrainTimedOut as exc:
+        except PublicationDrainTimedOut as exc:
             timer.alarm_fired = True
-            timer.alarm_stage = timer.stage or "drain"
+            timer.alarm_stage = timer.alarm_stage or timer.stage or "drain"
             timer.outcome = "timeout"
+            cleanup_notes = "\n".join(getattr(exc, "__notes__", ()))
             timer.error = str(exc)
+            if cleanup_notes:
+                timer.error = f"{timer.error}; {cleanup_notes}"
             emit_drain_timing(timer)
-            return _record_failure(target, str(exc))
+            return _record_failure(target, timer.error)
     if result.error is not None:
         timer.outcome = "failed_with_item_errors" if result.drained else "failed"
         timer.error = result.error
@@ -498,12 +517,12 @@ def _publish_queued_locked(
     )
     if timer is not None:
         with timer.record_stage("payload_clean"):
-            cleanup_error = git_sync.clean_agents_payload_worktree(
+            cleanup_error = git_sync.clean_publication_worktree(
                 target.sidecar_path,
                 runner,
             )
     else:
-        cleanup_error = git_sync.clean_agents_payload_worktree(
+        cleanup_error = git_sync.clean_publication_worktree(
             target.sidecar_path,
             runner,
         )
@@ -525,22 +544,48 @@ def _publish_queued_locked(
             ),
             timer=timer,
         )
-    finally:
+    except BaseException as exc:
+        try:
+            if timer is not None:
+                with timer.record_stage("cleanup"):
+                    cleanup_error = git_sync.clean_publication_worktree(
+                        target.sidecar_path, runner
+                    )
+            else:
+                cleanup_error = git_sync.clean_publication_worktree(
+                    target.sidecar_path, runner
+                )
+        except BaseException as cleanup_exc:
+            cleanup_error = (
+                f"cleanup raised {type(cleanup_exc).__name__}: {cleanup_exc}"
+            )
+        if cleanup_error is not None:
+            exc.add_note(f"publication cleanup also failed: {cleanup_error}")
+        raise
+    else:
         if timer is not None:
             with timer.record_stage("cleanup"):
-                cleanup_error = git_sync.clean_agents_payload_worktree(
-                    target.sidecar_path,
-                    runner,
+                cleanup_error = git_sync.clean_publication_worktree(
+                    target.sidecar_path, runner
                 )
         else:
-            cleanup_error = git_sync.clean_agents_payload_worktree(
-                target.sidecar_path,
-                runner,
+            cleanup_error = git_sync.clean_publication_worktree(
+                target.sidecar_path, runner
             )
-    return (
-        DrainResult(error=cleanup_error, error_keys=logical_keys)
-        if cleanup_error is not None
-        else result
+    if cleanup_error is None:
+        return result
+    if result.error is not None:
+        return DrainResult(
+            drained=result.drained,
+            item_errors=result.item_errors,
+            error=(f"{result.error}; publication cleanup also failed: {cleanup_error}"),
+            error_keys=result.error_keys or logical_keys,
+        )
+    return DrainResult(
+        drained=result.drained,
+        item_errors=result.item_errors,
+        error=cleanup_error,
+        error_keys=logical_keys,
     )
 
 

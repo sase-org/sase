@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 
+from sase._interruptions import PublicationDrainTimedOut
 from sase.agent.names._registry import name_registry_load_session
 from sase.agents_sync.git import GitRunner
 from sase.agents_sync.inventory import ProjectHoodInventory
@@ -194,7 +195,7 @@ def publish_queued_transaction(
                 ),
                 error_keys=prepared_keys,
             )
-    cleanup_error = git_sync.clean_agents_payload_worktree(
+    cleanup_error = git_sync.clean_publication_worktree(
         target.sidecar_path,
         git_runner,
     )
@@ -307,6 +308,8 @@ def _record_inventory_counters(
         timer.commit_record_calls = timer.git_op_counts.get(
             "agents_sync.commit_record", 0
         )
+    except PublicationDrainTimedOut:
+        raise
     except Exception:  # noqa: BLE001 - timing must not fail a drain.
         return
 
@@ -371,6 +374,8 @@ def _prepare_publications(
                         prompt_runs=prompt_runs,
                     )
             published_by_hood[request.local_hood] = hood_requests
+        except PublicationDrainTimedOut:
+            raise
         except Exception as exc:  # noqa: BLE001 - durable auxiliary boundary
             error = f"could not publish agent hood {request.local_hood!r}: {exc}"
             hooks.update_publications(
@@ -409,6 +414,8 @@ def _prepare_publications(
                 if published_by_hood
                 else {}
             )
+    except PublicationDrainTimedOut:
+        raise
     except Exception as exc:  # noqa: BLE001 - durable auxiliary boundary
         for hood, hood_requests in published_by_hood.items():
             error = f"could not publish agent hood {hood!r}: {exc}"
@@ -434,6 +441,8 @@ def _prepare_publications(
                 error=None,
             )
             prepared.extend(hood_requests)
+        except PublicationDrainTimedOut:
+            raise
         except Exception as exc:  # noqa: BLE001 - durable auxiliary boundary
             error = f"could not publish agent hood {request.local_hood!r}: {exc}"
             hooks.update_publications(

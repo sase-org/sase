@@ -20,6 +20,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
 
+from sase._interruptions import PublicationDrainTimedOut
 from sase.agents_sync.v2_models import V2HoodSnapshot
 
 
@@ -61,6 +62,8 @@ def build_bead_page_links(
             store, project=project, primary_root=primary_root
         )
         known_bead_ids = known_bead_ids_for_store(store)
+    except PublicationDrainTimedOut:
+        raise
     except Exception as exc:  # noqa: BLE001 - bead links stay best-effort.
         return {}, (f"bead links: could not resolve beads sidecar ({exc})",)
 

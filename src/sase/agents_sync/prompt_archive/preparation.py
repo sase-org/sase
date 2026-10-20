@@ -11,6 +11,7 @@ import shutil
 import tempfile
 from typing import Any
 
+from sase._interruptions import PublicationDrainTimedOut
 from sase.agents_sync.git import GitRunner
 from sase.agents_sync.models import ProjectTarget
 from sase.agents_sync.prompt_archive.index import render_prompt_month_index
@@ -294,6 +295,8 @@ def _plan_referenced_by_requests(
 
         workspace, number = workspace_context_for_plan_resolution(workspace_root)
         store = resolve_sdd_store(workspace, number)
+    except PublicationDrainTimedOut:
+        raise
     except Exception:
         return ()
 
@@ -314,6 +317,8 @@ def _plan_referenced_by_requests(
             repository_roots=repository_roots,
             agent_url=agent_url,
         )
+    except PublicationDrainTimedOut:
+        raise
     except Exception:
         pass
     try:
@@ -330,6 +335,8 @@ def _plan_referenced_by_requests(
             workspace_root=workspace_root,
             agent_url=agent_url,
         )
+    except PublicationDrainTimedOut:
+        raise
     except Exception:
         pass
     return requests
@@ -380,6 +387,8 @@ def _patch_pr_url(locator: str, current_project: str) -> str | None:
             for patch in parse_patch_project_file(raw_path):
                 if patch.name == patch_name:
                     return patch.pr_url
+    except PublicationDrainTimedOut:
+        raise
     except Exception:
         return None
     return None
@@ -424,6 +433,8 @@ def _issue_url_for_number(project: str, number: int) -> str | None:
             return None
         provider = get_vcs_provider(cwd)
         return provider.get_issue_url(number, cwd)
+    except PublicationDrainTimedOut:
+        raise
     except Exception:
         return None
 
@@ -445,6 +456,8 @@ def hosted_resolver(
             primary_root=workspace_root,
             git_runner=git_runner,
         )
+    except PublicationDrainTimedOut:
+        raise
     except Exception:
         return None
 
@@ -452,6 +465,8 @@ def hosted_resolver(
 def repository_roots() -> dict[str, Path]:
     try:
         inventory = collect_repo_inventory()
+    except PublicationDrainTimedOut:
+        raise
     except Exception:
         return {}
     roots: dict[str, Path] = {}
@@ -472,6 +487,8 @@ def _prompt_names_for_agent(month_dir: Path, global_agent: str) -> tuple[str, ..
             continue
         try:
             parsed = parse_plan_header_block(path.read_text(encoding="utf-8"))
+        except PublicationDrainTimedOut:
+            raise
         except Exception:
             continue
         if any(
@@ -539,6 +556,8 @@ def _canonical_plan_ref(plan_ref: str | None, workspace_root: Path) -> str | Non
             )
             if canonical is not None:
                 return canonical
+    except PublicationDrainTimedOut:
+        raise
     except Exception:
         pass
     return plan_ref

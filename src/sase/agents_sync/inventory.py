@@ -6,6 +6,7 @@ from collections import defaultdict
 from dataclasses import replace
 from pathlib import Path
 
+from sase._interruptions import PublicationDrainTimedOut
 from sase.agents_sync.git import GitRunner, run_git
 from sase.agents_sync.inventory_history import (
     HistoricalAssociations,
@@ -237,6 +238,8 @@ def _normalize_historical_agent_session_metadata(
 
     try:
         parsed = parse_agent_session_name(run.local_name)
+    except PublicationDrainTimedOut:
+        raise
     except Exception as exc:  # noqa: BLE001 - defensive history boundary.
         source = run.source_label or run.source_run_id
         diagnostics.append(
@@ -289,6 +292,8 @@ def _diagnose_unrepresented_agent_session_history(
     for run in runs:
         try:
             parsed = parse_agent_session_name(run.local_name)
+        except PublicationDrainTimedOut:
+            raise
         except Exception:
             continue
         if parsed.member_role is not None:

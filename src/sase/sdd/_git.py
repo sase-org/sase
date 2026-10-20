@@ -4,6 +4,7 @@ from collections.abc import Callable, Mapping, Sequence
 import logging
 import os
 import selectors
+import signal
 import subprocess
 import time
 from pathlib import Path
@@ -286,69 +287,82 @@ def _run_streaming_sdd_git(
         stderr=subprocess.PIPE,
         text=False,
         env=env,
+        start_new_session=os.name == "posix",
     )
-    with selectors.DefaultSelector() as selector:
-        assert process.stdout is not None
-        assert process.stderr is not None
-        selector.register(process.stdout, selectors.EVENT_READ, stdout_chunks)
-        selector.register(process.stderr, selectors.EVENT_READ, stderr_chunks)
+    completed = False
+    termination_attempted = False
+    try:
+        with selectors.DefaultSelector() as selector:
+            assert process.stdout is not None
+            assert process.stderr is not None
+            selector.register(process.stdout, selectors.EVENT_READ, stdout_chunks)
+            selector.register(process.stderr, selectors.EVENT_READ, stderr_chunks)
 
-        while selector.get_map():
-            now = time.monotonic()
-            stall_deadline = last_progress + stall_timeout_seconds
-            ceiling_deadline = start_monotonic + ceiling_seconds
-            next_deadline = min(stall_deadline, ceiling_deadline)
-            if now >= next_deadline:
-                if now >= ceiling_deadline:
-                    reason = "ceiling"
-                    message = (
-                        f"git operation {op!r} exceeded streaming ceiling "
-                        f"{_format_seconds(ceiling_seconds)}s in {cwd}"
+            while selector.get_map():
+                now = time.monotonic()
+                stall_deadline = last_progress + stall_timeout_seconds
+                ceiling_deadline = start_monotonic + ceiling_seconds
+                next_deadline = min(stall_deadline, ceiling_deadline)
+                if now >= next_deadline:
+                    if now >= ceiling_deadline:
+                        reason = "ceiling"
+                        message = (
+                            f"git operation {op!r} exceeded streaming ceiling "
+                            f"{_format_seconds(ceiling_seconds)}s in {cwd}"
+                        )
+                    else:
+                        reason = "stall"
+                        message = (
+                            f"git operation {op!r} stalled after "
+                            f"{_format_seconds(stall_timeout_seconds)}s without "
+                            f"progress in {cwd}"
+                        )
+                    termination_attempted = True
+                    stdout, stderr = _terminate_streaming_git(
+                        process,
+                        stdout_chunks=stdout_chunks,
+                        stderr_chunks=stderr_chunks,
                     )
-                else:
-                    reason = "stall"
-                    message = (
-                        f"git operation {op!r} stalled after "
-                        f"{_format_seconds(stall_timeout_seconds)}s without "
-                        f"progress in {cwd}"
+                    duration_ms = (time.perf_counter() - start) * 1000.0
+                    _log_git_operation(
+                        op=op,
+                        cmd=cmd,
+                        cwd=cwd,
+                        status="timeout",
+                        duration_ms=duration_ms,
+                        timeout_seconds=stall_timeout_seconds,
+                        returncode=process.returncode,
+                        stdout=_decode_stream(stdout, text=text),
+                        stderr=_decode_stream(stderr, text=text),
+                        timeout_reason=reason,
+                        telemetry=telemetry,
+                        retryability_operation_kind=retryability_operation_kind,
                     )
-                stdout, stderr = _terminate_streaming_git(
-                    process,
-                    stdout_chunks=stdout_chunks,
-                    stderr_chunks=stderr_chunks,
-                )
-                duration_ms = (time.perf_counter() - start) * 1000.0
-                _log_git_operation(
-                    op=op,
-                    cmd=cmd,
-                    cwd=cwd,
-                    status="timeout",
-                    duration_ms=duration_ms,
-                    timeout_seconds=stall_timeout_seconds,
-                    returncode=process.returncode,
-                    stdout=_decode_stream(stdout, text=text),
-                    stderr=_decode_stream(stderr, text=text),
-                    timeout_reason=reason,
-                    telemetry=telemetry,
-                    retryability_operation_kind=retryability_operation_kind,
-                )
-                raise SddGitCommandTimeout(message)
+                    raise SddGitCommandTimeout(message)
 
-            events = selector.select(max(0.0, next_deadline - now))
-            if not events:
-                continue
-            for key, _mask in events:
-                file_obj = key.fileobj
-                fd = file_obj if isinstance(file_obj, int) else file_obj.fileno()
-                chunk = os.read(fd, 8192)
-                if not chunk:
-                    selector.unregister(file_obj)
+                events = selector.select(max(0.0, next_deadline - now))
+                if not events:
                     continue
-                key.data.append(chunk)
-                if key.data is stderr_chunks:
-                    last_progress = time.monotonic()
+                for key, _mask in events:
+                    file_obj = key.fileobj
+                    fd = file_obj if isinstance(file_obj, int) else file_obj.fileno()
+                    chunk = os.read(fd, 8192)
+                    if not chunk:
+                        selector.unregister(file_obj)
+                        continue
+                    key.data.append(chunk)
+                    if key.data is stderr_chunks:
+                        last_progress = time.monotonic()
 
-    returncode = process.wait()
+        returncode = process.wait()
+        completed = True
+    finally:
+        if not completed and not termination_attempted:
+            _terminate_streaming_git(
+                process,
+                stdout_chunks=stdout_chunks,
+                stderr_chunks=stderr_chunks,
+            )
     stdout_bytes = b"".join(stdout_chunks)
     stderr_bytes = b"".join(stderr_chunks)
     completed_stdout = _decode_stream(stdout_bytes, text=text)
@@ -403,17 +417,52 @@ def _terminate_streaming_git(
     stdout_chunks: list[bytes],
     stderr_chunks: list[bytes],
 ) -> tuple[bytes, bytes]:
-    process.kill()
+    _signal_streaming_git_group(process, signal.SIGTERM)
     try:
-        stdout, stderr = process.communicate(timeout=1.0)
-    except subprocess.TimeoutExpired:
-        process.kill()
-        stdout, stderr = process.communicate()
-    if stdout:
-        stdout_chunks.append(stdout)
-    if stderr:
-        stderr_chunks.append(stderr)
+        time.sleep(0.1)
+    except BaseException:
+        # Cleanup must continue even if another interruption arrives.
+        pass
+    _signal_streaming_git_group(process, signal.SIGKILL)
+    try:
+        process.wait()
+    finally:
+        for pipe in (process.stdout, process.stderr):
+            if pipe is not None:
+                try:
+                    pipe.close()
+                except OSError:
+                    pass
     return b"".join(stdout_chunks), b"".join(stderr_chunks)
+
+
+def _signal_streaming_git_group(
+    process: subprocess.Popen[bytes],
+    signum: int,
+) -> None:
+    if os.name == "posix":
+        try:
+            os.killpg(process.pid, signum)
+        except ProcessLookupError:
+            pass
+        except OSError:
+            # Still try the direct process below if group signalling is denied.
+            _signal_streaming_git_process(process, signum)
+        return
+    _signal_streaming_git_process(process, signum)
+
+
+def _signal_streaming_git_process(
+    process: subprocess.Popen[bytes],
+    signum: int,
+) -> None:
+    try:
+        if signum == signal.SIGTERM:
+            process.terminate()
+        else:
+            process.kill()
+    except OSError:
+        pass
 
 
 def _should_log_git_operation(

@@ -238,7 +238,7 @@ def test_large_backlog_builds_one_inventory_and_publishes_each_hood_once(
         ahead_checks += 1
         return 0
 
-    monkeypatch.setattr(git_sync, "clean_agents_payload_worktree", clean)
+    monkeypatch.setattr(git_sync, "clean_publication_worktree", clean)
     monkeypatch.setattr(
         git_sync,
         "pull_agents_rebase",

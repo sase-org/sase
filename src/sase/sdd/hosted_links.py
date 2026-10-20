@@ -119,6 +119,8 @@ class HostedLinkResolver:
             self._reserved_agent_session_names = frozenset(
                 get_reserved_agent_session_names_for_display()
             )
+        except TimeoutError:
+            raise
         except Exception:
             self._reserved_agent_session_names = frozenset()
 
@@ -200,6 +202,8 @@ class HostedLinkResolver:
                         path = session_path
                     elif (self._agents_sidecar_path / family_path).is_file():
                         path = family_path
+        except TimeoutError:
+            raise
         except Exception:
             return None
         return github_blob_url(
@@ -263,6 +267,8 @@ class HostedLinkResolver:
                 branch=coordinates.branch,
                 path=relpath,
             )
+        except TimeoutError:
+            raise
         except Exception:
             return None
 
@@ -333,6 +339,8 @@ class HostedLinkResolver:
         if key not in self._remotes:
             try:
                 self._remotes[key] = resolve()
+            except TimeoutError:
+                raise
             except Exception:
                 self._remotes[key] = None
         return self._remotes[key]
@@ -366,6 +374,8 @@ class HostedLinkResolver:
                 resolve_project_key,
             )
             from sase.sdd._store_types import ATTACHMENTS_SIDECAR_ROLE
+        except TimeoutError:
+            raise
         except Exception:
             return None
         try:
@@ -373,6 +383,8 @@ class HostedLinkResolver:
             if not project_key:
                 return None
             clone = hidden_clone_path(project_key, ATTACHMENTS_SIDECAR_ROLE)
+        except TimeoutError:
+            raise
         except Exception:
             return None
         if clone is None:
@@ -382,6 +394,8 @@ class HostedLinkResolver:
             return None
         try:
             got = self._git_runner(repo, ["remote", "get-url", "origin"], op=_REMOTE_OP)
+        except TimeoutError:
+            raise
         except Exception:
             return None
         if got.returncode != 0:
@@ -445,6 +459,8 @@ class HostedLinkResolver:
             self._identity_resolved = True
             try:
                 self._identity = AgentIdentitySnapshot.current()
+            except TimeoutError:
+                raise
             except Exception:
                 self._identity = None
         return self._identity
@@ -486,6 +502,8 @@ def _plan_repo_relative_path(store: SddStore, plan_ref: str) -> str | None:
         return None
     try:
         parsed = parse_plan_reference(raw)
+    except TimeoutError:
+        raise
     except Exception:
         return None
     if parsed.kind != PLAN_REFERENCE_KIND or not parsed.path.strip():
@@ -539,6 +557,8 @@ def _origin_remote_url(repo: Path, git_runner: GitRunner) -> str | None:
             ["remote", "get-url", "origin"],
             op=_REMOTE_OP,
         )
+    except TimeoutError:
+        raise
     except Exception:
         return None
     if result.returncode != 0:
@@ -559,6 +579,8 @@ def _symbolic_ref(
             ["symbolic-ref", "--quiet", "--short", ref],
             op=op,
         )
+    except TimeoutError:
+        raise
     except Exception:
         return None
     if result.returncode != 0:
