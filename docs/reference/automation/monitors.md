@@ -348,7 +348,10 @@ A failed or timed-out command, stale repository state, or another eligibility fa
 invalidates host completion and launches one ordinary recovery continuation instead.
 That successor receives the reason and must repair or finish normally; without `--next`,
 it is told to diagnose the failure or stale verification and then finish the requested
-change. Stopped and lost monitors never complete or continue automatically.
+change. The recovery prompt carries a `Host completion` section that names every
+recovery reason code with a one-line gloss, so a green check that cannot complete
+(`missing_required_stage:*`) tells the follow-up not to re-run the same check. Stopped
+and lost monitors never complete or continue automatically.
 
 The monitor's host-completion status (`Host final` in sase's TUI) reads `finalizing`
 while the finalizers run, `completed_by_host` once they succeed, and `recovery` after

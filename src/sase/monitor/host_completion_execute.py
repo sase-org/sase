@@ -209,13 +209,20 @@ def execute_host_completion(
                     "schema_version": 1,
                     "status": NEEDS_ATTENTION_STATUS,
                     "reason": reason,
+                    "reasons": [reason],
                     "intent_ref": completion_ref,
                     "commit_receipts": load_commit_results(
                         artifact_root(artifacts_dir)
                     ),
                 },
             )
-            record_status(artifacts_dir, meta, NEEDS_ATTENTION_STATUS, reason=reason)
+            record_status(
+                artifacts_dir,
+                meta,
+                NEEDS_ATTENTION_STATUS,
+                reason=reason,
+                reasons=[reason],
+            )
             release_error = release_claim(meta, project_name)
             return HostCompletionSettlement(
                 error=release_error or reason,

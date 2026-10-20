@@ -16,7 +16,7 @@ as defense in depth and to keep persisted prompts readable.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 import json
 from typing import Any
 
@@ -143,6 +143,9 @@ def compose_followup_prompt(
     checkpoint_body: Mapping[str, Any] | None = None,
     tool_run_id: str | None = None,
     triage: Mapping[str, Any] | None = None,
+    host_completion_status: str | None = None,
+    host_completion_reason: str | None = None,
+    host_completion_reasons: Sequence[str] | None = None,
 ) -> str:
     """Compose the follow-up agent's full prompt.
 
@@ -311,6 +314,19 @@ def compose_followup_prompt(
         )
     if checkpoint_ref or checkpoint_body:
         sections.extend(_checkpoint_section(checkpoint_ref, checkpoint_body))
+    host_completion_section = _host_completion_section(
+        host_completion_status=host_completion_status,
+        host_completion_reason=host_completion_reason,
+        host_completion_reasons=host_completion_reasons,
+        monitor_state=monitor_state,
+        exit_code=exit_code,
+        elapsed_seconds=elapsed_seconds,
+        timeout_seconds=timeout_seconds,
+        idle_timeout_seconds=idle_timeout_seconds,
+        timeout_kind=timeout_kind,
+    )
+    if host_completion_section:
+        sections.extend(host_completion_section)
     sections.extend(
         [
             "## Your next action",
@@ -327,6 +343,106 @@ def compose_followup_prompt(
         agent_session_name=agent_session_name,
     )
     return f"{prefix}\n{body}" if prefix else body
+
+
+def _host_completion_reason_gloss(reason: str) -> str | None:
+    """Return the one-line gloss for a host-completion recovery reason."""
+    if reason.startswith(("missing_required_stage:", "skipped_required_stage:")):
+        stage = reason.split(":", 1)[1] or reason
+        return (
+            f"the check produced no matching stage evidence for '{stage}' — "
+            "re-running the same check cannot fix this; run the verification "
+            "inline, then `sase final submit` the same wrapper file."
+        )
+    if reason.startswith("contradictory_stage:"):
+        stage = reason.split(":", 1)[1] or reason
+        return (
+            f"the '{stage}' stage contradicted the overall pass — inspect its "
+            "diagnostics instead of re-running the same check."
+        )
+    if reason.startswith("stage_error:"):
+        stage = reason.split(":", 1)[1] or reason
+        return (
+            f"the '{stage}' stage errored — inspect its diagnostics instead of "
+            "re-running the same check."
+        )
+    if reason.startswith("unknown_required_stage:"):
+        stage = reason.split(":", 1)[1] or reason
+        return (
+            f"the '{stage}' stage reported an unknown status — inspect its "
+            "diagnostics instead of re-running the same check."
+        )
+    if reason == "stale_worktree_fingerprint":
+        return (
+            "the worktree changed after the completion was sealed — re-prepare "
+            "the completion on the current tree."
+        )
+    if reason == "changed_finalizer_requirements":
+        return "the finalizer plan changed after sealing — re-prepare the completion."
+    if reason.startswith("new_repository_obligation:"):
+        return (
+            "a new repository obligation appeared after sealing — re-prepare "
+            "with the current obligations."
+        )
+    if reason.startswith("unsupported_executor:"):
+        return (
+            "the plan needs a provider host completion cannot run — finish the "
+            "change by hand."
+        )
+    if reason == "incomplete_observations":
+        return (
+            "some repository observations were incomplete — re-observe and re-prepare."
+        )
+    if reason == "unknown_head":
+        return (
+            "a repository HEAD could not be determined — resolve the checkout, "
+            "then re-prepare."
+        )
+    return None
+
+
+def _host_completion_section(
+    *,
+    host_completion_status: str | None,
+    host_completion_reason: str | None,
+    host_completion_reasons: Sequence[str] | None,
+    monitor_state: str,
+    exit_code: int | None,
+    elapsed_seconds: float,
+    timeout_seconds: float,
+    idle_timeout_seconds: float,
+    timeout_kind: object,
+) -> list[str]:
+    """Render the recovery reason section for a recovered host completion."""
+    if host_completion_status != "recovery":
+        return []
+    reasons = [str(item) for item in (host_completion_reasons or []) if str(item)]
+    if not reasons and host_completion_reason:
+        reasons = [host_completion_reason]
+    if not reasons:
+        return []
+    outcome = _outcome_line(
+        monitor_state,
+        exit_code,
+        elapsed_seconds,
+        timeout_seconds,
+        idle_timeout_seconds,
+        timeout_kind,
+    )
+    lines = [
+        "## Host completion",
+        "",
+        f"Verification {outcome}, but host completion did not land the change.",
+        "",
+    ]
+    for code in reasons:
+        gloss = _host_completion_reason_gloss(code)
+        if gloss:
+            lines.append(f"- `{code}` — {gloss}")
+        else:
+            lines.append(f"- `{code}`")
+    lines.append("")
+    return lines
 
 
 def _failure_triage_section(

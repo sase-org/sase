@@ -289,12 +289,17 @@ def record_status(
     status: str,
     *,
     reason: str | None = None,
+    reasons: Sequence[str] | None = None,
 ) -> None:
     meta["monitor_host_completion_status"] = status
     update_meta_field(artifacts_dir, "monitor_host_completion_status", status)
     if reason:
         meta["monitor_host_completion_reason"] = reason
         update_meta_field(artifacts_dir, "monitor_host_completion_reason", reason)
+    if reasons is not None:
+        normalized = [str(item) for item in reasons if str(item)]
+        meta["monitor_host_completion_reasons"] = normalized
+        update_meta_field(artifacts_dir, "monitor_host_completion_reasons", normalized)
 
 
 def recovery_launch_kwargs(

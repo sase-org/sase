@@ -91,6 +91,15 @@ from .result_projection import (
 )
 
 
+def _clean_str_list(value: object) -> list[str] | None:
+    if isinstance(value, (list, tuple)):
+        cleaned = [str(item) for item in value if str(item)]
+        return cleaned or None
+    if isinstance(value, str) and value:
+        return [value]
+    return None
+
+
 def launch_followup_agent(
     artifacts_dir: str,
     meta: dict[str, Any],
@@ -313,6 +322,15 @@ def launch_followup_agent(
         "checkpoint_ref": checkpoint_ref,
         "checkpoint_body": checkpoint_body,
         "tool_run_id": _clean_str(meta.get("monitor_tool_run_id")),
+        "host_completion_status": _clean_str(
+            meta.get("monitor_host_completion_status")
+        ),
+        "host_completion_reason": _clean_str(
+            meta.get("monitor_host_completion_reason")
+        ),
+        "host_completion_reasons": _clean_str_list(
+            meta.get("monitor_host_completion_reasons")
+        ),
     }
 
     def _compose(degraded_reason: str | None) -> str:

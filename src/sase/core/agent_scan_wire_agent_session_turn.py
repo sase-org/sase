@@ -153,6 +153,7 @@ _MONITOR_SHARED_KEYS: dict[str, str] = {
     "monitor_host_completion_status": "host_completion_status",
     "monitor_host_completion_message": "host_completion_message",
     "monitor_host_completion_reason": "host_completion_reason",
+    "monitor_host_completion_reasons": "host_completion_reasons",
 }
 
 _MONITOR_SPECIFIC_KEYS: dict[str, str] = {

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from typing import Any
 
 from sase.core.continuation_facade import (
@@ -108,7 +108,9 @@ def recover_host_completion(
     capture: OutputCapture,
     timeout_kind: str | None = None,
     transfer_from_pid: int | None = None,
+    reasons: Sequence[str] | None = None,
 ) -> HostCompletionSettlement:
+    normalized_reasons = _normalize_reasons(reasons, reason)
     try:
         intent = load_prepared_completion(completion_ref, artifacts_dir=intent_root)
         invalidated = invalidate_conditional_completion(
@@ -144,11 +146,14 @@ def recover_host_completion(
             "schema_version": 1,
             "status": RECOVERY_STATUS,
             "reason": reason,
+            "reasons": normalized_reasons,
             "intent_ref": completion_ref,
             "commit_receipts": load_commit_results(artifact_root(artifacts_dir)),
         },
     )
-    record_status(artifacts_dir, meta, RECOVERY_STATUS, reason=reason)
+    record_status(
+        artifacts_dir, meta, RECOVERY_STATUS, reason=reason, reasons=normalized_reasons
+    )
     launch_result = launch_recovery(
         artifacts_dir,
         meta,
@@ -167,6 +172,19 @@ def recover_host_completion(
             launch_result=launch_result,
         )
     return HostCompletionSettlement(launch_result=launch_result)
+
+
+def _normalize_reasons(
+    reasons: Sequence[str] | None,
+    reason: str,
+) -> list[str]:
+    """Return every recovery reason with the first reason first."""
+    normalized = [str(item) for item in (reasons or []) if str(item)]
+    if not normalized and reason:
+        return [reason]
+    if reason and reason not in normalized:
+        return [reason, *[item for item in normalized if item != reason]]
+    return normalized
 
 
 __all__ = [

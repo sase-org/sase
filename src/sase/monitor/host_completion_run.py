@@ -81,10 +81,21 @@ def run_host_completion(
         )
     if ambiguous_commit(receipt, artifacts_dir):
         reason = "ambiguous_commit_receipt"
-        record_status(artifacts_dir, meta, NEEDS_ATTENTION_STATUS, reason=reason)
+        record_status(
+            artifacts_dir,
+            meta,
+            NEEDS_ATTENTION_STATUS,
+            reason=reason,
+            reasons=[reason],
+        )
         persist_host_completion_receipt(
             artifacts_dir,
-            {**(receipt or {}), "status": NEEDS_ATTENTION_STATUS, "reason": reason},
+            {
+                **(receipt or {}),
+                "status": NEEDS_ATTENTION_STATUS,
+                "reason": reason,
+                "reasons": [reason],
+            },
         )
         release_error = release_claim(meta, project_name)
         return HostCompletionSettlement(
@@ -187,6 +198,7 @@ def run_host_completion(
                     intent_root=intent_root,
                     completion_ref=completion_ref,
                     reason=reason,
+                    reasons=_decision_reasons(decision, reason),
                     launch_recovery=launch_recovery,
                     release_claim=release_claim,
                     project_name=project_name,
@@ -224,6 +236,7 @@ def run_host_completion(
                         intent_root=intent_root,
                         completion_ref=completion_ref,
                         reason=reason,
+                        reasons=_decision_reasons(decision, reason),
                         launch_recovery=launch_recovery,
                         release_claim=release_claim,
                         project_name=project_name,
@@ -293,6 +306,18 @@ def run_host_completion(
         elapsed_seconds=elapsed_seconds,
         recover_kw=recover_kw,
     )
+
+
+def _decision_reasons(decision: Mapping[str, Any], reason: str) -> list[str]:
+    """Return the evaluator's full reasons with the first reason included."""
+    raw = decision.get("reasons")
+    if isinstance(raw, (list, tuple)):
+        normalized = [str(item) for item in raw if str(item)]
+        if normalized:
+            if reason not in normalized:
+                return [reason, *[item for item in normalized if item != reason]]
+            return normalized
+    return [reason]
 
 
 def _expected_no_new_ids(

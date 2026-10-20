@@ -587,6 +587,7 @@ def _finish_monitor(
         "monitor_host_completion_status",
         "monitor_host_completion_message",
         "monitor_host_completion_reason",
+        "monitor_host_completion_reasons",
     ):
         if meta.get(key):
             done_marker[key] = meta[key]
