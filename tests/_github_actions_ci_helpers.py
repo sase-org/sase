@@ -7,6 +7,7 @@ workflow YAML and composite actions are parsed and inspected.
 
 from __future__ import annotations
 
+import re
 import stat
 from pathlib import Path
 from typing import Any
@@ -120,6 +121,125 @@ def _write_executable(path: Path, contents: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(contents, encoding="utf-8")
     path.chmod(path.stat().st_mode | stat.S_IXUSR)
+
+
+_LOCAL_REUSABLE_USES = re.compile(r"^\./\.github/workflows/([^/@]+\.yml)$")
+_ACCESS_RANK = {"none": 0, "read": 1, "write": 2}
+
+
+def _permission_dict(node: object) -> dict[str, str] | None:
+    if not isinstance(node, dict) or "permissions" not in node:
+        return None
+    perms = node["permissions"]
+    if not isinstance(perms, dict):
+        return None
+    return {str(scope): str(level) for scope, level in perms.items()}
+
+
+def _access_rank(level: str) -> int:
+    return _ACCESS_RANK.get(level, -1)
+
+
+def _covers(have: str, needed: str) -> bool:
+    have_rank = _access_rank(have)
+    needed_rank = _access_rank(needed)
+    return have_rank >= 0 and needed_rank >= 0 and have_rank >= needed_rank
+
+
+def callee_declared_scopes(workflow: dict[str, Any]) -> dict[str, str]:
+    """Union of a reusable callee's workflow-level and job-level scopes."""
+    scopes: dict[str, str] = {}
+
+    def _add(perms: dict[str, str] | None) -> None:
+        if perms is None:
+            return
+        for scope, level in perms.items():
+            current = scopes.get(scope)
+            if current is None or _access_rank(level) > _access_rank(current):
+                scopes[scope] = level
+
+    _add(_permission_dict(workflow))
+    jobs = workflow.get("jobs")
+    if isinstance(jobs, dict):
+        for job in jobs.values():
+            _add(_permission_dict(job))
+    return scopes
+
+
+def caller_effective_permissions(
+    workflow: dict[str, Any], job: dict[str, Any]
+) -> dict[str, str] | None:
+    """Job-level permissions if present, else workflow-level, else None."""
+    if "permissions" in job:
+        return _permission_dict(job)
+    if "permissions" in workflow:
+        return _permission_dict(workflow)
+    return None
+
+
+def permission_gaps(
+    caller_perms: dict[str, str] | None,
+    callee_scopes: dict[str, str],
+) -> list[str]:
+    """Scopes the caller does not explicitly grant at the callee's level.
+
+    ``write`` covers ``read``. A caller with no explicit permissions map
+    fails every callee-declared scope, because the repository default token
+    is not visible in source.
+    """
+    if not callee_scopes:
+        return []
+    if caller_perms is None:
+        return [
+            f"{scope}:{needed} (caller has no explicit permissions)"
+            for scope, needed in sorted(callee_scopes.items())
+        ]
+    gaps = []
+    for scope, needed in sorted(callee_scopes.items()):
+        have = caller_perms.get(scope, "none")
+        if not _covers(have, needed):
+            gaps.append(f"{scope}:{needed} (caller has {have})")
+    return gaps
+
+
+def reusable_caller_permission_gaps(workflows_dir: Path) -> list[str]:
+    """Gaps for every local ``uses: ./.github/workflows/<callee>.yml`` job."""
+    problems: list[str] = []
+    for path in sorted(workflows_dir.glob("*.yml")):
+        workflow = yaml.safe_load(path.read_text(encoding="utf-8"))
+        if not isinstance(workflow, dict):
+            continue
+        jobs = workflow.get("jobs")
+        if not isinstance(jobs, dict):
+            continue
+        for job_name, job in jobs.items():
+            if not isinstance(job, dict):
+                continue
+            uses = job.get("uses")
+            if not isinstance(uses, str):
+                continue
+            match = _LOCAL_REUSABLE_USES.fullmatch(uses.strip())
+            if match is None:
+                continue
+            callee_name = match.group(1)
+            callee_path = workflows_dir / callee_name
+            if not callee_path.is_file():
+                problems.append(
+                    f"{path.name} job {job_name}: callee {callee_name} is missing"
+                )
+                continue
+            callee = yaml.safe_load(callee_path.read_text(encoding="utf-8"))
+            if not isinstance(callee, dict):
+                problems.append(
+                    f"{path.name} job {job_name}: callee {callee_name} is unreadable"
+                )
+                continue
+            for gap in permission_gaps(
+                caller_effective_permissions(workflow, job),
+                callee_declared_scopes(callee),
+            ):
+                problems.append(f"{path.name} job {job_name} -> {callee_name}: {gap}")
+    return problems
 
 
 # Public aliases let split contract modules share these helpers without

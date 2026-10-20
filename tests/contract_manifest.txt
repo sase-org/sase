@@ -22,6 +22,7 @@ tests/test_github_actions_ci_workflow.py
 tests/test_github_actions_install_smoke.py
 tests/test_github_actions_publish.py
 tests/test_github_actions_release.py
+tests/test_github_actions_release_steward.py
 tests/test_github_actions_setup_sase.py
 tests/test_github_actions_testpypi_drill.py
 tests/test_justfile_lint_check.py
@@ -39,9 +40,11 @@ tests/test_ratchet_core_window_tool_core.py
 tests/test_ratchet_core_window_tool_guardrails.py
 tests/test_ratchet_core_window_tool_modes.py
 tests/test_ratchet_core_window_tool_reconciliation.py
-tests/test_release_candidate.py
+tests/test_release_candidate_inventory.py
 tests/test_release_candidate_published_core.py
 tests/test_release_candidate_qualify_red.py
+tests/test_release_candidate_rerun.py
+tests/test_release_candidate_seal.py
 tests/test_release_core.py
 tests/test_require_tool_run.py
 tests/test_ruff_config.py

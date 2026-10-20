@@ -74,6 +74,44 @@ def tool() -> ModuleType:
     return _load_tool()
 
 
+def test_parse_expected_suffixes_reads_workflow_and_nested_blocks(
+    tool: ModuleType,
+) -> None:
+    assert tool.parse_expected_suffixes(WORKFLOW) == (
+        "manylinux_2_28_x86_64.whl",
+        "manylinux_2_28_aarch64.whl",
+        "universal2.whl",
+        "win_amd64.whl",
+        ".tar.gz",
+    )
+    nested = (
+        "jobs:\n  publish:\n    env:\n      EXPECTED_DIST_SUFFIXES: |\n"
+        "        manylinux_2_28_x86_64.whl\n        .tar.gz\n"
+    )
+    assert tool.parse_expected_suffixes(nested) == (
+        "manylinux_2_28_x86_64.whl",
+        ".tar.gz",
+    )
+
+
+def test_parse_expected_suffixes_refuses_missing_empty_and_duplicate(
+    tool: ModuleType,
+) -> None:
+    with pytest.raises(
+        tool.CoreEnsureError, match="cannot find EXPECTED_DIST_SUFFIXES"
+    ):
+        tool.parse_expected_suffixes("name: Release-plz\n")
+    with pytest.raises(tool.CoreEnsureError, match="is empty"):
+        tool.parse_expected_suffixes(
+            "jobs:\n  x:\n    env:\n      EXPECTED_DIST_SUFFIXES: |\n"
+        )
+    with pytest.raises(tool.CoreEnsureError, match="duplicate"):
+        tool.parse_expected_suffixes(
+            "jobs:\n  x:\n    env:\n      EXPECTED_DIST_SUFFIXES: |\n"
+            "        .tar.gz\n        .tar.gz\n"
+        )
+
+
 def _sdist(version: str, *, yanked: bool = False) -> dict[str, object]:
     return {
         "filename": f"sase_core_rs-{version}.tar.gz",

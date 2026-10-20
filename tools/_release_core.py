@@ -48,7 +48,7 @@ _TRANSIENT_HTTP_CODES = frozenset({408, 429, 500, 502, 503, 504})
 _VERSION_RE = re.compile(r"^\d+(?:\.\d+)*$")
 _PIN_RE = re.compile(r"^[0-9a-fA-F]{7,40}$")
 _SUFFIXES_BLOCK_RE = re.compile(
-    r"(?m)^  EXPECTED_DIST_SUFFIXES: \|\n((?:    \S[^\n]*(?:\n|$))+)"
+    r"(?m)^([ \t]*)EXPECTED_DIST_SUFFIXES: \|(?:\n((?:\1[ \t]+[^\n]*(?:\n|$))*))?"
 )
 _CONTAINING_STATUSES = frozenset({"ahead", "identical"})
 _NON_CONTAINING_STATUSES = frozenset({"behind", "diverged"})
@@ -128,7 +128,7 @@ def parse_expected_suffixes(workflow_text: str) -> tuple[str, ...]:
         raise CoreEnsureError(
             f"cannot find EXPECTED_DIST_SUFFIXES in {WORKFLOW_PATH}"
         )
-    suffixes = match.group(1).split()
+    suffixes = (match.group(2) or "").split()
     if not suffixes:
         raise CoreEnsureError(f"EXPECTED_DIST_SUFFIXES in {WORKFLOW_PATH} is empty")
     if len(suffixes) != len(set(suffixes)):

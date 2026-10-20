@@ -90,7 +90,16 @@ from tests.test_release_candidate_seal import (
     test_observe_refuses_to_replace_a_conflicting_asset,
 )
 from tests.test_release_candidate_seal import (
-    test_parse_expected_suffixes_reads_single_source,
+    test_parse_expected_suffixes_reads_block_form,
+)
+from tests.test_release_candidate_seal import (
+    test_parse_expected_suffixes_refuses_duplicate_suffix,
+)
+from tests.test_release_candidate_seal import (
+    test_parse_expected_suffixes_refuses_empty_block,
+)
+from tests.test_release_candidate_seal import (
+    test_parse_expected_suffixes_refuses_missing_block,
 )
 from tests.test_release_candidate_seal import (
     test_second_stash_generation_must_requalify,
@@ -134,7 +143,10 @@ __all__ = [
     "test_observe_refuses_to_replace_a_conflicting_asset",
     "test_old_generation_evidence_cannot_qualify_new_candidate",
     "test_old_pass_never_wins_over_a_newer_red",
-    "test_parse_expected_suffixes_reads_single_source",
+    "test_parse_expected_suffixes_reads_block_form",
+    "test_parse_expected_suffixes_refuses_duplicate_suffix",
+    "test_parse_expected_suffixes_refuses_empty_block",
+    "test_parse_expected_suffixes_refuses_missing_block",
     "test_qualification_evaluator_loads_its_focused_helpers",
     "test_qualification_pass_archives_bound_evidence_and_advisories",
     "test_qualify_cli_persists_red_observation_before_refusal",

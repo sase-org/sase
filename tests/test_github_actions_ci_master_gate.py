@@ -24,9 +24,14 @@ from tests._github_actions_ci_helpers import _load_ci_workflow
 from tests._github_actions_ci_helpers import _load_core_pin_ratchet_workflow
 from tests._github_actions_ci_helpers import _load_full_workflow
 from tests._github_actions_ci_helpers import _load_master_gate_workflow
+from tests._github_actions_ci_helpers import _load_release_workflow
 from tests._github_actions_ci_helpers import _load_shard_timings_ratchet_workflow
 from tests._github_actions_ci_helpers import _load_telemetry_workflow
 from tests._github_actions_ci_helpers import _workflow_triggers
+from tests._github_actions_ci_helpers import callee_declared_scopes
+from tests._github_actions_ci_helpers import caller_effective_permissions
+from tests._github_actions_ci_helpers import permission_gaps
+from tests._github_actions_ci_helpers import reusable_caller_permission_gaps
 from tests._test_shards import DEFAULT_SHARD_COUNT
 from tests._test_shards import SHARD_TIMINGS_ARTIFACT_NAME
 
@@ -257,13 +262,68 @@ def test_full_ci_triggers_and_calls_the_reusable_ci_workflow() -> None:
         "group": "full-ci",
         "cancel-in-progress": False,
     }
-    assert workflow["permissions"] == {"contents": "read"}
+    assert workflow["permissions"] == {"contents": "read", "actions": "read"}
     assert workflow["jobs"] == {
         "full": {
             "uses": "./.github/workflows/ci.yml",
             "secrets": "inherit",
         }
     }
+
+
+def test_reusable_workflow_callers_grant_callee_permissions() -> None:
+    problems = reusable_caller_permission_gaps(REPO_ROOT / ".github" / "workflows")
+    assert problems == []
+
+
+def test_old_full_yml_fails_the_reusable_permission_contract() -> None:
+    caller = dict(_load_full_workflow())
+    caller["permissions"] = {"contents": "read"}
+    callee = _load_ci_workflow()
+    gaps = permission_gaps(
+        caller_effective_permissions(caller, caller["jobs"]["full"]),
+        callee_declared_scopes(callee),
+    )
+    assert any(gap.startswith("actions:read") for gap in gaps)
+
+
+def test_named_reusable_calls_cover_callee_scopes() -> None:
+    cases = (
+        (
+            "release.yml",
+            "qualify-ci",
+            _load_release_workflow(),
+            _load_ci_workflow(),
+        ),
+        (
+            "ci.yml",
+            "build-core",
+            _load_ci_workflow(),
+            _load_build_core_workflow(),
+        ),
+        (
+            "telemetry.yml",
+            "build-core",
+            _load_telemetry_workflow(),
+            _load_build_core_workflow(),
+        ),
+    )
+    for caller_name, job_name, caller, callee in cases:
+        gaps = permission_gaps(
+            caller_effective_permissions(caller, caller["jobs"][job_name]),
+            callee_declared_scopes(callee),
+        )
+        assert gaps == [], f"{caller_name} {job_name}: {gaps}"
+
+
+def test_write_permission_covers_read_and_missing_explicit_map_fails() -> None:
+    assert permission_gaps({"contents": "write"}, {"contents": "read"}) == []
+    assert permission_gaps({"contents": "read"}, {"contents": "write"}) == [
+        "contents:write (caller has read)"
+    ]
+    assert permission_gaps(None, {"contents": "read"}) == [
+        "contents:read (caller has no explicit permissions)"
+    ]
 
 
 def test_heavy_lane_jobs_are_defined_once_in_the_reusable_workflow() -> None:

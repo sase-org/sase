@@ -64,6 +64,17 @@ _qualification = importlib.util.module_from_spec(_qualification_spec)
 sys.modules[_qualification_spec.name] = _qualification
 _qualification_spec.loader.exec_module(_qualification)
 
+_core_path = Path(__file__).with_name("_release_core.py")
+_core_loader = SourceFileLoader("release_candidate_core_tool", str(_core_path))
+_core_spec = importlib.util.spec_from_file_location(
+    "release_candidate_core_tool", _core_path, loader=_core_loader
+)
+if _core_spec is None or _core_spec.loader is None:
+    raise RuntimeError(f"cannot load core helpers at {_core_path}")
+_core = importlib.util.module_from_spec(_core_spec)
+sys.modules[_core_spec.name] = _core
+_core_spec.loader.exec_module(_core)
+
 
 SCHEMA_VERSION = 1
 
@@ -558,14 +569,14 @@ def parse_expected_suffixes(text: str) -> list[str]:
     """Read the core completeness set from sase-core's release-plz.yml text.
 
     The suffix set stays single-sourced in sase-core; this parses it, never
-    copies it.
+    copies it. Delegates to the shared block-form parser so ``release.yml``
+    and ``build-core.yml`` accept the same ``EXPECTED_DIST_SUFFIXES: |``
+    shape sase-core actually ships.
     """
-    import re
-
-    match = re.search(r"EXPECTED_DIST_SUFFIXES\s*[:=]\s*\[(?P<items>[^\]]*)\]", text)
-    if match is None:
-        raise Refusal("EXPECTED_DIST_SUFFIXES not found in release-plz.yml")
-    return re.findall(r"""["']([^"']+)["']""", match.group("items"))
+    try:
+        return list(_core.parse_expected_suffixes(text))
+    except _core.CoreEnsureError as exc:
+        raise Refusal(str(exc)) from exc
 
 
 def resolve_locator(locator: str, dest: Path) -> Path:

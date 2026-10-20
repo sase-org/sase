@@ -198,11 +198,39 @@ def test_missing_file_locator_fails_closed(tool: ModuleType, tmp_path) -> None: 
         tool.resolve_locator("file:/does/not/exist.bin", tmp_path / "out.bin")
 
 
-def test_parse_expected_suffixes_reads_single_source(tool: ModuleType) -> None:
-    text = "jobs:\n  x:\n    env:\n      EXPECTED_DIST_SUFFIXES: ['.tar.gz', '-py3-none-any.whl']\n"
-    assert tool.parse_expected_suffixes(text) == [".tar.gz", "-py3-none-any.whl"]
-    with pytest.raises(tool.Refusal, match="EXPECTED_DIST_SUFFIXES not found"):
+_V042_SUFFIXES = [
+    "manylinux_2_28_x86_64.whl",
+    "manylinux_2_28_aarch64.whl",
+    "universal2.whl",
+    "win_amd64.whl",
+    ".tar.gz",
+]
+
+
+def _jobs_env_suffix_block(*suffixes: str) -> str:
+    body = "".join(f"        {suffix}\n" for suffix in suffixes)
+    return "jobs:\n  x:\n    env:\n      EXPECTED_DIST_SUFFIXES: |\n" + body
+
+
+def test_parse_expected_suffixes_reads_block_form(tool: ModuleType) -> None:
+    suffixes = tool.parse_expected_suffixes(_jobs_env_suffix_block(*_V042_SUFFIXES))
+    assert suffixes == _V042_SUFFIXES
+    assert isinstance(suffixes, list)
+
+
+def test_parse_expected_suffixes_refuses_missing_block(tool: ModuleType) -> None:
+    with pytest.raises(tool.Refusal, match="cannot find EXPECTED_DIST_SUFFIXES"):
         tool.parse_expected_suffixes("no suffixes here\n")
+
+
+def test_parse_expected_suffixes_refuses_empty_block(tool: ModuleType) -> None:
+    with pytest.raises(tool.Refusal, match="is empty"):
+        tool.parse_expected_suffixes(_jobs_env_suffix_block())
+
+
+def test_parse_expected_suffixes_refuses_duplicate_suffix(tool: ModuleType) -> None:
+    with pytest.raises(tool.Refusal, match="duplicate"):
+        tool.parse_expected_suffixes(_jobs_env_suffix_block(".tar.gz", ".tar.gz"))
 
 
 def test_cross_check_lock_hashes_catches_mismatch(tool: ModuleType, tmp_path) -> None:  # type: ignore[no-untyped-def]

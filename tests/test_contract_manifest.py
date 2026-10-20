@@ -377,8 +377,21 @@ MANIFEST_PATH = ROOT / "tests" / "contract_manifest.txt"
 # toobig ceiling. The added path redistributes the same evaluator tests rather
 # than expanding contract membership. Estimated serial cost is unchanged aside
 # from per-module collection overhead on the 123.37 s 83-entry measurement.
-_MANIFEST_ENTRY_BUDGET = 84
-_MEASURED_SERIAL_COST = "123.37 serial seconds across 83 entries plus one split file"
+#
+# Re-curated to 87 on 2026-10-20 (sase-1n6.5.1.5.2.1.1) to repair a stale
+# manifest: `test_release_candidate.py` is a non-collected facade (`__test__
+# = False`) after the seal/inventory/rerun split, and the marker already
+# selected `test_github_actions_release_steward.py`,
+# `test_release_candidate_inventory.py`, `test_release_candidate_rerun.py`,
+# and `test_release_candidate_seal.py` without listing them. Dropping the
+# facade and admitting those four files redistributes the same
+# `tools/release_candidate` and `release-steward.yml` guards rather than
+# expanding behavioral coverage. The four files measured 3.08 s standalone
+# (74 passed) under the command above on this host. Estimated 126.45 serial
+# seconds across the refreshed 87-entry set (123.37 s prior plus the added
+# files). The next candidate should displace an entry rather than add one.
+_MANIFEST_ENTRY_BUDGET = 87
+_MEASURED_SERIAL_COST = "126.45 serial seconds across 87 entries (estimated from 123.37 s 83-entry run plus 3.08 s for four admitted files)"
 
 
 def _load_refresh_tool() -> ModuleType:
