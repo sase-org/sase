@@ -66,9 +66,11 @@ also removes its own launch-assigned `agent-tmp/` and `cargo-targets/` children 
 when they still match its exported `TMPDIR` and `CARGO_TARGET_DIR` and it can prove,
 through procfs, that no live process still references either tree (by environment or
 working directory). That removal goes through the same Rust reaper as the hourly pass.
-Monitor/gate handoffs leave cleanup to the reaper: a follow-up turn mints a fresh
-scratch key from `launch_spawn._managed_agent_scratch_env`, so the handoff outcome skips
-runner-exit cleanup and the old key goes quiet. The hourly pass then runs a dead-launch
+Monitor handoffs skip runner-exit cleanup. When the monitor settles, it reads the
+starter's recorded scratch key and reaps only the starter's `cargo-targets/` child if
+procfs proves the observation complete and no live process holds it. It leaves
+`agent-tmp/` alone because the follow-up may read files from the starter's `$TMPDIR`.
+Gate handoffs still leave cleanup to the hourly pass. That pass runs a dead-launch
 backstop over the launch-keyed buckets (`agent-tmp/`, `cargo-targets/`,
 `build-targets/`): entries whose newest descendant write predates
 `managed_tmp.dead_launch.grace_seconds` (2 hours by default) and that the batch procfs

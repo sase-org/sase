@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import json
 import os
+from collections.abc import Iterable
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -21,6 +23,8 @@ from sase.monitor.settlement import LOST_FOLLOWUP_ERROR
 from sase.running_field import WorkspaceClaim
 
 from ._fixtures import make_starter_agent, write_project_file
+
+_STARTER_SCRATCH_KEY = "acme-ws3-20261020_100000"
 
 
 @pytest.fixture(autouse=True)
@@ -68,6 +72,46 @@ def _settlement_state(artifacts_dir: str) -> dict[str, object]:
         "termination_reason": "success",
         "exit_code": 0,
     }
+
+
+def _prepare_starter_scratch(
+    artifacts_dir: str,
+    tmp_path: Path,
+    *,
+    record_key: bool = True,
+) -> tuple[Path, Path, Path]:
+    managed_root = tmp_path / "managed"
+    cargo = managed_root / "cargo-targets" / _STARTER_SCRATCH_KEY
+    agent_tmp = managed_root / "agent-tmp" / _STARTER_SCRATCH_KEY
+    cargo.mkdir(parents=True)
+    agent_tmp.mkdir(parents=True)
+    (cargo / "payload.txt").write_text("cargo", encoding="utf-8")
+    (agent_tmp / "payload.txt").write_text("tmp", encoding="utf-8")
+    meta_path = Path(artifacts_dir) / "agent_meta.json"
+    meta = json.loads(meta_path.read_text(encoding="utf-8"))
+    if record_key:
+        meta["launch_scratch_key"] = _STARTER_SCRATCH_KEY
+    else:
+        meta.pop("launch_scratch_key", None)
+    meta_path.write_text(json.dumps(meta), encoding="utf-8")
+    return managed_root, cargo, agent_tmp
+
+
+def _assert_followup_runs_after_cleanup(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    cargo: Path,
+    agent_tmp: Path,
+    expected_removed: bool,
+) -> None:
+    import sase.monitor.proc_adapter as proc_adapter
+
+    def observe_cleanup(*_args: object, **_kwargs: object) -> SimpleNamespace:
+        assert cargo.exists() is not expected_removed
+        assert agent_tmp.is_dir()
+        return SimpleNamespace(error=None, launch_result=None)
+
+    monkeypatch.setattr(proc_adapter, "settle_claim_and_followup", observe_cleanup)
 
 
 def test_settle_monitor_artifacts_leaves_stopped_at_unpersisted(
@@ -255,3 +299,186 @@ def test_save_chat_history_failure_after_persist_raises_incident_import_error(
     assert result["outcome"] == "completed"
     assert result["exit_code"] == 0
     assert result["ended_at"] == "2026-10-10T12:12:19Z"
+
+
+def test_settle_monitor_followup_reclaims_only_unheld_starter_cargo_before_dispatch(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    import sase.axe.run_agent_runner_scratch as scratch
+
+    artifacts_dir = _make_proc_monitor(tmp_path)
+    managed_root, cargo, agent_tmp = _prepare_starter_scratch(artifacts_dir, tmp_path)
+    monkeypatch.setattr(scratch, "managed_tmpdir_root", lambda: managed_root)
+    _assert_followup_runs_after_cleanup(
+        monkeypatch,
+        cargo=cargo,
+        agent_tmp=agent_tmp,
+        expected_removed=True,
+    )
+
+    settle_monitor_followup(
+        {
+            "artifacts_dir": artifacts_dir,
+            "proc_id": "abc123def456",
+            "monitor_state": "completed",
+            "monitor_exit_code": 0,
+            "monitor_elapsed_seconds": 0.0,
+        }
+    )
+
+    assert not cargo.exists()
+    assert agent_tmp.is_dir()
+    cleanup_lines = [
+        json.loads(line)
+        for line in capsys.readouterr().out.splitlines()
+        if "launch_scratch_cleanup" in line
+    ]
+    assert len(cleanup_lines) == 1
+    assert cleanup_lines[0]["context"] == "monitor-settlement"
+    assert cleanup_lines[0]["scratch_key"] == _STARTER_SCRATCH_KEY
+    assert cleanup_lines[0]["status"] == "removed"
+
+
+@pytest.mark.parametrize(
+    ("observer", "live", "candidate_complete"),
+    [("procfs", True, True), ("unobservable", False, False)],
+)
+def test_settle_monitor_followup_preserves_held_or_incompletely_observed_scratch(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    observer: str,
+    live: bool,
+    candidate_complete: bool,
+) -> None:
+    import sase.axe.run_agent_runner_scratch as scratch
+
+    artifacts_dir = _make_proc_monitor(tmp_path)
+    managed_root, cargo, agent_tmp = _prepare_starter_scratch(artifacts_dir, tmp_path)
+    monkeypatch.setattr(scratch, "managed_tmpdir_root", lambda: managed_root)
+
+    def observed(
+        candidates: Iterable[tuple[str, Path]], **_kwargs: object
+    ) -> SimpleNamespace:
+        candidate_paths = list(candidates)
+        return SimpleNamespace(
+            observer=observer,
+            candidates=[
+                SimpleNamespace(live=live, complete=candidate_complete)
+                for _candidate in candidate_paths
+            ],
+            diagnostics=(),
+        )
+
+    monkeypatch.setattr(scratch, "observe_launch_scratch_liveness", observed)
+    _assert_followup_runs_after_cleanup(
+        monkeypatch,
+        cargo=cargo,
+        agent_tmp=agent_tmp,
+        expected_removed=False,
+    )
+
+    settle_monitor_followup(
+        {
+            "artifacts_dir": artifacts_dir,
+            "proc_id": "abc123def456",
+            "monitor_state": "completed",
+            "monitor_exit_code": 0,
+            "monitor_elapsed_seconds": 0.0,
+        }
+    )
+
+    assert cargo.is_dir()
+    assert agent_tmp.is_dir()
+
+
+@pytest.mark.parametrize("case", ["missing-key", "missing-dir"])
+def test_settle_monitor_followup_noops_for_missing_key_or_cargo_dir(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    case: str,
+) -> None:
+    import sase.axe.run_agent_runner_scratch as scratch
+
+    artifacts_dir = _make_proc_monitor(tmp_path)
+    managed_root, cargo, agent_tmp = _prepare_starter_scratch(
+        artifacts_dir,
+        tmp_path,
+        record_key=case != "missing-key",
+    )
+    if case == "missing-dir":
+        import shutil
+
+        shutil.rmtree(cargo)
+    monkeypatch.setattr(scratch, "managed_tmpdir_root", lambda: managed_root)
+    monkeypatch.setattr(
+        scratch,
+        "observe_launch_scratch_liveness",
+        lambda *_args, **_kwargs: pytest.fail("missing scratch must not be observed"),
+    )
+    monkeypatch.setattr(
+        scratch,
+        "reap_managed_tmpdir",
+        lambda *_args, **_kwargs: pytest.fail("missing scratch must not be reaped"),
+    )
+
+    def observe_cleanup(*_args: object, **_kwargs: object) -> SimpleNamespace:
+        assert cargo.exists() is (case == "missing-key")
+        assert agent_tmp.is_dir()
+        return SimpleNamespace(error=None, launch_result=None)
+
+    import sase.monitor.proc_adapter as proc_adapter
+
+    monkeypatch.setattr(proc_adapter, "settle_claim_and_followup", observe_cleanup)
+    settle_monitor_followup(
+        {
+            "artifacts_dir": artifacts_dir,
+            "proc_id": "abc123def456",
+            "monitor_state": "completed",
+            "monitor_exit_code": 0,
+            "monitor_elapsed_seconds": 0.0,
+        }
+    )
+
+
+def test_settle_monitor_followup_skips_joined_monitor_scratch(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import sase.axe.run_agent_runner_scratch as scratch
+    import sase.monitor.proc_adapter as proc_adapter
+
+    artifacts_dir = _make_proc_monitor(tmp_path)
+    managed_root, cargo, agent_tmp = _prepare_starter_scratch(artifacts_dir, tmp_path)
+    monkeypatch.setattr(scratch, "managed_tmpdir_root", lambda: managed_root)
+    meta_path = Path(artifacts_dir) / "agent_meta.json"
+    meta = json.loads(meta_path.read_text(encoding="utf-8"))
+    meta["monitor_tool_run_joined"] = True
+    meta_path.write_text(json.dumps(meta), encoding="utf-8")
+    monkeypatch.setattr(
+        scratch,
+        "observe_launch_scratch_liveness",
+        lambda *_args, **_kwargs: pytest.fail("joined monitors must be skipped"),
+    )
+    monkeypatch.setattr(
+        scratch,
+        "reap_managed_tmpdir",
+        lambda *_args, **_kwargs: pytest.fail("joined monitors must be skipped"),
+    )
+
+    def observe_cleanup(*_args: object, **_kwargs: object) -> SimpleNamespace:
+        assert cargo.is_dir()
+        assert agent_tmp.is_dir()
+        return SimpleNamespace(error=None, launch_result=None)
+
+    monkeypatch.setattr(proc_adapter, "settle_claim_and_followup", observe_cleanup)
+    settle_monitor_followup(
+        {
+            "artifacts_dir": artifacts_dir,
+            "proc_id": "abc123def456",
+            "monitor_state": "completed",
+            "monitor_exit_code": 0,
+            "monitor_elapsed_seconds": 0.0,
+        }
+    )

@@ -166,14 +166,16 @@ The bucket mapping is fixed; only the durations and pressure thresholds are
 configurable.
 
 Between the age horizons runs a dead-launch backstop over the launch-keyed buckets
-(`agent-tmp`, `cargo-targets`, legacy `build-targets`) for launches that never ran
-runner-exit cleanup — crashed, SIGKILLed, OOM-killed, or handed off to a monitor/gate
-follow-up, which mints a fresh scratch key and leaves the old one quiet. Entries whose
-newest descendant write predates `dead_launch.grace_seconds` and that no live process
-holds (by environment or working directory, observed through procfs in one batch scan)
-are removed largest-first within the removal budget. Held and incomplete-observation
-entries are preserved and counted; hosts without readable procfs skip the pass and keep
-the age horizons as the fallback.
+(`agent-tmp`, `cargo-targets`, legacy `build-targets`) for scratch left after crashes,
+SIGKILLs, OOM kills, gate handoffs, or monitor cleanup that could not prove a safe
+removal. Monitor settlement checks its starter's recorded scratch key and reaps only the
+`cargo-targets` child when procfs reports a complete observation with no live holder; it
+leaves `agent-tmp` for a follow-up that may read the starter's `$TMPDIR`. The backstop
+removes entries whose newest descendant write predates `dead_launch.grace_seconds` and
+that no live process holds (by environment or working directory, observed through procfs
+in one batch scan) are removed largest-first within the removal budget. Held and
+incomplete-observation entries are preserved and counted; hosts without readable procfs
+skip the pass and keep the age horizons as the fallback.
 
 Pressure pruning is a later pass that removes aged, large build scratch early when the
 managed root grows past `pressure.max_bytes` or the filesystem's free space drops below

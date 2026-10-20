@@ -10,8 +10,10 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from sase.agent._user_kill_intent import read_recorded_scratch_key
 from sase.axe.agent_meta import write_agent_meta_atomic
 from sase.axe.run_agent_exec_markers import write_done_marker_and_update_index
+from sase.axe.run_agent_runner_scratch import cleanup_launch_scratch_key
 from sase.bead.epic_launch_handoff import publish_deferred_monitor_completion
 from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
@@ -261,6 +263,7 @@ def settle_monitor_followup(state: dict[str, Any]) -> None:
     meta = _read_meta(artifacts_dir)
     if state.get("monitor_meta"):
         meta.update(state["monitor_meta"])
+    _cleanup_starter_cargo_target(artifacts_dir, meta)
     monitor_state = str(
         state.get("monitor_state") or meta.get("monitor_state") or "failed"
     )
@@ -412,6 +415,37 @@ def settle_monitor_followup(state: dict[str, Any]) -> None:
             "monitor_state": monitor_state,
             "settled_at": _utc_now_iso(),
         },
+    )
+
+
+def _cleanup_starter_cargo_target(
+    artifacts_dir: str,
+    meta: dict[str, Any],
+) -> None:
+    """Reclaim an unheld starter cargo target before launching a follow-up."""
+    if meta.get("monitor_tool_run_joined") is True:
+        cleanup_launch_scratch_key(
+            None,
+            buckets=("cargo-targets",),
+            context="monitor-settlement",
+            skip_reason="joined-monitor",
+        )
+        return
+    try:
+        scratch_key = read_recorded_scratch_key(artifacts_dir)
+    except Exception as exc:  # noqa: BLE001 - scratch cleanup never blocks settlement
+        cleanup_launch_scratch_key(
+            None,
+            buckets=("cargo-targets",),
+            context="monitor-settlement",
+            skip_reason="scratch-key-read-error",
+            error=f"{type(exc).__qualname__}: {exc}",
+        )
+        return
+    cleanup_launch_scratch_key(
+        scratch_key,
+        buckets=("cargo-targets",),
+        context="monitor-settlement",
     )
 
 

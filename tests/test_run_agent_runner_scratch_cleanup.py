@@ -99,6 +99,34 @@ def test_cleanup_launch_scratch_removes_launch_assigned_directories(
     assert other.is_dir()
 
 
+def test_cleanup_launch_scratch_key_reaps_only_requested_bucket(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    import json
+
+    proc_root, cargo, tmpdir = _prepare_launch_scratch(monkeypatch, tmp_path)
+
+    scratch.cleanup_launch_scratch_key(
+        "proj-ws7-260914_120000",
+        buckets=("cargo-targets",),
+        context="monitor-settlement",
+        proc_root=proc_root,
+    )
+
+    assert not cargo.exists()
+    assert tmpdir.is_dir()
+    lines = [
+        json.loads(line)
+        for line in capsys.readouterr().out.splitlines()
+        if "launch_scratch_cleanup" in line
+    ]
+    assert len(lines) == 1
+    assert lines[0]["context"] == "monitor-settlement"
+    assert lines[0]["status"] == "removed"
+
+
 @pytest.mark.parametrize("outcome", [MONITOR_OUTCOME, GATE_OUTCOME])
 def test_cleanup_launch_scratch_skips_shell_handoff_outcomes(
     monkeypatch: pytest.MonkeyPatch,

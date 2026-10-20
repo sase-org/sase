@@ -211,8 +211,9 @@ managed_tmp:
   # converges across invocations instead of stalling one of them.
   max_removals: 2000
   dead_launch:
-    # Backstop over launch-keyed scratch (agent-tmp, cargo-targets, legacy
-    # build-targets) for launches that never ran runner-exit cleanup.
+    # Backstop over launch-keyed scratch left after crashes, gate handoffs, or
+    # monitor cleanup that could not prove safe removal. Monitor settlement
+    # immediately reaps only an unheld starter cargo-target; agent-tmp stays here.
     enabled: true
     # Quiet age before scratch no live process holds may be reaped.
     grace_seconds: 7200
