@@ -335,9 +335,7 @@ async def test_agents_deck_blocks_split_rails_png_snapshot(
             ),
             description="Both panels show the Reply card",
         )
-        # Step the focused (left) panel back; the right keeps its own cursor.
-        await page.press("ctrl+f")
-        await wait_for_visual_idle(page)
+        # The focused left panel steps back; the right keeps its own cursor.
         left = detail.deck_area.panel(0)
         right = detail.deck_area.panel(1)
         card = left._main_document.card("reply")
@@ -509,10 +507,8 @@ async def test_agents_deck_blocks_micro_png_snapshot(
         left = detail.deck_area.panel(0)
         card = left._main_document.card("reply")
         assert card is not None and card.has_block_navigation
-        # Pin focus to the left panel so the split divider renders
+        # Focus stays on the left panel so the split divider renders
         # deterministically.
-        await page.press("ctrl+f")
-        await wait_for_visual_idle(page)
         # The block-spread to block-paged switch now pins ScrollBar.position
         # to the scroller in the first settled frame (see
         # test_block_spread_to_paged_keeps_scrollbar_in_sync), so no

@@ -30,6 +30,7 @@ def _split_state() -> DeckAreaState:
     opened = deck_layout.toggle_split(
         DeckAreaState(), DeckLayout.LEFT_RIGHT, DeckPanelState(DeckId.FILES)
     )
+    opened = deck_layout.toggle_focus(opened)
     assert opened.layout is DeckLayout.LEFT_RIGHT
     assert opened.focused == 1
     return opened

@@ -32,8 +32,10 @@ async def _mounted_detail(app: _DetailApp, pilot, tmp_path: Path) -> AgentDetail
 async def _open_split(
     detail: AgentDetail, pilot, layout: DeckLayout, decks: tuple[DeckId, DeckId]
 ) -> None:
-    """Open ``layout`` with ``decks`` in panels 0 and 1 (focus lands on 1)."""
+    """Open ``layout`` with ``decks`` in panels 0 and 1, focused on panel 1."""
     detail.toggle_deck_split(layout)
+    await pilot.pause()
+    detail.toggle_deck_focus()
     await pilot.pause()
     detail.show_deck(0, decks[0])
     detail.show_deck(1, decks[1])
@@ -251,7 +253,7 @@ async def test_deck_changed_while_zoomed_survives_the_capital_pick(
         assert area.state.panels[1].deck is DeckId.TOOLS
 
 
-async def test_toggle_deck_split_still_focuses_the_new_panel(tmp_path: Path) -> None:
+async def test_toggle_deck_split_keeps_focus_on_source_panel(tmp_path: Path) -> None:
     app = _DetailApp()
     pin_paged(app)
     async with app.run_test(size=(100, 30)) as pilot:
@@ -262,5 +264,6 @@ async def test_toggle_deck_split_still_focuses_the_new_panel(tmp_path: Path) -> 
 
         area = detail.deck_area
         assert area.state.layout is DeckLayout.TOP_BOTTOM
-        assert area.state.focused == 1
-        assert area.panel(1).has_class("-focused")
+        assert area.state.focused == 0
+        assert area.panel(0).has_class("-focused")
+        assert area.panel(1).has_class("-unfocused")

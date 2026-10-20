@@ -31,6 +31,7 @@ def _split_state() -> DeckAreaState:
     opened = deck_layout.toggle_split(
         DeckAreaState(), DeckLayout.LEFT_RIGHT, DeckPanelState(DeckId.FILES)
     )
+    opened = deck_layout.toggle_focus(opened)
     assert opened.layout is DeckLayout.LEFT_RIGHT
     assert opened.focused == 1
     return opened
@@ -289,6 +290,8 @@ async def test_zoom_round_trip_keeps_widget_and_card(tmp_path: Path) -> None:
         await pilot.pause()
         detail.toggle_deck_split(DeckLayout.LEFT_RIGHT)
         await pilot.pause()
+        detail.toggle_deck_focus()
+        await pilot.pause()
         area = detail.deck_area
         widget_before = area.focused_panel()
         deck_before = widget_before.deck
@@ -319,6 +322,8 @@ async def test_ending_zoom_on_second_panel_shows_both_panels_again(
         detail.update_display(make_artifact_agent(tmp_path, status="DONE"))
         await pilot.pause()
         detail.toggle_deck_split(DeckLayout.LEFT_RIGHT)
+        await pilot.pause()
+        detail.toggle_deck_focus()
         await pilot.pause()
         area = detail.deck_area
         assert area.state.focused == 1

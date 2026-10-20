@@ -59,7 +59,8 @@ def test_single_backslash_opens_top_bottom() -> None:
     updated = toggle_split(state, DeckLayout.TOP_BOTTOM, new_panel)
     assert updated.layout is DeckLayout.TOP_BOTTOM
     assert updated.panels == {0: DeckPanelState(DeckId.MAIN), 1: new_panel}
-    assert updated.focused == 1
+    assert updated.focused == 0
+    assert updated.grid.recent == (0, 1)
     assert updated.ratio == 50
 
 
@@ -69,7 +70,8 @@ def test_single_pipe_opens_left_right() -> None:
     updated = toggle_split(state, DeckLayout.LEFT_RIGHT, new_panel)
     assert updated.layout is DeckLayout.LEFT_RIGHT
     assert updated.panels[1] == new_panel
-    assert updated.focused == 1
+    assert updated.focused == 0
+    assert updated.grid.recent == (0, 1)
     assert updated.ratio == 50
 
 
@@ -112,7 +114,8 @@ def test_other_key_nests_third_panel_keeping_outer_shape() -> None:
     nested = toggle_split(state, DeckLayout.LEFT_RIGHT, DeckPanelState(DeckId.TOOLS))
     assert len(nested.grid.panes) == 3
     assert nested.layout is DeckLayout.TOP_BOTTOM
-    assert nested.focused == 2
+    assert nested.focused == 1
+    assert nested.grid.recent == (1, 2, 0)
     assert nested.grid.ratio == 30
     assert nested.panels[2] == DeckPanelState(DeckId.TOOLS)
     assert nested.panels[0] == state.panels[0]
@@ -250,45 +253,32 @@ def test_toggle_focus_flips_in_split() -> None:
 def test_unsplit_keeps_focused_panel_involution() -> None:
     single = _single(DeckId.MAIN)
     opened = toggle_split(single, DeckLayout.LEFT_RIGHT, DeckPanelState(DeckId.FILES))
-    assert opened.focused == 1
+    assert opened.focused == 0
     closed = toggle_split(opened, DeckLayout.LEFT_RIGHT, DeckPanelState(DeckId.TOOLS))
-    assert closed == DeckAreaState(
-        grid=PaneGrid(panes=(1,), focused=1, recent=(1,)),
-        panels={1: DeckPanelState(DeckId.FILES)},
-    )
+    assert closed == single
 
 
 def test_ratio_steps_constant() -> None:
     assert RATIO_STEPS == (30, 50, 70)
 
 
-def test_toggle_split_focus_new_false_keeps_focus_on_first_panel() -> None:
-    state = _single(DeckId.MAIN)
-    new_panel = DeckPanelState(DeckId.FILES)
-    updated = toggle_split(state, DeckLayout.TOP_BOTTOM, new_panel, focus_new=False)
-    assert updated.layout is DeckLayout.TOP_BOTTOM
-    assert updated.panels == {0: DeckPanelState(DeckId.MAIN), 1: new_panel}
-    assert updated.focused == 0
-    assert updated.ratio == 50
-    # The default still moves focus into the new panel.
-    assert toggle_split(state, DeckLayout.TOP_BOTTOM, new_panel).focused == 1
-
-
-def test_toggle_split_focus_new_ignored_by_unsplit_and_nest() -> None:
-    split = _split(DeckId.MAIN, DeckId.FILES, focused=1, ratio=30)
+def test_toggle_split_keeps_focus_when_nesting_from_either_panel() -> None:
     other = DeckPanelState(DeckId.TOOLS)
-    for flag in (True, False):
-        nested = toggle_split(split, DeckLayout.LEFT_RIGHT, other, focus_new=flag)
+    for focused in (0, 1):
+        split = _split(DeckId.MAIN, DeckId.FILES, focused=focused, ratio=30)
+        nested = toggle_split(split, DeckLayout.LEFT_RIGHT, other)
         assert len(nested.grid.panes) == 3
         assert nested.grid.ratio == 30
-        if flag:
-            assert nested.focused == 2
-        else:
-            assert nested.focused == 1
-        unsplit = toggle_split(split, DeckLayout.TOP_BOTTOM, other, focus_new=flag)
-        assert unsplit.layout is DeckLayout.SINGLE
-        assert unsplit.focused == 1
-        assert unsplit.panels == {1: DeckPanelState(DeckId.FILES)}
+        assert nested.focused == focused
+        assert nested.grid.recent == (focused, 2, 1 - focused)
+
+
+def test_toggle_split_same_key_unsplit_keeps_focused_panel() -> None:
+    split = _split(DeckId.MAIN, DeckId.FILES, focused=1)
+    unsplit = toggle_split(split, DeckLayout.TOP_BOTTOM, DeckPanelState(DeckId.TOOLS))
+    assert unsplit.layout is DeckLayout.SINGLE
+    assert unsplit.focused == 1
+    assert unsplit.panels == {1: DeckPanelState(DeckId.FILES)}
 
 
 def test_split_key_while_zoomed_only_restores() -> None:
@@ -420,14 +410,14 @@ def test_erase_prunes_erased_session() -> None:
     assert set(erased.panels) == set(erased.grid.panes)
 
 
-def test_close_deck_panel_is_inverse_of_split() -> None:
+def test_close_deck_panel_removes_the_focused_split_panel() -> None:
     single = _single(DeckId.MAIN)
     opened = toggle_split(single, DeckLayout.TOP_BOTTOM, DeckPanelState(DeckId.FILES))
-    assert opened.focused == 1
-    assert close_deck_panel(opened).grid.panes == (0,)
+    assert opened.focused == 0
+    assert close_deck_panel(opened).grid.panes == (1,)
     refocused = toggle_focus(opened)
-    assert refocused.focused == 0
-    assert close_deck_panel(refocused).grid.panes == (1,)
+    assert refocused.focused == 1
+    assert close_deck_panel(refocused).grid.panes == (0,)
 
 
 def test_turn_deck_layout_transposes_two_pane_split() -> None:

@@ -178,7 +178,7 @@ class AgentDetailDeckLayoutMixin(AgentDetailDeckPaneKeysMixin):
             pass
 
     def toggle_deck_split(self, target: DeckLayout) -> None:
-        """Toggle a deck split layout for ``target``."""
+        """Toggle a deck split while keeping focus on the focused panel."""
         try:
             area = self.deck_area  # type: ignore[attr-defined]
             state = area.state
@@ -228,15 +228,13 @@ class AgentDetailDeckLayoutMixin(AgentDetailDeckPaneKeysMixin):
         self,
         target: DeckLayout,
         deck: DeckId | None = None,
-        *,
-        focus_new: bool = True,
     ) -> bool:
         """Open a split from a single deck panel; False when nothing opened.
 
         ``deck=None`` lets ``choose_new_panel`` pick the new panel's deck, as
         the split keys do. An explicit ``deck`` is shown in the new panel
-        instead. The new panel takes focus unless ``focus_new`` is false.
-        A split while zoomed only restores the snapshot: from a
+        instead. Focus stays on the source panel, and the new panel becomes
+        the MRU-next panel. A split while zoomed only restores the snapshot: from a
         zoomed-from-split state nothing opens, and from a zoomed-from-single
         state the restore runs first and the split then opens from it.
         """
@@ -313,9 +311,7 @@ class AgentDetailDeckLayoutMixin(AgentDetailDeckPaneKeysMixin):
         except Exception:
             before = set()
         try:
-            self._apply_deck_area_state(
-                toggle_split(state, target, new_panel, focus_new=focus_new)
-            )
+            self._apply_deck_area_state(toggle_split(state, target, new_panel))
         except Exception:
             return False
         try:
@@ -324,7 +320,7 @@ class AgentDetailDeckLayoutMixin(AgentDetailDeckPaneKeysMixin):
             opened = []
         if not opened:
             return False
-        new_id = area.state.grid.focused if focus_new else opened[0]
+        new_id = opened[0]
         try:
             self.show_deck(new_id, new_panel.deck)  # type: ignore[attr-defined]
         except Exception:
@@ -382,7 +378,7 @@ class AgentDetailDeckLayoutMixin(AgentDetailDeckPaneKeysMixin):
             except Exception:
                 pass
         if target.opens_split:
-            opened = self._open_deck_split(DeckLayout.TOP_BOTTOM, deck, focus_new=False)
+            opened = self._open_deck_split(DeckLayout.TOP_BOTTOM, deck)
             return opened or ended_zoom
         if not ended_zoom:
             try:

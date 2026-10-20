@@ -222,14 +222,6 @@ async def test_agents_deck_view_split_narrow_png_snapshot(
             ),
             description="Both panels show the Reply card",
         )
-        # The new right panel takes focus; move focus back left so P fixes
-        # the left panel while the right panel stays automatic.
-        await page.press("ctrl+f")
-        await wait_for_state(
-            page,
-            lambda: detail.deck_area.focused_panel().panel_index == 0,
-            description="Left panel is focused",
-        )
         # Fix the focused (left) panel; the right panel stays automatic.
         await page.press("P")
         await wait_for_state(
@@ -287,12 +279,6 @@ async def test_agents_deck_view_split_spread_paged_png_snapshot(
                 and detail.deck_area.panel(1).main_view.active_card_id == "reply"
             ),
             description="Both panels show the Reply card",
-        )
-        await page.press("ctrl+f")
-        await wait_for_state(
-            page,
-            lambda: detail.deck_area.focused_panel().panel_index == 0,
-            description="Left panel is focused",
         )
         await _press_view(page, detail, DeckView.PAGE_CARDS)
         await _press_view(page, detail, DeckView.SPREAD)

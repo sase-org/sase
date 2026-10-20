@@ -227,10 +227,10 @@ def test_snapshot_from_area_state_unwraps_zoom() -> None:
     edited = with_panel_deck(zoomed, zoomed.focused, DeckId.TOOLS)
     kept = snapshot_from_area_state(edited)
     assert kept.layout is DeckLayout.TOP_BOTTOM
-    assert kept.focused == 1
-    assert kept.panels[1].deck is DeckId.TOOLS
-    assert kept.panels[1].previous_deck is DeckId.FILES
-    assert kept.panels[0].deck is DeckId.MAIN
+    assert kept.focused == 0
+    assert kept.panels[0].deck is DeckId.TOOLS
+    assert kept.panels[0].previous_deck is DeckId.MAIN
+    assert kept.panels[1].deck is DeckId.FILES
 
 
 def test_area_state_round_trip_through_snapshot() -> None:

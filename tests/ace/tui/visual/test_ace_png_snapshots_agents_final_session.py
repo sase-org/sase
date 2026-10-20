@@ -314,6 +314,7 @@ async def test_agents_final_reply_split_png_snapshot(
         await goto_agents(page, 1)
         detail = page.app.query_one("#agent-detail-panel", AgentDetail)
         await page.press("backslash")
+        await page.press("ctrl+f")
         await wait_for_visual_idle(page)
         detail.set_deck_preferred_card(0, "reply", DeckId.MAIN)
         detail.show_deck(0, DeckId.MAIN)
@@ -383,6 +384,7 @@ async def test_agents_final_narrow_tiers_png_snapshot(
         # A left-right split narrows each panel enough for the tab-only
         # title tiers while keeping the deck visible.
         await page.press("vertical_line")
+        await page.press("ctrl+f")
         await wait_for_visual_idle(page)
         detail = await show_final(page, index=1, expect="2/7")
         panel = detail.deck_area.panel(1)

@@ -261,8 +261,8 @@ the existing split and zoom rules. From a single panel they open a new panel bel
 target the MRU other panel and keep the layout as is (a left-right split is never
 rotated). While zoomed, the zoom ends first, the way `Z` ends it, and the split comes
 back in its original orientation (or a new bottom panel opens when the zoom came from a
-single panel). Focus always stays on the panel the picker was opened from, unlike `\`,
-which moves focus into the new panel; `Ctrl+F` moves it if you want. A muted hint line
+single panel). Focus stays on the source panel here, just as it does for `\` and `|`;
+`Ctrl+F` moves it if you want. A muted hint line
 at the bottom of the picker names the MRU target with its position glyph (for example
 `show in the ◲ bottom-right panel`) and says where the capital letter will go. Picking a
 capital letter for the deck the other panel already shows changes nothing. `Enter` and
@@ -440,15 +440,17 @@ override of `prev_card_block` / `next_card_block` (see
 [configuration](../config/ace-prompts.md#aceagentdecks) and the keymap settings).
 
 `\` opens a second panel below the first (stacked) and `|` opens one to its right (side
-by side); the new panel takes focus and shows the next deck with content, or a duplicate
-deck when every other deck is empty or already shown. One rule governs the split keys:
+by side); focus stays on the panel you split from, and the new panel shows the next deck
+with content or a duplicate deck when every other deck is empty or already shown. One
+rule governs the split keys:
 `\` draws a stacked divider and `|` a side-by-side divider. If that kind of divider
 already spans the whole area, the key erases it and the side you are on grows to fill
 the space. Otherwise, with fewer than three panels, the key draws the divider through
 the focused panel — the unfocused panel becomes the full-span main panel without moving
 or resizing. With three panels, the key turns the layout instead. There are seven
 geometries: single, two two-pane splits, and four three-pane T shapes with a full-span
-main panel:
+main panel. Because focus stays put, `\` then `|` splits the original panel; press
+`Ctrl+F` between the keys to split the new panel instead:
 
 ```
  single     R2 stacked    C2 side by side

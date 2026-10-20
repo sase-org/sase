@@ -111,6 +111,8 @@ async def test_agents_picker_acts_on_focused_split_panel() -> None:
 
         await page.press("backslash")
         await page.pause()
+        page.app.action_toggle_deck_focus()
+        await page.pause()
         assert detail.deck_area.state.focused == 1
 
         await page.press("p")
@@ -239,6 +241,8 @@ async def test_agents_p_capital_t_in_left_right_split_fills_left_panel() -> None
         detail = _detail(page)
 
         await page.press("vertical_line")
+        await page.pause()
+        page.app.action_toggle_deck_focus()
         await page.pause()
         state = detail.deck_area.state
         assert state.layout is DeckLayout.LEFT_RIGHT
@@ -390,6 +394,8 @@ async def test_agents_split_panels_keep_independent_history() -> None:
         await page.expect_no_modal()
 
         await page.press("backslash")
+        await page.pause()
+        page.app.action_toggle_deck_focus()
         await page.pause()
         assert detail.deck_area.state.focused == 1
         bottom_deck = detail.deck_area.panel(1).deck

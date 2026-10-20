@@ -64,6 +64,7 @@ async def test_agents_deck_picker_split_bottom_png_snapshot(
             description="Main deck has Context and Reply cards",
         )
         await page.press("backslash")
+        await page.press("ctrl+f")
         await wait_for_visual_idle(page)
         await page.press("p")
         await page.expect_modal("DeckPickerModal")
@@ -90,6 +91,7 @@ async def test_agents_deck_picker_left_right_png_snapshot(
             description="Main deck has Context and Reply cards",
         )
         await page.press("vertical_line")
+        await page.press("ctrl+f")
         await wait_for_visual_idle(page)
         await page.press("p")
         await page.expect_modal("DeckPickerModal")

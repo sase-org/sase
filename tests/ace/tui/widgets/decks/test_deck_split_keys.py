@@ -123,6 +123,8 @@ async def test_click_focuses_other_panel(tmp_path: Path) -> None:
         await pilot.pause()
         detail.toggle_deck_split(DeckLayout.TOP_BOTTOM)
         await pilot.pause()
+        detail.toggle_deck_focus()
+        await pilot.pause()
         assert detail.deck_area.state.focused == 1
         area = detail.deck_area
         from sase.ace.tui.widgets.decks.panel import DeckPanelFocusRequested

@@ -131,18 +131,16 @@ def toggle_split(
     state: DeckAreaState,
     target: DeckLayout,
     new_panel: DeckPanelState,
-    *,
-    focus_new: bool = True,
 ) -> DeckAreaState:
     """Toggle a split layout for ``target``.
 
     From SINGLE open ``new_panel`` on a free pane ID with a 50/50 ratio.
-    The new pane takes focus unless ``focus_new`` is false. Pressing the
-    same layout key again unsplits, keeping the focused panel. Pressing the
-    other layout key nests ``new_panel`` into a three-pane T layout. With
-    three panes, the outer-axis key erases the full-span divider and the
-    other key turns the layout. A layout key while zoomed only restores
-    the snapshot, keeping panels edited while zoomed.
+    Focus stays on the focused pane and the new pane becomes the MRU-next
+    pane. Pressing the same layout key again unsplits, keeping the focused
+    panel. Pressing the other layout key nests ``new_panel`` into a three-pane
+    T layout. With three panes, the outer-axis key erases the full-span
+    divider and the other key turns the layout. A layout key while zoomed only
+    restores the snapshot, keeping panels edited while zoomed.
     """
     if state.zoom_snapshot is not None:
         return exit_zoom_keeping_panels(state)
@@ -154,8 +152,7 @@ def toggle_split(
         pressed = press_split(state.grid, axis, new_id)
         if len(pressed.panes) < 2:
             return state
-        if not focus_new:
-            pressed = focus_pane(pressed, state.grid.focused)
+        pressed = focus_pane(pressed, state.grid.focused)
         panels = dict(state.panels)
         panels[new_id] = new_panel
         return dataclasses.replace(state, grid=pressed, panels=panels)
@@ -170,8 +167,7 @@ def toggle_split(
         pressed = press_split(state.grid, axis, new_id)
         if len(pressed.panes) != 3:
             return state
-        if not focus_new:
-            pressed = focus_pane(pressed, state.grid.focused)
+        pressed = focus_pane(pressed, state.grid.focused)
         panels = dict(state.panels)
         panels[new_id] = new_panel
         return dataclasses.replace(state, grid=pressed, panels=panels)

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from datetime import datetime
 from io import StringIO
 from pathlib import Path
@@ -230,6 +231,7 @@ async def test_agents_decks_live_reply_partial_and_growth_png_snapshots(
             DeckId.TOOLS: DeckAvailability(False, 0),
         }
         await page.press("vertical_line")
+        await page.press("ctrl+f")
         await wait_for_state(
             page,
             lambda: (
@@ -286,6 +288,7 @@ async def test_agents_decks_top_bottom_focus_bottom_png_snapshot(
     async with AcePage(query='"visual"', patches=patches()) as page:
         await _goto_agents(page, 1)
         await page.press("backslash")
+        await page.press("ctrl+f")
         await wait_for_visual_idle(page)
         ace_png_visual.assert_page_png(
             page,
@@ -302,8 +305,6 @@ async def test_agents_decks_left_right_ratio_70_focus_left_png_snapshot(
     async with AcePage(query='"visual"', patches=patches()) as page:
         await _goto_agents(page, 1)
         await page.press("vertical_line")
-        await wait_for_visual_idle(page)
-        await page.press("ctrl+f")
         await wait_for_visual_idle(page)
         await page.press("right_curly_bracket")
         await wait_for_visual_idle(page)
@@ -335,6 +336,7 @@ async def test_agents_decks_context_reply_no_files_png_snapshot(
             DeckId.TOOLS: DeckAvailability(False, 0),
         }
         await page.press("vertical_line")
+        await page.press("ctrl+f")
         await wait_for_visual_idle(page)
         panel0 = detail.deck_area.panel(0)
         panel1 = detail.deck_area.panel(1)
@@ -374,6 +376,7 @@ async def test_agents_decks_collapsed_split_png_snapshot(
         await _goto_agents(page, 1)
         detail = page.app.query_one("#agent-detail-panel", AgentDetail)
         await page.press("vertical_line")
+        await page.press("ctrl+f")
         await wait_for_visual_idle(page)
         await page.press("ctrl+s")
         await wait_for_visual_idle(page)
@@ -394,9 +397,6 @@ async def test_agents_decks_zoomed_png_snapshot(
         await _goto_agents(page, 1)
         detail = page.app.query_one("#agent-detail-panel", AgentDetail)
         await page.press("vertical_line")
-        await wait_for_visual_idle(page)
-        # Focus back to the Main panel so the zoom shows deck content.
-        await page.press("ctrl+f")
         await wait_for_visual_idle(page)
         assert detail.deck_area.focused_panel().deck is DeckId.MAIN
         await page.press("Z")
@@ -498,15 +498,24 @@ async def test_agents_decks_left_right_search_committed_png_snapshot(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    patch_startup_loaders(monkeypatch, agents=[_reply_agent(tmp_path)])
+    agent = _reply_agent(tmp_path)
+    assert agent.artifacts_dir is not None
+    raw_prompt = Path(agent.artifacts_dir) / "raw_prompt.md"
+    visual_prompt = Path(agent.artifacts_dir) / "01_prompt.md"
+    # The cache selects the newest *_prompt.md; these fixture writes can share
+    # an mtime on fast filesystems, so make the intended visual prompt win.
+    visual_prompt_mtime_ns = raw_prompt.stat().st_mtime_ns + 1_000_000_000
+    os.utime(
+        visual_prompt,
+        ns=(visual_prompt_mtime_ns, visual_prompt_mtime_ns),
+    )
+    patch_startup_loaders(monkeypatch, agents=[agent])
     async with AcePage(query='"visual"', patches=patches()) as page:
         await _goto_agents(page, 1)
         detail = page.app.query_one("#agent-detail-panel", AgentDetail)
         await page.press("vertical_line")
         await wait_for_visual_idle(page)
-        # Choose the searched panel before starting the search.
-        await page.press("ctrl+f")
-        await wait_for_visual_idle(page)
+        # Keep search on the source Main pane; the new Tools pane stays right.
         focused = detail.deck_area.focused_panel()
         await page.press("comma", "slash", "p", "r", "o", "m", "p", "t")
         await page.wait_for(
@@ -534,8 +543,10 @@ async def test_agents_decks_left_right_search_committed_png_snapshot(
 async def _goto_three_pane_main_top(page: AcePage, detail: AgentDetail) -> None:
     """Nest a main-top T shape with the pair panel focused (flag on)."""
     await page.press("backslash")
+    await page.press("ctrl+f")
     await wait_for_visual_idle(page)
     await page.press("vertical_line")
+    await page.press("ctrl+f")
     await wait_for_visual_idle(page)
     assert len(detail.deck_area.state.grid.panes) == 3
 
@@ -570,9 +581,8 @@ async def test_agents_decks_three_pane_main_bottom_png_snapshot(
         await wait_for_visual_idle(page)
         await page.press("backslash")
         await wait_for_visual_idle(page)
-        await page.press("ctrl+b")
-        await wait_for_visual_idle(page)
         await page.press("vertical_line")
+        await page.press("ctrl+f")
         await wait_for_visual_idle(page)
         assert len(detail.deck_area.state.grid.panes) == 3
         ace_png_visual.assert_page_png(
@@ -593,8 +603,10 @@ async def test_agents_decks_three_pane_main_left_png_snapshot(
         await page.press("ctrl+s")
         await wait_for_visual_idle(page)
         await page.press("vertical_line")
+        await page.press("ctrl+f")
         await wait_for_visual_idle(page)
         await page.press("backslash")
+        await page.press("ctrl+f")
         await wait_for_visual_idle(page)
         assert len(detail.deck_area.state.grid.panes) == 3
         ace_png_visual.assert_page_png(
@@ -616,9 +628,8 @@ async def test_agents_decks_three_pane_main_right_png_snapshot(
         await wait_for_visual_idle(page)
         await page.press("vertical_line")
         await wait_for_visual_idle(page)
-        await page.press("ctrl+b")
-        await wait_for_visual_idle(page)
         await page.press("backslash")
+        await page.press("ctrl+f")
         await wait_for_visual_idle(page)
         assert len(detail.deck_area.state.grid.panes) == 3
         ace_png_visual.assert_page_png(

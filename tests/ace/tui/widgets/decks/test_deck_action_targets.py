@@ -59,6 +59,8 @@ async def test_focused_tools_view_only_when_focused_is_tools(
         await pilot.pause()
         detail.toggle_deck_split(DeckLayout.LEFT_RIGHT)
         await pilot.pause()
+        detail.toggle_deck_focus()
+        await pilot.pause()
         detail.show_deck(1, DeckId.TOOLS)
         detail.show_deck(0, DeckId.MAIN)
         await pilot.pause()

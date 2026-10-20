@@ -214,6 +214,8 @@ async def test_non_main_focused_deck_header_still_claims(tmp_path: Any) -> None:
         panel = await _show_overflowing_expanded(detail, tmp_path, pilot)
         detail.toggle_deck_split(DeckLayout.LEFT_RIGHT)
         await pilot.pause()
+        detail.toggle_deck_focus()
+        await pilot.pause()
         detail.show_deck(0, DeckId.MAIN)
         detail.show_deck(1, DeckId.FILES)
         await pilot.pause()

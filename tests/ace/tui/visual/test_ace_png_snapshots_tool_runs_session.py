@@ -117,6 +117,7 @@ async def test_tool_runs_session_rail_png_snapshot(
             title="ACE tool runs card session rail",
         )
         page.app.action_toggle_deck_split_right()
+        page.app.action_toggle_deck_focus()
         await wait_for_visual_idle(page)
         ace_png_visual.assert_page_png(
             page,

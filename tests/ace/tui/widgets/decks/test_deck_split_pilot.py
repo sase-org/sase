@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 
@@ -57,7 +58,7 @@ class _DetailApp(App[None]):
         yield AgentDetail(id="agent-detail-panel")
 
 
-async def test_backslash_opens_top_bottom_with_focus(tmp_path: Path) -> None:
+async def test_backslash_opens_top_bottom_and_keeps_focus(tmp_path: Path) -> None:
     app = _DetailApp()
     pin_paged(app)
     async with app.run_test(size=(100, 30)) as pilot:
@@ -71,10 +72,11 @@ async def test_backslash_opens_top_bottom_with_focus(tmp_path: Path) -> None:
         await pilot.pause()
         area = detail.deck_area
         assert area.state.layout is DeckLayout.TOP_BOTTOM
-        assert area.state.focused == 1
+        assert area.state.focused == 0
         assert area.state.ratio == 50
         assert len(area.visible_panels()) == 2
-        assert area.panel(0).has_class("-focused") or True
+        assert area.panel(0).has_class("-focused")
+        assert area.panel(1).has_class("-unfocused")
         # CSS classes synced.
         assert area.has_class("-top-bottom")
         assert area.has_class("-ratio-50")
@@ -92,7 +94,9 @@ async def test_pipe_opens_left_right_and_unsplit_keeps_focused(tmp_path: Path) -
         detail.toggle_deck_split(DeckLayout.LEFT_RIGHT)
         await pilot.pause()
         assert detail.deck_area.state.layout is DeckLayout.LEFT_RIGHT
-        assert detail.deck_area.state.focused == 1
+        assert detail.deck_area.state.focused == 0
+        detail.toggle_deck_focus()
+        await pilot.pause()
         focused_widget = detail.deck_area.panel(1)
         focused_deck = focused_widget.deck
         # Same-key unsplit keeps the focused panel, not panel 0.
@@ -116,8 +120,6 @@ async def test_unsplit_keeps_first_when_first_focused(tmp_path: Path) -> None:
         panel0 = detail.deck_area.panel(0)
         card_before = panel0.main_view.active_card_id
         detail.toggle_deck_split(DeckLayout.LEFT_RIGHT)
-        await pilot.pause()
-        detail.toggle_deck_focus()
         await pilot.pause()
         assert detail.deck_area.state.focused == 0
         detail.toggle_deck_split(DeckLayout.LEFT_RIGHT)
@@ -146,11 +148,13 @@ async def test_structural_keys_never_remount_survivors(tmp_path: Path) -> None:
         assert area.panel(0) is widget0
         assert area.panel(1) is widget1
         assert area.panel(0).main_view is scroll0
-        card_before = widget0.main_view.active_card_id
         detail.toggle_deck_focus()
         await pilot.pause()
-        assert area.panel(0) is widget0
-        assert area.panel(1) is widget1
+        assert area.state.focused == 1
+        detail.toggle_deck_focus()
+        await pilot.pause()
+        assert area.state.focused == 0
+        card_before = widget0.main_view.active_card_id
         detail.step_deck_ratio(True)
         await pilot.pause()
         assert area.panel(0) is widget0
@@ -212,12 +216,12 @@ async def test_ctrl_f_flips_focus_and_single_noop(tmp_path: Path) -> None:
         assert detail.deck_area.state.focused == 0
         detail.toggle_deck_split(DeckLayout.TOP_BOTTOM)
         await pilot.pause()
-        assert detail.deck_area.state.focused == 1
+        assert detail.deck_area.state.focused == 0
         detail.toggle_deck_focus()
         await pilot.pause()
-        assert detail.deck_area.state.focused == 0
-        assert detail.deck_area.panel(0).has_class("-focused")
-        assert detail.deck_area.panel(1).has_class("-unfocused")
+        assert detail.deck_area.state.focused == 1
+        assert detail.deck_area.panel(1).has_class("-focused")
+        assert detail.deck_area.panel(0).has_class("-unfocused")
 
 
 async def test_ratio_steps_and_clamp() -> None:
@@ -230,6 +234,8 @@ async def test_ratio_steps_and_clamp() -> None:
         detail.update_display(agent)
         await pilot.pause()
         detail.toggle_deck_split(DeckLayout.LEFT_RIGHT)
+        await pilot.pause()
+        detail.toggle_deck_focus()
         await pilot.pause()
         # Focus is panel 1: grow shrinks panel 0's share.
         detail.step_deck_ratio(True)
@@ -309,6 +315,8 @@ async def test_ctrl_n_p_act_on_focused_panel(tmp_path: Path) -> None:
         detail.update_display(agent)
         await pilot.pause()
         detail.toggle_deck_split(DeckLayout.TOP_BOTTOM)
+        await pilot.pause()
+        detail.toggle_deck_focus()
         await pilot.pause()
         before0 = detail.deck_area.panel(0).deck
         before1 = detail.deck_area.panel(1).deck
@@ -504,6 +512,36 @@ async def test_real_deck_keys_reach_actions_on_two_and_three_panels(
         await pilot.press("ctrl+shift+d")
         await pilot.pause()
         assert len(detail.deck_area.state.grid.panes) == 1
+
+
+@pytest.mark.parametrize(
+    ("first_key", "second_key"),
+    (("backslash", "vertical_line"), ("vertical_line", "backslash")),
+)
+async def test_real_split_keys_keep_focus_on_original_widget(
+    tmp_path: Path, first_key: str, second_key: str
+) -> None:
+    app = _DeckKeyApp()
+    pin_paged(app)
+    async with app.run_test(size=(130, 40)) as pilot:
+        await pilot.pause()
+        detail = app.query_one("#agent-detail-panel", AgentDetail)
+        detail.update_display(make_artifact_agent(tmp_path, status="DONE"))
+        await pilot.pause()
+        area = detail.deck_area
+        original = area.focused_panel()
+
+        await pilot.press(first_key)
+        await pilot.pause()
+        assert len(area.state.grid.panes) == 2
+        assert area.state.focused == 0
+        assert area.focused_panel() is original
+
+        await pilot.press(second_key)
+        await pilot.pause()
+        assert len(area.state.grid.panes) == 3
+        assert area.state.focused == 0
+        assert area.focused_panel() is original
 
 
 async def test_deck_swap_keeps_identity_and_click_focuses_after_swap(
