@@ -263,6 +263,48 @@ def test_lost_followup_error_does_not_claim_a_reboot() -> None:
     assert "unknown" in LOST_FOLLOWUP_ERROR.lower()
 
 
+def test_lost_supervisor_diagnostic_reaches_done_and_show_without_followup(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from io import StringIO
+
+    from rich.console import Console
+
+    from sase.main.monitor_render import monitor_detail, monitor_show_json
+    from sase.monitor.models import MonitorRecord
+    from ._fixtures import record_from_disk
+
+    artifacts_dir = _make_proc_monitor(tmp_path)
+    message = (
+        "supervisor exited without reporting; last supervisor error: "
+        "ValueError: failed to serialize proc (os error 28) (disk full)"
+    )
+    state = _settlement_state(artifacts_dir)
+    state.update(
+        status="error",
+        termination_reason="supervisor-loss",
+        exit_code=None,
+        message=message,
+    )
+    monkeypatch.setattr(
+        "sase.monitor.proc_adapter.launch_followup_agent",
+        lambda *_args, **_kwargs: pytest.fail("lost monitor must not launch"),
+    )
+
+    settle_monitor_artifacts(state)
+    settle_monitor_followup(state)
+
+    done = json.loads((Path(artifacts_dir) / "done.json").read_text())
+    assert done["monitor_state"] == "lost"
+    assert done["error"] == message
+    record = MonitorRecord.from_record(record_from_disk(artifacts_dir))
+    assert monitor_show_json(record, output="")["monitor"]["error"] == message
+    rendered = StringIO()
+    Console(file=rendered, width=200, color_system=None).print(monitor_detail(record))
+    assert message in rendered.getvalue()
+    assert record.followup_agent is None
+
+
 def test_settle_monitor_artifacts_reuses_frozen_command_ended_at(
     tmp_path: Path,
 ) -> None:

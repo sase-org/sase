@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import errno
 import os
+import subprocess
+import sys
 import threading
 import time
 from pathlib import Path
@@ -14,6 +17,50 @@ from sase.logs.pipe import BoundedLogPipe
 # Well under the historical five-second drain-thread join, with room for
 # scheduling noise around the configured drain budget plus join allowance.
 _PROMPT_CLOSE_SECONDS = 1.0
+
+
+def test_log_enospc_keeps_draining_child_and_counts_discarded_bytes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sase.logs import pipe as pipe_module
+
+    observed = bytearray()
+    pipe = BoundedLogPipe(
+        tmp_path / "stream.log", max_bytes=1024, on_chunk=observed.extend
+    )
+    writes = 0
+
+    def full_disk(*_args: object, **_kwargs: object) -> None:
+        nonlocal writes
+        writes += 1
+        raise OSError(errno.ENOSPC, "No space left on device")
+
+    monkeypatch.setattr(pipe_module, "append_bytes_locked", full_disk)
+    byte_count = 2 * 1024 * 1024
+    try:
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                f"import sys; sys.stdout.buffer.write(b'x' * {byte_count}); sys.stdout.flush()",
+            ],
+            stdout=pipe,
+            stderr=subprocess.PIPE,
+            timeout=10,
+            check=False,
+        )
+    finally:
+        with pytest.raises(OSError, match="No space left on device"):
+            pipe.close()
+
+    assert result.returncode == 0, result.stderr
+    assert writes == 1
+    assert len(observed) == byte_count
+    snapshot = pipe.retention_snapshot()
+    assert snapshot.total_observed_bytes == byte_count
+    assert snapshot.retained_ranges == ()
+    assert snapshot.drain_confirmed is True
+    assert snapshot.complete is False
 
 
 def test_bounded_log_pipe_reports_chunk_callback_errors_after_disk_append(

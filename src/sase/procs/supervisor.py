@@ -32,8 +32,9 @@ from .runtime import (
     write_json_atomic,
     write_termination_intent,
 )
-from .settlement import maybe_crash, settle_named_proc
+from .settlement import maybe_crash
 from .store import claim_proc_supervisor, get_proc, update_proc
+from .supervisor_storage import settle_with_storage_retry
 
 _POLL_SECONDS = 0.05
 _KILL_GRACE_SECONDS = 5.0
@@ -124,7 +125,7 @@ def run_supervisor(proc_id: str, *, startup_signal: int | None = None) -> int:
     if proc.status in TERMINAL_PROC_STATUSES:
         return 0
     if startup_signal is not None:
-        finished = settle_named_proc(
+        finished = settle_with_storage_retry(
             proc.proc_id,
             supervisor_id=proc.supervisor_id or supervisor_identity_token(os.getpid()),
             status="error",
@@ -138,7 +139,7 @@ def run_supervisor(proc_id: str, *, startup_signal: int | None = None) -> int:
         owner = proc.supervisor_id or supervisor_id
         frozen = ProcObservedSettlementOutcome.from_dict(proc.settlement_outcome)
         if frozen is not None and frozen.is_known_command_result():
-            finished = settle_named_proc(
+            finished = settle_with_storage_retry(
                 proc.proc_id,
                 supervisor_id=owner,
                 status=frozen.status,
@@ -147,7 +148,7 @@ def run_supervisor(proc_id: str, *, startup_signal: int | None = None) -> int:
                 exit_code=frozen.exit_code,
             )
         else:
-            finished = settle_named_proc(
+            finished = settle_with_storage_retry(
                 proc.proc_id,
                 supervisor_id=owner,
                 status="error",
@@ -162,6 +163,7 @@ def run_supervisor(proc_id: str, *, startup_signal: int | None = None) -> int:
     message = "supervisor exited without reporting"
     termination_reason = "supervisor-loss"
     output_pipe: BoundedLogPipe | None = None
+    command_outcome_known = False
     try:
         proc = _claim_supervisor(proc, supervisor_id)
         prepare_error = _prepare_prompt_proc(proc, termination)
@@ -195,6 +197,7 @@ def run_supervisor(proc_id: str, *, startup_signal: int | None = None) -> int:
         else:
             proc = get_proc(proc.proc_id) or proc
             outcome = _run_command(proc, termination, activity, output_pipe)
+            command_outcome_known = True
             status = outcome["status"]
             exit_code = outcome["exit_code"]
             message = outcome["message"]
@@ -212,11 +215,14 @@ def run_supervisor(proc_id: str, *, startup_signal: int | None = None) -> int:
         _append_supervisor_line(output_pipe, message)
     finally:
         close_error = _close_output_pipe(output_pipe)
-        if close_error is not None and status != "killed":
-            status = "error"
-            message = f"supervisor error: {_one_line(close_error)}"
-            termination_reason = "supervisor-loss"
-        settle_named_proc(
+        if close_error is not None:
+            if command_outcome_known:
+                message += f"; output log incomplete: {_one_line(close_error)}"
+            elif status != "killed":
+                status = "error"
+                message = f"supervisor error: {_one_line(close_error)}"
+                termination_reason = "supervisor-loss"
+        settle_with_storage_retry(
             proc_id,
             supervisor_id=supervisor_id,
             status=status,

@@ -113,6 +113,7 @@ class MonitorRecord:
     pid: int | None = None
     exit_code: int | None = None
     elapsed_seconds: float | None = None
+    error: str | None = None
     output_path: str | None = None
     output_truncated: bool = False
     starter_agent: str | None = None
@@ -269,6 +270,7 @@ class MonitorRecord:
             pid=meta.pid,
             exit_code=exit_code,
             elapsed_seconds=elapsed_seconds,
+            error=done.error if done is not None else None,
             output_path=meta_turn.output_path,
             output_truncated=meta_turn.output_truncated,
             starter_agent=(

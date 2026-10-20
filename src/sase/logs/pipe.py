@@ -79,6 +79,7 @@ class BoundedLogPipe(io.TextIOBase):
         self._seed_existing_ranges()
         self._read_fd, self._write_fd = os.pipe()
         self._write_error: BaseException | None = None
+        self._discard_output = False
         self._closing = threading.Event()
         self._thread = threading.Thread(
             target=self._drain,
@@ -151,7 +152,8 @@ class BoundedLogPipe(io.TextIOBase):
                 if not self._ingest_chunk():
                     break
         except OSError as exc:
-            self._write_error = exc
+            if self._write_error is None:
+                self._write_error = exc
         finally:
             try:
                 os.close(self._read_fd)
@@ -169,24 +171,38 @@ class BoundedLogPipe(io.TextIOBase):
             with self._range_lock:
                 self._drain_confirmed = True
             return False
-        with log_file_lock(self._path):
-            append_bytes_locked(
-                self._path,
-                chunk,
-                max_bytes=self._max_bytes,
-                truncate_oversized=True,
-            )
-        self._record_chunk(len(chunk))
+        if not self._discard_output:
+            try:
+                with log_file_lock(self._path):
+                    append_bytes_locked(
+                        self._path,
+                        chunk,
+                        max_bytes=self._max_bytes,
+                        truncate_oversized=True,
+                    )
+            except OSError as exc:
+                if self._write_error is None:
+                    self._write_error = exc
+                self._discard_output = True
+                # A failed append may already have rotated or partially written.
+                # Do not certify ranges whose location is now uncertain.
+                with self._range_lock:
+                    self._active_ranges.clear()
+                    self._rotated_ranges.clear()
+        self._record_chunk(len(chunk), retained=not self._discard_output)
+        # Output activity must still count while the disk cannot accept logs.
         self._notify_chunk(chunk)
         return True
 
-    def _record_chunk(self, chunk_len: int) -> None:
+    def _record_chunk(self, chunk_len: int, *, retained: bool = True) -> None:
         if chunk_len <= 0:
             return
         with self._range_lock:
             start = self._observed_bytes
             end = start + chunk_len
             self._observed_bytes = end
+            if not retained:
+                return
             if self._max_bytes > 0 and chunk_len > self._max_bytes:
                 written_len = self._max_bytes
                 retained_range = RetainedByteRange(end - self._max_bytes, end)

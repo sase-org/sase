@@ -208,6 +208,7 @@ def _monitor_json(record: MonitorRecord) -> dict[str, Any]:
         "policy_digest": record.policy_digest,
         "pid": record.pid,
         "exit_code": record.exit_code,
+        "error": record.error,
         "elapsed_seconds": _duration_seconds(record),
         "output_truncated": record.output_truncated,
         "starter_agent": record.starter_agent,
@@ -482,6 +483,8 @@ def monitor_detail(record: MonitorRecord) -> Panel:
         )
     if record.exit_code is not None:
         rows.append(("Exit code", _exit_code_text(record)))
+    if record.error:
+        rows.append(("Error", Text(record.error, style="bold red")))
     if record.pid is not None:
         rows.append(("Supervisor pid", Text(str(record.pid))))
     if record.starter_agent:

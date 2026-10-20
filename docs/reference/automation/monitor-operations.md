@@ -62,6 +62,18 @@ completion, or already delivered, among others — make `resume` exit `2` and pr
 precise eligible resume command to stderr when one exists; with `-j`, the JSON result
 carries `code` and `suggested_command` fields.
 
+If a proc-backed monitor loses its supervisor, its failure message in
+`sase monitor show` and `done.json` includes `last supervisor error: <line>` when the
+supervisor log has a readable diagnostic. SASE reads only the last 4 KiB and caps the
+final non-empty line at 500 characters. Disk-exhaustion errors include a `disk full`
+hint. A missing, empty, or unreadable log leaves the generic loss message. Lost monitors
+do not automatically launch a follow-up.
+
+Log write failures keep draining command output, recording an incomplete log without
+changing a known command exit. If settlement runs out of disk space or quota, the
+supervisor retries for up to 70 minutes, allowing housekeeping to reclaim space. A
+successful retry publishes the original command result.
+
 Reading monitors also performs dead-supervisor reconciliation. `sase monitor list`, the
 sase's TUI Agents tab refresh path, and the axe scheduler look for running monitor turns
 whose supervisor identity is no longer alive. Shared outcome freeze lives in the Rust

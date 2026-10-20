@@ -56,6 +56,7 @@ from .spawn import (
     write_launch_barrier,
 )
 from .store import get_proc, read_procs, request_proc_stop, reserve_proc
+from .supervisor_storage import last_supervisor_error
 
 _UNCLAIMED_GRACE_SECONDS = 60.0
 _STOP_WAIT_SECONDS = 15.0
@@ -253,6 +254,8 @@ def _reconcile_named_proc(proc: Proc) -> Proc:
     else:
         reason = "supervisor-loss"
         message = SUPERVISOR_LOSS_MESSAGE
+        if diagnostic := last_supervisor_error(current.proc_id):
+            message += f"; last supervisor error: {diagnostic}"
     status = "killed" if reason == "stop" else "error"
     owner = (
         current.supervisor_id or f"reconcile-{supervisor_identity_token(os.getpid())}"
