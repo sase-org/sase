@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+from datetime import datetime, timezone, UTC
 from importlib.machinery import SourceFileLoader
 from pathlib import Path
 from types import ModuleType
@@ -125,7 +126,13 @@ def stalls_path(tmp_path: Path) -> Path:
 def startup_path(tmp_path: Path) -> Path:
     return _write_jsonl(
         tmp_path / "tui_startup.jsonl",
-        [{"ts": 500.0, "event": "tui_startup", "pid": 11}],
+        [
+            {
+                "timestamp": datetime.fromtimestamp(500.0, tz=UTC).isoformat(),
+                "event": "tui_startup",
+                "pid": 11,
+            }
+        ],
     )
 
 
@@ -234,3 +241,216 @@ def test_main_empty_window_reports_no_rows(
         == 0
     )
     assert "no rows" in capsys.readouterr().out
+
+
+def test_iso_timestamp_startup_windows_bucket_idless_rows(
+    tool: ModuleType, tmp_path: Path
+) -> None:
+    stalls = _write_jsonl(
+        tmp_path / "tui_stalls.jsonl",
+        [{"ts": 600.0, "event": "tui_hitch", "pid": 11, "stall_seconds": 1.0}],
+    )
+    startup = _write_jsonl(
+        tmp_path / "tui_startup.jsonl",
+        [
+            {
+                "timestamp": "1970-01-01T00:08:20+00:00",
+                "event": "tui_startup",
+                "pid": 11,
+            }
+        ],
+    )
+    buckets = tool.bucket_by_instance(tool.load_rows(stalls), tool.load_rows(startup))
+    assert "startup-0" in buckets
+    assert "unknown" not in buckets
+    assert len(buckets["startup-0"]) == 1
+
+
+def test_load_stall_rows_includes_rotated_generation(
+    tool: ModuleType, tmp_path: Path
+) -> None:
+    active = _write_jsonl(
+        tmp_path / "tui_stalls.jsonl",
+        [
+            {
+                "ts": 2000.0,
+                "event": "tui_gc_pause",
+                "generation": 2,
+                "duration_s": 0.2,
+                "trigger": "idle",
+                "app_instance_id": "live",
+            }
+        ],
+    )
+    _write_jsonl(
+        tmp_path / "tui_stalls.jsonl.1",
+        [
+            {
+                "ts": 1000.0,
+                "event": "tui_gc_pause",
+                "generation": 2,
+                "duration_s": 0.3,
+                "trigger": "backstop",
+                "app_instance_id": "rotated",
+            }
+        ],
+    )
+    rows = tool.load_stall_rows(active)
+    instances = {row["app_instance_id"] for row in rows}
+    assert instances == {"live", "rotated"}
+    opted_out = tool.load_stall_rows(active, include_rotated=False)
+    assert {row["app_instance_id"] for row in opted_out} == {"live"}
+
+
+def test_trigger_split_and_backstop_near_input(tool: ModuleType) -> None:
+    rows = [
+        {
+            "ts": 1000.0,
+            "event": "tui_gc_pause",
+            "generation": 2,
+            "duration_s": 0.4,
+            "trigger": "idle",
+            "app_instance_id": "aaa",
+        },
+        {
+            "ts": 1001.0,
+            "event": "tui_gc_pause",
+            "generation": 2,
+            "duration_s": 5.0,
+            "trigger": "backstop",
+            "input_age_s": 1.0,
+            "app_instance_id": "aaa",
+        },
+        {
+            "ts": 1002.0,
+            "event": "tui_gc_pause",
+            "generation": 2,
+            "duration_s": 1.2,
+            "trigger": "rss_backstop",
+            "input_age_s": 3.0,
+            "app_instance_id": "aaa",
+        },
+        {
+            "ts": 1003.0,
+            "event": "tui_gc_pause",
+            "generation": 2,
+            "duration_s": 0.05,
+            "trigger": "automatic",
+            "input_age_s": 0.2,
+            "app_instance_id": "aaa",
+        },
+        {
+            "ts": 1004.0,
+            "event": "tui_gc_pause",
+            "generation": 2,
+            "duration_s": 0.8,
+            "trigger": "startup_freeze",
+            "app_instance_id": "aaa",
+        },
+    ]
+    summary = tool.summarize_instance(rows, since=1000.0, until=1010.0)
+    assert summary["idle_pause_count"] == 1
+    assert summary["pause_stats_by_trigger"]["backstop"]["count"] == 1
+    assert summary["pause_stats_by_trigger"]["rss_backstop"]["count"] == 1
+    assert summary["pause_stats_by_trigger"]["startup_freeze"]["count"] == 1
+    assert summary["pause_stats_by_trigger"]["automatic"]["count"] == 1
+    assert summary["auto_gen2_near_input"] == 1
+    assert summary["backstop_gen2_near_input"] == 1
+    assert summary["rss_backstop_gen2_near_input"] == 0
+
+
+def test_heartbeat_hitch_totals_win_over_interval_union(tool: ModuleType) -> None:
+    rows = [
+        {
+            "ts": 1000.0,
+            "event": "tui_hitch",
+            "stall_seconds": 2.0,
+            "app_instance_id": "aaa",
+        },
+        {
+            "ts": 1002.0,
+            "event": "tui_hitch_recovered",
+            "duration_seconds": 2.0,
+            "app_instance_id": "aaa",
+        },
+        {
+            "ts": 1010.0,
+            "event": "tui_memory_heartbeat",
+            "app_instance_id": "aaa",
+            "loop_hitch_seconds": 12.0,
+            "loop_suppressed_seconds": 4.0,
+            "gc_generations": {"2": {"count": 1, "total_s": 1.0, "max_s": 1.0}},
+        },
+    ]
+    summary = tool.summarize_instance(rows, since=1000.0, until=1030.0)
+    assert summary["frozen_s"] == pytest.approx(12.0)
+    assert summary["loop_hitch_seconds"] == pytest.approx(12.0)
+    assert summary["loop_suppressed_seconds"] == pytest.approx(4.0)
+
+
+def test_acceptance_marks_sase_1f3_targets(
+    tool: ModuleType,
+    stalls_path: Path,
+    startup_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    code = tool.main(
+        [
+            "--path",
+            str(stalls_path),
+            "--startup-path",
+            str(startup_path),
+            "--since",
+            "1000",
+            "--until",
+            "1030",
+            "--instance",
+            "aaa",
+            "--acceptance",
+            "--no-rotated",
+        ]
+    )
+    assert code == 1
+    out = capsys.readouterr().out
+    assert "acceptance (sase-1f3)" in out
+    assert "FAIL" in out
+    assert "idle-collection p95" in out
+    assert "no automatic or backstop gen-2" in out
+
+
+def test_acceptance_passes_clean_window(tool: ModuleType) -> None:
+    rows = [
+        {
+            "ts": 1000.0,
+            "event": "tui_memory_heartbeat",
+            "app_instance_id": "clean",
+            "rss_bytes": 100 * 1024 * 1024,
+            "vmswap_bytes": 0,
+            "loop_hitch_seconds": 0.0,
+            "loop_suppressed_seconds": 0.0,
+            "gc_generations": {"2": {"count": 1, "total_s": 0.1, "max_s": 0.1}},
+        },
+        {
+            "ts": 1001.0,
+            "event": "tui_gc_pause",
+            "generation": 2,
+            "duration_s": 0.1,
+            "trigger": "idle",
+            "input_age_s": 5.0,
+            "app_instance_id": "clean",
+        },
+        {
+            "ts": 1002.0,
+            "event": "tui_memory_heartbeat",
+            "app_instance_id": "clean",
+            "rss_bytes": 110 * 1024 * 1024,
+            "vmswap_bytes": 0,
+            "loop_hitch_seconds": 0.01,
+            "loop_suppressed_seconds": 0.0,
+            "gc_generations": {"2": {"count": 0, "total_s": 0.0, "max_s": 0.0}},
+        },
+    ]
+    summary = tool.summarize_instance(rows, since=1000.0, until=1100.0)
+    result = tool.evaluate_acceptance(summary)
+    assert result["all_pass"] is True
+    assert result["targets"]["jk_p95"]["pass"] is None

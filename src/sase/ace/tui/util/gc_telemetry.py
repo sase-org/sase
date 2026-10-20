@@ -20,7 +20,9 @@ from __future__ import annotations
 
 import gc
 import os
+import resource
 import secrets
+import sys
 import threading
 import time
 from collections import deque
@@ -28,6 +30,8 @@ from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
+
+from sase.ace.tui.util.startup_clock import wall_time_for_mono
 
 ENV_DISABLE = "SASE_TUI_GC_TELEMETRY_DISABLE"
 ENV_FLUSH_INTERVAL = "SASE_TUI_GC_TELEMETRY_FLUSH_SECONDS"
@@ -56,17 +60,39 @@ class _PendingStart(threading.local):
     start_mono: float | None
     thread: str
     trigger: str
+    last_input_mono: float
+    start_majflt: int | None
 
     def __init__(self) -> None:
         self.start_mono = None
         self.thread = ""
         self.trigger = UNTAGGED_TRIGGER
+        self.last_input_mono = 0.0
+        self.start_majflt = None
 
 
 _active: GCTelemetry | None = None
 _trigger_tag: str = UNTAGGED_TRIGGER
 _pending_start = _PendingStart()
 _heartbeat_providers: dict[str, Callable[[], dict[str, Any]]] = {}
+_last_input_mono: float = 0.0
+
+
+def note_last_input_mono(value: float) -> None:
+    """Record the monotonic time of the latest user input.
+
+    The GC callback copies this into each pause record. A plain attribute
+    write so the interactive path stays lock-free.
+    """
+    global _last_input_mono
+    _last_input_mono = value
+
+
+def _majflt() -> int | None:
+    try:
+        return resource.getrusage(resource.RUSAGE_SELF).ru_majflt
+    except Exception:
+        return None
 
 
 def _disabled_by_env() -> bool:
@@ -139,11 +165,24 @@ def _gc_callback(phase: str, info: dict[str, Any]) -> None:
         _pending_start.start_mono = time.monotonic()
         _pending_start.thread = threading.current_thread().name
         _pending_start.trigger = _trigger_tag
+        _pending_start.last_input_mono = _last_input_mono
+        _pending_start.start_majflt = _majflt()
     elif phase == "stop":
         end_mono = time.monotonic()
         start_mono = _pending_start.start_mono
         if start_mono is None:
             start_mono = end_mono
+        last_input = _pending_start.last_input_mono
+        input_age_s = None
+        if last_input > 0.0:
+            age = start_mono - last_input
+            input_age_s = age if age >= 0.0 else 0.0
+        start_maj = _pending_start.start_majflt
+        end_maj = _majflt()
+        major_faults_delta = None
+        if start_maj is not None and end_maj is not None:
+            delta = end_maj - start_maj
+            major_faults_delta = delta if delta >= 0 else 0
         recorder._record_stop(
             int(info.get("generation", 0)),
             start_mono,
@@ -152,8 +191,12 @@ def _gc_callback(phase: str, info: dict[str, Any]) -> None:
             _pending_start.trigger,
             int(info.get("collected", 0)),
             int(info.get("uncollectable", 0)),
+            input_age_s,
+            major_faults_delta,
         )
         _pending_start.start_mono = None
+        _pending_start.last_input_mono = 0.0
+        _pending_start.start_majflt = None
 
 
 class GCTelemetry:
@@ -170,6 +213,7 @@ class GCTelemetry:
         status_path: Path = _PROC_STATUS_PATH,
         stat_path: Path = _PROC_STAT_PATH,
         monotonic: Callable[[], float] = time.monotonic,
+        wall: Callable[[], float] = time.time,
         emit: Callable[[dict[str, Any]], None] | None = None,
     ) -> None:
         self.instance_id = app_instance_id
@@ -180,6 +224,7 @@ class GCTelemetry:
         self._status_path = status_path
         self._stat_path = stat_path
         self._monotonic = monotonic
+        self._wall = wall
         self._emit = emit if emit is not None else _emit_stall_row
         self._gen_counts: list[int] = []
         self._gen_total_s: list[float] = []
@@ -218,6 +263,8 @@ class GCTelemetry:
         trigger: str,
         collected: int,
         uncollectable: int,
+        input_age_s: float | None = None,
+        major_faults_delta: int | None = None,
     ) -> None:
         duration = end_mono - start_mono
         if duration < 0.0:
@@ -246,6 +293,8 @@ class GCTelemetry:
                 "uncollectable": uncollectable,
                 "start_mono": start_mono,
                 "end_mono": end_mono,
+                "input_age_s": input_age_s,
+                "major_faults_delta": major_faults_delta,
             }
             if len(self._queue) < QUEUE_MAX:
                 self._queue.append(record)
@@ -333,9 +382,14 @@ class GCTelemetry:
             self._emit(self._pause_row(record, suppressed))
 
     def _pause_row(self, record: dict[str, Any], suppressed: int) -> dict[str, Any]:
+        start_mono = record["start_mono"]
+        start_ts = wall_time_for_mono(
+            start_mono, wall_now=self._wall(), mono_now=self._monotonic()
+        )
+        input_age = record.get("input_age_s")
         return {
             "event": "tui_gc_pause",
-            "ts": time.time(),
+            "ts": self._wall(),
             "pid": os.getpid(),
             "app_instance_id": self.instance_id,
             "generation": record["generation"],
@@ -345,6 +399,9 @@ class GCTelemetry:
             "collected": record["collected"],
             "uncollectable": record["uncollectable"],
             "suppressed_count": suppressed,
+            "start_ts": round(start_ts, 6),
+            "input_age_s": (None if input_age is None else round(float(input_age), 6)),
+            "major_faults_delta": record.get("major_faults_delta"),
         }
 
     def _write_heartbeat(self, now: float) -> None:
@@ -391,6 +448,9 @@ class GCTelemetry:
             "gc_threshold": list(gc.get_threshold()),
             "gc_freeze_count": _freeze_count(),
             "gc_generations": generations,
+            "gc_stats": _gc_stats(),
+            "allocated_blocks": _allocated_blocks(),
+            "python_version": _python_version(),
         }
         for provider in list(_heartbeat_providers.values()):
             try:
@@ -401,6 +461,27 @@ class GCTelemetry:
                 for key, value in extra.items():
                     row.setdefault(key, value)
         self._emit(row)
+
+
+def emit_row(event: str, extra: dict[str, Any]) -> None:
+    """Write one telemetry row on the flush/census path.
+
+    Census and other opt-in rows share the stall JSONL. Core identity
+    fields are filled here so callers never clobber ``event``.
+    """
+    active = _active
+    row: dict[str, Any] = {
+        "event": event,
+        "ts": time.time(),
+        "pid": os.getpid(),
+        "app_instance_id": None if active is None else active.instance_id,
+    }
+    for key, value in extra.items():
+        row.setdefault(key, value)
+    if active is not None:
+        active._emit(row)
+    else:
+        _emit_stall_row(row)
 
 
 def _emit_stall_row(row: dict[str, Any]) -> None:
@@ -461,6 +542,33 @@ def _freeze_count() -> int | None:
         return int(freeze_count())
     except Exception:
         return None
+
+
+def _gc_stats() -> list[dict[str, int]] | None:
+    get_stats = getattr(gc, "get_stats", None)
+    if not callable(get_stats):
+        return None
+    try:
+        stats = get_stats()
+    except Exception:
+        return None
+    if not isinstance(stats, list):
+        return None
+    return stats
+
+
+def _allocated_blocks() -> int | None:
+    getter = getattr(sys, "getallocatedblocks", None)
+    if not callable(getter):
+        return None
+    try:
+        return int(getter())
+    except Exception:
+        return None
+
+
+def _python_version() -> str:
+    return sys.version.split()[0]
 
 
 def _positive_float_env(name: str, default: float) -> float:

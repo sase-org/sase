@@ -462,6 +462,63 @@ def test_mouse_handlers_record_input_without_consuming() -> None:
     ]
 
 
+def test_census_off_by_default(
+    clock: _Clock, collector: _Collector, recorder: _Recorder
+) -> None:
+    emitted: list[dict[str, Any]] = []
+    policy = _idle_policy(clock, collector, recorder)
+    policy._census_emit = emitted.append
+    assert policy.tick(clock.now) == "startup_freeze"
+    recorder.gen1 = 150
+    clock.advance(61.0)
+    assert policy.tick(clock.now) == "idle"
+    assert emitted == []
+    assert collector.collections == 2
+
+
+def test_census_rate_limited_on_idle(
+    clock: _Clock,
+    collector: _Collector,
+    recorder: _Recorder,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv(gc_policy.ENV_CENSUS, "1")
+    monkeypatch.setattr(gc_policy, "CENSUS_INTERVAL_S", 100.0)
+    emitted: list[dict[str, Any]] = []
+    policy = _idle_policy(clock, collector, recorder)
+    policy._census_emit = emitted.append
+    assert policy.tick(clock.now) == "startup_freeze"
+    assert emitted == []
+    recorder.gen1 = 150
+    clock.advance(61.0)
+    assert policy.tick(clock.now) == "idle"
+    assert len(emitted) == 1
+    assert emitted[0]["event"] == "tui_gc_census"
+    assert "garbage_top" in emitted[0]
+    assert "survivor_top" in emitted[0]
+    assert emitted[0]["census_duration_s"] >= 0.0
+    recorder.gen1 = 150
+    clock.advance(61.0)
+    assert policy.tick(clock.now) == "idle"
+    assert len(emitted) == 1
+    recorder.gen1 = 150
+    clock.advance(61.0)
+    assert policy.tick(clock.now) == "idle"
+    assert len(emitted) == 2
+
+
+def test_top_types_uses_module_qualname() -> None:
+    class _Probe:
+        pass
+
+    top, total = gc_policy._top_types([_Probe(), _Probe(), object()], n=10)
+    assert total == 3
+    assert top[0]["count"] == 2
+    assert top[0]["type"].endswith(
+        "test_top_types_uses_module_qualname.<locals>._Probe"
+    )
+
+
 @pytest.mark.asyncio
 async def test_testing_harness_does_not_auto_install() -> None:
     from sase.ace.testing import _startup as harness_startup

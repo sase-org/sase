@@ -100,4 +100,11 @@ class EventCountdownMixin(EventHandlersBase):
         Called from on_key() for normal bindings and directly from
         priority-binding actions (e.g. tab switching) that bypass on_key().
         """
-        self._last_input_mono = time.monotonic()
+        now = time.monotonic()
+        self._last_input_mono = now
+        try:
+            from sase.ace.tui.util.gc_telemetry import note_last_input_mono
+
+            note_last_input_mono(now)
+        except Exception:
+            pass

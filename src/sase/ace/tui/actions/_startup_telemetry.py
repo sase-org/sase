@@ -32,18 +32,26 @@ import time
 from datetime import UTC, datetime
 from typing import Any
 
+from ..util.imported_revision import imported_source_revision
 from ..util.pump_tasks import spawn_pump_free_task
 
 log = logging.getLogger(__name__)
 
 
-def _cheap_sase_version() -> str | None:
-    """Return the imported release string, or ``None`` when unavailable.
+def _imported_source_revision() -> str | None:
+    """Return the git SHA this process imported, or ``None``.
 
-    A git-derived source revision would need a subprocess, which is never
-    cheap on the startup path, so the release string is what identifies the
-    imported snapshot here.
+    Captured once at import of ``imported_revision`` by reading ``.git/HEAD``
+    without a subprocess. A later checkout fast-forward does not change it.
     """
+    try:
+        return imported_source_revision()
+    except Exception:
+        return None
+
+
+def _cheap_sase_version() -> str | None:
+    """Return the imported release string, or ``None`` when unavailable."""
     try:
         from sase import __version__
 
@@ -189,6 +197,7 @@ class StartupTelemetryMixin:
             "pid": os.getpid(),
             "app_instance_id": app_instance_id(self),
             "sase_version": _cheap_sase_version(),
+            "source_revision": _imported_source_revision(),
             "initial_tab": self._startup_initial_tab,
             "source": getattr(self, "_agents_refresh_active_source", "unknown"),
             "tier": getattr(load_state, "tier", None),

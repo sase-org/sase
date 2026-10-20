@@ -141,6 +141,25 @@ def composing() -> Iterator[None]:
         _mark_compose_end()
 
 
+def wall_time_for_mono(
+    mono: float,
+    *,
+    wall_now: float | None = None,
+    mono_now: float | None = None,
+) -> float:
+    """Convert a monotonic timestamp to wall-clock epoch seconds.
+
+    Uses the same ``CLOCK_MONOTONIC`` domain as the exec-aware process-start
+    anchor (``SASE_TUI_EXEC_MONO_NS`` survives ``os.execv``), so a collection
+    that started before a TUI restart still maps onto wall time correctly.
+    """
+    if wall_now is None:
+        wall_now = time.time()
+    if mono_now is None:
+        mono_now = time.monotonic()
+    return wall_now + (mono - mono_now)
+
+
 def _since(start: float | None, end: float | None) -> float | None:
     if start is None or end is None:
         return None

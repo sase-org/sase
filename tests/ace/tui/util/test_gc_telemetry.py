@@ -23,6 +23,7 @@ from sase.ace.tui.util.gc_telemetry import (
     install_gc_telemetry,
     latest_rss_bytes,
     new_app_instance_id,
+    note_last_input_mono,
     recent_collections,
     register_heartbeat_provider,
     uninstall_gc_telemetry,
@@ -79,6 +80,9 @@ def telemetry(
         gc_telemetry._pending_start.start_mono = None
         gc_telemetry._pending_start.thread = ""
         gc_telemetry._pending_start.trigger = gc_telemetry.UNTAGGED_TRIGGER
+        gc_telemetry._pending_start.last_input_mono = 0.0
+        gc_telemetry._pending_start.start_majflt = None
+        gc_telemetry._last_input_mono = 0.0
 
 
 def _record(
@@ -487,3 +491,71 @@ def test_startup_record_carries_instance_and_version() -> None:
     assert record["event"] == "tui_startup"
     assert record["app_instance_id"] == "stub-instance"
     assert record["sase_version"] is None or isinstance(record["sase_version"], str)
+    assert "source_revision" in record
+    assert record["source_revision"] is None or isinstance(
+        record["source_revision"], str
+    )
+
+
+def test_pause_row_carries_start_ts_input_age_and_fault_delta(
+    emitted: list[dict[str, Any]], clock: _Clock, tmp_path: Path
+) -> None:
+    tel = GCTelemetry(
+        app_instance_id="test-instance",
+        monotonic=clock,
+        wall=lambda: 5000.0,
+        emit=emitted.append,
+        status_path=tmp_path / "missing-status",
+        stat_path=tmp_path / "missing-stat",
+    )
+    tel._record_stop(
+        2,
+        2000.0,
+        2000.4,
+        "MainThread",
+        "idle",
+        10,
+        0,
+        3.5,
+        17,
+    )
+    tel._flush_queued(clock.now)
+    row = emitted[0]
+    assert row["event"] == "tui_gc_pause"
+    assert row["start_ts"] == pytest.approx(5000.0 + (2000.0 - clock.now))
+    assert row["input_age_s"] == pytest.approx(3.5)
+    assert row["major_faults_delta"] == 17
+
+
+def test_callback_records_input_age_and_majflt(
+    telemetry: GCTelemetry,
+    emitted: list[dict[str, Any]],
+    clock: _Clock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    faults = iter((10, 25))
+    monkeypatch.setattr(gc_telemetry, "_majflt", lambda: next(faults))
+    monkeypatch.setattr(gc_telemetry.time, "monotonic", clock)
+    note_last_input_mono(clock.now - 2.5)
+    gc_telemetry._gc_callback("start", {"generation": 2})
+    clock.advance(0.4)
+    gc_telemetry._gc_callback("stop", {"generation": 2, "collected": 1})
+    telemetry._flush_queued(clock.now)
+    assert emitted
+    row = emitted[0]
+    assert row["major_faults_delta"] == 15
+    assert row["input_age_s"] == pytest.approx(2.5)
+    assert row["duration_s"] == pytest.approx(0.4)
+
+
+def test_heartbeat_includes_stats_blocks_and_python_version(
+    telemetry: GCTelemetry,
+    emitted: list[dict[str, Any]],
+    clock: _Clock,
+) -> None:
+    telemetry._write_heartbeat(clock.now)
+    row = emitted[-1]
+    assert isinstance(row["python_version"], str)
+    assert row["python_version"]
+    assert row["gc_stats"] is None or isinstance(row["gc_stats"], list)
+    assert row["allocated_blocks"] is None or isinstance(row["allocated_blocks"], int)

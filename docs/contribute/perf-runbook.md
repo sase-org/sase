@@ -740,8 +740,11 @@ only exercises a tiny hermetic in-memory fixture, so it stays safe to run in CI.
 
 `SASE_TUI_HEAP=1` enables an opt-in `tracemalloc` sampler for long-lived sase's TUI
 sessions. Tracing starts when `AceApp` initializes, while each snapshot is scheduled
-from the TUI timer into a pump-free task and written from a worker thread. Samples
-append one compact JSONL record to:
+from the TUI timer into a pump-free task and written from a worker thread. For
+collector-side attribution of cyclic garbage (which types the idle collection actually
+reclaimed, and which tracked types survived), use `SASE_TUI_GC_CENSUS=1` instead; that
+path writes `tui_gc_census` rows into `tui_stalls.jsonl` and lengthens the pause.
+Samples append one compact JSONL record to:
 
 ```text
 ~/.sase/perf/tui_heap.jsonl
@@ -935,16 +938,21 @@ The GC telemetry service (`src/sase/ace/tui/util/gc_telemetry.py`, installed fro
 - `tui_gc_pause` — one row per gen-2 collection and per collection ≥ 50 ms, with
   `generation`, `duration_s`, `thread`, `trigger` (`"automatic"` unless the collection
   ran under `gc_trigger(...)`, e.g. an intentional idle collection), `collected` /
-  `uncollectable`, and `app_instance_id`. Rows are rate-capped at 60/min;
-  `suppressed_count` reports pauses folded into a row since the previous admitted one.
-  Heartbeat totals stay exact either way.
+  `uncollectable`, and `app_instance_id`. Additive fields: `start_ts` (wall-clock
+  collection start, derived from `start_mono` through the exec-aware clock),
+  `input_age_s` (seconds since the last input at that start, `null` if none was
+  recorded), and `major_faults_delta` (process major-fault count across the collection,
+  from `resource.getrusage`). Rows are rate-capped at 60/min; `suppressed_count` reports
+  pauses folded into a row since the previous admitted one. Heartbeat totals stay exact
+  either way.
 - `tui_memory_heartbeat` — every 5 minutes (plus once ~15 s after startup), with
   `rss_bytes` / `vmswap_bytes` (from `/proc/self/status`, `null` off Linux),
   `major_faults` and `major_faults_delta` (from `/proc/self/stat`), `gc_count` /
-  `gc_threshold` / `gc_freeze_count`, exact per-generation `count` / `total_s` / `max_s`
-  for the window they cover (`gc_generations`), instance `uptime_s` (since install), and
-  `window_s` (wall-clock span since the previous heartbeat, so GC share is exact as
-  `total_s / window_s`).
+  `gc_threshold` / `gc_freeze_count`, `gc_stats` (`gc.get_stats()`), `allocated_blocks`
+  (`sys.getallocatedblocks()`, `null` when missing), `python_version`, exact
+  per-generation `count` / `total_s` / `max_s` for the window they cover
+  (`gc_generations`), instance `uptime_s` (since install), and `window_s` (wall-clock
+  span since the previous heartbeat, so GC share is exact as `total_s / window_s`).
 
 Every row carries `app_instance_id` (also on `tui_startup` and `tui_agent_load` rows),
 so a busy hour spanning restarts splits cleanly per instance. Filter one instance's GC
@@ -957,6 +965,11 @@ jq -c 'select(.event == "tui_gc_pause" and .app_instance_id == "<id>")
 
 Disable with `SASE_TUI_GC_TELEMETRY_DISABLE=1`. The service never auto-installs under
 the `sase.ace.testing` harness.
+
+`tui_startup.jsonl` rows also carry `source_revision`: the git SHA of the editable
+checkout this process imported, read from `.git/HEAD` (and `packed-refs` / worktree
+`gitdir` files) without a subprocess, captured once at import. Non-git installs record
+`null`. Use it to confirm a restarted TUI is running the instrumented code.
 
 The watchdog contributes exact hitch totals to each heartbeat through a `stall_watchdog`
 heartbeat provider: `loop_hitch_episodes` / `loop_hitch_seconds` and
@@ -1001,23 +1014,40 @@ with `SASE_TUI_GC_POLICY_DISABLE=1` (telemetry stays on). The policy never auto-
 under the `sase.ace.testing` harness, and teardown restores the original thresholds,
 calls `gc.unfreeze()`, and stops the tick timer.
 
+Set `SASE_TUI_GC_CENSUS=1` to opt into a type census on idle-triggered full collections,
+at most once every 10 minutes. That collection runs with `gc.DEBUG_SAVEALL`, writes a
+`tui_gc_census` row (the 40 most common collected types as `module.qualname`, the 40
+most common surviving tracked types, and `census_duration_s`), then clears `gc.garbage`
+and collects again to free them. The census lengthens the pause; leave it off unless you
+are attributing garbage. Default is off.
+
 ### Frozen-share report
 
 `tools/tui_freeze_report` is the read-only measuring tool for the freeze epic. It
 reports per `app_instance_id` (rows that predate instance IDs are bucketed into
-`tui_startup` windows instead of being dropped) over a `--since` / `--until` window:
+`tui_startup` windows instead of being dropped) over a `--since` / `--until` window.
+Real startup rows carry an ISO `timestamp` field, not `ts`. The rotated
+`tui_stalls.jsonl.1` generation is read by default; pass `--no-rotated` to skip it.
 
 ```bash
 tools/tui_freeze_report --since 2026-10-01T12:00 --until 2026-10-01T13:00
 tools/tui_freeze_report --instance abc123 --path /tmp/sase-tui-soak.jsonl
+tools/tui_freeze_report --acceptance --since 2026-10-01T12:00 --until 2026-10-01T16:00
 ```
 
-Each instance reports the loop-only union frozen share (pump and loop tiers are never
-double-counted), hitch duration median / p90 / max, the late versus on-time split, GC
-share by generation and trigger, idle-collection pause p50 / p95 / max, automatic gen-2
-collections within 2 s of input (a documented heuristic: it needs a
-`last_keypress_age_s` context row within 2 s of the pause), and the RSS / swap
-trajectory from heartbeats.
+Each instance reports the loop-only frozen share (preferring the heartbeat's exact
+`loop_hitch_seconds` and `loop_suppressed_seconds`, falling back to the hitch-interval
+union on old logs), hitch duration median / p90 / max, the late versus on-time split, GC
+share by generation and trigger, pause p50 / p95 / max split by `idle` / `backstop` /
+`rss_backstop` / `startup_freeze` / `automatic`, automatic and backstop gen-2
+collections within 2 s of input (preferring the pause row's `input_age_s`; otherwise a
+documented heuristic that needs a `last_keypress_age_s` context row within 2 s of the
+pause), and the RSS / swap trajectory from heartbeats. `--acceptance` marks each
+sase-1f3 target pass or fail per instance (idle-collection p95 ≤ 500 ms, total GC < 3%
+of wall, hitches < 0.5% of wall, no automatic or backstop gen-2 within 2 s of input, RSS
+growth < 0.5 GiB, VmSwap about 0). j/k p95 is n/a here; measure it with
+`SASE_TUI_PERF=1`. The process exits 1 when `--acceptance` is set and any evaluated
+target fails.
 
 ## Startup telemetry capture
 
@@ -1046,7 +1076,8 @@ The record also carries `process_start_to_on_mount_seconds` and
 `agents_ready_seconds` / `axe_ready_seconds` (each surface's own elapsed time from
 process start), `initial_tab`, `agent_row_count`, `index_row_count` (the Tier-1 index
 query's row count when the load went through the persistent index, `null` otherwise),
-and `source` / `tier` / `artifact_source` from the load's `AgentLoadState`.
+`source` / `tier` / `artifact_source` from the load's `AgentLoadState`, and
+`source_revision` (the imported git SHA, or `null`).
 
 `process_start_to_on_mount_seconds` keeps its historical meaning (the AceApp init stamp
 to `on_mount`). Four additive fields split the wider OS-process-start → compose path

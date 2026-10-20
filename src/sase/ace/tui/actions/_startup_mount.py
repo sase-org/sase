@@ -168,6 +168,9 @@ class StartupMountMixin:
                 subscribe_watchdog_to_suspend_signals(self, self._stall_watchdog)
             )
             self._last_input_mono = time.monotonic()
+            from ..util.gc_telemetry import note_last_input_mono
+
+            note_last_input_mono(self._last_input_mono)
         except Exception:
             log.exception("Failed to start stall watchdog")
 

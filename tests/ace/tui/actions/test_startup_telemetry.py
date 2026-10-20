@@ -46,6 +46,7 @@ _NEW_STARTUP_TELEMETRY_FIELDS = (
     "cpu_count",
     "patch_relation_index_builds_before_ready",
     "auto_refresh_ticks_before_release",
+    "source_revision",
 )
 
 

@@ -6,19 +6,24 @@ service writes ``tui_gc_pause`` and ``tui_memory_heartbeat`` rows, all into
 the same JSONL log. This read-only script turns those rows into the
 acceptance numbers for the freeze epic, split per ``app_instance_id``:
 
-- the loop-only union frozen share (pump and loop tiers are never
-  double-counted: only loop-tier episodes enter the union);
+- the loop-only frozen share, preferring the heartbeat's exact
+  ``loop_hitch_seconds`` (plus suppressed totals) and falling back to the
+  hitch-interval union on old logs;
 - median, p90, and max hitch duration;
 - the late (whole-process, ``watchdog_lateness``) versus on-time split;
 - GC share by generation and trigger, from heartbeats and pause rows;
-- idle-collection pause p50/p95/max;
-- automatic gen-2 collections that started within 2 s of input;
-- the RSS/swap trajectory from heartbeats.
+- pause p50/p95/max split by ``idle`` / ``backstop`` / ``rss_backstop`` /
+  ``startup_freeze`` / ``automatic``;
+- automatic and backstop gen-2 collections that started within 2 s of input;
+- the RSS/swap trajectory from heartbeats;
+- ``--acceptance``, which marks each sase-1f3 target pass or fail.
 
 Rows that predate instance IDs are bucketed into ``tui_startup`` record
 windows (``startup-<n>``) instead of being dropped; rows outside every
-window land in ``unknown``. Missing additive fields on old rows default to
-the on-time, zero-overlap reading.
+window land in ``unknown``. Real startup rows carry an ISO ``timestamp``,
+not ``ts``. The rotated ``tui_stalls.jsonl.1`` generation is read by
+default (``--no-rotated`` opts out). Missing additive fields on old rows
+default to the on-time, zero-overlap reading.
 """
 
 from __future__ import annotations
@@ -29,12 +34,29 @@ import os
 from collections.abc import Sequence
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any, TypeGuard
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 STALLS_ENV_VAR = "SASE_TUI_STALL_PATH"
 STARTUP_ENV_VAR = "SASE_TUI_STARTUP_PATH"
+
+NEAR_INPUT_MAX_S = 2.0
+NEAR_INPUT_TRIGGERS = frozenset({"automatic", "backstop", "rss_backstop"})
+KNOWN_TRIGGERS = (
+    "idle",
+    "backstop",
+    "rss_backstop",
+    "startup_freeze",
+    "automatic",
+)
+IDLE_P95_LIMIT_S = 0.5
+GC_SHARE_LIMIT = 0.03
+HITCH_SHARE_LIMIT = 0.005
+RSS_GROWTH_LIMIT_BYTES = int(0.5 * 1024**3)
+JK_P95_LIMIT_MS = 16.0
+FOUR_HOURS_S = 4 * 3600.0
 
 
 def _default_stalls_path() -> Path:
@@ -83,12 +105,39 @@ def load_rows(path: Path) -> list[dict]:
     return rows
 
 
+def rotated_path(path: Path) -> Path:
+    """Return the single rotated generation kept beside *path*."""
+    return Path(f"{path}.1")
+
+
+def load_stall_rows(path: Path, *, include_rotated: bool = True) -> list[dict]:
+    """Load the active stall log and, by default, its ``.1`` rotation."""
+    rows = load_rows(path)
+    if include_rotated:
+        rows.extend(load_rows(rotated_path(path)))
+    return rows
+
+
 def _row_ts(row: dict) -> float | None:
+    """Return the row's epoch seconds from ``ts`` or ISO ``timestamp``."""
     ts = row.get("ts")
     if isinstance(ts, bool):
-        return None
-    if isinstance(ts, (int, float)):
+        pass
+    elif isinstance(ts, (int, float)):
         return float(ts)
+    timestamp = row.get("timestamp")
+    if isinstance(timestamp, bool):
+        return None
+    if isinstance(timestamp, (int, float)):
+        return float(timestamp)
+    if isinstance(timestamp, str):
+        try:
+            parsed = datetime.fromisoformat(timestamp)
+        except ValueError:
+            return None
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=timezone.utc)
+        return parsed.timestamp()
     return None
 
 
@@ -164,20 +213,53 @@ def _merge_union(intervals: list[tuple[float, float]]) -> float:
     return total
 
 
+def _is_number(value: object) -> TypeGuard[int | float]:
+    return isinstance(value, (int, float)) and not isinstance(value, bool)
+
+
+def _pause_stats(values: list[float]) -> dict[str, Any]:
+    sorted_values = sorted(values)
+    return {
+        "count": len(values),
+        "p50": _median(values),
+        "p95": _percentile(sorted_values, 0.95),
+        "max": max(values) if values else None,
+    }
+
+
+def _pause_near_input(
+    row: dict, context_rows: list[tuple[float, float]]
+) -> bool:
+    age = row.get("input_age_s")
+    if _is_number(age):
+        return float(age) <= NEAR_INPUT_MAX_S
+    pause_ts = _row_ts(row)
+    if pause_ts is None:
+        return False
+    for ctx_ts, age_s in context_rows:
+        if abs(pause_ts - ctx_ts) <= NEAR_INPUT_MAX_S and age_s <= NEAR_INPUT_MAX_S:
+            return True
+    return False
+
+
 def summarize_instance(
     rows: list[dict], *, since: float | None = None, until: float | None = None
 ) -> dict:
     """Compute the acceptance numbers for one instance bucket."""
     ordered = sorted(
         (row for row in rows if _row_ts(row) is not None),
-        key=lambda row: float(row["ts"]),
+        key=lambda row: _row_ts(row) or 0.0,
     )
     if since is None:
-        since = float(ordered[0]["ts"]) if ordered else 0.0
+        since = (_row_ts(ordered[0]) or 0.0) if ordered else 0.0
     if until is None:
-        until = float(ordered[-1]["ts"]) if ordered else since
+        until = (_row_ts(ordered[-1]) or since) if ordered else since
     window_s = max(0.0, until - since)
-    windowed = [row for row in ordered if since <= float(row["ts"]) <= until]
+    windowed = [
+        row
+        for row in ordered
+        if since <= (_row_ts(row) or 0.0) <= until
+    ]
 
     # Loop-tier hitch episodes. Pump rows never enter the union, so a freeze
     # seen by both tiers counts once.
@@ -201,18 +283,12 @@ def summarize_instance(
     for episode in episodes:
         hitch = episode["hitch"]
         recovery = episode["recovery"]
-        start = float(hitch["ts"])
-        if recovery is not None and isinstance(
-            recovery.get("duration_seconds"), (int, float)
-        ):
+        start = _row_ts(hitch) or 0.0
+        if recovery is not None and _is_number(recovery.get("duration_seconds")):
             duration = float(recovery["duration_seconds"])
         else:
             stall_seconds = hitch.get("stall_seconds")
-            duration = (
-                float(stall_seconds)
-                if isinstance(stall_seconds, (int, float))
-                else 0.0
-            )
+            duration = float(stall_seconds) if _is_number(stall_seconds) else 0.0
         duration = max(0.0, duration)
         intervals.append((start, start + duration))
         durations.append(duration)
@@ -226,28 +302,37 @@ def summarize_instance(
             ontime_episodes += 1
             ontime_seconds += duration
 
-    frozen_s = _merge_union(intervals)
+    union_frozen_s = _merge_union(intervals)
     sorted_durations = sorted(durations)
 
     # GC share from heartbeats (exact per-window totals) and pause rows.
     gc_seconds_by_gen: dict[str, float] = {}
     gc_seconds_by_trigger: dict[str, float] = {}
+    loop_hitch_s = 0.0
+    loop_suppressed_s = 0.0
+    has_exact_hitch = False
     for row in windowed:
         if row.get("event") != "tui_memory_heartbeat":
             continue
         generations = row.get("gc_generations")
         if isinstance(generations, dict):
             for gen, stats in generations.items():
-                if isinstance(stats, dict) and isinstance(
-                    stats.get("total_s"), (int, float)
-                ):
+                if isinstance(stats, dict) and _is_number(stats.get("total_s")):
                     gc_seconds_by_gen[str(gen)] = gc_seconds_by_gen.get(
                         str(gen), 0.0
                     ) + float(stats["total_s"])
+        hitch_seconds = row.get("loop_hitch_seconds")
+        if _is_number(hitch_seconds):
+            has_exact_hitch = True
+            loop_hitch_s += float(hitch_seconds)
+        suppressed_seconds = row.get("loop_suppressed_seconds")
+        if _is_number(suppressed_seconds):
+            loop_suppressed_s += float(suppressed_seconds)
     pause_rows = [row for row in windowed if row.get("event") == "tui_gc_pause"]
+    pauses_by_trigger: dict[str, list[float]] = {name: [] for name in KNOWN_TRIGGERS}
     for row in pause_rows:
         pause_duration = row.get("duration_s")
-        if not isinstance(pause_duration, (int, float)):
+        if not _is_number(pause_duration):
             continue
         gen = row.get("generation")
         trigger = row.get("trigger")
@@ -255,46 +340,41 @@ def summarize_instance(
         gc_seconds_by_trigger[key] = gc_seconds_by_trigger.get(key, 0.0) + float(
             pause_duration
         )
+        if isinstance(trigger, str):
+            pauses_by_trigger.setdefault(trigger, []).append(float(pause_duration))
     gc_total_s = sum(gc_seconds_by_gen.values())
+    idle_pauses = list(pauses_by_trigger.get("idle", []))
+    pause_stats_by_trigger = {
+        trigger: _pause_stats(values)
+        for trigger, values in sorted(pauses_by_trigger.items())
+    }
 
-    idle_pauses = sorted(
-        float(row["duration_s"])
-        for row in pause_rows
-        if isinstance(row.get("duration_s"), (int, float))
-        and isinstance(row.get("trigger"), str)
-        and row.get("trigger") != "automatic"
-    )
+    frozen_s = loop_hitch_s if has_exact_hitch else union_frozen_s
 
-    # Automatic gen-2 collections near input. Pause rows carry no keypress
-    # context, so a pause counts when a context-carrying row within 2 s
-    # reports the last input at most 2 s old. Documented heuristic, not
-    # proof: it undercounts when no hitch row brackets the pause.
+    # Automatic and backstop gen-2 collections near input. Prefer the pause
+    # row's ``input_age_s``; fall back to a hitch-row heuristic on old logs.
     context_rows = [
-        (float(row["ts"]), float(row["last_keypress_age_s"]))
+        (_row_ts(row) or 0.0, float(row["last_keypress_age_s"]))
         for row in windowed
-        if isinstance(row.get("last_keypress_age_s"), (int, float))
+        if _is_number(row.get("last_keypress_age_s")) and _row_ts(row) is not None
     ]
-    auto_gen2_total = 0
-    auto_gen2_near_input = 0
+    near_input_totals: dict[str, dict[str, int]] = {
+        trigger: {"total": 0, "near_input": 0} for trigger in NEAR_INPUT_TRIGGERS
+    }
     for row in pause_rows:
-        if row.get("generation") != 2 or row.get("trigger") != "automatic":
+        if row.get("generation") != 2:
             continue
-        pause_ts = row.get("ts")
-        if not isinstance(pause_ts, (int, float)):
+        trigger = row.get("trigger")
+        if trigger not in NEAR_INPUT_TRIGGERS:
             continue
-        auto_gen2_total += 1
-        for ctx_ts, age_s in context_rows:
-            if abs(float(pause_ts) - ctx_ts) <= 2.0 and age_s <= 2.0:
-                auto_gen2_near_input += 1
-                break
+        bucket = near_input_totals[str(trigger)]
+        bucket["total"] += 1
+        if _pause_near_input(row, context_rows):
+            bucket["near_input"] += 1
 
     heartbeats = sorted(
-        (
-            row
-            for row in windowed
-            if row.get("event") == "tui_memory_heartbeat"
-        ),
-        key=lambda row: float(row["ts"]),
+        (row for row in windowed if row.get("event") == "tui_memory_heartbeat"),
+        key=lambda row: _row_ts(row) or 0.0,
     )
     rss_first = heartbeats[0].get("rss_bytes") if heartbeats else None
     rss_last = heartbeats[-1].get("rss_bytes") if heartbeats else None
@@ -327,8 +407,15 @@ def summarize_instance(
         "idle_pause_p50": _median(idle_pauses),
         "idle_pause_p95": _percentile(idle_pauses, 0.95),
         "idle_pause_max": max(idle_pauses) if idle_pauses else None,
-        "auto_gen2_total": auto_gen2_total,
-        "auto_gen2_near_input": auto_gen2_near_input,
+        "pause_stats_by_trigger": pause_stats_by_trigger,
+        "auto_gen2_total": near_input_totals["automatic"]["total"],
+        "auto_gen2_near_input": near_input_totals["automatic"]["near_input"],
+        "backstop_gen2_total": near_input_totals["backstop"]["total"],
+        "backstop_gen2_near_input": near_input_totals["backstop"]["near_input"],
+        "rss_backstop_gen2_total": near_input_totals["rss_backstop"]["total"],
+        "rss_backstop_gen2_near_input": near_input_totals["rss_backstop"]["near_input"],
+        "loop_hitch_seconds": round(loop_hitch_s, 3),
+        "loop_suppressed_seconds": round(loop_suppressed_s, 3),
         "rss_first_bytes": rss_first,
         "rss_last_bytes": rss_last,
         "swap_first_bytes": swap_first,
@@ -337,8 +424,94 @@ def summarize_instance(
     }
 
 
+def _verdict(passed: bool | None) -> str:
+    if passed is None:
+        return "n/a"
+    return "PASS" if passed else "FAIL"
+
+
+def evaluate_acceptance(summary: dict) -> dict[str, Any]:
+    """Mark each sase-1f3 target pass, fail, or n/a for one instance."""
+    idle_p95 = summary["idle_pause_p95"]
+    idle_ok = True if idle_p95 is None else idle_p95 <= IDLE_P95_LIMIT_S
+    gc_ok = summary["gc_share"] < GC_SHARE_LIMIT
+    hitch_ok = summary["frozen_share"] < HITCH_SHARE_LIMIT
+    near_input = (
+        int(summary["auto_gen2_near_input"])
+        + int(summary["backstop_gen2_near_input"])
+        + int(summary["rss_backstop_gen2_near_input"])
+    )
+    near_ok = near_input == 0
+    rss_first = summary["rss_first_bytes"]
+    rss_last = summary["rss_last_bytes"]
+    rss_growth: float | None = None
+    rss_ok: bool | None
+    if _is_number(rss_first) and _is_number(rss_last):
+        rss_growth = float(rss_last) - float(rss_first)
+        rss_ok = rss_growth < RSS_GROWTH_LIMIT_BYTES
+    else:
+        rss_ok = None
+    swap_last = summary["swap_last_bytes"]
+    if _is_number(swap_last):
+        swap_ok: bool | None = float(swap_last) == 0.0
+    else:
+        swap_ok = None
+    targets = {
+        "idle_p95": {
+            "pass": idle_ok,
+            "value": idle_p95,
+            "limit": IDLE_P95_LIMIT_S,
+            "label": "idle-collection p95 <= 500 ms",
+        },
+        "gc_share": {
+            "pass": gc_ok,
+            "value": summary["gc_share"],
+            "limit": GC_SHARE_LIMIT,
+            "label": "total GC < 3% of wall time",
+        },
+        "hitch_share": {
+            "pass": hitch_ok,
+            "value": summary["frozen_share"],
+            "limit": HITCH_SHARE_LIMIT,
+            "label": "hitches < 0.5% of wall time",
+        },
+        "near_input_gen2": {
+            "pass": near_ok,
+            "value": near_input,
+            "limit": 0,
+            "label": "no automatic or backstop gen-2 within 2 s of input",
+        },
+        "rss_growth": {
+            "pass": rss_ok,
+            "value": rss_growth,
+            "limit": RSS_GROWTH_LIMIT_BYTES,
+            "label": "RSS growth < 0.5 GiB over 4 h",
+        },
+        "vmswap": {
+            "pass": swap_ok,
+            "value": swap_last if _is_number(swap_last) else None,
+            "limit": 0,
+            "label": "VmSwap about 0",
+        },
+        "jk_p95": {
+            "pass": None,
+            "value": None,
+            "limit": JK_P95_LIMIT_MS,
+            "label": "j/k p95 < 16 ms",
+        },
+    }
+    fails = [name for name, spec in targets.items() if spec["pass"] is False]
+    return {
+        "targets": targets,
+        "failed": fails,
+        "all_pass": not fails,
+        "window_s": summary["window_s"],
+        "window_short_of_4h": summary["window_s"] < FOUR_HOURS_S,
+    }
+
+
 def _format_bytes(value: object) -> str:
-    if not isinstance(value, (int, float)) or isinstance(value, bool):
+    if not _is_number(value):
         return "n/a"
     total = float(value)
     for unit in ("B", "KiB", "MiB", "GiB"):
@@ -349,12 +522,52 @@ def _format_bytes(value: object) -> str:
 
 
 def _format_seconds(value: object) -> str:
-    if not isinstance(value, (int, float)) or isinstance(value, bool):
+    if not _is_number(value):
         return "n/a"
     return f"{float(value):.3f} s"
 
 
-def format_report(summaries: dict[str, dict]) -> str:
+def _format_percent(value: object) -> str:
+    if not _is_number(value):
+        return "n/a"
+    return f"{float(value) * 100:.2f}%"
+
+
+def _format_trigger_line(stats_by_trigger: dict[str, dict[str, Any]]) -> str:
+    parts: list[str] = []
+    for trigger in KNOWN_TRIGGERS:
+        stats = stats_by_trigger.get(trigger) or {}
+        count = int(stats.get("count") or 0)
+        if count == 0:
+            continue
+        parts.append(
+            f"{trigger} {count} p95 {_format_seconds(stats.get('p95'))}"
+        )
+    return "; ".join(parts) if parts else "none"
+
+
+def _format_acceptance_line(spec: dict[str, Any]) -> str:
+    verdict = _verdict(spec["pass"])
+    value = spec["value"]
+    label = spec["label"]
+    if label.startswith("j/k"):
+        rendered = "n/a (no SASE_TUI_PERF log)"
+    elif label.startswith("RSS") or label.startswith("VmSwap"):
+        rendered = _format_bytes(value)
+    elif "GC" in label or "hitches" in label:
+        rendered = _format_percent(value)
+    elif "p95" in label:
+        rendered = _format_seconds(value)
+    elif value is None:
+        rendered = "n/a"
+    else:
+        rendered = str(value)
+    return f"    {verdict}  {label}  ({rendered})"
+
+
+def format_report(
+    summaries: dict[str, dict], *, acceptance: bool = False
+) -> str:
     """Render per-instance summaries as human-readable text."""
     if not summaries:
         return "tui_freeze_report: no rows in window\n"
@@ -380,6 +593,10 @@ def format_report(summaries: dict[str, dict]) -> str:
             f"({_format_seconds(summary['ontime_seconds'])})"
         )
         lines.append(
+            f"  hitch totals: loop {_format_seconds(summary['loop_hitch_seconds'])} "
+            f"suppressed {_format_seconds(summary['loop_suppressed_seconds'])}"
+        )
+        lines.append(
             f"  gc: {_format_seconds(summary['gc_total_s'])} "
             f"({summary['gc_share'] * 100:.2f}% of window) "
             f"by generation {json.dumps(summary['gc_seconds_by_generation'])}"
@@ -394,8 +611,16 @@ def format_report(summaries: dict[str, dict]) -> str:
             f"max {_format_seconds(summary['idle_pause_max'])}"
         )
         lines.append(
-            f"  automatic gen-2 near input: {summary['auto_gen2_near_input']}/"
-            f"{summary['auto_gen2_total']}"
+            "  collections by trigger: "
+            + _format_trigger_line(summary["pause_stats_by_trigger"])
+        )
+        lines.append(
+            f"  gen-2 near input: automatic {summary['auto_gen2_near_input']}/"
+            f"{summary['auto_gen2_total']}; "
+            f"backstop {summary['backstop_gen2_near_input']}/"
+            f"{summary['backstop_gen2_total']}; "
+            f"rss_backstop {summary['rss_backstop_gen2_near_input']}/"
+            f"{summary['rss_backstop_gen2_total']}"
         )
         lines.append(
             f"  rss: {_format_bytes(summary['rss_first_bytes'])} -> "
@@ -404,6 +629,18 @@ def format_report(summaries: dict[str, dict]) -> str:
             f"{_format_bytes(summary['swap_last_bytes'])} "
             f"({summary['heartbeat_count']} heartbeats)"
         )
+        if acceptance:
+            result = evaluate_acceptance(summary)
+            lines.append("  acceptance (sase-1f3):")
+            for spec in result["targets"].values():
+                lines.append(_format_acceptance_line(spec))
+            if result["window_short_of_4h"]:
+                lines.append(
+                    "    note: window is shorter than 4 h; RSS growth is the "
+                    "observed delta, not a 4-hour rate."
+                )
+            overall = "PASS" if result["all_pass"] else "FAIL"
+            lines.append(f"    overall {overall}")
     return "\n".join(lines) + "\n"
 
 
@@ -415,10 +652,31 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
     )
     parser.add_argument(
+        "--acceptance",
+        action="store_true",
+        help="Mark each sase-1f3 target pass or fail per instance.",
+    )
+    parser.add_argument(
+        "--instance",
+        action="append",
+        default=None,
+        help="Only report this instance (repeatable).",
+    )
+    parser.add_argument(
+        "--no-rotated",
+        action="store_true",
+        help="Do not read the rotated tui_stalls.jsonl.1 generation.",
+    )
+    parser.add_argument(
         "--path",
         type=Path,
         default=None,
         help="Stall JSONL path. Defaults to $SASE_TUI_STALL_PATH or ~/.sase/logs/tui_stalls.jsonl.",
+    )
+    parser.add_argument(
+        "--since",
+        default=None,
+        help="Window start as epoch seconds or ISO-8601.",
     )
     parser.add_argument(
         "--startup-path",
@@ -427,26 +685,15 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="Startup JSONL path used to window rows without app_instance_id.",
     )
     parser.add_argument(
-        "--since",
-        default=None,
-        help="Window start as epoch seconds or ISO-8601.",
-    )
-    parser.add_argument(
         "--until",
         default=None,
         help="Window end as epoch seconds or ISO-8601.",
-    )
-    parser.add_argument(
-        "--instance",
-        action="append",
-        default=None,
-        help="Only report this instance (repeatable).",
     )
     args = parser.parse_args(list(argv) if argv is not None else None)
 
     stalls_path = args.path or _default_stalls_path()
     startup_path = args.startup_path or _default_startup_path()
-    rows = load_rows(stalls_path)
+    rows = load_stall_rows(stalls_path, include_rotated=not args.no_rotated)
     startups = load_rows(startup_path)
     try:
         since = parse_time(args.since) if args.since is not None else None
@@ -467,7 +714,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         if summary["row_count"] == 0:
             continue
         summaries[instance] = summary
-    print(format_report(summaries), end="")
+    print(format_report(summaries, acceptance=args.acceptance), end="")
+    if args.acceptance and summaries:
+        failed = any(
+            not evaluate_acceptance(summary)["all_pass"]
+            for summary in summaries.values()
+        )
+        if failed:
+            return 1
     return 0
 
 

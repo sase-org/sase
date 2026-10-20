@@ -30,13 +30,15 @@ import logging
 import os
 import threading
 import time
-from collections.abc import Callable
+from collections import Counter
+from collections.abc import Callable, Iterable
 from typing import Any
 
 from textual.screen import ModalScreen
 from textual.widgets import Input, TextArea
 
 from sase.ace.tui.util.gc_telemetry import (
+    emit_row,
     gc_trigger,
     latest_rss_bytes,
     register_heartbeat_provider,
@@ -47,6 +49,7 @@ from sase.axe.runner_idle_memory import trim_allocator
 log = logging.getLogger(__name__)
 
 ENV_DISABLE = "SASE_TUI_GC_POLICY_DISABLE"
+ENV_CENSUS = "SASE_TUI_GC_CENSUS"
 TICK_INTERVAL_S = 1.0
 IDLE_QUIET_S = 3.0
 BACKSTOP_QUIET_S = 1.0
@@ -57,6 +60,8 @@ GEN1_DUE_COUNT = 100
 NONCLASSIC_DUE_S = 120.0
 RAISED_THRESHOLD2 = 10_000
 TRIM_INTERVAL_S = 10 * 60.0
+CENSUS_INTERVAL_S = 10 * 60.0
+CENSUS_TOP_N = 40
 TIMER_NAME = "gc-policy"
 TRIM_THREAD_NAME = "sase-tui-gc-trim"
 HEARTBEAT_PROVIDER_NAME = "gc_policy"
@@ -70,6 +75,36 @@ _active: GCPolicy | None = None
 def is_enabled() -> bool:
     """Return whether the GC policy may install (kill switch aware)."""
     return os.environ.get(ENV_DISABLE) != "1"
+
+
+def _census_enabled() -> bool:
+    """Return whether the opt-in GC census is on (``SASE_TUI_GC_CENSUS=1``)."""
+    return os.environ.get(ENV_CENSUS) == "1"
+
+
+def _type_key(obj: object) -> str:
+    cls = type(obj)
+    module = getattr(cls, "__module__", "") or ""
+    qualname = (
+        getattr(cls, "__qualname__", None) or getattr(cls, "__name__", None) or "?"
+    )
+    return f"{module}.{qualname}" if module else str(qualname)
+
+
+def _top_types(
+    objects: Iterable[object], n: int = CENSUS_TOP_N
+) -> tuple[list[dict[str, Any]], int]:
+    """Return the *n* most common ``module.qualname`` types and the total count."""
+    counts: Counter[str] = Counter()
+    total = 0
+    for obj in objects:
+        total += 1
+        try:
+            counts[_type_key(obj)] += 1
+        except Exception:
+            continue
+    top = [{"type": name, "count": count} for name, count in counts.most_common(n)]
+    return top, total
 
 
 def _modal_text_input_active(app: Any) -> bool:
@@ -153,6 +188,7 @@ class GCPolicy:
         collector: Any = gc,
         recorder: Any | None = None,
         trim_runner: Callable[[], None] | None = None,
+        census_emit: Callable[[dict[str, Any]], None] | None = None,
     ) -> None:
         self._monotonic = monotonic
         self._last_input_mono = last_input_mono or (lambda: 0.0)
@@ -168,6 +204,8 @@ class GCPolicy:
             recorder = None
         self._recorder = recorder if recorder is not None else _NullRecorder()
         self._trim_runner = trim_runner or _spawn_trim_thread
+        self._census_emit = census_emit
+        self._last_census_mono: float | None = None
         self._timer: Any = None
         self.threshold_policy = THRESHOLD_UNSUPPORTED
         self._original_threshold: tuple[int, int, int] | None = None
@@ -293,8 +331,11 @@ class GCPolicy:
             self._froze_startup = True
             self._note_full_collection()
             return "startup_freeze"
-        with gc_trigger(tag):
-            self._collector.collect()
+        if tag == "idle" and self._census_due(now):
+            self._run_idle_census(now)
+        else:
+            with gc_trigger(tag):
+                self._collector.collect()
         self._note_full_collection()
         self._maybe_trim(now)
         return tag
@@ -313,6 +354,67 @@ class GCPolicy:
             self._rss_at_last_full = latest_rss_bytes()
         except Exception:
             pass
+
+    def _census_due(self, now_mono: float) -> bool:
+        """Return True when an idle collection should run the opt-in census."""
+        if not _census_enabled():
+            return False
+        last = self._last_census_mono
+        return last is None or now_mono - last >= CENSUS_INTERVAL_S
+
+    def _run_idle_census(self, now_mono: float) -> None:
+        """Idle full collection plus garbage/survivor type census.
+
+        Lengthens the pause: ``gc.DEBUG_SAVEALL`` retains collected cycles
+        until a second collect frees them. Rate-limited to once per
+        ``CENSUS_INTERVAL_S`` and only on the ``idle`` trigger.
+        """
+        self._last_census_mono = now_mono
+        start = self._monotonic()
+        collector = self._collector
+        previous_debug = 0
+        get_debug = getattr(collector, "get_debug", None)
+        set_debug = getattr(collector, "set_debug", None)
+        try:
+            if callable(get_debug) and callable(set_debug):
+                try:
+                    previous_debug = int(get_debug())
+                    set_debug(previous_debug | gc.DEBUG_SAVEALL)
+                except Exception:
+                    set_debug = None
+            with gc_trigger("idle"):
+                collector.collect()
+            garbage_top, garbage_count = _top_types(tuple(gc.garbage))
+            gc.garbage.clear()
+        finally:
+            if callable(set_debug):
+                try:
+                    set_debug(previous_debug)
+                except Exception:
+                    pass
+            try:
+                collector.collect()
+            except Exception:
+                pass
+        survivor_top: list[dict[str, Any]] = []
+        survivor_count = 0
+        get_objects = getattr(collector, "get_objects", None)
+        if callable(get_objects):
+            try:
+                survivor_top, survivor_count = _top_types(get_objects())
+            except Exception:
+                pass
+        payload = {
+            "garbage_top": garbage_top,
+            "survivor_top": survivor_top,
+            "garbage_count": garbage_count,
+            "survivor_count": survivor_count,
+            "census_duration_s": round(self._monotonic() - start, 6),
+        }
+        if self._census_emit is not None:
+            self._census_emit({"event": "tui_gc_census", **payload})
+        else:
+            emit_row("tui_gc_census", payload)
 
     def _maybe_trim(self, now_mono: float) -> bool:
         """Dispatch an off-thread ``malloc_trim`` at most every 10 minutes."""
