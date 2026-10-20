@@ -117,7 +117,10 @@ def register_final_parser(subparsers: argparse._SubParsersAction) -> None:
             "publish, or end the turn. The wrapper accepts an optional "
             "`accept: pass|no-new` policy (default `pass`); `no-new` is an "
             "explicit opt-in that completes a failed verification only with "
-            "a covering verdict receipt."
+            "a covering verdict receipt. Prepare refuses a verification "
+            "command whose project tool catalog entry lacks "
+            "`stages: run_silent`, and re-sealing an unchanged tree whose "
+            "passing verification was already refused host completion."
         ),
         epilog=(
             "examples:\n"

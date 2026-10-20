@@ -339,10 +339,14 @@ sase monitor start -p verify -f '<intent-ref>' -- just check
 
 Binding is atomic. A command mismatch creates no monitor, and a failed monitor startup
 returns the intent to the prepared state; once a live monitor has bound it, the intent
-cannot be reused. If the command completes successfully and the sealed command,
-finalizer plan, repository observations, workspace, and diagnostics remain eligible, the
-host installs the prepared declaration and runs its finalizers without another model
-turn. The monitor reports `Completed by host` and retains a completion receipt.
+cannot be reused. Prepare seals the intent with `stage_source: run_silent` only when the
+verification command matches a named, non-ad-hoc check tool declared with
+`stages: run_silent`; anything else is refused at prepare time, as is re-sealing an
+unchanged tree whose passing verification was already refused host completion. If the
+command completes successfully and the sealed command, finalizer plan, repository
+observations, workspace, and diagnostics remain eligible, the host installs the prepared
+declaration and runs its finalizers without another model turn. The monitor reports
+`Completed by host` and retains a completion receipt.
 
 A failed or timed-out command, stale repository state, or another eligibility failure
 invalidates host completion and launches one ordinary recovery continuation instead.

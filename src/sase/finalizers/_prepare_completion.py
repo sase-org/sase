@@ -59,10 +59,9 @@ def prepare_conditional_completion(
     from sase.finalizers import prepare as prepare_facade
 
     observations = prepare_facade.observe_completion_repositories(root)
+    project_name = _resolve_creator_project(root)
     creator: dict[str, str] = {
-        "project": os.environ.get("SASE_PROJECT")
-        or os.environ.get("SASE_PROJECT_NAME")
-        or "sase",
+        "project": project_name,
         "run_id": context.run_id,
         "agent_name": context.agent_id,
     }
@@ -90,6 +89,8 @@ def prepare_conditional_completion(
         "observations": observations,
         "executors": _executor_capabilities(plan),
         "accept": accept,
+        "stage_source": _resolve_stage_source(verification_command),
+        "prior_refusals": _collect_prior_refusals(project_name),
     }
     try:
         intent = seal_conditional_completion(request)
@@ -284,3 +285,168 @@ def _executor_capabilities(plan: FinalizerPlanWire) -> list[dict[str, Any]]:
             }
         )
     return capabilities
+
+
+def _resolve_creator_project(root: Path) -> str:
+    """Return the agent's real project name for the sealed creator identity.
+
+    The artifacts directory is created under the runner's own project name,
+    so deriving it from the directory path reproduces exactly what the runner
+    used. The project-file formula is the runner's own fallback for runs
+    whose artifacts directory lives outside the projects tree (tests, manual
+    runs). The ``SASE_PROJECT`` variables predate agent runs and are kept
+    only as a legacy override; ``"sase"`` remains for runs with no project
+    at all.
+    """
+
+    try:
+        from sase.core.paths import sase_projects_dir
+
+        relative = (
+            root.expanduser().resolve().relative_to(sase_projects_dir().resolve())
+        )
+        if relative.parts:
+            return relative.parts[0]
+    except (OSError, RuntimeError, ValueError):
+        pass
+    project_file = (os.environ.get("SASE_AGENT_PROJECT_FILE") or "").strip()
+    if project_file:
+        parent = os.path.basename(os.path.dirname(os.path.abspath(project_file)))
+        if parent:
+            return parent
+    return (
+        os.environ.get("SASE_PROJECT") or os.environ.get("SASE_PROJECT_NAME") or "sase"
+    )
+
+
+def _resolve_stage_source(verification_command: list[str]) -> str:
+    """Return the seal wire's ``stage_source`` for a verification argv.
+
+    Only a named, non-ad-hoc tool whose catalog definition declares
+    ``stages: run_silent`` reports stage evidence; anything else (unknown
+    tool, ad-hoc argv, a catalog that cannot be read) seals as ``none`` so
+    the core refuses the unsatisfiable contract at seal time.
+    """
+
+    try:
+        from sase.config.tools import load_project_tool_catalog_at
+        from sase.llm_provider.commit_finalizer_config import (
+            resolve_finalizer_project_dir,
+        )
+
+        catalog = load_project_tool_catalog_at(resolve_finalizer_project_dir())
+    except Exception:  # noqa: BLE001 - an unreadable catalog seals as none.
+        return "none"
+    wanted = [str(part) for part in verification_command]
+    for entry in catalog.entries:
+        if [str(part) for part in (entry.definition.get("argv") or ())] != wanted:
+            continue
+        if str(entry.definition.get("stages") or "none") == "run_silent":
+            return "run_silent"
+        return "none"
+    return "none"
+
+
+def _collect_prior_refusals(project_name: str) -> list[dict[str, Any]]:
+    """Return at most one prior refusal from the monitor that launched us.
+
+    The follow-up delivery environment names the monitor turn whose result
+    launched the current turn. When that monitor exited 0 and its receipt
+    says ``recovery``, the named intent's sealed fingerprint, command, plan
+    digest, and the receipt's reason become the repeat guard's one-hop entry.
+    Every lookup failure means "no prior refusals", never an error.
+    """
+
+    try:
+        from sase.monitor.continuation_delivery import DELIVERY_ARTIFACTS_ENV
+        from sase.monitor.delivery import HOST_COMPLETION_RECEIPT_FILENAME
+    except ImportError:
+        return []
+    monitor_dir = (os.environ.get(DELIVERY_ARTIFACTS_ENV) or "").strip()
+    if not monitor_dir:
+        return []
+    try:
+        meta = json.loads(
+            (Path(monitor_dir) / "agent_meta.json").read_text(encoding="utf-8")
+        )
+        if not isinstance(meta, dict):
+            return []
+        if meta.get("monitor_state") != "completed":
+            return []
+        if meta.get("monitor_exit_code") != 0:
+            return []
+        receipt = json.loads(
+            (Path(monitor_dir) / HOST_COMPLETION_RECEIPT_FILENAME).read_text(
+                encoding="utf-8"
+            )
+        )
+        if not isinstance(receipt, dict) or receipt.get("status") != "recovery":
+            return []
+        reason = receipt.get("reason")
+        intent_ref = receipt.get("intent_ref")
+        if not isinstance(reason, str) or not reason:
+            return []
+        if not isinstance(intent_ref, str) or not intent_ref:
+            return []
+        from sase.finalizers.prepare import load_prepared_completion
+
+        intent = load_prepared_completion(
+            intent_ref,
+            artifacts_dir=_prior_refusal_intent_root(monitor_dir, meta, project_name),
+        )
+        seal = intent.get("seal")
+        verification = intent.get("verification")
+        if not isinstance(seal, dict) or not isinstance(verification, dict):
+            return []
+        fingerprint = seal.get("worktree_fingerprint")
+        command = verification.get("command")
+        plan_digest = seal.get("plan_digest")
+        if (
+            not isinstance(fingerprint, str)
+            or not fingerprint
+            or not isinstance(command, list)
+            or not command
+            or not isinstance(plan_digest, str)
+            or not plan_digest
+        ):
+            return []
+        return [
+            {
+                "worktree_fingerprint": fingerprint,
+                "command": [str(part) for part in command],
+                "plan_digest": plan_digest,
+                "reason": reason,
+            }
+        ]
+    except (OSError, ValueError):
+        return []
+
+
+def _prior_refusal_intent_root(
+    monitor_dir: str,
+    monitor_meta: Mapping[str, Any],
+    project_name: str,
+) -> str:
+    """Resolve the starter artifacts dir the way host completion does.
+
+    Mirrors ``intent_artifacts_dir`` in ``sase.monitor.host_completion_state``:
+    the monitor's ``parent_timestamp`` names the starter agent whose store
+    holds the sealed intent; without one the monitor's own directory does.
+    """
+
+    parent = monitor_meta.get("parent_timestamp")
+    if project_name and isinstance(parent, str) and parent:
+        try:
+            from sase.core.agent_artifact_paths import (
+                ACE_RUN_WORKFLOW_DIR,
+                canonical_agent_artifact_path,
+            )
+
+            starter = canonical_agent_artifact_path(
+                project_name, ACE_RUN_WORKFLOW_DIR, parent
+            )
+            if starter.is_dir():
+                return str(starter)
+        except (OSError, RuntimeError, ValueError):
+            pass
+    return monitor_dir
