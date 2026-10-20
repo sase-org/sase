@@ -415,7 +415,10 @@ class ReleaseFactsReader:
         self.candidate_script = candidate_script
 
     def _api(self, path: str, params: dict[str, object] | None = None) -> object:
-        return self.github.json(f"repos/{self.repo}/{path}", params=params)
+        base = f"repos/{self.repo}"
+        # GitHub has no route for the trailing slash, so the repository
+        # metadata read must not append one.
+        return self.github.json(base if not path else f"{base}/{path}", params=params)
 
     def _pages(
         self,
@@ -430,11 +433,16 @@ class ReleaseFactsReader:
         if isinstance(page_payloads[0], list):
             if collection is not None:
                 raise ReleaseFactsError(f"{path} unexpectedly returned list pages")
-            return page_payloads
+            return [item for page in page_payloads for item in page]
         if collection is None:
-            raise ReleaseFactsError(
-                f"{path} returned object pages without a collection"
-            )
+            # Array endpoints (pulls, tags, releases) arrive flattened by
+            # the transport: every item is already a row. Page objects
+            # without a collection stay a caller error downstream, where
+            # row validation still fails closed.
+            return [
+                _mapping(item, f"{path}[{index}]")
+                for index, item in enumerate(page_payloads)
+            ]
         rows: list[Any] = []
         for index, payload in enumerate(page_payloads):
             page = _mapping(payload, f"{path} page[{index}]")
@@ -487,9 +495,42 @@ class ReleaseFactsReader:
             raise ReleaseFactsError(f"contents {path}@{ref} is not base64 encoded")
         content = _required_str(payload, "content", f"contents {path}@{ref}")
         try:
-            return base64.b64decode(content, validate=True).decode("utf-8")
+            # The contents API wraps base64 at 60 columns; strip the
+            # wrapping before the strict decode.
+            return base64.b64decode("".join(content.split()), validate=True).decode(
+                "utf-8"
+            )
         except (ValueError, UnicodeDecodeError) as exc:
             raise ReleaseFactsError(f"contents {path}@{ref} is malformed") from exc
+
+    def read_source_pin(self, ref: str) -> str:
+        """Read the sase-core source pin at a remote commit SHA.
+
+        The ref is always a remote identity (a release PR head, a tagged
+        release, or master HEAD); the local checkout's pin is never used.
+        """
+        return self._source_pin(ref)
+
+    def read_ref_sha(self, ref: str = "heads/master") -> str:
+        """Read the commit SHA a remote git ref points at."""
+        if not re.fullmatch(r"[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)+", ref):
+            raise ValueError("ref must look like heads/master")
+        payload = _mapping(self._api(f"git/ref/{ref}"), f"ref {ref}")
+        target = _mapping(payload.get("object"), f"ref {ref}.object")
+        sha = _required_str(target, "sha", f"ref {ref}").lower()
+        if not _SHA_RE.fullmatch(sha):
+            raise ReleaseFactsError(f"ref {ref} SHA is invalid")
+        return sha
+
+    def read_jobs(self, run_id: str | int, attempt: int) -> list[dict[str, Any]]:
+        """Read the wire-shaped jobs for one workflow run attempt."""
+        if isinstance(run_id, bool) or not isinstance(run_id, (str, int)):
+            raise ValueError("run_id must be a string or integer")
+        if not str(run_id).strip():
+            raise ValueError("run_id must be non-empty")
+        if isinstance(attempt, bool) or not isinstance(attempt, int) or attempt < 1:
+            raise ValueError("attempt must be an integer >= 1")
+        return self._jobs(str(run_id).strip(), attempt)
 
     def _source_pin(self, ref: str) -> str:
         text = self._git_file("sase-core-revision.txt", ref)
@@ -1836,6 +1877,57 @@ class ReleaseFactsReader:
             "workflows": workflows_fact,
             "candidate": candidate_fact,
             "merge_history": merge_history_fact,
+        }
+
+    def collect_snapshot(
+        self,
+        *,
+        observed_at: datetime | str,
+        health: Any = None,
+    ) -> dict[str, Any]:
+        """Build the complete per-tick snapshot from fresh remote reads.
+
+        The train third comes from :meth:`collect_train_snapshot`; the
+        health third (core, canary, core_ensure, issues, core Actions
+        access, blocker lineage) comes from *health*, defaulting to a
+        ``ReleaseHealthReader`` over this reader. The train snapshot's
+        master and release PR values select the source-pin identity so
+        both readers agree on it.
+        """
+        from _release_watch_health import ReleaseHealthReader
+
+        train = self.collect_train_snapshot(observed_at=observed_at)
+        reader = health if health is not None else ReleaseHealthReader(self)
+        master_value = (
+            train["master"]["value"] if train["master"]["status"] == "ready" else None
+        )
+        release_pr_value = (
+            train["release_pr"]["value"]
+            if train["release_pr"]["status"] == "ready"
+            else None
+        )
+        health_snapshot = reader.collect_health_snapshot(
+            observed_at=observed_at,
+            master=master_value,
+            release_pr=release_pr_value,
+        )
+        return {
+            "repository": train["repository"],
+            "master": train["master"],
+            "release_pr": train["release_pr"],
+            "tags": train["tags"],
+            "releases": train["releases"],
+            "pypi": train["pypi"],
+            "trains": train["trains"],
+            "workflows": train["workflows"],
+            "core": health_snapshot["core"],
+            "canary": health_snapshot["canary"],
+            "candidate": train["candidate"],
+            "core_ensure": health_snapshot["core_ensure"],
+            "issues": health_snapshot["issues"],
+            "core_actions_access": health_snapshot["core_actions_access"],
+            "merge_history": train["merge_history"],
+            "blocker_lineage": health_snapshot["blocker_lineage"],
         }
 
     def _tags_with_releases(
