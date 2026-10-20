@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Watch a sase release through CI, Publish, and PyPI."""
+"""Watch sase release state through one read/decide/execute/report tick."""
 
 from _release_watch import main
 

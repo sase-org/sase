@@ -1,0 +1,133 @@
+name: Release steward
+
+# Observe-only host for the stateless release reconciler (phase sase-1n6.7.1.5).
+# Scheduled ticks always run `tools/release_watch --tick` without `--live`.
+# Only an explicitly true manual `live` input may execute actions. Merge
+# authority is a separate repository variable, `RELEASE_STEWARD_MERGE_ENABLED`,
+# and stays disabled until the sase-1n6.9 handover sets it to the literal
+# `true`. This workflow does not create or change that variable.
+#
+# The policy binding must be available before its core version is on PyPI:
+# this job resolves `sase-core-revision.txt` from the checked-out master,
+# checks out that exact SHA, and builds the wheel with the established
+# maturin invocation into an isolated Python environment that also has
+# `packaging`. It never installs the whole sase application.
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+    inputs:
+      live:
+        description: >-
+          Execute the proposed train action and escalation. Scheduled ticks
+          ignore this input and stay observe-only.
+        type: boolean
+        required: false
+        default: false
+
+concurrency:
+  group: release-steward
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  steward:
+    name: Release steward
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      CARGO_HTTP_MULTIPLEXING: "false"
+      CARGO_NET_RETRY: "10"
+    steps:
+      - name: Check out master
+        uses: actions/checkout@v4
+        with:
+          ref: master
+
+      - name: Resolve pinned Rust core revision
+        id: core-sha
+        run: |
+          set -euo pipefail
+          core_sha="$(tr -d '[:space:]' < sase-core-revision.txt)"
+          if [[ ! "$core_sha" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "error: sase-core-revision.txt does not contain a 40 hex character SHA: $core_sha" >&2
+            exit 1
+          fi
+          echo "sha=$core_sha" >> "$GITHUB_OUTPUT"
+          echo "Building pinned sase-core commit $core_sha"
+
+      - name: Restore cached core wheel
+        id: restore-core-wheel
+        uses: actions/cache/restore@v4
+        with:
+          path: dist/
+          key: release-steward-core-wheel-v1-${{ runner.os }}-${{ runner.arch }}-cp312-abi3-${{ steps.core-sha.outputs.sha }}
+
+      - name: Check out Rust core
+        if: steps.restore-core-wheel.outputs.cache-hit != 'true'
+        uses: actions/checkout@v4
+        with:
+          repository: sase-org/sase-core
+          ref: ${{ steps.core-sha.outputs.sha }}
+          path: sase-core
+
+      - uses: astral-sh/setup-uv@v4
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Set up Rust
+        if: steps.restore-core-wheel.outputs.cache-hit != 'true'
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust build
+        if: steps.restore-core-wheel.outputs.cache-hit != 'true'
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: sase-core -> target
+          shared-key: release-steward-sase-core-${{ steps.core-sha.outputs.sha }}
+
+      - name: Build abi3 Rust core wheel
+        if: steps.restore-core-wheel.outputs.cache-hit != 'true'
+        working-directory: sase-core/crates/sase_core_py
+        run: uvx maturin build --release --out "$GITHUB_WORKSPACE/dist"
+
+      - name: Save core wheel cache
+        if: steps.restore-core-wheel.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: dist/
+          key: release-steward-core-wheel-v1-${{ runner.os }}-${{ runner.arch }}-cp312-abi3-${{ steps.core-sha.outputs.sha }}
+
+      - name: Install the pinned core wheel
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          wheels=("$GITHUB_WORKSPACE/dist"/sase_core_rs-*.whl)
+          if [ "${#wheels[@]}" -ne 1 ]; then
+            echo "error: expected exactly one sase_core_rs wheel in dist/" >&2
+            printf 'found: %s\n' "${wheels[@]:-}" >&2
+            exit 1
+          fi
+          uv venv --python 3.12 "$RUNNER_TEMP/steward-venv"
+          uv pip install --python "$RUNNER_TEMP/steward-venv" "${wheels[0]}" packaging
+
+      - name: Run the steward tick
+        env:
+          GH_TOKEN: ${{ secrets.SASE_RELEASE_TOKEN }}
+          GH_REPO: sase-org/sase
+          RELEASE_STEWARD_MERGE_ENABLED: ${{ vars.RELEASE_STEWARD_MERGE_ENABLED }}
+        run: |
+          set -euo pipefail
+          : "${GITHUB_STEP_SUMMARY:?GITHUB_STEP_SUMMARY must be set}"
+          extra=()
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] \
+            && [ "${{ inputs.live }}" = "true" ]; then
+            extra+=(--live)
+          fi
+          "$RUNNER_TEMP/steward-venv/bin/python" \
+            "$GITHUB_WORKSPACE/tools/release_watch" \
+            --tick --json "${extra[@]}"
