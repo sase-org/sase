@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import dataclasses
+from collections.abc import Mapping
 from datetime import datetime
 from typing import Any, cast
 
@@ -75,6 +76,28 @@ _RUNTIME_ONLY_BUNDLE_FIELDS = (
 )
 
 
+def _encode_wait_epic_follow(entry: Any) -> Any:
+    """Project one ``wait_epic_follows`` entry to a plain JSON-safe dict.
+
+    ``Agent.wait_epic_follows`` holds ``EpicFollowView`` dataclasses, which
+    ``json.dumps`` cannot encode. Project each entry to the ten persisted
+    fields with tuple values (``epic_ids`` et al.) as lists. Mapping entries
+    pass through with the same tuple normalization so already-decoded
+    payloads stay stable. Anything else is returned unchanged so it still
+    fails loudly at the JSON boundary instead of vanishing.
+    """
+    if dataclasses.is_dataclass(entry) and not isinstance(entry, type):
+        mapping = dataclasses.asdict(entry)
+    elif isinstance(entry, Mapping):
+        mapping = dict(entry)
+    else:
+        return entry
+    return {
+        key: list(value) if isinstance(value, tuple) else value
+        for key, value in mapping.items()
+    }
+
+
 def agent_state_to_bundle_dict(agent: Agent) -> dict[str, Any]:
     """Serialize currently-loaded Agent state without hydrating projections.
 
@@ -109,6 +132,8 @@ def agent_state_to_bundle_dict(agent: Agent) -> dict[str, Any]:
             value = [dataclasses.asdict(entry) for entry in value]
         elif item.name == "linked_repos" and value == ():
             value = []
+        elif item.name == "wait_epic_follows" and isinstance(value, (list, tuple)):
+            value = [_encode_wait_epic_follow(entry) for entry in value]
         elif isinstance(value, list) and value and isinstance(value[0], datetime):
             value = [entry.isoformat() for entry in value]
         elif isinstance(value, dict) and value:
@@ -243,6 +268,13 @@ def from_bundle_dict(
             value = tuple(item for item in value if isinstance(item, dict))
         elif f.name == "created_epic_ids" and isinstance(value, list):
             value = tuple(item for item in value if isinstance(item, str))
+        elif f.name == "wait_epic_follows":
+            # Imported lazily to keep sase.core.wait_epic_follow_view out of
+            # the TUI startup import closure
+            # (tests/ace/tui/test_app_import_budget.py).
+            from sase.core.wait_epic_follow_view import epic_follow_views
+
+            value = list(epic_follow_views(value))
         elif f.name == "feedback_plan_paths" and isinstance(value, dict):
             parsed_paths: dict[datetime, str] = {}
             for k, v in value.items():

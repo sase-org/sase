@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import asyncio
 import inspect
+import json
 from datetime import datetime
 from typing import Any
 
@@ -55,6 +56,12 @@ class TrackedProcRecorderMixin:
     ) -> ProcInfo:
         del argv, request_fingerprint, concurrency_keys, kwargs
         payload = dict(request or {})
+        if operation == AGENT_CLEANUP:
+            # Production persists the payload through a JSON sidecar
+            # (src/sase/ops/io.py), so the harness round-trips it the same
+            # way: a non-JSON payload must fail here, not later inside the
+            # cleanup subprocess.
+            payload = json.loads(json.dumps(payload))
 
         def _callable() -> Any:
             try:

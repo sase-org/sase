@@ -16,7 +16,9 @@ from sase.ace.tui.actions.cleanup_payload import (
     agent_from_json,
     json_identities,
     serialize_agent,
+    serialize_agents,
 )
+from sase.core.wait_epic_follow_view import EpicFollowView
 from sase.ace.tui.models._agent_clan_waves import ClanWaveSlot, ClanWaveSummary
 from sase.ace.tui.models.agent import Agent, AgentType, LinkedRepoMetadata
 from sase.ops.commands.agent import _apply_cleanup_payload_for_result
@@ -192,6 +194,68 @@ def test_unsupported_cleanup_archive_version_fails_loudly() -> None:
         )
 
 
+def _waiting_agent(**overrides: object) -> Agent:
+    kwargs: dict[str, object] = {
+        "artifacts_dir": "/tmp/artifacts/ace-run/20260101120000",
+        "wait_epic_follows": [
+            EpicFollowView(
+                target="fixture.land", state="launching", since=1750000001.0
+            ),
+            EpicFollowView(
+                target="planner",
+                state="following",
+                epic_ids=("fixture-1", "fixture-2"),
+                added_bead_ids=("sase-1",),
+                members=("planner", "other"),
+                since=1750000002.5,
+                resume_command="sase run planner",
+                skipped_epic_ids=("sase-9",),
+            ),
+            EpicFollowView(
+                target="blocked-target",
+                state="blocked",
+                epic_ids=("sase-3",),
+                since=1750000003.0,
+                reason="cycle",
+                detail="would wait on the waiter",
+            ),
+        ],
+    }
+    kwargs.update(overrides)
+    return _local_agent(**kwargs)  # type: ignore[arg-type]
+
+
+def test_cleanup_archive_round_trips_wait_epic_follows_through_json() -> None:
+    agent = _waiting_agent()
+    payload = serialize_agent(agent)
+
+    restored = agent_from_json(json.loads(json.dumps(payload, allow_nan=False)))
+
+    assert list(restored.wait_epic_follows) == list(agent.wait_epic_follows)
+    assert all(isinstance(view, EpicFollowView) for view in restored.wait_epic_follows)
+
+
+def test_cleanup_bulk_kill_payload_encodes_waiting_agent_among_others() -> None:
+    waiting = _waiting_agent(cl_name="waiting_feature")
+    plain = _local_agent(
+        artifacts_dir="/tmp/artifacts/ace-run/20260101120000",
+        cl_name="plain_feature",
+    )
+    payload = {
+        "action": "kill",
+        "agents_with_children": serialize_agents([waiting, plain]),
+        "transaction": "bulk_kill",
+    }
+
+    round_tripped = json.loads(json.dumps(payload, allow_nan=False))
+
+    assert len(round_tripped["agents_with_children"]) == 2
+    assert round_tripped["agents_with_children"][0]["wait_epic_follows"][1][
+        "epic_ids"
+    ] == ["fixture-1", "fixture-2"]
+    assert round_tripped["agents_with_children"][1]["wait_epic_follows"] == []
+
+
 def _dismiss_through_cleanup_subprocess(agent: Agent, tmp_path: Path) -> Agent:
     bundles_dir = tmp_path / "dismissed_bundles"
     payload = json.loads(
@@ -272,3 +336,13 @@ def test_cleanup_subprocess_dismiss_preserves_imported_projected_record(
     assert loaded.linked_repos == (
         LinkedRepoMetadata(name="sase-core", workspace_dir="/tmp/sase-core"),
     )
+
+
+def test_cleanup_subprocess_dismiss_preserves_wait_epic_follows(
+    tmp_path: Path,
+) -> None:
+    artifacts_dir = str(tmp_path / "artifacts" / "ace-run" / "20260101120000")
+    agent = _waiting_agent(artifacts_dir=artifacts_dir)
+    loaded = _dismiss_through_cleanup_subprocess(agent, tmp_path)
+
+    assert list(loaded.wait_epic_follows) == list(agent.wait_epic_follows)

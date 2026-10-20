@@ -10,6 +10,7 @@ from sase.ace.tui.models.agent import (
     AttemptRecord,
     LinkedRepoMetadata,
 )
+from sase.core.wait_epic_follow_view import EpicFollowView
 
 
 def test_bundle_round_trip_basic() -> None:
@@ -276,6 +277,21 @@ def test_bundle_dict_is_json_serializable_for_populated_agent() -> None:
         questions_times=[datetime(2025, 6, 15, 10, 7, 0)],
         retry_times=[datetime(2025, 6, 15, 10, 8, 0)],
         retry_count=1,
+        wait_for_epics_of=["agent-a"],
+        wait_epic_follows=[
+            EpicFollowView(
+                target="agent-a",
+                state="following",
+                epic_ids=("sase-1", "sase-2"),
+                added_bead_ids=("sase-1",),
+                members=("agent-a", "agent-b"),
+                since=1750000000.5,
+                reason="cycle",
+                detail="would wait on the waiter",
+                resume_command="sase run agent-a",
+                skipped_epic_ids=("sase-9",),
+            ),
+        ],
     )
     agent.followup_agents.append(
         Agent(
@@ -289,7 +305,7 @@ def test_bundle_dict_is_json_serializable_for_populated_agent() -> None:
     agent.runtime_children.append(agent.followup_agents[0])
     agent.retry_chain_siblings.append(agent.followup_agents[0])
 
-    json.dumps(agent.to_bundle_dict())
+    json.dumps(agent.to_bundle_dict(), allow_nan=False)
 
 
 def test_bundle_serialization_keeps_agent_state_without_artifact_text(
@@ -348,3 +364,89 @@ def test_bundle_serialization_keeps_agent_state_without_artifact_text(
     assert "Bearer abcdefghijklmnopqrstuvwxyz" not in serialized
     assert "api_key=abcdef1234567890" not in serialized
     assert "ghp_abcdefghijklmnopqrstuvwx123456" not in serialized
+
+
+_WAIT_EPIC_FOLLOW_FIELD_NAMES = (
+    "target",
+    "state",
+    "epic_ids",
+    "added_bead_ids",
+    "members",
+    "since",
+    "reason",
+    "detail",
+    "resume_command",
+    "skipped_epic_ids",
+)
+
+
+def _populated_follow_views() -> list[EpicFollowView]:
+    return [
+        EpicFollowView(
+            target="launching-target", state="launching", since=1750000001.0
+        ),
+        EpicFollowView(
+            target="following-target",
+            state="following",
+            epic_ids=("sase-1", "sase-2"),
+            added_bead_ids=("sase-1",),
+            members=("following-target", "other"),
+            since=1750000002.5,
+            resume_command="sase run following-target",
+            skipped_epic_ids=("sase-9",),
+        ),
+        EpicFollowView(
+            target="blocked-target",
+            state="blocked",
+            epic_ids=("sase-3",),
+            members=("blocked-target",),
+            since=1750000003.0,
+            reason="cycle",
+            detail="would wait on the waiter",
+            resume_command="sase run blocked-target",
+        ),
+    ]
+
+
+def _bundle_agent(**overrides: object) -> Agent:
+    defaults: dict[str, object] = {
+        "agent_type": AgentType.RUNNING,
+        "cl_name": "my_feature",
+        "project_file": "/tmp/test.sase",
+        "status": "DONE",
+        "start_time": datetime(2025, 6, 15, 10, 30, 0),
+    }
+    defaults.update(overrides)
+    return Agent(**defaults)  # type: ignore[arg-type]
+
+
+def test_bundle_round_trip_empty_wait_epic_follows() -> None:
+    agent = _bundle_agent(wait_epic_follows=[])
+    bundle = agent.to_bundle_dict()
+
+    assert bundle["wait_epic_follows"] == []
+
+    restored = Agent.from_bundle_dict(json.loads(json.dumps(bundle)))
+    assert restored.wait_epic_follows == []
+
+
+def test_bundle_round_trip_populated_wait_epic_follows() -> None:
+    views = _populated_follow_views()
+    agent = _bundle_agent(wait_epic_follows=list(views))
+    bundle = agent.to_bundle_dict()
+
+    encoded = bundle["wait_epic_follows"]
+    assert isinstance(encoded, list)
+    assert len(encoded) == len(views)
+    for raw in encoded:
+        assert set(raw) == set(_WAIT_EPIC_FOLLOW_FIELD_NAMES)
+    assert encoded[1]["epic_ids"] == ["sase-1", "sase-2"]
+    assert encoded[1]["added_bead_ids"] == ["sase-1"]
+    assert encoded[1]["members"] == ["following-target", "other"]
+    assert encoded[1]["skipped_epic_ids"] == ["sase-9"]
+
+    serialized = json.dumps(bundle, allow_nan=False)
+    restored = Agent.from_bundle_dict(json.loads(serialized))
+
+    assert list(restored.wait_epic_follows) == views
+    assert all(isinstance(view, EpicFollowView) for view in restored.wait_epic_follows)
