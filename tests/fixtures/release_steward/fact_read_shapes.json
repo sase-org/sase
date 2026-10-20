@@ -1,0 +1,16 @@
+{
+  "ready": {
+    "status": "ready",
+    "value": { "example": true }
+  },
+  "absent": {
+    "status": "absent",
+    "reason": "no open release PR"
+  },
+  "unreadable": {
+    "status": "unreadable",
+    "source": "pypi.sase",
+    "message": "HTTP 503 from pypi.org",
+    "remedy": "retry the PyPI JSON API"
+  }
+}
