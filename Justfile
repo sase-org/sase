@@ -451,6 +451,8 @@ _lint-patch-stitch-terminology: _setup
 # by reading it onto tui_startup rows, so its row is dropped.
 # sase-1ko.5 (delivery-plan) exported current_instruction_delivery for adapters;
 # sase-1ko.7 (claude) is its first consumer.
+# sase-1nf.10.1.1 (retry-policy) exported failure-accounting and drain-selection
+# facades; sase-1nf.10.1.3 (drain-accounting) consumes them in commit drains.
 # Never put a comment
 # line inside the continued command below: just joins the lines, so the comment
 # would swallow every later argument.
@@ -458,6 +460,11 @@ _lint-symvision *args: _setup
     SASE_SYMVISION_BEAD_STATUS_ONLY=1 BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase \
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
+        --epic-symbol 'sase-1nf.10.1.3(PublicationDrainSelection)' \
+        --epic-symbol 'sase-1nf.10.1.3(PublicationFailureAccounting)' \
+        --epic-symbol 'sase-1nf.10.1.3(PublicationFailureCharge)' \
+        --epic-symbol 'sase-1nf.10.1.3(decide_publication_failure_accounting)' \
+        --epic-symbol 'sase-1nf.10.1.3(select_publication_drain)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

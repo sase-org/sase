@@ -15,11 +15,19 @@ from sase.core.agent_publication_recovery import (
     PROMPT_STATUS_ALREADY_ARCHIVED,
     PROMPT_STATUS_NOT_APPLICABLE,
     PROMPT_STATUS_UNAVAILABLE,
+    PUBLICATION_ERROR_LOCK_BUSY,
+    PUBLICATION_ERROR_TIMEOUT,
+    PUBLICATION_FAILURE_SCOPE_HOOD,
+    PUBLICATION_FAILURE_SCOPE_REPOSITORY,
     PUBLICATION_KIND_RUN,
     PUBLICATION_KIND_SESSION,
+    PUBLICATION_LIFECYCLE_ACTIVE,
     PUBLICATION_RECOVERY_WIRE_SCHEMA_VERSION,
     classify_deferred_prompt_obligation,
+    classify_publication_error,
+    decide_publication_failure_accounting,
     decide_publication_request_completion,
+    select_publication_drain,
     select_publication_retries,
 )
 from tests.agents_sync.git_sync_fixtures import plant_fulfilled_publication
@@ -61,6 +69,170 @@ def test_select_publication_retries_revives_only_requested_classes() -> None:
     assert selected[0].global_agent == "alice.athena.foo"
     assert selected[0].prior_class == "retired"
     assert selected[0].prior_failure == "legacy mismatch"
+    assert selected[0].error_class == "other"
+
+
+def test_select_publication_retries_applies_limit_after_error_class_filter() -> None:
+    selected = select_publication_retries(
+        (
+            {
+                "global_agent": "alice.athena.timeout",
+                "primary_revision": "a" * 40,
+                "terminal": False,
+                "quarantined": True,
+                "last_error": "agent-hood publication did not complete within 120s",
+                "created_at": 2.0,
+            },
+            {
+                "global_agent": "alice.athena.other",
+                "primary_revision": "b" * 40,
+                "terminal": True,
+                "quarantined": False,
+                "last_error": "legacy mismatch",
+                "terminal_reason": "legacy mismatch",
+                "created_at": 1.0,
+            },
+            {
+                "global_agent": "alice.athena.lock",
+                "primary_revision": "c" * 40,
+                "terminal": False,
+                "quarantined": True,
+                "last_error": "agents sync lock is busy",
+                "created_at": 3.0,
+            },
+        ),
+        retry_retired=True,
+        retry_quarantined=True,
+        limit=1,
+        error_classes=(PUBLICATION_ERROR_TIMEOUT, PUBLICATION_ERROR_LOCK_BUSY),
+    )
+    assert len(selected) == 1
+    assert selected[0].global_agent == "alice.athena.timeout"
+    assert selected[0].error_class == PUBLICATION_ERROR_TIMEOUT
+
+
+def test_classify_publication_error_covers_uncommitted_index_changes() -> None:
+    assert classify_publication_error(None) == "unknown"
+    assert (
+        classify_publication_error("error: Your index contains uncommitted changes.")
+        == "unstaged_changes"
+    )
+    assert (
+        classify_publication_error("could not stage: .git/index.lock exists")
+        == "index_lock"
+    )
+
+
+def test_repository_scope_does_not_charge_attempted_keys() -> None:
+    decision = decide_publication_failure_accounting(
+        scope=PUBLICATION_FAILURE_SCOPE_REPOSITORY,
+        error="agents sync lock is busy",
+        attempted_keys=(("alice.athena.foo", "a" * 40),),
+        rows=(
+            {
+                "global_agent": "alice.athena.foo",
+                "primary_revision": "a" * 40,
+                "attempts": 2,
+                "last_error": "prior",
+            },
+        ),
+        quarantine_threshold=3,
+    )
+    assert decision.scope == PUBLICATION_FAILURE_SCOPE_REPOSITORY
+    assert not decision.charge
+    assert decision.charges == ()
+    assert decision.error_class == PUBLICATION_ERROR_LOCK_BUSY
+
+
+def test_hood_scope_charges_only_supplied_keys() -> None:
+    error = "hood 'foo' has no publishable runs"
+    decision = decide_publication_failure_accounting(
+        scope=PUBLICATION_FAILURE_SCOPE_HOOD,
+        error=error,
+        format_error=True,
+        attempted_keys=(("alice.athena.foo", "a" * 40),),
+        rows=(
+            {
+                "global_agent": "alice.athena.foo",
+                "primary_revision": "a" * 40,
+                "attempts": 1,
+                "last_error": error,
+            },
+            {
+                "global_agent": "alice.athena.other",
+                "primary_revision": "b" * 40,
+                "attempts": 2,
+                "last_error": error,
+            },
+        ),
+        quarantine_threshold=3,
+    )
+    assert decision.charge
+    assert len(decision.charges) == 1
+    assert decision.charges[0].retire
+    assert not decision.charges[0].quarantine
+    assert decision.charges[0].attempts == 2
+
+
+def test_select_publication_drain_prefers_new_then_active_then_stopped() -> None:
+    selected = select_publication_drain(
+        (
+            {
+                "global_agent": "alice.athena.old",
+                "primary_revision": "a" * 40,
+                "terminal": False,
+                "quarantined": False,
+                "last_error": None,
+                "created_at": 1.0,
+            },
+            {
+                "global_agent": "alice.athena.new",
+                "primary_revision": "b" * 40,
+                "terminal": False,
+                "quarantined": False,
+                "last_error": None,
+                "created_at": 5.0,
+            },
+            {
+                "global_agent": "alice.athena.retired",
+                "primary_revision": "c" * 40,
+                "terminal": True,
+                "quarantined": False,
+                "last_error": "legacy mismatch",
+                "terminal_reason": "legacy mismatch",
+                "created_at": 0.5,
+            },
+        ),
+        limit=2,
+        preferred_key=("alice.athena.new", "b" * 40),
+        retry_retired=True,
+        retry_quarantined=True,
+    )
+    assert [item.global_agent for item in selected.active] == [
+        "alice.athena.new",
+        "alice.athena.old",
+    ]
+    assert selected.revive == ()
+    assert selected.active[0].prior_class == PUBLICATION_LIFECYCLE_ACTIVE
+
+
+def test_select_publication_drain_no_match_is_empty() -> None:
+    selected = select_publication_drain(
+        (
+            {
+                "global_agent": "alice.athena.bar",
+                "primary_revision": "b" * 40,
+                "terminal": False,
+                "quarantined": True,
+                "last_error": "push rejected",
+            },
+        ),
+        limit=25,
+        retry_retired=True,
+        error_classes=(PUBLICATION_ERROR_TIMEOUT,),
+    )
+    assert selected.active == ()
+    assert selected.revive == ()
 
 
 def test_completion_requires_session_page_and_revision() -> None:

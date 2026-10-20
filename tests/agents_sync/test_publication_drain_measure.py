@@ -168,6 +168,7 @@ def test_read_lock_holder_ignores_malformed_record(tmp_path: Path) -> None:
         ("agents sync clone lock is busy", "lock_busy"),
         ("could not stage: .git/index.lock exists", "index_lock"),
         ("git pull --rebase failed: unstaged changes", "unstaged_changes"),
+        ("error: Your index contains uncommitted changes.", "unstaged_changes"),
         ("rebase conflict on agents/alice/page.md", "rebase_conflict"),
         ("publication payload exceeds the byte limit", "manifest_mismatch"),
         ("owner manifest does not decode", "manifest_mismatch"),
