@@ -129,6 +129,9 @@ def _wire_projection_request(request: Mapping[str, Any]) -> dict[str, Any]:
         payload["description"] = str(row.get("description") or "")
         payload["origin"] = str(row.get("origin") or "")
         payload["uses"] = _row_uses(row)
+    missing_holder = request.get("missing_holder")
+    if missing_holder:
+        payload["missing_holder"] = str(missing_holder)
     return payload
 
 

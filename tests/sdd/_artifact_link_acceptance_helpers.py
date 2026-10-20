@@ -31,6 +31,8 @@ from tests.sdd_store._helpers import clone, commit_all, git, init_bare_repo
 
 
 PROJECT_KEY = "gh_sase-org__sase"
+FOREIGN_PROJECT_KEY = "gh_bobs-org__bob-cli"
+UNAVAILABLE_PROJECT_KEY = "gh_acme__gold"
 
 
 @dataclass(frozen=True)
@@ -48,6 +50,14 @@ class _AcceptanceCluster:
     machine_a: _Machine
     machine_b: _Machine
     bead_project: BeadProject
+
+
+@dataclass(frozen=True)
+class _MixedCluster:
+    cluster: _AcceptanceCluster
+    foreign_beads_dir: Path
+    foreign_issue_id: str
+    unavailable_issue_id: str
 
 
 def _cluster(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> _AcceptanceCluster:
@@ -90,6 +100,53 @@ def _cluster(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> _AcceptanceClus
         machine_a=machine_a,
         machine_b=machine_b,
         bead_project=bead_project,
+    )
+
+
+def _mixed_cluster(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> _MixedCluster:
+    """Two-project fixture: this store plus a foreign enabled bead store."""
+
+    from tests.test_bead.test_cross_project import _record, _store
+
+    cluster = _cluster(tmp_path, monkeypatch)
+    foreign_issue_id = "bob-cli-8s"
+    unavailable_issue_id = "gold-a1"
+    foreign_beads_dir = _store(tmp_path, "bob", "bob-cli", foreign_issue_id)
+    records = [
+        _record(
+            PROJECT_KEY,
+            workspace_dir=str(tmp_path / "sase"),
+            display_name="sase",
+        ),
+        _record(
+            FOREIGN_PROJECT_KEY,
+            workspace_dir=str(tmp_path / "bob"),
+            display_name="bob-cli",
+        ),
+        _record(
+            UNAVAILABLE_PROJECT_KEY,
+            workspace_dir=str(tmp_path / "gold"),
+            display_name="gold",
+        ),
+    ]
+    beads_by_project = {
+        PROJECT_KEY: cluster.bead_project.beads_dir,
+        FOREIGN_PROJECT_KEY: foreign_beads_dir,
+        UNAVAILABLE_PROJECT_KEY: None,
+    }
+    monkeypatch.setattr(
+        "sase.bead.cross_project.list_project_records",
+        lambda *args, **kwargs: records,
+    )
+    monkeypatch.setattr(
+        "sase.bead.store_locator.canonical_beads_dir_for_project",
+        lambda project: beads_by_project.get(project),
+    )
+    return _MixedCluster(
+        cluster=cluster,
+        foreign_beads_dir=foreign_beads_dir,
+        foreign_issue_id=foreign_issue_id,
+        unavailable_issue_id=unavailable_issue_id,
     )
 
 

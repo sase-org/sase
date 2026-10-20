@@ -33,6 +33,7 @@ from sase.sdd._artifact_link_event_local_store import (
     install_local_artifact_link_event as _install_local_artifact_link_event,
     local_artifact_link_event_is_durable as _local_artifact_link_event_is_durable,
 )
+from sase.sdd._artifact_link_bead_endpoint import BeadEndpointEvidence
 from sase.sdd._artifact_link_event_ownership import (
     document_kinds_for_store as _document_kinds_for_store,
     event_owner_requirements as _event_owner_requirements,
@@ -244,6 +245,7 @@ def _publish_event_objects_locked(
         bead_receipt=bead_result.receipt,
         diagnostics=diagnostics,
         beads_available=store.beads_dir is not None,
+        endpoint_evidence=bead_result.endpoint_evidence,
     )
     ready_objects = [
         state.item for state in states.values() if state.operation_id in published_ids
@@ -463,11 +465,25 @@ def _published_operation_ids(
     bead_receipt: bool,
     diagnostics: list[str],
     beads_available: bool = False,
+    endpoint_evidence: Sequence[BeadEndpointEvidence] = (),
 ) -> tuple[str, ...]:
+    by_operation: dict[str, dict[str, BeadEndpointEvidence]] = {}
+    for item in endpoint_evidence:
+        by_operation.setdefault(item.operation_id, {})[item.issue_id] = item
     published: list[str] = []
     for state in states:
         needs_bead = state.bead_owner or (
             beads_available and _event_can_affect_bead_projections(state.item.event)
+        )
+        bead_refs = state.requirements.get("bead_refs")
+        endpoints = (
+            _bead_endpoint_wires(
+                state.operation_id,
+                bead_refs,
+                by_operation.get(state.operation_id, {}),
+            )
+            if needs_bead
+            else None
         )
         receipt = _publication_receipt(
             state.requirements,
@@ -479,6 +495,7 @@ def _published_operation_ids(
                 bead_owner=needs_bead,
                 bead_receipt=needs_bead and bead_receipt,
                 local_receipt=state.local_receipt,
+                bead_endpoints=endpoints,
             ),
         )
         reasons = receipt.get("pending_reasons")
@@ -487,6 +504,32 @@ def _published_operation_ids(
         if bool(receipt.get("acknowledged")):
             published.append(state.operation_id)
     return tuple(published)
+
+
+def _bead_endpoint_wires(
+    operation_id: str,
+    bead_refs: object,
+    by_issue: Mapping[str, BeadEndpointEvidence],
+) -> list[dict[str, Any]] | None:
+    from sase.sdd.artifact_link_beads import bead_id_from_ref
+
+    if not isinstance(bead_refs, list) or not bead_refs:
+        return None
+    endpoints: list[dict[str, Any]] = []
+    for raw_ref in bead_refs:
+        issue_id = bead_id_from_ref(str(raw_ref)) or str(raw_ref).removeprefix("bead:")
+        if not issue_id:
+            continue
+        item = by_issue.get(issue_id)
+        if item is None:
+            item = BeadEndpointEvidence(
+                operation_id=operation_id,
+                issue_id=issue_id,
+                outcome="transient",
+                detail="missing_evidence",
+            )
+        endpoints.append(item.to_wire())
+    return endpoints
 
 
 def _dedupe_event_objects(

@@ -116,7 +116,6 @@ def test_scaled_backfill_bounds_bulk_io_defers_then_converges_without_rewrite(
         BEAD_PROJECTION_DEFERRED_DIAGNOSTIC in item for item in first_report.errors
     )
     assert _SCALED_REF not in first_swept
-    assert read_artifact_link_outbox_entries(PROJECT_KEY)
     assert bulk_sizes == [BEAD_PROJECTION_BATCH_SIZE]
     assert core_sizes == [BEAD_PROJECTION_BATCH_SIZE]
     assert core_changed == [True]

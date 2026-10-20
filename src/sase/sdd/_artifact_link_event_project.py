@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterable, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 import os
 from pathlib import Path
 import subprocess
@@ -20,6 +20,14 @@ from sase.sdd._artifact_link_event_canonical import (
     rows_from_events,
 )
 from sase.sdd._artifact_link_event_local_store import artifact_link_local_event_root
+from sase.sdd._artifact_link_bead_endpoint import (
+    BeadEndpointEvidence,
+    classify_bead_issue_ids,
+    demote_committed_evidence,
+    evidence_from_projection_chunk,
+    keep_worse_evidence,
+    partition_local_projection_requests,
+)
 from sase.sdd._artifact_link_event_store import reduce_artifact_link_event_inputs
 from sase.sdd._artifact_link_store_support import validate_artifact_link_row
 from sase.sdd.artifact_link_store import ArtifactLinkStore
@@ -36,6 +44,7 @@ class _ArtifactLinkBeadProjectionResult:
     receipt: bool
     diagnostic: str | None = None
     deferred: bool = False
+    endpoint_evidence: tuple[BeadEndpointEvidence, ...] = ()
 
 
 def active_operation_ids_for_row(
@@ -109,6 +118,7 @@ def apply_events_to_beads(
     from sase.sdd._artifact_link_commit import ArtifactLinkPersistError
 
     changed = False
+    evidence: dict[tuple[str, str], BeadEndpointEvidence] = {}
     try:
         if _deadline_expired(deadline):
             return _finalize_bead_projection(
@@ -151,19 +161,56 @@ def apply_events_to_beads(
                     raw_operations=raw_operations,
                 )
             )
+        classified = classify_bead_issue_ids(
+            (str(request["issue_id"]) for request in requests),
+            store,
+        )
+        local_requests, classified_evidence = partition_local_projection_requests(
+            requests,
+            classified,
+        )
+        evidence.update(classified_evidence)
         batch_size = max(1, BEAD_PROJECTION_BATCH_SIZE)
-        for offset in range(0, len(requests), batch_size):
+        for offset in range(0, len(local_requests), batch_size):
             if _deadline_expired(deadline):
+                _mark_requests_transient(
+                    evidence,
+                    local_requests[offset:],
+                    BEAD_PROJECTION_DEFERRED_DIAGNOSTIC,
+                )
                 return _finalize_bead_projection(
                     store,
                     artifacts_dir=artifacts_dir,
                     mutation_origin=mutation_origin,
                     changed=changed,
                     deferred=True,
+                    endpoint_evidence=evidence,
                 )
-            chunk = requests[offset : offset + batch_size]
-            outcome = set_bead_endpoint_projections(store.beads_dir, chunk)
+            chunk = local_requests[offset : offset + batch_size]
+            try:
+                outcome = set_bead_endpoint_projections(store.beads_dir, chunk)
+            except Exception as exc:  # noqa: BLE001 - commit applied chunks first.
+                _mark_requests_transient(evidence, chunk, str(exc))
+                _mark_requests_transient(
+                    evidence,
+                    local_requests[offset + len(chunk) :],
+                    str(exc),
+                )
+                return replace(
+                    _finalize_bead_projection(
+                        store,
+                        artifacts_dir=artifacts_dir,
+                        mutation_origin=mutation_origin,
+                        changed=changed,
+                        deferred=False,
+                        endpoint_evidence=evidence,
+                    ),
+                    receipt=False,
+                    diagnostic=str(exc),
+                )
             changed = changed or bool(outcome.get("changed"))
+            for item in evidence_from_projection_chunk(chunk, outcome).values():
+                keep_worse_evidence(evidence, item)
 
         return _finalize_bead_projection(
             store,
@@ -171,16 +218,37 @@ def apply_events_to_beads(
             mutation_origin=mutation_origin,
             changed=changed,
             deferred=False,
+            endpoint_evidence=evidence,
         )
     except ArtifactLinkPersistError as exc:
         return _ArtifactLinkBeadProjectionResult(
             changed=changed,
             receipt=False,
             diagnostic=exc.diagnostic,
+            endpoint_evidence=_demoted_evidence_tuple(
+                evidence,
+                exc.diagnostic,
+            ),
         )
     except Exception as exc:  # noqa: BLE001 - outbox replay must retry cleanly.
-        return _ArtifactLinkBeadProjectionResult(
-            changed=changed,
+        try:
+            finalized = _finalize_bead_projection(
+                store,
+                artifacts_dir=artifacts_dir,
+                mutation_origin=mutation_origin,
+                changed=changed,
+                deferred=False,
+                endpoint_evidence=evidence,
+            )
+        except Exception:
+            return _ArtifactLinkBeadProjectionResult(
+                changed=changed,
+                receipt=False,
+                diagnostic=str(exc),
+                endpoint_evidence=_demoted_evidence_tuple(evidence, str(exc)),
+            )
+        return replace(
+            finalized,
             receipt=False,
             diagnostic=str(exc),
         )
@@ -193,9 +261,11 @@ def _finalize_bead_projection(
     mutation_origin: str,
     changed: bool,
     deferred: bool,
+    endpoint_evidence: Mapping[tuple[str, str], BeadEndpointEvidence] | None = None,
 ) -> _ArtifactLinkBeadProjectionResult:
     from sase.sdd._artifact_link_commit import commit_bead_link_events
 
+    evidence = dict(endpoint_evidence or {})
     assert store.beads_dir is not None
     if changed or _bead_store_has_uncommitted_changes(store.beads_dir):
         commit_bead_link_events(
@@ -204,11 +274,13 @@ def _finalize_bead_projection(
             mutation_origin=mutation_origin,
         )
     if _bead_store_has_uncommitted_changes(store.beads_dir):
+        diagnostic = "artifact-link bead projection has uncommitted changes"
         return _ArtifactLinkBeadProjectionResult(
             changed=changed,
             receipt=False,
-            diagnostic="artifact-link bead projection has uncommitted changes",
+            diagnostic=diagnostic,
             deferred=deferred,
+            endpoint_evidence=_demoted_evidence_tuple(evidence, diagnostic),
         )
     if deferred:
         return _ArtifactLinkBeadProjectionResult(
@@ -216,8 +288,37 @@ def _finalize_bead_projection(
             receipt=False,
             diagnostic=BEAD_PROJECTION_DEFERRED_DIAGNOSTIC,
             deferred=True,
+            endpoint_evidence=tuple(evidence.values()),
         )
-    return _ArtifactLinkBeadProjectionResult(changed=changed, receipt=True)
+    return _ArtifactLinkBeadProjectionResult(
+        changed=changed,
+        receipt=True,
+        endpoint_evidence=tuple(evidence.values()),
+    )
+
+
+def _mark_requests_transient(
+    evidence: dict[tuple[str, str], BeadEndpointEvidence],
+    requests: Sequence[Mapping[str, Any]],
+    detail: str,
+) -> None:
+    for request in requests:
+        keep_worse_evidence(
+            evidence,
+            BeadEndpointEvidence(
+                operation_id=str(request["operation_id"]),
+                issue_id=str(request["issue_id"]),
+                outcome="transient",
+                detail=detail,
+            ),
+        )
+
+
+def _demoted_evidence_tuple(
+    evidence: Mapping[tuple[str, str], BeadEndpointEvidence],
+    detail: str,
+) -> tuple[BeadEndpointEvidence, ...]:
+    return tuple(demote_committed_evidence(evidence, detail).values())
 
 
 def _deadline_expired(deadline: float | None) -> bool:

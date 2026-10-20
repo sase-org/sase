@@ -78,10 +78,11 @@ def publication_evidence(
     bead_owner: bool,
     bead_receipt: bool,
     local_receipt: bool,
+    bead_endpoints: Sequence[Mapping[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Build the JSON-shaped evidence payload expected by Rust."""
 
-    return {
+    payload: dict[str, Any] = {
         "schema_version": int(
             require_rust_binding(
                 "artifact_link_publication_ownership_wire_schema_version"
@@ -104,6 +105,9 @@ def publication_evidence(
         "bead_receipt": bead_receipt,
         "local_receipt": local_receipt,
     }
+    if bead_endpoints is not None:
+        payload["bead_endpoints"] = [dict(endpoint) for endpoint in bead_endpoints]
+    return payload
 
 
 __all__ = [

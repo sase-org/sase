@@ -212,8 +212,9 @@ def test_outbox_deadline_retains_operations_then_retry_acks_once(
     )
 
     assert first.deferred is True
-    assert first.drained == 0
-    assert len(read_artifact_link_outbox_entries(PROJECT_KEY)) == 3
+    assert first.drained == 1
+    assert first.retained == 2
+    assert len(read_artifact_link_outbox_entries(PROJECT_KEY)) == 2
 
     now[0] = 0.0
     monkeypatch.setattr(project_module, "BEAD_PROJECTION_BATCH_SIZE", 64)
@@ -234,7 +235,7 @@ def test_outbox_deadline_retains_operations_then_retry_acks_once(
         push_after_commit=False,
     )
 
-    assert retry.drained == 3
+    assert retry.drained == 2
     assert retry.deferred is False
     assert idle.drained == 0
     assert read_artifact_link_outbox_entries(PROJECT_KEY) == ()
