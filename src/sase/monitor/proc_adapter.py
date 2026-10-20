@@ -263,7 +263,7 @@ def settle_monitor_followup(state: dict[str, Any]) -> None:
     meta = _read_meta(artifacts_dir)
     if state.get("monitor_meta"):
         meta.update(state["monitor_meta"])
-    _cleanup_starter_cargo_target(artifacts_dir, meta)
+    _cleanup_starter_cargo_target(meta)
     monitor_state = str(
         state.get("monitor_state") or meta.get("monitor_state") or "failed"
     )
@@ -419,10 +419,7 @@ def settle_monitor_followup(state: dict[str, Any]) -> None:
     )
 
 
-def _cleanup_starter_cargo_target(
-    artifacts_dir: str,
-    meta: dict[str, Any],
-) -> None:
+def _cleanup_starter_cargo_target(meta: dict[str, Any]) -> None:
     """Reclaim an unheld starter cargo target before launching a follow-up."""
     if meta.get("monitor_tool_run_joined") is True:
         cleanup_launch_scratch_key(
@@ -433,7 +430,13 @@ def _cleanup_starter_cargo_target(
         )
         return
     try:
-        scratch_key = read_recorded_scratch_key(artifacts_dir)
+        # The launch key belongs to the starter; monitor members do not record it.
+        starter_dir = meta.get("monitor_starter_artifacts_dir")
+        scratch_key = (
+            read_recorded_scratch_key(starter_dir)
+            if isinstance(starter_dir, str) and starter_dir
+            else None
+        )
     except Exception as exc:  # noqa: BLE001 - scratch cleanup never blocks settlement
         cleanup_launch_scratch_key(
             None,

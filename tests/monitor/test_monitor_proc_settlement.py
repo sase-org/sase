@@ -87,12 +87,15 @@ def _prepare_starter_scratch(
     agent_tmp.mkdir(parents=True)
     (cargo / "payload.txt").write_text("cargo", encoding="utf-8")
     (agent_tmp / "payload.txt").write_text("tmp", encoding="utf-8")
+    starter_dir = make_starter_agent(
+        "proj",
+        "20260906115900",
+        "acme",
+        **({"launch_scratch_key": _STARTER_SCRATCH_KEY} if record_key else {}),
+    )
     meta_path = Path(artifacts_dir) / "agent_meta.json"
     meta = json.loads(meta_path.read_text(encoding="utf-8"))
-    if record_key:
-        meta["launch_scratch_key"] = _STARTER_SCRATCH_KEY
-    else:
-        meta.pop("launch_scratch_key", None)
+    meta["monitor_starter_artifacts_dir"] = starter_dir
     meta_path.write_text(json.dumps(meta), encoding="utf-8")
     return managed_root, cargo, agent_tmp
 
@@ -318,15 +321,14 @@ def test_settle_monitor_followup_reclaims_only_unheld_starter_cargo_before_dispa
         expected_removed=True,
     )
 
-    settle_monitor_followup(
-        {
-            "artifacts_dir": artifacts_dir,
-            "proc_id": "abc123def456",
-            "monitor_state": "completed",
-            "monitor_exit_code": 0,
-            "monitor_elapsed_seconds": 0.0,
-        }
-    )
+    state = {
+        "artifacts_dir": artifacts_dir,
+        "proc_id": "abc123def456",
+        "monitor_state": "completed",
+        "monitor_exit_code": 0,
+        "monitor_elapsed_seconds": 0.0,
+    }
+    settle_monitor_followup(state)
 
     assert not cargo.exists()
     assert agent_tmp.is_dir()
@@ -339,6 +341,19 @@ def test_settle_monitor_followup_reclaims_only_unheld_starter_cargo_before_dispa
     assert cleanup_lines[0]["context"] == "monitor-settlement"
     assert cleanup_lines[0]["scratch_key"] == _STARTER_SCRATCH_KEY
     assert cleanup_lines[0]["status"] == "removed"
+
+    settle_monitor_followup(state)
+
+    assert not cargo.exists()
+    assert agent_tmp.is_dir()
+    cleanup_lines = [
+        json.loads(line)
+        for line in capsys.readouterr().out.splitlines()
+        if "launch_scratch_cleanup" in line
+    ]
+    assert len(cleanup_lines) == 1
+    assert cleanup_lines[0]["status"] == "skipped"
+    assert cleanup_lines[0]["reason"] == "no-matching-candidates"
 
 
 @pytest.mark.parametrize(
@@ -393,7 +408,18 @@ def test_settle_monitor_followup_preserves_held_or_incompletely_observed_scratch
     assert agent_tmp.is_dir()
 
 
-@pytest.mark.parametrize("case", ["missing-key", "missing-dir"])
+@pytest.mark.parametrize(
+    "case",
+    [
+        "missing-key",
+        "missing-dir",
+        "missing-starter",
+        "missing-starter-dir",
+        "empty-starter",
+        "invalid-starter",
+        "monitor-only-key",
+    ],
+)
 def test_settle_monitor_followup_noops_for_missing_key_or_cargo_dir(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -405,8 +431,21 @@ def test_settle_monitor_followup_noops_for_missing_key_or_cargo_dir(
     managed_root, cargo, agent_tmp = _prepare_starter_scratch(
         artifacts_dir,
         tmp_path,
-        record_key=case != "missing-key",
+        record_key=case not in {"missing-key", "monitor-only-key"},
     )
+    meta_path = Path(artifacts_dir) / "agent_meta.json"
+    meta = json.loads(meta_path.read_text(encoding="utf-8"))
+    if case == "missing-starter":
+        meta.pop("monitor_starter_artifacts_dir")
+    elif case == "missing-starter-dir":
+        meta["monitor_starter_artifacts_dir"] = str(tmp_path / "missing-starter")
+    elif case == "empty-starter":
+        meta["monitor_starter_artifacts_dir"] = ""
+    elif case == "invalid-starter":
+        meta["monitor_starter_artifacts_dir"] = 123
+    elif case == "monitor-only-key":
+        meta["launch_scratch_key"] = _STARTER_SCRATCH_KEY
+    meta_path.write_text(json.dumps(meta), encoding="utf-8")
     if case == "missing-dir":
         import shutil
 
@@ -424,7 +463,7 @@ def test_settle_monitor_followup_noops_for_missing_key_or_cargo_dir(
     )
 
     def observe_cleanup(*_args: object, **_kwargs: object) -> SimpleNamespace:
-        assert cargo.exists() is (case == "missing-key")
+        assert cargo.exists() is (case != "missing-dir")
         assert agent_tmp.is_dir()
         return SimpleNamespace(error=None, launch_result=None)
 
