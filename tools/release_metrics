@@ -1,0 +1,91 @@
+#!/usr/bin/env python3
+"""Read-only release-green evidence and pre-train release figures."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+from collections.abc import Sequence
+from datetime import UTC, datetime, timedelta
+from pathlib import Path
+
+from _release_metrics import (
+    DEFAULT_REPO,
+    DEFAULT_WINDOW_DAYS,
+    calculate_metrics,
+    collect_green,
+    collect_snapshot,
+    load_inventory,
+    render_markdown,
+)
+
+
+def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
+    """Parse the release-metrics CLI. Options are listed alphabetically."""
+    shared = argparse.ArgumentParser(add_help=False)
+    shared.add_argument(
+        "-j",
+        "--json",
+        action="store_true",
+        help="Write the machine-readable result on stdout",
+    )
+    shared.add_argument(
+        "-r",
+        "--repo",
+        default=DEFAULT_REPO,
+        help=f"GitHub owner/repository (default: {DEFAULT_REPO})",
+    )
+    shared.add_argument(
+        "-w",
+        "--window",
+        type=int,
+        default=DEFAULT_WINDOW_DAYS,
+        metavar="DAYS",
+        help=(
+            f"Lookback window in days for the report (default: {DEFAULT_WINDOW_DAYS})"
+        ),
+    )
+    parser = argparse.ArgumentParser(
+        prog="release_metrics",
+        description=(
+            "Derive exact-SHA release-green evidence and the pre-train "
+            "release figures (each with numerator, denominator, and window) "
+            "from read-only GitHub and PyPI history."
+        ),
+        parents=[shared],
+    )
+    subparsers = parser.add_subparsers(dest="command")
+    green = subparsers.add_parser(
+        "green",
+        parents=[shared],
+        help="Evaluate release-green for one exact commit SHA",
+    )
+    green.add_argument("sha", help="Full git commit SHA to evaluate")
+    return parser.parse_args(argv)
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    args = parse_args(argv)
+    if args.command == "green":
+        result = collect_green(args.sha, repo=args.repo)
+        print(json.dumps(result, indent=2, sort_keys=True))
+        return 0
+    end = datetime.now(UTC)
+    start = end - timedelta(days=args.window)
+    snapshot, _facts, _health = collect_snapshot(repo=args.repo, start=start, end=end)
+    inventory = load_inventory(
+        Path(__file__).resolve().parents[1] / ".github" / "release-qualification.json"
+    )
+    report = calculate_metrics(
+        snapshot, inventory=inventory, now=end, window_days=args.window
+    )
+    if args.json:
+        print(json.dumps(report, indent=2, sort_keys=True))
+    else:
+        print(render_markdown(report))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

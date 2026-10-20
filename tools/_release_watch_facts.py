@@ -663,6 +663,128 @@ class ReleaseFactsReader:
             reverse=True,
         )
 
+    def read_runs_for_sha(
+        self,
+        workflow: str,
+        sha: str,
+        *,
+        branch: str | None = None,
+        include_jobs: bool = True,
+    ) -> list[dict[str, Any]]:
+        """Read workflow attempts bound to one exact commit SHA."""
+        if not re.fullmatch(r"[A-Za-z0-9_.-]+\.yml", workflow):
+            raise ValueError("workflow must be a workflow filename")
+        target = sha.strip().lower()
+        if not _SHA_RE.fullmatch(target):
+            raise ValueError("sha must be a full git commit SHA")
+        params: dict[str, object] = {"head_sha": target}
+        if branch:
+            params["branch"] = branch
+        rows = self._pages(
+            f"actions/workflows/{workflow}/runs",
+            params=params,
+            collection="workflow_runs",
+        )
+        runs = [
+            self._run_wire(row, workflow, with_jobs=include_jobs)
+            for row in rows
+            if str(row.get("head_sha") or "").lower() == target
+        ]
+        return sorted(
+            runs,
+            key=lambda item: (item["created_at"], item["attempt"], item["run_id"]),
+            reverse=True,
+        )
+
+    def read_commits(
+        self,
+        *,
+        since: datetime | str,
+        until: datetime | str,
+        branch: str = "master",
+        path: str | None = None,
+    ) -> list[dict[str, Any]]:
+        """Read commits reachable from a branch in an explicit time interval.
+
+        ``path`` narrows the history to commits that changed one repository
+        path, as supported by GitHub's commits endpoint.
+        """
+        start, end = _bounds(since, until)
+        if not re.fullmatch(r"[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)*", branch):
+            raise ValueError("branch must be a git ref name")
+        params: dict[str, object] = {
+            "sha": branch,
+            "since": _iso(start),
+            "until": _iso(end),
+        }
+        if path:
+            params["path"] = path
+        rows = self._pages("commits", params=params)
+        found: list[dict[str, Any]] = []
+        for index, raw in enumerate(rows):
+            item = _mapping(raw, f"commit[{index}]")
+            sha = _required_str(item, "sha", f"commit[{index}]").lower()
+            if not _SHA_RE.fullmatch(sha):
+                raise ReleaseFactsError(f"commit[{index}].sha is invalid")
+            commit = _mapping(item.get("commit"), f"commit {sha}.commit")
+            committer = _mapping(commit.get("committer"), f"commit {sha}.committer")
+            committed_at = _iso(
+                _utc(committer.get("date"), f"commit {sha}.committer.date")
+            )
+            parents: list[str] = []
+            for parent_index, parent_raw in enumerate(
+                _list(item.get("parents"), f"commit {sha}.parents")
+            ):
+                parent = _mapping(parent_raw, f"commit {sha}.parents[{parent_index}]")
+                parent_sha = _required_str(
+                    parent, "sha", f"commit {sha}.parents[{parent_index}]"
+                ).lower()
+                if not _SHA_RE.fullmatch(parent_sha):
+                    raise ReleaseFactsError(
+                        f"commit {sha}.parents[{parent_index}].sha is invalid"
+                    )
+                parents.append(parent_sha)
+            if start <= _utc(committed_at, f"commit {sha}.committed_at") <= end:
+                found.append(
+                    {
+                        "sha": sha,
+                        "committed_at": committed_at,
+                        "parents": parents,
+                    }
+                )
+        return sorted(found, key=lambda item: item["committed_at"])
+
+    def read_commits_between_refs(
+        self,
+        base: str,
+        head: str,
+        *,
+        since: datetime | str,
+        until: datetime | str,
+    ) -> list[dict[str, Any]]:
+        """Read date-bounded commits reachable from head but not base.
+
+        The compare endpoint caps its commit list at 250 entries. Querying each
+        ref through the paginated commits endpoint and subtracting the base's
+        reachable SHAs preserves exact range membership for the requested
+        time window without that cap.
+        """
+        for name, ref in (("base", base), ("head", head)):
+            stripped = ref.strip()
+            if not (
+                _SHA_RE.fullmatch(stripped.lower())
+                or _VERSION_TAG_RE.fullmatch(stripped)
+            ):
+                raise ValueError(f"{name} must be a full SHA or stable vX.Y.Z tag")
+        base_rows = self.read_commits(since=since, until=until, branch=base.strip())
+        base_shas = {row["sha"] for row in base_rows}
+        head_rows = self.read_commits(since=since, until=until, branch=head.strip())
+        return [
+            {"sha": row["sha"], "committed_at": row["committed_at"]}
+            for row in head_rows
+            if row["sha"] not in base_shas
+        ]
+
     def _release_rows(self) -> list[dict[str, Any]]:
         return [
             _mapping(row, f"release[{index}]")
@@ -724,6 +846,31 @@ class ReleaseFactsReader:
             if start <= created <= end:
                 found.append(release)
         return sorted(found, key=lambda item: item["tag"])
+
+    def read_release_history(self) -> list[dict[str, Any]]:
+        """Read GitHub release records with timestamps and release notes."""
+        found: list[dict[str, Any]] = []
+        for raw in self._release_rows():
+            release, created = self._release_wire(raw)
+            published = raw.get("published_at")
+            if published is not None:
+                published = _iso(
+                    _utc(published, f"release {release['tag']}.published_at")
+                )
+            body = raw.get("body")
+            if body is None:
+                body = ""
+            if not isinstance(body, str):
+                raise ReleaseFactsError(f"release {release['tag']}.body must be text")
+            found.append(
+                {
+                    **release,
+                    "created_at": _iso(created),
+                    "published_at": published,
+                    "body": body,
+                }
+            )
+        return sorted(found, key=lambda item: (item["created_at"], item["tag"]))
 
     def _all_release_records(self) -> list[tuple[dict[str, Any], dict[str, Any]]]:
         return [(self._release_wire(raw)[0], raw) for raw in self._release_rows()]
@@ -788,6 +935,7 @@ class ReleaseFactsReader:
                 {
                     "name": name,
                     "peeled_sha": sha,
+                    "committed_at": _iso(committed_at),
                     "has_manifest": any(
                         asset["name"] == "candidate-manifest.json"
                         for asset in releases.get(name, {}).get("assets", [])
