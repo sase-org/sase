@@ -30,6 +30,9 @@ _ALLOWLIST = {
     # Parses the ``ref:`` encoding of git HEAD files for stat-only
     # history change tokens, not pane dispatch.
     TUI_ROOT / "_memory_history_tokens.py",
+    # Parses the ``ref:`` encoding of git HEAD for the imported-revision
+    # snapshot, not pane dispatch.
+    TUI_ROOT / "util" / "imported_revision.py",
 }
 
 _DISPATCH_RE = re.compile(

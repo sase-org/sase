@@ -363,8 +363,11 @@ def test_doctor_reports_error_histogram_and_oldest_active_age(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from sase.agents_sync.models import TargetSelection
-    from sase.doctor import checks_agent_publication as doctor_module
-    from sase.doctor.checks_agent_publication import _check_agent_publication_outbox
+    from sase.doctor import checks_agent_publication_outbox as doctor_module
+    from sase.doctor import checks_agent_publication_sidecar as sidecar_module
+    from sase.doctor.checks_agent_publication_outbox import (
+        check_agent_publication_outbox,
+    )
 
     monkeypatch.setattr(
         doctor_module,
@@ -372,7 +375,7 @@ def test_doctor_reports_error_histogram_and_oldest_active_age(
         lambda *_args, **_kwargs: [_doctor_record(tmp_path)],
     )
     monkeypatch.setattr(
-        doctor_module,
+        sidecar_module,
         "resolve_sync_targets",
         lambda *_args, **_kwargs: TargetSelection((), ()),
     )
@@ -401,7 +404,7 @@ def test_doctor_reports_error_histogram_and_oldest_active_age(
         ],
     )
 
-    check = _check_agent_publication_outbox(_doctor_context(tmp_path), now=now)
+    check = check_agent_publication_outbox(_doctor_context(tmp_path), now=now)
 
     assert check.data["last_error_histogram"] == {
         "lock_busy": 1,
@@ -416,8 +419,11 @@ def test_doctor_oldest_active_age_is_none_without_active_requests(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from sase.agents_sync.models import TargetSelection
-    from sase.doctor import checks_agent_publication as doctor_module
-    from sase.doctor.checks_agent_publication import _check_agent_publication_outbox
+    from sase.doctor import checks_agent_publication_outbox as doctor_module
+    from sase.doctor import checks_agent_publication_sidecar as sidecar_module
+    from sase.doctor.checks_agent_publication_outbox import (
+        check_agent_publication_outbox,
+    )
 
     monkeypatch.setattr(
         doctor_module,
@@ -425,13 +431,13 @@ def test_doctor_oldest_active_age_is_none_without_active_requests(
         lambda *_args, **_kwargs: [_doctor_record(tmp_path)],
     )
     monkeypatch.setattr(
-        doctor_module,
+        sidecar_module,
         "resolve_sync_targets",
         lambda *_args, **_kwargs: TargetSelection((), ()),
     )
     _write_doctor_outbox(tmp_path / ".sase", "alpha", [])
 
-    check = _check_agent_publication_outbox(_doctor_context(tmp_path), now=200.0)
+    check = check_agent_publication_outbox(_doctor_context(tmp_path), now=200.0)
 
     assert check.data["last_error_histogram"] == {}
     assert check.data["oldest_active_age_seconds"] is None
@@ -449,7 +455,7 @@ def _init_git_repo(path: Path) -> None:
 def test_sidecar_state_reports_ahead_and_dirty_payload(
     tmp_path: Path,
 ) -> None:
-    from sase.doctor.checks_agent_publication import _sidecar_state
+    from sase.doctor.checks_agent_publication_sidecar import _sidecar_state
 
     remote = tmp_path / "remote.git"
     subprocess.run(
@@ -488,7 +494,7 @@ def test_sidecar_state_reports_ahead_and_dirty_payload(
 
 
 def test_sidecar_state_reports_missing_clone(tmp_path: Path) -> None:
-    from sase.doctor.checks_agent_publication import _sidecar_state
+    from sase.doctor.checks_agent_publication_sidecar import _sidecar_state
 
     state = _sidecar_state("sase", "Sase", tmp_path / "nope")
     assert state["status"] == "missing"

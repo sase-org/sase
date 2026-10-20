@@ -39,7 +39,7 @@ from sase.core.project_lifecycle_wire import (
     PROJECT_LIFECYCLE_WIRE_SCHEMA_VERSION,
     ProjectRecordWire,
 )
-from sase.doctor.checks_agent_publication import _check_agent_publication_outbox
+from sase.doctor.checks_agent_publication_outbox import check_agent_publication_outbox
 from sase.doctor.runner import DoctorContext
 from tests.agents_sync.commit_publication_fixtures import git, setup_target
 
@@ -535,14 +535,14 @@ def test_repeated_format_publication_failure_retires_and_doctor_says_drop(
         launchable=True,
     )
     monkeypatch.setattr(
-        "sase.doctor.checks_agent_publication.list_project_records",
+        "sase.doctor.checks_agent_publication_outbox.list_project_records",
         lambda *_args, **_kwargs: [record],
     )
     monkeypatch.setattr(
-        "sase.doctor.checks_agent_publication.require_agent_owner_identity",
+        "sase.doctor.checks_agent_publication_sidecar.require_agent_owner_identity",
         lambda: (_ for _ in ()).throw(RuntimeError("owner unavailable")),
     )
-    check = _check_agent_publication_outbox(
+    check = check_agent_publication_outbox(
         DoctorContext(cwd=tmp_path, project=None, sase_home=state_home),
         now=doctor_now,
         stalled_attempts=3,

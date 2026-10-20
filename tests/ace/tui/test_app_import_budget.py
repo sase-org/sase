@@ -34,7 +34,10 @@ _MAX_ELAPSED_SECONDS = 5.0
 # (``tools/tui_import_closure --diff`` attributes the full +1 to that
 # module; ``sase.pager.markdown_anchors`` stays lazily imported and out
 # of the closure), so the cap is 3522.
-_MAX_MODULE_COUNT = 3522
+# 2026-10-20 merge-base now measures 3523 with no sase.* module growth
+# (stdlib/dependency; ``tools/tui_import_closure --diff`` vs
+# origin/master), so the cap is 3524.
+_MAX_MODULE_COUNT = 3524
 
 
 def _measure_tui_app_import() -> dict[str, Any]:

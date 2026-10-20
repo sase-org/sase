@@ -14,7 +14,7 @@ from sase.core.project_lifecycle_wire import (
     PROJECT_LIFECYCLE_WIRE_SCHEMA_VERSION,
     ProjectRecordWire,
 )
-from sase.doctor.checks_agent_publication import _check_agent_publication_outbox
+from sase.doctor.checks_agent_publication_outbox import check_agent_publication_outbox
 from sase.doctor.runner import DoctorContext
 
 
@@ -97,12 +97,12 @@ def test_agent_publication_outbox_doctor_reports_clean_outbox(
 ) -> None:
     record = _record(tmp_path)
     monkeypatch.setattr(
-        "sase.doctor.checks_agent_publication.list_project_records",
+        "sase.doctor.checks_agent_publication_outbox.list_project_records",
         lambda *_args, **_kwargs: [record],
     )
     _write_outbox(tmp_path / ".sase", "alpha", [])
 
-    check = _check_agent_publication_outbox(_context(tmp_path), now=200.0)
+    check = check_agent_publication_outbox(_context(tmp_path), now=200.0)
 
     assert check.status == "OK"
     assert "no quarantined or stalled requests" in check.summary
@@ -117,7 +117,7 @@ def test_agent_publication_outbox_doctor_reports_quarantined_and_stalled_request
 ) -> None:
     record = _record(tmp_path)
     monkeypatch.setattr(
-        "sase.doctor.checks_agent_publication.list_project_records",
+        "sase.doctor.checks_agent_publication_outbox.list_project_records",
         lambda *_args, **_kwargs: [record],
     )
     now = 10_000.0
@@ -145,7 +145,7 @@ def test_agent_publication_outbox_doctor_reports_quarantined_and_stalled_request
         ],
     )
 
-    check = _check_agent_publication_outbox(
+    check = check_agent_publication_outbox(
         _context(tmp_path),
         now=now,
         stalled_attempts=3,
@@ -173,7 +173,7 @@ def test_agent_publication_outbox_doctor_reports_dropped_obsolete_requests(
 ) -> None:
     record = _record(tmp_path)
     monkeypatch.setattr(
-        "sase.doctor.checks_agent_publication.list_project_records",
+        "sase.doctor.checks_agent_publication_outbox.list_project_records",
         lambda *_args, **_kwargs: [record],
     )
     _write_outbox(
@@ -203,7 +203,7 @@ def test_agent_publication_outbox_doctor_reports_dropped_obsolete_requests(
         schema_version=4,
     )
 
-    check = _check_agent_publication_outbox(
+    check = check_agent_publication_outbox(
         _context(tmp_path),
         now=200.0,
         stalled_attempts=3,
@@ -232,7 +232,7 @@ def test_agent_publication_outbox_doctor_points_retired_requests_at_the_drop_com
 ) -> None:
     record = _record(tmp_path)
     monkeypatch.setattr(
-        "sase.doctor.checks_agent_publication.list_project_records",
+        "sase.doctor.checks_agent_publication_outbox.list_project_records",
         lambda *_args, **_kwargs: [record],
     )
     now = 10_000.0
@@ -254,7 +254,7 @@ def test_agent_publication_outbox_doctor_points_retired_requests_at_the_drop_com
         ],
     )
 
-    check = _check_agent_publication_outbox(
+    check = check_agent_publication_outbox(
         _context(tmp_path),
         now=now,
         stalled_attempts=3,
@@ -296,20 +296,20 @@ def test_agent_publication_doctor_warns_on_unreadable_local_owner_manifest(
         "git@example.test:alpha--agents.git",
     )
     monkeypatch.setattr(
-        "sase.doctor.checks_agent_publication.list_project_records",
+        "sase.doctor.checks_agent_publication_outbox.list_project_records",
         lambda *_args, **_kwargs: [record],
     )
     monkeypatch.setattr(
-        "sase.doctor.checks_agent_publication.resolve_sync_targets",
+        "sase.doctor.checks_agent_publication_sidecar.resolve_sync_targets",
         lambda *_args, **_kwargs: TargetSelection((target,), ()),
     )
     monkeypatch.setattr(
-        "sase.doctor.checks_agent_publication.require_agent_owner_identity",
+        "sase.doctor.checks_agent_publication_sidecar.require_agent_owner_identity",
         lambda: AgentOwnerIdentity("alice", "athena"),
     )
     _write_outbox(tmp_path / ".sase", "alpha", [])
 
-    check = _check_agent_publication_outbox(_context(tmp_path), now=200.0)
+    check = check_agent_publication_outbox(_context(tmp_path), now=200.0)
 
     assert check.status == "WARN"
     assert "unreadable owner manifest" in check.summary
@@ -336,20 +336,20 @@ def test_agent_publication_doctor_accepts_healthy_local_owner_manifest(
         "git@example.test:alpha--agents.git",
     )
     monkeypatch.setattr(
-        "sase.doctor.checks_agent_publication.list_project_records",
+        "sase.doctor.checks_agent_publication_outbox.list_project_records",
         lambda *_args, **_kwargs: [record],
     )
     monkeypatch.setattr(
-        "sase.doctor.checks_agent_publication.resolve_sync_targets",
+        "sase.doctor.checks_agent_publication_sidecar.resolve_sync_targets",
         lambda *_args, **_kwargs: TargetSelection((target,), ()),
     )
     monkeypatch.setattr(
-        "sase.doctor.checks_agent_publication.require_agent_owner_identity",
+        "sase.doctor.checks_agent_publication_sidecar.require_agent_owner_identity",
         lambda: AgentOwnerIdentity("alice", "athena"),
     )
     _write_outbox(tmp_path / ".sase", "alpha", [])
 
-    check = _check_agent_publication_outbox(_context(tmp_path), now=200.0)
+    check = check_agent_publication_outbox(_context(tmp_path), now=200.0)
 
     assert check.status == "OK"
     assert check.data["owner_manifest_problem_count"] == 0
