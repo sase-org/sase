@@ -121,7 +121,9 @@ class AgentSessionTurnWire:
 
 
 # Old flat key -> new nested field name, for the fields both turn kinds
-# share.
+# share. Every target must be an AgentSessionTurnWire field;
+# monitor_host_completion_reasons is deliberately not projected because
+# sase.monitor.followup reads it from raw meta and the Rust wire has no such field.
 _MONITOR_SHARED_KEYS: dict[str, str] = {
     "monitor_id": "id",
     "monitor_state": "state",
@@ -153,7 +155,6 @@ _MONITOR_SHARED_KEYS: dict[str, str] = {
     "monitor_host_completion_status": "host_completion_status",
     "monitor_host_completion_message": "host_completion_message",
     "monitor_host_completion_reason": "host_completion_reason",
-    "monitor_host_completion_reasons": "host_completion_reasons",
 }
 
 _MONITOR_SPECIFIC_KEYS: dict[str, str] = {
