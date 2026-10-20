@@ -6,14 +6,25 @@ name: Release
 #
 # Modes (workflow_dispatch input `mode`):
 # - `release`: dispatched at a `v*` tag. Builds, seals, stashes on the draft
-#   release and exercises, then stops red with "not yet qualified" until the
-#   qualify, publish and confirm jobs land in later phases. It must never
-#   succeed yet.
+#   release, exercises, and qualifies against the published core, then stops
+#   red with "not yet qualified" until the publish and confirm jobs land in a
+#   later phase. It must never succeed yet.
 # - `resume`: dispatched at a `v*` tag whose sealed generation already carries
-#   passing evidence. Runs only `publish` and `confirm` (later phases).
-# - `rehearse`: dispatched at a branch (normally `master`). Builds, seals
-#   and exercises, but stores everything as workflow artifacts, never touches
-#   a GitHub release, and runs `publish` as a verify-only plan.
+#   passing evidence. Runs only `publish` and `confirm` (later phases); it
+#   never rebuilds or reruns qualification.
+# - `rehearse`: dispatched at a branch (normally `master`). Builds, seals,
+#   exercises and qualifies, but stores everything as workflow artifacts,
+#   never touches a GitHub release, and runs `publish` as a verify-only plan.
+#
+# Qualification runs `qualify-prepare` (validated manifest fields),
+# `qualify-ci` (reusable CI at the identity SHA against the published core),
+# and `qualify` (the authoritative verdict from completed scoped jobs and
+# attempt-aware evidence). The final verdict is written and uploaded before
+# the verdict step fails, so red observations persist. `publish` (later phase)
+# must depend on the `qualify` verdict and `exercise`, never on the
+# `qualify-ci` aggregate: its status condition must pass through required
+# verdicts even when an advisory ancestor failed, since default
+# success-propagation would silently skip publication.
 #
 # The exercise legs install the same sealed bytes the manifest binds: the
 # build artifact in both modes (the stash upload is a mechanical copy of
@@ -56,6 +67,11 @@ on:
         options:
           - none
           - break-macos
+      probe_core_version:
+        description: Rehearse-only probe core version, tested but never sealed
+        type: string
+        required: false
+        default: ""
 
 concurrency:
   group: release-${{ github.ref }}
@@ -566,6 +582,371 @@ jobs:
           path: ${{ steps.merge.outputs.asset }}
           if-no-files-found: error
           retention-days: 30
+
+  # Validates the sealed manifest from the current run's candidate-build
+  # artifact and exposes the exact build identity the qualifier must bind.
+  # The tested core is the probe version in rehearse probe runs, otherwise
+  # the intended sealed version. Probes are refused outside rehearse.
+  qualify-prepare:
+    needs:
+      - identity
+      - build
+    if: ${{ inputs.mode == 'release' || inputs.mode == 'rehearse' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      sha: ${{ steps.bind.outputs.sha }}
+      candidate-id: ${{ steps.bind.outputs.candidate-id }}
+      generation: ${{ steps.bind.outputs.generation }}
+      core-version: ${{ steps.bind.outputs.core-version }}
+      tested-core-version: ${{ steps.bind.outputs.tested-core-version }}
+      inventory-digest: ${{ steps.bind.outputs.inventory-digest }}
+      probe-core-version: ${{ steps.bind.outputs.probe-core-version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.identity.outputs.sha }}
+          fetch-depth: 1
+      - name: Download the sealed candidate build
+        uses: actions/download-artifact@v4
+        with:
+          name: candidate-build
+          path: candidate/
+      - name: Bind the sealed candidate identity
+        id: bind
+        env:
+          MODE: ${{ inputs.mode }}
+          REPOSITORY: ${{ github.repository }}
+          IDENTITY_SHA: ${{ needs.identity.outputs.sha }}
+          PROBE_CORE_VERSION: ${{ inputs.probe_core_version }}
+        run: |
+          set -euo pipefail
+          manifest="candidate/candidate-manifest.json"
+          if [ ! -f "$manifest" ]; then
+            echo "::error::sealed candidate-manifest.json is missing from candidate-build"
+            exit 1
+          fi
+          probe="${PROBE_CORE_VERSION:-}"
+          if [ -n "$probe" ] && [ "$MODE" != "rehearse" ]; then
+            echo "::error::probe_core_version is rehearse-only"
+            exit 1
+          fi
+          core_version="$(python3 -c 'import json; print(json.load(open("'"$manifest"'"))["core_version"])')"
+          python3 tools/write_qualification_evidence \
+            --bind-manifest "$manifest" \
+            --expected-core-version "$core_version" \
+            --github-output "$GITHUB_OUTPUT"
+          python3 - "$manifest" "$IDENTITY_SHA" "$REPOSITORY" "$probe" >> "$GITHUB_OUTPUT" <<'PY'
+          import hashlib
+          import json
+          import sys
+          from pathlib import Path
+
+          manifest_path, identity_sha, repository, probe = sys.argv[1:5]
+          manifest = json.loads(Path(manifest_path).read_text(encoding="utf-8"))
+          if manifest.get("sha") != identity_sha:
+              print(
+                  f"::error::sealed sha {manifest.get('sha')!r} != identity {identity_sha!r}"
+              )
+              raise SystemExit(1)
+          if manifest.get("repository") != repository:
+              print(
+                  f"::error::sealed repository {manifest.get('repository')!r} "
+                  f"!= run repository {repository!r}"
+              )
+              raise SystemExit(1)
+          core_version = manifest.get("core_version") or ""
+          if not core_version:
+              print("::error::sealed manifest carries no core_version")
+              raise SystemExit(1)
+          digest = hashlib.sha256(
+              Path(".github/release-qualification.json").read_bytes()
+          ).hexdigest()
+          tested = probe or core_version
+          print(f"sha={identity_sha}")
+          print(f"core-version={core_version}")
+          print(f"tested-core-version={tested}")
+          print(f"inventory-digest={digest}")
+          print(f"probe-core-version={probe}")
+          PY
+
+  # Runs reusable CI at the exact identity SHA against the published core
+  # from the sealed manifest. Local reusable calls use this workflow's own
+  # revision; the requested ref reaches every checkout. Qualification pins
+  # qualify-<sha> without cancelling; the outer release group stays
+  # distinct. Resume never reaches this job.
+  qualify-ci:
+    needs: qualify-prepare
+    if: ${{ inputs.mode == 'release' || inputs.mode == 'rehearse' }}
+    permissions:
+      contents: read
+      actions: read
+    uses: ./.github/workflows/ci.yml
+    with:
+      ref: ${{ needs.qualify-prepare.outputs.sha }}
+      core-source: published
+      core-version: ${{ needs.qualify-prepare.outputs.core-version }}
+      manifest-artifact: candidate-build
+      probe-core-version: ${{ needs.qualify-prepare.outputs.probe-core-version }}
+    secrets: inherit
+
+  # Determines promotion readiness from the completed qualify-ci jobs and
+  # their attempt-aware evidence. Reads scoped jobs with paginated Actions
+  # API requests under the exact qualify-ci call scope (never suffix
+  # matching), then evaluates with the shared release_candidate qualify
+  # clause. Missing, skipped, cancelled, unreadable or failed evidence is a
+  # typed red outcome, never a skip. The observation is written and uploaded
+  # first; only the final verdict step fails the job, so red observations
+  # persist. Release mode attaches the observation to the draft with this
+  # job's narrowly scoped write permission; rehearse uses artifacts.
+  qualify:
+    needs:
+      - qualify-prepare
+      - qualify-ci
+    if: ${{ always() && (inputs.mode == 'release' || inputs.mode == 'rehearse') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+      actions: read
+    outputs:
+      verdict: ${{ steps.evaluate.outputs.verdict }}
+      observation: ${{ steps.evaluate.outputs.observation }}
+      token: ${{ steps.evaluate.outputs.token }}
+      run-id: ${{ steps.evaluate.outputs.run-id }}
+      attempt: ${{ steps.evaluate.outputs.attempt }}
+      candidate-id: ${{ steps.evaluate.outputs.candidate-id }}
+      generation: ${{ steps.evaluate.outputs.generation }}
+      intended-core-version: ${{ steps.evaluate.outputs.intended-core-version }}
+      tested-core-version: ${{ steps.evaluate.outputs.tested-core-version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.qualify-prepare.outputs.sha }}
+          fetch-depth: 1
+      - name: Download the sealed candidate build
+        uses: actions/download-artifact@v4
+        with:
+          name: candidate-build
+          path: candidate/
+      - name: Evaluate the qualification evidence
+        id: evaluate
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPOSITORY: ${{ github.repository }}
+          RUN_ID: ${{ github.run_id }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+          CANDIDATE_ID: ${{ needs.qualify-prepare.outputs.candidate-id }}
+          GENERATION: ${{ needs.qualify-prepare.outputs.generation }}
+          INTENDED_CORE: ${{ needs.qualify-prepare.outputs.core-version }}
+          TESTED_CORE: ${{ needs.qualify-prepare.outputs.tested-core-version }}
+        run: |
+          set -euo pipefail
+          repo="${REPOSITORY}"
+          run="${RUN_ID}"
+          attempt="${RUN_ATTEMPT}"
+          mkdir -p jobs-pages artifacts-pages evidence qualify-work zips
+          fetch_ok=1
+          for n in $(seq 1 "$attempt"); do
+            if ! gh api "repos/${repo}/actions/runs/${run}/attempts/${n}/jobs" \
+                --paginate > "jobs-pages/attempt-${n}.json"; then
+              echo "::error::failed to fetch qualify-ci jobs for attempt ${n}"
+              fetch_ok=0
+            fi
+            if ! gh api "repos/${repo}/actions/runs/${run}/attempts/${n}/artifacts" \
+                --paginate > "artifacts-pages/attempt-${n}.json"; then
+              echo "::error::failed to fetch qualify-ci artifacts for attempt ${n}"
+              fetch_ok=0
+            fi
+          done
+          if [ "$fetch_ok" = "1" ]; then
+            set +e
+            python3 - jobs-pages artifacts-pages zips evidence "$attempt" "$repo" <<'PY'
+          import json
+          import subprocess
+          import sys
+          import zipfile
+          from pathlib import Path
+
+          jobs_dir, artifacts_dir, zips_dir, evidence_dir = (
+              Path(part) for part in sys.argv[1:5]
+          )
+          max_attempt = int(sys.argv[5])
+          repo = sys.argv[6]
+          failed = False
+          for n in range(1, max_attempt + 1):
+              raw = (artifacts_dir / f"attempt-{n}.json").read_text(encoding="utf-8")
+              pages = json.loads(raw)
+              if isinstance(pages, dict):
+                  pages = [pages]
+              wanted: list[tuple[int, str]] = []
+              for page in pages:
+                  for row in page.get("artifacts", []):
+                      if not isinstance(row, dict):
+                          continue
+                      name = row.get("name", "")
+                      if (
+                          isinstance(name, str)
+                          and name.startswith("qualify-evidence-")
+                          and name.endswith(f"-attempt-{n}")
+                          and not row.get("expired")
+                      ):
+                          wanted.append((row["id"], name))
+              target = evidence_dir / f"attempt-{n}"
+              target.mkdir(parents=True, exist_ok=True)
+              for artifact_id, name in wanted:
+                  dest = zips_dir / f"attempt-{n}-{name}.zip"
+                  proc = subprocess.run(
+                      [
+                          "gh", "api",
+                          f"repos/{repo}/actions/artifacts/{artifact_id}/zip",
+                      ],
+                      capture_output=True,
+                      check=False,
+                  )
+                  if proc.returncode != 0:
+                      print(f"::warning::download of evidence artifact {name} failed")
+                      failed = True
+                      continue
+                  dest.write_bytes(proc.stdout)
+                  try:
+                      with zipfile.ZipFile(dest) as archive:
+                          for member in archive.namelist():
+                              leaf = member.rsplit("/", 1)[-1]
+                              if leaf.startswith("qualify-evidence-") and leaf.endswith(".json"):
+                                  (target / leaf).write_bytes(archive.read(member))
+                  except zipfile.BadZipFile as exc:
+                      print(f"::warning::evidence artifact {name} is not a zip: {exc}")
+                      failed = True
+          raise SystemExit(1 if failed else 0)
+          PY
+            zip_status=$?
+            set -e
+            if [ "$zip_status" -ne 0 ]; then
+              echo "::warning::some qualification evidence downloads failed; the evaluator records them as typed red"
+            fi
+          fi
+          collect_args=(
+            --inventory .github/release-qualification.json
+            --manifest candidate/candidate-manifest.json
+            --run-id "$run"
+            --caller-job qualify-ci
+            --evidence-root evidence
+            --out qualify-work/jobs.json
+          )
+          for n in $(seq 1 "$attempt"); do
+            collect_args+=(
+              --attempt-jobs "${n}=jobs-pages/attempt-${n}.json"
+              --attempt-artifacts "${n}=artifacts-pages/attempt-${n}.json"
+            )
+          done
+          if [ "$fetch_ok" = "1" ]; then
+            if ! python3 tools/collect_qualification_jobs "${collect_args[@]}"; then
+              echo "::error::collect_qualification_jobs refused; the evaluator records the jobs file as typed red"
+              fetch_ok=0
+            fi
+          fi
+          if [ "$fetch_ok" != "1" ]; then
+            printf 'qualification fact fetch failed; see the job log\n' > qualify-work/jobs.json
+          fi
+          set +e
+          result="$(python3 tools/release_candidate qualify \
+            --manifest candidate/candidate-manifest.json \
+            --jobs qualify-work/jobs.json \
+            --evidence-dir evidence \
+            --run-id "$run" \
+            --attempt "$attempt" \
+            --out qualification-observation.json)"
+          status=$?
+          set -e
+          printf '%s\n' "$result" > qualify-work/result.json
+          verdict=red
+          if [ "$status" -eq 0 ]; then
+            verdict=pass
+          fi
+          asset="$(python3 -c 'import json; print(json.load(open("qualification-observation.json")).get("asset", ""))' 2>/dev/null || true)"
+          reason="$(python3 -c 'import json; print(json.load(open("qualification-observation.json")).get("reason", ""))' 2>/dev/null || true)"
+          {
+            echo "status=${status}"
+            echo "verdict=${verdict}"
+            echo "observation=${asset}"
+            echo "token=${reason}"
+            echo "run-id=${run}"
+            echo "attempt=${attempt}"
+            echo "candidate-id=${CANDIDATE_ID}"
+            echo "generation=${GENERATION}"
+            echo "intended-core-version=${INTENDED_CORE}"
+            echo "tested-core-version=${TESTED_CORE}"
+          } >> "$GITHUB_OUTPUT"
+          echo "verdict=${verdict} status=${status} asset=${asset} reason=${reason}"
+          exit 0
+      - name: Upload the qualification observation
+        if: ${{ always() && inputs.mode == 'rehearse' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: qualification-observation
+          path: qualification-observation.json
+          if-no-files-found: error
+          retention-days: 30
+      - name: Attach the qualification observation to the draft
+        if: ${{ always() && inputs.mode == 'release' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          if [ ! -f qualification-observation.json ]; then
+            echo "::error::qualification observation was not written; refusing to attach"
+            exit 1
+          fi
+          asset="$(python3 -c 'import json; print(json.load(open("qualification-observation.json"))["asset"])')"
+          if gh release view "${TAG}" --json assets --jq '.assets[].name' | grep -qFx "$asset"; then
+            gh release download "${TAG}" -p "$asset" -D /tmp/qualify-existing
+            if cmp -s "/tmp/qualify-existing/${asset}" qualification-observation.json; then
+              echo "identical qualification observation is already attached; skipping upload"
+            else
+              echo "::error::conflicting qualification observation is already attached as ${asset}"
+              exit 1
+            fi
+          else
+            gh release upload "${TAG}" qualification-observation.json
+          fi
+      - name: Fail the verdict when qualification is red
+        if: always()
+        env:
+          STATUS: ${{ steps.evaluate.outputs.status }}
+          VERDICT: ${{ steps.evaluate.outputs.verdict }}
+          TOKEN: ${{ steps.evaluate.outputs.token }}
+          INTENDED_CORE: ${{ needs.qualify-prepare.outputs.core-version }}
+          TESTED_CORE: ${{ needs.qualify-prepare.outputs.tested-core-version }}
+          PROBE: ${{ needs.qualify-prepare.outputs.probe-core-version }}
+        run: |
+          set -euo pipefail
+          {
+            echo "## Qualification: ${VERDICT}"
+            echo ""
+            echo "Intended core: \`${INTENDED_CORE}\`; tested core: \`${TESTED_CORE}\`."
+            if [ -n "${TOKEN}" ]; then
+              echo "Token: \`${TOKEN}\`."
+            fi
+            echo "Observation: \`${{ steps.evaluate.outputs.observation }}\`."
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ -n "$PROBE" ]; then
+            echo "::error::probe core ${TESTED_CORE} is rehearse-only and never qualifies the intended ${INTENDED_CORE}"
+            exit 1
+          fi
+          if [ "$VERDICT" != "pass" ]; then
+            if [ -n "$TOKEN" ]; then
+              echo "::error::${TOKEN}"
+            else
+              echo "::error::qualification is red (evaluator status ${STATUS})"
+            fi
+            exit 1
+          fi
+          echo "qualification passed"
 
   not-yet-qualified:
     needs:

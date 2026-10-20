@@ -99,6 +99,29 @@ module from the installed package on the macOS legs only, so those legs must go 
 the merge must report `EXERCISE_RED(macos)`. Probes are refused in `release` and
 `resume` modes.
 
+## Qualify
+
+The `qualify-prepare` job downloads the current run's `candidate-build` artifact and
+binds the sealed manifest: candidate ID, generation, SHA, core version and inventory
+digest. `qualify-ci` then calls the reusable `.github/workflows/ci.yml` at the exact
+identity SHA with `core-source` `published`, so the blocking jobs run against the sealed
+published core instead of a source build. `qualify` reads the completed `qualify-ci`
+jobs through paginated Actions API requests under the exact `qualify-ci` call scope and
+evaluates them with `tools/release_candidate qualify`: missing, skipped, cancelled,
+stale or unreadable evidence is a typed `QUALIFY_RED` outcome, never a pass.
+
+Only the inventory (`.github/release-qualification.json`) decides what blocks: the
+evaluator loads it, the steward and metrics import its loader, and this page does not
+restate the list. A failed blocking job may be retried once with
+`gh run rerun --failed`; the retry carries unchanged successful executions forward by
+job ID and needs new evidence for every rerun job. Advisory jobs stay visible in the
+observation but can never veto the verdict.
+
+The rehearse-only `probe_core_version` input tests an older core without resealing the
+manifest: the tested version is recorded next to the intended one, and a probe run stays
+red even when the evaluator would otherwise pass. Probes are refused outside `rehearse`
+mode.
+
 ## Tag-frozen workflow rule
 
 A workflow dispatched at a tag runs that tag's own workflow files. A tag cut before

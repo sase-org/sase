@@ -39,6 +39,12 @@ def test_release_dispatch_modes_and_no_push_or_schedule() -> None:
         "default": "none",
         "options": ["none", "break-macos"],
     }
+    assert inputs["probe_core_version"] == {
+        "description": "Rehearse-only probe core version, tested but never sealed",
+        "type": "string",
+        "required": False,
+        "default": "",
+    }
 
 
 def test_release_concurrency_never_cancels() -> None:
@@ -60,6 +66,9 @@ def test_release_job_graph_and_mode_gates() -> None:
         "stash",
         "exercise-legs",
         "exercise",
+        "qualify-prepare",
+        "qualify-ci",
+        "qualify",
         "not-yet-qualified",
     }
     assert jobs["build"]["needs"] == "identity"
@@ -71,10 +80,36 @@ def test_release_job_graph_and_mode_gates() -> None:
         == "${{ inputs.mode == 'release' || inputs.mode == 'rehearse' }}"
     )
     assert jobs["exercise"]["needs"] == ["identity", "exercise-legs"]
+    qualify_gate = "${{ inputs.mode == 'release' || inputs.mode == 'rehearse' }}"
+    assert jobs["qualify-prepare"]["needs"] == ["identity", "build"]
+    assert jobs["qualify-prepare"]["if"] == qualify_gate
+    assert jobs["qualify-ci"]["needs"] == "qualify-prepare"
+    assert jobs["qualify-ci"]["if"] == qualify_gate
+    assert jobs["qualify"]["needs"] == ["qualify-prepare", "qualify-ci"]
+    assert (
+        jobs["qualify"]["if"]
+        == "${{ always() && (inputs.mode == 'release' || inputs.mode == 'rehearse') }}"
+    )
+    # Qualification never waits for the exercise legs: the qualifier reads
+    # completed jobs and the publish gate joins both verdicts later.
+    assert "exercise" not in jobs["qualify"]["needs"]
+    assert "exercise-legs" not in jobs["qualify"]["needs"]
     assert (
         jobs["not-yet-qualified"]["if"]
         == "${{ inputs.mode == 'release' || inputs.mode == 'resume' }}"
     )
+
+
+def test_release_resume_never_rebuilds_or_requalifies() -> None:
+    workflow = _load_release_workflow()
+    jobs = workflow["jobs"]
+
+    for name in ("qualify-prepare", "qualify-ci"):
+        gate = jobs[name]["if"]
+        assert "resume" not in gate
+        assert "rehearse" in gate
+    assert "resume" not in jobs["qualify"]["if"]
+    assert "rehearse" in jobs["qualify"]["if"]
 
 
 def test_release_identity_asserts_source_and_version_match() -> None:
@@ -207,4 +242,177 @@ def test_release_exercise_summary_merges_legs_into_one_observation() -> None:
     assert "release_candidate observe" in run_text
     assert "--kind exercise" in run_text
     assert "exercise red" in run_text
+    assert "exit 1" in run_text
+
+
+def test_release_qualify_prepare_binds_the_sealed_manifest() -> None:
+    workflow = _load_release_workflow()
+    prepare = workflow["jobs"]["qualify-prepare"]
+    run_text = _job_run_text(prepare)
+
+    assert "candidate-manifest.json is missing from candidate-build" in run_text
+    assert "write_qualification_evidence" in run_text
+    assert "--bind-manifest" in run_text
+    assert "sealed sha" in run_text
+    assert "sealed repository" in run_text
+    assert "sealed manifest carries no core_version" in run_text
+    assert "release-qualification.json" in run_text
+    assert "probe_core_version is rehearse-only" in run_text
+    for output in (
+        "sha",
+        "candidate-id",
+        "generation",
+        "core-version",
+        "tested-core-version",
+        "inventory-digest",
+        "probe-core-version",
+    ):
+        assert output in prepare["outputs"]
+    assert "needs.identity.outputs.sha" in str(prepare["steps"])
+    bind = next(step for step in prepare["steps"] if step.get("id") == "bind")
+    assert bind["env"]["IDENTITY_SHA"] == "${{ needs.identity.outputs.sha }}"
+
+
+def test_release_qualify_ci_calls_published_core() -> None:
+    workflow = _load_release_workflow()
+    qualify_ci = workflow["jobs"]["qualify-ci"]
+
+    assert qualify_ci["uses"] == "./.github/workflows/ci.yml"
+    assert qualify_ci["with"] == {
+        "ref": "${{ needs.qualify-prepare.outputs.sha }}",
+        "core-source": "published",
+        "core-version": "${{ needs.qualify-prepare.outputs.core-version }}",
+        "manifest-artifact": "candidate-build",
+        "probe-core-version": "${{ needs.qualify-prepare.outputs.probe-core-version }}",
+    }
+    assert qualify_ci["secrets"] == "inherit"
+    assert qualify_ci["permissions"] == {"contents": "read", "actions": "read"}
+    assert "runs-on" not in qualify_ci
+
+
+def test_release_qualify_fetches_scoped_attempt_aware_facts() -> None:
+    workflow = _load_release_workflow()
+    qualify = workflow["jobs"]["qualify"]
+    run_text = _job_run_text(qualify)
+
+    assert "attempts/${n}/jobs" in run_text
+    assert "attempts/${n}/artifacts" in run_text
+    assert "--paginate" in run_text
+    assert "tools/collect_qualification_jobs" in run_text
+    assert "--caller-job qualify-ci" in run_text
+    assert "--attempt-jobs" in run_text
+    assert "--attempt-artifacts" in run_text
+    assert "--evidence-root evidence" in run_text
+    assert "artifacts/{artifact_id}/zip" in run_text
+    assert "qualify-evidence-" in run_text
+    assert "-attempt-{n}" in run_text
+    assert "release_candidate qualify" in run_text
+    assert "--manifest candidate/candidate-manifest.json" in run_text
+    assert "--jobs qualify-work/jobs.json" in run_text
+    assert "--evidence-dir evidence" in run_text
+    assert '--run-id "$run"' in run_text
+    assert '--attempt "$attempt"' in run_text
+    assert "--out qualification-observation.json" in run_text
+
+
+def test_release_qualify_treats_fetch_failures_as_typed_red() -> None:
+    workflow = _load_release_workflow()
+    run_text = _job_run_text(workflow["jobs"]["qualify"])
+
+    assert "failed to fetch qualify-ci jobs" in run_text
+    assert "failed to fetch qualify-ci artifacts" in run_text
+    assert "qualification fact fetch failed" in run_text
+    assert "collect_qualification_jobs refused" in run_text
+
+
+def test_release_qualify_persists_red_observations_before_failing() -> None:
+    workflow = _load_release_workflow()
+    qualify = workflow["jobs"]["qualify"]
+    run_text = _job_run_text(qualify)
+    by_name = {step["name"]: step for step in qualify["steps"] if "name" in step}
+
+    assert "exit 0" in run_text
+    assert by_name["Upload the qualification observation"]["if"] == (
+        "${{ always() && inputs.mode == 'rehearse' }}"
+    )
+    assert by_name["Attach the qualification observation to the draft"]["if"] == (
+        "${{ always() && inputs.mode == 'release' }}"
+    )
+    assert "qualification observation was not written" in run_text
+    assert "conflicting qualification observation" in run_text
+    assert "identical qualification observation is already attached" in run_text
+    assert by_name["Fail the verdict when qualification is red"]["if"] == "always()"
+    assert "exit 1" in run_text
+    assert "steps.evaluate.outputs" in str(qualify["outputs"])
+
+
+def test_release_qualify_probe_never_qualifies() -> None:
+    workflow = _load_release_workflow()
+    qualify = workflow["jobs"]["qualify"]
+    run_text = _job_run_text(qualify)
+    steps_text = str(qualify["steps"])
+
+    assert "probe core" in run_text
+    assert "never qualifies the intended" in run_text
+    assert "Intended core" in run_text
+    assert "tested core" in run_text
+    assert "needs.qualify-prepare.outputs.probe-core-version" in steps_text
+    assert "needs.qualify-prepare.outputs.tested-core-version" in steps_text
+    assert "needs.qualify-prepare.outputs.core-version" in steps_text
+    evaluate = next(step for step in qualify["steps"] if step.get("id") == "evaluate")
+    assert (
+        evaluate["env"]["TESTED_CORE"]
+        == "${{ needs.qualify-prepare.outputs.tested-core-version }}"
+    )
+
+
+def test_release_qualify_exposes_verdict_and_locator() -> None:
+    workflow = _load_release_workflow()
+    qualify = workflow["jobs"]["qualify"]
+
+    assert qualify["outputs"] == {
+        "verdict": "${{ steps.evaluate.outputs.verdict }}",
+        "observation": "${{ steps.evaluate.outputs.observation }}",
+        "token": "${{ steps.evaluate.outputs.token }}",
+        "run-id": "${{ steps.evaluate.outputs.run-id }}",
+        "attempt": "${{ steps.evaluate.outputs.attempt }}",
+        "candidate-id": "${{ steps.evaluate.outputs.candidate-id }}",
+        "generation": "${{ steps.evaluate.outputs.generation }}",
+        "intended-core-version": "${{ steps.evaluate.outputs.intended-core-version }}",
+        "tested-core-version": "${{ steps.evaluate.outputs.tested-core-version }}",
+    }
+
+
+def test_release_qualify_permissions_scope_the_draft_attach() -> None:
+    workflow = _load_release_workflow()
+    jobs = workflow["jobs"]
+
+    assert jobs["qualify-prepare"]["permissions"] == {
+        "contents": "read",
+        "actions": "read",
+    }
+    assert jobs["qualify"]["permissions"] == {
+        "contents": "write",
+        "actions": "read",
+    }
+
+
+def test_release_qualify_mounts_the_sealed_candidate() -> None:
+    workflow = _load_release_workflow()
+    qualify = workflow["jobs"]["qualify"]
+    run_text = _job_run_text(qualify)
+
+    assert "needs.qualify-prepare.outputs.sha" in str(qualify["steps"])
+    assert "candidate-build" in str(qualify["steps"])
+    assert "candidate/candidate-manifest.json" in run_text
+
+
+def test_release_publication_barrier_survives_qualification() -> None:
+    workflow = _load_release_workflow()
+    jobs = workflow["jobs"]
+
+    assert "publish" not in jobs
+    assert "confirm" not in jobs
+    run_text = _job_run_text(jobs["not-yet-qualified"])
+    assert "not yet qualified" in run_text
     assert "exit 1" in run_text

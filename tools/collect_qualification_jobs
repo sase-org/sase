@@ -1,0 +1,440 @@
+#!/usr/bin/env python3
+"""Normalize paginated Actions jobs/artifacts responses into a job-history bundle.
+
+Reads raw ``gh api`` responses for one release run's ``qualify-ci`` reusable
+call and emits the normalized attempt-aware job history JSON consumed by
+``tools/release_candidate qualify``. Jobs are scoped by the exact caller-job
+prefix (``<caller> / <called>``), never by suffix matching, so an unrelated
+job that happens to share a called name can never satisfy a requirement.
+
+Evidence artifacts are per-attempt unique
+(``qualify-evidence-<check>-attempt-<N>``) while payload filenames stay
+``qualify-evidence-<check>.json``. Attempt snapshots are contiguous from 1; a
+check with no fresh execution in a later attempt carries the previous
+snapshot's identical record forward, which is exactly what the evaluator's
+carry-forward proof requires. Absent uploads and expired artifacts become
+record-scoped ``missing`` evidence errors; unreadable payloads become
+``harness`` errors. Anything the evaluator must refuse (unknown jobs,
+duplicates) is preserved verbatim so refusal stays typed downstream.
+
+Stdlib-only so workflow steps can run it without a prepared virtualenv.
+"""
+
+from __future__ import annotations
+
+import argparse
+import copy
+import importlib.util
+import json
+import os
+import sys
+from importlib.machinery import SourceFileLoader
+from pathlib import Path
+from typing import Any
+
+
+_inventory_path = Path(__file__).with_name("_release_qualification_inventory.py")
+_inventory_loader = SourceFileLoader(
+    "collect_qualification_jobs_inventory_tool", str(_inventory_path)
+)
+_inventory_spec = importlib.util.spec_from_file_location(
+    "collect_qualification_jobs_inventory_tool",
+    _inventory_path,
+    loader=_inventory_loader,
+)
+if _inventory_spec is None or _inventory_spec.loader is None:
+    raise RuntimeError(
+        f"cannot load qualification inventory helpers at {_inventory_path}"
+    )
+_inventory = importlib.util.module_from_spec(_inventory_spec)
+sys.modules[_inventory_spec.name] = _inventory
+_inventory_spec.loader.exec_module(_inventory)
+
+JOB_BUNDLE_SCHEMA_VERSION = _inventory.JOB_BUNDLE_SCHEMA_VERSION
+QualificationInputError = _inventory.QualificationInputError
+inventory_digest = _inventory.inventory_digest
+load_inventory = _inventory.load_inventory
+strict_json_loads = _inventory.strict_json_loads
+
+EXIT_OK = 0
+EXIT_REFUSED = 2
+EXIT_ERROR = 3
+
+#: Workflow whose jobs carry qualification evidence. Exercise verdicts stay
+#: with the existing exercise machinery and are never mistaken for CI jobs.
+QUALIFIED_WORKFLOW = ".github/workflows/ci.yml"
+
+
+class Refusal(Exception):
+    """A malformed input that must fail the workflow step, not crash it."""
+
+
+def _parse_numbered_paths(values: list[str], *, flag: str) -> dict[int, list[Path]]:
+    """Parse repeatable ``N=PATH`` arguments into attempt-ordered path lists."""
+    grouped: dict[int, list[Path]] = {}
+    for value in values:
+        number, separator, path_text = value.partition("=")
+        if not separator or not path_text:
+            raise Refusal(f"{flag} entry {value!r} must look like N=PATH")
+        try:
+            attempt = int(number)
+        except ValueError:
+            raise Refusal(f"{flag} entry {value!r} has a non-integer attempt") from None
+        if attempt < 1:
+            raise Refusal(f"{flag} entry {value!r} has a non-positive attempt")
+        grouped.setdefault(attempt, []).append(Path(path_text))
+    return grouped
+
+
+def _load_pages(paths: list[Path], *, key: str, flag: str) -> list[dict[str, Any]]:
+    """Read raw API responses that are either one page object or a page list."""
+    pages: list[dict[str, Any]] = []
+    for path in paths:
+        try:
+            raw = path.read_bytes()
+        except OSError as exc:
+            raise Refusal(f"cannot read {flag} file {path}: {exc}") from exc
+        payload = strict_json_loads(raw, source=f"{flag} file {path}")
+        if isinstance(payload, list):
+            candidates = payload
+        elif isinstance(payload, dict):
+            candidates = [payload]
+        else:
+            raise Refusal(f"{flag} file {path} must be a page object or a page list")
+        for candidate in candidates:
+            if not isinstance(candidate, dict) or not isinstance(
+                candidate.get(key), list
+            ):
+                raise Refusal(
+                    f"{flag} file {path} has a page without a {key!r} list"
+                )
+            pages.append(candidate)
+    return pages
+
+
+def _is_int(value: Any) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool)
+
+
+def _collect_scoped_rows(
+    pages: list[dict[str, Any]], *, caller_job: str
+) -> tuple[list[dict[str, Any]], int]:
+    """Return exact-scope rows plus the count of rows that could not match."""
+    prefix = f"{caller_job} / "
+    rows: list[dict[str, Any]] = []
+    ignored = 0
+    seen: set[str] = set()
+    for page in pages:
+        for row in page["jobs"]:
+            if not isinstance(row, dict):
+                ignored += 1
+                continue
+            if not isinstance(row.get("id"), int) or not isinstance(
+                row.get("name"), str
+            ):
+                ignored += 1
+                continue
+            if not row["name"].startswith(prefix):
+                ignored += 1
+                continue
+            fingerprint = json.dumps(row, sort_keys=True, default=str)
+            if fingerprint in seen:
+                continue
+            seen.add(fingerprint)
+            rows.append(row)
+    return rows, ignored
+
+
+def _artifact_index(pages: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    """Index raw artifact rows by name; first non-expired row wins."""
+    index: dict[str, dict[str, Any]] = {}
+    for page in pages:
+        for row in page["artifacts"]:
+            if not isinstance(row, dict) or not isinstance(row.get("name"), str):
+                continue
+            name = row["name"]
+            if name in index:
+                continue
+            index[name] = row
+    return index
+
+
+def _step_outcomes(raw_steps: Any) -> list[dict[str, Any]]:
+    steps: list[dict[str, Any]] = []
+    if not isinstance(raw_steps, list):
+        return steps
+    for raw in raw_steps:
+        if not isinstance(raw, dict):
+            continue
+        steps.append(
+            {
+                "name": raw.get("name"),
+                "status": raw.get("status"),
+                "conclusion": raw.get("conclusion"),
+            }
+        )
+    return steps
+
+
+def _evidence_binding(
+    *,
+    check_id: str,
+    attempt: int,
+    artifacts: dict[str, dict[str, Any]],
+    evidence_root: Path,
+) -> dict[str, Any]:
+    """Locate the attempt payload or describe typed evidence absence."""
+    slug = f"qualify-evidence-{check_id}-attempt-{attempt}"
+    payload_name = f"qualify-evidence-{check_id}.json"
+    row = artifacts.get(slug)
+    if row is None:
+        return {
+            "evidence_error": f"evidence upload {slug} is missing",
+            "evidence_error_class": "missing",
+        }
+    if row.get("expired") is True:
+        return {
+            "evidence_error": f"evidence upload {slug} has expired",
+            "evidence_error_class": "missing",
+        }
+    relative = Path(f"attempt-{attempt}") / payload_name
+    if ".." in relative.parts:
+        return {
+            "evidence_error": f"evidence payload {payload_name} escapes its directory",
+            "evidence_error_class": "harness",
+        }
+    path = evidence_root / relative
+    try:
+        raw = path.read_bytes()
+    except OSError as exc:
+        return {
+            "evidence_error": (
+                f"evidence payload {relative} is missing or unreadable: {exc}"
+            ),
+            "evidence_error_class": "missing",
+        }
+    try:
+        payload = strict_json_loads(raw, source=f"evidence payload {relative}")
+    except QualificationInputError as exc:
+        return {"evidence_error": str(exc), "evidence_error_class": "harness"}
+    if not isinstance(payload, dict):
+        return {
+            "evidence_error": f"evidence payload {relative} must be an object",
+            "evidence_error_class": "harness",
+        }
+    return {"evidence_file": relative.as_posix()}
+
+
+def _fresh_record(
+    *,
+    row: dict[str, Any],
+    entry: dict[str, Any],
+    workflow_run_id: int,
+    attempt: int,
+    artifacts: dict[str, dict[str, Any]],
+    evidence_root: Path,
+) -> dict[str, Any]:
+    job = entry["job"]
+    execution_attempt = row.get("run_attempt")
+    if not _is_int(execution_attempt):
+        execution_attempt = attempt
+    record: dict[str, Any] = {
+        "workflow_file": entry["workflow"],
+        "workflow_job_id": job["id"],
+        "matrix": copy.deepcopy(job["matrix"]),
+        "job_id": row["id"],
+        "job_name": row["name"].split(" / ", 1)[-1],
+        "workflow_run_id": (
+            row["run_id"] if _is_int(row.get("run_id")) else workflow_run_id
+        ),
+        "execution_attempt": execution_attempt,
+        "status": row.get("status"),
+        "conclusion": row.get("conclusion"),
+        "url": row.get("html_url", ""),
+        "started_at": row.get("started_at"),
+        "completed_at": row.get("completed_at"),
+        "steps": _step_outcomes(row.get("steps")),
+    }
+    if entry.get("required_reporting_steps"):
+        record.update(
+            _evidence_binding(
+                check_id=entry["id"],
+                attempt=attempt,
+                artifacts=artifacts,
+                evidence_root=evidence_root,
+            )
+        )
+    return record
+
+
+def collect_bundle(
+    *,
+    inventory_bytes: bytes,
+    manifest: dict[str, Any],
+    jobs_pages: dict[int, list[Path]],
+    artifact_pages: dict[int, list[Path]],
+    evidence_root: Path,
+    workflow_run_id: int,
+    caller_job: str,
+) -> tuple[dict[str, Any], dict[str, int]]:
+    """Build the normalized job-history bundle from raw API responses."""
+    inventory = load_inventory(inventory_bytes)
+    digest = inventory_digest(inventory_bytes)
+    attempts = sorted(jobs_pages)
+    if [number for number in attempts] != list(range(1, len(attempts) + 1)):
+        raise Refusal("attempt snapshots must be contiguous from 1")
+    entries = [
+        entry
+        for entry in inventory["checks"]
+        if entry.get("workflow") == QUALIFIED_WORKFLOW
+    ]
+    if not entries:
+        raise Refusal("inventory carries no qualification workflow checks")
+    snapshots: list[dict[str, Any]] = []
+    stats = {"scoped_rows": 0, "ignored_rows": 0, "carried_records": 0}
+    previous: dict[str, dict[str, Any]] = {}
+    for attempt in attempts:
+        pages = _load_pages(jobs_pages[attempt], key="jobs", flag="--attempt-jobs")
+        rows, ignored = _collect_scoped_rows(pages, caller_job=caller_job)
+        stats["scoped_rows"] += len(rows)
+        stats["ignored_rows"] += ignored
+        artifact_rows: list[dict[str, Any]] = []
+        for paths in artifact_pages.get(attempt, []):
+            artifact_rows.extend(
+                _load_pages([paths], key="artifacts", flag="--attempt-artifacts")
+            )
+        artifacts = _artifact_index(artifact_rows)
+        by_name: dict[str, list[dict[str, Any]]] = {}
+        for row in rows:
+            stripped = row["name"].split(" / ", 1)[-1]
+            by_name.setdefault(stripped, []).append(row)
+        snapshot_jobs: list[dict[str, Any]] = []
+        current: dict[str, dict[str, Any]] = {}
+        for entry in entries:
+            candidates = by_name.get(entry["job"]["name"], [])
+            if candidates:
+                for row in candidates:
+                    record = _fresh_record(
+                        row=row,
+                        entry=entry,
+                        workflow_run_id=workflow_run_id,
+                        attempt=attempt,
+                        artifacts=artifacts,
+                        evidence_root=evidence_root,
+                    )
+                    snapshot_jobs.append(record)
+                    current[entry["id"]] = record
+            elif attempt > 1 and entry["id"] in previous:
+                snapshot_jobs.append(copy.deepcopy(previous[entry["id"]]))
+                current[entry["id"]] = copy.deepcopy(previous[entry["id"]])
+                stats["carried_records"] += 1
+        snapshots.append({"attempt": attempt, "jobs": snapshot_jobs})
+        previous = current
+    bundle = {
+        "schema_version": JOB_BUNDLE_SCHEMA_VERSION,
+        "repository": manifest.get("repository"),
+        "candidate_id": manifest.get("candidate_id"),
+        "generation": manifest.get("generation"),
+        "sha": manifest.get("sha"),
+        "expected_core_version": manifest.get("core_version"),
+        "inventory_digest": digest,
+        "workflow_run_id": workflow_run_id,
+        "current_attempt": len(attempts),
+        "attempts": snapshots,
+    }
+    return bundle, stats
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--inventory",
+        default=".github/release-qualification.json",
+        help="exact versioned N1 inventory file",
+    )
+    parser.add_argument("--manifest", required=True, help="sealed manifest JSON path")
+    parser.add_argument("--run-id", required=True, type=int)
+    parser.add_argument(
+        "--caller-job",
+        default="qualify-ci",
+        help="reusable-call job whose scoped jobs carry qualification evidence",
+    )
+    parser.add_argument(
+        "--attempt-jobs",
+        action="append",
+        default=[],
+        metavar="N=PATH",
+        help="repeatable raw jobs API responses per workflow attempt",
+    )
+    parser.add_argument(
+        "--attempt-artifacts",
+        action="append",
+        default=[],
+        metavar="N=PATH",
+        help="repeatable raw artifacts API responses per workflow attempt",
+    )
+    parser.add_argument(
+        "--evidence-root",
+        default="evidence",
+        help="directory holding attempt-N/qualify-evidence-<check>.json payloads",
+    )
+    parser.add_argument("--out", required=True, help="normalized bundle output path")
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
+    try:
+        if args.run_id < 1:
+            raise Refusal("run-id must be a positive integer")
+        if not args.attempt_jobs:
+            raise Refusal("at least one --attempt-jobs N=PATH entry is required")
+        jobs_pages = _parse_numbered_paths(args.attempt_jobs, flag="--attempt-jobs")
+        artifact_pages = _parse_numbered_paths(
+            args.attempt_artifacts, flag="--attempt-artifacts"
+        )
+        try:
+            inventory_bytes = Path(args.inventory).read_bytes()
+        except OSError as exc:
+            raise Refusal(f"cannot read inventory {args.inventory}: {exc}") from exc
+        try:
+            manifest_raw = Path(args.manifest).read_bytes()
+        except OSError as exc:
+            raise Refusal(f"cannot read manifest {args.manifest}: {exc}") from exc
+        manifest = strict_json_loads(manifest_raw, source=f"manifest {args.manifest}")
+        if not isinstance(manifest, dict):
+            raise Refusal("manifest root must be an object")
+        bundle, stats = collect_bundle(
+            inventory_bytes=inventory_bytes,
+            manifest=manifest,
+            jobs_pages=jobs_pages,
+            artifact_pages=artifact_pages,
+            evidence_root=Path(args.evidence_root),
+            workflow_run_id=args.run_id,
+            caller_job=args.caller_job,
+        )
+        out_path = Path(args.out)
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        temporary = out_path.with_name(out_path.name + ".tmp")
+        temporary.write_text(
+            json.dumps(bundle, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        )
+        os.replace(temporary, out_path)
+        print(
+            "wrote"
+            f" {out_path} with {len(bundle['attempts'])} attempt(s),"
+            f" {stats['scoped_rows']} scoped row(s),"
+            f" {stats['carried_records']} carried record(s),"
+            f" {stats['ignored_rows']} ignored row(s)"
+        )
+        return EXIT_OK
+    except Refusal as exc:
+        print(f"REFUSED {exc}", file=sys.stderr)
+        return EXIT_REFUSED
+    except (OSError, ValueError) as exc:
+        print(f"ERROR {exc}", file=sys.stderr)
+        return EXIT_ERROR
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
