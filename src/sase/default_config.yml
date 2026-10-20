@@ -1655,7 +1655,10 @@ axe:
             free-space floor; pressure pruning waits for the configured minimum age (12h by default), or 1h once the
             free-space floor is breached, while preserving generic agent scratch, handoff data, unknown buckets, and
             build trees with fresh descendants. Each pass removes at most 2,000 entries and de-indexes deleted
-            agent-artifact directories, so a neglected root converges without blocking interactive commands.
+            agent-artifact directories, so a neglected root converges without blocking interactive commands. When a
+            read-only directory blocks removal, the reaper repairs owner permissions inside the candidate and retries
+            once. It logs bounded removal errors and process-specific skip reasons, and reports check_error when a
+            removal fails; incomplete process observations alone are not errors.
         - name: proc_runtime_sweep
           script: sase_job_proc_runtime_sweep
           description: |-
@@ -1672,10 +1675,12 @@ axe:
           description: |-
             React when SASE's filesystem crosses disk-pressure thresholds
 
-            Checks proportional free-space thresholds, logs and notifies the largest SASE disk owners, then runs
-            unattended owner-safe cleanup passes early. Managed temp and proc runtime sweeps may apply because their
-            owners encode deletion policy. Artifact run directories, backups, and unowned Cargo-shaped strays are
-            reported for human action and are never deleted by this job.
+            Checks proportional free-space thresholds, runs unattended owner-safe cleanup passes, then sends one
+            notification with changed and failed owners, reclaimed bytes, and available space after cleanup. Managed
+            temp and proc runtime sweeps may apply because their owners encode deletion policy. A failed owner or
+            notification reports check_error; persistent pressure with blocked or incomplete cleanup reports
+            recovery_blocked. Artifact run directories, backups, and unowned Cargo-shaped strays are reported for
+            human action and are never deleted by this job.
         - name: bead_stale_cleanup
           script: sase_job_bead_stale_cleanup
           timeout: "2m"

@@ -962,16 +962,22 @@ procfs root, current/exempt pids) that reaps launch-keyed `agent-tmp`/`cargo-tar
 legacy `build-targets` children no live process holds after the grace, reporting
 `dead_launch_*` counts plus `dead_launch_observer` (`procfs`, `unobservable`, or
 `disabled`); while that observer is usable, pressure never removes a held entry and an
-unheld entry needs only the dead-launch grace rather than the pressure minimum age. The
-repo-owned exceptions are the two Justfile roots above: `../sase-core/target/uv-tool-py`
-for `sase_core_rs` and `../sase-core/target/uv-tool-lsp` for `sase-macro-lsp`. Those are
-shared across workspaces on purpose, visible to disk tooling, and safe to prune at the
-`incremental/` layer while preserving `deps/`. Each isolated target also sets
-`CARGO_BUILD_BUILD_DIR` beside it so a host `build.build-dir` default cannot merge those
-recipe caches; that setting relocates cargo's intermediate output (`incremental/`,
-`deps/`, `.fingerprint/`) from `<target>/<profile>/` to `<target>/build/<profile>/`,
-which is where the Justfile cleanup and `sase disk` inventory look for it — not the
-un-isolated `<target>/<profile>/` layout an older `sase-core` used.
+unheld entry needs only the dead-launch grace rather than the pressure minimum age.
+Unreadable same-uid sessions from SSH or Tailscale system services are exempt only when
+their ancestry proves an init-started `/system.slice/` service with no same-uid
+ancestor, no orphaning, and consistent start times. Missing or malformed proc files,
+cgroup v1, sudo or same-uid ancestors, cycles, and over-depth ancestry fail closed. The
+additive liveness result reports `exempted_system_service`; incomplete diagnostics
+include the pid, command, and parent pid. The repo-owned exceptions are the two Justfile
+roots above: `../sase-core/target/uv-tool-py` for `sase_core_rs` and
+`../sase-core/target/uv-tool-lsp` for `sase-macro-lsp`. Those are shared across
+workspaces on purpose, visible to disk tooling, and safe to prune at the `incremental/`
+layer while preserving `deps/`. Each isolated target also sets `CARGO_BUILD_BUILD_DIR`
+beside it so a host `build.build-dir` default cannot merge those recipe caches; that
+setting relocates cargo's intermediate output (`incremental/`, `deps/`, `.fingerprint/`)
+from `<target>/<profile>/` to `<target>/build/<profile>/`, which is where the Justfile
+cleanup and `sase disk` inventory look for it — not the un-isolated
+`<target>/<profile>/` layout an older `sase-core` used.
 `[profile.dev-update] incremental = false` in `sase-core`'s workspace `Cargo.toml` is
 the root fix that covers every entry point, including a bare
 `cargo build --profile dev-update`; `CARGO_INCREMENTAL=0` above is a belt-and-suspenders

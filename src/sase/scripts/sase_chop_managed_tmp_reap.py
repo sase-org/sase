@@ -35,14 +35,28 @@ def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
         # Always name each scanned root: a `nothing_stale` result over the
         # wrong root is exactly the sase-15q failure mode.
         runtime.log(result.describe(), "cyan")
+        for error in getattr(result, "removal_errors", ())[:5]:
+            runtime.log.warning(f"managed_tmp_reap removal error: {error}")
+        for reason in getattr(result, "skip_reasons", ())[:5]:
+            runtime.log.warning(f"managed_tmp_reap skipped: {reason}")
     runtime.log.info(_managed_tmp_roots_info([result.root for result in results]))
     combined = _combine_results(results)
     # A mismatch between the effective root and the default root is now
     # harmless: every registered root is reaped, so there is no warning.
-    return runtime.emit_summary(
+    failed = int(combined["failed"])
+    result = runtime.emit_summary(
         combined,
-        reason="nothing_stale" if not combined["removed"] else None,
+        reason=(
+            "removal_failed"
+            if failed
+            else "nothing_stale"
+            if not combined["removed"]
+            else None
+        ),
     )
+    if failed:
+        result.status = "check_error"
+    return result
 
 
 def _reap_one_root(root: Path) -> Any:

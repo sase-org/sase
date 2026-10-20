@@ -54,6 +54,70 @@ def _incomplete_proc_root(parent: Path) -> Path:
     return proc_root
 
 
+def _system_service_proc_root(parent: Path) -> Path:
+    proc_root = _empty_proc_root(parent)
+    user_uid = os.geteuid()
+    if user_uid == 0:
+        pytest.skip("system-service exemption fixture requires a non-root uid")
+
+    def process(
+        pid: int,
+        comm: str,
+        *,
+        ppid: int,
+        start_ticks: int,
+        uids: tuple[int, int, int, int] = (0, 0, 0, 0),
+        cgroup: str | None = None,
+        unreadable_environ: bool = False,
+    ) -> Path:
+        pid_dir = proc_root / str(pid)
+        pid_dir.mkdir()
+        fields = ["S", str(ppid), *["0"] * 17, str(start_ticks)]
+        (pid_dir / "stat").write_text(
+            f"{pid} ({comm}) {' '.join(fields)}\n", encoding="utf-8"
+        )
+        (pid_dir / "status").write_text(
+            f"Name:\t{comm}\nPPid:\t{ppid}\n"
+            f"Uid:\t{uids[0]}\t{uids[1]}\t{uids[2]}\t{uids[3]}\n",
+            encoding="utf-8",
+        )
+        if cgroup is not None:
+            (pid_dir / "cgroup").write_text(f"0::{cgroup}\n", encoding="utf-8")
+        if unreadable_environ:
+            (pid_dir / "environ").mkdir()
+        return pid_dir
+
+    process(
+        4244,
+        "sshd",
+        ppid=1,
+        start_ticks=10,
+        cgroup="/system.slice/ssh.service",
+    )
+    process(4243, "sshd", ppid=4244, start_ticks=50)
+    process(
+        4242,
+        "sshd-session",
+        ppid=4243,
+        start_ticks=200_000,
+        uids=(user_uid, user_uid, user_uid, user_uid),
+        unreadable_environ=True,
+    )
+    return proc_root
+
+
+def _orphan_proc_root(parent: Path) -> Path:
+    proc_root = _empty_proc_root(parent)
+    pid_dir = proc_root / "9090"
+    pid_dir.mkdir()
+    fields = ["S", "1", *["0"] * 17, str(int(10**7 * os.sysconf("SC_CLK_TCK")))]
+    (pid_dir / "stat").write_text(
+        f"9090 (orphan-session) {' '.join(fields)}\n", encoding="utf-8"
+    )
+    (pid_dir / "environ").mkdir()
+    return proc_root
+
+
 def _dead_launch_kwargs(proc_root: Path) -> dict[str, Any]:
     return {
         "age_reap": False,
@@ -298,3 +362,69 @@ def test_describe_reports_dead_launch(tmp_path: Path) -> None:
         f"would reclaim 1 entries (258 B) under {tmp_path}: "
         "cargo-targets=1; dead_launch=1 (258 B)"
     )
+
+
+def test_system_service_session_is_complete_through_core_binding(
+    tmp_path: Path,
+) -> None:
+    from sase.core.managed_tmp_reaper import observe_launch_scratch_liveness
+
+    candidate = tmp_path / "cargo-targets" / "service-key"
+    candidate.mkdir(parents=True)
+    observation = observe_launch_scratch_liveness(
+        (("service-key", candidate),),
+        proc_root=_system_service_proc_root(tmp_path),
+        current_pid=999_999,
+    )
+
+    assert observation.observer == "procfs"
+    assert observation.candidates[0].complete
+    assert not observation.candidates[0].live
+    assert observation.exempted_system_service == 1
+    assert observation.unreadable == 0
+    assert any("system-service exemption" in item for item in observation.diagnostics)
+
+
+def test_orphan_unreadable_process_stays_incomplete_through_core_binding(
+    tmp_path: Path,
+) -> None:
+    from sase.core.managed_tmp_reaper import observe_launch_scratch_liveness
+
+    candidate = tmp_path / "cargo-targets" / "orphan-key"
+    candidate.mkdir(parents=True)
+    observation = observe_launch_scratch_liveness(
+        (("orphan-key", candidate),),
+        proc_root=_orphan_proc_root(tmp_path),
+        current_pid=999_999,
+    )
+
+    assert observation.observer == "procfs"
+    assert not observation.candidates[0].complete
+    assert not observation.candidates[0].live
+    assert observation.unreadable == 1
+    assert any(
+        "9090 (orphan-session, ppid 1)" in item for item in observation.diagnostics
+    )
+
+
+def test_cleanup_launch_scratch_key_removes_system_service_unheld_candidate(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    from sase.axe import run_agent_runner_scratch as scratch
+
+    key = "service-key"
+    managed_root = tmp_path / "managed"
+    candidate = _aged_dir(
+        managed_root, f"cargo-targets/{key}", age_seconds=DAY, size_bytes=16
+    )
+    monkeypatch.setattr(scratch, "managed_tmpdir_root", lambda: managed_root)
+
+    scratch.cleanup_launch_scratch_key(
+        key,
+        buckets=("cargo-targets",),
+        context="monitor-settlement",
+        proc_root=_system_service_proc_root(tmp_path),
+    )
+
+    assert not candidate.exists()

@@ -174,8 +174,20 @@ leaves `agent-tmp` for a follow-up that may read the starter's `$TMPDIR`. The ba
 removes entries whose newest descendant write predates `dead_launch.grace_seconds` and
 that no live process holds (by environment or working directory, observed through procfs
 in one batch scan) are removed largest-first within the removal budget. Held and
-incomplete-observation entries are preserved and counted; hosts without readable procfs
-skip the pass and keep the age horizons as the fallback.
+incomplete-observation entries are preserved and counted. An unreadable SSH or Tailscale
+session does not make a candidate incomplete only when its ancestry reaches an
+init-started `/system.slice/` service, contains no same-uid ancestor, and has consistent
+pid start times. Orphans, same-uid or sudo ancestors, unreadable or malformed proc
+files, cgroup v1, ancestry cycles, and walks beyond the depth limit fail closed; hosts
+without readable procfs skip the pass and keep the age horizons as the fallback. Skip
+reasons include the blocking pid, command, and parent pid, with a bounded number of
+diagnostic lines.
+
+When removal of a directory fails with `PermissionDenied`, the reaper repairs owner
+write and execute permission on current-user-owned real directories inside that
+candidate and retries once. It does not follow symlinks, change files, or repair the
+parent bucket. Remaining removal failures are reported by `managed_tmp_reap` as
+`check_error`; incomplete liveness observations alone do not change that job's status.
 
 Pressure pruning is a later pass that removes aged, large build scratch early when the
 managed root grows past `pressure.max_bytes` or the filesystem's free space drops below
@@ -183,7 +195,8 @@ managed root grows past `pressure.max_bytes` or the filesystem's free space drop
 unknown buckets, or build trees with fresh descendants. While the procfs observer is
 available it is liveness-aware: a held entry is never removed, an incomplete observation
 is preserved, and an unheld entry needs only the dead-launch grace rather than
-`pressure.min_age_seconds`.
+`pressure.min_age_seconds`. The system-service ancestry exemption and its fail-closed
+cases are the same as for the dead-launch backstop.
 
 Every root `get_sase_managed_tmpdir()` writes into is recorded in a Rust-owned registry
 at `$SASE_HOME/managed_tmp/roots.json` (schema version plus

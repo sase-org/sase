@@ -78,8 +78,22 @@ observer reports as held by no live process are removed largest-first within the
 budget. Held and incomplete-observation entries are preserved and counted
 (`dead_launch_preserved_live`, `dead_launch_preserved_incomplete`), and hosts without
 readable procfs report `dead_launch_observer: unobservable` and leave the age horizons
-as the fallback. A zombie or dead process has already released its address space and
-cwd, so it is never counted as a holder or as an incomplete observation.
+as the fallback. An unreadable SSH or Tailscale session can be exempted only when its
+procfs ancestry reaches an init-started process in `/system.slice/`, every ancestor has
+no same-uid identity, and pid start times are consistent. Orphans, same-uid or sudo
+ancestors, missing or malformed proc files, cgroup v1, ancestry cycles, and walks past
+the depth limit remain incomplete. A zombie or dead process has already released its
+address space and cwd, so it is never counted as a holder or as an incomplete
+observation. Incomplete skip diagnostics name the blocking pid, command, and parent pid;
+the Rust reaper keeps up to eight lines per reason and reports any remainder.
+
+When directory deletion fails with `PermissionDenied`, the Rust reaper adds owner write
+and execute permission to current-user-owned real directories inside that candidate and
+retries once. It never follows symlinks or repairs the parent bucket. Removal errors
+remain visible in the job log. `managed_tmp_reap` logs up to five removal errors and
+five skip reasons per root, then reports `check_error` with `reason=removal_failed` if
+any removal failed. An incomplete liveness observation by itself does not make this job
+an error.
 
 Each run removes at most 2,000 entries by default so a long-neglected root converges
 over several passes instead of stalling one. The reaper also runs a pressure pass when
@@ -135,20 +149,30 @@ disk-pressure policy: a filesystem is under pressure when its free space falls b
 larger of 3 GiB and
 [`disk.pressure.warn_free_percent`](../config/runtime-and-storage.md#disk) of its size.
 With no pressure, the job exits with reason `space_ok` without scanning the disk
-footprint. Under pressure, it logs the largest owners from `sase disk list` and, when
-any qualify, sends a notification naming them; when the inventory's `unattributed` row
-(filesystem used minus attributed bytes on the `SASE_HOME` filesystem) exceeds the
-largest attributed owner, the notification leads with that row instead of pointing at a
-small owner. The job then runs unattended owner-safe cleanup early: the managed-temp
-reaper, using the measured free space and warn threshold as its pressure floor and
-recovery target (with the same dead-launch backstop and liveness-aware pressure the
-hourly pass runs), and the proc cleanup owner (proc-row and log retention plus the
-rowless runtime sweep). Those owners encode their own deletion policy, and one owner's
-failure is reported without skipping the next. Workspace Git-object compaction is left
-to an explicit `sase disk reap --apply`, and artifact run directories, backups, and
-unowned Cargo-shaped strays are reported for human action; this job never touches them.
-The summary reports the free percentage, effective warn threshold, owner and step
-counts, and how many steps changed or failed.
+footprint. Under pressure, it gathers the largest owners from `sase disk list`; when the
+inventory's `unattributed` row (filesystem used minus attributed bytes on the
+`SASE_HOME` filesystem) exceeds the largest attributed owner, the notification leads
+with that row instead of pointing at a small owner. Before notifying, the job runs
+unattended owner-safe cleanup: the managed-temp reaper, using measured free space and
+the warn threshold as its pressure floor and recovery target (with the same dead-launch
+backstop and liveness-aware pressure as the hourly pass), and the proc cleanup owner
+(proc-row and log retention plus the rowless runtime sweep). The single notification
+includes changed, failed, blocked, and incomplete owners, reclaimed bytes, available
+space after the reap, and the recovery target. A notification exception is logged on one
+bounded stderr line and does not undo the reap.
+
+Afterward, the job remeasures available bytes on the pressured filesystem with
+`statvfs`. Its status is `no_op` with `space_ok` when no pressure was present;
+`check_error` when an owner failed, the notification failed, or the free-space recheck
+failed; `check_error` with `recovery_blocked` when pressure remains and an owner was
+blocked or incomplete; `ok` when an owner changed state and none failed; and `no_op`
+with `nothing_eligible` when nothing changed and no owner was blocked. Incomplete owners
+are judged by their normalized cleanup status, not by a step's broad failure flag.
+Workspace Git-object compaction is left to an explicit `sase disk reap --apply`, and
+artifact run directories, backups, and unowned Cargo-shaped strays are reported for
+human action; this job never touches them. The summary includes changed and failed owner
+names, reclaimed and post-reap available bytes, the recovery target, and notification
+outcome.
 
 The `bead_stale_cleanup` job is the other half of the task-bead `+1` bar. Ready task
 beads that never clear their

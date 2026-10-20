@@ -202,6 +202,7 @@ class _LaunchScratchObservation:
     observer: str
     candidates: tuple[_LaunchScratchCandidateObservation, ...]
     exempted_pre_launch: int
+    exempted_system_service: int
     unreadable: int
     diagnostics: tuple[str, ...]
 
@@ -508,6 +509,7 @@ def observe_launch_scratch_liveness(
             for entry in raw["candidates"]
         ),
         exempted_pre_launch=int(raw["exempted_pre_launch"]),
+        exempted_system_service=int(raw.get("exempted_system_service", 0)),
         unreadable=int(raw["unreadable"]),
         diagnostics=tuple(str(item) for item in raw["diagnostics"]),
     )
