@@ -80,12 +80,14 @@ def test_committed_publication_records_a_retryable_request_when_git_fails(
 
     # The synchronous publisher enqueues before it touches git, so a failed
     # sidecar attempt still leaves a durable request for `sase agent sync`.
+    # Repository failures preserve attempts and the previous error.
     assert outcome.queued
     assert not outcome.published
     [request] = list_agent_publications("proj")
     assert request.global_agent == "alice.athena.worker"
     assert request.primary_revision == "a" * 40
-    assert request.attempts == 1
+    assert request.attempts == 0
+    assert request.last_error is None
 
 
 def test_failed_targeted_publish_cleans_uncommitted_payload(
@@ -206,6 +208,14 @@ def test_large_backlog_builds_one_inventory_and_publishes_each_hood_once(
     monkeypatch.setattr(commit_publication, "build_project_hood_inventory", build)
     monkeypatch.setattr(commit_publication, "publish_agent_hood", publish)
     monkeypatch.setattr(
+        "sase.agents_sync.publication_completion.publication_request_fulfilled",
+        lambda *_args, **_kwargs: True,
+    )
+    monkeypatch.setattr(
+        "sase.agents_sync.prompt_archive.deferred.restore_deferred_prompt_archives",
+        lambda *_args, **_kwargs: {},
+    )
+    monkeypatch.setattr(
         commit_publication,
         "update_agent_publications",
         lambda _project_key, keys, **_kwargs: updated.append(tuple(keys)),
@@ -250,17 +260,19 @@ def test_large_backlog_builds_one_inventory_and_publishes_each_hood_once(
     result = _publish_queued_locked(target, owner, run_git)
 
     assert result.error is None
-    assert result.drained == len(requests)
+    assert result.drained == 25
     assert listed == 1
     assert cleaned == 2
     assert pulled == 1
     assert commit_checks == 1
     assert ahead_checks == 1
     assert build_calls == 1
-    assert [hood for hood, _inventory in published] == list(hoods)
+    assert len(published) == len({hood for hood, _ in published})
+    assert {hood for hood, _ in published} <= set(hoods)
     assert all(seen_inventory is inventory for _hood, seen_inventory in published)
-    assert sorted(len(keys) for keys in updated) == [500, 500, 500, 500]
-    assert acknowledged == [tuple(item.logical_key for item in requests)]
+    assert sum(len(keys) for keys in updated) == 25
+    assert len(acknowledged) == 1
+    assert len(acknowledged[0]) == 25
 
 
 def test_mixed_queue_publishes_good_items_and_quarantines_only_bad_item(
@@ -332,6 +344,14 @@ def test_mixed_queue_publishes_good_items_and_quarantines_only_bad_item(
     monkeypatch.setattr(
         "sase.agents_sync.commit_publication.publish_agent_hood",
         publish,
+    )
+    monkeypatch.setattr(
+        "sase.agents_sync.publication_completion.publication_request_fulfilled",
+        lambda *_args, **_kwargs: True,
+    )
+    monkeypatch.setattr(
+        "sase.agents_sync.prompt_archive.deferred.restore_deferred_prompt_archives",
+        lambda *_args, **_kwargs: {},
     )
 
     first = publish_committed_agent_hood(

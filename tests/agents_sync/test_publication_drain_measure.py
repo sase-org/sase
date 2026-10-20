@@ -242,11 +242,21 @@ def test_publish_queued_transaction_records_stages_with_timer(
             return subprocess.CompletedProcess(args, 0, stdout="", stderr="")
         return subprocess.CompletedProcess(args, 0, stdout="", stderr="")
 
+    from sase.agents_sync.publication_outbox_models import AgentPublicationOutboxItem
+
+    request = AgentPublicationOutboxItem(
+        project_key="sase",
+        project="Sase",
+        local_agent="foo--code",
+        global_agent="alice.athena.foo--code",
+        primary_revision="a" * 40,
+        local_hood="foo",
+    )
     result = publish_queued_transaction(
         target,
         owner,
         git_runner,  # type: ignore[arg-type]
-        (),
+        (request,),
         hooks=_hooks(_Inventory()),
         timer=timer,
     )

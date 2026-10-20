@@ -1,0 +1,255 @@
+"""Scoped failure accounting and bounded selection for commit drains."""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+import pytest
+
+from sase.agents_sync import commit_publication
+from sase.agents_sync.commit_publication import (
+    _publish_queued_locked,
+    _record_failure,
+    publish_committed_agent_hood,
+)
+from sase.agents_sync.git import run_git
+from sase.agents_sync.models import TargetSelection
+from sase.agents_sync.publication_outbox import (
+    AgentPublicationOutboxItem,
+    enqueue_agent_publication,
+    list_agent_publications,
+)
+from sase.agents_sync.v2_io import owner_manifest_path, v2_json_bytes
+from sase.agents_sync.v2_models import (
+    V2OwnerHoodEntry,
+    V2OwnerManifest,
+    V2ProjectIdentity,
+    V2PublicationCounts,
+)
+from sase.core.agent_identity_facade import AgentOwnerIdentity
+from tests.agents_sync.commit_publication_fixtures import setup_target
+from tests.agents_sync.git_sync_fixtures import plant_fulfilled_publication
+
+
+def _configure(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, owner: AgentOwnerIdentity
+):
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "state"))
+    target, _remote = setup_target(tmp_path)
+    monkeypatch.setattr(
+        commit_publication,
+        "resolve_sync_targets",
+        lambda _projects: TargetSelection((target,), ()),
+    )
+    monkeypatch.setattr(
+        commit_publication,
+        "require_agent_owner_identity",
+        lambda: owner,
+    )
+    monkeypatch.setattr(
+        "sase.agents_sync.publication_completion.publication_request_fulfilled",
+        lambda *_args, **_kwargs: True,
+    )
+    monkeypatch.setattr(
+        "sase.agents_sync.prompt_archive.deferred.restore_deferred_prompt_archives",
+        lambda *_args, **_kwargs: {},
+    )
+    return target
+
+
+def _enqueue(project: str, hood: str, revision: str) -> AgentPublicationOutboxItem:
+    return enqueue_agent_publication(
+        AgentPublicationOutboxItem(
+            project_key="proj",
+            project=project,
+            local_agent=f"{hood}--code",
+            global_agent=f"alice.athena.{hood}--code",
+            primary_revision=revision,
+            local_hood=hood,
+        )
+    )
+
+
+def test_record_failure_repository_preserves_attempts(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    target, _remote = setup_target(tmp_path)
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "state"))
+    for hood, revision in (("good", "a" * 40), ("bad", "b" * 40)):
+        _enqueue("Project", hood, revision)
+    before = {
+        item.logical_key: item.attempts for item in list_agent_publications("proj")
+    }
+
+    outcome = _record_failure(
+        target,
+        "git pull --rebase failed: network is unavailable",
+        scope="repository",
+        stage="pull_rebase",
+    )
+
+    assert outcome.queued
+    assert outcome.error is not None
+    after = list_agent_publications("proj")
+    assert len(after) == 2
+    for item in after:
+        assert item.attempts == before[item.logical_key]
+        assert item.last_error is None
+
+
+def test_record_failure_hood_charges_only_attempted_keys(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    target, _remote = setup_target(tmp_path)
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "state"))
+    good_key = ("alice.athena.good--code", "a" * 40)
+    bad_key = ("alice.athena.bad--code", "b" * 40)
+    _enqueue("Project", "good", "a" * 40)
+    _enqueue("Project", "bad", "b" * 40)
+
+    outcome = _record_failure(
+        target,
+        "agent-hood publication did not complete within 120s",
+        (bad_key,),
+        scope="hood",
+        stage="hood_publish:bad",
+    )
+
+    assert outcome.queued
+    remaining = {item.logical_key: item for item in list_agent_publications("proj")}
+    assert remaining[good_key].attempts == 0
+    assert remaining[good_key].last_error is None
+    assert remaining[bad_key].attempts == 1
+    assert remaining[bad_key].last_error is not None
+
+
+def test_commit_drain_prefers_new_request_and_caps_at_25(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    owner = AgentOwnerIdentity("alice", "athena")
+    target = _configure(monkeypatch, tmp_path, owner)
+    for index in range(30):
+        _enqueue("Project", f"hood{index % 3}", f"{index:040x}")
+    new_item = _enqueue("Project", "fresh", "f" * 40)
+
+    def publish(_target, repo, _agent, **_kwargs):
+        manifest = V2OwnerManifest(
+            owner,
+            V2ProjectIdentity("proj", "Project"),
+            tuple(
+                (hood, V2OwnerHoodEntry("d" * 64, ("README.md",), 1, 1))
+                for hood in ("hood0", "hood1", "hood2", "fresh")
+            ),
+        )
+        path = repo / owner_manifest_path(owner)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(v2_json_bytes(manifest.to_json_dict()))
+        return V2PublicationCounts(hoods_published=1)
+
+    monkeypatch.setattr(commit_publication, "publish_agent_hood", publish)
+
+    result = _publish_queued_locked(
+        target, owner, run_git, preferred_key=new_item.logical_key
+    )
+
+    assert result.error is None
+    assert result.drained == 25
+    remaining = list_agent_publications("proj")
+    assert len(remaining) == 6
+    assert new_item.logical_key not in {item.logical_key for item in remaining}
+
+
+def test_completion_gate_withholds_unfulfilled_request(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    owner = AgentOwnerIdentity("alice", "athena")
+    target, _remote = setup_target(tmp_path)
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "state"))
+    monkeypatch.setattr(
+        commit_publication,
+        "resolve_sync_targets",
+        lambda _projects: TargetSelection((target,), ()),
+    )
+    monkeypatch.setattr(
+        commit_publication,
+        "require_agent_owner_identity",
+        lambda: owner,
+    )
+    _enqueue("Project", "foo", "a" * 40)
+    _enqueue("Project", "bar", "b" * 40)
+
+    def publish(_target, repo, agent, **_kwargs):
+        hood = agent.split("--", 1)[0]
+        if hood == "foo":
+            plant_fulfilled_publication(
+                repo,
+                owner=owner,
+                local_agent="foo--code",
+                global_agent="alice.athena.foo--code",
+                revision="a" * 40,
+                local_hood="foo",
+            )
+        manifest = V2OwnerManifest(
+            owner,
+            V2ProjectIdentity("proj", "Project"),
+            (
+                ("foo", V2OwnerHoodEntry("d" * 64, ("README.md",), 1, 1)),
+                ("bar", V2OwnerHoodEntry("e" * 64, ("README.md",), 1, 1)),
+            ),
+        )
+        path = repo / owner_manifest_path(owner)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(v2_json_bytes(manifest.to_json_dict()))
+        return V2PublicationCounts(hoods_published=1)
+
+    monkeypatch.setattr(commit_publication, "publish_agent_hood", publish)
+
+    outcome = publish_committed_agent_hood(
+        "bar--code", "b" * 40, project="Project", git_runner=run_git
+    )
+
+    assert outcome.queued
+    remaining = {item.logical_key for item in list_agent_publications("proj")}
+    assert ("alice.athena.bar--code", "b" * 40) in remaining
+
+
+def test_cleanup_after_success_does_not_resurrect(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    owner = AgentOwnerIdentity("alice", "athena")
+    target = _configure(monkeypatch, tmp_path, owner)
+    _enqueue("Project", "foo", "a" * 40)
+
+    def publish(_target, repo, _agent, **_kwargs):
+        manifest = V2OwnerManifest(
+            owner,
+            V2ProjectIdentity("proj", "Project"),
+            (("foo", V2OwnerHoodEntry("d" * 64, ("README.md",), 1, 1)),),
+        )
+        path = repo / owner_manifest_path(owner)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(v2_json_bytes(manifest.to_json_dict()))
+        return V2PublicationCounts(hoods_published=1)
+
+    monkeypatch.setattr(commit_publication, "publish_agent_hood", publish)
+
+    from sase.agents_sync import git_sync
+
+    original_clean = git_sync.clean_publication_worktree
+    calls = 0
+
+    def clean(repo, runner):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return original_clean(repo, runner)
+        return "archive cleanup failed"
+
+    monkeypatch.setattr(git_sync, "clean_publication_worktree", clean)
+
+    result = _publish_queued_locked(target, owner, run_git)
+
+    assert result.drained == 1
+    assert result.error is not None and "archive cleanup failed" in result.error
+    assert result.error_keys == ()
+    assert list_agent_publications("proj") == ()

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from sase._interruptions import PublicationDrainTimedOut
 from sase.agents_sync.models import ProjectTarget
 from sase.agents_sync.publication_outbox_models import AgentPublicationOutboxItem
 from sase.agents_sync.publication_validation import snapshot_path
@@ -128,6 +129,8 @@ def _load_request_snapshot(
         return None
     try:
         return read_hood_snapshot(path)
+    except PublicationDrainTimedOut:
+        raise
     except Exception:
         return None
 

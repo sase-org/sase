@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from sase._interruptions import PublicationDrainTimedOut
 from sase.agents_sync.models import CommitRecord
 from sase.core.agent_identity_facade import (
     AgentSessionNameKind,
@@ -77,6 +78,8 @@ class ProjectHoodInventory:
                 continue
             try:
                 in_hood = agent_name_in_hood(run.local_name, hood)
+            except PublicationDrainTimedOut:
+                raise
             except Exception as exc:  # noqa: BLE001 - defensive history boundary.
                 self._record_selection_exclusion(run, exc)
                 continue
@@ -91,6 +94,8 @@ class ProjectHoodInventory:
                 continue
             try:
                 hoods.add(agent_local_hood(run.local_name))
+            except PublicationDrainTimedOut:
+                raise
             except Exception as exc:  # noqa: BLE001 - defensive history boundary.
                 self._record_selection_exclusion(run, exc)
         for history in self.lane_commits:
@@ -102,6 +107,8 @@ class ProjectHoodInventory:
                 continue
             try:
                 hoods.add(agent_local_hood(history.local_name))
+            except PublicationDrainTimedOut:
+                raise
             except Exception:
                 continue
         return tuple(sorted(hoods))
@@ -118,6 +125,8 @@ class ProjectHoodInventory:
                 continue
             try:
                 in_hood = agent_name_in_hood(history.local_name, hood)
+            except PublicationDrainTimedOut:
+                raise
             except Exception:
                 continue
             if in_hood:
@@ -128,6 +137,8 @@ class ProjectHoodInventory:
         for run in self.runs:
             try:
                 parsed = parse_agent_session_name(run.local_name)
+            except PublicationDrainTimedOut:
+                raise
             except Exception:
                 continue
             if (

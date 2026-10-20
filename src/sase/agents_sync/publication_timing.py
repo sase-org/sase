@@ -45,8 +45,12 @@ class DrainTiming:
     stage: str = ""
     error: str | None = None
     error_class: str | None = None
+    failure_scope: str | None = None
+    failure_stage: str | None = None
     alarm_fired: bool = False
     alarm_stage: str | None = None
+    alarm_keys: tuple[tuple[str, str], ...] | None = None
+    active_keys: tuple[tuple[str, str], ...] = ()
     lock_wait_seconds: float = 0.0
     git_op_counts: dict[str, int] = field(default_factory=dict)
     runs_scanned: int = 0
@@ -86,8 +90,15 @@ class DrainTiming:
             "stage": self.stage,
             "error": self.error,
             "error_class": error_class,
+            "failure_scope": self.failure_scope,
+            "failure_stage": self.failure_stage,
             "alarm_fired": self.alarm_fired,
             "alarm_stage": self.alarm_stage,
+            "alarm_keys": (
+                [list(key) for key in self.alarm_keys]
+                if self.alarm_keys is not None
+                else None
+            ),
             "lock_wait_seconds": self.lock_wait_seconds,
             "git_op_counts": dict(self.git_op_counts),
             "runs_scanned": self.runs_scanned,

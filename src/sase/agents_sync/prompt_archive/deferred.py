@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from sase._interruptions import PublicationDrainTimedOut
 from sase.agents_sync.git import GitRunner
 from sase.agents_sync.inventory import ProjectHoodInventory
 from sase.agents_sync.inventory_models import InventoryRun
@@ -115,6 +116,8 @@ def restore_deferred_prompt_archives(
                 git_runner,
                 prompt_runs=prompt_runs,
             )
+        except PublicationDrainTimedOut:
+            raise
         except Exception as exc:  # noqa: BLE001 - durable auxiliary boundary
             restore_error = (
                 "could not restore deferred prompt archive for "
@@ -175,6 +178,8 @@ def _prompt_archive_present(
                 continue
             try:
                 parsed = parse_plan_header_block(path.read_text(encoding="utf-8"))
+            except PublicationDrainTimedOut:
+                raise
             except Exception:
                 continue
             if any(

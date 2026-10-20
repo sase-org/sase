@@ -16,7 +16,15 @@ from sase._interruptions import PublicationDrainTimedOut
 from sase.agents_sync.commit_publication_transaction import (
     DrainResult,
     PublicationTransactionHooks,
+    hood_timeout_stage,
     publish_queued_transaction,
+)
+from sase.core.agent_publication_recovery import (
+    PublicationDrainSelection,
+    PublicationFailureAccounting,
+    PublicationFailureCharge,
+    decide_publication_failure_accounting,
+    select_publication_drain,
 )
 from sase.agents_sync.git import GitRunner, run_git
 from sase.agents_sync.git_sync_ops import lock_holder_diagnostic
@@ -106,7 +114,10 @@ def _bounded_publication_drain(
     def _on_alarm(_signum: int, _frame: object) -> None:
         if timer is not None:
             timer.alarm_fired = True
-            timer.alarm_stage = timer.stage or "drain"
+            if timer.alarm_stage is None:
+                timer.alarm_stage = timer.stage or "drain"
+            if timer.alarm_keys is None:
+                timer.alarm_keys = tuple(timer.active_keys)
         raise PublicationDrainTimedOut(
             f"agent-hood publication did not complete within {timeout_seconds:.0f}s"
         )
@@ -128,6 +139,12 @@ def _bounded_publication_drain(
             signal.setitimer(signal.ITIMER_REAL, remaining, previous_interval)
         elif previous_interval > 0:
             signal.setitimer(signal.ITIMER_REAL, 0, previous_interval)
+
+
+DEFAULT_COMMIT_DRAIN_BATCH_LIMIT = 25
+
+_REPOSITORY_FAILURE_SCOPE = "repository"
+_HOOD_FAILURE_SCOPE = "hood"
 
 
 @dataclass(frozen=True, slots=True)
@@ -155,7 +172,7 @@ def publish_committed_agent_hood(
     cannot complete right now is still retried later by ``sase agent sync``.
     """
 
-    outcome, target, _item = _enqueue_committed_agent_publication(
+    outcome, target, item = _enqueue_committed_agent_publication(
         local_agent,
         primary_revision,
         project=project,
@@ -165,7 +182,11 @@ def publish_committed_agent_hood(
         return outcome
     if target is None:
         return outcome
-    return _drain_agent_publications(target.project_key, git_runner=git_runner)
+    return _drain_agent_publications(
+        target.project_key,
+        git_runner=git_runner,
+        preferred_key=item.logical_key if item is not None else None,
+    )
 
 
 def _enqueue_committed_agent_publication(
@@ -258,6 +279,7 @@ def _drain_agent_publications(
     project_key: str,
     *,
     git_runner: GitRunner = run_git,
+    preferred_key: tuple[str, str] | None = None,
 ) -> _CommitPublicationOutcome:
     """Drain active agent-hood requests for one project under its sidecar lock."""
 
@@ -297,8 +319,16 @@ def _drain_agent_publications(
         timer.stage = "ensure_clone"
         timer.outcome = "clone_failed"
         timer.error = clone_error
+        timer.failure_scope = _REPOSITORY_FAILURE_SCOPE
+        timer.failure_stage = "ensure_clone"
         emit_drain_timing(timer)
-        return _record_failure(target, clone_error)
+        return _record_failure(
+            target,
+            clone_error,
+            scope=_REPOSITORY_FAILURE_SCOPE,
+            stage="ensure_clone",
+            timer=timer,
+        )
 
     lock_path = (
         git_sync.agents_git_dir(target.sidecar_path, git_runner)
@@ -317,28 +347,92 @@ def _drain_agent_publications(
             timer.stage = "acquire_lock"
             timer.outcome = "lock_busy"
             timer.error = error
+            timer.failure_scope = _REPOSITORY_FAILURE_SCOPE
+            timer.failure_stage = "acquire_lock"
             emit_drain_timing(timer)
-            return _record_failure(target, error)
+            return _record_failure(
+                target,
+                error,
+                scope=_REPOSITORY_FAILURE_SCOPE,
+                stage="acquire_lock",
+                timer=timer,
+            )
         try:
             with _bounded_publication_drain(
                 _configured_publication_drain_timeout(), timer=timer
             ):
-                result = _publish_queued_locked(target, owner, git_runner, timer=timer)
+                result = _publish_queued_locked(
+                    target,
+                    owner,
+                    git_runner,
+                    timer=timer,
+                    preferred_key=preferred_key,
+                )
         except PublicationDrainTimedOut as exc:
             timer.alarm_fired = True
-            timer.alarm_stage = timer.alarm_stage or timer.stage or "drain"
+            if timer.alarm_stage is None:
+                timer.alarm_stage = timer.stage or "drain"
+                if timer.alarm_keys is None:
+                    timer.alarm_keys = tuple(timer.active_keys)
             timer.outcome = "timeout"
             cleanup_notes = "\n".join(getattr(exc, "__notes__", ()))
             timer.error = str(exc)
             if cleanup_notes:
                 timer.error = f"{timer.error}; {cleanup_notes}"
+            alarm_stage = timer.alarm_stage or timer.stage or "drain"
+            if hood_timeout_stage(alarm_stage):
+                scope = _HOOD_FAILURE_SCOPE
+                keys = (
+                    tuple(timer.alarm_keys)
+                    if timer.alarm_keys is not None
+                    else tuple(timer.active_keys)
+                )
+            else:
+                scope = _REPOSITORY_FAILURE_SCOPE
+                keys = ()
+            timer.failure_scope = scope
+            timer.failure_stage = alarm_stage
             emit_drain_timing(timer)
-            return _record_failure(target, timer.error)
+            return _record_failure(
+                target,
+                timer.error,
+                keys if keys else None,
+                scope=scope,
+                stage=alarm_stage,
+                timer=timer,
+            )
     if result.error is not None:
+        if result.drained > 0 and (
+            result.failure_scope == _REPOSITORY_FAILURE_SCOPE
+            or result.failure_scope is None
+        ):
+            timer.outcome = "published_with_cleanup_error"
+            timer.error = result.error
+            timer.failure_scope = result.failure_scope or _REPOSITORY_FAILURE_SCOPE
+            timer.failure_stage = result.failure_stage or "cleanup"
+            emit_drain_timing(timer)
+            remaining = list_agent_publications(target.project_key)
+            return _CommitPublicationOutcome(
+                published=True,
+                queued=bool(remaining),
+                drained=result.drained,
+                quarantined=_quarantined_count(remaining),
+                retired=_retired_count(remaining),
+                error=result.error,
+            )
         timer.outcome = "failed_with_item_errors" if result.drained else "failed"
         timer.error = result.error
+        timer.failure_scope = result.failure_scope or _REPOSITORY_FAILURE_SCOPE
+        timer.failure_stage = result.failure_stage or timer.stage or "drain"
         emit_drain_timing(timer)
-        return _record_failure(target, result.error, result.error_keys)
+        return _record_failure(
+            target,
+            result.error,
+            result.error_keys,
+            scope=result.failure_scope or _REPOSITORY_FAILURE_SCOPE,
+            stage=result.failure_stage or timer.stage or "drain",
+            timer=timer,
+        )
 
     timer.outcome = "published" if result.drained else "no_requests"
     if result.item_errors:
@@ -502,6 +596,7 @@ def _publish_queued_locked(
     owner: AgentOwnerIdentity,
     git_runner: GitRunner,
     timer: DrainTiming | None = None,
+    preferred_key: tuple[str, str] | None = None,
 ) -> DrainResult:
     from sase.agents_sync import git_sync
 
@@ -511,7 +606,43 @@ def _publish_queued_locked(
         timer.distinct_hoods = len({request.local_hood for request in requests})
     if not requests:
         return DrainResult()
+    rows = tuple(
+        {
+            "global_agent": item.global_agent,
+            "primary_revision": item.primary_revision,
+            "terminal": item.terminal,
+            "quarantined": item.quarantined,
+            "last_error": item.last_error,
+            "terminal_reason": item.terminal_reason,
+            "created_at": item.created_at,
+        }
+        for item in requests
+    )
+    selection: PublicationDrainSelection | None
+    try:
+        selection = select_publication_drain(
+            rows,
+            limit=DEFAULT_COMMIT_DRAIN_BATCH_LIMIT,
+            preferred_key=(
+                {"global_agent": preferred_key[0], "primary_revision": preferred_key[1]}
+                if preferred_key is not None
+                else None
+            ),
+        )
+    except Exception:
+        selection = None
+    if selection is not None:
+        _selected_active = tuple(item.logical_key for item in selection.active)
+        _selected_revive = tuple(item.logical_key for item in selection.revive)
+        selected = frozenset((*_selected_active, *_selected_revive))
+        if not selected:
+            return DrainResult()
+        requests = tuple(item for item in requests if item.logical_key in selected)
+        if not requests:
+            return DrainResult()
     logical_keys = tuple(item.logical_key for item in requests)
+    if timer is not None:
+        timer.active_keys = logical_keys
     runner = (
         _counting_git_runner(git_runner, timer) if timer is not None else git_runner
     )
@@ -527,7 +658,12 @@ def _publish_queued_locked(
             runner,
         )
     if cleanup_error is not None:
-        return DrainResult(error=cleanup_error, error_keys=logical_keys)
+        return DrainResult(
+            error=cleanup_error,
+            error_keys=logical_keys,
+            failure_scope=_REPOSITORY_FAILURE_SCOPE,
+            failure_stage="payload_clean",
+        )
     result: DrainResult
     try:
         result = publish_queued_transaction(
@@ -580,12 +716,19 @@ def _publish_queued_locked(
             item_errors=result.item_errors,
             error=(f"{result.error}; publication cleanup also failed: {cleanup_error}"),
             error_keys=result.error_keys or logical_keys,
+            failure_scope=result.failure_scope or _REPOSITORY_FAILURE_SCOPE,
+            failure_stage=result.failure_stage or "cleanup",
         )
+    # A cleanup failure after a successful acknowledged push must not resurrect
+    # or falsely charge completed rows: completed keys are already gone, so
+    # report the cleanup as repository evidence with no chargeable keys.
     return DrainResult(
         drained=result.drained,
         item_errors=result.item_errors,
         error=cleanup_error,
-        error_keys=logical_keys,
+        error_keys=(),
+        failure_scope=_REPOSITORY_FAILURE_SCOPE,
+        failure_stage="cleanup",
     )
 
 
@@ -593,19 +736,74 @@ def _record_failure(
     target: ProjectTarget,
     error: str,
     logical_keys: tuple[tuple[str, str], ...] | None = None,
+    *,
+    scope: str | None = None,
+    stage: str | None = None,
+    timer: DrainTiming | None = None,
 ) -> _CommitPublicationOutcome:
-    requests = _active_agent_publications(target.project_key)
-    selected = (
-        tuple(item.logical_key for item in requests)
-        if logical_keys is None
-        else logical_keys
+    failure_scope = scope or _REPOSITORY_FAILURE_SCOPE
+    failure_stage = stage or (timer.stage if timer is not None else None) or "drain"
+    if timer is not None:
+        timer.failure_scope = failure_scope
+        timer.failure_stage = failure_stage
+    requests = list_agent_publications(target.project_key)
+    if logical_keys is None:
+        selected = tuple(item.logical_key for item in requests)
+    else:
+        selected = tuple(logical_keys)
+    if not selected:
+        remaining = requests
+        return _CommitPublicationOutcome(
+            queued=bool(remaining),
+            quarantined=_quarantined_count(remaining),
+            retired=_retired_count(remaining),
+            error=error,
+        )
+    rows = tuple(
+        {
+            "global_agent": item.global_agent,
+            "primary_revision": item.primary_revision,
+            "attempts": item.attempts,
+            "last_error": item.last_error,
+            "terminal_reason": item.terminal_reason,
+        }
+        for item in requests
+        if item.logical_key in frozenset(selected)
     )
+    decision: PublicationFailureAccounting | None
+    try:
+        decision = decide_publication_failure_accounting(
+            scope=failure_scope,
+            error=error,
+            attempted_keys=[
+                {"global_agent": key[0], "primary_revision": key[1]} for key in selected
+            ],
+            rows=rows,
+            quarantine_threshold=configured_publication_max_attempts(),
+        )
+    except Exception:
+        decision = None
+    if decision is None or not decision.charge:
+        remaining = list_agent_publications(target.project_key)
+        return _CommitPublicationOutcome(
+            queued=bool(remaining),
+            quarantined=_quarantined_count(remaining),
+            retired=_retired_count(remaining),
+            error=error,
+        )
+    charges: tuple[PublicationFailureCharge, ...] = decision.charges
+    retire_reason: str | None = None
+    for charge in charges:
+        if charge.retire:
+            retire_reason = charge.terminal_reason or error
+            break
     updated = update_agent_publications(
         target.project_key,
-        selected,
+        tuple(charge.logical_key for charge in charges) or selected,
         error=error,
         increment_attempts=True,
         quarantine_threshold=configured_publication_max_attempts(),
+        terminal_reason=retire_reason,
     )
     return _CommitPublicationOutcome(
         queued=True,

@@ -10,6 +10,7 @@ import hashlib
 from pathlib import Path
 from typing import Any
 
+from sase._interruptions import PublicationDrainTimedOut
 from sase.agents_sync.repository_inspection import (
     commit_markers,
     commit_record,
@@ -97,6 +98,8 @@ def indexed_records(
             )
         else:
             snapshot = scan_agent_artifacts(projects_root, options)
+    except PublicationDrainTimedOut:
+        raise
     except (OSError, RuntimeError, ValueError, ImportError, AttributeError) as exc:
         raise AgentsSyncFormatError(
             f"could not query the agent artifact index: {exc}"
@@ -199,6 +202,8 @@ def dismissed_records(
             project_name=target.project_key,
             limit=None,
         )
+    except PublicationDrainTimedOut:
+        raise
     except (OSError, RuntimeError, ValueError, ImportError):
         return ()
     selected: list[tuple[dict[str, Any], str]] = []

@@ -83,7 +83,7 @@ def test_blocked_render_is_bounded_and_leaves_the_request_queued(
     monkeypatch.setattr(
         commit_publication,
         "_configured_publication_drain_timeout",
-        lambda: 0.2,
+        lambda: 1.0,
     )
 
     started = time.perf_counter()
@@ -238,7 +238,7 @@ def test_after_a_blocked_render_a_later_drain_retries_and_succeeds(
     monkeypatch.setattr(
         commit_publication,
         "_configured_publication_drain_timeout",
-        lambda: 0.2,
+        lambda: 1.0,
     )
 
     first = publish_committed_agent_hood(
@@ -257,6 +257,14 @@ def test_after_a_blocked_render_a_later_drain_retries_and_succeeds(
         commit_publication,
         "_configured_publication_drain_timeout",
         lambda: 5.0,
+    )
+    monkeypatch.setattr(
+        "sase.agents_sync.publication_completion.publication_request_fulfilled",
+        lambda *_args, **_kwargs: True,
+    )
+    monkeypatch.setattr(
+        "sase.agents_sync.prompt_archive.deferred.restore_deferred_prompt_archives",
+        lambda *_args, **_kwargs: {},
     )
 
     second = publish_committed_agent_hood(

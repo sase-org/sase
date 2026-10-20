@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+from sase._interruptions import PublicationDrainTimedOut
 from sase.agents_sync.git import GitRunner
 from sase.agents_sync.models import CommitRecord, ProjectTarget
 
@@ -88,6 +89,8 @@ def _resolve_sha(repo_root: Path, sha: str, git_runner: GitRunner) -> str | None
 def _read_json(path: Path) -> object | None:
     try:
         return json.loads(path.read_text(encoding="utf-8"))
+    except PublicationDrainTimedOut:
+        raise
     except (OSError, json.JSONDecodeError, UnicodeDecodeError):
         return None
 

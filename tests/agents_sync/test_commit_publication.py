@@ -93,8 +93,17 @@ def test_push_failure_is_queued_and_next_commit_drains_idempotently(
     queued = list_agent_publications("proj")
     assert len(queued) == 1
     assert queued[0].hood_digest == "d" * 64
-    assert queued[0].attempts == 1
+    assert queued[0].attempts == 0
+    assert queued[0].last_error is None
 
+    monkeypatch.setattr(
+        "sase.agents_sync.publication_completion.publication_request_fulfilled",
+        lambda *_args, **_kwargs: True,
+    )
+    monkeypatch.setattr(
+        "sase.agents_sync.prompt_archive.deferred.restore_deferred_prompt_archives",
+        lambda *_args, **_kwargs: {},
+    )
     second = publish_committed_agent_hood(
         "foo--code",
         "a" * 40,

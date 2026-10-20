@@ -31,6 +31,8 @@ class DrainResult:
     item_errors: tuple[str, ...] = ()
     error: str | None = None
     error_keys: tuple[tuple[str, str], ...] = ()
+    failure_scope: str | None = None
+    failure_stage: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -42,6 +44,33 @@ class PublicationTransactionHooks:
     update_publications: Callable[..., object]
     acknowledge_publications: Callable[..., object]
     configured_max_attempts: Callable[[], int]
+
+
+_REPOSITORY_SCOPE = "repository"
+
+_REPOSITORY_STAGES = frozenset(
+    {
+        "pull_rebase",
+        "inventory_build",
+        "manifest_verify",
+        "commit",
+        "push",
+        "verify",
+        "cleanup",
+        "payload_clean",
+        "retry_commit",
+        "retry_push",
+        "retry_prepare",
+    }
+)
+
+
+def hood_timeout_stage(stage: str | None) -> bool:
+    if not stage:
+        return False
+    return stage.startswith("hood_publish:") or stage.startswith(
+        "prompt_archive_prepare"
+    )
 
 
 def publish_queued_transaction(
@@ -57,6 +86,8 @@ def publish_queued_transaction(
 
     from sase.agents_sync import git_sync
 
+    if not requests:
+        return DrainResult()
     logical_keys = tuple(item.logical_key for item in requests)
     if timer is not None:
         with timer.record_stage("pull_rebase"):
@@ -74,6 +105,8 @@ def publish_queued_transaction(
                 "git pull --rebase failed", pulled, cleanup
             ),
             error_keys=logical_keys,
+            failure_scope=_REPOSITORY_SCOPE,
+            failure_stage="pull_rebase",
         )
 
     identity = AgentIdentitySnapshot(owner)
@@ -139,18 +172,28 @@ def publish_queued_transaction(
             item_errors=item_errors,
             error=commit_result,
             error_keys=prepared_keys,
+            failure_scope=_REPOSITORY_SCOPE,
+            failure_stage="commit",
         )
     committed = commit_result
     should_push = (
         committed or git_sync.agents_ahead_count(target.sidecar_path, git_runner) > 0
     )
     if not should_push:
-        if timer is not None:
-            with timer.record_stage("verify"):
-                hooks.acknowledge_publications(target.project_key, prepared_keys)
-        else:
-            hooks.acknowledge_publications(target.project_key, prepared_keys)
-        return DrainResult(drained=len(prepared), item_errors=item_errors)
+        acked_keys, gate_errors = _acknowledge_completed(
+            target,
+            owner,
+            git_runner,
+            identity,
+            inventory,
+            prepared,
+            hooks=hooks,
+            timer=timer,
+        )
+        return DrainResult(
+            drained=len(acked_keys),
+            item_errors=(*item_errors, *gate_errors),
+        )
 
     if timer is not None:
         with timer.record_stage("push"):
@@ -168,17 +211,27 @@ def publish_queued_transaction(
             op="agents_sync.commit_publish_push",
         )
     if pushed.returncode == 0:
-        if timer is not None:
-            with timer.record_stage("verify"):
-                hooks.acknowledge_publications(target.project_key, prepared_keys)
-        else:
-            hooks.acknowledge_publications(target.project_key, prepared_keys)
-        return DrainResult(drained=len(prepared), item_errors=item_errors)
+        acked_keys, gate_errors = _acknowledge_completed(
+            target,
+            owner,
+            git_runner,
+            identity,
+            inventory,
+            prepared,
+            hooks=hooks,
+            timer=timer,
+        )
+        return DrainResult(
+            drained=len(acked_keys),
+            item_errors=(*item_errors, *gate_errors),
+        )
     if not git_sync.is_agents_non_fast_forward(pushed):
         return DrainResult(
             item_errors=item_errors,
             error=git_sync.agents_git_error("git push failed", pushed),
             error_keys=prepared_keys,
+            failure_scope=_REPOSITORY_SCOPE,
+            failure_stage="push",
         )
 
     if committed:
@@ -194,6 +247,8 @@ def publish_queued_transaction(
                     "could not prepare rejected publication for retry", dropped
                 ),
                 error_keys=prepared_keys,
+                failure_scope=_REPOSITORY_SCOPE,
+                failure_stage="push",
             )
     cleanup_error = git_sync.clean_publication_worktree(
         target.sidecar_path,
@@ -204,6 +259,8 @@ def publish_queued_transaction(
             item_errors=item_errors,
             error=cleanup_error,
             error_keys=prepared_keys,
+            failure_scope=_REPOSITORY_SCOPE,
+            failure_stage="cleanup",
         )
     repulled = git_sync.pull_agents_rebase(
         target.sidecar_path, git_runner, "agents_sync.commit_publish_retry_pull"
@@ -216,6 +273,8 @@ def publish_queued_transaction(
                 "git pull --rebase retry failed", repulled, cleanup
             ),
             error_keys=prepared_keys,
+            failure_scope=_REPOSITORY_SCOPE,
+            failure_stage="pull_rebase",
         )
     if timer is not None:
         with timer.record_stage("retry_prepare"):
@@ -263,6 +322,8 @@ def publish_queued_transaction(
             item_errors=all_item_errors,
             error=retry_commit,
             error_keys=retry_keys,
+            failure_scope=_REPOSITORY_SCOPE,
+            failure_stage="retry_commit",
         )
     if timer is not None:
         with timer.record_stage("retry_push"):
@@ -284,15 +345,22 @@ def publish_queued_transaction(
             item_errors=all_item_errors,
             error=git_sync.agents_git_error("git push retry failed", retry_push),
             error_keys=retry_keys,
+            failure_scope=_REPOSITORY_SCOPE,
+            failure_stage="retry_push",
         )
-    if timer is not None:
-        with timer.record_stage("verify"):
-            hooks.acknowledge_publications(target.project_key, retry_keys)
-    else:
-        hooks.acknowledge_publications(target.project_key, retry_keys)
+    acked_retry_keys, gate_errors = _acknowledge_completed(
+        target,
+        owner,
+        git_runner,
+        identity,
+        inventory,
+        retry_prepared,
+        hooks=hooks,
+        timer=timer,
+    )
     return DrainResult(
-        drained=len(retry_prepared),
-        item_errors=all_item_errors,
+        drained=len(acked_retry_keys),
+        item_errors=(*all_item_errors, *gate_errors),
     )
 
 
@@ -336,6 +404,8 @@ def _prepare_publications(
     published_by_hood: dict[str, list[AgentPublicationOutboxItem]] = {}
     for hood_requests in requests_by_hood.values():
         request = hood_requests[0]
+        if timer is not None:
+            timer.active_keys = tuple(item.logical_key for item in hood_requests)
         try:
             if timer is not None:
                 with timer.record_stage(f"hood_publish:{request.local_hood}"):
@@ -357,7 +427,7 @@ def _prepare_publications(
                     git_runner=git_runner,
                 )
             if timer is not None:
-                with timer.record_stage("prompt_archive_prepare"):
+                with timer.record_stage(f"prompt_archive_prepare:{request.local_hood}"):
                     for hood_request in hood_requests:
                         prepare_deferred_prompt_archive(
                             target,
@@ -417,16 +487,9 @@ def _prepare_publications(
     except PublicationDrainTimedOut:
         raise
     except Exception as exc:  # noqa: BLE001 - durable auxiliary boundary
-        for hood, hood_requests in published_by_hood.items():
-            error = f"could not publish agent hood {hood!r}: {exc}"
-            hooks.update_publications(
-                target.project_key,
-                (item.logical_key for item in hood_requests),
-                error=error,
-                increment_attempts=True,
-                quarantine_threshold=hooks.configured_max_attempts(),
-            )
-            errors.append(error)
+        # Shared manifest validation is repository-wide: report without charging.
+        error = f"could not verify agent publication manifest: {exc}"
+        errors.append(error)
         return (), tuple(errors)
     for hood, hood_requests in published_by_hood.items():
         request = hood_requests[0]
@@ -458,3 +521,96 @@ def _prepare_publications(
         tuple(item for item in requests if item.logical_key in prepared_keys),
         tuple(errors),
     )
+
+
+def _acknowledge_completed(
+    target: ProjectTarget,
+    owner: AgentOwnerIdentity,
+    git_runner: GitRunner,
+    identity: AgentIdentitySnapshot,
+    inventory: ProjectHoodInventory,
+    prepared: list[AgentPublicationOutboxItem] | tuple[AgentPublicationOutboxItem, ...],
+    *,
+    hooks: PublicationTransactionHooks,
+    timer: DrainTiming | None = None,
+) -> tuple[tuple[tuple[str, str], ...], tuple[str, ...]]:
+    """Acknowledge only requests whose page, revision, and prompt are complete.
+
+    A rejected push or interruption leaves requests durable; only verified
+    requests are removed. Unfulfilled requests are charged once as hood
+    failures so a later drain can retry them.
+    """
+
+    from sase.agents_sync.prompt_archive.deferred import (
+        restore_deferred_prompt_archives,
+    )
+    from sase.agents_sync.publication_completion import publication_request_fulfilled
+
+    if not prepared:
+        return (), ()
+    prepared_tuple = tuple(prepared)
+    try:
+        prompt_failures = restore_deferred_prompt_archives(
+            target,
+            prepared_tuple,
+            git_runner,
+            identity=identity,
+            inventory=inventory,
+        )
+    except PublicationDrainTimedOut:
+        raise
+    except Exception:  # noqa: BLE001 - prompt check must not fail a drain.
+        prompt_failures = {}
+    ackable: list[tuple[str, str]] = []
+    gate_errors: list[str] = []
+    for item in prepared_tuple:
+        prompt_error = prompt_failures.get(item.logical_key)
+        if prompt_error is not None:
+            hooks.update_publications(
+                target.project_key,
+                (item.logical_key,),
+                error=prompt_error,
+                increment_attempts=True,
+                quarantine_threshold=hooks.configured_max_attempts(),
+            )
+            gate_errors.append(prompt_error)
+            continue
+        try:
+            fulfilled = publication_request_fulfilled(target, item, owner)
+        except PublicationDrainTimedOut:
+            raise
+        except Exception as exc:  # noqa: BLE001 - durable auxiliary boundary
+            error = f"could not verify publication request {item.global_agent!r}: {exc}"
+            hooks.update_publications(
+                target.project_key,
+                (item.logical_key,),
+                error=error,
+                increment_attempts=True,
+                quarantine_threshold=hooks.configured_max_attempts(),
+            )
+            gate_errors.append(error)
+            continue
+        if not fulfilled:
+            error = (
+                f"published agent page for {item.global_agent!r} "
+                "did not materialize during commit drain"
+            )
+            hooks.update_publications(
+                target.project_key,
+                (item.logical_key,),
+                error=error,
+                increment_attempts=True,
+                quarantine_threshold=hooks.configured_max_attempts(),
+                terminal_reason=error,
+            )
+            gate_errors.append(error)
+            continue
+        ackable.append(item.logical_key)
+    if not ackable:
+        return (), tuple(gate_errors)
+    if timer is not None:
+        with timer.record_stage("verify"):
+            hooks.acknowledge_publications(target.project_key, ackable)
+    else:
+        hooks.acknowledge_publications(target.project_key, ackable)
+    return tuple(ackable), tuple(gate_errors)
