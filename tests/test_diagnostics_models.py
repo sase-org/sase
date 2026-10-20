@@ -215,6 +215,58 @@ def test_registry_run_wraps_exceptions_as_error_checks() -> None:
     assert "secret-token" not in checks[0].details[0]
 
 
+def test_registry_run_converts_system_exit_to_error_and_continues() -> None:
+    """A check that calls ``sys.exit`` becomes an ERROR; later checks run."""
+
+    def exits() -> DiagnosticCheck:
+        raise SystemExit(1)
+
+    sentinel = _check("runtime.sentinel", "OK")
+    registry = DiagnosticRegistry(
+        (
+            CheckSpec(
+                id="runtime.exits",
+                group="runtime",
+                title="Exiting check",
+                runner=exits,
+            ),
+            CheckSpec(
+                id="runtime.sentinel",
+                group="runtime",
+                title="Sentinel",
+                runner=lambda: sentinel,
+            ),
+        )
+    )
+
+    checks = registry.run(())
+
+    assert [check.id for check in checks] == [
+        "runtime.exits",
+        "runtime.sentinel",
+    ]
+    assert checks[0].status == "ERROR"
+    assert "check tried to exit the process (code 1)" in checks[0].details[0]
+    assert checks[1].status == "OK"
+
+
+def test_registry_run_lets_keyboard_interrupt_through() -> None:
+    """``KeyboardInterrupt`` is not converted: Ctrl-C must still abort."""
+
+    def interrupted() -> DiagnosticCheck:
+        raise KeyboardInterrupt()
+
+    spec = CheckSpec(
+        id="runtime.interrupted",
+        group="runtime",
+        title="Interrupted check",
+        runner=interrupted,
+    )
+
+    with pytest.raises(KeyboardInterrupt):
+        run_check_spec_safely(spec)
+
+
 def test_registry_run_returns_selected_checks_in_order() -> None:
     registry = DiagnosticRegistry(
         (

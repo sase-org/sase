@@ -118,13 +118,36 @@ class DiagnosticRegistry:
 
 
 def run_check_spec_safely(spec: CheckSpec) -> tuple[DiagnosticCheck, ...]:
-    """Run one spec, converting unexpected exceptions into one ERROR check."""
+    """Run one spec, converting unexpected exceptions into one ERROR check.
+
+    A check that tries to exit the process (``SystemExit``) becomes the same
+    ERROR check shape, so one misbehaving check can never end ``sase doctor``
+    without JSON. ``KeyboardInterrupt`` stays uncaught so Ctrl-C still aborts.
+    """
     started = time.perf_counter()
     try:
         raw = spec.runner()
         elapsed_ms = _elapsed_ms(started)
         return tuple(
             _with_duration(check, elapsed_ms) for check in _normalize_result(raw)
+        )
+    except SystemExit as exc:
+        elapsed_ms = _elapsed_ms(started)
+        return (
+            DiagnosticCheck(
+                id=spec.id,
+                group=spec.group,
+                status="ERROR",
+                title=spec.title,
+                summary=f"{spec.title} failed unexpectedly.",
+                details=(
+                    redact_string(f"check tried to exit the process (code {exc.code})"),
+                ),
+                next_steps=(
+                    "Run this check again with `sase doctor -v` and inspect logs if the failure persists.",
+                ),
+                duration_ms=elapsed_ms,
+            ),
         )
     except Exception as exc:  # noqa: BLE001 - doctor must continue after check bugs.
         elapsed_ms = _elapsed_ms(started)

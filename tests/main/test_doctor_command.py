@@ -348,3 +348,53 @@ def test_doctor_fix_primary_sidecar_links_restores_with_yes(
     assert "links/202609/example.md.json" in out
     assert "restored 1 path(s)" in out
     assert "project.primary_sidecar_link_dirt" in out
+
+
+def test_doctor_json_with_unbound_enum_placeholder_prints_single_json_document(
+    monkeypatch, capsys
+) -> None:
+    """End-to-end sase-1na guard: a parameterized preset keeps ``-j`` JSON-clean.
+
+    With the problematic macro registered, ``sase doctor -j -C
+    config.model_macros`` must print one parseable JSON document and no prose
+    (the old ``sys.exit(1)`` path printed an error and exited with no JSON).
+    """
+    from sase.macro.models import InputArg, InputChoice, InputType, Macro
+
+    macros = {
+        "audio": Macro(
+            name="audio",
+            content="transcript {{ edition }}",
+            inputs=[
+                InputArg(
+                    name="edition",
+                    type=InputType.ENUM,
+                    choices=(
+                        InputChoice(value="brief"),
+                        InputChoice(value="full"),
+                    ),
+                )
+            ],
+        ),
+        "research_swarm": Macro(
+            name="research_swarm",
+            content="#audio(edition={{ audio_edition }})",
+        ),
+    }
+    monkeypatch.setattr(
+        "sase.macro.loader.get_all_macros", lambda *_a, **_k: dict(macros)
+    )
+    monkeypatch.setattr(
+        "sase.macro.processor.get_all_macros", lambda *_a, **_k: dict(macros)
+    )
+    args = create_parser().parse_args(["doctor", "-j", "-C", "config.model_macros"])
+
+    exit_code = doctor_handler.handle_doctor_command(args)
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert captured.err == ""
+    payload = json.loads(captured.out)
+    assert payload["command"] == "doctor"
+    assert payload["checks"][0]["id"] == "config.model_macros"
+    assert payload["checks"][0]["data"]["skipped_parameterized"] == 1

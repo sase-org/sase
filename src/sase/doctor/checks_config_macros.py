@@ -21,6 +21,7 @@ class _ModelPresetScan:
     tokens: tuple[str, ...] = ()
     override_tokens: tuple[tuple[str, str], ...] = ()
     errors: tuple[str, ...] = ()
+    skipped_parameterized: bool = False
 
 
 def check_config_model_macros(context: DoctorContext) -> DiagnosticCheck:
@@ -57,9 +58,13 @@ def check_config_model_macros(context: DoctorContext) -> DiagnosticCheck:
 
     problems: list[dict[str, str]] = []
     scanned = 0
+    skipped_parameterized = 0
     for name in sorted(macros):
         scan = _model_preset_tokens(macros[name].content)
         if scan is None:
+            continue
+        if scan.skipped_parameterized:
+            skipped_parameterized += 1
             continue
         scanned += 1
         for error in scan.errors:
@@ -123,6 +128,11 @@ def check_config_model_macros(context: DoctorContext) -> DiagnosticCheck:
 
     status: CheckStatus = "WARN" if problems else "OK"
     details = tuple(row["message"] for row in problems[:MAX_DETAIL_ROWS])
+    if skipped_parameterized:
+        details = details + (
+            f"{skipped_parameterized} parameterized macro(s) skipped "
+            "(unbound template placeholders cannot be evaluated statically)",
+        )
     summary = (
         f"{scanned} model preset macro(s) route to a provider"
         if not problems
@@ -146,7 +156,11 @@ def check_config_model_macros(context: DoctorContext) -> DiagnosticCheck:
         summary=summary,
         details=details,
         next_steps=next_steps,
-        data={"scanned": scanned, "problems": problems},
+        data={
+            "scanned": scanned,
+            "problems": problems,
+            "skipped_parameterized": skipped_parameterized,
+        },
     )
 
 
@@ -575,20 +589,32 @@ def _model_preset_tokens(content: str) -> _ModelPresetScan | None:
     directive (so it is not a model preset) or cannot be parsed as a clean
     single/fan-out model directive. Multi-segment prompts carrying several
     explicit ``%model`` directives are split by the launcher, not here, so they
-    are skipped rather than reported.
+    are skipped rather than reported. Bodies with unbound template placeholders
+    (e.g. ``#audio(edition={{ audio_edition }})``) cannot be evaluated
+    statically, so they are reported as parameterized skips rather than
+    failures. Concrete presets whose expansion fails are reported as errors.
     """
+    from sase.macro._exceptions import MacroError
     from sase.macro.directives import (
         DirectiveError,
         extract_prompt_directives,
         has_model_directive,
         split_prompt_for_models,
     )
-    from sase.macro.models import Macro
+    from sase.macro.jinja_inspect import has_jinja
+    from sase.macro.models import Macro, MacroValidationError
     from sase.macro.processor import process_macro_references
     from sase.macro.segment_separators import macro_has_segment_separators
 
     try:
-        expanded = process_macro_references(content)
+        expanded = process_macro_references(content, raise_on_error=True)
+    except (MacroError, MacroValidationError) as exc:
+        # MacroValidationError is not a MacroError, so it needs its own entry.
+        if has_jinja(content):
+            return _ModelPresetScan(skipped_parameterized=True)
+        if has_model_directive(content):
+            return _ModelPresetScan(errors=(f"cannot expand: {exc}",))
+        return None
     except Exception:  # noqa: BLE001 - a malformed preset must not break doctor.
         return None
 

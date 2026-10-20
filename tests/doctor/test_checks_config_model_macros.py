@@ -8,7 +8,7 @@ import pytest
 
 from sase.doctor.checks_config_macros import check_config_model_macros
 from sase.doctor.runner import DoctorContext
-from sase.macro.models import Macro
+from sase.macro.models import InputArg, InputChoice, InputType, Macro
 
 
 def _doctor_context(tmp_path: Path) -> DoctorContext:
@@ -250,3 +250,97 @@ def test_model_macros_warn_for_unroutable_alias_override_value(
 
     assert check.status == "WARN"
     assert "%model(medium=not-a-model)" in check.details[0]
+
+
+def _enum_audio_macro() -> Macro:
+    """An inline ENUM-input macro, so no plugin discovery is needed."""
+    return Macro(
+        name="audio",
+        content="transcript {{ edition }}",
+        inputs=[
+            InputArg(
+                name="edition",
+                type=InputType.ENUM,
+                choices=(InputChoice(value="brief"), InputChoice(value="full")),
+            )
+        ],
+    )
+
+
+def test_model_macros_skips_parameterized_nested_enum_placeholder(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An unbound ``{{ }}`` placeholder skips instead of killing the check.
+
+    Regression test for sase-1na: expanding ``#audio(edition={{ audio_edition
+    }})`` with the default error path printed and ``sys.exit(1)``-ed, and
+    ``SystemExit`` escaped the old ``except Exception`` guard, leaving no JSON.
+    """
+    macros = {
+        "audio": _enum_audio_macro(),
+        "research_swarm": Macro(
+            name="research_swarm",
+            content="#audio(edition={{ audio_edition }})",
+        ),
+    }
+    _patch_model_macro_env(
+        monkeypatch, macros, {"provider": "codex", "model_aliases": {}}
+    )
+
+    check = check_config_model_macros(_doctor_context(tmp_path))
+
+    assert check.status == "OK"
+    assert not check.data["problems"]
+    assert check.data["scanned"] == 0
+    assert check.data["skipped_parameterized"] == 1
+    assert any("1 parameterized macro(s) skipped" in detail for detail in check.details)
+
+
+def test_model_macros_warns_for_concrete_preset_that_cannot_expand(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A concrete preset whose expansion fails still warns."""
+    macros = {
+        "audio": _enum_audio_macro(),
+        "m_surplus": Macro(
+            name="m_surplus",
+            content="%model:codex/gpt-5 #audio(brief, extra)",
+        ),
+    }
+    _patch_model_macro_env(
+        monkeypatch, macros, {"provider": "codex", "model_aliases": {}}
+    )
+
+    check = check_config_model_macros(_doctor_context(tmp_path))
+
+    assert check.status == "WARN"
+    assert any(
+        row["macro"] == "m_surplus" and "cannot expand" in row["message"]
+        for row in check.data["problems"]
+    )
+
+
+def test_model_macros_warns_for_nested_bad_enum_value(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A concrete nested reference with a bad enum value gives a WARN row."""
+    macros = {
+        "audio": _enum_audio_macro(),
+        "m_broken": Macro(
+            name="m_broken",
+            content="%model:codex/gpt-5 #audio(edition=turbo)",
+        ),
+    }
+    _patch_model_macro_env(
+        monkeypatch, macros, {"provider": "codex", "model_aliases": {}}
+    )
+
+    check = check_config_model_macros(_doctor_context(tmp_path))
+
+    assert check.status == "WARN"
+    assert any(
+        row["macro"] == "m_broken"
+        and "cannot expand" in row["message"]
+        and "turbo" in row["message"]
+        for row in check.data["problems"]
+    )

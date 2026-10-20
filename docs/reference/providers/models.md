@@ -199,8 +199,12 @@ than erroring. To catch this drift — for example a removed `model_aliases` ent
 quietly reroutes a `#m_<provider>_*` preset to the default provider — `sase doctor`
 (`-C config.model_macros`) scans configured model presets and warns with
 `<macro> -> <token> does not resolve to a provider; it will fall back to the default provider`.
-The check is provider-neutral and read-only. For retired prompt directive syntax such as
-`%wait(priority=...)`, use `sase doctor -C config.macro_directives`.
+The check is provider-neutral and read-only. Parameterized macros with unbound template
+placeholders (for example `#audio(edition={{ audio_edition }})`) cannot be evaluated
+statically, so they are skipped and counted as `skipped_parameterized` instead of
+reported; concrete presets whose expansion fails are reported as warnings. For retired
+prompt directive syntax such as `%wait(priority=...)`, use
+`sase doctor -C config.macro_directives`.
 
 ### Macro model inputs
 
