@@ -86,5 +86,27 @@ class FilesSpreadView(SectionViewMixin, Static):
         self._pages = ()
         self._last_render_key = None
 
+    def _publish_section_layout(
+        self,
+        *,
+        generation: int,
+        width: int,
+        anchors: tuple[Any, ...],
+    ) -> None:
+        """Publish Files spread anchors, then refresh chrome when scoped."""
+        super()._publish_section_layout(
+            generation=generation, width=width, anchors=anchors
+        )
+        try:
+            from .model import DeckId
+
+            parent = getattr(self, "parent", None)
+            panel = getattr(parent, "parent", None) if parent is not None else None
+            notify = getattr(panel, "_on_deck_section_layout", None)
+            if callable(notify):
+                notify(DeckId.FILES)
+        except Exception:
+            pass
+
 
 __all__ = ["FilesSpreadView", "SPREAD_TRUNCATION_HINT"]

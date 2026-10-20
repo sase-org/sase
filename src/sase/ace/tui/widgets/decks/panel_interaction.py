@@ -80,11 +80,26 @@ class DeckPanelInteractionMixin:
             except Exception:
                 derived = None
             if derived is not None and derived != self._main_active_card:
+                # The here-card changed, so the scope key moved: refresh.
                 self._main_active_card = derived
                 try:
                     self.refresh_chrome()
                 except Exception:
                     pass
+            else:
+                # Same here-card: refresh only when later cards slide fully
+                # into view (or out of it) without any active-card change.
+                try:
+                    self._refresh_chrome_if_scope_changed()  # type: ignore[attr-defined]
+                except Exception:
+                    pass
+        else:
+            # Paged Main: the only scroll-driven chrome is the at-bottom
+            # flip of the continuation cue.
+            try:
+                self._refresh_chrome_if_scope_changed()  # type: ignore[attr-defined]
+            except Exception:
+                pass
         # Scroll-derived block cursor for spread renderings (O(blocks) over
         # cached anchors; content growth does not move scroll_y, so streaming
         # never silently flips following).
@@ -101,7 +116,19 @@ class DeckPanelInteractionMixin:
             pass
 
     def _on_files_scroll_y(self, _old: float, _new: float) -> None:
-        if not self.is_spread(DeckId.FILES) or self._deck is not DeckId.FILES:
+        if self._deck is not DeckId.FILES:
+            return
+        try:
+            spread = bool(self.is_spread(DeckId.FILES))
+        except Exception:
+            spread = False
+        if not spread:
+            # Paged Files: the only scroll-driven chrome is the at-bottom
+            # flip of the continuation cue.
+            try:
+                self._refresh_chrome_if_scope_changed()  # type: ignore[attr-defined]
+            except Exception:
+                pass
             return
         try:
             index = self._files_spread_active_index()
@@ -119,6 +146,12 @@ class DeckPanelInteractionMixin:
                     pass
                 try:
                     self.refresh_chrome()
+                except Exception:
+                    pass
+            else:
+                # Same page: refresh only when the scope key moves.
+                try:
+                    self._refresh_chrome_if_scope_changed()  # type: ignore[attr-defined]
                 except Exception:
                     pass
         except Exception:

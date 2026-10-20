@@ -6,6 +6,7 @@ import dataclasses
 from typing import Any
 
 from .model import DeckId, DeckView, RenderMode
+from .panel_chrome_viewport import DeckPanelChromeViewportMixin
 from .spec import DECK_SPECS
 from .titles import CardTab, ZoomChrome, deck_subtitle, deck_title
 from .view_policy import ResolvedView, ViewContent, resolve_view
@@ -15,7 +16,7 @@ _BORDER_LABEL_RESERVED_CELLS = 4
 _FALLBACK_ACCENTS = {s.deck_id: s.fallback_accent for s in DECK_SPECS}
 
 
-class DeckPanelChromeMixin:
+class DeckPanelChromeMixin(DeckPanelChromeViewportMixin):
     """Border title and subtitle helpers for ``DeckPanel``."""
 
     _panel_index: int
@@ -600,12 +601,20 @@ class DeckPanelChromeMixin:
         except Exception:
             view = None
         paged = self._title_is_paged(deck, tabs, view)
+        at_bottom = False
         if paged:
             spread_cue = None
+            try:
+                at_bottom = self._paged_at_bottom(deck)
+            except Exception:
+                at_bottom = False
         else:
-            from .title_scope import structural_spread_cue
+            try:
+                spread_cue = self._viewport_spread_cue(deck, tuple(tabs), active_index)
+            except Exception:
+                from .title_scope import structural_spread_cue
 
-            spread_cue = structural_spread_cue(tabs, active_index)
+                spread_cue = structural_spread_cue(tabs, active_index)
         try:
             self.border_title = deck_title(  # type: ignore[attr-defined]
                 deck,
@@ -637,6 +646,19 @@ class DeckPanelChromeMixin:
         else:
             status = None
         try:
+            continuation_full = None
+            continuation_bare = None
+            try:
+                continuation_full, continuation_bare = self._build_continuation(
+                    deck,
+                    tuple(tabs),
+                    paged=paged,
+                    at_bottom=at_bottom,
+                    accent=accent,
+                    focused=bool(self._focused),
+                )
+            except Exception:
+                continuation_full, continuation_bare = (None, None)
             status_segments = None
             switcher = getattr(self, "_final_switcher", None)
             if switcher is not None:
@@ -656,7 +678,13 @@ class DeckPanelChromeMixin:
                 accent_for=accent_for,
                 status_segments=status_segments,
                 zoom=zoom_arg,
+                continuation=continuation_full,
+                continuation_bare=continuation_bare,
             )
+        except Exception:
+            pass
+        try:
+            self._viewport_scope_key = self._shown_scope_key()  # type: ignore[attr-defined]
         except Exception:
             pass
 

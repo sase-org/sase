@@ -605,3 +605,100 @@ async def test_agents_deck_view_one_card_png_snapshot(
             "agents_deck_view_one_card_120x40",
             title="ACE agents deck view one-card heading",
         )
+
+
+async def test_agents_deck_view_spread_all_in_view_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    from rich.text import Text
+
+    from sase.ace.tui.widgets.decks.card_part import context_card, reply_card
+    from sase.ace.tui.widgets.decks.main_document import MainDeckDocument
+
+    patch_startup_loaders(
+        monkeypatch,
+        agents=[_view_session(tmp_path, extra_reply_lines=0)],
+    )
+    async with AcePage(query='"visual"', patches=patches()) as page:
+        await _goto_agents(page, 1)
+        detail = await _show_reply(page)
+        panel = detail.deck_area.panel(0)
+        panel.show_main_document(
+            MainDeckDocument(
+                cards=(
+                    context_card(Text("all in view context")),
+                    reply_card(Text("all in view reply")),
+                ),
+                subject="all-in-view",
+                partial=False,
+                digest="all-in-view-spread",
+            ),
+            # Open at the first card with no scroll reserve so the whole
+            # tiny deck fits the viewport: the title names the all-in-view
+            # state instead of a direction.
+            "context",
+        )
+        await wait_for_state(
+            page,
+            lambda: panel.is_spread(DeckId.MAIN),
+            description="Main deck spreads the tiny document",
+        )
+        await wait_for_visual_idle(page)
+        panel.refresh_chrome()
+        page.app.clear_notifications()
+        await wait_for_visual_idle(page)
+        title = _title_plain(detail)
+        assert "\u2503" not in title
+        assert "SPREAD" in title
+        assert "in view" in title
+        assert "\u25b4" not in title and "\u25be" not in title
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_deck_view_spread_all_in_view_120x40",
+            title="ACE agents deck view spread all in view",
+        )
+
+
+async def test_agents_deck_view_paged_bottom_cue_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    from textual.containers import VerticalScroll
+
+    patch_startup_loaders(
+        monkeypatch,
+        agents=[_view_session(tmp_path, extra_reply_lines=60)],
+    )
+    async with AcePage(query='"visual"', patches=patches()) as page:
+        await _goto_agents(page, 1)
+        detail = await _show_reply(page)
+        panel = detail.deck_area.panel(0)
+        assert panel.effective_layout(DeckId.MAIN) is DeckView.PAGE_BLOCKS
+        # One P widens page blocks to locked page cards: "+1 card" cue.
+        await _press_view(page, detail, DeckView.PAGE_CARDS)
+        assert panel.effective_layout(DeckId.MAIN) is DeckView.PAGE_CARDS
+        panel.set_focused(True)
+        scroll = panel.query_one("#agent-deck-panel-0-main-scroll", VerticalScroll)
+        try:
+            max_y = int(scroll.max_scroll_y)
+        except Exception:
+            max_y = 0
+        if max_y > 0:
+            scroll.scroll_to(y=max_y, animate=False)
+        await wait_for_state(
+            page,
+            lambda: panel._paged_at_bottom(DeckId.MAIN) is True,
+            description="Paged Main deck reaches its bottom",
+        )
+        page.app.clear_notifications()
+        await wait_for_visual_idle(page)
+        subtitle = panel._border_subtitle.plain
+        assert "+1 card" in subtitle
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_deck_view_paged_bottom_cue_120x40",
+            title="ACE agents deck view paged bottom cue",
+        )

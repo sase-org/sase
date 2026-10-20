@@ -33,12 +33,16 @@ class SpreadCue:
 
     ``above`` / ``below`` are card titles in document order. ``all_in_view``
     is reserved for the viewport-cues phase; structural cues leave it false.
+    ``total`` is the deck's card count so the all-in-view phrase stays exact
+    when viewport filtering drops fully visible directions; zero keeps the
+    legacy here-plus-directions count.
     """
 
     here: str
     above: tuple[str, ...] = ()
     below: tuple[str, ...] = ()
     all_in_view: bool = False
+    total: int = 0
 
 
 def _card_noun(deck: DeckId, count: int) -> str:
@@ -58,7 +62,7 @@ def structural_spread_cue(
     here = tabs[active_index].title
     above = tuple(tab.title for tab in tabs[:active_index])
     below = tuple(tab.title for tab in tabs[active_index + 1 :])
-    return SpreadCue(here=here, above=above, below=below)
+    return SpreadCue(here=here, above=above, below=below, total=len(tabs))
 
 
 def _chip_is_visible(deck: DeckId, view: ResolvedView | None) -> bool:
@@ -183,7 +187,10 @@ def _cue_body(
     named: bool,
     compact_all_in_view: bool = False,
 ) -> Text:
-    total = (1 if cue.here else 0) + len(cue.above) + len(cue.below)
+    if cue.total > 0:
+        total = cue.total
+    else:
+        total = (1 if cue.here else 0) + len(cue.above) + len(cue.below)
     if cue.all_in_view or not (cue.above or cue.below):
         phrase = _all_in_view_phrase(
             deck, total, compact=compact_all_in_view or not include_here

@@ -614,7 +614,12 @@ async def test_final_panel_shows_no_badge_and_no_cycle() -> None:
 
 
 async def test_spread_title_cue_and_paged_tabs_flip() -> None:
-    """Spread titles use a here-name cue; paging restores tabs; the footer flips."""
+    """Spread titles use a here-name cue; paging restores tabs; the footer flips.
+
+    The reply is taller than the viewport so the viewport-precise spread cue
+    keeps a direction (fully visible later cards are dropped, so a tiny deck
+    would read "both cards in view" instead).
+    """
     app = _DetailApp()
     async with app.run_test(size=(100, 30)) as pilot:
         await pilot.pause()
@@ -622,7 +627,7 @@ async def test_spread_title_cue_and_paged_tabs_flip() -> None:
         detail = app.query_one("#agent-detail-panel", AgentDetail)
         panel = detail.deck_area.panel(0)
         panel.show_main_document(
-            _document("s1", _reply_card(2, lines_per_block=4), digest="scope-spread"),
+            _document("s1", _reply_card(2, lines_per_block=30), digest="scope-spread"),
             "reply",
         )
         await _settle(pilot, panel, DeckView.SPREAD)
@@ -638,7 +643,7 @@ async def test_spread_title_cue_and_paged_tabs_flip() -> None:
         panel.show_main_document(
             _document(
                 "s1",
-                _reply_card(2, lines_per_block=4),
+                _reply_card(2, lines_per_block=30),
                 digest="scope-partial",
                 partial=True,
             ),
@@ -648,7 +653,9 @@ async def test_spread_title_cue_and_paged_tabs_flip() -> None:
         panel.refresh_chrome()
         assert panel._border_title.plain == before
         panel.show_main_document(
-            _document("s1", _reply_card(2, lines_per_block=4), digest="scope-spread-2"),
+            _document(
+                "s1", _reply_card(2, lines_per_block=30), digest="scope-spread-2"
+            ),
             "reply",
         )
         await _settle(pilot, panel, DeckView.SPREAD)

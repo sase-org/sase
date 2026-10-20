@@ -459,19 +459,23 @@ def deck_subtitle(
     accent_for: Mapping[DeckId, str],
     status_segments: Mapping[DeckId, Text] | None = None,
     zoom: ZoomChrome | None = None,
+    continuation: Text | None = None,
+    continuation_bare: Text | None = None,
 ) -> Text:
-    """Render the deck switcher with an optional leading status.
+    """Render the deck switcher with optional leading continuation/status.
 
     The title badge now names the effective view, so the old ``spread``
-    tag is gone. Tiers, widest first: status and counted switcher; then
-    drop the switcher counts; then drop the switcher; and only then
-    truncate. ``status_segments`` carries pre-styled switcher entries
+    tag is gone. Tiers, widest first: continuation plus status and counted
+    switcher; then drop the switcher counts; then drop the switcher; then
+    drop the continuation's key segments (``continuation_bare``); and only
+    then truncate. ``status_segments`` carries pre-styled switcher entries
     (the FINAL ``final <glyph>`` segment); they replace the count in both
-    tiers.
+    tiers. Spread decks pass no continuation; its absence is the signal.
 
     When ``zoom`` is set, the restore hint leads instead: the switcher
     counts drop first, then the switcher, then the half position (leaving
-    the restore hint alone), and only then truncate.
+    the restore hint alone), and only then truncate. A zoomed subtitle
+    keeps the continuation after the restore hint.
     """
     from .availability import DeckAvailability
 
@@ -510,16 +514,48 @@ def deck_subtitle(
         return joined
 
     # Candidates in preference order; the first that fits the budget wins.
+    full_lead: Text | None = _joined(continuation, status)
+    if full_lead is not None and not full_lead.plain:
+        full_lead = None
+    bare_cue = continuation_bare if continuation_bare is not None else continuation
+    bare_lead: Text | None = _joined(bare_cue, status)
+    if bare_lead is not None and not bare_lead.plain:
+        bare_lead = None
     if zoom is None:
-        candidates = [
-            _joined(status, switcher),
-            _joined(status, bare_switcher),
-        ]
+        if full_lead is None and bare_lead is None:
+            candidates = [
+                _joined(status, switcher),
+                _joined(status, bare_switcher),
+            ]
+        elif bare_lead is None or (
+            full_lead is not None
+            and bare_lead is not None
+            and full_lead.plain == bare_lead.plain
+        ):
+            candidates = [
+                _joined(full_lead, switcher),
+                _joined(full_lead, bare_switcher),
+                _joined(full_lead),
+            ]
+        else:
+            candidates = [
+                _joined(full_lead, switcher),
+                _joined(full_lead, bare_switcher),
+                _joined(full_lead),
+                _joined(bare_lead),
+            ]
         if width <= 0:
             return candidates[0]
         for candidate in candidates:
             if _plain_width(candidate) <= width:
                 return candidate
+        # Drop the switcher entirely, then the cue's key segments, then
+        # truncate the remaining leading counts as the last resort.
+        leading: Text | None = bare_lead if bare_lead is not None else full_lead
+        if leading is not None:
+            if _plain_width(leading) <= width:
+                return _joined(leading)
+            return Text(leading.plain[: max(0, width)], style="")
         if status is not None:
             # Drop the switcher entirely, then truncate the status.
             if _plain_width(status) <= width:
@@ -529,13 +565,35 @@ def deck_subtitle(
     accent = str(accent_for.get(active, "") or "")
     restore_full = _zoom_restore_text(zoom, accent=accent, short=False)
     restore_short = _zoom_restore_text(zoom, accent=accent, short=True)
-    zoomed_candidates = [
-        _joined(restore_full, status, switcher),
-        _joined(restore_full, status, bare_switcher),
-        _joined(restore_full, status),
-        _joined(restore_short, status),
-        _joined(restore_short),
-    ]
+    if full_lead is None and bare_lead is None:
+        zoomed_candidates = [
+            _joined(restore_full, status, switcher),
+            _joined(restore_full, status, bare_switcher),
+            _joined(restore_full, status),
+            _joined(restore_short, status),
+            _joined(restore_short),
+        ]
+    elif bare_lead is None or (
+        full_lead is not None
+        and bare_lead is not None
+        and full_lead.plain == bare_lead.plain
+    ):
+        zoomed_candidates = [
+            _joined(restore_full, full_lead, switcher),
+            _joined(restore_full, full_lead, bare_switcher),
+            _joined(restore_full, full_lead),
+            _joined(restore_short, full_lead),
+            _joined(restore_short),
+        ]
+    else:
+        zoomed_candidates = [
+            _joined(restore_full, full_lead, switcher),
+            _joined(restore_full, full_lead, bare_switcher),
+            _joined(restore_full, full_lead),
+            _joined(restore_full, bare_lead),
+            _joined(restore_short, bare_lead),
+            _joined(restore_short),
+        ]
     if width <= 0:
         return zoomed_candidates[0]
     for candidate in zoomed_candidates:

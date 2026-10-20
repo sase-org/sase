@@ -557,6 +557,16 @@ class CardDocumentView(CardDocumentViewBlocksMixin, SectionViewMixin, Static):
         super()._publish_section_layout(
             generation=generation, width=width, anchors=anchors
         )
+        try:
+            # Streaming growth publishes new anchors without moving scroll_y:
+            # refresh chrome only when the viewport scope key moved.
+            parent = getattr(self, "parent", None)
+            panel = getattr(parent, "parent", None) if parent is not None else None
+            notify = getattr(panel, "_on_deck_section_layout", None)
+            if callable(notify):
+                notify(self._deck)
+        except Exception:
+            pass
         pending = self._spread_pending_card
         if pending is None:
             return

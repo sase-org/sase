@@ -242,11 +242,25 @@ class DeckPanelCardDocumentsMixin:
             except Exception:
                 derived = None
             if derived is not None and derived != self._stored_document_active(deck):
+                # The here-card changed, so the scope key moved: refresh.
                 self._store_document_active(deck, derived)
                 try:
                     self.refresh_chrome()  # type: ignore[attr-defined]
                 except Exception:
                     pass
+            else:
+                # Same here-card: refresh only when the scope key moves.
+                try:
+                    self._refresh_chrome_if_scope_changed()  # type: ignore[attr-defined]
+                except Exception:
+                    pass
+        else:
+            # Paged FINAL/RECORD/TOOLS: the only scroll-driven chrome is the
+            # at-bottom flip of the continuation cue.
+            try:
+                self._refresh_chrome_if_scope_changed()  # type: ignore[attr-defined]
+            except Exception:
+                pass
         try:
             self.sync_document_spread_block_cursor(deck)  # type: ignore[attr-defined]
         except Exception:
