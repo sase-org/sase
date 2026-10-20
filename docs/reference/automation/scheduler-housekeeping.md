@@ -209,11 +209,18 @@ cursor. Work left when the pass-wide time budget runs out is deferred to the nex
 The `artifact_link_backfill` job runs four bounded jobs per enabled project. It sweeps
 older documents for deterministic derived links, resuming from a per-project checkpoint
 when one tick's budget is exhausted; drains audited-read outbox rows whose agents have
-since published; reconciles cross-workspace local aggregates; and repairs dangling refs
-from Git rename history. A large derivation backlog converges over several hourly ticks
-instead of rescanning the full corpus each time. Run
-`sase axe job run artifact_link_backfill` for an immediate pass. The link model and
-doctor counters are documented in [Artifact Links](../artifact-links.md).
+since published; parks operations whose bead endpoints are removed, absent, or foreign
+onto a replayable parked ledger (re-checked at most once every 24 hours); reconciles
+cross-workspace local aggregates; and repairs dangling refs from Git rename history. A
+document counts as swept once each of its derived candidates is durable or parked, so an
+error on one document no longer holds back the rest of its chunk. Counters include
+`bead_projection_failed`, `parked_new`, `parked_total`, and `transient`. A hard bead
+projection failure this tick sets status `check_error` with reason
+`bead_projection_failed` even if traversal completed; parked operations alone are not an
+error. A large derivation backlog converges over several hourly ticks instead of
+rescanning the full corpus each time. Run `sase axe job run artifact_link_backfill` for
+an immediate pass. The link model and doctor counters are documented in
+[Artifact Links](../artifact-links.md).
 
 The `artifact_run_prune` job is a read-only preview for old `artifacts/ace-run/`
 directories. Protection facts are gathered in Python, while the preview classification,

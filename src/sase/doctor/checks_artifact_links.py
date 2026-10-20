@@ -23,6 +23,7 @@ from sase.sdd.artifact_link_drift import (
     build_artifact_link_index_drift,
     format_artifact_link_index_drift,
 )
+from sase.sdd._artifact_link_outbox_parked import inspect_artifact_link_parked
 from sase.sdd.artifact_link_store import (
     ArtifactLinkStore,
     artifact_link_aggregate_path,
@@ -141,14 +142,17 @@ def _check_artifact_links_aggregate(context: DoctorContext) -> DiagnosticCheck:
     missing = not artifact_link_aggregate_path(project_key).is_file()
     expected_count = len(expected["rows"])
     projected_count = sum(1 for row in expected["rows"] if is_projected_row(row))
+    parked = _parked_check_data(project_key)
     if missing and expected_count == 0:
         return DiagnosticCheck(
             id=_CHECK_ID,
             group="project",
             status="OK",
             title="Artifact link aggregate",
-            summary="no artifact link rows to index",
-            data={"stale": False, "rows": 0},
+            summary=_aggregate_summary(
+                expected_count, _parked_count(parked), empty=True
+            ),
+            data={"stale": False, "rows": 0, **parked},
         )
     if missing or stale:
         status: CheckStatus = "ERROR"
@@ -174,6 +178,7 @@ def _check_artifact_links_aggregate(context: DoctorContext) -> DiagnosticCheck:
                 "extra_rows": drift.extra.total,
                 "missing_by_relation": dict(drift.missing.by_relation),
                 "extra_by_relation": dict(drift.extra.by_relation),
+                **parked,
             },
         )
     return DiagnosticCheck(
@@ -181,13 +186,44 @@ def _check_artifact_links_aggregate(context: DoctorContext) -> DiagnosticCheck:
         group="project",
         status="OK",
         title="Artifact link aggregate",
-        summary=f"{expected_count} artifact link row(s) indexed",
+        summary=_aggregate_summary(expected_count, _parked_count(parked)),
         data={
             "stale": False,
             "rows": expected_count,
             "projected_rows": projected_count,
+            **parked,
         },
     )
+
+
+def _parked_check_data(project_key: str) -> dict[str, object]:
+    try:
+        stats = inspect_artifact_link_parked(project_key)
+    except Exception:  # noqa: BLE001 - parked counts must not fail the check.
+        return {"parked": 0, "parked_by_reason": {}}
+    return {
+        "parked": stats.parked,
+        "parked_by_reason": dict(stats.parked_by_reason),
+    }
+
+
+def _parked_count(data: dict[str, object]) -> int:
+    value = data.get("parked", 0)
+    return value if isinstance(value, int) else 0
+
+
+def _aggregate_summary(rows: int, parked: int, *, empty: bool = False) -> str:
+    parked_count = parked
+    if empty and parked_count == 0:
+        return "no artifact link rows to index"
+    summary = (
+        "no artifact link rows to index"
+        if empty
+        else f"{rows} artifact link row(s) indexed"
+    )
+    if parked_count:
+        summary += f"; {parked_count} parked outbox operation(s)"
+    return summary
 
 
 def _project_key(context: DoctorContext) -> str | None:

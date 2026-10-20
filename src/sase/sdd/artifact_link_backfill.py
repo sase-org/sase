@@ -158,6 +158,8 @@ def run_artifact_link_backfill_batch(
         candidates += len(chunk_candidates)
         persisted += outcome.persisted
         errors.extend(outcome.errors)
+        if outcome.deferred:
+            break
         updated_swept.update(
             _swept_refs_after_chunk(
                 store,
@@ -166,8 +168,6 @@ def run_artifact_link_backfill_batch(
                 errors=errors,
             )
         )
-        if outcome.deferred:
-            break
         if deadline is not None and time.monotonic() >= deadline:
             break
     report = _ArtifactLinkBackfillReport(
@@ -203,24 +203,31 @@ def _swept_refs_after_chunk(
     had_errors: bool,
     errors: list[str],
 ) -> tuple[str, ...]:
-    durable_keys = _stored_link_keys(store) if not had_errors else frozenset()
+    durable_keys = _stored_link_keys(store)
+    parked_keys = _parked_link_keys(store)
     swept_refs: list[str] = []
     for ref, document_candidates in candidates_by_ref.items():
         if not document_candidates:
             swept_refs.append(ref)
             continue
-        if had_errors:
-            continue
         missing = [
             candidate
             for candidate in document_candidates
             if _candidate_key(candidate) not in durable_keys
+            and _candidate_key(candidate) not in parked_keys
         ]
         if missing:
-            errors.append(f"{ref}: derived link candidates were not durable")
+            if not had_errors:
+                errors.append(f"{ref}: derived link candidates were not durable")
             continue
         swept_refs.append(ref)
     return tuple(swept_refs)
+
+
+def _parked_link_keys(store: ArtifactLinkStore) -> frozenset[tuple[str, str, str]]:
+    from sase.sdd._artifact_link_outbox_parked import parked_artifact_link_keys
+
+    return parked_artifact_link_keys(store.project_key)
 
 
 def _candidate_key(candidate: DerivedLinkCandidate) -> tuple[str, str, str]:

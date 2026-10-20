@@ -254,6 +254,10 @@ class _Totals:
     reconciled: int = 0
     repaired_renames: int = 0
     deferred_projects: int = 0
+    bead_projection_failed: int = 0
+    parked_new: int = 0
+    parked_total: int = 0
+    transient: int = 0
     warnings: list[str] = field(default_factory=list)
 
 
@@ -437,6 +441,18 @@ def _run_project(
         outbox_report = drain_artifact_link_outbox(store=store, deadline=chop_deadline)
         totals.outbox_drained += outbox_report.drained
         totals.outbox_dropped += outbox_report.dropped
+        totals.parked_new += int(getattr(outbox_report, "parked_new", 0) or 0)
+        totals.parked_total += int(getattr(outbox_report, "parked_total", 0) or 0)
+        totals.transient += int(getattr(outbox_report, "transient", 0) or 0)
+        totals.bead_projection_failed += int(
+            getattr(outbox_report, "bead_projection_failed", 0) or 0
+        )
+        for detail in getattr(outbox_report, "parked_details", ())[:5]:
+            reasons = "; ".join(getattr(detail, "reasons", ()) or ())
+            runtime.log.info(
+                f"[{_CHOP}] {project_key}: parked {detail.operation_id}"
+                + (f": {reasons}" if reasons else "")
+            )
         totals.warnings.extend(
             f"{project_key}: {item}"
             for item in getattr(outbox_report, "skip_diagnostics", ())
@@ -537,7 +553,13 @@ def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
             "continuing on later ticks"
         )
 
-    return runtime.emit_summary(
+    if totals.bead_projection_failed:
+        reason = "bead_projection_failed"
+    elif totals.projects == 0:
+        reason = "no_enabled_projects"
+    else:
+        reason = None
+    result = runtime.emit_summary(
         {
             "projects": totals.projects,
             "touch_index_refreshed": totals.touch_index_refreshed,
@@ -548,6 +570,10 @@ def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
             "sweep_remaining": totals.sweep_remaining,
             "outbox_drained": totals.outbox_drained,
             "outbox_dropped": totals.outbox_dropped,
+            "bead_projection_failed": totals.bead_projection_failed,
+            "parked_new": totals.parked_new,
+            "parked_total": totals.parked_total,
+            "transient": totals.transient,
             "publication_attempted": totals.publication_attempted,
             "publication_published": totals.publication_published,
             "publication_deferred": totals.publication_deferred,
@@ -559,8 +585,11 @@ def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
             "repaired_renames": totals.repaired_renames,
             "deferred_projects": totals.deferred_projects,
         },
-        reason="no_enabled_projects" if totals.projects == 0 else None,
+        reason=reason,
     )
+    if totals.bead_projection_failed:
+        result.status = "check_error"
+    return result
 
 
 def main() -> None:

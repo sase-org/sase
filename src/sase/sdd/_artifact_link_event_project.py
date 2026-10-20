@@ -44,6 +44,7 @@ class _ArtifactLinkBeadProjectionResult:
     receipt: bool
     diagnostic: str | None = None
     deferred: bool = False
+    failed: bool = False
     endpoint_evidence: tuple[BeadEndpointEvidence, ...] = ()
 
 
@@ -207,6 +208,7 @@ def apply_events_to_beads(
                     ),
                     receipt=False,
                     diagnostic=str(exc),
+                    failed=True,
                 )
             changed = changed or bool(outcome.get("changed"))
             for item in evidence_from_projection_chunk(chunk, outcome).values():
@@ -225,6 +227,7 @@ def apply_events_to_beads(
             changed=changed,
             receipt=False,
             diagnostic=exc.diagnostic,
+            failed=True,
             endpoint_evidence=_demoted_evidence_tuple(
                 evidence,
                 exc.diagnostic,
@@ -245,12 +248,14 @@ def apply_events_to_beads(
                 changed=changed,
                 receipt=False,
                 diagnostic=str(exc),
+                failed=True,
                 endpoint_evidence=_demoted_evidence_tuple(evidence, str(exc)),
             )
         return replace(
             finalized,
             receipt=False,
             diagnostic=str(exc),
+            failed=True,
         )
 
 

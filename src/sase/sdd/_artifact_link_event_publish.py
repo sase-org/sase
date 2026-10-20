@@ -64,6 +64,24 @@ class _ArtifactLinkEventRootOutcome:
 
 
 @dataclass(frozen=True, slots=True)
+class _ParkedPublication:
+    """One operation parked after typed bead-endpoint classification."""
+
+    operation_id: str
+    reasons: tuple[str, ...]
+    endpoints: tuple[dict[str, Any], ...]
+
+
+@dataclass(frozen=True, slots=True)
+class _PublicationReceipts:
+    """Per-operation acknowledgement, parked, and pending outcomes."""
+
+    acknowledged_ids: tuple[str, ...]
+    parked: tuple[_ParkedPublication, ...] = ()
+    transient_ids: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
 class _ArtifactLinkEventPublishReport:
     """Result of one immutable event publication batch."""
 
@@ -73,11 +91,14 @@ class _ArtifactLinkEventPublishReport:
     event_paths: tuple[Path, ...] = ()
     durable_event_paths: tuple[Path, ...] = ()
     published_operation_ids: tuple[str, ...] = ()
+    parked_operations: tuple[_ParkedPublication, ...] = ()
+    transient_operation_ids: tuple[str, ...] = ()
     beads_changed: bool = False
     aggregate_rows: tuple[dict[str, Any], ...] = ()
     publication_error: str | None = None
     skip_diagnostics: tuple[str, ...] = ()
     deferred: bool = False
+    bead_projection_failed: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -240,13 +261,14 @@ def _publish_event_objects_locked(
             f"artifact-link bead event publication failed: {bead_result.diagnostic}"
         )
 
-    published_ids = _published_operation_ids(
+    receipts = _published_operation_ids(
         states.values(),
         bead_receipt=bead_result.receipt,
         diagnostics=diagnostics,
         beads_available=store.beads_dir is not None,
         endpoint_evidence=bead_result.endpoint_evidence,
     )
+    published_ids = receipts.acknowledged_ids
     ready_objects = [
         state.item for state in states.values() if state.operation_id in published_ids
     ]
@@ -268,11 +290,14 @@ def _publish_event_objects_locked(
         event_paths=tuple(dict.fromkeys(event_paths)),
         durable_event_paths=tuple(dict.fromkeys(durable_paths)),
         published_operation_ids=published_ids,
+        parked_operations=receipts.parked,
+        transient_operation_ids=receipts.transient_ids,
         beads_changed=bead_result.changed,
         aggregate_rows=aggregate_rows,
         publication_error="\n".join(publication_errors) or None,
         skip_diagnostics=tuple(dict.fromkeys(diagnostics)),
         deferred=bead_result.deferred,
+        bead_projection_failed=bool(bead_result.failed),
     )
 
 
@@ -466,11 +491,13 @@ def _published_operation_ids(
     diagnostics: list[str],
     beads_available: bool = False,
     endpoint_evidence: Sequence[BeadEndpointEvidence] = (),
-) -> tuple[str, ...]:
+) -> _PublicationReceipts:
     by_operation: dict[str, dict[str, BeadEndpointEvidence]] = {}
     for item in endpoint_evidence:
         by_operation.setdefault(item.operation_id, {})[item.issue_id] = item
     published: list[str] = []
+    parked: list[_ParkedPublication] = []
+    transient_ids: list[str] = []
     for state in states:
         needs_bead = state.bead_owner or (
             beads_available and _event_can_affect_bead_projections(state.item.event)
@@ -498,12 +525,46 @@ def _published_operation_ids(
                 bead_endpoints=endpoints,
             ),
         )
-        reasons = receipt.get("pending_reasons")
-        if isinstance(reasons, list):
-            diagnostics.extend(str(reason) for reason in reasons if str(reason))
+        reasons = tuple(
+            str(reason)
+            for reason in (receipt.get("pending_reasons") or ())
+            if str(reason)
+        )
+        disposition = str(receipt.get("disposition") or "")
+        # `acknowledged` is the drain-from-outbox signal. Additive
+        # `disposition` classifies parked vs pending when that flag is false.
         if bool(receipt.get("acknowledged")):
             published.append(state.operation_id)
-    return tuple(published)
+            continue
+        if disposition == "parked":
+            parked.append(
+                _ParkedPublication(
+                    operation_id=state.operation_id,
+                    reasons=reasons,
+                    endpoints=tuple(endpoints or ()),
+                )
+            )
+            continue
+        diagnostics.extend(reasons)
+        if _endpoints_include_transient(endpoints):
+            transient_ids.append(state.operation_id)
+    return _PublicationReceipts(
+        acknowledged_ids=tuple(published),
+        parked=tuple(parked),
+        transient_ids=tuple(dict.fromkeys(transient_ids)),
+    )
+
+
+def _endpoints_include_transient(endpoints: list[dict[str, Any]] | None) -> bool:
+    if not endpoints:
+        return False
+    for item in endpoints:
+        outcome = item.get("outcome")
+        if outcome == "transient":
+            return True
+        if isinstance(outcome, Mapping) and "transient" in outcome:
+            return True
+    return False
 
 
 def _bead_endpoint_wires(

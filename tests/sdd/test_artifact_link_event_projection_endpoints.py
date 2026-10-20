@@ -102,12 +102,13 @@ def test_foreign_removed_and_absent_endpoints_are_parked_with_typed_reasons(
     )
 
     assert report.published_operation_ids == ("b" * 32,)
-    assert any("bob-cli" in item for item in report.skip_diagnostics)
-    assert any("foreign" in item for item in report.skip_diagnostics)
-    assert any("removed" in item for item in report.skip_diagnostics)
-    assert any(
-        "bead:sase-164" in item and "absent" in item for item in report.skip_diagnostics
-    )
+    parked_by_id = {item.operation_id: item for item in report.parked_operations}
+    assert set(parked_by_id) == {"c" * 32, "d" * 32, "e" * 32}
+    assert any("foreign" in reason for reason in parked_by_id["c" * 32].reasons)
+    assert any("bob-cli" in reason for reason in parked_by_id["c" * 32].reasons)
+    assert any("removed" in reason for reason in parked_by_id["d" * 32].reasons)
+    assert any("absent" in reason for reason in parked_by_id["e" * 32].reasons)
+    assert any("bead:sase-164" in reason for reason in parked_by_id["e" * 32].reasons)
     [link] = cluster.bead_project.show(local.id).links
     assert link.target_ref == "plan:202609/hot.md"
     replay = apply_events_to_beads(
@@ -181,6 +182,7 @@ def test_exception_in_second_chunk_commits_first_and_leaves_no_residue(
     assert calls == 2
     assert report.published == 1
     assert report.deferred is False
+    assert report.bead_projection_failed is True
     assert any("chunk 2 exploded" in item for item in report.skip_diagnostics)
     assert (
         project_module._bead_store_has_uncommitted_changes(

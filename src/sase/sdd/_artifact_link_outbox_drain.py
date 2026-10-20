@@ -13,6 +13,7 @@ from sase.sdd._artifact_link_authorize import (
     sidecar_root_not_machine_writable_message,
 )
 from sase.sdd._artifact_link_outbox_io import (
+    append_artifact_link_outbox_event as _append_artifact_link_outbox_event,
     inspect_artifact_link_outbox as _inspect_artifact_link_outbox,
     read_artifact_link_outbox_entries as _read_artifact_link_outbox_entries,
     rewrite_artifact_link_outbox_without_ids as _rewrite_without_ids,
@@ -36,6 +37,14 @@ _DEFAULT_RETENTION_DAYS = 90
 
 
 @dataclass(frozen=True, slots=True)
+class _ParkedDrainDetail:
+    """One operation moved onto the parked ledger this drain."""
+
+    operation_id: str
+    reasons: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
 class _ArtifactLinkOutboxDrainReport:
     """Result of one outbox drain attempt."""
 
@@ -45,6 +54,11 @@ class _ArtifactLinkOutboxDrainReport:
     retained_legacy: int = 0
     retained_invalid: int = 0
     dropped: int = 0
+    parked_new: int = 0
+    parked_total: int = 0
+    transient: int = 0
+    bead_projection_failed: int = 0
+    parked_details: tuple[_ParkedDrainDetail, ...] = ()
     committed: bool = False
     changed_indexes: tuple[Path, ...] = ()
     event_paths: tuple[Path, ...] = ()
@@ -60,6 +74,7 @@ def drain_artifact_link_outbox(
     drop_stale_terminal: bool = True,
     push_after_commit: bool | str | None = "async",
     deadline: float | None = None,
+    now: float | None = None,
 ) -> _ArtifactLinkOutboxDrainReport:
     """Replay publishable read-link rows into sidecar indexes.
 
@@ -70,15 +85,24 @@ def drain_artifact_link_outbox(
     from sase.sdd._artifact_link_event_project import (
         BEAD_PROJECTION_DEFERRED_DIAGNOSTIC,
     )
+    from sase.sdd._artifact_link_outbox_parked import (
+        append_artifact_link_parked_entries as _append_parked_entries,
+        inspect_artifact_link_parked as _inspect_parked,
+        parked_entry_from_outbox as _parked_entry_from_outbox,
+    )
 
     link_store = store or resolve_artifact_link_store()
+    observed_at = float(time.time() if now is None else now)
+    _requeue_ready_parked_entries(link_store, now=observed_at)
     stats = _inspect_artifact_link_outbox(link_store.project_key)
+    parked_total = _inspect_parked(link_store.project_key).parked
     entries = _read_artifact_link_outbox_entries(link_store.project_key)
     if not entries:
         return _ArtifactLinkOutboxDrainReport(
             queued=0,
             retained_legacy=stats.legacy_queued,
             retained_invalid=stats.invalid_queued,
+            parked_total=parked_total,
         )
     if deadline is not None and time.monotonic() >= deadline:
         return _ArtifactLinkOutboxDrainReport(
@@ -86,6 +110,7 @@ def drain_artifact_link_outbox(
             retained=len(entries),
             retained_legacy=stats.legacy_queued,
             retained_invalid=stats.invalid_queued,
+            parked_total=parked_total,
             skip_diagnostics=(BEAD_PROJECTION_DEFERRED_DIAGNOSTIC,),
             deferred=True,
         )
@@ -118,23 +143,51 @@ def drain_artifact_link_outbox(
         deadline=deadline,
     )
     published_event_ids = set(event_report.published_operation_ids)
+    parked_by_id = {item.operation_id: item for item in event_report.parked_operations}
+    parked_ids = set(parked_by_id)
+    drainable_by_id = {entry.id: entry for entry in event_drainable}
+    parked_records = [
+        _parked_entry_from_outbox(
+            drainable_by_id[operation_id],
+            reasons=parked.reasons,
+            endpoints=parked.endpoints,
+            now=observed_at,
+        )
+        for operation_id, parked in parked_by_id.items()
+        if operation_id in drainable_by_id
+    ]
+    parked_new = _append_parked_entries(link_store.project_key, parked_records)
     retained.extend(
-        entry for entry in event_drainable if entry.id not in published_event_ids
+        entry
+        for entry in event_drainable
+        if entry.id not in published_event_ids and entry.id not in parked_ids
     )
     event_skip_diagnostics = event_report.skip_diagnostics
+    leave_ids = published_event_ids | parked_ids
 
     _rewrite_without_ids(
         link_store.project_key,
-        drained_ids=published_event_ids,
+        drained_ids=leave_ids,
         dropped=stale,
     )
+    parked_total = _inspect_parked(link_store.project_key).parked
     return _ArtifactLinkOutboxDrainReport(
         queued=len(entries),
         drained=len(published_event_ids),
-        retained=(len(entries) - len(published_event_ids) - len(stale)),
+        retained=(
+            len(entries) - len(published_event_ids) - len(stale) - len(parked_ids)
+        ),
         retained_legacy=stats.legacy_queued,
         retained_invalid=stats.invalid_queued,
         dropped=len(stale),
+        parked_new=parked_new,
+        parked_total=parked_total,
+        transient=len(event_report.transient_operation_ids),
+        bead_projection_failed=int(event_report.bead_projection_failed),
+        parked_details=tuple(
+            _ParkedDrainDetail(operation_id=item.operation_id, reasons=item.reasons)
+            for item in event_report.parked_operations
+        ),
         committed=event_report.committed,
         changed_indexes=(),
         event_paths=event_report.event_paths,
@@ -344,6 +397,63 @@ def _terminal_agent_finished_times(
         if row.finished_at is not None:
             result[row.name] = float(row.finished_at)
     return result
+
+
+def _requeue_ready_parked_entries(store: ArtifactLinkStore, *, now: float) -> None:
+    """Move parked operations whose endpoints are now local back onto the queue."""
+
+    from sase.sdd._artifact_link_outbox_parked import (
+        PARKED_RECHECK_SECONDS,
+        ArtifactLinkParkedEntry,
+        read_artifact_link_parked_entries as _read_parked_entries,
+        rewrite_artifact_link_parked_entries as _rewrite_parked_entries,
+        touch_parked_checked_at as _touch_parked_checked_at,
+    )
+
+    parked = _read_parked_entries(store.project_key)
+    if not parked:
+        return
+    kept: list[ArtifactLinkParkedEntry] = []
+    requeued_ids: list[str] = []
+    for item in parked:
+        if now - item.last_checked_at < PARKED_RECHECK_SECONDS:
+            kept.append(item)
+            continue
+        if item.entry.event is None or not _parked_endpoints_are_local(
+            store, item.entry
+        ):
+            kept.append(_touch_parked_checked_at(item, now=now))
+            continue
+        _append_artifact_link_outbox_event(
+            project_key=store.project_key,
+            agent_name=item.entry.agent_name,
+            run_id=item.entry.run_id,
+            event=item.entry.event,
+            now=now,
+            check_parked=False,
+        )
+        requeued_ids.append(item.entry.id)
+    if requeued_ids or len(kept) != len(parked):
+        _rewrite_parked_entries(store.project_key, kept)
+
+
+def _parked_endpoints_are_local(
+    store: ArtifactLinkStore,
+    entry: _ArtifactLinkOutboxEntry,
+) -> bool:
+    from sase.sdd._artifact_link_bead_endpoint import classify_bead_issue_ids
+    from sase.sdd.artifact_link_beads import bead_id_from_ref
+
+    issue_ids = tuple(
+        issue_id for ref in _sidecar_refs(entry) if (issue_id := bead_id_from_ref(ref))
+    )
+    if not issue_ids:
+        return False
+    classified = classify_bead_issue_ids(issue_ids, store)
+    return all(
+        classified.get(issue_id) is not None and classified[issue_id].kind == "local"
+        for issue_id in issue_ids
+    )
 
 
 __all__ = [

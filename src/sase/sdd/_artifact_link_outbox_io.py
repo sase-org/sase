@@ -29,6 +29,7 @@ from sase.sdd._artifact_link_outbox_types import (
     rows_from_events as _rows_from_events,
 )
 from sase.sdd._artifact_link_event_canonical import (
+    ArtifactLinkEventObject as _ArtifactLinkEventObject,
     canonical_artifact_link_event_object as _canonical_event_object,
 )
 from sase.sdd.artifact_link_event_publisher import (
@@ -45,6 +46,7 @@ class _ArtifactLinkOutboxStats:
     event_queued: int = 0
     legacy_queued: int = 0
     invalid_queued: int = 0
+    parked: int = 0
     oldest_age_seconds: float = 0.0
     newest_age_seconds: float = 0.0
     p95_age_seconds: float = 0.0
@@ -121,13 +123,14 @@ def append_artifact_link_outbox_entry(
     path = _artifact_link_outbox_path(project_key)
     path.parent.mkdir(parents=True, exist_ok=True)
     with locked_file(path.with_suffix(".lock"), fcntl.LOCK_EX):
-        _reject_outbox_operation_collision(
+        if _reject_outbox_operation_collision(
             path,
             project_key,
             operation_id=parsed_operation_id,
             event=event,
             skip_collision_scan=not caller_supplied_id,
-        )
+        ):
+            return entry
         with path.open("a", encoding="utf-8") as output_file:
             json.dump(entry.to_json_dict(), output_file, sort_keys=True)
             output_file.write("\n")
@@ -143,6 +146,7 @@ def append_artifact_link_outbox_event(
     run_id: str,
     event: Mapping[str, Any],
     now: float | None = None,
+    check_parked: bool = True,
 ) -> _ArtifactLinkOutboxEntry:
     """Append one canonical event payload to the project outbox."""
 
@@ -165,12 +169,14 @@ def append_artifact_link_outbox_event(
     path = _artifact_link_outbox_path(project_key)
     path.parent.mkdir(parents=True, exist_ok=True)
     with locked_file(path.with_suffix(".lock"), fcntl.LOCK_EX):
-        _reject_outbox_operation_collision(
+        if _reject_outbox_operation_collision(
             path,
             project_key,
             operation_id=parsed_operation_id,
             event=canonical,
-        )
+            check_parked=check_parked,
+        ):
+            return entry
         with path.open("a", encoding="utf-8") as output_file:
             json.dump(entry.to_json_dict(), output_file, sort_keys=True)
             output_file.write("\n")
@@ -316,6 +322,10 @@ def inspect_artifact_link_outbox(
 ) -> _ArtifactLinkOutboxStats:
     """Return doctor-facing outbox queue, drop, and queue-age counts."""
 
+    from sase.sdd._artifact_link_outbox_parked import (
+        artifact_link_outbox_parked_path as _artifact_link_outbox_parked_path,
+    )
+
     records = _read_outbox_records(project_key)
     entries = tuple(record.entry for record in records if record.entry is not None)
     age_stats = artifact_link_outbox_age_stats(
@@ -328,6 +338,7 @@ def inspect_artifact_link_outbox(
         event_queued=sum(1 for entry in entries if entry.event is not None),
         legacy_queued=sum(1 for record in records if record.kind == "legacy_row"),
         invalid_queued=sum(1 for record in records if record.kind == "invalid"),
+        parked=_count_jsonl_rows(_artifact_link_outbox_parked_path(project_key)),
         oldest_age_seconds=age_stats.oldest_age_seconds,
         newest_age_seconds=age_stats.newest_age_seconds,
         p95_age_seconds=age_stats.p95_age_seconds,
@@ -345,12 +356,16 @@ def rewrite_artifact_link_outbox_without_ids(
         current = _read_outbox_records_unlocked(path, project_key)
         dropped_ids = {dropped_entry.id for dropped_entry in dropped}
         kept_lines: list[str] = []
+        seen_ids: set[str] = set()
         for record in current:
             if record.entry is None:
                 kept_lines.append(record.line)
                 continue
             if record.entry.id in drained_ids or record.entry.id in dropped_ids:
                 continue
+            if record.entry.id in seen_ids:
+                continue
+            seen_ids.add(record.entry.id)
             kept_lines.append(record.line)
         _write_lines(path, kept_lines)
     if dropped:
@@ -473,31 +488,66 @@ def _reject_outbox_operation_collision(
     operation_id: str,
     event: Mapping[str, Any],
     skip_collision_scan: bool = False,
-) -> None:
+    check_parked: bool = True,
+) -> bool:
     """Reject a reused operation id whose canonical payload bytes differ.
 
-    When the operation id was minted fresh in this call (``skip_collision_scan``)
-    a collision is impossible, so no read happens at all. Otherwise only the
-    raw lines containing the exact quoted id token are classified, parsed, and
-    compared -- every other line cannot be a collision and is never parsed.
-    A repeated id with identical canonical payload bytes stays accepted.
+    Returns True when the identical event is already queued or parked, so the
+    caller must not append another copy. When the operation id was minted
+    fresh in this call (``skip_collision_scan``) a collision is impossible, so
+    no read happens at all. Otherwise only the raw lines containing the exact
+    quoted id token are classified, parsed, and compared -- every other line
+    cannot be a collision and is never parsed. Requeue from the parked ledger
+    passes ``check_parked=False`` so the still-parked row does not block the
+    move back onto the active queue.
     """
 
     if skip_collision_scan:
-        return
+        return False
+    incoming = _canonical_event_object(event)
+    if _identical_event_already_on_path(
+        path,
+        project_key,
+        operation_id=operation_id,
+        incoming=incoming,
+    ):
+        return True
+    if not check_parked:
+        return False
+    from sase.sdd._artifact_link_outbox_parked import find_parked_outbox_entry
+
+    parked = find_parked_outbox_entry(project_key, operation_id)
+    if parked is None or parked.entry.event is None:
+        return False
+    existing = _canonical_event_object(parked.entry.event)
+    if existing.payload != incoming.payload:
+        raise RuntimeError(
+            f"artifact-link outbox operation_id `{operation_id}` "
+            "was reused for different event bytes"
+        )
+    return True
+
+
+def _identical_event_already_on_path(
+    path: Path,
+    project_key: str,
+    *,
+    operation_id: str,
+    incoming: _ArtifactLinkEventObject,
+) -> bool:
     if not path.is_file():
-        return
+        return False
     try:
         content = path.read_text(encoding="utf-8")
     except OSError:
-        return
+        return False
     token = f'"{operation_id}"'
     candidates = [
         line for line in content.splitlines() if token in line and line.strip()
     ]
     if not candidates:
-        return
-    incoming = _canonical_event_object(event)
+        return False
+    found_identical = False
     for line in candidates:
         classified = dict(
             require_rust_binding("artifact_link_outbox_classify_line")(
@@ -516,6 +566,8 @@ def _reject_outbox_operation_collision(
                 f"artifact-link outbox operation_id `{operation_id}` "
                 "was reused for different event bytes"
             )
+        found_identical = True
+    return found_identical
 
 
 def _excluded_operation_ids(values: Iterable[str]) -> frozenset[str]:

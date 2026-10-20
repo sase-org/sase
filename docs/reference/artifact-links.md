@@ -214,9 +214,14 @@ SASE durably derives only relationships backed by deterministic structured evide
 
 Derivation runs on relevant plan/archive and sidecar-commit paths. The built-in hourly
 AXE `artifact_link_backfill` job covers older documents in bounded, checkpointed
-batches, drains queued read rows for agents that have since published, recomputes
-projected relationships, reconciles the machine-local aggregate, and repairs dangling
-references from Git rename history. See
+batches, drains queued read rows for agents that have since published, parks operations
+whose bead endpoints are removed, absent, or foreign so they leave the retry loop,
+recomputes projected relationships, reconciles the machine-local aggregate, and repairs
+dangling references from Git rename history. Appending an outbox event is a no-op when
+the same operation id and identical payload are already queued or parked. Parked counts
+by reason appear on `sase doctor -C project.artifact_links_aggregate`. A hard bead
+projection failure marks the job `check_error` with reason `bead_projection_failed`;
+parked operations alone are not an error. See
 [Default routines](automation/scheduler-housekeeping.md#housekeeping-1-hour-interval).
 
 ## Beads
@@ -307,15 +312,16 @@ primary through auto-sync.
 
 Artifact-link truth lives in several places with different durability:
 
-| Path                                                        | Role                                                                                                   | Versioned?                                                         |
-| ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------ |
-| Sidecar `link-events/v1/<shard>/<digest>.json`              | Content-addressed immutable operation objects; the reducer derives the current graph from their union. | Yes. Each owning document sidecar commits the exact event bytes.   |
-| Sidecar `link-events/STORE.json`                            | Fleet-safety fence and legacy-import progress marker (`fenced` or `imported`).                         | Yes. One canonical marker in every document sidecar.               |
-| Sidecar `links/**/*.json`                                   | Frozen legacy schema-v2 indexes, read only before cutover and ignored after every marker is imported.  | Historical compatibility data only; never a current write target.  |
-| `~/.sase/projects/<key>/link-events/v1/...`                 | Immutable local receipt history for an event with no document owner, including bead-only events.       | No. Machine-local SASE state.                                      |
-| `~/.sase/projects/<key>/artifact-links.json`                | Rebuildable aggregate of reduced store rows plus projected relationships, with its lock.               | No. Machine-local SASE state.                                      |
-| `~/.sase/projects/<key>/artifact-link-outbox.jsonl`         | Replay queue of canonical event payloads awaiting all required durability receipts.                    | No. Machine-local; retried by publication and hourly housekeeping. |
-| `~/.sase/projects/<key>/artifact-link-outbox-dropped.jsonl` | Audit trail for stale terminal-agent observations that could not become publishable.                   | No. Machine-local.                                                 |
+| Path                                                        | Role                                                                                                                                                                                                                           | Versioned?                                                         |
+| ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------ |
+| Sidecar `link-events/v1/<shard>/<digest>.json`              | Content-addressed immutable operation objects; the reducer derives the current graph from their union.                                                                                                                         | Yes. Each owning document sidecar commits the exact event bytes.   |
+| Sidecar `link-events/STORE.json`                            | Fleet-safety fence and legacy-import progress marker (`fenced` or `imported`).                                                                                                                                                 | Yes. One canonical marker in every document sidecar.               |
+| Sidecar `links/**/*.json`                                   | Frozen legacy schema-v2 indexes, read only before cutover and ignored after every marker is imported.                                                                                                                          | Historical compatibility data only; never a current write target.  |
+| `~/.sase/projects/<key>/link-events/v1/...`                 | Immutable local receipt history for an event with no document owner, including bead-only events.                                                                                                                               | No. Machine-local SASE state.                                      |
+| `~/.sase/projects/<key>/artifact-links.json`                | Rebuildable aggregate of reduced store rows plus projected relationships, with its lock.                                                                                                                                       | No. Machine-local SASE state.                                      |
+| `~/.sase/projects/<key>/artifact-link-outbox.jsonl`         | Replay queue of canonical event payloads awaiting all required durability receipts.                                                                                                                                            | No. Machine-local; retried by publication and hourly housekeeping. |
+| `~/.sase/projects/<key>/artifact-link-outbox-parked.jsonl`  | Replayable ledger of operations whose bead endpoints are removed, absent, or foreign. Re-checked at most once every 24 hours; an entry whose endpoints become local and resolvable returns to the active queue. Never dropped. | No. Machine-local.                                                 |
+| `~/.sase/projects/<key>/artifact-link-outbox-dropped.jsonl` | Audit trail for stale terminal-agent observations that could not become publishable.                                                                                                                                           | No. Machine-local.                                                 |
 
 `sase artifact link add` publishes an `edge-put`; `rm` publishes an `edge-remove`
 tombstone. One canonical event is installed in every document sidecar that owns either

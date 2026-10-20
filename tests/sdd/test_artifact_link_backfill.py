@@ -7,6 +7,9 @@ import pytest
 
 from sase.artifact_links.derive import DerivableDocument, DerivedLinkCandidate
 from sase.sdd import artifact_link_backfill as artifact_link_backfill_module
+from sase.sdd._artifact_link_event_project import (
+    BEAD_PROJECTION_DEFERRED_DIAGNOSTIC,
+)
 from sase.sdd.artifact_link_derivation import _ArtifactLinkDerivationOutcome
 from sase.sdd.artifact_link_backfill import (
     run_artifact_link_backfill_batch,
@@ -232,6 +235,106 @@ def test_candidate_documents_remain_unswept_when_persist_errors(
     assert report.remaining == 1
     assert report.errors == ("commit failed",)
     assert swept == frozenset({"plan:202608/b.md"})
+
+
+def test_persist_error_on_one_document_does_not_hold_back_parked_siblings(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    store = _store(tmp_path, monkeypatch)
+    _write_plan(tmp_path, "202608/a.md", bead_id="sase-xx")
+    _write_plan(tmp_path, "202608/b.md", bead_id="sase-yy")
+    parked_key = (
+        "plan:202608/b.md",
+        "related",
+        "plan:202608/target.md",
+    )
+
+    def _derive(
+        documents: Sequence[DerivableDocument],
+        **_kwargs: object,
+    ) -> tuple[DerivedLinkCandidate, ...]:
+        return tuple(
+            DerivedLinkCandidate(
+                source_ref=document.ref,
+                relation="related",
+                target_ref="plan:202608/target.md",
+                description="shares a fixture root",
+            )
+            for document in documents
+        )
+
+    monkeypatch.setattr(
+        artifact_link_backfill_module, "derive_candidate_links", _derive
+    )
+    monkeypatch.setattr(
+        artifact_link_backfill_module,
+        "persist_derived_link_candidates",
+        lambda *_args, **_kwargs: _ArtifactLinkDerivationOutcome(
+            candidates=2,
+            persisted=0,
+            errors=("commit failed",),
+        ),
+    )
+    monkeypatch.setattr(
+        artifact_link_backfill_module,
+        "_parked_link_keys",
+        lambda _store: frozenset({parked_key}),
+    )
+
+    report, swept = run_artifact_link_backfill_batch(
+        store, already_swept=frozenset(), batch_size=2
+    )
+
+    assert report.scanned == 2
+    assert report.persisted == 0
+    assert report.remaining == 1
+    assert report.errors == ("commit failed",)
+    assert swept == frozenset({"plan:202608/b.md"})
+
+
+def test_deferred_persist_does_not_mark_the_chunk_swept(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    store = _store(tmp_path, monkeypatch)
+    _write_plan(tmp_path, "202608/a.md", bead_id="sase-xx")
+
+    def _derive(
+        documents: Sequence[DerivableDocument],
+        **_kwargs: object,
+    ) -> tuple[DerivedLinkCandidate, ...]:
+        return tuple(
+            DerivedLinkCandidate(
+                source_ref=document.ref,
+                relation="related",
+                target_ref="plan:202608/target.md",
+                description="shares a fixture root",
+            )
+            for document in documents
+        )
+
+    monkeypatch.setattr(
+        artifact_link_backfill_module, "derive_candidate_links", _derive
+    )
+    monkeypatch.setattr(
+        artifact_link_backfill_module,
+        "persist_derived_link_candidates",
+        lambda *_args, **_kwargs: _ArtifactLinkDerivationOutcome(
+            candidates=1,
+            persisted=1,
+            errors=(BEAD_PROJECTION_DEFERRED_DIAGNOSTIC,),
+            deferred=True,
+        ),
+    )
+
+    report, swept = run_artifact_link_backfill_batch(
+        store, already_swept=frozenset(), batch_size=8
+    )
+
+    assert report.scanned == 1
+    assert report.persisted == 1
+    assert report.remaining == 1
+    assert BEAD_PROJECTION_DEFERRED_DIAGNOSTIC in report.errors
+    assert "plan:202608/a.md" not in swept
 
 
 def test_no_pending_documents_is_a_fast_noop(

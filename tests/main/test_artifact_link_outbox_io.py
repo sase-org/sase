@@ -12,6 +12,13 @@ from sase.sdd import _artifact_link_outbox_io as _outbox_io
 from sase.sdd._artifact_link_outbox_io import (
     convert_legacy_artifact_link_outbox_entries,
     read_artifact_link_outbox_entries,
+    rewrite_artifact_link_outbox_without_ids,
+)
+from sase.sdd._artifact_link_outbox_parked import (
+    append_artifact_link_parked_entries,
+    inspect_artifact_link_parked,
+    parked_entry_from_outbox,
+    read_artifact_link_parked_entries,
 )
 from sase.sdd.artifact_link_outbox import (
     ARTIFACT_LINK_OUTBOX_FILENAME,
@@ -178,7 +185,7 @@ def test_caller_supplied_id_append_scans_only_matching_lines(
         )
 
 
-def test_event_path_identical_payload_reappend_is_accepted(
+def test_identical_event_reappend_is_a_noop(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -204,7 +211,73 @@ def test_event_path_identical_payload_reappend_is_accepted(
         event=event,
     )
 
-    assert len(_outbox_lines(home, project_key)) == 2
+    assert len(_outbox_lines(home, project_key)) == 1
+
+
+def test_identical_event_reappend_against_parked_is_a_noop(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    home = tmp_path / ".sase"
+    redirect_sase_home(monkeypatch, home)
+    project_key = "gh_sase-org__sase"
+    event = observation_or_put_event_from_row(
+        _row(source="agent:reader", target="plan:doc.md", origin="read"),
+        project_key=project_key,
+        operation_id="d" * 32,
+    )
+    entry = append_artifact_link_outbox_event(
+        project_key=project_key,
+        agent_name="reader",
+        run_id="run-1",
+        event=event,
+    )
+    append_artifact_link_parked_entries(
+        project_key,
+        (parked_entry_from_outbox(entry, reasons=("outcome absent",)),),
+    )
+    rewrite_artifact_link_outbox_without_ids(
+        project_key, drained_ids={entry.id}, dropped=[]
+    )
+
+    append_artifact_link_outbox_event(
+        project_key=project_key,
+        agent_name="reader",
+        run_id="run-1",
+        event=event,
+    )
+
+    outbox_path = home / "projects" / project_key / ARTIFACT_LINK_OUTBOX_FILENAME
+    assert not outbox_path.is_file() or outbox_path.read_text(encoding="utf-8") == ""
+    assert inspect_artifact_link_parked(project_key).parked == 1
+    assert len(read_artifact_link_parked_entries(project_key)) == 1
+
+
+def test_rewrite_compacts_duplicate_outbox_ids(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    home = tmp_path / ".sase"
+    redirect_sase_home(monkeypatch, home)
+    project_key = "gh_sase-org__sase"
+    event = observation_or_put_event_from_row(
+        _row(source="agent:reader", target="plan:doc.md", origin="read"),
+        project_key=project_key,
+        operation_id="d" * 32,
+    )
+    append_artifact_link_outbox_event(
+        project_key=project_key,
+        agent_name="reader",
+        run_id="run-1",
+        event=event,
+    )
+    path = home / "projects" / project_key / ARTIFACT_LINK_OUTBOX_FILENAME
+    [line] = path.read_text(encoding="utf-8").splitlines()
+    path.write_text(f"{line}\n{line}\n", encoding="utf-8")
+
+    rewrite_artifact_link_outbox_without_ids(project_key, drained_ids=set(), dropped=[])
+
+    assert len(_outbox_lines(home, project_key)) == 1
 
 
 def test_ineligible_drain_never_silently_drops_an_unconverted_legacy_row(

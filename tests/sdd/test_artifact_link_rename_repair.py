@@ -145,16 +145,13 @@ def test_rename_repair_queues_stable_alias_event(
 
     assert first.alias_events_queued == 1
     assert second.alias_events_queued == 1
-    assert len(entries) == 2
-    assert entries[0].id == entries[1].id
-    assert entries[0].agent_name == artifact_link_alias_producer_id()
-    assert entries[1].agent_name == artifact_link_alias_producer_id()
-    assert entries[0].run_id == artifact_link_machine_run_id()
-    assert entries[1].run_id == artifact_link_machine_run_id()
-    assert entries[0].event is not None
-    assert entries[0].event == entries[1].event
-    assert entries[0].event["created_by"] == artifact_link_alias_producer_id()
-    assert entries[0].event["kind"] == {
+    assert len(entries) == 1
+    [entry] = entries
+    assert entry.agent_name == artifact_link_alias_producer_id()
+    assert entry.run_id == artifact_link_machine_run_id()
+    assert entry.event is not None
+    assert entry.event["created_by"] == artifact_link_alias_producer_id()
+    assert entry.event["kind"] == {
         "type": "alias",
         "old_ref": "plan:202608/old.md",
         "new_ref": "plan:202608/new.md",

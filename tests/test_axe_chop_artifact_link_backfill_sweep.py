@@ -187,3 +187,96 @@ def test_checkpoint_survives_across_ticks(
     backfill_chop._run(_runtime(tmp_path))
 
     assert seen_already_swept == [frozenset(), frozenset({"plan:202608/a.md"})]
+
+
+def test_bead_projection_failed_marks_check_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        backfill_chop, "_enabled_project_records", lambda: [_project(tmp_path)]
+    )
+    monkeypatch.setattr(
+        backfill_chop,
+        "resolve_machine_artifact_link_store",
+        lambda project_key, primary_checkout, **_kwargs: object(),
+    )
+    monkeypatch.setattr(
+        backfill_chop,
+        "run_artifact_link_backfill_batch",
+        lambda store, **kwargs: (_ArtifactLinkBackfillReport(), frozenset()),
+    )
+    monkeypatch.setattr(
+        backfill_chop,
+        "drain_artifact_link_outbox",
+        lambda store=None, **_kwargs: SimpleNamespace(
+            drained=0,
+            dropped=0,
+            deferred=False,
+            bead_projection_failed=1,
+            parked_new=0,
+            parked_total=0,
+            transient=0,
+            parked_details=(),
+            skip_diagnostics=("chunk exploded",),
+        ),
+    )
+    monkeypatch.setattr(
+        backfill_chop,
+        "reconcile_and_repair_artifact_links",
+        lambda store, **_kwargs: _ArtifactLinkReconcileReport(),
+    )
+
+    result = backfill_chop._run(_runtime(tmp_path))
+
+    assert result.status == "check_error"
+    assert result.reason == "bead_projection_failed"
+    assert result.counters["bead_projection_failed"] == 1
+
+
+def test_parked_operations_alone_are_not_check_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        backfill_chop, "_enabled_project_records", lambda: [_project(tmp_path)]
+    )
+    monkeypatch.setattr(
+        backfill_chop,
+        "resolve_machine_artifact_link_store",
+        lambda project_key, primary_checkout, **_kwargs: object(),
+    )
+    monkeypatch.setattr(
+        backfill_chop,
+        "run_artifact_link_backfill_batch",
+        lambda store, **kwargs: (_ArtifactLinkBackfillReport(), frozenset()),
+    )
+    monkeypatch.setattr(
+        backfill_chop,
+        "drain_artifact_link_outbox",
+        lambda store=None, **_kwargs: SimpleNamespace(
+            drained=0,
+            dropped=0,
+            deferred=False,
+            bead_projection_failed=0,
+            parked_new=2,
+            parked_total=2,
+            transient=0,
+            parked_details=(
+                SimpleNamespace(operation_id="c" * 32, reasons=("outcome foreign",)),
+            ),
+            skip_diagnostics=(),
+        ),
+    )
+    monkeypatch.setattr(
+        backfill_chop,
+        "reconcile_and_repair_artifact_links",
+        lambda store, **_kwargs: _ArtifactLinkReconcileReport(),
+    )
+
+    runtime, stdout, _stderr = _runtime_with_logs(tmp_path)
+    result = backfill_chop._run(runtime)
+
+    assert result.status == "ok"
+    assert result.reason is None
+    assert result.counters["parked_new"] == 2
+    assert result.counters["parked_total"] == 2
+    assert "parked " + "c" * 32 in stdout.getvalue()

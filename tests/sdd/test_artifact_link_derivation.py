@@ -195,18 +195,15 @@ def test_derived_events_freeze_payload_across_clock_and_discovering_agent(
     )
 
     entries = read_artifact_link_outbox_entries(store.project_key)
-    assert len(entries) == 2
-    assert entries[0].id == entries[1].id
-    assert entries[0].event == entries[1].event
-    assert entries[0].created_at != entries[1].created_at
-    assert {entry.agent_name for entry in entries} == {
-        artifact_link_derived_producer_id()
-    }
-    assert {entry.run_id for entry in entries} == {artifact_link_machine_run_id()}
-    assert entries[0].event is not None
-    assert entries[0].event["created_by"] == artifact_link_derived_producer_id()
-    assert entries[0].event["created_at"] == artifact_link_stable_fact_created_at()
-    [row] = rows_from_events(entry.event for entry in entries)
+    assert len(entries) == 1
+    [entry] = entries
+    assert entry.created_at == 1.0
+    assert entry.agent_name == artifact_link_derived_producer_id()
+    assert entry.run_id == artifact_link_machine_run_id()
+    assert entry.event is not None
+    assert entry.event["created_by"] == artifact_link_derived_producer_id()
+    assert entry.event["created_at"] == artifact_link_stable_fact_created_at()
+    [row] = rows_from_events((entry.event,))
     assert row["uses"] == 1
 
 

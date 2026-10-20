@@ -25,8 +25,16 @@ from sase.sdd.artifact_link_import_indexes import (
     artifact_link_legacy_links_tree_identity,
 )
 from sase.doctor.runner import DoctorContext
+from sase.sdd._artifact_link_outbox_io import rewrite_artifact_link_outbox_without_ids
+from sase.sdd._artifact_link_outbox_parked import (
+    append_artifact_link_parked_entries,
+    parked_entry_from_outbox,
+)
+from sase.sdd.artifact_link_event_publisher import observation_or_put_event_from_row
+from sase.sdd.artifact_link_outbox import append_artifact_link_outbox_event
 from sase.sdd.store import SddStore
 from tests._conftest_environment import redirect_sase_home
+from tests.sdd._artifact_link_store_helpers import _row
 
 
 def _context(tmp_path: Path) -> DoctorContext:
@@ -89,6 +97,65 @@ def test_artifact_links_check_ok_when_empty(monkeypatch, tmp_path: Path) -> None
     check = _check_artifact_links_aggregate(_context(tmp_path))
     assert check.status == "OK"
     assert check.data["rows"] == 0
+    assert check.data["parked"] == 0
+    assert check.data["parked_by_reason"] == {}
+
+
+def test_artifact_links_check_reports_parked_counts_without_failing(
+    monkeypatch, tmp_path: Path
+) -> None:
+    redirect_sase_home(monkeypatch, tmp_path / ".sase")
+    store = SddStore("sidecar_repos", tmp_path, tmp_path)
+    monkeypatch.setattr(
+        "sase.doctor.checks_artifact_links._resolve_store",
+        lambda _context: store,
+    )
+    monkeypatch.setattr(
+        "sase.doctor.checks_artifact_links._project_key",
+        lambda _context: "gh_sase-org__sase",
+    )
+    project_key = "gh_sase-org__sase"
+    event = observation_or_put_event_from_row(
+        _row(
+            source="plan:202609/hot.md",
+            relation="implements",
+            target="bead:bob-cli-8s",
+            origin="derived",
+        ),
+        project_key=project_key,
+        operation_id="c" * 32,
+    )
+    entry = append_artifact_link_outbox_event(
+        project_key=project_key,
+        agent_name="machine",
+        run_id="doctor",
+        event=event,
+    )
+    append_artifact_link_parked_entries(
+        project_key,
+        (
+            parked_entry_from_outbox(
+                entry,
+                reasons=("bob-cli owns bead:bob-cli-8s; outcome foreign",),
+                endpoints=(
+                    {
+                        "endpoint_ref": "bead:bob-cli-8s",
+                        "outcome": {"foreign": {"owner_project": "bob-cli"}},
+                    },
+                ),
+            ),
+        ),
+    )
+    rewrite_artifact_link_outbox_without_ids(
+        project_key, drained_ids={entry.id}, dropped=[]
+    )
+
+    check = _check_artifact_links_aggregate(_context(tmp_path))
+
+    assert check.status == "OK"
+    assert check.data["parked"] == 1
+    assert check.data["parked_by_reason"] == {"foreign": 1}
+    assert "1 parked outbox operation(s)" in check.summary
 
 
 def test_artifact_link_cutover_check_ok_without_marker(

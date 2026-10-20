@@ -1714,10 +1714,13 @@ axe:
 
             Runs four bounded jobs per enabled project: the retroactive derivation sweep over documents
             that predate the artifact-link derivation epic, the read-outbox drain for agents that have
-            since published, the cross-workspace aggregate reconciliation sweep, and the dangling-ref
-            repair pass driven by git rename history. The derivation sweep is resumable via a per-project
-            checkpoint of already-swept refs, so a large backlog converges over several ticks instead of
-            rescanning every document every hour; it logs how many documents remain for the next tick.
+            since published (parking removed, absent, or foreign bead endpoints onto a replayable ledger
+            re-checked at most once every 24 hours), the cross-workspace aggregate reconciliation sweep,
+            and the dangling-ref repair pass driven by git rename history. The derivation sweep is
+            resumable via a per-project checkpoint of already-swept refs, so a large backlog converges
+            over several ticks instead of rescanning every document every hour; a document is swept once
+            each candidate is durable or parked. A hard bead projection failure this tick is
+            check_error with reason bead_projection_failed; parked operations alone are not an error.
         - name: artifact_run_prune
           script: sase_job_artifact_run_prune
           timeout: "5m"

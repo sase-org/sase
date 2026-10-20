@@ -17,6 +17,7 @@ from sase.sdd.artifact_link_event_publisher import (
 ARTIFACT_LINK_OUTBOX_SCHEMA_VERSION = 2
 ARTIFACT_LINK_OUTBOX_FILENAME = "artifact-link-outbox.jsonl"
 ARTIFACT_LINK_OUTBOX_DROPPED_FILENAME = "artifact-link-outbox-dropped.jsonl"
+ARTIFACT_LINK_OUTBOX_PARKED_FILENAME = "artifact-link-outbox-parked.jsonl"
 
 
 @dataclass(frozen=True, slots=True)
@@ -215,6 +216,7 @@ def required_text(value: object, field: str) -> str:
 __all__ = [
     "ARTIFACT_LINK_OUTBOX_DROPPED_FILENAME",
     "ARTIFACT_LINK_OUTBOX_FILENAME",
+    "ARTIFACT_LINK_OUTBOX_PARKED_FILENAME",
     "ARTIFACT_LINK_OUTBOX_SCHEMA_VERSION",
     "ArtifactLinkOutboxEntry",
     "entry_from_line",
