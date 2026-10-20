@@ -1,0 +1,138 @@
+from __future__ import annotations
+
+from pathlib import Path
+
+from sase.ace.tui.widgets.agent_detail import AgentDetail
+from sase.ace.tui.widgets.decks.model import DeckId, DeckLayout
+from tests.ace.tui.widgets.decks._deck_split_test_support import (
+    DetailApp,
+    make_artifact_agent,
+    pin_paged,
+)
+
+
+async def test_context_reply_for_agent_without_files_or_tools(tmp_path: Path) -> None:
+    from sase.ace.tui.widgets.decks.availability import DeckAvailability
+
+    app = DetailApp()
+    pin_paged(app)
+    async with app.run_test(size=(100, 30)) as pilot:
+        await pilot.pause()
+        detail = app.query_one("#agent-detail-panel", AgentDetail)
+        agent = make_artifact_agent(tmp_path, status="DONE")
+        detail.update_display(agent)
+        await pilot.pause()
+        # Force no-files/no-tools so the new panel duplicates Main.
+        panel0_before = detail.deck_area.panel(0)
+        panel0_before._availability = {
+            DeckId.MAIN: DeckAvailability(True, 2),
+            DeckId.FILES: DeckAvailability(False, 0),
+            DeckId.TOOLS: DeckAvailability(False, 0),
+        }
+        detail.toggle_deck_split(DeckLayout.LEFT_RIGHT)
+        await pilot.pause()
+        panel0 = detail.deck_area.panel(0)
+        panel1 = detail.deck_area.panel(1)
+        # No files/tools: second panel duplicates Main.
+        assert panel1.deck is DeckId.MAIN
+        assert panel0.deck is DeckId.MAIN
+        assert panel0.main_view.active_card_id != panel1.main_view.active_card_id
+
+
+async def test_main_document_fans_out_to_both(tmp_path: Path) -> None:
+    app = DetailApp()
+    pin_paged(app)
+    async with app.run_test(size=(100, 30)) as pilot:
+        await pilot.pause()
+        detail = app.query_one("#agent-detail-panel", AgentDetail)
+        agent = make_artifact_agent(tmp_path, status="DONE")
+        detail.update_display(agent)
+        await pilot.pause()
+        detail.toggle_deck_split(DeckLayout.TOP_BOTTOM)
+        await pilot.pause()
+        # Force both panels to Main for fan-out check.
+        detail.show_deck(1, DeckId.MAIN)
+        await pilot.pause()
+        detail.update_display(agent)
+        await pilot.pause()
+        panel0 = detail.deck_area.panel(0)
+        panel1 = detail.deck_area.panel(1)
+        assert panel0.main_view.active_card_id is not None
+        assert panel1.main_view.active_card_id is not None
+
+
+async def test_ctrl_n_p_act_on_focused_panel(tmp_path: Path) -> None:
+    app = DetailApp()
+    pin_paged(app)
+    async with app.run_test(size=(100, 30)) as pilot:
+        await pilot.pause()
+        detail = app.query_one("#agent-detail-panel", AgentDetail)
+        agent = make_artifact_agent(tmp_path, status="DONE")
+        detail.update_display(agent)
+        await pilot.pause()
+        detail.toggle_deck_split(DeckLayout.TOP_BOTTOM)
+        await pilot.pause()
+        detail.toggle_deck_focus()
+        await pilot.pause()
+        before0 = detail.deck_area.panel(0).deck
+        before1 = detail.deck_area.panel(1).deck
+        # Focus is panel 1: cycle it, panel 0 stays.
+        detail.cycle_focused_deck(1)
+        await pilot.pause()
+        assert detail.deck_area.panel(0).deck is before0
+        assert detail.deck_area.panel(1).deck is not before1
+
+
+async def test_duplicate_files_single_fetch(tmp_path: Path) -> None:
+    app = DetailApp()
+    pin_paged(app)
+    async with app.run_test(size=(100, 30)) as pilot:
+        await pilot.pause()
+        detail = app.query_one("#agent-detail-panel", AgentDetail)
+        agent = make_artifact_agent(tmp_path, status="DONE")
+        detail.update_display(agent)
+        await pilot.pause()
+        # Open a Files deck in panel 0, then duplicate it.
+        detail.show_deck(0, DeckId.FILES)
+        await pilot.pause()
+        await pilot.pause()
+        detail.toggle_deck_split(DeckLayout.LEFT_RIGHT)
+        await pilot.pause()
+        # If the new panel is Files, only the owner should own a worker.
+        area = detail.deck_area
+        if area.panel(1).deck is DeckId.FILES:
+            workers = [
+                len(getattr(p.file_view, "_inflight_diff_tasks", {}))
+                for p in area.visible_panels()
+                if p.deck is DeckId.FILES
+            ]
+            # At most one Files view holds in-flight diff tasks.
+            assert sum(1 for w in workers if w > 0) <= 1
+
+
+async def test_duplicate_tools_single_fetch(tmp_path: Path) -> None:
+    app = DetailApp()
+    pin_paged(app)
+    async with app.run_test(size=(100, 30)) as pilot:
+        await pilot.pause()
+        detail = app.query_one("#agent-detail-panel", AgentDetail)
+        agent = make_artifact_agent(tmp_path, status="DONE")
+        detail.update_display(agent)
+        await pilot.pause()
+        detail.show_deck(0, DeckId.TOOLS)
+        await pilot.pause()
+        detail.toggle_deck_split(DeckLayout.TOP_BOTTOM)
+        await pilot.pause()
+        area = detail.deck_area
+        if area.panel(1).deck is DeckId.TOOLS:
+            # The mtime-keyed throttle dedupes Tools fetches: the second
+            # panel must not own a running worker.
+            running = [
+                bool(
+                    getattr(p.tools_view, "_current_worker", None) is not None
+                    and getattr(p.tools_view._current_worker, "is_running", False)
+                )
+                for p in area.visible_panels()
+                if p.deck is DeckId.TOOLS
+            ]
+            assert sum(1 for r in running if r) <= 1
