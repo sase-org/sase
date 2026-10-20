@@ -88,7 +88,10 @@ def test_all_tab_help_guides_show_forward_jump_and_agents_metadata_sections() ->
     assert jump_pair in cls_pairs
     assert jump_pair in agent_pairs
     assert jump_pair in axe_pairs
-    assert ("Ctrl+J / Ctrl+K", "Cycle deck card (decks)") in agent_pairs
+    assert (
+        "Ctrl+J / Ctrl+K",
+        "Next / prev card (jumps in spread, pages when paged)",
+    ) in agent_pairs
     assert not any(label == "Cycle metadata through top" for _key, label in cls_pairs)
     assert not any(label == "Cycle metadata through top" for _key, label in axe_pairs)
 

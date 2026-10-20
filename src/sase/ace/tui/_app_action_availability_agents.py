@@ -80,6 +80,7 @@ _CARD_BLOCK_ACTIONS = frozenset(
 _DECK_VIEW_ACTIONS = frozenset(
     {
         "cycle_deck_view",
+        "toggle_deck_view_lock",
         "set_deck_view_at",
     }
 )
@@ -105,6 +106,18 @@ def _focused_deck_view_cycle_available(app: Any) -> bool:
         detail = app.query_one("#agent-detail-panel", AgentDetail)
         panel = detail.deck_area.focused_panel()  # type: ignore[attr-defined]
         return bool(panel.deck_view_cycle_available)
+    except Exception:
+        return False
+
+
+def _focused_deck_view_lock_available(app: Any) -> bool:
+    """Return whether the focused deck's lock toggle is available."""
+    try:
+        from sase.ace.tui.widgets import AgentDetail
+
+        detail = app.query_one("#agent-detail-panel", AgentDetail)
+        panel = detail.deck_area.focused_panel()  # type: ignore[attr-defined]
+        return bool(panel.deck_view_lock_available)
     except Exception:
         return False
 
@@ -247,6 +260,8 @@ def check_agents_availability(
 
         if isinstance(getattr(app, "screen", None), ModalScreen):
             return False
+        if action == "toggle_deck_view_lock":
+            return bool(_focused_deck_view_lock_available(app))
         return bool(_focused_deck_view_cycle_available(app))
     if action in _DECK_LAYOUT_ACTIONS:
         if app.current_tab != "agents":

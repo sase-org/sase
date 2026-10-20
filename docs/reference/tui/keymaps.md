@@ -170,6 +170,7 @@ These are the bundled defaults for configurable TUI actions. The key and action 
 | `Ctrl+P` | Previous Deck | `ace.keymaps.app.prev_deck` |
 | `p` | Pick Deck | `ace.keymaps.app.pick_deck` |
 | `P` | Cycle Deck View | `ace.keymaps.app.cycle_deck_view` |
+| `B` | Toggle Deck View Lock | `ace.keymaps.app.toggle_deck_view_lock` |
 | `\` | Split Deck Below | `ace.keymaps.app.toggle_deck_split_below` |
 | <code>&#124;</code> | Split Deck Right | `ace.keymaps.app.toggle_deck_split_right` |
 | `Ctrl+F` | Focus Next Deck Panel | `ace.keymaps.app.toggle_deck_focus` |

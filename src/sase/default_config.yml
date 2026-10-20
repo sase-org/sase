@@ -795,6 +795,8 @@ ace:
       pick_deck: "p"
       # Agents-only deck view cycle. Uppercase P has no app-level binding today.
       cycle_deck_view: "P"
+      # Agents-only lock toggle. Uppercase B means Shift+B.
+      toggle_deck_view_lock: "B"
       toggle_deck_split_below: "backslash"
       toggle_deck_split_right: "vertical_line"
       toggle_deck_focus: "ctrl+f"

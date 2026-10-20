@@ -69,6 +69,8 @@ class AgentBindingsMixin:
         deck_card_count: int = 0,
         card_blocks_navigable: bool = False,
         deck_view_cycle_available: bool = False,
+        deck_view_lock_available: bool = False,
+        deck_view_locked: bool = False,
         deck_cards_spread: bool = False,
         agent_tab_strip_visible: bool = False,
         deck_zoomed: bool = False,
@@ -492,6 +494,14 @@ class AgentBindingsMixin:
             )
         if deck_view_cycle_available:
             bindings.append((self._kd("cycle_deck_view"), "view"))
+        lock_key = self._kd("toggle_deck_view_lock")
+        if deck_view_lock_available and lock_key:
+            bindings.append(
+                (
+                    lock_key,
+                    "unlock" if deck_view_locked else "lock",
+                )
+            )
         if agent_tab_strip_visible:
             bindings.append(
                 (
@@ -527,6 +537,8 @@ class AgentBindingsMixin:
         deck_card_count: int = 0,
         card_blocks_navigable: bool = False,
         deck_view_cycle_available: bool = False,
+        deck_view_lock_available: bool = False,
+        deck_view_locked: bool = False,
         deck_cards_spread: bool = False,
     ) -> list[tuple[str, str]]:
         """Compute conditional bindings for the Agents Archive view.
@@ -566,4 +578,12 @@ class AgentBindingsMixin:
             )
         if deck_view_cycle_available:
             bindings.append((self._kd("cycle_deck_view"), "view"))
+        lock_key = self._kd("toggle_deck_view_lock")
+        if deck_view_lock_available and lock_key:
+            bindings.append(
+                (
+                    lock_key,
+                    "unlock" if deck_view_locked else "lock",
+                )
+            )
         return bindings

@@ -67,6 +67,40 @@ class AgentDetailDeckViewMixin:
             pass
         return (nxt, first_fix)
 
+    def toggle_focused_deck_view_lock(self) -> DeckView | None:
+        """Lock the current effective view, or return a locked view to AUTO."""
+        try:
+            panel, index = self._focused_view_panel()
+        except Exception:
+            return None
+        try:
+            deck = panel.deck
+        except Exception:
+            return None
+        if deck not in (DeckId.MAIN, DeckId.FILES):
+            return None
+        try:
+            if not bool(panel.deck_view_lock_available):
+                return None
+            policy = panel.view_policy(deck)
+            view = (
+                panel.effective_layout(deck)
+                if policy is DeckView.AUTO
+                else DeckView.AUTO
+            )
+        except Exception:
+            return None
+        try:
+            area = self.deck_area  # type: ignore[attr-defined]
+            area.set_panel_view(index, deck, view, user_initiated=True)
+        except Exception:
+            return None
+        try:
+            self._notify_deck_state_changed()  # type: ignore[attr-defined]
+        except Exception:
+            pass
+        return view
+
     def set_focused_deck_view(self, view: DeckView) -> bool:
         """Set the focused panel's deck view; False when rejected."""
         try:

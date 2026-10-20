@@ -18,6 +18,7 @@ def main_sections(km: KeymapRegistry) -> Sections:
         DECK_PICKER_KEYS[deck].upper() for deck in active_deck_cycle()
     )
     pick_display = d(a.pick_deck)
+    lock_display = d(a.toggle_deck_view_lock)
     opener_capital = None
     if (
         len(pick_display) == 1
@@ -66,7 +67,7 @@ def main_sections(km: KeymapRegistry) -> Sections:
                 ("Esc", "Enter selected panel / cancel member jump"),
                 (
                     f"{d(a.next_deck_card)} / {d(a.prev_deck_card)}",
-                    "Cycle deck card (decks)",
+                    "Next / prev card (jumps in spread, pages when paged)",
                 ),
                 (
                     f"{d(a.prev_card_block)} / {d(a.next_card_block)}",
@@ -74,7 +75,22 @@ def main_sections(km: KeymapRegistry) -> Sections:
                 ),
                 (
                     d(a.cycle_deck_view),
-                    "Lock a wider deck view (palette unlocks)",
+                    "Lock a wider deck view "
+                    f"({lock_display + ' unlocks' if lock_display else 'palette unlocks'})",
+                ),
+                *(
+                    [
+                        (
+                            lock_display,
+                            "Lock / unlock the deck view as shown",
+                        )
+                    ]
+                    if lock_display
+                    else []
+                ),
+                (
+                    "",
+                    "Tabs in a deck title mean one card per page; no tabs means one document, and ▴/▾ show where the rest is",
                 ),
                 (
                     d(a.pick_deck),

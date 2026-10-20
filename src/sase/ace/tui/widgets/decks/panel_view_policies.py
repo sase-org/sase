@@ -23,6 +23,7 @@ class DeckPanelViewPoliciesMixin:
     _view_generation: int
     _pending_view_anchor: tuple[object, Any, int] | None
     _view_cycle_available: bool
+    _view_lock_available: bool
     _deck_cards_spread: bool
     _files_spread_pending: bool
     _files_spread_blocked: bool
@@ -36,6 +37,7 @@ class DeckPanelViewPoliciesMixin:
         self._view_generation = 0
         self._pending_view_anchor = None
         self._view_cycle_available = False
+        self._view_lock_available = False
         self._deck_cards_spread = False
         # Owned here so resolved_view() works before files-engine populates
         # them per subject; files-engine is the only writer afterwards.

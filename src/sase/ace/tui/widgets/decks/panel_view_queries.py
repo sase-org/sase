@@ -26,6 +26,7 @@ class DeckPanelViewQueriesMixin:
     _deck: DeckId
     _render_mode: dict[DeckId, RenderMode]
     _view_cycle_available: bool
+    _view_lock_available: bool
     _files_spread_pending: bool
     _files_spread_blocked: bool
     _main_active_card: str | None
@@ -213,6 +214,14 @@ class DeckPanelViewQueriesMixin:
         except Exception:
             return False
 
+    @property
+    def deck_view_lock_available(self) -> bool:
+        """Return whether the focused deck's lock toggle is available."""
+        try:
+            return bool(self._view_lock_available)
+        except Exception:
+            return False
+
     def _compute_view_cycle_available(self) -> bool:
         """Recompute whether the focused cycle action is available."""
         try:
@@ -241,12 +250,43 @@ class DeckPanelViewQueriesMixin:
         except Exception:
             return False
 
+    def _compute_view_lock_available(self, *, cycle_available: bool) -> bool:
+        """Return whether this non-empty Main/Files view can lock or unlock."""
+        try:
+            deck = self._deck
+        except Exception:
+            return False
+        if deck not in (DeckId.MAIN, DeckId.FILES):
+            return False
+        try:
+            if bool(self._deck_is_empty(deck)):
+                return False
+        except Exception:
+            return False
+        if deck is DeckId.MAIN:
+            try:
+                document = self._main_document
+                if bool(document.partial) or not document.cards:
+                    return False
+            except Exception:
+                return False
+        if cycle_available:
+            return True
+        try:
+            return self.view_policy(deck) is not DeckView.AUTO
+        except Exception:
+            return False
+
     def _sync_view_cycle_available(self) -> None:
-        """Refresh the cached predicate; poke the footer when it flips."""
+        """Refresh cached view-action predicates; poke the footer when they flip."""
         try:
             previous = bool(self._view_cycle_available)
         except Exception:
             previous = False
+        try:
+            previous_lock = bool(self._view_lock_available)
+        except Exception:
+            previous_lock = False
         try:
             current = bool(self._compute_view_cycle_available())
         except Exception:
@@ -255,7 +295,17 @@ class DeckPanelViewQueriesMixin:
             self._view_cycle_available = current
         except Exception:
             pass
-        if current == previous:
+        try:
+            current_lock = bool(
+                self._compute_view_lock_available(cycle_available=current)
+            )
+        except Exception:
+            current_lock = False
+        try:
+            self._view_lock_available = current_lock
+        except Exception:
+            pass
+        if current == previous and current_lock == previous_lock:
             return
         try:
             app = self.app

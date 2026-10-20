@@ -219,14 +219,54 @@ class AgentPanelDetailMixin:
             except Exception:
                 deck = None
             deck_name = "Main" if deck is DeckId.MAIN else "Files"
+            lock_display = None
             try:
-                message = (
-                    f"{deck_name} view locked \U0001f512 \u00b7 palette \u201c"
-                    "Deck view: automatic\u201d unlocks"
-                )[:70]
+                from ...keymaps.display import key_display_name
+                from ...keymaps.key_validation import is_unbound_key
+
+                registry = getattr(self, "_keymap_registry", None)
+                configured = getattr(
+                    getattr(registry, "app", None), "toggle_deck_view_lock", None
+                )
+                if configured is not None and not is_unbound_key(configured):
+                    lock_display = key_display_name(configured)
+            except Exception:
+                lock_display = None
+            try:
+                unlock_hint = (
+                    f"{lock_display} unlocks"
+                    if lock_display
+                    else 'palette "Deck view: automatic" unlocks'
+                )
+                message = f"{deck_name} view locked \U0001f512 \u00b7 {unlock_hint}"[
+                    :70
+                ]
                 self.notify(message)  # type: ignore[attr-defined]
             except Exception:
                 pass
+        try:
+            refresh = getattr(self, "_refresh_agent_footer_bindings_only", None)
+            if callable(refresh):
+                refresh()
+        except Exception:
+            pass
+
+    def action_toggle_deck_view_lock(self) -> None:
+        """Lock the current effective view or return a locked view to auto."""
+        if self.current_tab != "agents":
+            return
+        from ...widgets import AgentDetail
+
+        try:
+            agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
+        except Exception:
+            return
+        try:
+            changed_to = agent_detail.toggle_focused_deck_view_lock()
+        except Exception:
+            return
+        if changed_to is None:
+            return
         try:
             refresh = getattr(self, "_refresh_agent_footer_bindings_only", None)
             if callable(refresh):

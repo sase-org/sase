@@ -1,4 +1,4 @@
-"""Deck-view P key: defaults, gating, footer, palette, help and search."""
+"""Deck-view keys: defaults, gating, footer, palette, help and search."""
 
 from __future__ import annotations
 
@@ -35,10 +35,14 @@ def _gating_app(
     *,
     tab: str = "agents",
     available: bool = False,
+    lock_available: bool = False,
     prompt: bool = False,
     modal: bool = False,
 ):
-    panel = SimpleNamespace(deck_view_cycle_available=available)
+    panel = SimpleNamespace(
+        deck_view_cycle_available=available,
+        deck_view_lock_available=lock_available,
+    )
     area = SimpleNamespace(focused_panel=lambda: panel)
     detail = SimpleNamespace(deck_area=area)
     if modal:
@@ -69,6 +73,7 @@ def _gating_app(
 def test_deck_view_default_key_is_uppercase_p() -> None:
     reg = load_keymap_registry({})
     assert reg.app.cycle_deck_view == "P"
+    assert reg.app.toggle_deck_view_lock == "B"
     assert reg.app.pick_deck == "p"
 
 
@@ -76,9 +81,12 @@ def test_deck_view_binding_fallback_and_no_app_conflict() -> None:
     bindings = build_app_bindings(default_app_keymaps())
     by_action = {b.action: b for b in bindings}
     assert by_action["cycle_deck_view"].key == "P"
+    assert by_action["toggle_deck_view_lock"].key == "B"
     assert [b.action for b in bindings if b.key == "P"] == ["cycle_deck_view"]
+    assert [b.action for b in bindings if b.key == "B"] == ["toggle_deck_view_lock"]
     fallback = {b.action: b for b in DEFAULT_BINDINGS}
     assert fallback["cycle_deck_view"].key == "P"
+    assert fallback["toggle_deck_view_lock"].key == "B"
     # Lowercase p stays the deck picker; uppercase P is the view cycle.
     assert by_action["pick_deck"].key == "p"
 
@@ -112,11 +120,29 @@ def test_deck_view_gating_needs_agents_tab_available_panel_no_prompt() -> None:
         )
         is not False
     )
+    assert (
+        check_app_action(
+            _gating_app(lock_available=True),
+            "toggle_deck_view_lock",
+            (),
+            lambda _a, _p: None,
+        )
+        is not False
+    )
     # Tools, empty, partial, and single-layout decks report unavailable
     # through the cached panel predicate.
     assert (
         check_app_action(
             _gating_app(available=False), "cycle_deck_view", (), lambda _a, _p: None
+        )
+        is False
+    )
+    assert (
+        check_app_action(
+            _gating_app(lock_available=False),
+            "toggle_deck_view_lock",
+            (),
+            lambda _a, _p: None,
         )
         is False
     )
@@ -147,10 +173,33 @@ def test_deck_view_gating_needs_agents_tab_available_panel_no_prompt() -> None:
     assert panel.deck_view_cycle_available is False
 
 
+def test_panel_lock_availability_allows_only_cycle_or_locked_views() -> None:
+    from sase.ace.tui.widgets.decks.model import (
+        DeckId,
+        DeckView,
+        DeckViewPolicies,
+    )
+    from sase.ace.tui.widgets.decks.panel import DeckPanel
+
+    panel = DeckPanel(0)
+    panel._deck = DeckId.MAIN
+    panel._main_document = SimpleNamespace(partial=False, cards=[object()])
+    panel._view_policies = DeckViewPolicies()
+    assert panel._compute_view_lock_available(cycle_available=True) is True
+    assert panel._compute_view_lock_available(cycle_available=False) is False
+
+    panel._view_policies = DeckViewPolicies(main=DeckView.SPREAD)
+    assert panel._compute_view_lock_available(cycle_available=False) is True
+
+    panel._main_document.partial = True
+    assert panel._compute_view_lock_available(cycle_available=True) is False
+
+
 def test_p_key_resolves_per_tab() -> None:
     reg = load_keymap_registry({})
     owners = keymap_actions_by_key(reg.app)
     assert set(owners["P"]) == {"cycle_deck_view"}
+    assert set(owners["B"]) == {"toggle_deck_view_lock"}
     artifacts = _gating_app(tab="artifacts", available=True)
     assert (
         check_app_action(artifacts, "cycle_deck_view", (), lambda _a, _p: None) is False
@@ -186,6 +235,9 @@ def test_deck_view_handlers_dispatch_and_refresh_footer() -> None:
 
     class _Host(AgentPanelDetailMixin):
         current_tab = "agents"
+        _keymap_registry = SimpleNamespace(
+            app=SimpleNamespace(toggle_deck_view_lock="B")
+        )
         notified: str | None = None
 
         def query_one(self, *args, **kwargs):
@@ -201,10 +253,7 @@ def test_deck_view_handlers_dispatch_and_refresh_footer() -> None:
     host.action_cycle_deck_view()
     assert seen.get("cycled") is True
     assert seen.get("refreshed") is True
-    assert (
-        host.notified
-        == "Main view locked \U0001f512 \u00b7 palette \u201cDeck view: automatic\u201d unlocks"
-    )
+    assert host.notified == "Main view locked \U0001f512 \u00b7 B unlocks"
     assert len(host.notified) <= 70
 
     class _OtherTab(_Host):
@@ -215,6 +264,71 @@ def test_deck_view_handlers_dispatch_and_refresh_footer() -> None:
     other.action_cycle_deck_view()
     assert seen == {}
     assert other.notified is None
+
+
+def test_deck_view_lock_action_dispatches_without_a_toast() -> None:
+    from sase.ace.tui.actions.agents._panel_detail import AgentPanelDetailMixin
+    from sase.ace.tui.widgets.decks.model import DeckView
+
+    class _Detail:
+        def toggle_focused_deck_view_lock(self) -> DeckView:
+            return DeckView.AUTO
+
+    class _Host(AgentPanelDetailMixin):
+        current_tab = "agents"
+
+        def query_one(self, *args, **kwargs):
+            return _Detail()
+
+        def _refresh_agent_footer_bindings_only(self) -> None:
+            self.refreshed = True
+
+    host = _Host()
+    host.action_toggle_deck_view_lock()
+    assert host.refreshed is True
+    assert not hasattr(host, "notified")
+
+
+def test_focused_lock_toggle_preserves_effective_layout_and_unlocks() -> None:
+    from sase.ace.tui.widgets._agent_detail_deck_view import AgentDetailDeckViewMixin
+    from sase.ace.tui.widgets.decks.model import DeckId, DeckView
+
+    changes: list[tuple[int, DeckId, DeckView, bool]] = []
+    policy = DeckView.AUTO
+
+    class _Panel:
+        deck = DeckId.MAIN
+        panel_index = 2
+        deck_view_lock_available = True
+
+        def view_policy(self, _deck: DeckId) -> DeckView:
+            return policy
+
+        def effective_layout(self, _deck: DeckId) -> DeckView:
+            return DeckView.PAGE_BLOCKS
+
+    class _Area:
+        def focused_panel(self) -> _Panel:
+            return _Panel()
+
+        def set_panel_view(
+            self, index: int, deck: DeckId, view: DeckView, *, user_initiated: bool
+        ) -> None:
+            changes.append((index, deck, view, user_initiated))
+
+    class _Detail(AgentDetailDeckViewMixin):
+        deck_area = _Area()
+
+        def _notify_deck_state_changed(self) -> None:
+            changes.append((0, DeckId.MAIN, DeckView.AUTO, False))
+
+    detail = _Detail()
+    assert detail.toggle_focused_deck_view_lock() is DeckView.PAGE_BLOCKS
+    assert changes[0] == (2, DeckId.MAIN, DeckView.PAGE_BLOCKS, True)
+
+    policy = DeckView.PAGE_BLOCKS
+    assert detail.toggle_focused_deck_view_lock() is DeckView.AUTO
+    assert changes[2] == (2, DeckId.MAIN, DeckView.AUTO, True)
 
 
 def test_deck_view_first_fix_toast_fires_once() -> None:
@@ -240,9 +354,15 @@ def test_deck_view_first_fix_toast_fires_once() -> None:
 
     class _Host(AgentPanelDetailMixin):
         current_tab = "agents"
+        _keymap_registry = SimpleNamespace(
+            app=SimpleNamespace(toggle_deck_view_lock="B")
+        )
 
-        def __init__(self, first_fix: bool) -> None:
+        def __init__(self, first_fix: bool, lock_key: str = "B") -> None:
             self._detail = _Detail(first_fix)
+            self._keymap_registry = SimpleNamespace(
+                app=SimpleNamespace(toggle_deck_view_lock=lock_key)
+            )
 
         def query_one(self, *args, **kwargs):
             return self._detail
@@ -254,11 +374,13 @@ def test_deck_view_first_fix_toast_fires_once() -> None:
             pass
 
     _Host(first_fix=True).action_cycle_deck_view()
-    assert notified == [
-        "Files view locked \U0001f512 \u00b7 palette \u201cDeck view: automatic\u201d unlocks"
-    ]
+    assert notified == ["Files view locked \U0001f512 \u00b7 B unlocks"]
     _Host(first_fix=False).action_cycle_deck_view()
     assert len(notified) == 1
+    _Host(first_fix=True, lock_key="unbound").action_cycle_deck_view()
+    assert notified[-1] == (
+        'Files view locked \U0001f512 \u00b7 palette "Deck view: automatic" unlocks'
+    )
 
 
 def test_deck_view_set_action_maps_palette_index() -> None:
@@ -300,6 +422,25 @@ def test_deck_view_footer_entry_is_conditional() -> None:
     assert ("P", "view") in on
 
 
+def test_deck_view_lock_footer_follows_availability_and_policy() -> None:
+    footer = KeybindingFooter()
+    agent = _agent()
+    locked_out = footer._compute_agent_bindings(agent)
+    assert not any(label in {"lock", "unlock"} for _, label in locked_out)
+    automatic = footer._compute_agent_bindings(
+        agent, deck_view_lock_available=True, deck_view_locked=False
+    )
+    assert ("B", "lock") in automatic
+    locked = footer._compute_agent_bindings(
+        agent, deck_view_lock_available=True, deck_view_locked=True
+    )
+    assert ("B", "unlock") in locked
+    archive = footer._compute_archive_bindings(
+        deck_view_lock_available=True, deck_view_locked=True
+    )
+    assert ("B", "unlock") in archive
+
+
 def test_deck_card_footer_label_is_jump_when_spread() -> None:
     footer = KeybindingFooter()
     agent = _agent()
@@ -322,6 +463,10 @@ def test_deck_view_palette_specs_and_execution() -> None:
     assert by_id["app.cycle_deck_view"].label == "Cycle deck view"
     assert by_id["app.cycle_deck_view"].key_display == "P"
     assert "spread" in by_id["app.cycle_deck_view"].aliases
+    lock = by_id["app.toggle_deck_view_lock"]
+    assert lock.label == "Toggle deck view lock"
+    assert lock.key_display == "B"
+    assert {"lock", "unlock", "hold view", "fixed"}.issubset(lock.aliases)
     labels = {
         "auto": "Deck view: automatic (unlock)",
         "spread": "Deck view: spread (locked)",
@@ -380,6 +525,42 @@ def test_deck_view_palette_availability_follows_context() -> None:
         agents_available(
             _spec("app.cycle_deck_view"),
             CommandContext(tab="agents", deck_view_cycle_available=False),
+        )
+        is False
+    )
+    assert (
+        agents_available(
+            _spec("app.toggle_deck_view_lock"),
+            CommandContext(
+                tab="agents",
+                deck_view_deck="main",
+                deck_view_policy="auto",
+                deck_view_cycle_available=True,
+            ),
+        )
+        is True
+    )
+    assert (
+        agents_available(
+            _spec("app.toggle_deck_view_lock"),
+            CommandContext(
+                tab="agents",
+                deck_view_deck="files",
+                deck_view_policy="spread",
+                deck_view_cycle_available=False,
+            ),
+        )
+        is True
+    )
+    assert (
+        agents_available(
+            _spec("app.toggle_deck_view_lock"),
+            CommandContext(
+                tab="agents",
+                deck_view_deck="main",
+                deck_view_policy="auto",
+                deck_view_cycle_available=False,
+            ),
         )
         is False
     )
@@ -478,7 +659,12 @@ def test_deck_view_help_row() -> None:
         for _section, bindings in agents_bindings(reg)
         for key, label in bindings
     }
-    assert ("P", "Lock a wider deck view (palette unlocks)") in pairs
+    assert ("P", "Lock a wider deck view (B unlocks)") in pairs
+    assert ("B", "Lock / unlock the deck view as shown") in pairs
+    assert (
+        "",
+        "Tabs in a deck title mean one card per page; no tabs means one document, and ▴/▾ show where the rest is",
+    ) in pairs
 
 
 def test_deck_view_search_exit_keys() -> None:
@@ -486,4 +672,5 @@ def test_deck_view_search_exit_keys() -> None:
     app = SimpleNamespace(_keymap_registry=reg)
     keys = deck_structural_exit_keys(app)
     assert "P" in keys
+    assert "B" in keys
     assert "p" in keys

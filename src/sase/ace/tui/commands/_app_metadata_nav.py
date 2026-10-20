@@ -82,6 +82,13 @@ NAV_COMMAND_META: tuple[AppCommandMeta, ...] = (
         ("view", "layout", "spread", "paged", "page", "cards", "blocks", "P"),
     ),
     (
+        "toggle_deck_view_lock",
+        "Toggle deck view lock",
+        "Navigation",
+        AGENTS_ONLY,
+        ("lock", "unlock", "hold view", "fixed"),
+    ),
+    (
         "toggle_deck_split_below",
         "Split deck panels top/bottom",
         "Navigation",

@@ -221,6 +221,12 @@ def agents_available(spec: CommandSpec, ctx: CommandContext) -> bool:
         return bool(ctx.card_blocks_navigable)
     if spec.id == "app.cycle_deck_view":
         return bool(ctx.deck_view_cycle_available)
+    if spec.id == "app.toggle_deck_view_lock":
+        return bool(
+            ctx.deck_view_deck in {"main", "files"}
+            and ctx.deck_view_policy is not None
+            and (ctx.deck_view_cycle_available or ctx.deck_view_policy != "auto")
+        )
     if spec.id.startswith("agents.deck_view."):
         deck = ctx.deck_view_deck
         if deck not in ("main", "files"):
