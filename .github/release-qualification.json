@@ -1,0 +1,135 @@
+{
+  "schema_version": 1,
+  "admission_policy": {
+    "id": "master-gate",
+    "workflow": ".github/workflows/master-gate.yml",
+    "classification": "admission",
+    "evidence_kind": "admission_policy"
+  },
+  "checks": [
+    {
+      "id": "lint",
+      "workflow": ".github/workflows/ci.yml",
+      "job": {
+        "id": "lint",
+        "name": "lint",
+        "matrix": {}
+      },
+      "classification": "release",
+      "disposition": "blocking",
+      "required_reporting_steps": [
+        "Write qualification evidence",
+        "Upload qualification evidence"
+      ],
+      "evidence_kind": "command"
+    },
+    {
+      "id": "test-3.12",
+      "workflow": ".github/workflows/ci.yml",
+      "job": {
+        "id": "test",
+        "name": "test (3.12)",
+        "matrix": {
+          "python-version": "3.12"
+        }
+      },
+      "classification": "release",
+      "disposition": "blocking",
+      "required_reporting_steps": [
+        "Write qualification evidence",
+        "Upload qualification evidence"
+      ],
+      "evidence_kind": "pytest"
+    },
+    {
+      "id": "test-3.13",
+      "workflow": ".github/workflows/ci.yml",
+      "job": {
+        "id": "test",
+        "name": "test (3.13)",
+        "matrix": {
+          "python-version": "3.13"
+        }
+      },
+      "classification": "release",
+      "disposition": "blocking",
+      "required_reporting_steps": [
+        "Write qualification evidence",
+        "Upload qualification evidence"
+      ],
+      "evidence_kind": "pytest"
+    },
+    {
+      "id": "test-3.14",
+      "workflow": ".github/workflows/ci.yml",
+      "job": {
+        "id": "test",
+        "name": "test (3.14)",
+        "matrix": {
+          "python-version": "3.14"
+        }
+      },
+      "classification": "release",
+      "disposition": "blocking",
+      "required_reporting_steps": [
+        "Write qualification evidence",
+        "Upload qualification evidence"
+      ],
+      "evidence_kind": "pytest"
+    },
+    {
+      "id": "release-exercise",
+      "workflow": ".github/workflows/release.yml",
+      "job": {
+        "id": "exercise",
+        "name": "exercise",
+        "matrix": {}
+      },
+      "classification": "release",
+      "disposition": "blocking",
+      "evidence_kind": "exercise",
+      "required_legs": [
+        {"os": "ubuntu-latest", "artifact": "wheel"},
+        {"os": "ubuntu-latest", "artifact": "sdist"},
+        {"os": "macos-latest", "artifact": "wheel"},
+        {"os": "macos-latest", "artifact": "sdist"}
+      ]
+    },
+    {
+      "id": "visual-test",
+      "workflow": ".github/workflows/ci.yml",
+      "job": {"id": "visual-test", "name": "visual-test", "matrix": {}},
+      "classification": "release",
+      "disposition": "advisory",
+      "evidence_kind": "job"
+    },
+    {
+      "id": "perf-floors",
+      "workflow": ".github/workflows/ci.yml",
+      "job": {"id": "perf-floors", "name": "perf-floors", "matrix": {}},
+      "classification": "release",
+      "disposition": "advisory",
+      "evidence_kind": "job"
+    },
+    {
+      "id": "tutorial-tests",
+      "workflow": ".github/workflows/ci.yml",
+      "job": {"id": "tutorial-tests", "name": "tutorial-tests", "matrix": {}},
+      "classification": "release",
+      "disposition": "advisory",
+      "evidence_kind": "job"
+    },
+    {
+      "id": "ace-page-group-isolation",
+      "workflow": ".github/workflows/ci.yml",
+      "job": {
+        "id": "ace-page-group-isolation",
+        "name": "ace-page-group-isolation",
+        "matrix": {}
+      },
+      "classification": "release",
+      "disposition": "advisory",
+      "evidence_kind": "job"
+    }
+  ]
+}

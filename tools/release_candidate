@@ -4,7 +4,8 @@
 An exact candidate is built once at its tag: the wheel and sdist plus an exact
 ``sase-core-rs==X.Y.Z`` with its full file set and digests. This tool owns the
 candidate manifest: ``seal`` writes the immutable sealed fields, ``observe``
-appends one observation asset, ``verify`` rechecks a sealed manifest,
+appends one observation asset, ``qualify`` validates N1 evidence and appends a
+qualification observation, ``verify`` rechecks a sealed manifest,
 ``evaluate`` runs the promotion predicate, ``show`` prints a manifest,
 ``download`` resolves an asset locator to local bytes, ``core-files`` fetches
 the core PyPI file list and cross-checks ``uv.lock``, and ``core-suffixes``
@@ -34,15 +35,31 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import importlib.util
 import json
 import shutil
 import subprocess
 import sys
 import urllib.request
+from importlib.machinery import SourceFileLoader
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 from collections.abc import Sequence
+
+
+_qualification_path = Path(__file__).with_name("_release_qualification.py")
+_qualification_loader = SourceFileLoader(
+    "release_qualification_tool", str(_qualification_path)
+)
+_qualification_spec = importlib.util.spec_from_file_location(
+    "release_qualification_tool", _qualification_path, loader=_qualification_loader
+)
+if _qualification_spec is None or _qualification_spec.loader is None:
+    raise RuntimeError(f"cannot load qualification evaluator at {_qualification_path}")
+_qualification = importlib.util.module_from_spec(_qualification_spec)
+sys.modules[_qualification_spec.name] = _qualification
+_qualification_spec.loader.exec_module(_qualification)
 
 
 SCHEMA_VERSION = 1
@@ -286,42 +303,83 @@ def evaluate_manifest(
         if isinstance(obs, dict) and obs.get("kind") in OBSERVATION_KINDS:
             by_kind.setdefault(obs["kind"], []).append(obs)
 
-    def _latest(kind: str) -> dict[str, Any] | None:
-        items = by_kind.get(kind, [])
-        if not items:
-            return None
-        return sorted(
-            items,
-            key=lambda o: (o.get("generation", 0), o.get("attempt", 0)),
-            reverse=True,
-        )[0]
+    qualification_observations = [
+        obs
+        for obs in by_kind.get("qualification", [])
+        if obs.get("candidate_id") == manifest.get("candidate_id")
+        and obs.get("generation") == manifest.get("generation")
+    ]
+    qualification_report, qualification_error = _latest_qualification_report(
+        manifest, qualification_observations
+    )
+    if (
+        qualification_report is not None
+        and qualification_error is None
+        and qualification_report["verdict"] == "pass"
+    ):
+        clauses.append(
+            Clause(
+                "qualification",
+                True,
+                f"qualification passed for workflow run "
+                f"{qualification_report.get('workflow_run_id')} attempt "
+                f"{qualification_report.get('current_attempt')}",
+            )
+        )
+    elif qualification_error:
+        clauses.append(Clause("qualification", False, qualification_error))
+    else:
+        assert qualification_report is not None
+        clauses.append(
+            Clause(
+                "qualification",
+                False,
+                _qualification.qualify_failure_summary(qualification_report),
+            )
+        )
 
-    for kind in ("qualification", "exercise"):
-        latest = _latest(kind)
-        if latest is None:
-            clauses.append(
-                Clause(kind, False, f"required evidence missing: no {kind} observation")
+    exercise_observations = [
+        obs
+        for obs in by_kind.get("exercise", [])
+        if obs.get("candidate_id") == manifest.get("candidate_id")
+        and obs.get("generation") == manifest.get("generation")
+    ]
+    exercise, exercise_error = _latest_candidate_observation(
+        "exercise", manifest, exercise_observations
+    )
+    if exercise is None:
+        clauses.append(
+            Clause(
+                "exercise",
+                False,
+                exercise_error or "required evidence missing: no exercise observation",
             )
-        elif latest.get("verdict") == "pass":
-            clauses.append(
-                Clause(
-                    kind,
-                    True,
-                    f"{kind} passed at generation {latest.get('generation')}",
-                )
+        )
+    elif exercise_error:
+        clauses.append(Clause("exercise", False, exercise_error))
+    elif exercise.get("verdict") == "pass":
+        clauses.append(
+            Clause(
+                "exercise",
+                True,
+                f"exercise passed for workflow run {exercise.get('run_id')} "
+                f"attempt {exercise.get('attempt')}",
             )
-        else:
-            clauses.append(
-                Clause(
-                    kind,
-                    False,
-                    f"{kind} red: {latest.get('reason', latest.get('verdict'))}",
-                )
+        )
+    else:
+        clauses.append(
+            Clause(
+                "exercise",
+                False,
+                f"exercise red: {exercise.get('reason', exercise.get('verdict'))}",
             )
+        )
 
     vetoes = [
         o
         for o in by_kind.get("veto", [])
+        if o.get("candidate_id") == manifest.get("candidate_id")
+        and o.get("generation") == manifest.get("generation")
         if o.get("verdict") not in ("withdrawn", "pass")
     ]
     clauses.append(
@@ -336,10 +394,91 @@ def evaluate_manifest(
     return {
         "candidate_id": manifest.get("candidate_id"),
         "publishable": publishable,
-        "rerun_eligible": False,
-        "rerun_reason": "qualification evidence missing (qualify phase fills this in)",
+        "rerun_eligible": bool(
+            qualification_report and qualification_report.get("rerun_eligible")
+        ),
+        "rerun_reason": (
+            qualification_report.get("rerun_reason")
+            if qualification_report
+            else "qualification evidence missing or ambiguous"
+        ),
         "clauses": [{"name": c.name, "ok": c.ok, "detail": c.detail} for c in clauses],
     }
+
+
+def _latest_candidate_observation(
+    kind: str,
+    manifest: dict[str, Any],
+    items: Sequence[dict[str, Any]],
+) -> tuple[dict[str, Any] | None, str | None]:
+    """Select one observation using run and attempt provenance, never generation sort."""
+    if not items:
+        return None, None
+    run_ids: set[int] = set()
+    attempts: dict[int, dict[str, Any]] = {}
+    for item in items:
+        attempt = item.get("attempt")
+        run_id = item.get("run_id")
+        if (
+            not isinstance(attempt, int)
+            or isinstance(attempt, bool)
+            or attempt < 1
+            or not isinstance(run_id, int)
+            or isinstance(run_id, bool)
+            or run_id < 1
+        ):
+            return None, f"{kind} observation has malformed run/attempt provenance"
+        run_ids.add(run_id)
+        generation = manifest.get("generation")
+        if (
+            not isinstance(generation, int)
+            or isinstance(generation, bool)
+            or generation < 1
+        ):
+            return None, f"{kind} cannot be bound to a malformed candidate generation"
+        if item.get("asset") != observation_asset_name(generation, kind, run_id, attempt):
+            return None, f"{kind} observation asset does not match its run/attempt identity"
+        if attempt in attempts:
+            return None, f"{kind} history has duplicate attempt {attempt}"
+        attempts[attempt] = item
+    if len(run_ids) != 1:
+        return None, f"{kind} history is ambiguous across workflow runs"
+    highest = max(attempts)
+    if set(attempts) != set(range(1, highest + 1)):
+        return None, f"{kind} history omits one or more earlier attempts"
+    return attempts[highest], None
+
+
+def _latest_qualification_report(
+    manifest: dict[str, Any], items: Sequence[dict[str, Any]]
+) -> tuple[dict[str, Any] | None, str | None]:
+    latest, error = _latest_candidate_observation("qualification", manifest, items)
+    if error or latest is None:
+        return None, error or "required evidence missing: no qualification observation"
+    # Validate every attempt. A malformed earlier green cannot be hidden by a
+    # later asset, and a later red always supersedes an older pass.
+    reports: dict[int, dict[str, Any]] = {}
+    run_id = latest["run_id"]
+    for observation in items:
+        extra = observation.get("extra")
+        payload = extra.get("qualification") if isinstance(extra, dict) else None
+        result, validation_error = _qualification.verify_observation_payload(
+            manifest, payload
+        )
+        if validation_error:
+            return None, f"qualification observation is unverifiable: {validation_error}"
+        assert result is not None
+        if result.get("workflow_run_id") != run_id:
+            return None, "qualification report workflow_run_id disagrees with observation"
+        if result.get("current_attempt") != observation.get("attempt"):
+            return None, "qualification report attempt disagrees with observation"
+        expected_verdict = "pass" if result.get("verdict") == "pass" else "red"
+        if observation.get("verdict") != expected_verdict:
+            return None, "qualification observation verdict disagrees with its evidence"
+        reports[observation["attempt"]] = result
+    if set(reports) != set(range(1, latest["attempt"] + 1)):
+        return None, "qualification observation history is incomplete"
+    return reports[latest["attempt"]], None
 
 
 def append_observation(
@@ -369,8 +508,11 @@ def append_observation(
     existing = manifest.setdefault("observations", [])
     for index, prior in enumerate(existing):
         if isinstance(prior, dict) and prior.get("asset") == name:
-            existing[index] = observation
-            return observation
+            if prior != observation:
+                raise Refusal(
+                    f"conflicting observation already exists for asset {name!r}"
+                )
+            return prior
     existing.append(observation)
     return observation
 
@@ -550,6 +692,29 @@ def build_parser() -> argparse.ArgumentParser:
     observe.add_argument("--extra", default="", help="extra JSON object")
     observe.add_argument("--out", default="", help="observation asset output path")
 
+    qualify = subs.add_parser(
+        "qualify", help="evaluate candidate-bound N1 evidence and append an observation"
+    )
+    _add_common(qualify)
+    qualify.add_argument(
+        "--inventory",
+        default=".github/release-qualification.json",
+        help="exact versioned N1 inventory file",
+    )
+    qualify.add_argument(
+        "--jobs",
+        required=True,
+        help="normalized attempt-aware workflow jobs JSON",
+    )
+    qualify.add_argument(
+        "--evidence-dir",
+        required=True,
+        help="directory containing attempt-specific qualification evidence",
+    )
+    qualify.add_argument("--run-id", required=True, type=int)
+    qualify.add_argument("--attempt", required=True, type=int)
+    qualify.add_argument("--out", default="", help="qualification observation output path")
+
     evaluate = subs.add_parser("evaluate", help="run the promotion predicate")
     _add_common(evaluate)
     evaluate.add_argument(
@@ -633,6 +798,58 @@ def main(argv: Sequence[str] | None = None) -> int:
                 _dump_json(Path(args.out), observation)
             print(observation["asset"])
             return EXIT_OK
+        if args.command == "qualify":
+            if args.run_id < 1 or args.attempt < 1:
+                raise Refusal("run-id and attempt must be positive integers")
+            manifest_path = Path(args.manifest)
+            manifest = _load_json(manifest_path)
+            if not isinstance(manifest, dict):
+                raise Refusal("manifest root must be an object")
+            inventory_path = Path(args.inventory)
+            inventory_error = ""
+            try:
+                inventory_bytes = inventory_path.read_bytes()
+            except OSError as exc:
+                inventory_bytes = b""
+                inventory_error = f"cannot read inventory {inventory_path}: {exc}"
+            job_bundle: dict[str, Any] | None = None
+            job_bundle_error = ""
+            try:
+                job_bundle = _qualification.load_job_bundle_file(
+                    Path(args.jobs), Path(args.evidence_dir)
+                )
+            except _qualification.QualificationInputError as exc:
+                job_bundle_error = str(exc)
+            payload = _qualification.make_observation_payload(
+                manifest,
+                inventory_bytes,
+                job_bundle,
+                job_bundle_error=job_bundle_error,
+                inventory_error=inventory_error,
+                expected_workflow_run_id=args.run_id,
+                expected_attempt=args.attempt,
+            )
+            result = payload["result"]
+            verdict = "pass" if result["verdict"] == "pass" else "red"
+            reason = (
+                ""
+                if verdict == "pass"
+                else _qualification.qualify_failure_summary(result)
+            )
+            observation = append_observation(
+                manifest,
+                kind="qualification",
+                run_id=args.run_id,
+                attempt=args.attempt,
+                verdict=verdict,
+                reason=reason,
+                extra={"qualification": payload},
+            )
+            _dump_json(manifest_path, manifest)
+            if args.out:
+                _dump_json(Path(args.out), observation)
+            print(json.dumps(result, indent=2, sort_keys=True))
+            return EXIT_OK if verdict == "pass" else EXIT_REFUSED
         if args.command == "evaluate":
             manifest = _load_json(Path(args.manifest))
             observations: Sequence[dict[str, Any]]
