@@ -4,42 +4,211 @@ on:
   pull_request:
     branches: [master]
   workflow_call:
+    inputs:
+      ref:
+        description: Explicit sase commit to check out. Empty preserves the caller default (PR merge-ref, Full CI SHA).
+        type: string
+        required: false
+        default: ''
+      core-source:
+        description: "'source' builds from sase-core-revision.txt; 'published' uses the sealed manifest wheel."
+        type: string
+        required: false
+        default: 'source'
+      core-version:
+        description: Expected sase-core-rs version. Required at runtime when core-source is published.
+        type: string
+        required: false
+        default: ''
+      manifest-artifact:
+        description: Artifact holding the sealed candidate-manifest.json (published mode).
+        type: string
+        required: false
+        default: 'candidate-build'
+      probe-core-version:
+        description: Rehearse-only probe core version. Never qualifies the sealed pair.
+        type: string
+        required: false
+        default: ''
 
-# Latest-wins per ref for direct CI callers: a newer PR push supersedes
-# queued/in-flight CI for the same ref so high push volume cannot grow the
-# org-wide runner queue without bound. Scheduled master exhaustive runs enter
-# through full.yml, whose own concurrency serializes the heavy lane.
+# Qualification pins qualify-<sha> and never cancels in-flight attempts.
+# Ordinary PR, release-please, scheduled Full CI, and other inputless callers
+# keep the latest-wins ci-<ref> group.
 concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  group: ${{ inputs.ref && format('qualify-{0}', inputs.ref) || format('ci-{0}', github.ref) }}
+  cancel-in-progress: ${{ !inputs.ref }}
 
 permissions:
   contents: read
+  actions: read
 
 # Every job carries a timeout-minutes ceiling; without one, a wedged job
 # holds an org runner slot for GitHub's 6-hour default and starves every
 # other workflow in the org, including release publishes.
 jobs:
+  # Fail closed on invalid source/version/manifest combinations before any
+  # candidate tests. Source-default callers (PRs, Full CI) take the cheap
+  # path: no manifest download. Published qualification reads the sealed
+  # candidate artifact instead of trusting an unaccompanied version string.
+  prepare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      core-source: ${{ steps.validate.outputs.core-source }}
+      core-version: ${{ steps.validate.outputs.core-version }}
+      manifest-artifact: ${{ steps.validate.outputs.manifest-artifact }}
+      candidate-id: ${{ steps.bind.outputs.candidate-id || steps.validate.outputs.candidate-id }}
+      generation: ${{ steps.bind.outputs.generation || steps.validate.outputs.generation }}
+      inventory-digest: ${{ steps.validate.outputs.inventory-digest }}
+      expected-core-version: ${{ steps.validate.outputs.expected-core-version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+      - name: Validate qualification inputs
+        id: validate
+        env:
+          INPUT_CORE_SOURCE: ${{ inputs.core-source }}
+          INPUT_CORE_VERSION: ${{ inputs.core-version }}
+          INPUT_MANIFEST_ARTIFACT: ${{ inputs.manifest-artifact }}
+          INPUT_PROBE_CORE_VERSION: ${{ inputs.probe-core-version }}
+        run: |
+          set -euo pipefail
+          source="${INPUT_CORE_SOURCE:-source}"
+          version="${INPUT_CORE_VERSION:-}"
+          probe="${INPUT_PROBE_CORE_VERSION:-}"
+          manifest="${INPUT_MANIFEST_ARTIFACT:-candidate-build}"
+          case "$source" in
+            source|published) ;;
+            *)
+              echo "::error::core-source must be 'source' or 'published', got '$source'"
+              exit 1
+              ;;
+          esac
+          if [ "$source" = "published" ] && [ -z "$version" ]; then
+            echo "::error::core-version is required when core-source is published"
+            exit 1
+          fi
+          if [ -n "$probe" ] && [ "$source" != "published" ]; then
+            echo "::error::probe-core-version requires core-source 'published'"
+            exit 1
+          fi
+          if [ "$source" = "source" ] && [ -n "$version" ]; then
+            echo "::error::core-version is only valid when core-source is published"
+            exit 1
+          fi
+          if [ "$source" = "source" ] && [ -n "${INPUT_MANIFEST_ARTIFACT:-}" ] && [ "$manifest" != "candidate-build" ]; then
+            echo "::error::manifest-artifact is only valid when core-source is published"
+            exit 1
+          fi
+          digest="$(python3 tools/write_qualification_evidence --print-inventory-digest)"
+          expected="$version"
+          if [ -n "$probe" ]; then
+            expected="$probe"
+          fi
+          echo "core-source=$source" >> "$GITHUB_OUTPUT"
+          echo "core-version=$version" >> "$GITHUB_OUTPUT"
+          echo "manifest-artifact=$manifest" >> "$GITHUB_OUTPUT"
+          echo "inventory-digest=$digest" >> "$GITHUB_OUTPUT"
+          echo "expected-core-version=$expected" >> "$GITHUB_OUTPUT"
+          echo "candidate-id=" >> "$GITHUB_OUTPUT"
+          echo "generation=" >> "$GITHUB_OUTPUT"
+          echo "Core mode=$source version=$version probe=$probe digest=$digest"
+      - name: Download the sealed candidate manifest
+        if: steps.validate.outputs.core-source == 'published'
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ steps.validate.outputs.manifest-artifact }}
+          path: published-core/
+      - name: Bind published identity from the sealed manifest
+        id: bind
+        if: steps.validate.outputs.core-source == 'published'
+        env:
+          EXPECTED_CORE_VERSION: ${{ steps.validate.outputs.core-version }}
+        run: |
+          set -euo pipefail
+          manifest="$(find published-core -type f -name 'candidate-manifest.json' -print | sort | head -n 1)"
+          if [ -z "$manifest" ]; then
+            echo "::error::sealed candidate-manifest.json is missing from the manifest artifact"
+            exit 1
+          fi
+          python3 tools/write_qualification_evidence \
+            --bind-manifest "$manifest" \
+            --expected-core-version "$EXPECTED_CORE_VERSION" \
+            --github-output "$GITHUB_OUTPUT"
+
   # Builds the shared Rust core wheel once through the reusable workflow so
   # ci.yml and telemetry.yml build the exact same artifact from the exact
   # same steps instead of drifting copies.
   build-core:
+    needs: prepare
     uses: ./.github/workflows/build-core.yml
+    with:
+      ref: ${{ inputs.ref }}
+      core-source: ${{ needs.prepare.outputs.core-source }}
+      core-version: ${{ needs.prepare.outputs.core-version }}
+      manifest-artifact: ${{ needs.prepare.outputs.manifest-artifact }}
+      probe-core-version: ${{ inputs.probe-core-version }}
 
   lint:
-    needs: build-core
+    needs: [prepare, build-core]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+      # Published-core probe: the static bindings scan can run against the
+      # exact wheel in a minimal venv before `just install-venv` refuses an
+      # older complete core. Attribute the missing names to lint even when
+      # subsequent setup cannot proceed. Source CI skips this and keeps the
+      # post-install check below.
+      - uses: astral-sh/setup-uv@v4
+        if: needs.prepare.outputs.core-source == 'published'
+        with:
+          enable-cache: true
+          cache-dependency-glob: "**/pyproject.toml"
+      - name: Set up preflight Python
+        if: needs.prepare.outputs.core-source == 'published'
+        run: uv python install 3.12
+      - name: Download Rust core artifacts for bindings preflight
+        if: needs.prepare.outputs.core-source == 'published'
+        uses: actions/download-artifact@v4
+        with:
+          name: sase-core-wheel
+          path: ${{ runner.temp }}/sase-core-wheel
+      - name: Preflight core bindings
+        id: preflight-bindings
+        if: always() && needs.prepare.outputs.core-source == 'published'
+        env:
+          CORE_ARTIFACT_DIR: ${{ runner.temp }}/sase-core-wheel
+          BINDINGS_REPORT: ${{ runner.temp }}/bindings-preflight.err
+        run: |
+          set +e
+          mkdir -p "$(dirname "$BINDINGS_REPORT")"
+          : > "$BINDINGS_REPORT"
+          mapfile -t wheels < <(find "$CORE_ARTIFACT_DIR" -type f -name '*.whl' -print | sort)
+          if [[ ${#wheels[@]} -ne 1 ]]; then
+            echo "error: expected exactly one sase_core_rs wheel for bindings preflight, found ${#wheels[@]}" | tee -a "$BINDINGS_REPORT" >&2
+            exit 1
+          fi
+          uv venv --python 3.12 "$RUNNER_TEMP/bindings-preflight"
+          uv pip install --python "$RUNNER_TEMP/bindings-preflight/bin/python" "${wheels[0]}"
+          "$RUNNER_TEMP/bindings-preflight/bin/python" tools/check_sase_core_rs_bindings \
+            --remedy "published core is missing required bindings" \
+            2> >(tee -a "$BINDINGS_REPORT" >&2)
+          status=$?
+          exit $status
       - name: Install dependencies
         uses: ./.github/actions/setup-sase
         with:
           python-version: '3.12'
+          expected-core-version: ${{ needs.prepare.outputs.expected-core-version }}
       # Fails loudly, by binding name, if the pinned sase-core-revision.txt
       # revision doesn't expose something sase's source now calls -- the
       # legible failure mode a source-revision pin needs.
       - name: Check pinned core bindings
+        id: pinned-bindings
         run: >-
           ./.venv/bin/python tools/check_sase_core_rs_bindings
           --remedy "bump the pinned revision in sase-core-revision.txt once a
@@ -100,6 +269,42 @@ jobs:
         run: just validate-committed-plans
       - name: Build and verify package
         run: just build-check
+      - name: Record installed core version
+        if: always()
+        continue-on-error: true
+        run: |
+          set +e
+          if [ -x .venv/bin/python ]; then
+            .venv/bin/python -c 'import importlib.metadata as m; print(m.version("sase-core-rs"))' > "$RUNNER_TEMP/installed-core-version.txt"
+          else
+            : > "$RUNNER_TEMP/installed-core-version.txt"
+          fi
+      - name: Write qualification evidence
+        if: always()
+        env:
+          SASE_QUALIFY_JOB_NAME: lint
+        run: |
+          python3 tools/write_qualification_evidence \
+            --kind command \
+            --out "$RUNNER_TEMP/qualify-evidence/qualify-evidence-lint.json" \
+            --inventory .github/release-qualification.json \
+            --inventory-digest "${{ needs.prepare.outputs.inventory-digest }}" \
+            --candidate-id "${{ needs.prepare.outputs.candidate-id }}" \
+            --generation "${{ needs.prepare.outputs.generation }}" \
+            --checked-out-sha "${{ inputs.ref || github.sha }}" \
+            --expected-core-version "${{ needs.prepare.outputs.expected-core-version }}" \
+            --installed-core-version "$(cat "$RUNNER_TEMP/installed-core-version.txt" 2>/dev/null || true)" \
+            --job-name lint \
+            --bindings-report "$RUNNER_TEMP/bindings-preflight.err" \
+            --step "Preflight core bindings=${{ steps.preflight-bindings.outcome }}" \
+            --step "Check pinned core bindings=${{ steps.pinned-bindings.outcome }}"
+      - name: Upload qualification evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qualify-evidence-lint-attempt-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/qualify-evidence/qualify-evidence-lint.json
+          if-no-files-found: error
 
   docs-build:
     # Master pushes build these same artifacts in docs-deploy.yml. PRs retain
@@ -109,6 +314,8 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
       - uses: astral-sh/setup-uv@v4
         with:
           enable-cache: true
@@ -136,7 +343,7 @@ jobs:
   # Test matrix runs every shipped operation through the Rust binding.
   # Coverage is collected from the 3.12 leg.
   test:
-    needs: build-core
+    needs: [prepare, build-core]
     runs-on: ubuntu-latest
     # 120, not 90: the 3.12 coverage leg already takes 74-79 of a 90-minute
     # ceiling, and it must not become the fourth permanent Full CI timeout.
@@ -147,17 +354,26 @@ jobs:
       fail-fast: false
       matrix:
         python-version: ["3.12", "3.13", "3.14"]
+    env:
+      SASE_QUALIFY_EVIDENCE_PATH: ${{ runner.temp }}/qualify-session.json
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
       - name: Install dependencies
         uses: ./.github/actions/setup-sase
         with:
           python-version: ${{ matrix.python-version }}
+          expected-core-version: ${{ needs.prepare.outputs.expected-core-version }}
       - name: Run tests (coverage leg)
         if: matrix.python-version == '3.12'
+        env:
+          PYTEST_ADDOPTS: -p tests._pytest_qualify_evidence
         run: just test-cov
       - name: Run tests
         if: matrix.python-version == '3.13' || matrix.python-version == '3.14'
+        env:
+          PYTEST_ADDOPTS: -p tests._pytest_qualify_evidence
         run: just test
       - name: Build shard timings table
         if: always() && matrix.python-version == '3.14' && github.ref == 'refs/heads/master'
@@ -182,18 +398,55 @@ jobs:
         with:
           files: coverage.xml
           fail_ci_if_error: false
+      - name: Record installed core version
+        if: always()
+        continue-on-error: true
+        run: |
+          set +e
+          if [ -x .venv/bin/python ]; then
+            .venv/bin/python -c 'import importlib.metadata as m; print(m.version("sase-core-rs"))' > "$RUNNER_TEMP/installed-core-version.txt"
+          else
+            : > "$RUNNER_TEMP/installed-core-version.txt"
+          fi
+      - name: Write qualification evidence
+        if: always()
+        env:
+          SASE_QUALIFY_JOB_NAME: test (${{ matrix.python-version }})
+        run: |
+          python3 tools/write_qualification_evidence \
+            --kind pytest \
+            --out "$RUNNER_TEMP/qualify-evidence/qualify-evidence-test-${{ matrix.python-version }}.json" \
+            --session-report "$RUNNER_TEMP/qualify-session.json" \
+            --inventory .github/release-qualification.json \
+            --inventory-digest "${{ needs.prepare.outputs.inventory-digest }}" \
+            --candidate-id "${{ needs.prepare.outputs.candidate-id }}" \
+            --generation "${{ needs.prepare.outputs.generation }}" \
+            --checked-out-sha "${{ inputs.ref || github.sha }}" \
+            --expected-core-version "${{ needs.prepare.outputs.expected-core-version }}" \
+            --installed-core-version "$(cat "$RUNNER_TEMP/installed-core-version.txt" 2>/dev/null || true)" \
+            --job-name "test (${{ matrix.python-version }})"
+      - name: Upload qualification evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qualify-evidence-test-${{ matrix.python-version }}-attempt-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/qualify-evidence/qualify-evidence-test-${{ matrix.python-version }}.json
+          if-no-files-found: error
 
   visual-test:
-    needs: build-core
+    needs: [prepare, build-core]
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
       - name: Install visual dependencies
         uses: ./.github/actions/setup-sase
         with:
           python-version: '3.12'
           install-recipe: install-venv-visual
+          expected-core-version: ${{ needs.prepare.outputs.expected-core-version }}
       - name: Check TUI screenshots
         env:
           # Full CI 38944787812 visual-test "Check TUI screenshots" ran 30m7s
@@ -313,16 +566,19 @@ jobs:
           if-no-files-found: ignore
 
   ace-page-group-isolation:
-    needs: build-core
+    needs: [prepare, build-core]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
       - name: Install visual dependencies
         uses: ./.github/actions/setup-sase
         with:
           python-version: '3.12'
           install-recipe: install-venv-visual
+          expected-core-version: ${{ needs.prepare.outputs.expected-core-version }}
       - name: Run ACE shared-page isolation lane
         run: just test-ace-page-group-isolated
 
@@ -330,15 +586,18 @@ jobs:
   # Every floor step uses `always()` so an earlier regression cannot erase the
   # remaining signals; any failed command still leaves the job failed.
   perf-floors:
-    needs: build-core
+    needs: [prepare, build-core]
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
       - name: Install dependencies
         uses: ./.github/actions/setup-sase
         with:
           python-version: '3.12'
+          expected-core-version: ${{ needs.prepare.outputs.expected-core-version }}
       - name: Health check (Rust extension loadable)
         run: .venv/bin/sase core health --json
       - name: Run slow tests
@@ -424,16 +683,21 @@ jobs:
   # keeps this job on the scheduled lane whatever event name the reusable
   # call carries. The slow marker keeps the same tests out of fast lanes.
   tutorial-tests:
-    if: github.event_name != 'pull_request'
-    needs: build-core
+    # Ordinary PRs skip this slow lane. Qualification (explicit ref) and
+    # scheduled Full CI still run it so all four advisory jobs report.
+    if: github.event_name != 'pull_request' || inputs.ref
+    needs: [prepare, build-core]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
       - name: Install dependencies
         uses: ./.github/actions/setup-sase
         with:
           python-version: '3.12'
+          expected-core-version: ${{ needs.prepare.outputs.expected-core-version }}
       - name: Run tutorial tests
         run: just test-tutorials
 
@@ -447,6 +711,8 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
       - uses: astral-sh/setup-uv@v4
         with:
           enable-cache: true

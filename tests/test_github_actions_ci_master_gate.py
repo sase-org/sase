@@ -196,20 +196,50 @@ def test_master_gate_core_wheel_job_resolves_and_caches_by_sha() -> None:
 
 
 def test_master_gate_lint_job_matches_ci_lint_steps_byte_for_byte() -> None:
-    """Only what identifies the core artifact producer may differ.
+    """Only qualification reporting and the core-producer identity may differ.
 
     Everything a maintainer would actually read as "the lint job" -- setup,
     sidecars, SASE init, format checks, validation, build verification -- has
     to be the exact same steps as `ci.yml`'s, or this gate's lint signal could
-    silently drift from what PR CI already promises.
+    silently drift from what PR CI already promises. ci.yml may wrap checkout
+    with an explicit ref, assert a published core version, preflight bindings,
+    and upload qualification evidence.
     """
     ci_job = _load_ci_workflow()["jobs"]["lint"]
     gate_job = _load_master_gate_workflow()["jobs"]["lint"]
+    qualification_step_names = {
+        "Set up preflight Python",
+        "Download Rust core artifacts for bindings preflight",
+        "Preflight core bindings",
+        "Record installed core version",
+        "Write qualification evidence",
+        "Upload qualification evidence",
+    }
 
-    assert gate_job["steps"] == ci_job["steps"]
+    ci_by_name = {step["name"]: step for step in ci_job["steps"] if "name" in step}
+    gate_by_name = {step["name"]: step for step in gate_job["steps"] if "name" in step}
+    for name, gate_step in gate_by_name.items():
+        ci_step = ci_by_name[name]
+        if name == "Install dependencies":
+            ci_with = dict(ci_step.get("with") or {})
+            gate_with = dict(gate_step.get("with") or {})
+            ci_with.pop("expected-core-version", None)
+            assert ci_with == gate_with
+            assert ci_step["uses"] == gate_step["uses"]
+            continue
+        if name == "Check pinned core bindings":
+            ci_compare = {key: value for key, value in ci_step.items() if key != "id"}
+            gate_compare = {
+                key: value for key, value in gate_step.items() if key != "id"
+            }
+            assert ci_compare == gate_compare
+            continue
+        assert ci_step == gate_step
+    assert qualification_step_names <= set(ci_by_name)
+    assert qualification_step_names.isdisjoint(gate_by_name)
     assert gate_job["runs-on"] == ci_job["runs-on"]
     assert gate_job["needs"] == "core-wheel"
-    assert ci_job["needs"] == "build-core"
+    assert ci_job["needs"] == ["prepare", "build-core"]
 
 
 # --------------------------------------------------------------------------

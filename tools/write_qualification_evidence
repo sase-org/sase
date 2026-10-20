@@ -1,0 +1,459 @@
+#!/usr/bin/env python3
+"""Serialize identity-bound qualification evidence from a completed CI job.
+
+Stdlib-only so the ``always()`` reporting steps still run when dependency
+installation failed and ``.venv`` is missing. A missing pytest session or
+bindings preflight becomes explicit invalid evidence, never a fabricated
+green report.
+"""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import os
+import re
+import sys
+import urllib.error
+import urllib.request
+from pathlib import Path
+from typing import Any
+
+
+EVIDENCE_SCHEMA_VERSION = 1
+SESSION_KIND = "pytest_session"
+_FLAKY_PREFIX = "FLAKY:"
+_MISSING_BINDINGS_HEADER = re.compile(r" is missing \d+ of \d+ required binding")
+_STEP_OUTCOME_EXIT = {
+    "success": 0,
+    "failure": 1,
+    "cancelled": 1,
+    "timed_out": 1,
+}
+
+
+def inventory_digest(raw: bytes) -> str:
+    return hashlib.sha256(raw).hexdigest()
+
+
+def parse_missing_bindings(text: str) -> list[str]:
+    """Read missing binding names from ``check_sase_core_rs_bindings`` stderr."""
+    names: list[str] = []
+    in_list = False
+    for line in text.splitlines():
+        if _MISSING_BINDINGS_HEADER.search(line):
+            in_list = True
+            continue
+        if not in_list:
+            continue
+        stripped = line.strip()
+        if stripped.startswith("remedy:"):
+            break
+        if not stripped:
+            continue
+        if line.startswith("  ") and stripped.isidentifier():
+            names.append(stripped)
+            continue
+        break
+    return names
+
+
+def extract_flaky_lines(*texts: str) -> list[str]:
+    lines: list[str] = []
+    for text in texts:
+        for raw_line in text.splitlines():
+            stripped = raw_line.strip()
+            if stripped.startswith(_FLAKY_PREFIX) and stripped not in lines:
+                lines.append(stripped)
+    return lines
+
+
+def load_session_report(path: Path | None) -> dict[str, Any] | None:
+    if path is None or not path.is_file():
+        return None
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError, UnicodeDecodeError):
+        return None
+    if not isinstance(payload, dict):
+        return None
+    if payload.get("kind") != SESSION_KIND:
+        return None
+    return payload
+
+
+def completed_steps(raw_steps: list[str]) -> list[dict[str, Any]]:
+    """Parse ``name=outcome`` tokens, dropping skipped/blank entries."""
+    steps: list[dict[str, Any]] = []
+    for token in raw_steps:
+        if "=" not in token:
+            continue
+        name, outcome = token.split("=", 1)
+        name = name.strip()
+        outcome = outcome.strip().lower()
+        if not name or outcome in {"", "skipped"}:
+            continue
+        conclusion = outcome if outcome in _STEP_OUTCOME_EXIT else "failure"
+        steps.append(
+            {
+                "name": name,
+                "status": "completed",
+                "conclusion": conclusion,
+                "exit_status": _STEP_OUTCOME_EXIT.get(conclusion, 1),
+            }
+        )
+    return steps
+
+
+def _as_int(value: Any, default: int | None = None) -> int | None:
+    if isinstance(value, int) and not isinstance(value, bool):
+        return value
+    if isinstance(value, str) and value.strip().lstrip("-").isdigit():
+        return int(value.strip())
+    return default
+
+
+def _github_jobs(run_id: int, attempt: int) -> list[dict[str, Any]]:
+    token = os.environ.get("GITHUB_TOKEN", "").strip()
+    repository = os.environ.get("GITHUB_REPOSITORY", "").strip()
+    api = os.environ.get("GITHUB_API_URL", "https://api.github.com").rstrip("/")
+    if not token or not repository or run_id <= 0 or attempt <= 0:
+        return []
+    url: str | None = (
+        f"{api}/repos/{repository}/actions/runs/{run_id}/attempts/{attempt}/jobs"
+        "?per_page=100"
+    )
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Accept": "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+        "User-Agent": "sase-write-qualification-evidence",
+    }
+    jobs: list[dict[str, Any]] = []
+    while url:
+        request = urllib.request.Request(url, headers=headers)
+        try:
+            with urllib.request.urlopen(request, timeout=30) as response:
+                payload = json.loads(response.read().decode("utf-8"))
+                link = response.headers.get("Link", "")
+        except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, OSError):
+            return jobs
+        if isinstance(payload, dict):
+            entries = payload.get("jobs", [])
+        else:
+            entries = payload
+        if isinstance(entries, list):
+            jobs.extend(entry for entry in entries if isinstance(entry, dict))
+        url = _next_link(link)
+    return jobs
+
+
+def _next_link(header: str) -> str | None:
+    for part in header.split(","):
+        if 'rel="next"' not in part:
+            continue
+        start = part.find("<")
+        end = part.find(">")
+        if start != -1 and end > start:
+            return part[start + 1 : end]
+    return None
+
+
+def resolve_job_id(
+    *,
+    explicit: int | None,
+    job_name: str,
+    run_id: int,
+    attempt: int,
+) -> int | None:
+    if explicit is not None and explicit > 0:
+        return explicit
+    for job in _github_jobs(run_id, attempt):
+        if job.get("name") == job_name:
+            job_id = _as_int(job.get("id"))
+            if job_id is not None and job_id > 0:
+                return job_id
+    return None
+
+
+def _binding(
+    *,
+    repository: str,
+    candidate_id: str,
+    generation: int | None,
+    checked_out_sha: str,
+    expected_core_version: str,
+    installed_core_version: str,
+    digest: str,
+    workflow_run_id: int | None,
+    job_id: int | None,
+    job_name: str,
+    attempt: int | None,
+) -> dict[str, Any]:
+    return {
+        "repository": repository,
+        "candidate_id": candidate_id,
+        "generation": generation,
+        "checked_out_sha": checked_out_sha,
+        "expected_core_version": expected_core_version,
+        "installed_core_version": installed_core_version,
+        "inventory_digest": digest,
+        "workflow_run_id": workflow_run_id,
+        "job_id": job_id,
+        "job_name": job_name,
+        "attempt": attempt,
+    }
+
+
+def pytest_evidence(
+    *,
+    binding: dict[str, Any],
+    session: dict[str, Any] | None,
+    flaky_lines: list[str],
+    invalid_reason: str,
+) -> dict[str, Any]:
+    if session is None:
+        payload: dict[str, Any] = {
+            "schema_version": EVIDENCE_SCHEMA_VERSION,
+            "kind": "pytest",
+            "binding": binding,
+            "invalid": True,
+            "diagnostics": [
+                invalid_reason or "pytest session report is missing or unreadable"
+            ],
+        }
+        if flaky_lines:
+            payload["flaky_lines"] = flaky_lines
+        return payload
+    merged_flaky = list(session.get("flaky_lines") or [])
+    for line in flaky_lines:
+        if line not in merged_flaky:
+            merged_flaky.append(line)
+    return {
+        "schema_version": EVIDENCE_SCHEMA_VERSION,
+        "kind": "pytest",
+        "binding": binding,
+        "collected": session.get("collected"),
+        "passed": session.get("passed"),
+        "failed": session.get("failed"),
+        "errors": session.get("errors"),
+        "skipped": session.get("skipped"),
+        "collection_failed": bool(session.get("collection_failed")),
+        "exit_status": session.get("exit_status"),
+        "first_failing_node_ids": list(session.get("first_failing_node_ids") or []),
+        "flaky_lines": merged_flaky,
+    }
+
+
+def command_evidence(
+    *,
+    binding: dict[str, Any],
+    steps: list[dict[str, Any]],
+    missing_bindings: list[str],
+    diagnostics: list[str],
+) -> dict[str, Any]:
+    recorded_steps = list(steps)
+    if missing_bindings and not recorded_steps:
+        recorded_steps.append(
+            {
+                "name": "Preflight core bindings",
+                "status": "completed",
+                "conclusion": "failure",
+                "exit_status": 1,
+            }
+        )
+    return {
+        "schema_version": EVIDENCE_SCHEMA_VERSION,
+        "kind": "command",
+        "binding": binding,
+        "steps": recorded_steps,
+        "missing_bindings": missing_bindings,
+        "diagnostics": diagnostics,
+    }
+
+
+def build_evidence(args: argparse.Namespace) -> dict[str, Any]:
+    inventory_path = Path(args.inventory) if args.inventory else None
+    digest = args.inventory_digest
+    if inventory_path is not None and inventory_path.is_file():
+        raw = inventory_path.read_bytes()
+        computed = inventory_digest(raw)
+        digest = digest or computed
+        if args.inventory_digest and args.inventory_digest != computed:
+            digest = computed
+    log_text = ""
+    if args.job_log:
+        try:
+            log_text = Path(args.job_log).read_text(encoding="utf-8")
+        except OSError:
+            log_text = ""
+    bindings_text = ""
+    if args.bindings_report:
+        try:
+            bindings_text = Path(args.bindings_report).read_text(encoding="utf-8")
+        except OSError:
+            bindings_text = ""
+    flaky_lines = extract_flaky_lines(log_text)
+    missing_bindings = parse_missing_bindings(bindings_text)
+    run_id = _as_int(args.workflow_run_id, _as_int(os.environ.get("GITHUB_RUN_ID")))
+    attempt = _as_int(args.attempt, _as_int(os.environ.get("GITHUB_RUN_ATTEMPT")))
+    job_name = args.job_name or os.environ.get("SASE_QUALIFY_JOB_NAME", "")
+    job_id = resolve_job_id(
+        explicit=_as_int(args.job_id),
+        job_name=job_name,
+        run_id=run_id or 0,
+        attempt=attempt or 0,
+    )
+    repository = args.repository or os.environ.get("GITHUB_REPOSITORY", "")
+    binding = _binding(
+        repository=repository,
+        candidate_id=args.candidate_id,
+        generation=_as_int(args.generation),
+        checked_out_sha=args.checked_out_sha,
+        expected_core_version=args.expected_core_version,
+        installed_core_version=args.installed_core_version,
+        digest=digest or "",
+        workflow_run_id=run_id,
+        job_id=job_id,
+        job_name=job_name,
+        attempt=attempt,
+    )
+    if args.kind == "pytest":
+        session = load_session_report(
+            Path(args.session_report) if args.session_report else None
+        )
+        return pytest_evidence(
+            binding=binding,
+            session=session,
+            flaky_lines=flaky_lines,
+            invalid_reason=args.invalid_reason,
+        )
+    diagnostics = []
+    if args.invalid_reason:
+        diagnostics.append(args.invalid_reason)
+    if bindings_text and not missing_bindings and "missing" in bindings_text.lower():
+        diagnostics.append("bindings preflight reported a failure")
+    return command_evidence(
+        binding=binding,
+        steps=completed_steps(args.step),
+        missing_bindings=missing_bindings,
+        diagnostics=diagnostics,
+    )
+
+
+def print_inventory_digest(path: Path) -> int:
+    print(inventory_digest(path.read_bytes()))
+    return 0
+
+
+def bind_manifest(path: Path, expected_version: str, github_output: Path) -> int:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        print(f"candidate manifest is unreadable: {exc}", file=sys.stderr)
+        return 1
+    if not isinstance(payload, dict):
+        print("candidate manifest root must be an object", file=sys.stderr)
+        return 1
+    core_version = str(payload.get("core_version") or "")
+    if core_version != expected_version:
+        print(
+            f"manifest core_version {core_version!r} != expected {expected_version!r}",
+            file=sys.stderr,
+        )
+        return 1
+    candidate_id = str(payload.get("candidate_id") or "")
+    generation = payload.get("generation")
+    if not candidate_id:
+        print("candidate manifest is missing candidate_id", file=sys.stderr)
+        return 1
+    if not isinstance(generation, int) or isinstance(generation, bool):
+        print("candidate manifest generation must be an integer", file=sys.stderr)
+        return 1
+    with github_output.open("a", encoding="utf-8") as handle:
+        handle.write(f"candidate-id={candidate_id}\n")
+        handle.write(f"generation={generation}\n")
+    print(f"Bound candidate {candidate_id} generation={generation}")
+    return 0
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--print-inventory-digest",
+        action="store_true",
+        help="Print the SHA-256 of --inventory and exit.",
+    )
+    parser.add_argument(
+        "--bind-manifest",
+        default="",
+        help="Validate a sealed candidate-manifest.json and write GitHub outputs.",
+    )
+    parser.add_argument(
+        "--github-output",
+        default="",
+        help="Path to GITHUB_OUTPUT when using --bind-manifest.",
+    )
+    parser.add_argument("--kind", choices=("pytest", "command"), default="")
+    parser.add_argument("--out", default="", help="Payload path to write.")
+    parser.add_argument("--session-report", default="", help="Pytest session JSON.")
+    parser.add_argument("--job-log", default="", help="Completed job log to scan.")
+    parser.add_argument(
+        "--bindings-report",
+        default="",
+        help="Stderr captured from check_sase_core_rs_bindings.",
+    )
+    parser.add_argument("--inventory", default=".github/release-qualification.json")
+    parser.add_argument("--inventory-digest", default="")
+    parser.add_argument("--repository", default="")
+    parser.add_argument("--candidate-id", default="")
+    parser.add_argument("--generation", default="")
+    parser.add_argument("--checked-out-sha", default="")
+    parser.add_argument("--expected-core-version", default="")
+    parser.add_argument("--installed-core-version", default="")
+    parser.add_argument("--workflow-run-id", default="")
+    parser.add_argument("--job-id", default="")
+    parser.add_argument("--job-name", default="")
+    parser.add_argument("--attempt", default="")
+    parser.add_argument(
+        "--step",
+        action="append",
+        default=[],
+        help="Completed command step as name=outcome (repeatable).",
+    )
+    parser.add_argument("--invalid-reason", default="")
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
+    if args.print_inventory_digest:
+        inventory = Path(args.inventory or ".github/release-qualification.json")
+        return print_inventory_digest(inventory)
+    if args.bind_manifest:
+        output = Path(args.github_output or os.environ.get("GITHUB_OUTPUT", ""))
+        if not str(output):
+            print("--github-output or GITHUB_OUTPUT is required", file=sys.stderr)
+            return 2
+        return bind_manifest(
+            Path(args.bind_manifest),
+            args.expected_core_version,
+            output,
+        )
+    if not args.kind or not args.out:
+        print("--kind and --out are required to write evidence", file=sys.stderr)
+        return 2
+    payload = build_evidence(args)
+    out = Path(args.out)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    tmp = out.with_name(out.name + ".tmp")
+    tmp.write_text(
+        json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
+    tmp.replace(out)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
