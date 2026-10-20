@@ -72,6 +72,22 @@ def _plain_width(text: Text) -> int:
     return cell_len(text.plain)
 
 
+def _truncated_copy(text: Text, max_width: int) -> Text:
+    """Return a copy of ``text`` truncated to ``max_width`` cells, keeping styles.
+
+    Uses cell width (not character count) so wide glyphs truncate exactly, and
+    preserves the Rich spans (bold accent at-bottom, dim unfocused) via
+    ``Text.truncate`` span trimming.
+    """
+    if max_width <= 0:
+        return Text()
+    if _plain_width(text) <= max_width:
+        return text.copy()
+    truncated = text.copy()
+    truncated.truncate(max_width)
+    return truncated
+
+
 def _append_name(
     text: Text,
     deck: DeckId,
@@ -578,12 +594,14 @@ def deck_subtitle(
         and bare_lead is not None
         and full_lead.plain == bare_lead.plain
     ):
+        # No bare-only restore candidate: the fallback below keeps a truncated
+        # continuation after the restore hint, and restore-only wins only when
+        # no continuation cell can fit.
         zoomed_candidates = [
             _joined(restore_full, full_lead, switcher),
             _joined(restore_full, full_lead, bare_switcher),
             _joined(restore_full, full_lead),
             _joined(restore_short, full_lead),
-            _joined(restore_short),
         ]
     else:
         zoomed_candidates = [
@@ -592,14 +610,32 @@ def deck_subtitle(
             _joined(restore_full, full_lead),
             _joined(restore_full, bare_lead),
             _joined(restore_short, bare_lead),
-            _joined(restore_short),
         ]
     if width <= 0:
         return zoomed_candidates[0]
     for candidate in zoomed_candidates:
         if _plain_width(candidate) <= width:
             return candidate
-    return Text(restore_short.plain[: max(0, width)], style="")
+    # No full candidate fits: keep the restore hint plus a truncated
+    # continuation. Switcher counts, the switcher, cue key segments, and the
+    # split position were already dropped to reach restore_short + bare lead;
+    # the remaining counts truncate last. Restore-only is returned only when
+    # no continuation cell can fit.
+    leading_for_fallback = bare_lead if bare_lead is not None else full_lead
+    if leading_for_fallback is not None and leading_for_fallback.plain:
+        restore_width = _plain_width(restore_short)
+        if restore_width >= width:
+            return _truncated_copy(restore_short, max(0, width))
+        budget = width - restore_width - 2
+        if budget <= 0:
+            return _joined(restore_short)
+        truncated_lead = _truncated_copy(leading_for_fallback, budget)
+        if not truncated_lead.plain:
+            return _joined(restore_short)
+        return _joined(restore_short, truncated_lead)
+    if _plain_width(restore_short) <= width:
+        return _joined(restore_short)
+    return _truncated_copy(restore_short, max(0, width))
 
 
 def file_line_status(

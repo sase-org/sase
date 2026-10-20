@@ -19,7 +19,7 @@ from sase.ace.tui.widgets.decks.scope_cues import (
     _viewport_partition as viewport_partition,
     viewport_spread_cue,
 )
-from sase.ace.tui.widgets.decks.titles import deck_subtitle
+from sase.ace.tui.widgets.decks.titles import CardTab, deck_subtitle, deck_title
 from sase.ace.tui.widgets.decks.availability import DeckAvailability
 from tests.ace.tui.widgets._agent_display_helpers import make_artifact_agent
 
@@ -554,3 +554,135 @@ async def test_pilot_paged_bottom_flip_refreshes_once_per_flip() -> None:
             assert calls == first_flips + 1
         finally:
             panel.refresh_chrome = original  # type: ignore[method-assign]
+
+
+def test_viewport_partial_here_keeps_name_without_false_all_in_view() -> None:
+    """Empty directions with all_in_view=False keep the here-name, not the phrase.
+
+    Repro: Context rows 0..80, Reply 80..100, viewport 70..100, here=Context.
+    Only rows 70..100 are visible, so the title must not claim the whole deck
+    is visible, nor invent an arrow for the fully visible Reply.
+    """
+
+    ordered = ("context", "reply")
+    above, below, all_in_view, ready = resolve_viewport_spread(
+        ordered,
+        "context",
+        (("context", 0), ("reply", 80)),
+        scroll_y=70,
+        viewport_height=30,
+        max_scroll_y=70,
+    )
+    assert (above, below, all_in_view, ready) == ((), (), False, True)
+    cue = viewport_spread_cue(
+        ordered,
+        {"context": "Context", "reply": "Reply"},
+        "context",
+        above,
+        below,
+        all_in_view=all_in_view,
+    )
+    assert cue is not None
+    assert cue.all_in_view is False
+    tabs = (CardTab("context", "Context"), CardTab("reply", "Reply"))
+    wide = deck_title(
+        DeckId.MAIN,
+        tabs,
+        0,
+        width=100,
+        accent="red",
+        focused=True,
+        paged=False,
+        spread_cue=cue,
+    )
+    assert "Context" in wide.plain
+    assert "both cards in view" not in wide.plain
+    assert "all in view" not in wide.plain
+    assert "\u25b4" not in wide.plain
+    assert "\u25be" not in wide.plain
+    assert "\u2503" not in wide.plain
+    assert "\u2502" not in wide.plain
+    assert "2/2" not in wide.plain
+    narrow = deck_title(
+        DeckId.MAIN,
+        tabs,
+        0,
+        width=12,
+        accent="red",
+        focused=True,
+        paged=False,
+        spread_cue=cue,
+    )
+    assert "MAIN" in narrow.plain
+    assert "both cards in view" not in narrow.plain
+    assert "all in view" not in narrow.plain
+    assert "\u25b4" not in narrow.plain
+    assert "\u25be" not in narrow.plain
+
+
+def test_viewport_true_all_in_view_keeps_long_and_compact_phrase() -> None:
+    """A truly fitting deck still gets the long/compact all-in-view phrase."""
+
+    above, below, all_in_view, ready = resolve_viewport_spread(
+        ("a", "b"),
+        "a",
+        (("a", 0), ("b", 8)),
+        scroll_y=0,
+        viewport_height=30,
+        max_scroll_y=0,
+        reserve=0,
+    )
+    assert ready is True
+    assert all_in_view is True
+    cue = viewport_spread_cue(
+        ("a", "b"),
+        {"a": "A", "b": "B"},
+        "a",
+        above,
+        below,
+        all_in_view=all_in_view,
+    )
+    assert cue is not None
+    tabs = (CardTab("a", "A"), CardTab("b", "B"))
+    wide = deck_title(
+        DeckId.MAIN,
+        tabs,
+        0,
+        width=100,
+        accent="red",
+        focused=True,
+        paged=False,
+        spread_cue=cue,
+    )
+    assert "both cards in view" in wide.plain
+    narrow = deck_title(
+        DeckId.MAIN,
+        tabs,
+        0,
+        width=20,
+        accent="red",
+        focused=True,
+        paged=False,
+        spread_cue=cue,
+    )
+    assert "all in view" in narrow.plain
+    files_cue = viewport_spread_cue(
+        ("a", "b"),
+        {"a": "a.py", "b": "b.py"},
+        "a",
+        above,
+        below,
+        all_in_view=all_in_view,
+    )
+    assert files_cue is not None
+    files_wide = deck_title(
+        DeckId.FILES,
+        (CardTab("a", "a.py"), CardTab("b", "b.py")),
+        0,
+        width=100,
+        accent="green",
+        focused=True,
+        paged=False,
+        spread_cue=files_cue,
+    )
+    assert "both files in view" in files_wide.plain

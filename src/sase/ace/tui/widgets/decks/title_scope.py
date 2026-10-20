@@ -191,7 +191,10 @@ def _cue_body(
         total = cue.total
     else:
         total = (1 if cue.here else 0) + len(cue.above) + len(cue.below)
-    if cue.all_in_view or not (cue.above or cue.below):
+    # Only the explicit viewport-proven state selects the all-in-view wording.
+    # Empty directions with all_in_view=False (a partially hidden here-card with
+    # no off-screen card in either direction) keep the here-name below.
+    if cue.all_in_view:
         phrase = _all_in_view_phrase(
             deck, total, compact=compact_all_in_view or not include_here
         )
@@ -310,8 +313,10 @@ def spread_title_candidates(
         compact_all_in_view=True,
     )
     arrows = _arrows_only(cue, accent=accent, focused=focused)
-    all_in_view = cue.all_in_view or not (cue.above or cue.below)
-    if all_in_view:
+    # Viewport truth is authoritative: only the proven flag takes the
+    # all-in-view ladder. A false flag with empty directions degrades through
+    # the here-name ladder with no false arrows and no all-in-view phrase.
+    if cue.all_in_view:
         return [
             _prefixed(
                 deck, long_chip, here_named, accent=accent, focused=focused, micro=False

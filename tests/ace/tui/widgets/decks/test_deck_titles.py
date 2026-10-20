@@ -602,3 +602,124 @@ def test_zoom_subtitle_keeps_status_while_switcher_drops() -> None:
     rendered = _zoomed_subtitle(40, zoom, status=Text("693 lines"))
     assert rendered.startswith("◨ 2 of 2 · Z restore  693 lines")
     assert "main" not in rendered
+
+
+def _zoomed_continuation(
+    width: int,
+    zoom: ZoomChrome,
+    *,
+    tab_count: int = 2,
+    block_count: int | None = 4,
+    block_paged: bool = True,
+    card_key: str = "Ctrl+J",
+    block_prev_key: str = "(",
+    block_next_key: str = ")",
+    at_bottom: bool = False,
+    focused: bool = True,
+    accent: str = "red",
+) -> Text:
+    from sase.ace.tui.widgets.decks.scope_cues import continuation_texts
+
+    full, bare = continuation_texts(
+        DeckId.MAIN,
+        tab_count=tab_count,
+        block_count=block_count,
+        block_paged=block_paged,
+        card_key=card_key,
+        block_prev_key=block_prev_key,
+        block_next_key=block_next_key,
+        at_bottom=at_bottom,
+        focused=focused,
+        accent=accent,
+    )
+    assert full is not None and bare is not None
+    return deck_subtitle(
+        DeckId.MAIN,
+        {},
+        status=None,
+        width=width,
+        accent_for={DeckId.MAIN: "red"},
+        zoom=zoom,
+        continuation=full,
+        continuation_bare=bare,
+    )
+
+
+def test_zoom_subtitle_keeps_truncated_continuation_at_width_25() -> None:
+    rendered = _zoomed_continuation(25, ZoomChrome(DeckLayout.SINGLE, 0, 1, "Z"))
+    assert rendered.plain.startswith("Z restore  ")
+    assert "+3 blocks" in rendered.plain
+    assert rendered.plain != "Z restore"
+    assert cell_len(rendered.plain) <= 25
+    styles = {str(span.style) for span in rendered.spans}
+    assert "#888888" in styles
+
+
+def test_zoom_subtitle_split_drops_position_before_truncating_counts() -> None:
+    full_width = _zoomed_continuation(80, _split_zoom(0))
+    assert full_width.plain.startswith("◧ 1 of 2 · Z restore")
+    narrowed = _zoomed_continuation(30, _split_zoom(0))
+    assert narrowed.plain == "Z restore  +3 blocks · +1 card"
+    assert "◧" not in narrowed.plain
+    assert "+3 blocks" in narrowed.plain
+    assert "+1 card" in narrowed.plain
+
+
+def test_zoom_subtitle_cards_only_unbound_keys_truncate_by_cells() -> None:
+    zoom = ZoomChrome(DeckLayout.SINGLE, 0, 1, zoom_key="")
+    rendered = _zoomed_continuation(
+        15,
+        zoom,
+        tab_count=3,
+        block_count=None,
+        block_paged=False,
+        card_key="",
+        block_prev_key="",
+        block_next_key=")",
+    )
+    assert rendered.plain.startswith("restore  ")
+    assert "+2 cards" not in rendered.plain
+    assert "+2 car" in rendered.plain
+    assert cell_len(rendered.plain) <= 15
+    bound = _zoomed_continuation(
+        20,
+        ZoomChrome(DeckLayout.SINGLE, 0, 1, "Z"),
+        tab_count=3,
+        block_count=None,
+        block_paged=False,
+        card_key="Ctrl+J",
+    )
+    assert "+2 cards" in bound.plain or "+2 car" in bound.plain
+    assert cell_len(bound.plain) <= 20
+
+
+def test_zoom_subtitle_truncation_preserves_styles_and_fallback_boundary() -> None:
+    at_bottom = _zoomed_continuation(
+        25,
+        ZoomChrome(DeckLayout.SINGLE, 0, 1, "Z"),
+        at_bottom=True,
+        focused=True,
+        accent="red",
+    )
+    assert "+3 blocks" in at_bottom.plain
+    assert "bold red" in {str(span.style) for span in at_bottom.spans}
+    assert cell_len(at_bottom.plain) <= 25
+    unfocused = _zoomed_continuation(
+        15,
+        ZoomChrome(DeckLayout.SINGLE, 0, 1, "Z"),
+        focused=False,
+    )
+    assert {str(span.style) for span in unfocused.spans} <= {"bold red", "dim", ""}
+    assert "dim" in {str(span.style) for span in unfocused.spans}
+    assert cell_len(unfocused.plain) <= 15
+    fits = _zoomed_continuation(30, ZoomChrome(DeckLayout.SINGLE, 0, 1, "Z"))
+    assert fits.plain == "Z restore  +3 blocks · +1 card"
+    just_below = _zoomed_continuation(29, ZoomChrome(DeckLayout.SINGLE, 0, 1, "Z"))
+    assert just_below.plain.startswith("Z restore  ")
+    assert "+3 blocks" in just_below.plain
+    assert cell_len(just_below.plain) <= 29
+    no_room = _zoomed_continuation(10, ZoomChrome(DeckLayout.SINGLE, 0, 1, "Z"))
+    assert no_room.plain == "Z restore"
+    tiny = _zoomed_continuation(8, ZoomChrome(DeckLayout.SINGLE, 0, 1, "Z"))
+    assert tiny.plain == "Z restor"
+    assert cell_len(tiny.plain) <= 8
