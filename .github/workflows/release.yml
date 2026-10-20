@@ -691,17 +691,19 @@ jobs:
       core-version: ${{ needs.qualify-prepare.outputs.core-version }}
       manifest-artifact: candidate-build
       probe-core-version: ${{ needs.qualify-prepare.outputs.probe-core-version }}
+      caller-job: qualify-ci
     secrets: inherit
 
   # Determines promotion readiness from the completed qualify-ci jobs and
-  # their attempt-aware evidence. Reads scoped jobs with paginated Actions
-  # API requests under the exact qualify-ci call scope (never suffix
-  # matching), then evaluates with the shared release_candidate qualify
-  # clause. Missing, skipped, cancelled, unreadable or failed evidence is a
-  # typed red outcome, never a skip. The observation is written and uploaded
-  # first; only the final verdict step fails the job, so red observations
-  # persist. Release mode attaches the observation to the draft with this
-  # job's narrowly scoped write permission; rehearse uses artifacts.
+  # their attempt-aware evidence. Reads attempt-scoped jobs plus run-scoped
+  # artifacts with paginated Actions API requests under the exact qualify-ci
+  # call scope (never suffix matching), then evaluates with the shared
+  # release_candidate qualify clause. Missing, skipped, cancelled, unreadable
+  # or failed evidence is a typed red outcome, never a skip. The observation
+  # is written under its canonical asset filename and uploaded first; only
+  # the final verdict step fails the job, so red observations persist.
+  # Release mode attaches the observation to the draft with this job's
+  # narrowly scoped write permission; rehearse uses artifacts.
   qualify:
     needs:
       - qualify-prepare
@@ -750,84 +752,16 @@ jobs:
           attempt="${RUN_ATTEMPT}"
           mkdir -p jobs-pages artifacts-pages evidence qualify-work zips
           fetch_ok=1
-          for n in $(seq 1 "$attempt"); do
-            if ! gh api "repos/${repo}/actions/runs/${run}/attempts/${n}/jobs" \
-                --paginate > "jobs-pages/attempt-${n}.json"; then
-              echo "::error::failed to fetch qualify-ci jobs for attempt ${n}"
-              fetch_ok=0
-            fi
-            if ! gh api "repos/${repo}/actions/runs/${run}/attempts/${n}/artifacts" \
-                --paginate > "artifacts-pages/attempt-${n}.json"; then
-              echo "::error::failed to fetch qualify-ci artifacts for attempt ${n}"
-              fetch_ok=0
-            fi
-          done
-          if [ "$fetch_ok" = "1" ]; then
-            set +e
-            python3 - jobs-pages artifacts-pages zips evidence "$attempt" "$repo" <<'PY'
-          import json
-          import subprocess
-          import sys
-          import zipfile
-          from pathlib import Path
-
-          jobs_dir, artifacts_dir, zips_dir, evidence_dir = (
-              Path(part) for part in sys.argv[1:5]
-          )
-          max_attempt = int(sys.argv[5])
-          repo = sys.argv[6]
-          failed = False
-          for n in range(1, max_attempt + 1):
-              raw = (artifacts_dir / f"attempt-{n}.json").read_text(encoding="utf-8")
-              pages = json.loads(raw)
-              if isinstance(pages, dict):
-                  pages = [pages]
-              wanted: list[tuple[int, str]] = []
-              for page in pages:
-                  for row in page.get("artifacts", []):
-                      if not isinstance(row, dict):
-                          continue
-                      name = row.get("name", "")
-                      if (
-                          isinstance(name, str)
-                          and name.startswith("qualify-evidence-")
-                          and name.endswith(f"-attempt-{n}")
-                          and not row.get("expired")
-                      ):
-                          wanted.append((row["id"], name))
-              target = evidence_dir / f"attempt-{n}"
-              target.mkdir(parents=True, exist_ok=True)
-              for artifact_id, name in wanted:
-                  dest = zips_dir / f"attempt-{n}-{name}.zip"
-                  proc = subprocess.run(
-                      [
-                          "gh", "api",
-                          f"repos/{repo}/actions/artifacts/{artifact_id}/zip",
-                      ],
-                      capture_output=True,
-                      check=False,
-                  )
-                  if proc.returncode != 0:
-                      print(f"::warning::download of evidence artifact {name} failed")
-                      failed = True
-                      continue
-                  dest.write_bytes(proc.stdout)
-                  try:
-                      with zipfile.ZipFile(dest) as archive:
-                          for member in archive.namelist():
-                              leaf = member.rsplit("/", 1)[-1]
-                              if leaf.startswith("qualify-evidence-") and leaf.endswith(".json"):
-                                  (target / leaf).write_bytes(archive.read(member))
-                  except zipfile.BadZipFile as exc:
-                      print(f"::warning::evidence artifact {name} is not a zip: {exc}")
-                      failed = True
-          raise SystemExit(1 if failed else 0)
-          PY
-            zip_status=$?
-            set -e
-            if [ "$zip_status" -ne 0 ]; then
-              echo "::warning::some qualification evidence downloads failed; the evaluator records them as typed red"
-            fi
+          if ! python3 tools/collect_qualification_jobs fetch-evidence \
+              --repo "$repo" \
+              --run-id "$run" \
+              --attempts "$attempt" \
+              --jobs-dir jobs-pages \
+              --artifacts-file "artifacts-pages/run.json" \
+              --evidence-root evidence \
+              --zips-dir zips; then
+            echo "::error::failed to fetch qualify-ci facts for run ${run}; the evaluator records a typed red observation"
+            fetch_ok=0
           fi
           collect_args=(
             --inventory .github/release-qualification.json
@@ -840,7 +774,7 @@ jobs:
           for n in $(seq 1 "$attempt"); do
             collect_args+=(
               --attempt-jobs "${n}=jobs-pages/attempt-${n}.json"
-              --attempt-artifacts "${n}=artifacts-pages/attempt-${n}.json"
+              --attempt-artifacts "${n}=artifacts-pages/run.json"
             )
           done
           if [ "$fetch_ok" = "1" ]; then
@@ -852,6 +786,8 @@ jobs:
           if [ "$fetch_ok" != "1" ]; then
             printf 'qualification fact fetch failed; see the job log\n' > qualify-work/jobs.json
           fi
+          generation="$(python3 -c 'import json; print(json.load(open("candidate/candidate-manifest.json"))["generation"])')"
+          asset="candidate-gen${generation}-qualification-run${run}-attempt${attempt}.json"
           set +e
           result="$(python3 tools/release_candidate qualify \
             --manifest candidate/candidate-manifest.json \
@@ -859,7 +795,7 @@ jobs:
             --evidence-dir evidence \
             --run-id "$run" \
             --attempt "$attempt" \
-            --out qualification-observation.json)"
+            --out "$asset")"
           status=$?
           set -e
           printf '%s\n' "$result" > qualify-work/result.json
@@ -867,8 +803,12 @@ jobs:
           if [ "$status" -eq 0 ]; then
             verdict=pass
           fi
-          asset="$(python3 -c 'import json; print(json.load(open("qualification-observation.json")).get("asset", ""))' 2>/dev/null || true)"
-          reason="$(python3 -c 'import json; print(json.load(open("qualification-observation.json")).get("reason", ""))' 2>/dev/null || true)"
+          observed="$(python3 -c 'import json; print(json.load(open("'"$asset"'"))["asset"]' 2>/dev/null || true)"
+          if [ "$observed" != "$asset" ]; then
+            echo "::error::qualification observation asset ${observed:-<missing>} disagrees with its canonical filename ${asset}"
+            exit 1
+          fi
+          reason="$(python3 -c 'import json; print(json.load(open("'"$asset"'")).get("reason", ""))' 2>/dev/null || true)"
           {
             echo "status=${status}"
             echo "verdict=${verdict}"
@@ -887,8 +827,10 @@ jobs:
         if: ${{ always() && inputs.mode == 'rehearse' }}
         uses: actions/upload-artifact@v4
         with:
-          name: qualification-observation
-          path: qualification-observation.json
+          # Attempt-scoped names keep the earlier red observation when a
+          # failed-only rerun later appends its own green one.
+          name: qualification-observation-run-${{ steps.evaluate.outputs.run-id }}-attempt-${{ steps.evaluate.outputs.attempt }}
+          path: ${{ steps.evaluate.outputs.observation }}
           if-no-files-found: error
           retention-days: 30
       - name: Attach the qualification observation to the draft
@@ -896,23 +838,25 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ github.ref_name }}
+          ASSET: ${{ steps.evaluate.outputs.observation }}
         run: |
           set -euo pipefail
-          if [ ! -f qualification-observation.json ]; then
+          if [ -z "${ASSET:-}" ] || [ ! -f "$ASSET" ]; then
             echo "::error::qualification observation was not written; refusing to attach"
             exit 1
           fi
-          asset="$(python3 -c 'import json; print(json.load(open("qualification-observation.json"))["asset"])')"
-          if gh release view "${TAG}" --json assets --jq '.assets[].name' | grep -qFx "$asset"; then
-            gh release download "${TAG}" -p "$asset" -D /tmp/qualify-existing
-            if cmp -s "/tmp/qualify-existing/${asset}" qualification-observation.json; then
+          # The uploaded file keeps its canonical envelope filename, so the
+          # draft asset name always agrees with the observation it carries.
+          if gh release view "${TAG}" --json assets --jq '.assets[].name' | grep -qFx "$ASSET"; then
+            gh release download "${TAG}" -p "$ASSET" -D /tmp/qualify-existing
+            if cmp -s "/tmp/qualify-existing/${ASSET}" "$ASSET"; then
               echo "identical qualification observation is already attached; skipping upload"
             else
-              echo "::error::conflicting qualification observation is already attached as ${asset}"
+              echo "::error::conflicting qualification observation is already attached as ${ASSET}"
               exit 1
             fi
           else
-            gh release upload "${TAG}" qualification-observation.json
+            gh release upload "${TAG}" "$ASSET"
           fi
       - name: Fail the verdict when qualification is red
         if: always()

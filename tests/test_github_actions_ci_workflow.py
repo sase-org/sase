@@ -31,6 +31,7 @@ def test_ci_workflow_is_pull_request_and_reusable_only() -> None:
     assert inputs["core-version"]["default"] == ""
     assert inputs["manifest-artifact"]["default"] == "candidate-build"
     assert inputs["probe-core-version"]["default"] == ""
+    assert inputs["caller-job"]["default"] == ""
     assert not any(details.get("required", False) for details in inputs.values())
     assert workflow["concurrency"] == {
         "group": (
@@ -721,6 +722,15 @@ def test_blocking_jobs_report_qualification_evidence_unconditionally() -> None:
     lint = _named_steps(jobs["lint"])
     assert lint["Write qualification evidence"]["if"] == "always()"
     assert "--kind command" in lint["Write qualification evidence"]["run"]
+    assert lint["Write qualification evidence"]["env"]["GITHUB_TOKEN"] == (
+        "${{ secrets.GITHUB_TOKEN }}"
+    )
+    assert (
+        '--caller-job "${{ inputs.caller-job }}"'
+        in (lint["Write qualification evidence"]["run"])
+    )
+    assert "git rev-parse HEAD" in lint["Write qualification evidence"]["run"]
+    assert "preflight-core-version.txt" in lint["Write qualification evidence"]["run"]
     assert lint["Upload qualification evidence"]["if"] == "always()"
     assert (
         lint["Upload qualification evidence"]["with"]["name"]
@@ -734,10 +744,18 @@ def test_blocking_jobs_report_qualification_evidence_unconditionally() -> None:
         "always() && needs.prepare.outputs.core-source == 'published'"
     )
     assert "tools/check_sase_core_rs_bindings" in lint["Preflight core bindings"]["run"]
+    assert "preflight-core-version.txt" in lint["Preflight core bindings"]["run"]
 
     test_steps = _named_steps(jobs["test"])
     assert test_steps["Write qualification evidence"]["if"] == "always()"
     assert "--kind pytest" in test_steps["Write qualification evidence"]["run"]
+    assert test_steps["Write qualification evidence"]["env"]["GITHUB_TOKEN"] == (
+        "${{ secrets.GITHUB_TOKEN }}"
+    )
+    assert (
+        '--caller-job "${{ inputs.caller-job }}"'
+        in (test_steps["Write qualification evidence"]["run"])
+    )
     assert (
         "qualify-evidence-test-${{ matrix.python-version }}.json"
         in test_steps["Write qualification evidence"]["run"]

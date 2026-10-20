@@ -284,6 +284,7 @@ def test_release_qualify_ci_calls_published_core() -> None:
         "core-version": "${{ needs.qualify-prepare.outputs.core-version }}",
         "manifest-artifact": "candidate-build",
         "probe-core-version": "${{ needs.qualify-prepare.outputs.probe-core-version }}",
+        "caller-job": "qualify-ci",
     }
     assert qualify_ci["secrets"] == "inherit"
     assert qualify_ci["permissions"] == {"contents": "read", "actions": "read"}
@@ -295,32 +296,32 @@ def test_release_qualify_fetches_scoped_attempt_aware_facts() -> None:
     qualify = workflow["jobs"]["qualify"]
     run_text = _job_run_text(qualify)
 
-    assert "attempts/${n}/jobs" in run_text
-    assert "attempts/${n}/artifacts" in run_text
-    assert "--paginate" in run_text
+    assert "collect_qualification_jobs fetch-evidence" in run_text
+    assert '--attempts "$attempt"' in run_text
+    assert "--jobs-dir jobs-pages" in run_text
+    assert '--artifacts-file "artifacts-pages/run.json"' in run_text
+    assert "attempts/${n}/artifacts" not in run_text
     assert "tools/collect_qualification_jobs" in run_text
     assert "--caller-job qualify-ci" in run_text
     assert "--attempt-jobs" in run_text
     assert "--attempt-artifacts" in run_text
     assert "--evidence-root evidence" in run_text
-    assert "artifacts/{artifact_id}/zip" in run_text
-    assert "qualify-evidence-" in run_text
-    assert "-attempt-{n}" in run_text
     assert "release_candidate qualify" in run_text
     assert "--manifest candidate/candidate-manifest.json" in run_text
     assert "--jobs qualify-work/jobs.json" in run_text
     assert "--evidence-dir evidence" in run_text
     assert '--run-id "$run"' in run_text
     assert '--attempt "$attempt"' in run_text
-    assert "--out qualification-observation.json" in run_text
+    assert '--out "$asset"' in run_text
+    assert "candidate-gen${generation}-qualification-run" in run_text
+    assert "disagrees with its canonical filename" in run_text
 
 
 def test_release_qualify_treats_fetch_failures_as_typed_red() -> None:
     workflow = _load_release_workflow()
     run_text = _job_run_text(workflow["jobs"]["qualify"])
 
-    assert "failed to fetch qualify-ci jobs" in run_text
-    assert "failed to fetch qualify-ci artifacts" in run_text
+    assert "failed to fetch qualify-ci facts" in run_text
     assert "qualification fact fetch failed" in run_text
     assert "collect_qualification_jobs refused" in run_text
 
@@ -344,6 +345,22 @@ def test_release_qualify_persists_red_observations_before_failing() -> None:
     assert by_name["Fail the verdict when qualification is red"]["if"] == "always()"
     assert "exit 1" in run_text
     assert "steps.evaluate.outputs" in str(qualify["outputs"])
+
+
+def test_release_qualify_uploads_the_canonical_asset_filename() -> None:
+    workflow = _load_release_workflow()
+    qualify = workflow["jobs"]["qualify"]
+    by_name = {step["name"]: step for step in qualify["steps"] if "name" in step}
+
+    upload = by_name["Upload the qualification observation"]
+    assert upload["with"]["path"] == "${{ steps.evaluate.outputs.observation }}"
+    assert upload["with"]["name"] == (
+        "qualification-observation-run-${{ steps.evaluate.outputs.run-id }}"
+        "-attempt-${{ steps.evaluate.outputs.attempt }}"
+    )
+    attach = by_name["Attach the qualification observation to the draft"]
+    assert attach["env"]["ASSET"] == "${{ steps.evaluate.outputs.observation }}"
+    assert 'gh release upload "${TAG}" "$ASSET"' in attach["run"]
 
 
 def test_release_qualify_probe_never_qualifies() -> None:

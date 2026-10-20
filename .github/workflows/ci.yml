@@ -25,6 +25,11 @@ on:
         type: string
         required: false
         default: 'candidate-build'
+      caller-job:
+        description: Reusable caller scope for qualification job identity (for example qualify-ci). Empty keeps inputless source callers on best-effort lookup.
+        type: string
+        required: false
+        default: ''
       probe-core-version:
         description: Rehearse-only probe core version. Never qualifies the sealed pair.
         type: string
@@ -194,6 +199,10 @@ jobs:
           fi
           uv venv --python 3.12 "$RUNNER_TEMP/bindings-preflight"
           uv pip install --python "$RUNNER_TEMP/bindings-preflight/bin/python" "${wheels[0]}"
+          # Record the actually installed preflight wheel version before the
+          # bindings scan can fail, so lint evidence can name the tested
+          # version even when dependency setup never creates .venv.
+          "$RUNNER_TEMP/bindings-preflight/bin/python" -c 'import importlib.metadata as m; print(m.version("sase-core-rs"))' > "$RUNNER_TEMP/preflight-core-version.txt"
           "$RUNNER_TEMP/bindings-preflight/bin/python" tools/check_sase_core_rs_bindings \
             --remedy "published core is missing required bindings" \
             2> >(tee -a "$BINDINGS_REPORT" >&2)
@@ -283,7 +292,13 @@ jobs:
         if: always()
         env:
           SASE_QUALIFY_JOB_NAME: lint
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          sha="$(git rev-parse HEAD)"
+          installed="$(cat "$RUNNER_TEMP/installed-core-version.txt" 2>/dev/null || true)"
+          if [ -z "$installed" ] && [ -f "$RUNNER_TEMP/preflight-core-version.txt" ]; then
+            installed="$(cat "$RUNNER_TEMP/preflight-core-version.txt")"
+          fi
           python3 tools/write_qualification_evidence \
             --kind command \
             --out "$RUNNER_TEMP/qualify-evidence/qualify-evidence-lint.json" \
@@ -291,10 +306,11 @@ jobs:
             --inventory-digest "${{ needs.prepare.outputs.inventory-digest }}" \
             --candidate-id "${{ needs.prepare.outputs.candidate-id }}" \
             --generation "${{ needs.prepare.outputs.generation }}" \
-            --checked-out-sha "${{ inputs.ref || github.sha }}" \
+            --checked-out-sha "$sha" \
             --expected-core-version "${{ needs.prepare.outputs.expected-core-version }}" \
-            --installed-core-version "$(cat "$RUNNER_TEMP/installed-core-version.txt" 2>/dev/null || true)" \
+            --installed-core-version "$installed" \
             --job-name lint \
+            --caller-job "${{ inputs.caller-job }}" \
             --bindings-report "$RUNNER_TEMP/bindings-preflight.err" \
             --step "Preflight core bindings=${{ steps.preflight-bindings.outcome }}" \
             --step "Check pinned core bindings=${{ steps.pinned-bindings.outcome }}"
@@ -412,7 +428,9 @@ jobs:
         if: always()
         env:
           SASE_QUALIFY_JOB_NAME: test (${{ matrix.python-version }})
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          sha="$(git rev-parse HEAD)"
           python3 tools/write_qualification_evidence \
             --kind pytest \
             --out "$RUNNER_TEMP/qualify-evidence/qualify-evidence-test-${{ matrix.python-version }}.json" \
@@ -421,10 +439,11 @@ jobs:
             --inventory-digest "${{ needs.prepare.outputs.inventory-digest }}" \
             --candidate-id "${{ needs.prepare.outputs.candidate-id }}" \
             --generation "${{ needs.prepare.outputs.generation }}" \
-            --checked-out-sha "${{ inputs.ref || github.sha }}" \
+            --checked-out-sha "$sha" \
             --expected-core-version "${{ needs.prepare.outputs.expected-core-version }}" \
             --installed-core-version "$(cat "$RUNNER_TEMP/installed-core-version.txt" 2>/dev/null || true)" \
-            --job-name "test (${{ matrix.python-version }})"
+            --job-name "test (${{ matrix.python-version }})" \
+            --caller-job "${{ inputs.caller-job }}"
       - name: Upload qualification evidence
         if: always()
         uses: actions/upload-artifact@v4

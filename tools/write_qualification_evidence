@@ -114,12 +114,20 @@ def _as_int(value: Any, default: int | None = None) -> int | None:
     return default
 
 
-def _github_jobs(run_id: int, attempt: int) -> list[dict[str, Any]]:
+def _github_jobs(run_id: int, attempt: int) -> tuple[list[dict[str, Any]], str]:
+    """Fetch attempt jobs; the error string is empty only on complete success."""
     token = os.environ.get("GITHUB_TOKEN", "").strip()
     repository = os.environ.get("GITHUB_REPOSITORY", "").strip()
     api = os.environ.get("GITHUB_API_URL", "https://api.github.com").rstrip("/")
-    if not token or not repository or run_id <= 0 or attempt <= 0:
-        return []
+    if not token:
+        return [], "cannot resolve the authoritative job id without GITHUB_TOKEN"
+    if not repository:
+        return [], "cannot resolve the authoritative job id without GITHUB_REPOSITORY"
+    if run_id <= 0 or attempt <= 0:
+        return [], (
+            "cannot resolve the authoritative job id without a positive "
+            f"run id and attempt (got run_id={run_id} attempt={attempt})"
+        )
     url: str | None = (
         f"{api}/repos/{repository}/actions/runs/{run_id}/attempts/{attempt}/jobs"
         "?per_page=100"
@@ -137,8 +145,11 @@ def _github_jobs(run_id: int, attempt: int) -> list[dict[str, Any]]:
             with urllib.request.urlopen(request, timeout=30) as response:
                 payload = json.loads(response.read().decode("utf-8"))
                 link = response.headers.get("Link", "")
-        except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, OSError):
-            return jobs
+        except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, OSError) as exc:
+            return jobs, (
+                f"attempt jobs fetch failed after {len(jobs)} row(s): {exc}; "
+                "partial pagination cannot prove a unique job identity"
+            )
         if isinstance(payload, dict):
             entries = payload.get("jobs", [])
         else:
@@ -146,7 +157,7 @@ def _github_jobs(run_id: int, attempt: int) -> list[dict[str, Any]]:
         if isinstance(entries, list):
             jobs.extend(entry for entry in entries if isinstance(entry, dict))
         url = _next_link(link)
-    return jobs
+    return jobs, ""
 
 
 def _next_link(header: str) -> str | None:
@@ -164,17 +175,46 @@ def resolve_job_id(
     *,
     explicit: int | None,
     job_name: str,
+    caller_job: str = "",
     run_id: int,
     attempt: int,
-) -> int | None:
+    strict: bool = False,
+) -> tuple[int | None, str]:
+    """Resolve exactly one numeric job id by exact full caller-prefixed name.
+
+    The wanted name is ``"<caller> / <job>"`` when a caller scope is threaded
+    through the reusable call, else the bare job name. Scoped (strict)
+    resolution refuses missing credentials, partial pagination, zero matches,
+    and ambiguous matches with an explicit error; the unscoped source-lane path
+    stays best-effort so inputless callers keep working.
+    """
     if explicit is not None and explicit > 0:
-        return explicit
-    for job in _github_jobs(run_id, attempt):
-        if job.get("name") == job_name:
-            job_id = _as_int(job.get("id"))
-            if job_id is not None and job_id > 0:
-                return job_id
-    return None
+        return explicit, ""
+    wanted = f"{caller_job} / {job_name}" if caller_job else job_name
+    rows, fetch_error = _github_jobs(run_id, attempt)
+    if fetch_error:
+        if strict:
+            return None, fetch_error
+        return None, ""
+    matches: list[int] = []
+    for job in rows:
+        if job.get("name") != wanted:
+            continue
+        job_id = _as_int(job.get("id"))
+        if job_id is not None and job_id > 0 and job_id not in matches:
+            matches.append(job_id)
+    if not strict:
+        return (matches[0], "") if matches else (None, "")
+    if not matches:
+        return None, (
+            f"no exact job named {wanted!r} in run {run_id} attempt {attempt}"
+        )
+    if len(matches) > 1:
+        return None, (
+            f"ambiguous job identity for {wanted!r} in run {run_id} "
+            f"attempt {attempt}: ids {matches}"
+        )
+    return matches[0], ""
 
 
 def _binding(
@@ -299,11 +339,15 @@ def build_evidence(args: argparse.Namespace) -> dict[str, Any]:
     run_id = _as_int(args.workflow_run_id, _as_int(os.environ.get("GITHUB_RUN_ID")))
     attempt = _as_int(args.attempt, _as_int(os.environ.get("GITHUB_RUN_ATTEMPT")))
     job_name = args.job_name or os.environ.get("SASE_QUALIFY_JOB_NAME", "")
-    job_id = resolve_job_id(
+    caller_job = args.caller_job or ""
+    scoped = bool(caller_job)
+    job_id, identity_error = resolve_job_id(
         explicit=_as_int(args.job_id),
         job_name=job_name,
+        caller_job=caller_job,
         run_id=run_id or 0,
         attempt=attempt or 0,
+        strict=scoped,
     )
     repository = args.repository or os.environ.get("GITHUB_REPOSITORY", "")
     binding = _binding(
@@ -323,6 +367,19 @@ def build_evidence(args: argparse.Namespace) -> dict[str, Any]:
         session = load_session_report(
             Path(args.session_report) if args.session_report else None
         )
+        if scoped and identity_error:
+            invalid_reason = identity_error
+            if session is not None:
+                invalid_reason += (
+                    "; a pytest session report was present but its job "
+                    "identity is unresolved"
+                )
+            return pytest_evidence(
+                binding=binding,
+                session=None,
+                flaky_lines=flaky_lines,
+                invalid_reason=invalid_reason,
+            )
         return pytest_evidence(
             binding=binding,
             session=session,
@@ -330,6 +387,8 @@ def build_evidence(args: argparse.Namespace) -> dict[str, Any]:
             invalid_reason=args.invalid_reason,
         )
     diagnostics = []
+    if scoped and identity_error:
+        diagnostics.append(identity_error)
     if args.invalid_reason:
         diagnostics.append(args.invalid_reason)
     if bindings_text and not missing_bindings and "missing" in bindings_text.lower():
@@ -415,6 +474,13 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--workflow-run-id", default="")
     parser.add_argument("--job-id", default="")
     parser.add_argument("--job-name", default="")
+    parser.add_argument(
+        "--caller-job",
+        default="",
+        help="Reusable caller scope; when set, the job id is resolved from the "
+        "exact '<caller> / <job>' name and identity failures become invalid "
+        "evidence. Empty keeps inputless source callers on best-effort lookup.",
+    )
     parser.add_argument("--attempt", default="")
     parser.add_argument(
         "--step",

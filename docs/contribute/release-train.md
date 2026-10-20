@@ -112,10 +112,12 @@ stale or unreadable evidence is a typed `QUALIFY_RED` outcome, never a pass.
 
 Only the inventory (`.github/release-qualification.json`) decides what blocks: the
 evaluator loads it, the steward and metrics import its loader, and this page does not
-restate the list. A failed blocking job may be retried once with
-`gh run rerun --failed`; the retry carries unchanged successful executions forward by
-job ID and needs new evidence for every rerun job. Advisory jobs stay visible in the
-observation but can never veto the verdict.
+restate the list. One failed-job rerun with `gh run rerun --failed` is eligible only
+after a first attempt whose every failing blocker is classified `tests`; collection,
+missing, zero, harness and second-attempt failures are never rerun-eligible. The retry
+carries unchanged successful executions forward by job ID and needs new evidence for
+every rerun job. Advisory jobs stay visible in the observation but can never veto the
+verdict.
 
 The rehearse-only `probe_core_version` input tests an older core without resealing the
 manifest: the tested version is recorded next to the intended one, and a probe run stays

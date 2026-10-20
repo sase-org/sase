@@ -585,6 +585,10 @@ def evaluate_qualification(
     digest = inventory_digest(inventory_bytes)
     workflow_run_id: int | None = None
     current_attempt: int | None = None
+    # Fact-collection or parse failures keep the caller's authoritative
+    # run/attempt identity so the generated red observation revalidates as
+    # typed QUALIFY_RED instead of a provenance disagreement. Histories that
+    # contradict the expected identity still refuse below.
     if inventory_error:
         return _report(
             manifest=manifest,
@@ -600,8 +604,8 @@ def evaluate_qualification(
         return _report(
             manifest=manifest,
             digest=digest,
-            workflow_run_id=None,
-            current_attempt=None,
+            workflow_run_id=expected_workflow_run_id,
+            current_attempt=expected_attempt,
             failures=[_failure("qualification", "harness", str(exc))],
             input_error=str(exc),
         )
@@ -609,8 +613,8 @@ def evaluate_qualification(
         return _report(
             manifest=manifest,
             digest=digest,
-            workflow_run_id=None,
-            current_attempt=None,
+            workflow_run_id=expected_workflow_run_id,
+            current_attempt=expected_attempt,
             failures=[_failure("qualification", "harness", job_bundle_error)],
             input_error=job_bundle_error,
         )

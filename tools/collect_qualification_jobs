@@ -27,7 +27,9 @@ import copy
 import importlib.util
 import json
 import os
+import subprocess
 import sys
+import zipfile
 from importlib.machinery import SourceFileLoader
 from pathlib import Path
 from typing import Any
@@ -55,6 +57,7 @@ QualificationInputError = _inventory.QualificationInputError
 inventory_digest = _inventory.inventory_digest
 load_inventory = _inventory.load_inventory
 strict_json_loads = _inventory.strict_json_loads
+_pairs_without_duplicates = _inventory._pairs_without_duplicates
 
 EXIT_OK = 0
 EXIT_REFUSED = 2
@@ -63,6 +66,10 @@ EXIT_ERROR = 3
 #: Workflow whose jobs carry qualification evidence. Exercise verdicts stay
 #: with the existing exercise machinery and are never mistaken for CI jobs.
 QUALIFIED_WORKFLOW = ".github/workflows/ci.yml"
+
+#: Evidence upload name prefix. Per-attempt unique artifact names bind payloads
+#: to attempts; payload leaves stay ``qualify-evidence-<check>.json``.
+EVIDENCE_ARTIFACT_PREFIX = "qualify-evidence-"
 
 
 class Refusal(Exception):
@@ -86,21 +93,59 @@ def _parse_numbered_paths(values: list[str], *, flag: str) -> dict[int, list[Pat
     return grouped
 
 
+def _decode_json_documents(raw: bytes, *, source: str) -> list[Any]:
+    """Decode one page object, a --slurp page array, or concatenated pages.
+
+    ``gh api --paginate`` without ``--slurp`` streams one JSON document per
+    page; the fetcher and this consumer must agree, so every envelope is
+    accepted here instead of failing the second page with ``Extra data``.
+    """
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise QualificationInputError(f"{source} is unreadable JSON: {exc}") from exc
+    decoder = json.JSONDecoder(object_pairs_hook=_pairs_without_duplicates)
+    values: list[Any] = []
+    index = 0
+    length = len(text)
+    try:
+        while True:
+            while index < length and text[index].isspace():
+                index += 1
+            if index >= length:
+                break
+            value, end = decoder.raw_decode(text, index)
+            values.append(value)
+            index = end
+    except json.JSONDecodeError as exc:
+        raise QualificationInputError(f"{source} is unreadable JSON: {exc}") from exc
+    if not values:
+        raise QualificationInputError(f"{source} is unreadable JSON: empty document")
+    return values
+
+
 def _load_pages(paths: list[Path], *, key: str, flag: str) -> list[dict[str, Any]]:
-    """Read raw API responses that are either one page object or a page list."""
+    """Read raw API responses: one page object, a page list, or a page stream."""
     pages: list[dict[str, Any]] = []
     for path in paths:
         try:
             raw = path.read_bytes()
         except OSError as exc:
             raise Refusal(f"cannot read {flag} file {path}: {exc}") from exc
-        payload = strict_json_loads(raw, source=f"{flag} file {path}")
-        if isinstance(payload, list):
-            candidates = payload
-        elif isinstance(payload, dict):
-            candidates = [payload]
-        else:
-            raise Refusal(f"{flag} file {path} must be a page object or a page list")
+        try:
+            documents = _decode_json_documents(raw, source=f"{flag} file {path}")
+        except QualificationInputError as exc:
+            raise Refusal(str(exc)) from exc
+        candidates: list[Any] = []
+        for document in documents:
+            if isinstance(document, list):
+                candidates.extend(document)
+            elif isinstance(document, dict):
+                candidates.append(document)
+            else:
+                raise Refusal(
+                    f"{flag} file {path} must hold page objects or page lists"
+                )
         for candidate in candidates:
             if not isinstance(candidate, dict) or not isinstance(
                 candidate.get(key), list
@@ -146,16 +191,36 @@ def _collect_scoped_rows(
 
 
 def _artifact_index(pages: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
-    """Index raw artifact rows by name; first non-expired row wins."""
+    """Index raw artifact rows by name.
+
+    Identical rows repeated across pages are pagination overlap and collapse.
+    A live row supersedes an expired same-name tombstone. Two live rows under
+    one name are an ambiguous identity and refuse instead of silently winning.
+    """
     index: dict[str, dict[str, Any]] = {}
+    seen: set[str] = set()
     for page in pages:
         for row in page["artifacts"]:
             if not isinstance(row, dict) or not isinstance(row.get("name"), str):
                 continue
-            name = row["name"]
-            if name in index:
+            fingerprint = json.dumps(row, sort_keys=True, default=str)
+            if fingerprint in seen:
                 continue
-            index[name] = row
+            seen.add(fingerprint)
+            name = row["name"]
+            prior = index.get(name)
+            if prior is None or prior == row:
+                index[name] = row
+                continue
+            if prior.get("expired") is True and row.get("expired") is not True:
+                index[name] = row
+                continue
+            if row.get("expired") is True and prior.get("expired") is not True:
+                continue
+            raise Refusal(
+                f"duplicate artifact identity {name!r}: ids "
+                f"{prior.get('id')!r} and {row.get('id')!r}"
+            )
     return index
 
 
@@ -345,6 +410,181 @@ def collect_bundle(
     return bundle, stats
 
 
+def _run_gh(api_args: list[str]) -> tuple[int, bytes, str]:
+    """Run ``gh api ...`` from PATH; returns (returncode, stdout, stderr)."""
+    try:
+        proc = subprocess.run(
+            ["gh", "api", *api_args], capture_output=True, check=False
+        )
+    except OSError as exc:
+        return 127, b"", str(exc)
+    return (
+        proc.returncode,
+        proc.stdout,
+        proc.stderr.decode("utf-8", "replace"),
+    )
+
+
+def fetch_evidence(
+    *,
+    repo: str,
+    run_id: int,
+    max_attempt: int,
+    jobs_dir: Path,
+    artifacts_file: Path,
+    evidence_root: Path,
+    zips_dir: Path,
+) -> int:
+    """Fetch attempt jobs, run-scoped artifacts, and evidence zips via ``gh``.
+
+    Jobs stay attempt-scoped (that endpoint exists per attempt); artifacts are
+    fetched once at the run scope (no per-attempt artifacts endpoint exists).
+    API failures fail closed with EXIT_ERROR so the caller records typed red.
+    Zip download failures only warn: the missing payloads evaluate red
+    downstream. A payload filename claimed by two artifacts with different
+    bytes is a conflicting identity and fails closed.
+    """
+    jobs_dir.mkdir(parents=True, exist_ok=True)
+    artifacts_file.parent.mkdir(parents=True, exist_ok=True)
+    evidence_root.mkdir(parents=True, exist_ok=True)
+    zips_dir.mkdir(parents=True, exist_ok=True)
+    for attempt in range(1, max_attempt + 1):
+        code, out, err = _run_gh(
+            [
+                f"repos/{repo}/actions/runs/{run_id}/attempts/{attempt}/jobs",
+                "--paginate",
+                "--slurp",
+            ]
+        )
+        if code != 0:
+            print(
+                f"::error::failed to fetch qualify-ci jobs for attempt {attempt}: "
+                f"{err.strip() or f'gh api exited {code}'}",
+                file=sys.stderr,
+            )
+            return EXIT_ERROR
+        (jobs_dir / f"attempt-{attempt}.json").write_bytes(out)
+    code, out, err = _run_gh(
+        [f"repos/{repo}/actions/runs/{run_id}/artifacts", "--paginate", "--slurp"]
+    )
+    if code != 0:
+        print(
+            "::error::failed to fetch qualify-ci artifacts for run "
+            f"{run_id}: {err.strip() or f'gh api exited {code}'}",
+            file=sys.stderr,
+        )
+        return EXIT_ERROR
+    artifacts_file.write_bytes(out)
+    try:
+        documents = _decode_json_documents(out, source=str(artifacts_file))
+    except QualificationInputError as exc:
+        print(f"::error::qualify-ci artifacts response is unreadable: {exc}")
+        return EXIT_ERROR
+    rows: list[dict[str, Any]] = []
+    for document in documents:
+        candidates = document if isinstance(document, list) else [document]
+        for candidate in candidates:
+            if isinstance(candidate, dict) and isinstance(
+                candidate.get("artifacts"), list
+            ):
+                rows.extend(
+                    row for row in candidate["artifacts"] if isinstance(row, dict)
+                )
+    failed = False
+    for attempt in range(1, max_attempt + 1):
+        suffix = f"-attempt-{attempt}"
+        target = evidence_root / f"attempt-{attempt}"
+        target.mkdir(parents=True, exist_ok=True)
+        for row in rows:
+            name = row.get("name", "")
+            if (
+                not isinstance(name, str)
+                or not name.startswith(EVIDENCE_ARTIFACT_PREFIX)
+                or not name.endswith(suffix)
+                or row.get("expired") is True
+            ):
+                continue
+            code, zipped, err = _run_gh(
+                [f"repos/{repo}/actions/artifacts/{row['id']}/zip"]
+            )
+            if code != 0:
+                print(
+                    f"::warning::download of evidence artifact {name} failed: "
+                    f"{err.strip() or f'gh api exited {code}'}"
+                )
+                failed = True
+                continue
+            dest = zips_dir / f"attempt-{attempt}-{name}.zip"
+            dest.write_bytes(zipped)
+            try:
+                with zipfile.ZipFile(dest) as archive:
+                    for member in archive.namelist():
+                        leaf = member.rsplit("/", 1)[-1]
+                        if not (
+                            leaf.startswith(EVIDENCE_ARTIFACT_PREFIX)
+                            and leaf.endswith(".json")
+                        ):
+                            continue
+                        payload = archive.read(member)
+                        path = target / leaf
+                        if path.is_file() and path.read_bytes() != payload:
+                            print(
+                                "::error::conflicting evidence payload "
+                                f"{path} from artifact {name}; refusing to overwrite"
+                            )
+                            return EXIT_ERROR
+                        path.write_bytes(payload)
+            except zipfile.BadZipFile as exc:
+                print(f"::warning::evidence artifact {name} is not a zip: {exc}")
+                failed = True
+    if failed:
+        print(
+            "::warning::some qualification evidence downloads failed; "
+            "the evaluator records them as typed red"
+        )
+    return EXIT_OK
+
+
+def build_fetch_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description=fetch_evidence.__doc__)
+    parser.add_argument("--repo", required=True, help="owner/name repository")
+    parser.add_argument("--run-id", required=True, type=int)
+    parser.add_argument(
+        "--attempts", required=True, type=int, help="highest workflow attempt to fetch"
+    )
+    parser.add_argument("--jobs-dir", required=True, help="attempt jobs pages directory")
+    parser.add_argument(
+        "--artifacts-file", required=True, help="run-scoped artifacts response path"
+    )
+    parser.add_argument(
+        "--evidence-root",
+        required=True,
+        help="directory receiving attempt-N/qualify-evidence-<check>.json payloads",
+    )
+    parser.add_argument("--zips-dir", required=True, help="artifact zip staging directory")
+    return parser
+
+
+def fetch_evidence_main(argv: list[str]) -> int:
+    args = build_fetch_parser().parse_args(argv)
+    if args.run_id < 1 or args.attempts < 1:
+        print("REFUSED run-id and attempts must be positive integers", file=sys.stderr)
+        return EXIT_REFUSED
+    try:
+        return fetch_evidence(
+            repo=args.repo,
+            run_id=args.run_id,
+            max_attempt=args.attempts,
+            jobs_dir=Path(args.jobs_dir),
+            artifacts_file=Path(args.artifacts_file),
+            evidence_root=Path(args.evidence_root),
+            zips_dir=Path(args.zips_dir),
+        )
+    except OSError as exc:
+        print(f"ERROR {exc}", file=sys.stderr)
+        return EXIT_ERROR
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -383,6 +623,9 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
+    words = list(argv) if argv is not None else sys.argv[1:]
+    if words[:1] == ["fetch-evidence"]:
+        return fetch_evidence_main(words[1:])
     args = build_parser().parse_args(argv)
     try:
         if args.run_id < 1:

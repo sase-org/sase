@@ -201,6 +201,262 @@ def test_skipped_steps_are_dropped(tool: ModuleType) -> None:
     assert steps[1]["conclusion"] == "failure"
 
 
+class _FakeHeaders(dict):  # type: ignore[type-arg]
+    def get(self, key: object, default: object = None) -> object:
+        return super().get(key, default)
+
+
+class _FakeResponse:
+    def __init__(self, payload: object, link: str) -> None:
+        self._payload = payload
+        self.headers = _FakeHeaders({"Link": link})
+
+    def read(self) -> bytes:
+        return json.dumps(self._payload).encode("utf-8")
+
+    def __enter__(self) -> _FakeResponse:
+        return self
+
+    def __exit__(self, *args: object) -> bool:
+        return False
+
+
+def _install_jobs_transport(
+    monkeypatch: pytest.MonkeyPatch,
+    pages: list[dict[str, object]],
+    *,
+    fail_after: int | None = None,
+) -> dict[str, int]:
+    """Serve canned attempt-jobs pages with Link pagination; count requests."""
+    import urllib.error
+    import urllib.request
+
+    calls = {"count": 0}
+
+    def fake_urlopen(request: object, timeout: object = 30) -> _FakeResponse:
+        calls["count"] += 1
+        if fail_after is not None and calls["count"] > fail_after:
+            raise urllib.error.URLError("transport exploded")
+        url = request.full_url if hasattr(request, "full_url") else str(request)  # type: ignore[union-attr]
+        if "page-next" in url:
+            return _FakeResponse(pages[1], "")
+        link = (
+            '<https://api.github.com/page-next>; rel="next"' if len(pages) > 1 else ""
+        )
+        return _FakeResponse(pages[0], link)
+
+    monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
+    monkeypatch.setenv("GITHUB_TOKEN", "token")
+    monkeypatch.setenv("GITHUB_REPOSITORY", "sase-org/sase")
+    return calls
+
+
+def _scoped_pages() -> list[dict[str, object]]:
+    return [
+        {
+            "total_count": 3,
+            "jobs": [
+                {"id": 101, "name": "qualify-ci / lint"},
+                {"id": 102, "name": "other-ci / lint"},
+            ],
+        },
+        {
+            "total_count": 3,
+            "jobs": [{"id": 103, "name": "qualify-ci / test (3.12)"}],
+        },
+    ]
+
+
+def test_scoped_identity_resolves_full_caller_prefix_across_pages(
+    tool: ModuleType, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _install_jobs_transport(monkeypatch, _scoped_pages())
+    job_id, error = tool.resolve_job_id(
+        explicit=None,
+        job_name="lint",
+        caller_job="qualify-ci",
+        run_id=700,
+        attempt=1,
+        strict=True,
+    )
+    assert (job_id, error) == (101, "")
+    job_id, error = tool.resolve_job_id(
+        explicit=None,
+        job_name="test (3.12)",
+        caller_job="qualify-ci",
+        run_id=700,
+        attempt=1,
+        strict=True,
+    )
+    assert (job_id, error) == (103, "")
+
+
+def test_scoped_identity_rejects_wrong_caller_and_suffix_bait(
+    tool: ModuleType, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _install_jobs_transport(monkeypatch, _scoped_pages())
+    job_id, error = tool.resolve_job_id(
+        explicit=None,
+        job_name="test (3.12)",
+        caller_job="other-ci",
+        run_id=700,
+        attempt=1,
+        strict=True,
+    )
+    assert job_id is None
+    assert "no exact job" in error
+    job_id, error = tool.resolve_job_id(
+        explicit=None,
+        job_name="ci / lint",
+        caller_job="qualify",
+        run_id=700,
+        attempt=1,
+        strict=True,
+    )
+    assert job_id is None
+    assert "no exact job" in error
+
+
+def test_scoped_identity_rejects_ambiguous_matches(
+    tool: ModuleType, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _install_jobs_transport(
+        monkeypatch,
+        [
+            {"total_count": 2, "jobs": [{"id": 201, "name": "qualify-ci / lint"}]},
+            {"total_count": 2, "jobs": [{"id": 202, "name": "qualify-ci / lint"}]},
+        ],
+    )
+    job_id, error = tool.resolve_job_id(
+        explicit=None,
+        job_name="lint",
+        caller_job="qualify-ci",
+        run_id=700,
+        attempt=1,
+        strict=True,
+    )
+    assert job_id is None
+    assert "ambiguous" in error
+
+
+def test_scoped_identity_needs_credentials_and_complete_pages(
+    tool: ModuleType, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _install_jobs_transport(monkeypatch, _scoped_pages())
+    monkeypatch.delenv("GITHUB_TOKEN")
+    job_id, error = tool.resolve_job_id(
+        explicit=None,
+        job_name="lint",
+        caller_job="qualify-ci",
+        run_id=700,
+        attempt=1,
+        strict=True,
+    )
+    assert job_id is None
+    assert "GITHUB_TOKEN" in error
+
+
+def test_scoped_identity_reports_partial_pagination(
+    tool: ModuleType, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _install_jobs_transport(monkeypatch, _scoped_pages(), fail_after=1)
+    job_id, error = tool.resolve_job_id(
+        explicit=None,
+        job_name="lint",
+        caller_job="qualify-ci",
+        run_id=700,
+        attempt=1,
+        strict=True,
+    )
+    assert job_id is None
+    assert "partial pagination" in error
+
+
+def test_unscoped_lookup_stays_best_effort_for_source_callers(
+    tool: ModuleType, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _install_jobs_transport(monkeypatch, _scoped_pages())
+    monkeypatch.delenv("GITHUB_TOKEN")
+    job_id, error = tool.resolve_job_id(
+        explicit=None, job_name="lint", run_id=700, attempt=1
+    )
+    assert (job_id, error) == (None, "")
+
+
+def test_explicit_job_id_skips_the_transport(
+    tool: ModuleType, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls = _install_jobs_transport(monkeypatch, _scoped_pages())
+    monkeypatch.delenv("GITHUB_TOKEN")
+    job_id, error = tool.resolve_job_id(
+        explicit=77,
+        job_name="lint",
+        caller_job="qualify-ci",
+        run_id=700,
+        attempt=1,
+        strict=True,
+    )
+    assert (job_id, error) == (77, "")
+    assert calls["count"] == 0
+
+
+def test_scoped_identity_failure_is_invalid_command_evidence(
+    tool: ModuleType, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _install_jobs_transport(monkeypatch, _scoped_pages())
+    monkeypatch.delenv("GITHUB_TOKEN")
+    out = tmp_path / "qualify-evidence-lint.json"
+    status = tool.main(
+        [
+            "--kind",
+            "command",
+            "--out",
+            str(out),
+            "--job-name",
+            "lint",
+            "--caller-job",
+            "qualify-ci",
+            "--workflow-run-id",
+            "700",
+            "--attempt",
+            "1",
+            "--step",
+            "Check pinned core bindings=success",
+        ]
+    )
+    assert status == 0
+    payload = json.loads(out.read_text(encoding="utf-8"))
+    assert payload["binding"]["job_id"] is None
+    assert any("GITHUB_TOKEN" in line for line in payload["diagnostics"])
+
+
+def test_scoped_identity_failure_is_invalid_pytest_evidence(
+    tool: ModuleType, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _install_jobs_transport(monkeypatch, _scoped_pages())
+    out = tmp_path / "qualify-evidence-test.json"
+    status = tool.main(
+        [
+            "--kind",
+            "pytest",
+            "--out",
+            str(out),
+            "--job-name",
+            "lint",
+            "--caller-job",
+            "no-such-caller",
+            "--workflow-run-id",
+            "700",
+            "--attempt",
+            "1",
+        ]
+    )
+    assert status == 0
+    payload = json.loads(out.read_text(encoding="utf-8"))
+    assert payload["invalid"] is True
+    assert "no exact job" in " ".join(payload["diagnostics"])
+
+
 def test_print_inventory_digest_matches_bytes(
     tool: ModuleType, capsys: pytest.CaptureFixture[str]
 ) -> None:

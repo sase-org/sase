@@ -224,21 +224,25 @@ def _valid_command_evidence(
         workflow_run_id=workflow_run_id,
         record=record,
     )
-    if binding_problems:
-        return "harness", binding_problems
     steps = evidence["steps"]
     missing_bindings = evidence["missing_bindings"]
     diagnostics = evidence["diagnostics"]
     if not isinstance(steps, list) or not steps:
-        return "harness", ["command evidence has no completed step outcomes"]
+        return "harness", binding_problems + [
+            "command evidence has no completed step outcomes"
+        ]
     if not isinstance(missing_bindings, list) or not all(
         isinstance(item, str) for item in missing_bindings
     ):
-        return "harness", ["missing_bindings must be a list of strings"]
+        return "harness", binding_problems + [
+            "missing_bindings must be a list of strings"
+        ]
     if not isinstance(diagnostics, list) or not all(
         isinstance(item, str) for item in diagnostics
     ):
-        return "harness", ["command diagnostics must be a list of strings"]
+        return "harness", binding_problems + [
+            "command diagnostics must be a list of strings"
+        ]
     step_problems: list[str] = []
     for index, step in enumerate(steps):
         if not isinstance(step, dict) or set(step) != {
@@ -263,4 +267,7 @@ def _valid_command_evidence(
     step_problems.extend(diagnostics)
     if record["status"] != "completed" or record["conclusion"] != "success":
         step_problems.append(f"job conclusion is {record['conclusion']!r}, not success")
-    return ("harness", step_problems) if step_problems else (None, [])
+    # Identity mismatches never relax the scan verdict, and the scan outcome
+    # never hides the mismatch: both stay in the typed refusal.
+    problems = binding_problems + step_problems
+    return ("harness", problems) if problems else (None, [])
