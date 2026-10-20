@@ -235,9 +235,19 @@ def _failure_with_class(
     )
 
 
+failure_with_class = _failure_with_class
+qualification_bundle = _qualification_bundle
+qualification_inventory = _qualification_inventory
+qualification_result = _qualification_result
+
+
 __all__ = [
     "_failure_with_class",
     "_qualification_bundle",
     "_qualification_inventory",
     "_qualification_result",
+    "failure_with_class",
+    "qualification_bundle",
+    "qualification_inventory",
+    "qualification_result",
 ]
