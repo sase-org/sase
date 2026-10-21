@@ -80,6 +80,85 @@ identity or digest mismatches, and missing or corrupt payloads are reported and 
 The command never reads or changes another owner's subtree, preserves the snapshot and
 payload bytes, and becomes a no-op after a successful repair.
 
+## Stale-replay recovery
+
+This is a finite recovery helper for a sidecar that is one unpublished commit ahead of a
+remote that has also moved. It is not part of a normal drain. Use it when a local HEAD
+(historically Apollo bob-cli `2abeff3f9`) cannot rebase onto upstream because stale
+derived pages conflict, while unique owner snapshots, chats, and `files/objects` blobs
+still need to be published.
+
+Work only in the hidden machine clone from `sase repo open`. Do not reset a primary
+nested sidecar. The helper acquires the existing agents-sync lock, fetches, and rechecks
+HEAD before it writes anything into the backup directory.
+
+### Preconditions
+
+- The project's hidden agents clone exists and has an upstream.
+- Local `HEAD` is the unpublished replay you intend to discard after backup. Pass that
+  SHA as `--expected-head` (full or unique prefix).
+- `--backup-dir` is an empty directory outside the clone. The helper refuses to reuse a
+  backup that belongs to a different HEAD.
+- Unique owner content lives in snapshots, `agents/*/chat.md` / `prompt.md`, and
+  untracked `files/objects/sha256/<xx>/<digest>` blobs. Browsing pages (`README.md`,
+  session pages, and hood README files) are treated as regenerable.
+
+### Commands
+
+Report first. This inventories unpublished paths, classifies them through
+`sase_core_rs`, writes a verified bundle of `@{upstream}..HEAD`, copies owner content
+and pending objects, and records checksums plus `revisions.json`. It does not reset or
+publish:
+
+```bash
+.venv/bin/python tools/agents_publication_recover_replay \
+    --project bob-cli \
+    --expected-head 2abeff3f9 \
+    --backup-dir /tmp/bob-cli-replay
+```
+
+Inspect the JSON report: `ahead` / `behind`, `owner_content_paths`,
+`archive_object_paths`, `unknown_paths`, and `refused_divergences`. `stage` must be
+`verified`. Confirm `revisions.json` names the expected HEAD and that every checksum
+other than `progress.json` matches. If `unknown_paths` or `refused_divergences` is
+non-empty, stop. Same-run bytes that are not a byte prefix of each other have no
+lossless merge; the backup stays intact.
+
+Apply with the same backup directory and the same expected HEAD. Apply refuses before
+mutation when HEAD moved, the backup checksums fail, or content cannot be reconciled:
+
+```bash
+.venv/bin/python tools/agents_publication_recover_replay \
+    -p bob-cli -H 2abeff3f9 -b /tmp/bob-cli-replay --apply
+```
+
+Apply aborts any rebase, `git reset --hard @{upstream}`, restores pending objects, then
+republishes preserved hoods through `sync_project_locked`. Browsing pages are rebuilt
+from the merged owner snapshot. Unique runs from both the unpublished commit and current
+upstream are kept. `files/objects` is never cleaned.
+
+Rerunning `--apply` with the same backup resumes an interrupted mutation (`stage`
+`reset` or `replaying`) without rewriting the backup, and reports `already_complete`
+once `stage` is `complete`.
+
+### Postconditions
+
+- Sidecar `HEAD` is a descendant of the fetched upstream, with unique local chats,
+  session members, and pending objects committed and pushed.
+- Remote `load_validated_publication` succeeds. Owner-manifest `files` lists are slim.
+- Stale local browsing text is gone; regenerated pages reflect the merged snapshot.
+- The backup directory still has the unpublished bundle, checksums, and preserved
+  copies. Repeating apply is a no-op.
+
+### Rollback
+
+If apply refuses, the clone is unchanged and the backup is complete. If apply fails
+after `stage` `reset` or `replaying`, rerun the same `--apply` command; do not create a
+second backup directory. To restore the unpublished commit instead of continuing,
+`git fetch --update-head-ok <backup>/unpublished.bundle` in the hidden clone and reset
+to that commit only after confirming the bundle verifies. Leave `files/objects` in place
+either way.
+
 ## Related
 
 - [Contribute](index.md) — the section hub.

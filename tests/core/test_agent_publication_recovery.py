@@ -23,10 +23,23 @@ from sase.core.agent_publication_recovery import (
     PUBLICATION_KIND_SESSION,
     PUBLICATION_LIFECYCLE_ACTIVE,
     PUBLICATION_RECOVERY_WIRE_SCHEMA_VERSION,
+    REPLAY_APPLY_ACTION_APPLY,
+    REPLAY_APPLY_ACTION_REFUSE,
+    REPLAY_APPLY_ACTION_REPORT,
+    REPLAY_BYTES_KEEP_CURRENT,
+    REPLAY_BYTES_REFUSE,
+    REPLAY_HOOD_ACTION_MERGE,
+    REPLAY_PATH_ARCHIVE_OBJECT,
+    REPLAY_PATH_BROWSING,
+    REPLAY_PATH_OWNER_CONTENT,
     classify_deferred_prompt_obligation,
     classify_publication_error,
+    classify_replay_paths,
     decide_publication_failure_accounting,
     decide_publication_request_completion,
+    decide_replay_apply,
+    decide_replay_byte_divergence,
+    decide_replay_hood_merge,
     select_publication_drain,
     select_publication_retries,
 )
@@ -349,3 +362,86 @@ def test_python_completion_helper_reads_snapshot_and_pages(tmp_path: Path) -> No
 
     plant_fulfilled_publication(sidecar, has_prompt_file=True)
     assert snapshot_prompt_file_present(target, item, owner) is True
+
+
+def test_classify_replay_paths_separates_browsing_owner_and_objects() -> None:
+    classified = classify_replay_paths(
+        (
+            "README.md",
+            "agents/alice.athena.foo/chat.md",
+            "files/objects/sha256/ab/abc",
+            "mystery.bin",
+        )
+    )
+
+    assert classified.schema_version == PUBLICATION_RECOVERY_WIRE_SCHEMA_VERSION
+    assert classified.browsing == ("README.md",)
+    assert classified.owner_content == ("agents/alice.athena.foo/chat.md",)
+    assert classified.archive_object == ("files/objects/sha256/ab/abc",)
+    assert classified.unknown == ("mystery.bin",)
+    assert dict(classified.entries)["README.md"] == REPLAY_PATH_BROWSING
+    assert dict(classified.entries)["agents/alice.athena.foo/chat.md"] == (
+        REPLAY_PATH_OWNER_CONTENT
+    )
+    assert dict(classified.entries)["files/objects/sha256/ab/abc"] == (
+        REPLAY_PATH_ARCHIVE_OBJECT
+    )
+
+
+def test_replay_byte_divergence_requires_a_prefix_proof() -> None:
+    keep = decide_replay_byte_divergence(b"hello world", b"hello")
+    assert keep.action == REPLAY_BYTES_KEEP_CURRENT
+    assert keep.retained
+
+    refuse = decide_replay_byte_divergence(b"aaaaaaaaaa", b"bbbb")
+    assert refuse.action == REPLAY_BYTES_REFUSE
+    assert not refuse.retained
+
+
+def test_replay_apply_admits_verified_backup_and_refuses_head_drift() -> None:
+    head = "d7e06b77b42d89ecf4bb1538c6f89c6fe700124e"
+    merge = decide_replay_hood_merge(
+        local_owner_username="alice",
+        local_owner_machine="athena",
+        local_hood="foo",
+        upstream_owner_username="alice",
+        upstream_owner_machine="athena",
+        upstream_hood="foo",
+    )
+    assert merge.action == REPLAY_HOOD_ACTION_MERGE
+
+    report = decide_replay_apply(
+        apply=False,
+        observed_head=head,
+        expected_head=head,
+        backup_complete=False,
+        backup_verified=False,
+        unreconcilable=False,
+        already_complete=False,
+        mutation_started=False,
+    )
+    assert report.action == REPLAY_APPLY_ACTION_REPORT
+
+    admitted = decide_replay_apply(
+        apply=True,
+        observed_head=head,
+        expected_head=head,
+        backup_complete=True,
+        backup_verified=True,
+        unreconcilable=False,
+        already_complete=False,
+        mutation_started=False,
+    )
+    assert admitted.action == REPLAY_APPLY_ACTION_APPLY
+
+    drifted = decide_replay_apply(
+        apply=True,
+        observed_head="a" * 40,
+        expected_head=head,
+        backup_complete=True,
+        backup_verified=True,
+        unreconcilable=False,
+        already_complete=False,
+        mutation_started=False,
+    )
+    assert drifted.action == REPLAY_APPLY_ACTION_REFUSE

@@ -1,0 +1,120 @@
+#!/usr/bin/env python3
+"""Backup-first stale-replay recovery for one agents sidecar.
+
+Without ``--apply``, this inventories unpublished owner data, writes a
+verified backup, and reports the proposed recovery. ``--apply`` requires
+the expected local HEAD and that backup, then resets the unpublished
+replay and republishes unique owner content through the sidecar
+transaction.
+
+Usage:
+    .venv/bin/python tools/agents_publication_recover_replay \\
+        --project bob-cli --expected-head 2abeff3f9 --backup-dir /tmp/bob-cli-replay
+    .venv/bin/python tools/agents_publication_recover_replay \\
+        -p bob-cli -H 2abeff3f9 -b /tmp/bob-cli-replay --apply
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT / "src") not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT / "src"))
+
+from sase.agents_sync.io import AgentsSyncFormatError  # noqa: E402
+from sase.agents_sync.publication_replay_recovery import (  # noqa: E402
+    ReplayRecoveryReport,
+    recover_stale_replay,
+)
+
+
+def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description=(
+            "Back up unpublished sidecar owner data and optionally replay it "
+            "onto current upstream without restoring stale browsing pages."
+        )
+    )
+    parser.add_argument(
+        "-a",
+        "--apply",
+        action="store_true",
+        help=(
+            "Reset the unpublished replay and republish preserved owner data. "
+            "Requires --expected-head to match the locked clone and a verified "
+            "complete backup."
+        ),
+    )
+    parser.add_argument(
+        "-b",
+        "--backup-dir",
+        required=True,
+        help="Directory that stores the verified bundle, checksums, and progress.",
+    )
+    parser.add_argument(
+        "-H",
+        "--expected-head",
+        required=True,
+        help="Full or abbreviated SHA that must still be the sidecar HEAD before mutation.",
+    )
+    parser.add_argument(
+        "-p",
+        "--project",
+        default=None,
+        help="Project whose hidden agents clone should be recovered (default: current).",
+    )
+    return parser.parse_args(argv)
+
+
+def _report_payload(report: ReplayRecoveryReport) -> dict[str, object]:
+    outcome = report.outcome
+    return {
+        "project": report.project_key,
+        "action": report.action,
+        "stage": report.stage,
+        "apply": report.apply,
+        "already_complete": report.already_complete,
+        "observed_head": report.observed_head,
+        "expected_head": report.expected_head,
+        "upstream": report.upstream,
+        "ahead": report.ahead,
+        "behind": report.behind,
+        "error": report.error,
+        "browsing_paths": list(report.browsing_paths),
+        "owner_content_paths": list(report.owner_content_paths),
+        "archive_object_paths": list(report.archive_object_paths),
+        "unknown_paths": list(report.unknown_paths),
+        "preserved_hoods": list(report.preserved_hoods),
+        "refused_divergences": list(report.refused_divergences),
+        "backup_dir": report.backup_dir,
+        "committed": None if outcome is None else outcome.committed,
+        "pushed": None if outcome is None else outcome.pushed,
+    }
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = _parse_args(argv)
+    try:
+        report = recover_stale_replay(
+            project=args.project,
+            expected_head=args.expected_head,
+            backup_dir=Path(args.backup_dir),
+            apply=bool(args.apply),
+        )
+    except AgentsSyncFormatError as exc:
+        print(str(exc), file=sys.stderr)
+        return 2
+    payload = _report_payload(report)
+    print(json.dumps(payload, indent=2, sort_keys=True))
+    if report.error:
+        print(report.error, file=sys.stderr)
+        return 2
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
