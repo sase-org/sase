@@ -373,11 +373,18 @@ def _cached_previous_snapshot(
     cached = cache.get(key)
     if cached is None:
         return None
-    if (
-        cached.owner != owner
-        or cached.local_hood != hood
-        or content_digest(v2_json_bytes(cached.to_json_dict())) != entry.digest
-    ):
+    if cached.owner != owner or cached.local_hood != hood:
+        return None
+    if content_digest(v2_json_bytes(cached.to_json_dict())) == entry.digest:
+        return cached
+    # On-disk snapshot bytes may be non-canonical, so a canonical
+    # re-serialization can mismatch a valid manifest digest. Fall back to the
+    # on-disk bytes before discarding the cached snapshot.
+    try:
+        raw = (repo_root / snapshot_path(owner, hood)).read_bytes()
+    except OSError:
+        return None
+    if content_digest(raw) != entry.digest:
         return None
     return cached
 

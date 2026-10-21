@@ -88,14 +88,23 @@ def load_validated_publication(
         for hood, entry in manifest.hoods:
             key = (manifest.owner.username, manifest.owner.machine_name, hood)
             snapshot = overrides.get(key)
+            from_base = False
             if snapshot is None:
                 snapshot = base.get(key)
+                from_base = snapshot is not None
             path = snapshot_path(manifest.owner, hood)
-            raw = (
-                v2_json_bytes(snapshot.to_json_dict())
-                if snapshot is not None
-                else _payload_bytes(repo_root, payload, path)
-            )
+            if from_base:
+                # Reused snapshots were validated when they entered the cache.
+                # The manifest digest covers the on-disk bytes, which may be
+                # non-canonical, so verify those bytes rather than a canonical
+                # re-serialization of the cached snapshot.
+                raw = _payload_bytes(repo_root, payload, path)
+            else:
+                raw = (
+                    v2_json_bytes(snapshot.to_json_dict())
+                    if snapshot is not None
+                    else _payload_bytes(repo_root, payload, path)
+                )
             if content_digest(raw) != entry.digest:
                 raise AgentsSyncFormatError(
                     f"snapshot digest mismatch for {'.'.join(key)!r}"

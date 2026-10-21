@@ -47,6 +47,11 @@ def historical_associations(
     )
     if result.returncode != 0:
         return HistoricalAssociations({}, ())
+    # Resolve the reserved agent-session set once for the whole build. The
+    # per-footer lookup below used to rebuild it from the full name registry
+    # on every commit, which dominated scoped inventory builds. A registry
+    # change is observed by the next inventory build.
+    reserved_agent_session_names = _reserved_agent_session_names_once()
     exact_runs: dict[str, dict[str, CommitRecord]] = defaultdict(dict)
     lanes: dict[str, dict[str, CommitRecord]] = defaultdict(dict)
     agent_session_lanes: dict[str, bool] = {}
@@ -84,7 +89,11 @@ def historical_associations(
             exact_runs[local_name][sha] = commit
             continue
         try:
-            agent_ref = sase_agent_ref_for_name(local_name, identity)
+            agent_ref = sase_agent_ref_for_name(
+                local_name,
+                identity,
+                reserved_agent_session_names=reserved_agent_session_names,
+            )
         except PublicationDrainTimedOut:
             raise
         except Exception:  # noqa: BLE001 - best-effort history boundary.
@@ -120,6 +129,23 @@ def historical_associations(
         },
         lane_commits,
     )
+
+
+def _reserved_agent_session_names_once() -> set[str] | None:
+    """Return the reserved agent-session set for one inventory build.
+
+    Best-effort display-tier read: it never forces a registry rebuild or
+    takes the allocation lock. ``None`` preserves the per-call fallback in
+    :func:`sase.sase_agent.sase_agent_ref_for_name` when the registry is
+    unavailable.
+    """
+
+    try:
+        from sase.agent.names import get_reserved_agent_session_names_for_display
+
+        return get_reserved_agent_session_names_for_display()
+    except Exception:  # noqa: BLE001 - best-effort history boundary.
+        return None
 
 
 def _sorted_commit_rows(

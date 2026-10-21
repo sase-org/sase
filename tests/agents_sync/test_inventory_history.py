@@ -6,7 +6,7 @@ import subprocess
 
 import pytest
 
-from sase.agents_sync import inventory, inventory_models
+from sase.agents_sync import inventory, inventory_history, inventory_models
 from sase.agents_sync.models import CommitRecord
 from sase.agents_sync.publication import reconcile_agent_hoods
 from sase.agents_sync.v2_io import read_hood_snapshot
@@ -461,3 +461,75 @@ def test_inventory_selection_excludes_and_diagnoses_classifier_errors(
     assert runs.diagnostics == (
         "/artifacts/bad: excluded from agent hood inventory: bad hood membership",
     )
+
+
+def test_historical_associations_builds_reserved_set_once(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import sase.agent.names as agent_names
+
+    names = tuple(f"perf.agent{index}" for index in range(50)) + ("perf.session",)
+    builds: list[set[str]] = []
+
+    def counting() -> set[str]:
+        builds.append({"perf.session"})
+        return {"perf.session"}
+
+    monkeypatch.setattr(
+        agent_names, "get_reserved_agent_session_names_for_display", counting
+    )
+
+    def runner(
+        _cwd: Path,
+        args: list[str],
+        *,
+        network: bool = False,
+        op: str = "",
+    ) -> subprocess.CompletedProcess[str]:
+        del network, op
+        if args[0] == "log":
+            return subprocess.CompletedProcess(args, 0, git_log(names), "")
+        return subprocess.CompletedProcess(args, 1, "", "unused")
+
+    owner = AgentOwnerIdentity("alice", "athena")
+    identity = AgentIdentitySnapshot(owner)
+    target = make_target(tmp_path)
+    result = inventory_history.historical_associations(target, identity, runner)
+
+    # One registry snapshot per inventory build, not one per footer.
+    assert len(builds) == 1
+    sessions = {lane.local_name: lane.is_agent_session for lane in result.lane_commits}
+    assert sessions["perf.session"] is True
+    assert sessions["perf.agent0"] is False
+
+    # A registry change is observed by the next build, never memoized.
+    def counting_changed() -> set[str]:
+        builds.append({"perf.session", "perf.other"})
+        return {"perf.session", "perf.other"}
+
+    monkeypatch.setattr(
+        agent_names,
+        "get_reserved_agent_session_names_for_display",
+        counting_changed,
+    )
+    other_names = names + ("perf.other",)
+
+    def other_runner(
+        _cwd: Path,
+        args: list[str],
+        *,
+        network: bool = False,
+        op: str = "",
+    ) -> subprocess.CompletedProcess[str]:
+        del network, op
+        if args[0] == "log":
+            return subprocess.CompletedProcess(args, 0, git_log(other_names), "")
+        return subprocess.CompletedProcess(args, 1, "", "unused")
+
+    later = inventory_history.historical_associations(target, identity, other_runner)
+    assert len(builds) == 2
+    later_sessions = {
+        lane.local_name: lane.is_agent_session for lane in later.lane_commits
+    }
+    assert later_sessions["perf.other"] is True

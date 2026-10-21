@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -16,7 +17,9 @@ from sase.agents_sync.publication_planning import (
     shared_targeted_planning,
 )
 from sase.agents_sync.publication_validation import read_hood_snapshot
-from sase.agents_sync.v2_io import v2_json_bytes
+from sase.agents_sync.v2_io import content_digest, v2_json_bytes
+from sase.agents_sync.v2_io import owner_manifest_path as _owner_manifest_path
+from sase.agents_sync.v2_io import read_owner_manifest as _read_owner_manifest
 from sase.agents_sync.v2_models import (
     V2OwnerHoodEntry,
     V2OwnerManifest,
@@ -302,3 +305,76 @@ def test_targeted_shares_validation_within_transaction(
     # The second plan in one transaction reuses validated snapshots.
     assert shared_calls_total < outside_calls_total
     assert shared_calls_first == outside_calls_first
+
+
+def _store_snapshot_non_canonical(repo: Path, owner: AgentOwnerIdentity) -> None:
+    """Rewrite one hood snapshot with valid but non-canonical JSON bytes.
+
+    Legacy publishers wrote pretty-printed snapshots whose manifest digest
+    covers those stored bytes rather than the canonical re-serialization.
+    """
+
+    snapshot_file = (
+        repo
+        / f"users/{owner.username}/machines/{owner.machine_name}"
+        / "hoods/other/snapshot.json"
+    )
+    snapshot = read_hood_snapshot(snapshot_file)
+    non_canonical = (
+        json.dumps(snapshot.to_json_dict(), indent=2, sort_keys=True) + "\n"
+    ).encode("utf-8")
+    assert content_digest(non_canonical) != content_digest(
+        v2_json_bytes(snapshot.to_json_dict())
+    )
+    snapshot_file.write_bytes(non_canonical)
+
+    project = V2ProjectIdentity("proj", "Project")
+    entries = dict(_read_owner_manifest(repo, owner, project).by_hood())
+    old = entries["other"]
+    entries["other"] = V2OwnerHoodEntry(
+        content_digest(non_canonical),
+        old.files,
+        old.run_count,
+        old.agent_session_count,
+    )
+    patched = V2OwnerManifest(owner, project, tuple(sorted(entries.items())))
+    (repo / _owner_manifest_path(owner)).write_bytes(
+        v2_json_bytes(patched.to_json_dict())
+    )
+
+
+def test_targeted_reuses_non_canonical_foreign_snapshot(tmp_path: Path) -> None:
+    target = _target(tmp_path)
+    repo = target.sidecar_path
+    repo.mkdir()
+    owner = AgentOwnerIdentity("alice", "athena")
+    inventory = _inventory(owner)
+    reconcile_agent_hoods(target, repo, identity=_identity(), inventory=inventory)
+    bob_identity, bob_inventory = _bob_inventory()
+    reconcile_agent_hoods(target, repo, identity=bob_identity, inventory=bob_inventory)
+    _store_snapshot_non_canonical(repo, AgentOwnerIdentity("bob", "zeus"))
+
+    with shared_targeted_planning():
+        plan_targeted_hoods(target, repo, inventory, ("foo",), owner)
+        # The second plan serves bob's snapshot from the shared cache; its
+        # manifest digest covers the stored non-canonical bytes.
+        second, _ = plan_targeted_hoods(target, repo, inventory, ("zap",), owner)
+    outside, _ = plan_targeted_hoods(target, repo, inventory, ("zap",), owner)
+
+    assert second == outside
+
+
+def test_targeted_rejects_tampered_cached_snapshot(tmp_path: Path) -> None:
+    target = _target(tmp_path)
+    repo = target.sidecar_path
+    repo.mkdir()
+    owner = AgentOwnerIdentity("alice", "athena")
+    inventory = _inventory(owner)
+    reconcile_agent_hoods(target, repo, identity=_identity(), inventory=inventory)
+
+    with shared_targeted_planning():
+        plan_targeted_hoods(target, repo, inventory, ("foo",), owner)
+        tampered = repo / "users/alice/machines/athena/hoods/work/snapshot.json"
+        tampered.write_bytes(tampered.read_bytes() + b" ")
+        with pytest.raises(AgentsSyncFormatError, match="digest mismatch"):
+            plan_targeted_hoods(target, repo, inventory, ("zap",), owner)
