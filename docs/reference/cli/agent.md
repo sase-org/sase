@@ -890,26 +890,28 @@ Arguments:
 ## `sase agent sync`
 
 ```text
-usage: sase agent sync [-h] [-c] [-d] [-j] [-p PROJECT] [-r] [-g] [-m] [-q]
-                       [-t]
+usage: sase agent sync [-h] [-c] [-d] [-j] [-p PROJECT] [-r] [-g] [-m]
+                       [-e CLASS] [-l N] [-q] [-t]
 ```
 
 Without flags, pull enabled agents sidecars, publish locally commit-eligible hoods, restore deferred prompt archives, push, and drain publication retries. --check is local and network-free; --check --refresh fetches remote refs before computing ahead/behind.
 
 Options:
 
-| Option                            | Description                                                                                                                        | Default |
-| --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- | ------- |
-| `-c`, `--check`                   | Read cached sidecar status and publication diagnostics without network, publication, commit, or push                               | `false` |
-| `-d`, `--drop-retired`            | Drop publication requests that were retired as unpublishable, reporting how many were dropped and why                              | `false` |
-| `-h`, `--help`                    | show this help message and exit                                                                                                    | —       |
-| `-j`, `--json`                    | Emit stable machine-readable JSON instead of a colored table                                                                       | `false` |
-| `-p PROJECT`, `--project PROJECT` | Limit to a project name or alias (repeatable)                                                                                      | —       |
-| `-r`, `--refresh`                 | With --check, fetch remote refs before computing sidecar ahead/behind counts                                                       | `false` |
-| `-g`, `--repair-digests`          | Re-sign locally owned hood-snapshot file references that have drifted from their on-disk payload, instead of running a normal sync | `false` |
-| `-m`, `--repair-manifest`         | Restore missing owner-manifest hoods and normalize verified stale explicit file lists, instead of running a normal sync            | `false` |
-| `-q`, `--retry-quarantined`       | Clear quarantined publication requests and retry them during this full sync                                                        | `false` |
-| `-t`, `--retry-retired`           | Revive this project's retired agent-publication requests once, then run full reconciliation; requires --project                    | `false` |
+| Option                                  | Description                                                                                                                                                                                                                         | Default |
+| --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
+| `-c`, `--check`                         | Read cached sidecar status and publication diagnostics without network, publication, commit, or push                                                                                                                                | `false` |
+| `-d`, `--drop-retired`                  | Drop publication requests that were retired as unpublishable, reporting how many were dropped and why                                                                                                                               | `false` |
+| `-h`, `--help`                          | show this help message and exit                                                                                                                                                                                                     | —       |
+| `-j`, `--json`                          | Emit stable machine-readable JSON instead of a colored table                                                                                                                                                                        | `false` |
+| `-p PROJECT`, `--project PROJECT`       | Limit to a project name or alias (repeatable)                                                                                                                                                                                       | —       |
+| `-r`, `--refresh`                       | With --check, fetch remote refs before computing sidecar ahead/behind counts                                                                                                                                                        | `false` |
+| `-g`, `--repair-digests`                | Re-sign locally owned hood-snapshot file references that have drifted from their on-disk payload, instead of running a normal sync                                                                                                  | `false` |
+| `-m`, `--repair-manifest`               | Restore missing owner-manifest hoods and normalize verified stale explicit file lists, instead of running a normal sync                                                                                                             | `false` |
+| `-e CLASS`, `--retry-error-class CLASS` | With --retry-limit, select stopped requests with this error class; repeat to accept several classes (choices: `index_lock`, `lock_busy`, `manifest_mismatch`, `other`, `rebase_conflict`, `timeout`, `unknown`, `unstaged_changes`) | —       |
+| `-l N`, `--retry-limit N`               | Retry at most N distinct hood requests for exactly one project without full reconciliation; requires --retry-quarantined or --retry-retired                                                                                         | —       |
+| `-q`, `--retry-quarantined`             | Clear quarantined requests for full sync; with --retry-limit, select a bounded hood-request batch                                                                                                                                   | `false` |
+| `-t`, `--retry-retired`                 | Revive this project's retired hood requests for full reconciliation, or select a bounded batch with --retry-limit; requires --project                                                                                               | `false` |
 
 ## `sase agent tab`
 

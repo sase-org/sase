@@ -11,6 +11,7 @@ from sase.agents_sync.commit_publication import (
     _publish_queued_locked,
     publish_committed_agent_hood,
 )
+from sase.agents_sync.commit_publication_transaction import DrainResult
 from sase.agents_sync.git import run_git
 from sase.agents_sync.inventory import ProjectHoodInventory
 from sase.agents_sync.io import AgentsSyncFormatError
@@ -88,6 +89,57 @@ def test_committed_publication_records_a_retryable_request_when_git_fails(
     assert request.primary_revision == "a" * 40
     assert request.attempts == 0
     assert request.last_error is None
+
+
+def test_bounded_drain_publishes_only_the_supplied_logical_keys(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "state"))
+    target, _remote = setup_target(tmp_path)
+    owner = AgentOwnerIdentity("alice", "athena")
+    selected = enqueue_agent_publication(
+        AgentPublicationOutboxItem(
+            project_key="proj",
+            project="Project",
+            local_agent="selected",
+            global_agent="alice.athena.selected",
+            primary_revision="a" * 40,
+            local_hood="selected",
+        )
+    )
+    other = enqueue_agent_publication(
+        AgentPublicationOutboxItem(
+            project_key="proj",
+            project="Project",
+            local_agent="other",
+            global_agent="alice.athena.other",
+            primary_revision="b" * 40,
+            local_hood="other",
+        )
+    )
+    seen: list[tuple[tuple[str, str], ...]] = []
+
+    def publish(_target, _owner, _runner, requests, **_kwargs):
+        seen.append(tuple(item.logical_key for item in requests))
+        return DrainResult(drained=1)
+
+    monkeypatch.setattr(
+        "sase.agents_sync.git_sync.clean_publication_worktree",
+        lambda *_args, **_kwargs: None,
+    )
+    monkeypatch.setattr(commit_publication, "publish_queued_transaction", publish)
+
+    result = _publish_queued_locked(
+        target,
+        owner,
+        run_git,
+        selected_keys=(selected.logical_key,),
+    )
+
+    assert result.drained == 1
+    assert seen == [(selected.logical_key,)]
+    assert other.logical_key not in seen[0]
 
 
 def test_failed_targeted_publish_cleans_uncommitted_payload(

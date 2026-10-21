@@ -472,6 +472,7 @@ _VALUE_HINT_TABLE.update(
             "port",
             "push_retry_limit",
             "remove",
+            "retry_limit",
             "seq",
             "settle_ms",
             "tail_lines",

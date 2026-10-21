@@ -12,6 +12,7 @@ from sase.agents_sync.publication_outbox_models import (
 )
 from sase.agents_sync.publication_outbox_operations import (
     DEFAULT_PUBLICATION_MAX_ATTEMPTS,
+    PublicationDrainBatchSelection,
     acknowledge_agent_publications,
     clear_quarantined_agent_publications,
     configured_publication_max_attempts,
@@ -19,6 +20,7 @@ from sase.agents_sync.publication_outbox_operations import (
     enqueue_agent_publication,
     publication_quarantine_diagnostics,
     revive_agent_publications,
+    select_and_revive_agent_publications,
     update_agent_publications,
 )
 from sase.agents_sync.publication_outbox_serialization import (
@@ -38,6 +40,7 @@ __all__ = [
     "PUBLICATION_OUTBOX_SCHEMA_VERSION",
     "PUBLICATION_RETRY_COMMAND",
     "AgentPublicationOutboxItem",
+    "PublicationDrainBatchSelection",
     "PublicationLogicalKey",
     "PublicationOutboxDocument",
     "acknowledge_agent_publications",
@@ -49,6 +52,7 @@ __all__ = [
     "publication_quarantine_diagnostics",
     "publication_request_subject",
     "revive_agent_publications",
+    "select_and_revive_agent_publications",
     "snapshot_agent_publications_from_path",
     "snapshot_publication_document_from_path",
     "update_agent_publications",

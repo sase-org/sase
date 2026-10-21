@@ -3575,7 +3575,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "d67370e4d79511c7",
+            "description_digest": "a19acfa5dc1d02b4",
             "hidden": false,
             "mutex_groups": [],
             "name": "sync",
@@ -3707,6 +3707,47 @@
                 ],
                 "takes_value": false,
                 "value_hint": null
+              },
+              {
+                "choices": [
+                  "index_lock",
+                  "lock_busy",
+                  "manifest_mismatch",
+                  "other",
+                  "rebase_conflict",
+                  "timeout",
+                  "unknown",
+                  "unstaged_changes"
+                ],
+                "default": null,
+                "dest": "retry_error_class",
+                "hidden": false,
+                "kind": null,
+                "metavar": "CLASS",
+                "repeatable": true,
+                "required": false,
+                "strings": [
+                  "-e",
+                  "--retry-error-class"
+                ],
+                "takes_value": true,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": null,
+                "dest": "retry_limit",
+                "hidden": false,
+                "kind": null,
+                "metavar": "N",
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-l",
+                  "--retry-limit"
+                ],
+                "takes_value": true,
+                "value_hint": "int"
               },
               {
                 "choices": null,

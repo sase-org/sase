@@ -189,6 +189,23 @@ def publish_committed_agent_hood(
     )
 
 
+def drain_selected_agent_publications(
+    project_key: str,
+    selected_keys: tuple[tuple[str, str], ...],
+    *,
+    git_runner: GitRunner = run_git,
+) -> _CommitPublicationOutcome:
+    """Drain only the supplied active requests through targeted publication."""
+
+    if not selected_keys:
+        return _CommitPublicationOutcome()
+    return _drain_agent_publications(
+        project_key,
+        git_runner=git_runner,
+        selected_keys=selected_keys,
+    )
+
+
 def _enqueue_committed_agent_publication(
     local_agent: str,
     primary_revision: str,
@@ -280,6 +297,7 @@ def _drain_agent_publications(
     *,
     git_runner: GitRunner = run_git,
     preferred_key: tuple[str, str] | None = None,
+    selected_keys: tuple[tuple[str, str], ...] | None = None,
 ) -> _CommitPublicationOutcome:
     """Drain active agent-hood requests for one project under its sidecar lock."""
 
@@ -367,6 +385,7 @@ def _drain_agent_publications(
                     git_runner,
                     timer=timer,
                     preferred_key=preferred_key,
+                    selected_keys=selected_keys,
                 )
         except PublicationDrainTimedOut as exc:
             timer.alarm_fired = True
@@ -597,10 +616,14 @@ def _publish_queued_locked(
     git_runner: GitRunner,
     timer: DrainTiming | None = None,
     preferred_key: tuple[str, str] | None = None,
+    selected_keys: tuple[tuple[str, str], ...] | None = None,
 ) -> DrainResult:
     from sase.agents_sync import git_sync
 
     requests = _active_agent_publications(target.project_key)
+    if selected_keys is not None:
+        selected = frozenset(selected_keys)
+        requests = tuple(item for item in requests if item.logical_key in selected)
     if timer is not None:
         timer.active_requests = len(requests)
         timer.distinct_hoods = len({request.local_hood for request in requests})
@@ -618,28 +641,34 @@ def _publish_queued_locked(
         }
         for item in requests
     )
-    selection: PublicationDrainSelection | None
-    try:
-        selection = select_publication_drain(
-            rows,
-            limit=DEFAULT_COMMIT_DRAIN_BATCH_LIMIT,
-            preferred_key=(
-                {"global_agent": preferred_key[0], "primary_revision": preferred_key[1]}
-                if preferred_key is not None
-                else None
-            ),
-        )
-    except Exception:
-        selection = None
-    if selection is not None:
-        _selected_active = tuple(item.logical_key for item in selection.active)
-        _selected_revive = tuple(item.logical_key for item in selection.revive)
-        selected = frozenset((*_selected_active, *_selected_revive))
-        if not selected:
-            return DrainResult()
-        requests = tuple(item for item in requests if item.logical_key in selected)
-        if not requests:
-            return DrainResult()
+    if selected_keys is None:
+        selection: PublicationDrainSelection | None
+        try:
+            selection = select_publication_drain(
+                rows,
+                limit=DEFAULT_COMMIT_DRAIN_BATCH_LIMIT,
+                preferred_key=(
+                    {
+                        "global_agent": preferred_key[0],
+                        "primary_revision": preferred_key[1],
+                    }
+                    if preferred_key is not None
+                    else None
+                ),
+            )
+        except Exception:
+            selection = None
+        if selection is not None:
+            selected = frozenset(
+                item.logical_key for item in (*selection.active, *selection.revive)
+            )
+            if not selected:
+                return DrainResult()
+            requests = tuple(item for item in requests if item.logical_key in selected)
+            if not requests:
+                return DrainResult()
+    elif not requests:
+        return DrainResult()
     logical_keys = tuple(item.logical_key for item in requests)
     if timer is not None:
         timer.active_keys = logical_keys
@@ -824,6 +853,7 @@ def _current_project() -> str | None:
 
 __all__ = [
     "PlanHeaderRefreshOutcome",
+    "drain_selected_agent_publications",
     "publish_committed_agent_hood",
     "refresh_committed_plan_header",
     "resolve_publication_project_key",

@@ -4,6 +4,39 @@ from __future__ import annotations
 
 import argparse
 
+from sase.core.agent_publication_recovery import (
+    PUBLICATION_ERROR_INDEX_LOCK,
+    PUBLICATION_ERROR_LOCK_BUSY,
+    PUBLICATION_ERROR_MANIFEST_MISMATCH,
+    PUBLICATION_ERROR_OTHER,
+    PUBLICATION_ERROR_REBASE_CONFLICT,
+    PUBLICATION_ERROR_TIMEOUT,
+    PUBLICATION_ERROR_UNKNOWN,
+    PUBLICATION_ERROR_UNSTAGED_CHANGES,
+)
+
+
+_PUBLICATION_ERROR_CLASSES = (
+    PUBLICATION_ERROR_INDEX_LOCK,
+    PUBLICATION_ERROR_LOCK_BUSY,
+    PUBLICATION_ERROR_MANIFEST_MISMATCH,
+    PUBLICATION_ERROR_OTHER,
+    PUBLICATION_ERROR_REBASE_CONFLICT,
+    PUBLICATION_ERROR_TIMEOUT,
+    PUBLICATION_ERROR_UNKNOWN,
+    PUBLICATION_ERROR_UNSTAGED_CHANGES,
+)
+
+
+def _positive_int(raw: str) -> int:
+    try:
+        value = int(raw)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError("must be a positive integer") from exc
+    if value < 1:
+        raise argparse.ArgumentTypeError("must be a positive integer")
+    return value
+
 
 def register_agent_sync_parser(agents_sub: argparse._SubParsersAction) -> None:
     """Register the 'sase agent sync' subcommand."""
@@ -76,12 +109,34 @@ def register_agent_sync_parser(agents_sub: argparse._SubParsersAction) -> None:
         ),
     )
     sync_parser.add_argument(
+        "-e",
+        "--retry-error-class",
+        action="append",
+        choices=_PUBLICATION_ERROR_CLASSES,
+        default=[],
+        metavar="CLASS",
+        help=(
+            "With --retry-limit, select stopped requests with this error class; "
+            "repeat to accept several classes"
+        ),
+    )
+    sync_parser.add_argument(
+        "-l",
+        "--retry-limit",
+        type=_positive_int,
+        metavar="N",
+        help=(
+            "Retry at most N distinct hood requests for exactly one project without "
+            "full reconciliation; requires --retry-quarantined or --retry-retired"
+        ),
+    )
+    sync_parser.add_argument(
         "-q",
         "--retry-quarantined",
         action="store_true",
         help=(
-            "Clear quarantined publication requests and retry them during "
-            "this full sync"
+            "Clear quarantined requests for full sync; with --retry-limit, select "
+            "a bounded hood-request batch"
         ),
     )
     sync_parser.add_argument(
@@ -89,7 +144,7 @@ def register_agent_sync_parser(agents_sub: argparse._SubParsersAction) -> None:
         "--retry-retired",
         action="store_true",
         help=(
-            "Revive this project's retired agent-publication requests once, "
-            "then run full reconciliation; requires --project"
+            "Revive this project's retired hood requests for full reconciliation, "
+            "or select a bounded batch with --retry-limit; requires --project"
         ),
     )

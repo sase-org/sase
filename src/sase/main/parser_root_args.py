@@ -135,6 +135,40 @@ class SaseArgumentParser(argparse.ArgumentParser):
                         f"sase agent sync --retry-retired cannot be used with {flag}"
                     )
         if (
+            getattr(parsed, "command", None) == "agent"
+            and getattr(parsed, "agent_subcommand", None) == "sync"
+        ):
+            retry_limit = getattr(parsed, "retry_limit", None)
+            retry_error_classes = getattr(parsed, "retry_error_class", ())
+            retry_requested = bool(
+                getattr(parsed, "retry_quarantined", False)
+                or getattr(parsed, "retry_retired", False)
+            )
+            if retry_error_classes and retry_limit is None:
+                self.error("sase agent sync --retry-error-class requires --retry-limit")
+            if retry_limit is not None:
+                if not retry_requested:
+                    self.error(
+                        "sase agent sync --retry-limit requires "
+                        "--retry-quarantined or --retry-retired"
+                    )
+                projects = getattr(parsed, "project", ())
+                if len(projects) != 1:
+                    self.error(
+                        "sase agent sync --retry-limit requires exactly one --project"
+                    )
+                for flag, attribute in (
+                    ("--check", "check"),
+                    ("--refresh", "refresh"),
+                    ("--drop-retired", "drop_retired"),
+                    ("--repair-digests", "repair_digests"),
+                    ("--repair-manifest", "repair_manifest"),
+                ):
+                    if getattr(parsed, attribute, False):
+                        self.error(
+                            f"sase agent sync --retry-limit cannot be used with {flag}"
+                        )
+        if (
             getattr(parsed, "command", None) == "init"
             and getattr(parsed, "json", False)
             and not getattr(parsed, "check", False)

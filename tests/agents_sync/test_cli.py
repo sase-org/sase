@@ -53,6 +53,96 @@ def test_parser_accepts_retry_retired_with_project_and_quarantine_combo() -> Non
     assert args.project == ["one"]
 
 
+def test_parser_accepts_bounded_retry_aliases_and_repeated_error_classes() -> None:
+    args = create_parser().parse_args(
+        [
+            "agent",
+            "sync",
+            "-t",
+            "-q",
+            "-l",
+            "2",
+            "-e",
+            "timeout",
+            "--retry-error-class",
+            "lock_busy",
+            "-p",
+            "one",
+        ]
+    )
+
+    assert args.retry_limit == 2
+    assert args.retry_error_class == ["timeout", "lock_busy"]
+
+
+@pytest.mark.parametrize(
+    "argv",
+    (
+        ["--retry-quarantined", "--retry-limit", "0", "--project", "one"],
+        ["--retry-limit", "2", "--project", "one"],
+        ["--retry-quarantined", "--retry-error-class", "timeout", "--project", "one"],
+        ["--retry-quarantined", "--retry-limit", "2"],
+        [
+            "--retry-quarantined",
+            "--retry-limit",
+            "2",
+            "--project",
+            "one",
+            "--project",
+            "two",
+        ],
+        ["--retry-quarantined", "--retry-limit", "2", "--project", "one", "--check"],
+        [
+            "--retry-quarantined",
+            "--retry-limit",
+            "2",
+            "--project",
+            "one",
+            "--check",
+            "--refresh",
+        ],
+        [
+            "--retry-quarantined",
+            "--retry-limit",
+            "2",
+            "--project",
+            "one",
+            "--drop-retired",
+        ],
+        [
+            "--retry-quarantined",
+            "--retry-limit",
+            "2",
+            "--project",
+            "one",
+            "--repair-digests",
+        ],
+        [
+            "--retry-quarantined",
+            "--retry-limit",
+            "2",
+            "--project",
+            "one",
+            "--repair-manifest",
+        ],
+        [
+            "--retry-quarantined",
+            "--retry-limit",
+            "2",
+            "--retry-error-class",
+            "bogus",
+            "--project",
+            "one",
+        ],
+    ),
+)
+def test_parser_rejects_invalid_bounded_retry_options(argv: list[str]) -> None:
+    with pytest.raises(SystemExit) as exc_info:
+        create_parser().parse_args(["agent", "sync", *argv])
+
+    assert exc_info.value.code == 2
+
+
 def test_parser_rejects_retry_retired_without_project() -> None:
     with pytest.raises(SystemExit) as exc_info:
         create_parser().parse_args(["agent", "sync", "--retry-retired"])
@@ -184,6 +274,8 @@ def test_mutating_sync_json_allows_benign_skips(
         retry_quarantined=False,
         retry_retired=False,
         drop_retired=False,
+        retry_limit=None,
+        retry_error_classes=(),
     )
 
 
@@ -221,6 +313,8 @@ def test_mutating_sync_forwards_drop_retired_and_renders_its_report(
         retry_quarantined=False,
         retry_retired=False,
         drop_retired=True,
+        retry_limit=None,
+        retry_error_classes=(),
     )
 
 
@@ -255,6 +349,36 @@ def test_mutating_sync_forwards_retry_retired(
         retry_quarantined=False,
         retry_retired=True,
         drop_retired=False,
+        retry_limit=None,
+        retry_error_classes=(),
+    )
+
+
+def test_mutating_sync_forwards_bounded_retry_options(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    args = argparse.Namespace(
+        project=["proj"],
+        check=False,
+        refresh=False,
+        json=True,
+        retry_retired=False,
+        retry_quarantined=True,
+        drop_retired=False,
+        retry_limit=3,
+        retry_error_class=["timeout", "lock_busy"],
+    )
+    with patch("sase.agents.cli_sync.sync_agents", return_value=()) as sync:
+        assert handle_agents_sync(args) == 0
+
+    assert json.loads(capsys.readouterr().out)["mode"] == "sync"
+    sync.assert_called_once_with(
+        ("proj",),
+        retry_quarantined=True,
+        retry_retired=False,
+        drop_retired=False,
+        retry_limit=3,
+        retry_error_classes=("timeout", "lock_busy"),
     )
 
 

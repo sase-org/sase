@@ -66,6 +66,8 @@ def handle_agents_sync(args: argparse.Namespace) -> int:
         retry_quarantined=bool(getattr(args, "retry_quarantined", False)),
         retry_retired=bool(getattr(args, "retry_retired", False)),
         drop_retired=bool(getattr(args, "drop_retired", False)),
+        retry_limit=getattr(args, "retry_limit", None),
+        retry_error_classes=tuple(getattr(args, "retry_error_class", ()) or ()),
     )
     _emit_sync_outcomes(outcomes, mode="sync", as_json=as_json)
     return int(any(outcome.error is not None for outcome in outcomes))

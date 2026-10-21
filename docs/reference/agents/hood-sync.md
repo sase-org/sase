@@ -387,6 +387,27 @@ classes, and may be combined with `--retry-quarantined`. It does not touch the
 Referenced By terminal queue, other projects, or requests that fail again during the
 same command. It is rejected with `--check`, `--drop-retired`, and repair-only modes.
 
+Use a bounded retry when you want to recover only a limited number of hood requests:
+
+```bash
+sase agent sync --retry-quarantined --retry-limit 10 -p project-alias
+sase agent sync --retry-retired --retry-limit 5 --retry-error-class timeout -p project-alias
+```
+
+`--retry-limit N` requires either retry flag and exactly one `--project`. Add the
+repeatable `--retry-error-class CLASS` filter to limit stopped requests to `timeout`,
+`lock_busy`, `index_lock`, `unstaged_changes`, `rebase_conflict`, `manifest_mismatch`,
+`unknown`, or `other`. A class filter requires `--retry-limit`. Active requests resume
+first and keep their attempt counts; remaining slots go to eligible retired requests
+before quarantined requests, oldest first within each group. Only selected stopped
+requests receive a fresh attempt budget. The limit counts requests, while each selected
+request publishes its complete hood. Bounded retries do not reconcile other hoods, touch
+other projects, or drain the Referenced By queue. After an interruption, selected
+requests stay active and are prioritized on the next bounded invocation. The result
+reports selected, resumed, revived, completed, and remaining request counts. Bounded
+retry cannot be combined with `--check`, `--refresh`, `--drop-retired`, or either repair
+mode.
+
 A retired request whose source still cannot be reconstructed should be dropped after
 review, not revived. Drop only retired entries with:
 

@@ -54,8 +54,21 @@ def sync_agents(
     retry_quarantined: bool = False,
     retry_retired: bool = False,
     drop_retired: bool = False,
+    retry_limit: int | None = None,
+    retry_error_classes: Sequence[str] = (),
 ) -> tuple[SyncOutcome, ...]:
     """Synchronize every selected project without cross-project fail-fast."""
+
+    if retry_limit is not None:
+        return _sync_bounded_publication_retries(
+            projects,
+            retry_limit=retry_limit,
+            retry_error_classes=retry_error_classes,
+            retry_quarantined=retry_quarantined,
+            retry_retired=retry_retired,
+        )
+    if retry_error_classes:
+        raise ValueError("retry_error_classes requires retry_limit")
 
     selection = resolve_sync_targets(projects)
     outcomes = list(selection.outcomes)
@@ -204,6 +217,117 @@ def sync_agents(
         # A cache write must never turn an already-complete sync into failure.
         pass
     return result
+
+
+def _sync_bounded_publication_retries(
+    projects: Sequence[str],
+    *,
+    retry_limit: int,
+    retry_error_classes: Sequence[str],
+    retry_quarantined: bool,
+    retry_retired: bool,
+) -> tuple[SyncOutcome, ...]:
+    """Select, revive, and publish one exact bounded request set."""
+
+    if retry_limit < 1:
+        raise ValueError("retry_limit must be positive")
+    if not (retry_quarantined or retry_retired):
+        raise ValueError("bounded retries require a retry lifecycle flag")
+
+    target_selection = resolve_sync_targets(projects)
+    if len(target_selection.targets) != 1:
+        return tuple(
+            sorted(target_selection.outcomes, key=lambda item: item.project_key)
+        )
+    target = target_selection.targets[0]
+    try:
+        require_agent_owner_identity()
+    except (RuntimeError, ValueError) as exc:
+        return (
+            SyncOutcome(
+                target.project_key,
+                target.project,
+                error=f"owner identity is not configured: {exc}",
+            ),
+        )
+
+    from sase.agents_sync.commit_publication import (
+        drain_selected_agent_publications,
+    )
+    from sase.agents_sync.publication_outbox import (
+        list_agent_publications,
+        select_and_revive_agent_publications,
+    )
+
+    try:
+        batch = select_and_revive_agent_publications(
+            target.project_key,
+            limit=retry_limit,
+            retry_retired=retry_retired,
+            retry_quarantined=retry_quarantined,
+            error_classes=retry_error_classes,
+        )
+    except Exception as exc:  # noqa: BLE001 - fail before touching the sidecar.
+        return (
+            SyncOutcome(
+                target.project_key,
+                target.project,
+                error=f"bounded publication selection failed: {exc}",
+            ),
+        )
+
+    selected_keys = batch.logical_keys
+    try:
+        drain = (
+            drain_selected_agent_publications(
+                target.project_key,
+                selected_keys,
+            )
+            if selected_keys
+            else None
+        )
+        remaining = list_agent_publications(target.project_key)
+    except Exception as exc:  # noqa: BLE001 - one-project failure isolation.
+        return (
+            SyncOutcome(
+                target.project_key,
+                target.project,
+                error=f"bounded publication drain failed: {exc}",
+                diagnostics=batch.diagnostics,
+            ),
+        )
+    selected_count = len(selected_keys)
+    resumed_count = len(batch.active)
+    revived_count = len(batch.revived)
+    completed_count = drain.drained if drain is not None else 0
+    diagnostics = (
+        *batch.diagnostics,
+        (
+            "bounded retry no-op: no eligible publication requests"
+            if not selected_count
+            else "bounded retry selection: "
+            f"selected={selected_count} resumed={resumed_count} "
+            f"revived={revived_count}"
+        ),
+        "bounded retry result: "
+        f"selected={selected_count} resumed={resumed_count} "
+        f"revived={revived_count} completed={completed_count} "
+        f"remaining={len(remaining)}",
+    )
+    outcome = SyncOutcome(
+        target.project_key,
+        target.project,
+        skip_reason=drain.skip_reason if drain is not None else None,
+        error=drain.error if drain is not None else None,
+        diagnostics=diagnostics,
+    )
+    try:
+        from sase.agents_sync.status import rewrite_agents_sync_status_after_sync
+
+        rewrite_agents_sync_status_after_sync((target.project_key,))
+    except Exception:
+        pass
+    return (outcome,)
 
 
 def _dropped_publication_diagnostics(

@@ -49,6 +49,24 @@ Because owners mutate disjoint authority files, a bounded non-fast-forward retry
 pull a competing owner, recompute the shared views, and converge without overwriting
 either snapshot.
 
+## Bounded outbox retries
+
+`sase agent sync --retry-limit` selects one project's request batch while holding the
+publication outbox lock. The Rust recovery selector places existing active requests
+first, then chooses eligible retired requests before quarantined requests, oldest first
+within each group with a logical-key tie break. An error-class filter applies only to
+stopped requests. The atomic outbox update revives only selected stopped rows and
+records their prior errors in diagnostics before clearing them. Active rows retain their
+attempt history.
+
+The selected logical keys flow unchanged into the targeted publication transaction. That
+transaction builds complete selected hoods, but acknowledges only selected requests and
+does not run full reconciliation or the Referenced By drain. The request limit is
+therefore not a byte or run cap; the existing 120-second transaction bound still
+applies. If interrupted, the selected rows remain active, so the next bounded invocation
+resumes them before selecting more stopped work. Unbounded retry flags keep their
+full-sync behavior.
+
 ## Owner-manifest repair
 
 `sase agent sync --repair-manifest` repairs only the current owner's manifest and hood

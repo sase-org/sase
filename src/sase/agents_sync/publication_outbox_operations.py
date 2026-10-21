@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
-from dataclasses import replace
+from dataclasses import dataclass, replace
 import os
 import time
 
@@ -20,12 +20,113 @@ from sase.agents_sync.publication_outbox_store import (
     mutate_publication_outbox,
 )
 from sase.core.agent_publication_recovery import (
+    PublicationDrainSelection,
     PublicationRetrySelected,
+    select_publication_drain,
     select_publication_retries,
 )
 
 DEFAULT_PUBLICATION_MAX_ATTEMPTS = 3
 _PUBLICATION_MAX_ATTEMPTS_ENV = "SASE_AGENTS_PUBLICATION_MAX_ATTEMPTS"
+
+
+@dataclass(frozen=True, slots=True)
+class PublicationDrainBatchSelection:
+    """One bounded retry selection made atomically with outbox revival."""
+
+    active: tuple[AgentPublicationOutboxItem, ...]
+    revived: tuple[AgentPublicationOutboxItem, ...]
+    diagnostics: tuple[str, ...]
+
+    @property
+    def logical_keys(self) -> tuple[tuple[str, str], ...]:
+        return tuple(item.logical_key for item in (*self.active, *self.revived))
+
+
+def select_and_revive_agent_publications(
+    project_key: str,
+    *,
+    limit: int,
+    retry_retired: bool,
+    retry_quarantined: bool,
+    error_classes: Iterable[str] = (),
+) -> PublicationDrainBatchSelection:
+    """Select a bounded batch and revive only its stopped rows under one lock."""
+
+    now = time.time()
+    selection: PublicationDrainSelection | None = None
+
+    def update(
+        items: tuple[AgentPublicationOutboxItem, ...],
+    ) -> tuple[AgentPublicationOutboxItem, ...]:
+        nonlocal selection
+        selection = select_publication_drain(
+            tuple(
+                {
+                    "global_agent": item.global_agent,
+                    "primary_revision": item.primary_revision,
+                    "terminal": item.terminal,
+                    "quarantined": item.quarantined,
+                    "last_error": item.last_error,
+                    "terminal_reason": item.terminal_reason,
+                    "created_at": item.created_at,
+                }
+                for item in items
+            ),
+            limit=limit,
+            retry_retired=retry_retired,
+            retry_quarantined=retry_quarantined,
+            error_classes=tuple(error_classes),
+        )
+        revived_keys = {row.logical_key for row in selection.revive}
+        return tuple(
+            replace(
+                item,
+                attempts=0,
+                last_error=None,
+                quarantined=False,
+                quarantined_at=None,
+                terminal=False,
+                terminal_reason=None,
+                updated_at=now,
+            )
+            if item.logical_key in revived_keys
+            else item
+            for item in items
+        )
+
+    updated = mutate_publication_outbox(project_key, update)
+    if selection is None:
+        raise RuntimeError("publication drain selection was not produced")
+    items_by_key = {item.logical_key: item for item in updated}
+    active = tuple(
+        items_by_key[row.logical_key]
+        for row in selection.active
+        if row.logical_key in items_by_key
+    )
+    revived = tuple(
+        items_by_key[row.logical_key]
+        for row in selection.revive
+        if row.logical_key in items_by_key
+    )
+    diagnostics = tuple(
+        _bounded_selection_diagnostic(row, action="resumed") for row in selection.active
+    ) + tuple(
+        _bounded_selection_diagnostic(row, action="revived") for row in selection.revive
+    )
+    return PublicationDrainBatchSelection(active, revived, diagnostics)
+
+
+def _bounded_selection_diagnostic(
+    selected: PublicationRetrySelected,
+    *,
+    action: str,
+) -> str:
+    return (
+        f"{action} {selected.prior_class} publication request "
+        f"{selected.global_agent}@{selected.primary_revision[:12]} "
+        f"({selected.error_class}): {selected.prior_failure}"
+    )
 
 
 def enqueue_agent_publication(
@@ -336,6 +437,7 @@ def acknowledge_agent_publications(
 
 __all__ = [
     "DEFAULT_PUBLICATION_MAX_ATTEMPTS",
+    "PublicationDrainBatchSelection",
     "acknowledge_agent_publications",
     "clear_quarantined_agent_publications",
     "configured_publication_max_attempts",
@@ -343,5 +445,6 @@ __all__ = [
     "enqueue_agent_publication",
     "publication_quarantine_diagnostics",
     "revive_agent_publications",
+    "select_and_revive_agent_publications",
     "update_agent_publications",
 ]
