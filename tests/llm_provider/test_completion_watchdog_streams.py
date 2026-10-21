@@ -23,10 +23,15 @@ from sase.finalizers.declaration_manifest import FINAL_SUBMISSION_FILENAME
 from sase.llm_provider import _subprocess_plain as plain
 from sase.llm_provider import _subprocess_reap as reap
 from sase.llm_provider._subprocess import (
+    ProviderTurnState,
     start_completion_watchdog,
     stream_process_output,
 )
-from sase.llm_provider._subprocess_stream import stream_json_lines
+from sase.llm_provider._subprocess_reap import TeardownStall, register_teardown_stall
+from sase.llm_provider._subprocess_stream import (
+    settle_teardown_stall,
+    stream_json_lines,
+)
 from sase.llm_provider.muse import MuseProvider
 
 _LEAK_ARGV_MARKER = "leaked-listener-marker"
@@ -90,6 +95,38 @@ def _watch(process: subprocess.Popen[str]) -> None:
     start_completion_watchdog(
         process, runtime="fake", grace_seconds=0.3, poll_seconds=0.02
     )
+
+
+def _leak_handler(leaks: list[int]) -> Callable[[str], None]:
+    def handle(line: str) -> None:
+        leaks.append(json.loads(line)["leak_pid"])
+
+    return handle
+
+
+def _settled_stall(
+    *,
+    trigger: str = "declaration",
+    turn_outcome: str | None = None,
+) -> tuple[Any, TeardownStall]:
+    process = subprocess.Popen(
+        [sys.executable, "-c", "pass"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    process.wait()
+    stall = TeardownStall(
+        runtime="fake",
+        provider_pid=process.pid,
+        declared_at="2026-10-20T00:00:00+00:00",
+        grace_seconds=0.3,
+        trigger=trigger,  # type: ignore[arg-type]
+        turn_outcome=turn_outcome,
+    )
+    stall.settled.set()
+    register_teardown_stall(process, stall)
+    return process, stall
 
 
 def test_stream_json_lines_returns_the_reply_of_a_reaped_provider_as_success(
@@ -174,6 +211,94 @@ def test_a_shielded_registered_process_survives_the_sweep(
                 pass
         if process.poll() is None:
             process.kill()
+
+
+def test_settle_teardown_stall_returns_zero_for_a_declaration() -> None:
+    process, _stall = _settled_stall()
+    stderr: list[str] = []
+
+    assert settle_teardown_stall(process, stderr, -15) == 0
+    assert "final declaration was accepted" in stderr[0]
+
+
+def test_settle_teardown_stall_returns_zero_for_a_completed_turn_end() -> None:
+    process, _stall = _settled_stall(
+        trigger="provider_turn_end", turn_outcome="completed"
+    )
+    stderr: list[str] = []
+
+    assert settle_teardown_stall(process, stderr, -15) == 0
+    assert "turn ended (no declaration)" in stderr[0]
+
+
+@pytest.mark.parametrize("outcome", ["error", "cancelled"])
+def test_settle_teardown_stall_keeps_nonzero_for_failed_turn_end(
+    outcome: str,
+) -> None:
+    process, _stall = _settled_stall(trigger="provider_turn_end", turn_outcome=outcome)
+    stderr: list[str] = []
+
+    assert settle_teardown_stall(process, stderr, -15) == -15
+    assert "turn ended (no declaration)" in stderr[0]
+
+
+def test_stream_json_lines_returns_success_for_a_completed_turn_end_reap(
+    tmp_path: Path,
+) -> None:
+    leaks: list[int] = []
+    process = _spawn(_WEDGED_PROVIDER)
+    start_completion_watchdog(
+        process,
+        runtime="fake",
+        grace_seconds=0.3,
+        poll_seconds=0.02,
+        turn_end_probe=lambda: ProviderTurnState("ended", "completed"),
+    )
+    try:
+        stderr, return_code = stream_json_lines(
+            process, _leak_handler(leaks), suppress_output=True
+        )
+    finally:
+        if process.poll() is None:
+            process.kill()
+
+    assert return_code == 0
+    assert "turn ended (no declaration)" in stderr
+    assert "final declaration was accepted" not in stderr
+    artifact = json.loads(
+        (tmp_path / plain.TEARDOWN_STALL_FILENAME).read_text(encoding="utf-8")
+    )
+    assert artifact["trigger"] == "provider_turn_end"
+    assert artifact["turn_outcome"] == "completed"
+    for pid in leaks:
+        assert not _is_running(pid)
+
+
+def test_stream_json_lines_keeps_failure_for_an_error_turn_end_reap() -> None:
+    leaks: list[int] = []
+    process = _spawn(_WEDGED_PROVIDER)
+    start_completion_watchdog(
+        process,
+        runtime="fake",
+        grace_seconds=0.3,
+        poll_seconds=0.02,
+        turn_end_probe=lambda: ProviderTurnState("ended", "error"),
+    )
+    try:
+        stderr, return_code = stream_json_lines(
+            process, _leak_handler(leaks), suppress_output=True
+        )
+    finally:
+        if process.poll() is None:
+            process.kill()
+        for pid in leaks:
+            try:
+                os.kill(pid, 9)
+            except ProcessLookupError:
+                pass
+
+    assert return_code != 0
+    assert "turn ended (no declaration)" in stderr
 
 
 def test_a_provider_that_exits_on_its_own_keeps_its_return_code(

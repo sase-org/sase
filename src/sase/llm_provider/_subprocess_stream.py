@@ -283,13 +283,15 @@ def settle_teardown_stall(
     stderr_lines: list[str],
     return_code: int,
 ) -> int:
-    """Report a watchdog-terminated provider as the clean exit it stands for.
+    """Report a watchdog-terminated provider according to why it was reaped.
 
-    The watchdog only fires once the host has accepted the final declaration,
-    so the streamed reply is complete and the signal that ended the provider
-    (a negative return code) says nothing about the turn. Waits for the
-    watchdog to finish recording the stall, adds its note to *stderr_lines*,
-    and returns ``0``. A provider the watchdog never touched keeps its own
+    A declaration stall, and a provider-turn-end stall whose outcome is
+    ``completed``, are the clean exit they stand for: the streamed reply is
+    complete and the signal that ended the provider says nothing about the
+    turn, so this returns ``0``. Any other turn-end outcome keeps
+    *return_code* so the normal failure and retry path runs. Waits for the
+    watchdog to finish recording the stall and adds its note to
+    *stderr_lines*. A provider the watchdog never touched keeps its own
     return code.
     """
     stall = teardown_stall_for(process)
@@ -297,6 +299,8 @@ def settle_teardown_stall(
         return return_code
     stall.settled.wait(timeout=_STALL_SETTLE_TIMEOUT_SECONDS)
     stderr_lines.append(stall.note + "\n")
+    if stall.trigger == "provider_turn_end" and stall.turn_outcome != "completed":
+        return return_code
     return 0
 
 

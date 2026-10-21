@@ -12,7 +12,7 @@ import pytest
 
 from sase.finalizers.declaration_manifest import FINAL_SUBMISSION_FILENAME
 from sase.llm_provider import _subprocess_plain as plain
-from sase.llm_provider._subprocess import start_completion_watchdog
+from sase.llm_provider._subprocess import ProviderTurnState, start_completion_watchdog
 from sase.llm_provider._subprocess_reap import TeardownStall, teardown_stall_for
 
 _POLL = 0.005
@@ -131,6 +131,9 @@ def test_watchdog_reaps_a_provider_that_outlives_the_grace(
     assert artifact["grace_seconds"] == 0.02
     assert artifact["waited_seconds"] >= 0.02
     assert re.fullmatch(r"\d{4}-\d\d-\d\dT.*\+00:00", artifact["declared_at"])
+    assert artifact["armed_at"] == artifact["declared_at"]
+    assert artifact["trigger"] == "declaration"
+    assert artifact["turn_outcome"] is None
     assert artifact["reaped_descendants"] == [
         {"pid": 701, "ppid": 4242, "argv": _LEAKED_ARGV}
     ]
@@ -204,6 +207,82 @@ def test_watchdog_grace_of_zero_disables_it(
     monkeypatch.setenv(plain.TEARDOWN_GRACE_ENV, "0")
 
     assert start_completion_watchdog(cast(Any, _FakeProcess())) is None
+
+
+def test_watchdog_grace_of_zero_disables_both_triggers(
+    artifacts_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv(plain.TEARDOWN_GRACE_ENV, "0")
+
+    assert (
+        start_completion_watchdog(
+            cast(Any, _FakeProcess()),
+            turn_end_probe=lambda: ProviderTurnState("ended", "completed"),
+        )
+        is None
+    )
+
+
+def test_watchdog_reaps_when_the_probe_reports_ended(
+    artifacts_dir: Path, terminated_trees: list[int]
+) -> None:
+    process = _FakeProcess()
+    thread = _start(
+        process,
+        grace=0.02,
+        turn_end_probe=lambda: ProviderTurnState("ended", "completed"),
+    )
+
+    thread.join(timeout=10)
+
+    assert terminated_trees == [4242]
+    stall = teardown_stall_for(cast(Any, process))
+    assert stall is not None
+    assert stall.trigger == "provider_turn_end"
+    assert stall.turn_outcome == "completed"
+    artifact = json.loads(
+        (artifacts_dir / plain.TEARDOWN_STALL_FILENAME).read_text(encoding="utf-8")
+    )
+    assert artifact["trigger"] == "provider_turn_end"
+    assert artifact["turn_outcome"] == "completed"
+    assert artifact["armed_at"] == artifact["declared_at"]
+
+
+def test_watchdog_disarms_when_the_probe_reports_a_new_turn_started(
+    artifacts_dir: Path, terminated_trees: list[int]
+) -> None:
+    calls = {"n": 0}
+
+    def probe() -> ProviderTurnState:
+        calls["n"] += 1
+        if calls["n"] == 1:
+            return ProviderTurnState("ended", "completed")
+        return ProviderTurnState("started")
+
+    process = _FakeProcess(exit_after_polls=60)
+    _start(process, grace=0.02, turn_end_probe=probe).join(timeout=10)
+
+    assert process.terminations == 0
+    assert terminated_trees == []
+    assert not (artifacts_dir / plain.TEARDOWN_STALL_FILENAME).exists()
+
+
+def test_raising_probe_does_not_block_the_declaration_trigger(
+    artifacts_dir: Path, terminated_trees: list[int]
+) -> None:
+    def boom() -> ProviderTurnState | None:
+        raise RuntimeError("probe exploded")
+
+    process = _FakeProcess()
+    thread = _start(process, grace=0.02, turn_end_probe=boom)
+    _accept_declaration(artifacts_dir)
+
+    thread.join(timeout=10)
+
+    assert terminated_trees == [4242]
+    stall = teardown_stall_for(cast(Any, process))
+    assert stall is not None
+    assert stall.trigger == "declaration"
 
 
 @pytest.mark.parametrize(

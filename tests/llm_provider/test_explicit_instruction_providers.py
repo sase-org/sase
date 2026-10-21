@@ -177,7 +177,7 @@ def test_grok_oversize_bundle_falls_back_to_legacy_rules() -> None:
     args = captured["args"]
     assert isinstance(args, list)
     assert args[args.index("--rules") + 1] == "legacy after oversize"
-    assert captured["kwargs"] == {}
+    assert "env_overrides" not in captured["kwargs"]
     assert delivery.root.plan.status == "inherits_native"
     assert delivery.root.fallback is not None
     assert delivery.root.fallback["reason"] == "oversize"

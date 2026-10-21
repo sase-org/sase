@@ -9,9 +9,10 @@ import sys
 import threading
 import time
 from collections.abc import Callable
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import IO
+from typing import IO, Literal
 
 from ._subprocess_artifacts import (
     open_live_reply_file,
@@ -35,6 +36,21 @@ TEARDOWN_GRACE_ENV = "SASE_PROVIDER_TEARDOWN_GRACE_SECONDS"
 DEFAULT_TEARDOWN_GRACE_SECONDS = 120.0
 TEARDOWN_STALL_FILENAME = "provider_teardown_stall.json"
 _WATCHDOG_POLL_SECONDS = 1.0
+
+
+@dataclass(frozen=True)
+class ProviderTurnState:
+    """Latest turn-lifecycle snapshot reported by a provider probe.
+
+    ``phase`` is ``"started"`` while a turn is running and ``"ended"`` after
+    the provider emits a turn-end event. ``outcome`` is the provider's
+    outcome string (``completed``, ``error``, ``cancelled``) when the turn
+    has ended, else ``None``. A probe returns ``None`` when the state is
+    unknown.
+    """
+
+    phase: Literal["started", "ended"]
+    outcome: str | None = None
 
 
 def start_interrupt_monitor(
@@ -109,18 +125,23 @@ def start_completion_watchdog(
     grace_seconds: float | None = None,
     poll_seconds: float = _WATCHDOG_POLL_SECONDS,
     terminate_timeout: float = DEFAULT_TERMINATE_TIMEOUT_SECONDS,
+    turn_end_probe: Callable[[], ProviderTurnState | None] | None = None,
 ) -> threading.Thread | None:
-    """Spin a daemon thread that reaps a provider stuck after its declaration.
+    """Spin a daemon thread that reaps a provider stuck after its turn ends.
 
-    Once the host accepts the agent's final declaration
-    (``final_submission.json`` appears) the turn is over. If *process* is
-    still alive *grace_seconds* later (default 120s, override with
-    ``SASE_PROVIDER_TEARDOWN_GRACE_SECONDS``, ``0`` disables), it is
-    terminated, its leaked descendants are reaped, the stall is written to
+    Two independent triggers arm the same grace period (default 120s,
+    override with ``SASE_PROVIDER_TEARDOWN_GRACE_SECONDS``; ``0`` disables
+    both): a ``final_submission.json`` accepted after the provider started,
+    and a *turn_end_probe* that reports the provider's turn ended. A later
+    probe report of a new turn started disarms the turn-end trigger. If
+    *process* is still alive when either grace expires, it is terminated,
+    its leaked descendants are reaped, the stall is written to
     ``provider_teardown_stall.json`` and stderr, and ``on_stall`` is called
-    with the record. The stream loops then report the turn as a clean exit.
+    with the record.
 
-    A ``final_submission.json`` already present when the watchdog starts is
+    A probe that raises is treated as unknown and does not kill this
+    thread, so the declaration trigger still works. A
+    ``final_submission.json`` already present when the watchdog starts is
     ignored: it belongs to an earlier provider run in the same artifacts
     directory. Reads ``SASE_ARTIFACTS_DIR`` from the environment; no-op
     (returning ``None``) if unset or disabled.
@@ -141,15 +162,29 @@ def start_completion_watchdog(
         nonlocal last_seen
         declared_at: float | None = None
         declared_wall: datetime | None = None
+        turn_ended_at: float | None = None
+        turn_ended_wall: datetime | None = None
+        turn_outcome: str | None = None
         while process.poll() is None:
-            signature = _file_signature(submission_path)
             now = time.monotonic()
+            signature = _file_signature(submission_path)
             if signature is not None and signature != last_seen:
-                # A new acceptance (re)starts the grace period.
+                # A new acceptance (re)starts the declaration grace period.
                 last_seen = signature
                 declared_at = now
                 declared_wall = datetime.now(tz=UTC)
-            elif declared_at is not None and now - declared_at >= grace:
+            state = _probe_turn_state(turn_end_probe)
+            if state is not None:
+                if state.phase == "ended":
+                    if turn_ended_at is None:
+                        turn_ended_at = now
+                        turn_ended_wall = datetime.now(tz=UTC)
+                    turn_outcome = state.outcome
+                elif state.phase == "started":
+                    turn_ended_at = None
+                    turn_ended_wall = None
+                    turn_outcome = None
+            if declared_at is not None and now - declared_at >= grace:
                 assert declared_wall is not None
                 _tear_down_stalled_provider(
                     process,
@@ -160,6 +195,22 @@ def start_completion_watchdog(
                     waited=now - declared_at,
                     terminate_timeout=terminate_timeout,
                     on_stall=on_stall,
+                    trigger="declaration",
+                )
+                return
+            if turn_ended_at is not None and now - turn_ended_at >= grace:
+                assert turn_ended_wall is not None
+                _tear_down_stalled_provider(
+                    process,
+                    artifacts_dir,
+                    runtime=runtime,
+                    declared_wall=turn_ended_wall,
+                    grace=grace,
+                    waited=now - turn_ended_at,
+                    terminate_timeout=terminate_timeout,
+                    on_stall=on_stall,
+                    trigger="provider_turn_end",
+                    turn_outcome=turn_outcome,
                 )
                 return
             time.sleep(poll_seconds)
@@ -167,6 +218,18 @@ def start_completion_watchdog(
     thread = threading.Thread(target=_watch, daemon=True)
     thread.start()
     return thread
+
+
+def _probe_turn_state(
+    probe: Callable[[], ProviderTurnState | None] | None,
+) -> ProviderTurnState | None:
+    """Return the probe's snapshot, or ``None`` when it is missing or raises."""
+    if probe is None:
+        return None
+    try:
+        return probe()
+    except Exception:
+        return None
 
 
 def _tear_down_stalled_provider(
@@ -179,6 +242,8 @@ def _tear_down_stalled_provider(
     waited: float,
     terminate_timeout: float,
     on_stall: Callable[[TeardownStall], None] | None,
+    trigger: Literal["declaration", "provider_turn_end"] = "declaration",
+    turn_outcome: str | None = None,
 ) -> None:
     """Terminate *process*, record the stall, and publish it via ``settled``."""
     if process.poll() is not None:
@@ -189,6 +254,8 @@ def _tear_down_stalled_provider(
         declared_at=declared_wall.isoformat(),
         grace_seconds=grace,
         waited_seconds=round(waited, 3),
+        trigger=trigger,
+        turn_outcome=turn_outcome,
     )
     # Registered before the signal so a stream loop that sees the provider
     # exit already knows why, and can wait for ``settled``.

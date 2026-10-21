@@ -1,7 +1,8 @@
 """Bounded teardown of a wedged provider process and the processes it leaked.
 
-Once the host accepts an agent's final declaration the turn is over, so a
-provider CLI that refuses to exit is terminated rather than waited on forever.
+Once the turn is over — the host accepted a final declaration, or the
+provider reported its turn ended — a provider CLI that refuses to exit is
+terminated rather than waited on forever.
 Providers routinely leak background processes from their tool sandbox, and a
 leaked process can be the very thing keeping the provider alive, so the
 provider's descendants are reaped along with it.
@@ -37,6 +38,7 @@ import weakref
 from collections import deque
 from collections.abc import Callable, Collection, Mapping
 from dataclasses import dataclass, field
+from typing import Literal
 
 from sase.core.process_identity import process_identity_token
 
@@ -80,9 +82,12 @@ class _DescendantSweepPlan:
 class TeardownStall:
     """Outcome of a watchdog-forced provider teardown.
 
-    ``settled`` is set once the teardown has finished and the diagnostic
-    artifact is written, so a stream loop that observed the provider exit can
-    wait for the record to be complete before it reports the turn's result.
+    ``declared_at`` is when the grace period was armed: a new declaration, or
+    a provider-reported turn end. ``to_json`` also writes that instant as
+    ``armed_at``. ``settled`` is set once the teardown has finished and the
+    diagnostic artifact is written, so a stream loop that observed the
+    provider exit can wait for the record to be complete before it reports
+    the turn's result.
     """
 
     runtime: str
@@ -92,7 +97,14 @@ class TeardownStall:
     waited_seconds: float = 0.0
     descendants: list[dict[str, object]] = field(default_factory=list)
     sweep_skipped_reason: str | None = None
+    trigger: Literal["declaration", "provider_turn_end"] = "declaration"
+    turn_outcome: str | None = None
     settled: threading.Event = field(default_factory=threading.Event, repr=False)
+
+    @property
+    def armed_at(self) -> str:
+        """When the grace period was armed (declaration or turn end)."""
+        return self.declared_at
 
     @property
     def note(self) -> str:
@@ -112,9 +124,18 @@ class TeardownStall:
             )
         elif self.sweep_skipped_reason:
             reaped = f" (descendant sweep skipped: {self.sweep_skipped_reason})"
+        waited = f"{round(self.waited_seconds, 1):g}s"
+        if self.trigger == "provider_turn_end":
+            cause = (
+                f"reported its turn ended (no declaration) and was still "
+                f"running {waited} later"
+            )
+        else:
+            cause = (
+                f"was still running {waited} after its final declaration was accepted"
+            )
         return (
-            f"[sase] {self.runtime} (pid {self.provider_pid}) was still running "
-            f"{round(self.waited_seconds, 1):g}s after its final declaration was accepted; "
+            f"[sase] {self.runtime} (pid {self.provider_pid}) {cause}; "
             f"terminated it{reaped}. The completed reply is unaffected."
         )
 
@@ -124,6 +145,9 @@ class TeardownStall:
             "runtime": self.runtime,
             "provider_pid": self.provider_pid,
             "declared_at": self.declared_at,
+            "armed_at": self.armed_at,
+            "trigger": self.trigger,
+            "turn_outcome": self.turn_outcome,
             "grace_seconds": self.grace_seconds,
             "waited_seconds": self.waited_seconds,
             "reaped_descendants": self.descendants,

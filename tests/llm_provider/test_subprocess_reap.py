@@ -383,3 +383,42 @@ def test_registered_live_pids_unions_agents_and_procs(
     )
 
     assert reap._registered_live_pids() == frozenset({11, 12, 21})
+
+
+def test_stall_json_and_note_cover_a_declaration_trigger() -> None:
+    stall = TeardownStall(
+        runtime="muse",
+        provider_pid=42,
+        declared_at="2026-10-20T12:00:00+00:00",
+        grace_seconds=120.0,
+        waited_seconds=121.5,
+        descendants=[{"pid": 7, "ppid": 42, "argv": "python3 leak.py"}],
+    )
+
+    payload = stall.to_json()
+    assert payload["trigger"] == "declaration"
+    assert payload["turn_outcome"] is None
+    assert payload["armed_at"] == "2026-10-20T12:00:00+00:00"
+    assert payload["declared_at"] == payload["armed_at"]
+    assert "final declaration was accepted" in stall.note
+    assert "python3 leak.py" in stall.note
+
+
+def test_stall_json_and_note_cover_a_turn_end_trigger() -> None:
+    stall = TeardownStall(
+        runtime="grok",
+        provider_pid=99,
+        declared_at="2026-10-20T12:00:00+00:00",
+        grace_seconds=120.0,
+        waited_seconds=120.0,
+        trigger="provider_turn_end",
+        turn_outcome="completed",
+    )
+
+    payload = stall.to_json()
+    assert payload["trigger"] == "provider_turn_end"
+    assert payload["turn_outcome"] == "completed"
+    assert payload["armed_at"] == payload["declared_at"]
+    assert "turn ended (no declaration)" in stall.note
+    assert "still running 120s later" in stall.note
+    assert "final declaration was accepted" not in stall.note

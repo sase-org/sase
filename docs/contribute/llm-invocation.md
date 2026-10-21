@@ -114,7 +114,7 @@ External plugin packages declare additional entries under the same group.
 To get a provider instance:
 
 ```python
-provider = get_provider()          # Uses default from config
+provider = get_provider()  # Uses default from config
 provider = get_provider("claude")  # Explicit provider name
 ```
 
@@ -350,32 +350,50 @@ This is used for background invocations where the caller only needs the final re
 
 ### Provider Teardown Watchdog
 
-A provider CLI can finish its turn, have its final declaration accepted, and then never
-exit, often because a background process leaked from its tool sandbox keeps a pipe open.
-Every provider that starts the interrupt monitor also starts a completion watchdog
-(`start_completion_watchdog` in `_subprocess_plain.py`). It is a no-op without
-`SASE_ARTIFACTS_DIR`.
+A provider CLI can finish its turn and then never exit, often because a background
+process leaked from its tool sandbox keeps a pipe open. Every provider that starts the
+interrupt monitor also starts a completion watchdog (`start_completion_watchdog` in
+`_subprocess_plain.py`). It is a no-op without `SASE_ARTIFACTS_DIR`.
 
-Once `<SASE_ARTIFACTS_DIR>/final_submission.json` is written by a declaration accepted
-_after_ the provider started, the watchdog waits a grace period. If the provider is
-still alive when it expires, the watchdog terminates it (SIGTERM, then SIGKILL) and
-reaps its leaked descendants. Descendants are found by walking `ppid` from a snapshot
-taken _before_ the provider is signalled, so a leaked process in its own session or
-process group is still reached. Registered live agents, monitors, and procs, the current
-process, and its ancestors are never signalled, and neither is anything they spawned. If
-the live registry cannot be read, no descendant is signalled at all.
+Two independent triggers arm the same grace period:
+
+1. **Declaration.** Once `<SASE_ARTIFACTS_DIR>/final_submission.json` is written by a
+   declaration accepted _after_ the provider started.
+2. **Provider turn end.** A provider may pass a `turn_end_probe` that reports the latest
+   turn-lifecycle state (`started`, `ended` with an outcome, or unknown). When the probe
+   reports `ended`, the grace period starts. A later `started` disarms it. Grok's probe
+   reads `events.jsonl` under `$GROK_HOME/sessions/<quoted cwd>/<session_id>/`
+   (`$GROK_HOME` if set, else `~/.grok`). A probe that raises is treated as unknown and
+   does not kill the watchdog thread.
+
+If the provider is still alive when either grace expires, the watchdog terminates it
+(SIGTERM, then SIGKILL) and reaps its leaked descendants. Descendants are found by
+walking `ppid` from a snapshot taken _before_ the provider is signalled, so a leaked
+process in its own session or process group is still reached. Registered live agents,
+monitors, and procs, the current process, and its ancestors are never signalled, and
+neither is anything they spawned. If the live registry cannot be read, no descendant is
+signalled at all.
 
 The stall is recorded in `<SASE_ARTIFACTS_DIR>/provider_teardown_stall.json` (provider,
-pid, acceptance time, grace, seconds waited, and the argv of each reaped descendant) and
-as a `[sase] ...` line on stderr. The turn is not reported as failed:
-`stream_json_lines` and `stream_process_output` return the streamed reply with return
-code `0`.
+pid, `trigger`, `turn_outcome`, `armed_at` / `declared_at` when the grace was armed,
+grace, seconds waited, and the argv of each reaped descendant) and as a `[sase] ...`
+line on stderr.
 
-| Variable                               | Default | Effect                                          |
-| -------------------------------------- | ------- | ----------------------------------------------- |
-| `SASE_PROVIDER_TEARDOWN_GRACE_SECONDS` | `120`   | Grace period after acceptance; `0` disables it. |
+`stream_json_lines` and `stream_process_output` treat a declaration stall, and a
+`provider_turn_end` stall whose outcome is `completed`, as a clean exit (return code
+`0`). Any other turn-end outcome (`error`, `cancelled`) keeps the provider's own
+non-zero return code so the normal failure and retry path runs.
 
-A provider that wedges _before_ submitting its declaration is not covered.
+When Grok is reaped on a `provider_turn_end` stall, the adapter recovers the final
+assistant message from that session's `chat_history.jsonl` if it is not already the tail
+of the streamed content, and appends it to `InvokeResult.content` and `live_reply.md`.
+
+| Variable                               | Default | Effect                                              |
+| -------------------------------------- | ------- | --------------------------------------------------- |
+| `SASE_PROVIDER_TEARDOWN_GRACE_SECONDS` | `120`   | Grace period after either trigger; `0` disables it. |
+
+A provider that wedges without a declaration and without a turn-end signal is not
+covered. Today that is every adapter except grok.
 
 ## Postprocessing
 

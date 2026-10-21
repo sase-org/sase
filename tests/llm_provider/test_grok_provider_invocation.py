@@ -186,8 +186,9 @@ def test_grok_interrupt_preserves_partial_output_and_continues() -> None:
         args: list[str],
         prompt: str,
         suppress_output: bool,
+        **_kwargs: object,
     ) -> tuple[str, str, int, dict[str, int]]:
-        del args, suppress_output
+        del args, suppress_output, _kwargs
         prompts.append(prompt)
         if len(prompts) == 1:
             provider._pending_interrupt_message = "also update the tests"

@@ -152,8 +152,9 @@ def test_grok_rules_reach_every_continuation_cycle(
         args: list[str],
         prompt: str,
         suppress_output: bool,
+        **_kwargs: object,
     ) -> tuple[str, str, int, dict[str, int]]:
-        del prompt, suppress_output
+        del prompt, suppress_output, _kwargs
         seen_argvs.append(list(args))
         if len(seen_argvs) == 1:
             provider._pending_interrupt_message = "keep going"
