@@ -49,10 +49,15 @@ from sase.agents_sync.v2_models import (
     V2HoodSnapshot,
     V2OwnerHoodEntry,
     V2ProjectIdentity,
-    is_session_container,
 )
 from sase.config import require_agent_owner_identity
 from sase.core.agent_identity_facade import AgentOwnerIdentity
+from sase.core.agent_session_manifest import (
+    SESSION_MANIFEST_REPAIR_KEEP,
+    SESSION_MANIFEST_REPAIR_NORMALIZE_SLIM,
+    SessionManifestRepairDecision,
+    repair_session_manifest_entry,
+)
 
 REPAIR_DIGESTS_COMMAND = "sase agent sync --repair-digests"
 REPAIR_MANIFEST_COMMAND = "sase agent sync --repair-manifest"
@@ -133,38 +138,48 @@ def _repair_owner_manifest(
     repo_root: Path,
     owner: AgentOwnerIdentity,
 ) -> tuple[dict[str, bytes], tuple[str, ...]]:
-    """Rebuild owner-manifest entries for on-disk hoods the manifest omits.
+    """Repair stale explicit file lists and recover omitted hood entries.
 
-    Trusts on-disk hood snapshots as correct and reconstructs the manifest
-    entry for each hood directory the manifest is missing. Each candidate is
-    validated in isolation - snapshot identity, and every referenced file's
-    recorded size and digest - so one hood whose run files were pruned or
-    have drifted is skipped and reported instead of blocking recovery of
-    every other hood. Reads and writes exactly one path family:
-    ``users/{owner.username}/machines/{owner.machine_name}/...``; another
-    owner's manifest or snapshots are never opened. Existing manifest
-    entries always win over a recovered one. Returns an empty payload and an
-    empty report when the manifest already covers every on-disk hood.
+    A stale explicit list is redundant, but it is normalized only after the
+    snapshot digest and identity, path policy, and every referenced payload
+    have been verified. Missing hood entries retain their recovery behavior.
+    Corrupt or unsafe candidates are reported and left untouched. Reads and
+    writes are confined to ``users/{owner.username}/machines/{owner.machine_name}/``;
+    another owner's manifest or snapshots are never opened. Returns an empty
+    payload when no valid candidate needs repair.
     """
 
     project = V2ProjectIdentity(target.project_key, target.project)
     manifest = read_owner_manifest(repo_root, owner, project)
     existing = manifest.by_hood()
     report: list[str] = []
-    recovered: dict[str, V2OwnerHoodEntry] = {}
+    updated = dict(existing)
+    for hood, entry in sorted(existing.items()):
+        if entry.files is None:
+            continue
+        try:
+            repaired = _repair_explicit_hood_entry(
+                repo_root, owner, project, hood, entry
+            )
+        except (AgentsSyncFormatError, OSError, ValueError) as exc:
+            report.append(f"{hood}: skipped explicit-list repair: {exc}")
+            continue
+        if repaired is not None:
+            updated[hood] = repaired
+            report.append(f"{hood}: repaired stale explicit file list")
+
     for hood in owner_hood_directory_names(repo_root, owner):
         if hood in existing:
             continue
         try:
-            recovered[hood] = _recovered_hood_entry(repo_root, owner, project, hood)
-        except (AgentsSyncFormatError, OSError) as exc:
+            updated[hood] = _recovered_hood_entry(repo_root, owner, project, hood)
+        except (AgentsSyncFormatError, OSError, ValueError) as exc:
             report.append(f"{hood}: skipped recovery: {exc}")
             continue
         report.append(f"{hood}: recovered")
-    if not recovered:
+    if updated == existing:
         return {}, tuple(report)
-    merged = {**recovered, **existing}
-    new_manifest = replace(manifest, hoods=tuple(sorted(merged.items())))
+    new_manifest = replace(manifest, hoods=tuple(sorted(updated.items())))
     manifest_bytes = v2_json_bytes(new_manifest.to_json_dict())
     check_manifest_write_size(len(new_manifest.hoods), manifest_bytes)
     payload = {owner_manifest_path(owner): manifest_bytes}
@@ -180,20 +195,90 @@ def _recovered_hood_entry(
     relative = snapshot_path(owner, hood)
     snapshot_bytes = (repo_root / relative).read_bytes()
     snapshot = read_hood_snapshot(repo_root / relative)
+    _require_repair_snapshot_identity(snapshot, owner, project, hood)
+    decision = _manifest_repair_decision(snapshot, explicit_files=None)
+    if decision.action != SESSION_MANIFEST_REPAIR_NORMALIZE_SLIM:
+        raise AgentsSyncFormatError(
+            f"hood {hood!r} snapshot cannot be normalized: {decision.reason}"
+        )
+    for run in snapshot.runs:
+        verify_run_files(repo_root, run)
+    decision = _manifest_repair_decision(snapshot, explicit_files=None)
+    return V2OwnerHoodEntry(
+        content_digest(snapshot_bytes),
+        None,
+        decision.run_count,
+        decision.agent_session_count,
+    )
+
+
+def _repair_explicit_hood_entry(
+    repo_root: Path,
+    owner: AgentOwnerIdentity,
+    project: V2ProjectIdentity,
+    hood: str,
+    entry: V2OwnerHoodEntry,
+) -> V2OwnerHoodEntry | None:
+    relative = snapshot_path(owner, hood)
+    snapshot_bytes = (repo_root / relative).read_bytes()
+    if content_digest(snapshot_bytes) != entry.digest:
+        raise AgentsSyncFormatError(f"hood {hood!r} snapshot digest mismatch")
+    snapshot = read_hood_snapshot(repo_root / relative)
+    _require_repair_snapshot_identity(snapshot, owner, project, hood)
+    decision = _manifest_repair_decision(snapshot, explicit_files=entry.files)
+    if decision.action == SESSION_MANIFEST_REPAIR_KEEP:
+        return None
+    if decision.action != SESSION_MANIFEST_REPAIR_NORMALIZE_SLIM:
+        raise AgentsSyncFormatError(
+            f"explicit file list is unsafe to repair: {decision.reason}"
+        )
+    for run in snapshot.runs:
+        verify_run_files(repo_root, run)
+    decision = _manifest_repair_decision(snapshot, explicit_files=entry.files)
+    if decision.action != SESSION_MANIFEST_REPAIR_NORMALIZE_SLIM:
+        raise AgentsSyncFormatError(
+            f"explicit file list changed during repair: {decision.reason}"
+        )
+    return V2OwnerHoodEntry(
+        content_digest(snapshot_bytes),
+        None,
+        decision.run_count,
+        decision.agent_session_count,
+    )
+
+
+def _manifest_repair_decision(
+    snapshot: V2HoodSnapshot,
+    *,
+    explicit_files: tuple[str, ...] | None,
+) -> SessionManifestRepairDecision:
+    return repair_session_manifest_entry(
+        owner_username=snapshot.owner.username,
+        owner_machine=snapshot.owner.machine_name,
+        local_hood=snapshot.local_hood,
+        run_global_names=tuple(run.global_name for run in snapshot.runs),
+        run_file_paths=tuple(
+            reference.path for run in snapshot.runs for _kind, reference in run.files
+        ),
+        containers=tuple(
+            (container.kind, container.global_name) for container in snapshot.containers
+        ),
+        explicit_files=explicit_files,
+    )
+
+
+def _require_repair_snapshot_identity(
+    snapshot: V2HoodSnapshot,
+    owner: AgentOwnerIdentity,
+    project: V2ProjectIdentity,
+    hood: str,
+) -> None:
     if (
         snapshot.owner != owner
         or snapshot.project != project
         or snapshot.local_hood != hood
     ):
         raise AgentsSyncFormatError(f"hood {hood!r} snapshot identity mismatch")
-    for run in snapshot.runs:
-        verify_run_files(repo_root, run)
-    return V2OwnerHoodEntry(
-        content_digest(snapshot_bytes),
-        None,
-        len(snapshot.runs),
-        sum(is_session_container(item.kind) for item in snapshot.containers),
-    )
 
 
 def _repair_project_hood_digests(

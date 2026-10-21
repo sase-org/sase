@@ -907,7 +907,7 @@ Options:
 | `-p PROJECT`, `--project PROJECT` | Limit to a project name or alias (repeatable)                                                                                      | —       |
 | `-r`, `--refresh`                 | With --check, fetch remote refs before computing sidecar ahead/behind counts                                                       | `false` |
 | `-g`, `--repair-digests`          | Re-sign locally owned hood-snapshot file references that have drifted from their on-disk payload, instead of running a normal sync | `false` |
-| `-m`, `--repair-manifest`         | Rebuild owner-manifest entries for on-disk hoods the manifest is missing, instead of running a normal sync                         | `false` |
+| `-m`, `--repair-manifest`         | Restore missing owner-manifest hoods and normalize verified stale explicit file lists, instead of running a normal sync            | `false` |
 | `-q`, `--retry-quarantined`       | Clear quarantined publication requests and retry them during this full sync                                                        | `false` |
 | `-t`, `--retry-retired`           | Revive this project's retired agent-publication requests once, then run full reconciliation; requires --project                    | `false` |
 

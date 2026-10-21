@@ -14,8 +14,15 @@ from sase.agents_sync.publication_repair import (
     _repair_owner_manifest,
 )
 from sase.agents_sync.publication_validation import load_validated_publication
-from sase.agents_sync.v2_io import apply_payload_atomic
+from sase.agents_sync.v2_io import (
+    apply_payload_atomic,
+    content_digest,
+    read_hood_snapshot,
+    v2_json_bytes,
+)
 from sase.core.agent_identity_facade import AgentIdentitySnapshot, AgentOwnerIdentity
+from sase.core.agent_session_manifest import classify_session_manifest_files
+from sase.plan_chain import AGENT_SESSION_KEY
 
 
 def _target(tmp_path: Path, name: str) -> ProjectTarget:
@@ -32,7 +39,16 @@ def _target(tmp_path: Path, name: str) -> ProjectTarget:
     )
 
 
-def _run(owner: AgentOwnerIdentity, name: str, suffix: str) -> InventoryRun:
+def _run(
+    owner: AgentOwnerIdentity,
+    name: str,
+    suffix: str,
+    *,
+    agent_session: str | None = None,
+) -> InventoryRun:
+    metadata = (("model", "gpt"),)
+    if agent_session is not None:
+        metadata += ((AGENT_SESSION_KEY, agent_session),)
     return InventoryRun(
         f"run-{suffix}",
         name,
@@ -41,11 +57,11 @@ def _run(owner: AgentOwnerIdentity, name: str, suffix: str) -> InventoryRun:
         "2026-07-23T12:00:00+00:00",
         "2026-07-23T12:01:00+00:00",
         None,
-        (("model", "gpt"),),
+        metadata,
         (),
         f"prompt for {name}\n".encode(),
         f"chat for {name}\n".encode(),
-        None,
+        agent_session,
         None,
         (),
         f"20260723120{suffix}",
@@ -85,6 +101,60 @@ def _manifest_path(repo: Path, owner: AgentOwnerIdentity) -> Path:
         / owner.machine_name
         / "manifest.json"
     )
+
+
+def _snapshot_path(repo: Path, owner: AgentOwnerIdentity, hood: str) -> Path:
+    return (
+        repo
+        / "users"
+        / owner.username
+        / "machines"
+        / owner.machine_name
+        / "hoods"
+        / hood
+        / "snapshot.json"
+    )
+
+
+def _canonical_files(
+    repo: Path, owner: AgentOwnerIdentity, hood: str
+) -> tuple[str, ...]:
+    snapshot = read_hood_snapshot(_snapshot_path(repo, owner, hood))
+    decision = classify_session_manifest_files(
+        owner_username=snapshot.owner.username,
+        owner_machine=snapshot.owner.machine_name,
+        local_hood=snapshot.local_hood,
+        run_global_names=tuple(run.global_name for run in snapshot.runs),
+        run_file_paths=tuple(
+            reference.path for run in snapshot.runs for _kind, reference in run.files
+        ),
+        containers=tuple(
+            (container.kind, container.global_name) for container in snapshot.containers
+        ),
+        explicit_files=None,
+    )
+    return decision.canonical_files
+
+
+def _set_explicit_files(
+    repo: Path,
+    owner: AgentOwnerIdentity,
+    hood: str,
+    files: list[str],
+) -> None:
+    path = _manifest_path(repo, owner)
+    manifest = json.loads(path.read_text(encoding="utf-8"))
+    manifest["hoods"][hood]["files"] = files
+    path.write_text(json.dumps(manifest), encoding="utf-8")
+
+
+def _stale_files(
+    owner: AgentOwnerIdentity, hood: str, files: tuple[str, ...]
+) -> list[str]:
+    stale_path = (
+        f"agents/{owner.username}.{owner.machine_name}.{hood}.retired/README.md"
+    )
+    return sorted([*files, stale_path])
 
 
 def test_repair_resigns_drifted_payload_and_publication_recovers(
@@ -208,6 +278,202 @@ def test_repair_manifest_is_a_noop_when_already_complete(tmp_path: Path) -> None
 
     assert payload == {}
     assert report == ()
+
+
+def test_repair_manifest_normalizes_verified_apollo_style_stale_list(
+    tmp_path: Path,
+) -> None:
+    owner = AgentOwnerIdentity("bbugyi200", "apollo")
+    target = _target(tmp_path, "manifest-stale-list")
+    repo = target.sidecar_path
+    repo.mkdir()
+    inventory = ProjectHoodInventory(owner, "proj", (_run(owner, "03", "01"),))
+    publish_agent_hood(
+        target,
+        repo,
+        "03",
+        identity=AgentIdentitySnapshot(owner),
+        inventory=inventory,
+    )
+    manifest_path = _manifest_path(repo, owner)
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["hoods"]["03"]["files"] = _stale_files(
+        owner, "03", _canonical_files(repo, owner, "03")
+    )
+    manifest["hoods"]["03"]["run_count"] = 9
+    manifest["hoods"]["03"]["agent_session_count"] = 4
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    payload, report = _repair_owner_manifest(target, repo, owner)
+
+    key = manifest_path.relative_to(repo).as_posix()
+    repaired = json.loads(payload[key])
+    assert report == ("03: repaired stale explicit file list",)
+    assert "files" not in repaired["hoods"]["03"]
+    assert repaired["hoods"]["03"]["run_count"] == 1
+    assert repaired["hoods"]["03"]["agent_session_count"] == 0
+    assert repaired["hoods"]["03"]["digest"] == manifest["hoods"]["03"]["digest"]
+
+    apply_payload_atomic(repo, payload)
+    load_validated_publication(repo)
+    second_payload, second_report = _repair_owner_manifest(target, repo, owner)
+    assert second_payload == {}
+    assert second_report == ()
+
+
+def test_repair_manifest_preserves_current_legacy_and_slim_entries(
+    tmp_path: Path,
+) -> None:
+    owner = AgentOwnerIdentity("alice", "athena")
+    target = _target(tmp_path, "manifest-compatible-lists")
+    repo = target.sidecar_path
+    repo.mkdir()
+    inventory = ProjectHoodInventory(
+        owner,
+        "proj",
+        (
+            _run(owner, "current", "01"),
+            _run(owner, "legacy--member", "02", agent_session="legacy"),
+            _run(owner, "slim", "03"),
+        ),
+    )
+    for hood in ("current", "legacy", "slim"):
+        publish_agent_hood(
+            target,
+            repo,
+            hood,
+            identity=AgentIdentitySnapshot(owner),
+            inventory=inventory,
+        )
+    _set_explicit_files(
+        repo, owner, "current", list(_canonical_files(repo, owner, "current"))
+    )
+    legacy_files = [
+        path
+        for path in _canonical_files(repo, owner, "legacy")
+        if not path.startswith("sessions/")
+    ]
+    _set_explicit_files(repo, owner, "legacy", list(legacy_files))
+    manifest_before = _manifest_path(repo, owner).read_bytes()
+
+    payload, report = _repair_owner_manifest(target, repo, owner)
+
+    assert payload == {}
+    assert report == ()
+    assert _manifest_path(repo, owner).read_bytes() == manifest_before
+
+
+def test_repair_manifest_skips_corrupt_candidate_beside_a_valid_one(
+    tmp_path: Path,
+) -> None:
+    owner = AgentOwnerIdentity("alice", "athena")
+    target = _target(tmp_path, "manifest-mixed-candidates")
+    repo = target.sidecar_path
+    repo.mkdir()
+    for hood, suffix in (("foo", "01"), ("bar", "02")):
+        hood_inventory = ProjectHoodInventory(
+            owner, "proj", (_run(owner, hood, suffix),)
+        )
+        publish_agent_hood(
+            target,
+            repo,
+            hood,
+            identity=AgentIdentitySnapshot(owner),
+            inventory=hood_inventory,
+        )
+    for hood in ("foo", "bar"):
+        _set_explicit_files(
+            repo,
+            owner,
+            hood,
+            _stale_files(owner, hood, _canonical_files(repo, owner, hood)),
+        )
+    _chat_path(repo, owner, "bar").write_bytes(b"corrupt referenced payload\n")
+    manifest_before = json.loads(
+        _manifest_path(repo, owner).read_text(encoding="utf-8")
+    )
+
+    payload, report = _repair_owner_manifest(target, repo, owner)
+
+    assert any("foo: repaired stale explicit file list" == item for item in report)
+    assert any("bar: skipped explicit-list repair" in item for item in report)
+    repaired = json.loads(
+        payload[_manifest_path(repo, owner).relative_to(repo).as_posix()]
+    )
+    assert "files" not in repaired["hoods"]["foo"]
+    assert repaired["hoods"]["bar"] == manifest_before["hoods"]["bar"]
+
+
+def test_repair_manifest_reports_snapshot_digest_and_identity_mismatches(
+    tmp_path: Path,
+) -> None:
+    owner = AgentOwnerIdentity("alice", "athena")
+    target, repo = _publish(tmp_path, "manifest-invalid-snapshots", owner, "foo")
+    _set_explicit_files(
+        repo,
+        owner,
+        "foo",
+        _stale_files(owner, "foo", _canonical_files(repo, owner, "foo")),
+    )
+    manifest_path = _manifest_path(repo, owner)
+    manifest_before = manifest_path.read_bytes()
+    snapshot_path = _snapshot_path(repo, owner, "foo")
+    pristine_snapshot = snapshot_path.read_bytes()
+    snapshot_path.write_bytes(pristine_snapshot + b" ")
+
+    payload, report = _repair_owner_manifest(target, repo, owner)
+
+    assert payload == {}
+    assert any("snapshot digest mismatch" in item for item in report)
+    assert manifest_path.read_bytes() == manifest_before
+
+    snapshot = json.loads(pristine_snapshot)
+    snapshot["owner"]["machine_name"] = "zeus"
+    snapshot["hood"]["global_name"] = "alice.zeus.foo"
+    snapshot["runs"][0]["global_name"] = "alice.zeus.foo"
+    tampered_snapshot = v2_json_bytes(snapshot)
+    snapshot_path.write_bytes(tampered_snapshot)
+    manifest = json.loads(manifest_before)
+    manifest["hoods"]["foo"]["digest"] = content_digest(tampered_snapshot)
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    identity_mismatch_manifest = manifest_path.read_bytes()
+
+    payload, report = _repair_owner_manifest(target, repo, owner)
+
+    assert payload == {}
+    assert any("snapshot identity mismatch" in item for item in report)
+    assert manifest_path.read_bytes() == identity_mismatch_manifest
+
+
+def test_repair_manifest_skips_unsafe_referenced_path_before_reading_it(
+    tmp_path: Path,
+) -> None:
+    owner = AgentOwnerIdentity("alice", "athena")
+    target, repo = _publish(tmp_path, "manifest-unsafe-path", owner, "foo")
+    _set_explicit_files(
+        repo,
+        owner,
+        "foo",
+        _stale_files(owner, "foo", _canonical_files(repo, owner, "foo")),
+    )
+    path = _snapshot_path(repo, owner, "foo")
+    snapshot = json.loads(path.read_text(encoding="utf-8"))
+    run = snapshot["runs"][0]
+    reference = next(iter(run["files"].values()))
+    reference["path"] = "../outside"
+    snapshot_bytes = v2_json_bytes(snapshot)
+    path.write_bytes(snapshot_bytes)
+    manifest_path = _manifest_path(repo, owner)
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["hoods"]["foo"]["digest"] = content_digest(snapshot_bytes)
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    payload, report = _repair_owner_manifest(target, repo, owner)
+
+    assert payload == {}
+    assert any(
+        "skipped explicit-list repair" in item and "path" in item for item in report
+    )
 
 
 def test_repair_digest_writer_omits_explicit_file_lists(

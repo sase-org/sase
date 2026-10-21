@@ -414,12 +414,14 @@ sase agent sync --repair-manifest -p project-alias  # -m
   snapshot. The `state.agent_publication_digest` check in `sase doctor` detects this
   drift and names the command.
 - `--repair-manifest` restores owner-manifest entries for hood directories that exist on
-  disk but are missing from the manifest. Publication reports such hoods in its
-  diagnostics. Each candidate hood is validated on its own (snapshot identity plus every
-  referenced file's size and digest); a hood that fails is skipped and reported, and
-  existing manifest entries always win. Publication also refuses to start from a missing
-  owner manifest while that owner's hood directories still exist, rather than
-  republishing from an empty manifest.
+  disk but are missing from the manifest, and normalizes stale explicit file lists to
+  the supported slim entry. A stale list is repaired only after its snapshot digest and
+  owner/project/hood identity, path safety, and every referenced file's size and digest
+  are verified. Current and supported legacy lists are preserved; corrupt or unsafe
+  candidates are skipped and reported. The command only reads and writes the current
+  owner's subtree. Publication also refuses to start from a missing owner manifest while
+  that owner's hood directories still exist, rather than republishing from an empty
+  manifest.
 
 CLI status checks maintain `~/.sase/agents_sync/status_snapshot.json`:
 

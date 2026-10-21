@@ -49,6 +49,19 @@ Because owners mutate disjoint authority files, a bounded non-fast-forward retry
 pull a competing owner, recompute the shared views, and converge without overwriting
 either snapshot.
 
+## Owner-manifest repair
+
+`sase agent sync --repair-manifest` repairs only the current owner's manifest and hood
+directories. It restores entries for snapshots that have no manifest entry and repairs a
+stale explicit `files` list by dropping that redundant list into the supported slim
+form. Before changing a stale entry, the command verifies the snapshot digest and owner,
+project, and hood identity, asks the Rust session-manifest policy to validate paths, and
+checks every referenced payload's byte count and digest. Counts come from the verified
+snapshot. Current and supported legacy explicit lists remain unchanged; unsafe lists,
+identity or digest mismatches, and missing or corrupt payloads are reported and skipped.
+The command never reads or changes another owner's subtree, preserves the snapshot and
+payload bytes, and becomes a no-op after a successful repair.
+
 ## Related
 
 - [Contribute](index.md) — the section hub.

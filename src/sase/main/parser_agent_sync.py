@@ -71,8 +71,8 @@ def register_agent_sync_parser(agents_sub: argparse._SubParsersAction) -> None:
         "--repair-manifest",
         action="store_true",
         help=(
-            "Rebuild owner-manifest entries for on-disk hoods the manifest is "
-            "missing, instead of running a normal sync"
+            "Restore missing owner-manifest hoods and normalize verified stale "
+            "explicit file lists, instead of running a normal sync"
         ),
     )
     sync_parser.add_argument(

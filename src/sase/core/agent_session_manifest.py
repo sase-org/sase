@@ -14,12 +14,24 @@ SESSION_MANIFEST_CLASS_SUPPORTED_LEGACY = "supported_legacy"
 SESSION_MANIFEST_CLASS_SLIM = "slim"
 SESSION_MANIFEST_CLASS_INVALID = "invalid"
 
+SESSION_MANIFEST_REPAIR_NORMALIZE_SLIM = "normalize_slim"
+SESSION_MANIFEST_REPAIR_KEEP = "keep"
+SESSION_MANIFEST_REPAIR_SKIP = "skip"
+
 _CLASSIFICATIONS = frozenset(
     {
         SESSION_MANIFEST_CLASS_CURRENT,
         SESSION_MANIFEST_CLASS_SUPPORTED_LEGACY,
         SESSION_MANIFEST_CLASS_SLIM,
         SESSION_MANIFEST_CLASS_INVALID,
+    }
+)
+
+_REPAIR_ACTIONS = frozenset(
+    {
+        SESSION_MANIFEST_REPAIR_NORMALIZE_SLIM,
+        SESSION_MANIFEST_REPAIR_KEEP,
+        SESSION_MANIFEST_REPAIR_SKIP,
     }
 )
 
@@ -30,6 +42,16 @@ class _SessionManifestClassification:
     canonical_files: tuple[str, ...]
     legacy_files: tuple[str, ...]
     classification: str
+    reason: str
+
+
+@dataclass(frozen=True)
+class SessionManifestRepairDecision:
+    schema_version: int
+    action: str
+    classification: str
+    run_count: int
+    agent_session_count: int
     reason: str
 
 
@@ -44,7 +66,56 @@ def classify_session_manifest_files(
     explicit_files: tuple[str, ...] | list[str] | None = None,
 ) -> _SessionManifestClassification:
     """Classify one explicit manifest list through ``sase_core_rs``."""
-    request = {
+    request = _manifest_request(
+        owner_username=owner_username,
+        owner_machine=owner_machine,
+        local_hood=local_hood,
+        run_global_names=run_global_names,
+        run_file_paths=run_file_paths,
+        containers=containers,
+        explicit_files=explicit_files,
+    )
+    binding = require_rust_binding("classify_session_manifest_files")
+    raw = binding(request)
+    return _classification_from_dict(raw)
+
+
+def repair_session_manifest_entry(
+    *,
+    owner_username: str,
+    owner_machine: str,
+    local_hood: str,
+    run_global_names: tuple[str, ...] | list[str] = (),
+    run_file_paths: tuple[str, ...] | list[str] = (),
+    containers: tuple[tuple[str, str], ...] | list[tuple[str, str]] = (),
+    explicit_files: tuple[str, ...] | list[str] | None = None,
+) -> SessionManifestRepairDecision:
+    """Ask Rust whether a verified candidate can be normalized to a slim entry."""
+    request = _manifest_request(
+        owner_username=owner_username,
+        owner_machine=owner_machine,
+        local_hood=local_hood,
+        run_global_names=run_global_names,
+        run_file_paths=run_file_paths,
+        containers=containers,
+        explicit_files=explicit_files,
+    )
+    binding = require_rust_binding("repair_session_manifest_entry")
+    raw = binding(request)
+    return _repair_decision_from_dict(raw)
+
+
+def _manifest_request(
+    *,
+    owner_username: str,
+    owner_machine: str,
+    local_hood: str,
+    run_global_names: tuple[str, ...] | list[str],
+    run_file_paths: tuple[str, ...] | list[str],
+    containers: tuple[tuple[str, str], ...] | list[tuple[str, str]],
+    explicit_files: tuple[str, ...] | list[str] | None,
+) -> dict[str, object]:
+    return {
         "schema_version": SESSION_MANIFEST_WIRE_SCHEMA_VERSION,
         "snapshot": {
             "owner_username": _require_str(owner_username, "owner_username"),
@@ -60,9 +131,6 @@ def classify_session_manifest_files(
             else _require_str_list(explicit_files, "explicit_files")
         ),
     }
-    binding = require_rust_binding("classify_session_manifest_files")
-    raw = binding(request)
-    return _classification_from_dict(raw)
 
 
 def _containers_to_list(
@@ -114,6 +182,42 @@ def _classification_from_dict(raw: Any) -> _SessionManifestClassification:
     return result
 
 
+def _repair_decision_from_dict(raw: Any) -> SessionManifestRepairDecision:
+    if not isinstance(raw, dict):
+        raise RuntimeError("sase_core_rs returned a non-dict repair decision")
+    try:
+        result = SessionManifestRepairDecision(
+            schema_version=_require_int(raw, "schema_version"),
+            action=_require_str_field(raw, "action"),
+            classification=_require_str_field(raw, "classification"),
+            run_count=_require_int(raw, "run_count"),
+            agent_session_count=_require_int(raw, "agent_session_count"),
+            reason=_require_str_field(raw, "reason"),
+        )
+    except KeyError as exc:
+        raise RuntimeError(
+            "sase_core_rs returned an incomplete session manifest repair "
+            f"decision: missing {exc}"
+        ) from exc
+    if result.schema_version != SESSION_MANIFEST_WIRE_SCHEMA_VERSION:
+        raise RuntimeError(
+            "sase_core_rs session manifest repair wire is stale: "
+            f"{result.schema_version}"
+        )
+    if result.action not in _REPAIR_ACTIONS:
+        raise RuntimeError(
+            f"sase_core_rs returned an unknown repair action: {result.action}"
+        )
+    if result.classification not in _CLASSIFICATIONS:
+        raise RuntimeError(
+            "sase_core_rs returned an unknown manifest "
+            f"classification: {result.classification}"
+        )
+    if result.run_count < 0 or result.agent_session_count < 0:
+        raise RuntimeError("sase_core_rs returned a negative repair count")
+    return result
+
+
 def _require_str(value: object, key: str) -> str:
     if not isinstance(value, str):
         raise TypeError(f"{key} must be a str")
@@ -162,6 +266,11 @@ __all__ = [
     "SESSION_MANIFEST_CLASS_INVALID",
     "SESSION_MANIFEST_CLASS_SLIM",
     "SESSION_MANIFEST_CLASS_SUPPORTED_LEGACY",
+    "SESSION_MANIFEST_REPAIR_KEEP",
+    "SESSION_MANIFEST_REPAIR_NORMALIZE_SLIM",
+    "SESSION_MANIFEST_REPAIR_SKIP",
     "SESSION_MANIFEST_WIRE_SCHEMA_VERSION",
+    "SessionManifestRepairDecision",
     "classify_session_manifest_files",
+    "repair_session_manifest_entry",
 ]
