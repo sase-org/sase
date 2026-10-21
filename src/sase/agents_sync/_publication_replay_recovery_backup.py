@@ -8,7 +8,14 @@ from pathlib import Path
 import shutil
 from typing import Any
 
-from sase.agents_sync._publication_replay_recovery_support import file_bytes, git_text
+from sase.agents_sync._publication_replay_recovery_support import (
+    file_bytes,
+    git_optional_bytes,
+    git_text,
+    read_merge_base_runs,
+    replay_run_field,
+    replay_value_bytes,
+)
 from sase.agents_sync._publication_replay_recovery_types import (
     BUNDLE_NAME,
     CHECKSUMS_NAME,
@@ -23,7 +30,7 @@ from sase.agents_sync._publication_replay_recovery_types import (
     read_progress,
     write_progress,
 )
-from sase.agents_sync.git import GitRunner
+from sase.agents_sync.git import GitBytesRunner, GitRunner
 from sase.agents_sync.git_sync_ops import agents_ahead_count, agents_git_error
 from sase.agents_sync.io import AgentsSyncFormatError, atomic_write_json
 from sase.agents_sync.publication_validation import snapshot_path
@@ -63,12 +70,23 @@ def observe_clone(repo: Path, git_runner: GitRunner) -> dict[str, Any]:
         ["rev-list", "--reverse", "@{upstream}..HEAD"],
         "replay_unpublished",
     )
+    merge_base_result = git_runner(
+        repo,
+        ["merge-base", "HEAD", "@{upstream}"],
+        op="agents_sync.replay_merge_base",
+    )
+    merge_base = (
+        merge_base_result.stdout.strip()
+        if merge_base_result.returncode == 0 and merge_base_result.stdout.strip()
+        else None
+    )
     return {
         "head": head,
         "upstream": upstream,
         "ahead": agents_ahead_count(repo, git_runner),
         "behind": behind,
         "unpublished": unpublished,
+        "merge_base": merge_base,
     }
 
 
@@ -140,6 +158,7 @@ def ensure_backup(
         {
             "head": observed["head"],
             "upstream": observed["upstream"],
+            "merge_base": observed.get("merge_base"),
             "unpublished": list(observed["unpublished"]),
             "expected_head": expected_head,
         },
@@ -154,6 +173,7 @@ def ensure_backup(
             "expected_head": expected_head,
             "observed_head": observed["head"],
             "upstream": observed["upstream"],
+            "merge_base": observed.get("merge_base"),
             "unpublished": list(observed["unpublished"]),
             "hoods": list(hoods),
             "browsing": list(classified.browsing),
@@ -188,18 +208,22 @@ def refused_same_run_divergences(
     owner: AgentOwnerIdentity,
     hoods: tuple[str, ...],
     owner_content: tuple[str, ...],
-    git_runner: GitRunner,
+    merge_base: str | None,
+    git_bytes_runner: GitBytesRunner,
 ) -> tuple[str, ...]:
     del owner_content
     refused: list[str] = []
     for hood in hoods:
+        base_runs = read_merge_base_runs(
+            repo, owner, (hood,), merge_base, git_bytes_runner
+        )
         relative = snapshot_path(owner, hood)
         local = repo / relative
         if not local.is_file():
             continue
-        upstream_bytes = _git_optional_bytes(
+        upstream_bytes = git_optional_bytes(
             repo,
-            git_runner,
+            git_bytes_runner,
             ["show", f"@{{upstream}}:{relative}"],
             "replay_upstream_snap",
         )
@@ -226,21 +250,56 @@ def refused_same_run_divergences(
             local_run = local_runs.get(run.global_name)
             if local_run is None:
                 continue
-            for kind, current_ref in dict(local_run.files).items():
-                previous_ref = dict(run.files).get(kind)
-                if previous_ref is None:
-                    continue
-                current_bytes = file_bytes(repo / current_ref.path)
-                previous_bytes = _git_optional_bytes(
-                    repo,
-                    git_runner,
-                    ["show", f"@{{upstream}}:{previous_ref.path}"],
-                    "replay_upstream_run",
+            base_run = base_runs.get(run.global_name)
+            if base_run is not None:
+                for field in (
+                    "state",
+                    "started_at",
+                    "finished_at",
+                    "dismissed_at",
+                    "metadata",
+                    "commits",
+                ):
+                    current_value = replay_run_field(local_run, field)
+                    previous_value = replay_run_field(run, field)
+                    base_value = replay_run_field(base_run.record, field)
+                    field_decision = decide_replay_byte_divergence(
+                        replay_value_bytes(current_value),
+                        replay_value_bytes(previous_value),
+                        base=replay_value_bytes(base_value),
+                    )
+                    if field_decision.action == REPLAY_BYTES_REFUSE:
+                        refused.append(
+                            f"{run.global_name}:{field}: {field_decision.reason}"
+                        )
+            current_files = dict(local_run.files)
+            previous_files = dict(run.files)
+            for kind in current_files.keys() | previous_files.keys():
+                current_ref = current_files.get(kind)
+                previous_ref = previous_files.get(kind)
+                current_bytes = (
+                    file_bytes(repo / current_ref.path)
+                    if current_ref is not None
+                    else None
                 )
-                if current_bytes is None or previous_bytes is None:
+                previous_bytes = (
+                    git_optional_bytes(
+                        repo,
+                        git_bytes_runner,
+                        ["show", f"@{{upstream}}:{previous_ref.path}"],
+                        "replay_upstream_run",
+                    )
+                    if previous_ref is not None
+                    else None
+                )
+                if current_bytes is None and previous_bytes is None:
                     continue
                 run_decision: ReplayByteDivergenceDecision = (
-                    decide_replay_byte_divergence(current_bytes, previous_bytes)
+                    decide_replay_byte_divergence(
+                        current_bytes or b"",
+                        previous_bytes or b"",
+                        base=base_run.payloads.get(kind) if base_run else None,
+                    )
                 )
                 if run_decision.action == REPLAY_BYTES_REFUSE:
                     refused.append(f"{run.global_name}:{kind}: {run_decision.reason}")
@@ -275,12 +334,3 @@ def _git_lines(
     if result.returncode != 0:
         return ()
     return tuple(line for line in result.stdout.splitlines() if line)
-
-
-def _git_optional_bytes(
-    repo: Path, git_runner: GitRunner, args: list[str], op: str
-) -> bytes | None:
-    result = git_runner(repo, args, op=f"agents_sync.{op}")
-    if result.returncode != 0:
-        return None
-    return result.stdout.encode()

@@ -27,6 +27,7 @@ from sase.core.agent_publication_recovery import (
     REPLAY_APPLY_ACTION_REFUSE,
     REPLAY_APPLY_ACTION_REPORT,
     REPLAY_BYTES_KEEP_CURRENT,
+    REPLAY_BYTES_KEEP_PREVIOUS,
     REPLAY_BYTES_REFUSE,
     REPLAY_HOOD_ACTION_MERGE,
     REPLAY_PATH_ARCHIVE_OBJECT,
@@ -388,7 +389,7 @@ def test_classify_replay_paths_separates_browsing_owner_and_objects() -> None:
     )
 
 
-def test_replay_byte_divergence_requires_a_prefix_proof() -> None:
+def test_replay_byte_divergence_uses_merge_base_before_prefix_rules() -> None:
     keep = decide_replay_byte_divergence(b"hello world", b"hello")
     assert keep.action == REPLAY_BYTES_KEEP_CURRENT
     assert keep.retained
@@ -396,6 +397,16 @@ def test_replay_byte_divergence_requires_a_prefix_proof() -> None:
     refuse = decide_replay_byte_divergence(b"aaaaaaaaaa", b"bbbb")
     assert refuse.action == REPLAY_BYTES_REFUSE
     assert not refuse.retained
+
+    local_change = decide_replay_byte_divergence(
+        b"local\r\nchange", b"base\r\n", b"base\r\n"
+    )
+    assert local_change.action == REPLAY_BYTES_KEEP_CURRENT
+
+    upstream_change = decide_replay_byte_divergence(
+        b"base\r\n", b"upstream\r\nchange", b"base\r\n"
+    )
+    assert upstream_change.action == REPLAY_BYTES_KEEP_PREVIOUS
 
 
 def test_replay_apply_admits_verified_backup_and_refuses_head_drift() -> None:

@@ -17,13 +17,15 @@ from sase.agents_sync._publication_replay_recovery_backup import (
 from sase.agents_sync._publication_replay_recovery_types import (
     COMPLETE_STAGE,
     MUTATION_STAGES,
+    REVISIONS_NAME,
     VERIFIED_STAGE,
     ReplayRecoveryReport,
     error_report,
+    read_json,
     read_progress,
     report_from_state,
 )
-from sase.agents_sync.git import GitRunner, run_git
+from sase.agents_sync.git import GitBytesRunner, GitRunner, run_git, run_git_bytes
 from sase.agents_sync.git_sync_ops import (
     agents_git_dir,
     agents_git_error,
@@ -58,6 +60,7 @@ def recover_stale_replay(
     apply: bool = False,
     owner: AgentOwnerIdentity | None = None,
     git_runner: GitRunner = run_git,
+    git_bytes_runner: GitBytesRunner = run_git_bytes,
     lock_timeout_seconds: float | None = None,
 ) -> ReplayRecoveryReport:
     """Inventory, back up, and optionally replay one project's stale commit."""
@@ -108,6 +111,7 @@ def recover_stale_replay(
             backup_root,
             apply,
             git_runner,
+            git_bytes_runner,
         )
 
 
@@ -118,6 +122,7 @@ def _recover_locked(
     backup_root: Path,
     apply: bool,
     git_runner: GitRunner,
+    git_bytes_runner: GitBytesRunner,
 ) -> ReplayRecoveryReport:
     repo = target.sidecar_path
     fetched = git_runner(repo, ["fetch"], network=True, op="agents_sync.replay_fetch")
@@ -133,6 +138,7 @@ def _recover_locked(
         )
     observed = observe_clone(repo, git_runner)
     progress = read_progress(backup_root)
+    merge_base = _replay_merge_base(repo, backup_root, progress, observed, git_runner)
     already_complete = (
         progress is not None
         and progress.get("stage") == COMPLETE_STAGE
@@ -152,7 +158,12 @@ def _recover_locked(
         classified = classify_replay_paths(paths)
         hoods = _owner_hoods(classified.owner_content, owner)
         refused = refused_same_run_divergences(
-            repo, owner, hoods, classified.owner_content, git_runner
+            repo,
+            owner,
+            hoods,
+            classified.owner_content,
+            merge_base,
+            git_bytes_runner,
         )
         try:
             ensure_backup(
@@ -228,8 +239,37 @@ def _recover_locked(
         classified,
         refused,
         git_runner,
+        git_bytes_runner,
+        merge_base,
         mutation_started,
     )
+
+
+def _replay_merge_base(
+    repo: Path,
+    backup_root: Path,
+    progress: dict[str, Any] | None,
+    observed: dict[str, Any],
+    git_runner: GitRunner,
+) -> str | None:
+    if progress is not None and "merge_base" in progress:
+        value = progress["merge_base"]
+        return value if isinstance(value, str) else None
+    revisions_path = backup_root / REVISIONS_NAME
+    revisions = read_json(revisions_path) if revisions_path.is_file() else None
+    if isinstance(revisions, dict):
+        head = revisions.get("head")
+        upstream = revisions.get("upstream")
+        if isinstance(head, str) and isinstance(upstream, str):
+            result = git_runner(
+                repo,
+                ["merge-base", head, upstream],
+                op="agents_sync.replay_merge_base_resume",
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                return result.stdout.strip()
+    value = observed.get("merge_base")
+    return value if isinstance(value, str) else None
 
 
 def _classified_from_progress(

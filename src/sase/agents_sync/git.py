@@ -25,6 +25,19 @@ class GitRunner(Protocol):
     ) -> subprocess.CompletedProcess[str]: ...
 
 
+class GitBytesRunner(Protocol):
+    """Injectable git command boundary for commands whose output is file content."""
+
+    def __call__(
+        self,
+        cwd: Path,
+        args: list[str],
+        *,
+        network: bool = False,
+        op: str = "agents_sync.git",
+    ) -> subprocess.CompletedProcess[bytes]: ...
+
+
 def _noninteractive_git_env(
     base: Mapping[str, str] | None = None,
 ) -> dict[str, str]:
@@ -88,4 +101,46 @@ def run_git(
     )
 
 
-__all__ = ["GitRunner", "run_git"]
+def run_git_bytes(
+    cwd: Path,
+    args: list[str],
+    *,
+    network: bool = False,
+    op: str = "agents_sync.git",
+) -> subprocess.CompletedProcess[bytes]:
+    """Run one bounded git command without decoding or newline conversion."""
+
+    if network:
+        result = run_sdd_network_git(
+            args,
+            cwd=cwd,
+            op=op,
+            timeout=network_git_timeout(),
+            check=False,
+            capture_output=True,
+            text=False,
+            env=_noninteractive_git_env(),
+        )
+    else:
+        result, _outcome = run_with_git_lock_retry(
+            lambda: run_sdd_git(
+                args,
+                cwd=cwd,
+                op=op,
+                timeout=None,
+                check=False,
+                capture_output=True,
+                text=False,
+                env=_noninteractive_git_env(),
+            ),
+            cwd=cwd,
+        )
+    return subprocess.CompletedProcess(
+        result.args,
+        result.returncode,
+        bytes(result.stdout or b""),
+        bytes(result.stderr or b""),
+    )
+
+
+__all__ = ["GitBytesRunner", "GitRunner", "run_git", "run_git_bytes"]

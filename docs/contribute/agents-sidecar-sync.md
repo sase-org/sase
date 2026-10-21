@@ -121,8 +121,10 @@ Inspect the JSON report: `ahead` / `behind`, `owner_content_paths`,
 `archive_object_paths`, `unknown_paths`, and `refused_divergences`. `stage` must be
 `verified`. Confirm `revisions.json` names the expected HEAD and that every checksum
 other than `progress.json` matches. If `unknown_paths` or `refused_divergences` is
-non-empty, stop. Same-run bytes that are not a byte prefix of each other have no
-lossless merge; the backup stays intact.
+non-empty, stop. Same-run content is compared as bytes. When a merge-base version
+exists, recovery keeps the side that changed while the other side still matches the
+base; two-sided non-prefix changes are refused. Without a merge-base version, the
+existing identical, empty, and prefix rules apply. The backup stays intact on refusal.
 
 Apply with the same backup directory and the same expected HEAD. Apply refuses before
 mutation when HEAD moved, the backup checksums fail, or content cannot be reconciled:

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 import hashlib
 import importlib.util
 from importlib.machinery import SourceFileLoader
@@ -152,11 +152,13 @@ def _plant_pending_object(repo: Path) -> str:
     return relative
 
 
-def _prepare_stale_replay(tmp_path: Path) -> _ReplayFixture:
+def _prepare_stale_replay(
+    tmp_path: Path, *, shared_chat: bytes = SHARED_CHAT
+) -> _ReplayFixture:
     remote, _seed, sidecar = setup_repo(tmp_path)
     owner = AgentOwnerIdentity("alice", "athena")
     sync_target = target(tmp_path, remote, sidecar)
-    shared = (_run(owner, "foo", "01", chat=SHARED_CHAT),)
+    shared = (_run(owner, "foo", "01", chat=shared_chat),)
     _publish(sync_target, sidecar, owner, shared)
     _commit(sidecar, "shared hood")
     git(sidecar, "push", "origin", "HEAD")
@@ -280,6 +282,71 @@ def test_report_only_writes_a_verified_backup_without_resetting(
     assert any("foo.local" in path for path in report.owner_content_paths)
 
 
+def test_report_reads_identical_crlf_payloads_without_normalizing_them(
+    tmp_path: Path,
+) -> None:
+    fixture = _prepare_stale_replay(tmp_path, shared_chat=b"chat with CRLF\r\n")
+
+    report = _recover(fixture, apply=False)
+
+    assert report.error is None
+    assert report.refused_divergences == ()
+
+
+def test_apply_keeps_local_terminal_transition_when_upstream_matches_merge_base(
+    tmp_path: Path,
+) -> None:
+    remote, _seed, sidecar = setup_repo(tmp_path)
+    owner = AgentOwnerIdentity("alice", "athena")
+    sync_target = target(tmp_path, remote, sidecar)
+    initial_steps = b'{"steps":["start"]}\n'
+    extended_steps = b'{"steps":["start","finish"]}\n'
+    active = replace(
+        _run(owner, "foo", "01", chat=SHARED_CHAT),
+        state="active",
+        finished_at=None,
+        prompt_steps_bytes=initial_steps,
+    )
+    _publish(sync_target, sidecar, owner, (active,))
+    _commit(sidecar, "active base run")
+    git(sidecar, "push", "origin", "HEAD")
+
+    completed = replace(
+        active,
+        state="completed",
+        finished_at="2026-10-21T12:00:00+00:00",
+        prompt_steps_bytes=extended_steps,
+    )
+    _publish(sync_target, sidecar, owner, (completed,))
+    head = _commit(sidecar, "complete local run")
+    fixture = _ReplayFixture(
+        remote,
+        sidecar,
+        sync_target,
+        owner,
+        tmp_path / "backup",
+        head,
+        "",
+    )
+
+    report = _recover(fixture, apply=False)
+    assert report.error is None
+    assert report.refused_divergences == ()
+
+    applied = _recover(fixture, apply=True)
+
+    assert applied.error is None
+    assert applied.action == REPLAY_APPLY_ACTION_APPLY
+    verify = tmp_path / "verify"
+    git(tmp_path, "clone", str(remote), str(verify))
+    _manifests, snapshots, _diagnostics = load_validated_publication(verify)
+    snapshot = snapshots[("alice", "athena", "foo")]
+    run = next(item for item in snapshot.runs if item.global_name == active.global_name)
+    assert run.state == "completed"
+    steps_ref = dict(run.files)["prompt_steps"]
+    assert (verify / steps_ref.path).read_bytes() == extended_steps
+
+
 def test_apply_keeps_both_sides_unique_content_and_pending_objects(
     tmp_path: Path,
 ) -> None:
@@ -390,6 +457,30 @@ def test_unreconcilable_same_run_bytes_refuse_before_reset(tmp_path: Path) -> No
     )
     _commit(sidecar, "upstream chat")
     git(sidecar, "push", "origin", "HEAD")
+
+    peer = tmp_path / "peer"
+    git(tmp_path, "clone", str(remote), str(peer))
+    git(peer, "config", "user.name", "Tests")
+    git(peer, "config", "user.email", "tests@example.test")
+    peer_primary = tmp_path / "peer-primary"
+    peer_primary.mkdir()
+    peer_target = ProjectTarget(
+        "proj",
+        "Project",
+        peer_primary,
+        (peer_primary.resolve(),),
+        peer,
+        str(remote),
+    )
+    _publish(
+        peer_target,
+        peer,
+        owner,
+        (_run(owner, "foo", "01", chat=b"cccc\n"),),
+    )
+    _commit(peer, "upstream also changes chat")
+    git(peer, "push", "origin", "HEAD")
+
     _publish(
         sync_target,
         sidecar,

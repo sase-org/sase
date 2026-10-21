@@ -130,8 +130,9 @@ def classify_replay_paths(
 def decide_replay_byte_divergence(
     current: bytes,
     previous: bytes,
+    base: bytes | None = None,
 ) -> ReplayByteDivergenceDecision:
-    """Decide whether same-run bytes are a lossless prefix or must refuse."""
+    """Decide whether same-run bytes can be retained without losing changes."""
 
     binding = require_rust_binding("decide_replay_byte_divergence")
     raw = binding(
@@ -139,6 +140,7 @@ def decide_replay_byte_divergence(
             "schema_version": PUBLICATION_RECOVERY_WIRE_SCHEMA_VERSION,
             "current_hex": current.hex(),
             "previous_hex": previous.hex(),
+            "base_hex": base.hex() if base is not None else None,
         }
     )
     if not isinstance(raw, dict):

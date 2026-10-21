@@ -214,10 +214,11 @@ def classify_replay_paths(
 def decide_replay_byte_divergence(
     current: bytes,
     previous: bytes,
+    base: bytes | None = None,
 ) -> ReplayByteDivergenceDecision:
-    """Decide whether same-run bytes are a lossless prefix or must refuse."""
+    """Decide whether same-run bytes can be retained without losing changes."""
     _sync_replay_patchables()
-    return replay_impl.decide_replay_byte_divergence(current, previous)
+    return replay_impl.decide_replay_byte_divergence(current, previous, base)
 
 
 def decide_replay_hood_merge(

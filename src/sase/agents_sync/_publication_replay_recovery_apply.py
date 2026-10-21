@@ -7,7 +7,13 @@ from pathlib import Path
 import shutil
 from typing import Any
 
-from sase.agents_sync._publication_replay_recovery_support import file_bytes, git_text
+from sase.agents_sync._publication_replay_recovery_support import (
+    ReplayBaseRun,
+    file_bytes,
+    git_text,
+    read_merge_base_runs,
+    replay_value_bytes,
+)
 from sase.agents_sync._publication_replay_recovery_types import (
     COMPLETE_STAGE,
     OBJECTS_DIR,
@@ -18,7 +24,7 @@ from sase.agents_sync._publication_replay_recovery_types import (
     report_from_state,
     write_progress,
 )
-from sase.agents_sync.git import GitRunner
+from sase.agents_sync.git import GitBytesRunner, GitRunner
 from sase.agents_sync.git_sync_ops import abort_agents_rebase, agents_git_error
 from sase.agents_sync.git_sync_transaction import sync_project_locked
 from sase.agents_sync.inventory import InventoryRun, ProjectHoodInventory
@@ -33,6 +39,7 @@ from sase.agents_sync.v2_models import V2HoodSnapshot
 from sase.core.agent_identity_facade import AgentOwnerIdentity
 from sase.core.agent_publication_recovery import (
     REPLAY_APPLY_ACTION_APPLY,
+    REPLAY_BYTES_KEEP_CURRENT,
     REPLAY_BYTES_KEEP_PREVIOUS,
     REPLAY_BYTES_REFUSE,
     REPLAY_HOOD_ACTION_MERGE,
@@ -56,9 +63,12 @@ def apply_replay(
     classified: ReplayPathClassification | None,
     refused: tuple[str, ...],
     git_runner: GitRunner,
+    git_bytes_runner: GitBytesRunner,
+    merge_base: str | None,
     mutation_started: bool,
 ) -> ReplayRecoveryReport:
     repo = target.sidecar_path
+    base_runs = read_merge_base_runs(repo, owner, hoods, merge_base, git_bytes_runner)
     if not mutation_started:
         abort_agents_rebase(repo, git_runner)
         reset = git_runner(
@@ -100,6 +110,7 @@ def apply_replay(
             backup_root=backup_root,
             hoods=hoods,
             preserved_runs=preserved_runs,
+            base_runs=base_runs,
         )
 
     outcome = sync_project_locked(target, owner, git_runner, integrate_export_pass)
@@ -152,6 +163,7 @@ def _replay_export_pass(
     backup_root: Path,
     hoods: tuple[str, ...],
     preserved_runs: tuple[InventoryRun, ...],
+    base_runs: dict[str, ReplayBaseRun],
 ) -> ExportCounts:
     del git_runner
     live_runs: list[InventoryRun] = []
@@ -160,7 +172,7 @@ def _replay_export_pass(
         if not snapshot_file.is_file():
             continue
         live_runs.extend(_runs_from_snapshot(read_hood_snapshot(snapshot_file), repo))
-    merged = _merge_runs(preserved_runs, tuple(live_runs), repo, backup_root)
+    merged = _merge_runs(preserved_runs, tuple(live_runs), base_runs)
     if not merged:
         return ExportCounts()
     inventory = ProjectHoodInventory(owner, target.project_key, merged)
@@ -259,8 +271,7 @@ def _runs_from_snapshot(
 def _merge_runs(
     preserved: tuple[InventoryRun, ...],
     live: tuple[InventoryRun, ...],
-    repo: Path,
-    backup_root: Path,
+    base_runs: dict[str, ReplayBaseRun],
 ) -> tuple[InventoryRun, ...]:
     by_id: dict[str, InventoryRun] = {run.source_run_id: run for run in live}
     for run in preserved:
@@ -268,7 +279,7 @@ def _merge_runs(
         if existing is None:
             by_id[run.source_run_id] = run
             continue
-        chosen = _choose_run_bytes(existing, run, repo, backup_root)
+        chosen = _choose_run_bytes(existing, run, base_runs.get(run.global_name))
         by_id[run.source_run_id] = chosen
     return tuple(by_id.values())
 
@@ -276,37 +287,144 @@ def _merge_runs(
 def _choose_run_bytes(
     current: InventoryRun,
     previous: InventoryRun,
-    repo: Path,
-    backup_root: Path,
+    base_run: ReplayBaseRun | None,
 ) -> InventoryRun:
-    del repo, backup_root
+    if base_run is None:
+        return replace(
+            current,
+            prompt_bytes=_choose_payload_bytes(
+                current.prompt_bytes,
+                previous.prompt_bytes,
+                current.global_name,
+                "prompt_bytes",
+            ),
+            chat_bytes=_choose_payload_bytes(
+                current.chat_bytes,
+                previous.chat_bytes,
+                current.global_name,
+                "chat_bytes",
+            ),
+            embedded_workflows_bytes=_choose_payload_bytes(
+                current.embedded_workflows_bytes,
+                previous.embedded_workflows_bytes,
+                current.global_name,
+                "embedded_workflows_bytes",
+            ),
+            prompt_steps_bytes=_choose_payload_bytes(
+                current.prompt_steps_bytes,
+                previous.prompt_steps_bytes,
+                current.global_name,
+                "prompt_steps_bytes",
+            ),
+        )
+    base_record = base_run.record
+    metadata = _choose_replay_value(
+        previous.metadata,
+        current.metadata,
+        base_record.metadata,
+        current.global_name,
+        "metadata",
+    )
+    metadata_values = dict(metadata)  # type: ignore[arg-type]
+    started_at = _choose_replay_value(
+        previous.started_at,
+        current.started_at,
+        base_record.started_at,
+        current.global_name,
+        "started_at",
+    )
     return replace(
         current,
+        state=_choose_replay_value(
+            previous.state,
+            current.state,
+            base_record.state,
+            current.global_name,
+            "state",
+        ),
+        started_at=started_at,
+        finished_at=_choose_replay_value(
+            previous.finished_at,
+            current.finished_at,
+            base_record.finished_at,
+            current.global_name,
+            "finished_at",
+        ),
+        dismissed_at=_choose_replay_value(
+            previous.dismissed_at,
+            current.dismissed_at,
+            base_record.dismissed_at,
+            current.global_name,
+            "dismissed_at",
+        ),
+        metadata=metadata,  # type: ignore[arg-type]
+        commits=_choose_replay_value(
+            previous.commits,
+            current.commits,
+            base_record.commits,
+            current.global_name,
+            "commits",
+        ),
         prompt_bytes=_choose_payload_bytes(
             current.prompt_bytes,
             previous.prompt_bytes,
             current.global_name,
             "prompt_bytes",
+            base=base_run.payloads.get("prompt"),
         ),
         chat_bytes=_choose_payload_bytes(
             current.chat_bytes,
             previous.chat_bytes,
             current.global_name,
             "chat_bytes",
+            base=base_run.payloads.get("chat"),
         ),
         embedded_workflows_bytes=_choose_payload_bytes(
             current.embedded_workflows_bytes,
             previous.embedded_workflows_bytes,
             current.global_name,
             "embedded_workflows_bytes",
+            base=base_run.payloads.get("embedded_workflows"),
         ),
         prompt_steps_bytes=_choose_payload_bytes(
             current.prompt_steps_bytes,
             previous.prompt_steps_bytes,
             current.global_name,
             "prompt_steps_bytes",
+            base=base_run.payloads.get("prompt_steps"),
         ),
+        agent_session_name=_text(agent_session_value(metadata_values))
+        or _text(metadata_values.get(AGENT_SESSION_KEY)),
+        clan_name=_text(metadata_values.get("agent_clan")),
+        timestamp=started_at or current.source_run_id,
     )
+
+
+def _choose_replay_value(
+    local_value: Any,
+    upstream_value: Any,
+    base_value: Any,
+    run_name: str,
+    field: str,
+) -> Any:
+    decision: ReplayByteDivergenceDecision = decide_replay_byte_divergence(
+        _replay_field_bytes(local_value, field),
+        _replay_field_bytes(upstream_value, field),
+        base=_replay_field_bytes(base_value, field),
+    )
+    if decision.action == REPLAY_BYTES_REFUSE:
+        raise AgentsSyncFormatError(f"{run_name} {field} {decision.reason}")
+    if decision.action == REPLAY_BYTES_KEEP_CURRENT:
+        return local_value
+    return upstream_value
+
+
+def _replay_field_bytes(value: Any, field: str) -> bytes:
+    if field == "metadata":
+        value = dict(value)
+    elif field == "commits":
+        value = [item.to_json_dict() for item in value]
+    return replay_value_bytes(value)
 
 
 def _choose_payload_bytes(
@@ -314,16 +432,22 @@ def _choose_payload_bytes(
     previous_bytes: bytes | None,
     run_name: str,
     field: str,
+    *,
+    base: bytes | None = None,
 ) -> bytes | None:
     if current_bytes is None and previous_bytes is None:
         return None
     decision: ReplayByteDivergenceDecision = decide_replay_byte_divergence(
-        current_bytes or b"", previous_bytes or b""
+        previous_bytes or b"",
+        current_bytes or b"",
+        base=base,
     )
     if decision.action == REPLAY_BYTES_REFUSE:
         raise AgentsSyncFormatError(f"{run_name} {field} {decision.reason}")
-    if decision.action == REPLAY_BYTES_KEEP_PREVIOUS:
+    if decision.action == REPLAY_BYTES_KEEP_CURRENT:
         return previous_bytes
+    if decision.action == REPLAY_BYTES_KEEP_PREVIOUS:
+        return current_bytes
     return current_bytes
 
 
