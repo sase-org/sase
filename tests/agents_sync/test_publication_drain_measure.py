@@ -9,8 +9,10 @@ import subprocess
 
 import pytest
 
-from sase.agents_sync import git_sync_ops
-from sase.agents_sync.commit_publication import _counting_git_runner
+from sase.agents_sync import (
+    _commit_publication_locked as publication_locked,
+    git_sync_ops,
+)
 from sase.agents_sync.commit_publication_transaction import (
     DrainResult,
     PublicationTransactionHooks,
@@ -193,7 +195,7 @@ def test_counting_git_runner_counts_ops_by_name() -> None:
         calls.append(op)
         return subprocess.CompletedProcess(args, 0, stdout="", stderr="")
 
-    runner = _counting_git_runner(base, timer)
+    runner = publication_locked._counting_git_runner(base, timer)
     runner(Path("/tmp"), ["rev-parse"], op="agents_sync.commit_record")
     runner(Path("/tmp"), ["add", "."], op="agents_sync.stage")
     assert timer.git_op_counts == {

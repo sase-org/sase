@@ -9,7 +9,7 @@ import time
 import pytest
 
 from sase._interruptions import PublicationDrainTimedOut
-from sase.agents_sync.commit_publication import _bounded_publication_drain
+from sase.agents_sync import _commit_publication_drain as publication_drain
 from sase.sdd._git import SddGitCommandTimeout, run_sdd_git
 
 
@@ -182,7 +182,7 @@ def test_interruption_kills_process_group_with_pipe_holding_descendant(
         started = time.monotonic()
         if external_drain_alarm:
             with pytest.raises(PublicationDrainTimedOut):
-                with _bounded_publication_drain(0.5):
+                with publication_drain._bounded_publication_drain(0.5):
                     run_transfer()
         else:
             with pytest.raises(SddGitCommandTimeout):

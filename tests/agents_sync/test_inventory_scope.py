@@ -11,13 +11,13 @@ import subprocess
 import pytest
 
 from sase.agents_sync import (
-    commit_publication,
+    _commit_publication_locked as publication_locked,
+    _commit_publication_support as publication_support,
     inventory,
     inventory_sources,
     publication,
     repository_inspection,
 )
-from sase.agents_sync.commit_publication import _publish_queued_locked
 from sase.agents_sync.git import run_git
 from sase.agents_sync.inventory_models import ProjectHoodInventory
 from sase.agents_sync.io import AgentsSyncFormatError
@@ -472,12 +472,12 @@ def test_commit_drain_passes_selected_hoods_to_inventory(
     monkeypatch.setenv("SASE_HOME", str(tmp_path / "state"))
     target, _remote = setup_target(tmp_path)
     monkeypatch.setattr(
-        commit_publication,
+        publication_support,
         "resolve_sync_targets",
         lambda _projects: TargetSelection((target,), ()),
     )
     monkeypatch.setattr(
-        commit_publication, "require_agent_owner_identity", lambda: _OWNER
+        publication_support, "require_agent_owner_identity", lambda: _OWNER
     )
     captured: dict[str, object] = {}
 
@@ -485,7 +485,7 @@ def test_commit_drain_passes_selected_hoods_to_inventory(
         captured["requested_hoods"] = kwargs.get("requested_hoods")
         return ProjectHoodInventory(_OWNER, "proj", ())
 
-    monkeypatch.setattr(commit_publication, "build_project_hood_inventory", build)
+    monkeypatch.setattr(publication_locked, "build_project_hood_inventory", build)
     monkeypatch.setattr(
         "sase.agents_sync.publication_completion.publication_request_fulfilled",
         lambda *_args, **_kwargs: True,
@@ -506,7 +506,7 @@ def test_commit_drain_passes_selected_hoods_to_inventory(
             )
         )
 
-    _publish_queued_locked(target, _OWNER, run_git)
+    publication_locked.publish_queued_locked(target, _OWNER, run_git)
 
     assert captured["requested_hoods"] == frozenset({"alpha", "beta"})
 

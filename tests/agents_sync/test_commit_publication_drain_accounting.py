@@ -6,12 +6,12 @@ from pathlib import Path
 
 import pytest
 
-from sase.agents_sync import commit_publication
-from sase.agents_sync.commit_publication import (
-    _publish_queued_locked,
-    _record_failure,
-    publish_committed_agent_hood,
+from sase.agents_sync import (
+    _commit_publication_drain as publication_drain,
+    _commit_publication_locked as publication_locked,
+    _commit_publication_support as publication_support,
 )
+from sase.agents_sync.commit_publication import publish_committed_agent_hood
 from sase.agents_sync.git import run_git
 from sase.agents_sync.models import TargetSelection
 from sase.agents_sync.publication_outbox import (
@@ -37,12 +37,12 @@ def _configure(
     monkeypatch.setenv("SASE_HOME", str(tmp_path / "state"))
     target, _remote = setup_target(tmp_path)
     monkeypatch.setattr(
-        commit_publication,
+        publication_support,
         "resolve_sync_targets",
         lambda _projects: TargetSelection((target,), ()),
     )
     monkeypatch.setattr(
-        commit_publication,
+        publication_support,
         "require_agent_owner_identity",
         lambda: owner,
     )
@@ -81,7 +81,7 @@ def test_record_failure_repository_preserves_attempts(
         item.logical_key: item.attempts for item in list_agent_publications("proj")
     }
 
-    outcome = _record_failure(
+    outcome = publication_drain._record_failure(
         target,
         "git pull --rebase failed: network is unavailable",
         scope="repository",
@@ -107,7 +107,7 @@ def test_record_failure_hood_charges_only_attempted_keys(
     _enqueue("Project", "good", "a" * 40)
     _enqueue("Project", "bad", "b" * 40)
 
-    outcome = _record_failure(
+    outcome = publication_drain._record_failure(
         target,
         "agent-hood publication did not complete within 120s",
         (bad_key,),
@@ -146,9 +146,9 @@ def test_commit_drain_prefers_new_request_and_caps_at_25(
         path.write_bytes(v2_json_bytes(manifest.to_json_dict()))
         return V2PublicationCounts(hoods_published=1)
 
-    monkeypatch.setattr(commit_publication, "publish_agent_hood", publish)
+    monkeypatch.setattr(publication_locked, "publish_agent_hood", publish)
 
-    result = _publish_queued_locked(
+    result = publication_locked.publish_queued_locked(
         target, owner, run_git, preferred_key=new_item.logical_key
     )
 
@@ -166,12 +166,12 @@ def test_completion_gate_withholds_unfulfilled_request(
     target, _remote = setup_target(tmp_path)
     monkeypatch.setenv("SASE_HOME", str(tmp_path / "state"))
     monkeypatch.setattr(
-        commit_publication,
+        publication_support,
         "resolve_sync_targets",
         lambda _projects: TargetSelection((target,), ()),
     )
     monkeypatch.setattr(
-        commit_publication,
+        publication_support,
         "require_agent_owner_identity",
         lambda: owner,
     )
@@ -202,7 +202,7 @@ def test_completion_gate_withholds_unfulfilled_request(
         path.write_bytes(v2_json_bytes(manifest.to_json_dict()))
         return V2PublicationCounts(hoods_published=1)
 
-    monkeypatch.setattr(commit_publication, "publish_agent_hood", publish)
+    monkeypatch.setattr(publication_locked, "publish_agent_hood", publish)
 
     outcome = publish_committed_agent_hood(
         "bar--code", "b" * 40, project="Project", git_runner=run_git
@@ -231,7 +231,7 @@ def test_cleanup_after_success_does_not_resurrect(
         path.write_bytes(v2_json_bytes(manifest.to_json_dict()))
         return V2PublicationCounts(hoods_published=1)
 
-    monkeypatch.setattr(commit_publication, "publish_agent_hood", publish)
+    monkeypatch.setattr(publication_locked, "publish_agent_hood", publish)
 
     from sase.agents_sync import git_sync
 
@@ -247,7 +247,7 @@ def test_cleanup_after_success_does_not_resurrect(
 
     monkeypatch.setattr(git_sync, "clean_publication_worktree", clean)
 
-    result = _publish_queued_locked(target, owner, run_git)
+    result = publication_locked.publish_queued_locked(target, owner, run_git)
 
     assert result.drained == 1
     assert result.error is not None and "archive cleanup failed" in result.error

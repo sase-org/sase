@@ -1,6 +1,6 @@
 """Permanent stage timing for commit-triggered agent-hood publication drains.
 
-Every drain started by :func:`sase.agents_sync.commit_publication._drain_agent_publications`
+Every drain started by :func:`sase.agents_sync._commit_publication_drain.drain_agent_publications`
 emits one structured JSONL line to ``~/.sase/logs/agent_publication_drains.jsonl``
 (following the existing ``~/.sase/logs`` JSONL conventions). The line records the
 project, the active request count, the distinct hoods, the outcome and error class,

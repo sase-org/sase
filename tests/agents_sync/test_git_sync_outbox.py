@@ -657,7 +657,7 @@ def test_bounded_retry_replays_failed_push_then_drains_two_batches_once(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from sase.agents_sync.commit_publication import _CommitPublicationOutcome
+    from sase.agents_sync._commit_publication_types import CommitPublicationOutcome
 
     monkeypatch.setenv("SASE_HOME", str(tmp_path / "state"))
     sync_target = target(tmp_path, tmp_path / "remote.git", tmp_path / "sidecar")
@@ -713,9 +713,9 @@ def test_bounded_retry_replays_failed_push_then_drains_two_batches_once(
     def drain(project_key: str, selected_keys: tuple[tuple[str, str], ...]):
         drained_batches.append(selected_keys)
         if len(drained_batches) == 1:
-            return _CommitPublicationOutcome(error="git push failed")
+            return CommitPublicationOutcome(error="git push failed")
         acknowledge_agent_publications(project_key, selected_keys)
-        return _CommitPublicationOutcome(published=True, drained=len(selected_keys))
+        return CommitPublicationOutcome(published=True, drained=len(selected_keys))
 
     monkeypatch.setattr(
         "sase.agents_sync.commit_publication.drain_selected_agent_publications",
@@ -777,7 +777,7 @@ def test_bounded_retry_leaves_referenced_by_queue_untouched(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from sase.agents_sync.commit_publication import _CommitPublicationOutcome
+    from sase.agents_sync._commit_publication_types import CommitPublicationOutcome
     from sase.agents_sync.referenced_by_outbox import (
         ReferencedByOutboxItem,
         enqueue_referenced_by_request,
@@ -846,7 +846,7 @@ def test_bounded_retry_leaves_referenced_by_queue_untouched(
 
     def acknowledge_selected(project_key, selected_keys):
         acknowledge_agent_publications(project_key, selected_keys)
-        return _CommitPublicationOutcome(published=True, drained=len(selected_keys))
+        return CommitPublicationOutcome(published=True, drained=len(selected_keys))
 
     monkeypatch.setattr(
         "sase.agents_sync.commit_publication.drain_selected_agent_publications",

@@ -130,7 +130,7 @@ def test_resume_publishes_agent_hood_without_redispatching_primary_commit(
     artifacts_dir: Path,
     tmp_path: Path,
 ) -> None:
-    from sase.agents_sync.commit_publication import _CommitPublicationOutcome
+    from sase.agents_sync._commit_publication_types import CommitPublicationOutcome
 
     provider = make_resume_provider(head_subject="fix: bug")
     provider.revision_id.return_value = "a" * 40
@@ -145,7 +145,7 @@ def test_resume_publishes_agent_hood_without_redispatching_primary_commit(
     with (
         patch(
             "sase.agents_sync.commit_publication.publish_committed_agent_hood",
-            return_value=_CommitPublicationOutcome(published=True),
+            return_value=CommitPublicationOutcome(published=True),
         ) as publish,
         patch(
             "sase.workflows.commit.workflow.append_commits_entry",

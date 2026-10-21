@@ -211,15 +211,15 @@ def inline_publication(
         remote_url=str(agents_remote),
     )
     monkeypatch.setattr(
-        "sase.agents_sync.commit_publication.resolve_sync_targets",
+        "sase.agents_sync._commit_publication_support.resolve_sync_targets",
         lambda _projects: TargetSelection((agents_target,), ()),
     )
     monkeypatch.setattr(
-        "sase.agents_sync.commit_publication._resolve_sidecar_publication_target",
+        "sase.agents_sync._commit_publication_queue._resolve_sidecar_publication_target",
         lambda **_kwargs: (agents_target, None),
     )
     monkeypatch.setattr(
-        "sase.agents_sync.commit_publication.require_agent_owner_identity",
+        "sase.agents_sync._commit_publication_support.require_agent_owner_identity",
         lambda: owner,
     )
 
@@ -264,7 +264,7 @@ def inline_publication(
         return V2PublicationCounts(hoods_published=1)
 
     monkeypatch.setattr(
-        "sase.agents_sync.commit_publication.publish_agent_hood",
+        "sase.agents_sync._commit_publication_locked.publish_agent_hood",
         publish_hood,
     )
     monkeypatch.setattr(
@@ -274,6 +274,14 @@ def inline_publication(
             skip_reason=None,
             prompt_path=None,
         ),
+    )
+    monkeypatch.setattr(
+        "sase.agents_sync.publication_completion.publication_request_fulfilled",
+        lambda *_args, **_kwargs: True,
+    )
+    monkeypatch.setattr(
+        "sase.agents_sync.prompt_archive.deferred.restore_deferred_prompt_archives",
+        lambda *_args, **_kwargs: {},
     )
     (primary / "registry.json").write_text(json.dumps({}), encoding="utf-8")
     return _Fixture(

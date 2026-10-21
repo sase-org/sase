@@ -5,7 +5,10 @@ import subprocess
 
 import pytest
 
-from sase.agents_sync import commit_publication
+from sase.agents_sync import (
+    _commit_publication_locked as publication_locked,
+    _commit_publication_support as publication_support,
+)
 from sase.agents_sync.commit_publication import publish_committed_agent_hood
 from sase.agents_sync.git import run_git
 from sase.agents_sync.inventory import ProjectHoodInventory
@@ -36,11 +39,11 @@ def test_push_failure_is_queued_and_next_commit_drains_idempotently(
     target, remote = setup_target(tmp_path)
     owner = AgentOwnerIdentity("alice", "athena")
     monkeypatch.setattr(
-        "sase.agents_sync.commit_publication.resolve_sync_targets",
+        "sase.agents_sync._commit_publication_support.resolve_sync_targets",
         lambda _projects: TargetSelection((target,), ()),
     )
     monkeypatch.setattr(
-        "sase.agents_sync.commit_publication.require_agent_owner_identity",
+        "sase.agents_sync._commit_publication_support.require_agent_owner_identity",
         lambda: owner,
     )
 
@@ -67,7 +70,7 @@ def test_push_failure_is_queued_and_next_commit_drains_idempotently(
         return V2PublicationCounts(hoods_published=1)
 
     monkeypatch.setattr(
-        "sase.agents_sync.commit_publication.publish_agent_hood",
+        "sase.agents_sync._commit_publication_locked.publish_agent_hood",
         publish,
     )
 
@@ -136,17 +139,17 @@ def test_publication_request_records_the_committing_lane(
     target, _remote = setup_target(tmp_path)
     owner = AgentOwnerIdentity("alice", "athena")
     monkeypatch.setattr(
-        commit_publication,
+        publication_support,
         "resolve_sync_targets",
         lambda _projects: TargetSelection((target,), ()),
     )
     monkeypatch.setattr(
-        commit_publication,
+        publication_support,
         "require_agent_owner_identity",
         lambda: owner,
     )
     monkeypatch.setattr(
-        commit_publication,
+        publication_locked,
         "build_project_hood_inventory",
         lambda *_args, **_kwargs: ProjectHoodInventory(owner, "proj", ()),
     )
@@ -161,7 +164,7 @@ def test_publication_request_records_the_committing_lane(
         published_agents.append(agent)
         raise RuntimeError("stop before pushing")
 
-    monkeypatch.setattr(commit_publication, "publish_agent_hood", publish)
+    monkeypatch.setattr(publication_locked, "publish_agent_hood", publish)
 
     publish_committed_agent_hood(
         committing_agent,

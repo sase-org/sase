@@ -5,7 +5,11 @@ import subprocess
 
 import pytest
 
-from sase.agents_sync import commit_publication, targets
+from sase.agents_sync import (
+    _commit_publication_queue as publication_queue,
+    _commit_publication_support as publication_support,
+    targets,
+)
 from sase.agents_sync.commit_publication import (
     publish_committed_agent_hood,
     resolve_publication_project_key,
@@ -68,7 +72,7 @@ def test_resolves_known_repository_kinds(
         (root / "nested").mkdir()
         records.append(_repo_record(root, kind=kind, project_key=f"key-{kind}"))
     monkeypatch.setattr(
-        commit_publication,
+        publication_queue,
         "collect_repo_inventory",
         lambda: RepoInventory(tuple(records)),
     )
@@ -145,7 +149,7 @@ def test_resolves_numbered_sidecar_clone(
         clones=(RepoCloneRecord(12, str(workspace_path), True),),
     )
     monkeypatch.setattr(
-        commit_publication,
+        publication_queue,
         "collect_repo_inventory",
         lambda: RepoInventory((record,)),
     )
@@ -165,7 +169,7 @@ def test_prefers_primary_on_path_tie(
         _repo_record(root, kind="primary", project_key="primary-host"),
     )
     monkeypatch.setattr(
-        commit_publication,
+        publication_queue,
         "collect_repo_inventory",
         lambda: RepoInventory(records),
     )
@@ -181,11 +185,11 @@ def test_unregistered_repository_without_name_fallback_is_skipped(
     root.mkdir()
     _git(root, "init")
     monkeypatch.setattr(
-        commit_publication,
+        publication_queue,
         "collect_repo_inventory",
         lambda: RepoInventory(()),
     )
-    monkeypatch.setattr(commit_publication, "_current_project", lambda: None)
+    monkeypatch.setattr(publication_queue, "_current_project", lambda: None)
 
     outcome = publish_committed_agent_hood(
         "foo--code",
@@ -202,7 +206,7 @@ def test_project_without_agents_target_is_skipped(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
-        commit_publication,
+        publication_support,
         "resolve_sync_targets",
         lambda _projects: TargetSelection(
             (),

@@ -8,7 +8,12 @@ import time
 
 import pytest
 
-from sase.agents_sync import commit_publication, git_sync
+from sase.agents_sync import (
+    _commit_publication_drain as publication_drain,
+    _commit_publication_locked as publication_locked,
+    _commit_publication_support as publication_support,
+    git_sync,
+)
 from sase.agents_sync import commit_publication_transaction, git_sync_transaction
 from sase.agents_sync.commit_publication import publish_committed_agent_hood
 from sase.agents_sync.git import run_git
@@ -54,12 +59,12 @@ def _configure_target(
     monkeypatch.setenv("SASE_HOME", str(tmp_path / "state"))
     target, remote = setup_target(tmp_path)
     monkeypatch.setattr(
-        commit_publication,
+        publication_support,
         "resolve_sync_targets",
         lambda _projects: TargetSelection((target,), ()),
     )
     monkeypatch.setattr(
-        commit_publication,
+        publication_support,
         "require_agent_owner_identity",
         lambda: owner,
     )
@@ -73,15 +78,15 @@ def test_blocked_render_is_bounded_and_leaves_the_request_queued(
     owner = AgentOwnerIdentity("alice", "athena")
     target, _remote = _configure_target(monkeypatch, tmp_path, owner)
     timings = []
-    monkeypatch.setattr(commit_publication, "emit_drain_timing", timings.append)
+    monkeypatch.setattr(publication_drain, "emit_drain_timing", timings.append)
 
     def blocked_render(*_args, **_kwargs):
         time.sleep(30)  # sase-test-wait: exceeds the drain timeout
         raise AssertionError("blocked render should have been interrupted")
 
-    monkeypatch.setattr(commit_publication, "publish_agent_hood", blocked_render)
+    monkeypatch.setattr(publication_locked, "publish_agent_hood", blocked_render)
     monkeypatch.setattr(
-        commit_publication,
+        publication_drain,
         "_configured_publication_drain_timeout",
         lambda: 1.0,
     )
@@ -120,7 +125,7 @@ def test_manifest_timeout_cleans_regenerable_paths_and_preserves_objects(
     owner = AgentOwnerIdentity("alice", "athena")
     target, _remote = _configure_target(monkeypatch, tmp_path, owner)
     timings = []
-    monkeypatch.setattr(commit_publication, "emit_drain_timing", timings.append)
+    monkeypatch.setattr(publication_drain, "emit_drain_timing", timings.append)
 
     def publish_with_scratch(_target, repo, agent, **kwargs):
         (repo / "prompts").mkdir(exist_ok=True)
@@ -135,14 +140,14 @@ def test_manifest_timeout_cleans_regenerable_paths_and_preserves_objects(
     def blocked_manifest(*_args, **_kwargs):
         time.sleep(30)  # sase-test-wait: exceeds the drain timeout
 
-    monkeypatch.setattr(commit_publication, "publish_agent_hood", publish_with_scratch)
+    monkeypatch.setattr(publication_locked, "publish_agent_hood", publish_with_scratch)
     monkeypatch.setattr(
         commit_publication_transaction,
         "read_owner_manifest",
         blocked_manifest,
     )
     monkeypatch.setattr(
-        commit_publication,
+        publication_drain,
         "_configured_publication_drain_timeout",
         lambda: 5.0,
     )
@@ -210,7 +215,7 @@ def test_cleanup_failure_is_attached_without_replacing_publication_failure(
         raise RuntimeError("original publication failure")
 
     monkeypatch.setattr(git_sync, "clean_publication_worktree", cleanup)
-    monkeypatch.setattr(commit_publication, "publish_queued_transaction", fail_publish)
+    monkeypatch.setattr(publication_locked, "publish_queued_transaction", fail_publish)
 
     with pytest.raises(RuntimeError, match="original publication failure") as caught:
         publish_committed_agent_hood(
@@ -234,9 +239,9 @@ def test_after_a_blocked_render_a_later_drain_retries_and_succeeds(
     def blocked_render(*_args, **_kwargs):
         time.sleep(30)  # sase-test-wait: exceeds the drain timeout
 
-    monkeypatch.setattr(commit_publication, "publish_agent_hood", blocked_render)
+    monkeypatch.setattr(publication_locked, "publish_agent_hood", blocked_render)
     monkeypatch.setattr(
-        commit_publication,
+        publication_drain,
         "_configured_publication_drain_timeout",
         lambda: 1.0,
     )
@@ -251,10 +256,10 @@ def test_after_a_blocked_render_a_later_drain_retries_and_succeeds(
     assert len(list_agent_publications("proj")) == 1
 
     monkeypatch.setattr(
-        commit_publication, "publish_agent_hood", _publish_readme(owner)
+        publication_locked, "publish_agent_hood", _publish_readme(owner)
     )
     monkeypatch.setattr(
-        commit_publication,
+        publication_drain,
         "_configured_publication_drain_timeout",
         lambda: 5.0,
     )
@@ -283,7 +288,7 @@ def test_bounded_drain_restores_an_existing_alarm_timer() -> None:
     previous_timer = signal.getitimer(signal.ITIMER_REAL)
     try:
         signal.setitimer(signal.ITIMER_REAL, 5.0, 10.0)
-        with commit_publication._bounded_publication_drain(1.0):
+        with publication_drain._bounded_publication_drain(1.0):
             pass
         delay, interval = signal.getitimer(signal.ITIMER_REAL)
         assert 4.0 < delay <= 5.0

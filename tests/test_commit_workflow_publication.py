@@ -9,7 +9,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from sase.agents_sync.commit_publication import _CommitPublicationOutcome
+from sase.agents_sync._commit_publication_types import CommitPublicationOutcome
 from sase.agents_sync.publication_outbox import list_agent_publications
 from sase.core.agent_identity_facade import AgentOwnerIdentity
 from sase.core.commit_footer_facade import LinkedCommitTagValue
@@ -74,7 +74,7 @@ def test_commit_publishes_every_sidecar_inline_in_order(
     monkeypatch.setattr(
         "sase.agents_sync.commit_publication.publish_committed_agent_hood",
         lambda *_args, **_kwargs: (
-            order.append("agent") or _CommitPublicationOutcome(published=True)
+            order.append("agent") or CommitPublicationOutcome(published=True)
         ),
     )
     store = ArtifactLinkStore(project_key="gh_sase-org__sase", sidecar_roots={})
@@ -143,7 +143,7 @@ def test_publication_step_records_release_evidence_for_this_run(
     )
     monkeypatch.setattr(
         "sase.agents_sync.commit_publication.publish_committed_agent_hood",
-        lambda *_args, **_kwargs: _CommitPublicationOutcome(published=True),
+        lambda *_args, **_kwargs: CommitPublicationOutcome(published=True),
     )
     monkeypatch.setattr(
         "sase.sdd.artifact_link_store.resolve_artifact_link_store",
@@ -217,7 +217,7 @@ def test_fully_tagged_commit_and_resume_publish_each_sidecar_once(
     monkeypatch.setattr(
         "sase.agents_sync.commit_publication.publish_committed_agent_hood",
         lambda *_args, **_kwargs: (
-            calls.append("agent") or _CommitPublicationOutcome(published=True)
+            calls.append("agent") or CommitPublicationOutcome(published=True)
         ),
     )
     store = ArtifactLinkStore(project_key="gh_sase-org__sase", sidecar_roots={})
@@ -294,7 +294,7 @@ def test_publication_failure_with_durable_outbox_keeps_primary_successful(
     with (
         patch(
             "sase.agents_sync.commit_publication.publish_committed_agent_hood",
-            return_value=_CommitPublicationOutcome(
+            return_value=CommitPublicationOutcome(
                 queued=True,
                 error="sidecar push failed",
             ),
@@ -331,7 +331,7 @@ def test_unqueueable_publication_fails_the_commit_with_a_resume_hint(
     with (
         patch(
             "sase.agents_sync.commit_publication.publish_committed_agent_hood",
-            return_value=_CommitPublicationOutcome(
+            return_value=CommitPublicationOutcome(
                 error="could not persist agents publication retry: disk is full",
             ),
         ),
@@ -402,7 +402,7 @@ def test_deferred_prompt_archive_rides_the_durable_agent_publication(
         ),
         patch(
             "sase.agents_sync.commit_publication.publish_committed_agent_hood",
-            return_value=_CommitPublicationOutcome(published=True),
+            return_value=CommitPublicationOutcome(published=True),
         ),
         patch(
             "sase.workflows.commit.workflow.append_commits_entry",
@@ -470,7 +470,7 @@ def test_publication_without_target_warns_but_keeps_primary_successful(
     with (
         patch(
             "sase.agents_sync.commit_publication.publish_committed_agent_hood",
-            return_value=_CommitPublicationOutcome(
+            return_value=CommitPublicationOutcome(
                 skip_reason="repository does not map to a publishable project",
             ),
         ) as publish,
@@ -506,7 +506,7 @@ def test_publication_warning_names_quarantined_backlog(
     with (
         patch(
             "sase.agents_sync.commit_publication.publish_committed_agent_hood",
-            return_value=_CommitPublicationOutcome(
+            return_value=CommitPublicationOutcome(
                 queued=True,
                 quarantined=2,
                 error="committing agent absent from project inventory",
@@ -541,7 +541,7 @@ def test_publication_warning_names_drop_command_for_retired_backlog(
     with (
         patch(
             "sase.agents_sync.commit_publication.publish_committed_agent_hood",
-            return_value=_CommitPublicationOutcome(
+            return_value=CommitPublicationOutcome(
                 queued=True,
                 retired=3,
                 error="hood 'lt' has no publishable runs",
@@ -592,7 +592,7 @@ def test_agent_session_member_commit_uses_metadata_for_footer_and_publication(
         ) as resolve_tag,
         patch(
             "sase.agents_sync.commit_publication.publish_committed_agent_hood",
-            return_value=_CommitPublicationOutcome(queued=True),
+            return_value=CommitPublicationOutcome(queued=True),
         ) as publish,
         patch(
             "sase.workflows.commit.workflow.append_commits_entry",

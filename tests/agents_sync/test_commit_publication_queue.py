@@ -6,11 +6,12 @@ import subprocess
 
 import pytest
 
-from sase.agents_sync import commit_publication
-from sase.agents_sync.commit_publication import (
-    _publish_queued_locked,
-    publish_committed_agent_hood,
+from sase.agents_sync import (
+    _commit_publication_locked as publication_locked,
+    _commit_publication_outbox as publication_outbox,
+    _commit_publication_support as publication_support,
 )
+from sase.agents_sync.commit_publication import publish_committed_agent_hood
 from sase.agents_sync.commit_publication_transaction import DrainResult
 from sase.agents_sync.git import run_git
 from sase.agents_sync.inventory import ProjectHoodInventory
@@ -53,12 +54,12 @@ def test_committed_publication_records_a_retryable_request_when_git_fails(
     target, _remote = setup_target(tmp_path)
     owner = AgentOwnerIdentity("alice", "athena")
     monkeypatch.setattr(
-        commit_publication,
+        publication_support,
         "resolve_sync_targets",
         lambda _projects: TargetSelection((target,), ()),
     )
     monkeypatch.setattr(
-        commit_publication,
+        publication_support,
         "require_agent_owner_identity",
         lambda: owner,
     )
@@ -128,9 +129,9 @@ def test_bounded_drain_publishes_only_the_supplied_logical_keys(
         "sase.agents_sync.git_sync.clean_publication_worktree",
         lambda *_args, **_kwargs: None,
     )
-    monkeypatch.setattr(commit_publication, "publish_queued_transaction", publish)
+    monkeypatch.setattr(publication_locked, "publish_queued_transaction", publish)
 
-    result = _publish_queued_locked(
+    result = publication_locked.publish_queued_locked(
         target,
         owner,
         run_git,
@@ -160,7 +161,7 @@ def test_failed_targeted_publish_cleans_uncommitted_payload(
         )
     )
     monkeypatch.setattr(
-        commit_publication,
+        publication_locked,
         "build_project_hood_inventory",
         lambda *_args, **_kwargs: ProjectHoodInventory(owner, "proj", ()),
     )
@@ -180,9 +181,9 @@ def test_failed_targeted_publish_cleans_uncommitted_payload(
         )
         raise RuntimeError("targeted publication failed")
 
-    monkeypatch.setattr(commit_publication, "publish_agent_hood", fail_after_write)
+    monkeypatch.setattr(publication_locked, "publish_agent_hood", fail_after_write)
 
-    result = _publish_queued_locked(target, owner, run_git)
+    result = publication_locked.publish_queued_locked(target, owner, run_git)
 
     assert result.error is None
     assert result.drained == 0
@@ -234,7 +235,7 @@ def test_large_backlog_builds_one_inventory_and_publishes_each_hood_once(
         return requests
 
     monkeypatch.setattr(
-        commit_publication, "list_agent_publications", list_publications
+        publication_outbox, "list_agent_publications", list_publications
     )
 
     def build(*_args, **_kwargs):
@@ -257,8 +258,8 @@ def test_large_backlog_builds_one_inventory_and_publishes_each_hood_once(
         path.write_bytes(v2_json_bytes(manifest.to_json_dict()))
         return V2PublicationCounts(hoods_published=1)
 
-    monkeypatch.setattr(commit_publication, "build_project_hood_inventory", build)
-    monkeypatch.setattr(commit_publication, "publish_agent_hood", publish)
+    monkeypatch.setattr(publication_locked, "build_project_hood_inventory", build)
+    monkeypatch.setattr(publication_locked, "publish_agent_hood", publish)
     monkeypatch.setattr(
         "sase.agents_sync.publication_completion.publication_request_fulfilled",
         lambda *_args, **_kwargs: True,
@@ -268,12 +269,12 @@ def test_large_backlog_builds_one_inventory_and_publishes_each_hood_once(
         lambda *_args, **_kwargs: {},
     )
     monkeypatch.setattr(
-        commit_publication,
+        publication_locked,
         "update_agent_publications",
         lambda _project_key, keys, **_kwargs: updated.append(tuple(keys)),
     )
     monkeypatch.setattr(
-        commit_publication,
+        publication_locked,
         "acknowledge_agent_publications",
         lambda _project_key, keys: acknowledged.append(tuple(keys)),
     )
@@ -309,7 +310,7 @@ def test_large_backlog_builds_one_inventory_and_publishes_each_hood_once(
     monkeypatch.setattr(git_sync, "commit_agents_payload_if_dirty", commit)
     monkeypatch.setattr(git_sync, "agents_ahead_count", ahead)
 
-    result = _publish_queued_locked(target, owner, run_git)
+    result = publication_locked.publish_queued_locked(target, owner, run_git)
 
     assert result.error is None
     assert result.drained == 25
@@ -336,11 +337,11 @@ def test_mixed_queue_publishes_good_items_and_quarantines_only_bad_item(
     target, remote = setup_target(tmp_path)
     owner = AgentOwnerIdentity("alice", "athena")
     monkeypatch.setattr(
-        "sase.agents_sync.commit_publication.resolve_sync_targets",
+        "sase.agents_sync._commit_publication_support.resolve_sync_targets",
         lambda _projects: TargetSelection((target,), ()),
     )
     monkeypatch.setattr(
-        "sase.agents_sync.commit_publication.require_agent_owner_identity",
+        "sase.agents_sync._commit_publication_support.require_agent_owner_identity",
         lambda: owner,
     )
     for hood, revision in (("good", "a" * 40), ("bad", "b" * 40)):
@@ -394,7 +395,7 @@ def test_mixed_queue_publishes_good_items_and_quarantines_only_bad_item(
         return V2PublicationCounts(hoods_published=1)
 
     monkeypatch.setattr(
-        "sase.agents_sync.commit_publication.publish_agent_hood",
+        "sase.agents_sync._commit_publication_locked.publish_agent_hood",
         publish,
     )
     monkeypatch.setattr(
@@ -456,17 +457,17 @@ def test_no_publishable_runs_retries_once_then_retires(
     target, _remote = setup_target(tmp_path)
     owner = AgentOwnerIdentity("alice", "athena")
     monkeypatch.setattr(
-        commit_publication,
+        publication_support,
         "resolve_sync_targets",
         lambda _projects: TargetSelection((target,), ()),
     )
     monkeypatch.setattr(
-        commit_publication,
+        publication_support,
         "require_agent_owner_identity",
         lambda: owner,
     )
     monkeypatch.setattr(
-        commit_publication,
+        publication_locked,
         "build_project_hood_inventory",
         lambda *_args, **_kwargs: ProjectHoodInventory(owner, "proj", ()),
     )
@@ -480,7 +481,7 @@ def test_no_publishable_runs_retries_once_then_retires(
         raise AgentsSyncFormatError("hood 'missing' has no publishable runs")
 
     monkeypatch.setattr(
-        commit_publication,
+        publication_locked,
         "publish_agent_hood",
         no_publishable_runs,
     )
@@ -554,7 +555,7 @@ def test_repeated_format_publication_failure_retires_and_doctor_says_drop(
     assert queued.created_at == old_now
 
     monkeypatch.setattr(
-        commit_publication,
+        publication_locked,
         "build_project_hood_inventory",
         lambda *_args, **_kwargs: ProjectHoodInventory(owner, "proj", ()),
     )
@@ -563,7 +564,7 @@ def test_repeated_format_publication_failure_retires_and_doctor_says_drop(
         raise AgentsSyncFormatError(error_detail)
 
     monkeypatch.setattr(
-        commit_publication,
+        publication_locked,
         "publish_agent_hood",
         invalid_relationships,
     )
@@ -572,7 +573,7 @@ def test_repeated_format_publication_failure_retires_and_doctor_says_drop(
         lambda: doctor_now,
     )
 
-    first = _publish_queued_locked(target, owner, run_git)
+    first = publication_locked.publish_queued_locked(target, owner, run_git)
     [pending] = list_agent_publications("proj")
     assert first.drained == 0
     assert first.item_errors == (full_error,)
@@ -582,7 +583,7 @@ def test_repeated_format_publication_failure_retires_and_doctor_says_drop(
     assert not pending.quarantined
     assert list_agent_publications("proj", include_quarantined=False) == (pending,)
 
-    second = _publish_queued_locked(target, owner, run_git)
+    second = publication_locked.publish_queued_locked(target, owner, run_git)
     [retired] = list_agent_publications("proj")
     assert second.drained == 0
     assert second.item_errors == (full_error,)
