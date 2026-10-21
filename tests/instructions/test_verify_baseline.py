@@ -490,4 +490,4 @@ def test_markers_match_shipped_directives() -> None:
     assert fp.CODEX_DIRECTIVE_MARKER in codex_provider.single_turn_directive()
     assert fp.MUSE_DIRECTIVE_MARKER in _muse_single_turn_directive()
     assert fp.AGY_DIRECTIVE_MARKER in agy_provider._AGY_PRINT_MODE_DIRECTIVE
-    assert fp.GROK_DIRECTIVE_OPENING in grok_provider._GROK_SINGLE_TURN_DIRECTIVE
+    assert fp.GROK_DIRECTIVE_OPENING in grok_provider.GROK_SINGLE_TURN_DIRECTIVE

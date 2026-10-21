@@ -36,7 +36,7 @@ ALLOWLIST = {
     "src/sase/llm_provider/claude.py:llm_invoke",
     "src/sase/llm_provider/codex.py:llm_invoke",
     "src/sase/llm_provider/fakey.py:llm_invoke",
-    "src/sase/llm_provider/grok.py:llm_invoke",
+    "src/sase/llm_provider/_grok_provider.py:llm_invoke",
     "src/sase/llm_provider/muse_provider.py:llm_invoke",
     "src/sase/llm_provider/opencode.py:llm_invoke",
     "src/sase/llm_provider/qwen.py:llm_invoke",

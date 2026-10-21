@@ -131,8 +131,11 @@ def test_grok_provider_specific_extra_args_are_used_as_fallback(
 
 def test_grok_missing_executable_names_env_var_and_install_command() -> None:
     with (
-        patch("sase.llm_provider.grok.subprocess.Popen", side_effect=FileNotFoundError),
-        patch("sase.llm_provider.grok.provider_timer"),
+        patch(
+            "sase.llm_provider._grok_subprocess.subprocess.Popen",
+            side_effect=FileNotFoundError,
+        ),
+        patch("sase.llm_provider._grok_invocation.provider_timer"),
         pytest.raises(FileNotFoundError) as excinfo,
     ):
         GrokProvider().invoke("prompt", model_tier="large", suppress_output=True)
@@ -148,10 +151,10 @@ def test_grok_nonzero_exit_raises_called_process_error(
 ) -> None:
     with (
         patch(
-            "sase.llm_provider.grok.stream_and_parse_messages_json_output"
+            "sase.llm_provider._grok_subprocess.stream_and_parse_messages_json_output"
         ) as mock_stream,
-        patch("sase.llm_provider.grok.subprocess.Popen") as mock_popen,
-        patch("sase.llm_provider.grok.provider_timer"),
+        patch("sase.llm_provider._grok_subprocess.subprocess.Popen") as mock_popen,
+        patch("sase.llm_provider._grok_invocation.provider_timer"),
     ):
         mock_popen.return_value = MagicMock()
         mock_stream.return_value = ("partial", "boom", 1, {})
@@ -197,7 +200,7 @@ def test_grok_interrupt_preserves_partial_output_and_continues() -> None:
 
     with (
         patch(
-            "sase.llm_provider.grok.provider_timer",
+            "sase.llm_provider._grok_invocation.provider_timer",
             side_effect=lambda label: SingleUseTimer(label),
         ),
         patch.object(GrokProvider, "_run_subprocess", side_effect=_fake_run),

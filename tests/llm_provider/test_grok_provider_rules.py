@@ -8,12 +8,14 @@ from unittest.mock import patch
 
 import pytest
 
-from sase.llm_provider.grok import (
-    _GROK_RULES_ARGV_BYTE_LIMIT,
-    _GROK_SINGLE_TURN_DIRECTIVE,
-    _grok_rules_text,
-    GrokProvider,
+from sase.llm_provider._grok_cli import (
+    GROK_RULES_ARGV_BYTE_LIMIT as _GROK_RULES_ARGV_BYTE_LIMIT,
 )
+from sase.llm_provider._grok_invocation import (
+    GROK_SINGLE_TURN_DIRECTIVE as _GROK_SINGLE_TURN_DIRECTIVE,
+    _grok_rules_text,
+)
+from sase.llm_provider.grok import GrokProvider
 from sase.llm_provider.types import LLMInvocationError
 
 from ._grok_provider_core_helpers import (
@@ -162,7 +164,7 @@ def test_grok_rules_reach_every_continuation_cycle(
         return ("second pass", "", 0, {"output_tokens": 3})
 
     with (
-        patch("sase.llm_provider.grok.provider_timer"),
+        patch("sase.llm_provider._grok_invocation.provider_timer"),
         patch.object(GrokProvider, "_run_subprocess", side_effect=_fake_run),
     ):
         provider.invoke("original task", model_tier="large", suppress_output=True)

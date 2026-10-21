@@ -13,13 +13,13 @@ from urllib.parse import quote
 import pytest
 
 from sase.ace.tui.thinking.parser import read_codex_thinking
-from sase.llm_provider.grok import (
-    GrokProvider,
+from sase.llm_provider._grok_subprocess import (
     _GrokTurnEndProbe,
     _final_assistant_from_chat_history,
     _recover_grok_final_reply,
     _resolve_grok_session_dir,
 )
+from sase.llm_provider.grok import GrokProvider
 from sase.llm_provider._subprocess_plain import ProviderTurnState
 from sase.llm_provider._subprocess_reap import TeardownStall, register_teardown_stall
 
@@ -257,7 +257,7 @@ def test_grok_starts_the_watchdog_with_a_turn_end_probe(
         captured.update(kwargs)
 
     monkeypatch.setattr(
-        "sase.llm_provider.grok.start_completion_watchdog", fake_watchdog
+        "sase.llm_provider._grok_subprocess.start_completion_watchdog", fake_watchdog
     )
     invoke_and_capture(GrokProvider(), monkeypatch)
 

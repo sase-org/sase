@@ -62,12 +62,12 @@ def test_grok_explicit_rules_disable_memory_and_record_the_session(
 
         with (
             _with_delivery(delivery),
-            patch("sase.llm_provider.grok.subprocess.Popen") as mock_popen,
+            patch("sase.llm_provider._grok_subprocess.subprocess.Popen") as mock_popen,
             patch(
-                "sase.llm_provider.grok.stream_and_parse_messages_json_output",
+                "sase.llm_provider._grok_subprocess.stream_and_parse_messages_json_output",
                 return_value=("response", "", 0, {}),
             ),
-            patch("sase.llm_provider.grok.provider_timer"),
+            patch("sase.llm_provider._grok_invocation.provider_timer"),
         ):
             mock_popen.return_value = MagicMock()
             provider.invoke("work", model_tier="large", suppress_output=True)
@@ -91,15 +91,15 @@ def test_grok_disabled_flag_keeps_legacy_rules_and_environment(
         with (
             _with_delivery(delivery),
             patch(
-                "sase.llm_provider.grok._grok_rules_text",
+                "sase.llm_provider._grok_invocation._grok_rules_text",
                 return_value="legacy Grok rules",
             ),
-            patch("sase.llm_provider.grok.subprocess.Popen") as mock_popen,
+            patch("sase.llm_provider._grok_subprocess.subprocess.Popen") as mock_popen,
             patch(
-                "sase.llm_provider.grok.stream_and_parse_messages_json_output",
+                "sase.llm_provider._grok_subprocess.stream_and_parse_messages_json_output",
                 return_value=("response", "", 0, {}),
             ),
-            patch("sase.llm_provider.grok.provider_timer"),
+            patch("sase.llm_provider._grok_invocation.provider_timer"),
         ):
             mock_popen.return_value = MagicMock()
             provider.invoke("work", model_tier="large", suppress_output=True)
@@ -167,7 +167,7 @@ def test_grok_oversize_bundle_falls_back_to_legacy_rules() -> None:
         with (
             _with_delivery(delivery),
             patch(
-                "sase.llm_provider.grok._grok_rules_text",
+                "sase.llm_provider._grok_invocation._grok_rules_text",
                 return_value="legacy after oversize",
             ),
             patch.object(GrokProvider, "_run_subprocess", side_effect=_fake_run),

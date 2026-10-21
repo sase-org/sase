@@ -18,7 +18,7 @@ from sase.llm_provider import grok as grok_provider
 
 def test_grok_directive_opens_with_fingerprint() -> None:
     """The shipped Grok directive starts with the scoreboard's opening marker."""
-    assert grok_provider._GROK_SINGLE_TURN_DIRECTIVE.startswith(
+    assert grok_provider.GROK_SINGLE_TURN_DIRECTIVE.startswith(
         fp.GROK_DIRECTIVE_OPENING
     )
 

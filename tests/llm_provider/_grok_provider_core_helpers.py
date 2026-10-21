@@ -39,10 +39,10 @@ def invoke_and_capture(
     monkeypatch.setenv("SASE_GROK_PATH", "/opt/grok/bin/grok")
     with (
         patch(
-            "sase.llm_provider.grok.stream_and_parse_messages_json_output"
+            "sase.llm_provider._grok_subprocess.stream_and_parse_messages_json_output"
         ) as mock_stream,
-        patch("sase.llm_provider.grok.subprocess.Popen") as mock_popen,
-        patch("sase.llm_provider.grok.provider_timer"),
+        patch("sase.llm_provider._grok_subprocess.subprocess.Popen") as mock_popen,
+        patch("sase.llm_provider._grok_invocation.provider_timer"),
     ):
         mock_process = MagicMock()
         mock_popen.return_value = mock_process

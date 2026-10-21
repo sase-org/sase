@@ -137,7 +137,7 @@ def test_no_directive_provider_records_reason(tmp_path: Path) -> None:
 def test_provider_directive_texts_are_adapter_owned() -> None:
     """Directive texts match the adapter constants (not copies)."""
     from sase.llm_provider.claude import _SINGLE_TURN_DIRECTIVE as claude
-    from sase.llm_provider.grok import _GROK_SINGLE_TURN_DIRECTIVE as grok
+    from sase.llm_provider.grok import GROK_SINGLE_TURN_DIRECTIVE as grok
 
     assert provider_directive("claude") == claude
     assert provider_directive("grok") == grok
