@@ -77,6 +77,16 @@ async def test_sudo_modal_defaults_to_all_commands_and_runs_subset() -> None:
     ]
 
 
+async def test_sudo_review_rail_grows_on_wide_terminal() -> None:
+    modal = SudoRequestModal(_data())
+    async with _ModalHost().run_test(size=(200, 56)) as pilot:
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        rail = modal.query_one(".gate-review-body > .gate-review-actions")
+        assert 42 < rail.size.width <= 72
+
+
 async def test_sudo_modal_refuses_empty_run_selection() -> None:
     modal = SudoRequestModal(_data())
     notices: list[tuple[str, str]] = []

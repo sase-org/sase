@@ -52,6 +52,7 @@ _CUSTOM_GATE_STATIC_BINDINGS = [
     ("G", "scroll_to_bottom", "Bottom"),
 ]
 _DEFAULT_GATE_KEYMAPS = GateModalKeymaps(**load_builtin_gate_defaults())
+_COMPACT_SCROLL_MIN_ROWS = 6
 
 
 @dataclass(frozen=True)
@@ -204,6 +205,33 @@ class CustomGateModal(
     def on_mount(self) -> None:
         self._sync_submission_block()
         self.focus_gate_control(1)
+        self.call_after_refresh(self._fit_compact_review_scroll)
+
+    def on_resize(self, _event: Any) -> None:
+        self.call_after_refresh(self._fit_compact_review_scroll)
+
+    def _fit_compact_review_scroll(self) -> None:
+        """Fit compact review content between the header and footer."""
+        if self._data.preview_text is not None:
+            return
+
+        shell = self.query_one("#custom-gate-container", Container)
+        scroll = self.query_one("#custom-gate-review-scroll", VerticalScroll)
+        footer = self.query_one("#custom-gate-footer", Static)
+        max_height = shell.styles.max_height
+        shell_max = (
+            int(max_height.resolve(self.size, self.app.size))
+            if max_height is not None
+            else self.size.height
+        )
+        top = scroll.region.y - shell.region.y
+        bottom = (
+            footer.region.bottom - scroll.region.bottom + shell.styles.gutter.bottom
+        )
+        scroll.styles.max_height = max(
+            _COMPACT_SCROLL_MIN_ROWS,
+            shell_max - top - bottom,
+        )
 
     def render_reviewed_content(self, content: str) -> None:
         """Re-render the preview pane after an accepted edit action."""

@@ -129,6 +129,7 @@ def _data(
     frontmatter: bool = False,
     actions: GateActionsData = _NO_ACTIONS,
     password_warning: bool = False,
+    notes: tuple[str, ...] | None = None,
 ) -> CustomGateModalData:
     preview_text = (
         "# Production deployment\n\n"
@@ -152,8 +153,12 @@ def _data(
         sender="release-guardian",
         icon="🛡️",
         notes=(
-            "The release agent is ready to deploy the signed build.",
-            "Choose one resolution branch.",
+            notes
+            if notes is not None
+            else (
+                "The release agent is ready to deploy the signed build.",
+                "Choose one resolution branch.",
+            )
         ),
         attachments=("release-preview.md", "deployment-manifest.json"),
         preview_name="release-preview.md" if preview else None,
@@ -274,6 +279,35 @@ async def test_custom_gate_no_preview_png_snapshot(
         ),
         snapshot_name="custom_gate_no_preview_120x40",
         title="ACE compact custom gate without preview",
+    )
+
+
+async def test_custom_gate_no_preview_long_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    options = (
+        _option("approve", "Approve deployment", icon="✅"),
+        _option("cancel", "Cancel release", icon="🛑"),
+    )
+    notes = tuple(
+        f"Context {index}: "
+        + "The signed deployment is ready for review and every release check passed. "
+        * 15
+        for index in range(1, 8)
+    ) + ("Shell command: " + "./scripts/verify-release --check " * 18,)
+    await _snapshot_modal(
+        ace_png_visual,
+        monkeypatch,
+        data=_data(
+            options=options,
+            branches=(("approve",), ("cancel",)),
+            preview=False,
+            notes=notes,
+        ),
+        snapshot_name="custom_gate_no_preview_long_200x56",
+        title="ACE wide compact custom gate with long context",
+        size=(200, 56),
     )
 
 
