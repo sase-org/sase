@@ -16,6 +16,10 @@ from sase.agents_sync.prompt_archive.deferred import (
     prompt_runs_by_request,
 )
 from sase.agents_sync.publication_outbox import AgentPublicationOutboxItem
+from sase.agents_sync.publication_planning import (
+    invalidate_shared_targeted_planning,
+    shared_targeted_planning,
+)
 from sase.agents_sync.publication_timing import DrainTiming
 from sase.agents_sync.v2_io import read_owner_manifest
 from sase.agents_sync.v2_models import V2ProjectIdentity
@@ -279,6 +283,9 @@ def publish_queued_transaction(
             failure_scope=_REPOSITORY_SCOPE,
             failure_stage="pull_rebase",
         )
+    # Upstream may have changed: rebuild shared indexes from fresh upstream
+    # plus the local selected snapshots instead of reusing stale validation.
+    invalidate_shared_targeted_planning(target.sidecar_path)
     if timer is not None:
         with timer.record_stage("retry_prepare"):
             retry_prepared, retry_errors = _prepare_publications(
@@ -405,13 +412,26 @@ def _prepare_publications(
         requests_by_hood.setdefault(request.local_hood, []).append(request)
 
     published_by_hood: dict[str, list[AgentPublicationOutboxItem]] = {}
-    for hood_requests in requests_by_hood.values():
-        request = hood_requests[0]
-        if timer is not None:
-            timer.active_keys = tuple(item.logical_key for item in hood_requests)
-        try:
+    # Targeted hood plans share validated snapshots within this prepare so
+    # several selected hoods do not each re-read every snapshot file. The
+    # retry path below invalidates before rebuilding from fresh upstream.
+    with shared_targeted_planning():
+        for hood_requests in requests_by_hood.values():
+            request = hood_requests[0]
             if timer is not None:
-                with timer.record_stage(f"hood_publish:{request.local_hood}"):
+                timer.active_keys = tuple(item.logical_key for item in hood_requests)
+            try:
+                if timer is not None:
+                    with timer.record_stage(f"hood_publish:{request.local_hood}"):
+                        hooks.publish_hood(
+                            target,
+                            repo,
+                            request.local_agent,
+                            identity=identity,
+                            inventory=inventory,
+                            git_runner=git_runner,
+                        )
+                else:
                     hooks.publish_hood(
                         target,
                         repo,
@@ -420,17 +440,18 @@ def _prepare_publications(
                         inventory=inventory,
                         git_runner=git_runner,
                     )
-            else:
-                hooks.publish_hood(
-                    target,
-                    repo,
-                    request.local_agent,
-                    identity=identity,
-                    inventory=inventory,
-                    git_runner=git_runner,
-                )
-            if timer is not None:
-                with timer.record_stage(f"prompt_archive_prepare:{request.local_hood}"):
+                if timer is not None:
+                    with timer.record_stage(
+                        f"prompt_archive_prepare:{request.local_hood}"
+                    ):
+                        for hood_request in hood_requests:
+                            prepare_deferred_prompt_archive(
+                                target,
+                                hood_request,
+                                git_runner,
+                                prompt_runs=prompt_runs,
+                            )
+                else:
                     for hood_request in hood_requests:
                         prepare_deferred_prompt_archive(
                             target,
@@ -438,30 +459,22 @@ def _prepare_publications(
                             git_runner,
                             prompt_runs=prompt_runs,
                         )
-            else:
-                for hood_request in hood_requests:
-                    prepare_deferred_prompt_archive(
-                        target,
-                        hood_request,
-                        git_runner,
-                        prompt_runs=prompt_runs,
-                    )
-            published_by_hood[request.local_hood] = hood_requests
-        except PublicationDrainTimedOut:
-            raise
-        except Exception as exc:  # noqa: BLE001 - durable auxiliary boundary
-            error = f"could not publish agent hood {request.local_hood!r}: {exc}"
-            hooks.update_publications(
-                target.project_key,
-                (item.logical_key for item in hood_requests),
-                error=error,
-                increment_attempts=True,
-                quarantine_threshold=hooks.configured_max_attempts(),
-                terminal_reason=error
-                if isinstance(exc, AgentsSyncFormatError)
-                else None,
-            )
-            errors.append(error)
+                published_by_hood[request.local_hood] = hood_requests
+            except PublicationDrainTimedOut:
+                raise
+            except Exception as exc:  # noqa: BLE001 - durable auxiliary boundary
+                error = f"could not publish agent hood {request.local_hood!r}: {exc}"
+                hooks.update_publications(
+                    target.project_key,
+                    (item.logical_key for item in hood_requests),
+                    error=error,
+                    increment_attempts=True,
+                    quarantine_threshold=hooks.configured_max_attempts(),
+                    terminal_reason=error
+                    if isinstance(exc, AgentsSyncFormatError)
+                    else None,
+                )
+                errors.append(error)
 
     if timer is not None:
         timer.stage = "manifest_verify"

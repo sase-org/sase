@@ -53,11 +53,21 @@ def load_validated_publication(
     override_manifest: V2OwnerManifest | None = None,
     override_snapshots: dict[tuple[str, str, str], V2HoodSnapshot] | None = None,
     override_payload: dict[str, bytes] | None = None,
+    base_snapshots: dict[tuple[str, str, str], V2HoodSnapshot] | None = None,
 ) -> tuple[
     tuple[V2OwnerManifest, ...],
     dict[tuple[str, str, str], V2HoodSnapshot],
     tuple[str, ...],
 ]:
+    """Validate manifests and snapshots, reusing cached snapshots when given.
+
+    ``base_snapshots`` supplies already-validated unselected snapshots so
+    targeted planning can share them within one transaction instead of
+    re-reading every snapshot file per hood. Digest, identity, and explicit
+    file-set checks still apply to reused snapshots; referenced-file checks
+    stay scoped to ``override_snapshots`` exactly as before.
+    """
+
     all_manifests, diagnostics = read_all_owner_manifests_lenient(repo_root)
     manifests = {
         (item.owner.username, item.owner.machine_name): item for item in all_manifests
@@ -71,12 +81,15 @@ def load_validated_publication(
         ] = override_manifest
     snapshots: dict[tuple[str, str, str], V2HoodSnapshot] = {}
     overrides = override_snapshots or {}
+    base = base_snapshots or {}
     scoped_verification = override_snapshots is not None
     payload = override_payload or {}
     for manifest in manifests.values():
         for hood, entry in manifest.hoods:
             key = (manifest.owner.username, manifest.owner.machine_name, hood)
             snapshot = overrides.get(key)
+            if snapshot is None:
+                snapshot = base.get(key)
             path = snapshot_path(manifest.owner, hood)
             raw = (
                 v2_json_bytes(snapshot.to_json_dict())

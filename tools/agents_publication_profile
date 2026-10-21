@@ -1,15 +1,19 @@
 #!/usr/bin/env python3
 """Profile one representative agent-hood publication drain (read-only).
 
-Runs ``build_project_hood_inventory`` and ``plan_hoods`` against real state
-for one large hood and one small hood, printing the stage breakdown. Both
-functions write nothing: the inventory is in-memory and ``plan_hoods``
-returns its payload dict without touching the sidecar clone.
+Runs ``build_project_hood_inventory`` and hood planning against real state.
+The default comparison mode profiles one large hood and one small hood with
+full planning. ``--hood`` profiles exactly the requested hoods with scoped
+inventory and targeted planning. All modes write nothing: the inventory is
+in-memory and planning returns its payload dict without touching the
+sidecar clone.
 
 Usage:
     .venv/bin/python tools/agents_publication_profile --project sase
     SASE_SDD_GIT_SLOW_MS=0 .venv/bin/python tools/agents_publication_profile \\
         --project sase --large-hood research
+    .venv/bin/python tools/agents_publication_profile --project sase \\
+        --hood research --hood inbox
 """
 
 from __future__ import annotations
@@ -47,6 +51,18 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Small hood to plan (default: hood with the fewest runs).",
     )
     parser.add_argument(
+        "--hood",
+        action="append",
+        default=None,
+        dest="hoods",
+        help=(
+            "Requested hood to profile with scoped inventory and targeted "
+            "planning; repeat for several hoods. When given, inventory is "
+            "built only for the requested set (no full scan to choose "
+            "hoods) and the comparison mode is skipped."
+        ),
+    )
+    parser.add_argument(
         "--json",
         action="store_true",
         help="Print the breakdown as JSON instead of text.",
@@ -76,7 +92,10 @@ def main(argv: list[str] | None = None) -> int:
     args = _parse_args(argv)
 
     from sase.agents_sync.inventory import build_project_hood_inventory
-    from sase.agents_sync.publication_planning import plan_hoods
+    from sase.agents_sync.publication_planning import (
+        plan_hoods,
+        plan_targeted_hoods,
+    )
     from sase.agents_sync.targets import resolve_sync_targets
     from sase.config import require_agent_owner_identity
     from sase.core.agent_identity_facade import AgentIdentitySnapshot
@@ -107,15 +126,67 @@ def main(argv: list[str] | None = None) -> int:
 
     counts, git_runner = _counting_runner()
 
+    requested = tuple(dict.fromkeys(args.hoods or ()))
+    if requested:
+        # Explicit requested-hood selection: build scoped inventory only
+        # for the requested set (no full scan to choose hoods), then plan
+        # the targeted payload for that set. Both stay read-only.
+        inventory_start = time.perf_counter()
+        inventory = build_project_hood_inventory(
+            target,
+            identity,
+            git_runner=git_runner,  # type: ignore[arg-type]
+            requested_hoods=frozenset(requested),
+        )
+        inventory_seconds = time.perf_counter() - inventory_start
+        by_hood = Counter(
+            run.local_name.split("--")[0] for run in inventory.runs
+        )
+        prompt_bytes = sum(len(run.prompt_bytes or b"") for run in inventory.runs)
+        chat_bytes = sum(len(run.chat_bytes or b"") for run in inventory.runs)
+        start = time.perf_counter()
+        payload, hood_counts = plan_targeted_hoods(
+            target, target.sidecar_path, inventory, requested, owner
+        )
+        elapsed = time.perf_counter() - start
+        payload_bytes = sum(len(chunk) for chunk in payload.values())
+        hood_timings = {
+            ",".join(requested): {
+                "runs": len(inventory.runs),
+                "seconds": elapsed,
+                "payload_files": len(payload),
+                "payload_bytes": payload_bytes,
+                "hoods_published": hood_counts.hoods_published,
+                "hoods_refreshed": hood_counts.hoods_refreshed,
+                "hoods_unchanged": hood_counts.hoods_unchanged,
+                "runs_published": hood_counts.runs_published,
+                "requested_hoods": list(requested),
+                "targeted": True,
+            }
+        }
+        ranked = by_hood.most_common()
+        breakdown = {
+            "project_key": project_key,
+            "inventory_seconds": inventory_seconds,
+            "runs_scanned": len(inventory.runs),
+            "distinct_hoods": len(by_hood),
+            "commit_record_calls": counts.get("agents_sync.commit_record", 0),
+            "git_op_counts": dict(counts),
+            "prompt_bytes": prompt_bytes,
+            "chat_bytes": chat_bytes,
+            "requested_hoods": list(requested),
+            "targeted": True,
+            "hood_timings": hood_timings,
+        }
+        return _emit(breakdown, args.json)
+
     inventory_start = time.perf_counter()
     inventory = build_project_hood_inventory(
         target, identity, git_runner=git_runner  # type: ignore[arg-type]
     )
     inventory_seconds = time.perf_counter() - inventory_start
 
-    by_hood: Counter[str] = Counter()
-    for run in inventory.runs:
-        by_hood[run.local_name.split("--")[0]] += 1
+    by_hood = Counter(run.local_name.split("--")[0] for run in inventory.runs)
     if not by_hood:
         print("inventory has no runs", file=sys.stderr)
         return 2
@@ -126,7 +197,7 @@ def main(argv: list[str] | None = None) -> int:
     prompt_bytes = sum(len(run.prompt_bytes or b"") for run in inventory.runs)
     chat_bytes = sum(len(run.chat_bytes or b"") for run in inventory.runs)
 
-    hood_timings: dict[str, dict[str, object]] = {}
+    hood_timings = {}
     for hood in (large_hood, small_hood):
         start = time.perf_counter()
         payload, hood_counts = plan_hoods(
@@ -159,31 +230,57 @@ def main(argv: list[str] | None = None) -> int:
         ],
         "hood_timings": hood_timings,
     }
-    if args.json:
+    return _emit(breakdown, args.json)
+
+
+def _emit(breakdown: dict[str, object], as_json: bool) -> int:
+    if as_json:
         print(json.dumps(breakdown, indent=2, sort_keys=True))
+        return 0
+    project_key = breakdown["project_key"]
+    inventory_seconds = breakdown["inventory_seconds"]
+    assert isinstance(inventory_seconds, (int, float))
+    runs_scanned = breakdown["runs_scanned"]
+    distinct_hoods = breakdown.get("distinct_hoods")
+    prompt_bytes = breakdown["prompt_bytes"]
+    chat_bytes = breakdown["chat_bytes"]
+    print(f"project: {project_key}")
+    print(f"inventory build: {inventory_seconds:.2f}s")
+    print(f"runs scanned: {runs_scanned} in {distinct_hoods} hoods")
+    git_op_counts = breakdown.get("git_op_counts", {})
+    assert isinstance(git_op_counts, dict)
+    commit_record_calls = breakdown.get("commit_record_calls", 0)
+    print(
+        f"commit_record calls: {commit_record_calls} "
+        f"({sum(git_op_counts.values())} git subprocesses total)"
+    )
+    print(f"prompt bytes: {prompt_bytes}  chat bytes: {chat_bytes}")
+    requested_hoods = breakdown.get("requested_hoods")
+    if requested_hoods:
+        assert isinstance(requested_hoods, list)
+        print(f"requested hoods: {', '.join(requested_hoods)} (targeted)")
     else:
-        print(f"project: {project_key}")
-        print(f"inventory build: {inventory_seconds:.2f}s")
-        print(f"runs scanned: {len(inventory.runs)} in {len(by_hood)} hoods")
-        print(
-            f"commit_record calls: {counts.get('agents_sync.commit_record', 0)} "
-            f"({sum(counts.values())} git subprocesses total)"
-        )
-        print(f"prompt bytes: {prompt_bytes}  chat bytes: {chat_bytes}")
         print("top hoods by runs:")
-        for entry in breakdown["top_hoods_by_runs"]:
+        top_hoods = breakdown.get("top_hoods_by_runs", [])
+        assert isinstance(top_hoods, list)
+        for entry in top_hoods:
             assert isinstance(entry, dict)
             print(f"  {entry['hood']}: {entry['runs']} runs")
-        for hood, timing in hood_timings.items():
-            assert isinstance(timing, dict)
-            print(
-                f"plan_hoods({hood}): {timing['seconds']:.2f}s, "
-                f"{timing['runs']} runs, {timing['payload_files']} files, "
-                f"{timing['payload_bytes']} bytes"
-            )
-        print("git ops by name:")
-        for op, count in counts.most_common(15):
-            print(f"  {count:6d}  {op}")
+    hood_timings = breakdown["hood_timings"]
+    assert isinstance(hood_timings, dict)
+    for hood, timing in hood_timings.items():
+        assert isinstance(timing, dict)
+        label = "plan_targeted_hoods" if timing.get("targeted") else "plan_hoods"
+        print(
+            f"{label}({hood}): {timing['seconds']:.2f}s, "
+            f"{timing['runs']} runs, {timing['payload_files']} files, "
+            f"{timing['payload_bytes']} bytes"
+        )
+    print("git ops by name:")
+    for op, count in sorted(
+        git_op_counts.items(), key=lambda item: item[1], reverse=True
+    )[:15]:
+        print(f"  {count:6d}  {op}")
     return 0
 
 

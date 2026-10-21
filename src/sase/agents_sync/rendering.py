@@ -82,6 +82,81 @@ def render_browsing_payload(
     return payload
 
 
+def render_targeted_browsing_payload(
+    manifests: tuple[V2OwnerManifest, ...],
+    snapshots: dict[tuple[str, str, str], V2HoodSnapshot],
+    selected_keys: set[tuple[str, str, str]] | frozenset[tuple[str, str, str]],
+    *,
+    commit_url_base: str | None = None,
+    commit_repo_name: str | None = None,
+    bead_links: Mapping[str, BeadPageLink] | None = None,
+) -> dict[str, bytes]:
+    """Render indexes plus only the selected hoods' derived pages.
+
+    Root totals come from complete manifests. User pages cover affected users
+    only. Machine pages cover affected machines with their complete hood
+    rosters (states preserved from full snapshots). Hood, agent, session, and
+    legacy redirect pages cover selected hoods only; unrelated pages are
+    omitted so targeted payloads scale with the selection.
+    """
+
+    selected = set(selected_keys)
+    payload: dict[str, bytes] = {}
+    ordered = tuple(
+        sorted(
+            manifests,
+            key=lambda item: (item.owner.username, item.owner.machine_name),
+        )
+    )
+    payload["README.md"] = page_bytes(render_root_page(ordered))
+
+    affected_users = {username for username, _machine, _hood in selected}
+    affected_machines = {(username, machine) for username, machine, _hood in selected}
+    by_user: dict[str, list[V2OwnerManifest]] = defaultdict(list)
+    for manifest in ordered:
+        by_user[manifest.owner.username].append(manifest)
+    for username in sorted(affected_users):
+        user_manifests = by_user.get(username, [])
+        if not user_manifests:
+            continue
+        payload[f"users/{username}/README.md"] = page_bytes(
+            render_user_page(username, tuple(user_manifests))
+        )
+        for manifest in sorted(
+            user_manifests, key=lambda item: item.owner.machine_name
+        ):
+            if (username, manifest.owner.machine_name) not in affected_machines:
+                continue
+            machine_root = f"users/{username}/machines/{manifest.owner.machine_name}"
+            # Complete roster: every hood in the manifest must resolve, so a
+            # missing snapshot fails loudly instead of silently truncating.
+            machine_snapshots = tuple(
+                snapshots[(username, manifest.owner.machine_name, hood)]
+                for hood, _entry in manifest.hoods
+            )
+            payload[f"{machine_root}/README.md"] = page_bytes(
+                render_machine_page(manifest, machine_snapshots)
+            )
+    links = bead_links or {}
+    for key in sorted(selected):
+        snapshot = snapshots[key]
+        username, machine, _hood = key
+        machine_root = f"users/{username}/machines/{machine}"
+        hood_root = f"{machine_root}/hoods/{snapshot.local_hood}"
+        payload[f"{hood_root}/README.md"] = page_bytes(
+            render_hood_page(snapshot, hood_root)
+        )
+        payload.update(
+            _render_run_pages(
+                snapshot,
+                commit_url_base=commit_url_base,
+                commit_repo_name=commit_repo_name,
+                bead_links=links,
+            )
+        )
+    return payload
+
+
 def _render_run_pages(
     snapshot: V2HoodSnapshot,
     *,
@@ -131,4 +206,4 @@ def _render_run_pages(
     return payload
 
 
-__all__ = ["render_browsing_payload"]
+__all__ = ["render_browsing_payload", "render_targeted_browsing_payload"]
