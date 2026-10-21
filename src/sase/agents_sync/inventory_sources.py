@@ -2,21 +2,12 @@
 
 from __future__ import annotations
 
-from sase.plan_chain import (
-    agent_session_value,
-)
-
+from collections.abc import Mapping, Set as AbstractSet
 import hashlib
 from pathlib import Path
 from typing import Any
 
 from sase._interruptions import PublicationDrainTimedOut
-from sase.agents_sync.repository_inspection import (
-    commit_markers,
-    commit_record,
-    is_primary_root,
-    repository_root,
-)
 from sase.agents_sync.git import GitRunner
 from sase.agents_sync.inventory_history import HistoricalAssociations
 from sase.agents_sync.inventory_io import (
@@ -38,7 +29,14 @@ from sase.agents_sync.inventory_io import (
 )
 from sase.agents_sync.inventory_models import InventoryRelationship, InventoryRun
 from sase.agents_sync.io import AgentsSyncFormatError
-from sase.agents_sync.models import ProjectTarget
+from sase.agents_sync.models import CommitRecord, ProjectTarget
+from sase.agents_sync.repository_inspection import (
+    CommitRecordCache,
+    commit_markers,
+    commit_record,
+    is_primary_root,
+    repository_root,
+)
 from sase.core.agent_identity_facade import (
     AgentIdentitySnapshot,
     globalize_agent_name,
@@ -58,6 +56,9 @@ from sase.core.paths import sase_projects_dir
 from sase.core.revival_inputs import (
     revival_input_file,
     revival_input_file_for_dismissed,
+)
+from sase.plan_chain import (
+    agent_session_value,
 )
 
 
@@ -120,6 +121,9 @@ def run_from_artifact(
     history: HistoricalAssociations,
     root_cache: dict[str, Path | None],
     git_runner: GitRunner,
+    *,
+    commit_cache: CommitRecordCache | None = None,
+    known_commits: Mapping[str, CommitRecord] | None = None,
 ) -> InventoryRun | None:
     """Build an inventory run from one indexed artifact."""
 
@@ -153,7 +157,13 @@ def run_from_artifact(
         root = repository_root(Path(cwd), git_runner, root_cache)
         if root is None or not is_primary_root(root, target):
             continue
-        commit = commit_record(root, sha, git_runner)
+        commit = commit_record(
+            root,
+            sha,
+            git_runner,
+            cache=commit_cache,
+            known=known_commits,
+        )
         if commit is not None:
             commits[commit.sha] = commit
     prompt = _prompt_bytes_from_artifact(artifact, record)
@@ -194,6 +204,8 @@ def run_from_artifact(
 
 def dismissed_records(
     target: ProjectTarget,
+    identity: AgentIdentitySnapshot | None = None,
+    requested_hoods: AbstractSet[str] | None = None,
 ) -> tuple[tuple[dict[str, Any], str], ...]:
     """Load archived local runs which are no longer in the live index."""
 
@@ -206,8 +218,23 @@ def dismissed_records(
         raise
     except (OSError, RuntimeError, ValueError, ImportError):
         return ()
+    candidates = summaries
+    if requested_hoods is not None and identity is not None:
+        # Use-site import keeps inventory_scope off the TUI app import path.
+        from sase.agents_sync.inventory_scope import (
+            dismissed_summary_in_requested_hoods,
+        )
+
+        hoods = requested_hoods
+        owner_identity = identity
+        candidates = [
+            summary
+            for summary in summaries
+            if dismissed_summary_in_requested_hoods(summary, hoods, owner_identity)
+            is True
+        ]
     selected: list[tuple[dict[str, Any], str]] = []
-    for summary in summaries:
+    for summary in candidates:
         path = Path(str(summary.bundle_path))
         raw = _read_json_object(path, required=False)
         if raw is not None:

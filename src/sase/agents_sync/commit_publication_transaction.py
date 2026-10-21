@@ -110,6 +110,7 @@ def publish_queued_transaction(
         )
 
     identity = AgentIdentitySnapshot(owner)
+    requested_hoods = frozenset(item.local_hood for item in requests)
     with name_registry_load_session():
         if timer is not None:
             with timer.record_stage("inventory_build"):
@@ -117,12 +118,14 @@ def publish_queued_transaction(
                     target,
                     identity,
                     git_runner=git_runner,
+                    requested_hoods=requested_hoods,
                 )
         else:
             inventory = hooks.build_inventory(
                 target,
                 identity,
                 git_runner=git_runner,
+                requested_hoods=requested_hoods,
             )
     if timer is not None:
         _record_inventory_counters(timer, inventory)

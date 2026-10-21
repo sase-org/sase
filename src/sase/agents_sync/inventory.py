@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from collections.abc import Set as AbstractSet
 from dataclasses import replace
 from pathlib import Path
+from typing import Any
 
 from sase._interruptions import PublicationDrainTimedOut
 from sase.agents_sync.git import GitRunner, run_git
@@ -33,6 +35,7 @@ from sase.agents_sync.inventory_sources import (
 )
 from sase.agents_sync.io import AgentsSyncFormatError
 from sase.agents_sync.models import CommitRecord, ProjectTarget
+from sase.agents_sync.repository_inspection import CommitRecordCache
 from sase.core.agent_identity_facade import (
     AgentIdentitySnapshot,
     AgentOwnerIdentity,
@@ -60,23 +63,72 @@ _run_from_artifact = run_from_artifact
 _run_from_dismissed = run_from_dismissed
 
 
+def _load_dismissed_records(
+    target: ProjectTarget,
+    identity: AgentIdentitySnapshot,
+    requested_hoods: frozenset[str] | None,
+) -> tuple[tuple[dict[str, Any], str], ...]:
+    """Load dismissed bundles, using scoped filtering when the loader allows it."""
+
+    try:
+        return _dismissed_records(
+            target,
+            identity=identity,
+            requested_hoods=requested_hoods,
+        )
+    except TypeError:
+        return _dismissed_records(target)
+
+
 def build_project_hood_inventory(
     target: ProjectTarget,
     identity: AgentIdentitySnapshot,
     *,
     git_runner: GitRunner = run_git,
+    requested_hoods: AbstractSet[str] | None = None,
 ) -> ProjectHoodInventory:
-    """Load all locally owned process records selected by persistent indexes."""
+    """Load locally owned process records selected by persistent indexes.
+
+    ``requested_hoods=None`` retains full reconciliation. An empty set returns
+    no work. A non-empty set hydrates payloads and remaining commit-marker
+    lookups only for members of those hoods.
+    """
+
+    # Use-site import keeps inventory_scope off the TUI app import path.
+    from sase.agents_sync.inventory_scope import (
+        append_unclassified_diagnostic,
+        dismissed_payload_in_requested_hoods,
+        empty_project_hood_inventory,
+        filter_historical_associations,
+        history_commits_by_sha,
+        indexed_record_in_requested_hoods,
+    )
 
     if identity.owner is None:
         raise AgentsSyncFormatError("v2 publication requires an owner identity")
     owner = identity.owner
+    hoods = None if requested_hoods is None else frozenset(requested_hoods)
+    if hoods is not None and not hoods:
+        return empty_project_hood_inventory(owner, target)
     history = _historical_associations(target, identity, git_runner)
+    if hoods is not None:
+        history = filter_historical_associations(history, hoods, identity)
     primary_remote_url = _primary_remote_url(target, git_runner)
     records, diagnostics = _indexed_records(target)
     runs: list[InventoryRun] = []
     root_cache: dict[str, Path | None] = {}
+    commit_cache: CommitRecordCache = {}
+    known_commits = history_commits_by_sha(history)
+    unclassified = 0
     for record in records:
+        if hoods is not None:
+            membership = indexed_record_in_requested_hoods(record, hoods, identity)
+            if membership is not True:
+                if membership is None:
+                    unclassified = append_unclassified_diagnostic(
+                        diagnostics, record.artifact_dir, unclassified
+                    )
+                continue
         try:
             run = _run_from_artifact(
                 target,
@@ -85,6 +137,8 @@ def build_project_hood_inventory(
                 history,
                 root_cache,
                 git_runner,
+                commit_cache=commit_cache,
+                known_commits=known_commits,
             )
         except AgentsSyncFormatError as exc:
             diagnostics.append(f"{record.artifact_dir}: {exc}")
@@ -92,7 +146,15 @@ def build_project_hood_inventory(
         if run is not None:
             runs.append(run)
 
-    for raw, source_label in _dismissed_records(target):
+    for raw, source_label in _load_dismissed_records(target, identity, hoods):
+        if hoods is not None:
+            membership = dismissed_payload_in_requested_hoods(raw, hoods, identity)
+            if membership is not True:
+                if membership is None:
+                    unclassified = append_unclassified_diagnostic(
+                        diagnostics, source_label, unclassified
+                    )
+                continue
         try:
             run = _run_from_dismissed(
                 raw,

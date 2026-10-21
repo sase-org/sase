@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 import json
 from pathlib import Path
 from typing import Any
@@ -9,6 +10,8 @@ from typing import Any
 from sase._interruptions import PublicationDrainTimedOut
 from sase.agents_sync.git import GitRunner
 from sase.agents_sync.models import CommitRecord, ProjectTarget
+
+CommitRecordCache = dict[tuple[str, str], CommitRecord | None]
 
 
 def commit_markers(artifact_dir: Path) -> list[dict[str, Any]]:
@@ -53,9 +56,64 @@ def is_primary_root(root: Path, target: ProjectTarget) -> bool:
 
 
 def commit_record(
+    repo_root: Path,
+    sha: str,
+    git_runner: GitRunner,
+    *,
+    cache: CommitRecordCache | None = None,
+    known: Mapping[str, CommitRecord] | None = None,
+) -> CommitRecord | None:
+    """Load the normalized SHA, subject, and commit time for *sha*.
+
+    *known* reuses batched primary-history records. *cache* stores per
+    ``(repository, sha)`` lookups for the rest of one drain so repeated
+    marker SHAs and aliased worktree roots do not spawn extra Git calls.
+    """
+    root_key = str(repo_root.resolve(strict=False))
+    needle = sha.strip().lower()
+    cache_key = (root_key, needle)
+    if cache is not None and cache_key in cache:
+        return cache[cache_key]
+    known_record = _known_commit(needle, known)
+    if known_record is not None:
+        _remember_commit(cache, root_key, needle, known_record)
+        return known_record
+    record = _load_commit_record(repo_root, sha, git_runner)
+    _remember_commit(cache, root_key, needle, record)
+    return record
+
+
+def _known_commit(
+    sha: str, known: Mapping[str, CommitRecord] | None
+) -> CommitRecord | None:
+    if not known:
+        return None
+    exact = known.get(sha)
+    if exact is not None:
+        return exact
+    if 7 <= len(sha) < 40:
+        matches = [item for full, item in known.items() if full.startswith(sha)]
+        if len(matches) == 1:
+            return matches[0]
+    return None
+
+
+def _remember_commit(
+    cache: CommitRecordCache | None,
+    root_key: str,
+    sha: str,
+    record: CommitRecord | None,
+) -> None:
+    if cache is None:
+        return
+    cache[(root_key, sha)] = record
+    if record is not None:
+        cache[(root_key, record.sha)] = record
+
+
+def _load_commit_record(
     repo_root: Path, sha: str, git_runner: GitRunner
 ) -> CommitRecord | None:
-    """Load the normalized SHA, subject, and commit time for *sha*."""
     result = git_runner(
         repo_root,
         ["show", "-s", "--format=%ct%x00%s", sha],
@@ -101,6 +159,7 @@ def _read_json_object(path: Path) -> dict[str, Any] | None:
 
 
 __all__ = [
+    "CommitRecordCache",
     "commit_markers",
     "commit_record",
     "is_primary_root",
