@@ -333,7 +333,7 @@ def test_interrupted_apply_resumes_and_second_apply_is_already_complete(
 
     with monkeypatch.context() as patched:
         patched.setattr(
-            "sase.agents_sync.publication_replay_recovery._replay_export_pass",
+            "sase.agents_sync._publication_replay_recovery_apply._replay_export_pass",
             boom,
         )
         interrupted = _recover(fixture, apply=True)
