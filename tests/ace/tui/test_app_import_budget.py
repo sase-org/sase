@@ -37,7 +37,10 @@ _MAX_ELAPSED_SECONDS = 5.0
 # 2026-10-20 merge-base now measures 3523 with no sase.* module growth
 # (stdlib/dependency; ``tools/tui_import_closure --diff`` vs
 # origin/master), so the cap is 3524.
-_MAX_MODULE_COUNT = 3524
+# 2026-10-21 merge-base now measures 3526 with no sase.* module growth
+# (stdlib/dependency; ``tools/tui_import_closure --diff`` vs
+# origin/master), so the cap is 3527.
+_MAX_MODULE_COUNT = 3527
 
 
 def _measure_tui_app_import() -> dict[str, Any]:
