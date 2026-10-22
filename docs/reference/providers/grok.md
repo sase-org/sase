@@ -190,17 +190,20 @@ deliberately narrow so they cannot collide with Codex's ownership of generic `42
 
 ### Finished-turn cleanup
 
-SASE watches Grok's session events as well as accepted final declarations. Either an
-accepted declaration or a `turn_ended` event starts a grace period (120 seconds by
-default). If Grok is still running when that period expires, SASE terminates the process
-and records `provider_teardown_stall.json` in the run's artifacts. A subsequent
-`turn_started` event cancels the turn-end timer. A provider that hangs before either
-trigger is outside this cleanup path.
+During an agent invocation, SASE watches Grok's session events as well as final
+declarations accepted during that invocation. An accepted declaration and a `turn_ended`
+event each start an independent grace timer (120 seconds by default). If Grok is still
+running when either timer expires, SASE terminates the process and records
+`provider_teardown_stall.json` in the run's artifacts. A subsequent `turn_started` event
+cancels only the turn-end timer. A provider that hangs before either trigger is outside
+this cleanup path.
 
-A turn-end cleanup with outcome `completed` is treated as a successful provider exit;
-other outcomes retain their failure handling. SASE also attempts to recover unstreamed
-assistant text from Grok's local chat history into the reply. The diagnostic records the
-trigger, outcome, elapsed grace period, and any cleaned-up descendants. See
+Cleanup after an accepted declaration, or after a turn ending with outcome `completed`,
+is treated as a successful provider exit. Other turn-end outcomes keep the terminated
+process's exit status for normal failure handling. After turn-end cleanup, SASE also
+attempts to append unstreamed assistant text from Grok's local chat history to the
+reply. The diagnostic records the trigger, outcome, elapsed grace period, and any
+cleaned-up descendants. See
 [Provider teardown](../../contribute/llm-invocation.md#provider-teardown-watchdog) for
 the shared watchdog contract.
 

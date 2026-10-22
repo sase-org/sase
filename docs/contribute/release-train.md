@@ -150,9 +150,10 @@ unreadable evidence never satisfies a gate.
 
 ## Inspecting the release steward
 
-`tools/release_watch` reads GitHub and PyPI facts, asks the pinned Rust core for a
-decision, and reports its state, evidence, proposed train action, and escalation. Run it
-from the repository's Python environment with authenticated `gh` access:
+`tools/release_watch` reads GitHub and PyPI facts, asks the Rust core for a decision,
+and reports its state, evidence, proposed train action, and escalation. Run it from the
+repository's Python environment with `sase_core_rs` built from `sase-core-revision.txt`
+and authenticated `gh` access:
 
 ```bash
 .venv/bin/python tools/release_watch --once
@@ -167,10 +168,13 @@ from the repository's Python environment with authenticated `gh` access:
 | `--tick --live`              | Permit the proposed train action and escalation after their precondition checks |
 | `--until-released [VERSION]` | Repeat read-only snapshots until the selected version is confirmed              |
 
-Without an explicit version, the wait follows the in-flight release, or waits for a
-newly confirmed version if none is in flight. A release already confirmed when the wait
-starts does not satisfy it. Polling defaults to five minutes with a twelve-hour
-deadline. The poll and deadline options apply only to this waiting mode.
+Without an explicit version, the wait selects the single in-flight release, or a newly
+confirmed version if there is no single in-flight release to select. Once selected, the
+target stays fixed. A version already confirmed when this automatic wait starts does not
+satisfy it; an explicitly named version can return immediately if already confirmed.
+Polling defaults to five minutes with a twelve-hour deadline. The poll and deadline
+options apply only to this waiting mode. Waiting observes the train; it does not execute
+the actions needed to advance it.
 
 The scheduled `release-steward.yml` workflow runs every fifteen minutes in observe-only
 mode. A manual dispatch must explicitly select `live` to execute actions. Merge
@@ -179,16 +183,17 @@ value `true` enables it. The workflow builds or restores the core wheel for the 
 `sase-core-revision.txt` pin before running the decision.
 
 A well-formed blocked state exits `0`; read the reported state to assess release
-readiness. `WATCHER_BROKEN` and an expired wait deadline exit `1`; invalid arguments
-exit `2`. JSON goes to stdout, diagnostics to stderr, and GitHub Actions receives a step
-summary.
+readiness. `watcher_broken` and an expired wait deadline exit `1`; invalid arguments
+exit `2`. With `--json`, the final report goes to stdout and diagnostics go to stderr.
+Waiting prints progress to stderr and emits one final report when it stops. GitHub
+Actions also receives a step summary.
 
 ## Release evidence and metrics
 
 `tools/release_metrics` reports read-only release history over a default 28-day window.
 Each metric includes its numerator, denominator, and window; empty samples appear as
-`n/a (0 of 0)`. The evidence check shares the checked-in qualification inventory with
-the release tooling.
+`n/a (0 of 0)`. Blocking checks come from `.github/release-qualification.json`, the same
+inventory used by release qualification.
 
 ```bash
 .venv/bin/python tools/release_metrics

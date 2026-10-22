@@ -116,22 +116,25 @@ with the same definitions in the terminal, Markdown, and JSON outputs:
 
 | Section | What it measures | Time basis |
 | ------- | ---------------- | ---------- |
-| Output | Default-branch commits in code repositories and plans first committed to the plan store | Committer time within the selected range |
+| Output | Commits in code repositories and plans first committed to the plan store | Committer time within the selected range |
 | Code | Source and test lines, documentation, agent context, languages, and repository age | Committed-tree snapshot and lifetime history |
 | Runs | Agent runs launched on this machine, their outcomes, durations, and attributed Patches | Launch time within the selected range |
 
 **Agent share** is the fraction of commits with an agent footer. In model breakdowns,
-`?` means attribution could not resolve a model; `∅` means no agent footer on a commit
-or no proposer on a plan. Both remain in the totals. **Success** divides completed runs
-by all runs, including runs still in progress. **Tests** is the test-line share of code
-lines; documentation and agent-context lines have separate counts. **Age** uses the
-first commit's author date; **Active days** counts distinct author dates in the SASE
-timezone.
+`?` means attribution could not resolve a model; `∅` means no agent footer on a commit,
+or neither `proposed_with` nor `proposed_by` on a plan. A plan's `proposed_with` model
+takes precedence over attribution through its `proposed_by` agent. Both `?` and `∅`
+remain in the totals. **Success** divides completed runs by all runs, including runs
+still in progress. **Tests** divides test lines by source plus test lines; documentation
+and agent-context lines have separate counts. **Age** uses the earliest available commit
+author timestamp; **Active days** counts distinct author dates in the SASE timezone.
 
 The coverage footer identifies incomplete repository measurements and unresolved model
-attribution. Repository output can differ between machines whose local default-branch
-refs differ; the CLI's fetch option updates those refs before measurement. Local run
-counts remain specific to the machine that recorded them.
+attribution. Code-repository measurements use the local `origin/HEAD` ref (the remote's
+default branch), falling back to the checked-out `HEAD` if that ref cannot be resolved.
+Results can differ between machines with different local refs. The CLI's fetch option
+fetches from `origin` before measurement; a failed fetch reports an issue and uses local
+refs. Local run counts remain specific to the machine that recorded them.
 
 The **Perf** sub-tab combines five headline measures—Startup (median visible-ready),
 Stalls (stall count, with hitches named separately in the tile's detail line), Launch

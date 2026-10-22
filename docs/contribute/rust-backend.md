@@ -748,8 +748,8 @@ which is why documentation CI can run without checking out `../sase-core`.
 
 #### Watching a release
 
-`tools/release_watch` reads release facts and asks the pinned `sase_core_rs` binding for
-a decision. Its default is one read-only observation. The
+`tools/release_watch` reads release facts and asks the installed `sase_core_rs` binding
+for a decision. Its default is one read-only observation. The
 [release steward reference](release-train.md#inspecting-the-release-steward) covers
 observation, explicit live actions, waiting for a confirmed version, and exit codes;
 [release evidence and metrics](release-train.md#release-evidence-and-metrics) covers

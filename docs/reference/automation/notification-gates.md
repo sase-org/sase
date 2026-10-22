@@ -55,10 +55,11 @@ submit `selected_option_ids`, feedback, and each selected option's declared inpu
 [Gate inputs](#gate-inputs) below), and the shared executor runs the selected commands
 in query order.
 
-Custom gates with a preview and sudo reviews show the content beside a Decision column
-that grows with the terminal. Custom gates stack the controls below the content on
-narrow terminals. Custom gates without a preview use a compact, scrollable review that
-resizes with the terminal and keeps its footer visible.
+Custom gates with a preview and sudo reviews show decision controls on the left and
+content on the right. The controls column grows with the terminal up to a maximum width.
+Custom gates with a preview stack the controls below the content on narrow terminals.
+Custom gates without a preview use a compact, scrollable review that resizes with the
+terminal and keeps its footer visible.
 
 | Key             | Action                                                                                         |
 | --------------- | ---------------------------------------------------------------------------------------------- |
@@ -262,10 +263,10 @@ timeout, stopped, or lost. Answered commands start right away even when every ru
 slot is busy. A free slot is claimed so a follow-up agent can inherit it, but a full
 queue never delays the decision itself.
 
-Agents waiting on the session stay pending while the gate's follow-up is being launched.
-Accepting the decision does not release those waits before the successor is recorded. A
-failed launch retains its recovery information instead of appearing as a running
-successor.
+Agents waiting for the [agent session](../glossary.md#sase-agent-session) to finish stay
+pending while the gate's follow-up agent is being launched. Accepting the decision does
+not complete the session: waits follow the successor once it is recorded. A failed
+launch retains its recovery information instead of appearing as a running successor.
 
 The hourly `gate_turn_reclaim` housekeeping job settles pending turns whose gates were
 already answered, cancelled, or removed. It also times out gates past their own
