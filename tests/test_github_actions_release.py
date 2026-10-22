@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+
 import pytest
 
 from tests._github_actions_ci_helpers import _job_run_text
@@ -122,6 +124,11 @@ def test_release_identity_asserts_source_and_version_match() -> None:
     assert "pyproject.toml" in run_text
     assert "__version__" in run_text
     assert "GITHUB_OUTPUT" in run_text
+    version_command = re.search(
+        r'''py_version="\$\(python3 -c '([^']+)'\)"''', run_text
+    )
+    assert version_command is not None
+    compile(version_command.group(1), "release identity version command", "exec")
 
 
 def test_release_build_checks_dist_set_and_seals() -> None:

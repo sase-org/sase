@@ -121,7 +121,7 @@ jobs:
             fi
             sha="${peeled}"
           fi
-          py_version="$(python3 -c 'import tomllib; print(tomllib.load(open("pyproject.toml","rb"))["project"]["version"]')"
+          py_version="$(python3 -c 'import tomllib; print(tomllib.load(open("pyproject.toml","rb"))["project"]["version"])')"
           init_version="$(python3 -c 'import ast; print(ast.literal_eval(open("src/sase/__init__.py").read().split("__version__")[1].split("=")[1].split("#")[0].strip()))')"
           if [ "${py_version}" != "${init_version}" ]; then
             echo "::error::pyproject.toml ${py_version} != __version__ ${init_version}"
