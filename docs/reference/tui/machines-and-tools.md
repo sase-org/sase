@@ -111,6 +111,28 @@ Press `g` to group by project, repo, model, or Project → Patch. Output and Run
 first while Code measures. Overview's run-commit tile stays run-recorded and is
 distinct from Projects default-branch commits and Patch Run commits.
 
+The Projects report is also available through [`sase stats project`](../cli/stats.md),
+with the same definitions in the terminal, Markdown, and JSON outputs:
+
+| Section | What it measures | Time basis |
+| ------- | ---------------- | ---------- |
+| Output | Default-branch commits in code repositories and plans first committed to the plan store | Committer time within the selected range |
+| Code | Source and test lines, documentation, agent context, languages, and repository age | Committed-tree snapshot and lifetime history |
+| Runs | Agent runs launched on this machine, their outcomes, durations, and attributed Patches | Launch time within the selected range |
+
+**Agent share** is the fraction of commits with an agent footer. In model breakdowns,
+`?` means attribution could not resolve a model; `∅` means no agent footer on a commit
+or no proposer on a plan. Both remain in the totals. **Success** divides completed runs
+by all runs, including runs still in progress. **Tests** is the test-line share of code
+lines; documentation and agent-context lines have separate counts. **Age** uses the
+first commit's author date; **Active days** counts distinct author dates in the SASE
+timezone.
+
+The coverage footer identifies incomplete repository measurements and unresolved model
+attribution. Repository output can differ between machines whose local default-branch
+refs differ; the CLI's fetch option updates those refs before measurement. Local run
+counts remain specific to the machine that recorded them.
+
 The **Perf** sub-tab combines five headline measures—Startup (median visible-ready),
 Stalls (stall count, with hitches named separately in the tile's detail line), Launch
 (p95 total launch time), Agent p95, and LLM p95—with startup stages, stall/hitch events,

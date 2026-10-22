@@ -147,3 +147,62 @@ publishable(candidate) =
 
 Missing evidence is red. Skipped, cancelled, missing, stale, zero-collected or
 unreadable evidence never satisfies a gate.
+
+## Inspecting the release steward
+
+`tools/release_watch` reads GitHub and PyPI facts, asks the pinned Rust core for a
+decision, and reports its state, evidence, proposed train action, and escalation. Run it
+from the repository's Python environment with authenticated `gh` access:
+
+```bash
+.venv/bin/python tools/release_watch --once
+.venv/bin/python tools/release_watch --tick --json
+.venv/bin/python tools/release_watch --until-released --poll 5m --deadline 12h
+```
+
+| Mode                         | Behavior                                                                        |
+| ---------------------------- | ------------------------------------------------------------------------------- |
+| `--once` (default)           | One read-only decision                                                          |
+| `--tick`                     | One decision, with proposed actions reported but not executed                   |
+| `--tick --live`              | Permit the proposed train action and escalation after their precondition checks |
+| `--until-released [VERSION]` | Repeat read-only snapshots until the selected version is confirmed              |
+
+Without an explicit version, the wait follows the in-flight release, or waits for a
+newly confirmed version if none is in flight. A release already confirmed when the wait
+starts does not satisfy it. Polling defaults to five minutes with a twelve-hour
+deadline. The poll and deadline options apply only to this waiting mode.
+
+The scheduled `release-steward.yml` workflow runs every fifteen minutes in observe-only
+mode. A manual dispatch must explicitly select `live` to execute actions. Merge
+authority is separately controlled by `RELEASE_STEWARD_MERGE_ENABLED`: only the literal
+value `true` enables it. The workflow builds or restores the core wheel for the exact
+`sase-core-revision.txt` pin before running the decision.
+
+A well-formed blocked state exits `0`; read the reported state to assess release
+readiness. `WATCHER_BROKEN` and an expired wait deadline exit `1`; invalid arguments
+exit `2`. JSON goes to stdout, diagnostics to stderr, and GitHub Actions receives a step
+summary.
+
+## Release evidence and metrics
+
+`tools/release_metrics` reports read-only release history over a default 28-day window.
+Each metric includes its numerator, denominator, and window; empty samples appear as
+`n/a (0 of 0)`. The evidence check shares the checked-in qualification inventory with
+the release tooling.
+
+```bash
+.venv/bin/python tools/release_metrics
+.venv/bin/python tools/release_metrics --window 28 --json
+.venv/bin/python tools/release_metrics green <full-commit-sha>
+```
+
+The `green` subcommand emits JSON for one exact SHA, including `release_green`, the
+Master gate and Full CI evidence, blocking-job evidence, and missing evidence. Inspect
+the JSON verdict: a successfully generated report exits `0` even when its verdict is
+false. This inspection does not publish or promote a candidate.
+
+## Related
+
+- [Release safety and recovery](release-safety.md) — broken releases and installation
+  checks.
+- [Rust backend](rust-backend.md) — the core dependency and source pin.

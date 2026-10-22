@@ -370,9 +370,9 @@ untracked `files/objects`, dirty `prompts/`/`artifacts/`). Every commit-triggere
 also appends one structured timing line to `~/.sase/logs/agent_publication_drains.jsonl`
 with per-stage durations and inventory counters; a failed drain names the sync-lock
 holder (pid, operation, agent, age) recorded beside the lock file. Profile a
-representative drain read-only with `tools/agents_publication_profile --project <key>`.
-The current breakdown is published as `@research:202610/pub_drain_measurement.md` and
-attached to bead `sase-1nf.9`.
+representative drain read-only with `tools/agents_publication_profile --project <key>`;
+see the [publication internals](../../contribute/agents-sidecar-sync.md) for profiling
+and repair procedures.
 
 Retired agent-publication requests stay stopped until an explicit recovery. After a
 publisher fix makes terminal work publishable, revive that project's retired hood
@@ -517,8 +517,11 @@ Textual event loop.
   `--retry-quarantined` alone.
 - A general push or fetch failure leaves local agent history intact. Fix
   credentials/connectivity and retry.
-- A rebase conflict is aborted before the command returns. Resolve unexpected state in
-  the hidden clone, then rerun `sase agent sync`.
+- A rebase conflict is aborted before the command returns. If it involves one
+  unpublished replay commit against an advanced upstream, the
+  [stale-replay recovery runbook](../../contribute/agents-sidecar-sync.md#stale-replay-recovery)
+  describes the required preflight, backup, and explicit apply procedure. Other
+  conflicts need review before retrying publication.
 
 ## Related
 

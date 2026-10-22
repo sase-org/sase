@@ -645,6 +645,18 @@ stable machine-readable envelope. Most CLIs compare versions with PEP 440 semant
 provider whose release ids are not PEP 440 (Muse Code) declares exact comparison
 instead, so "different from what I have" is precisely "there is an update".
 
+The inventory also probes other executable copies on `PATH` and in `NVM_BIN`,
+deduplicating symlinks that resolve to the same file. Each extra copy appears as an
+`also <path> (<version>)` line, even without `--verbose`. Different known versions
+produce a **version skew** warning; an unknown version remains a probe diagnostic. JSON
+includes `other_installs`, `version_skew`, and `shadow_remedy` for each CLI.
+
+`sase doctor -C llm.cli_shadow -v` checks this same inventory without looking up latest
+versions. It warns when copies disagree. Remove an unwanted copy or set the provider's
+executable override, such as `SASE_CODEX_PATH`, to the intended binary. When Codex
+rejects its own version, SASE's error also identifies the executable it launched and
+points back to this inventory.
+
 `update` takes CLI names (provider, binary, or display name) or `-a/--all` for every
 installed CLI; a bare `sase agent-cli update` with neither is a usage error. Commands
 run sequentially and without a shell. `-n/--dry-run` prints the exact command or skip

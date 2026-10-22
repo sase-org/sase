@@ -748,133 +748,18 @@ which is why documentation CI can run without checking out `../sase-core`.
 
 #### Watching a release
 
-From a SASE checkout, `tools/release_watch` tracks a target PyPI version and Full CI
-runs covering a specified master commit. It uses Python's standard library and an
-authenticated `gh` CLI to read PyPI, the release PR, Full CI, Master Gate, Publish, and
-`sase-core-rs` release state. It does not need an installed SASE package for those
-reads.
+`tools/release_watch` reads release facts and asks the pinned `sase_core_rs` binding for
+a decision. Its default is one read-only observation. The
+[release steward reference](release-train.md#inspecting-the-release-steward) covers
+observation, explicit live actions, waiting for a confirmed version, and exit codes;
+[release evidence and metrics](release-train.md#release-evidence-and-metrics) covers
+exact-SHA reports. Agents hand a continuous watch to
+[a SASE monitor](../reference/automation/monitors.md).
 
-Replace `VERSION` with the intended release version and `FULL_SHA` with the full 40- or
-64-character commit SHA; a branch name or abbreviated SHA is not accepted:
-
-```bash
-tools/release_watch --version VERSION --fixed-sha FULL_SHA --once --dry-run
-```
-
-This reads one snapshot and reports which actions would be eligible. A successful
-`--once` exits 0 without dispatching workflows, installing the release, closing a bead,
-or writing a final verdict. It confirms that the signals can be read, not that the
-release is ready. Pass `--version` explicitly: the current CLI default is the fixed
-value `0.18.0`, not the next release discovered from GitHub.
-
-Before starting a continuous watch, inspect the preflight output. Unless the version is
-already on PyPI, an open or merged release-please PR must exist: its branch starts with
-`release-please--` and its title contains the target version. A continuous watch exits
-`RELEASE_PR_GONE` when no such PR is found; it does not wait for PR creation.
-
-To keep watching and allow workflow dispatch, omit both `--once` and `--dry-run`:
-
-```bash
-tools/release_watch --version VERSION --fixed-sha FULL_SHA \
-  --deadline 12h --poll 5m --verdict-file /tmp/sase-release-verdict.md
-```
-
-The defaults are repository `sase-org/sase`, a 12-hour deadline, five-minute polls, and
-a stop after two red Full CI runs covering the fixed commit. Coverage includes runs on
-descendants of that commit; `--fixed-sha` does not pin newly dispatched workflows, which
-run on the current `master`. Only runs created after the watch started count toward the
-red budget, for both verdicts and Full CI dispatches. Failed lint jobs or detected
-visual-golden drift stop the watch after a single red run. A red Master Gate at `HEAD`
-ends the watch with `MASTER_GATE_RED` after `-g/--max-red-gate-minutes` (default 120)
-with no green run observed there; in-flight runs neither count as red nor reset that
-clock. When only test shards failed, the watcher first retries them once per `HEAD` SHA
-with `gh run rerun --failed`. The watcher can dispatch Full CI and Publish when its
-conditions and cooldowns permit; it never merges a PR or edits source, and it dispatches
-a core Release-plz workflow only when `--dispatch-core-cut` is set. A floor-failed
-release-PR head that is behind current `master` with a non-green Master Gate at its
-merge-base is _stale_: the watcher reports no verdict, shows
-`release_pr=#NNN:open:stale` in the state line, and refreshes the head with one
-`publish.yml -f publish_existing=false` dispatch per master `HEAD` SHA (30-minute
-cooldown) while the Master Gate at `HEAD` is green and no Publish run is in flight. The
-refresh joins the existing Publish dedup so one dispatch serves every Publish reason,
-and a Publish run created after a refresh dispatch that leaves the head stale blocks any
-further refresh for that SHA. The `DEADLINE` detail names the stale head, its
-merge-base, and the merge-base gate result. Pass `-c/--await-core-version X.Y.Z` when a
-core release has already been requested: the watcher keeps polling while published
-`sase-core-rs` is below that stable version, reports `awaiting_core`, and suppresses
-`CORE_FLOOR_BLOCKED` from older floor evidence until the minimum is on PyPI.
-
-While it waits on core, the watcher also reads the open `sase-org/sase-core` release-plz
-PR (head branch `release-plz-<UTC timestamp>`, title `chore: release vX.Y.Z`) and the
-recent core `Release-plz` runs, and renders them as the `core_pr=` state-line field:
-`off` when it is not waiting on core, `none` when no such PR is open, otherwise
-`#NUMBER:vVERSION:HEAD12:STATE`. `STATE` is `no_checks`, `pending`, `failing` (a failed
-check while others still run), `red` (every check completed and one failed), or `green`,
-with a `:cut_in_flight` suffix while a `Release-plz` run is active. Checks are
-deduplicated by workflow and name, keeping the newest entry, so a fixed PR title does
-not keep an old failure alive. An unreadable or ambiguous core read counts like any
-other signal: three in a row end the watch with `WATCHER_BROKEN`. The verdict evidence
-lists the core PR's checks, its failing checks with their URLs, and the `Release-plz`
-runs.
-
-When the core PR head stays `red` for 45 minutes of observation, the watch stops with
-`CORE_CI_RED`. Any check starting again, or a new head SHA, restarts that clock. The
-detail names the PR, the head SHA, and each failing check with its URL.
-
-Pass `--dispatch-core-cut` (it requires `-c/--await-core-version`) to let the watcher
-cut the core release itself instead of waiting for the daily `Release-plz` schedule. It
-runs
-`gh workflow run release-plz.yml -R sase-org/sase-core --ref master -f dry_run=false`
-when the core PR has registered checks and none has failed, no `Release-plz` run is in
-flight, and no `workflow_dispatch` run started in the last 90 minutes. It dispatches at
-most three times per watch and records `dispatched:core_cut` (or `cap:core_cut` once the
-cap is reached) in the actions. `-n/--no-dispatch` suppresses it, and `--dry-run` and
-`--once` print `would dispatch:core_cut`.
-
-Use `--dry-run` to suppress workflow dispatch and bead closure while polling. It still
-reads live services, writes its verdict, and can run the temporary installation check.
-Use `-n/--no-dispatch` for an observe-only watch that still closes the bead.
-
-When the target version appears on PyPI, the watcher installs that exact version into a
-fresh temporary virtualenv, checks `sase --version`, and records the installed
-`sase-core-rs` version. It uses `uv` when available or `venv` and `pip` otherwise,
-retries failed attempts within a 20-minute window, and removes each temporary
-environment. An in-progress attempt can outlast that window or the watch deadline.
-`RELEASED` proves that the target package can be installed and reports its version; the
-watcher checks this before the CI and PR failure conditions. It does not verify that the
-installed package was built from `--fixed-sha` or require green CI for this verdict.
-
-| Exit | Verdict              | Meaning                                                                               |
-| ---- | -------------------- | ------------------------------------------------------------------------------------- |
-| 0    | `RELEASED`           | Target version installed successfully (except the read-only `--once` shortcut)        |
-| 10   | `FULL_CI_RED`        | Fixed-code CI reached the failure threshold or a deterministic failure                |
-| 11   | `PUBLISH_FAILED`     | A post-merge Publish run failed                                                       |
-| 12   | `CORE_FLOOR_BLOCKED` | Floor smoke fails on a current (non-stale) release-PR head after refresh              |
-| 13   | `RELEASE_PR_GONE`    | Target is absent from PyPI and no matching open or merged release-please PR was found |
-| 14   | `INSTALL_FAILED`     | Temporary installation proof did not succeed                                          |
-| 15   | `DEADLINE`           | Watch deadline passed before a verdict                                                |
-| 16   | `WATCHER_BROKEN`     | Invalid arguments, startup failure, or repeatedly unreadable signals                  |
-| 17   | `MASTER_GATE_RED`    | No green Master Gate at `HEAD` within the red-gate budget                             |
-| 18   | `STOPPED`            | Termination signal arrived before a verdict                                           |
-| 19   | `CORE_CI_RED`        | While awaiting core, the core release PR head stayed fully completed and red          |
-
-The watch prints its evidence and `verdict_file` path on exit. State lines flush
-immediately, so live progress stays visible under a monitor. Without `--verdict-file`,
-it writes `release_verdict.md` under the monitor diagnostics directory when available,
-otherwise in a fresh temporary directory. Optional `--close-bead ID` attempts to close
-that bead after **every** final verdict, including failures, and requires the `sase`
-CLI. Success closes it normally; every other verdict requests resolution `canceled` and
-attaches the verdict as a note. A termination signal writes the verdict first, then
-closes the bead from a detached process that survives a process-group kill, and exits
-`STOPPED`. Closes are idempotent: the watcher reads the bead before each attempt, never
-writes a second note, and a watch started against an already-closed bead prints
-`ALREADY_CLOSED` and exits 0 without polling. `--dry-run` and `--once` suppress closure.
-Inspect the recorded closure outcome separately from the exit code. Agents should hand a
-long watch to [a SASE monitor](../reference/automation/monitors.md).
-
-For contributors, `tools/release_watch` calls the facade in `tools/_release_watch.py`.
-Argument parsing and GitHub/PyPI reads live in `tools/_release_watch_api.py`; polling
-and finalization live in `tools/_release_watch_engine.py`.
+The CLI and polling loop live in `tools/_release_watch.py`. The facts and health readers
+are `tools/_release_watch_facts.py` and `tools/_release_watch_health.py`;
+`tools/_release_watch_decide.py` calls the Rust policy, and
+`tools/_release_watch_actions.py` rechecks preconditions before executing live actions.
 
 #### Local Rust installation
 
