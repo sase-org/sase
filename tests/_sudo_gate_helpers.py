@@ -94,6 +94,56 @@ def _runner_error_ledger(
     }
 
 
+_INCIDENT_TAIL_SIZES: tuple[tuple[str, int], ...] = (
+    ("nft-ruleset", 26_900),
+    ("iptables-v4", 16_900),
+    ("iptables-v6", 14_600),
+    ("listeners", 6_500),
+    ("verify-units", 375),
+    ("daemon-reload", 0),
+)
+
+
+def _incident_request() -> dict[str, Any]:
+    executable = shutil.which("true")
+    assert executable is not None
+    request = _request()
+    request["reason"] = "Inspect host firewall and listener state"
+    request["output_to_agent"] = "full"
+    request["commands"] = [
+        {
+            "id": command_id,
+            "argv": [executable, "--", command_id],
+            "why": f"Collect {command_id}",
+        }
+        for command_id, _size in _INCIDENT_TAIL_SIZES
+    ]
+    return request
+
+
+def _oversized_runner_ledger(
+    manifest: dict[str, Any], manifest_sha256: str
+) -> dict[str, Any]:
+    sizes = dict(_INCIDENT_TAIL_SIZES)
+    return {
+        "schema_version": 1,
+        "request_id": manifest["request_id"],
+        "manifest_sha256": manifest_sha256,
+        "outcome": "completed",
+        "entries": [
+            {
+                "id": command["id"],
+                "status": "ran",
+                "exit_code": 0,
+                "duration_seconds": 0.1,
+                "output_tail": str(command["id"][:1]) * sizes[str(command["id"])],
+            }
+            for command in manifest["commands"]
+        ],
+        "diagnostic": None,
+    }
+
+
 def _runner_receipt(envelope: dict[str, Any]) -> dict[str, Any]:
     sudo_payload = envelope["payload"]["sudo"]
     manifest = sudo_payload["manifest"]

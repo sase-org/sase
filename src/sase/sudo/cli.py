@@ -32,6 +32,7 @@ from sase.sudo.answer_ops import (
     sudo_shells,
     answer_payload,
 )
+from sase.sudo.finalize_notifications import dismiss_sudo_finalize_failed
 from sase.sudo.detach import (
     SUDO_ANSWER_DETACH_ORIGIN,
     approve_detached,
@@ -410,6 +411,7 @@ def _deny(
         retry=retry,
     )
     settle_shell(gate_id, retry=retry)
+    dismiss_sudo_finalize_failed(request_id=gate_id, bundle_path=bundle.root)
     return answer_payload(bundle.kind, gate_id, execution.response)
 
 

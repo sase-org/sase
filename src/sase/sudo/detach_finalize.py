@@ -8,6 +8,7 @@ import of that facade module, so ``sase.sudo.detach.<name>`` remains the seam.
 from __future__ import annotations
 
 import argparse
+import logging
 import signal
 import sys
 import time
@@ -48,11 +49,14 @@ from sase.sudo.execution import (
     write_execution_state,
     write_stop_file,
 )
+from sase.sudo.finalize_notifications import publish_sudo_finalize_failed
 from sase.sudo.gate import APPROVE_OPTION_ID
 from sase.sudo.manifest import selected_sudo_manifest
+from sase.sudo.receipt import fit_sudo_receipt_for_settlement
 from sase.sudo.ssh import cleanup_remote_sudo, wait_for_remote_sudo_ledger
 
 _OUTPUT_POLL_SECONDS = 0.05
+log = logging.getLogger(__name__)
 
 
 def finalize(args: argparse.Namespace) -> int:
@@ -110,38 +114,41 @@ def _run_finalize(args: argparse.Namespace) -> dict[str, Any]:
             bundle, state=state, payload=payload, retry=retry
         )
     if state is None:
-        raise GateError(
+        missing = GateError(
             "missing_sudo_execution_state",
             gate_id,
             "sudo finalize is missing an in-flight execution record",
         )
-    _cross_check_finalize_payload(payload, gate_id=gate_id, state=state)
-    if state.operation_payload_digest is not None:
-        actual_digest = operation_payload_digest(payload)
-        if actual_digest != state.operation_payload_digest:
+        _record_finalize_failure(bundle.root, missing, state=None)
+        raise missing
+    receipt: Mapping[str, Any] | None = None
+    try:
+        _cross_check_finalize_payload(payload, gate_id=gate_id, state=state)
+        if state.operation_payload_digest is not None:
+            actual_digest = operation_payload_digest(payload)
+            if actual_digest != state.operation_payload_digest:
+                raise GateError(
+                    "invalid_sudo_finalize",
+                    "operation_payload_digest",
+                    "finalize operation payload digest does not match the execution record",
+                )
+        handshake = dict(state.handshake or {})
+        if payload.get("handshake") and not handshake:
+            raw = payload.get("handshake")
+            handshake = dict(raw) if isinstance(raw, Mapping) else handshake
+        handoff = Path(state.handoff_dir)
+        selected_command_ids = state.selected_command_ids
+        envelope_payload = sudo_payload(bundle.envelope)
+        manifest, _, manifest_sha256 = selected_sudo_manifest(
+            dict(envelope_payload["manifest"]),
+            selected_command_ids,
+        )
+        if manifest_sha256 != state.manifest_sha256:
             raise GateError(
                 "invalid_sudo_finalize",
-                "operation_payload_digest",
-                "finalize operation payload digest does not match the execution record",
+                "manifest_sha256",
+                "finalize sidecar manifest digest does not match the execution record",
             )
-    handshake = dict(state.handshake or {})
-    if payload.get("handshake") and not handshake:
-        raw = payload.get("handshake")
-        handshake = dict(raw) if isinstance(raw, Mapping) else handshake
-    handoff = Path(state.handoff_dir)
-    selected_command_ids = state.selected_command_ids
-    envelope_payload = sudo_payload(bundle.envelope)
-    manifest, _, manifest_sha256 = selected_sudo_manifest(
-        dict(envelope_payload["manifest"]),
-        selected_command_ids,
-    )
-    if manifest_sha256 != state.manifest_sha256:
-        raise GateError(
-            "invalid_sudo_finalize",
-            "manifest_sha256",
-            "finalize sidecar manifest digest does not match the execution record",
-        )
-    try:
         remote = _finalize_remote_from_state(state, payload)
         if remote is None:
             receipt = wait_for_executor_ledger(
@@ -156,6 +163,14 @@ def _run_finalize(args: argparse.Namespace) -> dict[str, Any]:
                 handshake=handshake,
                 timeout_seconds=facade.runner_timeout_seconds(manifest),
             )
+        fitted_receipt = fit_sudo_receipt_for_settlement(
+            receipt, selected_command_ids=selected_command_ids
+        )
+        if not isinstance(fitted_receipt, Mapping):
+            raise GateError(
+                "invalid_sudo_receipt", "receipt", "receipt must be an object"
+            )
+        receipt = fitted_receipt
         authorization = _authorize_finalize_settlement(
             bundle.root,
             state=state,
@@ -174,7 +189,7 @@ def _run_finalize(args: argparse.Namespace) -> dict[str, Any]:
             settlement_authorization=authorization,
         )
     except GateError as exc:
-        _record_finalize_failure(bundle.root, exc)
+        _record_finalize_failure(bundle.root, exc, receipt=receipt, state=state)
         recover_dead_attempt(bundle.root)
         raise
     _retire_after_settlement(bundle.root, state=state, remote=remote)
@@ -455,7 +470,25 @@ def wait_for_executor_ledger(
         signal.signal(signal.SIGINT, previous_int)
 
 
-def _record_finalize_failure(bundle_root: Path, exc: GateError) -> None:
+def _record_finalize_failure(
+    bundle_root: Path,
+    exc: GateError,
+    *,
+    receipt: Mapping[str, Any] | None = None,
+    state: SudoExecutionState | None = None,
+) -> None:
+    if receipt is None and state is not None and state.handoff_dir:
+        try:
+            from sase.sudo.detach import read_handoff_ledger
+
+            on_disk = read_handoff_ledger(Path(state.handoff_dir))
+            if isinstance(on_disk, Mapping):
+                receipt = on_disk
+        except Exception:
+            log.warning(
+                "Failed to load sudo handoff ledger for finalize failure note",
+                exc_info=True,
+            )
     error_record = record_execution_error(
         bundle_root,
         option_id=APPROVE_OPTION_ID,
@@ -475,6 +508,13 @@ def _record_finalize_failure(bundle_root: Path, exc: GateError) -> None:
         message=str(exc),
         error_record=error_record,
         stage="command",
+    )
+    publish_sudo_finalize_failed(
+        bundle_root,
+        exc,
+        state=state,
+        receipt=receipt if isinstance(receipt, Mapping) else None,
+        error_record=error_record,
     )
 
 

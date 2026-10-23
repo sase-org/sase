@@ -119,3 +119,59 @@ def test_authorize_settlement_calls_rust_binding(
 
     assert result["authorized"] is True
     assert result["gate_id"] == "sudo-1"
+
+
+def test_fit_ledger_calls_rust_binding(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: list[tuple[dict[str, Any], int]] = []
+
+    def fake_require(name: str) -> Any:
+        assert name == "sudo_fit_ledger"
+
+        def binding(ledger: dict[str, Any], max_json_bytes: int) -> dict[str, Any]:
+            calls.append((ledger, max_json_bytes))
+            return {**ledger, "fitted": True}
+
+        return binding
+
+    monkeypatch.setattr("sase.sudo.core.require_rust_binding", fake_require)
+    ledger = {"schema_version": 1, "entries": []}
+
+    result = _RustSudoCoreBinding().fit_ledger(ledger, 1024)
+
+    assert calls == [(ledger, 1024)]
+    assert result["fitted"] is True
+
+
+def test_fit_ledger_translates_binding_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_require(_name: str) -> Any:
+        def binding(ledger: dict[str, Any], max_json_bytes: int) -> dict[str, Any]:
+            del ledger, max_json_bytes
+            raise RuntimeError("cannot fit within 8 bytes")
+
+        return binding
+
+    monkeypatch.setattr("sase.sudo.core.require_rust_binding", fake_require)
+
+    with pytest.raises(GateError) as excinfo:
+        _RustSudoCoreBinding().fit_ledger({"schema_version": 1}, 8)
+
+    assert excinfo.value.code == "invalid_sudo_ledger"
+    assert excinfo.value.target == "ledger"
+    assert "cannot fit" in str(excinfo.value)
+
+
+def test_fit_ledger_rejects_non_object_result(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "sase.sudo.core.require_rust_binding",
+        lambda _name: lambda ledger, max_json_bytes: ["nope"],
+    )
+
+    with pytest.raises(GateError) as excinfo:
+        _RustSudoCoreBinding().fit_ledger({"schema_version": 1}, 1024)
+
+    assert excinfo.value.code == "invalid_sudo_ledger"
+    assert "non-object" in str(excinfo.value)

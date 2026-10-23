@@ -5,9 +5,13 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from typing import Any
 
+from sase.notification_gates.durability import canonical_json_bytes
+from sase.notification_gates.input_bounds import MAX_INPUT_BYTES, check_input_bounds
 from sase.notification_gates.models import GateError
 from sase.sudo.core import DEFAULT_SUDO_CORE, SudoCoreBinding
 from sase.sudo.models import contains_credential_shape
+
+SETTLEMENT_JSON_SAFETY_MARGIN_BYTES = 512
 
 
 def validate_sudo_receipt(
@@ -73,4 +77,35 @@ def validate_sudo_receipt(
     return normalized
 
 
-__all__ = ["validate_sudo_receipt"]
+def fit_sudo_receipt_for_settlement(
+    receipt: object,
+    *,
+    selected_command_ids: Sequence[str],
+    core: SudoCoreBinding = DEFAULT_SUDO_CORE,
+) -> object:
+    """Trim ledger tails so the approve option input fits the gate budget."""
+    if not isinstance(receipt, Mapping):
+        return receipt
+    command_ids = [str(item) for item in selected_command_ids]
+    overhead = len(canonical_json_bytes({"command_ids": command_ids, "receipt": {}}))
+    max_json_bytes = MAX_INPUT_BYTES - overhead - SETTLEMENT_JSON_SAFETY_MARGIN_BYTES
+    if max_json_bytes < 0:
+        raise GateError(
+            "sudo_ledger_unfittable",
+            "receipt",
+            "sudo ledger cannot fit the gate input budget even with empty output tails",
+        )
+    fitted = core.fit_ledger(dict(receipt), max_json_bytes)
+    approve_input = {"command_ids": command_ids, "receipt": fitted}
+    try:
+        check_input_bounds(approve_input, "option approve input")
+    except GateError as exc:
+        raise GateError(
+            "sudo_ledger_unfittable",
+            "receipt",
+            f"fitted sudo ledger still exceeds the gate input budget: {exc}",
+        ) from exc
+    return fitted
+
+
+__all__ = ["fit_sudo_receipt_for_settlement", "validate_sudo_receipt"]

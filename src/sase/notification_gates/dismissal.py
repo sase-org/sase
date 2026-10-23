@@ -40,6 +40,8 @@ def settle_gate_notification(
         action=action or "+".join(selected) or "resolved",
     )
     _dismiss_gate_notification_best_effort(notification_id)
+    if str(envelope.get("kind") or "") == "sudo":
+        _dismiss_sudo_finalize_failed_best_effort(str(envelope.get("request_id") or ""))
 
 
 def _dismiss_gate_notification_best_effort(notification_id: str) -> None:
@@ -50,6 +52,20 @@ def _dismiss_gate_notification_best_effort(notification_id: str) -> None:
         mark_dismissed(notification_id)
     except Exception:
         log.warning("Failed to dismiss notification for settled gate", exc_info=True)
+
+
+def _dismiss_sudo_finalize_failed_best_effort(request_id: str) -> None:
+    """Drop a leftover sudo finalize-failure row when the gate settles."""
+    if not request_id:
+        return
+    try:
+        from sase.sudo.finalize_notifications import dismiss_sudo_finalize_failed
+
+        dismiss_sudo_finalize_failed(request_id=request_id)
+    except Exception:
+        log.warning(
+            "Failed to dismiss sudo finalize failure notification", exc_info=True
+        )
 
 
 __all__ = ["settle_gate_notification"]

@@ -16,8 +16,9 @@ from sase.notification_gates.cli_support import GateCliError, resolve_gate_cli_b
 from sase.notification_gates.durability import canonical_json_bytes, sha256_bytes
 from sase.notification_gates.executor import execute_gate_selection
 from sase.notification_gates.models import GateError
+from sase.sudo.finalize_notifications import dismiss_sudo_finalize_failed
 from sase.sudo.gate import APPROVE_OPTION_ID
-from sase.sudo.receipt import validate_sudo_receipt
+from sase.sudo.receipt import fit_sudo_receipt_for_settlement, validate_sudo_receipt
 
 
 def _reject_non_terminal_auth(receipt: Mapping[str, Any]) -> None:
@@ -94,8 +95,11 @@ def apply_approved_receipt(
 ) -> dict[str, Any]:
     """Validate a terminal ledger, execute the approve option, and settle."""
     _reject_non_terminal_auth(receipt)
+    fitted_receipt = fit_sudo_receipt_for_settlement(
+        receipt, selected_command_ids=selected_command_ids
+    )
     normalized_receipt = validate_sudo_receipt(
-        receipt,
+        fitted_receipt,
         manifest_sha256=manifest_sha256,
         selected_command_ids=selected_command_ids,
         manifest=manifest,
@@ -115,6 +119,7 @@ def apply_approved_receipt(
         sudo_headless_authorization=settlement_authorization,
     )
     settle_shell(bundle.request_id, retry=retry)
+    dismiss_sudo_finalize_failed(request_id=bundle.request_id, bundle_path=bundle.root)
     return answer_payload(
         bundle.kind,
         bundle.request_id,

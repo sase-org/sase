@@ -29,6 +29,13 @@ class SudoCoreBinding(Protocol):
     ) -> dict[str, Any]:
         """Return the canonical Rust sudo ledger wire object."""
 
+    def fit_ledger(
+        self,
+        ledger: Mapping[str, Any],
+        max_json_bytes: int,
+    ) -> dict[str, Any]:
+        """Return a ledger whose JSON encoding fits ``max_json_bytes``."""
+
     def validate_handshake(
         self,
         handshake: Mapping[str, Any],
@@ -90,6 +97,25 @@ class _RustSudoCoreBinding:
                 binding(dict(ledger), dict(manifest))
                 if manifest is not None
                 else binding(dict(ledger))
+            )
+        except Exception as exc:
+            raise _gate_error("invalid_sudo_ledger", "ledger", exc) from exc
+        if not isinstance(result, Mapping):
+            raise GateError(
+                "invalid_sudo_ledger",
+                "ledger",
+                "sase_core_rs returned a non-object sudo ledger",
+            )
+        return dict(result)
+
+    def fit_ledger(
+        self,
+        ledger: Mapping[str, Any],
+        max_json_bytes: int,
+    ) -> dict[str, Any]:
+        try:
+            result = require_rust_binding("sudo_fit_ledger")(
+                dict(ledger), max_json_bytes
             )
         except Exception as exc:
             raise _gate_error("invalid_sudo_ledger", "ledger", exc) from exc

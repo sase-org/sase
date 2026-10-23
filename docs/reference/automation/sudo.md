@@ -95,6 +95,14 @@ interactive root programs. Request validation enforces that boundary and rejects
 If output may be secret-adjacent, set `"output_to_agent": "none"` so the follow-up
 prompt receives only the execution outcome.
 
+The successor and the durable `response.json` receive a settlement-fitted ledger.
+`output_to_agent: "full"` still shares one gate-input budget of about 64 KiB across
+every selected command. When the combined tails would overflow that budget, SASE keeps
+small outputs whole, trims the largest tails from the front with max-min water-filling,
+and prefixes each trimmed tail with
+`[sase sudo: <N> earlier bytes omitted to fit the settlement budget]`. Full streamed
+output remains in the finalize proc log.
+
 Example:
 
 ```json
@@ -271,6 +279,11 @@ A pending sudo gate can be inspected with:
 sase sudo list
 sase sudo show <id>
 ```
+
+If a detached finalize proc fails after the runner has already written a ledger, SASE
+publishes one `ViewErrorReport` notification for that gate. The note says whether the
+commands already ran and how to recover. Repeated failures update the same row; a later
+successful approval or denial dismisses it.
 
 If approval fails because authentication was cancelled, a password attempt failed, a
 timeout occurred, no TTY was available, another handoff held the lease, or the runner

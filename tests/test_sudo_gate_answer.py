@@ -11,14 +11,17 @@ import pytest
 
 from sase.main.parser_sudo import register_sudo_parser
 from sase.notification_gates.decision import DECISION_RECEIPT_FILENAME
-from sase.notification_gates.durability import read_json_object
+from sase.notification_gates.durability import canonical_json_bytes, read_json_object
+from sase.notification_gates.input_bounds import MAX_INPUT_BYTES
 from sase.notification_gates.models import GateError
 from sase.notification_gates.service import create_gate
 from sase.sudo.cli import handle_sudo_command
 from sase.sudo.gate import APPROVE_OPTION_ID, build_sudo_gate_request
 from tests._sudo_gate_helpers import (
     _auth_failed_ledger,
+    _incident_request,
     _multi_command_request,
+    _oversized_runner_ledger,
     _request,
     _runner_error_ledger,
     _runner_ledger,
@@ -251,3 +254,58 @@ def test_sudo_answer_json_missing_tty_reports_pending_gate(
     assert output["status"] == "pending"
     assert output["outcome"] == "missing_tty"
     assert output["code"] == "tty_required"
+
+
+def test_sudo_answer_no_detach_oversized_ledger_settles(
+    gate_home: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    del gate_home
+    gate = create_gate(build_sudo_gate_request(_incident_request()))
+    parser = argparse.ArgumentParser(prog="sase")
+    register_sudo_parser(parser.add_subparsers(dest="command"))
+    args = parser.parse_args(
+        ["sudo", "answer", gate.request_id, "--run", "--no-detach", "--json"]
+    )
+    monkeypatch.setattr("sase.sudo.cli.has_controlling_tty", lambda: True)
+    monkeypatch.setattr(
+        "sase.notification_gates.executor.has_controlling_tty",
+        lambda: True,
+    )
+    captured: dict[str, Any] = {}
+
+    def fake_runner(
+        manifest: dict[str, Any],
+        *,
+        manifest_sha256: str,
+        **_kwargs: Any,
+    ) -> dict[str, Any]:
+        ledger = _oversized_runner_ledger(manifest, manifest_sha256)
+        captured["ledger"] = ledger
+        return ledger
+
+    monkeypatch.setattr("sase.sudo.cli.run_sudo_runner", fake_runner)
+
+    assert handle_sudo_command(args) == 0
+
+    output = json.loads(capsys.readouterr().out)
+    assert output["status"] == "answered"
+    assert output["outcome"] == "completed"
+    raw_input = {
+        "command_ids": [entry["id"] for entry in captured["ledger"]["entries"]],
+        "receipt": captured["ledger"],
+    }
+    assert len(canonical_json_bytes(raw_input)) > MAX_INPUT_BYTES
+    response = read_json_object(gate.response_path)
+    [approve_result] = response["option_results"]
+    fitted = approve_result["result"]["receipt"]
+    fitted_input = {
+        "command_ids": approve_result["result"]["command_ids"],
+        "receipt": fitted,
+    }
+    assert len(canonical_json_bytes(fitted_input)) <= MAX_INPUT_BYTES
+    by_id = {entry["id"]: entry for entry in fitted["entries"]}
+    assert by_id["verify-units"]["output_tail"] == "v" * 375
+    assert by_id["daemon-reload"]["output_tail"] == ""
+    assert by_id["nft-ruleset"]["output_tail"].startswith("[sase sudo: ")
