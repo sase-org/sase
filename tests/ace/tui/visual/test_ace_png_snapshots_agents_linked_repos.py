@@ -7,10 +7,12 @@ from datetime import datetime
 from pathlib import Path
 
 import pytest
+from textual.containers import VerticalScroll
 
 from sase.ace.patch.models import DeltaEntry
 from sase.ace.testing import AcePage
 from sase.ace.tui.models.agent import Agent, AgentType, LinkedRepoMetadata
+from sase.ace.tui.widgets import AgentDetail
 from sase.ace.tui.widgets.file_panel import _display as file_panel_display_mod
 from sase.ace.tui.widgets.file_panel import _linked_deltas as linked_deltas_mod
 from sase.ace.tui.widgets.file_panel._linked_deltas import LinkedDeltaGroup
@@ -295,6 +297,63 @@ async def test_agents_commit_messages_panel_png_snapshot(
 
         await reveal_agent_file_view(page)
         await _wait_for_deck_text(page, ("1/3", "primary_001"))
+        detail = page.app.query_one("#agent-detail-panel", AgentDetail)
+        files_panel = detail.deck_area.panel(0)
+        files_scroll = files_panel.query_one(
+            "#agent-deck-panel-0-files-scroll", VerticalScroll
+        )
+        files_scroll.scroll_to(y=0, animate=False, immediate=True)
+        previous_geometry: tuple[int, int, int] | None = None
+        stable_geometry_checks = 0
+
+        def files_viewport_settled() -> bool:
+            nonlocal previous_geometry, stable_geometry_checks
+            geometry = (
+                int(files_scroll.scrollable_content_region.height),
+                int(files_scroll.size.height),
+                int(files_scroll.max_scroll_y),
+            )
+            if int(files_scroll.scroll_y) != 0:
+                files_scroll.scroll_to(y=0, animate=False, immediate=True)
+            if min(geometry[:2]) > 0 and geometry == previous_geometry:
+                stable_geometry_checks += 1
+            else:
+                stable_geometry_checks = 0
+            previous_geometry = geometry
+            return stable_geometry_checks >= 3 and int(files_scroll.scroll_y) == 0
+
+        await wait_for_state(
+            page,
+            files_viewport_settled,
+            description="Files deck viewport geometry settles at the first file",
+        )
+        assert int(files_scroll.scroll_y) < int(files_scroll.max_scroll_y), (
+            "Files deck must be pinned above its bottom so the continuation cue "
+            "uses its muted style; "
+            f"scroll_y={files_scroll.scroll_y}, "
+            f"max_scroll_y={files_scroll.max_scroll_y}"
+        )
+        # Geometry can settle after the initial scroll event, so explicitly
+        # cross the bottom-state boundary and return to the first row. This
+        # refreshes the paged continuation cue from the settled geometry.
+        files_scroll.scroll_to(y=1, animate=False, immediate=True)
+        await wait_for_state(
+            page,
+            lambda: int(files_scroll.scroll_y) > 0,
+            description="Files deck observes a nonzero scroll position",
+        )
+        files_scroll.scroll_to(y=0, animate=False, immediate=True)
+        await wait_for_state(
+            page,
+            lambda: int(files_scroll.scroll_y) == 0,
+            description="Files deck returns to the first file",
+        )
+        await wait_for_visual_idle(page)
+        assert int(files_scroll.scroll_y) < int(files_scroll.max_scroll_y), (
+            "Files deck must remain above its bottom after settling; "
+            f"scroll_y={files_scroll.scroll_y}, "
+            f"max_scroll_y={files_scroll.max_scroll_y}"
+        )
         # The Files deck title carries the page count (the legacy panel's
         # ``files [1/3]`` heading no longer exists).
         assert_page_svg_contains(page, "FILES")

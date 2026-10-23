@@ -11,6 +11,7 @@ import pytest
 
 from sase.ace.testing import AcePage
 from sase.axe import runner_utils
+from sase.ace.tui.widgets import AgentDetail
 from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     assert_page_svg_contains,
 )
@@ -18,6 +19,7 @@ from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patches,
     patch_startup_loaders,
     wait_for_startup,
+    wait_for_state,
     wait_for_svg_contains,
     wait_for_visual_idle,
 )
@@ -154,10 +156,16 @@ async def test_real_loader_plan_agent_session_retry_countdown_png_snapshot(
         assert (loaded.status, loaded.retry_status) == ("RETRYING", "retrying")
         assert (loaded.retry_count, loaded.max_retries) == (2, 3)
         await wait_for_svg_contains(page, "RETRYING (9s)")
-        # The golden shows the landed ``‹ 2/2 › Reply`` frame; capturing
-        # while the Main deck still shows ``‹ 1/2 › Context`` flips the
-        # golden on loaded runners.
-        await wait_for_svg_contains(page, "2/2")
+        # Spread mode has no page number, so wait for the deck's selected
+        # card instead of the old ``2/2`` chrome that only appears in page
+        # card mode.
+        detail = page.app.query_one("#agent-detail-panel", AgentDetail)
+        panel = detail.deck_area.panel(0)
+        await wait_for_state(
+            page,
+            lambda: panel.main_view.active_card_id == "reply",
+            description="Main deck selects Reply as its active card",
+        )
         await wait_for_visual_idle(page)
         assert_page_svg_contains(page, "RETRYING (9s)")
         assert_page_svg_contains(page, "↻ 2/3")

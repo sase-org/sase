@@ -56,6 +56,20 @@ def pin_decks_paged(monkeypatch: pytest.MonkeyPatch) -> None:
     )
 
 
+def pin_auto_decks_spread(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Raise the Auto threshold so fixture content stays in spread mode.
+
+    Keep the policy at Auto while preventing small changes to deck chrome from
+    moving a boundary fixture into page cards.
+    """
+    from sase.ace.tui import agent_decks_settings
+
+    settings = agent_decks_settings.AgentDecksSettings(spread_max_screens=4)
+    monkeypatch.setattr(
+        agent_decks_settings, "parse_agent_decks_settings", lambda _cfg: settings
+    )
+
+
 def main_deck_scroll(page: AcePage, panel_index: int = 0) -> VerticalScroll:
     """Return the scroll container of the deck shown in ``panel_index``."""
     detail = page.app.query_one("#agent-detail-panel", AgentDetail)

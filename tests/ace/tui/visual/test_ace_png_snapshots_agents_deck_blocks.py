@@ -12,7 +12,10 @@ from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.widgets import AgentDetail
 from sase.ace.tui.widgets.decks.availability import DeckAvailability
 from sase.ace.tui.widgets.decks.model import DeckId, RenderMode
-from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import show_reply_card
+from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
+    pin_auto_decks_spread,
+    show_reply_card,
+)
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patches,
     patch_startup_loaders,
@@ -360,6 +363,7 @@ async def test_agents_deck_blocks_spread_deck_sticky_png_snapshot(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
+    pin_auto_decks_spread(monkeypatch)
     patch_startup_loaders(
         monkeypatch,
         agents=[
@@ -369,11 +373,10 @@ async def test_agents_deck_blocks_spread_deck_sticky_png_snapshot(
                 code_turns=1,
                 include_gate_monitor=False,
                 tiny_content=True,
-                # Two extra lines keeps this session spread yet scrollable
-                # under the Agents footer with its P view entry now that the
-                # intended Models summary line costs one more row; three
-                # lines tips AUTO into page cards.
-                extra_reply_lines=2,
+                # Three extra lines let sticky landing scroll the Reply card
+                # to its anchor; pin the Auto threshold so chrome changes do
+                # not move this boundary fixture into page cards.
+                extra_reply_lines=3,
             ),
         ],
     )
