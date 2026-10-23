@@ -330,6 +330,24 @@ def _restore_hypothesis_local_constant_prescan() -> None:
 
 
 @pytest.fixture(autouse=True)
+def _scrub_ambient_tui_profiling_env(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Keep TUI tests independent of ambient profiling env.
+
+    Agent shells export ``SASE_TUI_PERF=1`` and ``SASE_TUI_GC_CENSUS=1``,
+    and the tmux launcher seeds ``SASE_TUI_TRACE=1`` through
+    ``_PROFILING_ENV_DEFAULTS``. All three are read ambiently
+    (perf probe coverage, trace spans, GC census), so a leaked value flips
+    assertions that expect the probes off. Tests that need them opt in with
+    ``monkeypatch.setenv``. ``SASE_TUI_PERF_PATH`` is excluded: no test
+    fails with it set, and every user sets it explicitly.
+    """
+    for key in ("SASE_TUI_PERF", "SASE_TUI_GC_CENSUS", "SASE_TUI_TRACE"):
+        monkeypatch.delenv(key, raising=False)
+
+
+@pytest.fixture(autouse=True)
 def _reset_project_tag_catalog_cache() -> Iterator[None]:
     """Drop the process-global tag catalog snapshot after each test.
 

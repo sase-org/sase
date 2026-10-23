@@ -23,16 +23,20 @@ _LONG_NOTES = tuple(
 
 
 async def _wait_for_terminal(pilot: Pilot[None], width: int, height: int) -> None:
-    """Wait until the app and active screen match *width* x *height*.
+    """Wait until the active screen has laid out at *width* x *height*.
 
-    Textual stores App-level ``Resize`` until ``_on_idle``. A single
-    ``pilot.pause()`` does not wait for that idle turn, so geometry
-    assertions after ``resize_terminal`` race the layout under load.
+    Textual holds the App-level ``Resize`` before forwarding it to the
+    screen (until ``_on_idle`` in 8.0, behind a 1/120s debounce timer since
+    8.2), and since 8.2 ``Screen.size`` derives from ``App.size``. Neither
+    size proves the screen reflowed, so a geometry predicate that already
+    holds at the stale layout passes before the resize lands. ``Widget``'s
+    ``outer_size`` is ``_size``, which only the screen's own
+    ``_refresh_layout`` updates, so it proves the reflow.
     """
 
     def terminal_matches() -> bool:
         return tuple(pilot.app.size) == (width, height) and tuple(
-            pilot.app.screen.size
+            pilot.app.screen.outer_size
         ) == (width, height)
 
     await wait_for(pilot, terminal_matches)

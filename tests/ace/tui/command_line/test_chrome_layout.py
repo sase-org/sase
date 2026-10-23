@@ -248,15 +248,19 @@ def _frame(screen: Any) -> Any:
 async def _resize_terminal(page: Any, width: int, height: int) -> None:
     """Resize the headless terminal and wait until the screen has laid out.
 
-    Textual stores App-level ``Resize`` until ``_on_idle``, then forwards it
-    to the active screen. ACE's event-driven ``pause`` does not wait for that
-    idle turn, so a pair of pauses is not a settle signal under xdist load.
+    Textual holds the App-level ``Resize`` before forwarding it to the
+    screen (until ``_on_idle`` in 8.0, behind a 1/120s debounce timer since
+    8.2), and since 8.2 ``Screen.size`` derives from ``App.size``. Neither
+    size proves the screen reflowed, so a geometry predicate that already
+    holds at the stale layout passes before the resize lands. ``Widget``'s
+    ``outer_size`` is ``_size``, which only the screen's own
+    ``_refresh_layout`` updates, so it proves the reflow.
     """
     await page._pilot.resize_terminal(width, height)
 
     def screen_matches_terminal() -> bool:
         return tuple(page.app.size) == (width, height) and tuple(
-            page.app.screen.size
+            page.app.screen.outer_size
         ) == (width, height)
 
     await wait_for(page._pilot, screen_matches_terminal)
