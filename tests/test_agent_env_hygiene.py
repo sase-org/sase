@@ -4,11 +4,13 @@ from sase.agent.env_hygiene import (
     scrub_agent_identity_env,
     scrub_chop_context_env,
     scrub_executor_ownership_env,
+    scrub_proc_operation_env,
 )
 from sase.agent.launch_spawn import _remove_inherited_agent_identity_env
 from sase.agent.launch_spawn import _remove_inherited_executor_ownership_env
 from sase.agent.launch_spawn import _remove_inherited_sase_plan_env
 from sase.agent.launch_spawn import _remove_inherited_launch_submission_env
+from sase.env_contracts import SASE_HOST_PATH_SNAPSHOT_ENV
 
 
 def test_scrub_agent_identity_env_removes_complete_identity_family() -> None:
@@ -122,6 +124,29 @@ def test_scrub_executor_ownership_env_removes_tool_monitor_proc() -> None:
         "SASE_AGENT_NAME": "keep",
         "OTHER": "keep",
     }
+
+
+def test_path_snapshot_survives_agent_shell_environment_scrubbers() -> None:
+    scrubbers = (
+        scrub_agent_identity_env,
+        scrub_chop_context_env,
+        scrub_proc_operation_env,
+        scrub_executor_ownership_env,
+    )
+
+    for scrub in scrubbers:
+        env = {
+            SASE_HOST_PATH_SNAPSHOT_ENV: "/host/bin:/usr/bin",
+            "SASE_AGENT_NAME": "worker",
+            "SASE_CHOP_NAME": "workflow",
+            "SASE_PROC_ID": "proc-1",
+            "SASE_TOOL_RUN_ID": "run-1",
+            "SASE_MONITOR_ID": "monitor-1",
+        }
+
+        scrub(env)
+
+        assert env[SASE_HOST_PATH_SNAPSHOT_ENV] == "/host/bin:/usr/bin"
 
 
 def test_launch_spawn_drops_inherited_executor_ownership_env() -> None:

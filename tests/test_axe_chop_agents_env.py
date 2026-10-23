@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -12,7 +13,11 @@ from sase.config._settings import (
     DEFAULT_MANAGED_TMP_AGENT_CARGO_INCREMENTAL,
     get_managed_tmp_agent_cargo_incremental,
 )
-from sase.env_contracts import SASE_LAUNCH_SCRATCH_KEY_ENV
+from sase.env_contracts import (
+    SASE_HOST_PATH_SNAPSHOT_ENV,
+    SASE_LAUNCH_SCRATCH_KEY_ENV,
+)
+from sase.llm_provider._codex_instructions import resolve_codex_executable
 from sase.running_field import ClaimResult
 
 from tests._axe_chop_agents_helpers import (
@@ -114,6 +119,104 @@ def test_spawn_agent_subprocess_extra_env_codex_home_wins(
 
     env = mock_spawn.call_args.kwargs["env"]
     assert env["CODEX_HOME"] == str(explicit_shadow)
+
+
+@patch("sase.running_field.claim_workspace", return_value=ClaimResult(success=True))
+@patch("sase.core.agent_launch_facade.spawn_prepared_agent_process")
+def test_spawn_agent_subprocess_restores_host_path_first_and_deduplicates(
+    mock_spawn: MagicMock,
+    mock_claim: MagicMock,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    host_bin = tmp_path / "nvmbin"
+    host_bin.mkdir()
+    monkeypatch.setenv("PATH", "/usr/bin:/bin:/shell/bin::")
+    monkeypatch.setenv(
+        SASE_HOST_PATH_SNAPSHOT_ENV,
+        f"{host_bin}::/usr/bin:/bin:{host_bin}",
+    )
+
+    _spawn_agent_for_env_test(
+        tmp_path=tmp_path,
+        monkeypatch=monkeypatch,
+        mock_spawn=mock_spawn,
+    )
+
+    env = mock_spawn.call_args.kwargs["env"]
+    assert env["PATH"] == f"{host_bin}:/usr/bin:/bin:/shell/bin"
+
+
+@patch("sase.running_field.claim_workspace", return_value=ClaimResult(success=True))
+@patch("sase.core.agent_launch_facade.spawn_prepared_agent_process")
+def test_spawn_agent_subprocess_extra_path_overrides_host_path_restore(
+    mock_spawn: MagicMock,
+    mock_claim: MagicMock,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("PATH", "/usr/bin:/bin")
+    monkeypatch.setenv(SASE_HOST_PATH_SNAPSHOT_ENV, "/host/bin:/usr/bin")
+    explicit_path = "/explicit/bin:/other/bin"
+
+    _spawn_agent_for_env_test(
+        tmp_path=tmp_path,
+        monkeypatch=monkeypatch,
+        mock_spawn=mock_spawn,
+        extra_env={"PATH": explicit_path},
+    )
+
+    assert mock_spawn.call_args.kwargs["env"]["PATH"] == explicit_path
+
+
+@patch("sase.running_field.claim_workspace", return_value=ClaimResult(success=True))
+@patch("sase.core.agent_launch_facade.spawn_prepared_agent_process")
+def test_spawn_agent_subprocess_without_path_snapshot_leaves_path_unchanged(
+    mock_spawn: MagicMock,
+    mock_claim: MagicMock,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original_path = "/first/bin::/second/bin:"
+    monkeypatch.setenv("PATH", original_path)
+    monkeypatch.delenv(SASE_HOST_PATH_SNAPSHOT_ENV, raising=False)
+
+    _spawn_agent_for_env_test(
+        tmp_path=tmp_path,
+        monkeypatch=monkeypatch,
+        mock_spawn=mock_spawn,
+    )
+
+    assert mock_spawn.call_args.kwargs["env"]["PATH"] == original_path
+
+
+@patch("sase.running_field.claim_workspace", return_value=ClaimResult(success=True))
+@patch("sase.core.agent_launch_facade.spawn_prepared_agent_process")
+def test_restored_path_resolves_codex_from_host_only_directory(
+    mock_spawn: MagicMock,
+    mock_claim: MagicMock,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    host_bin = tmp_path / "nvmbin"
+    host_bin.mkdir()
+    codex = host_bin / "codex"
+    codex.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    codex.chmod(0o755)
+    monkeypatch.setenv("PATH", "/usr/bin:/bin")
+    monkeypatch.setenv(SASE_HOST_PATH_SNAPSHOT_ENV, f"{host_bin}:/usr/bin:/bin")
+    monkeypatch.delenv("NVM_BIN", raising=False)
+    monkeypatch.delenv("SASE_CODEX_PATH", raising=False)
+
+    _spawn_agent_for_env_test(
+        tmp_path=tmp_path,
+        monkeypatch=monkeypatch,
+        mock_spawn=mock_spawn,
+    )
+
+    shaped_env = mock_spawn.call_args.kwargs["env"]
+    with patch.dict(os.environ, shaped_env, clear=True):
+        assert resolve_codex_executable() == str(codex)
 
 
 @patch("sase.running_field.claim_workspace", return_value=ClaimResult(success=True))

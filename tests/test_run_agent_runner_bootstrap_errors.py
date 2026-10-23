@@ -17,6 +17,7 @@ from sase.axe import (
     run_agent_runner_bootstrap,
     run_agent_runner_launch,
 )
+from sase.env_contracts import SASE_HOST_PATH_SNAPSHOT_ENV
 from sase.axe.run_agent_runner_refresh import RUNNER_CODE_REFRESHED_ENV
 from sase.llm_provider.gate_intent_guard import GateIntentLostError
 from sase.macro.workflow_models import WorkflowExecutionError
@@ -36,6 +37,14 @@ def _runner_args(tmp_path: Path) -> SimpleNamespace:
         project_name="sase",
         is_home_mode=False,
     )
+
+
+def test_runner_stamps_effective_path_snapshot() -> None:
+    env = {"PATH": "/host/node/bin:/usr/bin"}
+
+    run_agent_runner._stamp_host_path_snapshot(env)
+
+    assert env[SASE_HOST_PATH_SNAPSHOT_ENV] == env["PATH"]
 
 
 def _runner_patches(

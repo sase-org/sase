@@ -9,7 +9,10 @@ from functools import lru_cache
 from sase.agent.launch_types import AgentLaunchResult
 from sase.detach_scope import detach_scope
 from sase.core.paths import sase_projects_dir
-from sase.env_contracts import SASE_LAUNCH_SCRATCH_KEY_ENV
+from sase.env_contracts import (
+    SASE_HOST_PATH_SNAPSHOT_ENV,
+    SASE_LAUNCH_SCRATCH_KEY_ENV,
+)
 
 log = logging.getLogger(__name__)
 
@@ -111,6 +114,21 @@ def _remove_inherited_linked_repo_env(env: dict[str, str]) -> None:
     from sase.linked_repos import scrub_linked_repo_env
 
     scrub_linked_repo_env(env)
+
+
+def _restore_host_path_env(env: dict[str, str]) -> None:
+    """Put the runner's PATH ahead of any entries added by its shell."""
+    host_path = env.get(SASE_HOST_PATH_SNAPSHOT_ENV)
+    if not host_path:
+        return
+
+    merged: list[str] = []
+    seen: set[str] = set()
+    for entry in (*host_path.split(os.pathsep), *env.get("PATH", "").split(os.pathsep)):
+        if entry and entry not in seen:
+            seen.add(entry)
+            merged.append(entry)
+    env["PATH"] = os.pathsep.join(merged)
 
 
 def _overwrite_project_dir_env(env: dict[str, str], workspace_dir: str) -> None:
@@ -403,6 +421,7 @@ def spawn_agent_subprocess(
         _remove_inherited_launch_submission_env(subprocess_env)
         _remove_inherited_model_alias_overrides(subprocess_env, extra_env)
         _remove_inherited_linked_repo_env(subprocess_env)
+        _restore_host_path_env(subprocess_env)
         managed_scratch_env = _managed_agent_scratch_env(
             safe_name=prepared.safe_name,
             workspace_num=workspace_num,

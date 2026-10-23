@@ -9,6 +9,7 @@ SASE_PROVIDER_SYNC_CEILING_SECONDS_ENV = "SASE_PROVIDER_SYNC_CEILING_SECONDS"
 SASE_PROVIDER_SYNC_SOFT_CEILING_SECONDS_ENV = "SASE_PROVIDER_SYNC_SOFT_CEILING_SECONDS"
 SASE_ACTIVE_PROJECT_DIR_ENV = "SASE_ACTIVE_PROJECT_DIR"
 SASE_AGENT_WORKSPACE_NUM_ENV = "SASE_AGENT_WORKSPACE_NUM"
+SASE_HOST_PATH_SNAPSHOT_ENV = "SASE_HOST_PATH_SNAPSHOT"
 #: Path of the shadow-rendered instruction bundle for the current root
 #: provider invocation. Exported only while ``provider.invoke`` runs inside
 #: the instruction shadow boundary (E2); restored afterwards.

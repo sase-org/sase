@@ -144,6 +144,11 @@ workspace claims.
 | `<PREFIX>_WORKSPACE_DIR` | Pre-allocated workspace directory path.                                    |
 | `SASE_GIT_*`, ...        | Concrete forms for built-in and plugin-provided workspace prefixes.        |
 
+Agent runners also set `SASE_HOST_PATH_SNAPSHOT` to their effective `PATH`. Nested agent
+launches put those host entries first, then keep entries added by the current shell,
+with duplicates and empty entries removed. This variable is managed by SASE and is not
+intended for manual use.
+
 ## Environment Variable Reference
 
 Complete reference of environment variables used by the LLM provider layer.

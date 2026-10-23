@@ -19,6 +19,7 @@ import signal
 import sys
 import time
 import traceback
+from collections.abc import MutableMapping
 from datetime import UTC, datetime
 
 from sase.ace.hooks import format_duration
@@ -77,7 +78,10 @@ from sase.core.agent_artifact_index_lifecycle import (
 from sase.core.agent_output_variables import set_agent_output_variables
 from sase.core.runner_slots import HOLD_ARMER_WAIT_PRIORITY
 from sase.agent.launch_submission import LEGACY_NO_SUBMISSION_STAMP
-from sase.env_contracts import SASE_LAUNCH_SUBMITTED_AT_ENV
+from sase.env_contracts import (
+    SASE_HOST_PATH_SNAPSHOT_ENV,
+    SASE_LAUNCH_SUBMITTED_AT_ENV,
+)
 from sase.llm_provider.gate_intent_guard import find_gate_intent_lost_error
 from sase.telemetry.metrics import AGENT_KILLS
 
@@ -99,6 +103,14 @@ snapshot_source_revision()
 _BOOT_CODE_IDENTITY, _BOOTED_AT, _BOOT_CODE_IDENTITY_MS = boot_code_identity(
     startup_commit=_STARTUP_CODE_IDENTITY
 )
+
+
+def _stamp_host_path_snapshot(
+    env: MutableMapping[str, str] | None = None,
+) -> None:
+    """Record the runner's effective PATH for agent launches it later starts."""
+    target = os.environ if env is None else env
+    target[SASE_HOST_PATH_SNAPSHOT_ENV] = target.get("PATH", "")
 
 
 def _build_run_state(argv: list[str]) -> RunnerRunState:
@@ -325,6 +337,7 @@ def _silence_notification_for_pending_recovery(state: RunnerRunState) -> None:
 
 def main() -> None:
     """Run agent workflow and release workspace on completion."""
+    _stamp_host_path_snapshot()
     # The runner's stdout shares one output file with stderr. Line-buffer
     # stdout from the start so the file interleaves both streams in order
     # instead of flushing all of stdout at exit.

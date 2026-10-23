@@ -80,7 +80,9 @@ skill, so provider behavior stays consistent across runtimes.
 | `SASE_CODEX_SMALL_ARGS`          | Extra CLI args for `small` tier (Codex-specific fallback)  |
 | `SASE_CODEX_DISABLE_SHADOW_HOME` | Set to `1` to disable the disposable Codex home            |
 
-The generic `SASE_LLM_*_ARGS` variables take precedence over `SASE_CODEX_*_ARGS`.
+The generic `SASE_LLM_*_ARGS` variables take precedence over `SASE_CODEX_*_ARGS`. When
+agents launch other agents, SASE restores the runner's `PATH` so Codex installed only in
+an nvm directory remains resolvable.
 
 By default, SASE launches Codex with a per-invocation shadow `CODEX_HOME` under
 `~/.cache/sase/codex_home/`. The shadow home copies `config.toml` and symlinks an
