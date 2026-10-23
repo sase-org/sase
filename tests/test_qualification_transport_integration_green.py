@@ -15,14 +15,12 @@ import pytest
 from tests._qualification_transport_integration_helpers import (
     REPO,
     RUN_ID,
-    collect_tool_fixture,  # noqa: F401 (registers the collect_tool fixture)
     fake_gh_fixture,  # noqa: F401 (registers the fake_gh fixture)
     job_row,
     manifest_kwargs,
     produce_evidence,
-    qualify,
     release_tool_fixture,  # noqa: F401 (registers the release_tool fixture)
-    run_collect,
+    run_workflow_qualify,
     seed_artifacts,
     seed_jobs,
     seed_zip,
@@ -53,7 +51,6 @@ def _seed_green_attempt(
 
 
 def test_green_run_with_failed_advisory_passes(
-    collect_tool: ModuleType,
     release_tool: ModuleType,
     write_tool: ModuleType,
     fake_gh: Path,
@@ -85,7 +82,7 @@ def test_green_run_with_failed_advisory_passes(
         session_reports=sessions,
     )
     _seed_green_attempt(fake_gh, tmp_path, 1, rows)
-    jobs_path = run_collect(collect_tool, tmp_path, manifest_path)
+    outputs, out, observation = run_workflow_qualify(tmp_path, manifest_path)
     calls = (fake_gh / "calls.log").read_text(encoding="utf-8")
     assert (
         f"api repos/{REPO}/actions/runs/{RUN_ID}/attempts/1/jobs "
@@ -99,10 +96,7 @@ def test_green_run_with_failed_advisory_passes(
     asset = (
         f"candidate-gen{manifest['generation']}-qualification-run{RUN_ID}-attempt1.json"
     )
-    code, out, observation = qualify(
-        release_tool, tmp_path, manifest_path, jobs_path, attempt=1, asset=asset
-    )
-    assert code == 0
+    assert outputs["status"] == "0"
     assert observation["asset"] == asset
     assert observation["verdict"] == "pass"
     result = observation["extra"]["qualification"]["result"]
@@ -118,7 +112,6 @@ def test_green_run_with_failed_advisory_passes(
 
 
 def test_probe_with_failed_setup_names_missing_bindings(
-    collect_tool: ModuleType,
     release_tool: ModuleType,
     write_tool: ModuleType,
     fake_gh: Path,
@@ -158,14 +151,14 @@ def test_probe_with_failed_setup_names_missing_bindings(
         installed_core_version="0.17.0",
     )
     _seed_green_attempt(fake_gh, tmp_path, 1, rows)
-    jobs_path = run_collect(collect_tool, tmp_path, manifest_path)
+    outputs, _, observation = run_workflow_qualify(
+        tmp_path, manifest_path, tested_core_version="0.17.0"
+    )
     asset = (
         f"candidate-gen{manifest['generation']}-qualification-run{RUN_ID}-attempt1.json"
     )
-    code, _, observation = qualify(
-        release_tool, tmp_path, manifest_path, jobs_path, attempt=1, asset=asset
-    )
-    assert code == release_tool.EXIT_REFUSED
+    assert outputs["status"] == str(release_tool.EXIT_REFUSED)
+    assert observation["asset"] == asset
     result = observation["extra"]["qualification"]["result"]
     assert result["verdict"] == "red"
     assert result["rerun_eligible"] is False

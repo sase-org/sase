@@ -803,12 +803,12 @@ jobs:
           if [ "$status" -eq 0 ]; then
             verdict=pass
           fi
-          observed="$(python3 -c 'import json; print(json.load(open("'"$asset"'"))["asset"]' 2>/dev/null || true)"
+          observed="$(python3 -c 'import json, sys; print(json.load(open(sys.argv[1]))["asset"])' "$asset" || true)"
           if [ "$observed" != "$asset" ]; then
             echo "::error::qualification observation asset ${observed:-<missing>} disagrees with its canonical filename ${asset}"
             exit 1
           fi
-          reason="$(python3 -c 'import json; print(json.load(open("'"$asset"'")).get("reason", ""))' 2>/dev/null || true)"
+          reason="$(python3 -c 'import json, sys; print(json.load(open(sys.argv[1])).get("reason", ""))' "$asset" || true)"
           {
             echo "status=${status}"
             echo "verdict=${verdict}"

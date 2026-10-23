@@ -12,7 +12,9 @@ import importlib.util
 import io
 import json
 import os
+import shutil
 import stat
+import subprocess
 import sys
 import zipfile
 from importlib.machinery import SourceFileLoader
@@ -20,6 +22,7 @@ from pathlib import Path
 from types import ModuleType
 
 import pytest
+import yaml
 
 from tests._release_candidate_tool_helpers import seal_kwargs
 
@@ -43,6 +46,7 @@ __all__ = [
     "qualify",
     "release_tool_fixture",
     "run_collect",
+    "run_workflow_qualify",
     "seed_artifacts",
     "seed_jobs",
     "seed_zip",
@@ -489,3 +493,59 @@ def qualify(
     )
     observation = json.loads(out.read_text(encoding="utf-8"))
     return code, out, observation
+
+
+def run_workflow_qualify(
+    tmp_path: Path,
+    manifest_path: Path,
+    *,
+    tested_core_version: str = CORE_VERSION,
+) -> tuple[dict[str, str], Path, dict[str, object]]:
+    """Execute the actual evaluate step, including its upload-output wiring."""
+    workflow = yaml.safe_load(RELEASE_WORKFLOW.read_text(encoding="utf-8"))
+    step = next(
+        item
+        for item in workflow["jobs"]["qualify"]["steps"]
+        if item.get("id") == "evaluate"
+    )
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    (tmp_path / "candidate").mkdir()
+    shutil.copyfile(manifest_path, tmp_path / "candidate" / "candidate-manifest.json")
+    (tmp_path / "tools").symlink_to(ROOT / "tools", target_is_directory=True)
+    (tmp_path / ".github").symlink_to(ROOT / ".github", target_is_directory=True)
+    output = tmp_path / "github-output"
+    completed = subprocess.run(
+        ["bash", "-e", "-c", step["run"]],
+        cwd=tmp_path,
+        env={
+            **os.environ,
+            "REPOSITORY": REPO,
+            "RUN_ID": str(RUN_ID),
+            "RUN_ATTEMPT": "1",
+            "CANDIDATE_ID": manifest["candidate_id"],
+            "GENERATION": str(manifest["generation"]),
+            "INTENDED_CORE": CORE_VERSION,
+            "TESTED_CORE": tested_core_version,
+            "GITHUB_OUTPUT": str(output),
+        },
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=30,
+    )
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    outputs = dict(
+        line.split("=", 1) for line in output.read_text(encoding="utf-8").splitlines()
+    )
+    assert outputs["run-id"] == str(RUN_ID)
+    assert outputs["attempt"] == "1"
+    assert outputs["candidate-id"] == manifest["candidate_id"]
+    assert outputs["generation"] == str(manifest["generation"])
+    assert outputs["intended-core-version"] == CORE_VERSION
+    assert outputs["tested-core-version"] == tested_core_version
+    out = tmp_path / outputs["observation"]
+    observation = json.loads(out.read_text(encoding="utf-8"))
+    assert observation["asset"] == out.name
+    assert outputs["verdict"] == observation["verdict"]
+    assert outputs["token"] == observation["reason"]
+    return outputs, out, observation
