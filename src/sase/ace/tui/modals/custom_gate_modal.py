@@ -119,6 +119,7 @@ class CustomGateModal(
                 _CUSTOM_GATE_STATIC_BINDINGS, self._gate_keymaps
             ),
         )
+        self._compact_scroll_max_height: int | None = None
         self._bindings = BindingsMap(
             [
                 *_CUSTOM_GATE_STATIC_BINDINGS,
@@ -208,16 +209,22 @@ class CustomGateModal(
         self.call_after_refresh(self._fit_compact_review_scroll)
 
     def on_resize(self, _event: Any) -> None:
+        if not self.is_mounted:
+            return
         self.call_after_refresh(self._fit_compact_review_scroll)
 
     def _fit_compact_review_scroll(self) -> None:
         """Fit compact review content between the header and footer."""
-        if self._data.preview_text is not None:
+        if self._data.preview_text is not None or not self.is_mounted:
             return
 
+        if not self.query("#custom-gate-review-scroll"):
+            return
         shell = self.query_one("#custom-gate-container", Container)
         scroll = self.query_one("#custom-gate-review-scroll", VerticalScroll)
         footer = self.query_one("#custom-gate-footer", Static)
+        if shell.region.width <= 0:
+            return
         max_height = shell.styles.max_height
         shell_max = (
             int(max_height.resolve(self.size, self.app.size))
@@ -228,10 +235,15 @@ class CustomGateModal(
         bottom = (
             footer.region.bottom - scroll.region.bottom + shell.styles.gutter.bottom
         )
-        scroll.styles.max_height = max(
+        new_max = max(
             _COMPACT_SCROLL_MIN_ROWS,
             shell_max - top - bottom,
         )
+        if self._compact_scroll_max_height == new_max:
+            return
+        self._compact_scroll_max_height = new_max
+        scroll.styles.max_height = new_max
+        self.call_after_refresh(self._fit_compact_review_scroll)
 
     def render_reviewed_content(self, content: str) -> None:
         """Re-render the preview pane after an accepted edit action."""
