@@ -35,6 +35,12 @@ from ...models.agent_wait_beads import (
     should_resolve_wait_bead_statuses,
     warm_wait_bead_statuses,
 )
+from ...models.agent_stranded import (
+    stranded_project_key_for_agent,
+    stranded_project_keys,
+    should_resolve_stranded_report,
+    warm_stranded_work_reports,
+)
 from ...util.pump_tasks import spawn_pump_free_task
 from ...util.trace import tui_trace
 from ._loading_state import AgentLoadingStateMixin
@@ -53,12 +59,15 @@ class _AgentBeadWarmupCandidates:
     bead_display_agents: tuple[Agent, ...] = ()
     wait_bead_status_agents: tuple[Agent, ...] = ()
     follow_progress_agents: tuple[Agent, ...] = field(default_factory=tuple)
+    stranded_projects: tuple[str, ...] = ()
+    force_stranded: bool = False
 
     def __bool__(self) -> bool:
         return bool(
             self.bead_display_agents
             or self.wait_bead_status_agents
             or self.follow_progress_agents
+            or self.stranded_projects
         )
 
     @property
@@ -68,6 +77,7 @@ class _AgentBeadWarmupCandidates:
             len(self.bead_display_agents)
             + len(self.wait_bead_status_agents)
             + len(self.follow_progress_agents)
+            + len(self.stranded_projects)
         )
 
 
@@ -80,12 +90,14 @@ class _AgentBeadWarmupResults:
     follow_progress_identities: set[tuple[AgentType, str, str | None]] = field(
         default_factory=set
     )
+    stranded_changed_projects: frozenset[str] = frozenset()
 
     def __bool__(self) -> bool:
         return bool(
             self.bead_display_results
             or self.wait_bead_status_identities
             or self.follow_progress_identities
+            or self.stranded_changed_projects
         )
 
 
@@ -110,10 +122,15 @@ def _warm_agent_bead_caches(
         if candidates.follow_progress_agents
         else set()
     )
+    stranded_changed = warm_stranded_work_reports(
+        candidates.stranded_projects,
+        force=candidates.force_stranded,
+    )
     return _AgentBeadWarmupResults(
         bead_display_results=bead_display_results,
         wait_bead_status_identities=wait_bead_status_identities,
         follow_progress_identities=follow_progress_identities,
+        stranded_changed_projects=frozenset(stranded_changed),
     )
 
 
@@ -143,7 +160,8 @@ class AgentBeadWarmupMixin(AgentLoadingStateMixin):
         """
         if not self._agents_first_load_done:
             return
-        if not self._bead_warmup_candidates():
+        force_stranded = source == "beads_watcher"
+        if not self._bead_warmup_candidates(force_stranded=force_stranded):
             return
         if self._bead_warmup_scan_running:
             self._bead_warmup_scan_pending = True
@@ -181,7 +199,9 @@ class AgentBeadWarmupMixin(AgentLoadingStateMixin):
             )
             return
         self._bead_warmup_scan_scheduled = False
-        candidates = self._bead_warmup_candidates()
+        candidates = self._bead_warmup_candidates(
+            force_stranded=self._bead_warmup_scan_source == "beads_watcher"
+        )
         if not candidates:
             return
         self._bead_warmup_scan_running = True
@@ -204,7 +224,11 @@ class AgentBeadWarmupMixin(AgentLoadingStateMixin):
                 self._bead_warmup_scan_pending = False
                 self._schedule_bead_confirmation_warmup(source="bead_warmup_followup")
 
-    def _bead_warmup_candidates(self) -> _AgentBeadWarmupCandidates:
+    def _bead_warmup_candidates(
+        self,
+        *,
+        force_stranded: bool = False,
+    ) -> _AgentBeadWarmupCandidates:
         """Snapshot visible rows with bead cache work that needs resolution.
 
         Bounded to the currently visible agents and to candidates whose cache
@@ -228,10 +252,18 @@ class AgentBeadWarmupMixin(AgentLoadingStateMixin):
                 wait_bead_status_agents.append(agent)
             if agent.status == "WAITING" and should_resolve_epic_follow_progress(agent):
                 follow_progress_agents.append(agent)
+        stranded_rows = self._agents_with_children or self._agents
+        stranded_projects = tuple(
+            project_key
+            for project_key in stranded_project_keys(stranded_rows)
+            if force_stranded or should_resolve_stranded_report(project_key)
+        )
         return _AgentBeadWarmupCandidates(
             bead_display_agents=tuple(bead_display_agents),
             wait_bead_status_agents=tuple(wait_bead_status_agents),
             follow_progress_agents=tuple(follow_progress_agents),
+            stranded_projects=stranded_projects,
+            force_stranded=force_stranded,
         )
 
     def _apply_bead_warmup_results(
@@ -263,6 +295,21 @@ class AgentBeadWarmupMixin(AgentLoadingStateMixin):
             *results.wait_bead_status_identities,
             *results.follow_progress_identities,
         }
+        if results.stranded_changed_projects:
+            from ...models._agent_clan import clan_members
+
+            for identity, candidate in current_by_identity.items():
+                project_keys = {
+                    stranded_project_key_for_agent(candidate),
+                }
+                if candidate.is_clan_container:
+                    project_keys.update(
+                        stranded_project_key_for_agent(member)
+                        for member in clan_members(candidate)
+                    )
+                project_keys.discard(None)
+                if project_keys & results.stranded_changed_projects:
+                    changed_identities.add(identity)
         patched_identities: set[tuple[AgentType, str, str | None]] = set()
         for identity in current_by_identity:
             if identity not in changed_identities:
@@ -309,6 +356,11 @@ class AgentBeadWarmupMixin(AgentLoadingStateMixin):
                 )
                 if not patched:
                     needs_rebuild = True
+
+        if results.stranded_changed_projects:
+            update_info = getattr(self, "_update_agents_info_panel", None)
+            if callable(update_info) and getattr(self, "current_tab", None) == "agents":
+                update_info()
 
         if needs_rebuild:
             refresh = getattr(self, "_refresh_agents_display", None)

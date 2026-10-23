@@ -45,6 +45,34 @@ def test_clan_wave_pips_render_each_numbered_state_and_seal() -> None:
     assert "#5FD75F" in str(pips.spans[-1].style)
 
 
+def test_stranded_member_folds_its_wave_to_needs_you() -> None:
+    summary = ClanWaveSummary(
+        layered=True,
+        numbered_wave_count=2,
+        has_seal=False,
+        waves=(
+            _wave(1, _ClanWaveState.DONE),
+            _ClanWaveView(
+                number=2,
+                kind="number",
+                member_identities=("stranded-member",),
+                ghost_names=(),
+                state=_ClanWaveState.DONE,
+                predecessor_identities=(),
+            ),
+        ),
+        members=(),
+        unresolved_identities=(),
+    )
+
+    pips = format_clan_wave_pips(
+        summary,
+        stranded_member_keys=frozenset({"stranded-member"}),
+    )
+
+    assert pips.plain == "●▲"
+
+
 def test_clan_wave_pips_compact_more_than_twelve_numbered_waves() -> None:
     numbered = tuple(
         _wave(

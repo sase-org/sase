@@ -13,6 +13,7 @@ from sase.agent.status_buckets import (
     QUEUED_STATUS_COLOR,
     WORKING_PLAN_STATUS,
     WORKING_TALE_STATUS,
+    agent_status_bucket,
 )
 from sase.ace.tui.widgets.update_accents import UPDATE_RECOVERY_GLYPH
 
@@ -55,6 +56,11 @@ from ..models._agent_clan import status_display_agent
 from ..models.finalizer_row_state import (
     glance_finalizer_state,
     row_status_is_finalizing,
+)
+from sase.bead.stranded_presentation import (
+    STRANDED_BREADCRUMB_STYLE,
+    STRANDED_GLYPH,
+    STRANDED_LEAF_STYLE,
 )
 from sase.ace.tui.tool_runs.attribution import (
     row_identity_from_agent,
@@ -149,6 +155,8 @@ def append_agent_row_status(
     wait_deps_satisfied: bool | None = None,
     wait_dependency_counts: WaitDependencyStatusCounts | None = None,
     has_unresolvable_wait_target: bool = False,
+    stranded_state: str | None = None,
+    waiting_on_stranded: tuple[tuple[str, str], ...] = (),
 ) -> None:
     """Append the status parenthetical and adjacent outcome badges."""
     from sase.agent.auto_restart.ux import (
@@ -165,7 +173,11 @@ def append_agent_row_status(
     status_opener = "(" if not row_prefix or row_prefix[-1].isspace() else " ("
     text.append(status_opener, style="dim")
     presentation = gate_status_presentation(agent) or monitor_status_presentation(agent)
-    if presentation is not None:
+    stranded_leaf = stranded_state == "stranded"
+    stranded_done_overlay = stranded_leaf and agent_status_bucket(agent) == "Done"
+    if stranded_done_overlay:
+        text.append("STRANDED", style=STRANDED_LEAF_STYLE)
+    elif presentation is not None:
         style, glyph = presentation
         text.append(display_status, style=style)
         if glyph:
@@ -311,6 +323,24 @@ def append_agent_row_status(
         text.append(f" {_MONITOR_STALLED_GLYPH}", style=_MONITOR_STALLED_GLYPH_STYLE)
     if agent.is_gate and agent.gate_state == "failed":
         text.append(" ✗", style=_GATE_FAILURE_GLYPH_STYLE)
+    if stranded_done_overlay:
+        text.append(f" {STRANDED_GLYPH}", style=STRANDED_LEAF_STYLE)
+    elif waiting_on_stranded:
+        target_state = (
+            "stranded"
+            if any(state == "stranded" for _, state in waiting_on_stranded)
+            else "blocked"
+        )
+        style = (
+            STRANDED_LEAF_STYLE
+            if target_state == "stranded"
+            else STRANDED_BREADCRUMB_STYLE
+        )
+        text.append(f" {STRANDED_GLYPH}", style=style)
+    elif stranded_state == "blocked":
+        text.append(f" {STRANDED_GLYPH}", style=STRANDED_BREADCRUMB_STYLE)
+    elif stranded_leaf:
+        text.append(f" {STRANDED_GLYPH}", style=STRANDED_LEAF_STYLE)
     text.append(")", style="dim")
     _append_finalizer_chip(text, agent)
     _append_tool_run_chip(text, agent, now=now)

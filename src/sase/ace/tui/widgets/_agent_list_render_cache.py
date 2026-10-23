@@ -264,6 +264,7 @@ def agent_render_key(
     tab_chip: tuple[str, str] | None = None,
     clan_projects: tuple[str, ...] | None = None,
     clan_wave_gutter: "ClanWaveGutter | None" = None,
+    stranded_signature: tuple[Any, ...] = (),
 ) -> tuple[Any, ...]:
     """Build the cache key for a single agent row.
 
@@ -320,6 +321,7 @@ def agent_render_key(
     )
     return (
         agent.identity,
+        stranded_signature,
         index,
         is_selected,
         fold_annotation,

@@ -38,6 +38,20 @@ badges instead of verbose text:
 | `▣`   | Stand-alone `%proc` named proc (row label)                                                                                                                                                                                                                                                                        |
 | `▣N`  | N stand-alone named procs in a panel title's separate proc chip                                                                                                                                                                                                                                                   |
 
+## Stranded work
+
+| Mark | Meaning |
+| ---- | ------- |
+| `⚐` | A stranded bead; its done agent row displays `STRANDED` with a bold amber flag. |
+| `⚐` | A dim amber breadcrumb on a blocked ancestor or a row waiting on stranded work. |
+| `⚐N` | A dim amber count of stranded beads represented by a clan row. |
+| `▲` | A clan wave that contains stranded work folds to needs-you. |
+
+When a stranded bead appears in a loaded project report, the Agents info strip shows
+`⚐ N stranded`. The count is zero-suppressed and covers cached reports for projects
+represented in the Agents roster. See [Bead lifecycles](../work-units/bead-lifecycles.md#stranded-beads)
+for the definition and resolution options.
+
 A monitor turn (a session member whose work is a supervised command, started with
 `sase monitor start`) renders an amber `⚙` glyph and omits a left-side title — identity
 is the right-hand `%id` (`<session>--mon`), not the configured monitor label. A live

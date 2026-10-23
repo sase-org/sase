@@ -275,6 +275,8 @@ class AgentInfoDisplayMixin:
                 pass
         update_state = getattr(agent_info_panel, "update_state", None)
         if callable(update_state):
+            from ...models.agent_stranded import stranded_count_for_agents
+
             update_state(
                 position=position,
                 total=selectable_total,
@@ -287,6 +289,9 @@ class AgentInfoDisplayMixin:
                 sase_agent_count=sase_agent_count,
                 starting=starting_count,
                 named_proc_count=named_proc_count,
+                stranded_count=stranded_count_for_agents(
+                    getattr(self, "_agents_with_children", None) or self._agents
+                ),
                 countdown=self._countdown_remaining,
                 interval=self.refresh_interval,
                 search_query=display_query,
@@ -310,8 +315,17 @@ class AgentInfoDisplayMixin:
         if callable(update_runner_queue_count):
             update_runner_queue_count(runner_capacity.queued_count)
         update_count_kwargs: dict[str, int] = {"starting": starting_count}
-        if "named_procs" in signature(agent_info_panel.update_agent_counts).parameters:
+        update_count_parameters = signature(
+            agent_info_panel.update_agent_counts
+        ).parameters
+        if "named_procs" in update_count_parameters:
             update_count_kwargs["named_procs"] = named_proc_count
+        if "stranded_count" in update_count_parameters:
+            from ...models.agent_stranded import stranded_count_for_agents
+
+            update_count_kwargs["stranded_count"] = stranded_count_for_agents(
+                getattr(self, "_agents_with_children", None) or self._agents
+            )
         agent_info_panel.update_agent_counts(
             unread_count,
             asking_count,

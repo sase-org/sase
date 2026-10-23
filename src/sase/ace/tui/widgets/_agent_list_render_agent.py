@@ -8,9 +8,10 @@ Leading chrome and the status parenthetical live in
 
 from collections.abc import Collection, Mapping
 from datetime import datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from rich.text import Text
+from sase.bead.stranded_presentation import STRANDED_BREADCRUMB_STYLE, STRANDED_GLYPH
 
 from ..agent_completion import WaitDependencyStatusCounts
 from ..agent_count_chip import format_agent_count_chip
@@ -167,13 +168,16 @@ def format_agent_option(
     tab_chip: tuple[str, str] | None = None,
     clan_projects: tuple[str, ...] | None = None,
     clan_wave_gutter: "ClanWaveGutter | None" = None,
+    stranded_view: Any | None = None,
 ) -> tuple[Text, Text, str]:
     """Build ``(left_text, suffix_text, option_id)`` parts for an agent row."""
     # Deferred so the clan-wave modules stay off the TUI startup import path;
     # after first use this is only a ``sys.modules`` hit.
     from ._clan_wave_presentation import format_clan_wave_pips
+    from ..models.agent_stranded import agent_stranded_view
 
     tribe_label = _inline_tribe_label(tribe_label)
+    stranded_view = stranded_view or agent_stranded_view(agent)
     visible_clan_projects = (
         clan_project_labels(agent)
         if clan_projects is None and agent.is_clan_container
@@ -200,6 +204,8 @@ def format_agent_option(
         wait_deps_satisfied=wait_deps_satisfied,
         wait_dependency_counts=wait_dependency_counts,
         has_unresolvable_wait_target=has_unresolvable_wait_target,
+        stranded_state=getattr(getattr(stranded_view, "verdict", None), "state", None),
+        waiting_on_stranded=getattr(stranded_view, "waiting_on", ()),
     )
     is_agent_session_container_row = agent.is_agent_session_container_row
 
@@ -246,7 +252,22 @@ def format_agent_option(
                 f"{WAIT_UNKNOWN_GLYPH}{clan_unknown_wait_count}",
                 style=WAIT_UNKNOWN_GLYPH_STYLE,
             )
-        wave_pips = format_clan_wave_pips(agent.clan_waves)
+        clan_stranded_ids = getattr(stranded_view, "clan_stranded_ids", ())
+        clan_stranded_member_keys = getattr(
+            stranded_view,
+            "clan_stranded_member_keys",
+            (),
+        )
+        if clan_stranded_ids:
+            text.append(" ")
+            text.append(
+                f"{STRANDED_GLYPH}{len(clan_stranded_ids)}",
+                style=STRANDED_BREADCRUMB_STYLE,
+            )
+        wave_pips = format_clan_wave_pips(
+            agent.clan_waves,
+            stranded_member_keys=frozenset(clan_stranded_member_keys),
+        )
         if wave_pips:
             text.append(" ")
             text.append_text(wave_pips)
@@ -398,6 +419,9 @@ def cached_format_agent_option(
     cached object avoids rebuilding an O(rows) Text tree on each refresh.
     """
     tribe_label = _inline_tribe_label(tribe_label)
+    from ..models.agent_stranded import agent_stranded_view
+
+    stranded_view = agent_stranded_view(agent)
     visible_clan_counts = (
         (
             clan_member_counts(agent, unread_agent_ids)
@@ -440,6 +464,7 @@ def cached_format_agent_option(
         tab_chip=tab_chip,
         clan_projects=visible_clan_projects,
         clan_wave_gutter=clan_wave_gutter,
+        stranded_signature=getattr(stranded_view, "signature", ()),
     )
     hit = cache.get_agent(key)
     if hit is not None:
@@ -470,6 +495,7 @@ def cached_format_agent_option(
         tab_chip=tab_chip,
         clan_projects=visible_clan_projects,
         clan_wave_gutter=clan_wave_gutter,
+        stranded_view=stranded_view,
     )
     cache.put_agent(key, parts)
     return parts

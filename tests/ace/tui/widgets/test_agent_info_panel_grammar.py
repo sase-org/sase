@@ -115,6 +115,21 @@ def test_zero_interval_omits_refresh_without_trailing_separator() -> None:
     assert "   " not in plain
 
 
+def test_stranded_count_is_zero_suppressed_and_uses_amber_flag() -> None:
+    panel = AgentInfoPanel()
+    with patch.object(panel, "update"):
+        panel.update_state(**stable_state_kwargs(stranded_count=2))  # type: ignore[arg-type]
+
+    rendered = collect_rich_text(panel)
+
+    assert "⚐ 2 stranded" in rendered.plain
+    assert style_at_plain_index(rendered, rendered.plain.index("⚐")) == "bold #FFAF00"
+
+    with patch.object(panel, "update"):
+        panel.update_state(**stable_state_kwargs(stranded_count=0))  # type: ignore[arg-type]
+    assert "stranded" not in collect_text(panel)
+
+
 def test_archive_info_uses_configured_toggle_key_and_amber_chrome() -> None:
     panel = AgentInfoPanel()
     with patch.object(panel, "update"):

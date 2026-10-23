@@ -40,7 +40,11 @@ _WAVE_STATE_PRIORITY = (
 )
 
 
-def format_clan_wave_pips(summary: ClanWaveSummary | None) -> Text:
+def format_clan_wave_pips(
+    summary: ClanWaveSummary | None,
+    *,
+    stranded_member_keys: frozenset[str] = frozenset(),
+) -> Text:
     """Render the compact wave-state strip for a layered clan."""
     text = Text()
     if summary is None or not summary.layered:
@@ -48,21 +52,39 @@ def format_clan_wave_pips(summary: ClanWaveSummary | None) -> Text:
 
     numbered = tuple(wave for wave in summary.waves if wave.kind == "number")
     if len(numbered) > 12:
-        states = {wave.state.value for wave in numbered}
+        states = {_wave_display_state(wave, stranded_member_keys) for wave in numbered}
         worst_state = next(state for state in _WAVE_STATE_PRIORITY if state in states)
-        completed = sum(wave.state.value == "done" for wave in numbered)
+        completed = sum(
+            _wave_display_state(wave, stranded_member_keys) == "done"
+            for wave in numbered
+        )
         append_clan_wave_state_pip(text, worst_state)
         _glyph, style = _WAVE_PIP_STYLES[worst_state]
         text.append(f" {completed}/{summary.numbered_wave_count}", style=style)
     else:
         for wave in numbered:
-            append_clan_wave_state_pip(text, wave.state.value)
+            append_clan_wave_state_pip(
+                text,
+                _wave_display_state(wave, stranded_member_keys),
+            )
 
     if summary.has_seal:
         seal = next(wave for wave in summary.waves if wave.kind == "seal")
         text.append(" ")
-        append_clan_wave_state_pip(text, seal.state.value, label="∎")
+        append_clan_wave_state_pip(
+            text,
+            _wave_display_state(seal, stranded_member_keys),
+            label="∎",
+        )
     return text
+
+
+def _wave_display_state(wave: object, stranded_member_keys: frozenset[str]) -> str:
+    """Fold a stranded direct member into the existing needs-you wave state."""
+    if stranded_member_keys.intersection(getattr(wave, "member_identities", ())):
+        return "needs_you"
+    state = getattr(wave, "state", None)
+    return str(getattr(state, "value", "not_started"))
 
 
 def append_clan_wave_state_pip(

@@ -8,6 +8,8 @@ from textual.events import Click
 from textual.message import Message
 from textual.widgets import Static
 
+from sase.bead.stranded_presentation import STRANDED_GLYPH, STRANDED_LEAF_STYLE
+
 from ..agent_count_chip import AGENT_COUNT_CHIP_QUEUED_STYLE
 from ..keymaps import (
     KeymapRegistry,
@@ -45,6 +47,7 @@ class AgentInfoPanel(Static):
         self._waiting_count = 0
         self._failed_count = 0
         self._read_count = 0
+        self._stranded_count = 0
         self._sase_agent_count = 0
         self._named_proc_count = 0
         self._runner_queue_count = 0
@@ -130,6 +133,7 @@ class AgentInfoPanel(Static):
         *,
         starting: int = 0,
         named_procs: int = 0,
+        stranded_count: int = 0,
     ) -> None:
         """Compatibility adapter for the headline and concrete metric strip.
 
@@ -152,6 +156,7 @@ class AgentInfoPanel(Static):
         self._read_count = read
         self._sase_agent_count = total
         self._named_proc_count = named_procs
+        self._stranded_count = stranded_count
         self._update_display()
 
     def update_countdown(self, countdown: int, interval: int) -> None:
@@ -263,6 +268,7 @@ class AgentInfoPanel(Static):
         sase_agent_count: int,
         starting: int,
         named_proc_count: int = 0,
+        stranded_count: int = 0,
         countdown: int,
         interval: int,
         grouping_mode: str,
@@ -299,6 +305,7 @@ class AgentInfoPanel(Static):
             read,
             sase_agent_count,
             named_proc_count,
+            stranded_count,
             runner_queue_count,
             grouping_mode,
             search_query,
@@ -321,6 +328,7 @@ class AgentInfoPanel(Static):
             self._read_count,
             self._sase_agent_count,
             self._named_proc_count,
+            self._stranded_count,
             self._runner_queue_count,
             self._grouping_mode,
             self._search_query,
@@ -352,6 +360,7 @@ class AgentInfoPanel(Static):
             self._read_count,
             self._sase_agent_count,
             self._named_proc_count,
+            self._stranded_count,
             self._runner_queue_count,
             self._grouping_mode,
             self._search_query,
@@ -463,6 +472,11 @@ class AgentInfoPanel(Static):
             label_style = count_style if label in {"starting", "unread"} else "dim"
             text.append(suffix, style=label_style)
         text.append("]", style="dim")
+        if self._stranded_count > 0:
+            text.append(_ELEMENT_SEPARATOR, style="dim")
+            text.append(STRANDED_GLYPH, style=STRANDED_LEAF_STYLE)
+            text.append(f" {self._stranded_count}", style="bold #FFFFFF")
+            text.append(" stranded", style="dim")
 
     def _append_named_proc_badge(self, text: Text) -> None:
         if self._named_proc_count <= 0:

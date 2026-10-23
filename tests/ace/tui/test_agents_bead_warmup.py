@@ -38,6 +38,7 @@ from sase.ace.tui.models.agent_bead import (
     warm_confirmed_bead_displays,
 )
 from sase.ace.tui.models.agent_wait_beads import _WAIT_BEAD_STATUS_CACHE
+from sase.ace.tui.models import agent_stranded
 from sase.ace.tui.util.nav_gate import NavigationGate
 from sase.ace.tui.widgets._agent_list_rendering import format_agent_option
 from sase.bead.model import Issue
@@ -47,9 +48,11 @@ from sase.bead.model import Issue
 def _clear_bead_display_cache() -> Iterator[None]:
     _BEAD_DISPLAY_CACHE.clear()
     _WAIT_BEAD_STATUS_CACHE.clear()
+    agent_stranded._STRANDED_REPORT_CACHE.clear()
     yield
     _BEAD_DISPLAY_CACHE.clear()
     _WAIT_BEAD_STATUS_CACHE.clear()
+    agent_stranded._STRANDED_REPORT_CACHE.clear()
 
 
 class _FakeApp(AgentBeadWarmupMixin):
@@ -169,7 +172,7 @@ def test_schedule_marks_pending_while_running() -> None:
 
 def test_schedule_skips_empty_candidate_scan() -> None:
     app = _FakeApp()
-    app._agents = [_agent(agent_name="reviewer")]
+    app._agents = []
 
     app._schedule_bead_confirmation_warmup(source="apply")
 
@@ -203,7 +206,8 @@ def test_warmup_candidates_only_uncached_bead_candidates() -> None:
     app._agents = [confirmed, missing, cold, ordinary, modern_phase]
 
     assert app._bead_warmup_candidates() == _AgentBeadWarmupCandidates(
-        bead_display_agents=(cold,)
+        bead_display_agents=(cold,),
+        stranded_projects=("proj",),
     )
 
 
@@ -231,7 +235,8 @@ def test_warmup_candidates_include_expired_cached_bead_candidates() -> None:
     app._agents = [expired_confirmed, expired_missing, fresh_confirmed]
 
     assert app._bead_warmup_candidates() == _AgentBeadWarmupCandidates(
-        bead_display_agents=(expired_confirmed, expired_missing)
+        bead_display_agents=(expired_confirmed, expired_missing),
+        stranded_projects=("proj",),
     )
 
 
@@ -247,7 +252,8 @@ def test_warmup_candidates_include_stale_wait_bead_statuses() -> None:
     app._agents = [waiter]
 
     assert app._bead_warmup_candidates() == _AgentBeadWarmupCandidates(
-        wait_bead_status_agents=(waiter,)
+        wait_bead_status_agents=(waiter,),
+        stranded_projects=("proj",),
     )
 
 
