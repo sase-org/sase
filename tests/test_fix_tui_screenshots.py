@@ -161,8 +161,17 @@ def test_recapture_budget_rejects_negative() -> None:
 
 
 def test_full_scope_without_selectors() -> None:
-    request = parse_command([])
+    request = parse_command([], environ={})
     assert request.check is False
+    assert request.scope == "full"
+    assert request.scope_reasons == ()
+
+
+def test_pytest_addopts_plugin_keeps_full_scope() -> None:
+    request = parse_command(
+        [],
+        environ={"PYTEST_ADDOPTS": "-p tests._pytest_qualify_evidence"},
+    )
     assert request.scope == "full"
     assert request.scope_reasons == ()
 
@@ -213,7 +222,7 @@ def test_resolve_scope_treats_last_failed_as_targeted() -> None:
 
 
 def test_numprocesses_long_form_sets_workers() -> None:
-    request = parse_command(["--", "--numprocesses", "4"])
+    request = parse_command(["--", "--numprocesses", "4"], environ={})
     assert request.workers == 4
     assert request.pytest_args == ()
     assert request.scope == "full"
@@ -227,7 +236,7 @@ def test_n_short_forms_set_workers() -> None:
 
 
 def test_n_value_is_not_a_selector() -> None:
-    request = parse_command(["--", "-n", "2"])
+    request = parse_command(["--", "-n", "2"], environ={})
     assert request.workers == 2
     assert request.pytest_args == ()
     assert request.scope == "full"

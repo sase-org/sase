@@ -221,8 +221,18 @@ def test_supervisor_freezes_stage_manifest_and_retained_log_metadata(
         end=int(first_range["end"]),
     )
     assert ranged.metadata["available"] is True
-    assert "test (scoped)" in ranged.text
     assert "retained output gap" not in ranged.text
+    # A 64-byte cap plus a 120-x payload freezes either the stage banner
+    # (drain interleaves) or the truncated x-tail (one oversized chunk).
+    assert "test (scoped)" in ranged.text or ("x" * 16) in ranged.text
+    last_range = metadata["retained_ranges"][-1]
+    tail = read_retained_log_range(
+        artifacts_dir,
+        start=int(last_range["start"]),
+        end=int(last_range["end"]),
+    )
+    assert ("x" * 16) in tail.text
+    assert "retained output gap" not in tail.text
 
 
 def test_selected_diagnostics_reads_only_rust_selected_stage_locators(

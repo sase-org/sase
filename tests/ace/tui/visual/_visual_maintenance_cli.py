@@ -41,6 +41,9 @@ _RESTRICTING_PREFIXES = (
     "--ignore-glob=",
     "--lf=",
 )
+# Pytest flags whose following token is a value, not a path selector.
+# Full CI sets PYTEST_ADDOPTS=-p tests._pytest_qualify_evidence.
+_NONRESTRICTING_VALUE_FLAGS = frozenset({"-p"})
 _CAPTURE_OWNED_PREFIXES = (
     "--sase-visual-capture-dir",
     "--sase-visual-capture-run-id",
@@ -391,11 +394,18 @@ def _pytest_addopts(environ: Mapping[str, str]) -> list[str]:
 
 
 def _has_restricting_args(args: Sequence[str]) -> bool:
+    skip_next = False
     for arg in args:
+        if skip_next:
+            skip_next = False
+            continue
         if arg in _RESTRICTING_FLAGS:
             return True
         if any(arg.startswith(prefix) for prefix in _RESTRICTING_PREFIXES):
             return True
+        if arg in _NONRESTRICTING_VALUE_FLAGS:
+            skip_next = True
+            continue
         if arg == "--":
             continue
         if not arg.startswith("-"):
