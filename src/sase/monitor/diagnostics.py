@@ -90,6 +90,7 @@ def freeze_retained_log_metadata(
     target_dir.mkdir(parents=True, exist_ok=True)
     segments: list[dict[str, Any]] = []
     ranges = list(retention.retained_ranges if retention is not None else ())
+    fallback_cursor = 0
     for source_path, source_name in (
         (output_path.with_name(f"{output_path.name}.1"), "rotated"),
         (output_path, "active"),
@@ -100,6 +101,9 @@ def freeze_retained_log_metadata(
         shutil.copyfile(source_path, target_path)
         size = target_path.stat().st_size
         segment_range = _pop_segment_range(ranges, size)
+        if retention is None and size > 0:
+            segment_range = RetainedByteRange(fallback_cursor, fallback_cursor + size)
+            fallback_cursor += size
         segments.append(
             {
                 "kind": source_name,
@@ -321,7 +325,29 @@ def read_retained_log_range(
     chunks: list[str] = []
     available: list[dict[str, int]] = []
     missing: list[dict[str, int]] = []
-    for segment in metadata.get("segments") or []:
+    segments = metadata.get("segments") or []
+    if segments and all(
+        isinstance(segment, dict) and segment.get("range") is None
+        for segment in segments
+    ):
+        range_cursor = 0
+        ranged_segments: list[dict[str, Any]] = []
+        for segment in segments:
+            if not isinstance(segment, dict):
+                continue
+            size = int(segment.get("bytes") or 0)
+            ranged_segments.append(
+                {
+                    **segment,
+                    "range": {
+                        "start": range_cursor,
+                        "end": range_cursor + size,
+                    },
+                }
+            )
+            range_cursor += size
+        segments = ranged_segments
+    for segment in segments:
         if remaining <= 0:
             break
         if not isinstance(segment, dict) or not isinstance(segment.get("range"), dict):

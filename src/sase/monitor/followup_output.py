@@ -26,9 +26,9 @@ def frozen_output_text(
     ranges = retained_log.get("retained_ranges")
     if not isinstance(ranges, list) or not ranges:
         return fallback
-    chunks: list[str] = []
+    selected_ranges: list[tuple[int, int]] = []
     remaining = max_chars
-    for item in ranges:
+    for item in reversed(ranges):
         if remaining <= 0:
             break
         if not isinstance(item, Mapping):
@@ -37,14 +37,26 @@ def frozen_output_text(
         end = _int_value(item.get("end"))
         if start is None or end is None or end <= start:
             continue
+        selected_start = max(start, end - remaining)
+        if selected_start >= end:
+            continue
+        selected_ranges.append((selected_start, end))
+        remaining -= end - selected_start
+    chunks: list[str] = []
+    previous_end: int | None = None
+    for start, end in reversed(selected_ranges):
+        if previous_end is not None and previous_end < start:
+            chunks.append(
+                f"\n[retained output gap: bytes {previous_end}:{start} are unavailable]\n"
+            )
         read = read_retained_log_range(
             artifacts_dir,
             start=start,
             end=end,
-            max_bytes=remaining,
+            max_bytes=end - start,
         )
         chunks.append(read.text)
-        remaining = max(0, max_chars - len("".join(chunks).encode("utf-8")))
+        previous_end = end
     text = "".join(chunks)
     return text if text else fallback
 

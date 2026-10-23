@@ -10,6 +10,7 @@ import sys
 from pathlib import Path
 
 from sase.monitor.diagnostics import (
+    freeze_retained_log_metadata,
     read_diagnostics_text,
     read_retained_log_range,
     read_selected_diagnostics_text,
@@ -19,6 +20,85 @@ from sase.monitor.supervise import run_supervisor
 
 from ._fixtures import isolate_from_enclosing_run, without_tool_run_recording
 from ._supervise import _make_member, _restore_signal_handlers, _sandbox_home
+
+
+def test_freeze_without_retention_assigns_ranges_to_rotated_and_active_logs(
+    tmp_path: Path,
+) -> None:
+    artifacts_dir = tmp_path / "artifacts"
+    output_path = tmp_path / "live_reply.md"
+    output_path.with_name("live_reply.md.1").write_bytes(b"older\n")
+    output_path.write_bytes(b"newer\n")
+
+    metadata = freeze_retained_log_metadata(
+        artifacts_dir,
+        output_path=output_path,
+        monitor_id="monitor-test",
+        retention=None,
+    )
+
+    assert [segment["range"] for segment in metadata["segments"]] == [
+        {"start": 0, "end": 6},
+        {"start": 6, "end": 12},
+    ]
+    assert metadata["retained_ranges"] == [
+        {"start": 0, "end": 6},
+        {"start": 6, "end": 12},
+    ]
+    ranged = read_retained_log_range(artifacts_dir, start=0, end=12)
+    assert ranged.text == "older\nnewer\n"
+
+
+def test_freeze_without_retention_assigns_range_to_active_only_log(
+    tmp_path: Path,
+) -> None:
+    artifacts_dir = tmp_path / "artifacts"
+    output_path = tmp_path / "live_reply.md"
+    output_path.write_bytes(b"active only\n")
+
+    metadata = freeze_retained_log_metadata(
+        artifacts_dir,
+        output_path=output_path,
+        monitor_id="monitor-active",
+        retention=None,
+    )
+
+    assert metadata["segments"][0]["range"] == {"start": 0, "end": 12}
+    assert metadata["retained_ranges"] == [{"start": 0, "end": 12}]
+    assert (
+        read_retained_log_range(artifacts_dir, start=0, end=12).text == "active only\n"
+    )
+
+
+def test_read_retained_log_range_supports_legacy_null_segment_ranges(
+    tmp_path: Path,
+) -> None:
+    artifacts_dir = tmp_path / "artifacts"
+    retained = artifacts_dir / "diagnostics" / "retained_logs" / "monitor.log"
+    retained.parent.mkdir(parents=True)
+    retained.write_bytes(b"legacy bytes\n")
+    metadata_path = artifacts_dir / "diagnostics" / "retained_log_metadata.json"
+    metadata_path.write_text(
+        json.dumps(
+            {
+                "complete": True,
+                "drain_confirmed": True,
+                "segments": [
+                    {
+                        "locator": "diagnostics/retained_logs/monitor.log",
+                        "bytes": 13,
+                        "range": None,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    ranged = read_retained_log_range(artifacts_dir, start=0, end=13)
+
+    assert ranged.text == "legacy bytes\n"
+    assert ranged.metadata["missing_ranges"] == []
 
 
 def _run_silent_path() -> Path:
@@ -141,6 +221,8 @@ def test_supervisor_freezes_stage_manifest_and_retained_log_metadata(
         end=int(first_range["end"]),
     )
     assert ranged.metadata["available"] is True
+    assert "test (scoped)" in ranged.text
+    assert "retained output gap" not in ranged.text
 
 
 def test_selected_diagnostics_reads_only_rust_selected_stage_locators(

@@ -2,10 +2,42 @@
 
 from __future__ import annotations
 
+from sase.monitor.diagnostics import freeze_retained_log_metadata
+from sase.monitor.followup_output import frozen_output_text
 from sase.monitor.followup_prompt import compose_followup_prompt
 from sase.monitor.result_projection import TOTAL_RAW_EXCERPT_MAX_BYTES
 
 from ._followup_prompt_fixtures import _COMMON, _assert_inside_any_region
+
+
+def test_frozen_output_text_reads_the_tail_within_the_byte_budget(tmp_path) -> None:
+    artifacts_dir = tmp_path / "artifacts"
+    output_path = tmp_path / "live_reply.md"
+    output_path.write_bytes(
+        b"START_SENTINEL\n"
+        + b"x" * (TOTAL_RAW_EXCERPT_MAX_BYTES + 100)
+        + b"\nEND_SENTINEL\n"
+    )
+    retained = freeze_retained_log_metadata(
+        artifacts_dir,
+        output_path=output_path,
+        monitor_id="monitor-tail",
+        retention=None,
+    )
+
+    output = frozen_output_text(
+        str(artifacts_dir),
+        result={"retained_log": retained},
+        selection={
+            "include_raw_excerpt": True,
+            "max_tail_lines": 10,
+            "max_embedded_bytes": TOTAL_RAW_EXCERPT_MAX_BYTES,
+        },
+        fallback="fallback",
+    )
+
+    assert "END_SENTINEL" in output
+    assert "START_SENTINEL" not in output
 
 
 def test_compose_followup_prompt_widens_the_fence_around_backticks_in_output() -> None:
