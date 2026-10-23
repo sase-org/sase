@@ -111,10 +111,6 @@ jobs:
           echo "version=$effective" >> "$GITHUB_OUTPUT"
           echo "probe=$probe" >> "$GITHUB_OUTPUT"
           echo "Core mode=$mode version=$effective probe=$probe"
-      - uses: astral-sh/setup-uv@v4
-        with:
-          enable-cache: true
-          cache-dependency-glob: "sase-core/**/pyproject.toml"
       # sase-core-revision.txt is the pinned source of truth (not the
       # checkout's HEAD): it keeps this build reproducible across runs of the
       # same sase SHA and stops an ordinary sase-core push from reddening
@@ -149,6 +145,14 @@ jobs:
           repository: sase-org/sase-core
           ref: v${{ steps.resolve-core.outputs.version }}
           path: sase-core
+      # setup-uv's cache-dependency-glob names sase-core/**/pyproject.toml,
+      # so it must run after both conditional sase-core checkouts that
+      # materialize that path. It still runs before the first uv use in
+      # either mode (uvx maturin in source mode, uv run in published mode).
+      - uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+          cache-dependency-glob: "sase-core/**/pyproject.toml"
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
       - name: Cache Rust build

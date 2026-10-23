@@ -189,6 +189,9 @@ def test_publish_sync_release_metadata_applies_ratchet_before_lock_refresh() -> 
         if step.get("name") == "Reconcile release metadata"
     )
     assert reconcile["env"]["UV_DEFAULT_INDEX"] == "https://pypi.org/simple/"
+    # tools/_release_core.py reads tag workflows through `gh api` (or urllib
+    # with GH_TOKEN), so the ratchet step must not run unauthenticated.
+    assert reconcile["env"]["GH_TOKEN"] == "${{ secrets.SASE_RELEASE_TOKEN }}"
 
     run_text = _job_run_text(job)
     assert (

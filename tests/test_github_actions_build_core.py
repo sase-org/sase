@@ -157,6 +157,77 @@ def test_provenance_records_the_pin_or_the_tag_commit() -> None:
     assert "sase-core-sha.txt" in published["run"]
 
 
+def test_setup_uv_runs_after_the_sase_core_checkouts_it_caches() -> None:
+    """setup-uv's cache glob names sase-core/**, so the checkouts come first.
+
+    `9edbacd4ef` moved setup-uv ahead of both conditional sase-core
+    checkouts, so Full CI's build-core failed with `No file matched to
+    [sase-core/**/pyproject.toml]` and every downstream job skipped.
+    Every setup-uv step whose cache-dependency-glob names a path under a
+    checkout's `path:` must run after that checkout.
+    """
+    steps = _build_core()["steps"]
+
+    def _is_sase_core_checkout(step: dict) -> bool:
+        return step.get("with", {}).get("repository") == "sase-org/sase-core"
+
+    def _is_cache_setup_uv(step: dict) -> bool:
+        if step.get("uses") != "astral-sh/setup-uv@v4":
+            return False
+        glob = str(step.get("with", {}).get("cache-dependency-glob", ""))
+        return "sase-core/" in glob
+
+    checkout_indices = [
+        index for index, step in enumerate(steps) if _is_sase_core_checkout(step)
+    ]
+    setup_indices = [
+        index for index, step in enumerate(steps) if _is_cache_setup_uv(step)
+    ]
+    assert len(checkout_indices) == 2
+    assert len(setup_indices) == 1
+    setup_index = setup_indices[0]
+    for checkout_index in checkout_indices:
+        assert setup_index > checkout_index, (
+            f"setup-uv step {setup_index} must run after sase-core "
+            f"checkout step {checkout_index}"
+        )
+
+
+def test_setup_uv_runs_before_the_first_uv_use_in_each_mode() -> None:
+    """The restored ordering keeps source and published modes working.
+
+    setup-uv must still run before the first uv use: `uvx maturin` in
+    source mode and `uv run` in published mode. The source-mode sequence
+    is the steps without a published-only `if`; the published-mode
+    sequence is the steps without a source-only `if`.
+    """
+    steps = _build_core()["steps"]
+
+    setup_index = next(
+        index
+        for index, step in enumerate(steps)
+        if step.get("uses") == "astral-sh/setup-uv@v4"
+        and "sase-core/" in str(step.get("with", {}).get("cache-dependency-glob", ""))
+    )
+
+    def _runs_in_mode(step: dict, mode: str) -> bool:
+        condition = str(step.get("if", ""))
+        if mode == "source":
+            return "inputs.core-source == 'published'" not in condition
+        return "inputs.core-source == 'source'" not in condition
+
+    for mode, needle in (("source", "uvx maturin"), ("published", "uv run")):
+        first_use = next(
+            index
+            for index, step in enumerate(steps)
+            if _runs_in_mode(step, mode) and needle in str(step.get("run", ""))
+        )
+        assert setup_index < first_use, (
+            f"setup-uv step {setup_index} must run before the first "
+            f"{needle} use at step {first_use} in {mode} mode"
+        )
+
+
 def test_artifact_shape_still_matches_what_setup_sase_consumes() -> None:
     upload = next(
         step

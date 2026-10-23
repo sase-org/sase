@@ -104,6 +104,7 @@ jobs:
       - name: Reconcile release metadata
         if: ${{ steps.check_branch.outputs.exists == 'true' }}
         env:
+          GH_TOKEN: ${{ secrets.SASE_RELEASE_TOKEN }}
           UV_DEFAULT_INDEX: https://pypi.org/simple/
         run: |
           set -euo pipefail
