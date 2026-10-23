@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Mapping
 from typing import Any, Literal
 
@@ -19,6 +20,8 @@ from sase.notification_gates.models import GateError
 from sase.sudo.finalize_notifications import dismiss_sudo_finalize_failed
 from sase.sudo.gate import APPROVE_OPTION_ID
 from sase.sudo.receipt import fit_sudo_receipt_for_settlement, validate_sudo_receipt
+
+log = logging.getLogger(__name__)
 
 
 def _reject_non_terminal_auth(receipt: Mapping[str, Any]) -> None:
@@ -69,17 +72,33 @@ def sudo_shells(*, project: str | None) -> list[GateTurnRecord]:
     return [row for row in list_gate_turns(project=project) if row.kind == "sudo"]
 
 
-def settle_shell(gate_id: str, *, retry: Literal["resume", "restart"] | None) -> None:
+def settle_shell(
+    gate_id: str,
+    *,
+    retry: Literal["resume", "restart"] | None,
+) -> Literal["settled", "deferred", "absent"]:
     """Settle the sudo gate turn after a durable answer."""
     gate_turn = find_gate_turn_by_gate_id(None, gate_id)
     if gate_turn is None:
-        return
-    settle_gate_turn(
-        gate_turn,
-        gate_state="answered",
-        reason="sudo gate answered",
-        resume=retry == "resume",
-    )
+        return "absent"
+    try:
+        settle_gate_turn(
+            gate_turn,
+            gate_state="answered",
+            reason="sudo gate answered",
+            wait_out_contention=True,
+            resume=retry == "resume",
+        )
+    except GateError as exc:
+        if exc.code != "lock_timeout":
+            raise
+        log.warning(
+            "Deferring sudo gate %s shell settlement after lock contention: %s",
+            gate_id,
+            exc,
+        )
+        return "deferred"
+    return "settled"
 
 
 def apply_approved_receipt(
@@ -118,13 +137,14 @@ def apply_approved_receipt(
         },
         sudo_headless_authorization=settlement_authorization,
     )
-    settle_shell(bundle.request_id, retry=retry)
+    settlement = settle_shell(bundle.request_id, retry=retry)
     dismiss_sudo_finalize_failed(request_id=bundle.request_id, bundle_path=bundle.root)
     return answer_payload(
         bundle.kind,
         bundle.request_id,
         execution.response,
         selected_command_ids=selected_command_ids,
+        settlement=settlement,
     )
 
 
@@ -134,10 +154,11 @@ def answer_payload(
     response: Mapping[str, Any],
     *,
     selected_command_ids: tuple[str, ...] = (),
+    settlement: Literal["settled", "deferred", "absent"] | None = None,
 ) -> dict[str, Any]:
     """Return the stable answered-gate projection."""
     option_results = response.get("option_results", [])
-    return {
+    payload = {
         "kind": kind,
         "request_id": gate_id,
         "selected_option_ids": list(response.get("selected_option_ids", [])),
@@ -146,6 +167,9 @@ def answer_payload(
         "outcome": _response_outcome(option_results),
         "status": "answered",
     }
+    if settlement is not None:
+        payload["settlement"] = settlement
+    return payload
 
 
 def error_payload(gate_id: str, exc: GateError) -> dict[str, Any]:
@@ -235,7 +259,10 @@ def print_answer(payload: Mapping[str, Any]) -> None:
         )
         return
     selected = ", ".join(str(item) for item in payload.get("selected_option_ids", []))
-    print(f"Sudo gate {payload['request_id']} answered: {selected}")
+    line = f"Sudo gate {payload['request_id']} answered: {selected}"
+    if payload.get("settlement") == "deferred":
+        line += " (shell settlement deferred to gate reclaim)"
+    print(line)
 
 
 __all__ = [

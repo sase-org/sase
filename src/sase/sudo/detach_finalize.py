@@ -72,7 +72,12 @@ def finalize(args: argparse.Namespace) -> int:
     emit_operation_result(
         operation=SUDO_FINALIZE,
         success=True,
-        message=f"Sudo gate {payload.get('request_id', gate_id)} answered",
+        message=(
+            f"Sudo gate {payload.get('request_id', gate_id)} answered; "
+            "shell settlement deferred"
+            if payload.get("settlement") == "deferred"
+            else f"Sudo gate {payload.get('request_id', gate_id)} answered"
+        ),
         payload=payload,
         args=args,
     )
@@ -212,7 +217,7 @@ def _finalize_existing_response(
             or ()
         )
     )
-    settle_shell(bundle.request_id, retry=retry)
+    settlement = settle_shell(bundle.request_id, retry=retry)
     if state is not None:
         with execution_lock(bundle.root):
             write_execution_state(bundle.root, replace(state, startup_state="settled"))
@@ -222,7 +227,11 @@ def _finalize_existing_response(
             remote=_finalize_remote_from_state(state, payload),
         )
     return answer_payload(
-        bundle.kind, bundle.request_id, response, selected_command_ids=selected
+        bundle.kind,
+        bundle.request_id,
+        response,
+        selected_command_ids=selected,
+        settlement=settlement,
     )
 
 

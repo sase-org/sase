@@ -168,6 +168,7 @@ def settle_gate_turn(
     gate_state: GateTurnState,
     reason: str | None = None,
     creator_live: bool = False,
+    wait_out_contention: bool = False,
     resume: bool = False,
 ) -> GateTurnRecord:
     """Settle a gate-turn member into ``gate_state``.
@@ -186,11 +187,15 @@ def settle_gate_turn(
 
     ``resume=True`` recovers an already-answered shell whose requested coder
     handoff never completed. Approval and archive receipts stay as they are.
+
+    ``wait_out_contention=True`` is for callers settling after the answer is
+    durable and selected commands may already have produced side effects. It
+    gives another legitimate settler time to finish its follow-up launch.
     """
     artifacts_dir = record.artifacts_dir
     timeout = (
         CREATOR_LIVE_FOLLOWUP_LOCK_TIMEOUT_SECONDS
-        if creator_live
+        if creator_live or wait_out_contention
         else FOLLOWUP_LOCK_TIMEOUT_SECONDS
     )
     with with_gate_followup_lock(artifacts_dir, timeout=timeout):

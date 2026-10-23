@@ -206,6 +206,8 @@ approval always requires a controlling terminal.
 With `--json`, a failed answer prints `status: "pending"` plus an `outcome` of
 `authentication_failed`, `cancellation`, `timeout`, `lock_contention`, `missing_tty`, or
 `runner_error`. It exits `2` for the first five outcomes and `1` for `runner_error`.
+Successful answer JSON may include the additive `settlement` field with `settled`,
+`deferred`, or `absent` when SASE settles the shell after recording the answer.
 
 Only one sudo authentication handoff runs at a time on a host. A second attempt fails
 immediately and names the request, user, and process that hold the lease. The runner
@@ -282,8 +284,12 @@ sase sudo show <id>
 
 If a detached finalize proc fails after the runner has already written a ledger, SASE
 publishes one `ViewErrorReport` notification for that gate. The note says whether the
-commands already ran and how to recover. Repeated failures update the same row; a later
-successful approval or denial dismisses it.
+commands already ran and how to recover. Once the answer is recorded, contention with a
+concurrent gate settler is waited out and, if it persists, deferred to gate reclaim
+rather than reported as a failure. If another post-answer failure still needs a
+notification, it points to resuming the answered shell handoff and never to rerunning
+the commands. Repeated failures update the same row; a later successful approval or
+denial dismisses it.
 
 If approval fails because authentication was cancelled, a password attempt failed, a
 timeout occurred, no TTY was available, another handoff held the lease, or the runner

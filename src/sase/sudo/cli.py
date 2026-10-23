@@ -410,9 +410,11 @@ def _deny(
         source="sudo_cli",
         retry=retry,
     )
-    settle_shell(gate_id, retry=retry)
+    settlement = settle_shell(gate_id, retry=retry)
     dismiss_sudo_finalize_failed(request_id=gate_id, bundle_path=bundle.root)
-    return answer_payload(bundle.kind, gate_id, execution.response)
+    return answer_payload(
+        bundle.kind, gate_id, execution.response, settlement=settlement
+    )
 
 
 def _retire_pre_start_attempt(bundle_root: Path) -> None:

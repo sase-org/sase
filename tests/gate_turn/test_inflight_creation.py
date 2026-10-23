@@ -83,11 +83,11 @@ def test_reclaim_does_not_settle_an_auto_gate_while_it_executes(
     assert creation.record.gate_state == "answered"
 
 
-def test_settle_gate_turn_uses_a_longer_lock_timeout_for_live_creators(
+def test_settle_gate_turn_can_wait_out_followup_lock_contention(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A live creator waits out follow-up lock contention; others keep 5s."""
+    """Creator-live and post-answer settles wait longer; others keep 5s."""
     assert CREATOR_LIVE_FOLLOWUP_LOCK_TIMEOUT_SECONDS == 60.0
     assert FOLLOWUP_LOCK_TIMEOUT_SECONDS == 5.0
     captured: list[tuple[str, float | None]] = []
@@ -107,9 +107,16 @@ def test_settle_gate_turn_uses_a_longer_lock_timeout_for_live_creators(
     settlement_module.settle_gate_turn(
         record, gate_state="answered", reason="auto", creator_live=True
     )
+    settlement_module.settle_gate_turn(
+        record, gate_state="answered", reason="post-answer", wait_out_contention=True
+    )
     settlement_module.settle_gate_turn(record, gate_state="answered", reason="manual")
 
     assert captured == [
+        (
+            record.artifacts_dir,
+            CREATOR_LIVE_FOLLOWUP_LOCK_TIMEOUT_SECONDS,
+        ),
         (
             record.artifacts_dir,
             CREATOR_LIVE_FOLLOWUP_LOCK_TIMEOUT_SECONDS,

@@ -216,6 +216,7 @@ def _answer(args: argparse.Namespace) -> dict[str, Any]:
                 gate_turn,
                 gate_state="answered",
                 reason="gate answered",
+                wait_out_contention=True,
                 resume=retry == "resume",
             ),
         )

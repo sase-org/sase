@@ -99,6 +99,7 @@ def resume_answered_shell(
             gate_turn,
             gate_state="answered",
             reason="gate answered",
+            wait_out_contention=True,
             resume=True,
         ),
     )

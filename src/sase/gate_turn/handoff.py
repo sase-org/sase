@@ -49,9 +49,10 @@ ERROR_MESSAGE_FIELD = "gate_followup_error_message"
 RECONCILE_CURSOR_NAME = ".gate_handoff_reconcile.json"
 RECONCILE_BATCH_SIZE = 32
 FOLLOWUP_LOCK_TIMEOUT_SECONDS = 5.0
-#: A creator-live settlement runs in the agent runner after the gate's
-#: selected commands may already have produced irreversible side effects,
-#: so it waits out benign contention instead of failing the run on it.
+#: Creator-live and post-answer settlements can run after selected commands
+#: produced irreversible side effects, so they wait out benign contention
+#: instead of failing a completed answer. Detached sudo finalize is one such
+#: post-answer caller.
 CREATOR_LIVE_FOLLOWUP_LOCK_TIMEOUT_SECONDS = 60.0
 
 

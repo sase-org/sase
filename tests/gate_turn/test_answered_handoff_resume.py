@@ -10,6 +10,7 @@ import pytest
 
 from sase.gate_turn.settlement import settle_gate_turn
 from sase.gate_turn.store import read_gate_turn_marker
+from sase.main.gate_handler import handle_gate_command
 from sase.notification_gates.cli_answer_resume import resume_answered_shell
 from sase.notification_gates.cli_support import GateCliError
 from sase.notification_gates.decision import read_current_receipt, receipt_acceptance_id
@@ -23,6 +24,7 @@ from tests.gate_turn._settlement_followup_helpers import (
     make_gate_turn_member,
     sandbox_home,
 )
+from tests.main.parser_cli_helpers import parse_sase_args
 
 __all__ = ["sandbox_home"]
 
@@ -99,6 +101,16 @@ def test_answered_resume_after_success_reports_the_successor(
         "sase.notification_gates.cli_answer_resume.find_gate_turn_by_gate_id",
         lambda *a, **k: record,
     )
+    settle_kwargs: list[dict[str, object]] = []
+
+    def recording_settle(gate_record: Any, **kwargs: Any) -> Any:
+        settle_kwargs.append(dict(kwargs))
+        return settle_gate_turn(gate_record, **kwargs)
+
+    monkeypatch.setattr(
+        "sase.notification_gates.cli_answer_resume.settle_gate_turn",
+        recording_settle,
+    )
 
     payload = resume_answered_shell(
         _bundle(request_id),
@@ -111,8 +123,45 @@ def test_answered_resume_after_success_reports_the_successor(
     assert payload["handoff_resumed"] is True
     assert payload["followup_agent"] == "lane--1"
     assert payload["already_answered"] is True
+    assert settle_kwargs[0]["wait_out_contention"] is True
     meta = json.loads((Path(artifacts_dir) / "agent_meta.json").read_text())
     assert meta["gate_followup_outcome"] == "launched"
+
+
+def test_fresh_gate_cli_answer_waits_out_followup_lock_contention(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request_id = "fresh-answer-contention"
+    gate = create_gate(gate_spec(request_id, turn=DEFAULT_TURN))
+    make_gate_turn_member(request_id, gate.bundle_path, turn=DEFAULT_TURN)
+    settle_kwargs: list[dict[str, object]] = []
+
+    def recording_settle(gate_record: Any, **kwargs: Any) -> Any:
+        settle_kwargs.append(dict(kwargs))
+        return gate_record
+
+    monkeypatch.setattr(
+        "sase.notification_gates.cli_answer_handle.settle_gate_turn",
+        recording_settle,
+    )
+    args = parse_sase_args(
+        [
+            "gate",
+            "answer",
+            "--id",
+            request_id,
+            "--kind",
+            "custom",
+            "--option",
+            "cleanup",
+            "--no-detach",
+        ]
+    )
+    with pytest.raises(SystemExit) as exit_info:
+        handle_gate_command(args)
+
+    assert exit_info.value.code == 0
+    assert settle_kwargs[0]["wait_out_contention"] is True
 
 
 def test_answered_resume_reruns_side_effects_then_tracks_the_follow_up_stage(

@@ -11,6 +11,7 @@ from uuid import NAMESPACE_URL, uuid5
 
 from sase.core.time import get_timezone
 from sase.notification_gates.models import GateError
+from sase.notification_gates.paths import RESPONSE_FILENAME
 from sase.notifications.models import Notification, normalize_notification_tags
 from sase.procs.logs import proc_log_path
 from sase.sudo.execution_state import SudoExecutionState
@@ -36,14 +37,22 @@ def publish_sudo_finalize_failed(
     request_id = state.gate_id if state is not None else bundle_root.name
     lane = _lane(state)
     error_path = _error_report_path(bundle_root, state=state, error_record=error_record)
+    if (bundle_root / RESPONSE_FILENAME).exists():
+        recovery_note = (
+            "Recovery: the answer is recorded; do not rerun the commands. Resume the "
+            f"answered shell handoff with `sase gate answer --kind sudo --id "
+            f"{request_id} --option approve --resume`."
+        )
+    else:
+        recovery_note = (
+            f"Recovery: sase sudo answer {request_id} --run reruns the selected "
+            "commands, --command <id> selects a subset, and --deny denies."
+        )
     notes = [
         f"Sudo finalize failed: sudo/{request_id} ({lane})",
         f"{exc.code}: {exc}",
         _commands_ran_note(receipt),
-        (
-            f"Recovery: sase sudo answer {request_id} --run reruns the selected "
-            "commands, --command <id> selects a subset, and --deny denies."
-        ),
+        recovery_note,
     ]
     files = [str(error_path)] if error_path is not None and error_path.exists() else []
     action_data = {
