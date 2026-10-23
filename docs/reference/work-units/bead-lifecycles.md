@@ -1,6 +1,7 @@
 ---
 title: Bead lifecycles
-description: The status transitions for SASE beads, flag beads, and bead claims.
+description:
+  The status transitions for SASE beads, flag beads, bead claims, and stranded work.
 ---
 
 # Bead lifecycles
@@ -186,6 +187,24 @@ Task-bead launches use the same strong checkpoint principle for one worker:
 sets it to `in_progress`, commits that state, synchronizes it unless `--no-push` was
 requested, and only then spawns the worker. A task launched through this path therefore
 does not pass through the advisory `claimed` state.
+
+## Stranded beads
+
+A bead is stranded when it is `in_progress` and nothing will resume it: no live session
+member, no pending monitor, gate, handoff, or recovery, and no launched child epic still
+working. Standalone `in_progress` task beads are included. ACE names this state ⚐
+STRANDED.
+
+Classifier states are `owned`, `delegated`, `settling` (a 120s grace after a turn ends),
+`stranded`, `blocked` (an ancestor waiting on a stranded leaf), and `unknown` (the
+collector could not read the session).
+
+Stranded causes, first match wins: `followup_failed`, `failed`, `stopped`, `lost`,
+`child_landed`, `close_failed`, `kept`, `unclosed`.
+
+Remedies: fork the last turn with `%id(bead=<id>) #fork:<turn>`, or close the bead with
+`sase bead close <id> --note "…"`. `sase doctor` reports stranded beads on the
+`project.beads` check.
 
 ## Related
 

@@ -290,7 +290,7 @@
 - [Bead CLI queries](reference/work-units/bead-cli-query.md) — Commands for listing, searching, and checking SASE bead records.
 - [Bead CLI records](reference/work-units/bead-cli-records.md) — Commands for creating, updating, closing, and synchronizing bead records.
 - [Bead CLI](reference/work-units/bead-cli.md) — An overview of the commands for reading and managing SASE beads.
-- [Bead lifecycles](reference/work-units/bead-lifecycles.md) — The status transitions for SASE beads, flag beads, and bead claims.
+- [Bead lifecycles](reference/work-units/bead-lifecycles.md) — The status transitions for SASE beads, flag beads, bead claims, and stranded work.
 - [Bead mirroring](reference/work-units/bead-mirroring.md) — How SASE beads can mirror issues from an external tracker.
 - [Bead pages](reference/work-units/bead-pages.md) — The generated pages that present bead records and their relationships.
 - [Bead storage](reference/work-units/bead-storage.md) — The bead store layout, event log, synchronization, and checkout source of truth.

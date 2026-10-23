@@ -455,6 +455,9 @@ _lint-patch-stitch-terminology: _setup
 # facades; sase-1nf.10.1.3 (drain-accounting) consumes them in commit drains
 # through the typed selection and accounting facades, so these rows are
 # dropped.
+# sase-1no.2 exported STRANDED_LEAF_STYLE / STRANDED_BREADCRUMB_STYLE as
+# module constants (not public defs, so they cannot be --epic-symbol rows)
+# for sase-1no.3, and blocked_sentence for sase-1no.4.
 # Never put a comment
 # line inside the continued command below: just joins the lines, so the comment
 # would swallow every later argument.
@@ -462,6 +465,7 @@ _lint-symvision *args: _setup
     SASE_SYMVISION_BEAD_STATUS_ONLY=1 BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase \
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
+        --epic-symbol 'sase-1no.4(blocked_sentence)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

@@ -10,6 +10,13 @@ from typing import TYPE_CHECKING, Any
 from sase.agent.names import is_process_alive
 from sase.bead.project import BEADS_DIRNAME, BEADS_DIRNAME_NON_VC
 from sase.bead.model import Issue, Status
+from sase.bead.stranded import StrandedReport, load_stranded_report
+from sase.bead.stranded_presentation import (
+    STRANDED_GLYPH,
+    STRANDED_WORD,
+    stranded_age_label,
+    stranded_cause_sentence,
+)
 from sase.bead.sync import bead_state_is_clean
 from sase.bead_status_presentation import bead_status_display_order
 from sase.core import bead_read_facade as rust_beads
@@ -329,7 +336,9 @@ def _check_project_beads(context: DoctorContext) -> DiagnosticCheck:
         )
 
     messages = rust_beads.doctor(beads_dir)
-    advisories = _store_advisories(beads_dir, context.sase_home / "projects")
+    advisories = _store_advisories(
+        beads_dir, context.sase_home / "projects", context.project
+    )
     if advisories:
         if len(messages) == 1 and messages[0].strip().upper().startswith("OK:"):
             messages = []
@@ -365,36 +374,84 @@ def _check_project_beads(context: DoctorContext) -> DiagnosticCheck:
     )
 
 
-def _store_advisories(beads_dir: Path, projects_root: Path) -> list[str]:
+def _store_advisories(
+    beads_dir: Path, projects_root: Path, project: str | None
+) -> list[str]:
     """Return read-only advisories about state no other layer reconciles.
 
     Nothing here ever mutates. Claim promotion is documented as permanent, and
     a dependency edge whose target was removed can only be repaired by hand.
+    Stranded ``in_progress`` beads are classified through the shared
+    stranded-work report rather than the claim-owner scan.
     """
+    messages: list[str] = []
     try:
         issues = rust_beads.list_issues(beads_dir)
     except Exception:  # noqa: BLE001 - advisory failure must not break doctor.
-        return []
-    if not issues:
-        return []
-    messages = _claim_advisories(issues, projects_root)
-    messages.extend(_dangling_dependency_advisories(issues))
+        issues = []
+    if issues:
+        messages.extend(_claim_advisories(issues, projects_root))
+        messages.extend(_dangling_dependency_advisories(issues))
+    messages.extend(_stranded_advisories(project))
     return messages
+
+
+def _stranded_advisories(project: str | None) -> list[str]:
+    """Return one WARNING listing stranded beads, or nothing."""
+    if not project:
+        return []
+    try:
+        loaded: StrandedReport = load_stranded_report(project)
+    except Exception:  # noqa: BLE001 - doctor stays up if the collector fails.
+        return []
+    stranded_ids = loaded.report.stranded_ids
+    if not stranded_ids:
+        return []
+    by_id = {verdict.bead_id: verdict for verdict in loaded.report.verdicts}
+    shown = stranded_ids[:_MAX_DETAIL_ROWS]
+    extra = len(stranded_ids) - len(shown)
+    parts: list[str] = []
+    for bead_id in shown:
+        verdict = by_id.get(bead_id)
+        last_turn = verdict.last_turn if verdict is not None else None
+        cause = (
+            stranded_cause_sentence(verdict)
+            if verdict is not None
+            else "nothing resumes it"
+        )
+        age = (
+            stranded_age_label(verdict.since, loaded.generated_at)
+            if verdict is not None
+            else ""
+        )
+        detail = last_turn or "no last turn"
+        age_bit = f", {age}" if age else ""
+        parts.append(f"{bead_id} ({detail}: {cause}{age_bit})")
+    listing = "; ".join(parts)
+    if extra:
+        listing += f" (+{extra} more)"
+    first = by_id.get(shown[0])
+    fork_turn = (first.last_turn if first is not None else None) or "<turn>"
+    fork_id = shown[0]
+    return [
+        "WARNING: "
+        f"{STRANDED_GLYPH} {STRANDED_WORD} beads: {listing}; "
+        f"fork the last turn with `%id(bead={fork_id}) #fork:{fork_turn}` "
+        f'or run `sase bead close {fork_id} --note "…"`'
+    ]
 
 
 def _claim_advisories(issues: list[Issue], projects_root: Path) -> list[str]:
     """Return read-only advisories about claims that disagree with agents.
 
-    Four disagreements are reported: a claimed bead whose owner has no artifact
-    anywhere, a claimed bead whose owning agent is dead, a promoted
-    ``in_progress`` bead whose runner died before closing it, and a live
+    Three disagreements are reported: a claimed bead whose owner has no
+    artifact anywhere, a claimed bead whose owning agent is dead, and a live
     pre-launch agent whose bead is still ``open`` even though the
     ``bead_claim_checks`` job should have claimed it for that agent.
     """
     claimed = [issue for issue in issues if issue.status == Status.CLAIMED]
-    in_progress = [issue for issue in issues if issue.status == Status.IN_PROGRESS]
     open_ids = {issue.id for issue in issues if issue.status == Status.OPEN}
-    if not claimed and not in_progress and not open_ids:
+    if not claimed and not open_ids:
         return []
 
     try:
@@ -417,13 +474,6 @@ def _claim_advisories(issues: list[Issue], projects_root: Path) -> list[str]:
             "WARNING: claimed beads whose owning agent is gone: "
             f"{_render_owned(stale_claims)}; run `sase bead open <id>` to "
             "release them"
-        )
-    stranded = _issues_with_dead_owner(in_progress, owners, require_promoted=True)
-    if stranded:
-        messages.append(
-            "WARNING: in_progress beads whose promoted agent is gone: "
-            f"{_render_owned(stranded)}; run `sase bead open <id>` or retry "
-            "the owning epic"
         )
     unclaimed = _live_agents_without_claims(open_ids, owners)
     if unclaimed:
@@ -486,16 +536,12 @@ def _owners_by_agent_name(snapshot: AgentArtifactScanWire) -> dict[str, _AgentOw
 def _issues_with_dead_owner(
     issues: list[Issue],
     owners: dict[str, _AgentOwner],
-    *,
-    require_promoted: bool = False,
 ) -> list[tuple[str, str]]:
     """Return ``(bead_id, agent_name)`` pairs owned by a dead agent."""
     stale: list[tuple[str, str]] = []
     for issue in issues:
         owner = owners.get(issue.assignee)
         if owner is None or owner.alive:
-            continue
-        if require_promoted and not owner.promoted:
             continue
         stale.append((issue.id, issue.assignee))
     return sorted(stale)

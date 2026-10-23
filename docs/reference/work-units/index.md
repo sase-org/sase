@@ -11,7 +11,7 @@ This hub links the records SASE uses to plan, track, review, and settle work.
 ## Beads
 
 - [Beads](beads.md) — identities, types, and the data model.
-- [Bead lifecycles](bead-lifecycles.md) — status, flag, and claim transitions.
+- [Bead lifecycles](bead-lifecycles.md) — status, flag, claim, and stranded transitions.
 - [Bead triage](bead-triage.md) — dependencies, follow-up, snoozes, and corroboration.
 - [Bead mirroring](bead-mirroring.md) — external issue mirroring.
 - [Bead artifacts](bead-artifacts.md) — artifact references on beads.

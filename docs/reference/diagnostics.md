@@ -58,7 +58,10 @@ type names, the deprecated `string` alias, and enum choice issues across macro s
 syntax. `agent_holds.stale` warns about
 [agent holds](agents/agent-holds.md#sase-agent-hold) whose armer died or whose TTL
 passed; it reconciles the hold store the same way `sase agent hold list` does, so the
-stale records it reports are pruned as a side effect.
+stale records it reports are pruned as a side effect. `project.beads` reports
+[stranded beads](work-units/bead-lifecycles.md#stranded-beads) (`in_progress` work
+nothing will resume) with the last turn, cause sentence, and age, plus fork or close
+remedies. Claimed-bead and dangling-dependency advisories stay as they are.
 
 Default exit behavior is `0` for `OK`, `WARN`, and `SKIP`, and `1` for `ERROR`. Attach
 `sase doctor -v` or `sase doctor -j` when asking for help.

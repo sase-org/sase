@@ -197,6 +197,59 @@ def load_latest_finalizer_submission(root: Path) -> Mapping[str, Any]:
     return payload
 
 
+def commit_bead_actions(
+    manifest: Mapping[str, Any] | None,
+) -> tuple[bool, list[str]]:
+    """Return ``(has_commit, bead_actions)`` for commit decisions in *manifest*.
+
+    Accepts a finalizer submission envelope (``{"submission": {...}}``), a
+    declaration with ``payloads``, or a prepare wrapper with ``declaration``.
+    ``bead_actions`` preserves first-seen order and only records ``keep``
+    and ``close``.
+    """
+
+    source = _commit_bead_actions_source(manifest)
+    payloads = source.get("payloads") if source is not None else None
+    if not isinstance(payloads, list):
+        return False, []
+    has_commit = False
+    bead_actions: list[str] = []
+    for entry in payloads:
+        payload = entry.get("payload") if isinstance(entry, Mapping) else None
+        if not isinstance(payload, Mapping):
+            continue
+        repositories = payload.get("repositories")
+        if not isinstance(repositories, list):
+            continue
+        for decision in repositories:
+            if not isinstance(decision, Mapping):
+                continue
+            if decision.get("action") != "commit":
+                continue
+            has_commit = True
+            bead_action = decision.get("bead_action")
+            if isinstance(bead_action, str) and bead_action in {"keep", "close"}:
+                if bead_action not in bead_actions:
+                    bead_actions.append(bead_action)
+    return has_commit, bead_actions
+
+
+def _commit_bead_actions_source(
+    manifest: Mapping[str, Any] | None,
+) -> Mapping[str, Any] | None:
+    if not isinstance(manifest, Mapping):
+        return None
+    if "payloads" in manifest:
+        return manifest
+    submission = manifest.get("submission")
+    if isinstance(submission, Mapping) and "payloads" in submission:
+        return submission
+    declaration = manifest.get("declaration")
+    if isinstance(declaration, Mapping):
+        return declaration
+    return manifest
+
+
 def normalize_submission_envelope(manifest: Mapping[str, Any]) -> dict[str, Any]:
     raw: Any = manifest.get("submission") if "submission" in manifest else manifest
     if not isinstance(raw, Mapping):

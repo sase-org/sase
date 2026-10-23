@@ -57,6 +57,10 @@ This page has moved. See [Work units](reference/work-units/index.md).
 
 - [Bead claim lifecycle](reference/work-units/bead-lifecycles.md#bead-claim-lifecycle)
 
+<a id="stranded-beads"></a>
+
+- [Stranded beads](reference/work-units/bead-lifecycles.md#stranded-beads)
+
 <a id="standalone-task-workflow"></a>
 
 - [Standalone task workflow](reference/work-units/bead-triage.md#standalone-task-workflow)

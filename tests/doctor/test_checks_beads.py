@@ -7,6 +7,9 @@ import os
 from pathlib import Path
 
 from sase.bead.model import Dependency, Issue, Status
+from sase.bead.stranded import StrandedReport
+from sase.bead.stranded_presentation import STRANDED_GLYPH, STRANDED_WORD
+from sase.core.stranded_work_facade import StrandedWorkReport, StrandedWorkVerdict
 from sase.core.agent_scan_wire import (
     AgentArtifactRecordWire,
     AgentArtifactScanOptionsWire,
@@ -20,10 +23,10 @@ from sase.task_types import TaskTypeDiagnostic, TaskTypeRegistry
 from tests.sdd_policy_helpers import set_sdd_policy
 
 
-def _context(tmp_path: Path) -> DoctorContext:
+def _context(tmp_path: Path, project: str | None = None) -> DoctorContext:
     return DoctorContext(
         cwd=tmp_path,
-        project=None,
+        project=project,
         sase_home=tmp_path / ".sase",
     )
 
@@ -448,7 +451,7 @@ def test_project_beads_warns_about_claim_whose_owner_died(
     assert "sase-1.1 (sase-1.1)" in check.details[0]
 
 
-def test_project_beads_warns_about_promoted_owner_that_died_in_progress(
+def test_project_beads_does_not_use_the_old_in_progress_gone_warning(
     monkeypatch,
     tmp_path: Path,
 ) -> None:
@@ -476,9 +479,73 @@ def test_project_beads_warns_about_promoted_owner_that_died_in_progress(
 
     check = _check_project_beads(_context(tmp_path))
 
+    assert check.status == "OK"
+    assert all(
+        "in_progress beads whose promoted agent is gone" not in message
+        for message in check.details
+    )
+
+
+def test_project_beads_warns_about_stranded_beads(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "sdd" / "beads").mkdir(parents=True)
+    _stub_issues(
+        monkeypatch,
+        [
+            Issue(
+                id="sase-1.2",
+                title="Stranded phase",
+                status=Status.IN_PROGRESS,
+                parent_id="sase-1",
+                assignee="sase-1.2",
+            )
+        ],
+    )
+    _stub_agent_scan(
+        monkeypatch,
+        tmp_path,
+        agent_name="sase-1.2",
+        bead_id="sase-1.2",
+        agent_meta={},
+        pid=None,
+    )
+    now = 1_700_000_000.0
+    loaded = StrandedReport(
+        report=StrandedWorkReport(
+            schema_version=1,
+            verdicts=(
+                StrandedWorkVerdict(
+                    bead_id="sase-1.2",
+                    kind="phase",
+                    state="stranded",
+                    reason="kept",
+                    session="sase-1.2",
+                    last_turn="sase-1.2",
+                    since=now - 23 * 3600,
+                ),
+            ),
+            stranded_ids=("sase-1.2",),
+        ),
+        titles={"sase-1.2": "Stranded phase"},
+        generated_at=now,
+    )
+    monkeypatch.setattr(
+        "sase.doctor.checks_beads.load_stranded_report",
+        lambda _project, now=None: loaded,
+    )
+
+    check = _check_project_beads(_context(tmp_path, project="demo"))
+
     assert check.status == "WARN"
-    assert "in_progress beads whose promoted agent is gone" in check.details[0]
-    assert "retry" in check.details[0]
+    detail = check.details[0]
+    assert f"{STRANDED_GLYPH} {STRANDED_WORD}" in detail
+    assert "sase-1.2" in detail
+    assert "ended with bead_action keep; nothing resumes it" in detail
+    assert "23h" in detail
+    assert "%id(bead=sase-1.2) #fork:sase-1.2" in detail
+    assert 'sase bead close sase-1.2 --note "…"' in detail
 
 
 def test_project_beads_stays_silent_for_a_live_in_progress_owner(
