@@ -40,11 +40,16 @@ _MAX_ELAPSED_SECONDS = 5.0
 # 2026-10-21 merge-base now measures 3526 with no sase.* module growth
 # (stdlib/dependency; ``tools/tui_import_closure --diff`` vs
 # origin/master), so the cap is 3527.
-# 2026-10-24 merge-base now measures 3536 with no sase.* module growth
-# (stdlib/dependency; ``tools/tui_import_closure --diff`` vs
-# origin/master). ``_agent_enter_stranded`` is lazy-imported from
-# ``_agent_enter_resolver`` so this phase adds no first-paint sase.*
-# module. The cap is 3537.
+# 2026-10-24: pre-epic base 62c5934eb6 measured 3529, already over the
+# 3527 cap (tracked by sase-1ic). Epic sase-1no added five first-paint
+# ``sase.*`` modules: ``sase.ace.tui.models.agent_stranded``,
+# ``sase.ace.tui.widgets.artifacts.beads_stranded``,
+# ``sase.ace.tui.widgets.artifacts.beads_stranded_refresh``,
+# ``sase.bead.stranded_presentation``, and
+# ``sase.core.stranded_work_facade``. The a2a38005df
+# declaration_manifest split added ``sase.finalizers.declaration_manifest_commit``
+# and ``sase.finalizers.declaration_manifest_io``. Master measured 3536,
+# so the cap is 3537.
 _MAX_MODULE_COUNT = 3537
 
 

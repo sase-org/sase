@@ -435,7 +435,7 @@ def _stranded_header_callout(agent: Agent) -> Text | None:
         line.append("blocked", style=STRANDED_BREADCRUMB_STYLE)
         if age:
             line.append(f" {age}", style=STRANDED_BREADCRUMB_STYLE)
-        sentence = blocked_sentence(verdict)
+        sentence = blocked_sentence(verdict).removeprefix("blocked ").lstrip()
         if sentence:
             line.append(f" {sentence}", style=STRANDED_BREADCRUMB_STYLE)
     line.append(" · ⏎ resolve", style=style)

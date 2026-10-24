@@ -61,6 +61,29 @@ def test_bead_wait_lane_replaces_status_with_stranded_age() -> None:
     assert "◐" not in rendered
 
 
+def test_bead_wait_lane_blocked_uses_blocked_sentence() -> None:
+    agent = make_agent(
+        agent_name="sase-demo.land",
+        project_file="/tmp/demo/demo.sase",
+        status="WAITING",
+        waiting_for_beads=["sase-demo.2"],
+    )
+    _set_report(_verdict("sase-demo.2", "blocked"))
+
+    lanes = build_wait_lanes(
+        agent,
+        agent_status_buckets={},
+        clan_wait_member_statuses=None,
+        tribe_wait_bindings=None,
+        wait_bead_statuses=(("sase-demo.2", "in_progress"),),
+    )
+    rendered = ResponsiveWaitSection(lanes).logical_text.plain
+
+    assert "[beads] sase-demo.2 ⚐ blocked by stranded sase-demo.1" in rendered
+    assert "1h" not in rendered.split("[beads]", 1)[1]
+    assert "◐" not in rendered
+
+
 def test_stranded_transition_toast_uses_quiet_first_baseline() -> None:
     _stranded_toasts._SEEN_LEAVES.clear()
     _set_report()

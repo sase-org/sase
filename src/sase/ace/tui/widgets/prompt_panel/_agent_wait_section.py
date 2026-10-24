@@ -383,10 +383,10 @@ def build_wait_lanes(
                     value.append(f" {STRANDED_GLYPH} ", style=style)
                     if verdict.state == "stranded":
                         value.append("stranded", style=STRANDED_LEAF_STYLE)
-                    if report is not None:
-                        age = stranded_age_label(verdict.since, report.generated_at)
-                        if age:
-                            value.append(f" {age}", style=STRANDED_LEAF_STYLE)
+                        if report is not None:
+                            age = stranded_age_label(verdict.since, report.generated_at)
+                            if age:
+                                value.append(f" {age}", style=STRANDED_LEAF_STYLE)
                     else:
                         value.append(blocked_sentence(verdict), style=style)
                 else:

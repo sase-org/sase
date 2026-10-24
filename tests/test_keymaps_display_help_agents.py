@@ -150,7 +150,11 @@ def test_agents_help_documents_two_domain_wait_badges() -> None:
     assert badges["?1 ?2"] == "Unknown agent + bead"
     assert badges["?N"] == "Unknown agent or bead"
     assert badges["[beads] id ◐"] == "Bead wait target status"
+    assert badges["⚐"] == "Waits on stranded work (bold) or a blocked bead (dim)"
+    assert badges["⚐N"] == "Stranded/blocked bead targets in a count"
     assert "beads: id ✓" not in badges
+    waves = dict(sections["Clan Waves"])
+    assert waves["▲"] == "Stranded or blocked member needs you"
 
 
 def test_agents_help_documents_inline_metadata_search() -> None:

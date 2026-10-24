@@ -34,8 +34,10 @@ class _AgentStrandedView:
 
     verdict: StrandedWorkVerdict | None = None
     waiting_on: tuple[tuple[str, str], ...] = ()
+    waiting_on_agents: tuple[tuple[str, str], ...] = ()
     clan_stranded_ids: tuple[str, ...] = ()
     clan_stranded_member_keys: tuple[str, ...] = ()
+    clan_leaf_direct: bool = False
 
     @property
     def signature(self) -> tuple[object, ...]:
@@ -51,8 +53,10 @@ class _AgentStrandedView:
                 verdict.blocked_by,
             ),
             self.waiting_on,
+            self.waiting_on_agents,
             self.clan_stranded_ids,
             self.clan_stranded_member_keys,
+            self.clan_leaf_direct,
         )
 
 
@@ -220,6 +224,7 @@ def _report_projection(report: StrandedWorkReport) -> tuple[tuple[object, ...], 
             verdict.state,
             verdict.reason,
             verdict.blocked_by,
+            verdict.parent_id,
         )
         for verdict in report.verdicts
     )
@@ -299,6 +304,28 @@ def _clan_wave_member_key(agent: Agent) -> str:
     )
 
 
+def _clan_epic_id(agent: Agent) -> str | None:
+    """Return the epic bead ID a clan container is named after."""
+    clan = getattr(agent, "agent_clan", None)
+    if isinstance(clan, str) and clan.strip():
+        return clan.strip()
+    name = getattr(agent, "presented_agent_name", None)
+    if isinstance(name, str) and name.strip():
+        return name.strip()
+    return None
+
+
+def _flagged_wait_target(
+    bead_id: str | None, verdicts: dict[str, StrandedWorkVerdict]
+) -> tuple[str, str] | None:
+    if not bead_id:
+        return None
+    target = verdicts.get(bead_id)
+    if target is None or target.state not in {"stranded", "blocked"}:
+        return None
+    return (target.bead_id, target.state)
+
+
 def agent_stranded_view(agent: Agent) -> _AgentStrandedView:
     """Build row overlays from warm reports without filesystem access."""
     from .agent_time import wait_display_agent
@@ -306,35 +333,69 @@ def agent_stranded_view(agent: Agent) -> _AgentStrandedView:
     verdict = _stranded_verdict_for_agent(agent)
     wait_agent = wait_display_agent(agent)
     waiting_on: list[tuple[str, str]] = []
+    waiting_on_agents: list[tuple[str, str]] = []
     wait_project = stranded_project_key_for_agent(
         wait_agent
     ) or stranded_project_key_for_agent(agent)
     wait_verdicts = _verdict_index(wait_project)
     for bead_id in getattr(wait_agent, "waiting_for_beads", ()):
-        target = wait_verdicts.get(bead_id)
-        if target is not None and target.state in {"stranded", "blocked"}:
-            waiting_on.append((bead_id, target.state))
+        flagged = _flagged_wait_target(bead_id, wait_verdicts)
+        if flagged is not None:
+            waiting_on.append(flagged)
+    for name in getattr(wait_agent, "waiting_for", ()):
+        flagged = _flagged_wait_target(
+            derive_agent_bead_id_from_name(name), wait_verdicts
+        )
+        if flagged is not None:
+            waiting_on_agents.append(flagged)
 
     clan_stranded: set[str] = set()
     clan_member_keys: set[str] = set()
+    clan_leaf_direct = False
     if getattr(agent, "is_clan_container", False):
         from ._agent_clan import clan_members
 
-        for member in clan_members(agent):
+        members = clan_members(agent)
+        project_key = stranded_project_key_for_agent(agent)
+        if project_key is None:
+            for member in members:
+                project_key = stranded_project_key_for_agent(member)
+                if project_key is not None:
+                    break
+        verdicts = _verdict_index(project_key)
+        epic_id = _clan_epic_id(agent)
+        epic_verdict = verdicts.get(epic_id) if epic_id else None
+        if epic_verdict is not None:
+            if epic_verdict.state == "stranded":
+                clan_stranded.add(epic_verdict.bead_id)
+            clan_stranded.update(epic_verdict.blocked_by)
+        for member in members:
             member_bead_id = _agent_bead_id_for_stranded(member)
             member_verdict = _verdict_index(stranded_project_key_for_agent(member)).get(
                 member_bead_id or ""
             )
-            if member_verdict is None or member_verdict.state != "stranded":
+            if member_verdict is None:
                 continue
-            clan_stranded.add(member_verdict.bead_id)
-            clan_member_keys.add(_clan_wave_member_key(member))
+            if member_verdict.state == "stranded":
+                clan_stranded.add(member_verdict.bead_id)
+            if member_verdict.state in {"stranded", "blocked"}:
+                clan_member_keys.add(_clan_wave_member_key(member))
+        if epic_verdict is not None and epic_verdict.state == "stranded":
+            clan_leaf_direct = True
+        elif epic_id:
+            clan_leaf_direct = any(
+                (leaf := verdicts.get(leaf_id)) is not None
+                and leaf.parent_id == epic_id
+                for leaf_id in clan_stranded
+            )
 
     return _AgentStrandedView(
         verdict=verdict,
         waiting_on=tuple(sorted(waiting_on)),
+        waiting_on_agents=tuple(sorted(waiting_on_agents)),
         clan_stranded_ids=tuple(sorted(clan_stranded)),
         clan_stranded_member_keys=tuple(sorted(clan_member_keys)),
+        clan_leaf_direct=clan_leaf_direct,
     )
 
 

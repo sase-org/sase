@@ -44,8 +44,9 @@ badges instead of verbose text:
 | ---- | ------- |
 | `⚐` | A stranded bead; its done agent row displays `STRANDED` with a bold amber flag. |
 | `⚐` | A dim amber breadcrumb on a blocked ancestor or a row waiting on stranded work. |
-| `⚐N` | A dim amber count of stranded beads represented by a clan row. |
-| `▲` | A clan wave that contains stranded work folds to needs-you. |
+| `⚐N` | Distinct stranded leaves in a clan's subtree, taken from the report. Bold when a leaf is a direct phase or the epic itself; dim otherwise. |
+| `⚐` / `⚐N` | On a WAITING row, a stranded or blocked bead target swaps its status glyph for `⚐`, or a count of those targets appends `⚐N`. An agent-session target with no bead token appends a breadcrumb `⚐`. |
+| `▲` | A clan wave whose stranded or blocked member needs you. |
 
 When a stranded bead appears in a loaded project report, the Agents info strip shows
 `⚐ N stranded`. The count is zero-suppressed and covers cached reports for projects

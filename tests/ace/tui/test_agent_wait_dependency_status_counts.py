@@ -24,6 +24,10 @@ from sase.ace.tui.wait_status_presentation import (
     format_wait_dependency_summary,
     _format_wait_dependency_status_counts,
 )
+from sase.bead.stranded_presentation import (
+    STRANDED_BREADCRUMB_STYLE,
+    STRANDED_LEAF_STYLE,
+)
 from sase.bead_status_presentation import (
     bead_status_display_order,
     bead_status_presentation,
@@ -510,3 +514,36 @@ def test_single_bead_summary_falls_back_when_counts_contradict_singleton() -> No
 
     assert rendered.plain == "◐2"
     assert "sase-yz" not in rendered.plain
+
+
+def test_single_bead_summary_swaps_status_glyph_for_stranded_flag() -> None:
+    counts = WaitDependencyStatusCounts(beads=WaitBeadStatusCounts(in_progress=1))
+    rendered = format_wait_dependency_summary(
+        counts,
+        single_bead_id="sase-yz",
+        stranded_bead_states={"sase-yz": "stranded"},
+    )
+
+    assert rendered.plain == "⚐ sase-yz"
+    assert _styles_covering(rendered, "⚐") == {STRANDED_LEAF_STYLE}
+    assert format_wait_dependency_summary(counts, single_bead_id="sase-yz").plain == (
+        "◐ sase-yz"
+    )
+
+
+def test_count_summary_appends_stranded_target_token() -> None:
+    counts = WaitDependencyStatusCounts(beads=WaitBeadStatusCounts(in_progress=2))
+    rendered = format_wait_dependency_summary(
+        counts,
+        stranded_bead_states={"sase-a": "stranded", "sase-b": "blocked"},
+    )
+
+    assert rendered.plain == "◐2 ⚐2"
+    assert _styles_covering(rendered, "⚐2") == {STRANDED_LEAF_STYLE}
+    blocked_only = format_wait_dependency_summary(
+        counts,
+        stranded_bead_states={"sase-b": "blocked"},
+    )
+    assert blocked_only.plain == "◐2 ⚐1"
+    assert _styles_covering(blocked_only, "⚐1") == {STRANDED_BREADCRUMB_STYLE}
+    assert format_wait_dependency_summary(counts).plain == "◐2"

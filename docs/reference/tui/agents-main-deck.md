@@ -134,9 +134,11 @@ the preferred card.
   members and workflow step children (`bash` / `python` / `parallel`) do not get this
   heading. When the selected bead is stranded, the compact header adds an amber `⚐
   STRANDED` callout with its age, last turn, cause, and `⏎ resolve`. Blocked ancestor
-  rows get a dim amber breadcrumb naming the stranded leaf and the same resolve hint. `[beads]` wait lanes replace the ordinary
-  status marker with the same leaf or breadcrumb flag; the fully expanded clan
-  `WAVES` detail marks stranded and blocked predecessors with those flags.
+  rows get a dim amber breadcrumb of the form `⚐ blocked <age> by stranded <leaf>` and
+  the same resolve hint. `[beads]` wait lanes replace the ordinary status marker with
+  `⚐ stranded <age>` on a stranded target, or `⚐ blocked by stranded <leaf>` on a
+  blocked target (no age); the fully expanded clan `WAVES` detail marks stranded and
+  blocked predecessors with those flags.
 - **Header panel**: The selected node's identity header (every field from the kind line
   through Timestamps, plus Fold where present) renders in its own always-visible panel
   at the top of the detail column, above the deck panels in every deck layout.

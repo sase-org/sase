@@ -2,10 +2,17 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from rich.text import Text
+
+from sase.bead.stranded_presentation import (
+    STRANDED_BREADCRUMB_STYLE,
+    STRANDED_GLYPH,
+    STRANDED_LEAF_STYLE,
+)
 
 from sase.agent.status_buckets import (
     AGENT_STATUS_BUCKET_GLYPHS,
@@ -292,21 +299,53 @@ def _sole_bead_status(
     return status if count == 1 else ""
 
 
+def _stranded_wait_style(states: Mapping[str, str]) -> str:
+    """Return leaf style when any mapped target is stranded."""
+    if any(state == "stranded" for state in states.values()):
+        return STRANDED_LEAF_STYLE
+    return STRANDED_BREADCRUMB_STYLE
+
+
+def _append_stranded_wait_count(text: Text, states: Mapping[str, str]) -> None:
+    """Append a ``⚐N`` token for stranded or blocked bead wait targets."""
+    if not states:
+        return
+    if text.cell_len:
+        text.append(" ")
+    text.append(f"{STRANDED_GLYPH}{len(states)}", style=_stranded_wait_style(states))
+
+
 def format_wait_dependency_summary(
     counts: WaitDependencyStatusCounts | None,
     *,
     single_bead_id: str | None = None,
+    stranded_bead_states: Mapping[str, str] | None = None,
 ) -> Text:
     """Format a wait dependency summary, optionally naming one waited-on bead."""
+    mapping = stranded_bead_states or {}
     if not single_bead_id:
-        return _format_wait_dependency_status_counts(counts)
+        rendered = _format_wait_dependency_status_counts(counts)
+        _append_stranded_wait_count(rendered, mapping)
+        return rendered
 
     sole_status = _sole_bead_status(counts)
     if sole_status == "":
-        return _format_wait_dependency_status_counts(counts)
+        rendered = _format_wait_dependency_status_counts(counts)
+        _append_stranded_wait_count(rendered, mapping)
+        return rendered
 
     rendered = Text()
-    if sole_status is not None:
+    if single_bead_id in mapping:
+        rendered.append(
+            STRANDED_GLYPH,
+            style=(
+                STRANDED_LEAF_STYLE
+                if mapping[single_bead_id] == "stranded"
+                else STRANDED_BREADCRUMB_STYLE
+            ),
+        )
+        rendered.append(" ")
+    elif sole_status is not None:
         token, style = _wait_bead_status_token(
             None if sole_status == "unknown" else sole_status
         )

@@ -16,6 +16,7 @@ def _stranded_enter_target(agent: Agent) -> AgentEnterTarget | None:
     """Return a ``stranded`` Enter target for *agent*, or ``None``."""
     from ...models.agent_stranded import (
         agent_stranded_view,
+        cached_stranded_report,
         stranded_project_key_for_agent,
     )
 
@@ -26,8 +27,9 @@ def _stranded_enter_target(agent: Agent) -> AgentEnterTarget | None:
         bead_id = view.verdict.bead_id
     elif view.waiting_on:
         bead_id = view.waiting_on[0][0]
+    elif view.waiting_on_agents:
+        bead_id = view.waiting_on_agents[0][0]
     elif view.clan_stranded_ids:
-        bead_id = view.clan_stranded_ids[0]
         if project is None:
             from ...models._agent_clan import clan_members
 
@@ -35,6 +37,25 @@ def _stranded_enter_target(agent: Agent) -> AgentEnterTarget | None:
                 project = stranded_project_key_for_agent(member)
                 if project is not None:
                     break
+        epic_id = getattr(agent, "agent_clan", None) or getattr(
+            agent, "presented_agent_name", None
+        )
+        epic_verdict = None
+        if project is not None and isinstance(epic_id, str) and epic_id.strip():
+            snapshot = cached_stranded_report(project)
+            if snapshot is not None:
+                epic_verdict = next(
+                    (
+                        item
+                        for item in snapshot.report.verdicts
+                        if item.bead_id == epic_id
+                    ),
+                    None,
+                )
+        if epic_verdict is not None and epic_verdict.state in {"stranded", "blocked"}:
+            bead_id = epic_verdict.bead_id
+        else:
+            bead_id = view.clan_stranded_ids[0]
     if bead_id is None or project is None:
         return None
     return AgentEnterTarget(

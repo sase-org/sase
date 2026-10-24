@@ -170,3 +170,38 @@ def test_clan_without_stranded_keeps_empty_message() -> None:
     resolution = _resolve(clan)
     assert resolution.targets == ()
     assert resolution.empty_message == CLAN_EMPTY_MESSAGE
+
+
+def test_ancestor_clan_enter_targets_the_epic_id() -> None:
+    leaf = StrandedWorkVerdict(
+        bead_id="sase-nested.1",
+        kind="phase",
+        state="stranded",
+        parent_id="sase-nested",
+    )
+    epic = StrandedWorkVerdict(
+        bead_id="sase-demo",
+        kind="epic",
+        state="blocked",
+        blocked_by=("sase-nested.1",),
+    )
+    report = StrandedWorkReport(
+        verdicts=(leaf, epic),
+        stranded_ids=("sase-nested.1",),
+        blocked_ids=("sase-demo",),
+    )
+    agent_stranded._STRANDED_REPORT_CACHE.set(
+        "demo",
+        StrandedReport(report=report, titles={}, generated_at=1.0),
+        "test",
+    )
+    clan = replace(
+        make_agent(name="sase-demo", raw_suffix=_GEN),
+        is_clan_container=True,
+        agent_clan="sase-demo",
+        agent_clan_generation=_GEN,
+    )
+    clan.runtime_children = []
+    resolution = _resolve(clan)
+    stranded = next(item for item in resolution.targets if item.kind == "stranded")
+    assert stranded.bead_id == "sase-demo"

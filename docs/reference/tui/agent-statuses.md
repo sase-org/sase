@@ -130,6 +130,11 @@ fall back to dim text unless a gate or monitor supplies lifecycle presentation.
 | **PLAN FAILED**    | Red                                   | Accepted plan action or archive failed                           |
 | **EPIC FAILED**    | Red                                   | Accepted epic-creation action failed                             |
 
+A Done-bucket owner row whose bead is stranded reads `STRANDED ⚐` in bold amber. Other
+buckets keep their louder word and append `⚐`. This overlay is presentation only:
+buckets, counts, filters, and dismissal are unchanged, like `FINALIZING`. See
+[Stranded beads](../work-units/bead-lifecycles.md#stranded-beads).
+
 Monitor turns are the exception to this status table's success-oriented labels: a
 gate-approved epic monitor uses `EPIC APPROVED` as its start label and `EPIC CREATED` as
 its stop label for every terminal state. A failed, timed-out, stopped, or lost monitor
@@ -501,7 +506,8 @@ read-only: there are no retry, cancel, or bypass controls.
 **At a glance: FINALIZING rows and ⊛ chips.** While a node's finalizers run, its row
 status word reads `FINALIZING` in the Running bucket. This is a presentation overlay
 only: `agent.status`, buckets, ordering, filters, capacity, and row actions are
-untouched. A `⊛` chip names the most severe finalizer state. On a session container the
+untouched. The `STRANDED` overlay is presentation-only in the same way; see
+[Completed Statuses](#completed-statuses). A `⊛` chip names the most severe finalizer state. On a session container the
 chip considers only runs after the newest successful settled run, picks the highest
 severity (failed > refused > interrupted > deferred > running), and appends
 `k of n runs` when more than one run is in play. The collapsed header panel carries the

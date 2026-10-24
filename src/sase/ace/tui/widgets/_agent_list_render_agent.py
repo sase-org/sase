@@ -11,7 +11,11 @@ from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
 from rich.text import Text
-from sase.bead.stranded_presentation import STRANDED_BREADCRUMB_STYLE, STRANDED_GLYPH
+from sase.bead.stranded_presentation import (
+    STRANDED_BREADCRUMB_STYLE,
+    STRANDED_GLYPH,
+    STRANDED_LEAF_STYLE,
+)
 
 from ..agent_completion import WaitDependencyStatusCounts
 from ..agent_count_chip import format_agent_count_chip
@@ -206,6 +210,7 @@ def format_agent_option(
         has_unresolvable_wait_target=has_unresolvable_wait_target,
         stranded_state=getattr(getattr(stranded_view, "verdict", None), "state", None),
         waiting_on_stranded=getattr(stranded_view, "waiting_on", ()),
+        waiting_on_agents=getattr(stranded_view, "waiting_on_agents", ()),
     )
     is_agent_session_container_row = agent.is_agent_session_container_row
 
@@ -259,10 +264,15 @@ def format_agent_option(
             (),
         )
         if clan_stranded_ids:
+            clan_leaf_direct = getattr(stranded_view, "clan_leaf_direct", False)
             text.append(" ")
             text.append(
                 f"{STRANDED_GLYPH}{len(clan_stranded_ids)}",
-                style=STRANDED_BREADCRUMB_STYLE,
+                style=(
+                    STRANDED_LEAF_STYLE
+                    if clan_leaf_direct
+                    else STRANDED_BREADCRUMB_STYLE
+                ),
             )
         wave_pips = format_clan_wave_pips(
             agent.clan_waves,

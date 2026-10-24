@@ -105,6 +105,35 @@ def test_stranded_agent_header_includes_callout() -> None:
     )
 
 
+def test_blocked_agent_header_uses_blocked_sentence_tail() -> None:
+    agent = make_agent(
+        agent_name="sase-demo.2",
+        project_file="/tmp/demo/demo.sase",
+        phase_bead_id="sase-demo.2",
+    )
+    verdict = StrandedWorkVerdict(
+        bead_id="sase-demo.2",
+        kind="phase",
+        state="blocked",
+        blocked_by=("sase-demo.1", "sase-demo.3"),
+        since=1.0,
+    )
+    report = StrandedWorkReport(
+        verdicts=(verdict,),
+        blocked_ids=(verdict.bead_id,),
+    )
+    agent_stranded._STRANDED_REPORT_CACHE.set(
+        "demo", StrandedReport(report=report, titles={}, generated_at=3601.0), "test"
+    )
+
+    rendered = build_agent_compact_lines(agent=agent)
+
+    assert (
+        "⚐ blocked 1h by stranded sase-demo.1 (+1 more) · ⏎ resolve" in rendered.plain
+    )
+    assert "blocked 1h blocked" not in rendered.plain
+
+
 def test_agent_rows_show_auto_and_machine_chips() -> None:
     agent = make_agent(
         agent_name="solo",

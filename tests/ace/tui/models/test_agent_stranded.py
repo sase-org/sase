@@ -33,13 +33,15 @@ def _snapshot(*verdicts: StrandedWorkVerdict) -> StrandedReport:
     return StrandedReport(report=report, titles={}, generated_at=1.0)
 
 
-def _verdict(bead_id: str, state: str) -> StrandedWorkVerdict:
-    return StrandedWorkVerdict(
-        bead_id=bead_id,
-        kind="phase",
-        state=state,
-        blocked_by=("sase-demo.1",) if state == "blocked" else (),
-    )
+def _verdict(bead_id: str, state: str, **fields: object) -> StrandedWorkVerdict:
+    payload: dict[str, object] = {
+        "bead_id": bead_id,
+        "kind": "phase",
+        "state": state,
+        "blocked_by": ("sase-demo.1",) if state == "blocked" else (),
+    }
+    payload.update(fields)
+    return StrandedWorkVerdict(**payload)  # type: ignore[arg-type]
 
 
 def test_warm_reports_reuse_ttl_and_invalidate_on_store_fingerprint(
@@ -111,3 +113,133 @@ def test_agent_view_resolves_phase_task_and_waiter_states() -> None:
         ("sase-demo.1", "stranded"),
     )
     assert agent_stranded.stranded_count_for_agents((phase, waiter)) == 1
+
+
+def _clan_container(*, name: str, members: list[Agent] | None = None) -> Agent:
+    container = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name=name,
+        project_file="/tmp/demo/demo.sase",
+        status="DONE",
+        start_time=datetime(2026, 10, 1, 12, 0),
+        raw_suffix="clan",
+        agent_name=name,
+        is_clan_container=True,
+        agent_clan=name,
+        agent_clan_generation="g1",
+    )
+    container.runtime_children = list(members or [])
+    return container
+
+
+def test_ancestor_clan_counts_report_leaves_without_loaded_members() -> None:
+    container = _clan_container(name="sase-demo")
+    agent_stranded._STRANDED_REPORT_CACHE.set(
+        "demo",
+        _snapshot(
+            _verdict(
+                "sase-nested.1",
+                "stranded",
+                parent_id="sase-nested",
+                blocked_by=(),
+            ),
+            _verdict(
+                "sase-demo",
+                "blocked",
+                kind="epic",
+                blocked_by=("sase-nested.1",),
+            ),
+        ),
+        "store",
+    )
+
+    view = agent_stranded.agent_stranded_view(container)
+
+    assert view.clan_stranded_ids == ("sase-nested.1",)
+    assert view.clan_leaf_direct is False
+    assert view.clan_stranded_member_keys == ()
+
+
+def test_direct_phase_leaf_uses_leaf_style_and_counts_stranded_epic() -> None:
+    leaf = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="demo-phase",
+        project_file="/tmp/demo/demo.sase",
+        status="DONE",
+        start_time=datetime(2026, 10, 1, 12, 0),
+        raw_suffix="phase",
+        agent_name="sase-demo.1",
+        phase_bead_id="sase-demo.1",
+        agent_clan="sase-demo",
+        agent_clan_generation="g1",
+    )
+    container = _clan_container(name="sase-demo", members=[leaf])
+    agent_stranded._STRANDED_REPORT_CACHE.set(
+        "demo",
+        _snapshot(
+            _verdict(
+                "sase-demo.1",
+                "stranded",
+                parent_id="sase-demo",
+                blocked_by=(),
+            ),
+            _verdict("sase-demo", "stranded", kind="epic", blocked_by=()),
+        ),
+        "store",
+    )
+
+    view = agent_stranded.agent_stranded_view(container)
+
+    assert view.clan_stranded_ids == ("sase-demo", "sase-demo.1")
+    assert view.clan_leaf_direct is True
+
+
+def test_blocked_member_is_included_in_wave_fold_keys() -> None:
+    blocked = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="demo-blocked",
+        project_file="/tmp/demo/demo.sase",
+        status="WAITING",
+        start_time=datetime(2026, 10, 1, 12, 0),
+        raw_suffix="blocked",
+        agent_name="sase-demo.2",
+        phase_bead_id="sase-demo.2",
+        agent_clan="sase-demo",
+        agent_clan_generation="g1",
+    )
+    container = _clan_container(name="sase-demo", members=[blocked])
+    agent_stranded._STRANDED_REPORT_CACHE.set(
+        "demo",
+        _snapshot(_verdict("sase-demo.2", "blocked")),
+        "store",
+    )
+
+    view = agent_stranded.agent_stranded_view(container)
+
+    assert view.clan_stranded_member_keys == (
+        f"{blocked.agent_type.value}:{blocked.cl_name}:"
+        f"{blocked.raw_suffix}:{blocked.agent_name}",
+    )
+
+
+def test_waiting_for_agent_name_resolves_against_verdict_index() -> None:
+    waiter = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="demo-waiter",
+        project_file="/tmp/demo/demo.sase",
+        status="WAITING",
+        start_time=datetime(2026, 10, 1, 12, 1),
+        raw_suffix="waiter",
+        agent_name="sase-demo.land",
+        waiting_for=["sase-demo.1"],
+    )
+    agent_stranded._STRANDED_REPORT_CACHE.set(
+        "demo",
+        _snapshot(_verdict("sase-demo.1", "stranded", blocked_by=())),
+        "store",
+    )
+
+    view = agent_stranded.agent_stranded_view(waiter)
+
+    assert view.waiting_on == ()
+    assert view.waiting_on_agents == (("sase-demo.1", "stranded"),)

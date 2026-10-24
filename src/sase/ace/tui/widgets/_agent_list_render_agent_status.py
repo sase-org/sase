@@ -157,6 +157,7 @@ def append_agent_row_status(
     has_unresolvable_wait_target: bool = False,
     stranded_state: str | None = None,
     waiting_on_stranded: tuple[tuple[str, str], ...] = (),
+    waiting_on_agents: tuple[tuple[str, str], ...] = (),
 ) -> None:
     """Append the status parenthetical and adjacent outcome badges."""
     from sase.agent.auto_restart.ux import (
@@ -227,6 +228,7 @@ def append_agent_row_status(
         count_text = format_wait_dependency_summary(
             wait_dependency_counts,
             single_bead_id=single_bead_id,
+            stranded_bead_states=dict(waiting_on_stranded),
         )
         if count_text.cell_len:
             text.append(" ")
@@ -325,21 +327,11 @@ def append_agent_row_status(
         text.append(" ✗", style=_GATE_FAILURE_GLYPH_STYLE)
     if stranded_done_overlay:
         text.append(f" {STRANDED_GLYPH}", style=STRANDED_LEAF_STYLE)
-    elif waiting_on_stranded:
-        target_state = (
-            "stranded"
-            if any(state == "stranded" for _, state in waiting_on_stranded)
-            else "blocked"
-        )
-        style = (
-            STRANDED_LEAF_STYLE
-            if target_state == "stranded"
-            else STRANDED_BREADCRUMB_STYLE
-        )
-        text.append(f" {STRANDED_GLYPH}", style=style)
-    elif stranded_state == "blocked":
+    elif not waiting_on_stranded and waiting_on_agents:
         text.append(f" {STRANDED_GLYPH}", style=STRANDED_BREADCRUMB_STYLE)
-    elif stranded_leaf:
+    elif not waiting_on_stranded and stranded_state == "blocked":
+        text.append(f" {STRANDED_GLYPH}", style=STRANDED_BREADCRUMB_STYLE)
+    elif not waiting_on_stranded and stranded_leaf:
         text.append(f" {STRANDED_GLYPH}", style=STRANDED_LEAF_STYLE)
     text.append(")", style="dim")
     _append_finalizer_chip(text, agent)

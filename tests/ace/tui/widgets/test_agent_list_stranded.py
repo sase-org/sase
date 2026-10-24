@@ -9,9 +9,17 @@ import pytest
 
 from sase.ace.tui.models import agent_stranded
 from sase.ace.tui.models.agent import Agent, AgentType
+from sase.ace.tui.models._agent_clan_waves import (
+    ClanWaveSummary,
+    _ClanWaveState,
+    _ClanWaveView,
+)
 from sase.ace.tui.widgets._agent_list_rendering import format_agent_option
 from sase.bead.stranded import StrandedReport
-from sase.bead.stranded_presentation import STRANDED_BREADCRUMB_STYLE
+from sase.bead.stranded_presentation import (
+    STRANDED_BREADCRUMB_STYLE,
+    STRANDED_LEAF_STYLE,
+)
 from sase.core.stranded_work_facade import StrandedWorkReport, StrandedWorkVerdict
 
 
@@ -29,6 +37,7 @@ def _agent(
     raw_suffix: str,
     phase_bead_id: str | None = None,
     waiting_for_beads: list[str] | None = None,
+    waiting_for: list[str] | None = None,
     is_clan_container: bool = False,
     agent_clan: str | None = None,
     generation: str | None = None,
@@ -44,6 +53,7 @@ def _agent(
         agent_name=name,
         phase_bead_id=phase_bead_id,
         waiting_for_beads=waiting_for_beads or [],
+        waiting_for=waiting_for or [],
         is_clan_container=is_clan_container,
         agent_clan=agent_clan,
         agent_clan_generation=generation,
@@ -67,17 +77,26 @@ def _set_report(*verdicts: StrandedWorkVerdict) -> None:
     )
 
 
-def _verdict(bead_id: str, state: str) -> StrandedWorkVerdict:
-    return StrandedWorkVerdict(
-        bead_id=bead_id,
-        kind="phase",
-        state=state,
-        blocked_by=("sase-demo.1",) if state == "blocked" else (),
-    )
+def _verdict(bead_id: str, state: str, **fields: object) -> StrandedWorkVerdict:
+    payload: dict[str, object] = {
+        "bead_id": bead_id,
+        "kind": "phase",
+        "state": state,
+        "blocked_by": ("sase-demo.1",) if state == "blocked" else (),
+    }
+    payload.update(fields)
+    return StrandedWorkVerdict(**payload)  # type: ignore[arg-type]
 
 
 def _left(agent: Agent):
     return format_agent_option(agent, 0, is_selected=False)[0]
+
+
+def _style_at(text, glyph: str) -> str:
+    index = text.plain.index(glyph)
+    return next(
+        str(span.style) for span in text.spans if span.start <= index < span.end
+    )
 
 
 def test_stranded_done_row_uses_overlay_and_leaf_flag() -> None:
@@ -115,14 +134,10 @@ def test_waiter_gets_leaf_flag_and_blocked_ancestor_gets_dim_breadcrumb() -> Non
     waiter_text = _left(waiter)
     blocked_text = _left(blocked)
 
-    assert "WAITING sase-demo.1 ⚐" in waiter_text.plain
-    flag_at = blocked_text.plain.index("⚐")
-    flag_style = next(
-        str(span.style)
-        for span in blocked_text.spans
-        if span.start <= flag_at < span.end
-    )
-    assert flag_style == STRANDED_BREADCRUMB_STYLE
+    assert "WAITING ⚐ sase-demo.1" in waiter_text.plain
+    assert waiter_text.plain.count("⚐") == 1
+    assert _style_at(waiter_text, "⚐") == STRANDED_LEAF_STYLE
+    assert _style_at(blocked_text, "⚐") == STRANDED_BREADCRUMB_STYLE
 
 
 def test_clan_row_summarizes_stranded_member_count() -> None:
@@ -146,3 +161,131 @@ def test_clan_row_summarizes_stranded_member_count() -> None:
     _set_report(_verdict("sase-demo.1", "stranded"))
 
     assert "⚐1" in _left(container).plain
+
+
+def test_ancestor_clan_shows_breadcrumb_count_without_loaded_leaf() -> None:
+    container = _agent(
+        "sase-demo",
+        status="DONE",
+        raw_suffix="clan",
+        is_clan_container=True,
+        agent_clan="sase-demo",
+        generation="g1",
+    )
+    _set_report(
+        _verdict(
+            "sase-nested.1",
+            "stranded",
+            parent_id="sase-nested",
+            blocked_by=(),
+        ),
+        _verdict(
+            "sase-demo",
+            "blocked",
+            kind="epic",
+            blocked_by=("sase-nested.1",),
+        ),
+    )
+
+    rendered = _left(container)
+
+    assert "⚐1" in rendered.plain
+    assert _style_at(rendered, "⚐") == STRANDED_BREADCRUMB_STYLE
+
+
+def test_direct_phase_clan_count_uses_leaf_style() -> None:
+    leaf = _agent(
+        "sase-demo.1",
+        status="DONE",
+        raw_suffix="leaf",
+        phase_bead_id="sase-demo.1",
+        agent_clan="sase-demo",
+        generation="g1",
+    )
+    container = _agent(
+        "sase-demo",
+        status="DONE",
+        raw_suffix="clan",
+        is_clan_container=True,
+        agent_clan="sase-demo",
+        generation="g1",
+    )
+    container.runtime_children = [leaf]
+    _set_report(
+        _verdict("sase-demo.1", "stranded", parent_id="sase-demo", blocked_by=()),
+    )
+
+    rendered = _left(container)
+
+    assert "⚐1" in rendered.plain
+    assert _style_at(rendered, "⚐") == STRANDED_LEAF_STYLE
+
+
+def test_blocked_member_folds_wave_pip_to_needs_you() -> None:
+    blocked = _agent(
+        "sase-demo.2",
+        status="WAITING",
+        raw_suffix="blocked",
+        phase_bead_id="sase-demo.2",
+        agent_clan="sase-demo",
+        generation="g1",
+    )
+    container = _agent(
+        "sase-demo",
+        status="DONE",
+        raw_suffix="clan",
+        is_clan_container=True,
+        agent_clan="sase-demo",
+        generation="g1",
+    )
+    container.runtime_children = [blocked]
+    container.clan_waves = ClanWaveSummary(
+        layered=True,
+        numbered_wave_count=1,
+        has_seal=False,
+        waves=(
+            _ClanWaveView(
+                number=1,
+                kind="number",
+                member_identities=(
+                    f"{blocked.agent_type.value}:{blocked.cl_name}:"
+                    f"{blocked.raw_suffix}:{blocked.agent_name}",
+                ),
+                ghost_names=(),
+                state=_ClanWaveState.DONE,
+                predecessor_identities=(),
+            ),
+        ),
+        members=(),
+        unresolved_identities=(),
+    )
+    _set_report(_verdict("sase-demo.2", "blocked"))
+
+    assert "▲" in _left(container).plain
+
+
+def test_agent_session_wait_falls_back_to_breadcrumb_flag() -> None:
+    waiter = _agent(
+        "sase-demo.land",
+        status="WAITING",
+        raw_suffix="waiter",
+        waiting_for=["sase-demo.1"],
+    )
+    _set_report(_verdict("sase-demo.1", "stranded", blocked_by=()))
+
+    rendered = _left(waiter)
+
+    assert "WAITING ⚐)" in rendered.plain
+    assert _style_at(rendered, "⚐") == STRANDED_BREADCRUMB_STYLE
+
+
+def test_waiting_row_without_verdicts_is_unchanged() -> None:
+    waiter = _agent(
+        "sase-demo.land",
+        status="WAITING",
+        raw_suffix="waiter",
+        waiting_for_beads=["sase-demo.1"],
+        waiting_for=["sase-demo.1"],
+    )
+
+    assert "⚐" not in _left(waiter).plain
