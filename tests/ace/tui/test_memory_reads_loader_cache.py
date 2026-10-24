@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import gc
 import os
 from pathlib import Path
+import weakref
 
 import pytest
 
@@ -173,3 +175,104 @@ def test_snapshot_cache_parses_once_for_distinct_agents_and_revalidates(
         for item in load_memory_reads_for_agent_context(agent_b)
     ] == ["beta.md"]
     assert parse_count == 2
+
+
+def test_evicted_agent_result_reloads_identically_and_releases_its_entry(
+    fake_project: Path, tmp_path: Path
+) -> None:
+    agents = []
+    events = []
+    for index in range(129):
+        artifacts_dir = tmp_path / "artifacts" / f"agent_{index}"
+        artifacts_dir.mkdir(parents=True)
+        agent_name = f"agent-{index}"
+        agents.append(
+            make_agent(
+                artifacts_dir=artifacts_dir,
+                agent_name=agent_name,
+                workspace_dir=fake_project,
+                raw_suffix=f"20260524-10{index:04d}",
+            )
+        )
+        events.append(
+            make_event(
+                canonical_path=f"{agent_name}.md",
+                timestamp=f"2026-05-24T10:{index // 60:02d}:{index % 60:02d}+00:00",
+                agent_name=agent_name,
+                artifacts_dir=str(artifacts_dir),
+            )
+        )
+
+    write_jsonl(memory_read_log_path("memory-reads-test"), events)
+    expected = tuple(event.id for event in _load_memory_reads_for_agent(agents[0]))
+    for agent in agents[1:]:
+        _load_memory_reads_for_agent(agent)
+
+    cache = memory_reads_module._memory_reads_cache
+    first_key = memory_reads_module._cache_key("memory-reads-test", agents[0])
+    second_key = memory_reads_module._cache_key("memory-reads-test", agents[1])
+    assert len(cache) == 128
+    assert cache.peek(first_key) is None
+    second_entry_ref = weakref.ref(cache.peek(second_key))
+
+    reloaded = tuple(event.id for event in _load_memory_reads_for_agent(agents[0]))
+    gc.collect()
+
+    assert reloaded == expected
+    assert len(cache) == 128
+    assert second_entry_ref() is None
+    snapshot = memory_reads_module._memory_reads_snapshot_cache.peek(
+        "memory-reads-test"
+    )
+    assert snapshot is not None
+    assert len(snapshot.events) == 129
+
+
+def test_project_switch_keeps_same_agent_results_separate(
+    fake_project: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    artifacts_dir = tmp_path / "artifacts" / "shared-agent"
+    artifacts_dir.mkdir(parents=True)
+    projects = ("project-alpha", "project-beta")
+    monkeypatch.setattr(
+        memory_reads_module,
+        "project_memory_name",
+        lambda workspace: Path(workspace).name,
+    )
+    project_events = {
+        project: (
+            make_event(
+                canonical_path=f"{project}.md",
+                timestamp="2026-05-24T10:00:00+00:00",
+                agent_name="shared-agent",
+                artifacts_dir=str(artifacts_dir),
+                project=project,
+            ),
+        )
+        for project in projects
+    }
+    monkeypatch.setattr(
+        memory_reads_module,
+        "read_memory_read_events",
+        lambda *, project: project_events[project],
+    )
+    agents = tuple(
+        make_agent(
+            artifacts_dir=artifacts_dir,
+            agent_name="shared-agent",
+            workspace_dir=tmp_path / project,
+            raw_suffix="20260524-100000",
+        )
+        for project in projects
+    )
+
+    alpha = tuple(event.id for event in _load_memory_reads_for_agent(agents[0]))
+    beta = tuple(event.id for event in _load_memory_reads_for_agent(agents[1]))
+    alpha_again = tuple(event.id for event in _load_memory_reads_for_agent(agents[0]))
+
+    assert alpha == ("project-alpha.md2026-05-24T10:00:00+00:00",)
+    assert beta == ("project-beta.md2026-05-24T10:00:00+00:00",)
+    assert alpha_again == alpha
+    assert set(memory_reads_module._memory_reads_snapshot_cache) == set(projects)

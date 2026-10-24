@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from sase.artifact_refs import ArtifactRefContext, filter_artifact_ref_paths
+from sase.ace.tui.util.bounded_lru import BoundedLRUCache
 from sase.ace.tui.widgets import _artifact_ref_entity_catalogs as entity_catalogs
 from sase.ace.tui.widgets._artifact_ref_completion_menu import (
     ArtifactRefCompletionCatalog,
@@ -24,7 +25,10 @@ class ArtifactIndexCacheEntry:
     rows: tuple[object, ...]
 
 
-_ARTIFACT_INDEX_CACHE: dict[Path, ArtifactIndexCacheEntry] = {}
+_MAX_ARTIFACT_INDEX_CACHE_SOURCES = 8
+_ARTIFACT_INDEX_CACHE: BoundedLRUCache[Path, ArtifactIndexCacheEntry] = BoundedLRUCache(
+    _MAX_ARTIFACT_INDEX_CACHE_SOURCES
+)
 _ArtifactIndexReader = Callable[[Path], tuple[object, ...]]
 _DocumentCatalogLoader = Callable[
     [ArtifactRefContext],
@@ -243,8 +247,9 @@ def read_cached_artifact_index(index_path: Path) -> tuple[object, ...]:
         token: tuple[int, int] | None = (stat.st_mtime_ns, stat.st_size)
     except OSError:
         token = None
-    cached = _ARTIFACT_INDEX_CACHE.get(resolved)
+    cached = _ARTIFACT_INDEX_CACHE.peek(resolved)
     if cached is not None and cached.token == token:
+        _ARTIFACT_INDEX_CACHE.touch(resolved)
         return cached.rows
     if token is None:
         rows: tuple[object, ...] = ()

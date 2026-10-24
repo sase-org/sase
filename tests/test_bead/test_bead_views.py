@@ -8,13 +8,13 @@ durable index facts as a weaker ``viewed`` signal that is never promoted to
 
 from __future__ import annotations
 
-from collections import OrderedDict
 import json
 from pathlib import Path
 
 import pytest
 
 import sase.ace.tui._bead_touches_loader as bead_touches
+from sase.ace.tui.util.bounded_lru import BoundedLRUCache
 from sase.ace.tui._bead_touches_loader import load_bead_touches_for_agent_context
 from sase.ace.tui._bead_touches_merge import merge_bead_touch_entries
 from sase.ace.tui._bead_touches_shared import (
@@ -258,10 +258,14 @@ def _views_loader_env(
     monkeypatch.setattr(bead_touches, "touch_index_path", lambda project: index_path)
     monkeypatch.setattr(bead_touches, "AgentIdentitySnapshot", _StubSnapshot)
     monkeypatch.setattr(bead_touches, "globalize_owned_agent_name", _fake_globalize)
-    monkeypatch.setattr(bead_touches, "_bead_touches_cache", {})
-    monkeypatch.setattr(bead_touches, "_bead_touches_context_cache", {})
-    monkeypatch.setattr(bead_touches, "_bead_touches_snapshot_cache", OrderedDict())
-    monkeypatch.setattr(bead_touches, "_bead_views_snapshot_cache", OrderedDict())
+    monkeypatch.setattr(bead_touches, "_bead_touches_cache", BoundedLRUCache(128))
+    monkeypatch.setattr(
+        bead_touches, "_bead_touches_context_cache", BoundedLRUCache(128)
+    )
+    monkeypatch.setattr(
+        bead_touches, "_bead_touches_snapshot_cache", BoundedLRUCache(8)
+    )
+    monkeypatch.setattr(bead_touches, "_bead_views_snapshot_cache", BoundedLRUCache(8))
     monkeypatch.setattr(bead_touches, "bead_views_log_path", lambda project: views_path)
 
     def _query(index_path: object, actors: object = None) -> BeadTouchQuery:

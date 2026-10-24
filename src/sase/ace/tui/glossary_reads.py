@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import time
-from collections import OrderedDict
 from dataclasses import dataclass
 from pathlib import Path
 
 from sase.ace.tui.models.agent import Agent
+from sase.ace.tui.util.bounded_lru import BoundedLRUCache
 from sase.ace.tui.util.normalized_dirs import (
     normalize_dir as _normalize_dir,
 )
@@ -21,6 +21,7 @@ from sase.main.init_memory.config import project_memory_name
 MAX_KEPT_READS = 50
 _MIN_REREAD_INTERVAL_S = 0.5
 _MAX_SNAPSHOT_CACHE_PROJECTS = 8
+_MAX_DERIVED_CACHE_ENTRIES = 128
 _LogStat = tuple[int, int]
 
 
@@ -61,13 +62,15 @@ class _GlossaryReadsSnapshotCacheEntry:
     last_read_monotonic: float
 
 
-_glossary_reads_cache: dict[tuple[str, str], _GlossaryReadsCacheEntry] = {}
-_glossary_reads_context_cache: dict[
-    tuple[str, tuple[str, ...]], _GlossaryReadsContextCacheEntry
-] = {}
-_glossary_reads_snapshot_cache: OrderedDict[str, _GlossaryReadsSnapshotCacheEntry] = (
-    OrderedDict()
+_glossary_reads_cache: BoundedLRUCache[tuple[str, str], _GlossaryReadsCacheEntry] = (
+    BoundedLRUCache(_MAX_DERIVED_CACHE_ENTRIES)
 )
+_glossary_reads_context_cache: BoundedLRUCache[
+    tuple[str, tuple[str, ...]], _GlossaryReadsContextCacheEntry
+] = BoundedLRUCache(_MAX_DERIVED_CACHE_ENTRIES)
+_glossary_reads_snapshot_cache: BoundedLRUCache[
+    str, _GlossaryReadsSnapshotCacheEntry
+] = BoundedLRUCache(_MAX_SNAPSHOT_CACHE_PROJECTS)
 
 
 def _project_name_for_agent(agent: Agent) -> str | None:
@@ -144,12 +147,12 @@ def _load_glossary_read_events_snapshot(
     now: float,
     current_stat: _LogStat,
 ) -> tuple[tuple[GlossaryReadEvent, ...], _LogStat]:
-    cached = _glossary_reads_snapshot_cache.get(project)
+    cached = _glossary_reads_snapshot_cache.peek(project)
     if cached is not None:
         cached_stat = (cached.log_mtime_ns, cached.log_size)
         recent = (now - cached.last_read_monotonic) < _MIN_REREAD_INTERVAL_S
         if recent or current_stat == cached_stat:
-            _glossary_reads_snapshot_cache.move_to_end(project)
+            _glossary_reads_snapshot_cache.touch(project)
             return cached.events, cached_stat
 
     events = read_glossary_read_events(project=project)
@@ -160,9 +163,6 @@ def _load_glossary_read_events_snapshot(
         last_read_monotonic=now,
     )
     _glossary_reads_snapshot_cache[project] = entry
-    _glossary_reads_snapshot_cache.move_to_end(project)
-    while len(_glossary_reads_snapshot_cache) > _MAX_SNAPSHOT_CACHE_PROJECTS:
-        _glossary_reads_snapshot_cache.popitem(last=False)
     return events, current_stat
 
 
@@ -181,12 +181,13 @@ def _load_glossary_reads_for_agent(
     log_path = glossary_read_log_path(project)
     now = time.monotonic()
     key = _cache_key(project, agent)
-    cached = _glossary_reads_cache.get(key)
+    cached = _glossary_reads_cache.peek(key)
     current_stat = _log_stat(log_path)
 
     if cached is not None:
         recent = (now - cached.last_read_monotonic) < _MIN_REREAD_INTERVAL_S
         if recent or current_stat == _cache_entry_stat(cached):
+            _glossary_reads_cache.touch(key)
             return cached.events[:limit]
 
     all_events, snapshot_stat = _load_glossary_read_events_snapshot(
@@ -237,12 +238,13 @@ def load_glossary_reads_for_agent_context(
     log_path = glossary_read_log_path(project)
     now = time.monotonic()
     key = (project, context_cache_key(members))
-    cached = _glossary_reads_context_cache.get(key)
+    cached = _glossary_reads_context_cache.peek(key)
     current_stat = _log_stat(log_path)
 
     if cached is not None:
         recent = (now - cached.last_read_monotonic) < _MIN_REREAD_INTERVAL_S
         if recent or current_stat == _cache_entry_stat(cached):
+            _glossary_reads_context_cache.touch(key)
             return cached.events[:limit]
 
     all_events, snapshot_stat = _load_glossary_read_events_snapshot(

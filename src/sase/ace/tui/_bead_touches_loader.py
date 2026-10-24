@@ -21,7 +21,6 @@ stay unlabeled, and non-root turn rows never take the alias.
 from __future__ import annotations
 
 import time
-from collections import OrderedDict
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -30,6 +29,7 @@ from sase.ace.tui._bead_touches_shared import (
     parse_moment,
 )
 from sase.ace.tui.models.agent import Agent
+from sase.ace.tui.util.bounded_lru import BoundedLRUCache
 from sase.bead.bead_views import (
     BeadViewEvent,
     bead_views_log_path,
@@ -53,6 +53,7 @@ from sase.main.init_memory.config import project_memory_name
 MAX_KEPT_TOUCHES = 50
 _MIN_REREAD_INTERVAL_S = 0.5
 _MAX_SNAPSHOT_CACHE_PROJECTS = 8
+_MAX_DERIVED_CACHE_ENTRIES = 128
 _IndexStat = tuple[int, int]
 
 
@@ -92,15 +93,17 @@ class _BeadViewsSnapshotCacheEntry:
     last_read_monotonic: float
 
 
-_bead_touches_cache: dict[tuple[str, str], _BeadTouchesCacheEntry] = {}
-_bead_touches_context_cache: dict[
-    tuple[str, tuple[str, ...]], _BeadTouchesContextCacheEntry
-] = {}
-_bead_touches_snapshot_cache: OrderedDict[str, _BeadTouchesSnapshotCacheEntry] = (
-    OrderedDict()
+_bead_touches_cache: BoundedLRUCache[tuple[str, str], _BeadTouchesCacheEntry] = (
+    BoundedLRUCache(_MAX_DERIVED_CACHE_ENTRIES)
 )
-_bead_views_snapshot_cache: OrderedDict[str, _BeadViewsSnapshotCacheEntry] = (
-    OrderedDict()
+_bead_touches_context_cache: BoundedLRUCache[
+    tuple[str, tuple[str, ...]], _BeadTouchesContextCacheEntry
+] = BoundedLRUCache(_MAX_DERIVED_CACHE_ENTRIES)
+_bead_touches_snapshot_cache: BoundedLRUCache[str, _BeadTouchesSnapshotCacheEntry] = (
+    BoundedLRUCache(_MAX_SNAPSHOT_CACHE_PROJECTS)
+)
+_bead_views_snapshot_cache: BoundedLRUCache[str, _BeadViewsSnapshotCacheEntry] = (
+    BoundedLRUCache(_MAX_SNAPSHOT_CACHE_PROJECTS)
 )
 
 
@@ -224,12 +227,12 @@ def _load_touch_index_snapshot(
     A failed query is never cached: the next poll retries instead of
     sticking an error-shaped empty answer to an unchanged mtime.
     """
-    cached = _bead_touches_snapshot_cache.get(project)
+    cached = _bead_touches_snapshot_cache.peek(project)
     if cached is not None:
         cached_stat = (cached.index_mtime_ns, cached.index_size)
         recent = (now - cached.last_read_monotonic) < _MIN_REREAD_INTERVAL_S
         if recent or current_stat == cached_stat:
-            _bead_touches_snapshot_cache.move_to_end(project)
+            _bead_touches_snapshot_cache.touch(project)
             return cached.touches, cached_stat
 
     try:
@@ -244,9 +247,6 @@ def _load_touch_index_snapshot(
         last_read_monotonic=now,
     )
     _bead_touches_snapshot_cache[project] = entry
-    _bead_touches_snapshot_cache.move_to_end(project)
-    while len(_bead_touches_snapshot_cache) > _MAX_SNAPSHOT_CACHE_PROJECTS:
-        _bead_touches_snapshot_cache.popitem(last=False)
     return touches, current_stat
 
 
@@ -263,12 +263,12 @@ def _load_view_snapshot(
     unresolvable path upstream) degrades to no views rather than an error,
     so a missing log simply contributes no ``viewed`` rows.
     """
-    cached = _bead_views_snapshot_cache.get(project)
+    cached = _bead_views_snapshot_cache.peek(project)
     if cached is not None:
         cached_stat = (cached.views_mtime_ns, cached.views_size)
         recent = (now - cached.last_read_monotonic) < _MIN_REREAD_INTERVAL_S
         if recent or current_stat == cached_stat:
-            _bead_views_snapshot_cache.move_to_end(project)
+            _bead_views_snapshot_cache.touch(project)
             return cached.events, cached_stat
 
     try:
@@ -282,9 +282,6 @@ def _load_view_snapshot(
         last_read_monotonic=now,
     )
     _bead_views_snapshot_cache[project] = entry
-    _bead_views_snapshot_cache.move_to_end(project)
-    while len(_bead_views_snapshot_cache) > _MAX_SNAPSHOT_CACHE_PROJECTS:
-        _bead_views_snapshot_cache.popitem(last=False)
     return events, current_stat
 
 
@@ -368,12 +365,13 @@ def _load_bead_touches_for_agent_inner(
 
     now = time.monotonic()
     key = _cache_key(project, agent)
-    cached = _bead_touches_cache.get(key)
+    cached = _bead_touches_cache.peek(key)
     current_stat = _snapshot_stat
 
     if cached is not None:
         recent = (now - cached.last_read_monotonic) < _MIN_REREAD_INTERVAL_S
         if recent or current_stat == _cache_entry_stat(cached):
+            _bead_touches_cache.touch(key)
             return cached.events[:limit]
 
     identity = AgentIdentitySnapshot.current()
@@ -456,12 +454,13 @@ def _load_bead_touches_for_agent_context_inner(
 
     now = time.monotonic()
     key = (project, context_cache_key(members))
-    cached = _bead_touches_context_cache.get(key)
+    cached = _bead_touches_context_cache.peek(key)
     current_stat = _snapshot_stat
 
     if cached is not None:
         recent = (now - cached.last_read_monotonic) < _MIN_REREAD_INTERVAL_S
         if recent or current_stat == _cache_entry_stat(cached):
+            _bead_touches_context_cache.touch(key)
             return cached.events[:limit]
 
     identity = AgentIdentitySnapshot.current()
