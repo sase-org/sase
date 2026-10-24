@@ -117,6 +117,23 @@ def _file_signature(path: Path) -> tuple[int, int] | None:
     return stat.st_ino, stat.st_mtime_ns
 
 
+def final_submission_signature() -> tuple[int, int] | None:
+    """Identify the currently accepted ``final_submission.json``, if any.
+
+    Resolves the path from ``SASE_ARTIFACTS_DIR`` and
+    ``FINAL_SUBMISSION_FILENAME``; returns ``None`` when no artifacts dir is
+    configured or no submission has been accepted yet. A file that already
+    existed before the caller snapshot is returned as-is; callers detect a
+    new acceptance during their run with a before/after comparison.
+    """
+    artifacts_dir = os.environ.get("SASE_ARTIFACTS_DIR")
+    if not artifacts_dir:
+        return None
+    from sase.finalizers.declaration_manifest import FINAL_SUBMISSION_FILENAME
+
+    return _file_signature(Path(artifacts_dir) / FINAL_SUBMISSION_FILENAME)
+
+
 def start_completion_watchdog(
     process: subprocess.Popen[str],
     *,
@@ -153,10 +170,7 @@ def start_completion_watchdog(
     if grace <= 0:
         return None
 
-    from sase.finalizers.declaration_manifest import FINAL_SUBMISSION_FILENAME
-
-    submission_path = Path(artifacts_dir) / FINAL_SUBMISSION_FILENAME
-    last_seen = _file_signature(submission_path)
+    last_seen = final_submission_signature()
 
     def _watch() -> None:
         nonlocal last_seen
@@ -167,7 +181,7 @@ def start_completion_watchdog(
         turn_outcome: str | None = None
         while process.poll() is None:
             now = time.monotonic()
-            signature = _file_signature(submission_path)
+            signature = final_submission_signature()
             if signature is not None and signature != last_seen:
                 # A new acceptance (re)starts the declaration grace period.
                 last_seen = signature

@@ -23,7 +23,7 @@ class TestPrepareFromRemote:
         checkout = tmp_path / "empty"
         checkout.mkdir()
         with pytest.raises(OperationalLeaseError, match="preparation"):
-            _prepare_from_primary_remote(checkout)
+            _prepare_from_primary_remote(checkout, workspace_num=7)
 
     def _fake_git(
         self,
@@ -120,7 +120,7 @@ class TestPrepareFromRemote:
         self._fake_git(monkeypatch, fetch_stderr=self._PUBLICKEY_DENIAL)
 
         with pytest.raises(OperationalLeaseError, match="preparation") as exc_info:
-            _prepare_from_primary_remote(tmp_path)
+            _prepare_from_primary_remote(tmp_path, workspace_num=7)
 
         message = str(exc_info.value)
         assert self._PUBLICKEY_DENIAL in message
@@ -136,7 +136,7 @@ class TestPrepareFromRemote:
         self._fake_git(monkeypatch, checkout_stderr=self._PUBLICKEY_DENIAL)
 
         with pytest.raises(OperationalLeaseError, match="preparation") as exc_info:
-            _prepare_from_primary_remote(tmp_path)
+            _prepare_from_primary_remote(tmp_path, workspace_num=7)
 
         message = str(exc_info.value)
         assert self._PUBLICKEY_DENIAL in message
@@ -151,7 +151,7 @@ class TestPrepareFromRemote:
         self._fake_git(monkeypatch, fetch_stderr="fatal: couldn't find remote ref main")
 
         with pytest.raises(OperationalLeaseError, match="preparation") as exc_info:
-            _prepare_from_primary_remote(tmp_path)
+            _prepare_from_primary_remote(tmp_path, workspace_num=7)
 
         message = str(exc_info.value)
         assert "couldn't find remote ref main" in message
@@ -167,7 +167,7 @@ class TestPrepareFromRemote:
         self._fake_git(monkeypatch, fetch_stderr=self._PUBLICKEY_DENIAL)
 
         with pytest.raises(OperationalLeaseError) as exc_info:
-            _prepare_from_primary_remote(tmp_path)
+            _prepare_from_primary_remote(tmp_path, workspace_num=7)
 
         assert str(exc_info.value) == (
             "operational workspace lease failed during preparation: "
@@ -191,7 +191,7 @@ class TestPrepareFromRemote:
         )
 
         with pytest.raises(OperationalLeaseError) as exc_info:
-            _prepare_from_primary_remote(tmp_path)
+            _prepare_from_primary_remote(tmp_path, workspace_num=7)
 
         error = exc_info.value
         assert error.is_credential_failure is True
@@ -214,7 +214,7 @@ class TestPrepareFromRemote:
         self._fake_git(monkeypatch, fetch_stderr=stderr)
 
         with pytest.raises(OperationalLeaseError) as exc_info:
-            _prepare_from_primary_remote(tmp_path)
+            _prepare_from_primary_remote(tmp_path, workspace_num=7)
 
         error = exc_info.value
         assert error.is_credential_failure is False
@@ -241,7 +241,7 @@ class TestPrepareFromRemote:
         with caplog.at_level(
             logging.WARNING, logger="sase.workspace_provider._lease_git"
         ):
-            _prepare_from_primary_remote(tmp_path)
+            _prepare_from_primary_remote(tmp_path, workspace_num=7)
 
         assert len(calls["fetch_calls"]) == 2
         assert calls["sleep_calls"] == [10.0]
@@ -267,7 +267,7 @@ class TestPrepareFromRemote:
         )
 
         with pytest.raises(OperationalLeaseError) as exc_info:
-            _prepare_from_primary_remote(tmp_path)
+            _prepare_from_primary_remote(tmp_path, workspace_num=7)
 
         assert str(exc_info.value) == (
             "operational workspace lease failed during preparation: "
@@ -291,7 +291,7 @@ class TestPrepareFromRemote:
         (tmp_path / ".git").mkdir()
         calls = self._fake_git(monkeypatch, fetch_script=[self._CONNECTION_RESET, None])
 
-        _prepare_from_primary_remote(tmp_path)
+        _prepare_from_primary_remote(tmp_path, workspace_num=7)
 
         assert len(calls["fetch_calls"]) == 2
         assert calls["sleep_calls"] == [1.0]
@@ -312,7 +312,7 @@ class TestPrepareFromRemote:
         )
 
         with pytest.raises(OperationalLeaseError, match="preparation") as exc_info:
-            _prepare_from_primary_remote(tmp_path)
+            _prepare_from_primary_remote(tmp_path, workspace_num=7)
 
         assert len(calls["fetch_calls"]) == 3
         assert calls["sleep_calls"] == [1.0, 5.0]
@@ -331,7 +331,7 @@ class TestPrepareFromRemote:
         )
 
         with pytest.raises(OperationalLeaseError, match="preparation"):
-            _prepare_from_primary_remote(tmp_path)
+            _prepare_from_primary_remote(tmp_path, workspace_num=7)
 
         assert len(calls["fetch_calls"]) == 1
         assert calls["sleep_calls"] == []
@@ -348,7 +348,7 @@ class TestPrepareFromRemote:
         )
 
         with pytest.raises(OperationalLeaseError, match="preparation") as exc_info:
-            _prepare_from_primary_remote(tmp_path)
+            _prepare_from_primary_remote(tmp_path, workspace_num=7)
 
         assert len(calls["fetch_calls"]) == 3
         assert calls["sleep_calls"] == [1.0, 5.0]
@@ -371,7 +371,7 @@ class TestPrepareFromRemote:
         calls = self._fake_git(monkeypatch, checkout_stderr=self._PUBLICKEY_DENIAL)
 
         with pytest.raises(OperationalLeaseError, match="preparation") as exc_info:
-            _prepare_from_primary_remote(tmp_path)
+            _prepare_from_primary_remote(tmp_path, workspace_num=7)
 
         assert len(calls["checkout_calls"]) == 1
         assert calls["sleep_calls"] == []
@@ -405,7 +405,7 @@ class TestPrepareFromRemote:
         subprocess.run(["git", "commit", "-qm", "two"], cwd=seed, check=True)
         subprocess.run(["git", "push", "origin", "main"], cwd=seed, check=True)
 
-        _prepare_from_primary_remote(checkout)
+        _prepare_from_primary_remote(checkout, workspace_num=7)
         head = subprocess.run(
             ["git", "rev-parse", "HEAD"],
             cwd=checkout,
@@ -434,7 +434,7 @@ class TestPrepareFromRemote:
         remote, checkout = _prepared_lease_checkout(tmp_path)
         lock = _plant_index_lock(checkout, age_seconds=3600)
 
-        _prepare_from_primary_remote(checkout)
+        _prepare_from_primary_remote(checkout, workspace_num=7)
 
         head = subprocess.run(
             ["git", "rev-parse", "HEAD"],
@@ -463,7 +463,7 @@ class TestPrepareFromRemote:
         lock = _plant_index_lock(checkout, age_seconds=0)
 
         with pytest.raises(OperationalLeaseError, match="preparation") as exc_info:
-            _prepare_from_primary_remote(checkout)
+            _prepare_from_primary_remote(checkout, workspace_num=7)
 
         assert "index.lock" in str(exc_info.value)
         assert lock.exists()
@@ -478,7 +478,7 @@ class TestPrepareFromRemote:
         lock = _plant_index_lock(tmp_path, age_seconds=3600)
         calls = self._fake_git(monkeypatch, lock_aware_checkout=True)
 
-        _prepare_from_primary_remote(tmp_path)
+        _prepare_from_primary_remote(tmp_path, workspace_num=7)
 
         assert len(calls["checkout_calls"]) > 1
         assert calls["sleep_calls"] == []
@@ -527,3 +527,145 @@ def _init_git(path: Path) -> None:
         ["git", "config", "user.email", "test@test.com"], cwd=path, check=True
     )
     subprocess.run(["git", "config", "user.name", "Test"], cwd=path, check=True)
+
+
+class TestLeasePrepareRescue:
+    def test_dirty_tracked_file_triggers_rescue_and_resets(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import subprocess
+
+        from sase.workspace_provider.lease import _prepare_from_primary_remote
+
+        _remote, checkout = _prepared_lease_checkout(tmp_path)
+        _prepare_from_primary_remote(checkout, workspace_num=7)
+        (checkout / "README").write_text("dirty\n", encoding="utf-8")
+
+        calls: list[dict[str, Any]] = []
+
+        def _fake_rescue(
+            repo_root: Path | str,
+            *,
+            workspace_dir: Path | str,
+            workspace_num: int,
+            label: str,
+            reason: str,
+            include_worktree: bool,
+        ) -> object:
+            calls.append(
+                {
+                    "repo_root": Path(repo_root),
+                    "workspace_dir": Path(workspace_dir),
+                    "workspace_num": workspace_num,
+                    "label": label,
+                    "reason": reason,
+                    "include_worktree": include_worktree,
+                }
+            )
+            return object()
+
+        monkeypatch.setattr(
+            "sase.workspace_provider.rescue.rescue_git_repo", _fake_rescue
+        )
+
+        _prepare_from_primary_remote(checkout, workspace_num=7)
+
+        assert len(calls) == 1
+        assert calls[0]["repo_root"] == checkout
+        assert calls[0]["workspace_dir"] == checkout
+        assert calls[0]["workspace_num"] == 7
+        assert calls[0]["label"] == "lease-checkout"
+        assert "operational lease preparation" in calls[0]["reason"]
+        assert calls[0]["include_worktree"] is True
+        assert (checkout / "README").read_text(encoding="utf-8") == "two\n"
+
+    def test_clean_tree_with_stash_triggers_no_rescue(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import subprocess
+
+        from sase.workspace_provider.lease import _prepare_from_primary_remote
+
+        _remote, checkout = _prepared_lease_checkout(tmp_path)
+        _prepare_from_primary_remote(checkout, workspace_num=7)
+        (checkout / "README").write_text("stashed\n", encoding="utf-8")
+        subprocess.run(
+            ["git", "stash", "push", "-m", "pooled"],
+            cwd=checkout,
+            check=True,
+            capture_output=True,
+        )
+
+        calls: list[dict[str, Any]] = []
+
+        def _fake_rescue(*args: Any, **kwargs: Any) -> object | None:
+            calls.append({"args": args, "kwargs": kwargs})
+            return object()
+
+        monkeypatch.setattr(
+            "sase.workspace_provider.rescue.rescue_git_repo", _fake_rescue
+        )
+
+        _prepare_from_primary_remote(checkout, workspace_num=7)
+
+        assert calls == []
+        assert (checkout / "README").read_text(encoding="utf-8") == "two\n"
+
+    def test_untracked_only_triggers_no_rescue_and_keeps_file(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from sase.workspace_provider.lease import _prepare_from_primary_remote
+
+        _remote, checkout = _prepared_lease_checkout(tmp_path)
+        _prepare_from_primary_remote(checkout, workspace_num=7)
+        (checkout / "untracked.txt").write_text("keep me\n", encoding="utf-8")
+
+        calls: list[dict[str, Any]] = []
+
+        def _fake_rescue(*args: Any, **kwargs: Any) -> object | None:
+            calls.append({"args": args, "kwargs": kwargs})
+            return object()
+
+        monkeypatch.setattr(
+            "sase.workspace_provider.rescue.rescue_git_repo", _fake_rescue
+        )
+
+        _prepare_from_primary_remote(checkout, workspace_num=7)
+
+        assert calls == []
+        assert (checkout / "untracked.txt").read_text(encoding="utf-8") == "keep me\n"
+        assert (checkout / "README").read_text(encoding="utf-8") == "two\n"
+
+    def test_rescue_failure_warns_and_resets_anyway(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        from sase.workspace_provider.lease import _prepare_from_primary_remote
+
+        _remote, checkout = _prepared_lease_checkout(tmp_path)
+        _prepare_from_primary_remote(checkout, workspace_num=7)
+        (checkout / "README").write_text("dirty\n", encoding="utf-8")
+
+        def _failing_rescue(*args: Any, **kwargs: Any) -> None:
+            return None
+
+        monkeypatch.setattr(
+            "sase.workspace_provider.rescue.rescue_git_repo", _failing_rescue
+        )
+
+        with caplog.at_level(
+            logging.WARNING, logger="sase.workspace_provider._lease_git"
+        ):
+            _prepare_from_primary_remote(checkout, workspace_num=7)
+
+        warnings = [
+            r
+            for r in caplog.records
+            if r.levelno >= logging.WARNING
+            and "sase.workspace_provider._lease_git" in r.name
+        ]
+        assert len(warnings) == 1
+        assert str(checkout) in warnings[0].getMessage()
+        assert (checkout / "README").read_text(encoding="utf-8") == "two\n"

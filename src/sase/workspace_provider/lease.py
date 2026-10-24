@@ -99,7 +99,7 @@ def acquire_operational_lease(
             config=config,
             env=env,
         )
-        _prepare_from_primary_remote(checkout)
+        _prepare_from_primary_remote(checkout, workspace_num=workspace_num)
         context = leased_operational_context(
             project,
             workspace_num,

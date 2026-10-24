@@ -122,6 +122,50 @@ def test_print_workflow_header_with_brackets() -> None:
     print_workflow_header("test", "[tag-with-brackets]")
 
 
+def test_provider_timer_reusable_across_sequential_cycles() -> None:
+    """One timer object survives a second provider cycle."""
+    with patch("sase.output.time.sleep", return_value=None):
+        timer = provider_timer("Short operation")
+        with timer:
+            pass
+        with timer:
+            pass
+
+
+def test_provider_timer_exception_propagates_and_thread_stops() -> None:
+    """An exception inside the block propagates and the timer thread stops."""
+    existing_thread_ids = {thread.ident for thread in threading.enumerate()}
+    timer = provider_timer("Short operation")
+    with patch("sase.output.time.sleep", return_value=None):
+        try:
+            with timer:
+                raise ValueError("boom")
+        except ValueError as exc:
+            assert str(exc) == "boom"
+        else:  # pragma: no cover - the timer must not swallow errors
+            raise AssertionError("expected ValueError to propagate")
+        timer_threads = [
+            thread
+            for thread in threading.enumerate()
+            if thread.name == "sase-provider-timer"
+            and thread.ident not in existing_thread_ids
+            and thread.is_alive()
+        ]
+        assert timer_threads == []
+
+
+def test_provider_timer_nested_entry_raises() -> None:
+    """Entering an active timer object raises RuntimeError."""
+    import pytest
+
+    with patch("sase.output.time.sleep", return_value=None):
+        timer = provider_timer("Short operation")
+        with timer:
+            with pytest.raises(RuntimeError, match="already active"):
+                with timer:
+                    pass  # pragma: no cover - nested entry must raise
+
+
 def test_print_artifact_created_with_brackets() -> None:
     """Test that artifact path with brackets is preserved."""
     print_artifact_created("/path/to/[artifact].txt")

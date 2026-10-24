@@ -334,7 +334,7 @@ class TestAcquireAndContextManager:
         checkout.mkdir()
         project_file = _write_project_file(tmp_path / "demo.sase", primary=primary)
 
-        def _prepare(_checkout: Path) -> None:
+        def _prepare(_checkout: Path, **_kwargs: object) -> None:
             raise OperationalLeaseError("preparation", "git fetch failed")
 
         calls = _patch_acquire_steps(

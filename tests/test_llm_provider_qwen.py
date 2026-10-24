@@ -543,3 +543,33 @@ def test_qwen_provider_fake_cli_failure_surfaces_stream_error(
 
     assert exc_info.value.returncode == 7
     assert "[error] rate limit 429" in exc_info.value.stderr
+
+
+def test_qwen_interrupt_continuation_reuses_real_timer_without_suppress() -> None:
+    """Pin the reusable timer for a non-Muse two-cycle interrupt loop."""
+    provider = QwenProvider()
+    calls = {"n": 0}
+
+    def _fake_run(
+        args: list[str],
+        prompt: str,
+        suppress_output: bool,
+    ) -> tuple[str, str, int, dict[str, int]]:
+        del args, prompt
+        assert suppress_output is False
+        calls["n"] += 1
+        if calls["n"] == 1:
+            provider._pending_interrupt_message = "also update the tests"
+            return ("first pass", "", 0, {"input_tokens": 2})
+        return ("second pass", "", 0, {"output_tokens": 3})
+
+    with (
+        patch("sase.output.time.sleep", return_value=None),
+        patch.object(QwenProvider, "_run_subprocess", side_effect=_fake_run),
+    ):
+        result = provider.invoke(
+            "original task", model_tier="large", suppress_output=False
+        )
+
+    assert calls["n"] == 2
+    assert result.content == "first pass\n\nsecond pass"

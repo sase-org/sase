@@ -47,6 +47,7 @@ _strip_ansi = strip_ansi
 _write_codex_thinking = _codex._write_codex_thinking
 _write_usage_artifact = write_usage_artifact
 ProviderTurnState = _plain.ProviderTurnState
+final_submission_signature = _plain.final_submission_signature
 start_completion_watchdog = _plain.start_completion_watchdog
 start_interrupt_monitor = _plain.start_interrupt_monitor
 stream_and_parse_codex_json_output = _codex.stream_and_parse_codex_json_output
@@ -87,6 +88,7 @@ __all__ = [
     "_strip_ansi",
     "_write_codex_thinking",
     "_write_usage_artifact",
+    "final_submission_signature",
     "os",
     "select",
     "start_completion_watchdog",

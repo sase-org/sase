@@ -5,10 +5,12 @@ This module provides utilities for creating visually appealing command-line outp
 using the Rich library for status messages, progress indicators, and structured data display.
 """
 
+import contextlib
 import threading
 import time
 from collections.abc import Generator
 from contextlib import contextmanager
+from types import TracebackType
 
 from rich.console import Console
 from rich.live import Live
@@ -178,7 +180,7 @@ def print_decision_counts(decision_counts: dict) -> None:
 
 
 @contextmanager
-def provider_timer(
+def _one_shot_provider_timer(
     message: str = "Waiting for provider",
 ) -> Generator[None, None, None]:
     """
@@ -255,3 +257,48 @@ def provider_timer(
             live.update(final_text)
             # Give a moment to show the final message
             time.sleep(_PROVIDER_TIMER_COMPLETION_DISPLAY_SECONDS)
+
+
+class _ReusableProviderTimer(contextlib.AbstractContextManager[None]):
+    """Reusable timer context for provider invocation loops.
+
+    One object may be reused across sequential ``with`` blocks; each block
+    shows and times only its own cycle. Entering the same object while it
+    is already active raises ``RuntimeError``.
+    """
+
+    def __init__(self, message: str = "Waiting for provider") -> None:
+        self._message = message
+        self._active: contextlib.AbstractContextManager[None] | None = None
+
+    def __enter__(self) -> None:
+        if self._active is not None:
+            raise RuntimeError(
+                "provider_timer context is already active; nesting is not supported"
+            )
+        timer = _one_shot_provider_timer(self._message)
+        result = timer.__enter__()
+        self._active = timer
+        return result
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> bool | None:
+        timer, self._active = self._active, None
+        if timer is None:
+            return None
+        return timer.__exit__(exc_type, exc_value, traceback)
+
+
+def provider_timer(
+    message: str = "Waiting for provider",
+) -> contextlib.AbstractContextManager[None]:
+    """Return a reusable timer showing elapsed time while waiting on a provider.
+
+    One object may be reused across sequential ``with`` blocks; each block
+    shows and times only its own cycle.
+    """
+    return _ReusableProviderTimer(message)

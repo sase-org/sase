@@ -44,6 +44,7 @@ from ._muse_launch import (
     write_muse_prompt_file,
 )
 from ._subprocess import (
+    final_submission_signature,
     start_completion_watchdog,
     start_interrupt_monitor,
     stream_and_parse_muse_json_output,
@@ -396,6 +397,7 @@ class MuseProvider(LLMProvider):
         cycle = 0
         wait_continuations = 0
         max_wait_continuations = muse_max_wait_continuations()
+        initial_submission_signature = final_submission_signature()
 
         while True:
             # The prompt goes through a 0o600 managed temp file rather than
@@ -467,8 +469,18 @@ class MuseProvider(LLMProvider):
             # stranded: with the synchronous shell nothing can be pending, and
             # with managed `bash` a watchdog teardown reports the same way.
             # Either way nothing will wake the model, so continue with a nudge
-            # or fail loudly rather than recording the wait as success.
+            # or fail loudly rather than recording the wait as success. An
+            # accepted declaration ends the turn: continuing would restart
+            # Muse from scratch and could change a tree the host accepted.
             if ends_with_wait_claim(content):
+                current_signature = final_submission_signature()
+                if (
+                    current_signature is not None
+                    and current_signature != initial_submission_signature
+                ):
+                    cycle += 1
+                    _log_wait_guard("wait_claim_after_accepted_declaration", cycle)
+                    return InvokeResult(content=accumulated_response, usage=total_usage)
                 cycle += 1
                 _log_wait_guard("stranded_wait_claim", cycle)
                 if wait_continuations >= max_wait_continuations:

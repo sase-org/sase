@@ -25,7 +25,7 @@ _CREDENTIAL_CONFIRMATION_DELAY_SECONDS = 10.0
 _sleep = time.sleep
 
 
-def prepare_from_primary_remote(checkout: Path) -> None:
+def prepare_from_primary_remote(checkout: Path, *, workspace_num: int) -> None:
     if not (checkout / ".git").exists() and not (checkout / ".git").is_file():
         raise OperationalLeaseError(
             "preparation",
@@ -37,6 +37,7 @@ def prepare_from_primary_remote(checkout: Path) -> None:
     upstream = _configured_upstream(checkout)
     if upstream is None:
         return
+    _maybe_rescue_dirty_checkout(checkout, workspace_num)
     local_branch = upstream.rsplit("/", 1)[-1]
     checkout_result = _run_git_mutation(
         ["checkout", "--force", "-B", local_branch, upstream],
@@ -49,6 +50,54 @@ def prepare_from_primary_remote(checkout: Path) -> None:
             or f"git checkout {upstream} failed"
         )
         raise _preparation_error(detail, checkout_result.returncode)
+
+
+def _maybe_rescue_dirty_checkout(checkout: Path, workspace_num: int) -> None:
+    """Rescue tracked modifications before the forced checkout destroys them.
+
+    Only tracked changes are inspected: ``git checkout --force`` leaves
+    untracked files in place. A clean tracked tree triggers no rescue, since
+    pooled workspaces carry old stashes that would otherwise write a rescue
+    entry on every lease.
+    """
+    status = _run_git(
+        ["status", "--porcelain", "--untracked-files=no"],
+        checkout,
+    )
+    dirty_paths = (status.stdout or "").strip()
+    if status.returncode == 0 and not dirty_paths:
+        return
+    from sase.workspace_provider.rescue import rescue_git_repo
+
+    record = rescue_git_repo(
+        checkout,
+        workspace_dir=checkout,
+        workspace_num=workspace_num,
+        label="lease-checkout",
+        reason=(
+            "operational lease preparation: "
+            "rescuing dirty leased checkout before forced reset"
+        ),
+        include_worktree=True,
+    )
+    if record is None:
+        if status.returncode != 0:
+            detail = (
+                status.stderr.strip() or status.stdout.strip() or "git status failed"
+            )
+            _logger.warning(
+                "operational lease preparation: rescue failed for %s "
+                "after status failure (%s); resetting anyway",
+                checkout,
+                detail,
+            )
+        else:
+            _logger.warning(
+                "operational lease preparation: rescue failed for dirty "
+                "checkout %s (%s); resetting anyway",
+                checkout,
+                dirty_paths,
+            )
 
 
 def _fetch_origin_with_retries(checkout: Path) -> None:

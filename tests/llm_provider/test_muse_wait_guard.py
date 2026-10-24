@@ -302,3 +302,97 @@ def test_claude_and_muse_share_one_wait_signal_pattern() -> None:
 
     assert claude_module.ends_with_wait_claim is ends_with_wait_claim
     assert WAIT_SIGNAL_RE.pattern
+
+
+def test_muse_two_cycles_use_real_timer_without_suppress(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Regression: a wait-claim continuation re-enters the real timer."""
+    monkeypatch.delenv("SASE_MUSE_MAX_WAIT_CONTINUATIONS", raising=False)
+    monkeypatch.delenv("SASE_ARTIFACTS_DIR", raising=False)
+    provider = MuseProvider()
+    calls = {"n": 0}
+
+    def _fake_run(
+        args: list[str],
+        suppress_output: bool,
+        session_id: str | None = None,
+    ) -> tuple[str, str, int, dict[str, int]]:
+        del args, session_id
+        assert suppress_output is False
+        calls["n"] += 1
+        if calls["n"] == 1:
+            return ("The check is still running, so I'll wait.", "", 0, _usage())
+        return ("All done.", "", 0, _usage())
+
+    with (
+        patch("sase.output.time.sleep", return_value=None),
+        patch.object(MuseProvider, "_run_subprocess", side_effect=_fake_run),
+    ):
+        result = provider.invoke(
+            "original task", model_tier="large", suppress_output=False
+        )
+
+    assert calls["n"] == 2
+    assert result.content == ("The check is still running, so I'll wait.\n\nAll done.")
+
+
+def test_muse_wait_claim_after_accepted_declaration_returns(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """An accepted declaration ends the turn instead of continuing."""
+    monkeypatch.delenv("SASE_MUSE_MAX_WAIT_CONTINUATIONS", raising=False)
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(tmp_path))
+    provider = MuseProvider()
+    calls = {"n": 0}
+
+    def _fake_run(
+        args: list[str],
+        suppress_output: bool,
+        session_id: str | None = None,
+    ) -> tuple[str, str, int, dict[str, int]]:
+        del args, suppress_output, session_id
+        calls["n"] += 1
+        (tmp_path / "final_submission.json").write_text("{}", encoding="utf-8")
+        return ("The check is still running, so I'll wait.", "", 0, _usage())
+
+    with (
+        patch("sase.llm_provider.muse_provider.provider_timer"),
+        patch.object(MuseProvider, "_run_subprocess", side_effect=_fake_run),
+    ):
+        result = provider.invoke(
+            "original task", model_tier="large", suppress_output=True
+        )
+
+    assert calls["n"] == 1
+    assert result.content == "The check is still running, so I'll wait."
+    entries = [
+        json.loads(line)
+        for line in (tmp_path / "wait_guard_log.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
+        if line.strip()
+    ]
+    assert len(entries) == 1
+    assert entries[0]["reason"] == "wait_claim_after_accepted_declaration"
+
+
+def test_muse_preexisting_submission_does_not_block_continuation(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A submission from an earlier run does not count as an acceptance."""
+    monkeypatch.delenv("SASE_MUSE_MAX_WAIT_CONTINUATIONS", raising=False)
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(tmp_path))
+    (tmp_path / "final_submission.json").write_text("{}", encoding="utf-8")
+
+    result, prompts = _invoke_with_replies(
+        [
+            ("Started the check; I'll wait for it to finish.", "", 0),
+            ("All done.", "", 0),
+        ]
+    )
+
+    assert result.content == (
+        "Started the check; I'll wait for it to finish.\n\nAll done."
+    )
+    assert len(prompts) == 2
