@@ -17,6 +17,9 @@ from sase.core.rust import require_rust_binding
 PUBLICATION_KIND_RUN = "run"
 PUBLICATION_KIND_SESSION = "session"
 
+PUBLICATION_SCOPE_LINKED = "linked"
+PUBLICATION_SCOPE_REVISION = "revision"
+
 PROMPT_STATUS_RESTORED = "restored"
 PROMPT_STATUS_ALREADY_ARCHIVED = "already_archived"
 PROMPT_STATUS_NOT_APPLICABLE = "not_applicable"
@@ -287,18 +290,22 @@ def decide_publication_request_completion(
     pages: Sequence[Mapping[str, Any]],
     runs: Sequence[Mapping[str, Any]] = (),
     containers: Sequence[Mapping[str, Any]] = (),
+    scope: str = "",
 ) -> PublicationCompletionDecision:
     """Decide whether a request's canonical page and revision are present."""
 
     binding = require_rust_binding("decide_publication_request_completion")
+    request_identity: dict[str, Any] = {
+        "global_agent": global_agent,
+        "local_agent": local_agent,
+        "primary_revision": primary_revision,
+    }
+    if scope:
+        request_identity["scope"] = scope
     raw = binding(
         {
             "schema_version": PUBLICATION_RECOVERY_WIRE_SCHEMA_VERSION,
-            "request": {
-                "global_agent": global_agent,
-                "local_agent": local_agent,
-                "primary_revision": primary_revision,
-            },
+            "request": request_identity,
             "pages": [dict(page) for page in pages],
             "runs": [dict(run) for run in runs],
             "containers": [dict(container) for container in containers],

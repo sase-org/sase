@@ -188,7 +188,8 @@ def test_run_push_failure_after_local_commit_records_unpushed_marker(
     loaded = checkpoint.checkpoint_load(str(artifacts_dir / "commit_state.json"))
     assert loaded is not None
     assert loaded.completed_steps == []
-    assert loaded.primary_revision == "0" * 40
+    assert loaded.pre_dispatch_revision == "0" * 40
+    assert loaded.primary_revision is None
     assert loaded.commit_sha == "1" * 40
     assert loaded.commit_tree == "2" * 40
     assert loaded.dispatch_result == "1" * 40
@@ -609,3 +610,28 @@ def test_pre_dispatch_checkpoint_written_before_dispatch(
         assert wf.run() == RunResult.CONFLICT
 
     assert saves_before_dispatch == [[]]
+
+
+def test_checkpoint_load_accepts_legacy_json_without_pre_dispatch_revision(
+    artifacts_dir: Path,
+) -> None:
+    path = artifacts_dir / "commit_state.json"
+    path.write_text(
+        json.dumps(
+            {
+                "method": "create_commit",
+                "payload": {"message": "fix: bug"},
+                "cwd": "/tmp",
+                "version": 1,
+                "primary_revision": "0" * 40,
+                "completed_steps": [],
+                "created_at": 0.0,
+                "no_commit_dispatched": False,
+            }
+        ),
+        encoding="utf-8",
+    )
+    loaded = checkpoint.checkpoint_load(str(path))
+    assert loaded is not None
+    assert loaded.primary_revision == "0" * 40
+    assert loaded.pre_dispatch_revision is None

@@ -318,22 +318,27 @@ publication totals.
 
 Commit-triggered agent-hood publication uses a durable outbox at
 `~/.sase/projects/<project-key>/agents-publication-outbox.json`, keyed by
-`(global_agent, primary_revision)`. Each request records its attempt count, most recent
-attributable error, and quarantine or retirement state. `publish_committed_agent_hood`
-enqueues the committing hood's request and immediately drains every active request for
-the project under the bounded agents lock, so a healthy commit publishes and pushes
-before it returns. Bead-page rendering and plan-header refresh are separate synchronous
-steps on the commit path. Prompt-archive publication is attempted synchronously too, but
-its retry obligation is covered by the hood request: every drain and full sync rebuilds
-the archives owed by the requests it is about to acknowledge. A prompt archive that
-cannot even be queued fails the commit with a `sase stitch create --resume` hint, the
-same way an unqueueable hood does. A hood-specific preparation failure increments only
-requests for that hood; repository-wide failures such as lock contention, pull failure,
-or push failure remain retryable without consuming unrelated per-item quarantine
-budgets. A repeatable failure that proves the requested hood can never be published
-retires that request after one confirming retry instead of quarantining it. Successful
-requests are acknowledged only after their sidecar work is committed and safely pushed,
-or after the prepared payload is already current.
+`(global_agent, primary_revision)`. `primary_revision` is the commit the agent created
+(the post-commit HEAD), not the workspace HEAD from before dispatch. A request for a
+linked (non-primary) repository commit also records `scope: linked`; fulfillment then
+requires only the agent's required publication page, because linked-repo SHAs never
+appear in the run's primary `commit_shas`. Each request records its attempt count, most
+recent attributable error, and quarantine or retirement state.
+`publish_committed_agent_hood` enqueues the committing hood's request and immediately
+drains every active request for the project under the bounded agents lock, so a healthy
+commit publishes and pushes before it returns. Bead-page rendering and plan-header
+refresh are separate synchronous steps on the commit path. Prompt-archive publication is
+attempted synchronously too, but its retry obligation is covered by the hood request:
+every drain and full sync rebuilds the archives owed by the requests it is about to
+acknowledge. A prompt archive that cannot even be queued fails the commit with a
+`sase stitch create --resume` hint, the same way an unqueueable hood does. A
+hood-specific preparation failure increments only requests for that hood;
+repository-wide failures such as lock contention, pull failure, or push failure remain
+retryable without consuming unrelated per-item quarantine budgets. A repeatable failure
+that proves the requested hood can never be published retires that request after one
+confirming retry instead of quarantining it. Successful requests are acknowledged only
+after their sidecar work is committed and safely pushed, or after the prepared payload
+is already current.
 
 ### Chats provenance versus publication
 

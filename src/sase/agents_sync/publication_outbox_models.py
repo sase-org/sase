@@ -5,7 +5,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 import hashlib
 
-PUBLICATION_OUTBOX_SCHEMA_VERSION = 5
+PUBLICATION_OUTBOX_SCHEMA_VERSION = 6
+PUBLICATION_SCOPE_LINKED = "linked"
+PUBLICATION_SCOPE_REVISION = "revision"
+_PUBLICATION_SCOPES = frozenset({PUBLICATION_SCOPE_LINKED, PUBLICATION_SCOPE_REVISION})
 
 PublicationLogicalKey = tuple[str, str]
 
@@ -21,6 +24,7 @@ class AgentPublicationOutboxItem:
     primary_revision: str
     local_hood: str
     hood_digest: str = "pending"
+    scope: str = PUBLICATION_SCOPE_REVISION
     attempts: int = 0
     last_error: str | None = None
     quarantined: bool = False
@@ -56,6 +60,7 @@ class AgentPublicationOutboxItem:
             "primary_revision": self.primary_revision,
             "local_hood": self.local_hood,
             "hood_digest": self.hood_digest,
+            "scope": self.scope,
             "attempts": self.attempts,
             "last_error": self.last_error,
             "quarantined": self.quarantined,
@@ -86,6 +91,11 @@ def validate_publication_item(
         )
     ):
         raise RuntimeError("agents publication outbox item is incomplete")
+    if item.scope not in _PUBLICATION_SCOPES:
+        raise RuntimeError(
+            f"agents publication outbox scope must be "
+            f"{PUBLICATION_SCOPE_REVISION} or {PUBLICATION_SCOPE_LINKED}"
+        )
 
 
 def publication_sort_key(
@@ -98,6 +108,8 @@ def publication_sort_key(
 
 __all__ = [
     "PUBLICATION_OUTBOX_SCHEMA_VERSION",
+    "PUBLICATION_SCOPE_LINKED",
+    "PUBLICATION_SCOPE_REVISION",
     "AgentPublicationOutboxItem",
     "PublicationLogicalKey",
     "publication_sort_key",

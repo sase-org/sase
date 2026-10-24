@@ -8,6 +8,7 @@ from sase.agents_sync._commit_publication_drain import (
 from sase.agents_sync._commit_publication_locked import DEFAULT_COMMIT_DRAIN_BATCH_LIMIT
 from sase.agents_sync._commit_publication_queue import (
     drain_selected_agent_publications,
+    fulfillment_scope_for_commit_cwd,
     publish_committed_agent_hood,
     resolve_publication_project_key,
 )
@@ -19,6 +20,7 @@ from sase.sdd.plan_header_refresh import (
 __all__ = [
     "PlanHeaderRefreshOutcome",
     "drain_selected_agent_publications",
+    "fulfillment_scope_for_commit_cwd",
     "publish_committed_agent_hood",
     "refresh_committed_plan_header",
     "resolve_publication_project_key",

@@ -15,6 +15,8 @@ from sase.agents_sync._commit_publication_types import CommitPublicationOutcome
 from sase.agents_sync.git import GitRunner, run_git
 from sase.agents_sync.models import ProjectTarget
 from sase.agents_sync.publication_outbox import (
+    PUBLICATION_SCOPE_LINKED,
+    PUBLICATION_SCOPE_REVISION,
     AgentPublicationOutboxItem,
     enqueue_agent_publication,
     list_agent_publications,
@@ -132,6 +134,7 @@ def _enqueue_committed_agent_publication(
         global_agent=agent_ref.global_name,
         primary_revision=primary_revision,
         local_hood=agent_local_hood(agent_ref.local_name, identity),
+        scope=fulfillment_scope_for_commit_cwd(commit_cwd),
     )
     try:
         enqueue_agent_publication(item)
@@ -169,6 +172,17 @@ def _enqueue_committed_agent_publication(
             item,
         )
     return CommitPublicationOutcome(queued=True), target, item
+
+
+def fulfillment_scope_for_commit_cwd(commit_cwd: Path | str | None) -> str:
+    """Return linked-scope for a non-primary checkout, else revision-bound."""
+
+    if commit_cwd is None:
+        return PUBLICATION_SCOPE_REVISION
+    match = _publication_inventory_match(commit_cwd)
+    if match is None or match[1] == "primary":
+        return PUBLICATION_SCOPE_REVISION
+    return PUBLICATION_SCOPE_LINKED
 
 
 def resolve_publication_project_key(
@@ -239,8 +253,10 @@ def _resolve_sidecar_publication_target(
     return None, f"project {selector!r} has no usable publication target: {detail}"
 
 
-def _publication_project_key_from_path(commit_cwd: Path | str) -> str | None:
-    """Resolve a registered checkout by path without invoking git."""
+def _publication_inventory_match(
+    commit_cwd: Path | str,
+) -> tuple[str, str] | None:
+    """Return ``(project_key, kind)`` for the most specific inventory match."""
 
     cwd = Path(commit_cwd).expanduser().resolve(strict=False)
     try:
@@ -248,7 +264,7 @@ def _publication_project_key_from_path(commit_cwd: Path | str) -> str | None:
     except Exception:
         return None
 
-    matches: list[tuple[int, int, str, str]] = []
+    matches: list[tuple[int, int, str, str, str]] = []
     for record in inventory.records:
         paths = (record.path, *(clone.path for clone in record.clones))
         for raw_path in paths:
@@ -263,11 +279,20 @@ def _publication_project_key_from_path(commit_cwd: Path | str) -> str | None:
                     _REPO_KIND_ORDER[record.kind],
                     record.project_key,
                     record.name.casefold(),
+                    record.kind,
                 )
             )
     if not matches:
         return None
-    return min(matches)[2]
+    selected = min(matches)
+    return selected[2], selected[4]
+
+
+def _publication_project_key_from_path(commit_cwd: Path | str) -> str | None:
+    """Resolve a registered checkout by path without invoking git."""
+
+    match = _publication_inventory_match(commit_cwd)
+    return None if match is None else match[0]
 
 
 def _display_repository(commit_cwd: Path | str | None) -> str:

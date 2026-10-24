@@ -329,10 +329,11 @@ class CommitWorkflow(BaseWorkflow):
         self._diff_path = capture_pre_commit_diff(provider, cwd, self._cl_name)
 
         # Snapshot the post-mutation payload + resolved fields so the resume
-        # path can replay tracking even if dispatch crashes.
-        primary_revision = None
+        # path can replay tracking even if dispatch crashes. The pre-dispatch
+        # HEAD is stored separately so publication can name the post-commit SHA.
+        pre_dispatch_revision = None
         if self._method in ("create_commit", "create_pull_request"):
-            primary_revision = resolve_head_commit_sha(provider, cwd)
+            pre_dispatch_revision = resolve_head_commit_sha(provider, cwd)
         cp = CommitCheckpoint(
             method=self._method,
             payload=self._payload,
@@ -343,7 +344,7 @@ class CommitWorkflow(BaseWorkflow):
             base_cl_name=self._base_cl_name,
             reserved_name=self._reserved_name,
             parent_cl_name=self._parent_cl_name,
-            primary_revision=primary_revision,
+            pre_dispatch_revision=pre_dispatch_revision,
             publication_agent=resolve_local_agent_name(),
             run_id=os.environ.get("SASE_AGENT_TIMESTAMP", "").strip() or None,
         )
@@ -438,7 +439,9 @@ class CommitWorkflow(BaseWorkflow):
             return None
 
         head_sha = resolve_head_commit_sha(provider, cp.cwd)
-        if not head_sha or head_sha == cp.primary_revision:
+        if not head_sha or head_sha == (
+            cp.pre_dispatch_revision or cp.primary_revision
+        ):
             return None
 
         cp.commit_sha = head_sha

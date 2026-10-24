@@ -17,13 +17,16 @@ included when they belong to that hood.
 
 After an agent-backed commit or pull-request operation records its first durable result
 marker, the commit workflow resolves the project's agents target. When that target is
-available, SASE records an outbox request for the exact hood and immediately drains it
-under the bounded agents lock, so the commit does not return until the hood is published
-and pushed (or the request is confirmed queued for retry). A publication that cannot
-even be queued fails the commit with a `sase stitch create --resume` hint; a request
-that survives the immediate drain — because of a transient, hood-specific, or
-repository-wide failure — prints a warning naming the recovery command and is retried by
-a later commit's drain or by an explicit `sase agent sync`. See
+available, SASE records an outbox request for the exact hood at the created commit SHA
+and immediately drains it under the bounded agents lock, so the commit does not return
+until the hood is published and pushed (or the request is confirmed queued for retry). A
+linked-repo commit uses the same host-project outbox with `scope: linked`, so
+acknowledgment requires the published page rather than a primary-revision match. A
+publication that cannot even be queued fails the commit with a
+`sase stitch create --resume` hint; a request that survives the immediate drain —
+because of a transient, hood-specific, or repository-wide failure — prints a warning
+naming the recovery command and is retried by a later commit's drain or by an explicit
+`sase agent sync`. See
 [runtime provenance and publication](commit-workflow-orchestrator.md#cli-inputs-and-internal-payload).
 
 Published runs that are temporarily missing from local inventory are retained. New

@@ -7,6 +7,8 @@ from sase.agents_sync.publication_outbox_diagnostics import (
 )
 from sase.agents_sync.publication_outbox_models import (
     PUBLICATION_OUTBOX_SCHEMA_VERSION,
+    PUBLICATION_SCOPE_LINKED,
+    PUBLICATION_SCOPE_REVISION,
     AgentPublicationOutboxItem,
     PublicationLogicalKey,
 )
@@ -39,6 +41,8 @@ __all__ = [
     "PUBLICATION_DROP_COMMAND",
     "PUBLICATION_OUTBOX_SCHEMA_VERSION",
     "PUBLICATION_RETRY_COMMAND",
+    "PUBLICATION_SCOPE_LINKED",
+    "PUBLICATION_SCOPE_REVISION",
     "AgentPublicationOutboxItem",
     "PublicationDrainBatchSelection",
     "PublicationLogicalKey",

@@ -43,6 +43,8 @@ from sase.core.agent_publication_recovery_publication import (
     PUBLICATION_LIFECYCLE_ACTIVE,
     PUBLICATION_LIFECYCLE_QUARANTINED,
     PUBLICATION_LIFECYCLE_RETIRED,
+    PUBLICATION_SCOPE_LINKED,
+    PUBLICATION_SCOPE_REVISION,
     PROMPT_STATUS_ALREADY_ARCHIVED,
     PROMPT_STATUS_FAILED,
     PROMPT_STATUS_NOT_APPLICABLE,
@@ -171,6 +173,7 @@ def decide_publication_request_completion(
     pages: Sequence[Mapping[str, Any]],
     runs: Sequence[Mapping[str, Any]] = (),
     containers: Sequence[Mapping[str, Any]] = (),
+    scope: str = "",
 ) -> PublicationCompletionDecision:
     """Decide whether a request's canonical page and revision are present."""
     _sync_publication_patchables()
@@ -181,6 +184,7 @@ def decide_publication_request_completion(
         pages=pages,
         runs=runs,
         containers=containers,
+        scope=scope,
     )
 
 
@@ -291,6 +295,8 @@ __all__ = [
     "PUBLICATION_LIFECYCLE_QUARANTINED",
     "PUBLICATION_LIFECYCLE_RETIRED",
     "PUBLICATION_RECOVERY_WIRE_SCHEMA_VERSION",
+    "PUBLICATION_SCOPE_LINKED",
+    "PUBLICATION_SCOPE_REVISION",
     "PublicationCompletionDecision",
     "PublicationDrainSelection",
     "PublicationFailureAccounting",

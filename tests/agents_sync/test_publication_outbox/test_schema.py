@@ -7,6 +7,7 @@ import json
 import pytest
 from sase.agents_sync.publication_outbox import (
     PUBLICATION_OUTBOX_SCHEMA_VERSION,
+    PUBLICATION_SCOPE_REVISION,
     list_agent_publications,
     snapshot_agent_publications_from_path,
     snapshot_publication_document_from_path,
@@ -254,9 +255,28 @@ def test_schema_v4_drops_non_agent_requests_with_a_visible_diagnostic(
     update_agent_publications("proj", (survivor.logical_key,), error=None)
     rewritten = json.loads(path.read_text(encoding="utf-8"))
     assert rewritten["schema_version"] == PUBLICATION_OUTBOX_SCHEMA_VERSION
-    assert PUBLICATION_OUTBOX_SCHEMA_VERSION == 5
+    assert PUBLICATION_OUTBOX_SCHEMA_VERSION == 6
+    assert rewritten["items"][0]["scope"] == PUBLICATION_SCOPE_REVISION
     assert [row["global_agent"] for row in rewritten["items"]] == [
         make_outbox_item().global_agent
     ]
     assert "kind" not in rewritten["items"][0]
     assert snapshot_publication_document_from_path(path, "proj").notices == ()
+
+
+def test_schema_v5_row_without_scope_defaults_to_revision(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path))
+    path = tmp_path / "projects" / "proj" / "agents-publication-outbox.json"
+    path.parent.mkdir(parents=True)
+    row = make_outbox_item().to_json_dict()
+    row.pop("scope")
+    path.write_text(
+        json.dumps({"schema_version": 5, "items": [row]}),
+        encoding="utf-8",
+    )
+
+    [loaded] = list_agent_publications("proj")
+    assert loaded.scope == PUBLICATION_SCOPE_REVISION

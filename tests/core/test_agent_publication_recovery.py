@@ -23,6 +23,7 @@ from sase.core.agent_publication_recovery import (
     PUBLICATION_KIND_SESSION,
     PUBLICATION_LIFECYCLE_ACTIVE,
     PUBLICATION_RECOVERY_WIRE_SCHEMA_VERSION,
+    PUBLICATION_SCOPE_LINKED,
     REPLAY_APPLY_ACTION_APPLY,
     REPLAY_APPLY_ACTION_REFUSE,
     REPLAY_APPLY_ACTION_REPORT,
@@ -302,6 +303,27 @@ def test_completion_rejects_preexisting_run_page_without_revision() -> None:
     assert "primary revision" in decision.reason
 
 
+def test_linked_scope_fulfills_when_the_required_page_exists_without_revision() -> None:
+    decision = decide_publication_request_completion(
+        global_agent="alice.athena.foo",
+        local_agent="foo",
+        primary_revision="a" * 40,
+        pages=({"path": "agents/alice.athena.foo/README.md", "exists": True},),
+        runs=(
+            {
+                "global_name": "alice.athena.foo",
+                "local_name": "foo",
+                "commit_shas": ["b" * 40],
+                "has_prompt_file": False,
+            },
+        ),
+        scope=PUBLICATION_SCOPE_LINKED,
+    )
+    assert decision.kind == PUBLICATION_KIND_RUN
+    assert decision.fulfilled
+    assert "linked-scope" in decision.reason
+
+
 def test_deferred_prompt_missing_source_is_unavailable_without_evidence() -> None:
     unavailable = classify_deferred_prompt_obligation(
         restore_wrote=False,
@@ -359,6 +381,19 @@ def test_python_completion_helper_reads_snapshot_and_pages(tmp_path: Path) -> No
     decision = _publication_request_completion(target, item, owner)
     assert decision.fulfilled
     assert decision.kind == PUBLICATION_KIND_RUN
+
+    linked_item = AgentPublicationOutboxItem(
+        project_key="proj",
+        project="Project",
+        local_agent="foo",
+        global_agent="alice.athena.foo",
+        primary_revision="c" * 40,
+        local_hood="foo",
+        scope=PUBLICATION_SCOPE_LINKED,
+    )
+    linked = _publication_request_completion(target, linked_item, owner)
+    assert linked.fulfilled
+    assert "linked-scope" in linked.reason
     assert snapshot_prompt_file_present(target, item, owner) is False
 
     plant_fulfilled_publication(sidecar, has_prompt_file=True)

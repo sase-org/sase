@@ -36,6 +36,56 @@ def run_agent_publication_step(
     return published
 
 
+def _publication_revision(
+    cp: CommitCheckpoint,
+    *,
+    checkpoint_save: Callable[[CommitCheckpoint], str | None],
+    get_vcs_provider: Callable[[str], object],
+) -> str | None:
+    """Return the revision both publication steps share, persisting it first.
+
+    A resumed legacy checkpoint that already queued ``publish_prompt_archive``
+    under the pre-commit HEAD keeps that revision so the remaining hood step
+    does not create a second outbox row. New runs and resumes that have not
+    published yet use ``commit_sha``, falling back to resolving HEAD.
+    """
+
+    if (
+        "publish_prompt_archive" in cp.completed_steps
+        and cp.primary_revision
+        and cp.primary_revision.strip()
+    ):
+        return cp.primary_revision.strip()
+    revision = (cp.commit_sha or "").strip()
+    if not revision:
+        provider = get_vcs_provider(cp.cwd)
+        try:
+            resolved = provider.revision_id("HEAD", cp.cwd)  # type: ignore[attr-defined]
+        except Exception as exc:  # noqa: BLE001 - provider boundary
+            print_status(
+                "The primary commit succeeded, but its immutable revision "
+                f"could not be resolved for agent publication: {exc}. "
+                "Run `sase stitch create --resume` to retry without creating "
+                "another primary commit.",
+                "error",
+            )
+            return None
+        if not isinstance(resolved, str) or not resolved.strip():
+            print_status(
+                "The primary commit succeeded, but the VCS provider did "
+                "not return an immutable revision. Run "
+                "`sase stitch create --resume` to retry without creating another "
+                "primary commit.",
+                "error",
+            )
+            return None
+        revision = resolved.strip()
+    if cp.primary_revision != revision:
+        cp.primary_revision = revision
+        checkpoint_save(cp)
+    return revision
+
+
 def _emit_publication_step(*, state: str) -> None:
     """Emit a publication step on the finalizer step channel; never raises."""
 
@@ -82,30 +132,13 @@ def _run_agent_publication_inner(
         refresh_committed_plan_header(message, primary_root=cp.cwd)
         return True
 
-    if not cp.primary_revision:
-        provider = get_vcs_provider(cp.cwd)
-        try:
-            revision = provider.revision_id("HEAD", cp.cwd)  # type: ignore[attr-defined]
-        except Exception as exc:  # noqa: BLE001 - provider boundary
-            print_status(
-                "The primary commit succeeded, but its immutable revision "
-                f"could not be resolved for agent publication: {exc}. "
-                "Run `sase stitch create --resume` to retry without creating "
-                "another primary commit.",
-                "error",
-            )
-            return False
-        if not isinstance(revision, str) or not revision.strip():
-            print_status(
-                "The primary commit succeeded, but the VCS provider did "
-                "not return an immutable revision. Run "
-                "`sase stitch create --resume` to retry without creating another "
-                "primary commit.",
-                "error",
-            )
-            return False
-        cp.primary_revision = revision.strip()
-        checkpoint_save(cp)
+    revision = _publication_revision(
+        cp,
+        checkpoint_save=checkpoint_save,
+        get_vcs_provider=get_vcs_provider,
+    )
+    if revision is None:
+        return False
 
     if "publish_prompt_archive" not in cp.completed_steps:
         from sase.agents_sync.prompt_archive import publish_prompt_archive
@@ -113,7 +146,7 @@ def _run_agent_publication_inner(
         try:
             prompt_outcome = publish_prompt_archive(
                 cp.publication_agent,
-                cp.primary_revision,
+                revision,
                 commit_cwd=cp.cwd,
             )
         except Exception as exc:  # noqa: BLE001 - auxiliary publication boundary
@@ -167,7 +200,7 @@ def _run_agent_publication_inner(
     try:
         outcome = publish_committed_agent_hood(
             cp.publication_agent,
-            cp.primary_revision,
+            revision,
             commit_cwd=cp.cwd,
         )
     except Exception as exc:  # noqa: BLE001 - auxiliary publication boundary

@@ -46,6 +46,7 @@ def test_commit_publishes_every_sidecar_inline_in_order(
         },
         cwd=str(tmp_path),
         primary_revision="a" * 40,
+        commit_sha="a" * 40,
         publication_agent="worker",
     )
     monkeypatch.setattr(
@@ -241,6 +242,7 @@ def test_fully_tagged_commit_and_resume_publish_each_sidecar_once(
         payload={"message": message},
         cwd=str(primary),
         primary_revision="b" * 40,
+        commit_sha="b" * 40,
         publication_agent="worker--code",
     )
 
@@ -280,6 +282,181 @@ def _configure_publication(
     provider.revision_id.return_value = "a" * 40
     mock_get.return_value = provider
     return provider
+
+
+@patch(_PROVIDER_TARGET)
+def test_commit_publishes_post_commit_revision_not_pre_dispatch_head(
+    mock_get: MagicMock,
+    artifacts_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _configure_publication(mock_get, monkeypatch)
+    mock_get.return_value.revision_id.side_effect = ["0" * 40, "1" * 40, "2" * 40]
+    prompt_revisions: list[str] = []
+    hood_revisions: list[str] = []
+
+    def capture_prompt(
+        _agent: str, revision: str, **_kwargs: object
+    ) -> SimpleNamespace:
+        prompt_revisions.append(revision)
+        return SimpleNamespace(
+            error=None, skip_reason=None, prompt_path=None, queued=False
+        )
+
+    def capture_hood(
+        _agent: str, revision: str, **_kwargs: object
+    ) -> CommitPublicationOutcome:
+        hood_revisions.append(revision)
+        return CommitPublicationOutcome(published=True)
+
+    with (
+        patch(
+            "sase.agents_sync.prompt_archive.publish_prompt_archive",
+            side_effect=capture_prompt,
+        ),
+        patch(
+            "sase.agents_sync.commit_publication.publish_committed_agent_hood",
+            side_effect=capture_hood,
+        ),
+        patch(
+            "sase.workflows.commit.workflow.append_commits_entry",
+            return_value=None,
+        ),
+    ):
+        assert CommitWorkflow({"message": "fix: bug"}, "create_commit").run() == (
+            RunResult.OK
+        )
+
+    assert prompt_revisions == ["1" * 40]
+    assert hood_revisions == ["1" * 40]
+
+
+def test_resumed_legacy_checkpoint_keeps_prompt_archive_revision_for_hood(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    hood_revisions: list[str] = []
+    cp = CommitCheckpoint(
+        method="create_commit",
+        payload={"message": "fix: bug"},
+        cwd=str(tmp_path),
+        primary_revision="0" * 40,
+        commit_sha="1" * 40,
+        publication_agent="worker",
+        completed_steps=["publish_bead_pages", "publish_prompt_archive"],
+    )
+    monkeypatch.setattr(
+        "sase.sdd.checkout_anchor.resolve_checkout_anchor",
+        lambda _cwd: SimpleNamespace(primary_root=tmp_path, project_name="Project"),
+    )
+    monkeypatch.setattr(
+        "sase.bead_pages.publication.publish_committed_bead_pages",
+        lambda *_args, **_kwargs: SimpleNamespace(changed=True, error=None),
+    )
+
+    def _prompt_already_completed(*_args: object, **_kwargs: object) -> None:
+        raise AssertionError("prompt archive already completed")
+
+    monkeypatch.setattr(
+        "sase.agents_sync.prompt_archive.publish_prompt_archive",
+        _prompt_already_completed,
+    )
+    monkeypatch.setattr(
+        "sase.sdd.plan_header_refresh.refresh_committed_plan_header",
+        lambda *_args, **_kwargs: SimpleNamespace(changed=True, error=None),
+    )
+    monkeypatch.setattr(
+        "sase.agents_sync.commit_publication.publish_committed_agent_hood",
+        lambda _agent, revision, **_kwargs: (
+            hood_revisions.append(revision) or CommitPublicationOutcome(published=True)
+        ),
+    )
+    store = ArtifactLinkStore(project_key="gh_sase-org__sase", sidecar_roots={})
+    monkeypatch.setattr(
+        "sase.sdd.artifact_link_store.resolve_artifact_link_store",
+        lambda **_kwargs: store,
+    )
+    monkeypatch.setattr(
+        "sase.sdd.artifact_link_store.resolve_machine_artifact_link_store",
+        lambda _project_key, _cwd: store,
+    )
+    monkeypatch.setattr(
+        "sase.sdd.artifact_link_outbox.drain_artifact_link_outbox",
+        lambda **_kwargs: None,
+    )
+
+    assert run_agent_publication_step(
+        cp,
+        "create_commit",
+        checkpoint_save=lambda _cp: None,
+        get_vcs_provider=lambda _cwd: pytest.fail("legacy revision is already set"),
+    )
+    assert hood_revisions == ["0" * 40]
+    assert cp.primary_revision == "0" * 40
+
+
+def test_legacy_checkpoint_without_prompt_archive_publishes_commit_sha(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    prompt_revisions: list[str] = []
+    hood_revisions: list[str] = []
+    cp = CommitCheckpoint(
+        method="create_commit",
+        payload={"message": "fix: bug"},
+        cwd=str(tmp_path),
+        primary_revision="0" * 40,
+        commit_sha="1" * 40,
+        publication_agent="worker",
+    )
+    monkeypatch.setattr(
+        "sase.sdd.checkout_anchor.resolve_checkout_anchor",
+        lambda _cwd: SimpleNamespace(primary_root=tmp_path, project_name="Project"),
+    )
+    monkeypatch.setattr(
+        "sase.bead_pages.publication.publish_committed_bead_pages",
+        lambda *_args, **_kwargs: SimpleNamespace(changed=True, error=None),
+    )
+    monkeypatch.setattr(
+        "sase.agents_sync.prompt_archive.publish_prompt_archive",
+        lambda _agent, revision, **_kwargs: (
+            prompt_revisions.append(revision)
+            or SimpleNamespace(error=None, skip_reason=None, prompt_path=None)
+        ),
+    )
+    monkeypatch.setattr(
+        "sase.sdd.plan_header_refresh.refresh_committed_plan_header",
+        lambda *_args, **_kwargs: SimpleNamespace(changed=True, error=None),
+    )
+    monkeypatch.setattr(
+        "sase.agents_sync.commit_publication.publish_committed_agent_hood",
+        lambda _agent, revision, **_kwargs: (
+            hood_revisions.append(revision) or CommitPublicationOutcome(published=True)
+        ),
+    )
+    store = ArtifactLinkStore(project_key="gh_sase-org__sase", sidecar_roots={})
+    monkeypatch.setattr(
+        "sase.sdd.artifact_link_store.resolve_artifact_link_store",
+        lambda **_kwargs: store,
+    )
+    monkeypatch.setattr(
+        "sase.sdd.artifact_link_store.resolve_machine_artifact_link_store",
+        lambda _project_key, _cwd: store,
+    )
+    monkeypatch.setattr(
+        "sase.sdd.artifact_link_outbox.drain_artifact_link_outbox",
+        lambda **_kwargs: None,
+    )
+
+    assert run_agent_publication_step(
+        cp,
+        "create_commit",
+        checkpoint_save=lambda _cp: None,
+        get_vcs_provider=lambda _cwd: pytest.fail("commit_sha is already set"),
+    )
+    assert prompt_revisions == ["1" * 40]
+    assert hood_revisions == ["1" * 40]
+    assert cp.primary_revision == "1" * 40
 
 
 @patch(_PROVIDER_TARGET)

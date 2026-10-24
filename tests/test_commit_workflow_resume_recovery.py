@@ -153,6 +153,8 @@ def test_resume_push_failure_records_unpushed_marker(
 
     loaded = checkpoint.checkpoint_load(str(artifacts_dir / "commit_state.json"))
     assert loaded is not None
+    assert loaded.pre_dispatch_revision is None
+    assert loaded.primary_revision == "0" * 40
     assert loaded.pushed is False
     assert loaded.commit_sha == "1" * 40
     assert loaded.commit_tree == "2" * 40

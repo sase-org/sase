@@ -21,6 +21,8 @@ from sase.agents_sync.models import (
     TargetSelection,
 )
 from sase.agents_sync.publication_outbox import (
+    PUBLICATION_SCOPE_LINKED,
+    PUBLICATION_SCOPE_REVISION,
     AgentPublicationOutboxItem,
     enqueue_agent_publication,
     list_agent_publications,
@@ -43,6 +45,7 @@ from sase.core.project_lifecycle_wire import (
 )
 from sase.doctor.checks_agent_publication_outbox import check_agent_publication_outbox
 from sase.doctor.runner import DoctorContext
+from sase.repo_inventory import RepoInventory, RepoRecord
 from tests.agents_sync.commit_publication_fixtures import git, setup_target
 
 
@@ -88,8 +91,71 @@ def test_committed_publication_records_a_retryable_request_when_git_fails(
     [request] = list_agent_publications("proj")
     assert request.global_agent == "alice.athena.worker"
     assert request.primary_revision == "a" * 40
+    assert request.scope == PUBLICATION_SCOPE_REVISION
     assert request.attempts == 0
     assert request.last_error is None
+
+
+def test_linked_repo_commit_enqueues_linked_scope(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "state"))
+    target, _remote = setup_target(tmp_path)
+    owner = AgentOwnerIdentity("alice", "athena")
+    linked = tmp_path / "sase-core"
+    linked.mkdir()
+    monkeypatch.setattr(
+        publication_support,
+        "resolve_sync_targets",
+        lambda _projects: TargetSelection((target,), ()),
+    )
+    monkeypatch.setattr(
+        publication_support,
+        "require_agent_owner_identity",
+        lambda: owner,
+    )
+    monkeypatch.setattr(
+        "sase.agents_sync._commit_publication_queue.collect_repo_inventory",
+        lambda: RepoInventory(
+            records=(
+                RepoRecord(
+                    name="sase-core",
+                    kind="linked",
+                    project="Project",
+                    project_key="proj",
+                    path=str(linked),
+                    exists=True,
+                    auto_clone=False,
+                    description=None,
+                    source="test",
+                    env_name=None,
+                ),
+            )
+        ),
+    )
+
+    def fail_git(
+        cwd: Path,
+        args: list[str],
+        *,
+        network: bool = False,
+        op: str = "",
+    ) -> subprocess.CompletedProcess[str]:
+        return subprocess.CompletedProcess(args, 1, "", "git is unavailable")
+
+    outcome = publish_committed_agent_hood(
+        "worker--code",
+        "a" * 40,
+        project="Project",
+        commit_cwd=linked,
+        git_runner=fail_git,
+    )
+
+    assert outcome.queued
+    [request] = list_agent_publications("proj")
+    assert request.scope == PUBLICATION_SCOPE_LINKED
+    assert request.primary_revision == "a" * 40
 
 
 def test_bounded_drain_publishes_only_the_supplied_logical_keys(

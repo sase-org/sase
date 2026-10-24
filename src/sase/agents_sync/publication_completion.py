@@ -82,6 +82,7 @@ def _publication_request_completion(
         pages=pages,
         runs=run_observations,
         containers=container_observations,
+        scope=item.scope,
     )
 
 

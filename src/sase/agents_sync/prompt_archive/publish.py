@@ -99,7 +99,10 @@ def _publish_prompt_archive(
     git_runner: GitRunner,
     lock_timeout_seconds: float | None,
 ) -> PromptArchivePublicationOutcome:
-    from sase.agents_sync.commit_publication import resolve_publication_project_key
+    from sase.agents_sync.commit_publication import (
+        fulfillment_scope_for_commit_cwd,
+        resolve_publication_project_key,
+    )
 
     selector = project or resolve_publication_project_key(
         commit_cwd,
@@ -141,6 +144,7 @@ def _publish_prompt_archive(
             global_agent=agent_ref.global_name,
             primary_revision=primary_revision,
             local_hood=agent_local_hood(agent_ref.local_name, identity),
+            scope=fulfillment_scope_for_commit_cwd(commit_cwd),
         )
     )
 

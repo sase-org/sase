@@ -275,6 +275,11 @@ def inline_publication(
             prompt_path=None,
         ),
     )
+    # The fixture's publish_hood writes pages and a slim owner manifest, not a
+    # snapshot with run commit_shas, so the real ack and deferred-restore gates
+    # cannot observe a published revision even when the request names the
+    # post-commit SHA. Keep the stubs; the revision fix is covered by
+    # tests/test_commit_workflow_publication.py.
     monkeypatch.setattr(
         "sase.agents_sync.publication_completion.publication_request_fulfilled",
         lambda *_args, **_kwargs: True,
@@ -305,6 +310,7 @@ def test_tagged_commit_publishes_and_pushes_every_sidecar_before_returning(
         payload={"message": _MESSAGE},
         cwd=str(fixture.primary),
         primary_revision=_REVISION,
+        commit_sha=_REVISION,
         publication_agent=_AGENT,
     )
 

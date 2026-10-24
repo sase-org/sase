@@ -8,7 +8,10 @@ from pathlib import Path
 import pytest
 
 from sase.agents_sync.models import ProjectTarget, TargetSelection
-from sase.agents_sync.publication_outbox import AgentPublicationOutboxItem
+from sase.agents_sync.publication_outbox import (
+    PUBLICATION_OUTBOX_SCHEMA_VERSION,
+    AgentPublicationOutboxItem,
+)
 from sase.core.agent_identity_facade import AgentOwnerIdentity
 from sase.core.project_lifecycle_wire import (
     PROJECT_LIFECYCLE_WIRE_SCHEMA_VERSION,
@@ -218,8 +221,8 @@ def test_agent_publication_outbox_doctor_reports_dropped_obsolete_requests(
     assert check.details[0].startswith("alpha: ")
     assert check.next_steps == (
         "Obsolete publication requests were dropped while reading the outbox; run "
-        "`sase agent sync --retry-quarantined` to rewrite it at schema 5 and clear "
-        "this notice.",
+        "`sase agent sync --retry-quarantined` to rewrite it at schema "
+        f"{PUBLICATION_OUTBOX_SCHEMA_VERSION} and clear this notice.",
     )
     assert check.data["migration_notice_count"] == 1
     assert check.data["request_count"] == 1

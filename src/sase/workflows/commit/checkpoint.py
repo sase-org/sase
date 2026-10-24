@@ -32,6 +32,7 @@ class CommitCheckpoint:
     parent_cl_name: str | None = None
     dispatch_result: str | None = None
     primary_revision: str | None = None
+    pre_dispatch_revision: str | None = None
     commit_sha: str | None = None
     commit_tree: str | None = None
     pushed: bool | None = None
