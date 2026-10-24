@@ -1,0 +1,11 @@
+host=athena
+project=sase
+started_utc=2026-10-24T21:25:21Z
+backup_dir=/home/bryan/.sase/recovery-backups/sase-1nv.5/canaries/athena-sase-20261024T212521Z
+source=/home/bryan/.sase/projects/gh_sase-org__sase/agents-publication-outbox.json
+source_before_sha256=b52719d6c1ff00deb0e4b9360d899b42a63ad65e584cefeecfa6876720cb5cd3
+command=sase agent sync --project sase --retry-quarantined --retry-limit 1 --retry-error-class timeout --json
+command_started_utc=2026-10-24T21:25:21Z
+command_finished_utc=2026-10-24T21:26:05Z
+command_exit_code=1
+source_after_sha256=90de13b977820711b6938c8dd65449a00db8d09b5a9262588daed74fcdbeac3c

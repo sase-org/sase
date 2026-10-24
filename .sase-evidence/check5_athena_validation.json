@@ -1,0 +1,220 @@
+{
+  "fetched_revision": "70d09617414bfe14282ff9506ed5debc9ed01171",
+  "worktree_status": "",
+  "manifest_count": 3,
+  "snapshot_count": 2544,
+  "diagnostics": [],
+  "snapshot_key_present": true,
+  "page_path": "agents/bbugyi200.athena.13y/README.md",
+  "page_present": true,
+  "run_found": true,
+  "global_name": "bbugyi200.athena.13y",
+  "source_run_id": "run-19c27c1caa8a1818717f9afbdc3a7872",
+  "commit_shas": [
+    "201d1cf4ef3b1e7c7045ae936ae5c89cc8b2266d"
+  ],
+  "prompt_refs": [
+    {
+      "path": "agents/bbugyi200.athena.13y/prompt.md",
+      "size_bytes": 327,
+      "digest": "3c01819363841807f809c3afe323628d27b44000280686630a7e4c0e334917d7"
+    }
+  ],
+  "files": [
+    {
+      "kind": "chat",
+      "path": "agents/bbugyi200.athena.13y/chat.md",
+      "size_bytes": 4159,
+      "digest": "c7d60a86021b73b4a47c8a6937b1d2aa39eb80f72b6c781b8e28c3fbae11d418"
+    },
+    {
+      "kind": "commits",
+      "path": "agents/bbugyi200.athena.13y/commits.json",
+      "size_bytes": 250,
+      "digest": "070799f1a5dc2d86df2a23c4800a95968fe6669d354223827a64537a8b790f64"
+    },
+    {
+      "kind": "embedded_workflows",
+      "path": "agents/bbugyi200.athena.13y/embedded_workflows.json",
+      "size_bytes": 80,
+      "digest": "a398c70160fe308637edd70b38d8cf02cc697183c480675d10f387d529663058"
+    },
+    {
+      "kind": "meta",
+      "path": "agents/bbugyi200.athena.13y/meta.json",
+      "size_bytes": 445,
+      "digest": "99052f341b16d4aef85f08eee1dcfc06568889e4f90df73ee190b6c52f378917"
+    },
+    {
+      "kind": "prompt",
+      "path": "agents/bbugyi200.athena.13y/prompt.md",
+      "size_bytes": 327,
+      "digest": "3c01819363841807f809c3afe323628d27b44000280686630a7e4c0e334917d7"
+    },
+    {
+      "kind": "prompt_steps",
+      "path": "agents/bbugyi200.athena.13y/prompt_steps.json",
+      "size_bytes": 9469,
+      "digest": "7059e2567a4c761854055c080b6d29fa87adc8476953e4409a45afa4fcd68d9b"
+    },
+    {
+      "kind": "state",
+      "path": "agents/bbugyi200.athena.13y/state.json",
+      "size_bytes": 213,
+      "digest": "4df4a54359b7cd88a43316e4367b6a841f00a52920d7c138c9579363eb6fd963"
+    }
+  ],
+  "matching_outbox_rows": [],
+  "nearby_drain_timing_rows": [
+    {
+      "timestamp": 1792874867.2997992,
+      "project_key": "gh_sase-org__sase",
+      "outcome": "published",
+      "error": "could not restore deferred prompt archive for bbugyi200.athena.research.57.image@6369612579fe: prompt archive is unresolved and a missing local source does not prove there was no prompt obligation",
+      "error_class": "other",
+      "active_requests": 2,
+      "stage": "cleanup",
+      "stage_durations": {
+        "cleanup": 1.4936845320044085,
+        "commit": 1.8968770010396838,
+        "hood_publish:research": 11.169271540944465,
+        "inventory_build": 29.529443398932926,
+        "manifest_verify": 0.051776662934571505,
+        "payload_clean": 2.6699194168904796,
+        "prepare": 11.384575924952514,
+        "prompt_archive_prepare:research": 7.343944162130356e-06,
+        "pull_rebase": 0.5871147810248658,
+        "push": 1.839889255934395,
+        "verify": 0.13415824400726706
+      },
+      "runs_scanned": 1122,
+      "hoods_published": null,
+      "prompt_bytes": 2300135,
+      "chat_bytes": 8020497
+    },
+    {
+      "timestamp": 1792875960.4002128,
+      "project_key": "gh_sase-org__sase",
+      "outcome": "lock_busy",
+      "error": "agents sync lock is busy; lock holder: pid 1188620, age 386s",
+      "error_class": "lock_busy",
+      "active_requests": 0,
+      "stage": "acquire_lock",
+      "stage_durations": {},
+      "runs_scanned": 0,
+      "hoods_published": null,
+      "prompt_bytes": 0,
+      "chat_bytes": 0
+    },
+    {
+      "timestamp": 1792876203.1481564,
+      "project_key": "gh_sase-org__sase",
+      "outcome": "published",
+      "error": "could not restore deferred prompt archive for bbugyi200.athena.research.57.image@6369612579fe: prompt archive is unresolved and a missing local source does not prove there was no prompt obligation",
+      "error_class": "other",
+      "active_requests": 3,
+      "stage": "cleanup",
+      "stage_durations": {
+        "cleanup": 1.443421306903474,
+        "commit": 0.850427770987153,
+        "hood_publish:13y": 3.189680348034017,
+        "hood_publish:research": 12.484090599929914,
+        "hood_publish:sase-1nn": 4.3288383790059015,
+        "inventory_build": 32.27834725193679,
+        "manifest_verify": 0.05174654396250844,
+        "payload_clean": 1.6957165360217914,
+        "prepare": 21.83381886105053,
+        "prompt_archive_prepare:13y": 0.5195289860712364,
+        "prompt_archive_prepare:research": 7.955008186399937e-06,
+        "prompt_archive_prepare:sase-1nn": 0.882749013020657,
+        "pull_rebase": 0.5920079430798069,
+        "push": 2.4095715030562133,
+        "verify": 0.1383762990590185
+      },
+      "runs_scanned": 1191,
+      "hoods_published": null,
+      "prompt_bytes": 2419647,
+      "chat_bytes": 11249663
+    },
+    {
+      "timestamp": 1792876614.8171964,
+      "project_key": "gh_sase-org__sase",
+      "outcome": "published",
+      "error": "could not restore deferred prompt archive for bbugyi200.athena.research.57.image@6369612579fe: prompt archive is unresolved and a missing local source does not prove there was no prompt obligation",
+      "error_class": "other",
+      "active_requests": 2,
+      "stage": "cleanup",
+      "stage_durations": {
+        "cleanup": 1.4956406999845058,
+        "commit": 0.8198072290979326,
+        "hood_publish:research": 13.255296361981891,
+        "hood_publish:sase-1nn": 4.290827521937899,
+        "inventory_build": 26.28611771890428,
+        "manifest_verify": 0.04528696008492261,
+        "payload_clean": 1.5216610400239006,
+        "prepare": 18.377093636081554,
+        "prompt_archive_prepare:research": 9.017996490001678e-06,
+        "prompt_archive_prepare:sase-1nn": 0.5090906370896846,
+        "pull_rebase": 0.538694620016031,
+        "push": 1.6380176730453968,
+        "verify": 0.10786068707238883
+      },
+      "runs_scanned": 1191,
+      "hoods_published": null,
+      "prompt_bytes": 2422030,
+      "chat_bytes": 11265859
+    },
+    {
+      "timestamp": 1792877164.4822462,
+      "project_key": "gh_sase-org__sase",
+      "outcome": "no_requests",
+      "error": "published agent page for 'bbugyi200.athena.research.0o.cdx' did not materialize during commit drain",
+      "error_class": "other",
+      "active_requests": 1,
+      "stage": "cleanup",
+      "stage_durations": {
+        "cleanup": 1.509023437043652,
+        "commit": 0.38878462405409664,
+        "hood_publish:research": 9.464017158024944,
+        "inventory_build": 26.99787679396104,
+        "manifest_verify": 0.05492699705064297,
+        "payload_clean": 1.5633801521034911,
+        "prepare": 9.701497472007759,
+        "prompt_archive_prepare:research": 7.82497227191925e-06,
+        "pull_rebase": 0.6073132120072842
+      },
+      "runs_scanned": 1122,
+      "hoods_published": null,
+      "prompt_bytes": 2300135,
+      "chat_bytes": 8034306
+    },
+    {
+      "timestamp": 1792877304.6987545,
+      "project_key": "gh_sase-org__sase",
+      "outcome": "published",
+      "error": "published agent page for 'bbugyi200.athena.research.0o.cdx' did not materialize during commit drain",
+      "error_class": "other",
+      "active_requests": 2,
+      "stage": "cleanup",
+      "stage_durations": {
+        "cleanup": 1.580665847985074,
+        "commit": 0.7027430490124971,
+        "hood_publish:141": 3.192330534919165,
+        "hood_publish:research": 11.149509145063348,
+        "inventory_build": 26.367252429947257,
+        "manifest_verify": 0.05075644294265658,
+        "payload_clean": 1.5406083390116692,
+        "prepare": 14.647180897998624,
+        "prompt_archive_prepare:141": 4.829023964703083e-06,
+        "prompt_archive_prepare:research": 6.7229848355054855e-06,
+        "pull_rebase": 0.5609544069739059,
+        "push": 2.0749565470032394,
+        "verify": 0.08300006098579615
+      },
+      "runs_scanned": 1123,
+      "hoods_published": null,
+      "prompt_bytes": 2300304,
+      "chat_bytes": 8034306
+    }
+  ]
+}

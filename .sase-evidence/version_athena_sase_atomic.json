@@ -1,0 +1,174 @@
+{
+  "packages": [
+    {
+      "code_directory": "/home/bryan/projects/github/sase-org/sase/src/sase",
+      "display_version": "0.18.0+120.gc594443dc",
+      "distribution_location": "/home/bryan/.local/share/uv/tools/sase/lib/python3.14/site-packages",
+      "distribution_version": "0.18.0",
+      "git": {
+        "commit": "c594443dc78c5acde55e25f25c73e573647e5560",
+        "dirty": false,
+        "distance": 120,
+        "root": "/home/bryan/projects/github/sase-org/sase",
+        "short_commit": "c594443dc",
+        "tag": "v0.18.0"
+      },
+      "import_module": "sase",
+      "import_path": "/home/bryan/projects/github/sase-org/sase/src/sase",
+      "install_type": "editable",
+      "name": "sase",
+      "plugin_signals": [],
+      "role": "host",
+      "source_root": "/home/bryan/projects/github/sase-org/sase",
+      "source_version": "0.18.0",
+      "warnings": []
+    },
+    {
+      "code_directory": "/home/bryan/projects/github/sase-org/sase-core",
+      "display_version": "0.42.4+3.g7ec12d2d7",
+      "distribution_location": "/home/bryan/.local/share/uv/tools/sase/lib/python3.14/site-packages",
+      "distribution_version": "0.42.4",
+      "git": {
+        "commit": "7ec12d2d7ad8e670abe26aa396259a512f330391",
+        "dirty": false,
+        "distance": 3,
+        "root": "/home/bryan/projects/github/sase-org/sase-core",
+        "short_commit": "7ec12d2d7",
+        "tag": "v0.42.4"
+      },
+      "import_module": "sase_core_rs",
+      "import_path": "/home/bryan/projects/github/sase-org/sase-core/crates/sase_core_py/python/sase_core_rs",
+      "install_type": "editable",
+      "name": "sase-core-rs",
+      "plugin_signals": [],
+      "role": "core",
+      "source_root": "/home/bryan/projects/github/sase-org/sase-core",
+      "source_version": "0.42.4",
+      "warnings": []
+    },
+    {
+      "code_directory": "/home/bryan/projects/github/sase-org/sase-github/src/sase_github",
+      "display_version": "0.2.24+2.ge4f8bf47c",
+      "distribution_location": "/home/bryan/.local/share/uv/tools/sase/lib/python3.14/site-packages",
+      "distribution_version": "0.2.24",
+      "git": {
+        "commit": "e4f8bf47c8b0e89b3b46b35369e3574fcf97d0ed",
+        "dirty": false,
+        "distance": 2,
+        "root": "/home/bryan/projects/github/sase-org/sase-github",
+        "short_commit": "e4f8bf47c",
+        "tag": "v0.2.24"
+      },
+      "import_module": "sase_github",
+      "import_path": "/home/bryan/projects/github/sase-org/sase-github/src/sase_github",
+      "install_type": "editable",
+      "name": "sase-github",
+      "plugin_signals": [
+        "distribution_name:sase-github",
+        "entry_point:sase_config:sase_github=sase_github",
+        "entry_point:sase_macros:sase_github=sase_github",
+        "entry_point:sase_task_types:github=sase_github.task_types:GITHUB_TASK_TYPES",
+        "entry_point:sase_vcs:github=sase_github.plugin:GitHubPlugin",
+        "entry_point:sase_workspace:github=sase_github.workspace_plugin:GitHubWorkspacePlugin",
+        "entry_point:sase_xprompts:sase_github=sase_github"
+      ],
+      "role": "plugin",
+      "source_root": "/home/bryan/projects/github/sase-org/sase-github",
+      "source_version": "0.2.24",
+      "warnings": []
+    },
+    {
+      "code_directory": "/home/bryan/projects/github/sase-org/sase-listen/src/sase_listen",
+      "display_version": "0.1.1+4.g1b82d27f3",
+      "distribution_location": "/home/bryan/.local/share/uv/tools/sase/lib/python3.14/site-packages",
+      "distribution_version": "0.1.1",
+      "git": {
+        "commit": "1b82d27f3eba92b3c77b87d6a60b90884bd69577",
+        "dirty": false,
+        "distance": 4,
+        "root": "/home/bryan/projects/github/sase-org/sase-listen",
+        "short_commit": "1b82d27f3",
+        "tag": "v0.1.1"
+      },
+      "import_module": "sase_listen",
+      "import_path": "/home/bryan/projects/github/sase-org/sase-listen/src/sase_listen",
+      "install_type": "editable",
+      "name": "sase-listen",
+      "plugin_signals": [
+        "console_script:sase-listen=sase_listen.cli:main",
+        "distribution_name:sase-listen",
+        "entry_point:sase_commands:listen=sase_listen.sase_command"
+      ],
+      "role": "plugin",
+      "source_root": "/home/bryan/projects/github/sase-org/sase-listen",
+      "source_version": "0.1.1",
+      "warnings": []
+    },
+    {
+      "code_directory": "/home/bryan/projects/github/sase-org/sase-research-artifacts/src/sase_research_artifacts",
+      "display_version": "0.3.1+12.g8b0399926",
+      "distribution_location": "/home/bryan/.local/share/uv/tools/sase/lib/python3.14/site-packages",
+      "distribution_version": "0.3.1",
+      "git": {
+        "commit": "8b0399926ac042a49b31cff722d9622fe05c11b6",
+        "dirty": false,
+        "distance": 12,
+        "root": "/home/bryan/projects/github/sase-org/sase-research-artifacts",
+        "short_commit": "8b0399926",
+        "tag": "v0.3.1"
+      },
+      "import_module": "sase_research_artifacts",
+      "import_path": "/home/bryan/projects/github/sase-org/sase-research-artifacts/src/sase_research_artifacts",
+      "install_type": "editable",
+      "name": "sase-research-artifacts",
+      "plugin_signals": [
+        "distribution_name:sase-research-artifacts",
+        "entry_point:sase_artifact_refs:research=sase_research_artifacts.provider:RESEARCH_REF_PROVIDER",
+        "entry_point:sase_config:sase_research_artifacts=sase_research_artifacts",
+        "entry_point:sase_file_hooks:research-highlights=sase_research_artifacts.provider:RESEARCH_HIGHLIGHTS_HOOK",
+        "entry_point:sase_macros:sase_research_artifacts=sase_research_artifacts",
+        "entry_point:sase_xprompts:sase_research_artifacts=sase_research_artifacts"
+      ],
+      "role": "plugin",
+      "source_root": "/home/bryan/projects/github/sase-org/sase-research-artifacts",
+      "source_version": "0.3.1",
+      "warnings": []
+    },
+    {
+      "code_directory": "/home/bryan/projects/github/sase-org/sase-telegram/src/sase_telegram",
+      "display_version": "0.4.29+1.gaf65e20ff",
+      "distribution_location": "/home/bryan/.local/share/uv/tools/sase/lib/python3.14/site-packages",
+      "distribution_version": "0.4.29",
+      "git": {
+        "commit": "af65e20ffbdb2e5d8e9f2ed22d8cd159a5a56daa",
+        "dirty": false,
+        "distance": 1,
+        "root": "/home/bryan/projects/github/sase-org/sase-telegram",
+        "short_commit": "af65e20ff",
+        "tag": "v0.4.29"
+      },
+      "import_module": "sase_telegram",
+      "import_path": "/home/bryan/projects/github/sase-org/sase-telegram/src/sase_telegram",
+      "install_type": "editable",
+      "name": "sase-telegram",
+      "plugin_signals": [
+        "console_script:sase_chop_tg_inbound=sase_telegram.scripts:inbound_main",
+        "console_script:sase_chop_tg_outbound=sase_telegram.scripts:outbound_main",
+        "console_script:sase_job_tg_inbound=sase_telegram.scripts:inbound_main",
+        "console_script:sase_job_tg_outbound=sase_telegram.scripts:outbound_main",
+        "distribution_name:sase-telegram",
+        "entry_point:sase_config:sase_telegram=sase_telegram"
+      ],
+      "role": "plugin",
+      "source_root": "/home/bryan/projects/github/sase-org/sase-telegram",
+      "source_version": "0.4.29",
+      "warnings": []
+    }
+  ],
+  "runtime": {
+    "executable": "/home/bryan/.local/bin/sase",
+    "python_executable": "/home/bryan/.local/share/uv/tools/sase/bin/python",
+    "python_version": "3.14.7"
+  },
+  "schema_version": 1
+}

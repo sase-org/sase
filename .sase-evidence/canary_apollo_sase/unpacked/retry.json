@@ -1,0 +1,29 @@
+{
+  "mode": "sync",
+  "projects": [
+    {
+      "agent_sessions_published": 0,
+      "committed": false,
+      "diagnostics": [
+        "resumed active publication request bbugyi200.apollo.a4@69c625f8d9af (other): published agent page for 'bbugyi200.apollo.a4' did not materialize during commit drain",
+        "bounded retry selection: selected=1 resumed=1 revived=0",
+        "bounded retry result: selected=1 resumed=1 revived=0 completed=0 remaining=416"
+      ],
+      "error": "published agent page for 'bbugyi200.apollo.a4' did not materialize during commit drain",
+      "export_refreshed": 0,
+      "exported": 0,
+      "hoods_published": 0,
+      "hoods_refreshed": 0,
+      "hoods_unchanged": 0,
+      "project": "sase",
+      "project_key": "gh_sase-org__sase",
+      "pulled": false,
+      "push_attempts": 0,
+      "pushed": false,
+      "runs_published": 0,
+      "schema_version": 2,
+      "skip_reason": null
+    }
+  ],
+  "schema_version": 2
+}

@@ -1,0 +1,22 @@
+host=athena
+project=sase
+command=backup; report-only repair; exact source=backup=expected preflight; apply; unresolved-row comparison
+local_started_utc=2026-10-24T20:50:22Z
+local_finished_utc=2026-10-24T21:08:22Z
+ssh_exit_code=3
+remote_backup_dir=/home/bryan/.sase/recovery-backups/sase-1nv.5/athena-sase-20261024T205022Z
+stty: 'standard input': Inappropriate ioctl for device
+jq: error: syntax error, unexpected ';', expecting '|' (Unix shell quoting issues?) at <top-level>, line 1:
+[.items[] as $row | select(any($unresolved[] as $u; $u.agent == $row.global_agent and ($u.rev == $row.primary_revision or ($row.primary_revision | startswith($u.rev))))) | $row] | sort_by(.id)                                                  
+jq: 1 compile error
+3ea412112ff5c29f6a2d6424564c1ee6ce6b91ad0e4f74c919bffdb6dd2aaab8  .sase-evidence/apply_athena_sase_atomic.json
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  .sase-evidence/apply_athena_sase_atomic.stderr
+352926cd1d027652bc55c388352742d59b87c4a5ed59626cfac3a24d93c3329b  .sase-evidence/remote_repair_athena_sase_atomic.sh
+2104f10950bde543e9180927f19016e1995d42000cedef1309a6b6f50bd00f5e  .sase-evidence/repair_athena_sase_atomic.meta
+2aa521a07dcd4c3a35b83b5554a99f8f17ee24d4320f6757180d802b511a08e0  .sase-evidence/repair_athena_sase_atomic.sh
+61bfa9ad887dd923b174b2e97c38f4b9c2e3cc3f900b521ac8997d48186c3764  .sase-evidence/repair_athena_sase_atomic.stderr
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  .sase-evidence/repair_athena_sase_atomic.stdout
+5c14a8f2f68f4bef1266da466ca5af9b69220662a1d755a903adabdc72e4a87d  .sase-evidence/report_athena_sase_atomic.json
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  .sase-evidence/report_athena_sase_atomic.stderr
+99cc66bfc2cf53612a1a1940e048b8a818c67ba66c2282df544af54ac3fba25a  .sase-evidence/version_athena_sase_atomic.json
+270693edaeb5db3a5c18a3bc00c9bd55726dfb255fa42c1c66cfe768a27e6da1  .sase-evidence/repair_athena_sase_transaction.meta

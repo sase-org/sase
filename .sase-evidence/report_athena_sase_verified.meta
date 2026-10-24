@@ -1,0 +1,22 @@
+host=athena
+command=sase agent sync --repair-revisions --project sase --json
+started_utc=2026-10-24T19:29:49Z
+finished_utc=2026-10-24T19:39:12Z
+exit_code=0
+9158413ba6bb06c9dc87a20def5b257da9a36fa8a89ab6a74d1e1dc87fff1bb0  .sase-evidence/report_athena_sase_verified.json
+f8f5d9c39c4cca31753ee7f9d5b3fbe6469b74c7aef8384484bf0035e767c223  .sase-evidence/report_athena_sase_verified.stderr
+stty: 'standard input': Inappropriate ioctl for device
+host=athena
+project=sase
+source=/home/bryan/.sase/projects/gh_sase-org__sase/agents-publication-outbox.json
+backup=/home/bryan/.sase/recovery-backups/sase-1nv.5/athena-sase-20261024T192951Z/agents-publication-outbox.json
+backup_started_utc=2026-10-24T19:29:51Z
+source_before_sha256=33673bde1a8d9e14ea042ffe93a84b798819fa84f632d96812833f01e89526af
+backup_sha256=33673bde1a8d9e14ea042ffe93a84b798819fa84f632d96812833f01e89526af
+source_after_backup_sha256=33673bde1a8d9e14ea042ffe93a84b798819fa84f632d96812833f01e89526af
+backup_preflight=PASSED
+report_started_utc=2026-10-24T19:29:51Z
+report_finished_utc=2026-10-24T19:39:12Z
+report_exit_code=0
+post_source_sha256=c8ba353bf3f64ee6c5835aefda75438d2f79e8047431e9a69059cc242b818141
+report_matches_backup=no

@@ -1,0 +1,15 @@
+stty: 'standard input': Inappropriate ioctl for device
+host=apollo
+project=sase
+source=/home/bryan/.sase/projects/gh_sase-org__sase/agents-publication-outbox.json
+backup=/home/bryan/.sase/recovery-backups/sase-1nv.5/apollo-sase-20261024T193918Z/agents-publication-outbox.json
+backup_started_utc=2026-10-24T19:39:18Z
+source_before_sha256=684b2214e41e72ac71ca20c0404d618bc2521d167d29a9bfe09226258e187db7
+backup_sha256=684b2214e41e72ac71ca20c0404d618bc2521d167d29a9bfe09226258e187db7
+source_after_backup_sha256=684b2214e41e72ac71ca20c0404d618bc2521d167d29a9bfe09226258e187db7
+backup_preflight=PASSED
+report_started_utc=2026-10-24T19:39:18Z
+report_finished_utc=2026-10-24T19:40:41Z
+report_exit_code=0
+post_source_sha256=684b2214e41e72ac71ca20c0404d618bc2521d167d29a9bfe09226258e187db7
+report_matches_backup=yes
