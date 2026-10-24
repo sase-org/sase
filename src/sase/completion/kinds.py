@@ -483,6 +483,7 @@ _VALUE_HINT_TABLE.update(
             "tool_stats_days",
             "tool_wait_tail_lines",
             "top",
+            "weight",
         ),
         "int",
     )

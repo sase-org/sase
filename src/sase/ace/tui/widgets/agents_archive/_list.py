@@ -70,6 +70,13 @@ class ArchiveList(OptionList, inherit_bindings=False):
         """Item keys in rendered order (introspection for tests and chrome)."""
         return tuple(self._keys)
 
+    @property
+    def rendered_item_keys(self) -> tuple[str, ...]:
+        """Keys installed as visible Options after the list has real layout."""
+        return tuple(
+            option.id for option in self._options if isinstance(option.id, str)
+        )
+
     def _content_width(self) -> int:
         """Cells available to one row's text.
 

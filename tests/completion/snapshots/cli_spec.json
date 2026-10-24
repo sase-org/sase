@@ -25327,7 +25327,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "6ad952fd5c47fddc",
+            "description_digest": "ee7dc27ce5dee974",
             "hidden": false,
             "mutex_groups": [],
             "name": "start",
@@ -25673,6 +25673,22 @@
                 ],
                 "takes_value": true,
                 "value_hint": "duration"
+              },
+              {
+                "choices": null,
+                "default": null,
+                "dest": "weight",
+                "hidden": false,
+                "kind": null,
+                "metavar": "W",
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-w",
+                  "--weight"
+                ],
+                "takes_value": true,
+                "value_hint": "int"
               }
             ],
             "path": [

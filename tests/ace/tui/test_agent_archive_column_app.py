@@ -106,7 +106,7 @@ async def _wait_for_rows(page: AcePage) -> None:
         lambda _state: (
             "u.m@t00"
             in (
-                page.app.query_one("#archive-list", ArchiveList).item_keys
+                page.app.query_one("#archive-list", ArchiveList).rendered_item_keys
                 if page.app.query("#archive-list")
                 else ()
             )
@@ -213,6 +213,7 @@ async def test_J_switches_to_the_pulse_and_enter_returns_to_the_inbox(
         pulse = app.query_one("#archive-pulse", ArchivePulse)
         assert pulse.has_class("-selected")
         assert app._agents_archive_view.archive.focused_section == ARCHIVE_SECTION_PULSE
+        await page.pause()
         await page.press("enter")
         await page.wait_for(
             lambda _s: app._agents_archive_view.active_view == AGENTS_VIEW_INBOX,
