@@ -243,7 +243,7 @@ def test_live_assigned_bead_close_is_accepted_and_threaded_to_stitch_runner(
 
     monkeypatch.setattr("sase.finalizers.commit_execution.run_stitch_create", stitch)
     monkeypatch.setattr(
-        "sase.finalizers.declaration_manifest._assigned_bead_status",
+        "sase.finalizers.declaration_manifest_commit._assigned_bead_status",
         lambda _bead_id, _cwd: "in_progress",
     )
 

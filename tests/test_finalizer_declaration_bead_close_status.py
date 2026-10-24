@@ -38,7 +38,7 @@ def _patch_status(monkeypatch: pytest.MonkeyPatch, value: str, calls: list) -> N
         return value
 
     monkeypatch.setattr(
-        "sase.finalizers.declaration_manifest._assigned_bead_status", reader
+        "sase.finalizers.declaration_manifest_commit._assigned_bead_status", reader
     )
 
 
@@ -127,7 +127,7 @@ def test_close_refused_when_status_reader_raises(
         raise RuntimeError("boom")
 
     monkeypatch.setattr(
-        "sase.finalizers.declaration_manifest._assigned_bead_status", boom
+        "sase.finalizers.declaration_manifest_commit._assigned_bead_status", boom
     )
 
     with pytest.raises(FinalizerDeclarationError) as exc_info:
@@ -185,7 +185,8 @@ def test_keep_never_calls_status_helper(
         raise AssertionError("status helper must not be called for keep")
 
     monkeypatch.setattr(
-        "sase.finalizers.declaration_manifest._assigned_bead_status", fail_reader
+        "sase.finalizers.declaration_manifest_commit._assigned_bead_status",
+        fail_reader,
     )
 
     submit_final_manifest(manifest)
@@ -258,7 +259,8 @@ def test_close_on_non_primary_refused_without_status_read(
         raise AssertionError("status helper must not be called for linked close")
 
     monkeypatch.setattr(
-        "sase.finalizers.declaration_manifest._assigned_bead_status", fail_reader
+        "sase.finalizers.declaration_manifest_commit._assigned_bead_status",
+        fail_reader,
     )
 
     with pytest.raises(FinalizerDeclarationError) as exc_info:

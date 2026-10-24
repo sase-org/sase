@@ -28,7 +28,7 @@ def _submit_and_read_out(
     if bead_action == "close":
         monkeypatch.setenv("SASE_BEAD_ID", "sase-zq.1")
         monkeypatch.setattr(
-            "sase.finalizers.declaration_manifest._assigned_bead_status",
+            "sase.finalizers.declaration_manifest_commit._assigned_bead_status",
             lambda bead_id, cwd: "in_progress",
         )
     declaration = valid_manifest(publish_final_context())
