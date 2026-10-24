@@ -55,7 +55,7 @@ def _patch_statistics_populated(monkeypatch: pytest.MonkeyPatch) -> None:
         sp,
         "_load_project_code_stats",
         lambda selected_range, project_filter=None, **_kw: _populated_project_stats(
-            facets={"code"}
+            facets={"code"}, project_filter=project_filter
         ),
     )
 

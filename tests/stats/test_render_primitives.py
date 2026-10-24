@@ -9,6 +9,7 @@ from sase.stats.render.primitives import (
     format_count,
     format_duration,
     format_relative_age,
+    fine_bar,
     percent,
     share_bar,
     stacked_bar,

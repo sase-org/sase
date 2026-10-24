@@ -1,0 +1,35 @@
+╭─ SASE projects · 2 enabled ──────────────────────────────────────────────────────────────────────────╮
+│ OUTPUT   501 commits · 99% by agents · 77 plans committed (17 epic · 60 tale)                        │
+│ CODE     3.5M lines · 45% tests · 90k doc lines · 8 of 9 code repos                                  │
+│ RUNS     403 runs on apollo · ✓ 339 × 64 · 84% success · 63 h agent time · 27 Patches                │
+│          Commits by provider  █████████▓▓▓▓▓▓▓▒▒▒░░░▓▓   🦋 muse 197  🤖 codex 140  🎭 claude 71  🚀 │
+│          grok 52  🤖 openai 4  ? 31  ∅ 6                                                             │
+╰──────────────────────────────────────────────────────────────── Last 7 days · Oct 09 – Oct 16, 2026 ─╯
+REPO · Last 7 days · Oct 09 – Oct 16, 2026                                                              
+PROJECT → REPO              KIND      COMMITS   AGENT   CODE LINES   TESTS   FIRST COMMIT    LAST COMMIT
+────────────────────────────────────────────────────────────────────────────────────────────────────────
+■ sase                                    412     99%    3,126,927     46%   Feb 14, 2026   Oct 16, 2026
+    sase                    primary       380    100%    3,000,000     40%   Feb 14, 2026   Oct 16, 2026
+    sase-core               linked         32     97%      126,927     40%   Feb 14, 2026   Oct 16, 2026
+    missing  not cloned     linked          —       —            —       —              —              —
+    sase-listen             linked          0       —            0      0%   Feb 14, 2026   Oct 16, 2026
+    sase-nvim               linked          0       —            0      0%   Feb 14, 2026   Oct 16, 2026
+■ bob-cli                                  89     98%      369,231     36%   May 01, 2026   Oct 16, 2026
+    bob-cli                 primary        89     99%      280,000     40%   Feb 14, 2026   Oct 16, 2026
+    bob-plugins             linked         63     98%       80,000     40%   Feb 14, 2026   Oct 16, 2026
+    bob-mac-capture         linked          0       —        9,231     40%   Feb 14, 2026   Oct 16, 2026
+RECORDS · sidecars, never totaled                                                                       
+PROJECT   REPO                                             COMMITS   FILES   FIRST COMMIT    LAST COMMIT
+────────────────────────────────────────────────────────────────────────────────────────────────────────
+sase      beads                                                480     400   Feb 14, 2026   Oct 16, 2026
+Not counted: chezmoi (user-linked)
+Model recorded for 381 of 408 agent commits (93%) · 27 unresolved: 27 agent page not published
+Commits: code repos' default branches, by commit time · refs fetched 2 h ago (-F to refresh)
+Plans: first committed to the plan store, credited to the proposing model · Runs: this machine (apollo) 
+only
+Issues: gh_sase-org__sase.missing: not cloned
+Commits = default-branch commits in code repos, by committer time in range  ·  Plans = plan documents 
+first committed to the plan store, by first-add committer time  ·  ? = model not recorded (unpublished 
+page, empty metadata, ambiguous session, or malformed tag)  ·  ∅ = no agent footer on the commit, or no 
+proposer on the plan  ·  Runs = agent runs launched on this machine, by launch time
+More: -g repo · -g patch · -g model · -r all · -j        Definitions: sase stats project -h

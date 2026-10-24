@@ -5,11 +5,12 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from typing import Protocol
 
 from sase.integrations.provider_badges import provider_emoji_badge
 from sase.integrations.provider_palette import provider_bar_style, provider_name_style
 from sase.project_accents import project_accent
-from sase.stats.project.models import ProjectStatsModel
+from sase.stats.project.models import ProjectStatsModel, ProjectStatsRepo
 from sase.stats.project.view import ProjectStatsView
 from sase.stats.render.context import RenderContext
 from sase.stats.render.primitives import (
@@ -40,6 +41,17 @@ _NOT_COUNTED_LABELS = {
 _MAX_MODELS_PER_PROVIDER = 3
 
 
+class _OutputStats(Protocol):
+    @property
+    def commits(self) -> int | None: ...
+
+    @property
+    def agent_commits(self) -> int | None: ...
+
+    @property
+    def agent_share(self) -> float | None: ...
+
+
 def maybe_int(value: int | float | None, *, compact: bool = False) -> str:
     """Format a measured integer, or an em dash when the source is missing."""
     if value is None:
@@ -58,6 +70,26 @@ def share_of(part: int | None, whole: int | None) -> str:
     if part is None or not whole:
         return DASH if whole is None else "0%"
     return f"{round(part * 100 / whole)}%"
+
+
+def agent_share_cell(output: _OutputStats | None) -> str:
+    """Format agent share, leaving it blank when there are no measured commits."""
+    if output is None or not output.commits:
+        return DASH
+    if output.agent_share is not None:
+        return maybe_percent(output.agent_share)
+    return share_of(output.agent_commits, output.commits)
+
+
+def repo_commits_cell(repo: ProjectStatsRepo) -> str:
+    """Format a repo's measured commit count, marking partial history as a lower bound."""
+    if repo.status not in {"ok", "partial"} or repo.output is None:
+        return DASH
+    commits = repo.output.commits
+    if commits is None:
+        return DASH
+    value = format_count(commits)
+    return f"≥{value}" if repo.status == "partial" else value
 
 
 def format_age_days(days: int | None, *, prose: bool = False) -> str:

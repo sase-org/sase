@@ -10,6 +10,7 @@ from sase.stats.render.primitives import (
     format_count,
     format_duration,
     format_relative_age,
+    fine_bar,
     percent,
     share_bar,
     stacked_bar,
@@ -18,8 +19,8 @@ from sase.stats.render.tables import (
     render_model_table,
     render_patch_tree,
     render_project_table,
-    render_repo_table,
 )
+from sase.stats.render.repos import render_repo_table
 
 __all__ = [
     "RenderContext",
@@ -27,6 +28,7 @@ __all__ = [
     "format_count",
     "format_duration",
     "format_relative_age",
+    "fine_bar",
     "percent",
     "render_coverage_footer",
     "render_legend",

@@ -19,6 +19,7 @@ from sase.stats.render._text import (
     GREEN,
     RED,
     STATS_ACCENT,
+    agent_share_cell,
     bar_style_for,
     display_models,
     format_age_days,
@@ -36,6 +37,7 @@ from sase.stats.render._text import (
 )
 from sase.stats.render.context import RenderContext
 from sase.stats.render.primitives import format_count, stacked_bar
+from sase.stats.render.repos import repo_commit_breakdown, render_repo_breakdown
 
 _Subject = ProjectStatsProject | ProjectStatsPortfolio
 
@@ -54,6 +56,14 @@ def render_project_card(view: ProjectStatsView, ctx: RenderContext) -> Renderabl
     body.add_column(style=f"bold {STATS_ACCENT}", no_wrap=True, min_width=8)
     body.add_column(overflow="fold", ratio=1)
     body.add_row("OUTPUT", _output_line(subject))
+    if len(view.projects) == 1:
+        breakdown = repo_commit_breakdown(view.projects[0], max_rows=_repo_row_cap(ctx))
+        if breakdown is not None:
+            accent = project_border_style(view)
+            body.add_row(
+                Text("by repo", style=f"dim {accent}"),
+                render_repo_breakdown(breakdown, ctx, accent),
+            )
     body.add_row("CODE", _code_line(view, subject, ctx))
     if len(view.projects) == 1:
         lifetime = _lifetime_line(subject, ctx)
@@ -97,20 +107,19 @@ def _output_line(subject: _Subject) -> Text:
     if output is None:
         return Text(DASH, style="dim")
     text.append(f"{maybe_int(output.commits)} commits")
-    if output.agent_share is not None:
+    agent_share = agent_share_cell(output)
+    if agent_share != DASH:
         text.append(" · ")
-        text.append(f"{maybe_percent(output.agent_share)} by agents", style=CYAN)
-    elif output.agent_commits is not None and output.commits:
-        text.append(" · ")
-        text.append(
-            f"{share_of(output.agent_commits, output.commits)} by agents",
-            style=CYAN,
-        )
+        text.append(f"{agent_share} by agents", style=CYAN)
     plans = _plans_phrase(output.plans_committed, output.plans_epic, output.plans_tale)
     if plans:
         text.append(" · ")
         text.append(plans)
     return text
+
+
+def _repo_row_cap(ctx: RenderContext) -> int:
+    return 6 if ctx.width >= 80 else 5 if ctx.width >= 60 else 4
 
 
 def _plans_phrase(committed: int | None, epic: int | None, tale: int | None) -> str:

@@ -12,11 +12,11 @@ from sase.stats.registry import PROJECT_REPORT_GROUPINGS
 from sase.stats.render.card import render_project_card
 from sase.stats.render.context import RenderContext
 from sase.stats.render.legend import render_coverage_footer, render_legend
+from sase.stats.render.repos import render_repo_table
 from sase.stats.render.tables import (
     render_model_table,
     render_patch_tree,
     render_project_table,
-    render_repo_table,
 )
 
 _GROUP_RENDERERS: dict[

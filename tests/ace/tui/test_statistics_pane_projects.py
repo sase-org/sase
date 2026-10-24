@@ -280,9 +280,10 @@ def test_compact_and_stacked_projects_renders_match_shared_compose() -> None:
             timezone=TZ,
             machine=MACHINE,
         )
-        assert _render_plain(pane._projects_renderable(result)) == _render_plain(
-            render_project_stats(report, "model", ctx)
-        )
+        rendered = _render_plain(pane._projects_renderable(result))
+        assert rendered == _render_plain(render_project_stats(report, "model", ctx))
+        assert "by repo" in rendered
+        assert "sase-core" in rendered
 
 
 def test_load_project_code_stats_is_the_visual_seam() -> None:

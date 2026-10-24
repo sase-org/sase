@@ -1,6 +1,9 @@
 # sase · Last 7 days · Oct 09 – Oct 16, 2026
 
 **OUTPUT** 412 commits · 99% by agents · 61 plans committed (14 epic · 47 tale)
+**BY REPO** sase 380 (92%) · sase-core 32 (8%)
+no commits: sase-listen, sase-nvim
+not measured: missing (not cloned)
 **CODE** 3.1M lines · 46% tests · 6 of 7 code repos
 **RUNS** 233 runs on apollo · ✓ 189 × 31 · 81% success · 41 h agent time
 
@@ -10,13 +13,15 @@
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | sase | primary | 380 | 100% | 3,000,000 | 40% | 150,000 | Feb 14, 2026 | Oct 16, 2026 |
 | sase-core | linked | 32 | 97% | 126,927 | 40% | 6,346 | Feb 14, 2026 | Oct 16, 2026 |
-| missing (not cloned) | linked | 0 | 0% | — | — | — | Feb 14, 2026 | Oct 16, 2026 |
+| missing (not cloned) | linked | — | — | — | — | — | — | — |
+| sase-listen | linked | 0 | — | 0 | 0% | 0 | Feb 14, 2026 | Oct 16, 2026 |
+| sase-nvim | linked | 0 | — | 0 | 0% | 0 | Feb 14, 2026 | Oct 16, 2026 |
 
 ### Records
 
 | Repo | Commits | Files | First commit | Last commit |
 | --- | ---: | ---: | ---: | ---: |
-| beads | 12 | — | Feb 14, 2026 | Oct 16, 2026 |
+| beads | 480 | 400 | Feb 14, 2026 | Oct 16, 2026 |
 
 Not counted: chezmoi (user-linked)
 

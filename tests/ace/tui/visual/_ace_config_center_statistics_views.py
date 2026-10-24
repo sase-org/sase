@@ -36,6 +36,7 @@ from tests.stats._views_payloads import (
 def _populated_project_stats(
     *,
     facets: set[str] | frozenset[str] | None = None,
+    project_filter: str | None = None,
 ) -> ProjectStatsView:
     """Pinned Projects report matching the visual Statistics range and labels."""
     resolved_facets = set(facets) if facets is not None else {"output", "runs", "code"}
@@ -49,6 +50,8 @@ def _populated_project_stats(
     integration["key"] = _INTEGRATION_KEY
     integration["label"] = "integration"
     rows = [widgets, engine, integration]
+    if project_filter is not None:
+        rows = [row for row in rows if project_filter in {row["key"], row["label"]}]
     if "code" not in resolved_facets:
         for row in rows:
             row["code"] = None
@@ -407,7 +410,7 @@ def _populated_statistics_view(
             project_filter=project_filter,
             macro_focus=macro_focus,
             project_display_snapshot=_PROJECT_DISPLAY_SNAPSHOT,
-            project_stats=_populated_project_stats(),
+            project_stats=_populated_project_stats(project_filter=project_filter),
         )
     return StatisticsViewData(
         view=view,  # type: ignore[arg-type]

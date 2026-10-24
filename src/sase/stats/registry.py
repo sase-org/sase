@@ -90,6 +90,10 @@ PROJECT_REPORT_LEGENDS: tuple[MetricLegend, ...] = (
         "commits and plans credited to a provider/model; rows including ? and ∅ sum to the total",
     ),
     MetricLegend(
+        "By repo",
+        "each code repo's commits in range, sidecars excluded; ≥ marks a lower bound from shallow or truncated history; a commit in several repos counts once in the total",
+    ),
+    MetricLegend(
         "?",
         "model not recorded (unpublished page, empty metadata, ambiguous session, or malformed tag)",
     ),

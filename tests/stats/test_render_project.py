@@ -20,6 +20,7 @@ from tests.stats._project_render_fixtures import (
     empty_range_view,
     local_plans_view,
     one_project_view,
+    repo_edge_view,
     render_context,
 )
 
@@ -178,6 +179,15 @@ def _case_matrix() -> list[tuple[str, object, str, int, bool]]:
         ("all_projects_project_50.txt", all_projects_view(), "project", 50, True),
         ("one_project_repo_120.txt", one_project_view(), "repo", 120, True),
         ("one_project_repo_80.txt", one_project_view(), "repo", 80, True),
+        ("one_project_repo_breakdown_120.txt", one_project_view(), "repo", 120, True),
+        ("one_project_repo_breakdown_80.txt", one_project_view(), "repo", 80, True),
+        ("one_project_repo_breakdown_60.txt", one_project_view(), "repo", 60, True),
+        ("one_project_repo_breakdown_50.txt", one_project_view(), "repo", 50, True),
+        ("all_projects_repo_120.txt", all_projects_view(), "repo", 120, True),
+        ("all_projects_repo_104.txt", all_projects_view(), "repo", 104, True),
+        ("all_projects_repo_80.txt", all_projects_view(), "repo", 80, True),
+        ("repo_edge_120.txt", repo_edge_view(), "repo", 120, True),
+        ("repo_edge_80.txt", repo_edge_view(), "repo", 80, True),
         ("one_project_patch_120.txt", one_project_view(), "patch", 120, True),
         ("empty_range_model_120.txt", empty_range_view(), "model", 120, True),
         ("local_plans_model_120.txt", local_plans_view(), "model", 120, True),
@@ -202,6 +212,8 @@ def test_markdown_goldens() -> None:
         ("empty_range.md", empty_range_view(), "model"),
         ("local_plans.md", local_plans_view(), "model"),
         ("code_pending.md", code_pending_view(), "model"),
+        ("all_projects_repo.md", all_projects_view(), "repo"),
+        ("repo_edge.md", repo_edge_view(), "repo"),
     ]
     for name, view, group_by in cases:
         markdown = render_project_stats_markdown(
@@ -212,3 +224,20 @@ def test_markdown_goldens() -> None:
             ctx=render_context(width=120),
         )
         _assert_golden(name, markdown)
+
+
+def test_several_project_repo_table_keeps_repo_names_at_width_104() -> None:
+    ctx = render_context(width=104)
+    text = _export(render_project_stats(all_projects_view(), "repo", ctx), ctx)
+
+    for name in (
+        "sase",
+        "sase-core",
+        "sase-listen",
+        "sase-nvim",
+        "missing",
+        "bob-cli",
+        "bob-plugins",
+        "bob-mac-capture",
+    ):
+        assert name in text

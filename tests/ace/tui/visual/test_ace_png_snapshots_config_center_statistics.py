@@ -17,6 +17,7 @@ from tests.ace.tui.visual._ace_config_center_png_snapshot_helpers import (
     _patch_statistics_projects_measuring_code,
     _patch_macro_sources,
 )
+from tests.ace.tui.visual._ace_config_center_statistics_fixtures import _WIDGETS_KEY
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patches,
     patch_startup_loaders,
@@ -443,6 +444,29 @@ async def test_config_center_statistics_projects_png_snapshot(
             page,
             "config_center_statistics_projects_120x40",
             title="ACE SASE Admin Center — Statistics projects",
+        )
+
+
+async def test_config_center_statistics_projects_single_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_siblings(monkeypatch)
+    _patch_statistics_populated(monkeypatch)
+
+    async with AcePage(query='"visual"', patches=patches()) as page:
+        await wait_for_startup(page)
+        await page.press(page.artifacts_digit("patches"))
+        await page.expect_state("artifacts_subtab", "patches")
+        _, pane = await _open_statistics_modal(page)
+        pane._project_filter = _WIDGETS_KEY
+        pane._set_view("projects")
+        await _wait_projects_report(page, pane)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "config_center_statistics_projects_single_120x40",
+            title="ACE SASE Admin Center — Statistics projects, one project",
         )
 
 

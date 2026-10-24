@@ -1,0 +1,45 @@
+╭─ ■ sase ─────────────────────────────────────────────────╮
+│ OUTPUT   412 commits · 99% by agents · 61 plans          │
+│          committed (14 epic · 47 tale)                   │
+│ by repo  sase          380 ██████████ 92%                │
+│          sase-core      32 ▉          8%                 │
+│          missing         —                not measured:… │
+│          no commits in range: sase-listen, sase-nvim     │
+│ CODE     3.1M lines · 46% tests · 6 of 7 code repos      │
+│                     Feb 14, 2026 · 8 months · commits on │
+│          239 of 245 days · 17,755 commits all time       │
+│ RUNS     233 runs on apollo · ✓ 189 × 31 · 81% success · │
+│          41 h agent time · 18 Patches                    │
+│          Commits by provider  ████▓▓▒▒░▓   🦋 muse 156   │
+│          🤖 codex 98  🎭 claude 71  🚀 grok 52  🤖       │
+│          openai 4  ? 27  ∅ 4                             │
+│          Plans by provider  █▓▓▓▒▒▒▒▒░   🦋 muse 4  🤖   │
+│          codex 18  🎭 claude 31  🚀 grok 6  ? 2          │
+╰──────────────────── Last 7 days · Oct 09 – Oct 16, 2026 ─╯
+REPO · Last 7 days · Oct 09 – Oct 16, 2026                  
+REPO          KIND      COMMITS   AGENT   CODE LINES   TESTS
+────────────────────────────────────────────────────────────
+sase          primary       380    100%    3,000,000     40%
+sase-core     linked         32     97%      126,927     40%
+missing  n…   linked          —       —            —       —
+sase-listen   linked          0       —            0      0%
+sase-nvim     linked          0       —            0      0%
+RECORDS · sidecars, never totaled                           
+REPO                                         COMMITS   FILES
+────────────────────────────────────────────────────────────
+beads                                            480     400
+Not counted: chezmoi (user-linked)
+Model recorded for 381 of 408 agent commits (93%) · 27 
+unresolved: 27 agent page not published
+Commits: code repos' default branches, by commit time · refs
+fetched 2 h ago (-F to refresh)
+Plans: first committed to the plan store, credited to the 
+proposing model · Runs: this machine (apollo) only
+Issues: gh_sase-org__sase.missing: not cloned
+Commits = default-branch commits in code repos, by committer
+time in range  ·  Plans = plan documents first committed to 
+the plan store, by first-add committer time  ·  ? = model 
+not recorded (unpublished page, empty metadata, ambiguous 
+session, or malformed tag)  ·  ∅ = no agent footer on the 
+commit, or no proposer on the plan  ·  Runs = agent runs 
+launched on this machine, by launch time

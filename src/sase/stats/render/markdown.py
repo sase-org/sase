@@ -15,6 +15,7 @@ from sase.stats.project.view import ProjectStatsView
 from sase.stats.registry import PROJECT_REPORT_GROUPINGS, PROJECT_REPORT_LEGENDS
 from sase.stats.render._text import (
     DASH,
+    agent_share_cell,
     display_models,
     fetched_at,
     format_age_days,
@@ -26,6 +27,7 @@ from sase.stats.render._text import (
     maybe_percent,
     not_counted_label,
     range_heading,
+    repo_commits_cell,
     relative_ts,
     sentinel_name,
     share_of,
@@ -33,6 +35,11 @@ from sase.stats.render._text import (
 from sase.stats.render.context import RenderContext
 from sase.stats.render.legend import model_coverage_line
 from sase.stats.render.primitives import format_count
+from sase.stats.render.repos import (
+    RepoHiddenRow,
+    repo_commit_breakdown,
+    repo_sort_key,
+)
 
 
 def render_project_stats_markdown(
@@ -83,16 +90,12 @@ def _card_lines(view: ProjectStatsView, ctx: RenderContext) -> list[str]:
     if output is None:
         output_line = f"**OUTPUT** {DASH}"
     else:
-        share = (
-            maybe_percent(output.agent_share)
-            if output.agent_share is not None
-            else share_of(output.agent_commits, output.commits)
-        )
+        share = agent_share_cell(output)
         plans = maybe_int(output.plans_committed)
-        output_line = (
-            f"**OUTPUT** {maybe_int(output.commits)} commits · {share} by agents"
-            f" · {plans} plans committed"
-        )
+        output_line = f"**OUTPUT** {maybe_int(output.commits)} commits"
+        if share != DASH:
+            output_line += f" · {share} by agents"
+        output_line += f" · {plans} plans committed"
         extra = []
         if output.plans_epic is not None:
             extra.append(f"{format_count(output.plans_epic)} epic")
@@ -131,7 +134,42 @@ def _card_lines(view: ProjectStatsView, ctx: RenderContext) -> list[str]:
             f"{maybe_percent(runs.success_rate)} success · "
             f"{format_agent_time(runs.total_runtime_seconds)} agent time"
         )
-    return [output_line, code_line, runs_line]
+    lines = [output_line]
+    if len(view.projects) == 1:
+        breakdown = repo_commit_breakdown(
+            view.projects[0], max_rows=max(1, len(view.projects[0].repos))
+        )
+        if breakdown is not None:
+            active = []
+            for row in breakdown.active:
+                if isinstance(row, RepoHiddenRow):
+                    continue
+                count = (
+                    f"≥{format_count(row.commits)}"
+                    if row.partial
+                    else format_count(row.commits)
+                )
+                active.append(f"{row.name} {count} ({_repo_share(row.share)})")
+            lines.append("**BY REPO** " + (" · ".join(active) if active else DASH))
+            if breakdown.quiet:
+                lines.append("no commits: " + ", ".join(breakdown.quiet))
+            if breakdown.unmeasured:
+                details = ", ".join(
+                    f"{row.name} ({row.reason})" for row in breakdown.unmeasured
+                )
+                lines.append("not measured: " + details)
+            if breakdown.shared_commits:
+                lines.append(
+                    f"{format_count(breakdown.shared_commits)} commits are in more than one repo; "
+                    "the total counts each once"
+                )
+    lines.extend([code_line, runs_line])
+    return lines
+
+
+def _repo_share(share: float) -> str:
+    percent = round(share * 100)
+    return "<1%" if share > 0 and percent == 0 else f"{percent}%"
 
 
 def _group_lines(
@@ -176,13 +214,7 @@ def _project_markdown(view: ProjectStatsView, ctx: RenderContext) -> list[str]:
         [
             "total",
             maybe_int(None if portfolio.output is None else portfolio.output.commits),
-            (
-                DASH
-                if portfolio.output is None
-                else maybe_percent(portfolio.output.agent_share)
-                if portfolio.output.agent_share is not None
-                else share_of(portfolio.output.agent_commits, portfolio.output.commits)
-            ),
+            agent_share_cell(portfolio.output),
             maybe_int(
                 None if portfolio.output is None else portfolio.output.plans_committed
             ),
@@ -220,13 +252,7 @@ def _project_md_row(project: ProjectStatsProject, ctx: RenderContext) -> list[st
     return [
         project.label,
         maybe_int(None if output is None else output.commits),
-        (
-            DASH
-            if output is None
-            else maybe_percent(output.agent_share)
-            if output.agent_share is not None
-            else share_of(output.agent_commits, output.commits)
-        ),
+        agent_share_cell(output),
         maybe_int(None if output is None else output.plans_committed),
         maybe_int(None if code is None else code.code_lines),
         (
@@ -255,19 +281,85 @@ def _repo_markdown(view: ProjectStatsView, ctx: RenderContext) -> list[str]:
         "First commit",
         "Last commit",
     ]
-    rows = []
-    records = []
-    for project in view.projects:
-        for repo in project.repos:
-            row = _repo_md_row(repo, ctx)
-            if repo.tier == "records":
-                records.append(row)
-            else:
+    many = len(view.projects) > 1
+    rows: list[list[str]] = []
+    records: list[tuple[ProjectStatsProject, ProjectStatsRepo]] = []
+    if many:
+        for project in sorted(view.projects, key=_project_md_sort_key):
+            code_repos = sorted(
+                (repo for repo in project.repos if repo.tier == "code"),
+                key=repo_sort_key,
+            )
+            if not code_repos:
+                continue
+            if len(code_repos) == 1:
+                repo = code_repos[0]
+                row = _repo_md_row(repo, ctx)
+                row[0] = _project_md_name(project) + (
+                    f" · {repo.name}" if repo.name != project.label else ""
+                )
                 rows.append(row)
+                continue
+            output = project.output
+            code = project.code
+            lifetime = project.lifetime
+            tests = (
+                maybe_percent(code.test_share)
+                if code is not None and code.test_share is not None
+                else share_of(
+                    None if code is None else code.test_lines,
+                    None if code is None else code.code_lines,
+                )
+            )
+            rows.append(
+                [
+                    _project_md_name(project),
+                    "",
+                    maybe_int(None if output is None else output.commits),
+                    agent_share_cell(output),
+                    maybe_int(None if code is None else code.code_lines),
+                    tests,
+                    maybe_int(None if code is None else code.doc_lines),
+                    format_ts(
+                        None if lifetime is None else lifetime.first_commit_ts,
+                        ctx,
+                        "%b %d, %Y",
+                    ),
+                    format_ts(
+                        None if lifetime is None else lifetime.last_commit_ts,
+                        ctx,
+                        "%b %d, %Y",
+                    ),
+                ]
+            )
+            for repo in code_repos:
+                child = _repo_md_row(repo, ctx)
+                child[0] = "  " + child[0]
+                rows.append(child)
+    else:
+        single_project = view.projects[0] if view.projects else None
+        if single_project is not None:
+            for repo in sorted(
+                (repo for repo in single_project.repos if repo.tier == "code"),
+                key=repo_sort_key,
+            ):
+                rows.append(_repo_md_row(repo, ctx))
+    for project in view.projects:
+        records.extend(
+            (project, repo) for repo in project.repos if repo.tier == "records"
+        )
+    if many:
+        headers[0] = "Project → Repo"
     lines = ["## By repo", ""] + _md_table(headers, rows)
     if records:
-        record_headers = ["Repo", "Commits", "Files", "First commit", "Last commit"]
-        record_rows = [[row[0], row[2], row[4], row[7], row[8]] for row in records]
+        record_headers = (
+            ["Project", "Repo", "Commits", "Files", "First commit", "Last commit"]
+            if many
+            else ["Repo", "Commits", "Files", "First commit", "Last commit"]
+        )
+        record_rows = [
+            _record_md_row(project, repo, ctx, many=many) for project, repo in records
+        ]
         lines.extend(["", "### Records", ""] + _md_table(record_headers, record_rows))
     items = [
         f"{entry.name} ({not_counted_label(entry.reason)})"
@@ -290,14 +382,8 @@ def _repo_md_row(repo: ProjectStatsRepo, ctx: RenderContext) -> list[str]:
     return [
         name,
         repo.kind,
-        maybe_int(None if output is None else output.commits),
-        (
-            DASH
-            if output is None
-            else maybe_percent(output.agent_share)
-            if output.agent_share is not None
-            else share_of(output.agent_commits, output.commits)
-        ),
+        repo_commits_cell(repo),
+        agent_share_cell(output),
         maybe_int(None if snapshot is None else snapshot.tracked_lines),
         (
             DASH
@@ -312,6 +398,62 @@ def _repo_md_row(repo: ProjectStatsRepo, ctx: RenderContext) -> list[str]:
             None if lifetime is None else lifetime.last_commit_ts, ctx, "%b %d, %Y"
         ),
     ]
+
+
+def _project_md_sort_key(project: ProjectStatsProject) -> tuple[float, str, str]:
+    commits = None if project.output is None else project.output.commits
+    return (
+        float("inf") if commits is None else -commits,
+        project.label.casefold(),
+        project.key,
+    )
+
+
+def _project_md_name(project: ProjectStatsProject) -> str:
+    suffix = (
+        " (unregistered)"
+        if project.state == "unregistered"
+        else " (disabled)"
+        if project.state == "disabled"
+        else ""
+    )
+    return project.label + suffix
+
+
+def _record_md_row(
+    project: ProjectStatsProject,
+    repo: ProjectStatsRepo,
+    ctx: RenderContext,
+    *,
+    many: bool,
+) -> list[str]:
+    lifetime = repo.lifetime
+    snapshot = repo.snapshot
+    commits = None if lifetime is None else lifetime.commits
+    if commits is None and snapshot is not None:
+        commits = snapshot.lifetime_commits
+    name = repo.name
+    if repo.status != "ok":
+        reason = repo.issue.message if repo.issue is not None else repo.status
+        name = f"{name} ({reason})"
+    row = [
+        name,
+        maybe_int(commits),
+        maybe_int(None if snapshot is None else snapshot.tracked_files),
+        format_ts(
+            (None if lifetime is None else lifetime.first_commit_ts)
+            or (None if snapshot is None else snapshot.first_commit_ts),
+            ctx,
+            "%b %d, %Y",
+        ),
+        format_ts(
+            (None if lifetime is None else lifetime.last_commit_ts)
+            or (None if snapshot is None else snapshot.last_commit_ts),
+            ctx,
+            "%b %d, %Y",
+        ),
+    ]
+    return [project.label, *row] if many else row
 
 
 def _model_markdown(view: ProjectStatsView, ctx: RenderContext) -> list[str]:

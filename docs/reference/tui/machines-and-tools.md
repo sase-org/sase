@@ -110,6 +110,9 @@ reports default-branch output, committed plans, lifetime code, and this machine'
 Press `g` to group by project, repo, model, or Project → Patch. Output and Runs paint
 first while Code measures. Overview's run-commit tile stays run-recorded and is
 distinct from Projects default-branch commits and Patch Run commits.
+A one-project report breaks commits down by code repo directly under OUTPUT; sidecar
+repos are excluded, `—` marks unmeasured repos, and `≥` marks lower bounds from partial
+history. With several projects in scope, `g` → repo shows a Project → Repo tree.
 
 The Projects report is also available through [`sase stats project`](../cli/stats.md),
 with the same definitions in the terminal, Markdown, and JSON outputs:

@@ -1,6 +1,9 @@
 # sase · Last 7 days · Oct 09 – Oct 16, 2026
 
 **OUTPUT** 412 commits · 99% by agents · — plans committed
+**BY REPO** sase 380 (92%) · sase-core 32 (8%)
+no commits: sase-listen, sase-nvim
+not measured: missing (not cloned)
 **CODE** 3.1M lines · 46% tests · 6 of 7 code repos
 **RUNS** 233 runs on apollo · ✓ 189 × 31 · 81% success · 41 h agent time
 

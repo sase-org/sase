@@ -15,7 +15,6 @@ from sase.stats.project.models import (
     ProjectStatsModel,
     ProjectStatsPatch,
     ProjectStatsProject,
-    ProjectStatsRepo,
 )
 from sase.stats.project.view import ProjectStatsView
 from sase.stats.render._text import (
@@ -24,15 +23,14 @@ from sase.stats.render._text import (
     DIM,
     GREEN,
     RED,
+    agent_share_cell,
     display_models,
     format_age_days,
     format_agent_time,
-    format_ts,
     group_models,
     ModelGroup,
     maybe_int,
     maybe_percent,
-    not_counted_label,
     provider_plain,
     provider_style,
     range_heading,
@@ -115,13 +113,7 @@ def _project_row(
     cells: list[RenderableType] = [
         _project_cell(project, ctx),
         maybe_int(None if output is None else output.commits),
-        (
-            DASH
-            if output is None
-            else maybe_percent(output.agent_share)
-            if output.agent_share is not None
-            else share_of(output.agent_commits, output.commits)
-        ),
+        agent_share_cell(output),
         maybe_int(None if output is None else output.plans_committed),
         maybe_int(None if code is None else code.code_lines),
         (
@@ -189,161 +181,6 @@ def _stacked_projects(view: ProjectStatsView, ctx: RenderContext) -> RenderableT
             )
         )
     return Group(*cards) if cards else Text("No projects in range.", style=DIM)
-
-
-def render_repo_table(view: ProjectStatsView, ctx: RenderContext) -> RenderableType:
-    """Render code repos, a records section, and the not-counted line."""
-    code_repos: list[tuple[ProjectStatsProject, ProjectStatsRepo]] = []
-    record_repos: list[tuple[ProjectStatsProject, ProjectStatsRepo]] = []
-    for project in view.projects:
-        for repo in project.repos:
-            bucket = code_repos if repo.tier == "code" else record_repos
-            bucket.append((project, repo))
-    many = len(view.projects) > 1
-    code_table = _table(ctx=ctx, title=f"REPO · {range_heading(view)}")
-    if many:
-        code_table.add_column("PROJECT", min_width=8)
-    code_table.add_column("REPO", style="bold", min_width=10, ratio=1)
-    code_table.add_column("KIND", min_width=7)
-    code_table.add_column("COMMITS", justify="right")
-    code_table.add_column("AGENT", justify="right")
-    code_table.add_column("CODE LINES", justify="right")
-    code_table.add_column("TESTS", justify="right")
-    if ctx.show_detail_columns:
-        code_table.add_column("DOC LINES", justify="right")
-        code_table.add_column("FIRST COMMIT", justify="right")
-        code_table.add_column("LAST COMMIT", justify="right")
-    for project, repo in _sorted_repos(code_repos):
-        style = DIM if repo.status != "ok" else None
-        code_table.add_row(
-            *_repo_row(project, repo, ctx, many=many, records=False),
-            style=style,
-        )
-    sections: list[RenderableType] = [code_table]
-    if record_repos:
-        records = _table(ctx=ctx, title="RECORDS · sidecars, never totaled")
-        if many:
-            records.add_column("PROJECT", min_width=8)
-        records.add_column("REPO", style="bold", ratio=1)
-        records.add_column("COMMITS", justify="right")
-        records.add_column("FILES", justify="right")
-        if ctx.show_detail_columns:
-            records.add_column("FIRST COMMIT", justify="right")
-            records.add_column("LAST COMMIT", justify="right")
-        for project, repo in _sorted_repos(record_repos):
-            records.add_row(*_repo_row(project, repo, ctx, many=many, records=True))
-        sections.append(records)
-    not_counted = _not_counted_line(view)
-    if not_counted is not None:
-        sections.append(not_counted)
-    return Group(*sections)
-
-
-def _sorted_repos(
-    rows: Iterable[tuple[ProjectStatsProject, ProjectStatsRepo]],
-) -> list[tuple[ProjectStatsProject, ProjectStatsRepo]]:
-    return sorted(
-        rows,
-        key=lambda item: (
-            -(item[1].output.commits or 0) if item[1].output else 0,
-            item[0].label.casefold(),
-            item[1].name.casefold(),
-        ),
-    )
-
-
-def _repo_row(
-    project: ProjectStatsProject,
-    repo: ProjectStatsRepo,
-    ctx: RenderContext,
-    *,
-    many: bool,
-    records: bool,
-) -> tuple[RenderableType, ...]:
-    name = Text(repo.name)
-    if repo.status != "ok":
-        reason = repo.issue.message if repo.issue is not None else repo.status
-        name.append(f"  {reason}", style=DIM)
-    output = repo.output
-    snapshot = repo.snapshot
-    lifetime = repo.lifetime
-    cells: list[RenderableType] = []
-    if many:
-        cells.append(project.label)
-    if records:
-        files = None if snapshot is None else snapshot.tracked_files
-        commits = None
-        if lifetime is not None:
-            commits = lifetime.commits
-        elif snapshot is not None:
-            commits = snapshot.lifetime_commits
-        cells.extend(
-            [
-                name,
-                maybe_int(commits),
-                maybe_int(files),
-            ]
-        )
-        if ctx.show_detail_columns:
-            first = None if lifetime is None else lifetime.first_commit_ts
-            last = None if lifetime is None else lifetime.last_commit_ts
-            if snapshot is not None:
-                first = first or snapshot.first_commit_ts
-                last = last or snapshot.last_commit_ts
-            cells.extend(
-                [
-                    format_ts(first, ctx, "%b %d, %Y"),
-                    format_ts(last, ctx, "%b %d, %Y"),
-                ]
-            )
-        return tuple(cells)
-    cells.extend(
-        [
-            name,
-            repo.kind,
-            maybe_int(None if output is None else output.commits),
-            (
-                DASH
-                if output is None
-                else maybe_percent(output.agent_share)
-                if output.agent_share is not None
-                else share_of(output.agent_commits, output.commits)
-            ),
-            maybe_int(None if snapshot is None else snapshot.tracked_lines),
-            (
-                DASH
-                if snapshot is None
-                else share_of(snapshot.test_lines, snapshot.tracked_lines)
-            ),
-        ]
-    )
-    if ctx.show_detail_columns:
-        cells.extend(
-            [
-                maybe_int(None if snapshot is None else snapshot.doc_lines),
-                format_ts(
-                    None if lifetime is None else lifetime.first_commit_ts,
-                    ctx,
-                    "%b %d, %Y",
-                ),
-                format_ts(
-                    None if lifetime is None else lifetime.last_commit_ts,
-                    ctx,
-                    "%b %d, %Y",
-                ),
-            ]
-        )
-    return tuple(cells)
-
-
-def _not_counted_line(view: ProjectStatsView) -> Text | None:
-    items: list[str] = []
-    for project in view.projects:
-        for entry in project.not_counted:
-            items.append(f"{entry.name} ({not_counted_label(entry.reason)})")
-    if not items:
-        return None
-    return Text("Not counted: " + ", ".join(items), style=DIM)
 
 
 def render_model_table(view: ProjectStatsView, ctx: RenderContext) -> RenderableType:

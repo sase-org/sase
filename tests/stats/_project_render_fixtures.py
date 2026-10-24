@@ -186,7 +186,7 @@ def _repo(
     files: int | None = 10,
     lines: int | None = 1000,
 ) -> dict:
-    return {
+    result = {
         "id": f"{kind}:{name}",
         "name": name,
         "kind": kind,
@@ -221,6 +221,10 @@ def _repo(
             "last_commit_ts": NOW_TS - 240,
         },
     }
+    if status == "unavailable":
+        result["output"] = None
+        result["lifetime"] = None
+    return result
 
 
 def _sase_project(**overrides: object) -> dict:
@@ -251,6 +255,8 @@ def _sase_project(**overrides: object) -> dict:
             _repo(
                 name="sase-core", kind="linked", tier="code", commits=32, lines=126_927
             ),
+            _repo(name="sase-listen", kind="linked", tier="code", commits=0, lines=0),
+            _repo(name="sase-nvim", kind="linked", tier="code", commits=0, lines=0),
             _repo(
                 name="missing",
                 kind="linked",
@@ -344,13 +350,23 @@ def _bob_project() -> dict:
             "commits": 900,
         },
         "code": _code(
-            lines=369_231, tests=132_923, docs=8_000, configured=2, measured=2
+            lines=369_231, tests=132_923, docs=8_000, configured=3, measured=3
         ),
         "runs": _runs(runs=170, completed=150, failed=20, seconds=22 * 3600, patches=9),
         "repos": [
             _repo(
-                name="bob-cli", kind="primary", tier="code", commits=89, lines=369_231
-            )
+                name="bob-cli", kind="primary", tier="code", commits=89, lines=280_000
+            ),
+            _repo(
+                name="bob-plugins", kind="linked", tier="code", commits=63, lines=80_000
+            ),
+            _repo(
+                name="bob-mac-capture",
+                kind="linked",
+                tier="code",
+                commits=0,
+                lines=9_231,
+            ),
         ],
         "models": models,
         "patches": [
@@ -487,6 +503,48 @@ def one_project_view(**kwargs: object) -> ProjectStatsView:
     return build_view(projects=[_sase_project()], project_refs=("sase",), **kwargs)
 
 
+def repo_edge_view() -> ProjectStatsView:
+    """Cover partial, shared, overflow, quiet, and unknown-status repo rows."""
+    project = _sase_project()
+    project["label"] = "widgets"
+    project["repos"] = [
+        _repo(name="widgets", kind="primary", tier="code", commits=380),
+        _repo(
+            name="widgets-core",
+            kind="linked",
+            tier="code",
+            status="partial",
+            commits=32,
+        ),
+        _repo(name="widgets-cli", kind="linked", tier="code", commits=20),
+        _repo(name="widgets-ui", kind="linked", tier="code", commits=15),
+        _repo(name="widgets-docs", kind="linked", tier="code", commits=10),
+        _repo(name="widgets-tools", kind="linked", tier="code", commits=8),
+        _repo(name="widgets-infra", kind="linked", tier="code", commits=7),
+        _repo(name="widgets-extra", kind="linked", tier="code", commits=5),
+        _repo(name="widgets-tiny", kind="linked", tier="code", commits=1),
+        _repo(name="widgets-nvim", kind="linked", tier="code", commits=0),
+        _repo(
+            name="widgets-future",
+            kind="linked",
+            tier="code",
+            status="future_status",
+            commits=4,
+        ),
+        _repo(
+            name="widgets-missing",
+            kind="linked",
+            tier="code",
+            status="unavailable",
+            issue={"code": "not_cloned", "message": "not cloned"},
+        ),
+    ]
+    project["code"] = _code(
+        lines=100_000, tests=35_000, docs=5_000, configured=12, measured=11
+    )
+    return build_view(projects=[project], project_refs=("widgets",))
+
+
 def all_projects_view(**kwargs: object) -> ProjectStatsView:
     return build_view(**kwargs)
 
@@ -509,6 +567,10 @@ def empty_range_view() -> ProjectStatsView:
             "unknown_reasons": [],
         },
     )
+    for repo in project["repos"]:
+        output = repo.get("output")
+        if output is not None:
+            output.update({"commits": 0, "agent_commits": 0, "agent_share": 0.0})
     return build_view(projects=[project], project_refs=("sase",))
 
 

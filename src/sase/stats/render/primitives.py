@@ -17,6 +17,7 @@ _ASCII_FILL = "#"
 _ASCII_EMPTY = "."
 _STACKED_UNICODE = ("█", "▓", "▒", "░")
 _STACKED_ASCII = ("#", "%", "=", "-")
+_FINE_UNICODE = ("", "▏", "▎", "▍", "▌", "▋", "▊", "▉")
 
 
 def percent(value: float) -> str:
@@ -45,6 +46,42 @@ def share_bar(
     text = Text()
     text.append(fill_glyph * filled, style=fill_style)
     text.append(empty_glyph * (width - filled), style=empty_style)
+    return text
+
+
+def fine_bar(
+    value: float,
+    maximum: float,
+    *,
+    width: int,
+    style: str,
+    ascii_fallback: bool = False,
+) -> Text:
+    """Render an untracked bar, using eighth-cell glyphs when Unicode is available."""
+    width = max(0, width)
+    if value <= 0 or width == 0:
+        return Text(" " * width)
+    ratio = min(1.0, float(value) / float(maximum)) if maximum > 0 else 1.0
+    text = Text()
+    if ascii_fallback:
+        cells = ratio * width
+        full = int(cells)
+        partial = cells > full
+        if full == 0:
+            partial = True
+        glyphs = "#" * full + ("|" if partial and full < width else "")
+        text.append(glyphs, style=style)
+        text.append(" " * max(0, width - len(glyphs)))
+        return text
+
+    eighths = round(ratio * width * 8)
+    if eighths == 0:
+        eighths = 1
+    eighths = min(width * 8, max(0, eighths))
+    full_eighths, partial_eighths = divmod(eighths, 8)
+    glyphs = "█" * full_eighths + _FINE_UNICODE[partial_eighths]
+    text.append(glyphs, style=style)
+    text.append(" " * max(0, width - full_eighths - bool(partial_eighths)))
     return text
 
 
@@ -157,6 +194,7 @@ __all__ = [
     "format_count",
     "format_duration",
     "format_relative_age",
+    "fine_bar",
     "percent",
     "share_bar",
     "stacked_bar",

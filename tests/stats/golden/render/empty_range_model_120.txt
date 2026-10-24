@@ -1,5 +1,7 @@
 ╭─ ■ sase ─────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
-│ OUTPUT   0 commits · 0% by agents · 0 plans committed                                                                │
+│ OUTPUT   0 commits · 0 plans committed                                                                               │
+│ by repo  missing                                 —                           not measured: not cloned                │
+│          no commits in range: sase, sase-core, sase-listen, sase-nvim                                                │
 │ CODE     3.1M lines · 46% tests · 82k doc lines · 6 of 7 code repos                                                  │
 │                     Feb 14, 2026 · 8 months · commits on 239 of 245 days · 17,755 commits all time                   │
 │ RUNS     0 runs on apollo · ✓ 0 × 0 · 0ms agent time                                                                 │

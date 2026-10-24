@@ -1,6 +1,10 @@
 ╭─ ■ sase ─────────────────────────────────────────────────────────────────────╮
 │ OUTPUT   412 commits · 99% by agents · 61 plans committed (14 epic · 47      │
 │          tale)                                                               │
+│ by repo  sase                  380 ██████████████ 92%                        │
+│          sase-core              32 █▏             8%                         │
+│          missing                 —                    not measured: not clo… │
+│          no commits in range: sase-listen, sase-nvim                         │
 │ CODE     3.1M lines · 46% tests · 6 of 7 code repos                          │
 │                     Feb 14, 2026 · 8 months · commits on 239 of 245 days ·   │
 │          17,755 commits all time                                             │
