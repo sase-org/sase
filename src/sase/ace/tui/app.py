@@ -3,9 +3,11 @@
 import logging
 import os
 import sys
-from typing import TYPE_CHECKING, Literal
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any, Literal
 
 from textual.app import App
+from textual.screen import Screen
 from textual.content import Content
 from textual.markup import MarkupError
 from textual.reactive import reactive
@@ -18,7 +20,7 @@ if TYPE_CHECKING:
 
     from .current_project_settings import CurrentProjectSettings
     from .util.heap import TUIHeapSampler
-    from .util.perf import JKPerfTimer
+    from .util.perf import JKPerfTimer, PromptActivityTracker
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 
@@ -222,6 +224,7 @@ class AceApp(
     _current_idx: int
     _current_attempt_number: int | None
     _jk_perf: "JKPerfTimer | None"
+    _prompt_activity: "PromptActivityTracker | None"
     _heap_sampler: "TUIHeapSampler | None"
     _commits_default_filter: "CommitLogFilterValues"
     _commits_default_query_diagnostic: str | None
@@ -323,10 +326,11 @@ class AceApp(
             current_toast_session()
             register_ace_session(self.title)
             from .util.heap import TUIHeapSampler
-            from .util.perf import JKPerfTimer
+            from .util.perf import JKPerfTimer, PromptActivityTracker
             from .util.perf import is_enabled as _perf_enabled
 
             self._jk_perf = JKPerfTimer() if _perf_enabled() else None
+            self._prompt_activity = PromptActivityTracker() if _perf_enabled() else None
             self._heap_sampler = TUIHeapSampler.from_env()
             if self._heap_sampler is not None:
                 self._heap_sampler.start_tracing()
@@ -410,3 +414,107 @@ class AceApp(
         """Record a key-to-paint sample start, when SASE_TUI_PERF=1."""
         if self._jk_perf is not None:
             self._jk_perf.begin(action, self.current_tab)
+
+    def _bind_perf_instance(self) -> None:
+        """Attach the minted instance ID to the perf/activity trackers."""
+        try:
+            instance_id = getattr(self, "_app_instance_id", None)
+            if not isinstance(instance_id, str):
+                return
+            if self._jk_perf is not None:
+                self._jk_perf.bind(instance_id)
+            if self._prompt_activity is not None:
+                self._prompt_activity.bind(instance_id)
+                self._prompt_activity.start()
+        except Exception:  # noqa: BLE001 - telemetry must never break startup.
+            pass
+
+    def _note_prompt_opened(self) -> None:
+        """Record prompt text-entry focus, when SASE_TUI_PERF=1."""
+        try:
+            if self._prompt_activity is not None:
+                self._prompt_activity.note_prompt_opened()
+        except Exception:  # noqa: BLE001 - telemetry must never break input.
+            pass
+
+    def _note_prompt_closed(self) -> None:
+        """Record prompt text-entry blur, when SASE_TUI_PERF=1."""
+        try:
+            if self._prompt_activity is not None:
+                self._prompt_activity.note_prompt_closed()
+        except Exception:  # noqa: BLE001 - telemetry must never break input.
+            pass
+
+    @staticmethod
+    def _modal_text_entry(screen: object) -> bool | None:
+        """Best-effort text-entry check for a modal screen.
+
+        Pre-compose the widget tree may not exist yet, so a ``False`` here
+        means "not yet visible"; the close row re-checks post-mount and is
+        authoritative.
+        """
+        try:
+            from textual.widgets import Input, TextArea
+
+            query = getattr(screen, "query", None)
+            if not callable(query):
+                return None
+            for widget_type in (Input, TextArea):
+                try:
+                    for _ in query(widget_type).results():
+                        return True
+                except Exception:  # noqa: BLE001 - best-effort per type.
+                    continue
+            return False
+        except Exception:  # noqa: BLE001 - telemetry must never break modals.
+            return None
+
+    def _note_modal_opened(self, screen: object) -> None:
+        """Record a modal screen opening, when SASE_TUI_PERF=1."""
+        try:
+            if self._prompt_activity is not None:
+                name = type(screen).__name__ if screen is not None else None
+                self._prompt_activity.note_modal_opened(
+                    name, text_entry=bool(self._modal_text_entry(screen))
+                )
+        except Exception:  # noqa: BLE001 - telemetry must never break modals.
+            pass
+
+    def _note_modal_closed(self, screen: object = None) -> None:
+        """Record a modal screen closing, when SASE_TUI_PERF=1."""
+        try:
+            if self._prompt_activity is not None:
+                name = type(screen).__name__ if screen is not None else None
+                # The close row re-checks post-mount, so its text_entry
+                # flag is authoritative and the report prefers it.
+                authoritative = (
+                    self._modal_text_entry(screen) if screen is not None else None
+                )
+                self._prompt_activity.note_modal_closed(
+                    name, text_entry=bool(authoritative) if authoritative else None
+                )
+        except Exception:  # noqa: BLE001 - telemetry must never break modals.
+            pass
+
+    def push_screen(
+        self,
+        screen: Screen[Any] | str,
+        callback: Callable[..., Any] | None = None,
+        wait_for_dismiss: bool = False,
+        *,
+        mode: str | None = None,
+    ) -> Any:
+        """Push a screen and note modal openings for perf attribution."""
+        self._note_modal_opened(screen)
+        if wait_for_dismiss:
+            return super().push_screen(screen, callback, True, mode=mode)
+        return super().push_screen(screen, callback, False, mode=mode)
+
+    def pop_screen(self) -> Any:
+        """Pop a screen and note modal closings for perf attribution."""
+        try:
+            screen = self.screen if hasattr(self, "screen") else None
+        except Exception:  # noqa: BLE001 - best-effort screen snapshot.
+            screen = None
+        self._note_modal_closed(screen)
+        return super().pop_screen()

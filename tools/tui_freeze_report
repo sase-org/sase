@@ -18,7 +18,13 @@ acceptance numbers for the freeze epic, split per ``app_instance_id``:
 - the RSS/swap trajectory from heartbeats;
 - ``--acceptance``, which marks each target PASS, FAIL, or INCOMPLETE after
   validating paired heartbeat coverage and required evidence;
-- ``--json``, which emits the versioned structured acceptance summary.
+- ``--json``, which emits the versioned structured acceptance summary;
+- ``-p/--perf-path``, which joins attributable ``tui_jk.jsonl`` navigation
+  samples and ``prompt_activity`` rows per instance (with rotation support);
+- ``-b/--busy-since`` and ``-e/--busy-until``, which select the observed
+  busy hour inside the covered interval for per-tab j/k verdicts;
+- ``-t/--tab``, which declares a required navigation tab for the busy hour
+  (repeatable; Agents is always required).
 
 Rows that predate instance IDs are bucketed into ``tui_startup`` record
 windows (``startup-<n>``) instead of being dropped; rows outside every
@@ -53,12 +59,18 @@ from _tui_freeze_report_acceptance import (  # noqa: E402
     analyze_acceptance,
     empty_acceptance,
 )
+from _tui_freeze_report_perf import (  # noqa: E402
+    analyze_instance_perf,
+    default_perf_path,
+    load_perf_rows,
+)
 
 STALLS_ENV_VAR = "SASE_TUI_STALL_PATH"
 STARTUP_ENV_VAR = "SASE_TUI_STARTUP_PATH"
 
 NEAR_INPUT_MAX_S = 2.0
 NEAR_INPUT_TRIGGERS = frozenset({"automatic", "backstop", "rss_backstop"})
+PERF_ENV_VAR = "SASE_TUI_PERF_PATH"
 KNOWN_TRIGGERS = (
     "idle",
     "backstop",
@@ -478,6 +490,52 @@ def _format_trigger_line(stats_by_trigger: dict[str, dict[str, Any]]) -> str:
     return "; ".join(parts) if parts else "none"
 
 
+def _format_perf_line(perf: dict[str, Any]) -> str:
+    attribution = perf.get("attribution") or {}
+    detail = perf.get("busy") or {}
+    prompt = perf.get("prompt") or {}
+    window = detail.get("window") or {}
+    parts = [
+        f"perf: {attribution.get('attributed_samples', 0)} attributable samples, "
+        f"{attribution.get('legacy_unattributed_rows', 0)} unattributed, "
+        f"{attribution.get('dropped_samples', 0)} dropped"
+    ]
+    tabs = detail.get("tabs") or {}
+    tab_bits = []
+    for tab in sorted(tabs):
+        entry = tabs[tab] or {}
+        dist = entry.get("distribution") or {}
+        p95 = dist.get("p95")
+        rendered = f"{p95:.3f} ms" if isinstance(p95, (int, float)) else "n/a"
+        tab_bits.append(f"{tab} n={dist.get('n', 0)} p95={rendered}")
+    if tab_bits:
+        parts.append("jk by tab: " + "; ".join(tab_bits))
+    if window:
+        parts.append(
+            f"busy {window.get('start', '?')} -> {window.get('end', '?')} "
+            f"({window.get('jk_n', 0)} j/k)"
+        )
+    else:
+        candidates = perf.get("candidate_windows") or []
+        if candidates:
+            top = candidates[0]
+            parts.append(
+                f"no busy window selected; top candidate "
+                f"{top.get('start', '?')} -> {top.get('end', '?')} "
+                f"(agents n={top.get('agents_n', 0)} "
+                f"bins={top.get('agents_bins', 0)})"
+            )
+        else:
+            parts.append("no busy window selected and no candidates")
+    parts.append(
+        f"prompt active {_format_seconds(prompt.get('active_s'))} idle "
+        f"{_format_seconds(prompt.get('idle_s'))} modal "
+        f"{_format_seconds(prompt.get('modal_s'))} unknown "
+        f"{_format_seconds(prompt.get('unknown_s'))}"
+    )
+    return "  " + "\n  ".join(parts)
+
+
 def _format_acceptance_line(spec: dict[str, Any]) -> str:
     verdict = spec["status"]
     value = spec["value"]
@@ -574,6 +632,9 @@ def format_report(
                 f"{_format_bytes(summary['swap_last_bytes'])} "
                 f"({summary['heartbeat_count']} heartbeats)"
             )
+            perf = (acceptance_results.get(instance) or {}).get("perf")
+            if perf is not None:
+                lines.append(_format_perf_line(perf))
         if acceptance and instance in acceptance_results:
             result = acceptance_results[instance]
             coverage = result["coverage"]
@@ -641,6 +702,18 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="Evaluate sase-1f3 targets as PASS, FAIL, or INCOMPLETE.",
     )
     parser.add_argument(
+        "-b",
+        "--busy-since",
+        default=None,
+        help="Busy-hour window start as epoch seconds or ISO-8601.",
+    )
+    parser.add_argument(
+        "-e",
+        "--busy-until",
+        default=None,
+        help="Busy-hour window end as epoch seconds or ISO-8601.",
+    )
+    parser.add_argument(
         "--instance",
         action="append",
         default=None,
@@ -664,6 +737,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="Stall JSONL path. Defaults to $SASE_TUI_STALL_PATH or ~/.sase/logs/tui_stalls.jsonl.",
     )
     parser.add_argument(
+        "-p",
+        "--perf-path",
+        type=Path,
+        default=None,
+        help="Perf JSONL path. Defaults to $SASE_TUI_PERF_PATH or ~/.sase/perf/tui_jk.jsonl.",
+    )
+    parser.add_argument(
         "--since",
         default=None,
         help="Window start as epoch seconds or ISO-8601.",
@@ -673,6 +753,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         type=Path,
         default=None,
         help="Startup JSONL path used to window rows without app_instance_id.",
+    )
+    parser.add_argument(
+        "-t",
+        "--tab",
+        action="append",
+        default=None,
+        help="Required navigation tab for the busy hour (repeatable; Agents is always required).",
     )
     parser.add_argument(
         "--until",
@@ -730,6 +817,46 @@ def main(argv: Sequence[str] | None = None) -> int:
                 acceptance_results[instance] = empty_acceptance(
                     instance, since_raw=args.since, until_raw=args.until
                 )
+        try:
+            busy_since = (
+                parse_time(args.busy_since) if args.busy_since is not None else None
+            )
+            busy_until = (
+                parse_time(args.busy_until) if args.busy_until is not None else None
+            )
+        except ValueError as exc:
+            parser.error(f"invalid --busy-since/--busy-until: {exc}")
+            return 2
+        if (args.busy_since is None) != (args.busy_until is None):
+            parser.error("--busy-since and --busy-until must be passed together")
+            return 2
+        perf_path = args.perf_path or default_perf_path()
+        perf_rows = load_perf_rows(perf_path, include_rotated=not args.no_rotated)
+        required_tabs = tuple(args.tab or ())
+        for instance, result in acceptance_results.items():
+            coverage = result.get("coverage") or {}
+            bucket_rows = selected_buckets.get(instance, [])
+            perf = analyze_instance_perf(
+                perf_rows,
+                instance,
+                busy_since=busy_since,
+                busy_until=busy_until,
+                required_tabs=required_tabs,
+                coverage_start=coverage.get("actual_start_epoch"),
+                coverage_end=coverage.get("actual_end_epoch"),
+                activity_rows=[
+                    row for row in bucket_rows if row.get("event") == "prompt_activity"
+                ],
+            )
+            result["perf"] = perf
+            # The jk_p95 acceptance placeholder (no perf-path input) is
+            # replaced by the attributable verdict; busy_hour and
+            # prompt_activity are new targets this phase owns.
+            result["targets"].update(perf["targets"])
+            for issue in perf["issues"]:
+                if issue not in coverage.get("issues", []):
+                    coverage.setdefault("issues", []).append(issue)
+            result["overall_status"] = aggregate_status({instance: result})
     overall_status = aggregate_status(acceptance_results) if acceptance_mode else None
     if args.json:
         instance_names = sorted(set(summaries) | set(acceptance_results))

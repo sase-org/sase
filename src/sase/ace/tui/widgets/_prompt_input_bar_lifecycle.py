@@ -169,6 +169,44 @@ class PromptInputBarLifecycleMixin(_MixinBase):
         self.refresh_cursor_readouts()
         self._schedule_deferred_mount_warmups()
 
+    def on_descendant_focus(self, event: object) -> None:
+        """Note prompt text-entry focus for perf attribution (SASE_TUI_PERF=1).
+
+        Any descendant gaining focus means the prompt bar is text-active.
+        Never inspects event contents beyond routing to the app hook.
+        """
+        try:
+            note = getattr(self.app, "_note_prompt_opened", None)
+            if callable(note):
+                note()
+        except Exception:  # noqa: BLE001 - telemetry must never break focus.
+            pass
+
+    def on_descendant_blur(self, event: object) -> None:
+        """Note prompt text-entry blur, only when focus left the bar.
+
+        Intra-bar moves (text area to completion list) keep the prompt
+        active; only a focus outside this widget closes the interval.
+        """
+        try:
+            focused = self.app.focused
+        except Exception:  # noqa: BLE001 - without a focus target, treat as closed.
+            focused = None
+        try:
+            if focused is not None and focused is not self:
+                has_ancestor = getattr(focused, "has_ancestor", None)
+                if callable(has_ancestor):
+                    try:
+                        if bool(has_ancestor(self)):
+                            return
+                    except Exception:  # noqa: BLE001 - best-effort ancestry.
+                        pass
+            note = getattr(self.app, "_note_prompt_closed", None)
+            if callable(note):
+                note()
+        except Exception:  # noqa: BLE001 - telemetry must never break focus.
+            pass
+
     def _refresh_feedback_carries(self) -> None:
         """Render read-only Carries lines above the feedback editor."""
         try:

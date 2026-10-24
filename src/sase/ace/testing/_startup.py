@@ -14,6 +14,7 @@ from sase.ace.tui.modals import plugins_browser_pane as _plugins_browser_pane
 from sase.ace.tui.modals import project_inventory_panes as _project_inventory_panes
 from sase.ace.tui.util import gc_policy as _gc_policy
 from sase.ace.tui.util import gc_telemetry as _gc_telemetry
+from sase.ace.tui.util import perf as _perf
 from sase.ace.tui.util import stall_watchdog as _stall_watchdog
 from sase.repo_inventory import RepoInventory
 from sase.workspace_provider.inventory import WorkspaceInventory
@@ -43,6 +44,11 @@ _ORIGINAL_START_STALL_WATCHDOG = _stall_watchdog.start_event_loop_stall_watchdog
 # gc.callbacks recorder (or a raised threshold2 / gc.freeze() from the later
 # gc-policy phase) there would change GC behavior for the whole suite.
 _ORIGINAL_INSTALL_GC_TELEMETRY = _gc_telemetry.install_gc_telemetry
+# Same rationale for the prompt-activity sender: activity rows share the
+# stalls log, and a pytest host runs many app instances, so the harness
+# replaces the durable emit with a no-op while tracker unit tests inject
+# their own sink.
+_ORIGINAL_EMIT_PROMPT_ACTIVITY = _perf._emit_prompt_activity
 # Same rationale as above: installing the raised threshold2 / gc.freeze()
 # idle-GC policy in a pytest host would change GC behavior for the whole
 # suite, so the harness replaces the policy install with a no-op too.
@@ -357,6 +363,14 @@ def _install_fast_startup_overrides(stack: AsyncExitStack) -> None:
             patch.object(
                 _gc_telemetry,
                 "install_gc_telemetry",
+                _noop_startup_service,
+            )
+        )
+    if _perf._emit_prompt_activity is _ORIGINAL_EMIT_PROMPT_ACTIVITY:
+        stack.enter_context(
+            patch.object(
+                _perf,
+                "_emit_prompt_activity",
                 _noop_startup_service,
             )
         )

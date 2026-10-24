@@ -1045,9 +1045,66 @@ documented heuristic that needs a `last_keypress_age_s` context row within 2 s o
 pause), and the RSS / swap trajectory from heartbeats. `--acceptance` marks each
 sase-1f3 target pass or fail per instance (idle-collection p95 ≤ 500 ms, total GC < 3%
 of wall, hitches < 0.5% of wall, no automatic or backstop gen-2 within 2 s of input, RSS
-growth < 0.5 GiB, VmSwap about 0). j/k p95 is n/a here; measure it with
-`SASE_TUI_PERF=1`. The process exits 1 when `--acceptance` is set and any evaluated
-target fails.
+growth < 0.5 GiB, VmSwap about 0). Attributable j/k and prompt evidence comes from the
+perf log (next section); without `-p/--perf-path` input the `jk_p95`, `busy_hour`, and
+`prompt_activity` targets report INCOMPLETE. The process exits 1 when `--acceptance` is
+set and any evaluated target fails (exit 2 for invalid arguments).
+
+### Attributable perf and prompt-state evidence
+
+`SASE_TUI_PERF=1` key-to-paint samples land in `~/.sase/perf/tui_jk.jsonl` (override
+with `SASE_TUI_PERF_PATH`). Every sample carries `app_instance_id`, `pid`, a wall-clock
+timestamp paired with the monotonic action time, and a provenance snapshot (sase
+version, source revision, Python version) captured once at bind — never rediscovered per
+key. Overwritten in-flight samples increment the sample's cumulative `dropped_total`
+counter so a sparse distribution is not mistaken for all input. The sample log keeps one
+row kind only (existing consumers read every row as a sample); it rotates to one `.1`
+generation past 2 MiB. Prompt and modal activity travels separately: `prompt_activity`
+rows — an initial activity state plus prompt open/close and modal open/close transitions
+with the same instance/time attribution — go through the telemetry writer into
+`~/.sase/logs/tui_stalls.jsonl`, which the report already joins per instance. Prompt
+contents are never logged. Pre-compose modal screens report `text_entry: false`; the
+close row re-checks post-mount and is authoritative.
+
+The report joins the perf log per instance with `-p/--perf-path` (rotation included) and
+takes activity rows from the stalls log it already loads. The perf-input and workload
+analysis lives in `tools/_tui_freeze_report_perf.py`; the stall/heartbeat/GC acceptance
+stays in `tools/_tui_freeze_report_acceptance.py`:
+
+```bash
+tools/tui_freeze_report --acceptance --instance abc123 \
+  -p ~/.sase/perf/tui_jk.jsonl \
+  -b 2026-10-24T14:00 -e 2026-10-24T15:00 -t agents -t patches
+```
+
+Only `next` / `prev` and verified artifact-pane `<pane>.next` / `<pane>.prev` actions
+contribute to j/k; leader (`,`-prefixed), prompt, and panel actions are reported
+separately. Grouping is per instance and tab (n, p50, p95, max, dropped samples, and
+ten-minute activity bins). Legacy rows without an instance ID are counted with an
+explicit diagnosis and never silently assigned — recapture with fixed code instead.
+`-b/--busy-since` with `-e/--busy-until` selects the observed busy hour inside the
+covered interval (both required; a quiet window is not a busy hour). Agents needs at
+least 100 measured next/prev actions across at least four ten-minute bins; each extra
+`-t/--tab` tab needs 30 samples and its own p95 < 16 ms distribution. Without a valid
+window the j/k target stays INCOMPLETE and the report lists candidate hourly windows.
+Prompt-active versus idle durations come from state transitions; mixed heartbeat
+intervals are never assigned wholesale to either state. Keep the sampling above in mind
+when planning capture.
+
+### Capture preflight
+
+Before any long acceptance window, confirm the fixed code and its instrumentation are
+live in the actual replacement processes:
+
+1. Record source revision, `sase.__version__`, Python/Textual/Rich versions, boot and
+   PID/start ticks, and capture paths on both hosts.
+2. Launch with `SASE_TUI_PERF=1` (and `SASE_TUI_GC_CENSUS=1` only when attributing
+   garbage) and confirm both flags plus the fixed source revision in the replacement
+   processes. Every restart defines a new instance even if exec reuses the PID.
+3. Exercise real j/k on each host, use the usual tabs, and open/close the prompt, then
+   immediately verify new attributable samples and `prompt_activity` rows exist. If rows
+   are missing, diagnose capture first — do not spend another four-hour timeout on
+   missing instrumentation.
 
 ## Startup telemetry capture
 

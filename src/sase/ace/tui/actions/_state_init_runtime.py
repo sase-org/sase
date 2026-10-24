@@ -259,6 +259,9 @@ def init_runtime_state(
     # Carried on pause, heartbeat, startup, and agent-load records so one
     # busy hour with several restarts stays attributable per instance.
     self._app_instance_id = new_app_instance_id()
+    bind_perf = getattr(self, "_bind_perf_instance", None)
+    if callable(bind_perf):
+        bind_perf()
     self._gc_telemetry = None
     self._gc_policy = None
 
