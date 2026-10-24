@@ -218,6 +218,17 @@ was open toasts `That action is no longer available` instead of acting.
 [`ace.keymaps`](../config/ace-keymap-configuration.md#acekeymaps) and
 [TUI migration notes](../upgrading/tui.md#keymap-moves).
 
+## Resolving stranded work
+
+`Enter` on a stranded or blocked owner, waiter, or clan row opens a resolve modal
+(or adds **resolve stranded** to the action chooser when a pending gate or Patch is
+also present). `f` / `Enter` prefills the home prompt with
+`%id(bead=<leaf>) #fork:<last turn>` plus an editable stub so the fork claims the
+bead. `c` opens the shared Close-bead modal. Continue stays enabled when the last
+turn is dismissed; it disables only when no last turn exists. The header callout
+ends with `⏎ resolve`. See
+[Stranded beads](../work-units/bead-lifecycles.md#stranded-beads).
+
 ## Forking Agents and Groups
 
 With a named agent selected, press `F` to open a prompt prefilled with `#fork:<agent>`.

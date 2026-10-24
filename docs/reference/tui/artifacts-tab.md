@@ -20,7 +20,14 @@ The status bar counts distinct stranded beads across the selected projects, incl
 tasks, and hides the count when it is zero. The detail pane's **Stranded** row shows
 the last turn, cause, and age, or the stranded bead blocking it. Badges refresh after
 the bead list loads and on periodic refreshes, even when the bead store is unchanged.
-See [Stranded beads](../work-units/bead-lifecycles.md#stranded-beads) for states and remedies.
+
+## Resolving stranded work
+
+`w` on a stranded or blocked phase, epic, or task row opens the same resolve modal as
+Agents `Enter`: Continue forks the last turn, Close uses the shared Close-bead modal.
+Healthy phases still launch with their epic. The help label is
+`launch / resolve stranded`. See
+[Stranded beads](../work-units/bead-lifecycles.md#stranded-beads) for states and remedies.
 
 ## Contextual Artifact Links
 

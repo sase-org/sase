@@ -373,6 +373,10 @@ _LAZY_EXPORTS = {
         "StatisticsMacroPickerModal",
     ),
     "StatusModal": (".status_modal", "StatusModal"),
+    "StrandedResolveModal": (
+        ".stranded_resolve_modal",
+        "StrandedResolveModal",
+    ),
     "TabName": (".help_modal", "TabName"),
     "TagInputModal": (".tag_input_modal", "TagInputModal"),
     "TmuxAgentModal": (".tmux_agent_modal", "TmuxAgentModal"),

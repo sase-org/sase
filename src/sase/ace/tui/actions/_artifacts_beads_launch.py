@@ -20,6 +20,14 @@ class ArtifactsBeadsLaunchActionsMixin(ArtifactsBeadsCommonMixin):
             return
         pane, row = selected
         issue = row.issue
+        from ..widgets.artifacts.beads_stranded import cached_bead_verdict
+
+        verdict = cached_bead_verdict(row.project, issue.id)
+        if verdict is not None and verdict.state in {"stranded", "blocked"}:
+            from ._stranded_resolve_actions import open_stranded_resolve_modal
+
+            open_stranded_resolve_modal(self, row.project, issue.id)
+            return
         if issue.issue_type is IssueType.PHASE:
             self.notify(  # type: ignore[attr-defined]
                 "Phases launch with their epic", severity="warning"

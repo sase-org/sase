@@ -151,6 +151,9 @@ def resolve_agent_enter_targets(
 
     if scope == "clan":
         member = clan_lone_stopped_member(agent)
+        targets: list[AgentEnterTarget] = []
+        subject = None
+        scope_heading = title
         if member is not None:
             delegated = resolve_agent_enter_targets(
                 member,
@@ -159,7 +162,18 @@ def resolve_agent_enter_targets(
                 patch_lookup=patch_lookup,
             )
             if delegated.targets:
-                return replace(delegated, subject_identity=identity_of(member))
+                targets = list(delegated.targets)
+                subject = identity_of(member)
+                scope_heading = delegated.scope_title or title
+        from ._agent_enter_stranded import append_stranded_target
+
+        append_stranded_target(targets, agent)
+        if targets:
+            return AgentEnterResolution(
+                targets=tuple(targets),
+                scope_title=scope_heading,
+                subject_identity=subject,
+            )
         return AgentEnterResolution(
             targets=(), scope_title=title, empty_message=CLAN_EMPTY_MESSAGE
         )
@@ -355,6 +369,9 @@ def resolve_agent_enter_targets(
                 scope_agent=agent,
             )
         )
+    from ._agent_enter_stranded import append_stranded_target
+
+    append_stranded_target(targets, agent)
     return AgentEnterResolution(
         targets=tuple(targets), scope_title=title, empty_message=None
     )

@@ -107,6 +107,18 @@ class _StrandedReportCache:
             while len(self._entries) > self._max_entries:
                 self._entries.popitem(last=False)
 
+    def expire(self, project_key: str) -> None:
+        with self._lock:
+            entry = self._entries.get(project_key)
+            if entry is None:
+                return
+            self._entries[project_key] = _CachedProjectReport(
+                expires_at=0.0,
+                fingerprint=entry.fingerprint,
+                snapshot=entry.snapshot,
+            )
+            self._entries.move_to_end(project_key)
+
     def clear(self) -> None:
         with self._lock:
             self._entries.clear()
@@ -159,6 +171,11 @@ def cached_stranded_report(project_key: str) -> StrandedReport | None:
 def should_resolve_stranded_report(project_key: str) -> bool:
     """Return whether a project's report is cold or past its TTL."""
     return _STRANDED_REPORT_CACHE.should_resolve(project_key)
+
+
+def force_stranded_refresh(project_key: str) -> None:
+    """Expire the cached report so the next warmup reloads it immediately."""
+    _STRANDED_REPORT_CACHE.expire(project_key)
 
 
 def stranded_project_keys(agents: Iterable[Agent]) -> tuple[str, ...]:
@@ -334,6 +351,7 @@ __all__ = [
     "agent_stranded_view",
     "cached_stranded_report",
     "cached_stranded_report_for_agent",
+    "force_stranded_refresh",
     "should_resolve_stranded_report",
     "stranded_count_for_agents",
     "stranded_project_key_for_agent",

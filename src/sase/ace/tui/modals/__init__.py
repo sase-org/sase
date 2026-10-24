@@ -237,6 +237,7 @@ __all__ = [
     "get_runner_count",
     "SelectionItem",
     "StatusModal",
+    "StrandedResolveModal",
     "TabName",
     "TagInputModal",
     "TmuxAgentModal",

@@ -104,7 +104,7 @@ These are the bundled defaults for configurable TUI actions. The key and action 
 | `n` | Create Task Bead | `ace.keymaps.app.beads_create` |
 | `c` | Close / Reopen Bead | `ace.keymaps.app.beads_close` |
 | `z` | Snooze Bead | `ace.keymaps.app.beads_snooze` |
-| `w` | Launch Bead Work | `ace.keymaps.app.beads_launch_work` |
+| `w` | Launch / Resolve Stranded | `ace.keymaps.app.beads_launch_work` |
 | `E` | Open Linked Issue | `ace.keymaps.app.beads_open_bug` |
 | `O` | Open Attachments | `ace.keymaps.app.beads_open_attachments` |
 | `b` | Bead Issue Mode | `ace.keymaps.app.start_bead_issue_mode` |

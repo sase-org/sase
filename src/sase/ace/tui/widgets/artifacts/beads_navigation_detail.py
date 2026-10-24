@@ -82,7 +82,15 @@ class BeadsNavigationDetailMixin(_MixinBase):
         entries: list[tuple[str, str]] = []
         snapshot = self._snapshot
         if _can_launch_bead_row(row, snapshot):
-            entries.append(("beads_launch_work", "launch"))
+            from .beads_stranded import cached_bead_verdict
+
+            verdict = cached_bead_verdict(row.project, row.issue.id)
+            label = (
+                "resolve stranded"
+                if verdict is not None and verdict.state in {"stranded", "blocked"}
+                else "launch"
+            )
+            entries.append(("beads_launch_work", label))
         entries.append(
             (
                 "beads_close",
@@ -209,6 +217,11 @@ def _can_launch_bead_row(
     issue = row.issue
     if issue.status is Status.CLOSED:
         return False
+    from .beads_stranded import cached_bead_verdict
+
+    verdict = cached_bead_verdict(row.project, issue.id)
+    if verdict is not None and verdict.state in {"stranded", "blocked"}:
+        return True
     if issue.issue_type is IssueType.PHASE:
         return False
     if issue.issue_type is IssueType.TASK:

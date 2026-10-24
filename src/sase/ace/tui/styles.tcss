@@ -5571,6 +5571,61 @@ AgentActionChooserModal #agent-action-footer {
     text-align: center;
 }
 
+StrandedResolveModal {
+    align: center middle;
+}
+
+StrandedResolveModal #stranded-resolve-container {
+    width: 68;
+    max-width: 94%;
+    height: auto;
+    max-height: 90%;
+    border: double #FFAF00;
+    background: $surface;
+    padding: 1 2;
+}
+
+StrandedResolveModal #stranded-resolve-title {
+    height: 1;
+    text-style: bold;
+    color: #FFAF00;
+    text-wrap: nowrap;
+    text-overflow: ellipsis;
+}
+
+StrandedResolveModal #stranded-resolve-body {
+    height: auto;
+    margin: 0 0 1 0;
+}
+
+StrandedResolveModal #stranded-resolve-leaves {
+    height: auto;
+    max-height: 8;
+    margin: 0 0 1 0;
+}
+
+StrandedResolveModal .stranded-resolve-leaf {
+    height: 1;
+}
+
+StrandedResolveModal .stranded-resolve-leaf.focused {
+    background: #FFAF00 20%;
+}
+
+StrandedResolveModal #stranded-resolve-actions {
+    height: auto;
+    margin: 0 0 1 0;
+}
+
+StrandedResolveModal #stranded-resolve-footer {
+    height: auto;
+    color: $text-muted;
+    border-top: solid #FFAF00;
+    margin-top: 1;
+    padding-top: 1;
+    text-align: center;
+}
+
 AxeNewEntryIdentityModal {
     align: center middle;
 }

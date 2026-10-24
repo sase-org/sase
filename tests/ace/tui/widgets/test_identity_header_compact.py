@@ -100,7 +100,7 @@ def test_stranded_agent_header_includes_callout() -> None:
     rendered = build_agent_compact_lines(agent=agent)
 
     assert (
-        "⚐ STRANDED 1h · --3 ended with bead_action keep; nothing resumes it"
+        "⚐ STRANDED 1h · --3 ended with bead_action keep; nothing resumes it · ⏎ resolve"
         in rendered.plain
     )
 

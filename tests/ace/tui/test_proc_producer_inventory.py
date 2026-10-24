@@ -318,4 +318,4 @@ def test_inventory_records_infrastructure_and_classifications() -> None:
     assert any(site.site_id == "command-line.submit" for site in PRODUCTION_PRODUCERS)
     assert any(site.site_id == "projects.create_check" for site in PRODUCTION_PRODUCERS)
     assert any(site.site_id == "projects.create" for site in PRODUCTION_PRODUCERS)
-    assert len(PRODUCTION_PRODUCERS) == 57
+    assert len(PRODUCTION_PRODUCERS) == 58

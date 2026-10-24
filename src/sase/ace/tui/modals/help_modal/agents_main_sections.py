@@ -158,7 +158,7 @@ def main_sections(km: KeymapRegistry) -> Sections:
         (
             "Agent Actions",
             [
-                (d(a.act_on_agent), "Review gate / go to Patch"),
+                (d(a.act_on_agent), "Review gate / Patch / stranded"),
                 (d(a.start_custom_agent), "Run custom agent"),
                 (
                     d(a.start_agent_from_patch),

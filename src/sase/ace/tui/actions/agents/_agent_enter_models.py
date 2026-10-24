@@ -9,7 +9,7 @@ if TYPE_CHECKING:
     from ...models import Agent
     from sase.notifications import Notification
 
-EnterTargetKind = Literal["gate", "patch"]
+EnterTargetKind = Literal["gate", "patch", "stranded"]
 EnterTargetSource = Literal[
     "gate_row",
     "notification",
@@ -17,6 +17,7 @@ EnterTargetSource = Literal[
     "workflow_hitl",
     "remote_attention",
     "patch",
+    "stranded",
 ]
 
 #: Message when Enter lands on a clan container row.
@@ -52,6 +53,8 @@ class AgentEnterTarget:
     row_identity: tuple[object, ...] | None = None
     patch_name: str | None = None
     project_file: str | None = None
+    bead_id: str | None = None
+    project_key: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

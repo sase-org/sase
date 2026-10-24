@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
-from datetime import datetime
+from datetime import UTC, datetime
 
 import pytest
 
@@ -19,6 +19,7 @@ from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patches,
     patch_startup_loaders,
     wait_for_startup,
+    wait_for_svg_contains,
     wait_for_visual_idle,
 )
 from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
@@ -207,4 +208,70 @@ async def test_agents_stranded_detail_png_snapshots(
             page,
             snapshot_name,
             title=f"ACE {expected} stranded detail callout",
+        )
+
+
+async def test_agents_stranded_resolve_modal_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ended = datetime(2026, 10, 22, 6, 28, tzinfo=UTC)
+    generated = ended.timestamp() + 31 * 3600
+    patch_startup_loaders(monkeypatch, agents=_agents())
+
+    async with AcePage(query='"visual"', patches=patches(), size=(120, 40)) as page:
+        await wait_for_startup(page)
+        await page.press("shift+tab")
+        await page.expect_state("tab", "agents")
+        await wait_for_visual_idle(page)
+
+        from sase.ace.tui.modals.stranded_resolve_modal import StrandedResolveModal
+        from sase.ace.tui.models import agent_stranded
+        from sase.ace.tui.models.stranded_resolve import build_stranded_resolve_view
+
+        monkeypatch.setattr(
+            page.app, "_schedule_bead_confirmation_warmup", lambda **_: None
+        )
+        leaf_id = "sase-visual.1"
+        report = StrandedReport(
+            report=StrandedWorkReport(
+                verdicts=(
+                    StrandedWorkVerdict(
+                        bead_id=leaf_id,
+                        kind="phase",
+                        state="stranded",
+                        reason="kept",
+                        last_turn=f"{leaf_id}--3",
+                        since=ended.timestamp(),
+                        parent_id="sase-visual",
+                        blocks=(
+                            "sase-visual.2",
+                            "sase-visual.3",
+                            "sase-visual.4",
+                            "sase-visual.5",
+                            "sase-visual.6",
+                            "sase-visual",
+                        ),
+                    ),
+                ),
+                stranded_ids=(leaf_id,),
+            ),
+            titles={leaf_id: "Live proof"},
+            generated_at=generated,
+        )
+        agent_stranded._STRANDED_REPORT_CACHE.set("visual", report, "visual-store")
+        view = build_stranded_resolve_view("visual", leaf_id)
+        assert view is not None
+        page.app.push_screen(StrandedResolveModal(view))
+        await page.expect_modal("StrandedResolveModal")
+        await wait_for_svg_contains(page, "Stranded phase")
+        await wait_for_visual_idle(page)
+
+        assert_page_svg_contains(page, "Stranded phase")
+        assert_page_svg_contains(page, "Live proof")
+        assert_page_svg_contains(page, "Continue")
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_stranded_resolve_modal_120x40",
+            title="ACE stranded resolve modal",
         )

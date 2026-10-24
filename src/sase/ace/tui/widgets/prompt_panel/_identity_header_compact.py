@@ -438,6 +438,7 @@ def _stranded_header_callout(agent: Agent) -> Text | None:
         sentence = blocked_sentence(verdict)
         if sentence:
             line.append(f" {sentence}", style=STRANDED_BREADCRUMB_STYLE)
+    line.append(" · ⏎ resolve", style=style)
     return line
 
 

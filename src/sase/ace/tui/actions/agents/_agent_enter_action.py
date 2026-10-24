@@ -116,6 +116,15 @@ class AgentEnterActionMixin:
             navigate_to_patch_tab(self, target.patch_name, target.project_file or "")
             return
 
+        if target.kind == "stranded":
+            from .._stranded_resolve_actions import open_stranded_resolve_modal
+
+            if not target.bead_id or not target.project_key:
+                self.notify("No stranded bead for this agent", severity="warning")  # type: ignore[attr-defined]
+                return
+            open_stranded_resolve_modal(self, target.project_key, target.bead_id)
+            return
+
         if target.source == "question_marker":
             agent = self._agent_enter_agent(agent_identity)
             if agent is None:
@@ -425,6 +434,21 @@ def _choice_for_enter_target(target: AgentEnterTarget):  # type: ignore[no-untyp
             badge=target.badge,
             badge_style=target.badge_style,
             age=None,
+        )
+    if target.kind == "stranded":
+        from sase.bead.stranded_presentation import STRANDED_GLYPH, STRANDED_LEAF_STYLE
+
+        return AgentActionChoice(
+            result=target.key,
+            section="stranded",
+            label=target.label,
+            detail=target.detail,
+            glyph=STRANDED_GLYPH,
+            glyph_style=STRANDED_LEAF_STYLE,
+            badge=target.badge,
+            badge_style=target.badge_style,
+            age=None,
+            hotkey="s",
         )
     badge, age = _split_enter_badge(target.badge)
     style = target.badge_style or ""

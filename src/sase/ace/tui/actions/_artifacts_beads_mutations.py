@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -473,8 +474,19 @@ class ArtifactsBeadsMutationActionsMixin(ArtifactsBeadsCommonMixin):
         descendants = unclosed_descendant_ids(row, pane.snapshot)
 
         def dismissed(result: BeadCloseResult | None) -> None:
-            if result is not None:
-                self._submit_bead_close(pane, row, result)
+            if result is None:
+                return
+            snapshot = pane.snapshot
+            workspace = (
+                None if snapshot is None else snapshot.workspace_dirs.get(row.project)
+            )
+            self._submit_bead_close(
+                row.issue,
+                row.project,
+                workspace,
+                result,
+                pane=pane,
+            )
 
         self.push_screen(  # type: ignore[attr-defined]
             BeadCloseModal(row.issue, unclosed_descendants=descendants), dismissed
@@ -513,44 +525,94 @@ class ArtifactsBeadsMutationActionsMixin(ArtifactsBeadsCommonMixin):
 
     def _submit_bead_close(
         self,
-        pane: ArtifactsBeadsPane,
-        row: BeadRow,
+        issue: Issue,
+        project: str,
+        workspace: str | Path | None,
         result: BeadCloseResult,
+        pane: ArtifactsBeadsPane | None = None,
     ) -> None:
-        snapshot = pane.snapshot
-        workspace = (
-            None if snapshot is None else snapshot.workspace_dirs.get(row.project)
-        )
+        if not workspace:
+            self.notify(  # type: ignore[attr-defined]
+                "The project workspace is unavailable", severity="warning"
+            )
+            return
+        workspace_text = str(workspace)
+        from .proc_actions import TrackedProcResult
 
-        def mutate(project: Any) -> Issue:
+        def mutate(store_project: Any) -> Issue:
             from sase.bead.epic_symbols import (
                 raise_if_leftover_epic_symbols,
                 raise_if_surviving_flag_definition,
             )
 
-            issues = [project.show(row.issue.id)]
-            start = Path(workspace) if workspace else None
+            issues = [store_project.show(issue.id)]
+            start = Path(workspace_text)
             raise_if_leftover_epic_symbols(issues, start=start)
             raise_if_surviving_flag_definition(issues, start=start)
-            project.close(
-                [row.issue.id],
+            store_project.close(
+                [issue.id],
                 reason=result.reason,
                 resolution=result.resolution,
                 force=result.force,
                 note=result.note,
-                author=bead_note_author(project) if result.note else None,
+                author=bead_note_author(store_project) if result.note else None,
             )
-            return project.show(row.issue.id)
+            return store_project.show(issue.id)
 
-        self._submit_bead_mutation(
-            pane,
-            row,
-            operation="close",
-            display_name=f"Close bead · {row.issue.id}",
-            success_message=f"Closed {row.issue.id}",
-            mutation=mutate,
-            commit_operation="close",
-            settle_triage_reason=(
-                "closed_from_ace" if row.issue.issue_type is IssueType.TASK else None
-            ),
+        def task() -> TrackedProcResult[Issue]:
+            from sase.bead.cli_common import auto_commit_bead_store, bead_store_mutation
+            from sase.bead.mutation_commit import close_mutation_commit_message
+
+            with bead_store_mutation(
+                auto_commit_bead_store, cwd=Path(workspace_text)
+            ) as store_mutation:
+                payload = mutate(store_mutation.project)
+                outcome = store_mutation.project.last_mutation_outcome
+                commit_message = close_mutation_commit_message(
+                    closed_ids=_close_outcome_ids(outcome, "closed_ids"),
+                    cascade_closed_ids=_close_outcome_ids(
+                        outcome, "cascade_closed_ids"
+                    ),
+                    noted_ids=_close_outcome_ids(outcome, "noted_ids"),
+                )
+                if commit_message is not None:
+                    store_mutation.commit(commit_message)
+            if issue.issue_type is IssueType.TASK:
+                from sase.bead.task_gate import cancel_task_triage
+
+                cancel_task_triage(
+                    project,
+                    issue.id,
+                    reason="closed_from_ace",
+                )
+            return TrackedProcResult(True, f"Closed {issue.id}", payload)
+
+        def completed(_completion: Any) -> None:
+            if pane is not None:
+                pane.request_explicit_refresh()
+            from ._stranded_resolve_actions import schedule_stranded_resolve_refresh
+
+            schedule_stranded_resolve_refresh(self, project)
+            if issue.issue_type is IssueType.TASK:
+                refresh = getattr(self, "_refresh_notification_count", None)
+                if callable(refresh):
+                    refresh()
+
+        self._submit_session_worker(  # type: ignore[attr-defined]
+            "bead-close",
+            task,
+            display_name=f"Close bead · {issue.id}",
+            cl_name=issue.id,
+            project_file=workspace_text,
+            dedup_key=f"beads:close:{project}:{issue.id}",
+            on_complete=completed,
         )
+
+
+def _close_outcome_ids(outcome: Mapping[str, object] | None, field: str) -> list[str]:
+    if not isinstance(outcome, Mapping):
+        return []
+    raw = outcome.get(field)
+    if not isinstance(raw, list):
+        return []
+    return [str(value) for value in raw]

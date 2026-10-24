@@ -266,7 +266,7 @@ def test_footer_enter_sorts_first() -> None:
 def test_agents_help_has_enter_row_and_no_leader_n() -> None:
     reg = load_keymap_registry({})
     pairs = {(key, label) for _s, rows in agents_bindings(reg) for key, label in rows}
-    assert ("Enter", "Review gate / go to Patch") in pairs
+    assert ("Enter", "Review gate / Patch / stranded") in pairs
     assert not any(label == "Jump to any agent notification" for _, label in pairs)
 
 

@@ -14,7 +14,7 @@ from textual.containers import Container, VerticalScroll
 from textual.screen import ModalScreen
 from textual.widgets import Static
 
-AgentActionSection = Literal["gate", "patch", "archive", "read"]
+AgentActionSection = Literal["gate", "patch", "archive", "read", "stranded"]
 
 #: Guidance footer shared by the chooser modal.
 _AGENT_ACTION_FOOTER: Final = "Up/Down or j/k move - Enter select - Esc cancel"
@@ -100,6 +100,8 @@ class AgentActionChooserModal(ModalScreen[str | None]):
         for index, choice in enumerate(choices):
             if choice.section == "patch":
                 keys.setdefault("p", index)
+            if choice.section == "stranded":
+                keys.setdefault("s", index)
         return keys
 
     @property
@@ -129,6 +131,8 @@ class AgentActionChooserModal(ModalScreen[str | None]):
             return choice.hotkey
         if choice.section == "patch":
             return "p"
+        if choice.section == "stranded":
+            return "s"
         gate_indexes = [
             i for i, item in enumerate(self._choices) if item.section == "gate"
         ]
@@ -164,6 +168,11 @@ class AgentActionChooserModal(ModalScreen[str | None]):
                     for index, choice in enumerate(self._choices)
                     if choice.section == "patch"
                 ]
+                stranded_indexes = [
+                    index
+                    for index, choice in enumerate(self._choices)
+                    if choice.section == "stranded"
+                ]
                 if archive_indexes:
                     yield Static("ARCHIVE", classes="agent-action-section")
                     for index in archive_indexes:
@@ -188,6 +197,16 @@ class AgentActionChooserModal(ModalScreen[str | None]):
                     header = "GATE" if len(gate_indexes) == 1 else "GATES"
                     yield Static(header, classes="agent-action-section")
                     for index in gate_indexes:
+                        yield Static(
+                            self._row_renderable(
+                                index, focused=index == self._selected
+                            ),
+                            id=f"agent-action-row-{index}",
+                            classes=self._row_classes(index),
+                        )
+                if stranded_indexes:
+                    yield Static("STRANDED", classes="agent-action-section")
+                    for index in stranded_indexes:
                         yield Static(
                             self._row_renderable(
                                 index, focused=index == self._selected

@@ -163,7 +163,7 @@ class AgentBeadWarmupMixin(AgentLoadingStateMixin):
         """
         if not self._agents_first_load_done:
             return
-        force_stranded = source == "beads_watcher"
+        force_stranded = source in {"beads_watcher", "stranded_resolve"}
         if not self._bead_warmup_candidates(force_stranded=force_stranded):
             return
         if self._bead_warmup_scan_running:
@@ -203,7 +203,8 @@ class AgentBeadWarmupMixin(AgentLoadingStateMixin):
             return
         self._bead_warmup_scan_scheduled = False
         candidates = self._bead_warmup_candidates(
-            force_stranded=self._bead_warmup_scan_source == "beads_watcher"
+            force_stranded=self._bead_warmup_scan_source
+            in {"beads_watcher", "stranded_resolve"}
         )
         if not candidates:
             return
