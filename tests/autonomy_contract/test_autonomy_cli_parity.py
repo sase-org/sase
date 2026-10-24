@@ -157,6 +157,8 @@ def _context_meta(
     elif row_id == "tale_epic_worker":
         prompt = f"{harness.adapt_epic_worker_prompt()}\nDo the work"
     _, live_meta, predecessor = harness.launch_meta(prompt, workdir)
+    if row_id == "stale_record":
+        live_meta = harness.adapt_stale_record(predecessor)
     if row_id in ("bare_a_off", "tale_a_off_on", "bare_a_off_successor"):
         harness.adapt_a_off(predecessor)
         live_meta = harness.read_meta(predecessor)

@@ -91,10 +91,10 @@ def resolve_selection(
 def read_record(meta: Mapping[str, Any] | None) -> dict[str, Any] | None:
     """Return the autonomy record for an ``agent_meta`` mapping.
 
-    The stored record wins; otherwise the legacy keys translate through
-    core (``source: legacy``); mappings with neither give ``None``
-    (Manual). Never raises: an unusable record or translation fails
-    closed to ``None``.
+    Stored built-in policies refresh from core on read; otherwise the legacy
+    keys translate through core (``source: legacy``). Mappings with neither
+    give ``None`` (Manual). Never raises: if refresh fails, keep the stored
+    dict (core evaluation refreshes it too); failed translation gives ``None``.
     """
     if meta is None:
         return None
@@ -103,7 +103,13 @@ def read_record(meta: Mapping[str, Any] | None) -> dict[str, Any] | None:
     except AttributeError:
         return None
     if isinstance(stored, dict) and stored:
-        return dict(stored)
+        try:
+            from sase.core.rust import require_rust_binding
+
+            effective = require_rust_binding("autonomy_effective_record")
+            return dict(effective(stored))
+        except Exception:
+            return dict(stored)
     try:
         if not any(key in meta for key in LEGACY_AUTONOMY_KEYS):
             return None

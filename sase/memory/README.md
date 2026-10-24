@@ -201,7 +201,7 @@ strand inherits no `type:` of its own and never inlines into `AGENTS.md`.
 - Description: Read before macros, prompt directives, or launching agents with git/gh
   VCS workflow blocks.
 - Lines: 169
-- Approx. tokens: 3727
+- Approx. tokens: 3650
 
 ### `sase/memory/sase_artifacts.md`
 
@@ -294,7 +294,7 @@ strand inherits no `type:` of its own and never inlines into `AGENTS.md`.
 - Reference notes: 17
 - Web descriptor notes: 3
 - Total lines: 1714
-- Total approx. tokens: 24012
+- Total approx. tokens: 23935
 
 ## Commands
 

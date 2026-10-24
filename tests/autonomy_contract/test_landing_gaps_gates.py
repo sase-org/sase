@@ -56,7 +56,10 @@ def test_single_evaluation_per_creation(tmp_path: Path, monkeypatch) -> None:
     assert len(calls) == 1
 
 
-def test_empty_adapter_capabilities_ask(tmp_path: Path, monkeypatch) -> None:
+@pytest.mark.parametrize("profile", ["standard", "question_fixture"])
+def test_empty_adapter_capabilities_ask(
+    tmp_path: Path, monkeypatch, profile: str
+) -> None:
     """A question adapter with no capabilities always asks."""
     from dataclasses import replace as _replace
 
@@ -73,14 +76,27 @@ def test_empty_adapter_capabilities_ask(tmp_path: Path, monkeypatch) -> None:
         producer={"agent": "contract-agent"},
         auto=True,
     )
+    if profile == "question_fixture":
+        spec_dict["auto"] = {
+            "enabled": True,
+            "policy": harness.question_first_fixture_record(),
+        }
     from sase.notification_gates.models import GateSpec
 
     spec = GateSpec.from_mapping(spec_dict)
     adapter = adapter_for_kind("question")
+    _, capable_decision, _ = _evaluate_gate_request(
+        spec, adapter, request_id="with-cap"
+    )
+    assert capable_decision["outcome"] == (
+        "auto" if profile == "question_fixture" else "ask"
+    )
     adapter = _replace(adapter, auto_capabilities=frozenset())
     _, decision, _ = _evaluate_gate_request(spec, adapter, request_id="empty-cap")
     assert decision["outcome"] == "ask"
-    assert decision["rule"] == "not_capable"
+    assert decision["rule"] == (
+        "not_capable" if profile == "question_fixture" else "gates.question"
+    )
 
 
 def test_idempotent_creation_reuses_snapshot(tmp_path: Path, monkeypatch) -> None:
@@ -279,7 +295,7 @@ def test_contract_suite_publishes_nothing(tmp_path: Path, monkeypatch) -> None:
         harness.question_outcome(
             tale_artifacts, monkeypatch=monkeypatch, request_id="isolated-question"
         )
-        == harness.FIRST
+        == harness.ASK
     )
 
     _, epic_meta, epic_artifacts = harness.launch_meta(

@@ -2138,10 +2138,10 @@ gate:
 autonomy:
   # Autonomy profile each generated worker role launches with. Values are
   # built-in profile names from `sase autonomy list`: standard (tale plans
-  # approve + archive, epic plans approve + launch, questions take the first
-  # option), tale (epic plans wait for you), epic (tale plans wait for you),
-  # or manual (everything waits). Set a role to tale to make nested epics
-  # wait for human approval.
+  # approve + archive, epic plans approve + launch), tale (epic plans wait
+  # for you), epic (tale plans wait for you), or manual (everything waits).
+  # Questions always wait for you under every profile. Set a role to tale
+  # to make nested epics wait for human approval.
   roles:
     # Epic phase agents launched by `sase bead work` / epic plan approval.
     epic_phase: standard

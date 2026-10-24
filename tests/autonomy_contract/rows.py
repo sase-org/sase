@@ -11,6 +11,10 @@ production helper seeds the row's live ``agent_meta.json`` (see
 :mod:`tests.autonomy_contract.harness`); ``launch`` rows use the real launch
 path only.
 
+Deliberate post-E1 amendment (``plan:202610/auto_questions_wait.md``):
+every built-in profile waits for human answers, including stale stored
+records, generated workers, and inherited profiles. Plan outcomes stay the same.
+
 Consolidation map (P0 sources whose contract-row assertions live here too):
 ``tests/test_auto_grammar_parity.py`` (spelling accept/reject),
 ``tests/test_plan_auto_live_meta.py`` (live meta is the only source),
@@ -49,13 +53,13 @@ class ContractRow:
 SPELLING_ROWS: tuple[ContractRow, ...] = (
     ContractRow("no_auto", "Do the work", "launch", ASK, ASK, ASK),
     ContractRow(
-        "bare", "%auto\nDo the work", "launch", APPROVE_ARCHIVE, APPROVE_LAUNCH, FIRST
+        "bare", "%auto\nDo the work", "launch", APPROVE_ARCHIVE, APPROVE_LAUNCH, ASK
     ),
     ContractRow(
-        "short_a", "%a\nDo the work", "launch", APPROVE_ARCHIVE, APPROVE_LAUNCH, FIRST
+        "short_a", "%a\nDo the work", "launch", APPROVE_ARCHIVE, APPROVE_LAUNCH, ASK
     ),
     ContractRow(
-        "plus", "%auto+\nDo the work", "launch", APPROVE_ARCHIVE, APPROVE_LAUNCH, FIRST
+        "plus", "%auto+\nDo the work", "launch", APPROVE_ARCHIVE, APPROVE_LAUNCH, ASK
     ),
     ContractRow(
         "true",
@@ -63,17 +67,11 @@ SPELLING_ROWS: tuple[ContractRow, ...] = (
         "launch",
         APPROVE_ARCHIVE,
         APPROVE_LAUNCH,
-        FIRST,
+        ASK,
     ),
-    ContractRow(
-        "tale", "%auto:tale\nDo the work", "launch", APPROVE_ARCHIVE, ASK, FIRST
-    ),
-    ContractRow(
-        "plan", "%auto:plan\nDo the work", "launch", APPROVE_ARCHIVE, ASK, FIRST
-    ),
-    ContractRow(
-        "epic", "%auto:epic\nDo the work", "launch", ASK, APPROVE_LAUNCH, FIRST
-    ),
+    ContractRow("tale", "%auto:tale\nDo the work", "launch", APPROVE_ARCHIVE, ASK, ASK),
+    ContractRow("plan", "%auto:plan\nDo the work", "launch", APPROVE_ARCHIVE, ASK, ASK),
+    ContractRow("epic", "%auto:epic\nDo the work", "launch", ASK, APPROVE_LAUNCH, ASK),
     ContractRow("manual", "%auto:manual\nDo the work", "launch", ASK, ASK, ASK),
     ContractRow("off", "%auto:off\nDo the work", "launch", ASK, ASK, ASK),
 )
@@ -90,6 +88,14 @@ INVALID_PROMPTS: tuple[str, ...] = (
 # State rows. ``a_off`` holds today; the rest are E1 deliberate changes
 # owned by later phases (see the strict-xfail modules).
 STATE_ROWS: tuple[ContractRow, ...] = (
+    ContractRow(
+        "stale_record",
+        "%auto\nDo the work",
+        "stale_record",
+        APPROVE_ARCHIVE,
+        APPROVE_LAUNCH,
+        ASK,
+    ),
     ContractRow("bare_a_off", "%auto\nDo the work", "a_off", ASK, ASK, ASK),
     # E1 target: A off then on restores the last profile (tale), not bare.
     ContractRow(
@@ -98,11 +104,11 @@ STATE_ROWS: tuple[ContractRow, ...] = (
         "a_off_on",
         APPROVE_ARCHIVE,
         ASK,
-        FIRST,
+        ASK,
     ),
     # E1 target: host-composed successors inherit the live record.
     ContractRow(
-        "tale_pipe", "%auto:tale\nDo the work", "pipe", APPROVE_ARCHIVE, ASK, FIRST
+        "tale_pipe", "%auto:tale\nDo the work", "pipe", APPROVE_ARCHIVE, ASK, ASK
     ),
     ContractRow(
         "tale_monitor_followup",
@@ -110,7 +116,7 @@ STATE_ROWS: tuple[ContractRow, ...] = (
         "monitor_followup",
         APPROVE_ARCHIVE,
         ASK,
-        FIRST,
+        ASK,
     ),
     ContractRow(
         "tale_gate_followup",
@@ -118,7 +124,7 @@ STATE_ROWS: tuple[ContractRow, ...] = (
         "gate_followup",
         APPROVE_ARCHIVE,
         ASK,
-        FIRST,
+        ASK,
     ),
     ContractRow(
         "tale_question_successor",
@@ -126,7 +132,7 @@ STATE_ROWS: tuple[ContractRow, ...] = (
         "question_successor",
         APPROVE_ARCHIVE,
         ASK,
-        FIRST,
+        ASK,
     ),
     # E1 target: a :plan monitor follow-up is not widened to bare.
     ContractRow(
@@ -135,7 +141,7 @@ STATE_ROWS: tuple[ContractRow, ...] = (
         "monitor_followup",
         APPROVE_ARCHIVE,
         ASK,
-        FIRST,
+        ASK,
     ),
     # E1 target: A off on the live member means the next successor is manual.
     ContractRow(
@@ -148,7 +154,7 @@ STATE_ROWS: tuple[ContractRow, ...] = (
         "in_process_coder",
         APPROVE_ARCHIVE,
         ASK,
-        FIRST,
+        ASK,
     ),
     # Deliberate post-E1 amendment (epic-worker roles): epic phase and land
     # workers run the `autonomy.roles` profile, default `standard`, so they
@@ -159,7 +165,7 @@ STATE_ROWS: tuple[ContractRow, ...] = (
         "epic_worker",
         APPROVE_ARCHIVE,
         APPROVE_LAUNCH,
-        FIRST,
+        ASK,
         "epic_phase",
         "",
     ),
@@ -169,7 +175,7 @@ STATE_ROWS: tuple[ContractRow, ...] = (
         "epic_worker",
         APPROVE_ARCHIVE,
         APPROVE_LAUNCH,
-        FIRST,
+        ASK,
         "epic_land",
         "",
     ),
@@ -179,7 +185,7 @@ STATE_ROWS: tuple[ContractRow, ...] = (
         "epic_worker",
         APPROVE_ARCHIVE,
         ASK,
-        FIRST,
+        ASK,
         "epic_phase",
         "tale",
     ),

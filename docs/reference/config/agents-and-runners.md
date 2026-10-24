@@ -35,10 +35,10 @@ Source: `src/sase/default_config.yml`, `src/sase/gate_turn/reclaim.py`
 
 Autonomy profile each generated epic worker launches with. Values are built-in profile
 names from `sase autonomy list`: `standard` (tale plans approve + archive, epic plans
-approve + launch, questions take the first option), `tale` (epic plans wait for you),
-`epic` (tale plans wait for you), or `manual` (everything waits). Custom profile names
-are not supported. This setting controls generated workers; a fresh user launch without
-`%auto` remains manual. See the
+approve + launch), `tale` (epic plans wait for you), `epic` (tale plans wait for you),
+or `manual` (everything waits). Questions always wait for you under every profile.
+Custom profile names are not supported. This setting controls generated workers; a fresh
+user launch without `%auto` remains manual. See the
 [profile matrix](../macros/directive-launch.md#auto-directive).
 
 ```yaml

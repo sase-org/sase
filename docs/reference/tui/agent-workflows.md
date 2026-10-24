@@ -201,7 +201,7 @@ review. Covered plans use their authored tier for the archive and follow-up path
 The row shows `⚡` while enabled, and the footer label switches between `auto-approve`
 and `unapprove`.
 
-Every enabled built-in profile also chooses the first option for each question. See the
+Questions always wait for you, whichever profile is enabled. See the
 [profile matrix](../macros/directive-launch.md#auto-directive).
 
 ### Plan Approval Keybindings

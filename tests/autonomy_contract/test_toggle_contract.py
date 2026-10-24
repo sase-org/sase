@@ -10,7 +10,7 @@ from __future__ import annotations
 import uuid
 
 from . import harness
-from .rows import APPROVE_ARCHIVE, ASK, FIRST
+from .rows import APPROVE_ARCHIVE, ASK
 from tests.plan_validation_helpers import VALID_EPIC_PLAN, VALID_TALE_PLAN
 
 
@@ -51,5 +51,5 @@ def test_tale_a_off_on_restores_tale(tmp_path, monkeypatch) -> None:
         harness.question_outcome(
             artifacts_dir, monkeypatch=monkeypatch, request_id=f"q-{tag}"
         )
-        == FIRST
+        == ASK
     )

@@ -111,10 +111,11 @@ def test_epic_ignores_default_selected_off(
     ]
 
 
+@pytest.mark.parametrize("profile", ["standard", "question_fixture"])
 def test_question_ignores_default_selected_off(
-    tmp_path, monkeypatch: pytest.MonkeyPatch
+    tmp_path, monkeypatch: pytest.MonkeyPatch, profile: str
 ) -> None:
-    """The single-option question gate still auto-answers with defaults off."""
+    """UI defaults cannot grant or revoke automatic question permission."""
     harness.isolated_gate_dirs(monkeypatch, tmp_path)
     from sase.notification_gates.models import GateSpec
     from sase.notification_gates.service import create_gate
@@ -126,12 +127,20 @@ def test_question_ignores_default_selected_off(
         producer={"agent": "contract-agent"},
         auto=True,
     )
+    if profile == "question_fixture":
+        spec_dict["auto"] = {
+            "enabled": True,
+            "policy": harness.question_first_fixture_record(),
+        }
     for option in spec_dict["options"]:
         option["default_selected"] = False
     gate = harness.create_plan_gate_isolated(
         spec_dict, tmp_path, spec_dict["request_id"]
     )
 
-    assert (gate.to_dict().get("auto_resolution") or {}).get("selected_option_ids") == [
-        "submit"
-    ]
+    if profile == "standard":
+        assert gate.notification_id is not None
+        assert gate.auto_resolution["policy"]["outcome"] == "ask"
+        assert not gate.response_path.exists()
+    else:
+        assert gate.auto_resolution["selected_option_ids"] == ["submit"]

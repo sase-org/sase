@@ -223,12 +223,28 @@ def test_non_manual_evaluations_log_one_row_including_questions(
     from sase.notification_gates.service import create_gate
 
     question_gate = create_gate(spec)
-    assert (question_gate.to_dict().get("auto_resolution") or {})["state"] == (
-        "resolved"
-    )
+    assert question_gate.notification_id is not None
+    assert not question_gate.response_path.exists()
     question_rows = _read_log("question")
     assert len(question_rows) == 1
-    assert question_rows[0]["decision"]["outcome"] == "auto"
+    assert question_rows[0]["decision"]["outcome"] == "ask"
+
+    fixture_spec = user_question_gate_spec(
+        harness.QUESTIONS, session_id=_request_id("q-fixture"), auto=True
+    )
+    fixture_spec["auto"] = {
+        "enabled": True,
+        "policy": harness.question_first_fixture_record(),
+    }
+    fixture_gate = create_gate(fixture_spec)
+    assert fixture_gate.auto_resolution["state"] == "resolved"
+    question_rows = _read_log("question")
+    assert len(question_rows) == 2
+    fixture_rows = [
+        row for row in question_rows if row["decision"]["profile"] == "question_fixture"
+    ]
+    assert len(fixture_rows) == 1
+    assert fixture_rows[0]["decision"]["outcome"] == "auto"
 
     _plan_gate(
         _epic_plan(workdir, "epic.md"),

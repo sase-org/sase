@@ -51,6 +51,42 @@ QUESTIONS: list[dict[str, Any]] = [
 ]
 
 
+def question_first_fixture_record() -> dict[str, Any]:
+    """Explicit non-built-in policy for exercising future question automation."""
+    from sase.autonomy.record import resolve_selection
+
+    record = resolve_selection(None)
+    record["profile"] = "question_fixture"
+    record["selection"] = ""
+    record["policy"]["gates"]["question"] = "first"
+    return _with_policy_digest(record)
+
+
+def stale_standard_record() -> dict[str, Any]:
+    """A pre-amendment built-in snapshot, including its original digest."""
+    from sase.autonomy.record import resolve_selection
+
+    record = resolve_selection("")
+    record["policy"]["gates"]["question"] = "first"
+    return _with_policy_digest(record)
+
+
+def _with_policy_digest(record: dict[str, Any]) -> dict[str, Any]:
+    import hashlib
+
+    canonical = json.dumps(record["policy"], sort_keys=True, separators=(",", ":"))
+    record["digest"] = hashlib.sha256(canonical.encode()).hexdigest()
+    return record
+
+
+def adapt_stale_record(artifacts_dir: Path) -> dict[str, Any]:
+    """Seed live metadata with a record saved before questions waited."""
+    meta = read_meta(artifacts_dir)
+    meta["autonomy"] = stale_standard_record()
+    write_meta(artifacts_dir, meta)
+    return meta
+
+
 def metadata_inputs(
     workdir: Path, *, preserved: dict[str, Any] | None = None
 ) -> AgentMetadataInputs:

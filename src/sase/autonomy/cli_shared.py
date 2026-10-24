@@ -23,9 +23,9 @@ from sase.autonomy.record import (
 #: Gate kinds ``explain`` predicts, with the standard option IDs and
 #: executable capabilities of each kind's automatic selection. This mirrors
 #: the gate service's kinds (``sase.autonomy.gates``): ``plan`` approves and
-#: archives, ``epic_plan`` approves, and ``question`` takes the first
-#: option. The explain-equals-runtime property test pins that these stay
-#: identical to what gate creation decides.
+#: archives, ``epic_plan`` approves, and an explicitly permitted ``question``
+#: takes its configured option. The explain-equals-runtime property test pins
+#: that these stay identical to what gate creation decides.
 EXPLAIN_STANDARD_REQUESTS: dict[str, dict[str, list[str]]] = {
     "plan": {
         "option_ids": ["approve", "commit"],

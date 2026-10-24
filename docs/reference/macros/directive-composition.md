@@ -93,8 +93,8 @@ be found.
 When an agent launched with `%auto:epic` later submits an epic plan with `/sase_plan` or
 `sase plan propose`, sase follows the same epic path as the TUI Epic action: it writes
 the SDD epic files, commits them as needed, initializes beads, and launches the epic
-follow-up agent. Like every other `%auto` spelling, `%auto:epic` still answers question
-gates automatically with the first option; it only limits which plan tier auto-resolves.
+follow-up agent. Like every other `%auto` spelling, `%auto:epic` leaves question gates
+waiting for human answers; it only limits which plan tier auto-resolves.
 
 ```
 %auto:epic

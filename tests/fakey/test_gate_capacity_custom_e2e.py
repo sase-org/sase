@@ -42,9 +42,11 @@ from tests.fakey._runner_slot_harness import (
 )
 
 
+@pytest.mark.parametrize("profile", ["standard", "question_fixture"])
 def test_creation_time_auto_resolved_shell_gate_reuses_creators_claim_without_double_charge(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    profile: str,
 ) -> None:
     """A creation-time ``%auto``-resolved shell-backed gate (production's
     plan/epic ``%auto`` and question auto-approve routes) runs its real
@@ -79,6 +81,10 @@ def test_creation_time_auto_resolved_shell_gate_reuses_creators_claim_without_do
         producer={"agent": "test"},
         auto=True,
     )
+    from tests.autonomy_contract.harness import question_first_fixture_record
+
+    if profile == "question_fixture":
+        spec_dict["auto"] = {"enabled": True, "policy": question_first_fixture_record()}
     assert isinstance(spec_dict["presentation"], dict)
     spec_dict["presentation"].update(
         {
@@ -135,6 +141,17 @@ def test_creation_time_auto_resolved_shell_gate_reuses_creators_claim_without_do
     paths = bundle_paths(question_adapter.kind, spec.request_id or "auto-1")
     gate = gate_service_module._start_gate_creation(spec, question_adapter, paths)
     update_meta_field(gate_dir, "gate_bundle_path", str(gate.bundle_path))
+
+    if profile == "standard":
+        assert gate.notification_id is not None
+        assert gate.auto_resolution["policy"]["outcome"] == "ask"
+        assert not gate.response_path.exists()
+        pending = read_gate_turn_marker(MONITOR_PROJECT, gate_dir)
+        assert pending is not None
+        assert pending.gate_state == "pending"
+        harness.release_agent(creator)
+        harness.join(creator)
+        return
 
     response = json.loads((gate.bundle_path / "response.json").read_text())
     assert response["selected_option_ids"] == ["submit"]

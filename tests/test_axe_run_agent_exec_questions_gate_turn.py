@@ -129,17 +129,46 @@ def test_non_auto_creates_a_gate_turn_and_ends_gated(
     assert not (Path(state.current_artifacts_dir) / "pending_question.json").exists()
 
 
+@pytest.mark.parametrize("profile", ["standard", "question_fixture"])
 def test_auto_continues_in_process_with_no_second_agent(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, profile: str
 ) -> None:
     ctx = make_ctx(tmp_path)
     state = make_state(tmp_path)
 
-    creation = _fake_creation(
-        gate_state="answered", artifacts_dir=str(tmp_path / "gate-member")
+    from sase.autonomy.record import resolve_selection
+    from sase.notification_gates.service import create_gate
+    from sase.user_question_actions import user_question_gate_spec
+    from tests.autonomy_contract.harness import (
+        isolated_gate_dirs,
+        question_first_fixture_record,
+        write_meta,
+    )
+
+    isolated_gate_dirs(monkeypatch, tmp_path)
+    record = (
+        question_first_fixture_record()
+        if profile == "question_fixture"
+        else resolve_selection("")
+    )
+    write_meta(Path(state.current_artifacts_dir), {"autonomy": record})
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", state.current_artifacts_dir)
+    gate = create_gate(
+        user_question_gate_spec(_questions(), session_id="round-1", auto=True)
+    )
+    answered = gate.auto_resolution["policy"]["outcome"] == "auto"
+    creation = GateTurnCreation(
+        gate=gate,
+        record=_fake_record(
+            gate_state="answered" if answered else "pending",
+            artifacts_dir=str(tmp_path / "gate-member"),
+        ),
+        project_file=None,
+        claim_move=None,
+        cl_name=None,
     )
     (tmp_path / "gate-member").mkdir()
-    assert creation.should_handoff is False
+    assert creation.should_handoff is (profile == "standard")
 
     monkeypatch.setattr(
         "sase.question_gate_turn.resolve_question_chain_parent", lambda *a, **k: None
@@ -174,16 +203,21 @@ def test_auto_continues_in_process_with_no_second_agent(
         lambda *a, **k: successor_calls.append((a, k)),
     )
 
-    never_called = MagicMock(side_effect=AssertionError("must not be called"))
-    monkeypatch.setattr("sase.axe.run_agent_exec_gate.handle_gate_marker", never_called)
+    handoff = MagicMock(return_value="gated")
+    monkeypatch.setattr("sase.axe.run_agent_exec_gate.handle_gate_marker", handoff)
 
     outcome = questions_mod.handle_questions_marker(
         {"questions": _questions()}, ctx, state
     )
 
+    if profile == "standard":
+        assert outcome == "gated"
+        assert not successor_calls
+        handoff.assert_called_once()
+        return
     assert outcome is None
     assert len(successor_calls) == 1
-    never_called.assert_not_called()
+    handoff.assert_not_called()
     (_args, kwargs) = successor_calls[0]
     successor_request = _args[2]
     assert "Which database?" in successor_request.prompt

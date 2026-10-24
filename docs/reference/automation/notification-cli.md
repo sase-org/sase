@@ -201,15 +201,16 @@ among its selected members. Automatic resolution runs the creator's autonomy rec
 through one core evaluator over explicit policy option IDs — never `primary_branch`,
 `default_selected`, or option order — so reordering the branch or switching the defaults
 off leaves the automatic outcome unchanged. Only the plan, epic-plan, and question kinds
-can auto-resolve; every other kind, including custom gates, always waits for a human.
-Each evaluation writes a `policy` block (`profile`, `selection`, `rule`, `outcome`,
-`value`, `option_ids`, `source`, `revision`, `digest`) into the request envelope's
-`auto` block and the creation result's `auto_resolution`, and, for automatic outcomes,
-into the gate response as well. `primary_branch` must name one complete branch in
-canonical query order. sase's TUI submits it with Enter while Space toggles the focused
-AND member; submitting a primary group preserves the reviewer's current toggles. sase's
-TUI also numbers top-level branches in canonical order: the fixed keys `1`–`9` submit
-their matching branches directly. AND-member toggles remain unnumbered.
+can auto-resolve, but no built-in profile auto-resolves questions. Every other kind,
+including custom gates, always waits for a human. Each evaluation writes a `policy`
+block (`profile`, `selection`, `rule`, `outcome`, `value`, `option_ids`, `source`,
+`revision`, `digest`) into the request envelope's `auto` block and the creation result's
+`auto_resolution`, and, for automatic outcomes, into the gate response as well.
+`primary_branch` must name one complete branch in canonical query order. sase's TUI
+submits it with Enter while Space toggles the focused AND member; submitting a primary
+group preserves the reviewer's current toggles. sase's TUI also numbers top-level
+branches in canonical order: the fixed keys `1`–`9` submit their matching branches
+directly. AND-member toggles remain unnumbered.
 
 Every option references a bundle-owned `command` resource and is executed in query order
 as an argv array without a shell after its hash is reverified. A selected-command

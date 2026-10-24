@@ -153,10 +153,10 @@ def test_auto_applies_kinds() -> None:
     tale = resolve_selection("tale", source="prompt", surface="launch")
     assert auto_applies(standard, "plan") is True
     assert auto_applies(standard, "epic_plan") is True
-    assert auto_applies(standard, "question") is True
+    assert auto_applies(standard, "question") is False
     assert auto_applies(tale, "plan") is True
     assert auto_applies(tale, "epic_plan") is False
-    assert auto_applies(tale, "question") is True
+    assert auto_applies(tale, "question") is False
     assert auto_applies(None, "plan") is False
     assert auto_applies(standard, "launch") is False
     assert auto_applies(standard, "no_such_kind") is False

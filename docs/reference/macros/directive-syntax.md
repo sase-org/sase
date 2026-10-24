@@ -111,7 +111,7 @@ Directives use the same argument syntax as macro references:
 %(#review,#test)             # Parenthesized shorthand for the same two branches
 %{sec=#review | perf=#test}  # Named branches become child name suffixes
 %{extra instructions}        # Single branch: split into with/without variants
-%auto                        # Auto-resolve plan, epic, and question gates using the default
+%auto                        # Auto-resolve plan and epic gates; questions always wait
 %a                           # Same, using alias
 %auto:plan                   # Auto-approve tale plans only; epic plans wait for review
 %auto:tale                   # Same as :plan: auto-approve tale plans only

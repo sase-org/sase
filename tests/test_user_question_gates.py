@@ -168,10 +168,25 @@ def test_cross_surface_duplicate_question_answer_is_write_once(
     assert exc_info.value.code == "conflict_already_handled"
 
 
+@pytest.mark.parametrize("profile", ["standard", "tale", "epic", "question_fixture"])
 def test_auto_question_uses_first_options_without_publishing_pending_action(
     question_gate_home: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    profile: str,
 ) -> None:
-    del question_gate_home
+    from sase.autonomy.record import resolve_selection
+    from tests.autonomy_contract.harness import (
+        question_first_fixture_record,
+        write_meta,
+    )
+
+    record = (
+        question_first_fixture_record()
+        if profile == "question_fixture"
+        else resolve_selection("" if profile == "standard" else profile)
+    )
+    write_meta(question_gate_home, {"autonomy": record})
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(question_gate_home))
     gate = create_gate(
         user_question_gate_spec(
             [
@@ -189,6 +204,14 @@ def test_auto_question_uses_first_options_without_publishing_pending_action(
             auto=True,
         )
     )
+
+    if profile != "question_fixture":
+        assert gate.notification_id is not None
+        assert gate.auto_resolution["policy"]["outcome"] == "ask"
+        assert gate.auto_resolution["policy"]["rule"] == "gates.question"
+        assert not gate.response_path.exists()
+        assert pending_actions.read_pending_action_store()["actions"]
+        return
 
     assert gate.notification_id is None
     response = json.loads(gate.response_path.read_text(encoding="utf-8"))

@@ -36,6 +36,10 @@ def test_autonomy_list_json_and_pretty(capsys: Any) -> None:
         profile for profile in payload["profiles"] if profile["name"] == "standard"
     )
     assert standard["kind"] == "default"
+    for profile in payload["profiles"]:
+        assert "questions ✋" in profile["oneliner"]
+        question = next(cell for cell in profile["cells"] if cell["kind"] == "question")
+        assert question["effect"] == "Waits for you"
     assert "coverage" in payload
     assert [item["role"] for item in payload["roles"]] == [
         "epic_phase",

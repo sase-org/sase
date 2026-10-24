@@ -355,9 +355,13 @@ def test_custom_gate_auto_and_unsafe_display_shapes_are_rejected(
     assert (gate_home / "requests" / "custom" / "custom-auto").exists()
 
 
+@pytest.mark.parametrize("profile", ["standard", "question_fixture"])
 def test_automatic_resolution_uses_executor_without_pending_row(
     gate_home: Path,
+    profile: str,
 ) -> None:
+    from sase.autonomy.record import resolve_selection
+    from tests.autonomy_contract.harness import question_first_fixture_record
     from sase.user_question_actions import (
         QUESTION_COMMAND_PATH,
         QUESTION_CONTINUATION_MODE,
@@ -405,9 +409,20 @@ def test_automatic_resolution_uses_executor_without_pending_row(
                     "content": question_gate_command_script(),
                 }
             ],
-            "auto": True,
+            "auto": {
+                "enabled": True,
+                "policy": question_first_fixture_record()
+                if profile == "question_fixture"
+                else resolve_selection(""),
+            },
         }
     )
+
+    if profile == "standard":
+        assert result.notification_id is not None
+        assert result.auto_resolution["policy"]["outcome"] == "ask"
+        assert not result.response_path.exists()
+        return
 
     assert result.notification_id is None
     assert result.auto_resolution["state"] == "resolved"

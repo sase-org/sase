@@ -428,12 +428,14 @@ global default for every launch:
 | Profile    | Prompt selection                           | Tale plan                          | Epic plan                       | Questions                      |
 | ---------- | ------------------------------------------ | ---------------------------------- | ------------------------------- | ------------------------------ |
 | `manual`   | No `%auto`, `%auto:manual`, or `%auto:off` | Wait for review                    | Wait for review                 | Wait for answers               |
-| `standard` | `%auto`, `%auto+`, or `%auto:true`         | Approve, archive, and launch coder | Approve and launch epic workers | First option for each question |
-| `tale`     | `%auto:tale` or `%auto:plan`               | Approve, archive, and launch coder | Wait for review                 | First option for each question |
-| `epic`     | `%auto:epic`                               | Wait for review                    | Approve and launch epic workers | First option for each question |
+| `standard` | `%auto`, `%auto+`, or `%auto:true`         | Approve, archive, and launch coder | Approve and launch epic workers | Wait for answers |
+| `tale`     | `%auto:tale` or `%auto:plan`               | Approve, archive, and launch coder | Wait for review                 | Wait for answers |
+| `epic`     | `%auto:epic`                               | Wait for review                    | Approve and launch epic workers | Wait for answers |
 
 These four profiles are built in. `standard` is a profile name for inspection and role
-configuration; `%auto:standard` is not accepted by the prompt grammar.
+configuration; `%auto:standard` is not accepted by the prompt grammar. No built-in
+profile answers questions, including for agents launched before this change once their
+runner refreshes, because built-in profile policies refresh from core when read.
 
 Host-composed successors — coders, replanners, pipe/handoff, monitor and gate
 follow-ups, and the coder after a manual plan approval — inherit the live record
@@ -441,11 +443,11 @@ structurally, and an explicit `%auto` in agent-authored follow-up text can only 
 it.
 
 Bare `%auto` (`%auto+` and `%auto:true` normalize to it) approves and archives tale
-plans — the same path as pressing Enter — approves and launches epic plans, and answers
-every question gate with its first option. `%auto:plan`, `%auto:tale`, and `%auto:epic`
+plans — the same path as pressing Enter — approves and launches epic plans, and waits
+for human answers to questions. `%auto:plan`, `%auto:tale`, and `%auto:epic`
 limit which plan tier auto-resolves: `:plan` and `:tale` cover tale plans only, while
 `:epic` covers epic plans only. A plan of the other tier parks for human review instead
-of erroring. All three still auto-answer every question gate with its first option.
+of erroring. Questions always wait for you under all three profiles.
 
 ```
 %auto
@@ -590,8 +592,8 @@ that stored summary; holds without one display `capture not recorded`.
 
 Autonomy controls automatic resolution of plan and question gates. A fresh user launch
 without `%auto` is manual; bare `%auto` selects `standard`. The `tale` and `epic`
-profiles restrict which plan tier resolves automatically, while both still choose the
-first option for each question. See the
+profiles restrict which plan tier resolves automatically. Questions always wait for a
+human under every built-in profile. See the
 [profile matrix](#auto-directive).
 
 ```bash
