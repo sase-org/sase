@@ -114,6 +114,7 @@ def test_agent_live_query_entry_projects_every_live_derived_field() -> None:
     assert fields["attempt"] == (2,)
     assert fields["hidden"] == (True,)
     assert fields["attention"] == (True,)
+    assert fields["stranded"] == (False,)
     assert fields["retry"] == (True,)
     assert fields["machine"] == ("here", "local", "athena")
     assert fields["tribe"] == ("pinned",)

@@ -9,6 +9,11 @@ from rich.cells import cell_len
 from rich.text import Text
 
 from sase.agent.status_buckets import agent_status_bucket
+from sase.bead.stranded_presentation import (
+    STRANDED_BREADCRUMB_STYLE,
+    STRANDED_GLYPH,
+    STRANDED_LEAF_STYLE,
+)
 
 from ...models._agent_clan import clan_members
 from ...models._agent_clan_waves import ClanWaveSummary, clan_wave_identity_key
@@ -275,11 +280,25 @@ def _append_member_wait_line(
             continue
         if has_wait:
             text.append(" ·")
-        append_member_status_cell(
-            text,
-            _member_label(predecessor_row, clan_name),
-            bucket=agent_status_bucket(predecessor_row),
-        )
+        from ...models.agent_stranded import agent_stranded_view
+
+        verdict = agent_stranded_view(predecessor_row).verdict
+        if verdict is not None and verdict.state in {"stranded", "blocked"}:
+            if has_wait:
+                text.append(" ")
+            style = (
+                STRANDED_LEAF_STYLE
+                if verdict.state == "stranded"
+                else STRANDED_BREADCRUMB_STYLE
+            )
+            text.append(STRANDED_GLYPH, style=style)
+            text.append(f" {_member_label(predecessor_row, clan_name)}", style=style)
+        else:
+            append_member_status_cell(
+                text,
+                _member_label(predecessor_row, clan_name),
+                bucket=agent_status_bucket(predecessor_row),
+            )
         has_wait = True
     for ghost in member_view.ghost_predecessors:
         if has_wait:

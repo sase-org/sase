@@ -202,6 +202,7 @@ def test_agents_live_profile_filterable_fields_are_all_accepted_by_parser() -> N
         "model": "gpt-5.6-sol",
         "provider": "codex",
         "status": "QUESTION",
+        "stranded": "true",
         "attempt": "2",
         "hidden": "true",
         "attention": "true",
@@ -247,7 +248,14 @@ def test_agents_live_profile_matching_shapes_are_operational_not_archive() -> No
 
     assert exact == {"name", "session", "clan", "project", "machine", "tribe", "tab"}
     assert substring == {"role", "workflow", "model", "cl"}
-    assert bool_keys == {"hidden", "attention", "retry", "pinned", "unread"}
+    assert bool_keys == {
+        "hidden",
+        "attention",
+        "retry",
+        "stranded",
+        "pinned",
+        "unread",
+    }
     assert profile.field("role").static_values == ("code", "plan", "mon")
     assert profile.field("needs").static_values == ("input",)
     assert profile.field("source").static_values == ("axe", "manual")

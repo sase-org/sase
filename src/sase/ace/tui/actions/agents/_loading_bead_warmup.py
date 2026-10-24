@@ -91,6 +91,7 @@ class _AgentBeadWarmupResults:
         default_factory=set
     )
     stranded_changed_projects: frozenset[str] = frozenset()
+    stranded_warmed_projects: frozenset[str] = frozenset()
 
     def __bool__(self) -> bool:
         return bool(
@@ -98,6 +99,7 @@ class _AgentBeadWarmupResults:
             or self.wait_bead_status_identities
             or self.follow_progress_identities
             or self.stranded_changed_projects
+            or self.stranded_warmed_projects
         )
 
 
@@ -131,6 +133,7 @@ def _warm_agent_bead_caches(
         wait_bead_status_identities=wait_bead_status_identities,
         follow_progress_identities=follow_progress_identities,
         stranded_changed_projects=frozenset(stranded_changed),
+        stranded_warmed_projects=frozenset(candidates.stranded_projects),
     )
 
 
@@ -295,6 +298,16 @@ class AgentBeadWarmupMixin(AgentLoadingStateMixin):
             *results.wait_bead_status_identities,
             *results.follow_progress_identities,
         }
+        if results.stranded_warmed_projects:
+            try:
+                from ._stranded_toasts import announce_stranded_transitions
+
+                announce_stranded_transitions(
+                    self.notify,  # type: ignore[attr-defined]
+                    results.stranded_warmed_projects,
+                )
+            except Exception:
+                log.debug("stranded toast compare failed", exc_info=True)
         if results.stranded_changed_projects:
             from ...models._agent_clan import clan_members
 

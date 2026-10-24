@@ -834,11 +834,11 @@
       "errors": {
         "age:2h": {
           "position": 0,
-          "message": "Unknown filter key 'age' (valid keys: after, attempt, attention, before, cl, clan, hidden, kind, machine, max, min, model, name, needs, pinned, project, provider, retry, role, session, since, source, status, tab, tribe, unread, until, workflow) (at position 0)"
+          "message": "Unknown filter key 'age' (valid keys: after, attempt, attention, before, cl, clan, hidden, kind, machine, max, min, model, name, needs, pinned, project, provider, retry, role, session, since, source, status, stranded, tab, tribe, unread, until, workflow) (at position 0)"
         },
         "type:run": {
           "position": 0,
-          "message": "Unknown filter key 'type' (valid keys: after, attempt, attention, before, cl, clan, hidden, kind, machine, max, min, model, name, needs, pinned, project, provider, retry, role, session, since, source, status, tab, tribe, unread, until, workflow) (at position 0)"
+          "message": "Unknown filter key 'type' (valid keys: after, attempt, attention, before, cl, clan, hidden, kind, machine, max, min, model, name, needs, pinned, project, provider, retry, role, session, since, source, status, stranded, tab, tribe, unread, until, workflow) (at position 0)"
         },
         "!!!": {
           "position": 0,

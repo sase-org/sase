@@ -385,7 +385,60 @@ def build_agent_compact_lines(
         second.append(fold_chip(fold_level, fold_scale))
 
     second_row = chips_row(second) if second else _fallback_context_line(agent)
-    return compact_text(chips_row(first), second_row)
+    compact = compact_text(chips_row(first), second_row)
+    callout = _stranded_header_callout(agent)
+    if callout is not None:
+        compact.append("\n")
+        compact.append_text(callout)
+    return compact
+
+
+def _stranded_header_callout(agent: Agent) -> Text | None:
+    """Render a warm stranded verdict in the agent detail header."""
+    from time import time
+
+    from sase.ace.tui.models.agent_stranded import (
+        agent_stranded_view,
+        cached_stranded_report_for_agent,
+    )
+    from sase.bead.stranded_presentation import (
+        STRANDED_BREADCRUMB_STYLE,
+        STRANDED_GLYPH,
+        STRANDED_LEAF_STYLE,
+        blocked_sentence,
+        stranded_age_label,
+        stranded_cause_sentence,
+    )
+
+    verdict = agent_stranded_view(agent).verdict
+    if verdict is None or verdict.state not in {"stranded", "blocked"}:
+        return None
+    report = cached_stranded_report_for_agent(agent)
+    now = report.generated_at if report is not None else time()
+    age = stranded_age_label(verdict.since, now)
+    line = Text()
+    style = (
+        STRANDED_LEAF_STYLE
+        if verdict.state == "stranded"
+        else STRANDED_BREADCRUMB_STYLE
+    )
+    line.append(f"{STRANDED_GLYPH} ", style=style)
+    if verdict.state == "stranded":
+        line.append("STRANDED", style=STRANDED_LEAF_STYLE)
+        if age:
+            line.append(f" {age}", style=STRANDED_LEAF_STYLE)
+        last_turn = (verdict.last_turn or "").rsplit("--", 1)[-1]
+        if last_turn:
+            line.append(f" · --{last_turn}", style=STRANDED_LEAF_STYLE)
+        line.append(f" {stranded_cause_sentence(verdict)}", style=STRANDED_LEAF_STYLE)
+    else:
+        line.append("blocked", style=STRANDED_BREADCRUMB_STYLE)
+        if age:
+            line.append(f" {age}", style=STRANDED_BREADCRUMB_STYLE)
+        sentence = blocked_sentence(verdict)
+        if sentence:
+            line.append(f" {sentence}", style=STRANDED_BREADCRUMB_STYLE)
+    return line
 
 
 def _build_named_proc_compact_lines(agent: Agent) -> Text:

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import datetime
 
 import pytest
@@ -142,4 +143,68 @@ async def test_agents_stranded_rows_and_clan_png_snapshot(
             page,
             "agents_stranded_rows_and_clan_120x40",
             title="ACE stranded work in the Agents tab",
+        )
+
+
+@pytest.mark.parametrize(
+    ("agent_name", "snapshot_name", "expected"),
+    (
+        (
+            "sase-visual.1",
+            "agents_stranded_detail_header_120x40",
+            "STRANDED",
+        ),
+        (
+            "sase-visual.2",
+            "agents_stranded_blocked_detail_120x40",
+            "blocked",
+        ),
+    ),
+)
+async def test_agents_stranded_detail_png_snapshots(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+    agent_name: str,
+    snapshot_name: str,
+    expected: str,
+) -> None:
+    pin_agents_visual_now(monkeypatch, _NOW)
+    patch_startup_loaders(monkeypatch, agents=_agents())
+
+    async with AcePage(query='"visual"', patches=patches()) as page:
+        await wait_for_startup(page)
+        await page.press("shift+tab")
+        await page.expect_state("tab", "agents")
+        await wait_for_visual_idle(page)
+
+        from sase.ace.tui.models import agent_stranded
+
+        monkeypatch.setattr(
+            page.app, "_schedule_bead_confirmation_warmup", lambda **_: None
+        )
+        agent_stranded._STRANDED_REPORT_CACHE.set("visual", _report(), "visual-store")
+        selected_agent = next(
+            agent for agent in _agents() if agent.agent_name == agent_name
+        )
+        page.app._agents = [
+            replace(
+                selected_agent,
+                agent_clan=None,
+                agent_clan_generation=None,
+                tribe=None,
+            )
+        ]
+        page.app._current_group_key = None
+        page.app._agent_panels_grouped = True
+        page.app.current_idx = 0
+        page.app._refresh_agents_display(list_changed=True)
+        page.app.current_idx = -1
+        page.app.current_idx = 0
+        await wait_for_visual_idle(page)
+
+        assert_page_svg_contains(page, expected)
+        ace_png_visual.assert_page_png(
+            page,
+            snapshot_name,
+            title=f"ACE {expected} stranded detail callout",
         )

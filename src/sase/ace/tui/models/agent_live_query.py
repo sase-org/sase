@@ -62,6 +62,14 @@ def agent_live_query_entry(
     _add_field(fields, "attempt", agent.retry_attempt)
     _add_field(fields, "hidden", bool(agent.hidden))
     _add_field(fields, "attention", status in _STOPPED_STATUSES)
+    from .agent_stranded import agent_stranded_view
+
+    stranded_view = agent_stranded_view(agent)
+    _add_field(
+        fields,
+        "stranded",
+        stranded_view.verdict is not None and stranded_view.verdict.state == "stranded",
+    )
     _add_field(fields, "retry", _is_retrying(agent))
     _add_field(fields, "machine", _machine_values(agent))
     _add_field(fields, "tribe", _tribe_values(agent))

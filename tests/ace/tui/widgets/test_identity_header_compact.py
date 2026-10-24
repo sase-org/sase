@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from pathlib import Path
 
+from sase.ace.tui.models import agent_stranded
 from sase.ace.tui.models.agent import AgentType
 from sase.ace.tui.models.fold_scale import AGENT_SESSION_FOLD_SCALE
 from sase.ace.tui.models.fold_state import FoldLevel
@@ -27,6 +28,8 @@ from sase.ace.tui.widgets.prompt_panel._identity_header_compact import (
     build_tribe_compact_lines,
     build_workflow_compact_lines,
 )
+from sase.bead.stranded import StrandedReport
+from sase.core.stranded_work_facade import StrandedWorkReport, StrandedWorkVerdict
 from tests.ace.tui.widgets._agent_display_clan_helpers import make_clan_agent
 from tests.ace.tui.widgets._agent_display_agent_session_helpers import (
     make_agent_session,
@@ -73,6 +76,33 @@ def test_agent_rows_carry_name_model_and_state(tmp_path: Path) -> None:
     assert "+1" in second
     assert "↻ 1/3" in second
     assert "writing" in second
+
+
+def test_stranded_agent_header_includes_callout() -> None:
+    agent = make_agent(
+        agent_name="sase-demo.1--3",
+        project_file="/tmp/demo/demo.sase",
+        phase_bead_id="sase-demo.1",
+    )
+    verdict = StrandedWorkVerdict(
+        bead_id="sase-demo.1",
+        kind="phase",
+        state="stranded",
+        reason="kept",
+        last_turn="sase-demo.1--3",
+        since=1.0,
+    )
+    report = StrandedWorkReport(verdicts=(verdict,), stranded_ids=(verdict.bead_id,))
+    agent_stranded._STRANDED_REPORT_CACHE.set(
+        "demo", StrandedReport(report=report, titles={}, generated_at=3601.0), "test"
+    )
+
+    rendered = build_agent_compact_lines(agent=agent)
+
+    assert (
+        "⚐ STRANDED 1h · --3 ended with bead_action keep; nothing resumes it"
+        in rendered.plain
+    )
 
 
 def test_agent_rows_show_auto_and_machine_chips() -> None:

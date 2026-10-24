@@ -145,6 +145,17 @@ def _cached_stranded_report(project_key: str) -> StrandedReport | None:
     return None if snapshot is STRANDED_REPORT_CACHE_MISS else snapshot  # type: ignore[return-value]
 
 
+def cached_stranded_report_for_agent(agent: Agent) -> StrandedReport | None:
+    """Return the warm project report for *agent*, without resolving or I/O."""
+    project_key = stranded_project_key_for_agent(agent)
+    return _cached_stranded_report(project_key) if project_key is not None else None
+
+
+def cached_stranded_report(project_key: str) -> StrandedReport | None:
+    """Return the warm report for a project, without filesystem access."""
+    return _cached_stranded_report(project_key)
+
+
 def should_resolve_stranded_report(project_key: str) -> bool:
     """Return whether a project's report is cold or past its TTL."""
     return _STRANDED_REPORT_CACHE.should_resolve(project_key)
@@ -321,6 +332,8 @@ def stranded_count_for_agents(agents: Iterable[Agent]) -> int:
 
 __all__ = [
     "agent_stranded_view",
+    "cached_stranded_report",
+    "cached_stranded_report_for_agent",
     "should_resolve_stranded_report",
     "stranded_count_for_agents",
     "stranded_project_key_for_agent",

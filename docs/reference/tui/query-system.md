@@ -79,6 +79,10 @@ See [`docs/reference/query-language.md`](../query-language.md) for the full quer
 syntax reference, including boolean expressions, status shorthands, property filters,
 and searchable fields.
 
+The live Agents query also has `stranded:true`, which matches owner rows whose bead
+work is stranded. It is computed from the warm stranded-work view and stays on the
+client side of query evaluation.
+
 ## Related
 
 - [TUI hub](index.md) — all TUI reference pages.

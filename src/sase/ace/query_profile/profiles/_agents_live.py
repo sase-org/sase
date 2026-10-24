@@ -66,6 +66,7 @@ def agents_live_query_schema() -> ArtifactQuerySchema:
         (
             ("pinned", "true when assigned to the pinned tribe"),
             ("unread", "true when completion is unread"),
+            ("stranded", "true when the owner row has stranded bead work"),
         )
     )
     return ArtifactQuerySchema(

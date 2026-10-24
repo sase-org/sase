@@ -14,6 +14,13 @@ from rich.text import Text
 
 from sase.agent.status_buckets import QUEUED_STATUS_COLOR
 from sase.bead_status_presentation import BEAD_STATUS_VALUES
+from sase.bead.stranded_presentation import (
+    STRANDED_BREADCRUMB_STYLE,
+    STRANDED_GLYPH,
+    STRANDED_LEAF_STYLE,
+    blocked_sentence,
+    stranded_age_label,
+)
 from sase.core.agent_tribe import InvalidTribeError, parse_tribe_reference
 from sase.core.runner_slots import DEFAULT_QUEUE_WEIGHT
 from sase.core.time import parse_local
@@ -352,14 +359,41 @@ def build_wait_lanes(
             )
         else:
             authored_statuses_by_id = dict(wait_bead_statuses)
+            from sase.ace.tui.models.agent_stranded import (
+                cached_stranded_report_for_agent,
+            )
+
+            report = cached_stranded_report_for_agent(agent)
+            verdicts = (
+                {item.bead_id: item for item in report.report.verdicts}
+                if report is not None
+                else {}
+            )
             for index, bead_id in enumerate(authored_beads):
                 if index:
                     value.append(", ", style=_WAITING_VALUE_STYLE)
                 value.append(bead_id, style=_WAITING_VALUE_STYLE)
-                _append_wait_bead_status_badge(
-                    value,
-                    authored_statuses_by_id.get(bead_id),
-                )
+                verdict = verdicts.get(bead_id)
+                if verdict is not None and verdict.state in {"stranded", "blocked"}:
+                    style = (
+                        STRANDED_LEAF_STYLE
+                        if verdict.state == "stranded"
+                        else STRANDED_BREADCRUMB_STYLE
+                    )
+                    value.append(f" {STRANDED_GLYPH} ", style=style)
+                    if verdict.state == "stranded":
+                        value.append("stranded", style=STRANDED_LEAF_STYLE)
+                    if report is not None:
+                        age = stranded_age_label(verdict.since, report.generated_at)
+                        if age:
+                            value.append(f" {age}", style=STRANDED_LEAF_STYLE)
+                    else:
+                        value.append(blocked_sentence(verdict), style=style)
+                else:
+                    _append_wait_bead_status_badge(
+                        value,
+                        authored_statuses_by_id.get(bead_id),
+                    )
         lanes.append(("beads", value))
 
     if wait_agent.waiting_for_hoods:

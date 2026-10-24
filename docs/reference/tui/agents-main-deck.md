@@ -132,7 +132,11 @@ the preferred card.
   The gold kind label renders as the header panel title and the gold `Name:` value
   matches the list-row name annotation. The title is header chrome, not a card. Monitor
   members and workflow step children (`bash` / `python` / `parallel`) do not get this
-  heading.
+  heading. When the selected bead is stranded, the compact header adds an amber `⚐
+  STRANDED` callout with its age, last turn, and cause. Blocked ancestor rows get a dim
+  amber breadcrumb naming the stranded leaf. `[beads]` wait lanes replace the ordinary
+  status marker with the same leaf or breadcrumb flag; the fully expanded clan
+  `WAVES` detail marks stranded and blocked predecessors with those flags.
 - **Header panel**: The selected node's identity header (every field from the kind line
   through Timestamps, plus Fold where present) renders in its own always-visible panel
   at the top of the detail column, above the deck panels in every deck layout.
