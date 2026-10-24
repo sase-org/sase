@@ -3,6 +3,8 @@
 The report is driven against synthetic JSONL fixtures that mix pre-phase
 rows (no ``app_instance_id``, no additive fields) with current rows, so old
 logs keep reporting instead of breaking the acceptance tool.
+
+Acceptance calculations live in ``tools/_tui_freeze_report_acceptance.py``.
 """
 
 from __future__ import annotations
@@ -176,6 +178,29 @@ def test_instance_summary_reports_frozen_and_gc_share(
     assert summary["rss_first_bytes"] == 100 * 1024 * 1024
 
 
+def test_idle_full_generation_p95_sorts_samples_before_quantile(
+    tool: ModuleType,
+) -> None:
+    durations = [2.0, 0.1, 1.8, 0.2, 1.6, 0.3, 1.4, 0.4, 1.2, 0.5]
+    rows = [
+        {
+            "ts": 1000.0 + index,
+            "event": "tui_gc_pause",
+            "generation": 2,
+            "duration_s": duration,
+            "trigger": "idle",
+            "app_instance_id": "sorted",
+        }
+        for index, duration in enumerate(durations)
+    ]
+
+    summary = tool.summarize_instance(rows, since=1000.0, until=1100.0)
+
+    assert summary["idle_pause_p95"] == pytest.approx(
+        tool._percentile(sorted(durations), 0.95)
+    )
+
+
 def test_old_rows_report_without_additive_fields(
     tool: ModuleType, stalls_path: Path, startup_path: Path
 ) -> None:
@@ -243,6 +268,60 @@ def test_main_empty_window_reports_no_rows(
     assert "no rows" in capsys.readouterr().out
 
 
+def test_acceptance_empty_window_is_incomplete_and_nonzero(
+    tool: ModuleType,
+    stalls_path: Path,
+    startup_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    code = tool.main(
+        [
+            "--path",
+            str(stalls_path),
+            "--startup-path",
+            str(startup_path),
+            "--since",
+            "2000",
+            "--until",
+            "2010",
+            "--acceptance",
+        ]
+    )
+
+    assert code == 1
+    output = capsys.readouterr().out
+    assert "no diagnostic rows in window" in output
+    assert "overall INCOMPLETE" in output
+
+
+def test_json_mode_emits_versioned_acceptance_for_empty_selection(
+    tool: ModuleType,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    stalls = _write_jsonl(tmp_path / "empty-stalls.jsonl", [])
+    startup = _write_jsonl(tmp_path / "empty-startup.jsonl", [])
+
+    code = tool.main(
+        [
+            "--path",
+            str(stalls),
+            "--startup-path",
+            str(startup),
+            "--json",
+        ]
+    )
+
+    payload = json.loads(capsys.readouterr().out)
+    assert code == 1
+    assert payload["schema_version"] == 1
+    assert payload["overall_status"] == "INCOMPLETE"
+    assert (
+        payload["instances"]["selection"]["acceptance"]["targets"]["coverage"]["status"]
+        == "INCOMPLETE"
+    )
+
+
 def test_iso_timestamp_startup_windows_bucket_idless_rows(
     tool: ModuleType, tmp_path: Path
 ) -> None:
@@ -264,6 +343,15 @@ def test_iso_timestamp_startup_windows_bucket_idless_rows(
     assert "startup-0" in buckets
     assert "unknown" not in buckets
     assert len(buckets["startup-0"]) == 1
+
+
+def test_iso_time_bounds_get_only_microsecond_rounding_tolerance(
+    tool: ModuleType,
+) -> None:
+    assert tool.parse_time_tolerance("2026-10-24T12:00:00.123456Z") == pytest.approx(
+        0.000001
+    )
+    assert tool.parse_time_tolerance("1792843200.123456") == 0.0
 
 
 def test_load_stall_rows_includes_rotated_generation(
@@ -413,12 +501,13 @@ def test_acceptance_marks_sase_1f3_targets(
     assert code == 1
     out = capsys.readouterr().out
     assert "acceptance (sase-1f3)" in out
-    assert "FAIL" in out
-    assert "idle-collection p95" in out
-    assert "no automatic or backstop gen-2" in out
+    assert "INCOMPLETE" in out
+    assert "Agents j/k p95" in out
 
 
-def test_acceptance_passes_clean_window(tool: ModuleType) -> None:
+def test_acceptance_does_not_pass_short_window_without_instance_provenance(
+    tool: ModuleType,
+) -> None:
     rows = [
         {
             "ts": 1000.0,
@@ -445,12 +534,18 @@ def test_acceptance_passes_clean_window(tool: ModuleType) -> None:
             "app_instance_id": "clean",
             "rss_bytes": 110 * 1024 * 1024,
             "vmswap_bytes": 0,
-            "loop_hitch_seconds": 0.01,
+            "loop_hitch_seconds": 0.0,
             "loop_suppressed_seconds": 0.0,
             "gc_generations": {"2": {"count": 0, "total_s": 0.0, "max_s": 0.0}},
         },
     ]
-    summary = tool.summarize_instance(rows, since=1000.0, until=1100.0)
-    result = tool.evaluate_acceptance(summary)
-    assert result["all_pass"] is True
-    assert result["targets"]["jk_p95"]["pass"] is None
+    result = tool.analyze_acceptance(
+        rows,
+        [],
+        "clean",
+        requested_since=1000.0,
+        requested_until=1100.0,
+    )
+    assert result["overall_status"] == "INCOMPLETE"
+    assert result["targets"]["coverage"]["status"] == "INCOMPLETE"
+    assert result["targets"]["jk_p95"]["status"] == "INCOMPLETE"

@@ -16,21 +16,26 @@ acceptance numbers for the freeze epic, split per ``app_instance_id``:
   ``startup_freeze`` / ``automatic``;
 - automatic and backstop gen-2 collections that started within 2 s of input;
 - the RSS/swap trajectory from heartbeats;
-- ``--acceptance``, which marks each sase-1f3 target pass or fail.
+- ``--acceptance``, which marks each target PASS, FAIL, or INCOMPLETE after
+  validating paired heartbeat coverage and required evidence;
+- ``--json``, which emits the versioned structured acceptance summary.
 
 Rows that predate instance IDs are bucketed into ``tui_startup`` record
 windows (``startup-<n>``) instead of being dropped; rows outside every
 window land in ``unknown``. Real startup rows carry an ISO ``timestamp``,
 not ``ts``. The rotated ``tui_stalls.jsonl.1`` generation is read by
-default (``--no-rotated`` opts out). Missing additive fields on old rows
-default to the on-time, zero-overlap reading.
+default (``--no-rotated`` opts out). Diagnostic mode remains tolerant of
+historical rows; acceptance mode treats missing evidence as INCOMPLETE.
+Percentiles use linear interpolation at rank p*(n-1) over sorted samples.
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
+import sys
 from collections.abc import Sequence
 from datetime import datetime, timezone
 from pathlib import Path
@@ -38,6 +43,16 @@ from typing import Any, TypeGuard
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+TOOLS_DIR = Path(__file__).resolve().parent
+if str(TOOLS_DIR) not in sys.path:
+    sys.path.insert(0, str(TOOLS_DIR))
+
+# Acceptance calculations are kept in the sibling _tui_freeze_report_acceptance.py.
+from _tui_freeze_report_acceptance import (  # noqa: E402
+    aggregate_status,
+    analyze_acceptance,
+    empty_acceptance,
+)
 
 STALLS_ENV_VAR = "SASE_TUI_STALL_PATH"
 STARTUP_ENV_VAR = "SASE_TUI_STARTUP_PATH"
@@ -51,12 +66,6 @@ KNOWN_TRIGGERS = (
     "startup_freeze",
     "automatic",
 )
-IDLE_P95_LIMIT_S = 0.5
-GC_SHARE_LIMIT = 0.03
-HITCH_SHARE_LIMIT = 0.005
-RSS_GROWTH_LIMIT_BYTES = int(0.5 * 1024**3)
-JK_P95_LIMIT_MS = 16.0
-FOUR_HOURS_S = 4 * 3600.0
 
 
 def _default_stalls_path() -> Path:
@@ -76,13 +85,28 @@ def _default_startup_path() -> Path:
 def parse_time(value: str) -> float:
     """Parse an epoch float or ISO-8601 timestamp into epoch seconds."""
     try:
-        return float(value)
+        parsed_epoch = float(value)
     except ValueError:
-        pass
+        parsed_epoch = None
+    if parsed_epoch is not None:
+        if not math.isfinite(parsed_epoch):
+            raise ValueError("timestamp must be finite")
+        return parsed_epoch
     parsed = datetime.fromisoformat(value)
     if parsed.tzinfo is None:
         parsed = parsed.replace(tzinfo=timezone.utc)
     return parsed.timestamp()
+
+
+def parse_time_tolerance(value: str | None) -> float:
+    """Return the maximum ISO microsecond-rounding tolerance for a bound."""
+    if value is None:
+        return 0.0
+    try:
+        float(value)
+    except ValueError:
+        return 0.000001
+    return 0.0
 
 
 def load_rows(path: Path) -> list[dict]:
@@ -141,9 +165,7 @@ def _row_ts(row: dict) -> float | None:
     return None
 
 
-def bucket_by_instance(
-    rows: list[dict], startups: list[dict]
-) -> dict[str, list[dict]]:
+def bucket_by_instance(rows: list[dict], startups: list[dict]) -> dict[str, list[dict]]:
     """Group rows per app instance, windowing ID-less rows by startup.
 
     Rows carrying ``app_instance_id`` keep it. Rows without one are placed
@@ -186,7 +208,9 @@ def _percentile(sorted_values: list[float], rank: float) -> float | None:
     lower = int(position)
     upper = min(lower + 1, len(sorted_values) - 1)
     fraction = position - lower
-    return sorted_values[lower] + (sorted_values[upper] - sorted_values[lower]) * fraction
+    return (
+        sorted_values[lower] + (sorted_values[upper] - sorted_values[lower]) * fraction
+    )
 
 
 def _median(values: list[float]) -> float | None:
@@ -227,9 +251,7 @@ def _pause_stats(values: list[float]) -> dict[str, Any]:
     }
 
 
-def _pause_near_input(
-    row: dict, context_rows: list[tuple[float, float]]
-) -> bool:
+def _pause_near_input(row: dict, context_rows: list[tuple[float, float]]) -> bool:
     age = row.get("input_age_s")
     if _is_number(age):
         return float(age) <= NEAR_INPUT_MAX_S
@@ -255,11 +277,7 @@ def summarize_instance(
     if until is None:
         until = (_row_ts(ordered[-1]) or since) if ordered else since
     window_s = max(0.0, until - since)
-    windowed = [
-        row
-        for row in ordered
-        if since <= (_row_ts(row) or 0.0) <= until
-    ]
+    windowed = [row for row in ordered if since <= (_row_ts(row) or 0.0) <= until]
 
     # Loop-tier hitch episodes. Pump rows never enter the union, so a freeze
     # seen by both tiers counts once.
@@ -330,6 +348,7 @@ def summarize_instance(
             loop_suppressed_s += float(suppressed_seconds)
     pause_rows = [row for row in windowed if row.get("event") == "tui_gc_pause"]
     pauses_by_trigger: dict[str, list[float]] = {name: [] for name in KNOWN_TRIGGERS}
+    idle_pauses: list[float] = []
     for row in pause_rows:
         pause_duration = row.get("duration_s")
         if not _is_number(pause_duration):
@@ -342,8 +361,10 @@ def summarize_instance(
         )
         if isinstance(trigger, str):
             pauses_by_trigger.setdefault(trigger, []).append(float(pause_duration))
+            generation = row.get("generation")
+            if trigger == "idle" and isinstance(generation, int) and generation >= 2:
+                idle_pauses.append(float(pause_duration))
     gc_total_s = sum(gc_seconds_by_gen.values())
-    idle_pauses = list(pauses_by_trigger.get("idle", []))
     pause_stats_by_trigger = {
         trigger: _pause_stats(values)
         for trigger, values in sorted(pauses_by_trigger.items())
@@ -400,12 +421,11 @@ def summarize_instance(
             gen: round(total, 3) for gen, total in sorted(gc_seconds_by_gen.items())
         },
         "gc_seconds_by_gen_trigger": {
-            key: round(total, 3)
-            for key, total in sorted(gc_seconds_by_trigger.items())
+            key: round(total, 3) for key, total in sorted(gc_seconds_by_trigger.items())
         },
         "idle_pause_count": len(idle_pauses),
         "idle_pause_p50": _median(idle_pauses),
-        "idle_pause_p95": _percentile(idle_pauses, 0.95),
+        "idle_pause_p95": _percentile(sorted(idle_pauses), 0.95),
         "idle_pause_max": max(idle_pauses) if idle_pauses else None,
         "pause_stats_by_trigger": pause_stats_by_trigger,
         "auto_gen2_total": near_input_totals["automatic"]["total"],
@@ -421,92 +441,6 @@ def summarize_instance(
         "swap_first_bytes": swap_first,
         "swap_last_bytes": swap_last,
         "heartbeat_count": len(heartbeats),
-    }
-
-
-def _verdict(passed: bool | None) -> str:
-    if passed is None:
-        return "n/a"
-    return "PASS" if passed else "FAIL"
-
-
-def evaluate_acceptance(summary: dict) -> dict[str, Any]:
-    """Mark each sase-1f3 target pass, fail, or n/a for one instance."""
-    idle_p95 = summary["idle_pause_p95"]
-    idle_ok = True if idle_p95 is None else idle_p95 <= IDLE_P95_LIMIT_S
-    gc_ok = summary["gc_share"] < GC_SHARE_LIMIT
-    hitch_ok = summary["frozen_share"] < HITCH_SHARE_LIMIT
-    near_input = (
-        int(summary["auto_gen2_near_input"])
-        + int(summary["backstop_gen2_near_input"])
-        + int(summary["rss_backstop_gen2_near_input"])
-    )
-    near_ok = near_input == 0
-    rss_first = summary["rss_first_bytes"]
-    rss_last = summary["rss_last_bytes"]
-    rss_growth: float | None = None
-    rss_ok: bool | None
-    if _is_number(rss_first) and _is_number(rss_last):
-        rss_growth = float(rss_last) - float(rss_first)
-        rss_ok = rss_growth < RSS_GROWTH_LIMIT_BYTES
-    else:
-        rss_ok = None
-    swap_last = summary["swap_last_bytes"]
-    if _is_number(swap_last):
-        swap_ok: bool | None = float(swap_last) == 0.0
-    else:
-        swap_ok = None
-    targets = {
-        "idle_p95": {
-            "pass": idle_ok,
-            "value": idle_p95,
-            "limit": IDLE_P95_LIMIT_S,
-            "label": "idle-collection p95 <= 500 ms",
-        },
-        "gc_share": {
-            "pass": gc_ok,
-            "value": summary["gc_share"],
-            "limit": GC_SHARE_LIMIT,
-            "label": "total GC < 3% of wall time",
-        },
-        "hitch_share": {
-            "pass": hitch_ok,
-            "value": summary["frozen_share"],
-            "limit": HITCH_SHARE_LIMIT,
-            "label": "hitches < 0.5% of wall time",
-        },
-        "near_input_gen2": {
-            "pass": near_ok,
-            "value": near_input,
-            "limit": 0,
-            "label": "no automatic or backstop gen-2 within 2 s of input",
-        },
-        "rss_growth": {
-            "pass": rss_ok,
-            "value": rss_growth,
-            "limit": RSS_GROWTH_LIMIT_BYTES,
-            "label": "RSS growth < 0.5 GiB over 4 h",
-        },
-        "vmswap": {
-            "pass": swap_ok,
-            "value": swap_last if _is_number(swap_last) else None,
-            "limit": 0,
-            "label": "VmSwap about 0",
-        },
-        "jk_p95": {
-            "pass": None,
-            "value": None,
-            "limit": JK_P95_LIMIT_MS,
-            "label": "j/k p95 < 16 ms",
-        },
-    }
-    fails = [name for name, spec in targets.items() if spec["pass"] is False]
-    return {
-        "targets": targets,
-        "failed": fails,
-        "all_pass": not fails,
-        "window_s": summary["window_s"],
-        "window_short_of_4h": summary["window_s"] < FOUR_HOURS_S,
     }
 
 
@@ -540,107 +474,152 @@ def _format_trigger_line(stats_by_trigger: dict[str, dict[str, Any]]) -> str:
         count = int(stats.get("count") or 0)
         if count == 0:
             continue
-        parts.append(
-            f"{trigger} {count} p95 {_format_seconds(stats.get('p95'))}"
-        )
+        parts.append(f"{trigger} {count} p95 {_format_seconds(stats.get('p95'))}")
     return "; ".join(parts) if parts else "none"
 
 
 def _format_acceptance_line(spec: dict[str, Any]) -> str:
-    verdict = _verdict(spec["pass"])
+    verdict = spec["status"]
     value = spec["value"]
     label = spec["label"]
-    if label.startswith("j/k"):
-        rendered = "n/a (no SASE_TUI_PERF log)"
-    elif label.startswith("RSS") or label.startswith("VmSwap"):
-        rendered = _format_bytes(value)
+    if isinstance(value, dict):
+        rendered = json.dumps(value, sort_keys=True)
     elif "GC" in label or "hitches" in label:
         rendered = _format_percent(value)
-    elif "p95" in label:
+    elif "p95" in label and "ms" not in label:
         rendered = _format_seconds(value)
+    elif "RSS" in label or "VmSwap" in label:
+        rendered = _format_bytes(value)
+    elif "j/k" in label and _is_number(value):
+        rendered = f"{float(value):.3f} ms"
     elif value is None:
         rendered = "n/a"
     else:
         rendered = str(value)
-    return f"    {verdict}  {label}  ({rendered})"
+    detail = f"; {spec['reason']}" if spec.get("reason") else ""
+    return f"    {verdict}  {label}  ({rendered}){detail}"
 
 
 def format_report(
-    summaries: dict[str, dict], *, acceptance: bool = False
+    summaries: dict[str, dict],
+    *,
+    acceptance: bool = False,
+    acceptance_results: dict[str, dict[str, Any]] | None = None,
+    overall_status: str | None = None,
 ) -> str:
     """Render per-instance summaries as human-readable text."""
-    if not summaries:
+    acceptance_results = acceptance_results or {}
+    if not summaries and not acceptance_results:
         return "tui_freeze_report: no rows in window\n"
     lines: list[str] = []
-    for instance in sorted(summaries):
-        summary = summaries[instance]
-        lines.append(f"instance {instance}")
-        lines.append(
-            f"  window: {_format_seconds(summary['window_s'])} "
-            f"frozen: {_format_seconds(summary['frozen_s'])} "
-            f"({summary['frozen_share'] * 100:.2f}%, "
-            f"{summary['episodes']} loop episodes)"
-        )
-        lines.append(
-            f"  hitch duration: median {_format_seconds(summary['hitch_duration_median'])} "
-            f"p90 {_format_seconds(summary['hitch_duration_p90'])} "
-            f"max {_format_seconds(summary['hitch_duration_max'])}"
-        )
-        lines.append(
-            f"  late: {summary['late_episodes']} episodes "
-            f"({_format_seconds(summary['late_seconds'])}) "
-            f"on-time: {summary['ontime_episodes']} episodes "
-            f"({_format_seconds(summary['ontime_seconds'])})"
-        )
-        lines.append(
-            f"  hitch totals: loop {_format_seconds(summary['loop_hitch_seconds'])} "
-            f"suppressed {_format_seconds(summary['loop_suppressed_seconds'])}"
-        )
-        lines.append(
-            f"  gc: {_format_seconds(summary['gc_total_s'])} "
-            f"({summary['gc_share'] * 100:.2f}% of window) "
-            f"by generation {json.dumps(summary['gc_seconds_by_generation'])}"
-        )
-        lines.append(
-            f"  gc by gen/trigger {json.dumps(summary['gc_seconds_by_gen_trigger'])}"
-        )
-        lines.append(
-            f"  idle collections: {summary['idle_pause_count']} pauses "
-            f"p50 {_format_seconds(summary['idle_pause_p50'])} "
-            f"p95 {_format_seconds(summary['idle_pause_p95'])} "
-            f"max {_format_seconds(summary['idle_pause_max'])}"
-        )
-        lines.append(
-            "  collections by trigger: "
-            + _format_trigger_line(summary["pause_stats_by_trigger"])
-        )
-        lines.append(
-            f"  gen-2 near input: automatic {summary['auto_gen2_near_input']}/"
-            f"{summary['auto_gen2_total']}; "
-            f"backstop {summary['backstop_gen2_near_input']}/"
-            f"{summary['backstop_gen2_total']}; "
-            f"rss_backstop {summary['rss_backstop_gen2_near_input']}/"
-            f"{summary['rss_backstop_gen2_total']}"
-        )
-        lines.append(
-            f"  rss: {_format_bytes(summary['rss_first_bytes'])} -> "
-            f"{_format_bytes(summary['rss_last_bytes'])} "
-            f"swap: {_format_bytes(summary['swap_first_bytes'])} -> "
-            f"{_format_bytes(summary['swap_last_bytes'])} "
-            f"({summary['heartbeat_count']} heartbeats)"
-        )
-        if acceptance:
-            result = evaluate_acceptance(summary)
+    if not summaries:
+        lines.append("tui_freeze_report: no diagnostic rows in window")
+    for instance in sorted(set(summaries) | set(acceptance_results)):
+        summary = summaries.get(instance)
+        if summary is None:
+            lines.append(f"instance {instance}")
+        else:
+            lines.append(f"instance {instance}")
+            lines.append(
+                f"  window: {_format_seconds(summary['window_s'])} "
+                f"frozen: {_format_seconds(summary['frozen_s'])} "
+                f"({summary['frozen_share'] * 100:.2f}%, "
+                f"{summary['episodes']} loop episodes)"
+            )
+            lines.append(
+                f"  hitch duration: median {_format_seconds(summary['hitch_duration_median'])} "
+                f"p90 {_format_seconds(summary['hitch_duration_p90'])} "
+                f"max {_format_seconds(summary['hitch_duration_max'])}"
+            )
+            lines.append(
+                f"  late: {summary['late_episodes']} episodes "
+                f"({_format_seconds(summary['late_seconds'])}) "
+                f"on-time: {summary['ontime_episodes']} episodes "
+                f"({_format_seconds(summary['ontime_seconds'])})"
+            )
+            lines.append(
+                f"  hitch totals: loop {_format_seconds(summary['loop_hitch_seconds'])} "
+                f"suppressed {_format_seconds(summary['loop_suppressed_seconds'])}"
+            )
+            lines.append(
+                f"  gc: {_format_seconds(summary['gc_total_s'])} "
+                f"({summary['gc_share'] * 100:.2f}% of window) "
+                f"by generation {json.dumps(summary['gc_seconds_by_generation'])}"
+            )
+            lines.append(
+                f"  gc by gen/trigger {json.dumps(summary['gc_seconds_by_gen_trigger'])}"
+            )
+            lines.append(
+                f"  idle collections: {summary['idle_pause_count']} pauses "
+                f"p50 {_format_seconds(summary['idle_pause_p50'])} "
+                f"p95 {_format_seconds(summary['idle_pause_p95'])} "
+                f"max {_format_seconds(summary['idle_pause_max'])}"
+            )
+            lines.append(
+                "  collections by trigger: "
+                + _format_trigger_line(summary["pause_stats_by_trigger"])
+            )
+            lines.append(
+                f"  gen-2 near input: automatic {summary['auto_gen2_near_input']}/"
+                f"{summary['auto_gen2_total']}; "
+                f"backstop {summary['backstop_gen2_near_input']}/"
+                f"{summary['backstop_gen2_total']}; "
+                f"rss_backstop {summary['rss_backstop_gen2_near_input']}/"
+                f"{summary['rss_backstop_gen2_total']}"
+            )
+            lines.append(
+                f"  rss: {_format_bytes(summary['rss_first_bytes'])} -> "
+                f"{_format_bytes(summary['rss_last_bytes'])} "
+                f"swap: {_format_bytes(summary['swap_first_bytes'])} -> "
+                f"{_format_bytes(summary['swap_last_bytes'])} "
+                f"({summary['heartbeat_count']} heartbeats)"
+            )
+        if acceptance and instance in acceptance_results:
+            result = acceptance_results[instance]
+            coverage = result["coverage"]
+            metrics = result["metrics"]
             lines.append("  acceptance (sase-1f3):")
+            requested_start = coverage.get("requested_since") or (
+                f"after warmup {coverage.get('warmup_until') or 'unknown'}"
+            )
+            requested_end = coverage.get("requested_until") or "latest observed"
+            lines.append(
+                f"    requested envelope: {requested_start} -> {requested_end}"
+            )
+            lines.append(
+                "    observed coverage: "
+                f"{coverage.get('actual_start') or 'n/a'} -> "
+                f"{coverage.get('actual_end') or 'n/a'} "
+                f"({_format_seconds(coverage.get('actual_span_s'))}, "
+                f"{coverage.get('valid_interval_count', 0)}/"
+                f"{coverage.get('interval_count', 0)} valid intervals)"
+            )
+            rss_window = metrics.get("rss_worst_four_hour_window")
+            rss_window_growth = (
+                rss_window.get("growth_bytes") if isinstance(rss_window, dict) else None
+            )
+            swap_trajectory = metrics.get("vmswap_trajectory") or []
+            swap_last = (
+                swap_trajectory[-1].get("vmswap_bytes") if swap_trajectory else None
+            )
+            lines.append(
+                f"    RSS endpoints: {_format_bytes(metrics.get('rss_first_bytes'))} -> "
+                f"{_format_bytes(metrics.get('rss_last_bytes'))}; "
+                f"full-span delta {_format_bytes(metrics.get('rss_endpoint_growth_bytes'))}; "
+                f"worst four-hour delta {_format_bytes(rss_window_growth)}"
+            )
+            lines.append(
+                f"    VmSwap trajectory: peak {_format_bytes(metrics.get('vmswap_max_bytes'))}, "
+                f"endpoint {_format_bytes(swap_last)}, {len(swap_trajectory)} samples "
+                "(full series in JSON)"
+            )
             for spec in result["targets"].values():
                 lines.append(_format_acceptance_line(spec))
-            if result["window_short_of_4h"]:
-                lines.append(
-                    "    note: window is shorter than 4 h; RSS growth is the "
-                    "observed delta, not a 4-hour rate."
-                )
-            overall = "PASS" if result["all_pass"] else "FAIL"
-            lines.append(f"    overall {overall}")
+            for issue in coverage.get("issues", [])[:4]:
+                lines.append(f"    evidence: {issue}")
+            lines.append(f"    overall {result['overall_status']}")
+    if acceptance and overall_status is not None and len(acceptance_results) > 1:
+        lines.append(f"overall acceptance {overall_status}")
     return "\n".join(lines) + "\n"
 
 
@@ -649,18 +628,29 @@ def main(argv: Sequence[str] | None = None) -> int:
         description=(
             "Report per-app-instance TUI frozen share and GC share from "
             "tui_stalls.jsonl."
-        )
+        ),
+        epilog=(
+            "Exit status: diagnostic mode returns 0 after reporting, including no rows; "
+            "--acceptance and --json return 0 only when every target passes, 1 for any "
+            "FAIL or INCOMPLETE target, and 2 for invalid arguments."
+        ),
     )
     parser.add_argument(
         "--acceptance",
         action="store_true",
-        help="Mark each sase-1f3 target pass or fail per instance.",
+        help="Evaluate sase-1f3 targets as PASS, FAIL, or INCOMPLETE.",
     )
     parser.add_argument(
         "--instance",
         action="append",
         default=None,
         help="Only report this instance (repeatable).",
+    )
+    parser.add_argument(
+        "-j",
+        "--json",
+        action="store_true",
+        help="Write a structured acceptance summary (implies --acceptance).",
     )
     parser.add_argument(
         "--no-rotated",
@@ -698,6 +688,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         since = parse_time(args.since) if args.since is not None else None
         until = parse_time(args.until) if args.until is not None else None
+        since_tolerance = parse_time_tolerance(args.since)
+        until_tolerance = parse_time_tolerance(args.until)
     except ValueError as exc:
         parser.error(f"invalid --since/--until: {exc}")
         return 2
@@ -707,21 +699,73 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     buckets = bucket_by_instance(rows, startups)
     summaries = {}
-    for instance, bucket in buckets.items():
-        if args.instance is not None and instance not in args.instance:
-            continue
+    selected_buckets = {
+        instance: bucket
+        for instance, bucket in buckets.items()
+        if args.instance is None or instance in args.instance
+    }
+    for instance, bucket in selected_buckets.items():
         summary = summarize_instance(bucket, since=since, until=until)
         if summary["row_count"] == 0:
             continue
         summaries[instance] = summary
-    print(format_report(summaries, acceptance=args.acceptance), end="")
-    if args.acceptance and summaries:
-        failed = any(
-            not evaluate_acceptance(summary)["all_pass"]
-            for summary in summaries.values()
+    acceptance_mode = args.acceptance or args.json
+    acceptance_results: dict[str, dict[str, Any]] = {}
+    if acceptance_mode:
+        for instance, bucket in selected_buckets.items():
+            acceptance_results[instance] = analyze_acceptance(
+                bucket,
+                startups,
+                instance,
+                requested_since=since,
+                requested_until=until,
+                since_tolerance_s=since_tolerance,
+                until_tolerance_s=until_tolerance,
+                since_raw=args.since,
+                until_raw=args.until,
+            )
+        if not acceptance_results:
+            missing_instances = args.instance or ["selection"]
+            for instance in missing_instances:
+                acceptance_results[instance] = empty_acceptance(
+                    instance, since_raw=args.since, until_raw=args.until
+                )
+    overall_status = aggregate_status(acceptance_results) if acceptance_mode else None
+    if args.json:
+        instance_names = sorted(set(summaries) | set(acceptance_results))
+        payload = {
+            "schema_version": 1,
+            "tool": "tui_freeze_report",
+            "inputs": {
+                "stalls_path": str(stalls_path),
+                "startup_path": str(startup_path),
+                "instance_filter": args.instance,
+                "requested_since": args.since,
+                "requested_until": args.until,
+            },
+            "quantile": "linear interpolation at rank p*(n-1), sorted ascending",
+            "overall_status": overall_status,
+            "instances": {
+                instance: {
+                    "diagnostic": summaries.get(instance),
+                    "acceptance": acceptance_results.get(instance),
+                }
+                for instance in instance_names
+            },
+        }
+        print(json.dumps(payload, indent=2, sort_keys=True))
+    else:
+        print(
+            format_report(
+                summaries,
+                acceptance=acceptance_mode,
+                acceptance_results=acceptance_results,
+                overall_status=overall_status,
+            ),
+            end="",
         )
-        if failed:
-            return 1
+    if acceptance_mode and overall_status != "PASS":
+        return 1
     return 0
 
 
