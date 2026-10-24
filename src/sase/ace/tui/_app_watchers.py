@@ -33,7 +33,7 @@ class AppWatchersMixin:
             cancel()
 
     def on_click(self: Any, event: Click) -> None:
-        """A click outside the shelf ends its temporary J/K focus state."""
+        """A click outside the shelf ends its temporary focus state."""
         if getattr(getattr(event, "widget", None), "id", None) == (
             "agent-archive-shelf"
         ):

@@ -331,10 +331,6 @@ class AgentPanelNavigationMixin:
             record_navigation()
         if route_archive_key_if_active(self, "switch_section"):
             return
-        from ._archive_shelf import route_archive_shelf_focus
-
-        if route_archive_shelf_focus(self, forward=True):
-            return
         self._change_focused_agent_panel(forward=True)
         jk_perf = getattr(self, "_jk_perf", None)
         if jk_perf is not None:
@@ -349,10 +345,6 @@ class AgentPanelNavigationMixin:
         if callable(record_navigation):
             record_navigation()
         if route_archive_key_if_active(self, "switch_section"):
-            return
-        from ._archive_shelf import route_archive_shelf_focus
-
-        if route_archive_shelf_focus(self, forward=False):
             return
         self._change_focused_agent_panel(forward=False)
         jk_perf = getattr(self, "_jk_perf", None)

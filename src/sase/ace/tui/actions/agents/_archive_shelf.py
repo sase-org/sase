@@ -307,46 +307,6 @@ def archive_dismissal_toast_suffix() -> str:
     return " → ◷ Archive · ,a browse"
 
 
-def route_archive_shelf_focus(owner: Any, *, forward: bool) -> bool:
-    """Route J/K to and from the Inbox shelf pseudo-panel."""
-    if getattr(owner, "current_tab", None) != "agents":
-        return False
-    try:
-        from ._display_helpers import agents_archive_is_active
-
-        if agents_archive_is_active(owner):
-            return False
-        shelf_widget = owner.query_one("#agent-archive-shelf")
-    except Exception:
-        return False
-    if getattr(getattr(shelf_widget, "styles", None), "display", "none") == "none":
-        return False
-
-    focused = bool(getattr(owner, "_agent_archive_shelf_focused", False))
-    if focused:
-        if forward:
-            return True
-        owner._agent_archive_shelf_focused = False
-        shelf_widget.remove_class("-focused")
-        try:
-            owner.query_one("#agent-list-panel").focus()
-        except Exception:
-            pass
-        return True
-
-    if not forward:
-        return False
-    panel_group = getattr(owner, "_panel_group", None)
-    panel_keys = list(getattr(panel_group, "panel_keys", ()) or ())
-    focused_idx = int(getattr(panel_group, "focused_idx", 0) or 0)
-    if not panel_keys or focused_idx != len(panel_keys) - 1:
-        return False
-    owner._agent_archive_shelf_focused = True
-    shelf_widget.add_class("-focused")
-    shelf_widget.focus()
-    return True
-
-
 __all__ = [
     "activate_archive_shelf",
     "archive_bridge_detail",
@@ -354,5 +314,4 @@ __all__ = [
     "archive_shelf_snapshot",
     "clear_archive_shelf_focus",
     "request_archive_shelf_refresh",
-    "route_archive_shelf_focus",
 ]

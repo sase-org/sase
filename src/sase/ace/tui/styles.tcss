@@ -4126,8 +4126,11 @@ HintInputBar #hint-escape-hint {
     border-title-color: #FFD75F;
 }
 
+/* Docked so it stays at the column base: tribe panels mount after the
+   composed shelf, so in-flow placement strands it below the first panel. */
 #agent-archive-shelf {
     display: none;
+    dock: bottom;
     width: 100%;
     height: 1;
     padding: 0 1;

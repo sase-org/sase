@@ -19,7 +19,6 @@ from sase.ace.tui.actions.agents._archive_shelf import (
     _compute_shelf_snapshot,
     activate_archive_shelf,
     archive_bridge_detail,
-    route_archive_shelf_focus,
     request_archive_shelf_refresh,
 )
 from sase.ace.tui.models.agent_archive_controller import ArchiveShelfSnapshot
@@ -226,42 +225,6 @@ async def test_shelf_keeps_its_last_line_until_the_recount_lands() -> None:
                 shelf.render().plain == "◷ Archive · 1 matches this filter · ⏎ search"
             ),
         )
-
-
-def test_shelf_jk_focus_routes_to_and_from_the_bottom_panel() -> None:
-    class _Widget:
-        def __init__(self) -> None:
-            self.styles = SimpleNamespace(display="block")
-            self.classes: set[str] = set()
-            self.focused = False
-
-        def add_class(self, name: str) -> None:
-            self.classes.add(name)
-
-        def remove_class(self, name: str) -> None:
-            self.classes.discard(name)
-
-        def focus(self) -> None:
-            self.focused = True
-
-    shelf = _Widget()
-    panel = _Widget()
-    owner = SimpleNamespace(
-        current_tab="agents",
-        _panel_group=SimpleNamespace(panel_keys=("one", "two"), focused_idx=1),
-        query_one=lambda selector: (
-            shelf if selector == "#agent-archive-shelf" else panel
-        ),
-    )
-
-    assert route_archive_shelf_focus(owner, forward=True) is True
-    assert owner._agent_archive_shelf_focused is True
-    assert shelf.focused is True
-
-    assert route_archive_shelf_focus(owner, forward=False) is True
-    assert owner._agent_archive_shelf_focused is False
-    assert "-focused" not in shelf.classes
-    assert panel.focused is True
 
 
 def test_clicking_elsewhere_clears_shelf_focus() -> None:
