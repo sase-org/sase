@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from unicodedata import category
+
 from sase.gate_turn.followup_prompt import (
     GateOptionOutcome,
     compose_gate_followup_prompt,
@@ -176,6 +178,24 @@ def test_reviewer_note_is_rendered_inside_a_fenced_block() -> None:
     assert "**Reviewer note:**" in prompt
     assert "Go ahead, but leave /mnt/poseidon alone." in prompt
     _assert_inside_any_region(prompt, "Go ahead, but leave /mnt/poseidon alone.")
+
+
+def test_gate_followup_strips_controls_from_note_and_output() -> None:
+    prompt = compose_gate_followup_prompt(
+        fork_target=None,
+        answered=True,
+        outcome_line="ANSWERED — Clean up",
+        answered_via="cli",
+        options=(),
+        reviewer_note="Keep this visible: \x1b[1mreviewed\x1b[0m\x0f",
+        output=("tail",),
+        output_text="command output: \x1b[31mfailed\x1b[m\x0f",
+        **_COMMON,
+    )
+
+    assert "Keep this visible: reviewed" in prompt
+    assert "command output: failed" in prompt
+    assert all(char in "\n\t" or category(char) != "Cc" for char in prompt)
 
 
 def test_redacted_result_values_pass_through_untouched() -> None:

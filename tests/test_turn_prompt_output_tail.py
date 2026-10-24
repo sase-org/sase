@@ -83,3 +83,19 @@ def test_untrusted_output_section_output_directives_remain_literal() -> None:
     assert directives.model is None
     assert "%model:haiku" in cleaned
     assert "#commit now" in cleaned
+
+
+def test_untrusted_output_section_strips_ansi_before_counting_tail_budget() -> None:
+    section = untrusted_output_section(
+        "## Output",
+        "\x1b[31mabcde\x1b[0m",
+        1,
+        max_chars=5,
+    )
+
+    fence, tail = _tail_block(section)
+    assert fence == "```"
+    assert tail == "abcde"
+    assert not any(
+        ord(char) < 0x20 and char not in "\n\t" for char in "\n".join(section)
+    )

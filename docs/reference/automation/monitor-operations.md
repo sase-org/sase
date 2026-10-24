@@ -60,7 +60,9 @@ the starter had not settled in time, resume first repairs that missing parent li
 Ineligible monitors — still running, stopped or lost, fire-and-forget, owned by host
 completion, or already delivered, among others — make `resume` exit `2` and print the
 precise eligible resume command to stderr when one exists; with `-j`, the JSON result
-carries `code` and `suggested_command` fields.
+carries `code` and `suggested_command` fields. If the starter settled but its
+continuation capture failed, the `not-launchable` error names that capture failure and
+gives the `-k FILE` / `-m MODEL` resume command.
 
 If a proc-backed monitor loses its supervisor, its failure message in
 `sase monitor show` and `done.json` includes `last supervisor error: <line>` when the

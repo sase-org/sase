@@ -23,6 +23,7 @@ from sase.turns.settlement import (
 from .followup import FollowupLaunchResult, launch_followup_agent
 from .host_completion import HOST_COMPLETED_OUTCOME, settle_host_completion
 from .models import MONITOR_FOLLOWUP_DEGRADED_OUTCOME, MonitorState
+from .naming import short_monitor_id
 from .output import OutputCapture
 from .worktree_recovery import snapshot_worktree_recovery_diff
 
@@ -111,9 +112,10 @@ def settle_claim_and_followup(
         if blocked_reason and _repair_missing_starter_parent(artifacts_dir, meta):
             blocked_reason = _continuation_dispatch_blocked_reason(meta)
     if blocked_reason:
+        followup_error = _blocked_followup_error(blocked_reason, meta)
         snapshot_worktree_recovery_diff(artifacts_dir, meta)
         meta[_MONITOR_SETTLEMENT_CONFIG.outcome_field] = "not-launchable"
-        meta[_MONITOR_SETTLEMENT_CONFIG.error_field] = blocked_reason
+        meta[_MONITOR_SETTLEMENT_CONFIG.error_field] = followup_error
         update_meta_field(
             artifacts_dir,
             _MONITOR_SETTLEMENT_CONFIG.outcome_field,
@@ -122,14 +124,14 @@ def settle_claim_and_followup(
         update_meta_field(
             artifacts_dir,
             _MONITOR_SETTLEMENT_CONFIG.error_field,
-            blocked_reason,
+            followup_error,
         )
         release_error = _release_monitor_claim_positional(meta, project_name)
         return _MonitorFollowupSettlementResult(
-            error=release_error or blocked_reason,
+            error=release_error or followup_error,
             launch_result=FollowupLaunchResult(
                 launched=False,
-                error=blocked_reason,
+                error=followup_error,
             ),
         )
 
@@ -243,6 +245,40 @@ def _repair_missing_starter_parent(artifacts_dir: str, meta: dict[str, Any]) -> 
     from sase.continuation_capture import repair_missing_starter_parent_disposition
 
     return repair_missing_starter_parent_disposition(artifacts_dir, meta)
+
+
+def _blocked_followup_error(reason: str, meta: dict[str, Any]) -> str:
+    from sase.continuation_capture import starter_capture_error_summary
+
+    message = reason
+    if reason == _missing_starter_parent_error():
+        starter_dir = meta.get("monitor_starter_artifacts_dir")
+        summary = starter_capture_error_summary(
+            starter_dir if isinstance(starter_dir, str) else None
+        )
+        if summary:
+            starter = meta.get("monitor_starter_agent")
+            starter_name = (
+                starter if isinstance(starter, str) and starter else "unknown"
+            )
+            message += (
+                f"; starter {starter_name} continuation capture failed ({summary})"
+            )
+
+    monitor_id = meta.get("monitor_id")
+    short_id = (
+        short_monitor_id(monitor_id) if isinstance(monitor_id, str) else "unknown"
+    )
+    return (
+        f"{message}; recover with `sase monitor resume {short_id} -k FILE` "
+        f"or `sase monitor resume {short_id} -m MODEL`"
+    )
+
+
+def _missing_starter_parent_error() -> str:
+    from sase.continuation_capture.monitor import _MISSING_STARTER_PARENT_ERROR
+
+    return _MISSING_STARTER_PARENT_ERROR
 
 
 def _coerce_monitor_followup_result(

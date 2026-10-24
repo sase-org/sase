@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from unicodedata import category
+
 from sase.monitor.followup_prompt import compose_followup_prompt
 from sase.macro._literal_zones import code_literal_ranges
 from sase.macro.directives import extract_prompt_directives
@@ -86,3 +88,46 @@ def test_compose_followup_prompt_strict_output_policies_do_not_embed_diagnostics
         )
         assert "SHOULD_NOT_EMBED" not in prompt
         assert "line 1" not in prompt
+
+
+def test_followup_prompt_strips_controls_from_output_and_diagnostics() -> None:
+    manifest = {
+        "schema_version": 1,
+        "producer": "test",
+        "manifest_ref": "file:explicit:diagnostics",
+        "complete": False,
+        "stages": [
+            {
+                "stage_id": "pytest",
+                "name": "pytest",
+                "status": "failed",
+                "exit_code": 3,
+                "diagnostic_refs": ["file:explicit:pytest-log"],
+            }
+        ],
+    }
+    prompt = compose_followup_prompt(
+        starter_name="acme--0",
+        monitor_state="failed",
+        exit_code=3,
+        elapsed_seconds=42.0,
+        timeout_seconds=2700.0,
+        diagnostic_manifest=manifest,
+        evidence_selection={
+            "diagnostic_stage_ids": ["pytest"],
+            "include_raw_excerpt": True,
+            "max_tail_lines": 200,
+            "max_embedded_bytes": 12_000,
+        },
+        selected_diagnostics_text=(
+            "pytest failed: \x1b[1m\x1b[31merror:\x1b(B bad\x0f"
+        ),
+        **{
+            **_COMMON,
+            "output_text": "tail: \x1b[31mfailed\x1b[0m\x0f",
+        },
+    )
+
+    assert "pytest failed: error: bad" in prompt
+    assert "tail: failed" in prompt
+    assert all(char in "\n\t" or category(char) != "Cc" for char in prompt)

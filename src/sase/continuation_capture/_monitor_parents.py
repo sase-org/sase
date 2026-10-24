@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, MutableMapping, Sequence
+import json
 import os
 from pathlib import Path
 from typing import Any
 
+from ._constants import CAPTURE_ERRORS_FILENAME
 from ._disposition import CAPTURE_DISPOSITION_NEEDS_RECOVERY, CAPTURE_DISPOSITION_OK
 from ._storage import (
     RequiredPortableCaptureError,
@@ -82,6 +84,33 @@ _MISSING_STARTER_PARENT_ERROR = (
     "monitor result is missing its exact starter parent node; "
     "automatic dispatch is blocked pending recovery"
 )
+
+
+def starter_capture_error_summary(starter_artifacts_dir: str | None) -> str | None:
+    """Return the last readable capture error summary from a starter, if any."""
+    if not starter_artifacts_dir:
+        return None
+    capture_errors = (
+        Path(starter_artifacts_dir) / "continuation" / CAPTURE_ERRORS_FILENAME
+    )
+    try:
+        lines = capture_errors.read_text(encoding="utf-8").splitlines()
+    except (OSError, UnicodeError):
+        return None
+
+    summary: str | None = None
+    for line in lines:
+        try:
+            payload = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(payload, Mapping):
+            continue
+        stage = payload.get("stage")
+        message = payload.get("message")
+        if isinstance(stage, str) and isinstance(message, str):
+            summary = f"{stage}: {message}"
+    return summary
 
 
 def missing_essential_starter_parent(

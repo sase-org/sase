@@ -15,6 +15,7 @@ from sase.core.continuation_wire import (
     ContinuationExecutionIdentityWire,
     ContinuationNodeWire,
 )
+from sase.terminal_text import continuation_wire_text
 
 from ._constants import (
     MANIFEST_FILENAME,
@@ -133,6 +134,7 @@ def persist_agent_delta(
         prepared_payload.get("authored_local_request"),
         state.original_prompt or state.current_prompt,
     )
+    authored_local_request = continuation_wire_text(authored_local_request)
     segments = wire_segments_from_prepared(prepared_payload, local_only=True)
     source_refs = unique_refs(
         [

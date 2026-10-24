@@ -9,6 +9,7 @@ from ._monitor_intent import (
 from ._monitor_parents import (
     _MISSING_STARTER_PARENT_ERROR,
     repair_missing_starter_parent_disposition,
+    starter_capture_error_summary,
 )
 from ._monitor_result import (
     persist_monitor_result,
@@ -21,4 +22,5 @@ __all__ = [
     "persist_monitor_start_intent",
     "persist_monitor_start_intent_best_effort",
     "repair_missing_starter_parent_disposition",
+    "starter_capture_error_summary",
 ]

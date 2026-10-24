@@ -19,7 +19,11 @@ from unittest.mock import patch
 
 import pytest
 
-from sase.continuation_capture import persist_monitor_result
+from sase.continuation_capture import (
+    persist_monitor_result,
+    repair_missing_starter_parent_disposition,
+    starter_capture_error_summary,
+)
 from sase.continuation_capture.monitor import _MISSING_STARTER_PARENT_ERROR
 from sase.continuation_capture.rollout import MONITOR_CONTINUATION_PROTOCOL_RECORDS_V1
 from sase.monitor.followup import FollowupLaunchResult
@@ -83,6 +87,26 @@ def _publish_blocked_capture(artifacts_dir: str, meta: dict[str, Any]) -> None:
             project_name="proj",
             update_meta=True,
         )
+
+
+def test_starter_capture_error_summary_uses_last_well_formed_line(
+    tmp_path: Path,
+) -> None:
+    assert starter_capture_error_summary(str(tmp_path / "missing")) is None
+    capture_errors = tmp_path / "starter" / "continuation" / "capture_errors.jsonl"
+    capture_errors.parent.mkdir(parents=True)
+    capture_errors.write_text(
+        json.dumps({"stage": "first", "message": "old failure"})
+        + "\nnot json\n"
+        + json.dumps({"stage": "last", "message": "new failure"})
+        + "\n{partial",
+        encoding="utf-8",
+    )
+
+    assert starter_capture_error_summary(str(capture_errors.parents[1])) == (
+        "last: new failure"
+    )
+    assert starter_capture_error_summary(str(capture_errors)) is None
 
 
 def _git(cwd: Path, *args: str) -> None:
@@ -191,6 +215,18 @@ def test_settlement_still_not_launchable_when_starter_never_settles(
     meta = json.loads((Path(artifacts_dir) / "agent_meta.json").read_text())
     _publish_blocked_capture(artifacts_dir, meta)
     assert meta["continuation_capture_disposition"] == "needs_recovery"
+    capture_errors = starter / "continuation" / "capture_errors.jsonl"
+    capture_errors.parent.mkdir(parents=True, exist_ok=True)
+    capture_errors.write_text(
+        json.dumps(
+            {
+                "stage": "agent_delta:interrupted",
+                "message": "validation: authored_local_request contains unsupported control characters",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
 
     def fake_launch(
         _artifacts_dir: str, _meta: dict[str, Any], **_kwargs: object
@@ -211,8 +247,17 @@ def test_settlement_still_not_launchable_when_starter_never_settles(
 
     assert result.launch_result is not None
     assert result.launch_result.launched is False
-    assert result.launch_result.error == _MISSING_STARTER_PARENT_ERROR
+    assert _MISSING_STARTER_PARENT_ERROR in str(result.launch_result.error)
+    assert "starter acme continuation capture failed" in str(result.launch_result.error)
+    assert "agent_delta:interrupted: validation: authored_local_request" in str(
+        result.launch_result.error
+    )
+    assert "`sase monitor resume abc123 -k FILE`" in str(result.launch_result.error)
+    assert "`sase monitor resume abc123 -m MODEL`" in str(result.launch_result.error)
     assert meta["monitor_followup_outcome"] == "not-launchable"
+    assert meta["continuation_capture_error"] == _MISSING_STARTER_PARENT_ERROR
+    assert meta["monitor_followup_error"] == result.launch_result.error
+    assert result.error == result.launch_result.error
     snapshot_path = Path(meta["monitor_worktree_recovery_diff_path"])
     assert snapshot_path == Path(artifacts_dir) / "diagnostics/worktree_recovery.diff"
     snapshot = snapshot_path.read_text(encoding="utf-8")
@@ -220,6 +265,17 @@ def test_settlement_still_not_launchable_when_starter_never_settles(
     assert "dirty untracked" in snapshot
     on_disk = json.loads((Path(artifacts_dir) / "agent_meta.json").read_text())
     assert on_disk["monitor_worktree_recovery_diff_path"] == str(snapshot_path)
+
+    (starter / "agent_meta.json").write_text(
+        json.dumps(
+            {
+                "name": "acme",
+                "continuation_node_id": "agent-delta:acme:1",
+            }
+        ),
+        encoding="utf-8",
+    )
+    assert repair_missing_starter_parent_disposition(artifacts_dir, meta) is True
 
 
 def test_settlement_bypasses_starter_parent_check_for_stopped_monitors(

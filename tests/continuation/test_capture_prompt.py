@@ -133,6 +133,47 @@ def test_agent_delta_capture_uses_wire_validators_and_exact_authored_text(
     assert delta["final_response_ref"]
 
 
+def test_agent_delta_capture_cleans_wire_text_but_keeps_raw_prepared_prompt(
+    tmp_path: Path,
+) -> None:
+    raw_request = "\x1b[31m-    assert!(empty_rows\n\x1b[m\x0f"
+    ctx = make_exec_ctx(tmp_path, is_home_mode=False)
+    state = LoopState(
+        current_prompt=raw_request,
+        current_role_suffix="",
+        current_artifacts_dir=ctx.artifacts_dir,
+        loop_outcome="completed",
+        sdd_spec_path=None,
+        original_prompt=raw_request,
+    )
+    prepared = _record_prepared_prompt_capture(
+        ctx.artifacts_dir,
+        authored_local_request=raw_request,
+        materialized_prompt=raw_request,
+    )
+
+    with (
+        patch("sase.core.continuation_facade.validate_agent_delta"),
+        patch("sase.core.continuation_facade.validate_continuation_node"),
+    ):
+        result = _persist_agent_delta(ctx, state, status="completed")
+
+    delta_path = (
+        Path(ctx.artifacts_dir)
+        / "continuation"
+        / result.agent_delta_ref.removeprefix("local:continuation/")
+    )
+    delta = json_record(delta_path)
+    assert delta["authored_local_request"] == "-    assert!(empty_rows\n"
+    assert (
+        json_record(Path(prepared.prepared_path))["authored_local_request"]
+        == raw_request
+    )
+    assert not (
+        Path(ctx.artifacts_dir) / "continuation" / "capture_errors.jsonl"
+    ).exists()
+
+
 def test_preprocess_prompt_early_captures_macro_expansion_provenance() -> None:
     result = preprocess_prompt_early(
         "Before #local after",
