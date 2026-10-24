@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import pytest
 from rich.text import Text
 
 from sase.ace.tui.models._agent_runner_slot_capacity import (
@@ -91,6 +92,33 @@ def test_agent_row_renders_multiplier_badge() -> None:
     text = Text()
     assert append_agent_queue_badges(text, _multiplier_agent()) is True
     assert "c1.5x" in text.plain
+
+
+@pytest.mark.parametrize("weight", [1.0, 2.0])
+def test_monitor_row_hides_inherited_positive_weight(weight: float) -> None:
+    text = Text()
+    monitor = make_agent(
+        agent_session_role="monitor",
+        role_suffix="--mon",
+        queue_weight=weight,
+        queue_weight_explicit=True,
+    )
+
+    assert append_agent_queue_badges(text, monitor) is False
+    assert "w" not in text.plain
+
+
+def test_monitor_row_shows_explicit_zero_weight_badge() -> None:
+    text = Text()
+    monitor = make_agent(
+        agent_session_role="monitor",
+        role_suffix="--mon",
+        queue_weight=0.0,
+        queue_weight_explicit=True,
+    )
+
+    assert append_agent_queue_badges(text, monitor) is True
+    assert "w0" in text.plain
 
 
 def test_queued_row_renders_multiplier_badge() -> None:

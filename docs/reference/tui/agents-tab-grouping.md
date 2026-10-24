@@ -304,7 +304,8 @@ same on the clan row and CLAN `Status:` line; two queued members stay generic `Q
 with no rank. Authored capacity renders as a quiet `cN` badge beside the existing `wN`
 weight badge, and turns gold when the launch's budget exceeds the current effective
 global limit. Non-default queue weights render as the same quiet `wN` badge used on
-running rows and queue-ladder entries; an explicit zero renders `w0`. The detail pane
+running rows and queue-ladder entries; an explicit zero renders `w0`, including on a
+zero-weight monitor row. The detail pane
 repeats these values as `Weight:` and `Capacity:` lines. Remote rows show the same
 badges and detail lines using the values reported by the machine that owns the agent.
 New prompts reject `capacity=0`, but a persisted legacy record with an explicit zero

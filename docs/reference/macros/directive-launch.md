@@ -294,10 +294,11 @@ and that attempt never parks: if the gate's weight fits, it claims capacity so t
 follow-up can inherit it; otherwise the commands run right away without a claim and the
 follow-up queues normally. A gate that `%auto` resolves at creation time runs its
 commands inside the creating agent's existing claim instead of taking a second one. The
-host-owned monitor that launches an approved epic records an explicit zero weight and
-consumes no capacity; the phase agents it launches claim their own. A zero weight can
-also be authored with `%q(w=0)`: a user-authored zero is inherited by successors as
-explicit, while the monitor's host-set zero never leaks to them. A `%proc` unit with
+Both the host-owned monitor that launches an approved epic and an agent-authored
+`sase monitor start -w 0` pure-wait monitor record an explicit zero weight and consume no
+capacity; the phase agents launched by the epic monitor claim their own. A zero weight
+can also be authored with `%q(w=0)`: a user-authored zero is inherited by successors as
+explicit, while a monitor's zero never leaks to them. A `%proc` unit with
 queue fields is checked against this budget but never holds a claim (see
 [Typed launch units](directive-syntax.md#typed-launch-units)). Workflow Python/bash steps and axe Patch
 runners are outside this budget.

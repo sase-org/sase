@@ -115,7 +115,7 @@ Arguments:
 usage: sase monitor start [-h] [-a NAME] [-f REF] [-C DIR] [-i DURATION]
                           [-J RUN] [-j] [-k FILE] [-L TEXT] [-m MODEL]
                           [-n TEXT] [-o MODE] [-P FILE] [-p NAME] [-r TEXT]
-                          [-s TEXT] [-S TEXT] [-T N] [-t DURATION] ...
+                          [-s TEXT] [-S TEXT] [-T N] [-t DURATION] [-w W] ...
 ```
 
 Start a command under a detached supervisor and return. The supervisor owns the command's process group and streams its combined output, so the command outlives this process. When run inside an agent, this is the last output the agent produces before it is killed — the runner adopts the handoff and the monitor keeps running in the same agent and workspace.
@@ -143,6 +143,7 @@ Options:
 | `-S TEXT`, `--stop-status TEXT`          | Label shown when the command finishes (past tense, e.g. TESTED). Required unless -p/--profile supplies it. Pair with -s/--start-status. Max 20 characters                                                                                                                                                                                                | —       |
 | `-T N`, `--tail-lines N`                 | Output tail handed to the follow-up (default: 200)                                                                                                                                                                                                                                                                                                       | —       |
 | `-t DURATION`, `--timeout DURATION`      | Timeout: bare seconds or a duration like 90s / 45m / 2h (default: 1h)                                                                                                                                                                                                                                                                                    | —       |
+| `-w W`, `--weight W`                     | Queue weight for this monitor while it runs. Only 0 is accepted: a pure wait (sleep, CI watch, external poll) then holds no runner capacity, and the -n/--next follow-up queues again at your normal weight. Cannot be combined with -p verify, -f/--completion, -J/--join, or a `sase tool run` command                                                 | —       |
 
 Arguments:
 

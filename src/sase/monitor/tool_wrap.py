@@ -91,6 +91,12 @@ def _split_command(command: str) -> list[str] | None:
         return None
 
 
+def command_invokes_tool_run(command: str) -> bool:
+    """Return whether *command* contains a parseable ``sase tool run`` shape."""
+    parts = _split_command(command)
+    return parts is not None and _has_wrapped_shape(parts)
+
+
 def _match_catalog_entry(
     parts: Sequence[str], entries: Sequence[Any]
 ) -> tuple[Any, tuple[str, ...]] | None:
@@ -245,6 +251,7 @@ def resolve_monitor_tool_wrap(
 __all__ = [
     "UNWRAPPED_LOG_PREFIX",
     "VERIFY_MONITOR_PROFILE_NAME",
+    "command_invokes_tool_run",
     "format_unwrapped_log_line",
     "monitor_tool_run_words",
     "resolve_monitor_tool_wrap",

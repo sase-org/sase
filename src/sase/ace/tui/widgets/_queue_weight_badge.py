@@ -37,11 +37,18 @@ def append_queue_weight_badge(
 
 def _append_agent_queue_weight_badge(text: Text, agent: Agent) -> bool:
     """Append a row badge for weighted agent-bearing rows only."""
+    if agent.is_monitor:
+        if agent.queue_weight == 0 and agent.queue_weight_explicit:
+            return append_queue_weight_badge(
+                text,
+                agent.queue_weight,
+                explicit=True,
+            )
+        return False
     if (
         agent.is_clan_container
         or agent.is_named_proc
         or agent.is_gate
-        or agent.is_monitor
         or (agent.is_child_row and not agent.agent_session_parallel)
     ):
         return False

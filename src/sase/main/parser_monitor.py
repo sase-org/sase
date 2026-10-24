@@ -221,6 +221,7 @@ def register_monitor_parser(subparsers: argparse._SubParsersAction) -> None:
             "-t 20m -- just check-full\n"
             "  sase monitor start -s DEPLOYING -S DEPLOYED -n 'confirm the "
             "deploy succeeded' -- ./deploy.sh\n"
+            "  sase monitor start -w 0 -s 'WATCHING CI' -S 'WATCHED CI' -n 'check the CI result' -- gh run watch 123 --exit-status\n"
             "  sase monitor start -p verify -n 'fix failures' "
             "-m '@small' -- just check-full\n"
             "  sase monitor start -J 0f1a2b3c -p verify -n 'finish check'\n"
@@ -411,6 +412,19 @@ def register_monitor_parser(subparsers: argparse._SubParsersAction) -> None:
         default=None,
         metavar="DURATION",
         help=("Timeout: bare seconds or a duration like 90s / 45m / 2h (default: 1h)"),
+    )
+    start_parser.add_argument(
+        "-w",
+        "--weight",
+        default=None,
+        metavar="W",
+        help=(
+            "Queue weight for this monitor while it runs. Only 0 is accepted: a pure "
+            "wait (sleep, CI watch, external poll) then holds no runner capacity, and "
+            "the -n/--next follow-up queues again at your normal weight. Cannot be "
+            "combined with -p verify, -f/--completion, -J/--join, or a `sase tool run` "
+            "command"
+        ),
     )
     # ``monitor_command_words`` rather than ``command``: the top-level
     # subparsers own the ``command`` destination for command routing.

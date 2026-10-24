@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 from collections.abc import Mapping
 from pathlib import Path
@@ -28,6 +29,10 @@ from sase.monitor import (
 from sase.monitor.join import JoinRefusal, JoinTarget
 from sase.monitor.outcome_policy import load_outcome_policy_file
 from sase.monitor.profiles import resolve_monitor_profile
+from sase.monitor.tool_wrap import (
+    VERIFY_MONITOR_PROFILE_NAME,
+    command_invokes_tool_run,
+)
 from sase.monitor.start import (
     DEFAULT_NEXT_OUTPUT,
     DEFAULT_REASON,
@@ -64,6 +69,22 @@ def handle_monitor_start(args: argparse.Namespace) -> int:
     except MonitorError as exc:
         print(f"sase monitor start: {exc}", file=sys.stderr)
         return 1
+    raw_weight = getattr(args, "weight", None)
+    queue_weight_override: float | None = None
+    if raw_weight is not None:
+        try:
+            parsed_weight = float(raw_weight)
+        except (TypeError, ValueError):
+            parsed_weight = math.nan
+        if not math.isfinite(parsed_weight) or parsed_weight != 0.0:
+            print(
+                "sase monitor start: -w/--weight accepts only 0 -- a zero-weight "
+                "monitor holds no runner capacity while it waits; omit -w to keep "
+                "your normal queue weight",
+                file=sys.stderr,
+            )
+            return 2
+        queue_weight_override = 0.0
     from sase.monitor.join import default_join_label, default_join_reason
 
     join_run = optional_text(getattr(args, "join", None))
@@ -130,6 +151,21 @@ def handle_monitor_start(args: argparse.Namespace) -> int:
             print(f"sase monitor start: {exc}", file=sys.stderr)
             return 2
     completion_ref = optional_text(getattr(args, "completion", None))
+    if queue_weight_override is not None:
+        conflict_flag: str | None = None
+        if profile == VERIFY_MONITOR_PROFILE_NAME:
+            conflict_flag = "-p/--profile verify"
+        elif completion_ref:
+            conflict_flag = "-f/--completion"
+        elif command_invokes_tool_run(command):
+            conflict_flag = "a `sase tool run` command"
+        if conflict_flag is not None:
+            print(
+                "sase monitor start: -w/--weight 0 cannot be used with "
+                f"{conflict_flag} -- verification keeps the starter's queue weight",
+                file=sys.stderr,
+            )
+            return 2
     if next_model and not (
         optional_text(next_action) or profile or policy_path or completion_ref
     ):
@@ -246,6 +282,7 @@ def handle_monitor_start(args: argparse.Namespace) -> int:
         cli_evidence=optional_text(raw_next_output),
         checkpoint_ref=checkpoint_ref,
         checkpoint_document=checkpoint_document,
+        queue_weight_override=queue_weight_override,
     )
 
     try:
@@ -274,6 +311,8 @@ def handle_monitor_start(args: argparse.Namespace) -> int:
             joined_mark = " (joined)" if record.tool_run_joined else ""
             print(f"  tool run: {record.tool_run_id}{joined_mark}")
         print(f"  timeout: {timeout_label}")
+        if queue_weight_override is not None:
+            print("  queue weight: 0 (holds no runner capacity)")
         if idle_timeout_label is not None:
             print(f"  idle timeout: {idle_timeout_label}")
         print(f"  sase monitor show {short_id} --follow")
@@ -335,6 +374,14 @@ def _validate_join_start(
             message=(
                 "sase monitor start -J cannot be used with -f/--completion; "
                 "pass -n/--next to request a follow-up instead"
+            ),
+        )
+    if getattr(args, "weight", None) is not None:
+        return JoinRefusal(
+            exit_code=2,
+            message=(
+                "sase monitor start -J cannot be used with -w/--weight; a joined "
+                "ToolRun is verification and keeps the starter's queue weight"
             ),
         )
     if optional_text(getattr(args, "agent", None)):

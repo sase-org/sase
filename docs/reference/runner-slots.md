@@ -137,10 +137,11 @@ header count, and holds no claim once it runs. An omitted proc weight counts as 
 that check. For a direct submission, a proc still waiting on capacity is visible only
 under `~/.sase/typed_launches/<request-id>/launch_admission/`: `journal.jsonl` records
 the unit as `eligible` with the capacity message, and `receipt.json` summarizes unit
-outcomes. The host-owned monitor that launches an approved epic also records an explicit
-zero weight and occupies no capacity; its phase agents queue normally. Unlike that
-host-set zero, a user-authored `%q(w=0)` is inherited by successors as an explicit zero
-weight.
+outcomes. Both the host-owned monitor that launches an approved epic and an agent's
+`sase monitor start -w 0` pure-wait monitor record an explicit zero weight and occupy no
+capacity. A wait monitor's follow-up re-enters admission at the starter's weight. Unlike
+either monitor zero, a user-authored `%q(w=0)` is inherited by successors as an explicit
+zero weight.
 
 Lowering the effective cap below current occupied capacity is safe and non-preemptive:
 no running process is killed or forced to yield, but no participant is admitted until

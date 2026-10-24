@@ -51,6 +51,7 @@ def test_monitor_start_help_documents_positional_command_and_optional_policy() -
     assert_metavar_option_documented(start_help, "-i", "--idle-timeout", "DURATION")
     assert_metavar_option_documented(start_help, "-r", "--reason", "TEXT")
     assert_metavar_option_documented(start_help, "-t", "--timeout", "DURATION")
+    assert_metavar_option_documented(start_help, "-w", "--weight", "W")
     assert_metavar_option_documented(start_help, "-n", "--next", "TEXT")
     assert_metavar_option_documented(start_help, "-m", "--model", "MODEL")
     assert "Requires -n/--next" in start_help
@@ -132,6 +133,14 @@ def test_monitor_start_parses_without_optional_policy_flags() -> None:
     assert args.monitor_command is None
     assert args.model is None
     assert args.next is None
+    assert args.weight is None
+
+
+def test_monitor_start_parses_weight_as_text() -> None:
+    """The handler owns numeric errors so the option stays a string."""
+    args = create_parser().parse_args(["monitor", "start", "-w", "0"])
+
+    assert args.weight == "0"
 
 
 def test_monitor_stop_id_is_optional() -> None:
@@ -209,6 +218,7 @@ def test_monitor_short_options_have_the_documented_long_aliases() -> None:
         ("-S", "--stop-status"),
         ("-T", "--tail-lines"),
         ("-t", "--timeout"),
+        ("-w", "--weight"),
     ):
         assert (
             start_parser._option_string_actions[short]

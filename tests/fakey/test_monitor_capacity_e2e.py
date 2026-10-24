@@ -25,7 +25,6 @@ import sase.monitor.followup as monitor_followup_module
 from sase.monitor.continuation_delivery import adopt_ordinary_continuation_delivery
 from sase.monitor.start import StartMonitorRequest, start_monitor
 import sase.procs.spawn as spawn_module
-from sase.procs.runtime import proc_started_path, write_json_atomic
 from sase.procs.settlement import settle_named_proc
 from sase.macro.directives import extract_prompt_directives
 
@@ -33,6 +32,7 @@ from tests.fakey._runner_slot_harness import (
     _Agent,
     _RunnerSlotFakeyHarness,
 )
+from tests.fakey._monitor_capacity_helpers import make_bootstrap_popen
 from tests.monitor._fixtures import (
     patch_project_records,
     wait_for_done,
@@ -40,60 +40,6 @@ from tests.monitor._fixtures import (
 )
 
 _MONITOR_PROJECT = "fakey-slots"
-
-
-class _FakeSupervisorPid:
-    """Stand in for the real detached-supervisor OS process.
-
-    ``start_monitor``'s own weighted admission (the part this test cares
-    about) completes before this bootstrap Popen call is ever reached, so
-    acknowledging it immediately -- without actually running a supervisor --
-    does not shortcut anything this test verifies. Settlement itself is
-    driven for real afterward, through ``settle_named_proc``.
-
-    Reports a real, currently-live (but otherwise unrelated) PID -- not the
-    test process's own PID, which the real submit path rejects as a bug, and
-    not a made-up number, which the weighted-capacity liveness check would
-    correctly treat as an orphaned claim and let a competitor reclaim.
-    """
-
-    def __init__(self, pid: int) -> None:
-        self.pid = pid
-
-    def poll(self) -> int:
-        return 0
-
-    def wait(self, timeout: float | None = None) -> int:
-        del timeout
-        return 0
-
-
-_REAL_POPEN = subprocess.Popen
-
-
-def _make_bootstrap_popen(supervisor_pid: int):  # noqa: ANN201
-    """Return a Popen fake reporting *supervisor_pid* for the proc bootstrap.
-
-    ``spawn_module.subprocess`` is the process-wide ``subprocess`` module, so
-    patching its ``Popen`` also intercepts unrelated calls this test does not
-    own (workspace resolution shells out to real ``git``); those must still
-    run for real.
-    """
-
-    def _fake_bootstrap_popen(*args: object, **kwargs: object) -> object:
-        argv = args[0] if args else kwargs.get("args")
-        if not isinstance(argv, list) or "--proc-id" not in argv:
-            return _REAL_POPEN(*args, **kwargs)  # type: ignore[arg-type]
-        proc_id = argv[argv.index("--proc-id") + 1]
-        pass_fds = kwargs["pass_fds"]
-        assert isinstance(pass_fds, tuple)
-        pid_fd = pass_fds[0]
-        assert isinstance(pid_fd, int)
-        os.write(pid_fd, json.dumps({"pid": supervisor_pid}).encode() + b"\n")
-        write_json_atomic(proc_started_path(proc_id), {"pid": supervisor_pid})
-        return _FakeSupervisorPid(supervisor_pid)
-
-    return _fake_bootstrap_popen
 
 
 def test_weight_two_land_agent_session_retains_one_claim_through_real_dispatch_and_delayed_child_bootstrap(
@@ -169,7 +115,7 @@ def test_weight_two_land_agent_session_retains_one_claim_through_real_dispatch_a
         [sys.executable, "-c", "import time; time.sleep(30)"]
     )
     monkeypatch.setattr(
-        spawn_module.subprocess, "Popen", _make_bootstrap_popen(dummy_supervisor.pid)
+        spawn_module.subprocess, "Popen", make_bootstrap_popen(dummy_supervisor.pid)
     )
 
     try:
@@ -339,7 +285,7 @@ def test_epic_launch_shaped_zero_weight_monitor_frees_full_capacity_for_its_work
         [sys.executable, "-c", "import time; time.sleep(30)"]
     )
     monkeypatch.setattr(
-        spawn_module.subprocess, "Popen", _make_bootstrap_popen(dummy_supervisor.pid)
+        spawn_module.subprocess, "Popen", make_bootstrap_popen(dummy_supervisor.pid)
     )
 
     try:
@@ -447,7 +393,7 @@ def _assert_weighted_monitor_failure_reclaims_without_disturbing_unrelated_owner
         [sys.executable, "-c", "import time; time.sleep(30)"]
     )
     monkeypatch.setattr(
-        spawn_module.subprocess, "Popen", _make_bootstrap_popen(dummy_supervisor.pid)
+        spawn_module.subprocess, "Popen", make_bootstrap_popen(dummy_supervisor.pid)
     )
 
     try:

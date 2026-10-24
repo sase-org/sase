@@ -113,6 +113,8 @@ and records the wait output where the follow-up can inspect it.
 - `-r/--reason` defaults to `run command`. `-t/--timeout` defaults to `1h` (bare
   seconds, or `90s` / `45m` / `2h`). Pass both when the default reason or budget would
   be misleading.
+- `-w/--weight 0` makes a pure wait (a `sleep`, CI watch, or external poll) hold no
+  runner capacity; see [Runner slots](#runner-slots). Only `0` is accepted.
 - `--idle-timeout` / `-i` is optional. It kills a command that stops producing output
   for the given duration, while still allowing intentionally quiet commands when
   omitted.
@@ -634,26 +636,34 @@ raw-tail lines.
 
 ## Runner slots
 
-A monitor is not a way to free runner capacity. The session keeps its one weighted claim
-against [`max_running_agents`](../config/agents-and-runners.md#maxrunningagents) for the
-monitor's whole lifetime, and the monitor inherits the starter's queue weight. The
-starter's runner process exits at handoff, but occupancy stays continuous: the monitor
-member counts as soon as it has a recorded supervisor pid. An ordinary follow-up carries
-that weight forward in its `%queue(...)` prefix and, as a serial session member,
+By default a monitor does not free runner capacity. The session keeps its one weighted
+claim against [`max_running_agents`](../config/agents-and-runners.md#maxrunningagents)
+for the monitor's whole lifetime, and the monitor inherits the starter's queue weight.
+The starter's runner process exits at handoff, but occupancy stays continuous: the
+monitor member counts as soon as it has a recorded supervisor pid. An ordinary follow-up
+carries that weight forward in its `%queue(...)` prefix and, as a serial session member,
 continues the session's claim. A fire-and-forget monitor (an outcome policy with no
 continuation) still holds the claim until the command settles. In-process successors
 such as `sase pipe` keep the same session's claim as well; they never become a second
 occupant.
 
-The host-owned monitor that launches an approved epic is the exception: it records an
-explicit zero queue weight and consumes no capacity, because the phase agents it
-launches claim their own. That host-set zero applies to the monitor member only:
-successors inherit the starter's weight (or the default `1.0`), never the monitor's
-zero. Only a user-authored `%q(w=0)` propagates zero weight to successors.
+Two monitors record an explicit zero queue weight and consume no capacity: the
+host-owned monitor that launches an approved epic (its phase agents claim their own),
+and an agent-authored pure wait started with `sase monitor start -w 0`. Only `0` is
+accepted because a monitor never passes through admission. The flag is refused with
+`-p verify`, `-f/--completion`, `-J/--join`, and a `sase tool run` command. Either zero
+applies to the monitor member only: successors inherit the starter's weight (or the
+default `1.0`), never the monitor's zero. Only a user-authored `%q(w=0)` propagates zero
+weight to successors.
+
+A zero-weight monitor's follow-up has no positive claim to continue. It enters admission
+at the inherited weight and parks `QUEUED` when the host is full, behind earlier waiters
+of the same priority.
 
 Holding a claim and waiting for one stay separate. Only a root or a live parallel clan
 member parks at the gate. Serial session members — the monitor and any ordinary
-follow-up included — ride the claim the session already holds. See
+follow-up included — ride the claim the session already holds, except that a follow-up
+of a zero-weight monitor queues again. See
 [Agent queued for a runner slot](../runner-slots.md).
 
 ## Related
