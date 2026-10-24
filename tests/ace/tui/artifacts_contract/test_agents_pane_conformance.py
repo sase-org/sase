@@ -1,16 +1,9 @@
-"""Inventory coverage for the Artifacts Agent pane retirement sunset flag.
-
-With ``artifacts_agent_pane_retired`` on (the default), the Agent pane is
-hidden and Stitch takes digit 1; with it off, the pane sits first on digit 1
-with Files still last on the highest digit. The parametrized sweep in
-``test_conformance.py`` covers the retired default via
-``resolve_artifacts_subtabs()``; this module pins the ordering guarantee in
-both states.
-"""
+"""Inventory coverage for the two Artifacts fixed-pane feature flags."""
 
 from __future__ import annotations
 
 from collections.abc import Iterable
+from itertools import product
 from types import SimpleNamespace
 
 import pytest
@@ -37,7 +30,10 @@ def _fixed_ids(descriptors: Iterable[ArtifactsTabDescriptor]) -> tuple[str, ...]
 def test_retired_pane_hides_agents_and_renumbers_stitch_to_1() -> None:
     artifact_tabs.reset_artifacts_subtabs_cache()
     try:
-        with override_flags(artifacts_agent_pane_retired=True):
+        with override_flags(
+            artifacts_agent_pane_retired=True,
+            artifacts_files_pane=True,
+        ):
             descriptors = resolve_artifacts_subtabs()
     finally:
         artifact_tabs.reset_artifacts_subtabs_cache()
@@ -56,7 +52,10 @@ def test_retired_pane_hides_agents_and_renumbers_stitch_to_1() -> None:
 def test_flag_off_restores_agents_pane_first_on_digit_1() -> None:
     artifact_tabs.reset_artifacts_subtabs_cache()
     try:
-        with override_flags(artifacts_agent_pane_retired=False):
+        with override_flags(
+            artifacts_agent_pane_retired=False,
+            artifacts_files_pane=True,
+        ):
             descriptors = resolve_artifacts_subtabs()
     finally:
         artifact_tabs.reset_artifacts_subtabs_cache()
@@ -87,10 +86,13 @@ def test_fast_startup_fixed_pane_order_matches_production(
         empty_provider_records,
     )
     try:
-        # Fast startup follows the production strip in both flag states.
-        for retired in (False, True):
+        # Fast startup follows production in all four combinations.
+        for retired, files_enabled in product((False, True), repeat=2):
             artifact_tabs.reset_artifacts_subtabs_cache()
-            with override_flags(artifacts_agent_pane_retired=retired):
+            with override_flags(
+                artifacts_agent_pane_retired=retired,
+                artifacts_files_pane=files_enabled,
+            ):
                 production_fixed_ids = _fixed_ids(
                     artifact_tabs.resolve_artifacts_subtabs()
                 )

@@ -138,6 +138,23 @@ class LinkFollowTargetsMixin:
                 self._follow_agent_ref_to_agents_tab(parsed[1], origin)
                 return
         target = self._resolve_link_follow_target(ref, chip_target)
+        from ..artifact_tabs import is_disabled_artifacts_pane
+
+        if is_disabled_artifacts_pane(target.pane_id) or (
+            parsed is not None
+            and parsed[0] == "file"
+            and is_disabled_artifacts_pane("files")
+        ):
+            from ._link_follow_toast import format_link_failure
+
+            record_link_follow_outcome("missing")
+            title, message, severity = format_link_failure("disabled", ref=ref)
+            self.notify(  # type: ignore[attr-defined]
+                message,
+                title=title,
+                severity=severity,
+            )
+            return
         if self._is_unconfigured_artifacts_target(target.pane_id):
             navigator = getattr(self, "_artifacts_entry_navigator", None)
             pane = navigator(target.pane_id) if callable(navigator) else None

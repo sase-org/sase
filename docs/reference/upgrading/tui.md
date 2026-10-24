@@ -117,6 +117,15 @@ off by default (`artifacts_agent_pane_retired`);
 [Tabs and panes](../tui/tabs-and-panes.md) and
 [Files and preview](../tui/files-and-preview.md).
 
+## Artifacts Files pane {#artifacts-files-pane}
+
+The Artifacts ▸ Files pane is a beta feature and is off by default. To show it, run
+`sase flag enable artifacts_files_pane` or set
+`feature_flags: {artifacts_files_pane: true}`, then restart sase's TUI. The file index
+and `sase artifact list` remain available while the pane is hidden. See
+[Tabs and panes](../tui/tabs-and-panes.md) and
+[Files and preview](../tui/files-and-preview.md#files-pane).
+
 ## Keymap moves {#keymap-moves}
 
 - `,n` is replaced by `Enter` on the Agents tab. The direct Patch jump survives as the

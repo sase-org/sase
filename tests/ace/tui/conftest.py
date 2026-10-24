@@ -10,6 +10,7 @@ from sase.ace.testing import settle as settle_helpers
 from sase.ace.tui.actions import link_follow
 from sase.ace.tui.util import shutdown
 from sase.project_display_names import ProjectRefDisplaySnapshot
+from tests._files_pane_flag import files_pane_enabled_context
 from tests.ace.tui._logs_pane_helpers import log_dir as log_dir
 
 
@@ -27,6 +28,14 @@ def _reset_link_follow_outcome_counts() -> Iterator[None]:
     yield
     link_follow._link_follow_outcomes.clear()
     link_follow._link_follow_outcomes.update(saved)
+
+
+@pytest.fixture
+def files_pane_enabled() -> Iterator[None]:
+    """Keep existing Files-pane tests on the opt-in beta branch."""
+
+    with files_pane_enabled_context():
+        yield
 
 
 @pytest.fixture(autouse=True)

@@ -20,6 +20,7 @@ from tests.ace.tui._copy_as_palette_helpers import controlled_artifact_pane
 async def test_percent_opens_palette_for_each_live_artifacts_subtab(
     subtab: Literal["stitches", "beads", "ref:plan", "files"],
     monkeypatch: pytest.MonkeyPatch,
+    files_pane_enabled: None,
 ) -> None:
     pane = controlled_artifact_pane(subtab)
     async with AcePage() as page:

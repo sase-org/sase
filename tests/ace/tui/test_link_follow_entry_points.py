@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import pytest
+
+
+from pathlib import Path
 
 from sase.ace.tui.actions.navigation._tree import TreeNavigationMixin
 from sase.ace.tui.models.fold_state import FoldStateManager
@@ -681,3 +682,6 @@ def test_matrix_chop_via_links_panel_with_trail_and_back() -> None:
     # mirroring the pending-selection path).
     app.collapse_lumberjack_after_link_trail("lj")
     assert app._axe_fold_manager.get("lumberjack:lj").name == "COLLAPSED"
+
+
+pytestmark = pytest.mark.usefixtures("files_pane_enabled")

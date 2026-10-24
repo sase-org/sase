@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pytest
 
+
 from sase.ace.testing import AcePage
 from sase.ace.tui.widgets.artifacts import files_pane
 from sase.ace.tui.widgets.artifacts.entry_navigation import ArtifactEntryTarget
@@ -127,3 +128,6 @@ async def test_fold_state_is_kept_per_mode_across_cycling(
         assert mode is not None
         assert mode.id == "by_kind"
         assert len(pane.entry_targets()) == collapsed_count
+
+
+pytestmark = pytest.mark.usefixtures("files_pane_enabled")

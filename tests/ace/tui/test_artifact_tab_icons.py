@@ -11,7 +11,7 @@ from rich.cells import cell_len
 from sase.ace.tui import _artifact_tab_descriptors
 from sase.ace.tui._artifact_tab_descriptors import (
     _sanitize_tab_icon,
-    fixed_descriptor,
+    _fixed_descriptor,
     provider_descriptors,
 )
 from sase.ace.tui._artifact_tab_model import ProjectProviderRecord
@@ -22,7 +22,7 @@ from sase.sidecar_ref_config import SidecarRefPolicy
 
 def test_fixed_artifact_pane_descriptors_carry_builtin_icons() -> None:
     assert {
-        subtab: fixed_descriptor(subtab).icon for subtab in ARTIFACTS_ICONS
+        subtab: _fixed_descriptor(subtab).icon for subtab in ARTIFACTS_ICONS
     } == ARTIFACTS_ICONS
 
 

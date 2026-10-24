@@ -6,7 +6,7 @@ from pathlib import Path
 
 from sase.ace.tui._artifact_tab_descriptors import (
     _provider_label,
-    fixed_descriptor,
+    _fixed_descriptor,
     provider_descriptors,
 )
 from sase.ace.tui._artifact_tab_model import (
@@ -16,7 +16,9 @@ from sase.ace.tui._artifact_tab_model import (
     provider_item_noun,
 )
 from sase.ace.tui.artifact_tabs import FIXED_ARTIFACTS_SUBTAB_ORDER
+from sase.ace.tui import artifact_tabs
 from sase.ace.tui.commands.catalog import _iter_artifacts_subtab_commands
+from sase.feature_flags import override_flags
 from sase.artifact_providers import builtin_plan_ref_provider_spec
 from sase.artifact_providers._validation import validate_ref_provider_spec
 from sase.sidecar_ref_config import SidecarRefPolicy
@@ -40,11 +42,11 @@ _EXPECTED_FIXED_ITEM_NOUNS = {
 
 def test_fixed_artifact_collection_labels_and_item_nouns() -> None:
     labels = {
-        subtab: fixed_descriptor(subtab).label
+        subtab: _fixed_descriptor(subtab).label
         for subtab in FIXED_ARTIFACTS_SUBTAB_ORDER
     }
     item_nouns = {
-        subtab: fixed_descriptor(subtab).item_noun
+        subtab: _fixed_descriptor(subtab).item_noun
         for subtab in FIXED_ARTIFACTS_SUBTAB_ORDER
     }
 
@@ -145,7 +147,14 @@ def test_unlabeled_research_provider_keeps_collection_and_item_nouns_distinct() 
 
 
 def test_artifact_palette_aliases_include_collection_and_item_names() -> None:
-    commands = {command.id: command for command in _iter_artifacts_subtab_commands()}
+    artifact_tabs.reset_artifacts_subtabs_cache()
+    try:
+        with override_flags(artifacts_files_pane=True):
+            commands = {
+                command.id: command for command in _iter_artifacts_subtab_commands()
+            }
+    finally:
+        artifact_tabs.reset_artifacts_subtabs_cache()
 
     stitches = commands["artifacts.stitches"]
     patches = commands["artifacts.patches"]
@@ -160,3 +169,14 @@ def test_artifact_palette_aliases_include_collection_and_item_names() -> None:
     assert {"patch", "prs"}.issubset(patches.aliases)
     assert {"artifact Beads", "artifact Bead", "bugs", "issues"}.issubset(beads.aliases)
     assert {"artifact Files", "artifact File", "file"}.issubset(files.aliases)
+
+
+def test_artifact_palette_hides_files_command_by_default() -> None:
+    artifact_tabs.reset_artifacts_subtabs_cache()
+    try:
+        with override_flags(artifacts_files_pane=False):
+            commands = {command.id for command in _iter_artifacts_subtab_commands()}
+    finally:
+        artifact_tabs.reset_artifacts_subtabs_cache()
+
+    assert "artifacts.files" not in commands

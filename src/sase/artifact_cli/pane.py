@@ -26,6 +26,7 @@ from sase.ace.tui._artifact_tab_descriptions import (
     sanitize_description,
 )
 from sase.ace.tui._artifact_tab_model import (
+    ARTIFACTS_FILES_PANE_DISABLED_HINT,
     ArtifactsPaneContract,
     PaneGroupingModeDecl,
     PaneCapability,
@@ -54,6 +55,19 @@ def handle_pane(args: argparse.Namespace) -> int:
 def _handle_show(args: argparse.Namespace) -> int:
     reset_artifacts_subtabs_cache()
     pane_id = str(getattr(args, "pane_id", "") or "")
+    if pane_id == "files":
+        from sase.ace.tui._artifact_tab_model import artifacts_files_pane_enabled
+
+        if not artifacts_files_pane_enabled():
+            payload = _disabled_files_payload()
+            if bool(getattr(args, "json", False)):
+                json.dump(payload, sys.stdout, indent=2)
+                sys.stdout.write("\n")
+                return 0
+            console = Console()
+            console.print("[bold]Artifacts ▸ Files beta pane is disabled[/]")
+            console.print(ARTIFACTS_FILES_PANE_DISABLED_HINT)
+            return 0
     if pane_id == "agents":
         from sase.ace.tui._artifact_tab_model import artifacts_agent_pane_retired
 
@@ -103,6 +117,19 @@ def _retired_agents_payload() -> dict[str, object]:
             "Press ,a on the Agents tab to open the Archive: dismissed runs "
             "open read-only in the real decks, and Enter restores one to the Inbox."
         ),
+    }
+
+
+def _disabled_files_payload() -> dict[str, object]:
+    """Explain the opt-in beta Files pane in ``pane show -j`` JSON shape."""
+
+    return {
+        "schema_version": PANE_SHOW_SCHEMA_VERSION,
+        "pane": "files",
+        "disabled": True,
+        "feature_flag": "artifacts_files_pane",
+        "summary": "Artifacts ▸ Files is a beta pane that is off by default.",
+        "hint": ARTIFACTS_FILES_PANE_DISABLED_HINT,
     }
 
 

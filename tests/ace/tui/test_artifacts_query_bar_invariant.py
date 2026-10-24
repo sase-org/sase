@@ -9,8 +9,8 @@ from textual.widgets import Static
 
 from sase.ace.testing import AcePage
 from sase.ace.tui._artifact_tab_descriptors import (
-    assign_artifacts_digit_shortcuts,
-    fixed_descriptor,
+    _assign_artifacts_digit_shortcuts,
+    _fixed_descriptor,
     provider_descriptors,
 )
 from sase.ace.tui._artifact_tab_model import PaneCapability, ProviderDiscoveryIssue
@@ -71,9 +71,9 @@ async def test_degraded_resolved_subtab_mounts_no_query_bar(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A contract-failed provider pane has FILTER_SESSION off and no bar."""
-    descriptors = assign_artifacts_digit_shortcuts(
+    descriptors = _assign_artifacts_digit_shortcuts(
         (
-            fixed_descriptor("stitches"),
+            _fixed_descriptor("stitches"),
             *provider_descriptors(
                 (),
                 (

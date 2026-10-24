@@ -9,6 +9,7 @@ share ``E``. Bang-mode ``!o`` still owns ``mark_pr_origin``.
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from types import SimpleNamespace
 
 import pytest
@@ -17,6 +18,13 @@ from sase.ace.tui._app_action_availability import check_app_action
 from sase.ace.tui.artifact_tabs import artifacts_pane_contract
 from sase.ace.tui.keymaps import build_app_bindings, load_keymap_registry
 from sase.ace.tui.tab_order import ARTIFACTS_TAB
+from tests._files_pane_flag import files_pane_enabled_context
+
+
+@pytest.fixture
+def files_pane_enabled() -> Iterator[None]:
+    with files_pane_enabled_context():
+        yield
 
 
 def test_unbound_app_command_has_no_key_display() -> None:
@@ -112,7 +120,12 @@ def test_agents_tab_o_reaches_picker_not_grouping_cycle() -> None:
         ("ref:plan", "E", []),
     ],
 )
-def test_pane_key_resolution(pane: str, key: str, expected: list[str]) -> None:
+def test_pane_key_resolution(
+    pane: str,
+    key: str,
+    expected: list[str],
+    files_pane_enabled: None,
+) -> None:
     actions = [
         binding.action
         for binding in build_app_bindings(load_keymap_registry({}).app)

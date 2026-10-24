@@ -8,6 +8,7 @@ from typing import Any
 
 import pytest
 
+
 from sase.ace.config import get_ace_page_size
 from sase.ace.query.limit_token import ensure_limit
 from sase.ace.query.project_scope import has_project_scope
@@ -602,3 +603,6 @@ async def test_ensure_reapplies_seeded_display_name_to_files_pane(
 
         assert pane._project_display_name == "Alpha"
         assert pane.project_scope == "alpha"
+
+
+pytestmark = pytest.mark.usefixtures("files_pane_enabled")

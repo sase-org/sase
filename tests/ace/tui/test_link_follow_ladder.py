@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import pytest
+
+
 from typing import Any
 
 from sase.ace.query_history import QueryHistoryStacks
@@ -312,3 +315,6 @@ def test_follow_closes_open_filter_session_and_records_one_rewrite() -> None:
         "kind:log limit:40"
     ]
     assert pane.selected_entry_target() == target
+
+
+pytestmark = pytest.mark.usefixtures("files_pane_enabled")

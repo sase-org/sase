@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
+
 from textual.geometry import Region
 from textual.widgets import OptionList, Static
 
@@ -420,3 +421,6 @@ async def test_agents_implements_next_prev_navigation(
         assert pane.selected_entry_target() == targets[2]
         await page.press("k")
         assert pane.selected_entry_target() == targets[1]
+
+
+pytestmark = pytest.mark.usefixtures("files_pane_enabled")

@@ -19,6 +19,7 @@ from sase.ace.tui.actions._link_follow_toast import (
     format_link_failure,
     format_reveal_toast,
 )
+from sase.ace.tui._artifact_tab_model import ARTIFACTS_FILES_PANE_DISABLED_HINT
 from sase.ace.tui.actions._link_follow_transaction import LinkFollowTransactionMixin
 from sase.core.artifact_entry_target import ArtifactEntryTarget
 from sase.ace.tui.keymaps.display import key_display_name
@@ -60,6 +61,15 @@ def test_user_scenario_toast_matches_design() -> None:
     plain = _assert_valid_markup(message)
     assert "id:sase-16n.* limit:100" in plain
     assert "epic sase-16n · ^ restore · Ctrl+O back" in plain
+
+
+def test_disabled_beta_pane_failure_uses_the_shared_hint() -> None:
+    title, message, severity = format_link_failure("disabled", ref="file:notes.md")
+
+    assert title == "Cannot follow notes.md"
+    assert message == ARTIFACTS_FILES_PANE_DISABLED_HINT
+    assert severity == "warning"
+    assert _assert_valid_markup(message) == message
 
 
 def test_boolean_hidden_reason_says_hidden_by_your_query() -> None:

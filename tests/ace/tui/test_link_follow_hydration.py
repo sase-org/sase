@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import pytest
+
+
 import asyncio
 from threading import Event
 
@@ -318,3 +321,6 @@ def test_dangling_ref_never_attempts_hydration() -> None:
         ("No pane resolves bug:missing; the link may be stale or mistyped.", "warning")
     ]
     assert app.notification_details[0][2] == "No such artifact: missing"
+
+
+pytestmark = pytest.mark.usefixtures("files_pane_enabled")

@@ -35,7 +35,7 @@ REVEAL_TOAST_TIMEOUT = 8.0
 #: Shown when the scope was or is the spec-wide "all projects" scope.
 ALL_PROJECTS_LABEL = "All projects"
 
-LinkFailureKind = Literal["dangling", "load", "unconfigured", "missing"]
+LinkFailureKind = Literal["dangling", "disabled", "load", "unconfigured", "missing"]
 
 
 def _scope_display_name(scope: str | None, names: Mapping[str, str]) -> str:
@@ -133,14 +133,22 @@ def format_link_failure(
     """Return the ``(title, message, severity)`` triple for a failed jump.
 
     Every case names the artifact in the title and carries exactly one
-    reason line: a dangling ref, a pane load failure, an unconfigured pane,
-    or a target genuinely outside the pane's inventory.
+    reason line: a dangling ref, a disabled beta pane, a pane load failure,
+    an unconfigured pane, or a target genuinely outside the pane's inventory.
     """
     short = short_ref_label(ref)
     if kind == "dangling":
         return (
             f"No such artifact: {short}",
             f"No pane resolves {escape(ref)}; the link may be stale or mistyped.",
+            "warning",
+        )
+    if kind == "disabled":
+        from .._artifact_tab_model import ARTIFACTS_FILES_PANE_DISABLED_HINT
+
+        return (
+            f"Cannot follow {short}",
+            ARTIFACTS_FILES_PANE_DISABLED_HINT,
             "warning",
         )
     if kind == "load":

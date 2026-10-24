@@ -2,12 +2,23 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
+
+import pytest
+
 from sase.ace.patch import CommitEntry
 from sase.ace.tui.commands import CommandContext, is_command_available
 from tests._command_availability_helpers import (
     catalog_by_id as _catalog_by_id,
     make_patch as _make_patch,
 )
+from tests._files_pane_flag import files_pane_enabled_context
+
+
+@pytest.fixture
+def files_pane_enabled() -> Iterator[None]:
+    with files_pane_enabled_context():
+        yield
 
 
 def test_beads_issue_commands_only_available_on_beads_subtab() -> None:
@@ -101,7 +112,9 @@ def test_artifacts_copy_commands_follow_the_active_subtab() -> None:
     )
 
 
-def test_saved_query_picker_and_slots_follow_query_pane_capability() -> None:
+def test_saved_query_picker_and_slots_follow_query_pane_capability(
+    files_pane_enabled: None,
+) -> None:
     catalog = _catalog_by_id()
     picker = catalog["app.open_saved_query_picker"]
     slot = catalog["saved_query.3"]
@@ -131,7 +144,9 @@ def test_saved_query_picker_and_slots_follow_query_pane_capability() -> None:
         assert not is_command_available(spec, CommandContext(tab="axe"))
 
 
-def test_saved_query_slot_mode_command_follows_query_pane_capability() -> None:
+def test_saved_query_slot_mode_command_follows_query_pane_capability(
+    files_pane_enabled: None,
+) -> None:
     """The palette entry mirrors the chooser's pane capability scoping."""
     catalog = _catalog_by_id()
     spec = catalog["app.start_saved_query_mode"]

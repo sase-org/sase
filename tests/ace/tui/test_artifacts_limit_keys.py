@@ -7,6 +7,7 @@ from types import SimpleNamespace
 
 import pytest
 
+
 from sase.ace.query.limit_token import extract_limit
 from sase.ace.testing import AcePage
 from sase.ace.tui._app_action_availability import check_app_action
@@ -239,3 +240,6 @@ async def test_agents_tab_ctrl_j_does_not_rewrite_artifacts_query() -> None:
         assert page.app.query_string == original
         assert not _available(page.app, "artifacts_load_more")
         assert _available(page.app, "next_deck_card")
+
+
+pytestmark = pytest.mark.usefixtures("files_pane_enabled")

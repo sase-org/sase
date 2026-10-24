@@ -6,6 +6,7 @@ from types import SimpleNamespace
 
 import pytest
 
+
 from sase.ace.testing import AcePage
 from sase.ace.tui.actions._link_follow_targets import LinkFollowTargetsMixin
 from sase.ace.tui.models._agent_tree import agent_fold_key
@@ -470,3 +471,6 @@ def test_filtered_agent_in_collapsed_fold_expands_on_reveal() -> None:
     assert app.notifications == [
         'The inbox filter hid it — showing name:"member-1" · ^ restores your filter'
     ]
+
+
+pytestmark = pytest.mark.usefixtures("files_pane_enabled")

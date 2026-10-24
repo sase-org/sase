@@ -5,6 +5,7 @@ from __future__ import annotations
 from threading import Event
 
 import pytest
+
 from textual.widgets import OptionList, Static
 
 from sase.ace.testing import AcePage
@@ -382,3 +383,6 @@ async def test_cursor_survives_refresh_and_jk_has_no_highlight_echoes(
         pane.clear_entry_jump_hints()
         pane.apply_entry_marks({selected})
         assert pane.selected_entry_target() == selected
+
+
+pytestmark = pytest.mark.usefixtures("files_pane_enabled")

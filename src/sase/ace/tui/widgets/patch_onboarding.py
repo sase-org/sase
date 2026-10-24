@@ -138,8 +138,21 @@ class PatchOnboarding(VerticalScroll):
             style="bold #FFFFFF",
         )
         text.append("  *\n", style="bold #FFD700")
+        descriptors = resolve_artifacts_subtabs()
+        descriptor_ids = {descriptor.id for descriptor in descriptors}
+        browse_items = ["commits", "patches", "beads"]
+        if "agents" in descriptor_ids:
+            browse_items.append("agents")
+        if any(descriptor_id.startswith("ref:") for descriptor_id in descriptor_ids):
+            browse_items.append("document providers")
+        if "files" in descriptor_ids:
+            browse_items.append("files")
+        if len(browse_items) > 1:
+            browse_text = ", ".join(browse_items[:-1]) + f", and {browse_items[-1]}"
+        else:
+            browse_text = browse_items[0]
         text.append(
-            "Browse commits, patches, beads, agents, document providers, and files in Artifacts",
+            f"Browse {browse_text} in Artifacts",
             style=f"dim {_ACCENT}",
         )
         return text

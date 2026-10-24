@@ -30,12 +30,15 @@ unknown keys at runtime.
 
 `beta` flags default off and gate work that is still landing; `sunset` flags default on
 and keep a fallback path reachable until the flag is removed. The schema marks sunset
-flags deprecated. One sunset flag is currently registered:
-`artifacts_agent_pane_retired` (default on) hides the Artifacts ▸ Agent sub-tab and
-moves agent history to the Agents tab Archive (`,a`). To opt out and restore the pane,
-run `sase flag disable artifacts_agent_pane_retired` or set
-`feature_flags: {artifacts_agent_pane_retired: false}` in configuration. Apart from that
-flag, the typed sudo request workflow (`sase sudo`) and its review modal are always
+flags deprecated. TUI pane flags currently include `artifacts_agent_pane_retired`
+(sunset, default on), which hides the Artifacts ▸ Agent sub-tab and moves agent history
+to the Agents tab Archive (`,a`), and `artifacts_files_pane` (beta, default off), which
+controls the Artifacts ▸ Files pane. To restore the Agent pane, run
+`sase flag disable artifacts_agent_pane_retired` or set
+`feature_flags: {artifacts_agent_pane_retired: false}` in configuration. To show Files,
+run `sase flag enable artifacts_files_pane` or set
+`feature_flags: {artifacts_files_pane: true}`, then restart sase's TUI. Apart from those
+flags, the typed sudo request workflow (`sase sudo`) and its review modal are always
 available, only `agent_meta.autonomy` carries `%auto` state, and a hard provider disable
 relaunches stranded agents through `sase agent drain` (see `llm_provider.usage_limit`
 and Launch Control's automatic provider drain in

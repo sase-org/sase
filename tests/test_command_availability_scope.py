@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from types import SimpleNamespace
+
+import pytest
 
 from sase.ace.tui.commands import (
     CommandContext,
@@ -11,6 +14,13 @@ from sase.ace.tui.commands import (
 )
 from sase.ace.tui.keymaps import load_keymap_registry
 from tests._command_availability_helpers import catalog_by_id as _catalog_by_id
+from tests._files_pane_flag import files_pane_enabled_context
+
+
+@pytest.fixture
+def files_pane_enabled() -> Iterator[None]:
+    with files_pane_enabled_context():
+        yield
 
 
 def test_catalog_has_one_cleanup_command_and_no_legacy_kill_all() -> None:
@@ -208,7 +218,9 @@ def test_pick_deck_palette_entry_is_agents_only() -> None:
     assert not is_command_available(last_other, CommandContext(tab="axe"))
 
 
-def test_grouping_cycle_palette_commands_follow_grouping_capability() -> None:
+def test_grouping_cycle_palette_commands_follow_grouping_capability(
+    files_pane_enabled: None,
+) -> None:
     catalog = _catalog_by_id()
     chooser = catalog["app.choose_agent_grouping"]
     panel_layout = catalog["agents.toggle_panel_grouping"]

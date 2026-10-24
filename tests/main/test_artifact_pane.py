@@ -7,12 +7,16 @@ from types import SimpleNamespace
 
 from sase.ace.tui._artifact_link_contract import ARTIFACT_LINK_RELATIONS
 from sase.ace.tui._artifact_tab_descriptors import (
-    assign_artifacts_digit_shortcuts,
-    fixed_descriptor,
+    _assign_artifacts_digit_shortcuts,
+    _fixed_descriptor,
 )
-from sase.ace.tui._artifact_tab_model import PaneCapability
+from sase.ace.tui._artifact_tab_model import (
+    ARTIFACTS_FILES_PANE_DISABLED_HINT,
+    PaneCapability,
+)
 from sase.artifact_cli.pane import handle_pane
 from sase.main.parser import create_parser
+from sase.feature_flags import override_flags
 
 
 def _artifact_link_relation_names() -> list[str]:
@@ -31,13 +35,13 @@ def test_pane_show_json_explains_verdicts(
     monkeypatch,
     capsys,
 ) -> None:
-    descriptors = assign_artifacts_digit_shortcuts(
+    descriptors = _assign_artifacts_digit_shortcuts(
         (
-            fixed_descriptor("agents"),
-            fixed_descriptor("stitches"),
-            fixed_descriptor("patches"),
-            fixed_descriptor("beads"),
-            fixed_descriptor("files"),
+            _fixed_descriptor("agents"),
+            _fixed_descriptor("stitches"),
+            _fixed_descriptor("patches"),
+            _fixed_descriptor("beads"),
+            _fixed_descriptor("files"),
         )
     )
     monkeypatch.setattr(
@@ -91,7 +95,7 @@ def test_pane_show_json_explains_verdicts(
 
 
 def test_pane_show_text_prints_description(monkeypatch, capsys) -> None:
-    descriptor = fixed_descriptor("stitches")
+    descriptor = _fixed_descriptor("stitches")
     monkeypatch.setattr(
         "sase.artifact_cli.pane.artifacts_pane_contract",
         lambda pane_id: descriptor.contract if pane_id == descriptor.id else None,
@@ -123,3 +127,42 @@ def test_pane_show_unknown_id_lists_configured(monkeypatch, capsys) -> None:
     assert "unknown Artifacts pane 'missing'" in err
     assert "beads" in err
     assert "stitches" in err
+
+
+def test_pane_show_files_reports_disabled_beta_in_text_and_json(capsys) -> None:
+    with override_flags(artifacts_files_pane=False):
+        text_code = handle_pane(
+            SimpleNamespace(pane_subcommand="show", pane_id="files", json=False)
+        )
+        text = capsys.readouterr().out
+        json_code = handle_pane(
+            SimpleNamespace(pane_subcommand="show", pane_id="files", json=True)
+        )
+        payload = json.loads(capsys.readouterr().out)
+
+    assert text_code == json_code == 0
+    assert "Artifacts ▸ Files beta pane is disabled" in text
+    assert " ".join(ARTIFACTS_FILES_PANE_DISABLED_HINT.split()) in " ".join(
+        text.split()
+    )
+    assert payload == {
+        "schema_version": 3,
+        "pane": "files",
+        "disabled": True,
+        "feature_flag": "artifacts_files_pane",
+        "summary": "Artifacts ▸ Files is a beta pane that is off by default.",
+        "hint": ARTIFACTS_FILES_PANE_DISABLED_HINT,
+    }
+
+
+def test_pane_show_files_keeps_normal_contract_when_enabled(capsys) -> None:
+    with override_flags(artifacts_files_pane=True):
+        code = handle_pane(
+            SimpleNamespace(pane_subcommand="show", pane_id="files", json=True)
+        )
+        payload = json.loads(capsys.readouterr().out)
+
+    assert code == 0
+    assert payload["schema_version"] == 3
+    assert payload["id"] == "files"
+    assert "disabled" not in payload

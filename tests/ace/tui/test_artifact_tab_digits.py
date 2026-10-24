@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from sase.ace.tui._artifact_tab_descriptors import assign_artifacts_digit_shortcuts
+from sase.ace.tui._artifact_tab_descriptors import _assign_artifacts_digit_shortcuts
 from sase.ace.tui.artifact_tabs import ArtifactsTabDescriptor
 
 
@@ -19,7 +19,7 @@ def _descriptor(id_: str, *, is_provider: bool = False) -> ArtifactsTabDescripto
 
 
 def test_fixed_only_strip_numbers_one_through_five() -> None:
-    descriptors = assign_artifacts_digit_shortcuts(
+    descriptors = _assign_artifacts_digit_shortcuts(
         (
             _descriptor("agents"),
             _descriptor("stitches"),
@@ -38,7 +38,7 @@ def test_fixed_only_strip_numbers_one_through_five() -> None:
 
 
 def test_two_providers_push_files_to_six() -> None:
-    descriptors = assign_artifacts_digit_shortcuts(
+    descriptors = _assign_artifacts_digit_shortcuts(
         (
             _descriptor("agents"),
             _descriptor("stitches"),
@@ -73,7 +73,7 @@ def test_digit_assignment_invariants_hold_for_provider_counts(
         _descriptor(f"ref:provider{index}", is_provider=True)
         for index in range(provider_count)
     ]
-    descriptors = assign_artifacts_digit_shortcuts(
+    descriptors = _assign_artifacts_digit_shortcuts(
         (
             _descriptor("agents"),
             _descriptor("stitches"),
@@ -101,7 +101,7 @@ def test_overflow_at_ten_panes_files_still_gets_ninth_digit() -> None:
     providers = [
         _descriptor(f"ref:provider{index}", is_provider=True) for index in range(5)
     ]
-    descriptors = assign_artifacts_digit_shortcuts(
+    descriptors = _assign_artifacts_digit_shortcuts(
         (
             _descriptor("agents"),
             _descriptor("stitches"),

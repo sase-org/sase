@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import pytest
+
+
 from dataclasses import dataclass
 
-import pytest
 
 from sase.ace.tui.actions.link_follow import LinkFollowMixin, LinkTrailHop
 from sase.ace.tui.actions.link_trail import LinkTrailMixin, link_trail_breadcrumb_text
@@ -621,3 +623,6 @@ def test_successful_agents_link_trail_restore_lands_on_agents() -> None:
     assert app.current_tab == "agents"
     assert app.current_idx == 0
     assert app._agents_last_identity == agent.identity
+
+
+pytestmark = pytest.mark.usefixtures("files_pane_enabled")

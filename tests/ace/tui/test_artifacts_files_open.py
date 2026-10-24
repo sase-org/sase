@@ -11,6 +11,7 @@ from typing import Any
 
 import pytest
 
+
 from sase.ace.tui.actions.artifacts_files import ArtifactsFilesActionsMixin
 from sase.ace.tui.graphics._viewer_types import ArtifactViewMode
 from sase.feature_flags import override_flags
@@ -375,3 +376,6 @@ def test_files_open_actions_warn_on_empty_selection(action: str) -> None:
     getattr(app, action)()
 
     assert app.notifications == [("No artifact file selected", "warning")]
+
+
+pytestmark = pytest.mark.usefixtures("files_pane_enabled")

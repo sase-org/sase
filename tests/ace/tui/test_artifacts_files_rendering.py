@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import pytest
+
+
 from rich.console import Console
 
 from sase.ace.tui._artifact_tab_model import PaneGroupingModeDecl
@@ -133,3 +136,6 @@ def test_info_uses_precomputed_kind_and_explicit_counts() -> None:
     assert "• 1 files" in info.plain
     assert "C 1" in info.plain
     assert "A 4" in info.plain
+
+
+pytestmark = pytest.mark.usefixtures("files_pane_enabled")

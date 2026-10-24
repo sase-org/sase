@@ -7,8 +7,8 @@ from pathlib import Path
 import pytest
 
 from sase.ace.tui._artifact_tab_descriptors import (
-    assign_artifacts_digit_shortcuts,
-    fixed_descriptor,
+    _assign_artifacts_digit_shortcuts,
+    _fixed_descriptor,
     provider_descriptors,
 )
 from sase.ace.tui._artifact_tab_model import (
@@ -87,13 +87,13 @@ def test_degraded_descriptor_satisfies_every_conformance_check() -> None:
 
 
 def test_digit_assignment_synchronizes_contract() -> None:
-    descriptors = assign_artifacts_digit_shortcuts(
+    descriptors = _assign_artifacts_digit_shortcuts(
         (
-            fixed_descriptor("agents"),
-            fixed_descriptor("stitches"),
-            fixed_descriptor("patches"),
-            fixed_descriptor("beads"),
-            fixed_descriptor("files"),
+            _fixed_descriptor("agents"),
+            _fixed_descriptor("stitches"),
+            _fixed_descriptor("patches"),
+            _fixed_descriptor("beads"),
+            _fixed_descriptor("files"),
         )
     )
     for index, descriptor in enumerate(descriptors):
@@ -105,7 +105,7 @@ def test_digit_assignment_synchronizes_contract() -> None:
 
 
 def test_fixed_descriptor_is_memoized() -> None:
-    assert fixed_descriptor("agents") is fixed_descriptor("agents")
+    assert _fixed_descriptor("agents") is _fixed_descriptor("agents")
 
 
 def test_exact_lookup_does_not_normalize_unknown_ids(
@@ -114,13 +114,13 @@ def test_exact_lookup_does_not_normalize_unknown_ids(
     reset_artifacts_subtabs_cache()
     monkeypatch.setattr(
         "sase.ace.tui.artifact_tabs.resolve_artifacts_subtabs",
-        lambda: assign_artifacts_digit_shortcuts(
+        lambda: _assign_artifacts_digit_shortcuts(
             (
-                fixed_descriptor("agents"),
-                fixed_descriptor("stitches"),
-                fixed_descriptor("patches"),
-                fixed_descriptor("beads"),
-                fixed_descriptor("files"),
+                _fixed_descriptor("agents"),
+                _fixed_descriptor("stitches"),
+                _fixed_descriptor("patches"),
+                _fixed_descriptor("beads"),
+                _fixed_descriptor("files"),
             )
         ),
     )

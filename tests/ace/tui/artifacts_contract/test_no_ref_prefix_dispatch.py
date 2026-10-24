@@ -15,6 +15,8 @@ _ALLOWLIST = {
     TUI_ROOT / "_artifact_tab_contract.py",
     TUI_ROOT / "_artifact_tab_descriptors.py",
     TUI_ROOT / "artifact_tabs.py",
+    # Checks document-provider descriptor ids to render onboarding copy, not dispatch.
+    TUI_ROOT / "widgets" / "patch_onboarding.py",
     TUI_ROOT / "widgets" / "artifacts" / "entry_navigation.py",
     TUI_ROOT / "widgets" / "artifacts" / "plans_list.py",
     TUI_ROOT / "widgets" / "artifacts" / "plans_pane.py",

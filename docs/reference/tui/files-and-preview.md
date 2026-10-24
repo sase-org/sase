@@ -147,11 +147,16 @@ viewer. `y`, `/`, and `o` warn instead of acting on image previews.
 ## Files Pane
 
 Files browses the artifact-file index that backs
-[`sase artifact list`](../cli/artifact.md#sase-artifact-list). The pane is one of the four
-fixed Artifacts views: Commits, Patches, Beads, and Files. The Agent pane is off by
-default (`artifacts_agent_pane_retired`) and shows only with the opt-out. See
-[TUI migration notes](../upgrading/tui.md#artifacts-agent-pane). Configured document-provider panes appear between Beads and Files in the
-runtime tab strip. Rows are grouped by logical file identity, so repeated captures of
+[`sase artifact list`](../cli/artifact.md#sase-artifact-list). It is a beta pane, off by
+default. Enable it with `sase flag enable artifacts_files_pane` or
+`feature_flags: {artifacts_files_pane: true}`, then restart sase's TUI. While it is
+hidden, following a `file:` link shows an enablement hint instead of opening the pane;
+[`sase artifact list`](../cli/artifact.md#sase-artifact-list) still covers the same
+index. See [TUI migration notes](../upgrading/tui.md#artifacts-files-pane). The Agent
+pane is also off by default (`artifacts_agent_pane_retired`) and shows only with the
+opt-out. See [its migration notes](../upgrading/tui.md#artifacts-agent-pane).
+Configured document-provider panes appear between Beads and Files when Files is enabled.
+Rows are grouped by logical file identity, so repeated captures of
 `@file:~/bob/gtd.md` or repeated `sase artifact create` rows for the same logical
 artifact appear as one selectable row with versions.
 

@@ -18,7 +18,7 @@ expansion, tabstops, list indent) and never switch tabs.
 | Tab           | Description                                                                                                                                                                                                                                                                                                                                                                              |
 | ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Agents**    | View running and completed agents, their files and prompts                                                                                                                                                                                                                                                                                                                               |
-| **Artifacts** | Browse Commits, Patches, Beads, configured document providers, and Files. Agent history lives in the Agents tab Archive (`,a`); the Artifacts ▸ Agent sub-tab is off by default (`sase flag disable artifacts_agent_pane_retired` restores it). See [TUI migration notes](../upgrading/tui.md#artifacts-agent-pane), the [Artifacts pane contract](../../contribute/artifacts-pane-contract.md), and [visual grammar](../../contribute/artifacts-pane-visual-grammar.md). |
+| **Artifacts** | Browse Commits, Patches, Beads, configured document providers, and the optional Files beta pane. Agent history lives in the Agents tab Archive (`,a`); the Artifacts ▸ Agent sub-tab is off by default (`sase flag disable artifacts_agent_pane_retired` restores it). See [TUI migration notes](../upgrading/tui.md#artifacts-agent-pane) and [Files pane migration notes](../upgrading/tui.md#artifacts-files-pane), the [Artifacts pane contract](../../contribute/artifacts-pane-contract.md), and [visual grammar](../../contribute/artifacts-pane-visual-grammar.md). |
 | **Services**  | Monitor the service host, configured service procs, scheduler work, and background commands                                                                                                                                                                                                                                                                                              |
 
 Agents is the first tab and the startup default. Each tab has contextual help: press `?`
@@ -46,10 +46,11 @@ TaskTriage.
 
 Within Artifacts, number keys follow the visible left-to-right order of the strip:
 Commits, Patches, and Beads are always **1**, **2**, **3**; configured document-provider
-tabs such as Plans and Research take the next digits; and Files, which always renders
-last, carries the highest digit — **4** with no provider tabs configured, **6** with
-two. Digits stop at `9`, and the Files pane keeps `9` when the runtime strip grows past
-nine panes; middle overflow panes may then have no digit. Use `[` / `]` to cycle through
+tabs such as Plans and Research take the next digits; and Files, when enabled, renders
+last with the highest digit — **4** with no provider tabs configured, **6** with two.
+With Files hidden, remaining panes use positional numbering. Digits stop at `9`, and the
+Files pane keeps `9` when the runtime strip grows past nine panes; middle overflow panes
+may then have no digit. Use `[` / `]` to cycle through
 the complete runtime strip. As horizontal space tightens, the strip chooses the widest
 tier that fits from a full → compact → micro ladder and re-renders only when the tier
 changes. Compact removes outer padding; micro also tightens the separators and hides
@@ -339,9 +340,9 @@ Moved to [Files and preview](files-and-preview.md#archive-agents-tab).
 ### Document Provider Panes
 
 Artifacts includes one document pane per configured artifact-reference provider. The
-fixed tabs are Commits, Patches, Beads, and Files; provider-backed document tabs such as
-Plans and Research appear between Beads and Files when an enabled project configures the
-matching sidecar `ref:` policy. Persisted selections use stable ids such as `ref:plan`
+fixed tabs are Commits, Patches, and Beads, with the Files beta pane shown when enabled;
+provider-backed document tabs such as Plans and Research appear between Beads and Files
+when an enabled project configures the matching sidecar `ref:` policy. Persisted selections use stable ids such as `ref:plan`
 and `ref:research`, so a missing provider falls back to Commits instead of crashing
 startup. Each pane renders an icon before its label — the four fixed marks (`◉` Commits,
 `⎇` Patches, `◈` Beads, `▤` Files) are built in, and a provider pane's mark comes from

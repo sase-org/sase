@@ -287,16 +287,17 @@ class TabQuickStart(VerticalScroll):
                 ),
             )
             insert_at += 1
-            rows.insert(
-                insert_at,
-                (
+            if any(descriptor.id == "files" for descriptor in descriptors):
+                rows.insert(
+                    insert_at,
                     (
-                        key_display_name(app.files_prev_version),
-                        key_display_name(app.files_next_version),
+                        (
+                            key_display_name(app.files_prev_version),
+                            key_display_name(app.files_next_version),
+                        ),
+                        "Files: previous / next version.",
                     ),
-                    "Files: previous / next version.",
-                ),
-            )
+                )
 
         column_width = max(cls._keycap_width(labels) for labels, _ in rows)
         text = Text()

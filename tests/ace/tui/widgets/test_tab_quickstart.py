@@ -10,8 +10,8 @@ from rich.text import Text
 
 from sase.ace.tui import artifact_tabs
 from sase.ace.tui._artifact_tab_descriptors import (
-    assign_artifacts_digit_shortcuts,
-    fixed_descriptor,
+    _assign_artifacts_digit_shortcuts,
+    _fixed_descriptor,
 )
 from sase.ace.tui.keymaps import load_keymap_registry
 from sase.ace.tui.widgets.tab_quickstart import (
@@ -22,13 +22,26 @@ from sase.ace.tui.widgets.tab_quickstart import (
 
 
 def _fixed_only_descriptors() -> tuple[artifact_tabs.ArtifactsTabDescriptor, ...]:
-    return assign_artifacts_digit_shortcuts(
+    return _assign_artifacts_digit_shortcuts(
         (
-            fixed_descriptor("agents"),
-            fixed_descriptor("stitches"),
-            fixed_descriptor("patches"),
-            fixed_descriptor("beads"),
-            fixed_descriptor("files"),
+            _fixed_descriptor("agents"),
+            _fixed_descriptor("stitches"),
+            _fixed_descriptor("patches"),
+            _fixed_descriptor("beads"),
+            _fixed_descriptor("files"),
+        )
+    )
+
+
+def _fixed_descriptors_without_files() -> tuple[
+    artifact_tabs.ArtifactsTabDescriptor, ...
+]:
+    return _assign_artifacts_digit_shortcuts(
+        (
+            _fixed_descriptor("agents"),
+            _fixed_descriptor("stitches"),
+            _fixed_descriptor("patches"),
+            _fixed_descriptor("beads"),
         )
     )
 
@@ -62,14 +75,14 @@ def _compiled_plan_descriptor() -> artifact_tabs.ArtifactsTabDescriptor:
 
 
 def _one_provider_descriptors() -> tuple[artifact_tabs.ArtifactsTabDescriptor, ...]:
-    return assign_artifacts_digit_shortcuts(
+    return _assign_artifacts_digit_shortcuts(
         (
-            fixed_descriptor("agents"),
-            fixed_descriptor("stitches"),
-            fixed_descriptor("patches"),
-            fixed_descriptor("beads"),
+            _fixed_descriptor("agents"),
+            _fixed_descriptor("stitches"),
+            _fixed_descriptor("patches"),
+            _fixed_descriptor("beads"),
             _compiled_plan_descriptor(),
-            fixed_descriptor("files"),
+            _fixed_descriptor("files"),
         )
     )
 
@@ -147,17 +160,20 @@ def test_artifacts_quickstart_advertises_every_subtab(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     registry = load_keymap_registry({})
+    monkeypatch.setattr(
+        artifact_tabs,
+        "resolve_artifacts_subtabs",
+        _fixed_descriptors_without_files,
+    )
 
     agents = TabQuickStart.render_content(registry, tab="agents")
     patches = TabQuickStart.render_content(registry, tab="patches")
     agents_card = _section_plain(agents, "#agent-quickstart-card")
     artifacts_card = _section_plain(patches, "#patch-quickstart-card")
 
-    assert "Jump: Agent · Commits · Patches · Beads · Files." in artifacts_card
-    assert (
-        "Cycle Artifacts: Agent · Commits · Patches · Beads · Files." in artifacts_card
-    )
-    assert "Files: previous / next version." in artifacts_card
+    assert "Jump: Agent · Commits · Patches · Beads." in artifacts_card
+    assert "Cycle Artifacts: Agent · Commits · Patches · Beads." in artifacts_card
+    assert "Files: previous / next version." not in artifacts_card
     assert "Cycle Artifacts" not in agents_card
     assert _section_plain(agents, "#agent-quickstart-hero") != _section_plain(
         patches, "#patch-quickstart-hero"
@@ -165,6 +181,16 @@ def test_artifacts_quickstart_advertises_every_subtab(
     assert _section_plain(agents, "#agent-quickstart-footer") != _section_plain(
         patches, "#patch-quickstart-footer"
     )
+
+    monkeypatch.setattr(
+        artifact_tabs, "resolve_artifacts_subtabs", _fixed_only_descriptors
+    )
+    enabled_card = _section_plain(
+        TabQuickStart.render_content(registry, tab="patches"), "#patch-quickstart-card"
+    )
+    assert "Jump: Agent · Commits · Patches · Beads · Files." in enabled_card
+    assert "Cycle Artifacts: Agent · Commits · Patches · Beads · Files." in enabled_card
+    assert "Files: previous / next version." in enabled_card
 
     monkeypatch.setattr(
         artifact_tabs, "resolve_artifacts_subtabs", _one_provider_descriptors

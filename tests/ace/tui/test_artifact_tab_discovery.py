@@ -110,7 +110,10 @@ def test_discovery_failure_keeps_a_degraded_plan_tab(
     from sase.ace.tui import _artifact_tab_discovery
     from sase.feature_flags import override_flags
 
-    with override_flags(artifacts_agent_pane_retired=False):
+    with override_flags(
+        artifacts_agent_pane_retired=False,
+        artifacts_files_pane=True,
+    ):
         _discovery_failure_keeps_a_degraded_plan_tab(monkeypatch)
 
 
@@ -272,9 +275,10 @@ def test_resolve_artifacts_subtabs_serves_stale_while_rebuilding(
     assert not thread.is_alive()
     cached = artifact_tabs._ARTIFACTS_TAB_CACHE
     assert cached is not None
-    # The cache key pairs the retirement flag with the provider token.
+    # Both flag states participate in the cache key.
     assert cached[0] == (
         artifact_tabs.artifacts_agent_pane_retired(),
+        artifact_tabs.artifacts_files_pane_enabled(),
         ("providers", 2),
     )
 

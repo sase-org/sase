@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import pytest
+
+
 import asyncio
 from threading import Event
 
@@ -577,3 +580,6 @@ def test_pane_is_loading_recognizes_stitches_collection_and_query_state() -> Non
     pane._collection_worker = None
     pane._query_result_pending = True
     assert link_follow.pane_is_loading(pane) is True
+
+
+pytestmark = pytest.mark.usefixtures("files_pane_enabled")

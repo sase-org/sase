@@ -22,6 +22,7 @@ class FeatureFlag(StrEnum):
     """Every SASE feature flag key. Add members through ``sase flag new``."""
 
     artifacts_agent_pane_retired = "artifacts_agent_pane_retired"
+    artifacts_files_pane = "artifacts_files_pane"
     claude_explicit_instructions = "claude_explicit_instructions"
     codex_explicit_instructions = "codex_explicit_instructions"
     grok_explicit_instructions = "grok_explicit_instructions"
@@ -37,6 +38,15 @@ _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
             "agent history lives in the Agents tab Archive."
         ),
         bead="sase-1kb",
+    ),
+    FeatureFlag.artifacts_files_pane: FeatureFlagDefinition(
+        key=FeatureFlag.artifacts_files_pane,
+        kind="beta",
+        description=(
+            "Show the Artifacts ▸ Files sub-tab, a beta pane hidden by default "
+            "while it is redesigned."
+        ),
+        bead="sase-1nu",
     ),
     FeatureFlag.claude_explicit_instructions: FeatureFlagDefinition(
         key=FeatureFlag.claude_explicit_instructions,

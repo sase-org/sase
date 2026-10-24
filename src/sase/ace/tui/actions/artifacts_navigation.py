@@ -36,6 +36,19 @@ def _is_unconfigured_ref_pane(pane_id: str) -> bool:
         return False
 
 
+def _is_disabled_artifacts_pane(pane_id: str) -> bool:
+    """Return whether *pane_id* names a pane hidden by a feature flag."""
+
+    try:
+        from ..artifact_tabs import is_disabled_artifacts_pane
+    except Exception:  # noqa: BLE001 - fail open to the old path
+        return False
+    try:
+        return is_disabled_artifacts_pane(pane_id)
+    except Exception:  # noqa: BLE001 - flag resolution errors are not disabled
+        return False
+
+
 class ArtifactsNavigationActionsMixin:
     """Navigate, mark, and switch between non-PR Artifacts entries."""
 
@@ -122,6 +135,8 @@ class ArtifactsNavigationActionsMixin:
         pane_key: ArtifactsPaneKey | None = None,
     ) -> ArtifactEntryNavigator | None:
         target_pane = pane_key or self.current_artifacts_pane_key
+        if isinstance(target_pane, str) and _is_disabled_artifacts_pane(target_pane):
+            return None
         if isinstance(target_pane, str) and _is_unconfigured_ref_pane(target_pane):
             return None
         view = self._artifacts_view()
@@ -148,6 +163,8 @@ class ArtifactsNavigationActionsMixin:
         """Switch to the target's owning pane and select it when ready."""
 
         pane_key = target.pane_id
+        if _is_disabled_artifacts_pane(pane_key):
+            return LinkRequestState.MISSING
         if _is_unconfigured_ref_pane(pane_key):
             return LinkRequestState.MISSING
         self._switch_artifacts_subtab(cast(ArtifactsSubTab, pane_key))
@@ -504,6 +521,17 @@ class ArtifactsNavigationActionsMixin:
         self._switch_artifacts_subtab("agents")
 
     def action_show_artifacts_files(self) -> None:
+        from .._artifact_tab_model import (
+            ARTIFACTS_FILES_PANE_DISABLED_HINT,
+            artifacts_files_pane_enabled,
+        )
+
+        if not artifacts_files_pane_enabled():
+            self.notify(  # type: ignore[attr-defined]
+                ARTIFACTS_FILES_PANE_DISABLED_HINT,
+                severity="warning",
+            )
+            return
         self._switch_artifacts_subtab("files")
 
 

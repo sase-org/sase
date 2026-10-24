@@ -62,6 +62,20 @@ def artifacts_agent_pane_retired() -> bool:
     return current_flags().enabled(FeatureFlag.artifacts_agent_pane_retired)
 
 
+def artifacts_files_pane_enabled() -> bool:
+    """Return whether the ``artifacts_files_pane`` beta flag is on."""
+    from sase.feature_flags.registry import FeatureFlag
+    from sase.feature_flags.snapshot import current_flags
+
+    return current_flags().enabled(FeatureFlag.artifacts_files_pane)
+
+
+ARTIFACTS_FILES_PANE_DISABLED_HINT = (
+    "Artifacts ▸ Files is a beta pane that is off by default. Run "
+    "`sase flag enable artifacts_files_pane` and restart sase's TUI to show it."
+)
+
+
 EXTERNAL_ACCENT = "#FF5F5F"
 ARTIFACTS_ACCENTS: dict[str, str] = {
     "patches": "#00D7AF",

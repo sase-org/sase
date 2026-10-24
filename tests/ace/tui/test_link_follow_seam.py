@@ -11,6 +11,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+
 from textual.widgets import Static
 
 from sase.ace.testing import AcePage
@@ -609,3 +610,6 @@ async def test_files_hydrated_row_becomes_queryable(
 
         assert target is not None
         assert len(pane._query_index) == before + 1
+
+
+pytestmark = pytest.mark.usefixtures("files_pane_enabled")

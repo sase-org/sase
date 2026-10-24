@@ -55,7 +55,7 @@ from tests.perf.bench_agent_catalog import (
     build_synthetic_catalog_sources,
 )
 
-pytestmark = pytest.mark.slow
+pytestmark = (pytest.mark.slow, pytest.mark.usefixtures("files_pane_enabled"))
 
 _KEYS_PER_DIRECTION = 20
 _P95_BUDGET_MS = 16.0

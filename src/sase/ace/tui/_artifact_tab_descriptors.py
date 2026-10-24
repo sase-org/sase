@@ -36,6 +36,8 @@ from ._artifact_tab_model import (
     ArtifactsTabDescriptor,
     ProjectProviderRecord,
     ProviderDiscoveryIssue,
+    artifacts_agent_pane_retired,
+    artifacts_files_pane_enabled,
     provider_item_noun,
 )
 
@@ -65,7 +67,7 @@ _ARTIFACTS_DIGIT_KEYS: tuple[str, ...] = tuple(str(digit) for digit in range(1, 
 
 
 @cache
-def fixed_descriptor(subtab: ArtifactsSubTab) -> ArtifactsTabDescriptor:
+def _fixed_descriptor(subtab: ArtifactsSubTab) -> ArtifactsTabDescriptor:
     """Return the descriptor for one of the built-in Artifacts panes."""
 
     label = ARTIFACTS_LABELS[subtab]
@@ -128,22 +130,22 @@ def provider_descriptors(
     return tuple(sorted(descriptors, key=_provider_descriptor_sort_key))
 
 
-def assign_artifacts_digit_shortcuts(
+def _assign_artifacts_digit_shortcuts(
     descriptors: Sequence[ArtifactsTabDescriptor],
 ) -> tuple[ArtifactsTabDescriptor, ...]:
-    """Number Artifacts panes by visual position, Files highest.
+    """Number Artifacts panes by visual position, Files highest when present.
 
     ``descriptors`` must arrive in visual (left-to-right) order, with the
-    Files pane last. The Files descriptor (``id == "files"``) always
+    Files pane last when it is included. The Files descriptor (``id == "files"``) always
     receives a digit shortcut, and it is always the highest digit assigned:
     its 1-based position clamped to the last available digit. Every other
     descriptor receives its own 1-based positional digit as long as that
     digit is strictly lower than the Files digit; any pane beyond that
     (only reachable with more than nine panes) receives
     ``digit_shortcut=None``. If no descriptor has ``id == "files"``
-    (defensive; not reachable from
-    :func:`sase.ace.tui.artifact_tabs.resolve_artifacts_subtabs`), this falls
-    back to plain positional numbering with ``None`` past the ninth pane.
+    (the normal path while the ``artifacts_files_pane`` beta flag is off),
+    this falls back to plain positional numbering with ``None`` past the ninth
+    pane.
     """
 
     files_index = next(
@@ -179,6 +181,27 @@ def assign_artifacts_digit_shortcuts(
             digit = None
         result.append(_with_digit(descriptor, digit, order=index))
     return tuple(result)
+
+
+def build_artifacts_strip(
+    providers: Sequence[ArtifactsTabDescriptor],
+) -> tuple[ArtifactsTabDescriptor, ...]:
+    """Build the fixed and provider Artifacts strip for the current flags."""
+
+    fixed: list[ArtifactsTabDescriptor] = []
+    if not artifacts_agent_pane_retired():
+        fixed.append(_fixed_descriptor("agents"))
+    fixed.extend(
+        (
+            _fixed_descriptor("stitches"),
+            _fixed_descriptor("patches"),
+            _fixed_descriptor("beads"),
+        )
+    )
+    fixed.extend(providers)
+    if artifacts_files_pane_enabled():
+        fixed.append(_fixed_descriptor("files"))
+    return _assign_artifacts_digit_shortcuts(tuple(fixed))
 
 
 def _with_digit(

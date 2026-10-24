@@ -10,7 +10,7 @@ from textual.widgets._header import HeaderIcon
 from textual.widgets import OptionList, Static
 
 from sase.ace.testing import AcePage
-from sase.ace.tui._artifact_tab_descriptors import fixed_descriptor
+from sase.ace.tui._artifact_tab_descriptors import _fixed_descriptor
 from sase.ace.tui.actions.artifacts import _ArtifactsProjectChoices
 from sase.ace.tui.modals.inventory_project_picker import InventoryProjectChoice
 from sase.ace.tui.widgets.artifacts import CommitsPane
@@ -81,7 +81,7 @@ def _stitches_description_sentinel() -> str:
     ``6da4076b8e`` rewrote the builtin summary; waiting on a hard-coded
     remnant of the old copy can never succeed.
     """
-    return fixed_descriptor("stitches").description.partition(";")[0].strip()
+    return _fixed_descriptor("stitches").description.partition(";")[0].strip()
 
 
 async def _open_commits(

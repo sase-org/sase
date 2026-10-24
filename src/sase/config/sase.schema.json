@@ -6058,6 +6058,11 @@
           "default": true,
           "deprecated": true
         },
+        "artifacts_files_pane": {
+          "type": "boolean",
+          "description": "Show the Artifacts \u25b8 Files sub-tab, a beta pane hidden by default while it is redesigned.",
+          "default": false
+        },
         "claude_explicit_instructions": {
           "type": "boolean",
           "description": "Deliver Claude root and helper instruction bundles through explicit system-prompt files.",

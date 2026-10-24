@@ -35,7 +35,10 @@ from tests.ace.tui.visual._ace_png_snapshot_helpers import (
 )
 from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
 
-pytestmark = pytest.mark.visual
+pytestmark = [
+    pytest.mark.visual,
+    pytest.mark.usefixtures("files_pane_enabled"),
+]
 
 
 _VISUAL_FILES_ROOT = "/visual/artifacts"

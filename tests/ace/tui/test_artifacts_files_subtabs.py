@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import pytest
+
+
 from sase.ace.testing import AcePage
 from sase.ace.tui.widgets import ArtifactsFilesPane
 
@@ -59,3 +62,6 @@ async def test_marks_and_jump_history_are_isolated_by_top_level_pane_key() -> No
         assert page.app._active_artifacts_marks() == {bead_target}
         assert page.app._artifacts_jump_history["beads"] == bead_target
         assert page.app._artifacts_jump_history["files"] == file_target
+
+
+pytestmark = pytest.mark.usefixtures("files_pane_enabled")

@@ -160,7 +160,9 @@ async def test_picker_mouse_selection_and_empty_state() -> None:
         await page.press("q")
 
 
-async def test_picker_follows_active_query_pane_and_digits_switch_artifacts() -> None:
+async def test_picker_follows_active_query_pane_and_digits_switch_artifacts(
+    files_pane_enabled: None,
+) -> None:
     async with AcePage(query='"feature"') as page:
         page.app._saved_queries = {
             "patches": {"2": QueryRecord(source='"saved"', canonical='"saved"')},

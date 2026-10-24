@@ -1,9 +1,19 @@
 """End-to-end tests for remapped keybindings via the AcePage testing DSL."""
 
+from collections.abc import Iterator
 from unittest.mock import patch
+
+import pytest
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
+from tests._files_pane_flag import files_pane_enabled_context
+
+
+@pytest.fixture
+def files_pane_enabled() -> Iterator[None]:
+    with files_pane_enabled_context():
+        yield
 
 
 def _patch_config(overrides: dict | None = None):
@@ -42,7 +52,9 @@ async def test_remapped_navigation_key() -> None:
             await page.expect_state("idx", 0)
 
 
-async def test_default_query_shortcuts_follow_the_context_matrix() -> None:
+async def test_default_query_shortcuts_follow_the_context_matrix(
+    files_pane_enabled: None,
+) -> None:
     with _patch_config():
         async with AcePage(initial_tab="changespecs") as page:  # legacy wire key
             edits: list[str] = []

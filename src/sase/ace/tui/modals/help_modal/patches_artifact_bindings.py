@@ -209,27 +209,39 @@ def artifact_sections(km: KeymapRegistry) -> Sections:
             if contracts.get("agents") is not None
             else ()
         ),
-        (
-            "Files Pane",
-            [
-                (f"{d(a.files_next)} / {d(a.files_prev)}", "Next / previous row"),
+        *(
+            (
                 (
-                    f"{d(a.files_prev_version)} / {d(a.files_next_version)}",
-                    "Previous / next version",
+                    "Files Pane",
+                    [
+                        (
+                            f"{d(a.files_next)} / {d(a.files_prev)}",
+                            "Next / previous row",
+                        ),
+                        (
+                            f"{d(a.files_prev_version)} / {d(a.files_next_version)}",
+                            "Previous / next version",
+                        ),
+                        (d(a.files_view_selected), "View selected artifact file"),
+                        (d(a.files_open_viewer), "Open in rich viewer"),
+                        (d(a.files_open_external), "Open externally"),
+                        (d(a.files_open_agent), "Open producing agent"),
+                        (d(a.files_filters), "Open artifact-file filters"),
+                        (
+                            "limit:N / limit:all",
+                            "Host cap; default page size; all unlimited",
+                        ),
+                        (d(a.files_cycle_kind), "Cycle file kind"),
+                        (d(a.artifacts_copy_reference), "Copy @file: reference"),
+                        (d(a.files_copy_path), "Copy stored path"),
+                        (d(a.refresh), "Refresh artifact files"),
+                        *_relation_rows(km, contracts.get("files")),
+                        *artifact_list_navigation,
+                    ],
                 ),
-                (d(a.files_view_selected), "View selected artifact file"),
-                (d(a.files_open_viewer), "Open in rich viewer"),
-                (d(a.files_open_external), "Open externally"),
-                (d(a.files_open_agent), "Open producing agent"),
-                (d(a.files_filters), "Open artifact-file filters"),
-                ("limit:N / limit:all", "Host cap; default page size; all unlimited"),
-                (d(a.files_cycle_kind), "Cycle file kind"),
-                (d(a.artifacts_copy_reference), "Copy @file: reference"),
-                (d(a.files_copy_path), "Copy stored path"),
-                (d(a.refresh), "Refresh artifact files"),
-                *_relation_rows(km, contracts.get("files")),
-                *artifact_list_navigation,
-            ],
+            )
+            if contracts.get("files") is not None
+            else ()
         ),
         (
             "Preview Reader",

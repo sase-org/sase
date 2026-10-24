@@ -85,30 +85,10 @@ def _plan_test_descriptor() -> Any:
 
 
 def _fast_artifacts_subtabs() -> tuple[Any, ...]:
-    """Expose deterministic Artifacts panes in fast TUI tests.
+    """Expose deterministic Artifacts panes in fast TUI tests."""
+    from sase.ace.tui._artifact_tab_descriptors import build_artifacts_strip
 
-    Mirrors the production :func:`_build_artifacts_subtabs` strip: the Agent
-    pane mounts only while ``artifacts_agent_pane_retired`` is off.
-    """
-    from sase.ace.tui._artifact_tab_descriptors import (
-        assign_artifacts_digit_shortcuts,
-        fixed_descriptor,
-    )
-    from sase.ace.tui._artifact_tab_model import artifacts_agent_pane_retired
-
-    fixed: list[Any] = []
-    if not artifacts_agent_pane_retired():
-        fixed.append(fixed_descriptor("agents"))
-    fixed.extend(
-        [
-            fixed_descriptor("stitches"),
-            fixed_descriptor("patches"),
-            fixed_descriptor("beads"),
-            _plan_test_descriptor(),
-            fixed_descriptor("files"),
-        ]
-    )
-    return assign_artifacts_digit_shortcuts(tuple(fixed))
+    return build_artifacts_strip((_plan_test_descriptor(),))
 
 
 def _noop_startup_service(*_args: Any, **_kwargs: Any) -> None:

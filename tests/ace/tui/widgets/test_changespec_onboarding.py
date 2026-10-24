@@ -22,14 +22,11 @@ def test_patch_onboarding_content_includes_docs_lifecycle_and_storage() -> None:
     rendered = "\n".join(text.plain for text in sections.values())
 
     assert "Everything your agents produce, in one place" in rendered
-    assert (
-        "Browse commits, patches, beads, agents, document providers, and files"
-        in rendered
-    )
+    assert "Browse commits, patches, and beads in Artifacts" in rendered
     # The retired Agent pane drops out of the live strip by default.
     assert "Browse durable agent runs and open their artifacts." not in rendered
     assert "Trace committed work across projects." in rendered
-    assert "Browse logical artifact files and their versions." in rendered
+    assert "Browse logical artifact files and their versions." not in rendered
     assert "https://sase.sh/concepts/work-units/" in rendered
     assert "https://sase.sh/concepts/landing/" in rendered
     assert "~/.sase/projects/" in rendered
@@ -37,7 +34,9 @@ def test_patch_onboarding_content_includes_docs_lifecycle_and_storage() -> None:
         assert status in rendered
 
 
-def test_patch_onboarding_uses_active_keymap_registry() -> None:
+def test_patch_onboarding_uses_active_keymap_registry(
+    files_pane_enabled: None,
+) -> None:
     registry = load_keymap_registry(
         {
             "keymaps": {

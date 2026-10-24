@@ -46,6 +46,8 @@ from sase.ace.tui.widgets.panel_tab_strip import PanelTabStrip
 from sase.feature_flags import override_flags
 from sase.vcs_log.models import VcsLogResult
 
+pytestmark = pytest.mark.usefixtures("files_pane_enabled")
+
 
 @pytest.fixture(autouse=True)
 def _stub_commits_collector(monkeypatch: pytest.MonkeyPatch) -> None:

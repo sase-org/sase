@@ -9,6 +9,7 @@ from types import SimpleNamespace
 
 import pytest
 
+
 from sase.ace.testing import AcePage
 from sase.ace.tui.widgets.artifacts import files_detail_panel, files_pane
 from sase.ace.tui.widgets.artifacts.files_detail import (
@@ -275,3 +276,6 @@ async def test_rapid_navigation_loads_only_the_final_detail(
         await page.wait_for(lambda _state: bool(calls))
 
         assert calls == [rows[2].id]
+
+
+pytestmark = pytest.mark.usefixtures("files_pane_enabled")

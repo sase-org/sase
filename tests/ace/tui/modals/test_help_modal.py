@@ -28,7 +28,7 @@ def test_help_modal_refresh_for_tab_rebuilds_sections() -> None:
     assert "Artifact Views" in left
     assert "Commits Pane (stitches)" in left
     assert "Beads Pane" in left
-    assert "Files Pane" in combined
+    assert "Files Pane" not in combined
     assert "Filter kind, status, or tier" in combined
     assert "Filter project or creation date" in combined
     assert "Title/body/id/metadata (AND)" in combined
@@ -63,8 +63,8 @@ def test_help_modal_refresh_for_tab_rebuilds_sections() -> None:
     # Loose balance guard: a better split point would move the right column's
     # first section and re-baseline the help keymap PNG goldens, so tolerate the
     # small drift that new right-column rows (e.g. General) add over time.
-    # The retired Agent Pane section trimmed the left column (sase-1jm.8).
-    assert abs(len(left.splitlines()) - len(right.splitlines())) <= 53
+    # Hiding the Agent and beta Files sections trims the left column.
+    assert abs(len(left.splitlines()) - len(right.splitlines())) <= 66
 
     modal.refresh_for_tab("agents", active_query=None)
 
@@ -128,6 +128,25 @@ def test_help_modal_agent_pane_section_follows_retired_flag() -> None:
 
     assert "Agent Pane" not in columns[True]
     assert "Agent Pane" in columns[False]
+
+
+def test_help_modal_files_pane_section_follows_beta_flag() -> None:
+    registry = load_keymap_registry({})
+    columns: dict[bool, str] = {}
+    artifact_tabs.reset_artifacts_subtabs_cache()
+    try:
+        for enabled in (False, True):
+            artifact_tabs.reset_artifacts_subtabs_cache()
+            with override_flags(artifacts_files_pane=enabled):
+                modal = HelpModal(current_tab="patches", registry=registry)
+                columns[enabled] = (
+                    modal._build_left_column().plain + modal._build_right_column().plain
+                )
+    finally:
+        artifact_tabs.reset_artifacts_subtabs_cache()
+
+    assert "Files Pane" not in columns[False]
+    assert "Files Pane" in columns[True]
 
 
 def test_saved_query_help_badges_keep_fixed_box_width() -> None:

@@ -72,6 +72,7 @@ def _relation_panel_for(pane: Any) -> RelationPanel:
 async def test_dot_collapses_and_expands_on_each_relations_pane(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    files_pane_enabled: None,
 ) -> None:
     beads = beads_snapshot(tmp_path)
     plans = plans_snapshot(tmp_path)

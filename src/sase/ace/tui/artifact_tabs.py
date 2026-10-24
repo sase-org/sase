@@ -19,8 +19,7 @@ from typing import Any
 from sase.sidecar_ref_config import DEFAULT_DOCUMENT_TAB_ICON
 
 from ._artifact_tab_descriptors import (
-    assign_artifacts_digit_shortcuts,
-    fixed_descriptor,
+    build_artifacts_strip,
     provider_descriptors,
 )
 from ._artifact_tab_discovery import (
@@ -53,7 +52,9 @@ from ._artifact_tab_model import (
     FilesSubTab,
     PaneCapability,
     PaneDeclaredFacts,
+    ARTIFACTS_FILES_PANE_DISABLED_HINT,
     artifacts_agent_pane_retired,
+    artifacts_files_pane_enabled,
     provider_item_noun,
 )
 
@@ -92,13 +93,21 @@ def resolve_artifacts_subtabs() -> tuple[ArtifactsTabDescriptor, ...]:
     real discovery pass. Later lookups serve the last known descriptors
     immediately; when the provider source token changes, a daemon thread
     rebuilds the descriptors and publishes them for a later call. The
-    cache key includes the Agent pane retirement flag so both sunset
-    states resolve deterministically in one process.
+    cache key includes both TUI pane flags so every combination resolves
+    deterministically in one process.
     """
 
     global _ARTIFACTS_TAB_CACHE
     token = provider_source_token()
-    cache_token = None if token is None else (artifacts_agent_pane_retired(), token)
+    cache_token = (
+        None
+        if token is None
+        else (
+            artifacts_agent_pane_retired(),
+            artifacts_files_pane_enabled(),
+            token,
+        )
+    )
     with _ARTIFACTS_TAB_REFRESH_LOCK:
         cached = _ARTIFACTS_TAB_CACHE
         cache_epoch = _ARTIFACTS_TAB_CACHE_EPOCH
@@ -121,23 +130,13 @@ def _build_artifacts_subtabs() -> tuple[ArtifactsTabDescriptor, ...]:
 
     loaded = load_project_provider_records(project=None)
     providers = provider_descriptors(loaded.records, loaded.issues)
-    fixed: list[ArtifactsTabDescriptor] = []
-    if not artifacts_agent_pane_retired():
-        fixed.append(fixed_descriptor("agents"))
-    fixed.extend(
-        [
-            fixed_descriptor("stitches"),
-            fixed_descriptor("patches"),
-            fixed_descriptor("beads"),
-        ]
-    )
-    return assign_artifacts_digit_shortcuts(
-        (
-            *fixed,
-            *providers,
-            fixed_descriptor("files"),
-        )
-    )
+    return build_artifacts_strip(providers)
+
+
+def is_disabled_artifacts_pane(pane_id: str) -> bool:
+    """Return whether *pane_id* is the Files pane hidden by its beta flag."""
+
+    return pane_id == "files" and not artifacts_files_pane_enabled()
 
 
 def _schedule_artifacts_subtabs_refresh(
@@ -448,6 +447,9 @@ __all__ = [
     "PaneCapability",
     "PaneDeclaredFacts",
     "artifacts_agent_pane_retired",
+    "artifacts_files_pane_enabled",
+    "ARTIFACTS_FILES_PANE_DISABLED_HINT",
+    "is_disabled_artifacts_pane",
     "artifacts_pane_contract",
     "artifacts_pane_item_noun",
     "artifacts_pane_label",

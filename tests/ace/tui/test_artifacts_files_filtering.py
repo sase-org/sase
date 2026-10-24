@@ -6,6 +6,7 @@ from dataclasses import replace
 from datetime import datetime, timezone, UTC
 
 import pytest
+
 from textual.widgets import Static
 
 from sase.ace.testing import AcePage
@@ -339,3 +340,6 @@ async def test_file_bar_geometry_is_unchanged_between_idle_and_editing(
         await page.press("escape")
         await page.pause()
         assert option_list.region == idle_region
+
+
+pytestmark = pytest.mark.usefixtures("files_pane_enabled")
