@@ -8,6 +8,20 @@ description: Artifact links, Patches keybindings, mentor comment stats, and the 
 This page lists Artifacts-tab links, Patches keys, mentor comment stats, and the PR
 origin chip.
 
+## Stranded work in the Beads pane
+
+Phase and task rows show an amber `⚐` and age when their work is stranded.
+Blocked phases carry a dimmer `⚐` breadcrumb. Epic rows use `⚐` ahead of the
+launched, ready, and blocked glyphs when their subtree contains stranded work;
+the flag is bold for the epic itself or a direct phase and dim for deeper leaves.
+The Epics legend includes `⚐ stranded`.
+
+The status bar counts distinct stranded beads across the selected projects, including
+tasks, and hides the count when it is zero. The detail pane's **Stranded** row shows
+the last turn, cause, and age, or the stranded bead blocking it. Badges refresh after
+the bead list loads and on periodic refreshes, even when the bead store is unchanged.
+See [Stranded beads](../work-units/bead-lifecycles.md#stranded-beads) for states and remedies.
+
 ## Contextual Artifact Links
 
 sase's TUI owns one link rail across the three top-level tabs. It appears when the

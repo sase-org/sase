@@ -17,7 +17,10 @@ from sase.ace.tui.widgets.artifacts.plans_pane import ArtifactsPlansPane
 
 def test_beads_pane_tick_does_not_force_and_explicit_forces() -> None:
     calls: list[bool] = []
-    pane = SimpleNamespace(_request_load=lambda *, force: calls.append(force))
+    pane = SimpleNamespace(
+        _request_load=lambda *, force: calls.append(force),
+        _schedule_stranded_refresh=Mock(),
+    )
 
     ArtifactsBeadsPane.on_refresh(pane)
     ArtifactsBeadsPane.on_explicit_refresh(pane)

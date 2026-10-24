@@ -183,6 +183,7 @@ def artifact_sections(km: KeymapRegistry) -> Sections:
                 ("b v/e/s/u/a/c", "View, edit, state, URL, attach, create"),
                 ("% u", "Copy linked issue reference (copy mode)"),
                 (d(a.refresh), "Refresh beads"),
+                ("⚐", "Stranded work; dim = blocked"),
                 *artifact_list_navigation,
             ],
         ),

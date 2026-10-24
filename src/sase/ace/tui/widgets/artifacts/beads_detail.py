@@ -44,6 +44,7 @@ from .beads_detail_external import (
 )
 from .beads_detail_properties import (
     DetailProperty,
+    stranded_property,
     created_text as _created_text,
     dependencies_text as _dependencies_text,
     dependency_state as _dependency_state,
@@ -82,6 +83,7 @@ def bead_properties_header(
         ("ID", issue.id),
         ("Type", bead_type_chip(issue.issue_type)),
         ("Status", _status_chip(issue.status)),
+        ("Stranded", stranded_property(issue, project=project)),
     ]
     if issue.issue_type is IssueType.TASK:
         properties.append(("Task type", task_type_chip(issue.task_type)))

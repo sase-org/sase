@@ -8,6 +8,7 @@ from typing import Literal
 
 from textual.widgets.option_list import Option
 
+from sase.bead.stranded_presentation import STRANDED_GLYPH, STRANDED_LEAF_STYLE
 from sase.bead.model import Issue
 
 from .beads_data import BeadsSnapshot, ProjectBead
@@ -28,6 +29,7 @@ from .beads_rendering import (
     task_text,
 )
 from .types import ARTIFACTS_ACCENTS
+from .beads_stranded import cached_bead_verdict
 
 BeadRowKind = Literal["task", "flag", "epic", "phase"]
 
@@ -150,6 +152,7 @@ def build_bead_options(
                     prepend_mark_glyph(
                         task_text(
                             issue,
+                            stranded=cached_bead_verdict(item.project, issue.id),
                             triage=(item.project, issue.id) in snapshot.triage_gates,
                             plan_link=bool(
                                 snapshot.plan_links.get((item.project, issue.id))
@@ -275,6 +278,7 @@ def build_bead_options(
                         prepend_mark_glyph(
                             phase_text(
                                 phase,
+                                stranded=cached_bead_verdict(project, phase.id),
                                 plan_link=bool(
                                     snapshot.plan_links.get((project, phase.id))
                                 ),
@@ -325,6 +329,8 @@ def _section_option(
         text.append(" ready ", style="dim")
         text.append(LAUNCHED_STATE_GLYPH, style="bold #00D7AF")
         text.append(" launched ", style="dim")
+        text.append(STRANDED_GLYPH, style=STRANDED_LEAF_STYLE)
+        text.append(" stranded ", style="dim")
     text.append("─" * 8, style="dim #5F5F87")
     return Option(text, id=f"header:{label.casefold()}", disabled=True)
 

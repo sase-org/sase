@@ -8,6 +8,7 @@ from rich.text import Text
 
 from sase.bead.flag_fields import flag_fields
 from sase.bead_flag_presentation import FLAG_ACCENT, FlagDuePresentation, flag_key_chip
+from sase.bead.stranded_presentation import STRANDED_GLYPH, STRANDED_LEAF_STYLE
 from sase.bead.model import Issue, PhaseSize, Status
 from sase.bead.plus_one_presentation import (
     PLUS_ONE_RICH_STYLE,
@@ -25,12 +26,14 @@ from sase.bead_time_presentation import (
     suppress_duplicate_updated,
 )
 from sase.bead_type_presentation import bead_type_presentation
+from sase.core.stranded_work_facade import StrandedWorkVerdict
 from sase.phase_size_presentation import phase_size_chip
 from sase.task_type_presentation import task_type_presentation
 
 from ...keymaps import KeymapRegistry, key_display_name
 from .beads_data import BeadsSnapshot
 from .beads_data_models import ExternalIssueLink
+from .beads_stranded import beads_stranded_count, epic_stranded_style, stranded_badge
 from .shell import (
     ArtifactsPaneState,
     build_footer_hints,
@@ -88,6 +91,12 @@ def build_beads_status(
                 )
             )
             text.append("  ·  ", style="dim")
+        stranded_count = beads_stranded_count(snapshot)
+        if stranded_count:
+            text.append(
+                f"{STRANDED_GLYPH} {stranded_count} stranded  ·  ",
+                style=STRANDED_LEAF_STYLE,
+            )
         phase_count = sum(len(phases) for phases in snapshot.phases_by_epic.values())
         due_flag_count = sum(
             presentation.state == "due" for presentation in snapshot.flag_due.values()
@@ -230,6 +239,7 @@ def task_text(
     plan_link: bool,
     project_badge: str | None = None,
     external_links: tuple[ExternalIssueLink, ...] = (),
+    stranded: StrandedWorkVerdict | None = None,
 ) -> Text:
     return _bead_text(
         task,
@@ -237,6 +247,7 @@ def task_text(
         plan_link=plan_link,
         project_badge=project_badge,
         external_links=external_links,
+        stranded=stranded,
     )
 
 
@@ -310,6 +321,7 @@ def phase_text(
     plan_link: bool,
     project_badge: str | None = None,
     external_links: tuple[ExternalIssueLink, ...] = (),
+    stranded: StrandedWorkVerdict | None = None,
 ) -> Text:
     text = single_line_text("  ")
     presentation = bead_type_presentation(phase.issue_type)
@@ -321,6 +333,8 @@ def phase_text(
     _append_external_issue_chip(text, external_links)
     text.append("  ")
     _append_status(text, phase.status)
+    if phase.status is Status.IN_PROGRESS:
+        text.append_text(stranded_badge(stranded))
     text.append("  ")
     text.append_text(phase_size_chip(phase.size or PhaseSize.SMALL))
     _append_metadata(text, phase, project_badge)
@@ -394,6 +408,7 @@ def _bead_text(
     plan_link: bool,
     project_badge: str | None,
     external_links: tuple[ExternalIssueLink, ...] = (),
+    stranded: StrandedWorkVerdict | None = None,
 ) -> Text:
     presentation = bead_type_presentation(issue.issue_type)
     text = single_line_text()
@@ -415,6 +430,8 @@ def _bead_text(
         text.append(f"  [{post_close}]", style=POST_CLOSE_RICH_STYLE)
     text.append("  ")
     _append_status(text, issue.status)
+    if issue.status is Status.IN_PROGRESS:
+        text.append_text(stranded_badge(stranded))
     if issue.size is not None:
         text.append("  ")
         text.append_text(phase_size_chip(issue.size))
@@ -493,6 +510,8 @@ def _state_glyph(
     blocked_ids: frozenset[tuple[str, str]],
     launched: bool,
 ) -> tuple[str, str]:
+    if stranded_style := epic_stranded_style(*issue_key):
+        return STRANDED_GLYPH, stranded_style
     if issue_key in blocked_ids:
         return BLOCKED_STATE_GLYPH, "bold #FF5F5F"
     if issue_key in ready_ids:

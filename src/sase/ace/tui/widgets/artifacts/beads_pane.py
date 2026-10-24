@@ -43,6 +43,7 @@ from .beads_filter_session import BeadsFilterSessionMixin
 from .beads_list import BeadRow
 from .beads_navigation import BeadsNavigationMixin, BeadsOptionList
 from .beads_options import BeadsOptionsMixin
+from .beads_stranded_refresh import BeadsStrandedRefreshMixin
 from .query_rows import build_beads_query_index
 from .query_session import ArtifactQuerySession
 from .relation_panel import RelationPanel, RelationPanelHostMixin
@@ -62,6 +63,7 @@ class _BeadsSnapshotResult:
 
 
 class ArtifactsBeadsPane(
+    BeadsStrandedRefreshMixin,
     BeadsFilterSessionMixin,
     BeadsNavigationMixin,
     BeadsOptionsMixin,
@@ -129,6 +131,7 @@ class ArtifactsBeadsPane(
 
     def on_unmount(self) -> None:
         self._external_refresh_generation += 1
+        self._stranded_pending = False
         if self._detail_debouncer is not None:
             self._detail_debouncer.cancel()
         cancel_pump_free_tasks(self)
@@ -150,9 +153,11 @@ class ArtifactsBeadsPane(
         # Auto-refresh ticks must not force: the fingerprint-based source
         # key decides whether the store needs re-reading (sase-1h8.6).
         self._request_load(force=False)
+        self._schedule_stranded_refresh()
 
     def on_explicit_refresh(self) -> None:
         self._request_load(force=True)
+        self._schedule_stranded_refresh(force=True)
 
     def set_keymap_registry(self, registry: KeymapRegistry) -> None:
         self._registry = registry
@@ -289,6 +294,7 @@ class ArtifactsBeadsPane(
         if self._filter_session_open:
             self._set_filter_completion_sources()
         self._refresh_options(preferred_id=preferred)
+        self._schedule_stranded_refresh()
         if not request.full and snapshot_needs_external_issue_refresh(result.snapshot):
             self._schedule_external_refresh(request.generation)
 

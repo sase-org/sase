@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from time import time
+
 from rich.console import Group, RenderableType
 from rich.table import Table
 from rich.text import Text
@@ -20,6 +22,13 @@ from sase.bead.snooze_presentation import (
     snooze_plus_one_label,
     snooze_until_label,
 )
+from sase.bead.stranded_presentation import (
+    STRANDED_LEAF_STYLE,
+    STRANDED_BREADCRUMB_STYLE,
+    blocked_sentence,
+    stranded_age_label,
+    stranded_cause_sentence,
+)
 from sase.bead_status_presentation import bead_status_presentation
 from sase.bead_time_presentation import (
     BEAD_TIME_RICH_STYLE,
@@ -33,6 +42,30 @@ from sase.phase_size_presentation import (
 )
 
 from .beads_data import BeadsSnapshot
+from .beads_stranded import cached_bead_verdict
+
+
+def stranded_property(issue: Issue, *, project: str) -> Text:
+    """Describe cached stranded evidence without looking up session records."""
+    verdict = cached_bead_verdict(project, issue.id)
+    if verdict is None or issue.status is not Status.IN_PROGRESS:
+        return Text()
+    if verdict.state == "stranded":
+        parts = (
+            verdict.last_turn,
+            stranded_cause_sentence(verdict),
+            stranded_age_label(verdict.since, time()),
+        )
+        return Text(
+            " · ".join(part for part in parts if part), style=STRANDED_LEAF_STYLE
+        )
+    if verdict.state == "blocked":
+        sentence = blocked_sentence(verdict)
+        return Text(
+            sentence[:1].upper() + sentence[1:], style=STRANDED_BREADCRUMB_STYLE
+        )
+    return Text()
+
 
 DetailProperty = tuple[str, str | Text]
 
