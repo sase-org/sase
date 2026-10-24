@@ -1,5 +1,110 @@
 # Changelog
 
+## [0.18.1](https://github.com/sase-org/sase/compare/v0.18.0...v0.18.1) (2026-10-24)
+
+
+### Features
+
+* **ace:** add Agents deck view lock toggle ([798e786](https://github.com/sase-org/sase/commit/798e786c88c01c265748f294cc7af700d0099b3f))
+* **ace:** add stranded Enter resolve modal and PNG goldens (sase-1no.6) ([0a1a8ab](https://github.com/sase-org/sase/commit/0a1a8aba2fa75e3ab72df3d3ec703086d515ecd9))
+* **ace:** finish bead-anchored stranded flags and land sase-1no ([206bda9](https://github.com/sase-org/sase/commit/206bda93be1e2f303370bf0d2fcb567b099e8f3d))
+* **ace:** gate Artifacts Files pane behind a beta flag ([79fa96d](https://github.com/sase-org/sase/commit/79fa96dfc7d5c5f18f2a0472c01657eddde2d85e))
+* **ace:** show stranded work in agent details ([a7996c3](https://github.com/sase-org/sase/commit/a7996c3b77d155a9b3449d97b5e79b46b0ddd7f3))
+* **ace:** widen custom gate modal layouts ([50ef6ba](https://github.com/sase-org/sase/commit/50ef6ba498ffb054a7d8667ddaaf5d627462882f))
+* **agents-sync:** add backup-first stale-replay recovery ([5803ddf](https://github.com/sase-org/sase/commit/5803ddfa0b900dfbff7829e06fb71b10868cc8f5))
+* **agents-sync:** add report-first repair for stale publication revision rows (sase-1nv.4) ([7b1b437](https://github.com/sase-org/sase/commit/7b1b43755821fb4b6fe9ab8f51d09fcff0e46879))
+* **agents-sync:** commit publication drain accounting ([1a69c89](https://github.com/sase-org/sase/commit/1a69c8947d47666c0e4a548ee21bc41ba1e9d9e1))
+* **agents-sync:** expose bounded publication retries ([7a08bf2](https://github.com/sase-org/sase/commit/7a08bf2fda1afae8950d04730092fd27df847092))
+* **agents-sync:** instrument and measure publication drains (sase-1nf.9) ([1325078](https://github.com/sase-org/sase/commit/1325078a8edd30df84eaa6356863a8fd35f63c80))
+* **agents-sync:** name publications with the post-commit SHA ([02cd3b3](https://github.com/sase-org/sase/commit/02cd3b39b64358f37b2fa097f0ebfa1db2960e53))
+* **agents-sync:** render targeted payloads for selected hoods ([8c6699f](https://github.com/sase-org/sase/commit/8c6699f413fd89607a250cb82d04cffbb9d91ae8))
+* **agents-sync:** repair verified stale manifest lists ([b6a7a58](https://github.com/sase-org/sase/commit/b6a7a58fdd0afb34310f6786d6e2ebfa310cf3e1))
+* **agents-sync:** scope inventory hydration to requested hoods ([1f107c4](https://github.com/sase-org/sase/commit/1f107c4a891953fc02c2276e1ae27c18002d5a61))
+* **agents:** show stranded bead work in agent rows ([bb81495](https://github.com/sase-org/sase/commit/bb81495765e9afe676552b285c8e487b1a144814))
+* **artifact-links:** classify and isolate bead endpoints per operation ([eb96eaf](https://github.com/sase-org/sase/commit/eb96eafd442a28cd96ad2e4c35603845d179450c))
+* **artifact-links:** park unconverged outbox operations off the retry loop ([40c47cf](https://github.com/sase-org/sase/commit/40c47cf6cd48ff94d8a1130b76e8be9f24f216fd))
+* **beads:** collect stranded-work facts and doctor WARNING ([5d982d2](https://github.com/sase-org/sase/commit/5d982d2bb9241a5b4e3db8baf38d0cae7ebeb53f))
+* **ci:** collect identity-bound qualification evidence from reusable CI ([8afb1b7](https://github.com/sase-org/sase/commit/8afb1b7e57e4e3494074a73adde2d3cee2fa5148))
+* **ci:** supply verified published core artifacts to setup-sase ([9edbacd](https://github.com/sase-org/sase/commit/9edbacd4efbde6ed91c1e5da5c37d9918e9e6e81))
+* **decks:** add viewport-precise scope cues for spread and paged panels ([de1d960](https://github.com/sase-org/sase/commit/de1d960d11292255e6af5a879e1bc91481ac208d))
+* **final:** seal prepare completion stage source, refusals and project ([321d881](https://github.com/sase-org/sase/commit/321d88125082614188f79cbbdadfe3bfd282982b))
+* **install:** add family install canary workflow and checks ([6a0090f](https://github.com/sase-org/sase/commit/6a0090f0d90008a4ad382a608dc2196eed63813d))
+* **llm:** reap grok providers that hang after turn end ([ed03952](https://github.com/sase-org/sase/commit/ed03952a6362d26c4b4909bf064354bcadc4abe8))
+* **monitor:** reclaim starter cargo targets on settlement ([25d14fa](https://github.com/sase-org/sase/commit/25d14fae6c39fbea6cc43eb86984475c7a8aacea))
+* **monitor:** show host-completion recovery reasons in follow-up prompts ([e77280c](https://github.com/sase-org/sase/commit/e77280c873763035f3e03cd4256f06af95d52f80))
+* **pager:** follow same-document anchor links in place ([750af5a](https://github.com/sase-org/sase/commit/750af5a298ec68e7d52d1592fc18b88059704c23))
+* **publication-recovery:** facade for failure accounting and drain selection ([69dc952](https://github.com/sase-org/sase/commit/69dc95277dd42d5758f6f122550e51916dc17acb))
+* **release-watch:** add health reader, snapshot composition, and tests ([112a5f4](https://github.com/sase-org/sase/commit/112a5f47576af6ab294354339873e15047fe5156))
+* **release-watch:** add restart-safe actions and issue sinks ([dab5776](https://github.com/sase-org/sase/commit/dab57765835ea8f61dfe1143570ce5a0bb0c2235))
+* **release-watch:** add thin release_steward_decide adapter ([5003ef6](https://github.com/sase-org/sase/commit/5003ef69bd9810b0a88df5fc426f3bb8d5f2d1e7))
+* **release:** add fail-closed qualification evaluator ([443fba3](https://github.com/sase-org/sase/commit/443fba33d997ba89f189eb10ee1ff273a52eefec))
+* **release:** add read-only release facts reader ([23cccbc](https://github.com/sase-org/sase/commit/23cccbc969ed14f970ac509ccedfd5358f7a93d8))
+* **release:** add read-only release_metrics and exact-SHA green evidence ([b15cc3f](https://github.com/sase-org/sase/commit/b15cc3fb5b56156729f0264cdd172e4274f771dd))
+* **release:** add recovery runbook, release-safety docs, and TestPyPI drill ([2a83edf](https://github.com/sase-org/sase/commit/2a83edf9961fc0f9e7b241987af71ab7149ee7aa))
+* **release:** add shared plugin release-dependency-floor check ([2d7c282](https://github.com/sase-org/sase/commit/2d7c282b24e7f8cafe413f283980a9bd074851b6))
+* **release:** build once at the tag and seal the candidate manifest ([110214f](https://github.com/sase-org/sase/commit/110214f51cbe8ea7deb3e08cfa2aa579f00958ac))
+* **release:** exercise the exact candidate on Linux and macOS ([cc59e6f](https://github.com/sase-org/sase/commit/cc59e6f114dcf62bfaf1b2a0e85a3449a7f14e41))
+* **release:** pin sase-core-rs to an exact published version ([befa41b](https://github.com/sase-org/sase/commit/befa41b575abbc0745bd7aa33019126760110a58))
+* **release:** qualify release candidates against their exact published core ([54a9c14](https://github.com/sase-org/sase/commit/54a9c14d2393ed168504eb64b2335b2e8fd1825e))
+* **release:** replace release_watch with an observe-only steward tick ([812cdd9](https://github.com/sase-org/sase/commit/812cdd9e21ae5bc164d6d149b34ab9866207db03))
+* **stats:** add repo breakdowns to project reports ([102c6ee](https://github.com/sase-org/sase/commit/102c6ee847215d0e813532329fb8af48a0ad29b7))
+* **stats:** add sase stats project CLI ([a53f10f](https://github.com/sase-org/sase/commit/a53f10f6a6ce1103dfe7ce30653ba6712ed24478))
+* **stats:** add shared Rich and Markdown Projects section renderers ([9c4c262](https://github.com/sase-org/sase/commit/9c4c262559b566309111ca8a37c18d83a62aff26))
+* **stats:** complete project stats acceptance checks ([4e5b7d2](https://github.com/sase-org/sase/commit/4e5b7d2eb6feff3d0c95f9f71d91ccbb494607cf))
+* **stats:** keep Projects report painted across refreshes and stabilize help ([03c7231](https://github.com/sase-org/sase/commit/03c7231e11fc68161534ec366c8a399ca53f24f7))
+* **tui:** add GC attribution telemetry and an acceptance freeze report ([aae7eae](https://github.com/sase-org/sase/commit/aae7eae66779aa03486f215f7b44defa2912a508))
+* **tui:** flag stranded work in the Beads pane ([c793bff](https://github.com/sase-org/sase/commit/c793bff54b0382194527c3c422b0416b11d87a1f))
+* **tui:** migrate Statistics Projects tab to shared report ([0f2052b](https://github.com/sase-org/sase/commit/0f2052be6a375357e7918fdea02d68032eae9326))
+* **tui:** paint deck view as chip, lock, and paged tabs ([9ece19c](https://github.com/sase-org/sase/commit/9ece19c4af9e6569769d2e9b85e99a73b71e7d46))
+
+
+### Bug Fixes
+
+* **ace:** preserve focused deck when splitting panels ([5ffaa1f](https://github.com/sase-org/sase/commit/5ffaa1f513438c5c23728d37436f94c5647037fe))
+* **ace:** preserve parked Main deck scroll positions ([45b0f45](https://github.com/sase-org/sase/commit/45b0f45bd66d80215c267468d54a4575795003d5))
+* **ace:** wait for settled custom-gate modal geometry after resize ([1a3a702](https://github.com/sase-org/sase/commit/1a3a7022d1878b395a36f67a2837546dca2684ea))
+* **agent-launch:** restore host PATH for nested launches ([ed321c5](https://github.com/sase-org/sase/commit/ed321c5434bba31c7636bdc8dadc80afba040a7f))
+* **agents-sync:** bound publication cleanup on interruption ([4adee84](https://github.com/sase-org/sase/commit/4adee846d3c32f0927639193f3d3c2717df946ee))
+* **agents-sync:** preserve binary replay changes from merge base ([16d63cf](https://github.com/sase-org/sase/commit/16d63cf9b0a4fc1a4e5c56a4660d2e45348ea0e8))
+* **ci:** grant Full CI actions:read and parse core suffix blocks ([3db3b51](https://github.com/sase-org/sase/commit/3db3b51d5362c8c3fd9485e6452b48d910624300))
+* **ci:** move qualify session path off reusable job env ([e10fa95](https://github.com/sase-org/sase/commit/e10fa95c0dec856fe1cc0426bfb35fac1f0834a8))
+* **ci:** restore Full CI build-core job and authenticate release metadata sync ([b2a4c38](https://github.com/sase-org/sase/commit/b2a4c380cf464ee2bda5c49d24c08812081e2900))
+* **ci:** stabilize master gate and full CI tests ([d4fed92](https://github.com/sase-org/sase/commit/d4fed92b7ebc72b09cf9d9f6c22d82a23d0fc23e))
+* **ci:** track install-smoke failures and load plugins live ([5751ff6](https://github.com/sase-org/sase/commit/5751ff6745c6ce2ea83b74dcd64f1e07996704f0))
+* **ci:** treat PYTEST_ADDOPTS -p values as plugins, not selectors ([bdec291](https://github.com/sase-org/sase/commit/bdec291c77b0de1aab4c00abecef7430761db736))
+* **cleanup:** losslessly encode EpicFollowView wait_epic_follows in bundles ([682e52f](https://github.com/sase-org/sase/commit/682e52fc716fd93a1481abbad57a9f219c6877a1))
+* **cleanup:** report managed tmp and disk pressure outcomes ([4136946](https://github.com/sase-org/sase/commit/413694618eb7ee102ce8f5b785575c605353ee98))
+* **decks:** viewport-truth spread titles and zoom continuation counts ([d9f711b](https://github.com/sase-org/sase/commit/d9f711bbca354d9008a7a6d32378bb4f89044f53))
+* **doctor:** survive unbound macro templates in model-macro check ([d958a16](https://github.com/sase-org/sase/commit/d958a168fc1b21fa68a8cc457f711b6680fb5dcc))
+* **final:** defer epic imports out of TUI closure, share run_silent catalog stub ([9ecb80c](https://github.com/sase-org/sase/commit/9ecb80cf0e2f374e36345dd6b94eed5db03c6699))
+* **gates:** keep waiters pending during handoff launch ([3b71545](https://github.com/sase-org/sase/commit/3b71545e551638d232969e4b41fae7501158a8b6))
+* **install:** derive canary isolated paths from RUNNER_TEMP via GITHUB_ENV ([a904652](https://github.com/sase-org/sase/commit/a9046529cac4783593fb9161b10ba25334517af4))
+* **monitor:** read starter metadata when reclaiming cargo targets ([379040e](https://github.com/sase-org/sase/commit/379040e699e50e283bc72e7d598541206c6b29d3))
+* **monitor:** show retained output tail in follow-ups ([def4c66](https://github.com/sase-org/sase/commit/def4c66ce37b1999e656331cd415d21675a51f04))
+* **procs:** preserve command outcomes under disk exhaustion ([2648c7c](https://github.com/sase-org/sase/commit/2648c7cddf2e644d73fd1cacdc81d59a3c5466ff))
+* **release-watch:** verify installed release inventory ([41b0a73](https://github.com/sase-org/sase/commit/41b0a73b069f0b50fa61aa16d566460c17aab528))
+* **release:** repair identity version validation ([ba7ab4e](https://github.com/sase-org/sase/commit/ba7ab4e96bce13fdf71b9e429bffe92a8cf39205))
+* **release:** repair qualification evidence transport and prove it ([400572e](https://github.com/sase-org/sase/commit/400572eab602681aa64f44653484a1dfc9ab0b38))
+* **release:** retain qualification observations after evaluation ([2d1e7fd](https://github.com/sase-org/sase/commit/2d1e7fd48646c6240f99ba6ac44f5c6e0f75f3c0))
+* **sudo:** defer settlement after lock contention ([fc0b414](https://github.com/sase-org/sase/commit/fc0b41479fad7fef278e348a084eb46da04ea9d8))
+* **sudo:** settle oversized runner ledgers and notify on finalize failure ([35e593b](https://github.com/sase-org/sase/commit/35e593bcc01553b14b4b5109cbc7992162c1caa6))
+* **tests:** stop AcePage project-choices leak from nested monkeypatch ([e5f2d76](https://github.com/sase-org/sase/commit/e5f2d768eae2eda3a49add0769e5ebb9267055f1))
+* **tui:** keep deck focus when opening split panels ([2df906d](https://github.com/sase-org/sase/commit/2df906dd57307209d3d9c4ae6051b762acb05a70))
+* **tui:** prove screen reflow in resize waits and scrub ambient TUI profiling env ([43314db](https://github.com/sase-org/sase/commit/43314db7ad3b9e90ac8234b38ef5bb20009fef33))
+* **wait:** drop dead host_completion_reasons flat-key projection ([d9ff230](https://github.com/sase-org/sase/commit/d9ff2309a73e9fdc2dcf26d7b3b54afe9268b4ba))
+
+
+### Performance Improvements
+
+* **agents-sync:** fix quadratic reserved-session scan and snapshot digest regression ([54779b6](https://github.com/sase-org/sase/commit/54779b62f57805fbec295240f4de7201c87a4376))
+
+
+### Documentation
+
+* refresh provider, statistics, and release references ([85f6e43](https://github.com/sase-org/sase/commit/85f6e43b3c9b2c97e413a245143c14b5e8e5461b))
+* **tui:** document tabs-mean-pages deck chrome and lock vocabulary ([3dbe570](https://github.com/sase-org/sase/commit/3dbe5704627fc397dee88b7e9ff9c630929237c4))
+* verify refresh claims against current behavior ([92d2713](https://github.com/sase-org/sase/commit/92d271364cb5a8c20293c0a9707a31db04b6d429))
+
 ## [0.18.0](https://github.com/sase-org/sase/compare/v0.17.1...v0.18.0) (2026-10-19)
 
 
