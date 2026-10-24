@@ -20,6 +20,20 @@ PUBLICATION_KIND_SESSION = "session"
 PUBLICATION_SCOPE_LINKED = "linked"
 PUBLICATION_SCOPE_REVISION = "revision"
 
+STALE_REPAIR_ACTION_UNCHANGED = "unchanged"
+STALE_REPAIR_ACTION_LINKED = "linked"
+STALE_REPAIR_ACTION_REPAIRED = "repaired"
+STALE_REPAIR_ACTION_UNRESOLVED = "unresolved"
+
+_STALE_REPAIR_ACTIONS = frozenset(
+    {
+        STALE_REPAIR_ACTION_UNCHANGED,
+        STALE_REPAIR_ACTION_LINKED,
+        STALE_REPAIR_ACTION_REPAIRED,
+        STALE_REPAIR_ACTION_UNRESOLVED,
+    }
+)
+
 PROMPT_STATUS_RESTORED = "restored"
 PROMPT_STATUS_ALREADY_ARCHIVED = "already_archived"
 PROMPT_STATUS_NOT_APPLICABLE = "not_applicable"
@@ -141,6 +155,15 @@ class DeferredPromptDecision:
     schema_version: int
     status: str
     blocks_acknowledgment: bool
+    reason: str
+
+
+@dataclass(frozen=True)
+class StalePublicationRepair:
+    schema_version: int
+    action: str
+    fulfilling_revision: str | None
+    evidence_commit: str | None
     reason: str
 
 
@@ -331,6 +354,53 @@ def decide_publication_request_completion(
     return decision
 
 
+def classify_stale_publication_request(
+    *,
+    requested_revision: str,
+    scope: str = "",
+    run_commit_shas: Sequence[str] = (),
+    ancestor_commit_shas: Sequence[str] = (),
+    linked_revision: bool = False,
+) -> StalePublicationRepair:
+    """Classify one outbox row for report-first stale-revision repair."""
+
+    binding = require_rust_binding("classify_stale_publication_request")
+    raw = binding(
+        {
+            "schema_version": PUBLICATION_RECOVERY_WIRE_SCHEMA_VERSION,
+            "requested_revision": requested_revision,
+            "scope": scope,
+            "run_commit_shas": list(run_commit_shas),
+            "ancestor_commit_shas": list(ancestor_commit_shas),
+            "linked_revision": bool(linked_revision),
+        }
+    )
+    if not isinstance(raw, dict):
+        raise RuntimeError("sase_core_rs returned a non-dict stale repair")
+    decision = StalePublicationRepair(
+        schema_version=require_int(raw, "schema_version"),
+        action=require_str_field(raw, "action"),
+        fulfilling_revision=_optional_str_field(raw, "fulfilling_revision"),
+        evidence_commit=_optional_str_field(raw, "evidence_commit"),
+        reason=require_str_field(raw, "reason"),
+    )
+    if decision.schema_version != PUBLICATION_RECOVERY_WIRE_SCHEMA_VERSION:
+        raise RuntimeError(
+            f"sase_core_rs publication recovery wire is stale: {decision.schema_version}"
+        )
+    if decision.action not in _STALE_REPAIR_ACTIONS:
+        raise RuntimeError(
+            f"sase_core_rs returned an unknown stale repair action: {decision.action}"
+        )
+    if decision.action == STALE_REPAIR_ACTION_REPAIRED and not (
+        decision.fulfilling_revision and decision.evidence_commit
+    ):
+        raise RuntimeError(
+            "sase_core_rs repaired a stale revision without a fulfilling revision"
+        )
+    return decision
+
+
 def classify_deferred_prompt_obligation(
     *,
     restore_wrote: bool,
@@ -428,6 +498,17 @@ def _parse_failure_charges(raw: object) -> tuple[PublicationFailureCharge, ...]:
             )
         )
     return tuple(charges)
+
+
+def _optional_str_field(raw: dict[str, Any], key: str) -> str | None:
+    value = raw.get(key)
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise RuntimeError(
+            f"sase_core_rs publication recovery field {key!r} is not str or null"
+        )
+    return value
 
 
 def _logical_key_payload(

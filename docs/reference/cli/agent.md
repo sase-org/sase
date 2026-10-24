@@ -890,8 +890,8 @@ Arguments:
 ## `sase agent sync`
 
 ```text
-usage: sase agent sync [-h] [-c] [-d] [-j] [-p PROJECT] [-r] [-g] [-m]
-                       [-e CLASS] [-l N] [-q] [-t]
+usage: sase agent sync [-h] [-a] [-c] [-d] [-j] [-p PROJECT] [-r] [-g] [-m]
+                       [-R] [-e CLASS] [-l N] [-q] [-t]
 ```
 
 Without flags, pull enabled agents sidecars, publish locally commit-eligible hoods, restore deferred prompt archives, push, and drain publication retries. --check is local and network-free; --check --refresh fetches remote refs before computing ahead/behind.
@@ -900,6 +900,7 @@ Options:
 
 | Option                                  | Description                                                                                                                                                                                                                         | Default |
 | --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
+| `-a`, `--apply`                         | With --repair-revisions, write the reported repair to the outbox and audit it; without it, report only and write nothing                                                                                                            | `false` |
 | `-c`, `--check`                         | Read cached sidecar status and publication diagnostics without network, publication, commit, or push                                                                                                                                | `false` |
 | `-d`, `--drop-retired`                  | Drop publication requests that were retired as unpublishable, reporting how many were dropped and why                                                                                                                               | `false` |
 | `-h`, `--help`                          | show this help message and exit                                                                                                                                                                                                     | —       |
@@ -908,6 +909,7 @@ Options:
 | `-r`, `--refresh`                       | With --check, fetch remote refs before computing sidecar ahead/behind counts                                                                                                                                                        | `false` |
 | `-g`, `--repair-digests`                | Re-sign locally owned hood-snapshot file references that have drifted from their on-disk payload, instead of running a normal sync                                                                                                  | `false` |
 | `-m`, `--repair-manifest`               | Restore missing owner-manifest hoods and normalize verified stale explicit file lists, instead of running a normal sync                                                                                                             | `false` |
+| `-R`, `--repair-revisions`              | Map stale pre-commit outbox revisions to the agent's committed revision or linked scope, reporting by default and writing only with --apply; runs one project per call                                                              | `false` |
 | `-e CLASS`, `--retry-error-class CLASS` | With --retry-limit, select stopped requests with this error class; repeat to accept several classes (choices: `index_lock`, `lock_busy`, `manifest_mismatch`, `other`, `rebase_conflict`, `timeout`, `unknown`, `unstaged_changes`) | —       |
 | `-l N`, `--retry-limit N`               | Retry at most N distinct hood requests for exactly one project without full reconciliation; requires --retry-quarantined or --retry-retired                                                                                         | —       |
 | `-q`, `--retry-quarantined`             | Clear quarantined requests for full sync; with --retry-limit, select a bounded hood-request batch                                                                                                                                   | `false` |

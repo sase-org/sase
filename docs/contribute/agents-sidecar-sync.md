@@ -83,6 +83,40 @@ identity or digest mismatches, and missing or corrupt payloads are reported and 
 The command never reads or changes another owner's subtree, preserves the snapshot and
 payload bytes, and becomes a no-op after a successful repair.
 
+## Stale-revision repair
+
+`sase agent sync --repair-revisions` repairs rows enqueued before the post-commit
+revision fix: they name a pre-commit primary revision no published run carries, so they
+never acknowledge. The repair classifies each revision-scope row against the agent's
+local run records and primary-repo ancestry, then rekeys, re-scopes, or keeps it:
+
+- `unchanged`: the requested revision is already among the agent's run commits, or the
+  row already carries linked scope. Nothing changes.
+- `linked`: the requested revision is a linked-repo commit. The row takes linked scope
+  and fulfills when the required page exists.
+- `repaired(S)`: S is the earliest recorded run commit descending from the requested
+  revision. The row is rekeyed to S; the original stays in `requested_revision`, so the
+  ack gate and deferred prompt restore use S while doctor and JSON output still show the
+  original.
+- `unresolved`: no evidence. The row is kept exactly as it is.
+
+Logical-key collisions from rekeying merge deterministically into one row and the merge
+is recorded. Lifecycle, attempts, and prior errors are kept; the repair never revives,
+retries, or drops a row.
+
+Run one project per call, in report-then-apply order, then retry the bounded backlog:
+
+```bash
+sase agent sync --repair-revisions -p project-alias         # report only
+sase agent sync --repair-revisions -p project-alias --apply # write + audit
+```
+
+Report mode writes nothing: no outbox rewrite and no audit file. Apply mode rewrites the
+outbox only through the outbox mutation APIs under the agents-sync lock and appends one
+JSON object per applied change to
+`~/.sase/projects/<project-key>/agents-publication-repair-audit.jsonl` (old key, new
+revision or scope, evidence commit, and time). A second apply is a no-op.
+
 ## Stale-replay recovery
 
 This is a finite recovery helper for a sidecar that is one unpublished commit ahead of a

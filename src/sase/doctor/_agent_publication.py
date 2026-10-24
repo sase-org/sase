@@ -72,6 +72,7 @@ class OutboxProblem:
             "global_agent": self.item.global_agent,
             "local_agent": self.item.local_agent,
             "primary_revision": self.item.primary_revision,
+            "requested_revision": self.item.original_revision,
             "local_hood": self.item.local_hood,
             "attempts": self.item.attempts,
             "quarantined": self.item.quarantined,
@@ -213,6 +214,8 @@ def outbox_data(
     last_error_histogram: dict[str, int] | None = None,
     oldest_active_age_seconds: float | None = None,
     sidecar_states: tuple[dict[str, Any], ...] = (),
+    stale_requested_revision_count: int = 0,
+    stale_requested_revisions: tuple[str, ...] = (),
 ) -> dict[str, Any]:
     return {
         "projects_root": str(projects_root),
@@ -240,6 +243,8 @@ def outbox_data(
         ),
         "owner_manifest_error_count": len(owner_manifest_errors),
         "owner_manifest_errors": owner_manifest_errors,
+        "stale_requested_revision_count": stale_requested_revision_count,
+        "stale_requested_revisions": list(stale_requested_revisions),
         "thresholds": {
             "stalled_attempts": stalled_attempts,
             "stalled_age_seconds": stalled_age_seconds,

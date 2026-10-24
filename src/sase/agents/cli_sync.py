@@ -17,6 +17,9 @@ from sase.agents_sync.publication_repair import (
     repair_agent_hood_digests,
     repair_agent_owner_manifests,
 )
+from sase.agents_sync.publication_revision_repair import (
+    repair_stale_publication_revisions,
+)
 from sase.agents_sync.status import get_agents_sync_status
 from sase.core.time import format_local
 
@@ -33,6 +36,13 @@ def handle_agents_sync(args: argparse.Namespace) -> int:
     if bool(getattr(args, "repair_manifest", False)):
         outcomes = repair_agent_owner_manifests(projects)
         _emit_sync_outcomes(outcomes, mode="repair-manifest", as_json=as_json)
+        return int(any(outcome.error is not None for outcome in outcomes))
+    if bool(getattr(args, "repair_revisions", False)):
+        outcomes = repair_stale_publication_revisions(
+            projects,
+            apply=bool(getattr(args, "apply", False)),
+        )
+        _emit_sync_outcomes(outcomes, mode="repair-revisions", as_json=as_json)
         return int(any(outcome.error is not None for outcome in outcomes))
     if bool(getattr(args, "check", False)):
         snapshot = get_agents_sync_status(

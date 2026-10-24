@@ -255,13 +255,63 @@ def test_schema_v4_drops_non_agent_requests_with_a_visible_diagnostic(
     update_agent_publications("proj", (survivor.logical_key,), error=None)
     rewritten = json.loads(path.read_text(encoding="utf-8"))
     assert rewritten["schema_version"] == PUBLICATION_OUTBOX_SCHEMA_VERSION
-    assert PUBLICATION_OUTBOX_SCHEMA_VERSION == 6
+    assert PUBLICATION_OUTBOX_SCHEMA_VERSION == 7
     assert rewritten["items"][0]["scope"] == PUBLICATION_SCOPE_REVISION
     assert [row["global_agent"] for row in rewritten["items"]] == [
         make_outbox_item().global_agent
     ]
     assert "kind" not in rewritten["items"][0]
     assert snapshot_publication_document_from_path(path, "proj").notices == ()
+
+
+def test_schema_v6_row_without_requested_revision_keeps_original(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path))
+    path = tmp_path / "projects" / "proj" / "agents-publication-outbox.json"
+    path.parent.mkdir(parents=True)
+    row = make_outbox_item().to_json_dict()
+    row.pop("requested_revision")
+    path.write_text(
+        json.dumps({"schema_version": 6, "items": [row]}),
+        encoding="utf-8",
+    )
+
+    [loaded] = list_agent_publications("proj")
+    assert loaded.requested_revision is None
+    assert loaded.original_revision == make_outbox_item().primary_revision
+
+    update_agent_publications("proj", (loaded.logical_key,), error="still pending")
+    upgraded = json.loads(path.read_text(encoding="utf-8"))
+    assert upgraded["schema_version"] == PUBLICATION_OUTBOX_SCHEMA_VERSION
+    assert upgraded["items"][0]["requested_revision"] is None
+
+
+def test_schema_v7_requested_revision_round_trip(tmp_path, monkeypatch) -> None:
+    import dataclasses
+
+    monkeypatch.setenv("SASE_HOME", str(tmp_path))
+    path = tmp_path / "projects" / "proj" / "agents-publication-outbox.json"
+    path.parent.mkdir(parents=True)
+    repaired = dataclasses.replace(
+        make_outbox_item(),
+        primary_revision="b" * 40,
+        requested_revision="a" * 40,
+    )
+    path.write_text(
+        json.dumps(
+            {
+                "schema_version": 7,
+                "items": [repaired.to_json_dict()],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    [loaded] = list_agent_publications("proj")
+    assert loaded.logical_key == ("alice.athena.foo--code", "b" * 40)
+    assert loaded.original_revision == "a" * 40
 
 
 def test_schema_v5_row_without_scope_defaults_to_revision(

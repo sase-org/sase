@@ -14,7 +14,7 @@ from sase.agents_sync.publication_outbox_models import (
     validate_publication_item,
 )
 
-SUPPORTED_PUBLICATION_OUTBOX_SCHEMA_VERSIONS = (1, 2, 3, 4, 5, 6)
+SUPPORTED_PUBLICATION_OUTBOX_SCHEMA_VERSIONS = (1, 2, 3, 4, 5, 6, 7)
 _MULTI_KIND_SCHEMA_VERSION = 4
 
 
@@ -126,6 +126,7 @@ def _item_from_json(
         hood_digest=_json_text(row, "hood_digest", default="pending"),
         scope=_json_text(row, "scope", default=PUBLICATION_SCOPE_REVISION)
         or PUBLICATION_SCOPE_REVISION,
+        requested_revision=_json_optional_text(row, "requested_revision"),
         attempts=_json_nonnegative_int(row, "attempts", default=0),
         last_error=_json_optional_text(row, "last_error"),
         quarantined=_json_boolean(

@@ -51,6 +51,15 @@ def register_agent_sync_parser(agents_sub: argparse._SubParsersAction) -> None:
         ),
     )
     sync_parser.add_argument(
+        "-a",
+        "--apply",
+        action="store_true",
+        help=(
+            "With --repair-revisions, write the reported repair to the "
+            "outbox and audit it; without it, report only and write nothing"
+        ),
+    )
+    sync_parser.add_argument(
         "-c",
         "--check",
         action="store_true",
@@ -106,6 +115,16 @@ def register_agent_sync_parser(agents_sub: argparse._SubParsersAction) -> None:
         help=(
             "Restore missing owner-manifest hoods and normalize verified stale "
             "explicit file lists, instead of running a normal sync"
+        ),
+    )
+    sync_parser.add_argument(
+        "-R",
+        "--repair-revisions",
+        action="store_true",
+        help=(
+            "Map stale pre-commit outbox revisions to the agent's committed "
+            "revision or linked scope, reporting by default and writing "
+            "only with --apply; runs one project per call"
         ),
     )
     sync_parser.add_argument(

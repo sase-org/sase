@@ -323,22 +323,24 @@ Commit-triggered agent-hood publication uses a durable outbox at
 linked (non-primary) repository commit also records `scope: linked`; fulfillment then
 requires only the agent's required publication page, because linked-repo SHAs never
 appear in the run's primary `commit_shas`. Each request records its attempt count, most
-recent attributable error, and quarantine or retirement state.
-`publish_committed_agent_hood` enqueues the committing hood's request and immediately
-drains every active request for the project under the bounded agents lock, so a healthy
-commit publishes and pushes before it returns. Bead-page rendering and plan-header
-refresh are separate synchronous steps on the commit path. Prompt-archive publication is
-attempted synchronously too, but its retry obligation is covered by the hood request:
-every drain and full sync rebuilds the archives owed by the requests it is about to
-acknowledge. A prompt archive that cannot even be queued fails the commit with a
-`sase stitch create --resume` hint, the same way an unqueueable hood does. A
-hood-specific preparation failure increments only requests for that hood;
-repository-wide failures such as lock contention, pull failure, or push failure remain
-retryable without consuming unrelated per-item quarantine budgets. A repeatable failure
-that proves the requested hood can never be published retires that request after one
-confirming retry instead of quarantining it. Successful requests are acknowledged only
-after their sidecar work is committed and safely pushed, or after the prepared payload
-is already current.
+recent attributable error, and quarantine or retirement state. Rows rekeyed by the
+stale-revision repair keep their original requested revision in `requested_revision`
+while `primary_revision` names the fulfilling commit; rows never repaired omit it, and
+the original stays visible in doctor output and JSON. `publish_committed_agent_hood`
+enqueues the committing hood's request and immediately drains every active request for
+the project under the bounded agents lock, so a healthy commit publishes and pushes
+before it returns. Bead-page rendering and plan-header refresh are separate synchronous
+steps on the commit path. Prompt-archive publication is attempted synchronously too, but
+its retry obligation is covered by the hood request: every drain and full sync rebuilds
+the archives owed by the requests it is about to acknowledge. A prompt archive that
+cannot even be queued fails the commit with a `sase stitch create --resume` hint, the
+same way an unqueueable hood does. A hood-specific preparation failure increments only
+requests for that hood; repository-wide failures such as lock contention, pull failure,
+or push failure remain retryable without consuming unrelated per-item quarantine
+budgets. A repeatable failure that proves the requested hood can never be published
+retires that request after one confirming retry instead of quarantining it. Successful
+requests are acknowledged only after their sidecar work is committed and safely pushed,
+or after the prepared payload is already current.
 
 ### Chats provenance versus publication
 
@@ -369,15 +371,17 @@ budget before running the normal full reconciliation.
 `sase doctor -C state.agent_publication_outbox -j` reports a `last_error_histogram` that
 groups requests by stable failure class (`timeout`, `lock_busy`, `index_lock`,
 `unstaged_changes`, `rebase_conflict`, `manifest_mismatch`, `other`, `unknown`), the
-oldest active request's age in `oldest_active_age_seconds`, and per-project hidden-clone
-state in `sidecar_states` (commits ahead of/behind upstream, rebase in progress,
-untracked `files/objects`, dirty `prompts/`/`artifacts/`). Every commit-triggered drain
-also appends one structured timing line to `~/.sase/logs/agent_publication_drains.jsonl`
-with per-stage durations and inventory counters; a failed drain names the sync-lock
-holder (pid, operation, agent, age) recorded beside the lock file. Profile a
-representative drain read-only with `tools/agents_publication_profile --project <key>`;
-see the [publication internals](../../contribute/agents-sidecar-sync.md) for profiling
-and repair procedures.
+oldest active request's age in `oldest_active_age_seconds`, a
+`stale_requested_revision_count` of revision-scope rows whose requested revision is
+absent from their published run's commits, and per-project hidden-clone state in
+`sidecar_states` (commits ahead of/behind upstream, rebase in progress, untracked
+`files/objects`, dirty `prompts/`/`artifacts/`). Every commit-triggered drain also
+appends one structured timing line to `~/.sase/logs/agent_publication_drains.jsonl` with
+per-stage durations and inventory counters; a failed drain names the sync-lock holder
+(pid, operation, agent, age) recorded beside the lock file. Profile a representative
+drain read-only with `tools/agents_publication_profile --project <key>`; see the
+[publication internals](../../contribute/agents-sidecar-sync.md) for profiling and
+repair procedures.
 
 Retired agent-publication requests stay stopped until an explicit recovery. After a
 publisher fix makes terminal work publishable, revive that project's retired hood
@@ -425,14 +429,18 @@ then continues the normal full sync for the selected projects. `--drop-retired`,
 `--retry-quarantined`, and `--retry-retired` mutate the outbox and are rejected with
 `--check`.
 
-Two repair modes replace the normal sync for the selected projects. Each runs under the
-same bounded lock and pull/commit/push transaction, touches only the current owner's
-`users/<username>/machines/<machine>/` files, and reports what it changed:
+Three repair modes replace the normal sync. Each reports what it changed:
 
 ```bash
 sase agent sync --repair-digests -p project-alias   # -g
 sase agent sync --repair-manifest -p project-alias  # -m
+sase agent sync --repair-revisions -p project-alias # -R
 ```
+
+Digest and manifest repair run under the same bounded lock and pull/commit/push
+transaction and touch only the current owner's `users/<username>/machines/<machine>/`
+files. Revision repair runs under the same bounded lock, operates on exactly one project
+per call, reports by default, and writes only with `--apply`.
 
 - `--repair-digests` handles a published file that was rewritten out of band, such as a
   hand-edited `chat.md`. It trusts the file on disk and re-signs the stale file
@@ -448,6 +456,16 @@ sase agent sync --repair-manifest -p project-alias  # -m
   owner's subtree. Publication also refuses to start from a missing owner manifest while
   that owner's hood directories still exist, rather than republishing from an empty
   manifest.
+- `--repair-revisions` maps stale pre-commit outbox revisions to the agent's committed
+  revision without dropping any request. Each revision-scope row classifies as
+  `unchanged`, `linked` (takes linked scope), `repaired` (the earliest recorded run
+  commit descending from the requested revision replaces the row's key, keeping the
+  original in `requested_revision`), or `unresolved` (kept exactly as is). Logical-key
+  collisions merge deterministically. Lifecycle, attempts, and prior errors are never
+  reset, and no row is revived, retried, or dropped. Apply mode appends every change to
+  `agents-publication-repair-audit.jsonl` beside the outbox. The
+  `state.agent_publication_outbox` check in `sase doctor` counts rows whose requested
+  revision is absent from their published run's commits and names this command.
 
 CLI status checks maintain `~/.sase/agents_sync/status_snapshot.json`:
 

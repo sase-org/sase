@@ -112,7 +112,11 @@ class SaseArgumentParser(argparse.ArgumentParser):
             and getattr(parsed, "check", False)
         ):
             for flag, attribute in (
+                ("--apply", "apply"),
                 ("--drop-retired", "drop_retired"),
+                ("--repair-digests", "repair_digests"),
+                ("--repair-manifest", "repair_manifest"),
+                ("--repair-revisions", "repair_revisions"),
                 ("--retry-quarantined", "retry_quarantined"),
                 ("--retry-retired", "retry_retired"),
             ):
@@ -126,9 +130,11 @@ class SaseArgumentParser(argparse.ArgumentParser):
             if not getattr(parsed, "project", None):
                 self.error("sase agent sync --retry-retired requires --project")
             for flag, attribute in (
+                ("--apply", "apply"),
                 ("--drop-retired", "drop_retired"),
                 ("--repair-digests", "repair_digests"),
                 ("--repair-manifest", "repair_manifest"),
+                ("--repair-revisions", "repair_revisions"),
             ):
                 if getattr(parsed, attribute, False):
                     self.error(
@@ -158,15 +164,43 @@ class SaseArgumentParser(argparse.ArgumentParser):
                         "sase agent sync --retry-limit requires exactly one --project"
                     )
                 for flag, attribute in (
+                    ("--apply", "apply"),
                     ("--check", "check"),
                     ("--refresh", "refresh"),
                     ("--drop-retired", "drop_retired"),
                     ("--repair-digests", "repair_digests"),
                     ("--repair-manifest", "repair_manifest"),
+                    ("--repair-revisions", "repair_revisions"),
                 ):
                     if getattr(parsed, attribute, False):
                         self.error(
                             f"sase agent sync --retry-limit cannot be used with {flag}"
+                        )
+            repair_revisions = getattr(parsed, "repair_revisions", False)
+            if getattr(parsed, "apply", False) and not repair_revisions:
+                self.error("sase agent sync --apply requires --repair-revisions")
+            if repair_revisions:
+                projects = getattr(parsed, "project", ())
+                if len(projects) != 1:
+                    self.error(
+                        "sase agent sync --repair-revisions requires exactly "
+                        "one --project"
+                    )
+                for flag, attribute in (
+                    ("--check", "check"),
+                    ("--refresh", "refresh"),
+                    ("--drop-retired", "drop_retired"),
+                    ("--repair-digests", "repair_digests"),
+                    ("--repair-manifest", "repair_manifest"),
+                    ("--retry-error-class", "retry_error_class"),
+                    ("--retry-limit", "retry_limit"),
+                    ("--retry-quarantined", "retry_quarantined"),
+                    ("--retry-retired", "retry_retired"),
+                ):
+                    if getattr(parsed, attribute, False):
+                        self.error(
+                            "sase agent sync --repair-revisions cannot be used "
+                            f"with {flag}"
                         )
         if (
             getattr(parsed, "command", None) == "init"

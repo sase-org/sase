@@ -3575,7 +3575,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "a19acfa5dc1d02b4",
+            "description_digest": "8150165f0db2c0b2",
             "hidden": false,
             "mutex_groups": [],
             "name": "sync",
@@ -3592,6 +3592,22 @@
                 "strings": [
                   "-h",
                   "--help"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": "False",
+                "dest": "apply",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-a",
+                  "--apply"
                 ],
                 "takes_value": false,
                 "value_hint": null
@@ -3704,6 +3720,22 @@
                 "strings": [
                   "-m",
                   "--repair-manifest"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": "False",
+                "dest": "repair_revisions",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-R",
+                  "--repair-revisions"
                 ],
                 "takes_value": false,
                 "value_hint": null

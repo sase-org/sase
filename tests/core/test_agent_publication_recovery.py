@@ -37,6 +37,7 @@ from sase.core.agent_publication_recovery import (
     classify_deferred_prompt_obligation,
     classify_publication_error,
     classify_replay_paths,
+    classify_stale_publication_request,
     decide_publication_failure_accounting,
     decide_publication_request_completion,
     decide_replay_apply,
@@ -248,6 +249,50 @@ def test_select_publication_drain_no_match_is_empty() -> None:
     )
     assert selected.active == ()
     assert selected.revive == ()
+
+
+def test_stale_repair_classifies_parent_rebased_linked_and_unknown() -> None:
+    repaired = classify_stale_publication_request(
+        requested_revision="a" * 40,
+        scope="revision",
+        run_commit_shas=["b" * 40, "c" * 40],
+        ancestor_commit_shas=["c" * 40],
+    )
+    assert repaired.action == "repaired"
+    assert repaired.fulfilling_revision == "c" * 40
+    assert repaired.evidence_commit == "c" * 40
+
+    assert (
+        classify_stale_publication_request(
+            requested_revision="b" * 40,
+            scope="revision",
+            run_commit_shas=["b" * 40],
+        ).action
+        == "unchanged"
+    )
+    assert (
+        classify_stale_publication_request(
+            requested_revision="c" * 40,
+            scope="linked",
+        ).action
+        == "unchanged"
+    )
+    assert (
+        classify_stale_publication_request(
+            requested_revision="c" * 40,
+            scope="revision",
+            run_commit_shas=["b" * 40],
+            linked_revision=True,
+        ).action
+        == "linked"
+    )
+    unknown = classify_stale_publication_request(
+        requested_revision="d" * 40,
+        scope="revision",
+        run_commit_shas=["b" * 40],
+    )
+    assert unknown.action == "unresolved"
+    assert unknown.fulfilling_revision is None
 
 
 def test_completion_requires_session_page_and_revision() -> None:

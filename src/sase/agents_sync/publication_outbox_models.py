@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import hashlib
 
-PUBLICATION_OUTBOX_SCHEMA_VERSION = 6
+PUBLICATION_OUTBOX_SCHEMA_VERSION = 7
 PUBLICATION_SCOPE_LINKED = "linked"
 PUBLICATION_SCOPE_REVISION = "revision"
 _PUBLICATION_SCOPES = frozenset({PUBLICATION_SCOPE_LINKED, PUBLICATION_SCOPE_REVISION})
@@ -25,6 +25,7 @@ class AgentPublicationOutboxItem:
     local_hood: str
     hood_digest: str = "pending"
     scope: str = PUBLICATION_SCOPE_REVISION
+    requested_revision: str | None = None
     attempts: int = 0
     last_error: str | None = None
     quarantined: bool = False
@@ -37,6 +38,12 @@ class AgentPublicationOutboxItem:
     @property
     def logical_key(self) -> PublicationLogicalKey:
         return self.global_agent, self.primary_revision
+
+    @property
+    def original_revision(self) -> str:
+        """Return the revision the row requested before any stale repair."""
+
+        return self.requested_revision or self.primary_revision
 
     @property
     def id(self) -> str:
@@ -61,6 +68,7 @@ class AgentPublicationOutboxItem:
             "local_hood": self.local_hood,
             "hood_digest": self.hood_digest,
             "scope": self.scope,
+            "requested_revision": self.requested_revision,
             "attempts": self.attempts,
             "last_error": self.last_error,
             "quarantined": self.quarantined,
@@ -95,6 +103,11 @@ def validate_publication_item(
         raise RuntimeError(
             f"agents publication outbox scope must be "
             f"{PUBLICATION_SCOPE_REVISION} or {PUBLICATION_SCOPE_LINKED}"
+        )
+    if item.requested_revision is not None and not item.requested_revision:
+        raise RuntimeError(
+            "agents publication outbox requested revision must be "
+            "a non-empty string or null"
         )
 
 
