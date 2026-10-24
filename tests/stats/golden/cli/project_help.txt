@@ -29,7 +29,6 @@ definitions:
   Plans: plan documents first committed to the plan store, by first-add committer time
   By model: commits and plans credited to a provider/model; rows including ? and ∅ sum to the total
   By repo: each code repo's commits in range, sidecars excluded; ≥ marks a lower bound from shallow or truncated history; a commit in several repos counts once in the total
-  By repo: each code repo's commits in range, sidecars excluded; ≥ marks a lower bound from shallow or truncated history; a commit in several repos counts once in the total
   ?: model not recorded (unpublished page, empty metadata, ambiguous session, or malformed tag)
   ∅: no agent footer on the commit, or no proposer on the plan
   Code lines: role-classified source and test lines over the committed tree
@@ -50,5 +49,4 @@ examples:
   sase stats project -p sase -g model -r 30d
   sase stats project -p +sase -F -f markdown > sase-stats.md
   sase stats project -p sase -j | jq '.data.projects[0].models[] | {provider, model, commits, plans}'
-  sase stats project -p sase -j | jq '.data.projects[0].repos[] | select(.tier == "code") | {name, commits: .output.commits}'
   sase stats project -p sase -j | jq '.data.projects[0].repos[] | select(.tier == "code") | {name, commits: .output.commits}'
