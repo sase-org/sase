@@ -60,6 +60,27 @@ def test_try_remove_rows_drops_targeted_row(monkeypatch: Any) -> None:
         assert new_local in widget._row_by_agent_idx
 
 
+def test_try_remove_rows_prunes_render_cache_for_removed_identities(
+    monkeypatch: Any,
+) -> None:
+    widget = _wire(monkeypatch)
+    agents = [_agent(raw_suffix=f"a{i}") for i in range(3)]
+    widget.update_list(agents, current_idx=0)
+    removed = agents[1].identity
+    assert any(key and key[0] == removed for key in widget._agent_render_cache._agent)
+
+    assert widget.try_remove_rows({removed}) is True
+
+    assert not any(
+        key and key[0] == removed for key in widget._agent_render_cache._agent
+    )
+    # Survivors keep their entries, so their next patch can still skip.
+    assert any(
+        key and key[0] == agents[0].identity
+        for key in widget._agent_render_cache._agent
+    )
+
+
 def test_try_remove_rows_returns_true_for_unknown_identity(monkeypatch: Any) -> None:
     widget = _wire(monkeypatch)
     agents = [_agent(raw_suffix=f"a{i}") for i in range(2)]

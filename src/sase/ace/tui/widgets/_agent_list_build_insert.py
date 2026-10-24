@@ -265,6 +265,7 @@ def try_insert_rows(
         agent = agents[new_idx]
         ctx = agent_row_context(inputs, agent, new_idx)
         ctx["clan_wave_gutter"] = wave_gutters.get(new_idx)
+        ctx["render_width"] = widget._target_width
         tier_styles = agent_tier_styles.get(new_idx, ())
         left, suffix, option_id = format_agent_row(
             widget._agent_render_cache, inputs, agent, new_idx, ctx, tier_styles

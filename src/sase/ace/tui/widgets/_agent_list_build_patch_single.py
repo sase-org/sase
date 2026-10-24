@@ -22,6 +22,7 @@ from ._agent_list_rendering import (
     agent_option_id,
     assemble_padded_option,
     cached_format_agent_option,
+    peek_cached_agent_option,
 )
 
 # Gap (2) plus the ✏️ live-hint glyph. Machine chips can consume the
@@ -47,10 +48,13 @@ def patch_row(
 ) -> bool:
     """Replace one agent row's Option in place; return ``True`` on success.
 
-    Returns ``False`` (caller falls back to a full ``update_list`` rebuild)
-    when the agent isn't in this panel, the alignment width grew past the
-    cached target, or the per-row context wasn't captured by a previous
-    full render.
+    When the complete render inputs are unchanged (a render-cache hit at
+    the same painted width) the row keeps its Option without calling
+    ``replace_option_prompt_at_index``; per-row bookkeeping for future
+    deltas is still updated. Returns ``False`` (caller falls back to a
+    full ``update_list`` rebuild) when the agent isn't in this panel, the
+    alignment width grew past the cached target, or the per-row context
+    wasn't captured by a previous full render.
     """
     if not (0 <= agent_idx < len(widget._agents)):
         return False
@@ -92,35 +96,63 @@ def patch_row(
         clan_unknown = clan_unknown_wait_dependency_count(agent, wait_status_maps)
     else:
         clan_unknown = 0
-    # Bust the cached entry for this agent so we re-render from
-    # current field values; the patch path is the only writer of
-    # mid-list mutations and must not return a stale cache hit.
+    tier_styles = widget._row_tier_styles.get(agent_idx, ())
+    render_kwargs: dict[str, Any] = {
+        "is_selected": sel,
+        "fold_annotation": ctx["fold_annotation"],
+        "is_expanded": ctx["is_expanded"],
+        "is_marked": is_marked,
+        "fold_restore_marked": ctx.get("fold_restore_marked", False),
+        "is_unread": is_unread,
+        "hint_char": ctx["hint_char"],
+        "tribe_label": ctx.get("tribe_label"),
+        "panel_tribe": ctx.get("panel_tribe"),
+        "tribe_colors": ctx.get("tribe_colors"),
+        "now": now,
+        "tier_styles": tier_styles,
+        "wait_deps_satisfied": ctx.get("wait_deps_satisfied"),
+        "wait_dependency_counts": counts,
+        "has_unresolvable_wait_target": ctx.get("has_unresolvable_wait_target", False),
+        "clan_unknown_wait_count": clan_unknown,
+        "unread_agent_ids": effective_unread,
+        "show_machine_chip": bool(ctx.get("show_machine_chip", False)),
+        "tab_chip": ctx.get("tab_chip"),
+        "clan_wave_gutter": wave_gutter,
+    }
+    # Skip unchanged rows: a cache hit means the visible row is
+    # byte-identical to the cached triple, so re-rendering would only
+    # rebuild Text/Strip trees and replace an identical prompt. The
+    # padding is part of the skip condition via the painted width the
+    # full rebuild recorded: a changed target width repaints.
+    hit = peek_cached_agent_option(
+        widget._agent_render_cache, agent, agent_idx, **render_kwargs
+    )
+    if hit is not None and ctx.get("render_width") == widget._target_width:
+        ctx["is_marked"] = is_marked
+        ctx["is_unread"] = is_unread
+        ctx["is_selected"] = sel
+        ctx["wait_dependency_counts"] = counts
+        ctx["clan_unknown_wait_count"] = clan_unknown
+        try:
+            last_left = getattr(widget, "_row_last_left_by_identity", None)
+            last_suffix = getattr(widget, "_row_last_suffix_plain_by_identity", None)
+            if isinstance(last_left, dict):
+                last_left[agent.identity] = hit[0]
+            if isinstance(last_suffix, dict):
+                last_suffix[agent.identity] = hit[1].plain
+        except Exception:  # noqa: BLE001 - runtime fast-path bookkeeping only.
+            pass
+        return True
+    # Bust the cached entry for this agent so the re-render below cannot
+    # return a stale entry and stale keys for this identity do not pile
+    # up behind the fresh one.
     widget._agent_render_cache.invalidate_agent(agent.identity)
 
     left, suffix, option_id = cached_format_agent_option(
         widget._agent_render_cache,
         agent,
         agent_idx,
-        is_selected=sel,
-        fold_annotation=ctx["fold_annotation"],
-        is_expanded=ctx["is_expanded"],
-        is_marked=is_marked,
-        fold_restore_marked=ctx.get("fold_restore_marked", False),
-        is_unread=is_unread,
-        hint_char=ctx["hint_char"],
-        tribe_label=ctx.get("tribe_label"),
-        panel_tribe=ctx.get("panel_tribe"),
-        tribe_colors=ctx.get("tribe_colors"),
-        now=now,
-        tier_styles=widget._row_tier_styles.get(agent_idx, ()),
-        wait_deps_satisfied=ctx.get("wait_deps_satisfied"),
-        wait_dependency_counts=counts,
-        has_unresolvable_wait_target=ctx.get("has_unresolvable_wait_target", False),
-        clan_unknown_wait_count=clan_unknown,
-        unread_agent_ids=effective_unread,
-        show_machine_chip=bool(ctx.get("show_machine_chip", False)),
-        tab_chip=ctx.get("tab_chip"),
-        clan_wave_gutter=wave_gutter,
+        **render_kwargs,
     )
 
     gap = 2 if suffix.cell_len else 0
@@ -139,6 +171,7 @@ def patch_row(
     ctx["is_selected"] = sel
     ctx["wait_dependency_counts"] = counts
     ctx["clan_unknown_wait_count"] = clan_unknown
+    ctx["render_width"] = widget._target_width
     try:
         last_left = getattr(widget, "_row_last_left_by_identity", None)
         last_suffix = getattr(widget, "_row_last_suffix_plain_by_identity", None)

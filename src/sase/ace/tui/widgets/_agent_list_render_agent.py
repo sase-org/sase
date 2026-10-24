@@ -395,6 +395,141 @@ def format_agent_option(
     return text, suffix, agent_option_id(index, agent)
 
 
+def _derive_agent_option_inputs(
+    agent: Agent,
+    tribe_label: str | None,
+    unread_agent_ids: Collection[tuple[AgentType, str, str | None]],
+) -> tuple[
+    str | None,
+    Any,
+    ClanStatusCounts | None,
+    tuple[str, ...],
+    TurnLaneCounts,
+]:
+    """Derive the cache-key/render inputs computed from *agent* alone."""
+    from ..models.agent_stranded import agent_stranded_view
+
+    inline_label = _inline_tribe_label(tribe_label)
+    stranded_view = agent_stranded_view(agent)
+    visible_clan_counts = (
+        (
+            clan_member_counts(agent, unread_agent_ids)
+            if unread_agent_ids
+            else clan_member_counts(agent)
+        )
+        if agent.is_clan_container
+        else None
+    )
+    visible_clan_projects = (
+        clan_project_labels(agent) if agent.is_clan_container else ()
+    )
+    is_container_row = agent.is_clan_container or is_sequential_agent_session_container(
+        agent
+    )
+    lanes = turn_lane_counts(agent) if is_container_row else NO_TURN_LANES
+    return (
+        inline_label,
+        stranded_view,
+        visible_clan_counts,
+        visible_clan_projects,
+        lanes,
+    )
+
+
+def _agent_option_key_from_derived(
+    agent: Agent,
+    index: int,
+    derived: tuple[
+        str | None,
+        Any,
+        ClanStatusCounts | None,
+        tuple[str, ...],
+        TurnLaneCounts,
+    ],
+    *,
+    is_selected: bool,
+    fold_annotation: str = "",
+    is_expanded: bool = False,
+    is_marked: bool = False,
+    fold_restore_marked: bool = False,
+    is_unread: bool = False,
+    hint_char: str | None = None,
+    panel_tribe: str | None = None,
+    tribe_colors: Mapping[str, str] | None = None,
+    now: datetime | None = None,
+    tier_styles: tuple[str, ...] = (),
+    wait_deps_satisfied: bool | None = None,
+    wait_dependency_counts: WaitDependencyStatusCounts | None = None,
+    has_unresolvable_wait_target: bool = False,
+    clan_unknown_wait_count: int = 0,
+    unread_agent_ids: Collection[tuple[AgentType, str, str | None]] = (),
+    show_machine_chip: bool = False,
+    tab_chip: tuple[str, str] | None = None,
+    clan_wave_gutter: "ClanWaveGutter | None" = None,
+) -> tuple[Any, ...]:
+    """Build the cache key from already-derived agent inputs.
+
+    Single key site shared by :func:`peek_cached_agent_option` and
+    :func:`cached_format_agent_option` so a patch-boundary lookup and
+    the render it guards can never drift apart.
+    """
+    (
+        tribe_label,
+        stranded_view,
+        visible_clan_counts,
+        visible_clan_projects,
+        lanes,
+    ) = derived
+    return agent_render_key(
+        agent,
+        index,
+        is_selected=is_selected,
+        fold_annotation=fold_annotation,
+        is_expanded=is_expanded,
+        is_marked=is_marked,
+        fold_restore_marked=fold_restore_marked,
+        is_unread=is_unread,
+        hint_char=hint_char,
+        tribe_label=tribe_label,
+        panel_tribe=panel_tribe,
+        tribe_colors=tribe_colors,
+        now=now,
+        tier_styles=tier_styles,
+        wait_deps_satisfied=wait_deps_satisfied,
+        wait_dependency_counts=wait_dependency_counts,
+        has_unresolvable_wait_target=has_unresolvable_wait_target,
+        clan_counts=visible_clan_counts,
+        clan_unknown_wait_count=clan_unknown_wait_count,
+        unread_agent_ids=unread_agent_ids,
+        turn_lanes=lanes,
+        show_machine_chip=show_machine_chip,
+        tab_chip=tab_chip,
+        clan_projects=visible_clan_projects,
+        clan_wave_gutter=clan_wave_gutter,
+        stranded_signature=getattr(stranded_view, "signature", ()),
+    )
+
+
+def peek_cached_agent_option(
+    cache: AgentRenderCache,
+    agent: Agent,
+    index: int,
+    **kwargs: Any,
+) -> tuple[Text, Text, str] | None:
+    """Return the cached ``(left, suffix, option_id)`` without rendering.
+
+    Takes the same keyword inputs as :func:`cached_format_agent_option`.
+    A hit means the visible row is byte-identical to the cached triple,
+    so the caller can skip re-rendering and ``replace_option_prompt``.
+    """
+    # Already folded into *derived*; the key site takes the rest.
+    tribe_label = kwargs.pop("tribe_label", None)
+    unread_agent_ids = kwargs.pop("unread_agent_ids", ())
+    derived = _derive_agent_option_inputs(agent, tribe_label, unread_agent_ids)
+    key = _agent_option_key_from_derived(agent, index, derived, **kwargs)
+    return cache.get_agent(key)
+
+
 def cached_format_agent_option(
     cache: AgentRenderCache,
     agent: Agent,
@@ -428,29 +563,11 @@ def cached_format_agent_option(
     our purposes (we don't mutate them after assemble); returning the
     cached object avoids rebuilding an O(rows) Text tree on each refresh.
     """
-    tribe_label = _inline_tribe_label(tribe_label)
-    from ..models.agent_stranded import agent_stranded_view
-
-    stranded_view = agent_stranded_view(agent)
-    visible_clan_counts = (
-        (
-            clan_member_counts(agent, unread_agent_ids)
-            if unread_agent_ids
-            else clan_member_counts(agent)
-        )
-        if agent.is_clan_container
-        else None
-    )
-    visible_clan_projects = (
-        clan_project_labels(agent) if agent.is_clan_container else ()
-    )
-    is_container_row = agent.is_clan_container or is_sequential_agent_session_container(
-        agent
-    )
-    lanes = turn_lane_counts(agent) if is_container_row else NO_TURN_LANES
-    key = agent_render_key(
+    derived = _derive_agent_option_inputs(agent, tribe_label, unread_agent_ids)
+    key = _agent_option_key_from_derived(
         agent,
         index,
+        derived,
         is_selected=is_selected,
         fold_annotation=fold_annotation,
         is_expanded=is_expanded,
@@ -458,7 +575,6 @@ def cached_format_agent_option(
         fold_restore_marked=fold_restore_marked,
         is_unread=is_unread,
         hint_char=hint_char,
-        tribe_label=tribe_label,
         panel_tribe=panel_tribe,
         tribe_colors=tribe_colors,
         now=now,
@@ -466,19 +582,22 @@ def cached_format_agent_option(
         wait_deps_satisfied=wait_deps_satisfied,
         wait_dependency_counts=wait_dependency_counts,
         has_unresolvable_wait_target=has_unresolvable_wait_target,
-        clan_counts=visible_clan_counts,
         clan_unknown_wait_count=clan_unknown_wait_count,
         unread_agent_ids=unread_agent_ids,
-        turn_lanes=lanes,
         show_machine_chip=show_machine_chip,
         tab_chip=tab_chip,
-        clan_projects=visible_clan_projects,
         clan_wave_gutter=clan_wave_gutter,
-        stranded_signature=getattr(stranded_view, "signature", ()),
     )
     hit = cache.get_agent(key)
     if hit is not None:
         return hit
+    (
+        tribe_label,
+        stranded_view,
+        visible_clan_counts,
+        visible_clan_projects,
+        lanes,
+    ) = derived
     parts = format_agent_option(
         agent,
         index,

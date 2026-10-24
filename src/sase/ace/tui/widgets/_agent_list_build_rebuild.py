@@ -156,6 +156,8 @@ def build_list(
     widget._target_width = target_width
     widget._max_left = max_left
     widget._max_suffix = max_suffix
+    for painted_ctx in widget._row_render_ctx.values():
+        painted_ctx["render_width"] = target_width
 
     agent_options: dict[int, Option] = {
         i: assemble_padded_option(left, suffix, width=target_width, option_id=option_id)

@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+import gc
+from datetime import datetime
+
 import pytest
 from rich.text import Text
 
 import sase.ace.tui.models.tribe_display as tribe_display
+import sase.ace.tui.widgets._agent_list_build_patch_single as patch_single
 from sase.ace.tui.models.agent_groups import GroupingMode
 from sase.ace.tui.widgets.agent_list import AgentList
 
@@ -249,6 +253,137 @@ async def test_full_rebuild_refreshes_tribe_colors_reused_by_patch(
         patched = widget.get_option_at_index(row).prompt
         assert isinstance(patched, Text)
         assert _style_at(patched, patched.plain.index("@epic")) == "bold #654321"
+
+
+@pytest.mark.asyncio
+async def test_patch_agent_row_skips_replace_when_inputs_unchanged(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Repeated patches with identical inputs must not rebuild or replace.
+
+    Render-allocation: an unchanged row keeps its Option without calling
+    ``replace_option_prompt_at_index``, so repeated no-op patches build no
+    Text/Strip trees and leave no cyclic garbage behind.
+    """
+    app = _Harness()
+    async with app.run_test() as pilot:
+        widget = app.query_one(AgentList)
+        agents = [
+            _agent(cl_name=f"demo{i:02d}", raw_suffix=f"2026042514{i:04d}")
+            for i in range(5)
+        ]
+        now = datetime(2026, 4, 25, 14, 0, 0)
+        widget.update_list(agents, current_idx=2, now=now)
+        await pilot.pause()
+
+        replaces = 0
+        orig_replace = AgentList.replace_option_prompt_at_index
+
+        def counting_replace(self: AgentList, index: int, prompt: object) -> object:
+            nonlocal replaces
+            replaces += 1
+            return orig_replace(self, index, prompt)  # type: ignore[arg-type]
+
+        monkeypatch.setattr(
+            AgentList, "replace_option_prompt_at_index", counting_replace
+        )
+
+        renders = 0
+        orig_cached = patch_single.cached_format_agent_option
+
+        def counting_cached(*args: object, **kwargs: object) -> object:
+            nonlocal renders
+            renders += 1
+            return orig_cached(*args, **kwargs)  # type: ignore[arg-type]
+
+        monkeypatch.setattr(patch_single, "cached_format_agent_option", counting_cached)
+
+        assembles = 0
+        orig_assemble = patch_single.assemble_padded_option
+
+        def counting_assemble(*args: object, **kwargs: object) -> object:
+            nonlocal assembles
+            assembles += 1
+            return orig_assemble(*args, **kwargs)  # type: ignore[arg-type]
+
+        monkeypatch.setattr(patch_single, "assemble_padded_option", counting_assemble)
+
+        prompts_before = [
+            widget.get_option_at_index(_agent_row_index(widget, i)).prompt
+            for i in range(5)
+        ]
+        for i in range(5):
+            assert widget.patch_agent_row(i, now=now) is True
+        await pilot.pause()
+
+        assert replaces == 0
+        assert renders == 0
+        assert assembles == 0
+        for i in range(5):
+            after = widget.get_option_at_index(_agent_row_index(widget, i)).prompt
+            assert after is prompts_before[i]
+
+        garbage_before = len(gc.garbage)
+        del prompts_before
+        gc.collect()
+        assert len(gc.garbage) == garbage_before
+
+
+@pytest.mark.asyncio
+async def test_patch_agent_row_repaints_on_visible_change(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Changed selection, status, style, width, and fleet inputs still repaint."""
+    app = _Harness()
+    async with app.run_test() as pilot:
+        widget = app.query_one(AgentList)
+        a = _agent()
+        widget.update_list([a], current_idx=0)
+        await pilot.pause()
+        row = _agent_row_index(widget, 0)
+
+        replaces: list[int] = []
+        orig_replace = AgentList.replace_option_prompt_at_index
+
+        def counting_replace(self: AgentList, index: int, prompt: object) -> object:
+            replaces.append(index)
+            return orig_replace(self, index, prompt)  # type: ignore[arg-type]
+
+        monkeypatch.setattr(
+            AgentList, "replace_option_prompt_at_index", counting_replace
+        )
+
+        # No-op patch first: nothing to replace (row starts selected).
+        assert widget.patch_agent_row(0) is True
+        assert replaces == []
+
+        # Selection flip repaints once, then the same selection skips.
+        assert widget.patch_agent_row(0, is_selected=False) is True
+        assert replaces == [row]
+        unselected_prompt = widget.get_option_at_index(row).prompt
+        assert widget.patch_agent_row(0, is_selected=False) is True
+        assert replaces == [row]
+        assert widget.get_option_at_index(row).prompt is unselected_prompt
+
+        # Status change repaints.
+        a.status = "RUNNING"
+        assert widget.patch_agent_row(0, is_selected=False) is True
+        assert replaces == [row, row]
+
+        # Tier-guide (theme/resize chrome) change repaints.
+        widget._row_tier_styles[0] = ("bold #FF0000",)
+        assert widget.patch_agent_row(0, is_selected=False) is True
+        assert replaces == [row, row, row]
+
+        # Fleet input change repaints.
+        a.fleet_origin_alias = "apollo"
+        assert widget.patch_agent_row(0, is_selected=False) is True
+        assert replaces == [row, row, row, row]
+
+        # Target-width change repaints even with identical row inputs.
+        widget._target_width += 4
+        assert widget.patch_agent_row(0, is_selected=False) is True
+        assert replaces == [row, row, row, row, row]
 
 
 @pytest.mark.asyncio

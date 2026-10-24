@@ -17,6 +17,7 @@ from ._agent_list_render_agent import (
     agent_option_id,
     cached_format_agent_option,
     format_agent_option,
+    peek_cached_agent_option,
 )
 from ._agent_list_render_attempt import format_attempt_option
 from ._agent_list_render_banner import (
@@ -43,4 +44,5 @@ __all__ = [
     "format_agent_option",
     "format_attempt_option",
     "format_banner_option",
+    "peek_cached_agent_option",
 ]

@@ -180,6 +180,8 @@ def try_remove_rows(
     widget._banner_row_by_key = new_banner_row_by_key
     widget._row_render_ctx = new_row_render_ctx
     widget._row_tier_styles = new_row_tier_styles
+    for identity in removed_identities:
+        widget._agent_render_cache.invalidate_agent(identity)
     try:
         last_left = getattr(widget, "_row_last_left_by_identity", None)
         last_suffix = getattr(widget, "_row_last_suffix_plain_by_identity", None)
