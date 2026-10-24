@@ -24,15 +24,10 @@ from sase.agents_sync.publication_outbox import (
     AgentPublicationOutboxItem,
 )
 from sase.agents_sync.publication_outbox_models import PUBLICATION_SCOPE_LINKED
-import sase.agents_sync.publication_revision_repair as revision_repair
+import sase.agents_sync._publication_revision_repair_apply as repair_application
+import sase.agents_sync._publication_revision_repair_classification as repair_classification
 from sase.agents_sync.publication_revision_repair import (
     REPAIR_REVISIONS_AUDIT_FILENAME,
-    _GitFacts,
-    _apply_project_revisions,
-    _classify_project_revisions,
-    _classify_row,
-    _row_commit_shas,
-    _run_commits_by_agent,
 )
 from sase.core.agent_identity_facade import AgentIdentitySnapshot, AgentOwnerIdentity
 from sase.main.parser import create_parser
@@ -131,7 +126,7 @@ def test_classify_row_covers_every_repair_outcome(
     """Each stale shape classifies through real git ancestry facts."""
 
     target = _target(histories, tmp_path)
-    facts = _GitFacts(
+    facts = repair_classification._GitFacts(
         target, git_runner=run_git, linked_dirs=(Path(histories["linked"]),)
     )
     commits = _commits(
@@ -144,7 +139,7 @@ def test_classify_row_covers_every_repair_outcome(
         ]
     )
     rows = {
-        name: _classify_row(_item(name, revision), commits, facts)
+        name: repair_classification._classify_row(_item(name, revision), commits, facts)
         for name, revision in (
             ("w-unch", histories["T"]),
             ("w-par", histories["M"]),
@@ -213,9 +208,9 @@ def test_run_commits_index_earliest_first() -> None:
         (),
         "20260723120002",
     )
-    indexed = _run_commits_by_agent((run_one, run_two), identity)
+    indexed = repair_classification._run_commits_by_agent((run_one, run_two), identity)
     item = _item("w-par", "a" * 40)
-    assert _row_commit_shas(item, indexed) == ["b" * 40, "c" * 40]
+    assert repair_classification._row_commit_shas(item, indexed) == ["b" * 40, "c" * 40]
 
 
 def _inventory_run(local: str, shas: list[str]) -> InventoryRun:
@@ -277,7 +272,7 @@ def staged_repair(
     ]
     inventory = ProjectHoodInventory(_OWNER, "proj", tuple(runs))
     monkeypatch.setattr(
-        revision_repair,
+        repair_classification,
         "build_project_hood_inventory",
         lambda _target, _identity, *, git_runner=None, requested_hoods=None: inventory,
     )
@@ -288,7 +283,7 @@ def staged_repair(
         clones=(),
     )
     monkeypatch.setattr(
-        revision_repair,
+        repair_classification,
         "collect_repo_inventory",
         lambda *args, **kwargs: SimpleNamespace(records=(linked_record,)),
     )
@@ -305,7 +300,9 @@ def test_report_mode_writes_nothing(
     target, outbox, _histories = staged_repair
     before = outbox.read_bytes()
     rows_before = len(list_pubs("proj"))
-    report = _classify_project_revisions(target, _OWNER, git_runner=run_git)
+    report = repair_classification.classify_project_revisions(
+        target, _OWNER, git_runner=run_git
+    )
 
     assert sorted((row.global_agent, row.action) for row in report.rows) == [
         ("alice.athena.w-col", "repaired"),
@@ -330,8 +327,10 @@ def test_apply_rekeys_relinks_and_merges_with_audit(
     from sase.agents_sync.publication_outbox import list_agent_publications as list_pubs
 
     target, outbox, histories = staged_repair
-    report = _classify_project_revisions(target, _OWNER, git_runner=run_git)
-    applied = _apply_project_revisions(target, report)
+    report = repair_classification.classify_project_revisions(
+        target, _OWNER, git_runner=run_git
+    )
+    applied = repair_application.apply_project_revisions(target, report)
 
     assert applied.applied
     assert applied.audit_path is not None
@@ -391,15 +390,19 @@ def test_apply_is_idempotent_on_a_second_run(
     from sase.agents_sync.publication_outbox import list_agent_publications as list_pubs
 
     target, outbox, _histories = staged_repair
-    report = _classify_project_revisions(target, _OWNER, git_runner=run_git)
-    first = _apply_project_revisions(target, report)
+    report = repair_classification.classify_project_revisions(
+        target, _OWNER, git_runner=run_git
+    )
+    first = repair_application.apply_project_revisions(target, report)
     assert first.audit_path is not None
     outbox_bytes = outbox.read_bytes()
     audit_bytes = Path(first.audit_path).read_bytes()
 
-    second_report = _classify_project_revisions(target, _OWNER, git_runner=run_git)
+    second_report = repair_classification.classify_project_revisions(
+        target, _OWNER, git_runner=run_git
+    )
     assert second_report.changed == 0
-    second = _apply_project_revisions(target, second_report)
+    second = repair_application.apply_project_revisions(target, second_report)
 
     assert second.applied
     assert second.audit_path is None
@@ -419,8 +422,10 @@ def test_repaired_row_fulfills_completion_and_prompt_restore(
     from sase.agents_sync.publication_outbox import list_agent_publications as list_pubs
 
     target, _outbox, histories = staged_repair
-    report = _classify_project_revisions(target, _OWNER, git_runner=run_git)
-    _apply_project_revisions(target, report)
+    report = repair_classification.classify_project_revisions(
+        target, _OWNER, git_runner=run_git
+    )
+    repair_application.apply_project_revisions(target, report)
 
     repaired = next(
         item for item in list_pubs("proj") if item.global_agent == "alice.athena.w-par"
