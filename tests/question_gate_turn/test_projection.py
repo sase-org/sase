@@ -19,8 +19,8 @@ import pytest
 from sase.question_gate_turn.projection import (
     NumberedQuestionRound,
     QuestionRoundView,
+    _parse_question_round_wire,
     load_question_round,
-    parse_question_round_wire,
 )
 
 from tests._rust_extension_module_helpers import install_fake_rust_extension
@@ -264,7 +264,7 @@ def test_loader_returns_unavailable_on_non_mapping_result(
 
 
 def test_parse_wire_is_tolerant() -> None:
-    view = parse_question_round_wire(
+    view = _parse_question_round_wire(
         {
             "gate_id": 42,
             "status": ["answered"],
@@ -295,7 +295,7 @@ def test_parse_wire_is_tolerant() -> None:
 
 
 def test_parse_wire_accepts_empty_mapping() -> None:
-    view = parse_question_round_wire({})
+    view = _parse_question_round_wire({})
     assert view.data_state == "unavailable"
     assert view.entries == ()
     assert view.provenance is None

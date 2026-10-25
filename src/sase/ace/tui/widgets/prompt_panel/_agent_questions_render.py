@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from datetime import datetime
-from typing import TYPE_CHECKING, Protocol, runtime_checkable
+from typing import TYPE_CHECKING
 
 from rich.cells import cell_len
 from rich.text import Text
@@ -22,8 +22,12 @@ from sase.gate_turn.naming import short_gate_turn_id
 from sase.gate_turn.state import GATE_FAILURE_GLYPH_COLOR
 from sase.question_gate_turn.projection import (
     NumberedQuestionRound,
+    QuestionAnswerView,
+    QuestionCancellationView,
     QuestionEntryView,
+    QuestionOptionView,
     QuestionPolicyView,
+    QuestionProvenanceView,
     QuestionRoundView,
 )
 
@@ -63,18 +67,6 @@ _CHANNEL_LABELS = {
 _ONE_LINE_WIDTH = 100
 
 
-@runtime_checkable
-class QuestionRoundHeadingSource(Protocol):
-    """First-paint summary input for :func:`question_rounds_heading_suffix`.
-
-    The lane phase's stubs satisfy this without importing this module,
-    so neither phase blocks the other.
-    """
-
-    @property
-    def gate_state(self) -> str | None: ...
-
-
 class QuestionNumberCursor:
     """Accumulate continuous Q numbers across causal gate phases.
 
@@ -99,21 +91,21 @@ class QuestionNumberCursor:
 
 
 def _heading_gate_state(
-    round: NumberedQuestionRound | QuestionRoundHeadingSource,
+    round: NumberedQuestionRound | QuestionRoundStub,
 ) -> str | None:
     if isinstance(round, NumberedQuestionRound):
         return round.view.gate_state
-    gate_state = round.gate_state
-    return gate_state if isinstance(gate_state, str) else None
+    return round.gate_state
 
 
 def question_rounds_heading_suffix(
-    rounds: Sequence[NumberedQuestionRound | QuestionRoundHeadingSource],
+    rounds: Sequence[NumberedQuestionRound] | Sequence[QuestionRoundStub],
 ) -> Text:
     """Return a heading suffix like ``· 3 rounds · 1 awaiting answer``.
 
-    Zero parts are omitted: an empty input renders empty, and a fully
-    settled input renders only the round count.
+    Accepts the lane's full rounds or the zero-I/O first-paint stubs. Zero
+    parts are omitted: an empty input renders empty, and a fully settled
+    input renders only the round count.
     """
     text = Text()
     total = len(rounds)
@@ -198,6 +190,21 @@ def _provenance_style(view: QuestionRoundView) -> str:
     return ""
 
 
+def _responded_at(provenance: QuestionProvenanceView | None) -> datetime | None:
+    if provenance is None:
+        return None
+    return _as_local(provenance.responded_at_unix)
+
+
+def _cancellation_detail(cancellation: QuestionCancellationView | None) -> str:
+    """Return ``reason · source`` for a cancelled round (empty when unknown)."""
+    if cancellation is None:
+        return ""
+    return " · ".join(
+        part for part in (cancellation.reason, cancellation.source) if part
+    )
+
+
 def _header_segments(
     view: QuestionRoundView,
     now: datetime,
@@ -221,11 +228,7 @@ def _header_segments(
         if provenance is not None:
             segments.append((provenance, _provenance_style(view)))
         asked = _as_local(view.asked_at_unix)
-        responded = (
-            _as_local(view.provenance.responded_at_unix)
-            if view.provenance is not None
-            else None
-        )
+        responded = _responded_at(view.provenance)
         if asked is not None and responded is not None and responded >= asked:
             elapsed = (responded - asked).total_seconds()
             segments.append((f"{_short_duration(elapsed)} after asking", ""))
@@ -235,14 +238,9 @@ def _header_segments(
     provenance = _provenance_text(view)
     if provenance is not None and view.provenance is not None:
         segments.append((provenance, _provenance_style(view)))
-    if view.cancellation is not None:
-        reason = " · ".join(
-            part
-            for part in (view.cancellation.reason, view.cancellation.source)
-            if part
-        )
-        if reason:
-            segments.append((reason, ""))
+    reason = _cancellation_detail(view.cancellation)
+    if reason:
+        segments.append((reason, ""))
     return segments
 
 
@@ -276,13 +274,19 @@ def _clip_line(text: Text, width: int = _ONE_LINE_WIDTH) -> Text:
     return text
 
 
+def _answer_feedback(answer: QuestionAnswerView | None) -> str:
+    if answer is None:
+        return ""
+    return (answer.custom_feedback or "").strip()
+
+
 def _answer_text(entry: QuestionEntryView) -> tuple[str | None, str | None]:
     """Return the settled answer display and its marker (either may be None)."""
     answer = entry.answer
     if answer is None:
         return None, None
     match = entry.recommendation_match
-    feedback = (answer.custom_feedback or "").strip()
+    feedback = _answer_feedback(answer)
     if match == "free_text":
         return f'"{answer.custom_feedback or ""}"', None
     if match == "other_text":
@@ -378,6 +382,26 @@ def _is_degraded(view: QuestionRoundView) -> bool:
     return view.data_state in ("partial", "unavailable")
 
 
+def _append_full_option(
+    text: Text,
+    option: QuestionOptionView,
+    *,
+    recommended: bool,
+) -> None:
+    """Append one FULLY_EXPANDED option line, starring the recommended one."""
+    text.append("    ")
+    if recommended:
+        text.append("★ ", style=_RECOMMENDED_STYLE)
+        text.append(option.label, style=_RECOMMENDED_STYLE)
+        text.append(" (recommended, listed first)", style="dim")
+    else:
+        text.append("· ", style="dim")
+        text.append(option.label)
+    if option.description:
+        text.append(f" — {option.description}", style="dim")
+    text.append("\n")
+
+
 def _append_full_question(
     text: Text,
     entry: QuestionEntryView,
@@ -391,18 +415,8 @@ def _append_full_question(
         for raw in entry.question.rstrip().splitlines() or [""]:
             text.append(f"    {raw.rstrip()}\n", style="dim")
     for index, option in enumerate(entry.options):
-        text.append("    ")
-        if index == entry.recommended_index:
-            text.append("★ ", style=_RECOMMENDED_STYLE)
-            text.append(option.label, style=_RECOMMENDED_STYLE)
-            text.append(" (recommended, listed first)", style="dim")
-        else:
-            text.append("· ", style="dim")
-            text.append(option.label)
-        if option.description:
-            text.append(f" — {option.description}", style="dim")
-        text.append("\n")
-    feedback = (entry.answer.custom_feedback or "").strip() if entry.answer else ""
+        _append_full_option(text, option, recommended=index == entry.recommended_index)
+    feedback = _answer_feedback(entry.answer)
     if feedback and entry.recommendation_match == "other_text":
         text.append(f'    - Other: "{feedback}"\n', style="dim")
     elif (
@@ -422,24 +436,15 @@ def _append_full_round_extras(
     if view.global_note:
         text.append("  ")
         text.append(f'Note: "{view.global_note}"\n', style="dim")
-    if view.cancellation is not None and (
-        view.cancellation.reason or view.cancellation.source
-    ):
+    cancellation = view.cancellation
+    detail = _cancellation_detail(cancellation)
+    if cancellation is not None and detail:
         text.append("  ")
-        detail = " · ".join(
-            part
-            for part in (view.cancellation.reason, view.cancellation.source)
-            if part
-        )
-        cancelled = _as_local(view.cancellation.cancelled_at_unix)
+        cancelled = _as_local(cancellation.cancelled_at_unix)
         stamp = f" at {cancelled:%Y-%m-%d %H:%M:%S}" if cancelled is not None else ""
         text.append(f"Cancelled: {detail}{stamp}\n", style="dim")
     asked = _as_local(view.asked_at_unix)
-    responded = (
-        _as_local(view.provenance.responded_at_unix)
-        if view.provenance is not None
-        else None
-    )
+    responded = _responded_at(view.provenance)
     if asked is not None or responded is not None:
         text.append("  ")
         stamps = []
@@ -561,7 +566,6 @@ def render_question_stub_lines(
 
 __all__ = [
     "QuestionNumberCursor",
-    "QuestionRoundHeadingSource",
     "question_rounds_heading_suffix",
     "render_question_round",
     "render_question_rounds",

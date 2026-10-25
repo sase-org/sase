@@ -49,7 +49,7 @@ import pytest
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.util import trace as tui_trace_mod
 from sase.ace.tui.widgets.prompt_panel._agent_display_header_summary import (
-    _TRACE_SPAN_PREFIX,
+    DETAIL_HEADER_TRACE_SPAN_PREFIX,
     build_detail_header_summary,
 )
 from sase.ace.tui.widgets.prompt_panel._agent_commits import agent_commit_groups
@@ -76,6 +76,7 @@ _RESOLVER_SPAN_SUFFIXES = (
     "wait_bead_statuses",
     "agent_page_url",
     "bead_display",
+    "question_rounds",
 )
 
 # agent_commit_groups is not one of build_detail_header_summary's resolvers
@@ -160,7 +161,7 @@ def _resolver_cost_table(agents: list[Agent], trace_path: Path) -> dict[str, Any
         bucket = cold_by_suffix if call_index % 2 == 0 else warm_by_suffix
         by_span = {row["span"]: row["duration_ms"] for row in chunk}
         for suffix in _RESOLVER_SPAN_SUFFIXES:
-            span = f"{_TRACE_SPAN_PREFIX}.{suffix}"
+            span = f"{DETAIL_HEADER_TRACE_SPAN_PREFIX}.{suffix}"
             if span in by_span:
                 bucket[suffix].append(by_span[span])
 
@@ -196,7 +197,7 @@ def _resolver_trace_calls(records: list[dict[str, Any]]) -> list[list[dict[str, 
     current: list[dict[str, Any]] = []
     for row in records:
         current.append(row)
-        if row.get("span") == _TRACE_SPAN_PREFIX:
+        if row.get("span") == DETAIL_HEADER_TRACE_SPAN_PREFIX:
             calls.append(current)
             current = []
     if current:
@@ -355,15 +356,15 @@ def test_resolver_cost_table_groups_missing_optional_spans(
     """Absent resolver spans must not shift later calls into the wrong bucket."""
     records = [
         {
-            "span": f"{_TRACE_SPAN_PREFIX}.skill_uses",
+            "span": f"{DETAIL_HEADER_TRACE_SPAN_PREFIX}.skill_uses",
             "duration_ms": 10.0,
         },
-        {"span": _TRACE_SPAN_PREFIX, "duration_ms": 11.0},
+        {"span": DETAIL_HEADER_TRACE_SPAN_PREFIX, "duration_ms": 11.0},
         {
-            "span": f"{_TRACE_SPAN_PREFIX}.agent_page_url",
+            "span": f"{DETAIL_HEADER_TRACE_SPAN_PREFIX}.agent_page_url",
             "duration_ms": 2.0,
         },
-        {"span": _TRACE_SPAN_PREFIX, "duration_ms": 3.0},
+        {"span": DETAIL_HEADER_TRACE_SPAN_PREFIX, "duration_ms": 3.0},
     ]
     monkeypatch.setattr(
         sys.modules[__name__],

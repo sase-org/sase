@@ -360,8 +360,9 @@ the preferred card.
   first paint shows the heading counts plus one dim line per round with no disk reads;
   full detail arrives through the `questions` lane. On a session container the section
   follows the session fold (`za` collapses it and `,/` finds its text); on other rows it
-  is a plain section heading. A question gate's GATE section and its session Reply phase
-  render the same round instead of the old Option JSON dump; other gate kinds are
+  is a plain section heading. A question gate's session Reply phase renders its round
+  instead of the old Option JSON dump, while the gate row's GATE section keeps only the
+  gate fields because QUESTIONS already shows that round; other gate kinds are
   unchanged.
 - **OUTPUT VARIABLES**: Small JSON-shaped values written by the selected agent session
   with `sase var set` and by `sase artifact create` (the SASE-managed `artifacts` list).

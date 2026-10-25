@@ -6,6 +6,7 @@ from datetime import datetime
 
 from rich.text import Text
 
+from sase.ace.tui.models.agent_question_rounds import QuestionRoundStub
 from sase.ace.tui.models.fold_state import FoldLevel
 from sase.ace.tui.widgets.prompt_panel._agent_questions_render import (
     QuestionNumberCursor,
@@ -134,16 +135,18 @@ def test_heading_suffix_omits_zero_parts() -> None:
 
 
 def test_heading_suffix_accepts_first_paint_stubs() -> None:
-    from dataclasses import dataclass
-
-    @dataclass
-    class LaneStub:
-        gate_state: str | None = "pending"
+    def stub(gate_state: str | None) -> QuestionRoundStub:
+        return QuestionRoundStub(
+            gate_id="question-abc123",
+            member_label="gate",
+            gate_state=gate_state,
+            gate_label="Ship it?",
+            asked_at_unix=None,
+            deadline_unix=None,
+        )
 
     assert (
-        question_rounds_heading_suffix(
-            [LaneStub(), LaneStub(gate_state="answered")]
-        ).plain
+        question_rounds_heading_suffix([stub("pending"), stub("answered")]).plain
         == " · 2 rounds · 1 awaiting answer"
     )
 

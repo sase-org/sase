@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Literal
-
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Literal
 
 from sase.ace.patch.models import DeltaEntry
 from sase.ace.tui.artifact_reads import ArtifactReadDisplayEvent, ArtifactReadRefSpec
@@ -16,9 +14,6 @@ from sase.ace.tui.opened_workspaces import OpenedWorkspaceDisplayEvent
 from sase.ace.tui.skill_uses import SkillUseDisplayEvent
 from sase.ace.tui.llm_calls import SlowToolSource
 from sase.ace.tui.llm_calls.report import SlowToolCallReportSpec
-
-if TYPE_CHECKING:
-    from sase.question_gate_turn.projection import NumberedQuestionRound
 from sase.core.tool_run import ToolRunNodeSummary
 from sase.memory.legacy_glossary_read_report import GlossaryReadReportSpec
 from sase.memory.memory_read_report import MemoryReadReportSpec
@@ -32,6 +27,9 @@ from ...models.agent_associated_plan import (
 )
 from ..file_panel._linked_deltas import LinkedDeltaGroup
 from ._artifact_files import ArtifactFilePath
+
+if TYPE_CHECKING:
+    from sase.question_gate_turn.projection import NumberedQuestionRound
 
 
 @dataclass
@@ -155,7 +153,7 @@ class DetailHeaderSummary:
     tool_run_summary: ToolRunNodeSummary | None = None
     agent_page_url: str | None = None
     # Session question rounds for the QUESTIONS section. Not a SASE CONTEXT
-    # lane: the context-section mount (a later phase) renders it separately.
+    # lane: `append_agent_questions_section` renders it separately.
     question_rounds: tuple[NumberedQuestionRound, ...] = ()
     # Lanes this instance actually resolved (attempted), as opposed to lanes
     # that were never requested. A lane in `ready_lanes` whose field is still

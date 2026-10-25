@@ -3,7 +3,7 @@
 Each round's bundle (``<bundle_path>/request.json`` etc.) is read through
 the mtime/size JSON cache and projected by the Rust ``question_round``
 core module through :mod:`sase.core.question_round_facade`. Everything
-here is tolerant: :func:`parse_question_round_wire` coerces malformed
+here is tolerant: :func:`_parse_question_round_wire` coerces malformed
 fields to defaults, and :func:`load_question_round` never raises,
 returning a ``data_state="unavailable"`` view when the binding or the
 parse fails. The loader holds no shared mutable state, so the lane
@@ -220,7 +220,7 @@ def _parse_cancellation(value: Any) -> QuestionCancellationView | None:
     )
 
 
-def parse_question_round_wire(data: Mapping[str, Any]) -> QuestionRoundView:
+def _parse_question_round_wire(data: Mapping[str, Any]) -> QuestionRoundView:
     """Coerce a ``QuestionRoundWire``-shape mapping into a typed view.
 
     Every field is tolerant: wrong-typed values fall back to defaults and
@@ -311,7 +311,7 @@ def load_question_round(
             document = cache.read_json(os.path.join(bundle_path, f"{name}.json"))
             if document is not None:
                 wire_request[name] = document
-        return parse_question_round_wire(
+        return _parse_question_round_wire(
             question_round_facade.project_question_round(wire_request)
         )
     except Exception:
@@ -334,5 +334,4 @@ __all__ = [
     "QuestionProvenanceView",
     "QuestionRoundView",
     "load_question_round",
-    "parse_question_round_wire",
 ]

@@ -452,14 +452,12 @@ _lint-patch-stitch-terminology: _setup
 # sase-1o5.3 (presenter) consumed the question-round projection seams it
 # renders (NumberedQuestionRound, QuestionEntryView, QuestionPolicyView,
 # QuestionRoundView, load_question_round, plus phase 2's
-# project_question_round binding) through the GATE-section swap, so those
-# rows are dropped; the still-unused view seams stay allow-listed under
-# the parent epic for the lane and context-section phases. sase-1o5.5
-# (context-section) consumed the presenter's multi-round entry points and
-# the stub seams by mounting them on the Context card, so those rows are
-# dropped too; the stub/presenter heading protocol stays allow-listed
-# under the parent epic because stubs satisfy it structurally and no
-# runtime reference names it.
+# project_question_round binding) through the GATE-section swap, and
+# sase-1o5.5 (context-section) consumed the multi-round entry points and
+# stub seams by mounting them on the Context card. The sase-1o5 landing
+# retired the rest: the presenter's typed helpers name the remaining view
+# dataclasses, parse_question_round_wire went private, and the heading
+# protocol was replaced by QuestionRoundStub.
 # sase-1ko.5 (delivery-plan) exported current_instruction_delivery for adapters;
 # sase-1ko.7 (claude) is its first consumer.
 # sase-1nf.10.1.1 (retry-policy) exported failure-accounting and drain-selection
@@ -476,12 +474,6 @@ _lint-symvision *args: _setup
     SASE_SYMVISION_BEAD_STATUS_ONLY=1 BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase \
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
-        --epic-symbol 'sase-1o5(QuestionAnswerView)' \
-        --epic-symbol 'sase-1o5(QuestionCancellationView)' \
-        --epic-symbol 'sase-1o5(QuestionOptionView)' \
-        --epic-symbol 'sase-1o5(QuestionProvenanceView)' \
-        --epic-symbol 'sase-1o5(parse_question_round_wire)' \
-        --epic-symbol 'sase-1o5(QuestionRoundHeadingSource)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)
