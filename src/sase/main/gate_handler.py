@@ -49,6 +49,15 @@ def handle_gate_command(args: argparse.Namespace) -> NoReturn:
 def _handle_gate_create(args: argparse.Namespace) -> NoReturn:
     """Create a durable gate from a JSON specification read from stdin."""
     data = _read_stdin_object()
+    try:
+        from sase.agent.legacy_sase_shell_syntax import (
+            normalize_gate_spec_block,
+        )
+
+        data = normalize_gate_spec_block(data)
+    except ValueError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        sys.exit(1)
     origin_agent = getattr(args, "origin_agent", None)
     panel = getattr(args, "panel", None)
     panel_icon = getattr(args, "panel_icon", None)
@@ -80,7 +89,7 @@ def _handle_gate_create(args: argparse.Namespace) -> NoReturn:
         data["presentation"] = presentation
 
     try:
-        if isinstance(data.get("shell"), dict):
+        if data.get("turn") is not None:
             from sase.gate_turn import (
                 create_gate_turn,
                 maybe_handoff_gate_from_agent,

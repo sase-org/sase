@@ -259,6 +259,13 @@ For larger commands, set a resource's `source` to a script you authored instead 
 embedding `content`; use exactly one of `source` or `content`. Keep command resources
 narrowly scoped to the action shown to the user.
 
+Option and operation commands run with the gate bundle as their working directory, in
+the environment of whichever process executes the answer — the TUI, mobile, a proc, or a
+follow-up runner — not in the creating agent's environment. So bake absolute paths and
+pinned artifacts into the command at creation time, and never depend on agent-only
+variables such as `CARGO_TARGET_DIR`, `SASE_ARTIFACTS_DIR`, or the agent's workspace
+path.
+
 ## Declare The `turn` Block
 
 A gate you create from inside an agent should almost always be a **gate turn**: a named,
