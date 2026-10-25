@@ -190,6 +190,11 @@ class AgentSessionDisplayMixin:
             rendered_content_section = True
 
         phases = agent_session_turn_rows(agent)
+        # Use-site import: the presenter stays out of the TUI startup
+        # closure (see test_tui_app_import_stays_under_startup_budget).
+        from ._agent_questions_render import QuestionNumberCursor
+
+        question_numbering = QuestionNumberCursor()
         if hint_state is None:
 
             def render_phase(phase: Agent, block_id: str) -> list[Any]:
@@ -198,7 +203,9 @@ class AgentSessionDisplayMixin:
                     append_finalizer_receipt(parts, phase)
                     return parts
                 if phase.is_gate:
-                    return build_gate_phase(phase, block_id=block_id)
+                    return build_gate_phase(
+                        phase, block_id=block_id, numbering=question_numbering
+                    )
                 reply_renderables = render_agent_reply_content(
                     phase,
                     self._render_markdown,
@@ -243,6 +250,7 @@ class AgentSessionDisplayMixin:
                             phase, hint_state, hint_budget
                         ),
                         block_id=block_id,
+                        numbering=question_numbering,
                     )
                 parts = [
                     render_phase_divider(

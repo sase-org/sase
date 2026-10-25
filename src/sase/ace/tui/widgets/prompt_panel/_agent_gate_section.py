@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import json
 from collections.abc import Callable, Mapping
-from datetime import timedelta
+from dataclasses import replace
+from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from rich.text import Text
 
@@ -14,6 +15,11 @@ from sase.ace.hooks.timestamps import format_duration
 from sase.agent.artifact_files_cache import get_global_cache
 from sase.core.time import local_now
 from sase.gate_turn.naming import short_gate_turn_id
+
+if TYPE_CHECKING:
+    from sase.question_gate_turn.projection import NumberedQuestionRound
+
+    from ._agent_questions_render import QuestionNumberCursor
 from sase.gate_turn.state import (
     GATE_FAILURE_GLYPH_COLOR,
     GATE_GLYPH,
@@ -164,10 +170,55 @@ def _deadline_text(agent: Agent) -> str | None:
     return f"{deadline:%Y-%m-%d %H:%M:%S}"
 
 
+def _question_numbered_round(
+    agent: Agent,
+    *,
+    first_number: int,
+) -> NumberedQuestionRound:
+    """Load one gate row's question round for the Rich presenter.
+
+    Uses the same mtime-cached bundle reads the section already performs
+    on this path; a missing or malformed bundle degrades to an
+    ``unavailable`` view instead of raising.
+    """
+    # Use-site import: the question-round projection stays out of the TUI
+    # startup closure (see test_tui_app_import_stays_under_startup_budget).
+    from sase.question_gate_turn.projection import (
+        NumberedQuestionRound,
+        load_question_round,
+    )
+
+    start = agent.run_start_time or agent.start_time
+    asked_at_unix = start.timestamp() if isinstance(start, datetime) else None
+    deadline_unix: float | None = None
+    if isinstance(start, datetime) and agent.gate_timeout_seconds is not None:
+        deadline_unix = (
+            start + timedelta(seconds=agent.gate_timeout_seconds)
+        ).timestamp()
+    member_label = (agent.role_suffix or "").lstrip("-") or "gate"
+    view = load_question_round(
+        gate_id=agent.gate_id or "",
+        gate_state=agent.gate_state,
+        bundle_path=agent.gate_bundle_path or "",
+        asked_by=agent.gate_creator_agent,
+        asked_at_unix=asked_at_unix,
+    )
+    return NumberedQuestionRound(
+        view=view,
+        first_number=first_number,
+        member_label=member_label,
+        deadline_unix=deadline_unix,
+    )
+
+
 def _gate_field_parts(
     agent: Agent,
     *,
     prefix: Text | None = None,
+    level: FoldLevel = FoldLevel.EXPANDED,
+    first_number: int = 1,
+    numbering: QuestionNumberCursor | None = None,
+    now: datetime | None = None,
 ) -> list[object]:
     parts: list[object] = []
     text = prefix if prefix is not None else Text(end="")
@@ -230,6 +281,25 @@ def _gate_field_parts(
             text.append(f" · {agent.gate_followup_error}", style="bold #FFAF00")
         text.append("\n")
 
+    if agent.gate_kind == "question":
+        # Use-site import: the presenter stays out of the TUI startup
+        # closure (see test_tui_app_import_stays_under_startup_budget).
+        from ._agent_questions_render import render_question_round
+
+        parts.append(text)
+        numbered = _question_numbered_round(agent, first_number=first_number)
+        if numbering is not None:
+            numbered = replace(
+                numbered,
+                first_number=numbering.take(len(numbered.view.entries)),
+            )
+        parts.append(
+            render_question_round(
+                numbered, level=level, now=now if now is not None else local_now()
+            )
+        )
+        return parts
+
     branch_text = _branch_summary(agent)
     if branch_text.cell_len:
         text.append_text(branch_text)
@@ -257,7 +327,7 @@ def build_gate_section(
         style=_COLOR_HEADER,
     )
     text.append_text(heading)
-    return _gate_field_parts(agent, prefix=text)
+    return _gate_field_parts(agent, prefix=text, level=level)
 
 
 def build_gate_output(
@@ -299,8 +369,15 @@ def build_gate_phase(
     *,
     annotate: GateTextAnnotator | None = None,
     block_id: str | None = None,
+    first_number: int = 1,
+    numbering: QuestionNumberCursor | None = None,
 ) -> list[object]:
-    """Return the agent_session-facing GATE phase: divider, fields, and log."""
+    """Return the agent_session-facing GATE phase: divider, fields, and log.
+
+    Question gates render their round through the Rich presenter starting
+    at ``first_number``; pass a shared *numbering* cursor to number
+    consecutive gate phases continuously in causal order.
+    """
     accent = agent.gate_accent or "#0BCDEC"
     parts: list[object] = [
         render_phase_divider(
@@ -311,7 +388,9 @@ def build_gate_phase(
             block_id=block_id,
         )
     ]
-    parts.extend(_gate_field_parts(agent))
+    parts.extend(
+        _gate_field_parts(agent, first_number=first_number, numbering=numbering)
+    )
     parts.extend(build_gate_output(agent, heading=False, annotate=annotate))
     return parts
 
@@ -321,10 +400,18 @@ def gate_phase_text(
     *,
     annotate: GateTextAnnotator,
     block_id: str | None = None,
+    first_number: int = 1,
+    numbering: QuestionNumberCursor | None = None,
 ) -> Text:
     """Flatten ``build_gate_phase`` into one ``Text`` for hint-mode append."""
     result = Text(end="")
-    for part in build_gate_phase(agent, annotate=annotate, block_id=block_id):
+    for part in build_gate_phase(
+        agent,
+        annotate=annotate,
+        block_id=block_id,
+        first_number=first_number,
+        numbering=numbering,
+    ):
         if not isinstance(part, Text):
             raise TypeError(
                 "gate_phase_text requires annotate so every part is Text, "

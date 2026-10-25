@@ -449,6 +449,14 @@ _lint-patch-stitch-terminology: _setup
 # stage's width-aware hints through source_hint_line, so its row is dropped.
 # sase-1kj.7 (startup-telemetry) consumed patch_relation_index_real_build_count
 # by reading it onto tui_startup rows, so its row is dropped.
+# sase-1o5.3 (presenter) consumed the question-round projection seams it
+# renders (NumberedQuestionRound, QuestionEntryView, QuestionPolicyView,
+# QuestionRoundView, load_question_round, plus phase 2's
+# project_question_round binding) through the GATE-section swap, so those
+# rows are dropped; the still-unused view seams stay allow-listed under
+# the parent epic for the lane and context-section phases. The presenter's
+# multi-round entry points stay allow-listed under sase-1o5.5, which mounts
+# them on the Context card.
 # sase-1ko.5 (delivery-plan) exported current_instruction_delivery for adapters;
 # sase-1ko.7 (claude) is its first consumer.
 # sase-1nf.10.1.1 (retry-policy) exported failure-accounting and drain-selection
@@ -465,17 +473,14 @@ _lint-symvision *args: _setup
     SASE_SYMVISION_BEAD_STATUS_ONLY=1 BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase \
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
-        --epic-symbol 'sase-1o5.3(NumberedQuestionRound)' \
-        --epic-symbol 'sase-1o5.3(QuestionAnswerView)' \
-        --epic-symbol 'sase-1o5.3(QuestionCancellationView)' \
-        --epic-symbol 'sase-1o5.3(QuestionEntryView)' \
-        --epic-symbol 'sase-1o5.3(QuestionOptionView)' \
-        --epic-symbol 'sase-1o5.3(QuestionPolicyView)' \
-        --epic-symbol 'sase-1o5.3(QuestionProvenanceView)' \
-        --epic-symbol 'sase-1o5.3(QuestionRoundView)' \
-        --epic-symbol 'sase-1o5.3(load_question_round)' \
-        --epic-symbol 'sase-1o5.3(parse_question_round_wire)' \
-        --epic-symbol 'sase-1o5.3(project_question_round)' \
+        --epic-symbol 'sase-1o5(QuestionAnswerView)' \
+        --epic-symbol 'sase-1o5(QuestionCancellationView)' \
+        --epic-symbol 'sase-1o5(QuestionOptionView)' \
+        --epic-symbol 'sase-1o5(QuestionProvenanceView)' \
+        --epic-symbol 'sase-1o5(parse_question_round_wire)' \
+        --epic-symbol 'sase-1o5.5(QuestionRoundHeadingSource)' \
+        --epic-symbol 'sase-1o5.5(question_rounds_heading_suffix)' \
+        --epic-symbol 'sase-1o5.5(render_question_rounds)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

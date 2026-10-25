@@ -290,6 +290,12 @@ class AgentDisplayRenderMixin(
             if agent.followup_agents:
                 phases = (agent, *agent.followup_agents)
                 facts = legacy_followup_shell_facts(agent)
+                # Use-site import: the presenter stays out of the TUI
+                # startup closure (see
+                # test_tui_app_import_stays_under_startup_budget).
+                from ._agent_questions_render import QuestionNumberCursor
+
+                question_numbering = QuestionNumberCursor()
 
                 def render_legacy_phase(phase: Agent, block_id: str) -> list[Any]:
                     if phase.is_monitor:
@@ -297,7 +303,9 @@ class AgentDisplayRenderMixin(
                         append_finalizer_receipt(monitor_parts, phase)
                         return monitor_parts
                     if phase.is_gate:
-                        return build_gate_phase(phase, block_id=block_id)
+                        return build_gate_phase(
+                            phase, block_id=block_id, numbering=question_numbering
+                        )
                     legacy_parts: list[Any] = [
                         render_phase_divider(
                             get_phase_label(phase),
