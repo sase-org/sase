@@ -9,10 +9,13 @@ qualification observation, ``verify`` rechecks a sealed manifest,
 ``evaluate`` runs the promotion predicate, ``show`` prints a manifest,
 ``download`` resolves an asset locator to local bytes, ``core-files`` fetches
 the core PyPI file list and cross-checks ``uv.lock``, ``core-suffixes``
-parses the completeness set from sase-core's ``release-plz.yml``, and
+parses the completeness set from sase-core's ``release-plz.yml``,
 ``published-core`` selects the sealed manifest's published core wheel,
 downloads it from PyPI and verifies filename, version, size and SHA-256
-(including the rehearse-only probe path).
+(including the rehearse-only probe path), ``publish-plan`` diffs the sealed
+dist set against PyPI for a digest-checked upload plan, and ``confirm``
+verifies every manifest file is listed on PyPI with a matching SHA-256 and
+nothing extra.
 
 Sealed fields (immutable): repository, version, tag (or the rehearsal ref),
 peeled SHA and tree, candidate ID, build generation, builder workflow revision,
@@ -833,6 +836,197 @@ def fetch_and_verify_wheel(
     return path
 
 
+def _pypi_sase_entries(payload: Any, version: str) -> list[dict[str, Any]]:
+    """Extract the PyPI file records for one sase version.
+
+    Accepts either the per-version endpoint shape (``{"urls": [...]}``) or
+    the project shape (``{"releases": {version: [...]}}``); anything else
+    fails closed. A version with no entry yields an empty list (nothing is
+    published yet), never an error.
+    """
+    if not isinstance(payload, dict):
+        raise Refusal("PyPI JSON root must be an object")
+    if "urls" in payload and isinstance(payload["urls"], list):
+        return [entry for entry in payload["urls"] if isinstance(entry, dict)]
+    releases = payload.get("releases")
+    if isinstance(releases, dict):
+        entries = releases.get(version, [])
+        if not isinstance(entries, list):
+            raise Refusal(f"PyPI releases[{version!r}] must be a list")
+        return [entry for entry in entries if isinstance(entry, dict)]
+    raise Refusal("PyPI JSON has neither urls nor releases")
+
+
+def _pypi_digest(entry: dict[str, Any]) -> str:
+    digests = entry.get("digests")
+    if isinstance(digests, dict) and isinstance(digests.get("sha256"), str):
+        return digests["sha256"]
+    if isinstance(entry.get("sha256"), str):
+        return entry["sha256"]
+    return ""
+
+
+def fetch_pypi_sase_files(
+    version: str,
+    urlopen: Any = None,
+) -> list[dict[str, Any]]:
+    """Fetch the sase PyPI file list for one version (empty when unreleased)."""
+    if urlopen is None:
+        urlopen = urllib.request.urlopen
+    url = f"https://pypi.org/pypi/sase/{version}/json"
+    try:
+        with urlopen(url, timeout=30) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+    except Refusal:
+        raise
+    except Exception as exc:
+        raise Refusal(f"cannot fetch PyPI JSON for sase=={version}: {exc}") from exc
+    return _pypi_sase_entries(payload, version)
+
+
+def compute_publish_plan(
+    manifest: dict[str, Any],
+    pypi_files: Sequence[dict[str, Any]],
+    staged_dir: Path,
+) -> dict[str, Any]:
+    """Diff the sealed dist set against PyPI; refuse on any conflict.
+
+    For each sealed dist the stashed bytes must exist under ``staged_dir``
+    with a matching SHA-256 (``PUBLISH_MISSING_ASSET`` or
+    ``PUBLISH_STASH_MISMATCH`` otherwise). An identical file already on PyPI
+    is ``already-present`` and skipped; a missing file is ``upload``. An
+    existing filename with a different digest, or a PyPI file that is not in
+    the manifest, is ``PUBLISH_CONFLICT`` and refuses without uploading.
+    """
+    if not isinstance(manifest, dict):
+        raise Refusal("manifest root must be an object")
+    problems = verify_manifest(manifest)
+    if problems:
+        raise Refusal(f"sealed manifest is red: {'; '.join(problems)}")
+    dists = manifest.get("dists", [])
+    if not isinstance(dists, list) or len(dists) != 2:
+        raise Refusal("sealed dist set must be exactly one wheel plus one sdist")
+    by_name = {}
+    for dist in dists:
+        if not isinstance(dist, dict) or not dist.get("filename"):
+            raise Refusal("sealed dist entry is malformed")
+        by_name[dist["filename"]] = dist
+    pypi_by_name: dict[str, dict[str, Any]] = {}
+    for entry in pypi_files:
+        if not isinstance(entry, dict) or not entry.get("filename"):
+            raise Refusal("PyPI file entry is malformed")
+        name = entry["filename"]
+        if name in pypi_by_name:
+            raise Refusal(f"PUBLISH_CONFLICT duplicate PyPI file {name!r}")
+        pypi_by_name[name] = entry
+    for name in sorted(pypi_by_name):
+        if name not in by_name:
+            raise Refusal(f"PUBLISH_CONFLICT extra PyPI file {name!r} is not in the manifest")
+    files = []
+    for dist in dists:
+        name = dist["filename"]
+        staged = staged_dir / name
+        if not staged.is_file():
+            raise Refusal(f"PUBLISH_MISSING_ASSET {name!r} is not staged")
+        digest = hashlib.sha256(staged.read_bytes()).hexdigest()
+        if digest != dist.get("sha256", ""):
+            raise Refusal(
+                f"PUBLISH_STASH_MISMATCH {name!r}: "
+                "staged bytes differ from the sealed manifest"
+            )
+        size = staged.stat().st_size
+        if dist.get("size") and size != dist["size"]:
+            raise Refusal(
+                f"PUBLISH_STASH_MISMATCH {name!r}: "
+                f"staged size {size} != sealed {dist['size']}"
+            )
+        remote = pypi_by_name.get(name)
+        if remote is None:
+            files.append(
+                {
+                    "filename": name,
+                    "sha256": dist["sha256"],
+                    "size": dist["size"],
+                    "action": "upload",
+                }
+            )
+            continue
+        if _pypi_digest(remote) != dist.get("sha256", ""):
+            raise Refusal(
+                f"PUBLISH_CONFLICT {name!r} already exists on PyPI "
+                "with a different SHA-256"
+            )
+        files.append(
+            {
+                "filename": name,
+                "sha256": dist["sha256"],
+                "size": dist["size"],
+                "action": "already-present",
+            }
+        )
+    return {
+        "candidate_id": manifest.get("candidate_id"),
+        "generation": manifest.get("generation"),
+        "version": manifest.get("version"),
+        "files": files,
+    }
+
+
+def confirm_pypi_files(
+    manifest: dict[str, Any],
+    pypi_files: Sequence[dict[str, Any]],
+) -> dict[str, Any]:
+    """Verify every sealed file is on PyPI with a matching digest.
+
+    A sealed file missing from PyPI is ``PUBLISH_PARTIAL`` (bounded CDN lag
+    is the caller's retry); a digest mismatch or an extra PyPI file is
+    ``PUBLISH_CONFLICT``.
+    """
+    if not isinstance(manifest, dict):
+        raise Refusal("manifest root must be an object")
+    problems = verify_manifest(manifest)
+    if problems:
+        raise Refusal(f"sealed manifest is red: {'; '.join(problems)}")
+    dists = manifest.get("dists", [])
+    if not isinstance(dists, list) or len(dists) != 2:
+        raise Refusal("sealed dist set must be exactly one wheel plus one sdist")
+    by_name = {}
+    for dist in dists:
+        if not isinstance(dist, dict) or not dist.get("filename"):
+            raise Refusal("sealed dist entry is malformed")
+        by_name[dist["filename"]] = dist
+    pypi_by_name: dict[str, dict[str, Any]] = {}
+    for entry in pypi_files:
+        if not isinstance(entry, dict) or not entry.get("filename"):
+            raise Refusal("PyPI file entry is malformed")
+        name = entry["filename"]
+        if name in pypi_by_name:
+            raise Refusal(f"PUBLISH_CONFLICT duplicate PyPI file {name!r}")
+        pypi_by_name[name] = entry
+    for name in sorted(pypi_by_name):
+        if name not in by_name:
+            raise Refusal(f"PUBLISH_CONFLICT extra PyPI file {name!r} is not in the manifest")
+    checked = []
+    for dist in dists:
+        name = dist["filename"]
+        remote = pypi_by_name.get(name)
+        if remote is None:
+            raise Refusal(f"PUBLISH_PARTIAL {name!r} is not yet listed on PyPI")
+        if _pypi_digest(remote) != dist.get("sha256", ""):
+            raise Refusal(
+                f"PUBLISH_CONFLICT {name!r} is listed on PyPI "
+                "with a different SHA-256"
+            )
+        checked.append({"filename": name, "sha256": dist["sha256"]})
+    return {
+        "candidate_id": manifest.get("candidate_id"),
+        "generation": manifest.get("generation"),
+        "version": manifest.get("version"),
+        "files": checked,
+        "complete": True,
+    }
+
+
 def _load_json(path: Path) -> Any:
     return json.loads(path.read_text(encoding="utf-8"))
 
@@ -984,6 +1178,31 @@ def build_parser() -> argparse.ArgumentParser:
     group.add_argument("--url", default="")
     group.add_argument("--file", default="")
     core_suffixes.add_argument("--out", required=True)
+
+    publish_plan = subs.add_parser(
+        "publish-plan", help="diff the sealed dist set against PyPI"
+    )
+    publish_plan.add_argument(
+        "-m", "--manifest", required=True, help="sealed manifest JSON path"
+    )
+    publish_plan.add_argument(
+        "--pypi-json", required=True, help="PyPI JSON file for the sase version"
+    )
+    publish_plan.add_argument(
+        "--staged-dir", required=True, help="directory holding the stashed dist bytes"
+    )
+    publish_plan.add_argument("--out", default="", help="publish plan output path")
+
+    confirm = subs.add_parser(
+        "confirm", help="verify every sealed file is confirmed on PyPI"
+    )
+    confirm.add_argument(
+        "-m", "--manifest", required=True, help="sealed manifest JSON path"
+    )
+    confirm.add_argument(
+        "--pypi-json", required=True, help="fresh PyPI JSON file for the sase version"
+    )
+    confirm.add_argument("--out", default="", help="confirmation report output path")
 
     return parser
 
@@ -1143,6 +1362,28 @@ def main(argv: Sequence[str] | None = None) -> int:
                 raise Refusal("no suffixes parsed from release-plz.yml")
             _dump_json(Path(args.out), suffixes)
             print(f"{len(suffixes)} expected suffixes")
+            return EXIT_OK
+        if args.command == "publish-plan":
+            manifest = _load_json(Path(args.manifest))
+            if not isinstance(manifest, dict):
+                raise Refusal("manifest root must be an object")
+            payload = _load_json(Path(args.pypi_json))
+            files = _pypi_sase_entries(payload, manifest.get("version", ""))
+            plan = compute_publish_plan(manifest, files, Path(args.staged_dir))
+            if args.out:
+                _dump_json(Path(args.out), plan)
+            print(json.dumps(plan, indent=2, sort_keys=True))
+            return EXIT_OK
+        if args.command == "confirm":
+            manifest = _load_json(Path(args.manifest))
+            if not isinstance(manifest, dict):
+                raise Refusal("manifest root must be an object")
+            payload = _load_json(Path(args.pypi_json))
+            files = _pypi_sase_entries(payload, manifest.get("version", ""))
+            report = confirm_pypi_files(manifest, files)
+            if args.out:
+                _dump_json(Path(args.out), report)
+            print(json.dumps(report, indent=2, sort_keys=True))
             return EXIT_OK
     except Refusal as exc:
         print(f"REFUSED {exc}", file=sys.stderr)

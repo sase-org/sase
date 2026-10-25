@@ -390,8 +390,23 @@ MANIFEST_PATH = ROOT / "tests" / "contract_manifest.txt"
 # (74 passed) under the command above on this host. Estimated 126.45 serial
 # seconds across the refreshed 87-entry set (123.37 s prior plus the added
 # files). The next candidate should displace an entry rather than add one.
-_MANIFEST_ENTRY_BUDGET = 87
-_MEASURED_SERIAL_COST = "126.45 serial seconds across 87 entries (estimated from 123.37 s 83-entry run plus 3.08 s for four admitted files)"
+#
+# Re-curated to 88 on 2026-10-25 (sase-1n6.6) for
+# `test_release_candidate_publish.py`, the guard for the new `publish`
+# subcommand of `tools/release_candidate` (digest-checked publish plan,
+# resume, PUBLISH_CONFLICT/PUBLISH_MISSING_ASSET refusals, PyPI confirm).
+# Admitted on the same value-per-second basis as the other `tools/` script
+# guards already in this set: the script is not a node in the import graph,
+# so a change that touches only it contributes no seeds,
+# `RULE_CONTRACT_SET_ONLY` fires, and the contract set is the only
+# scoped-selection coverage. The file measured 7.14 s standalone (8 passed)
+# under the command above on this host. The whole 88-entry set measured
+# 144.73 s under the command above on this host (single run; 1064 passed).
+# The next candidate should displace an entry rather than add one.
+_MANIFEST_ENTRY_BUDGET = 88
+_MEASURED_SERIAL_COST = (
+    "144.73 serial seconds across 88 entries (single run; 1064 passed)"
+)
 
 
 def _load_refresh_tool() -> ModuleType:

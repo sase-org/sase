@@ -106,6 +106,30 @@ from tests.test_release_candidate_seal import (
 )
 from tests.test_release_candidate_seal import test_unknown_observation_kind_refuses
 from tests.test_release_candidate_seal import test_unsupported_locator_fails_closed
+from tests.test_release_candidate_publish import (
+    test_confirm_requires_every_file_and_refuses_extra,
+)
+from tests.test_release_candidate_publish import (
+    test_dist_helpers_still_cover_publish_fixtures,
+)
+from tests.test_release_candidate_publish import (
+    test_publish_plan_accepts_both_pypi_shapes,
+)
+from tests.test_release_candidate_publish import (
+    test_publish_plan_refuses_different_hash,
+)
+from tests.test_release_candidate_publish import (
+    test_publish_plan_refuses_extra_pypi_file,
+)
+from tests.test_release_candidate_publish import (
+    test_publish_plan_refuses_missing_staged_asset,
+)
+from tests.test_release_candidate_publish import (
+    test_publish_plan_resume_after_one_upload,
+)
+from tests.test_release_candidate_publish import (
+    test_publish_plan_uploads_missing_and_skips_identical,
+)
 from tests.test_release_candidate_seal import (
     test_yanked_only_core_file_set_refuses_to_seal,
 )
@@ -122,7 +146,9 @@ __all__ = [
     "test_candidate_id_changes_with_generation",
     "test_candidate_id_stable_across_observations",
     "test_changed_carried_forward_success_is_ambiguous_and_red",
+    "test_confirm_requires_every_file_and_refuses_extra",
     "test_cross_check_lock_hashes_catches_mismatch",
+    "test_dist_helpers_still_cover_publish_fixtures",
     "test_duplicate_or_unreadable_evidence_file_fails_closed",
     "test_each_identity_mismatch_refuses",
     "test_evaluate_reports_missing_evidence_red",
@@ -147,6 +173,12 @@ __all__ = [
     "test_parse_expected_suffixes_refuses_duplicate_suffix",
     "test_parse_expected_suffixes_refuses_empty_block",
     "test_parse_expected_suffixes_refuses_missing_block",
+    "test_publish_plan_accepts_both_pypi_shapes",
+    "test_publish_plan_refuses_different_hash",
+    "test_publish_plan_refuses_extra_pypi_file",
+    "test_publish_plan_refuses_missing_staged_asset",
+    "test_publish_plan_resume_after_one_upload",
+    "test_publish_plan_uploads_missing_and_skips_identical",
     "test_qualification_evaluator_loads_its_focused_helpers",
     "test_qualification_pass_archives_bound_evidence_and_advisories",
     "test_qualify_cli_persists_red_observation_before_refusal",

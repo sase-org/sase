@@ -23,8 +23,10 @@ uses `qualify-<sha>`, never cancelled.
 sealed fields, `observe` appends one observation asset, `verify` rechecks a sealed
 manifest, `evaluate` runs the promotion predicate, `show` prints a manifest, `download`
 resolves an asset locator, `core-files` fetches the core PyPI file list and cross-checks
-`uv.lock`, and `core-suffixes` parses the completeness set from sase-core's
-`release-plz.yml`.
+`uv.lock`, `core-suffixes` parses the completeness set from sase-core's
+`release-plz.yml`, `publish-plan` diffs the sealed dist set against PyPI for a
+digest-checked upload plan, and `confirm` verifies every sealed file is listed on PyPI
+with a matching SHA-256 and nothing extra.
 
 ## Modes
 
@@ -123,6 +125,49 @@ The rehearse-only `probe_core_version` input tests an older core without reseali
 manifest: the tested version is recorded next to the intended one, and a probe run stays
 red even when the evaluator would otherwise pass. Probes are refused outside `rehearse`
 mode.
+
+## Publish and confirm
+
+The `publish` job depends on the `qualify` verdict and `exercise`, never on the
+`qualify-ci` aggregate, so its status condition passes through required verdicts even
+when an advisory ancestor failed. It runs the promotion predicate
+(`tools/release_candidate evaluate`) over the generation's `qualification` and
+`exercise` observations — workflow artifacts in `rehearse` mode, draft-release assets in
+`release` and `resume` modes — and refuses on any red clause, so a red exercise leg
+withholds publication. In `resume` mode it additionally refuses without passing evidence
+for the generation; it never rebuilds or reruns qualification.
+
+Before any upload it re-verifies every staged digest against the sealed manifest, then
+runs `tools/release_candidate publish-plan` against the PyPI file list for the version:
+
+- an identical file already on PyPI is skipped as `already-present`;
+- a missing file is planned as `upload`;
+- an existing filename with a different digest refuses with `PUBLISH_CONFLICT`;
+- a PyPI file that is not in the manifest refuses with `PUBLISH_CONFLICT`;
+- a missing stashed asset refuses with `PUBLISH_MISSING_ASSET`.
+
+Only the planned `upload` subset is published with
+`pypa/gh-action-pypi-publish@release/v1` and `skip-existing: false`, keeping the default
+attestations on. An interrupted upload resumes by re-dispatching with `mode: resume` at
+the same tag: identical files are skipped and the rest are uploaded. Two concurrent
+resumes for one tag serialize through the `publish-<ref>` concurrency group. A
+`publication` observation records each file as uploaded or already present. In
+`rehearse` mode `publish` runs the predicate and the plan only, with no environment and
+no upload — a rehearsal at `master` whose version equals the last release must report
+`PUBLISH_CONFLICT` for every file, which is the live proof of the different-hash
+refusal.
+
+The `confirm-install` matrix installs `sase==<version>` from public PyPI into isolated
+tool directories on Linux and macOS, then requires `sase version -j` to report the
+manifest's core and `sase core health --json` to pass. The `confirm` finalizer polls the
+PyPI JSON with a bounded wait for CDN lag until every manifest file is listed with a
+matching SHA-256 and nothing extra: a missing file is `PUBLISH_PARTIAL` and retries,
+while a mismatch or an extra file is `PUBLISH_CONFLICT` and refuses at once. It then
+runs the family canary with the exact rule
+(`tools/check_family_install --mode exact --expect sase==<version>`), un-drafts with
+`gh release edit v<version> --draft=false --latest`, and records a `confirmation`
+observation. Un-drafting happens only after every check passes; `confirm` never runs in
+`rehearse` mode.
 
 ## Tag-frozen workflow rule
 

@@ -71,7 +71,9 @@ def test_release_job_graph_and_mode_gates() -> None:
         "qualify-prepare",
         "qualify-ci",
         "qualify",
-        "not-yet-qualified",
+        "publish",
+        "confirm-install",
+        "confirm",
     }
     assert jobs["build"]["needs"] == "identity"
     assert jobs["stash"]["needs"] == ["identity", "build"]
@@ -96,9 +98,19 @@ def test_release_job_graph_and_mode_gates() -> None:
     # completed jobs and the publish gate joins both verdicts later.
     assert "exercise" not in jobs["qualify"]["needs"]
     assert "exercise-legs" not in jobs["qualify"]["needs"]
-    assert (
-        jobs["not-yet-qualified"]["if"]
-        == "${{ inputs.mode == 'release' || inputs.mode == 'resume' }}"
+    train_gate = (
+        "${{ always() && (inputs.mode == 'release' "
+        "|| inputs.mode == 'resume' || inputs.mode == 'rehearse') }}"
+    )
+    assert jobs["publish"]["needs"] == ["identity", "build", "qualify", "exercise"]
+    assert jobs["publish"]["if"] == train_gate
+    assert jobs["confirm-install"]["needs"] == ["identity", "publish"]
+    assert jobs["confirm-install"]["if"] == (
+        "${{ inputs.mode == 'release' || inputs.mode == 'resume' }}"
+    )
+    assert jobs["confirm"]["needs"] == ["identity", "publish", "confirm-install"]
+    assert jobs["confirm"]["if"] == (
+        "${{ inputs.mode == 'release' || inputs.mode == 'resume' }}"
     )
 
 
@@ -112,6 +124,13 @@ def test_release_resume_never_rebuilds_or_requalifies() -> None:
         assert "rehearse" in gate
     assert "resume" not in jobs["qualify"]["if"]
     assert "rehearse" in jobs["qualify"]["if"]
+    assert "resume" in jobs["publish"]["if"]
+    assert "resume" in jobs["confirm-install"]["if"]
+    assert "resume" in jobs["confirm"]["if"]
+    assert "rehearse" not in jobs["confirm-install"]["if"]
+    assert "rehearse" not in jobs["confirm"]["if"]
+    publish_text = _job_run_text(jobs["publish"])
+    assert "resume requires passing qualification and exercise evidence" in publish_text
 
 
 def test_release_identity_asserts_source_and_version_match() -> None:
@@ -155,12 +174,15 @@ def test_release_stash_refuses_without_draft_or_rebuild() -> None:
     assert "gh release upload" in run_text
 
 
-def test_release_mode_cannot_succeed_without_later_evidence() -> None:
+def test_release_publish_runs_the_promotion_predicate() -> None:
     workflow = _load_release_workflow()
-    run_text = _job_run_text(workflow["jobs"]["not-yet-qualified"])
+    run_text = _job_run_text(workflow["jobs"]["publish"])
 
-    assert "not yet qualified" in run_text
-    assert "exit 1" in run_text
+    assert "release_candidate evaluate" in run_text
+    assert "--observations publish-work/observations.json" in run_text
+    assert "PUBLISH_MISSING_ASSET" in run_text
+    assert "PUBLISH_STASH_MISMATCH" in run_text
+    assert "staged digests match the sealed manifest" in run_text
 
 
 def test_release_exercise_matrix_covers_os_and_artifact() -> None:
@@ -431,12 +453,81 @@ def test_release_qualify_mounts_the_sealed_candidate() -> None:
     assert "candidate/candidate-manifest.json" in run_text
 
 
-def test_release_publication_barrier_survives_qualification() -> None:
+def test_release_publish_serializes_resumes_and_plans_uploads() -> None:
     workflow = _load_release_workflow()
     jobs = workflow["jobs"]
+    publish = jobs["publish"]
 
-    assert "publish" not in jobs
-    assert "confirm" not in jobs
-    run_text = _job_run_text(jobs["not-yet-qualified"])
-    assert "not yet qualified" in run_text
-    assert "exit 1" in run_text
+    assert publish["concurrency"] == {
+        "group": "publish-${{ github.ref }}",
+        "cancel-in-progress": False,
+    }
+    assert publish["permissions"] == {"contents": "write", "id-token": "write"}
+    assert publish["environment"] == "${{ inputs.mode != 'rehearse' && 'pypi' || '' }}"
+    run_text = _job_run_text(publish)
+    assert "release_candidate publish-plan" in run_text
+    assert "release_candidate observe" in run_text
+    assert "--kind publication" in run_text
+    assert "PUBLISH_CONFLICT" in run_text
+    assert "pypa/gh-action-pypi-publish@release/v1" in str(publish["steps"])
+    pypi_step = next(
+        step
+        for step in publish["steps"]
+        if step.get("uses", "").startswith("pypa/gh-action-pypi-publish")
+    )
+    assert pypi_step["with"]["skip-existing"] is False
+    assert "attestations" not in str(pypi_step["with"])
+    assert "packages-dir" in str(pypi_step["with"])
+    assert "verify-only plan" in run_text
+    assert "already present on PyPI" in run_text
+    assert "publication-observation-run-" in str(publish["steps"])
+
+
+def test_release_confirm_matrix_proves_the_exact_install() -> None:
+    workflow = _load_release_workflow()
+    jobs = workflow["jobs"]
+    legs = jobs["confirm-install"]
+
+    assert legs["runs-on"] == "${{ matrix.os }}"
+    assert legs["strategy"]["fail-fast"] is False
+    assert legs["strategy"]["matrix"] == {"os": ["ubuntu-latest", "macos-latest"]}
+    run_text = _job_run_text(legs)
+    assert "sase==${version}" in run_text
+    assert "UV_TOOL_DIR=" in run_text
+    assert "UV_TOOL_BIN_DIR=" in run_text
+    assert "manifest core" in run_text
+    assert "sase core health --json" in run_text
+    assert "confirm-install-${{ matrix.os }}" in str(legs["steps"])
+
+
+def test_release_confirm_never_undrafts_before_every_check() -> None:
+    workflow = _load_release_workflow()
+    jobs = workflow["jobs"]
+    confirm = jobs["confirm"]
+
+    assert confirm["concurrency"] == {
+        "group": "publish-${{ github.ref }}",
+        "cancel-in-progress": False,
+    }
+    assert confirm["permissions"] == {"contents": "write"}
+    run_text = _job_run_text(confirm)
+    undraft_at = run_text.index('gh release edit "${TAG}" --draft=false --latest')
+    assert run_text.index("release_candidate confirm") < undraft_at
+    assert run_text.index("check_family_install") < undraft_at
+    assert run_text.index("--mode exact") < undraft_at
+    assert "confirm-install-" in str(confirm["steps"])
+    download = next(
+        step
+        for step in confirm["steps"]
+        if "confirm-install-" in str(step.get("with", ""))
+    )
+    assert "Poll PyPI until every file confirms" in str(
+        [step.get("name", "") for step in confirm["steps"]]
+    )
+    assert download["name"] == "Require the Linux and macOS install evidence"
+    assert "PUBLISH_PARTIAL" in run_text
+    assert "PUBLISH_CONFLICT: refusing without un-drafting" in run_text
+    assert "bounded wait" in run_text or "CDN lag" in run_text
+    assert "--kind confirmation" in run_text
+    assert "candidate-gen${generation}-confirmation-run" in run_text
+    assert "draft tag" in run_text and "refusing to un-draft" in run_text

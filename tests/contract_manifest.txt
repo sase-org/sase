@@ -41,6 +41,7 @@ tests/test_ratchet_core_window_tool_guardrails.py
 tests/test_ratchet_core_window_tool_modes.py
 tests/test_ratchet_core_window_tool_reconciliation.py
 tests/test_release_candidate_inventory.py
+tests/test_release_candidate_publish.py
 tests/test_release_candidate_published_core.py
 tests/test_release_candidate_qualify_red.py
 tests/test_release_candidate_rerun.py

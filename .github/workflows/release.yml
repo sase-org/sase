@@ -1,17 +1,18 @@
 name: Release
 
-# Exact-candidate release train (phases sase-1n6.2, sase-1n6.4). One build
-# at the tag, sealed into a candidate manifest stashed on the draft GitHub
-# release, then exercised on Linux and macOS.
+# Exact-candidate release train (phases sase-1n6.2, sase-1n6.4, sase-1n6.6).
+# One build at the tag, sealed into a candidate manifest stashed on the draft
+# GitHub release, then exercised on Linux and macOS, qualified against the
+# published core, published from the retained bytes with digest-checked
+# resume, and confirmed from PyPI before un-drafting.
 #
 # Modes (workflow_dispatch input `mode`):
 # - `release`: dispatched at a `v*` tag. Builds, seals, stashes on the draft
-#   release, exercises, and qualifies against the published core, then stops
-#   red with "not yet qualified" until the publish and confirm jobs land in a
-#   later phase. It must never succeed yet.
+#   release, exercises, qualifies, publishes the missing files, confirms from
+#   PyPI, and un-drafts.
 # - `resume`: dispatched at a `v*` tag whose sealed generation already carries
-#   passing evidence. Runs only `publish` and `confirm` (later phases); it
-#   never rebuilds or reruns qualification.
+#   passing evidence. Runs only `publish` and `confirm`; it never rebuilds or
+#   reruns qualification, and it refuses without passing evidence.
 # - `rehearse`: dispatched at a branch (normally `master`). Builds, seals,
 #   exercises and qualifies, but stores everything as workflow artifacts,
 #   never touches a GitHub release, and runs `publish` as a verify-only plan.
@@ -20,11 +21,13 @@ name: Release
 # `qualify-ci` (reusable CI at the identity SHA against the published core),
 # and `qualify` (the authoritative verdict from completed scoped jobs and
 # attempt-aware evidence). The final verdict is written and uploaded before
-# the verdict step fails, so red observations persist. `publish` (later phase)
-# must depend on the `qualify` verdict and `exercise`, never on the
-# `qualify-ci` aggregate: its status condition must pass through required
-# verdicts even when an advisory ancestor failed, since default
-# success-propagation would silently skip publication.
+# the verdict step fails, so red observations persist. `publish` depends on
+# the `qualify` verdict and `exercise`, never on the `qualify-ci` aggregate:
+# its status condition passes through required verdicts even when an advisory
+# ancestor failed, since default success-propagation would silently skip
+# publication. Two concurrent resumes for one tag serialize through the
+# `publish-<ref>` concurrency group. `confirm` never un-drafts before every
+# check passes, and `resume` refuses without passing evidence.
 #
 # The exercise legs install the same sealed bytes the manifest binds: the
 # build artifact in both modes (the stash upload is a mechanical copy of
@@ -892,13 +895,490 @@ jobs:
           fi
           echo "qualification passed"
 
-  not-yet-qualified:
+  # Publishes the sealed dists from the retained bytes after digest
+  # checks, uploading only the files missing from PyPI. In `release` and
+  # `resume` modes it uploads through the PyPI trusted publisher and records
+  # a `publication` observation on the draft release. In `rehearse` mode it
+  # runs steps 1-3 only as a verify-only plan with no environment and no
+  # upload: a rehearsal at master whose version equals the last release must
+  # report PUBLISH_CONFLICT for every file (the different-hash refusal).
+  # A red qualify or exercise verdict refuses here, so a break-macos probe
+  # shows publish refused and confirm skipped.
+  publish:
     needs:
-      - stash
+      - identity
+      - build
+      - qualify
+      - exercise
+    if: ${{ always() && (inputs.mode == 'release' || inputs.mode == 'resume' || inputs.mode == 'rehearse') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    concurrency:
+      group: publish-${{ github.ref }}
+      cancel-in-progress: false
+    permissions:
+      contents: write
+      id-token: write
+    environment: ${{ inputs.mode != 'rehearse' && 'pypi' || '' }}
+    outputs:
+      observation: ${{ steps.record.outputs.observation }}
+      plan: ${{ steps.plan.outputs.plan }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.identity.outputs.sha }}
+          fetch-depth: 1
+      - name: Refuse probes outside rehearse
+        run: |
+          set -euo pipefail
+          if [ "${{ inputs.probe }}" != "none" ] \
+            && [ "${{ inputs.mode }}" != "rehearse" ]; then
+            echo "::error::probe '${{ inputs.probe }}' is rehearse-only"
+            exit 1
+          fi
+          if [ -n "${{ inputs.probe_core_version }}" ] \
+            && [ "${{ inputs.mode }}" != "rehearse" ]; then
+            echo "::error::probe_core_version is rehearse-only"
+            exit 1
+          fi
+      - name: Stage the sealed dists from the build artifact
+        if: ${{ inputs.mode == 'release' || inputs.mode == 'rehearse' }}
+        uses: actions/download-artifact@v4
+        with:
+          name: candidate-build
+          path: publish-work/build
+      - name: Stage the sealed dists from the draft release
+        if: ${{ inputs.mode == 'resume' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          mkdir -p publish-work/staged
+          gh release download "${TAG}" \
+            --dir publish-work/staged \
+            --pattern 'sase-*.whl' \
+            --pattern 'sase-*.tar.gz' \
+            --pattern 'candidate-manifest.json' \
+            --clobber
+      - name: Normalize the manifest and staged paths
+        id: paths
+        run: |
+          set -euo pipefail
+          if [ "${{ inputs.mode }}" = "resume" ]; then
+            echo "manifest=publish-work/staged/candidate-manifest.json" >> "$GITHUB_OUTPUT"
+            echo "staged=publish-work/staged" >> "$GITHUB_OUTPUT"
+          else
+            echo "manifest=publish-work/build/candidate-manifest.json" >> "$GITHUB_OUTPUT"
+            echo "staged=publish-work/build/dist" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Re-verify every digest against the sealed manifest
+        run: |
+          set -euo pipefail
+          python3 - <<'EOF'
+          import hashlib
+          import json
+          from pathlib import Path
+
+          manifest = json.loads(Path("${{ steps.paths.outputs.manifest }}").read_text())
+          staged = Path("${{ steps.paths.outputs.staged }}")
+          for dist in manifest["dists"]:
+              target = staged / dist["filename"]
+              if not target.is_file():
+                  print(f"::error::PUBLISH_MISSING_ASSET {dist['filename']!r} is not staged")
+                  raise SystemExit(1)
+              digest = hashlib.sha256(target.read_bytes()).hexdigest()
+              if digest != dist["sha256"]:
+                  print(f"::error::PUBLISH_STASH_MISMATCH {dist['filename']!r}")
+                  raise SystemExit(1)
+              if target.stat().st_size != dist["size"]:
+                  print(f"::error::PUBLISH_STASH_MISMATCH {dist['filename']!r} size")
+                  raise SystemExit(1)
+          print("staged digests match the sealed manifest")
+          EOF
+      - name: Collect the generation evidence observations
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          mkdir -p publish-work/observations
+          if [ "${{ inputs.mode }}" = "rehearse" ]; then
+            echo "evidence comes from the workflow artifacts (see next step)"
+          else
+            generation="$(python3 -c 'import json; print(json.load(open("${{ steps.paths.outputs.manifest }}"))["generation"])')"
+            gh release download "${TAG}" \
+              --dir publish-work/observations \
+              --pattern "candidate-gen${generation}-qualification-*.json" \
+              --pattern "candidate-gen${generation}-exercise-*.json" \
+              --clobber
+          fi
+      - name: Download the evidence observation artifacts
+        if: ${{ inputs.mode == 'rehearse' }}
+        uses: actions/download-artifact@v4
+        with:
+          pattern: '*observation*'
+          merge-multiple: true
+          path: publish-work/observations
+      - name: Run the promotion predicate for this candidate
+        id: gate
+        run: |
+          set -euo pipefail
+          python3 - > publish-work/observations.json <<'EOF'
+          import json
+          from pathlib import Path
+
+          items = []
+          for path in sorted(Path("publish-work/observations").glob("*.json")):
+              try:
+                  payload = json.loads(path.read_text())
+              except json.JSONDecodeError:
+                  continue
+              if isinstance(payload, dict) and payload.get("kind") in (
+                  "qualification", "exercise", "veto",
+              ):
+                  items.append(payload)
+          print(json.dumps(items))
+          EOF
+          if [ "${{ inputs.mode }}" = "resume" ]; then
+            kinds="$(python3 -c 'import json; print(sorted({o["kind"] for o in json.load(open("publish-work/observations.json"))}))')"
+            case "${kinds}" in
+              *qualification*exercise* | *exercise*qualification*) ;;
+              *)
+                echo "::error::resume requires passing qualification and exercise evidence for this generation"
+                exit 1
+                ;;
+            esac
+          fi
+          set +e
+          result="$(uv run --no-project --with packaging \
+            python tools/release_candidate evaluate \
+            --manifest '${{ steps.paths.outputs.manifest }}' \
+            --observations publish-work/observations.json)"
+          status=$?
+          set -e
+          printf '%s\n' "${result}"
+          if [ "${status}" -ne 0 ]; then
+            token="$(printf '%s\n' "${result}" | python3 -c 'import json,sys; print("; ".join(c["name"] + ": " + c["detail"] for c in json.load(sys.stdin)["clauses"] if not c["ok"]))')"
+            echo "::error::${token}"
+            exit 1
+          fi
+      - name: Fetch the PyPI file list for the version
+        id: pypi
+        run: |
+          set -euo pipefail
+          version="$(python3 -c 'import json; print(json.load(open("${{ steps.paths.outputs.manifest }}"))["version"])')"
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          if curl -fsS "https://pypi.org/pypi/sase/${version}/json" -o publish-work/pypi.json; then
+            echo "fetched PyPI JSON for sase==${version}"
+          else
+            echo "sase==${version} is not on PyPI yet; planning a full upload"
+            echo '{"urls": []}' > publish-work/pypi.json
+          fi
+      - name: Compute the digest-checked upload plan
+        id: plan
+        run: |
+          set -euo pipefail
+          # A PUBLISH_CONFLICT refusal here is the expected different-hash
+          # proof in rehearse-at-master runs; a PUBLISH_MISSING_ASSET or
+          # PUBLISH_STASH_MISMATCH refusal means the retained bytes moved.
+          set +e
+          result="$(uv run --no-project --with packaging \
+            python tools/release_candidate publish-plan \
+            --manifest '${{ steps.paths.outputs.manifest }}' \
+            --pypi-json publish-work/pypi.json \
+            --staged-dir '${{ steps.paths.outputs.staged }}' \
+            --out publish-work/publish-plan.json)"
+          status=$?
+          set -e
+          printf '%s\n' "${result}"
+          if [ "${status}" -ne 0 ]; then
+            echo "::error::${result##*REFUSED }"
+            exit 1
+          fi
+          echo "plan=publish-work/publish-plan.json" >> "$GITHUB_OUTPUT"
+          python3 - publish-work/publish-plan.json <<'EOF'
+          import json
+          import sys
+
+          plan = json.load(open(sys.argv[1]))
+          for entry in plan["files"]:
+              print(f"{entry['action']}: {entry['filename']}")
+          EOF
+      - name: Copy only the planned uploads
+        if: ${{ inputs.mode == 'release' || inputs.mode == 'resume' }}
+        run: |
+          set -euo pipefail
+          rm -rf publish-work/upload-only
+          mkdir -p publish-work/upload-only
+          python3 - publish-work/publish-plan.json '${{ steps.paths.outputs.staged }}' <<'EOF'
+          import json
+          import shutil
+          import sys
+          from pathlib import Path
+
+          plan = json.load(open(sys.argv[1]))
+          staged = Path(sys.argv[2])
+          for entry in plan["files"]:
+              if entry["action"] == "upload":
+                  shutil.copy2(staged / entry["filename"], Path("publish-work/upload-only"))
+          EOF
+          if [ -z "$(ls -A publish-work/upload-only)" ]; then
+            echo "every sealed file is already present on PyPI; nothing to upload"
+          else
+            ls publish-work/upload-only
+          fi
+      - name: Publish the missing files to PyPI
+        if: ${{ inputs.mode == 'release' || inputs.mode == 'resume' }}
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: publish-work/upload-only/
+          skip-existing: false
+      - name: Record the publication observation
+        id: record
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          generation="$(python3 -c 'import json; print(json.load(open("${{ steps.paths.outputs.manifest }}"))["generation"])')"
+          asset="candidate-gen${generation}-publication-run${{ github.run_id }}-attempt${{ github.run_attempt }}.json"
+          echo "observation=${asset}" >> "$GITHUB_OUTPUT"
+          python3 - > publish-work/publication-extra.json <<'EOF'
+          import json
+
+          plan = json.load(open("publish-work/publish-plan.json"))
+          print(json.dumps({"publication": plan}))
+          EOF
+          uv run --no-project --with packaging \
+            python tools/release_candidate observe \
+            --manifest '${{ steps.paths.outputs.manifest }}' \
+            --kind publication \
+            --run-id '${{ github.run_id }}' \
+            --attempt '${{ github.run_attempt }}' \
+            --verdict pass \
+            --reason "digest-checked publish for sase==$(python3 -c 'import json; print(json.load(open("${{ steps.paths.outputs.manifest }}"))["version"])')" \
+            --extra publish-work/publication-extra.json \
+            --out "${asset}"
+          if [ "${{ inputs.mode }}" = "rehearse" ]; then
+            echo "rehearse mode: verify-only plan, no upload and no draft attach"
+          else
+            gh release upload "${TAG}" "${asset}" --clobber
+          fi
+      - name: Upload the publication observation artifact
+        if: ${{ inputs.mode == 'rehearse' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: publication-observation-run-${{ github.run_id }}-attempt-${{ github.run_attempt }}
+          path: ${{ steps.record.outputs.observation }}
+          if-no-files-found: error
+          retention-days: 30
+
+  # Installs sase==<version> from public PyPI on Linux and macOS and proves
+  # the exact install: version -j reports the manifest's core and core
+  # health passes. Evidence feeds the `confirm` finalizer, which never
+  # un-drafts before every check passes.
+  confirm-install:
+    needs:
+      - identity
+      - publish
+    if: ${{ inputs.mode == 'release' || inputs.mode == 'resume' }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.identity.outputs.sha }}
+          fetch-depth: 1
+      - uses: astral-sh/setup-uv@v4
+      - name: Download the sealed manifest from the draft
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          mkdir -p confirm-work
+          gh release download "${TAG}" \
+            --dir confirm-work \
+            --pattern 'candidate-manifest.json' \
+            --clobber
+      - name: Install the released version from public PyPI
+        run: |
+          set -euo pipefail
+          CONFIRM_HOME="$RUNNER_TEMP/confirm-home"
+          mkdir -p "$CONFIRM_HOME" "$RUNNER_TEMP/confirm-tool-dir" "$RUNNER_TEMP/confirm-tool-bin"
+          {
+            echo "HOME=$CONFIRM_HOME"
+            echo "SASE_HOME=$CONFIRM_HOME"
+            echo "XDG_CONFIG_HOME=$CONFIRM_HOME/.config"
+            echo "XDG_DATA_HOME=$CONFIRM_HOME/.local/share"
+            echo "XDG_CACHE_HOME=$CONFIRM_HOME/.cache"
+            echo "UV_TOOL_DIR=$RUNNER_TEMP/confirm-tool-dir"
+            echo "UV_TOOL_BIN_DIR=$RUNNER_TEMP/confirm-tool-bin"
+            echo "UV_NO_CACHE=1"
+          } >> "$GITHUB_ENV"
+          echo "$RUNNER_TEMP/confirm-tool-bin" >> "$GITHUB_PATH"
+          version="$(python3 -c 'import json; print(json.load(open("confirm-work/candidate-manifest.json"))["version"])')"
+          uv tool install --python 3.12 --refresh "sase==${version}"
+      - name: Prove the exact install reports the manifest core
+        run: |
+          set -euo pipefail
+          python3 - <<'EOF'
+          import json
+          import subprocess
+
+          manifest = json.load(open("confirm-work/candidate-manifest.json"))
+          payload = json.loads(
+              subprocess.run(
+                  ["sase", "version", "-j"],
+                  check=True, capture_output=True, text=True,
+              ).stdout
+          )
+          packages = payload.get("packages", {})
+          core = packages.get("sase-core-rs") or payload.get("core_version")
+          if core != manifest["core_version"]:
+              print(
+                  f"::error::installed core {core!r} != "
+                  f"manifest core {manifest['core_version']!r}"
+              )
+              raise SystemExit(1)
+          print(f"exact install reports the manifest core {core}")
+          EOF
+          sase core health --json
+      - name: Upload the install evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: confirm-install-${{ matrix.os }}
+          path: confirm-work/candidate-manifest.json
+          if-no-files-found: error
+          retention-days: 30
+
+  # Confirms every manifest file on PyPI with a matching SHA-256, re-proves
+  # the exact install evidence, runs the family canary with the exact rule,
+  # then un-drafts and records a `confirmation` observation. A missing file
+  # is PUBLISH_PARTIAL (retried through the bounded CDN wait); a mismatch or
+  # an extra file is PUBLISH_CONFLICT and refuses at once, never un-drafting.
+  confirm:
+    needs:
+      - identity
+      - publish
+      - confirm-install
     if: ${{ inputs.mode == 'release' || inputs.mode == 'resume' }}
     runs-on: ubuntu-latest
+    timeout-minutes: 45
+    concurrency:
+      group: publish-${{ github.ref }}
+      cancel-in-progress: false
+    permissions:
+      contents: write
     steps:
-      - name: Refuse until qualify, publish and confirm land
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.identity.outputs.sha }}
+          fetch-depth: 1
+      - name: Download the sealed manifest from the draft
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
         run: |
-          echo "::error::not yet qualified"
+          set -euo pipefail
+          mkdir -p confirm-work
+          gh release download "${TAG}" \
+            --dir confirm-work \
+            --pattern 'candidate-manifest.json' \
+            --clobber
+      - name: Poll PyPI until every file confirms or the wait ends
+        run: |
+          set -euo pipefail
+          version="$(python3 -c 'import json; print(json.load(open("confirm-work/candidate-manifest.json"))["version"])')"
+          attempts=60
+          delay=30
+          for n in $(seq 1 "${attempts}"); do
+            if curl -fsS "https://pypi.org/pypi/sase/${version}/json" -o confirm-work/pypi.json; then
+              set +e
+              report="$(uv run --no-project --with packaging \
+                python tools/release_candidate confirm \
+                --manifest confirm-work/candidate-manifest.json \
+                --pypi-json confirm-work/pypi.json \
+                --out confirm-work/confirmation-report.json)"
+              status=$?
+              set -e
+              if [ "${status}" -eq 0 ]; then
+                printf '%s\n' "${report}"
+                echo "every sealed file is confirmed on PyPI"
+                exit 0
+              fi
+              if printf '%s\n' "${report}" | grep -q PUBLISH_CONFLICT; then
+                printf '%s\n' "${report}"
+                echo "::error::PUBLISH_CONFLICT: refusing without un-drafting"
+                exit 1
+              fi
+              echo "attempt ${n}/${attempts}: PUBLISH_PARTIAL, waiting ${delay}s for CDN lag"
+            else
+              echo "attempt ${n}/${attempts}: sase==${version} not on PyPI yet, waiting ${delay}s"
+            fi
+            sleep "${delay}"
+          done
+          echo "::error::PUBLISH_PARTIAL: sase==${version} did not confirm within the bounded wait"
           exit 1
+      - name: Require the Linux and macOS install evidence
+        uses: actions/download-artifact@v4
+        with:
+          pattern: confirm-install-*
+          merge-multiple: true
+          path: confirm-work/install-evidence
+      - name: Run the family canary with the exact rule
+        run: |
+          set -euo pipefail
+          version="$(python3 -c 'import json; print(json.load(open("confirm-work/candidate-manifest.json"))["version"])')"
+          CANARY_HOME="$RUNNER_TEMP/canary-home"
+          mkdir -p "$CANARY_HOME" "$RUNNER_TEMP/canary-tool-dir" "$RUNNER_TEMP/canary-tool-bin"
+          export HOME="$CANARY_HOME" SASE_HOME="$CANARY_HOME"
+          export UV_TOOL_DIR="$RUNNER_TEMP/canary-tool-dir" UV_TOOL_BIN_DIR="$RUNNER_TEMP/canary-tool-bin"
+          export UV_NO_CACHE=1
+          uv tool install --python 3.12 --refresh "sase==${version}"
+          "$RUNNER_TEMP/canary-tool-bin/sase" version -j
+          "$RUNNER_TEMP/canary-tool-bin/sase" core health --json
+          uv run --no-project --with packaging tools/check_family_install \
+            --sase-exe "$RUNNER_TEMP/canary-tool-bin/sase" \
+            --mode exact \
+            --expect "sase==${version}" \
+            --step assert-exact-versions \
+            --write-result confirm-work/family-canary.json
+      - name: Un-draft the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          version="$(python3 -c 'import json; print(json.load(open("confirm-work/candidate-manifest.json"))["version"])')"
+          if [ "v${version}" != "${TAG}" ]; then
+            echo "::error::draft tag ${TAG} != v${version}; refusing to un-draft"
+            exit 1
+          fi
+          gh release edit "${TAG}" --draft=false --latest
+      - name: Record the confirmation observation
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          generation="$(python3 -c 'import json; print(json.load(open("confirm-work/candidate-manifest.json"))["generation"])')"
+          asset="candidate-gen${generation}-confirmation-run${{ github.run_id }}-attempt${{ github.run_attempt }}.json"
+          cp confirm-work/candidate-manifest.json confirm-work/confirmation-manifest.json
+          uv run --no-project --with packaging \
+            python tools/release_candidate observe \
+            --manifest confirm-work/confirmation-manifest.json \
+            --kind confirmation \
+            --run-id '${{ github.run_id }}' \
+            --attempt '${{ github.run_attempt }}' \
+            --verdict pass \
+            --reason "sase==$(python3 -c 'import json; print(json.load(open("confirm-work/candidate-manifest.json"))["version"])') confirmed on PyPI with an exact install and family canary" \
+            --extra confirm-work/confirmation-report.json \
+            --out "${asset}"
+          gh release upload "${TAG}" "${asset}" --clobber
