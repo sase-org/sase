@@ -34,7 +34,7 @@ definitions:
   Code lines: role-classified source and test lines over the committed tree
   Tests: test-line share of code lines
   Doc lines: non-blank documentation lines
-  By language: code lines per language, detected from file extension, then shebang, at each code repo's default-branch tip; repo rows show where they live; ? = code lines with no detected language
+  By language: code lines per language, detected from file extension, then shebang, at each code repo's default-branch tip; repo rows show where they live; ? = code lines with no detected language; not counted = lines in files with no recognized language, shown when a repo has many
   Age: time since the first author-date commit across code repos
   Active days: distinct author dates in the SASE timezone
   Runs: agent runs launched on this machine, by launch time

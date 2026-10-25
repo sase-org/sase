@@ -23,6 +23,7 @@ from tests.stats._project_render_views import (
     local_plans_view,
     one_project_view,
     repo_edge_view,
+    unclassified_view,
 )
 
 __all__ = [
@@ -39,4 +40,5 @@ __all__ = [
     "one_project_view",
     "render_context",
     "repo_edge_view",
+    "unclassified_view",
 ]

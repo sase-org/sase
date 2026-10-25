@@ -72,6 +72,34 @@ def test_every_core_id_has_label() -> None:
         "powershell",
         "docker",
         "make",
+        "swift",
+        "kotlin",
+        "objective-c",
+        "objective-c++",
+        "dart",
+        "scala",
+        "groovy",
+        "csharp",
+        "elixir",
+        "erlang",
+        "haskell",
+        "ocaml",
+        "clojure",
+        "elm",
+        "zig",
+        "nim",
+        "julia",
+        "batch",
+        "scss",
+        "sass",
+        "less",
+        "vue",
+        "graphql",
+        "terraform",
+        "nix",
+        "protobuf",
+        "cmake",
+        "vim",
     ]
     for language_id in ids:
         assert language_label(language_id) != language_id or language_id in {"r", "c"}
@@ -79,6 +107,17 @@ def test_every_core_id_has_label() -> None:
     assert language_label("rust") == "Rust"
     assert language_label("sh") == "Shell"
     assert language_label("cpp") == "C++"
+    assert language_label("swift") == "Swift"
+    assert language_label("csharp") == "C#"
+    assert language_label("vim") == "Vim script"
+
+
+def test_new_language_colors_use_shared_slots() -> None:
+    assert language_color("swift") == "#8a8984"
+    assert language_color("kotlin") == "#8a8984"
+    assert language_color("scss") == "#9085e9"
+    assert language_color("sass") == "#9085e9"
+    assert language_color("less") == "#9085e9"
 
 
 def test_unknown_id_neutral_plus_capitalized() -> None:

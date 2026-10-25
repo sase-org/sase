@@ -22,6 +22,7 @@ from tests.stats._project_render_fixtures import (
     one_project_view,
     repo_edge_view,
     render_context,
+    unclassified_view,
 )
 
 GOLDEN = Path(__file__).parent / "golden" / "render"
@@ -233,6 +234,33 @@ def test_markdown_goldens() -> None:
             ctx=render_context(width=120),
         )
         _assert_golden(name, markdown)
+
+
+def test_unclassified_repo_goldens() -> None:
+    cases = [
+        ("unclassified_model_120.txt", "model", 120, True),
+        ("unclassified_model_50.txt", "model", 50, True),
+        ("unclassified_language_120.txt", "language", 120, True),
+        ("unclassified_language_50.txt", "language", 50, True),
+    ]
+    for name, group_by, width, unicode in cases:
+        ctx = render_context(width=width, unicode=unicode)
+        _assert_golden(
+            name, _export(render_project_stats(unclassified_view(), group_by, ctx), ctx)
+        )
+
+
+def test_unclassified_markdown_golden() -> None:
+    markdown = render_project_stats_markdown(
+        unclassified_view(),
+        "language",
+        command_line="sase stats project -p unclassified -g language",
+        versions={"sase": "test", "sase_core": "test"},
+        ctx=render_context(width=120),
+    )
+    _assert_golden("unclassified_language.md", markdown)
+    assert "not counted as code:" in markdown
+    assert "mystery" in markdown
 
 
 def test_several_project_repo_table_keeps_repo_names_at_width_104() -> None:

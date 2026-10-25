@@ -31,7 +31,11 @@ def language_markdown(view: ProjectStatsView, ctx: RenderContext) -> list[str]:
     if breakdown.total_lines == 0 or (
         breakdown.measured_repos == 0 and not breakdown.rows
     ):
-        return ["## By language", "", "No code lines measured."]
+        lines = ["## By language", "", "No code lines measured."]
+        unclassified_note = _unclassified_markdown_note(breakdown)
+        if unclassified_note is not None:
+            lines.extend(["", unclassified_note])
+        return lines
     headers = ["Language", "Lines", "Files", "Share"]
     md_rows = [
         [name, format_count(lang_lines), format_count(lang_files), share]
@@ -75,6 +79,9 @@ def language_markdown(view: ProjectStatsView, ctx: RenderContext) -> list[str]:
                 f"{item.repo_name} ({item.reason})" for item in breakdown.unmeasured
             )
         out_lines.extend(["", f"not measured: {details}"])
+    unclassified_note = _unclassified_markdown_note(breakdown)
+    if unclassified_note is not None:
+        out_lines.extend(["", unclassified_note])
     if breakdown.overlap_lines > 0:
         out_lines.extend(
             [
@@ -84,6 +91,27 @@ def language_markdown(view: ProjectStatsView, ctx: RenderContext) -> list[str]:
             ]
         )
     return out_lines
+
+
+def _unclassified_markdown_note(breakdown: object) -> str | None:
+    """Return the Markdown ``not counted as code`` note, if the guard fires."""
+    unclassified = getattr(breakdown, "unclassified", ()) or ()
+    if not unclassified:
+        return None
+    total = sum(item.lines for item in unclassified)
+    if getattr(breakdown, "many_projects", False):
+        details = ", ".join(
+            f"{item.project_label} · {item.repo_name} {format_count(item.lines)}"
+            for item in unclassified
+        )
+    else:
+        details = ", ".join(
+            f"{item.repo_name} {format_count(item.lines)}" for item in unclassified
+        )
+    return (
+        f"not counted as code: {format_count(total)} lines in files "
+        f"with no recognized language ({details})"
+    )
 
 
 __all__ = [

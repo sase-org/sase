@@ -112,7 +112,8 @@ PROJECT_REPORT_LEGENDS: tuple[MetricLegend, ...] = (
         "By language",
         "code lines per language, detected from file extension, then shebang, "
         "at each code repo's default-branch tip; repo rows show where they "
-        "live; ? = code lines with no detected language",
+        "live; ? = code lines with no detected language; not counted = lines "
+        "in files with no recognized language, shown when a repo has many",
     ),
     MetricLegend(
         "Age",

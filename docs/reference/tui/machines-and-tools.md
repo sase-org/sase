@@ -116,7 +116,8 @@ history. With several projects in scope, `g` → repo shows a Project → Repo t
 The summary card's `by lang` rows show each language's share of source plus test
 lines and the repos or projects that hold them. `g` → language shows the Language →
 Repo tree with exact lines, files, and shares. Repo `CODE LINES` count source plus
-test lines.
+test lines. When a repo holds many lines in files with no recognized language, a dim
+`not counted` row names where those uncounted files live.
 
 The Projects report is also available through [`sase stats project`](../cli/stats.md),
 with the same definitions in the terminal, Markdown, and JSON outputs:

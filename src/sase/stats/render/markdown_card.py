@@ -115,10 +115,8 @@ def _card_language_line(view: ProjectStatsView) -> str | None:
     subject = view.projects[0] if len(view.projects) == 1 else view.portfolio
     if subject.code is None or subject.code.languages is None:
         return None
-    if subject.code.code_lines == 0 or subject.code.code_lines is None:
-        return None
     breakdown = language_breakdown(view)
-    if breakdown is None or not breakdown.rows:
+    if breakdown is None:
         return None
     parts: list[str] = []
     for row in breakdown.rows:
@@ -133,6 +131,19 @@ def _card_language_line(view: ProjectStatsView) -> str | None:
             f"{label} {format_count(row.lines)} "
             f"({language_share_label(row.lines, breakdown.total_lines)})"
         )
+    unclassified = getattr(breakdown, "unclassified", ()) or ()
+    if unclassified:
+        total = sum(item.lines for item in unclassified)
+        if getattr(breakdown, "many_projects", False):
+            details = ", ".join(
+                f"{item.project_label} · {item.repo_name} {format_count(item.lines)}"
+                for item in unclassified
+            )
+        else:
+            details = ", ".join(
+                f"{item.repo_name} {format_count(item.lines)}" for item in unclassified
+            )
+        parts.append(f"not counted: {format_count(total)} ({details})")
     if not parts:
         return None
     return "**BY LANGUAGE** " + " · ".join(parts)

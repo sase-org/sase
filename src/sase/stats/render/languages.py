@@ -12,6 +12,7 @@ from sase.stats.project.languages import (
     LanguageBreakdown,
     LanguageRow,
     LanguageSlice,
+    UnclassifiedRepo,
 )
 from sase.stats.project.view import ProjectStatsView
 from sase.stats.render._text import DIM, DASH, UNKNOWN_STYLE, square_glyph
@@ -53,6 +54,34 @@ _LANGUAGE_LABELS: dict[str, str] = {
     "powershell": "PowerShell",
     "docker": "Dockerfile",
     "make": "Makefile",
+    "swift": "Swift",
+    "kotlin": "Kotlin",
+    "objective-c": "Objective-C",
+    "objective-c++": "Objective-C++",
+    "dart": "Dart",
+    "scala": "Scala",
+    "groovy": "Groovy",
+    "csharp": "C#",
+    "elixir": "Elixir",
+    "erlang": "Erlang",
+    "haskell": "Haskell",
+    "ocaml": "OCaml",
+    "clojure": "Clojure",
+    "elm": "Elm",
+    "zig": "Zig",
+    "nim": "Nim",
+    "julia": "Julia",
+    "batch": "Batchfile",
+    "scss": "SCSS",
+    "sass": "Sass",
+    "less": "Less",
+    "vue": "Vue",
+    "graphql": "GraphQL",
+    "terraform": "Terraform",
+    "nix": "Nix",
+    "protobuf": "Protocol Buffers",
+    "cmake": "CMake",
+    "vim": "Vim script",
 }
 
 _LANGUAGE_COLORS: dict[str, str] = {
@@ -68,6 +97,9 @@ _LANGUAGE_COLORS: dict[str, str] = {
     "zsh": "#008300",
     "fish": "#008300",
     "css": "#9085e9",
+    "scss": "#9085e9",
+    "sass": "#9085e9",
+    "less": "#9085e9",
     "html": "#e66767",
 }
 
@@ -146,11 +178,12 @@ def render_language_card_block(
     ctx: RenderContext,
 ) -> RenderableType | None:
     """Render the compact card ``by lang`` block, or None when hidden."""
-    if breakdown.total_lines == 0:
-        return None
     known = [row for row in breakdown.rows if row.language is not None]
     unknown = [row for row in breakdown.rows if row.language is None]
-    if not known and not unknown:
+    unclassified = breakdown.unclassified or ()
+    if breakdown.total_lines == 0 and not unclassified:
+        return None
+    if not known and not unknown and not unclassified:
         return None
     cap = _language_card_cap(ctx)
     visible: list[LanguageRow] = list(known[:cap])
@@ -249,7 +282,44 @@ def render_language_card_block(
             cells.append(bar_cell)
         cells.extend([Text(share, style=DIM), note])
         table.add_row(*cells, style=UNKNOWN_STYLE)
+    if unclassified:
+        total_unclassified = sum(item.lines for item in unclassified)
+        uc_name = Text("not counted", style=UNKNOWN_STYLE)
+        uc_count = format_compact(total_unclassified)
+        uc_note = _unclassified_card_note(breakdown, unclassified)
+        uc_cells: list[RenderableType] = [uc_name, uc_count]
+        if bar_width:
+            uc_cells.append(Text(""))
+        uc_cells.extend([Text(""), uc_note])
+        table.add_row(*uc_cells, style=UNKNOWN_STYLE)
     return table
+
+
+def _unclassified_card_note(
+    breakdown: LanguageBreakdown,
+    unclassified: tuple[UnclassifiedRepo, ...],
+) -> Text:
+    """Return the dim note for the card ``not counted`` row."""
+    names: list[str] = []
+    for item in unclassified:
+        project_label = getattr(item, "project_label", "")
+        repo_name = getattr(item, "repo_name", "")
+        if breakdown.many_projects:
+            names.append(f"{project_label} · {repo_name}")
+        else:
+            names.append(f"{repo_name}")
+    shown = names[:2]
+    extra = len(names) - len(shown)
+    suffix = f" +{extra} more" if extra else ""
+    joined = ", ".join(shown) + suffix
+    if breakdown.many_projects:
+        return Text(
+            f"unrecognized files · {joined}" if joined else "unrecognized files",
+            style=DIM,
+        )
+    return Text(
+        f"unrecognized files · {joined}" if joined else "unrecognized files", style=DIM
+    )
 
 
 def _card_note_text(
@@ -363,6 +433,9 @@ def render_language_table(view: ProjectStatsView, ctx: RenderContext) -> Rendera
         table = _plain_table(ctx, title)
         table.add_column("LANGUAGE", ratio=1)
         table.add_row(Text("No code lines measured.", style=DIM))
+        unclassified_note = _unclassified_table_note(breakdown)
+        if unclassified_note is not None:
+            return Group(table, unclassified_note)
         return table
 
     show_files, show_bar, bar_width = _language_table_columns(ctx)
@@ -413,6 +486,9 @@ def render_language_table(view: ProjectStatsView, ctx: RenderContext) -> Rendera
                 f"{item.repo_name} ({item.reason})" for item in breakdown.unmeasured
             )
         notes.append(Text(f"not measured: {details}", style=DIM))
+    unclassified_note = _unclassified_table_note(breakdown)
+    if unclassified_note is not None:
+        notes.append(unclassified_note)
     if breakdown.overlap_lines > 0:
         notes.append(
             Text(
@@ -424,6 +500,28 @@ def render_language_table(view: ProjectStatsView, ctx: RenderContext) -> Rendera
     if len(notes) == 1:
         return table
     return Group(*notes)
+
+
+def _unclassified_table_note(breakdown: LanguageBreakdown) -> Text | None:
+    """Return the dim ``not counted as code`` note, if the guard fires."""
+    unclassified = breakdown.unclassified or ()
+    if not unclassified:
+        return None
+    total = sum(item.lines for item in unclassified)
+    if breakdown.many_projects:
+        details = ", ".join(
+            f"{item.project_label} · {item.repo_name} {format_count(item.lines)}"
+            for item in unclassified
+        )
+    else:
+        details = ", ".join(
+            f"{item.repo_name} {format_count(item.lines)}" for item in unclassified
+        )
+    return Text(
+        f"not counted as code: {format_count(total)} lines in files "
+        f"with no recognized language ({details})",
+        style=DIM,
+    )
 
 
 def _plain_table(ctx: RenderContext, title: str) -> Table:

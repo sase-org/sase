@@ -99,6 +99,22 @@ class _UnmeasuredRepo:
 
 
 @dataclass(frozen=True, slots=True)
+class UnclassifiedRepo:
+    """A code repo with many lines in files with no recognized language."""
+
+    project_key: str
+    project_label: str
+    repo_id: str
+    repo_name: str
+    lines: int
+    files: int
+
+
+_UNCLASSIFIED_MIN_LINES = 1_000
+_UNCLASSIFIED_MIN_SHARE = 0.10
+
+
+@dataclass(frozen=True, slots=True)
 class LanguageBreakdown:
     """One subject's language breakdown (one project or the portfolio)."""
 
@@ -111,6 +127,7 @@ class LanguageBreakdown:
     many_projects: bool
     measured_repos: int
     configured_repos: int
+    unclassified: tuple[UnclassifiedRepo, ...] = ()
 
 
 def language_breakdown(view: ProjectStatsView) -> LanguageBreakdown | None:
@@ -338,6 +355,8 @@ def language_breakdown(view: ProjectStatsView) -> LanguageBreakdown | None:
     if overlap < 0:
         overlap = 0
 
+    unclassified = _unclassified_repos(code_repos, many)
+
     return LanguageBreakdown(
         total_lines=total_lines,
         total_files=total_files,
@@ -348,7 +367,65 @@ def language_breakdown(view: ProjectStatsView) -> LanguageBreakdown | None:
         many_projects=many,
         measured_repos=measured_count,
         configured_repos=code.repos_configured,
+        unclassified=unclassified,
     )
+
+
+def _unclassified_repos(
+    code_repos: list[tuple[str, str, ProjectStatsRepo]],
+    many: bool,
+) -> tuple[UnclassifiedRepo, ...]:
+    """Return repos with many lines in files with no recognized language."""
+    by_id: dict[str, UnclassifiedRepo] = {}
+    ordered: list[UnclassifiedRepo] = []
+    for project_key, project_label, repo in code_repos:
+        snapshot = repo.snapshot
+        if snapshot is None:
+            continue
+        role_counts = snapshot.role_counts
+        if role_counts is None:
+            continue
+        other_lines = 0
+        other_files = 0
+        for row in role_counts:
+            if row.role == "other":
+                other_lines = row.lines
+                other_files = row.files
+                break
+        if other_lines < _UNCLASSIFIED_MIN_LINES:
+            continue
+        repo_code = repo_code_lines(snapshot)
+        if repo_code is None:
+            repo_code = 0
+        if repo_code != 0 and other_lines < _UNCLASSIFIED_MIN_SHARE * repo_code:
+            continue
+        entry = UnclassifiedRepo(
+            project_key=project_key,
+            project_label=project_label,
+            repo_id=repo.id,
+            repo_name=repo.name,
+            lines=other_lines,
+            files=other_files,
+        )
+        if many:
+            current = by_id.get(repo.id)
+            if current is not None:
+                if entry.lines <= current.lines:
+                    continue
+            by_id[repo.id] = entry
+            continue
+        ordered.append(entry)
+    if many:
+        ordered = list(by_id.values())
+    ordered.sort(
+        key=lambda item: (
+            -item.lines,
+            item.project_label.casefold(),
+            item.repo_name.casefold(),
+            item.repo_id,
+        )
+    )
+    return tuple(ordered)
 
 
 def _repo_file_total(snapshot: Any) -> int:
@@ -367,6 +444,7 @@ __all__ = [
     "LanguageBreakdown",
     "LanguageRow",
     "LanguageSlice",
+    "UnclassifiedRepo",
     "language_breakdown",
     "repo_code_lines",
     "repo_test_lines",

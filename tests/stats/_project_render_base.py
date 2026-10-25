@@ -199,6 +199,8 @@ def repo(
     languages: list[dict] | None = None,
     unknown_lines: int = 0,
     unknown_files: int = 0,
+    other_lines: int = 500,
+    other_files: int = 2,
 ) -> dict:
     if languages is None and lines is not None and tier == "code" and status == "ok":
         languages = (
@@ -214,7 +216,7 @@ def repo(
         # Keep legacy tracked_* for the pre-fix inconsistency: tracked counts
         # every role while code counts source + tests only.
         doc_lines = int(code_lines * 0.05)
-        tracked_lines = code_lines + doc_lines + 500
+        tracked_lines = code_lines + doc_lines + other_lines
         tracked_files = code_files + 5
         test_lines = int(code_lines * 0.4)
         source_lines = code_lines - test_lines
@@ -224,7 +226,7 @@ def repo(
             {"role": "source", "files": source_files, "lines": source_lines},
             {"role": "tests", "files": test_files, "lines": test_lines},
             {"role": "docs", "files": 5, "lines": doc_lines},
-            {"role": "other", "files": 2, "lines": 500},
+            {"role": "other", "files": other_files, "lines": other_lines},
         ]
     else:
         code_lines = lines

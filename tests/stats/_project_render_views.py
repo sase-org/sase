@@ -266,6 +266,37 @@ def all_projects_view(**kwargs: object) -> ProjectStatsView:
     return build_view(**kwargs)
 
 
+def unclassified_view(**kwargs: object) -> ProjectStatsView:
+    """One project with a 40k-line unrecognized repo for the guard."""
+    project = sase_project()
+    project["key"] = "unclassified"
+    project["label"] = "unclassified"
+    project["code"] = code(
+        lines=1_000,
+        tests=400,
+        docs=50,
+        configured=1,
+        measured=1,
+        languages=[{"name": "python", "files": 10, "lines": 1_000}],
+        files=10,
+    )
+    project["repos"] = [
+        repo(
+            name="mystery",
+            kind="primary",
+            tier="code",
+            commits=10,
+            files=10,
+            lines=1_000,
+            languages=[{"name": "python", "files": 10, "lines": 1_000}],
+            other_lines=40_000,
+            other_files=356,
+        ),
+    ]
+    project["models"] = project.get("models", [])
+    return build_view(projects=[project], project_refs=("unclassified",), **kwargs)
+
+
 def empty_range_view() -> ProjectStatsView:
     empty_output = output(0, 0, [])
     empty_output["plans_committed"] = 0

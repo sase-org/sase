@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 from sase.stats.project.languages import language_breakdown, repo_code_lines
+from tests.stats._project_render_base import code as _code, repo as _repo
 from tests.stats._project_render_fixtures import (
     all_projects_view,
     build_view,
     code_pending_view,
     one_project_view,
+    unclassified_view,
 )
+from tests.stats._project_render_projects import sase_project as _sase_project
 
 
 def test_repo_code_lines_prefers_role_counts() -> None:
@@ -131,3 +134,123 @@ def test_none_for_pending_or_unavailable() -> None:
     project = view.projects[0]
     object.__setattr__(project, "code", None)
     assert language_breakdown(view) is None
+
+
+def _unclassified_project_with_repo(
+    *, repo_lines: int, other_lines: int, repo_name: str = "mystery"
+) -> dict:
+    project = _sase_project()
+    project["key"] = "edge"
+    project["label"] = "edge"
+    project["code"] = _code(
+        lines=repo_lines,
+        tests=int(repo_lines * 0.4),
+        docs=50,
+        configured=1,
+        measured=1,
+        languages=[{"name": "python", "files": 10, "lines": repo_lines}]
+        if repo_lines
+        else [],
+        files=10,
+    )
+    project["repos"] = [
+        _repo(
+            name=repo_name,
+            kind="primary",
+            tier="code",
+            commits=1,
+            files=10,
+            lines=repo_lines,
+            languages=[{"name": "python", "files": 10, "lines": repo_lines}]
+            if repo_lines
+            else [],
+            other_lines=other_lines,
+        )
+    ]
+    return project
+
+
+def test_unclassified_threshold_edges() -> None:
+    # Below the 1,000-line floor.
+    view = build_view(
+        projects=[_unclassified_project_with_repo(repo_lines=10_000, other_lines=999)],
+        project_refs=("edge",),
+    )
+    breakdown = language_breakdown(view)
+    assert breakdown is not None
+    assert breakdown.unclassified == ()
+
+    # Exactly at the floor but below the 10% share (1,000 / 11_112 ≈ 9%).
+    view = build_view(
+        projects=[
+            _unclassified_project_with_repo(repo_lines=11_112, other_lines=1_000)
+        ],
+        project_refs=("edge",),
+    )
+    breakdown = language_breakdown(view)
+    assert breakdown is not None
+    assert breakdown.unclassified == ()
+
+    # Exactly at the floor and at the 10% share.
+    view = build_view(
+        projects=[
+            _unclassified_project_with_repo(repo_lines=10_000, other_lines=1_000)
+        ],
+        project_refs=("edge",),
+    )
+    breakdown = language_breakdown(view)
+    assert breakdown is not None
+    assert len(breakdown.unclassified) == 1
+    assert breakdown.unclassified[0].lines == 1_000
+
+
+def test_unclassified_zero_code_repo_qualifies_on_floor() -> None:
+    view = build_view(
+        projects=[_unclassified_project_with_repo(repo_lines=0, other_lines=1_000)],
+        project_refs=("edge",),
+    )
+    breakdown = language_breakdown(view)
+    assert breakdown is not None
+    assert len(breakdown.unclassified) == 1
+
+
+def test_unclassified_skips_missing_role_counts() -> None:
+    project = _unclassified_project_with_repo(repo_lines=1_000, other_lines=40_000)
+    repo = project["repos"][0]
+    assert repo["snapshot"] is not None
+    repo["snapshot"]["role_counts"] = None
+    view = build_view(projects=[project], project_refs=("edge",))
+    breakdown = language_breakdown(view)
+    assert breakdown is not None
+    assert breakdown.unclassified == ()
+
+
+def test_unclassified_portfolio_dedupes_by_repo_id() -> None:
+    project_a = _unclassified_project_with_repo(
+        repo_lines=1_000, other_lines=40_000, repo_name="shared"
+    )
+    project_a["key"] = "a"
+    project_a["label"] = "a"
+    project_b = _unclassified_project_with_repo(
+        repo_lines=1_000, other_lines=40_000, repo_name="shared"
+    )
+    project_b["key"] = "b"
+    project_b["label"] = "b"
+    # Force the same repo id across projects.
+    project_b["repos"][0]["id"] = project_a["repos"][0]["id"]
+    view = build_view(projects=[project_a, project_b])
+    breakdown = language_breakdown(view)
+    assert breakdown is not None
+    assert breakdown.many_projects
+    assert len(breakdown.unclassified) == 1
+
+
+def test_unclassified_fixture_guard_fires() -> None:
+    view = unclassified_view()
+    breakdown = language_breakdown(view)
+    assert breakdown is not None
+    assert len(breakdown.unclassified) == 1
+    assert breakdown.unclassified[0].repo_name == "mystery"
+    assert breakdown.unclassified[0].lines == 40_000
+    # Existing shared fixture stays below the floor.
+    assert language_breakdown(one_project_view()).unclassified == ()  # type: ignore[union-attr]
