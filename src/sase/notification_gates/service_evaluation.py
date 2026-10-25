@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import dataclasses
+from collections.abc import Mapping
 from typing import Any
 
 from sase.notification_gates.models import GateError, GateSpec
@@ -81,6 +82,27 @@ def _append_gate_decision_log(
     )
 
 
+def should_auto_execute(
+    spec: GateSpec, adapter: GateAdapter, decision: Mapping[str, Any]
+) -> bool:
+    """Return True when a gate creation may auto-execute *decision*.
+
+    Both the live evaluation path (:func:`effective_auto_state`) and the
+    journal-recovery path consult this, so a declined gate parks for a
+    human on first creation and on every resume. An adapter decline (for
+    example the question adapter refusing first-option resolution for an
+    option-less round) parks the gate exactly like an ``ask`` outcome:
+    no answer is fabricated and creation never fails on the decline.
+    """
+    if not isinstance(decision, Mapping):
+        return False
+    if not bool(spec.auto.enabled):
+        return False
+    if decision.get("outcome") != "auto":
+        return False
+    return not adapter.decline_auto_execution(spec, decision)
+
+
 def effective_auto_state(
     spec: GateSpec, adapter: GateAdapter, *, request_id: str | None = None
 ) -> tuple[GateSpec, dict[str, Any], dict[str, Any], bool]:
@@ -98,7 +120,7 @@ def effective_auto_state(
     _record, decision, block = _evaluate_gate_request(
         spec, adapter, request_id=request_id
     )
-    auto_execute = bool(spec.auto.enabled) and decision.get("outcome") == "auto"
+    auto_execute = should_auto_execute(spec, adapter, decision)
     if auto_execute:
         return spec, decision, block, True
     return (
@@ -114,4 +136,4 @@ def effective_auto_state(
     )
 
 
-__all__ = ["effective_auto_state"]
+__all__ = ["effective_auto_state", "should_auto_execute"]

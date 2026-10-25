@@ -183,16 +183,21 @@ def _persisted_policy_block(envelope: dict[str, Any]) -> dict[str, Any] | None:
 
 
 def _effective_from_persisted_policy(
-    spec: GateSpec, policy_block: dict[str, Any]
+    spec: GateSpec, adapter: GateAdapter, policy_block: dict[str, Any]
 ) -> tuple[GateSpec, dict[str, Any], dict[str, Any], bool]:
     """Rebuild the effective creation state from a persisted policy snapshot.
 
     Reuses the first evaluation's decision instead of evaluating again, so
     journal recovery never appends a duplicate decision-log row and the
-    request/result/response policy identity stays consistent.
+    request/result/response policy identity stays consistent. The adapter
+    decline check still applies, so a declined gate keeps parking for a
+    human on resume instead of retrying an auto-resolution it cannot
+    execute.
     """
+    from sase.notification_gates.service_evaluation import should_auto_execute
+
     decision = dict(policy_block)
-    auto_execute = bool(spec.auto.enabled) and decision.get("outcome") == "auto"
+    auto_execute = should_auto_execute(spec, adapter, decision)
     if auto_execute:
         return spec, decision, dict(policy_block), True
     return (
@@ -220,7 +225,7 @@ def _resume_gate_creation(
     persisted = _persisted_policy_block(envelope)
     if persisted is not None:
         effective, decision, policy_block, auto_execute = (
-            _effective_from_persisted_policy(spec, persisted)
+            _effective_from_persisted_policy(spec, adapter, persisted)
         )
     else:
         effective, decision, policy_block, auto_execute = effective_auto_state(

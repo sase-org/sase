@@ -72,6 +72,44 @@ def test_other_with_custom_feedback_renders_quoted_line() -> None:
     assert '- [x] **Other:** "free-form text"' in out
 
 
+def test_option_less_free_text_answer_renders_answer_line() -> None:
+    q = {
+        "question": "Any constraints?",
+        "options": [],
+        "header": "",
+        "multiSelect": False,
+    }
+    response = {
+        "answers": [{"selected": [], "custom_feedback": "Must run offline"}],
+        "global_note": "",
+    }
+    out = prompt_qa_section([q], response)
+    assert '- **Answer:** "Must run offline"' in out
+
+
+def test_comment_on_normal_pick_renders_comment_line() -> None:
+    q = _q("Pick", [("A", "a"), ("B", "b")])
+    response = {
+        "answers": [{"selected": ["A"], "custom_feedback": "Need concurrency"}],
+        "global_note": "",
+    }
+    out = prompt_qa_section([q], response)
+    assert "- [x] **A** — a" in out
+    assert '- **Comment:** "Need concurrency"' in out
+
+
+def test_option_less_unanswered_renders_no_answer_line() -> None:
+    q = {
+        "question": "Any constraints?",
+        "options": [],
+        "header": "",
+        "multiSelect": False,
+    }
+    out = prompt_qa_section([q], {"answers": [{}], "global_note": ""})
+    assert "**Answer:**" not in out
+    assert "**Comment:**" not in out
+
+
 def test_other_without_custom_feedback() -> None:
     q = _q("Pick", [("A", "")])
     response = {

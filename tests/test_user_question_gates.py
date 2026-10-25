@@ -234,6 +234,83 @@ def test_auto_question_uses_first_options_without_publishing_pending_action(
     assert pending_actions.read_pending_action_store()["actions"] == {}
 
 
+def _explicit_auto_question_policy(
+    question_gate_home: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from tests.autonomy_contract.harness import (
+        question_first_fixture_record,
+        write_meta,
+    )
+
+    write_meta(question_gate_home, {"autonomy": question_first_fixture_record()})
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(question_gate_home))
+
+
+def _assert_parked_for_human(gate: Any, question_gate_home: Path) -> None:
+    del question_gate_home
+    # A manual gate is published and the notification is sent: the journal
+    # records the manual path, never an automatic outcome.
+    assert gate.notification_id is not None
+    assert gate.auto_resolution["state"] == "disabled"
+    assert not gate.response_path.exists()
+    assert load_notifications()
+    entry = next(iter(pending_actions.read_pending_action_store()["actions"].values()))
+    assert entry["state"] == "available"
+
+
+def test_option_less_auto_question_parks_for_human(
+    question_gate_home: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _explicit_auto_question_policy(question_gate_home, monkeypatch)
+    gate = create_gate(
+        user_question_gate_spec(
+            [{"question": "Any constraints?", "options": []}],
+            session_id="option-less-auto",
+            auto=True,
+        )
+    )
+    _assert_parked_for_human(gate, question_gate_home)
+
+    # The parked gate stays answerable: a human free-text answer settles it.
+    notification = load_notifications()[0]
+    result = execute_user_question_response(
+        _context(notification),
+        {
+            "answers": [
+                {
+                    "question": "Any constraints?",
+                    "selected": [],
+                    "custom_feedback": "Must run offline",
+                }
+            ],
+            "global_note": "",
+        },
+        source="tui",
+    )
+    assert result.answers["answers"][0]["custom_feedback"] == "Must run offline"
+    assert gate.response_path.exists()
+
+
+def test_mixed_option_less_auto_question_parks_for_human(
+    question_gate_home: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _explicit_auto_question_policy(question_gate_home, monkeypatch)
+    gate = create_gate(
+        user_question_gate_spec(
+            [
+                {
+                    "question": "Database?",
+                    "options": [{"label": "SQLite"}, {"label": "PostgreSQL"}],
+                },
+                {"question": "Any constraints?", "options": []},
+            ],
+            session_id="mixed-option-less-auto",
+            auto=True,
+        )
+    )
+    _assert_parked_for_human(gate, question_gate_home)
+
+
 def test_turn_backed_question_settles_its_gate_turn_and_streams_output(
     question_gate_home: Path, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

@@ -248,3 +248,34 @@ class GateAdapter:
         if value == "approve":
             return {"epic_launch_mode": "launch"}
         return {}
+
+    def decline_auto_execution(
+        self, spec: GateSpec, decision: Mapping[str, Any]
+    ) -> bool:
+        """Return True when an auto decision must park for a human instead.
+
+        The question adapter declines first-option auto-resolution for any
+        round containing an option-less (free-text) question: the automatic
+        answer (empty selection, no feedback) fails response validation,
+        so the gate parks exactly like an ``ask`` outcome instead of
+        failing creation. No answer is fabricated.
+        """
+        del decision
+        if self.kind != "question":
+            return False
+        try:
+            payload = spec.payload
+        except Exception:
+            return False
+        if not isinstance(payload, Mapping):
+            return False
+        questions = payload.get("questions")
+        if not isinstance(questions, list):
+            return False
+        for question in questions:
+            if not isinstance(question, Mapping):
+                continue
+            options = question.get("options", [])
+            if not isinstance(options, list) or not options:
+                return True
+        return False

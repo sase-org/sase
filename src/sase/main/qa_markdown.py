@@ -84,6 +84,23 @@ def _render_question(
             if label not in known_labels:
                 lines.append(f"- [x] **{label}**")
 
+        # A free-text comment attached to a normal pick is answer data
+        # too: without this line it would vanish from the successor
+        # prompt. ("Other" picks already render their text above.)
+        if not has_other and custom_feedback:
+            lines.append(f'- **Comment:** "{custom_feedback}"')
+    elif custom_feedback:
+        # An option-less (free-text) question has no option lines, so the
+        # answer renders as its own line instead of being dropped.
+        lines.append("")
+        lines.append(f'- **Answer:** "{custom_feedback}"')
+    elif selected_labels:
+        # No feedback to quote, but a selection was recorded: surface it
+        # so no data is silently lost.
+        lines.append("")
+        for label in selected_labels:
+            lines.append(f"- [x] **{label}**")
+
     if q.get("multiSelect"):
         lines.append("")
         lines.append("*Multi-select*")
