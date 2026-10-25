@@ -7,7 +7,7 @@ from pygments.lexers import get_lexer_by_name
 
 from sase.core.source_language_facade import resolve_source_language
 from sase.pager.syntax import normalize_language
-from sase.stats.render.languages import _LANGUAGE_LABELS
+from sase.stats.render.languages_identity import _LANGUAGE_LABELS
 
 _NEW_SUFFIX_IDS = [
     ("swift", "swift"),

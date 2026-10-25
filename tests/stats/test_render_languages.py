@@ -7,15 +7,15 @@ from io import StringIO
 from rich.console import Console
 
 from sase.stats.project.languages import language_breakdown
+from sase.stats.render._languages_shared import language_color
 from sase.stats.render.languages import (
     language_label,
     language_share_label,
     render_language_card_block,
 )
-from sase.stats.render.languages import (
+from sase.stats.render.languages_card import (
     _language_card_cap as language_card_cap,
 )
-from sase.stats.render.languages import _language_color as language_color
 from tests.stats._project_render_fixtures import one_project_view, render_context
 
 
