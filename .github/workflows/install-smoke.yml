@@ -189,7 +189,7 @@ jobs:
         # Isolated home so doctor does not inherit this checkout's required
         # plugins. Full `sase doctor -j` exits 1 on ERROR, and a CI runner
         # has no LLM provider; pin the provider check and accept that
-        # expected diagnostic, matching publish.yml's install-smoke.
+        # expected diagnostic.
         run: |
           set -euo pipefail
           export HOME="$CANARY_HOME"

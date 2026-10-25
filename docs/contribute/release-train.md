@@ -221,8 +221,9 @@ Polling defaults to five minutes with a twelve-hour deadline. The poll and deadl
 options apply only to this waiting mode. Waiting observes the train; it does not execute
 the actions needed to advance it.
 
-The scheduled `release-steward.yml` workflow runs every fifteen minutes in observe-only
-mode. A manual dispatch must explicitly select `live` to execute actions. Merge
+The scheduled `release-steward.yml` workflow runs every fifteen minutes, live: each tick
+executes the proposed train action and escalation after their precondition checks. A
+manual dispatch stays observe-only unless its `live` input is explicitly true. Merge
 authority is separately controlled by `RELEASE_STEWARD_MERGE_ENABLED`: only the literal
 value `true` enables it. The workflow builds or restores the core wheel for the exact
 `sase-core-revision.txt` pin before running the decision.
@@ -232,6 +233,46 @@ readiness. `watcher_broken` and an expired wait deadline exit `1`; invalid argum
 exit `2`. With `--json`, the final report goes to stdout and diagnostics go to stderr.
 Waiting prints progress to stderr and emits one final report when it stops. GitHub
 Actions also receives a step summary.
+
+## The steward
+
+One stateless steward decides release merges and the core cut. Each tick reads GitHub
+and PyPI facts, asks the Rust core for one typed decision, and executes at most one
+train action plus the escalation. The decision names a primary state, the evidence
+behind it, the proposed or executed action, and the escalation:
+
+| State                    | Meaning                                                               |
+| ------------------------ | --------------------------------------------------------------------- |
+| `nothing_to_release`     | no release PR and no in-flight train                                  |
+| `waiting`                | held for metadata refresh, cadence, or another precondition           |
+| `releasable`             | the release PR is eligible; the merge waits on merge authority        |
+| `released`               | the train confirmed and un-drafted the version                        |
+| `gate_red`               | the Master gate or a required check is red at the candidate SHA       |
+| `qualify_red`            | qualification failed against the published core                       |
+| `exercise_red`           | the Linux or macOS exercise leg failed                                |
+| `core_lag`               | no complete published core contains the source pin yet                |
+| `core_cut_red`           | the daily sase-core cut failed                                        |
+| `core_ci_red`            | the core side is red                                                  |
+| `core_incompatible`      | the published core does not satisfy the dependency contract           |
+| `install_broken`         | the family install canary is red (never blocks a qualified candidate) |
+| `publish_partial`        | some sealed files are already on PyPI; resume finishes the rest       |
+| `publish_conflict`       | PyPI holds files the manifest did not seal; a human untangles it      |
+| `dependency_unpublished` | a required file is missing from PyPI                                  |
+| `vetoed`                 | a human veto stands against the candidate                             |
+| `ambiguous_trains`       | more than one in-flight train; a human picks one                      |
+| `watcher_broken`         | facts, policy, or execution failed; the remedy names the fix          |
+
+A blocked state names its typed reason and its owner action in the mirrored issue: rerun
+the named check, cut the named core, resume the named tag with
+`release.yml -f mode=resume`, or yank and fix forward per
+[release safety](release-safety.md). The steward never merges when
+`RELEASE_STEWARD_MERGE_ENABLED` is anything but the literal `true`: a releasable release
+PR is then reported with its merge action suppressed until a human flips the switch.
+ci_watch never merges a `sase` release PR; the steward is the single decider.
+
+Cadence is daily: at most one release merge per UTC day, after the daily core cut, and a
+burned candidate frees the slot. Actions and escalation run on the schedule; only merges
+wait on the authority switch.
 
 ## Release evidence and metrics
 
@@ -250,6 +291,10 @@ The `green` subcommand emits JSON for one exact SHA, including `release_green`, 
 Master gate and Full CI evidence, blocking-job evidence, and missing evidence. Inspect
 the JSON verdict: a successfully generated report exits `0` even when its verdict is
 false. This inspection does not publish or promote a candidate.
+
+The steward's report carries a fresh metrics block once a day: the 09:00 UTC ticks run
+`tools/release_metrics` and append its Markdown under a `Release metrics` heading in the
+same step summary. The block is informational only; it never gates the train.
 
 ## Related
 

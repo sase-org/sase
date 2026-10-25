@@ -1,4 +1,4 @@
-"""Contract tests for the observe-only release-steward workflow."""
+"""Contract tests for the live release-steward workflow (sase-1n6.9)."""
 
 from __future__ import annotations
 
@@ -25,7 +25,7 @@ def _workflow_text() -> str:
     return WORKFLOW_PATH.read_text(encoding="utf-8")
 
 
-def test_schedule_is_observe_only_and_manual_live_defaults_false() -> None:
+def test_schedule_is_live_and_manual_live_defaults_false() -> None:
     workflow = _load_release_steward_workflow()
     triggers = _workflow_triggers(workflow)
     assert triggers["schedule"] == [{"cron": "*/15 * * * *"}]
@@ -34,18 +34,46 @@ def test_schedule_is_observe_only_and_manual_live_defaults_false() -> None:
     assert live["required"] is False
     assert live["default"] is False
 
-    run_text = _job_run_text(workflow["jobs"]["steward"])
-    assert "--tick" in run_text
-    assert "--json" in run_text
-    assert "github.event_name" in run_text
-    assert "workflow_dispatch" in run_text
-    assert "inputs.live" in run_text
-    assert "--live" in run_text
-    live_index = run_text.index("extra+=(--live)")
-    dispatch_index = run_text.index("workflow_dispatch")
-    assert dispatch_index < live_index
+    tick = next(
+        step
+        for step in workflow["jobs"]["steward"]["steps"]
+        if step.get("name") == "Run the steward tick"
+    )
+    run_text = tick["run"]
     assert "--tick --json" in run_text
+    assert "github.event_name" in run_text
+    assert '"schedule"' in run_text
+    schedule_index = run_text.index('"schedule"')
+    first_live_index = run_text.index("extra+=(--live)")
+    assert schedule_index < first_live_index
+    assert "inputs.live" in run_text
     assert 'inputs.live }}" = "true"' in run_text
+    second_live_index = run_text.index("extra+=(--live)", first_live_index + 1)
+    inputs_index = run_text.index("inputs.live")
+    assert inputs_index < second_live_index
+
+
+def test_once_daily_metrics_block_is_informational_only() -> None:
+    workflow = _load_release_steward_workflow()
+    steps = workflow["jobs"]["steward"]["steps"]
+    names = [step.get("name") for step in steps]
+    assert "Append the once-daily release metrics block" in names
+    tick_index = names.index("Run the steward tick")
+    metrics_index = names.index("Append the once-daily release metrics block")
+    assert tick_index < metrics_index
+
+    metrics = steps[metrics_index]
+    assert metrics["env"]["GH_TOKEN"] == "${{ secrets.SASE_RELEASE_TOKEN }}"
+    run_text = metrics["run"]
+    assert "tools/release_metrics" in run_text
+    assert "## Release metrics" in run_text
+    assert "GITHUB_STEP_SUMMARY" in run_text
+    # Once-daily gate: only the 09:00 UTC ticks collect metrics.
+    assert "date -u +%H" in run_text
+    assert '"09"' in run_text
+    # Informational only: a metrics failure still leaves the step green.
+    assert "never gates the train" in run_text
+    assert "exit 0" in run_text
 
 
 def test_concurrency_never_cancels() -> None:

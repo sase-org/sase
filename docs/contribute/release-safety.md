@@ -63,6 +63,14 @@ an issue and never holds a release. The dependency-floor check is the only new m
 blocker, and it applies only to family plugin release PRs. A separately qualified
 recovery release always ships through the normal train while the incident is open.
 
+### Resume an interrupted train
+
+When a train stalls after the candidate is sealed — a partial upload, a lost
+confirmation — re-enter it with `release.yml -f mode=resume` at the same tag. Resume
+runs only `publish` and `confirm` from the stashed bytes: it never rebuilds, and it
+refuses without passing evidence. Recovering an old version is never a rebuild, and the
+old `publish.yml` re-publish route is gone.
+
 ## The safety nets
 
 - **Family install canary** (`install-smoke.yml`, helper `tools/check_family_install`).

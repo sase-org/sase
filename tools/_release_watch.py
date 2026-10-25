@@ -126,7 +126,7 @@ def parse_args(argv: Sequence[str] | None = None) -> WatchOptions:
         description=(
             "Read GitHub and PyPI facts, ask the Rust steward for one typed "
             "decision, and optionally execute its train action and "
-            "escalation. Scheduled ticks are observe-only."
+            "escalation. Scheduled ticks run live; manual ticks need --live."
         ),
     )
     parser.add_argument(

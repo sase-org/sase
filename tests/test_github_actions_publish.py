@@ -1,3 +1,12 @@
+"""Contract tests for the handover-trimmed publish workflow (sase-1n6.9).
+
+publish.yml keeps only release-please generation (`release`) and the
+release-PR metadata sync (`sync-release-metadata`). Building, exercising,
+publishing, and confirming moved to release.yml; recovering an old version is
+`release.yml -f mode=resume` at its tag. The steward dispatches this workflow
+bare (`gh workflow run publish.yml`) in metadata mode.
+"""
+
 from __future__ import annotations
 
 import pytest
@@ -10,81 +19,31 @@ from tests._github_actions_ci_helpers import _workflow_triggers
 pytestmark = pytest.mark.contract
 
 
-def test_publish_depends_on_floor_exact_install_smoke() -> None:
+def test_publish_keeps_only_release_and_metadata_jobs() -> None:
     workflow = _load_publish_workflow()
     jobs = workflow["jobs"]
 
-    assert "install-smoke-core-floor" in jobs
-    assert jobs["install-smoke-core-floor"]["needs"] == "build"
-    assert jobs["publish"]["needs"] == [
-        "release",
-        "build",
-        "install-smoke",
-        "install-smoke-core-floor",
-    ]
-
-    free_resolution = _job_run_text(jobs["install-smoke"])
-    floor_exact = _job_run_text(jobs["install-smoke-core-floor"])
-    assert '"sase-core-rs==${core_minimum}"' not in free_resolution
-    assert (
-        "tools/smoke_sase_core_rs_telemetry --print-minimum pyproject.toml"
-        in floor_exact
-    )
-    assert '"sase-core-rs==${core_minimum}"' in floor_exact
-    assert 'importlib.metadata.version("sase-core-rs")' in floor_exact
-    assert "actual != expected" in floor_exact
-    assert "/tmp/smoke-floor-venv/bin/sase core health --json" in floor_exact
-    assert "/tmp/smoke-floor-venv/bin/sase version" in floor_exact
-    assert "/tmp/smoke-floor-venv/bin/sase doctor -C llm.default -j" in floor_exact
-    assert "/tmp/smoke-floor-venv/bin/sase run --help" in floor_exact
-    assert 'grep -Fq "[PROMPT]"' in floor_exact
-    assert 'grep -Fq "sase chat list"' in floor_exact
+    assert set(jobs) == {"release", "sync-release-metadata"}
+    assert "build" not in jobs
+    assert "install-smoke" not in jobs
+    assert "install-smoke-core-floor" not in jobs
+    assert "publish" not in jobs
 
 
-def test_publish_install_smoke_renders_screenshot_png_without_extras() -> None:
-    workflow = _load_publish_workflow()
-    run_text = _job_run_text(workflow["jobs"]["install-smoke"])
-
-    assert "Smoke screenshot renderer runtime dependency" in str(
-        workflow["jobs"]["install-smoke"]["steps"]
-    )
-    assert "from importlib.metadata import requires" in run_text
-    assert 'requires("sase")' in run_text
-    assert "resvg-py" in run_text
-    assert "from sase.ace.tui.visual_render import render_svg_to_png" in run_text
-    assert "render_svg_to_png(" in run_text
-    assert 'png.startswith(b"\\x89PNG\\r\\n\\x1a\\n")' in run_text
-
-
-def test_publish_generation_runs_on_schedule_or_manual_dispatch_only() -> None:
+def test_publish_triggers_are_schedule_or_bare_dispatch() -> None:
     workflow = _load_publish_workflow()
     triggers = _workflow_triggers(workflow)
-    jobs = workflow["jobs"]
-
-    generator_if = (
-        "${{ github.event_name == 'schedule' || "
-        "(github.event_name == 'workflow_dispatch' && "
-        "inputs.publish_existing == false) }}"
-    )
-    generator_retry_prefix = (
-        "${{ (github.event_name == 'schedule' || "
-        "(github.event_name == 'workflow_dispatch' && "
-        "inputs.publish_existing == false)) && "
-    )
-    publish_if = (
-        "${{ needs.release.outputs.release_created == 'true' || "
-        "(github.event_name == 'workflow_dispatch' && "
-        "inputs.publish_existing == true) }}"
-    )
 
     assert "push" not in triggers
     assert triggers["schedule"] == [{"cron": "17 */3 * * *"}]
-    assert triggers["workflow_dispatch"]["inputs"]["publish_existing"] == {
-        "description": "Publish the existing release version recorded on master",
-        "type": "boolean",
-        "required": True,
-        "default": False,
-    }
+    # The steward dispatches publish.yml bare in metadata mode, so
+    # workflow_dispatch carries no inputs (publish_existing is gone).
+    assert triggers["workflow_dispatch"] is None
+
+
+def test_publish_release_please_retries_have_no_publish_inputs() -> None:
+    workflow = _load_publish_workflow()
+    jobs = workflow["jobs"]
 
     release_steps = jobs["release"]["steps"]
     release_please_steps = [
@@ -97,65 +56,20 @@ def test_publish_generation_runs_on_schedule_or_manual_dispatch_only() -> None:
         "release2",
         "release3",
     ]
-    assert release_please_steps[0]["if"] == generator_if
-    assert release_please_steps[1]["if"] == (
-        generator_retry_prefix + "steps.release1.outcome == 'failure' }}"
-    )
-    assert release_please_steps[2]["if"] == (
-        generator_retry_prefix + "steps.release2.outcome == 'failure' }}"
-    )
+    assert "if" not in release_please_steps[0]
+    assert release_please_steps[1]["if"] == "${{ steps.release1.outcome == 'failure' }}"
+    assert release_please_steps[2]["if"] == "${{ steps.release2.outcome == 'failure' }}"
     assert any(
         step.get("name") == "Back off before release-please retry 2"
-        and step.get("if")
-        == generator_retry_prefix + "steps.release1.outcome == 'failure' }}"
+        and step.get("if") == "${{ steps.release1.outcome == 'failure' }}"
         for step in release_steps
     )
     assert any(
         step.get("name") == "Back off before release-please retry 3"
-        and step.get("if")
-        == generator_retry_prefix + "steps.release2.outcome == 'failure' }}"
+        and step.get("if") == "${{ steps.release2.outcome == 'failure' }}"
         for step in release_steps
     )
-    assert jobs["build"]["if"] == publish_if
-    assert jobs["publish"]["if"] == publish_if
-
-
-def test_publish_builds_the_release_please_tagged_commit() -> None:
-    workflow = _load_publish_workflow()
-    jobs = workflow["jobs"]
-
-    assert jobs["release"]["outputs"]["sha"] == (
-        "${{ steps.release3.outputs.sha || steps.release2.outputs.sha || "
-        "steps.release1.outputs.sha || '' }}"
-    )
-
-    build_steps = jobs["build"]["steps"]
-    checkout_index = next(
-        index
-        for index, step in enumerate(build_steps)
-        if step.get("uses") == "actions/checkout@v4"
-    )
-    assert build_steps[checkout_index]["with"]["ref"] == (
-        "${{ needs.release.outputs.sha }}"
-    )
-    guard = build_steps[0]
-    assert guard["name"] == "Require the release commit"
-    assert guard["if"] == (
-        "${{ needs.release.outputs.release_created == 'true' && "
-        "needs.release.outputs.sha == '' }}"
-    )
-    assert "exit 1" in guard["run"]
-    recorded = build_steps[checkout_index + 1]
-    assert recorded["id"] == "built"
-    assert 'echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"' in recorded["run"]
-    assert jobs["build"]["outputs"] == {"sha": "${{ steps.built.outputs.sha }}"}
-
-    floor_checkout = next(
-        step
-        for step in jobs["install-smoke-core-floor"]["steps"]
-        if step.get("uses") == "actions/checkout@v4"
-    )
-    assert floor_checkout["with"]["ref"] == "${{ needs.build.outputs.sha }}"
+    assert jobs["release"].get("outputs") in (None, {})
 
 
 def test_publish_sync_release_metadata_applies_ratchet_before_lock_refresh() -> None:
@@ -165,11 +79,7 @@ def test_publish_sync_release_metadata_applies_ratchet_before_lock_refresh() -> 
     assert "sync-lockfile" not in jobs
     job = jobs["sync-release-metadata"]
     assert job["needs"] == "release"
-    assert job["if"] == (
-        "${{ always() && (github.event_name == 'schedule' || "
-        "(github.event_name == 'workflow_dispatch' && "
-        "inputs.publish_existing == false)) }}"
-    )
+    assert job["if"] == "${{ always() }}"
     assert workflow["concurrency"] == {
         "group": "${{ github.workflow }}-${{ github.ref }}",
         "cancel-in-progress": False,
@@ -210,4 +120,3 @@ def test_publish_sync_release_metadata_applies_ratchet_before_lock_refresh() -> 
     assert "git diff --quiet -- pyproject.toml uv.lock" in run_text
     assert "git add pyproject.toml uv.lock" in run_text
     assert 'git commit -m "chore: sync release metadata"' in run_text
-    assert "git push origin HEAD:release-please--branches--master" in run_text

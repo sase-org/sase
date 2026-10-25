@@ -1,16 +1,17 @@
 name: Publish
 
+# Release creation and release-PR metadata only. The exact-candidate train
+# (handover phase sase-1n6.9) owns building, exercising, publishing, and
+# confirming through release.yml: recovering an old version is now
+# `release.yml -f mode=resume` at its tag, never a job here. The release
+# steward dispatches this workflow bare (`gh workflow run publish.yml`) in
+# metadata mode to refresh release-please after a stale head or pin change.
+
 on:
   schedule:
     # Keep release-please from churning the release branch on every master push.
     - cron: '17 */3 * * *'
   workflow_dispatch:
-    inputs:
-      publish_existing:
-        description: Publish the existing release version recorded on master
-        type: boolean
-        required: true
-        default: false
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -23,41 +24,34 @@ jobs:
       contents: write
       issues: write
       pull-requests: write
-    outputs:
-      release_created: ${{ steps.release3.outputs.release_created || steps.release2.outputs.release_created || steps.release1.outputs.release_created || 'false' }}
-      # The commit release-please tagged. The build checks it out instead of
-      # this run's trigger commit, so commits that land between the release PR
-      # merge and this run never ship under the release's version number.
-      sha: ${{ steps.release3.outputs.sha || steps.release2.outputs.sha || steps.release1.outputs.sha || '' }}
     steps:
       - uses: googleapis/release-please-action@v5
         id: release1
         name: Release Please
-        if: ${{ github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.publish_existing == false) }}
         continue-on-error: true
         with:
           token: ${{ secrets.SASE_RELEASE_TOKEN }}
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
       - name: Back off before release-please retry 2
-        if: ${{ (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.publish_existing == false)) && steps.release1.outcome == 'failure' }}
+        if: ${{ steps.release1.outcome == 'failure' }}
         run: sleep 60
       - uses: googleapis/release-please-action@v5
         id: release2
         name: Release Please (retry 2)
-        if: ${{ (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.publish_existing == false)) && steps.release1.outcome == 'failure' }}
+        if: ${{ steps.release1.outcome == 'failure' }}
         continue-on-error: true
         with:
           token: ${{ secrets.SASE_RELEASE_TOKEN }}
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
       - name: Back off before release-please retry 3
-        if: ${{ (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.publish_existing == false)) && steps.release2.outcome == 'failure' }}
+        if: ${{ steps.release2.outcome == 'failure' }}
         run: sleep 60
       - uses: googleapis/release-please-action@v5
         id: release3
         name: Release Please (retry 3)
-        if: ${{ (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.publish_existing == false)) && steps.release2.outcome == 'failure' }}
+        if: ${{ steps.release2.outcome == 'failure' }}
         with:
           token: ${{ secrets.SASE_RELEASE_TOKEN }}
           config-file: release-please-config.json
@@ -71,8 +65,8 @@ jobs:
     # release-please regeneration remains idempotent instead of leaving
     # stray follow-up diffs. Run regardless of the release job's own retry
     # outcome so a transient release-please failure doesn't also skip this
-    # reconciliation; skip pure publish_existing dispatches.
-    if: ${{ always() && (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.publish_existing == false)) }}
+    # reconciliation.
+    if: ${{ always() }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -125,264 +119,3 @@ jobs:
           git add pyproject.toml uv.lock
           git commit -m "chore: sync release metadata"
           git push origin HEAD:release-please--branches--master
-
-  build:
-    needs: release
-    if: ${{ needs.release.outputs.release_created == 'true' || (github.event_name == 'workflow_dispatch' && inputs.publish_existing == true) }}
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    outputs:
-      sha: ${{ steps.built.outputs.sha }}
-    steps:
-      - name: Require the release commit
-        if: ${{ needs.release.outputs.release_created == 'true' && needs.release.outputs.sha == '' }}
-        run: |
-          echo "release-please created a release but reported no release commit SHA" >&2
-          exit 1
-      - uses: actions/checkout@v4
-        with:
-          # Empty on publish_existing dispatches, which build the dispatched ref.
-          ref: ${{ needs.release.outputs.sha }}
-      - name: Record the built commit
-        id: built
-        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
-      - uses: astral-sh/setup-uv@v4
-        with:
-          enable-cache: true
-          cache-dependency-glob: "**/pyproject.toml"
-      - name: Set up Python
-        run: uv python install 3.12
-      - name: Build package
-        run: uv build
-      - name: Validate package metadata
-        run: uvx --from twine twine check dist/*
-      - uses: actions/upload-artifact@v4
-        with:
-          name: dist
-          path: dist/
-
-  install-smoke:
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          name: dist
-          path: dist/
-      - uses: astral-sh/setup-uv@v4
-      - name: Set up Python
-        run: uv python install 3.12
-      - name: Install built sase wheel into a fresh venv
-        run: |
-          uv venv --python 3.12 /tmp/smoke-venv
-          # Install the freshly built wheel; PyPI resolves the
-          # `sase-core-rs` runtime dependency.
-          uv pip install --python /tmp/smoke-venv/bin/python dist/sase-*.whl
-      - name: Health check (Rust extension loadable)
-        run: /tmp/smoke-venv/bin/sase core health --json
-      - name: Smoke screenshot renderer runtime dependency
-        run: |
-          /tmp/smoke-venv/bin/python - <<'PY'
-          from importlib.metadata import requires
-
-          from sase.ace.tui.visual_render import render_svg_to_png
-
-          requires_dist = requires("sase") or []
-          if not any(
-              requirement.split(";", 1)[0].strip().lower().startswith("resvg-py")
-              for requirement in requires_dist
-          ):
-              raise SystemExit("sase wheel metadata does not require resvg-py")
-
-          png = render_svg_to_png(
-              '<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1">'
-              '<rect width="1" height="1" fill="red"/>'
-              "</svg>"
-          )
-          if not png.startswith(b"\x89PNG\r\n\x1a\n"):
-              raise SystemExit("renderer did not produce a PNG")
-          PY
-      - name: Smoke public install commands
-        run: |
-          set -euo pipefail
-
-          /tmp/smoke-venv/bin/sase version
-
-          doctor_json="$(mktemp)"
-          doctor_status=0
-          clean_home="$(mktemp -d)"
-          SASE_HOME="$clean_home" HOME="$clean_home" PATH="/tmp/smoke-venv/bin:/usr/bin:/bin" \
-            /tmp/smoke-venv/bin/sase doctor -C llm.default -j > "$doctor_json" || doctor_status=$?
-          cat "$doctor_json"
-          /tmp/smoke-venv/bin/python - "$doctor_json" "$doctor_status" <<'PY'
-          import json
-          import sys
-
-          path = sys.argv[1]
-          doctor_status = int(sys.argv[2])
-          with open(path, encoding="utf-8") as fp:
-              payload = json.load(fp)
-
-          checks = payload.get("checks", [])
-          summary = checks[0].get("summary", "") if checks else ""
-          expected_missing_provider = (
-              payload.get("status") == "ERROR"
-              and "no usable default LLM provider executable was found" in summary
-          )
-
-          if doctor_status == 0 and payload.get("status") == "OK":
-              print("Provider readiness smoke passed.")
-          elif doctor_status == 1 and expected_missing_provider:
-              print("Provider readiness smoke produced the expected CI diagnostic.")
-          else:
-              print(
-                  "Unexpected provider readiness result: "
-                  f"exit={doctor_status}, status={payload.get('status')!r}, summary={summary!r}",
-                  file=sys.stderr,
-              )
-              sys.exit(1)
-          PY
-
-          /tmp/smoke-venv/bin/sase run --help | tee /tmp/sase-run-help.txt
-          grep -Fq "[PROMPT]" /tmp/sase-run-help.txt
-          grep -Fq 'sase run "+home summarize what this repository does; do not change files"' /tmp/sase-run-help.txt
-          grep -Fq "sase chat list" /tmp/sase-run-help.txt
-      # Surface platform / extension version details when the smoke
-      # step above fails so the build log is enough to diagnose a
-      # missing-wheel or ABI-mismatch issue without a manual repro step.
-      - name: Report extension diagnostics on failure
-        if: failure()
-        run: |
-          echo "::group::sase core health --json"
-          /tmp/smoke-venv/bin/sase core health --json || true
-          echo "::endgroup::"
-          echo "::group::installed packages"
-          /tmp/smoke-venv/bin/python -m pip list || true
-          echo "::endgroup::"
-          echo "::group::python / platform"
-          /tmp/smoke-venv/bin/python -c "import platform, sys; print(sys.version); print(platform.platform()); print(platform.machine())"
-          echo "::endgroup::"
-          echo "::group::sase_core_rs module probe"
-          /tmp/smoke-venv/bin/python -c "import sase_core_rs; print(sase_core_rs.__file__); print(getattr(sase_core_rs, '__version__', '<no __version__>'))" || true
-          echo "::endgroup::"
-
-  install-smoke-core-floor:
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          # Read the core floor from the commit the wheel was built from.
-          ref: ${{ needs.build.outputs.sha }}
-      - uses: actions/download-artifact@v4
-        with:
-          name: dist
-          path: dist/
-      - uses: astral-sh/setup-uv@v4
-      - name: Set up Python
-        run: uv python install 3.12
-      - name: Install built sase wheel with exact core floor
-        run: |
-          set -euo pipefail
-          core_minimum="$(python3 tools/smoke_sase_core_rs_telemetry --print-minimum pyproject.toml)"
-          echo "CORE_MINIMUM=$core_minimum" >> "$GITHUB_ENV"
-          uv venv --python 3.12 /tmp/smoke-floor-venv
-          uv pip install --python /tmp/smoke-floor-venv/bin/python "sase-core-rs==${core_minimum}" dist/sase-*.whl
-      - name: Assert exact core floor is installed
-        run: |
-          /tmp/smoke-floor-venv/bin/python - <<'PY'
-          import importlib.metadata
-          import os
-          import sys
-
-          expected = os.environ["CORE_MINIMUM"]
-          actual = importlib.metadata.version("sase-core-rs")
-          if actual != expected:
-              print(f"expected sase-core-rs=={expected}, got {actual}", file=sys.stderr)
-              sys.exit(1)
-          print(f"sase-core-rs pin confirmed: {actual}")
-          PY
-      - name: Health check (Rust extension loadable)
-        run: /tmp/smoke-floor-venv/bin/sase core health --json
-      - name: Smoke public install commands
-        run: |
-          set -euo pipefail
-
-          /tmp/smoke-floor-venv/bin/sase version
-
-          doctor_json="$(mktemp)"
-          doctor_status=0
-          clean_home="$(mktemp -d)"
-          SASE_HOME="$clean_home" HOME="$clean_home" PATH="/tmp/smoke-floor-venv/bin:/usr/bin:/bin" \
-            /tmp/smoke-floor-venv/bin/sase doctor -C llm.default -j > "$doctor_json" || doctor_status=$?
-          cat "$doctor_json"
-          /tmp/smoke-floor-venv/bin/python - "$doctor_json" "$doctor_status" <<'PY'
-          import json
-          import sys
-
-          path = sys.argv[1]
-          doctor_status = int(sys.argv[2])
-          with open(path, encoding="utf-8") as fp:
-              payload = json.load(fp)
-
-          checks = payload.get("checks", [])
-          summary = checks[0].get("summary", "") if checks else ""
-          expected_missing_provider = (
-              payload.get("status") == "ERROR"
-              and "no usable default LLM provider executable was found" in summary
-          )
-
-          if doctor_status == 0 and payload.get("status") == "OK":
-              print("Provider readiness smoke passed.")
-          elif doctor_status == 1 and expected_missing_provider:
-              print("Provider readiness smoke produced the expected CI diagnostic.")
-          else:
-              print(
-                  "Unexpected provider readiness result: "
-                  f"exit={doctor_status}, status={payload.get('status')!r}, summary={summary!r}",
-                  file=sys.stderr,
-              )
-              sys.exit(1)
-          PY
-
-          /tmp/smoke-floor-venv/bin/sase run --help | tee /tmp/sase-run-help.txt
-          grep -Fq "[PROMPT]" /tmp/sase-run-help.txt
-          grep -Fq 'sase run "+home summarize what this repository does; do not change files"' /tmp/sase-run-help.txt
-          grep -Fq "sase chat list" /tmp/sase-run-help.txt
-      # Surface platform / extension version details when the smoke
-      # step above fails so the build log is enough to diagnose a
-      # missing-wheel or ABI-mismatch issue without a manual repro step.
-      - name: Report extension diagnostics on failure
-        if: failure()
-        run: |
-          echo "::group::sase core health --json"
-          /tmp/smoke-floor-venv/bin/sase core health --json || true
-          echo "::endgroup::"
-          echo "::group::installed packages"
-          /tmp/smoke-floor-venv/bin/python -m pip list || true
-          echo "::endgroup::"
-          echo "::group::python / platform"
-          /tmp/smoke-floor-venv/bin/python -c "import platform, sys; print(sys.version); print(platform.platform()); print(platform.machine())"
-          echo "::endgroup::"
-          echo "::group::sase_core_rs module probe"
-          /tmp/smoke-floor-venv/bin/python -c "import sase_core_rs; print(sase_core_rs.__file__); print(getattr(sase_core_rs, '__version__', '<no __version__>'))" || true
-          echo "::endgroup::"
-
-  publish:
-    needs: [release, build, install-smoke, install-smoke-core-floor]
-    if: ${{ needs.release.outputs.release_created == 'true' || (github.event_name == 'workflow_dispatch' && inputs.publish_existing == true) }}
-    runs-on: ubuntu-latest
-    environment: pypi
-    permissions:
-      id-token: write
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          name: dist
-          path: dist/
-      - uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          # Re-runs after a partial upload (e.g. wheel accepted, sdist
-          # rejected) must not fail on the files that already made it up.
-          skip-existing: true

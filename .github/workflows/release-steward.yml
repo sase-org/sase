@@ -1,11 +1,14 @@
 name: Release steward
 
-# Observe-only host for the stateless release reconciler (phase sase-1n6.7.1.5).
-# Scheduled ticks always run `tools/release_watch --tick` without `--live`.
-# Only an explicitly true manual `live` input may execute actions. Merge
-# authority is a separate repository variable, `RELEASE_STEWARD_MERGE_ENABLED`,
-# and stays disabled until the sase-1n6.9 handover sets it to the literal
-# `true`. This workflow does not create or change that variable.
+# Live host for the stateless release reconciler (handover phase sase-1n6.9).
+# Scheduled ticks run `tools/release_watch --tick --live`: the proposed train
+# action and escalation execute after their precondition checks. Merge
+# authority stays a separate repository variable,
+# `RELEASE_STEWARD_MERGE_ENABLED`, and stays disabled until a human sets it to
+# the literal `true` (handover gate step 2). Until then the steward reports
+# releasable states with the merge action suppressed. A manual dispatch stays
+# observe-only unless its `live` input is explicitly true. This workflow does
+# not create or change the merge-authority variable.
 #
 # The policy binding must be available before its core version is on PyPI:
 # this job resolves `sase-core-revision.txt` from the checked-out master,
@@ -20,8 +23,8 @@ on:
     inputs:
       live:
         description: >-
-          Execute the proposed train action and escalation. Scheduled ticks
-          ignore this input and stay observe-only.
+          Execute the proposed train action and escalation on this manual
+          dispatch. Scheduled ticks always run live and ignore this input.
         type: boolean
         required: false
         default: false
@@ -124,10 +127,47 @@ jobs:
           set -euo pipefail
           : "${GITHUB_STEP_SUMMARY:?GITHUB_STEP_SUMMARY must be set}"
           extra=()
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ] \
-            && [ "${{ inputs.live }}" = "true" ]; then
+          if [ "${{ github.event_name }}" = "schedule" ]; then
+            # Handover sase-1n6.9: scheduled ticks execute the proposed train
+            # action and escalation. Merges stay gated on
+            # RELEASE_STEWARD_MERGE_ENABLED, which is unset until a human
+            # flips it (handover gate step 2).
+            extra+=(--live)
+          elif [ "${{ inputs.live }}" = "true" ]; then
             extra+=(--live)
           fi
           "$RUNNER_TEMP/steward-venv/bin/python" \
             "$GITHUB_WORKSPACE/tools/release_watch" \
             --tick --json "${extra[@]}"
+
+      - name: Append the once-daily release metrics block
+        env:
+          GH_TOKEN: ${{ secrets.SASE_RELEASE_TOKEN }}
+          GH_REPO: sase-org/sase
+        run: |
+          set -euo pipefail
+          # Handover sase-1n6.9: the steward's report carries fresh release
+          # metrics once a day, on the 09:00 UTC ticks (the daily cadence
+          # hour). Other ticks skip this step; it never gates the train.
+          if [ "$(date -u +%H)" != "09" ]; then
+            echo "metrics block runs on 09:00 UTC ticks only; skipping."
+            exit 0
+          fi
+          report="$(mktemp)"
+          if "$RUNNER_TEMP/steward-venv/bin/python" \
+            "$GITHUB_WORKSPACE/tools/release_metrics" > "$report"; then
+            {
+              echo "## Release metrics"
+              echo ""
+              echo "_Once-daily block (09:00 UTC tick). Informational only; it never gates the train._"
+              echo ""
+              cat "$report"
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            {
+              echo "## Release metrics"
+              echo ""
+              echo "_Once-daily block (09:00 UTC tick) unavailable: tools/release_metrics failed; see the step log._"
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
