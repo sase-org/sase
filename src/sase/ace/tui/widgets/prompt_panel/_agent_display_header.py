@@ -287,6 +287,25 @@ def build_header_text(
 
     append_legacy_parallel_members_section(header_text, agent)
 
+    # Use-site import: the QUESTIONS mount stays out of the TUI startup
+    # closure (see test_tui_app_import_stays_under_startup_budget).
+    from ._agent_questions_section import append_agent_questions_section
+
+    append_agent_questions_section(
+        header_text,
+        agent,
+        summary=summary,
+        fold_level=(
+            effective_agent_session_fold_level(
+                "questions",
+                resolved_lane_fold_level,
+                lane_overrides,
+            )
+            if agent_session_fold_enabled
+            else None
+        ),
+    )
+
     append_agent_output_variables_section(
         header_text,
         agent,

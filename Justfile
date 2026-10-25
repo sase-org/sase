@@ -454,9 +454,12 @@ _lint-patch-stitch-terminology: _setup
 # QuestionRoundView, load_question_round, plus phase 2's
 # project_question_round binding) through the GATE-section swap, so those
 # rows are dropped; the still-unused view seams stay allow-listed under
-# the parent epic for the lane and context-section phases. The presenter's
-# multi-round entry points stay allow-listed under sase-1o5.5, which mounts
-# them on the Context card.
+# the parent epic for the lane and context-section phases. sase-1o5.5
+# (context-section) consumed the presenter's multi-round entry points and
+# the stub seams by mounting them on the Context card, so those rows are
+# dropped too; the stub/presenter heading protocol stays allow-listed
+# under the parent epic because stubs satisfy it structurally and no
+# runtime reference names it.
 # sase-1ko.5 (delivery-plan) exported current_instruction_delivery for adapters;
 # sase-1ko.7 (claude) is its first consumer.
 # sase-1nf.10.1.1 (retry-policy) exported failure-accounting and drain-selection
@@ -478,11 +481,7 @@ _lint-symvision *args: _setup
         --epic-symbol 'sase-1o5(QuestionOptionView)' \
         --epic-symbol 'sase-1o5(QuestionProvenanceView)' \
         --epic-symbol 'sase-1o5(parse_question_round_wire)' \
-        --epic-symbol 'sase-1o5.5(QuestionRoundHeadingSource)' \
-        --epic-symbol 'sase-1o5.5(QuestionRoundStub)' \
-        --epic-symbol 'sase-1o5.5(question_round_stubs)' \
-        --epic-symbol 'sase-1o5.5(question_rounds_heading_suffix)' \
-        --epic-symbol 'sase-1o5.5(render_question_rounds)' \
+        --epic-symbol 'sase-1o5(QuestionRoundHeadingSource)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

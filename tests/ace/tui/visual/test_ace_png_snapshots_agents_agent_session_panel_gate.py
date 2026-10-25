@@ -12,6 +12,7 @@ from sase.ace.tui.models.agent_session_members import concrete_agent_session_tur
 from sase.ace.tui.widgets.prompt_panel import AgentPromptPanel
 from tests.ace.tui.visual._ace_agents_png_snapshot_agent_session_panel_fixtures import (
     _gate_agent_session_agents,
+    _question_rounds_agent_session_agents,
     _selected_gate_agent,
 )
 from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
@@ -131,6 +132,69 @@ async def test_agent_session_gate_turns_narrow_png_snapshot(
             page,
             "agents_session_panel_turns_gate_90x40",
             title="ACE session panel gate turns narrow",
+        )
+
+
+async def test_agent_session_context_questions_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    pin_agents_visual_now(monkeypatch, datetime(2026, 7, 18, 13, 8, 0))
+    # Pin the display zone to UTC: visual workers run libc under TZ=UTC
+    # (see tests/ace/tui/visual/conftest.py) while `get_timezone` follows
+    # the host's sase config, so unpinned epoch→wall text (the pending
+    # round's countdown line) would differ per host. Epochs built from the
+    # fixture's naive starts assume the worker libc zone, matching this pin.
+    from zoneinfo import ZoneInfo
+
+    from sase.core import time as core_time
+
+    monkeypatch.setattr(core_time, "_cached_timezone", ZoneInfo("UTC"))
+    patch_startup_loaders(
+        monkeypatch,
+        agents=_question_rounds_agent_session_agents(tmp_path),
+    )
+
+    async with AcePage(
+        query='"visual-questions-root"',
+        size=(160, 50),
+        patches=patches(),
+    ) as page:
+        await wait_for_startup(page)
+        await page.press("shift+tab")
+        await page.expect_state("tab", "agents")
+        await page.expect_state("agent_count", 1)
+        await wait_for_svg_contains(page, "5 turns")
+        # Wait on lane-resolved presenter text, not the stub first paint:
+        # the heading suffix arrives with stubs, but provenance lines and Q
+        # numbers only render once the `questions` lane has loaded the
+        # bundles. Sentinels must not span a wrap boundary in the SVG text
+        # export, so question numbers (always at a line start) stand in for
+        # the pending round's wrapped countdown line.
+        await wait_for_svg_contains(page, "QUESTIONS")
+        await wait_for_svg_contains(page, "human via TUI")
+        await wait_for_svg_contains(page, "no human")
+        await wait_for_svg_contains(page, "Q4")
+        await wait_for_visual_idle(page)
+
+        container = page.app._agents[page.app.current_idx]
+        assert container.is_agent_session_container_row is True
+        combined = prompt_header_and_body_text(
+            page.app.query_one("#agent-prompt-panel", AgentPromptPanel)
+        )
+        assert "QUESTIONS" in combined
+        assert "human via TUI" in combined
+        assert "no human" in combined
+        assert "awaiting answer" in combined
+        assert "Option JSON" not in combined
+        # Overlay scrollbar fade outlives visual-idle's one-shot window.
+        main_deck_scroll(page).show_vertical_scrollbar = False
+        await wait_for_visual_idle(page)
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_session_panel_context_questions_160x50",
+            title="ACE session panel QUESTIONS section with three rounds",
         )
 
 

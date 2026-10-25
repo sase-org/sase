@@ -71,6 +71,7 @@ def append_agent_session_fold_heading(
     section_id: str,
     level: FoldLevel,
     count: int | None = None,
+    summary: str | None = None,
     style: str = "bold #D7AF5F underline",
 ) -> None:
     """Append one agent-session heading carrying its effective fold glyph."""
@@ -81,6 +82,7 @@ def append_agent_session_fold_heading(
         level=level,
         scale=AGENT_SESSION_FOLD_SCALE,
         count=count,
+        summary=summary,
         style=style,
     )
 

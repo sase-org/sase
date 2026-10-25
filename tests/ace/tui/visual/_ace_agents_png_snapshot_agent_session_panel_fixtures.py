@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -258,6 +259,250 @@ def _gate_agent_session_agents(tmp_path: Path) -> list[Agent]:
             ),
         ]
     )
+    _apply_status_overrides(rows)
+    return sort_and_reorder(rows, [])
+
+
+_QUESTIONS_SESSION_NAME = "visual-questions"
+
+
+def _write_question_bundle(
+    bundle: Path,
+    *,
+    questions: list[dict[str, object]],
+    response: dict[str, object] | None,
+) -> None:
+    """Write one question-gate bundle with the real on-disk shapes."""
+    bundle.mkdir(parents=True, exist_ok=True)
+    (bundle / "request.json").write_text(
+        json.dumps({"payload": {"questions": questions}}),
+        encoding="utf-8",
+    )
+    if response is not None:
+        (bundle / "response.json").write_text(
+            json.dumps(response),
+            encoding="utf-8",
+        )
+
+
+def _question_rounds_agent_session_agents(tmp_path: Path) -> list[Agent]:
+    """Session with three question rounds for the QUESTIONS snapshot.
+
+    A human-answered round with one deviation (``different_option``), an
+    auto-policy round, and a pending round. Bundle epochs pair each stored
+    timestamp with its row's naive start; the snapshot test pins the display
+    zone to UTC to match the visual workers' libc zone, so elapsed and
+    wall-clock text is identical on every host.
+    """
+    bundles = tmp_path / "family-questions"
+    answered_start = _STARTED + timedelta(minutes=6)
+    _write_question_bundle(
+        bundles / "answered",
+        questions=[
+            {
+                "header": "Memory edits",
+                "question": "Land memory edits on the Context card?",
+                "multiSelect": False,
+                "options": [
+                    {"label": "Core memory: Final Declaration (+1)"},
+                    {"label": "Skip"},
+                ],
+            },
+            {
+                "header": "Routing",
+                "question": "Route follow-ups through the lane worker?",
+                "multiSelect": False,
+                "options": [
+                    {"label": "Yes, opt-in"},
+                    {"label": "No"},
+                ],
+            },
+        ],
+        response={
+            "source": "tui",
+            "responded_at_unix": answered_start.timestamp() + 180,
+            "feedback": "",
+            "option_results": [
+                {
+                    "id": "submit",
+                    "result": {
+                        "answers": [
+                            {
+                                "question": "Land memory edits on the Context card?",
+                                "selected": ["Core memory: Final Declaration (+1)"],
+                                "custom_feedback": None,
+                            },
+                            {
+                                "question": "Route follow-ups through the lane worker?",
+                                "selected": ["No"],
+                                "custom_feedback": None,
+                            },
+                        ],
+                        "global_note": "Ship the lane first.",
+                    },
+                }
+            ],
+        },
+    )
+    _write_question_bundle(
+        bundles / "auto",
+        questions=[
+            {
+                "question": "Ship the flag default off?",
+                "multiSelect": False,
+                "options": [
+                    {"label": "Off"},
+                    {"label": "On"},
+                ],
+            }
+        ],
+        response={
+            "source": "auto_resolution",
+            "policy": {
+                "profile": "standard",
+                "rule": "gates.question",
+                "value": "first",
+            },
+            "option_results": [
+                {
+                    "id": "submit",
+                    "result": {
+                        "answers": [
+                            {
+                                "question": "Ship the flag default off?",
+                                "selected": ["Off"],
+                                "custom_feedback": None,
+                            }
+                        ],
+                        "global_note": "",
+                    },
+                }
+            ],
+        },
+    )
+    _write_question_bundle(
+        bundles / "pending",
+        questions=[
+            {
+                "question": "Ship flag default?",
+                "multiSelect": False,
+                "options": [
+                    {"label": "Off"},
+                    {"label": "On"},
+                    {"label": "Remove flag"},
+                ],
+            }
+        ],
+        response=None,
+    )
+
+    root = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="visual-questions-root",
+        project_file="/workspace/sase/visual_project.sase",
+        status="DONE",
+        start_time=_STARTED,
+        stop_time=_STARTED + timedelta(minutes=2),
+        raw_suffix="20260718130000-family-questions",
+        role_suffix="--plan",
+        agent_name=f"{_QUESTIONS_SESSION_NAME}--plan",
+        agent_session=_QUESTIONS_SESSION_NAME,
+        agent_session_role="plan",
+        plan_chain_root=True,
+        workspace_num=4,
+        llm_provider="claude",
+        model="opus",
+    )
+    asker = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="visual-questions-asker",
+        project_file="/workspace/sase/visual_project.sase",
+        status="DONE",
+        start_time=_STARTED + timedelta(minutes=4),
+        stop_time=_STARTED + timedelta(minutes=5),
+        raw_suffix="20260718130400-family-questions-asker",
+        parent_timestamp=root.raw_suffix,
+        role_suffix="--1",
+        agent_name=f"{_QUESTIONS_SESSION_NAME}--1",
+        agent_session=_QUESTIONS_SESSION_NAME,
+        agent_session_role="1",
+        workspace_num=5,
+        llm_provider="claude",
+        model="opus",
+    )
+
+    def question_gate(
+        slug: str,
+        suffix: str,
+        *,
+        state: str,
+        label: str,
+        minutes: int,
+    ) -> Agent:
+        started = _STARTED + timedelta(minutes=minutes)
+        terminal = state in {
+            "answered",
+            "completed",
+            "failed",
+            "timeout",
+            "stopped",
+            "lost",
+        }
+        status = "ANSWERED" if terminal else "QUESTION"
+        return Agent(
+            agent_type=AgentType.RUNNING,
+            cl_name=f"visual-questions-{slug}",
+            project_file="/workspace/sase/visual_project.sase",
+            status=status,
+            status_bucket=gate_member_status_bucket(state, status),
+            start_time=started,
+            run_start_time=started,
+            stop_time=started + timedelta(minutes=1) if terminal else None,
+            raw_suffix=f"2026071813{minutes:02d}00-family-questions-{slug}",
+            parent_timestamp=asker.raw_suffix,
+            role_suffix=suffix,
+            agent_name=f"{_QUESTIONS_SESSION_NAME}{suffix}",
+            agent_session=_QUESTIONS_SESSION_NAME,
+            agent_session_role="gate",
+            gate_id=f"gate-{slug}-visual-1234567890",
+            gate_kind="question",
+            gate_state=state,
+            gate_start_status="QUESTION",
+            gate_stop_status="ANSWERED",
+            gate_accent="#FFAF00",
+            gate_label=label,
+            gate_timeout_seconds=2700.0,
+            gate_elapsed_seconds=75.0 if terminal else 35.0,
+            gate_bundle_path=str(bundles / slug),
+            gate_creator_agent=asker.agent_name,
+            workspace_num=8,
+        )
+
+    rows = [
+        root,
+        asker,
+        question_gate(
+            "answered",
+            "--gate",
+            state="answered",
+            label="Land memory edits on the Context card?",
+            minutes=6,
+        ),
+        question_gate(
+            "auto",
+            "--gate-0",
+            state="answered",
+            label="Ship the flag default off?",
+            minutes=8,
+        ),
+        question_gate(
+            "pending",
+            "--gate-1",
+            state="pending",
+            label="Ship flag default?",
+            minutes=9,
+        ),
+    ]
     _apply_status_overrides(rows)
     return sort_and_reorder(rows, [])
 

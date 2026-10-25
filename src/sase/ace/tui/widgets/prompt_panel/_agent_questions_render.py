@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from datetime import datetime
-from typing import Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
 from rich.cells import cell_len
 from rich.text import Text
@@ -28,6 +28,9 @@ from sase.question_gate_turn.projection import (
 )
 
 from ...models.fold_state import FoldLevel
+
+if TYPE_CHECKING:
+    from ...models.agent_question_rounds import QuestionRoundStub
 
 _PENDING_ACCENT = "#FFAF00"
 _ANSWERED_ACCENT = "#5FD7FF"
@@ -525,10 +528,42 @@ def render_question_round(
     return render_question_rounds((round,), level=level, now=now)
 
 
+def render_question_stub_lines(
+    stubs: Sequence[QuestionRoundStub],
+) -> Text:
+    """Return the zero-I/O first-paint body: one dim line per stub.
+
+    Each line carries the member label, the gate-state status word, and the
+    gate label. Full question detail arrives later through the ``questions``
+    lane; this path performs no bundle reads.
+    """
+    text = Text()
+    if not stubs:
+        return text
+    width = max(cell_len(stub.member_label) for stub in stubs)
+    for stub in stubs:
+        word, _accent = _status_word(stub.gate_state or "unknown")
+        line = Text()
+        line.append(stub.member_label.ljust(width))
+        line.append("  ")
+        line.append(word)
+        title = stub.gate_label or stub.gate_id or ""
+        if title:
+            line.append("  ")
+            line.append(title)
+        _clip_line(line)
+        start = len(text)
+        text.append_text(line)
+        text.append("\n")
+        text.stylize("dim", start, len(text))
+    return text
+
+
 __all__ = [
     "QuestionNumberCursor",
     "QuestionRoundHeadingSource",
     "question_rounds_heading_suffix",
     "render_question_round",
     "render_question_rounds",
+    "render_question_stub_lines",
 ]

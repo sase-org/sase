@@ -219,6 +219,7 @@ def _gate_field_parts(
     first_number: int = 1,
     numbering: QuestionNumberCursor | None = None,
     now: datetime | None = None,
+    include_question_body: bool = True,
 ) -> list[object]:
     parts: list[object] = []
     text = prefix if prefix is not None else Text(end="")
@@ -282,11 +283,16 @@ def _gate_field_parts(
         text.append("\n")
 
     if agent.gate_kind == "question":
+        # A gate row's Context card already shows this round in its
+        # QUESTIONS section, so the GATE section keeps only the shared
+        # fields here. Session Reply GATE phases keep the presenter body.
+        parts.append(text)
+        if not include_question_body:
+            return parts
         # Use-site import: the presenter stays out of the TUI startup
         # closure (see test_tui_app_import_stays_under_startup_budget).
         from ._agent_questions_render import render_question_round
 
-        parts.append(text)
         numbered = _question_numbered_round(agent, first_number=first_number)
         if numbering is not None:
             numbered = replace(
@@ -327,7 +333,9 @@ def build_gate_section(
         style=_COLOR_HEADER,
     )
     text.append_text(heading)
-    return _gate_field_parts(agent, prefix=text, level=level)
+    return _gate_field_parts(
+        agent, prefix=text, level=level, include_question_body=False
+    )
 
 
 def build_gate_output(

@@ -332,7 +332,7 @@ def _flatten(parts: list[object]) -> Text:
     return text
 
 
-def test_question_gate_section_replaces_option_json_dump(
+def test_question_gate_section_defers_body_to_questions_section(
     tmp_path: Path, question_binding: None
 ) -> None:
     text = _flatten(
@@ -341,10 +341,8 @@ def test_question_gate_section_replaces_option_json_dump(
         )
     ).plain
 
-    assert "ANSWERED" in text
-    assert "human via TUI" in text
-    assert "3m after asking" in text
-    assert "Q1 Deploy" in text
+    assert "Q1 Deploy" not in text
+    assert "human via TUI" not in text
     assert "Option JSON" not in text
     assert "Branches:" not in text
 
@@ -375,6 +373,21 @@ def test_question_gate_section_collapsed_hides_presenter_body(
     assert "Q1 " not in text
     assert "human via TUI" not in text
     assert "Ship it?" in text
+
+
+def test_question_gate_phase_keeps_presenter_body(
+    tmp_path: Path, question_binding: None
+) -> None:
+    text = _flatten(
+        build_gate_phase(_question_gate_agent(tmp_path), annotate=_annotate)
+    ).plain
+
+    assert "ANSWERED" in text
+    assert "human via TUI" in text
+    assert "3m after asking" in text
+    assert "Q1 Deploy" in text
+    assert "Option JSON" not in text
+    assert "Branches:" not in text
 
 
 def test_non_question_gate_keeps_option_json_dump(tmp_path: Path) -> None:
