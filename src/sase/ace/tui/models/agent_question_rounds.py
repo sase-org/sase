@@ -14,6 +14,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from sase.core.time import parse_local
+
 from .agent import Agent
 from .agent_session_members import (
     agent_session_roster_container,
@@ -56,7 +58,14 @@ def _asked_at_unix(row: Agent) -> float | None:
     start = row.run_start_time or row.start_time
     if start is None:
         return None
-    return start.timestamp()
+    # Model datetimes are naive configured-tz wall times (suffix parses and
+    # ``to_local`` normalizations); interpret them through the configured-time
+    # adapter so a divergent system clock cannot shift the epoch. Aware values
+    # keep their instant.
+    parsed = parse_local(start)
+    if parsed is None:
+        return None
+    return parsed.timestamp()
 
 
 def _deadline_unix(row: Agent) -> float | None:

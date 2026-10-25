@@ -381,13 +381,19 @@ def _resolve_question_rounds(agent: Agent) -> tuple[NumberedQuestionRound, ...]:
         load_question_round,
     )
 
+    from sase.core.time import parse_local
+
     session_rows = session_question_gate_rows(agent)
     in_scope_identities = {row.identity for row in question_rows_in_scope(agent)}
     numbered: list[NumberedQuestionRound] = []
     next_number = 1
     for round_index, row in enumerate(session_rows):
         start = row.run_start_time or row.start_time
-        asked_at_unix = start.timestamp() if start is not None else None
+        parsed = parse_local(start) if start is not None else None
+        # Model datetimes are naive configured-tz wall times; normalize through
+        # the configured-time adapter so a divergent system clock cannot shift
+        # the epoch, then derive the deadline from the normalized epoch.
+        asked_at_unix = parsed.timestamp() if parsed is not None else None
         deadline_unix: float | None = None
         if row.gate_timeout_seconds is not None and asked_at_unix is not None:
             deadline_unix = asked_at_unix + row.gate_timeout_seconds

@@ -26,6 +26,7 @@ from sase.ace.tui.widgets.prompt_panel._agent_questions_render import (
     QuestionNumberCursor,
 )
 from sase.core.rust import RUST_EXTENSION_MODULE_NAME
+from sase.core.time import get_timezone
 
 import sase_core_rs as _real_extension
 
@@ -223,11 +224,16 @@ def test_sudo_gate_answered_phase_uses_settled_label(tmp_path: Path) -> None:
 
 
 def _question_wire(gate_id: str, *, question: str, selected: str) -> dict[str, Any]:
+    # Naive wall times are configured-tz wall times; attach the configured
+    # timezone before converting so the canned epochs do not drift when the
+    # system clock differs.
+    asked_at = datetime(2026, 8, 12, 9, 0, 0).replace(tzinfo=get_timezone())
+    responded_at = datetime(2026, 8, 12, 9, 3, 0).replace(tzinfo=get_timezone())
     return {
         "schema_version": 1,
         "gate_id": gate_id,
         "asked_by": "alpha--0",
-        "asked_at_unix": datetime(2026, 8, 12, 9, 0, 0).timestamp(),
+        "asked_at_unix": asked_at.timestamp(),
         "status": "answered",
         "gate_state": "answered",
         "data_state": "complete",
@@ -254,7 +260,7 @@ def _question_wire(gate_id: str, *, question: str, selected: str) -> dict[str, A
             "channel": "tui",
             "actor": "human",
             "policy": None,
-            "responded_at_unix": datetime(2026, 8, 12, 9, 3, 0).timestamp(),
+            "responded_at_unix": responded_at.timestamp(),
         },
         "cancellation": None,
     }
@@ -330,6 +336,26 @@ def _flatten(parts: list[object]) -> Text:
         assert isinstance(part, Text)
         text.append_text(part)
     return text
+
+
+def test_question_numbered_round_normalizes_naive_model_times(
+    tz_divergence: None, tmp_path: Path
+) -> None:
+    """The gate Reply fallback reads naive model starts as configured-local.
+
+    The agent's naive ``run_start_time`` is an Eastern wall time; under a
+    divergent system clock (UTC here) the round epoch and its derived deadline
+    must match the configured-tz reading.
+    """
+    from sase.ace.tui.widgets.prompt_panel._agent_gate_section import (
+        _question_numbered_round,
+    )
+
+    numbered = _question_numbered_round(_question_gate_agent(tmp_path), first_number=1)
+
+    expected = datetime(2026, 8, 12, 9, 0, 0).replace(tzinfo=get_timezone()).timestamp()
+    assert numbered.view.asked_at_unix == pytest.approx(expected)
+    assert numbered.deadline_unix == pytest.approx(expected + 2700.0)
 
 
 def test_question_gate_section_defers_body_to_questions_section(

@@ -9,6 +9,8 @@ the zero-I/O stubs.
 
 from __future__ import annotations
 
+from datetime import datetime, timezone, UTC
+
 from sase.ace.tui.models.agent_question_rounds import (
     QuestionRoundStub,
     question_member_label,
@@ -17,6 +19,7 @@ from sase.ace.tui.models.agent_question_rounds import (
     questions_cache_key,
     session_question_gate_rows,
 )
+from sase.core.time import get_timezone
 from tests.ace.tui.models._agent_session_members_helpers import (
     make_agent,
     make_gate_member,
@@ -31,6 +34,7 @@ __all__ = [
     "test_numbering_offsets_are_session_wide",
     "test_scope_caps_at_fifty_newest",
     "test_stubs_carry_first_paint_fields",
+    "test_stubs_interpret_naive_model_times_in_configured_timezone",
 ]
 
 
@@ -149,6 +153,35 @@ def test_scope_caps_at_fifty_newest() -> None:
     assert len(rows) == 50
     assert rows[0].gate_id == "g10"
     assert rows[-1].gate_id == "g59"
+
+
+def test_stubs_interpret_naive_model_times_in_configured_timezone(
+    tz_divergence: None,
+) -> None:
+    """Naive model starts convert through the configured-time adapter.
+
+    A bare ``.timestamp()`` would read the naive wall time in the system
+    timezone (UTC under this fixture) instead of the configured Eastern zone,
+    shifting the stub epoch by the 5-hour January offset.
+    """
+    _root, _plan, first, _second, _gate, gate0, _gate1 = _question_session()
+    naive_start = datetime(2026, 1, 15, 14, 2, 0)
+    gate0.run_start_time = naive_start
+    gate0.gate_timeout_seconds = 3600.0
+
+    (stub,) = question_round_stubs(first)
+
+    expected = naive_start.replace(tzinfo=get_timezone()).timestamp()
+    assert stub.asked_at_unix == expected
+    assert stub.deadline_unix == expected + 3600.0
+
+    # An aware timestamp for the same instant keeps its instant.
+    gate0.run_start_time = naive_start.replace(tzinfo=get_timezone()).astimezone(UTC)
+
+    (aware_stub,) = question_round_stubs(first)
+
+    assert aware_stub.asked_at_unix == expected
+    assert aware_stub.deadline_unix == expected + 3600.0
 
 
 def test_stubs_carry_first_paint_fields() -> None:

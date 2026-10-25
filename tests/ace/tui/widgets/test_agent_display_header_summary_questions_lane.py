@@ -8,6 +8,7 @@ during the zero-I/O immediate paint. This phase changes no rendering.
 from __future__ import annotations
 
 import json
+from datetime import datetime
 from pathlib import Path
 
 import pytest
@@ -30,6 +31,7 @@ from sase.ace.tui.widgets.prompt_panel._agent_display_state import (
     ALL_DETAIL_CONTEXT_LANES,
     DetailHeaderSummary,
 )
+from sase.core.time import get_timezone
 from sase.question_gate_turn.projection import (
     NumberedQuestionRound,
     QuestionEntryView,
@@ -48,6 +50,7 @@ __all__ = [
     "test_partial_lane_request_resolves_only_questions",
     "test_questions_lane_emits_trace_span",
     "test_questions_lane_is_not_a_context_lane",
+    "test_resolver_normalizes_naive_model_times_to_configured_timezone",
     "test_resolver_numbers_session_wide_and_filters_scope",
 ]
 
@@ -104,6 +107,42 @@ def _fake_views(monkeypatch: pytest.MonkeyPatch) -> None:
         "sase.question_gate_turn.projection.load_question_round",
         lambda **kwargs: views[kwargs["gate_id"]],
     )
+
+
+def test_resolver_normalizes_naive_model_times_to_configured_timezone(
+    tz_divergence: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The lane resolves naive model starts through the configured timezone.
+
+    Under a divergent system clock (UTC here, Eastern configured), the epoch
+    handed to the bundle loader and the deadline derived from it must match
+    the configured-tz wall reading, not the system-tz reading.
+    """
+    seen: dict[str, object] = {}
+
+    def _echo(**kwargs: object) -> QuestionRoundView:
+        seen[kwargs["gate_id"]] = kwargs["asked_at_unix"]  # type: ignore[index]
+        return QuestionRoundView(
+            gate_id=kwargs["gate_id"],  # type: ignore[arg-type]
+            status="pending",
+            data_state="complete",
+            asked_at_unix=kwargs["asked_at_unix"],  # type: ignore[arg-type]
+            entries=(QuestionEntryView(question="Third?"),),
+        )
+
+    monkeypatch.setattr("sase.question_gate_turn.projection.load_question_round", _echo)
+    root, _plan, _first, gate0 = _question_session()
+    naive_start = datetime(2026, 1, 15, 14, 2, 0)
+    gate0.run_start_time = naive_start
+    gate0.gate_timeout_seconds = 3600.0
+
+    summary = build_detail_header_summary(root, lanes=frozenset({"questions"}))
+
+    expected = naive_start.replace(tzinfo=get_timezone()).timestamp()
+    assert seen["g1"] == expected
+    by_gate = {round.view.gate_id: round for round in summary.question_rounds}
+    assert by_gate["g1"].view.asked_at_unix == expected
+    assert by_gate["g1"].deadline_unix == expected + 3600.0
 
 
 def test_resolver_numbers_session_wide_and_filters_scope(

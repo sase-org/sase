@@ -8,6 +8,7 @@ from rich.text import Text
 
 from sase.ace.tui.models.agent_question_rounds import QuestionRoundStub
 from sase.ace.tui.models.fold_state import FoldLevel
+from sase.core.time import get_timezone
 from sase.ace.tui.widgets.prompt_panel._agent_questions_render import (
     QuestionNumberCursor,
     question_rounds_heading_suffix,
@@ -31,6 +32,14 @@ def _now() -> datetime:
 
 
 def _unix(moment: datetime) -> float:
+    """Interpret naive fixture wall time in the configured timezone.
+
+    Fixture datetimes are naive Eastern wall times (see
+    ``_pin_configured_timezone``); a bare ``.timestamp()`` would read them in
+    the system timezone and drift whenever the system clock differs.
+    """
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=get_timezone())
     return moment.timestamp()
 
 

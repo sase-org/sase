@@ -13,7 +13,7 @@ from rich.text import Text
 
 from sase.ace.hooks.timestamps import format_duration
 from sase.agent.artifact_files_cache import get_global_cache
-from sase.core.time import local_now
+from sase.core.time import local_now, parse_local
 from sase.gate_turn.naming import short_gate_turn_id
 
 if TYPE_CHECKING:
@@ -189,12 +189,14 @@ def _question_numbered_round(
     )
 
     start = agent.run_start_time or agent.start_time
-    asked_at_unix = start.timestamp() if isinstance(start, datetime) else None
+    # Model datetimes are naive configured-tz wall times; normalize through
+    # the configured-time adapter so a divergent system clock cannot shift the
+    # epoch, then derive the deadline from the normalized epoch plus duration.
+    parsed = parse_local(start) if isinstance(start, datetime) else None
+    asked_at_unix = parsed.timestamp() if parsed is not None else None
     deadline_unix: float | None = None
-    if isinstance(start, datetime) and agent.gate_timeout_seconds is not None:
-        deadline_unix = (
-            start + timedelta(seconds=agent.gate_timeout_seconds)
-        ).timestamp()
+    if asked_at_unix is not None and agent.gate_timeout_seconds is not None:
+        deadline_unix = asked_at_unix + agent.gate_timeout_seconds
     member_label = (agent.role_suffix or "").lstrip("-") or "gate"
     view = load_question_round(
         gate_id=agent.gate_id or "",

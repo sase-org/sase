@@ -24,6 +24,7 @@ from sase.ace.tui.widgets.prompt_panel._agent_questions_section import (
 from sase.ace.tui.widgets.prompt_panel._agent_display_state import (
     DetailHeaderSummary,
 )
+from sase.core.time import get_timezone
 from sase.question_gate_turn.projection import (
     NumberedQuestionRound,
     QuestionAnswerView,
@@ -41,6 +42,13 @@ from tests.ace.tui.widgets._agent_display_metadata_helpers import (
 )
 
 _NOW = datetime(2026, 7, 19, 12, 0, 0)
+
+
+def _unix(moment: datetime) -> float:
+    """Interpret naive fixture wall time in the configured timezone."""
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=get_timezone())
+    return moment.timestamp()
 
 
 def _question_session() -> tuple[object, object, object, object, object]:
@@ -78,7 +86,7 @@ def _answered_round() -> NumberedQuestionRound:
         status="answered",
         data_state="complete",
         gate_state="answered",
-        asked_at_unix=_NOW.timestamp() - 180,
+        asked_at_unix=_unix(_NOW) - 180,
         entries=(
             QuestionEntryView(
                 index=0,
@@ -97,7 +105,7 @@ def _answered_round() -> NumberedQuestionRound:
         provenance=QuestionProvenanceView(
             channel="tui",
             actor="human",
-            responded_at_unix=_NOW.timestamp(),
+            responded_at_unix=_unix(_NOW),
         ),
     )
     return NumberedQuestionRound(view=view, first_number=1, member_label="gate")
@@ -109,7 +117,7 @@ def _pending_round() -> NumberedQuestionRound:
         status="pending",
         data_state="complete",
         gate_state="pending",
-        asked_at_unix=_NOW.timestamp() - 60,
+        asked_at_unix=_unix(_NOW) - 60,
         entries=(
             QuestionEntryView(
                 index=0,
@@ -127,7 +135,7 @@ def _pending_round() -> NumberedQuestionRound:
         view=view,
         first_number=2,
         member_label="gate-0",
-        deadline_unix=_NOW.timestamp() + 3600,
+        deadline_unix=_unix(_NOW) + 3600,
     )
 
 
