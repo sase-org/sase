@@ -1,9 +1,0 @@
-stty: 'standard input': Inappropriate ioctl for device
-host=athena
-project=sase
-source=/home/bryan/.sase/projects/gh_sase-org__sase/agents-publication-outbox.json
-backup=/home/bryan/.sase/recovery-backups/sase-1nv.5/athena-sase-20261024T200112Z/agents-publication-outbox.json
-expected_sha256=cb08ac3e41bd01e6531bdffd964bfaa12cce3e017e801cccf6150e6f5ef1112e
-source_pre_sha256=166f3987b00e3149a09a925efb00d93e8251a8f167ecd016011ae68cef8d6e76
-backup_pre_sha256=cb08ac3e41bd01e6531bdffd964bfaa12cce3e017e801cccf6150e6f5ef1112e
-preflight=FAILED

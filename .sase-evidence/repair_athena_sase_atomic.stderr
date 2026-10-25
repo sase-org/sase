@@ -1,4 +1,0 @@
-stty: 'standard input': Inappropriate ioctl for device
-jq: error: syntax error, unexpected ';', expecting '|' (Unix shell quoting issues?) at <top-level>, line 1:
-[.items[] as $row | select(any($unresolved[] as $u; $u.agent == $row.global_agent and ($u.rev == $row.primary_revision or ($row.primary_revision | startswith($u.rev))))) | $row] | sort_by(.id)                                                  
-jq: 1 compile error
