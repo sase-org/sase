@@ -345,6 +345,24 @@ the preferred card.
   uses a separate `Queue:` line led by its rank and elapsed time since
   `slot_requested_at`, followed by cap context. It deliberately suppresses the marker's
   stale dependency, bead, and time-wait fields.
+- **QUESTIONS**: Every `/sase_questions` round in the selected session, on the Context
+  card immediately before OUTPUT VARIABLES. Each round shows its member label (`gate`,
+  `gate-0`, …), a status word (`QUESTION`, `ANSWERED`, `QUESTION TIMED OUT`, `QUESTION
+  CANCELLED`, `QUESTION FAILED`, `QUESTION LOST`), who answered and how (`human via
+  TUI` / `Telegram` / `mobile` / `CLI`, `agent via <channel>`, or a `⚠ auto policy
+  (<profile> · <rule>=<value>) · no human` warning), and each question with its settled
+  answer. The recommendation is positional: the first-listed option is the recommended
+  one. A `★` marks an answer that followed the recommendation, `≠★` marks one that chose
+  another option or wrote "Other", and option-less questions carry free-text answers with
+  no recommendation. Questions number Q1…Qn continuously across every round in causal
+  order, so a question keeps its number whether you view the session container (all
+  rounds), the asking turn (the rounds it asked), or the gate row (its own round). The
+  first paint shows the heading counts plus one dim line per round with no disk reads;
+  full detail arrives through the `questions` lane. On a session container the section
+  follows the session fold (`za` collapses it and `,/` finds its text); on other rows it
+  is a plain section heading. A question gate's GATE section and its session Reply phase
+  render the same round instead of the old Option JSON dump; other gate kinds are
+  unchanged.
 - **OUTPUT VARIABLES**: Small JSON-shaped values written by the selected agent session
   with `sase var set` and by `sase artifact create` (the SASE-managed `artifacts` list).
   Strings, numbers, booleans, null, lists, and nested maps retain their types. A single
